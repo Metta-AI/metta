@@ -1,4 +1,6 @@
 # Maximilian Beck
+from typing import Optional
+
 import torch
 import triton
 import triton.language as tl
@@ -61,6 +63,7 @@ def _forward_sequence_kernel(
     b,  # (NH, NGI, DH)
     states_all,  # (NH, T, NS, B, DH)
     gates_all,  # (NH, T, NGI, B, DH)
+    resets,  # (T, B) per-timestep reset mask (optional)
     # dimensions,
     T: tl.constexpr,  # sequence length
     NS: tl.constexpr,  # number of states
@@ -73,6 +76,7 @@ def _forward_sequence_kernel(
     TK: tl.constexpr,  # tile size along K dimension
     TN: tl.constexpr,  # output-column tile size (must be const)
     OUTPUT_GATES: tl.constexpr,
+    HAS_RESETS: tl.constexpr,
     DTYPE: tl.constexpr = tl.float32,
 ):
     idx_b_NH, idx_b_B = tl.program_id(0), tl.program_id(1)
@@ -182,6 +186,21 @@ def _forward_sequence_kernel(
     b_o_base = b + idx_b_NH * NGI * DH + 3 * DH
 
     for idx_t in range(T):
+        reset_vals = tl.zeros((siz_B,), dtype=tl.float32)
+        if HAS_RESETS:
+            row_idx = idx_b_B * siz_B + tl.arange(0, siz_B)
+            reset_vals = tl.load(
+                resets + idx_t * B + row_idx,
+                mask=row_idx < B,
+                other=0.0,
+            ).to(tl.float32)
+        reset_keep = 1.0 - reset_vals
+
+        matHtrans = matHtrans * reset_keep[:, None]
+        matCtrans = matCtrans * reset_keep[:, None]
+        matNtrans = matNtrans * reset_keep[:, None]
+        matMtrans = matMtrans * reset_keep[:, None]
+
         # Tile across output columns N with constant TN
 
         for n0 in range(0, DH, TN):
@@ -290,6 +309,7 @@ def _forward_sequence_kernel(
                 order=(0, 1),
             )
             matC_t_tile = tl.load(c_t_tile_ptr)
+            matC_t_tile = matC_t_tile * reset_keep[:, None]
 
             n_t_tile_ptr = tl.make_block_ptr(
                 base=states_all + idx_b_NH * str_matStatesAll_NH + (idx_t) * str_matStatesAll_T + 2 * B * DH,
@@ -300,6 +320,7 @@ def _forward_sequence_kernel(
                 order=(0, 1),
             )
             matN_t_tile = tl.load(n_t_tile_ptr)
+            matN_t_tile = matN_t_tile * reset_keep[:, None]
 
             m_t_tile_ptr = tl.make_block_ptr(
                 base=states_all + idx_b_NH * str_matStatesAll_NH + (idx_t) * str_matStatesAll_T + 3 * B * DH,
@@ -310,6 +331,7 @@ def _forward_sequence_kernel(
                 order=(0, 1),
             )
             matM_t_tile = tl.load(m_t_tile_ptr)
+            matM_t_tile = matM_t_tile * reset_keep[:, None]
 
             # Gate preactivations for tile
             matIbar_tile = matIx_tile + matRh_i_tile + vecBi_tile[None, :]
@@ -460,10 +482,11 @@ def _forward_sequence_kernel(
 
 
 def forward_sequence(
-    states_initial: torch.Tensor,  # (NS, B, NH, DH) initial states (h state, c state etc. (h state is used for recurrent weights and is always first))
+    states_initial: torch.Tensor,  # (NS, B, NH, DH) initial states (h/c/n/m; h used for recurrence)
     Wx: torch.Tensor,  # (B, T, NGI, NH, DH) inputs
     R: torch.Tensor,  # (NGR, NH, Dout, Din) recurrent weights (Dout == Din == D)
     b: torch.Tensor,  # (NGI, NGI, DH) biases
+    resets: Optional[torch.Tensor] = None,  # (B, T) reset mask applied before timestep updates
     output_gates_and_states_initial: bool = False,
 ) -> (
     tuple[
@@ -498,6 +521,16 @@ def forward_sequence(
 
     assert R.dtype == dtype, f"dtype mismatch: R.dtype: {R.dtype}, Wx.dtype: {dtype}."
 
+    has_resets = resets is not None
+    resets_prepared: Optional[torch.Tensor]
+    if has_resets:
+        if resets.dim() == 1:
+            resets = resets.unsqueeze(1).expand(B, T)
+        assert resets.shape == (B, T), f"resets must have shape (B, T); got {resets.shape}"
+        resets_prepared = resets.to(device=device, dtype=torch.float32, non_blocking=True)
+    else:
+        resets_prepared = None
+
     assert is_power_of_2(DH), f"DH must be a power of 2, got {DH}."
     MIN_BATCH_SIZE = 16  # we need at least 16 batches for tl.dot() (16x16 tensor cores)
     ## batch size padding to be a multiple of MIN_BATCH_SIZE
@@ -517,7 +550,22 @@ def forward_sequence(
             ],
             dim=0,
         )
+        if has_resets:
+            assert resets_prepared is not None  # for type checkers
+            resets_prepared = torch.cat(
+                [
+                    resets_prepared,
+                    torch.zeros([effective_B - B, T], device=device, dtype=resets_prepared.dtype),
+                ],
+                dim=0,
+            )
     ## end of batch size padding
+
+    if has_resets:
+        assert resets_prepared is not None
+        resets_kshaped = resets_prepared.t().contiguous()
+    else:
+        resets_kshaped = torch.empty((0,), device=device, dtype=torch.float32)
 
     states_all = torch.empty([NH, T + 1, NS, effective_B, DH], device=device, dtype=dtype)
 
@@ -550,9 +598,6 @@ def forward_sequence(
         g = (NH, triton.cdiv(B, siz_B))
         return g
 
-    # Choose an output tile size based on head_dim to reduce shared memory pressure
-    TN = 16 if DH >= 128 else 32
-
     _forward_sequence_kernel[grid](
         states_initial=states_initial_kshaped,
         Wx=Wx_kshaped,
@@ -567,7 +612,9 @@ def forward_sequence(
         DH=DH,
         NGI=NGI,
         NGR=NGR,
+        resets=resets_kshaped,
         OUTPUT_GATES=output_gates_and_states_initial,
+        HAS_RESETS=has_resets,
         DTYPE=torch2triton_dtype(dtype),
     )
 

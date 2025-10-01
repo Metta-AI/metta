@@ -1,11 +1,12 @@
 # Maximilian Beck
-import triton.language as tl
-import triton
+from typing import Optional
+
 import torch
-from triton import OutOfResources
+import triton
+import triton.language as tl
 from einops import rearrange
-from .triton_utils import torch2triton_dtype, is_power_of_2, next_multiple_of
-from typing import Callable
+
+from .triton_utils import is_power_of_2, next_multiple_of, torch2triton_dtype
 
 # Dimensions:
 # B: batch size
@@ -40,6 +41,7 @@ def _backward_sequence_kernel(
     R,  # (NH, NGR, DHout, DHin) recurrent weights
     states_all,  # (NH, T+1, NS=4, B, DH) all states
     gates_all,  # (NH, T, NGI, B, DH) all gates
+    resets,  # (T, B) per-timestep reset mask (optional)
     # outputs
     delta_states_initial,  # (NH, NS=4, B, DH) delta errors to initial states
     delta_Wx,  # (NH, T, NGI, B, DH) delta errors to inputs
@@ -56,12 +58,12 @@ def _backward_sequence_kernel(
     siz_B: tl.constexpr,  # the number of batches per thread block
     # consts
     DTYPE: tl.constexpr = tl.float32,
+    HAS_RESETS: tl.constexpr = False,
     backward_recurrent_clip_val: tl.constexpr = -1.0,  # if > 0, clip the recurrent gradients
 ):
     idx_b_NH, idx_b_B = tl.program_id(0), tl.program_id(1)
 
     ## compute the strides
-    str_matR_B = NH * NGR * DH * DH
     str_matR_NH = NGR * DH * DH
     str_matR_NGR = DH * DH
     str_matStatesAll_NH = (T + 1) * NS * B * DH
@@ -166,6 +168,15 @@ def _backward_sequence_kernel(
 
     ## loop over the sequence from T-1 to 0 (inclduding 0)
     for idx_t in range(T - 1, -1, -1):
+        reset_vals = tl.zeros((siz_B,), dtype=tl.float32)
+        if HAS_RESETS:
+            row_idx = idx_b_B * siz_B + tl.arange(0, siz_B)
+            reset_vals = tl.load(
+                resets + idx_t * B + row_idx,
+                mask=row_idx < B,
+                other=0.0,
+            ).to(tl.float32)
+        reset_keep = 1.0 - reset_vals
         ## load gate activations G for the current time step idx_t
         # gates in float32 as tl.exp and tl.log are not supported in (b)float16
         matG_i_ptr = tl.make_block_ptr(
@@ -281,7 +292,7 @@ def _backward_sequence_kernel(
         )
         matM_tminus1 = tl.load(matM_tminus1_ptr).to(tl.float32)  # (siz_B, DH)
 
-        ## load the delta errors delta_h_t, delta_c_t, delta_n_t of the states from outside for the current time step idx_t
+        ## load delta errors (delta_h_t, delta_c_t, delta_n_t) from outside for timestep idx_t
         matDeltaHtrans_out_t_ptr = tl.make_block_ptr(
             base=delta_states_all_outside
             + idx_b_NH * str_delta_states_all_outside_NH
@@ -360,6 +371,11 @@ def _backward_sequence_kernel(
         vecDeltaB_f += tl.sum(matDeltaGF, axis=0)  # (DH,)
         vecDeltaB_z += tl.sum(matDeltaGZ, axis=0)  # (DH,)
         vecDeltaB_o += tl.sum(matDeltaGO, axis=0)  # (DH,)
+
+        keep_broadcast = reset_keep[:, None]
+        matDeltaH_tminus1 = matDeltaH_tminus1 * keep_broadcast
+        matDeltaC_tminus1 = matDeltaC_tminus1 * keep_broadcast
+        matDeltaN_tminus1 = matDeltaN_tminus1 * keep_broadcast
 
         ## store the deltaGate errors
         matDeltaGI_ptr = tl.make_block_ptr(
@@ -511,6 +527,7 @@ def backward_sequence(
     R: torch.Tensor,  # (NGR, NH, Dout, Din) recurrent weights
     states_all: torch.Tensor,  # (T+1, NS, B, NH, D) all states
     gates_all: torch.Tensor,  # (T, NGI, B, NH, D) all gates
+    resets: Optional[torch.Tensor] = None,  # (B, T) reset mask
     backward_recurrent_clip_val: float | None = None,
     siz_B: int = 16,
     true_B: int | None = None,
@@ -549,6 +566,16 @@ def backward_sequence(
         f"dtype mismatch: delta_states_last.dtype: {R.dtype}, R.dtype: {dtype}."
     )
 
+    has_resets = resets is not None
+    resets_prepared: Optional[torch.Tensor]
+    if has_resets:
+        if resets.dim() == 1:
+            resets = resets.unsqueeze(1).expand(true_B, T)
+        assert resets.shape == (true_B, T), f"resets must have shape (B, T); got {resets.shape}"
+        resets_prepared = resets.to(device=device, dtype=torch.float32, non_blocking=True)
+    else:
+        resets_prepared = None
+
     assert is_power_of_2(DH), f"head dimension must be a power of 2, got {DH}."
 
     MIN_BATCH_SIZE = 16  # we need at least 16 batches for tl.dot() (16x16 tensor cores)
@@ -569,6 +596,21 @@ def backward_sequence(
             ],
             dim=1,
         )
+        if has_resets:
+            assert resets_prepared is not None
+            resets_prepared = torch.cat(
+                [
+                    resets_prepared,
+                    torch.zeros([effective_B - true_B, T], dtype=resets_prepared.dtype, device=device),
+                ],
+                dim=0,
+            )
+
+    if has_resets:
+        assert resets_prepared is not None
+        resets_kshaped = resets_prepared.t().contiguous()
+    else:
+        resets_kshaped = torch.empty((0,), device=device, dtype=torch.float32)
 
     # Reshapes for kernel
     R_kshaped = rearrange(R, "ngr nh dout din -> nh ngr dout din").contiguous()
@@ -598,6 +640,7 @@ def backward_sequence(
         R=R_kshaped,
         states_all=states_all_kshaped,
         gates_all=gates_all_kshaped,
+        resets=resets_kshaped,
         delta_states_initial=delta_states_initial,
         delta_Wx=delta_Wx,
         delta_R=delta_R,
@@ -611,6 +654,7 @@ def backward_sequence(
         NGR=NGR,
         siz_B=siz_B,
         DTYPE=torch2triton_dtype(dtype),
+        HAS_RESETS=has_resets,
         backward_recurrent_clip_val=backward_recurrent_clip_val,
         num_warps=4,
     )

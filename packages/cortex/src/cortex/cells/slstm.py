@@ -8,13 +8,13 @@ from tensordict import TensorDict
 
 from cortex.cells.base import MemoryCell
 from cortex.cells.conv import CausalConv1d
-from cortex.cells.registry import register_cell
-from cortex.config import CausalConv1dConfig, sLSTMCellConfig
-from cortex.types import MaybeState, ResetMask, Tensor
-from cortex.kernels import TRITON_AVAILABLE, slstm_sequence_pytorch, slstm_sequence_triton
 
 # Reuse utilities from mLSTM for normalization and init
 from cortex.cells.mlstm import MultiHeadLayerNorm, bias_linspace_init_
+from cortex.cells.registry import register_cell
+from cortex.config import CausalConv1dConfig, sLSTMCellConfig
+from cortex.kernels import TRITON_AVAILABLE, slstm_sequence_pytorch, slstm_sequence_triton
+from cortex.types import MaybeState, ResetMask, Tensor
 
 
 class _HeadwiseLinearExpand(nn.Module):
@@ -137,7 +137,6 @@ class sLSTMCell(MemoryCell):
         nn.init.zeros_(self.recurrent_kernel)
         # Gate projections small init via submodules
         # Biases: forget gate positive, others zero
-        H = self.head_dim
         for h in range(self.num_heads):
             # order: [i, f, z, o] -> index 1 is forget
             bias_linspace_init_(self.bias[h, 1], start=3.0, end=6.0)
@@ -224,13 +223,27 @@ class sLSTMCell(MemoryCell):
         n_prev = st.get("n")
         m_prev = st.get("m")
 
-        # Resets (step-wise). For sequences, left as TODO
-        if resets is not None and is_step:
-            mask = resets.to(dtype=y_prev.dtype).view(B, 1)
-            y_prev = y_prev * (1.0 - mask)
-            c_prev = c_prev * (1.0 - mask)
-            n_prev = n_prev * (1.0 - mask)
-            m_prev = m_prev * (1.0 - mask)
+        # Handle resets - prepare for kernel dispatch
+        # For step mode, apply resets to initial states before kernel call
+        # For sequence mode, pass resets to kernel to apply per-timestep
+        kernel_resets: Optional[torch.Tensor] = None
+        if resets is not None:
+            if is_step:
+                # Step mode: apply reset to initial states
+                mask = resets.to(dtype=y_prev.dtype).view(B, 1)
+                y_prev = y_prev * (1.0 - mask)
+                c_prev = c_prev * (1.0 - mask)
+                n_prev = n_prev * (1.0 - mask)
+                m_prev = m_prev * (1.0 - mask)
+            else:
+                # Sequence mode: prepare resets for kernel (B, T)
+                # resets could already be (B, T) or might need reshaping
+                if resets.dim() == 1:
+                    # If (B,) broadcast to (B, T)
+                    kernel_resets = resets.unsqueeze(1).expand(B, T)
+                else:
+                    # Already (B, T)
+                    kernel_resets = resets
 
         # Extract conv state dict (if present)
         conv_state_in: MaybeState
@@ -288,6 +301,7 @@ class sLSTMCell(MemoryCell):
                 R=R,
                 b=b,
                 initial_states=states0,
+                resets=kernel_resets,
             )
         else:
             # Run PyTorch kernel (ground truth)
@@ -296,6 +310,7 @@ class sLSTMCell(MemoryCell):
                 R=R,
                 b=b,
                 initial_states=states0,
+                resets=kernel_resets,
             )
 
         # Extract outputs from kernel results

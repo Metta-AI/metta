@@ -1,8 +1,13 @@
-import torch
-from torch.amp import custom_fwd, custom_bwd
+from typing import Optional
 
-from ..triton_fused.slstm_fw import forward_sequence as slstm_forward_sequence
-from ..triton_fused.slstm_bw import backward_sequence as slstm_backward_sequence
+import torch
+from cortex.kernels.slstm_triton.triton_fused.slstm_bw import (
+    backward_sequence as slstm_backward_sequence,
+)
+from cortex.kernels.slstm_triton.triton_fused.slstm_fw import (
+    forward_sequence as slstm_forward_sequence,
+)
+from torch.amp import custom_bwd, custom_fwd
 
 
 def _rnn_fwbw_generator(autocast_kernel_dtype: torch.dtype) -> torch.autograd.Function:
@@ -15,6 +20,7 @@ def _rnn_fwbw_generator(autocast_kernel_dtype: torch.dtype) -> torch.autograd.Fu
             Wx: torch.Tensor,  # (B, T, NGI, NH, D)
             R: torch.Tensor,  # (NGR, NH, Dout, Din)
             b: torch.Tensor,  # (NGI, NH, D)
+            resets: Optional[torch.Tensor] = None,  # (B, T) reset mask
             backward_recurrent_clip_val: float | None = None,
         ) -> tuple[torch.Tensor, torch.Tensor]:
             true_batch_size = Wx.size(0)
@@ -23,9 +29,12 @@ def _rnn_fwbw_generator(autocast_kernel_dtype: torch.dtype) -> torch.autograd.Fu
                 Wx=Wx,
                 R=R,
                 b=b,
+                resets=resets,
                 output_gates_and_states_initial=True,
             )
-            ctx.save_for_backward(all_states, all_gates, R, backward_recurrent_clip_val)
+            ctx.save_for_backward(all_states, all_gates, R)
+            ctx.backward_recurrent_clip_val = backward_recurrent_clip_val
+            ctx.resets = resets.detach() if resets is not None else None
             if last_state.ndim == 4:
                 last_state_out = last_state[:, :true_batch_size, ...]
             elif last_state.ndim == 5:
@@ -40,9 +49,11 @@ def _rnn_fwbw_generator(autocast_kernel_dtype: torch.dtype) -> torch.autograd.Fu
             ctx,
             delta_states_all_outside: torch.Tensor,  # (T, NS, B, NH, D)
             delta_states_last_outside: torch.Tensor,  # (NS, B, NH, D)
-        ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, None]:
+        ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, None, None]:
             true_batch_size = delta_states_all_outside.size(2)
-            (all_states, all_gates, R, backward_recurrent_clip_val) = ctx.saved_tensors
+            all_states, all_gates, R = ctx.saved_tensors
+            resets: Optional[torch.Tensor] = ctx.resets
+            backward_recurrent_clip_val = ctx.backward_recurrent_clip_val
 
             delta_states_initial, delta_Wx, delta_R, delta_b = slstm_backward_sequence(
                 delta_states_all_outside=delta_states_all_outside,
@@ -52,8 +63,9 @@ def _rnn_fwbw_generator(autocast_kernel_dtype: torch.dtype) -> torch.autograd.Fu
                 gates_all=all_gates,
                 backward_recurrent_clip_val=backward_recurrent_clip_val,
                 true_B=true_batch_size,
+                resets=resets,
             )
-            return delta_states_initial, delta_Wx, delta_R, delta_b, None
+            return delta_states_initial, delta_Wx, delta_R, delta_b, None, None
 
     return _rnn_fwbw
 
@@ -74,10 +86,18 @@ def slstm_tr_fwbw(
     Wx: torch.Tensor,  # (B, T, NGI, NH, D)
     R: torch.Tensor,  # (NGR, NH, Dout, Din)
     b: torch.Tensor,  # (NGI, NH, D)
+    resets: Optional[torch.Tensor] = None,  # (B, T) reset mask
     backward_recurrent_clip_val: float | None = None,
     autocast_kernel_dtype: str = "float32",
 ) -> tuple[torch.Tensor, torch.Tensor]:
     slstm_func = slstm_pt_registry[autocast_kernel_dtype]
 
-    all_states, last_state = slstm_func.apply(states_initial, Wx, R, b, backward_recurrent_clip_val)
+    all_states, last_state = slstm_func.apply(
+        states_initial,
+        Wx,
+        R,
+        b,
+        resets,
+        backward_recurrent_clip_val,
+    )
     return all_states, last_state
