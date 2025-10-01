@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -30,37 +30,64 @@ def _ensure_three_dims(tensor: torch.Tensor) -> torch.Tensor:
     return tensor
 
 
-def _state_from_container(
-    state: Optional[Union[LSTMState, StateDict]],
-) -> Optional[LSTMState]:
-    """Normalize state containers to a tuple with layers-first tensors."""
+def _normalize_tuple_state(state: Optional[LSTMState]) -> Optional[LSTMState]:
+    """Return LSTM state as (layers, batch, hidden) tuple."""
 
     if state is None:
         return None
 
+    hidden, cell = state
+    return _ensure_three_dims(hidden), _ensure_three_dims(cell)
+
+
+def _state_from_dict(state: StateDict) -> Optional[LSTMState]:
+    """Convert batch-first state dict into layers-first tuple."""
+
+    if not state:
+        return None
+
+    hidden = state.get("lstm_h")
+    cell = state.get("lstm_c")
+    if hidden is None or cell is None:
+        return None
+
+    hidden_layers = _ensure_three_dims(hidden).transpose(0, 1).contiguous()
+    cell_layers = _ensure_three_dims(cell).transpose(0, 1).contiguous()
+    return hidden_layers, cell_layers
+
+
+def _update_state_dict(target: StateDict, state: Optional[LSTMState]) -> None:
+    """Populate ``target`` dict with batch-first state tensors."""
+
+    target.clear()
+    if state is None:
+        return
+
+    normalized = _normalize_tuple_state(state)
+    if normalized is None:
+        return
+
+    hidden, cell = normalized
+    target["lstm_h"] = hidden.transpose(0, 1).contiguous().detach()
+    target["lstm_c"] = cell.transpose(0, 1).contiguous().detach()
+
+
+def _unpack_state(
+    state: Optional[Union[LSTMState, StateDict]],
+) -> Tuple[Optional[LSTMState], Optional[StateDict]]:
+    """Return normalized tuple state and optional dict reference."""
+
+    if state is None:
+        return None, None
+
     if isinstance(state, tuple):
-        hidden, cell = state
-        return _ensure_three_dims(hidden), _ensure_three_dims(cell)
+        return _normalize_tuple_state(state), None
 
     if isinstance(state, dict):
-        hidden = state.get("lstm_h")
-        cell = state.get("lstm_c")
-        if hidden is None or cell is None:
-            return None
-        hidden_layers = _ensure_three_dims(hidden).transpose(0, 1)
-        cell_layers = _ensure_three_dims(cell).transpose(0, 1)
-        return hidden_layers, cell_layers
+        return _state_from_dict(state), state
 
     msg = f"Unsupported LSTM state container type: {type(state)!r}"
     raise TypeError(msg)
-
-
-def _write_state_to_dict(target: StateDict, state: LSTMState) -> None:
-    """Store layers-first state tuple into batch-first dict (detached)."""
-
-    hidden, cell = state
-    target["lstm_h"] = hidden.transpose(0, 1).contiguous().detach()
-    target["lstm_c"] = cell.transpose(0, 1).contiguous().detach()
 
 
 class LSTMPolicyNet(torch.nn.Module):
@@ -68,6 +95,7 @@ class LSTMPolicyNet(torch.nn.Module):
         super().__init__()
         # Public: Required by PufferLib for RNN state management
         self.hidden_size = 128
+        self._obs_shape = tuple(env.single_observation_space.shape)
         self._obs_size = int(np.prod(env.single_observation_space.shape))
 
         self._net = torch.nn.Sequential(
@@ -83,11 +111,11 @@ class LSTMPolicyNet(torch.nn.Module):
         self._action_head = torch.nn.Linear(self.hidden_size, sum(self._action_nvec))
         self._value_head = torch.nn.Linear(self.hidden_size, 1)
 
-    def forward_eval(
+    def _forward_internal(
         self,
         observations: torch.Tensor,
-        state: Optional[Union[Tuple[torch.Tensor, torch.Tensor], Dict[str, torch.Tensor]]] = None,
-    ) -> Tuple[List[torch.Tensor], torch.Tensor]:
+        state: Optional[LSTMState],
+    ) -> Tuple[Tuple[torch.Tensor, ...], torch.Tensor, Optional[LSTMState]]:
         observations = observations.float()
         if observations.max() > 1.0:
             observations = observations / 255.0
@@ -110,26 +138,43 @@ class LSTMPolicyNet(torch.nn.Module):
         hidden = self._net(obs_steps)
         hidden = hidden.view(batch_size, bptt_horizon, self.hidden_size)
 
-        rnn_state = _state_from_container(state)
+        rnn_state = _normalize_tuple_state(state)
         hidden, new_state = self._rnn(hidden, rnn_state)
-
-        if isinstance(state, dict) and new_state is not None:
-            _write_state_to_dict(state, new_state)
 
         hidden = hidden.view(batch_size * bptt_horizon, self.hidden_size)
         logits = self._action_head(hidden)
         logits = logits.split(self._action_nvec, dim=1)
-
         values = self._value_head(hidden)
+        return logits, values, new_state
+
+    def forward_eval(
+        self,
+        observations: torch.Tensor,
+        state: Optional[Union[LSTMState, StateDict]] = None,
+    ) -> Tuple[Tuple[torch.Tensor, ...], torch.Tensor]:
+        tuple_state, dict_state = _unpack_state(state)
+        logits, values, new_state = self._forward_internal(observations, tuple_state)
+        if dict_state is not None:
+            _update_state_dict(dict_state, new_state)
         return logits, values
 
     # We use this to work around a major torch perf issue
     def forward(
         self,
         observations: torch.Tensor,
-        state: Optional[Union[Tuple[torch.Tensor, torch.Tensor], Dict[str, torch.Tensor]]] = None,
-    ) -> Tuple[List[torch.Tensor], torch.Tensor]:
+        state: Optional[Union[LSTMState, StateDict]] = None,
+    ) -> Tuple[Tuple[torch.Tensor, ...], torch.Tensor]:
         return self.forward_eval(observations, state)
+
+    def forward_agent(
+        self,
+        observations: torch.Tensor,
+        state: Optional[LSTMState],
+    ) -> Tuple[Tuple[torch.Tensor, ...], torch.Tensor, Optional[LSTMState]]:
+        logits, values, new_state = self._forward_internal(observations, state)
+        if new_state is not None:
+            new_state = tuple(component.detach() for component in new_state)
+        return logits, values, new_state
 
 
 class LSTMAgentPolicy(StatefulAgentPolicy[LSTMState]):
@@ -139,6 +184,7 @@ class LSTMAgentPolicy(StatefulAgentPolicy[LSTMState]):
         self._net = net
         self._device = device
         self._action_nvec = action_nvec
+        self._obs_shape = getattr(net, "_obs_shape", None)
 
     def agent_state(self) -> Optional[LSTMState]:
         """Get initial state for a new agent.
@@ -153,42 +199,40 @@ class LSTMAgentPolicy(StatefulAgentPolicy[LSTMState]):
         state: Optional[LSTMState],
     ) -> Tuple[MettaGridAction, Optional[LSTMState]]:
         """Get action and update state for this agent."""
-        # Convert single observation to batch of 1 for network forward pass
         if isinstance(obs, torch.Tensor):
-            obs_tensor = obs.to(self._device).unsqueeze(0) if obs.dim() < 2 else obs.to(self._device)
+            obs_tensor = obs.to(self._device)
         else:
-            obs_tensor = torch.tensor(obs, device=self._device, dtype=torch.float32).unsqueeze(0)
+            obs_tensor = torch.as_tensor(obs, device=self._device, dtype=torch.float32)
+
+        expected_dims = len(self._obs_shape) if self._obs_shape is not None else None
+        if expected_dims is not None and obs_tensor.dim() == expected_dims:
+            obs_tensor = obs_tensor.unsqueeze(0)
+        elif obs_tensor.dim() == 1:
+            obs_tensor = obs_tensor.unsqueeze(0)
+        elif expected_dims is None and obs_tensor.dim() < 2:
+            obs_tensor = obs_tensor.unsqueeze(0)
 
         with torch.no_grad():
             self._net.eval()
-            # For inference, hold state in batch-first dict so forward_eval can reuse it
-            state_dict: Dict[str, torch.Tensor] = {}
-            if state is not None:
-                _write_state_to_dict(state_dict, state)
 
-            # Debug: check observation
             if torch.isnan(obs_tensor).any():
-                logger.error(f"NaN in observation! obs shape: {obs_tensor.shape}, obs: {obs_tensor}")
+                logger.error("NaN in observation! obs shape: %s", obs_tensor.shape)
             if torch.isinf(obs_tensor).any():
-                logger.error(f"Inf in observation! obs shape: {obs_tensor.shape}")
+                logger.error("Inf in observation! obs shape: %s", obs_tensor.shape)
 
-            logits, _ = self._net.forward_eval(obs_tensor, state_dict)
+            logits, _, new_state = self._net.forward_agent(obs_tensor, state)
 
-            # Debug: check logits
             if any(torch.isnan(logit).any() for logit in logits):
                 logger.error(
-                    f"NaN in logits! obs shape: {obs_tensor.shape}, obs min/max: {obs_tensor.min()}/{obs_tensor.max()}"
+                    "NaN in logits! obs shape: %s, obs min/max: %s/%s",
+                    obs_tensor.shape,
+                    obs_tensor.min(),
+                    obs_tensor.max(),
                 )
-                logger.error(f"Logits: {[logit for logit in logits]}")
-                # Check network parameters
                 for name, param in self._net.named_parameters():
                     if torch.isnan(param).any():
-                        logger.error(f"NaN in parameter {name}")
+                        logger.error("NaN in parameter %s", name)
 
-            # Extract the new state from the dict
-            new_state = _state_from_container(state_dict)
-
-            # Sample action from the logits
             actions = []
             for logit in logits:
                 dist = torch.distributions.Categorical(logits=logit)
@@ -215,10 +259,6 @@ class LSTMPolicy(TrainablePolicy):
         return StatefulAgentPolicy(self._agent_policy, agent_id)
 
     def load_policy_data(self, checkpoint_path: str) -> None:
-        self._net.load_state_dict(torch.load(checkpoint_path, map_location=self._device))
+        super().load_policy_data(checkpoint_path)
         self._net = self._net.to(self._device)
-        # Update the agent policy's reference to the network
         self._agent_policy._net = self._net
-
-    def save_policy_data(self, checkpoint_path: str) -> None:
-        torch.save(self._net.state_dict(), checkpoint_path)
