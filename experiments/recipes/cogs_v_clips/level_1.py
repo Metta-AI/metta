@@ -62,7 +62,7 @@ from metta.map.terrain_from_numpy import CogsVClippiesFromNumpy
 
 curriculum_args = {
     "multi_agent_singles": {
-        "num_cogs": [2, 4, 6, 8, 12],
+        "num_cogs": [2, 4, 6, 8],
         "assembler_positions": [["Any"]],
         "charger_positions": [["Any"]],
         "carbon_extractor_positions": [["Any"]],
@@ -77,7 +77,7 @@ curriculum_args = {
         "sizes": ["small", "medium"],
     },
     "multi_agent_pairs": {
-        "num_cogs": [2, 4, 6, 8, 12],
+        "num_cogs": [2, 4, 6, 8],
         "assembler_positions": [["Any", "Any"]],
         "charger_positions": [["Any", "Any"]],
         "carbon_extractor_positions": [["Any", "Any"]],
@@ -92,7 +92,7 @@ curriculum_args = {
         "sizes": ["small", "medium"],
     },
     "multi_agent_triplets": {
-        "num_cogs": [3, 6, 8, 12, 24],
+        "num_cogs": [3, 6, 8, 12],
         "assembler_positions": [["Any", "Any"]],
         "charger_positions": [["Any", "Any", "Any"]],
         "carbon_extractor_positions": [["Any", "Any", "Any"]],
