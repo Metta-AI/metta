@@ -364,7 +364,7 @@ proc drawPlannedPath*() =
           pos0.vec2,
           angle = rotation,
           scale = 1/200,
-          tint = color(0, 1, 0, alpha)
+          tint = color(1, 1, 1, alpha)
         )
       
       let goalPos = path[path.len - 1]
@@ -373,7 +373,7 @@ proc drawPlannedPath*() =
         goalPos.vec2,
         angle = 0,
         scale = 1/200,
-        tint = color(0, 1, 0, 0.5)
+        tint = color(1, 1, 1, 0.5)
       )
 
 proc drawSelection*() =
