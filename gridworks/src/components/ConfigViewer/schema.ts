@@ -1,163 +1,206 @@
 import z from "zod/v4";
 
-import jsonSchemas from "../../lib/schemas.json" assert { type: "json" };
+import mettaSchema from "../../lib/schemas.json" assert { type: "json" };
 
-const propertyCommonSchema = {
+const commonJsonMetaSchema = {
   title: z.string().optional(),
   description: z.string().optional(),
 };
 
-const stringPropertySchema = z.object({
-  ...propertyCommonSchema,
+const stringJsonMetaSchema = z.object({
+  ...commonJsonMetaSchema,
   type: z.literal("string"),
 });
 
-const numberPropertySchema = z.object({
-  ...propertyCommonSchema,
+const numberJsonMetaSchema = z.object({
+  ...commonJsonMetaSchema,
   type: z.literal("number"),
 });
 
-const integerPropertySchema = z.object({
-  ...propertyCommonSchema,
+const integerJsonMetaSchema = z.object({
+  ...commonJsonMetaSchema,
   type: z.literal("integer"),
 });
 
-const booleanPropertySchema = z.object({
-  ...propertyCommonSchema,
+const booleanJsonMetaSchema = z.object({
+  ...commonJsonMetaSchema,
   type: z.literal("boolean"),
 });
 
-const objectPropertySchema = z.object({
-  ...propertyCommonSchema,
+const objectJsonMetaSchema = z.object({
+  ...commonJsonMetaSchema,
   type: z.literal("object"),
   get additionalProperties(): z.ZodUnion<
     readonly [
-      TypedPropertySchema,
-      typeof anyOfPropertySchema,
-      typeof refPropertySchema,
+      TypedJsonMetaSchema,
+      typeof anyOfJsonMetaSchema,
+      typeof refJsonMetaSchema,
+      typeof anyJsonMetaSchema,
+      z.ZodLiteral<false>,
     ]
   > {
-    return propertySchema;
+    return z.union([
+      typedJsonMetaSchema,
+      anyOfJsonMetaSchema,
+      refJsonMetaSchema,
+      anyJsonMetaSchema,
+      z.literal(false),
+    ]);
+  },
+  get properties(): z.ZodOptional<
+    z.ZodRecord<
+      z.ZodString,
+      z.ZodUnion<
+        readonly [
+          TypedJsonMetaSchema,
+          typeof anyOfJsonMetaSchema,
+          typeof refJsonMetaSchema,
+          typeof anyJsonMetaSchema,
+        ]
+      >
+    >
+  > {
+    return z.record(z.string(), jsonMetaSchema).optional();
   },
 });
 
-const arrayPropertySchema = z.object({
-  ...propertyCommonSchema,
+const arrayJsonMetaSchema = z.object({
+  ...commonJsonMetaSchema,
   type: z.literal("array"),
   get items(): z.ZodOptional<
     z.ZodUnion<
       readonly [
-        TypedPropertySchema,
-        typeof anyOfPropertySchema,
-        typeof refPropertySchema,
+        TypedJsonMetaSchema,
+        typeof anyOfJsonMetaSchema,
+        typeof refJsonMetaSchema,
+        typeof anyJsonMetaSchema,
       ]
     >
   > {
-    return propertySchema.optional();
+    return jsonMetaSchema.optional();
   },
 });
 
-type TypedPropertySchema = z.ZodDiscriminatedUnion<
+type TypedJsonMetaSchema = z.ZodDiscriminatedUnion<
   [
-    typeof stringPropertySchema,
-    typeof numberPropertySchema,
-    typeof integerPropertySchema,
-    typeof booleanPropertySchema,
-    typeof objectPropertySchema,
-    typeof arrayPropertySchema,
+    typeof stringJsonMetaSchema,
+    typeof numberJsonMetaSchema,
+    typeof integerJsonMetaSchema,
+    typeof booleanJsonMetaSchema,
+    typeof objectJsonMetaSchema,
+    typeof arrayJsonMetaSchema,
   ]
 >;
 
-const typedPropertySchema: TypedPropertySchema = z.discriminatedUnion("type", [
-  stringPropertySchema,
-  numberPropertySchema,
-  integerPropertySchema,
-  booleanPropertySchema,
-  objectPropertySchema,
-  arrayPropertySchema,
+const typedJsonMetaSchema: TypedJsonMetaSchema = z.discriminatedUnion("type", [
+  stringJsonMetaSchema,
+  numberJsonMetaSchema,
+  integerJsonMetaSchema,
+  booleanJsonMetaSchema,
+  objectJsonMetaSchema,
+  arrayJsonMetaSchema,
 ]);
 
-const anyOfPropertySchema = z.object({
-  ...propertyCommonSchema,
+const anyOfJsonMetaSchema = z.object({
+  ...commonJsonMetaSchema,
   get anyOf(): z.ZodArray<
     z.ZodUnion<
-      [TypedPropertySchema, typeof refPropertySchema, typeof anyPropertySchema]
+      [TypedJsonMetaSchema, typeof refJsonMetaSchema, typeof anyJsonMetaSchema]
     >
   > {
     return z.array(
-      z.union([typedPropertySchema, refPropertySchema, anyPropertySchema])
+      z.union([typedJsonMetaSchema, refJsonMetaSchema, anyJsonMetaSchema])
     );
   },
 });
 
-const refPropertySchema = z.object({
+const refJsonMetaSchema = z.object({
   $ref: z.string(),
 });
 
-const anyPropertySchema = z.object({});
+const anyJsonMetaSchema = z.object(commonJsonMetaSchema);
 
-const propertySchema = z.union([
-  typedPropertySchema,
-  anyOfPropertySchema,
-  refPropertySchema,
-  anyPropertySchema,
+const jsonMetaSchema = z.union([
+  typedJsonMetaSchema,
+  anyOfJsonMetaSchema,
+  refJsonMetaSchema,
+  anyJsonMetaSchema,
 ]);
 
-export type SchemaProperty = z.infer<typeof propertySchema>;
+export type JsonSchema = z.infer<typeof jsonMetaSchema>;
 
-const jsonSchemasMetaSchema = z.object({
-  $defs: z.record(
-    z.string(),
-    z.object({
-      properties: z.record(z.string(), propertySchema),
-    })
-  ),
+const topLevelJsonMetaSchema = z.object({
+  $defs: z.record(z.string(), jsonMetaSchema),
 });
 
-const typedSchemas = jsonSchemasMetaSchema.parse(jsonSchemas);
+const mettaSchemas = topLevelJsonMetaSchema.parse(mettaSchema);
 
-export function getSchemaProperty(
-  path: string,
-  kind: string
-): SchemaProperty | undefined {
-  const defs = typedSchemas.$defs;
-  let currentKind = kind;
+export function getSchema(path: string, kind: string): JsonSchema | undefined {
+  const defs = mettaSchemas.$defs;
+  let currentType: JsonSchema = { $ref: "#/$defs/" + kind };
   const parts = path.split(".");
-  let property: SchemaProperty | undefined = undefined;
   for (const part of parts) {
-    const def = defs[currentKind];
-    if (!def) {
-      console.warn("Unknown kind", kind);
+    let nextType: JsonSchema | undefined;
+
+    if ("$ref" in currentType) {
+      const ref: string | undefined = currentType.$ref.split("/").pop()!;
+      if (!ref) {
+        console.warn("Unknown ref", currentType.$ref);
+        return undefined;
+      }
+      if (!(ref in defs)) {
+        console.warn("Unknown ref", currentType.$ref);
+        return undefined;
+      }
+      currentType = defs[ref];
+    }
+
+    if (!("type" in currentType)) {
       return undefined;
     }
-    property = def.properties[part];
-    if (!property) {
+    if (currentType.type !== "object") {
       return undefined;
     }
-    if ("$ref" in property) {
-      currentKind = property.$ref.split("/").pop()!;
+
+    if (
+      "properties" in currentType &&
+      typeof currentType.properties === "object" &&
+      currentType.properties !== null &&
+      part in currentType.properties
+    ) {
+      // TypeScript bug: it doesn't infer `currentType.properties` correctly.
+      // (I know it's because of TypeScript because I've seen this inference working sometimes on unrelated code changes.)
+      nextType = (currentType.properties as Record<string, JsonSchema>)[part];
+    }
+
+    if (
+      !nextType &&
+      "additionalProperties" in currentType &&
+      typeof currentType.additionalProperties === "object"
+    ) {
+      nextType = currentType.additionalProperties;
+    }
+
+    if (nextType) {
+      currentType = nextType;
     } else {
-      currentKind = "UNKNOWN";
+      return undefined;
     }
   }
-  const parsed = propertySchema.safeParse(property);
-  if (!parsed.success) {
-    console.error(kind, path, parsed.error);
-  }
-  return parsed.success ? parsed.data : undefined;
+  return currentType;
 }
 
-export function getPropertyTypeStr(property: SchemaProperty): string {
+export function getSchemaTypeStr(property: JsonSchema): string {
   if ("type" in property) {
     let typeStr: string = property.type;
     if (property.type === "array") {
-      typeStr = `${typeStr}[${property.items ? getPropertyTypeStr(property.items) : "unknown"}]`;
+      typeStr = `${typeStr}[${property.items ? getSchemaTypeStr(property.items) : "unknown"}]`;
     } else if (property.type === "object") {
-      typeStr = `${typeStr}[${getPropertyTypeStr(property.additionalProperties)}]`;
+      typeStr = `${typeStr}[${property.additionalProperties ? getSchemaTypeStr(property.additionalProperties) : "unknown"}]`;
     }
     return typeStr;
   } else if ("anyOf" in property) {
-    return property.anyOf.map(getPropertyTypeStr).join(" | ");
+    return property.anyOf.map(getSchemaTypeStr).join(" | ");
   } else if ("$ref" in property) {
     return property.$ref.split("/").pop()!;
   } else {

@@ -4,11 +4,7 @@ import { createContext, FC, ReactNode, use } from "react";
 
 import { RepoRootContext } from "../RepoRootContext";
 import { Tooltip } from "../Tooltip";
-import {
-  getPropertyTypeStr,
-  getSchemaProperty,
-  SchemaProperty,
-} from "./schema";
+import { getSchema, getSchemaTypeStr, JsonSchema } from "./schema";
 
 const YamlContext = createContext<{
   isSelected?: (key: string, value: string) => boolean;
@@ -17,38 +13,38 @@ const YamlContext = createContext<{
   kind?: string;
 }>({ unsetFields: new Set() });
 
-const JsonSchemaPropertyInfo: FC<{
-  property: SchemaProperty;
-}> = ({ property }) => {
-  let typeStr = getPropertyTypeStr(property);
+const JsonSchemaInfo: FC<{
+  schema: JsonSchema;
+}> = ({ schema }) => {
+  let typeStr = getSchemaTypeStr(schema);
   return (
     <div className="text-xs">
       <span className="font-semibold">Type:</span> {typeStr}
-      <div>{property.description}</div>
+      <div>{"description" in schema && schema.description}</div>
     </div>
   );
 };
 
 const YamlKey: FC<{
   name: string;
-  property?: SchemaProperty | undefined;
+  schema?: JsonSchema | undefined;
   disabled?: boolean;
-}> = ({ name, disabled, property }) => {
+}> = ({ name, disabled, schema }) => {
   let result = (
     <span
       className={clsx(
         disabled ? "text-gray-500" : "font-semibold text-blue-900"
       )}
     >
-      <span className={clsx(property && "cursor-pointer hover:bg-blue-100")}>
+      <span className={clsx(schema && "cursor-pointer hover:bg-blue-100")}>
         {name}
       </span>
       :
     </span>
   );
-  if (property) {
+  if (schema) {
     result = (
-      <Tooltip render={() => <JsonSchemaPropertyInfo property={property} />}>
+      <Tooltip render={() => <JsonSchemaInfo schema={schema} />}>
         {result}
       </Tooltip>
     );
@@ -136,8 +132,8 @@ const YamlKeyValue: FC<{
 
   const { kind } = use(YamlContext);
 
-  const property: SchemaProperty | undefined = kind
-    ? getSchemaProperty(fullKey, kind)
+  const schema: JsonSchema | undefined = kind
+    ? getSchema(fullKey, kind)
     : undefined;
 
   if (isScalar(value)) {
@@ -161,7 +157,7 @@ const YamlKeyValue: FC<{
         <YamlKey
           name={yamlKey}
           disabled={unsetFields.has(fullKey)}
-          property={property}
+          schema={schema}
         />
         <YamlScalar value={value} />
       </div>
@@ -174,7 +170,7 @@ const YamlKeyValue: FC<{
 
   return (
     <div className={clsx(singleLine && "flex gap-1")}>
-      <YamlKey name={yamlKey} property={property} />
+      <YamlKey name={yamlKey} schema={schema} />
       <div className={clsx(!singleLine && "ml-[2ch]")}>
         <YamlAny value={value} path={fullKey} depth={depth + 1} />
       </div>
