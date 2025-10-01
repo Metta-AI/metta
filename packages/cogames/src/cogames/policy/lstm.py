@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Optional, Tuple, Union
+from typing import Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -7,88 +7,10 @@ import torch.nn as nn
 
 import pufferlib.pytorch
 from cogames.policy.policy import AgentPolicy, StatefulAgentPolicy, TrainablePolicy
+from cogames.policy.utils import LSTMState, LSTMStateAdapter, LSTMStateDict
 from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation
 
 logger = logging.getLogger("cogames.policies.lstm_policy")
-
-
-StateDict = Dict[str, torch.Tensor]
-LSTMState = Tuple[torch.Tensor, torch.Tensor]
-
-
-def _ensure_three_dims(tensor: torch.Tensor) -> torch.Tensor:
-    """Return tensor shaped as (layers, batch, hidden)."""
-
-    if tensor.dim() == 3:
-        return tensor
-    if tensor.dim() == 2:
-        return tensor.unsqueeze(0)
-    if tensor.dim() == 1:
-        return tensor.unsqueeze(0).unsqueeze(1)
-    if tensor.dim() == 0:
-        return tensor.unsqueeze(0).unsqueeze(0).unsqueeze(0)
-    return tensor
-
-
-def _normalize_tuple_state(state: Optional[LSTMState]) -> Optional[LSTMState]:
-    """Return LSTM state as (layers, batch, hidden) tuple."""
-
-    if state is None:
-        return None
-
-    hidden, cell = state
-    return _ensure_three_dims(hidden), _ensure_three_dims(cell)
-
-
-def _state_from_dict(state: StateDict) -> Optional[LSTMState]:
-    """Convert batch-first state dict into layers-first tuple."""
-
-    if not state:
-        return None
-
-    hidden = state.get("lstm_h")
-    cell = state.get("lstm_c")
-    if hidden is None or cell is None:
-        return None
-
-    hidden_layers = _ensure_three_dims(hidden).transpose(0, 1).contiguous()
-    cell_layers = _ensure_three_dims(cell).transpose(0, 1).contiguous()
-    return hidden_layers, cell_layers
-
-
-def _update_state_dict(target: StateDict, state: Optional[LSTMState]) -> None:
-    """Populate ``target`` dict with batch-first state tensors."""
-
-    target.clear()
-    if state is None:
-        return
-
-    normalized = _normalize_tuple_state(state)
-    if normalized is None:
-        return
-
-    hidden, cell = normalized
-    target["lstm_h"] = hidden.transpose(0, 1).contiguous().detach()
-    target["lstm_c"] = cell.transpose(0, 1).contiguous().detach()
-
-
-def _unpack_state(
-    state: Optional[Union[LSTMState, StateDict]],
-) -> Tuple[Optional[LSTMState], Optional[StateDict]]:
-    """Return normalized tuple state and optional dict reference."""
-
-    if state is None:
-        return None, None
-
-    if isinstance(state, tuple):
-        return _normalize_tuple_state(state), None
-
-    if isinstance(state, dict):
-        return _state_from_dict(state), state
-
-    msg = f"Unsupported LSTM state container type: {type(state)!r}"
-    raise TypeError(msg)
-
 
 class LSTMPolicyNet(torch.nn.Module):
     def __init__(self, env):
@@ -138,7 +60,7 @@ class LSTMPolicyNet(torch.nn.Module):
         hidden = self._net(obs_steps)
         hidden = hidden.view(batch_size, bptt_horizon, self.hidden_size)
 
-        rnn_state = _normalize_tuple_state(state)
+        rnn_state = LSTMStateAdapter.normalize_tuple(state)
         hidden, new_state = self._rnn(hidden, rnn_state)
 
         hidden = hidden.view(batch_size * bptt_horizon, self.hidden_size)
@@ -150,19 +72,19 @@ class LSTMPolicyNet(torch.nn.Module):
     def forward_eval(
         self,
         observations: torch.Tensor,
-        state: Optional[Union[LSTMState, StateDict]] = None,
+        state: Optional[Union[LSTMState, LSTMStateDict]] = None,
     ) -> Tuple[Tuple[torch.Tensor, ...], torch.Tensor]:
-        tuple_state, dict_state = _unpack_state(state)
+        tuple_state, dict_state = LSTMStateAdapter.unpack(state)
         logits, values, new_state = self._forward_internal(observations, tuple_state)
         if dict_state is not None:
-            _update_state_dict(dict_state, new_state)
+            LSTMStateAdapter.update_dict(dict_state, new_state)
         return logits, values
 
     # We use this to work around a major torch perf issue
     def forward(
         self,
         observations: torch.Tensor,
-        state: Optional[Union[LSTMState, StateDict]] = None,
+        state: Optional[Union[LSTMState, LSTMStateDict]] = None,
     ) -> Tuple[Tuple[torch.Tensor, ...], torch.Tensor]:
         return self.forward_eval(observations, state)
 
