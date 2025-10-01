@@ -9,11 +9,11 @@ import numpy as np
 import torch
 from rich.console import Console
 
-import mettagrid.mettascope as mettascope
 from cogames import serialization
 from cogames.env import make_hierarchical_env
 from mettagrid import MettaGridConfig
 from mettagrid.util.grid_object_formatter import format_grid_object
+import mettagrid.mettascope as mettascope
 
 logger = logging.getLogger("cogames.play")
 
