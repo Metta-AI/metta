@@ -542,7 +542,7 @@ constructor/function vs configuration overrides based on introspection.
         return 0
 
     # If listing is requested for a module path
-    if known_args.list and tool_path:
+    if known_args.list:
         # If it looks like a module path, try to list its tools
         module_candidates: list[str] = [tool_path]
         if not tool_path.startswith("experiments.recipes."):
