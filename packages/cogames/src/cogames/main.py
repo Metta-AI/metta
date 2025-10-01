@@ -581,16 +581,18 @@ def train_cmd(
                     "[cyan]Auto-adjusting training steps to 50,000,000 for CUDA runs. "
                     "Override with --steps if needed.[/cyan]"
                 )
-            if batch_source in (None, ParameterSource.DEFAULT):
-                batch_size = 524_288
+            if batch_source in (None, ParameterSource.DEFAULT) and env_cfgs:
+                agents_per_env = max(1, env_cfgs[0].game.num_agents)
+                auto_batch = min(131_072, max(resolved_num_envs * agents_per_env, resolved_num_envs * 32))
+                batch_size = auto_batch
                 console.print(
-                    "[cyan]Auto-adjusting batch size to 524,288 for CUDA runs. "
-                    "Override with --batch-size if needed.[/cyan]"
+                    "[cyan]Auto-adjusting batch size to {value:,} for CUDA runs. "
+                    "Override with --batch-size if needed.[/cyan]".format(value=batch_size)
                 )
             if minibatch_source in (None, ParameterSource.DEFAULT):
-                minibatch_size = 16_384
+                minibatch_size = 4_096
                 console.print(
-                    "[cyan]Auto-adjusting minibatch size to 16,384 for CUDA runs. "
+                    "[cyan]Auto-adjusting minibatch size to 4,096 for CUDA runs. "
                     "Override with --minibatch-size if needed.[/cyan]"
                 )
 
@@ -601,7 +603,7 @@ def train_cmd(
                 num_gpus = torch.cuda.device_count() or 1
                 cpu_count = os.cpu_count() or 1
                 auto_workers = max(1, (cpu_count // 2) // num_gpus)
-                target_envs = max(2, forward_target // sample_agents)
+                target_envs = max(2, forward_target // max(sample_agents, 1))
                 batch_envs = max(auto_workers, (target_envs // auto_workers) * auto_workers)
                 resolved_num_workers = auto_workers
                 resolved_num_envs = batch_envs * async_factor
@@ -652,7 +654,8 @@ def train_cmd(
         if initial_weights_path is not None:
             resolved_initial = utils.resolve_initial_weights(initial_weights_path)
 
-        default_batch = max(resolved_num_envs * 32, 512)
+        agents_per_env = env_cfgs[0].game.num_agents if env_cfgs else 1
+        default_batch = max(resolved_num_envs * 32, resolved_num_envs * agents_per_env, 512)
         if batch_size is not None:
             effective_batch = max(resolved_num_envs, min(batch_size, steps))
         else:

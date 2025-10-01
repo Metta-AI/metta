@@ -199,17 +199,15 @@ def train(
 
     env_name = "cogames.cogs_vs_clips"
 
-    if use_rnn:
-        learning_rate = 0.0003
-        bptt_horizon = 1
-        optimizer = "adam"
-        adam_eps = 1e-8
-        logger.info("Using RNN-specific hyperparameters: lr=0.0003, bptt=1, optimizer=adam")
+    learning_rate = 3e-4
+    bptt_horizon = 1
+    optimizer = "adam"
+    adam_eps = 1e-8
+
+    if not use_rnn:
+        logger.info("Using feedforward policy hyperparameters: lr=3e-4, optimizer=adam")
     else:
-        learning_rate = 0.015
-        bptt_horizon = 1
-        optimizer = "muon"
-        adam_eps = 1e-12
+        logger.info("Using RNN policy hyperparameters: lr=3e-4, optimizer=adam")
 
     total_agents = max(1, getattr(vecenv, "num_agents", 1))
     realised_envs = max(1, getattr(vecenv, "num_envs", requested_envs))
