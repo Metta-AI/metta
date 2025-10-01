@@ -2,13 +2,19 @@
 
 import contextlib
 import logging
+import os
+import re
 import signal
+from collections import Counter
 from pathlib import Path
-from typing import Iterator, Optional, Tuple
+from typing import Any, Iterable, Iterator, Optional, Sequence, Tuple
 
 from cogames import game as game_module
+from mettagrid import MettaGridConfig
 
 logger = logging.getLogger("cogames.utils")
+
+CONFIG_EXTENSIONS = {".yaml", ".yml", ".json", ".py"}
 
 
 class TimeoutExpired(RuntimeError):
@@ -27,7 +33,8 @@ def cli_timeout(timeout_seconds: Optional[int]) -> Iterator[None]:
         yield
         return
 
-    if not hasattr(signal, "SIGALRM"):
+    sigalrm = getattr(signal, "SIGALRM", None)
+    if sigalrm is None:
         logger.warning("Timeout option is not supported on this platform.")
         yield
         return
@@ -35,22 +42,23 @@ def cli_timeout(timeout_seconds: Optional[int]) -> Iterator[None]:
     def _handle_timeout(signum, frame):
         raise TimeoutExpired(f"Command timed out after {timeout_seconds} seconds.")
 
-    previous_handler = signal.getsignal(signal.SIGALRM)
-    signal.signal(signal.SIGALRM, _handle_timeout)
+    previous_handler = signal.getsignal(sigalrm)
+    signal.signal(sigalrm, _handle_timeout)
 
-    if hasattr(signal, "setitimer"):
-        signal.setitimer(signal.ITIMER_REAL, float(timeout_seconds))
+    setitimer = getattr(signal, "setitimer", None)
+    if setitimer is not None:
+        setitimer(signal.ITIMER_REAL, float(timeout_seconds))
     else:  # pragma: no cover - fallback path
         signal.alarm(int(timeout_seconds))
 
     try:
         yield
     finally:
-        if hasattr(signal, "setitimer"):
-            signal.setitimer(signal.ITIMER_REAL, 0)
+        if setitimer is not None:
+            setitimer(signal.ITIMER_REAL, 0)
         else:  # pragma: no cover - fallback path
             signal.alarm(0)
-        signal.signal(signal.SIGALRM, previous_handler)
+        signal.signal(sigalrm, previous_handler)
 
 
 def resolve_game(game_arg: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
@@ -65,26 +73,162 @@ def resolve_game(game_arg: Optional[str]) -> Tuple[Optional[str], Optional[str]]
     if not game_arg:
         return None, None
 
-    # Check if it's a file path
-    if any(game_arg.endswith(ext) for ext in [".yaml", ".yml", ".json", ".py"]):
-        path = Path(game_arg)
-        if not path.exists():
+    candidate = Path(game_arg)
+    if candidate.suffix in CONFIG_EXTENSIONS:
+        if not candidate.exists():
             return None, f"File not found: {game_arg}"
-        if not path.is_file():
+        if not candidate.is_file():
             return None, f"Not a file: {game_arg}"
-        # Return the path as the resolved name
         return game_arg, None
 
-    # Otherwise, treat it as a game name
     resolved = game_module.resolve_game_name(game_arg)
     if resolved:
         return resolved, None
 
-    # Check for partial matches
-    all_games = game_module.get_all_games()
-    matches = [name for name in all_games if game_arg.lower() in name.lower()]
+    game_names = game_module.get_all_games().keys()
+    matches = [name for name in game_names if game_arg.lower() in name.lower()]
 
     if len(matches) > 1:
         return None, f"Ambiguous game name '{game_arg}'. Matches: {', '.join(matches)}"
-    else:
-        return None, f"Game '{game_arg}' not found. Use 'cogames games' to list available games."
+
+    return None, "Game '{game}' not found. Use 'cogames games' to list available games.".format(game=game_arg)
+
+
+def ensure_config(value: Any) -> MettaGridConfig:
+    if isinstance(value, MettaGridConfig):
+        return value
+    if isinstance(value, (str, Path)):
+        return game_module.get_game(str(value))
+    if isinstance(value, dict):
+        return MettaGridConfig.model_validate(value)
+    raise ValueError(f"Unsupported curriculum item type: {type(value)!r}.")
+
+
+def load_curriculum_items(source: Any, max_items: int) -> list[MettaGridConfig]:
+    queue: list[Any] = [source]
+    configs: list[MettaGridConfig] = []
+
+    while queue and len(configs) < max_items:
+        item = queue.pop(0)
+        if item is None:
+            continue
+        if isinstance(item, (MettaGridConfig, str, Path, dict)):
+            configs.append(ensure_config(item))
+            continue
+        if callable(item):
+            queue.append(item())
+            continue
+        if isinstance(item, Iterable) and not isinstance(item, (str, bytes)):
+            queue.extend(item)
+            continue
+        raise ValueError(f"Curriculum source produced unsupported type: {type(item)!r}.")
+
+    if not configs:
+        raise ValueError("Curriculum did not yield any MettaGridConfig instances.")
+
+    return configs
+
+
+def sanitize_filename(name: str) -> str:
+    sanitized = re.sub(r"[^A-Za-z0-9_.-]+", "_", name).strip("_")
+    return sanitized or "map"
+
+
+def dump_game_configs(
+    configs: Sequence[MettaGridConfig],
+    names: Sequence[str],
+    destination: Path,
+) -> None:
+    destination.mkdir(parents=True, exist_ok=True)
+    for existing in destination.glob("*.yaml"):
+        existing.unlink()
+
+    name_list = list(names)
+    if len(name_list) < len(configs):
+        name_list.extend(f"map_{idx:03d}" for idx in range(len(name_list), len(configs)))
+
+    for index, (config_obj, raw_name) in enumerate(zip(configs, name_list, strict=False)):
+        base_name = raw_name or f"map_{index:03d}"
+        file_stem = sanitize_filename(base_name)
+        target = destination / f"{file_stem}.yaml"
+        if target.exists():
+            target = destination / f"{file_stem}_{index:03d}.yaml"
+        game_module.save_game_config(config_obj, target)
+
+
+def resolve_run_dir(base_runs_dir: Path, run_dir: Optional[Path]) -> Path:
+    return run_dir.expanduser().resolve() if run_dir else (base_runs_dir / "default").resolve()
+
+
+def suggest_parallelism(
+    device: str,
+    requested_envs: Optional[int],
+    requested_workers: Optional[int],
+) -> Tuple[int, int]:
+    if requested_envs is not None and requested_workers is not None:
+        return requested_envs, requested_workers
+
+    cpu_count = os.cpu_count() or 4
+
+    base_envs = cpu_count * 2 if device == "cuda" else cpu_count
+    envs = (
+        max(1, requested_envs) if requested_envs is not None else min(max(base_envs, 2), 32 if device == "cuda" else 16)
+    )
+    workers = max(1, requested_workers) if requested_workers is not None else max(1, min(envs, max(1, cpu_count // 2)))
+
+    if envs % workers != 0:
+        for candidate in range(workers, 0, -1):
+            if envs % candidate == 0:
+                workers = candidate
+                break
+        else:
+            workers = 1
+            envs = max(envs, workers)
+
+    return envs, workers
+
+
+def filter_uniform_agent_count(
+    configs: Sequence[MettaGridConfig],
+    names: Sequence[str],
+) -> Tuple[list[MettaGridConfig], list[str], int]:
+    if not configs:
+        return list(configs), list(names), 0
+
+    counts = Counter(cfg.game.num_agents for cfg in configs)
+    target_agents = counts.most_common(1)[0][0]
+
+    name_list = list(names)
+    if len(name_list) < len(configs):
+        name_list.extend(f"map_{idx:03d}" for idx in range(len(name_list), len(configs)))
+
+    filtered_pairs = [
+        (cfg, name_list[index]) for index, cfg in enumerate(configs) if cfg.game.num_agents == target_agents
+    ]
+    dropped = len(configs) - len(filtered_pairs)
+
+    if not filtered_pairs:
+        return list(configs), name_list[: len(configs)], dropped
+
+    filtered_cfgs, filtered_names = zip(*filtered_pairs, strict=False)
+    return list(filtered_cfgs), list(filtered_names), dropped
+
+
+def resolve_initial_weights(path: Optional[Path]) -> Optional[Path]:
+    if path is None:
+        return None
+    if path.is_file():
+        return path
+    if not path.exists():
+        raise ValueError(f"Initial weights path not found: {path}")
+    if not path.is_dir():
+        raise ValueError(f"Initial weights path is not a directory: {path}")
+
+    candidates = sorted(
+        (candidate for candidate in path.iterdir() if candidate.is_file()),
+        key=lambda candidate: candidate.stat().st_mtime,
+    )
+    for candidate in reversed(candidates):
+        if candidate.suffix in {".pt", ".pth", ".ckpt"}:
+            return candidate
+    raise ValueError(f"No checkpoint files found in directory: {path}")

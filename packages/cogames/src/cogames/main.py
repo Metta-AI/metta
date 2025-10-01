@@ -2,13 +2,10 @@
 
 import contextlib
 import logging
-import os
-import re
 import shutil
 import sys
-from collections import Counter
 from pathlib import Path
-from typing import Annotated, Any, Iterable, Literal, Optional, Sequence, Tuple
+from typing import Annotated, Any, Iterable, Literal, Optional, Tuple
 
 # Always add current directory to Python path
 sys.path.insert(0, ".")
@@ -53,108 +50,6 @@ def _command_timeout(ctx: typer.Context):
         yield
 
 
-def _ensure_config(value: Any) -> MettaGridConfig:
-    if isinstance(value, MettaGridConfig):
-        return value
-    if isinstance(value, (str, Path)):
-        return game.get_game(str(value))
-    if isinstance(value, dict):
-        return MettaGridConfig.model_validate(value)
-    msg = f"Unsupported curriculum item type: {type(value)!r}."
-    raise ValueError(msg)
-
-
-def _load_curriculum_configs(source: Any, max_items: int) -> Sequence[MettaGridConfig]:
-    queue: list[Any] = [source]
-    configs: list[MettaGridConfig] = []
-
-    while queue and len(configs) < max_items:
-        item = queue.pop(0)
-
-        if isinstance(item, MettaGridConfig) or isinstance(item, (str, Path)) or isinstance(item, dict):
-            configs.append(_ensure_config(item))
-            continue
-
-        if callable(item):
-            produced = item()
-            queue.append(produced)
-            continue
-
-        if isinstance(item, Iterable) and not isinstance(item, (str, bytes)):
-            for produced in item:
-                queue.append(produced)
-                if len(configs) + len(queue) >= max_items:
-                    break
-            continue
-
-        msg = f"Curriculum source produced unsupported type: {type(item)!r}."
-        raise ValueError(msg)
-
-    if not configs:
-        raise ValueError("Curriculum did not yield any MettaGridConfig instances.")
-
-    return configs
-
-
-def _sanitize_filename(name: str) -> str:
-    sanitized = re.sub(r"[^A-Za-z0-9_.-]+", "_", name).strip("_")
-    return sanitized or "map"
-
-
-def _dump_game_configs(configs: Sequence[MettaGridConfig], names: Sequence[str], output_dir: Path) -> None:
-    output_dir.mkdir(parents=True, exist_ok=True)
-    for existing in output_dir.glob("*.yaml"):
-        existing.unlink()
-    for index, (config_obj, raw_name) in enumerate(zip(configs, names, strict=False)):
-        base_name = raw_name or f"map_{index:03d}"
-        file_stem = _sanitize_filename(base_name)
-        candidate = output_dir / f"{file_stem}.yaml"
-        if candidate.exists():
-            candidate = output_dir / f"{file_stem}_{index:03d}.yaml"
-        game.save_game_config(config_obj, candidate)
-
-
-def _resolve_run_dir(run_dir: Optional[Path]) -> Path:
-    if run_dir is not None:
-        return run_dir.expanduser().resolve()
-    return (BASE_RUNS_DIR / "default").resolve()
-
-
-def _suggest_parallelism(
-    device: str,
-    requested_envs: Optional[int],
-    requested_workers: Optional[int],
-) -> Tuple[int, int]:
-    if requested_envs is not None and requested_workers is not None:
-        return requested_envs, requested_workers
-
-    cpu_count = os.cpu_count() or 4
-
-    if requested_envs is not None:
-        envs = max(1, requested_envs)
-    else:
-        if device == "cuda":
-            envs = min(max(cpu_count * 2, 8), 32)
-        else:
-            envs = min(max(cpu_count, 2), 16)
-
-    if requested_workers is not None:
-        workers = max(1, requested_workers)
-    else:
-        workers = max(1, min(envs, max(1, cpu_count // 2)))
-
-    if envs % workers != 0:
-        for candidate in range(workers, 0, -1):
-            if envs % candidate == 0:
-                workers = candidate
-                break
-        else:
-            workers = 1
-            envs = max(envs, workers)
-
-    return envs, workers
-
-
 def _collect_configs(
     game_names: Iterable[str],
     curriculum_path: Optional[str],
@@ -176,7 +71,7 @@ def _collect_configs(
 
     if curriculum_path is not None:
         curriculum_source = load_symbol(curriculum_path)
-        curriculum_cfgs = _load_curriculum_configs(curriculum_source, max_items)
+        curriculum_cfgs = utils.load_curriculum_items(curriculum_source, max_items)
         start_index = len(names)
         for offset, cfg in enumerate(curriculum_cfgs):
             cfg_name = getattr(getattr(cfg, "game", None), "name", None)
@@ -184,69 +79,14 @@ def _collect_configs(
             configs.append(cfg)
             names.append(label)
     elif fallback_folder is not None and fallback_folder.exists():
-        try:
-            folder_cfgs, folder_names = curriculum_utils.load_map_folder_with_names(fallback_folder)
-        except (FileNotFoundError, NotADirectoryError, ValueError):
-            pass
-        else:
-            configs.extend(folder_cfgs)
-            names.extend(folder_names)
+        folder_cfgs, folder_names = curriculum_utils.load_map_folder_with_names(fallback_folder)
+        configs.extend(folder_cfgs)
+        names.extend(folder_names)
 
-    for index in range(len(names), len(configs)):
-        names.append(f"map_{index:03d}")
+    if len(names) < len(configs):
+        names.extend(f"map_{index:03d}" for index in range(len(names), len(configs)))
 
     return configs, names
-
-
-def _filter_uniform_agent_count(
-    configs: Sequence[MettaGridConfig],
-    names: Sequence[str],
-) -> Tuple[list[MettaGridConfig], list[str]]:
-    if not configs:
-        return list(configs), list(names)
-
-    counts = [cfg.game.num_agents for cfg in configs]
-    if len(set(counts)) <= 1:
-        return list(configs), list(names)
-
-    most_common_count = Counter(counts).most_common(1)[0][0]
-    filtered_cfgs: list[MettaGridConfig] = []
-    filtered_names: list[str] = []
-    dropped = 0
-    for cfg, name, count in zip(configs, names, counts, strict=False):
-        if count == most_common_count:
-            filtered_cfgs.append(cfg)
-            filtered_names.append(name)
-        else:
-            dropped += 1
-
-    if dropped:
-        console.print(
-            "[yellow]Skipping {dropped} map(s) with mismatched agent counts. "
-            "Training will use configs with {agents} agent(s).[/yellow]".format(
-                dropped=dropped,
-                agents=most_common_count,
-            )
-        )
-
-    return filtered_cfgs, filtered_names
-
-
-def _resolve_initial_weights(path: Optional[Path]) -> Optional[Path]:
-    if path is None:
-        return None
-    if path.is_file():
-        return path
-    if path.is_dir():
-        candidates = sorted(
-            (candidate for candidate in path.iterdir() if candidate.is_file()),
-            key=lambda candidate: candidate.stat().st_mtime,
-        )
-        for candidate in reversed(candidates):
-            if candidate.suffix in {".pt", ".pth", ".ckpt"}:
-                return candidate
-        raise ValueError(f"No checkpoint files found in directory: {path}")
-    raise ValueError(f"Initial weights path not found: {path}")
 
 
 # Mapping of shorthand policy names to full class paths
@@ -352,9 +192,9 @@ def curricula_cmd(
         if output_dir is not None:
             destination = output_dir.expanduser().resolve()
         else:
-            destination = (_resolve_run_dir(None) / "curricula").resolve()
+            destination = (utils.resolve_run_dir(BASE_RUNS_DIR, None) / "curricula").resolve()
 
-        _dump_game_configs(env_cfgs, env_names, destination)
+        utils.dump_game_configs(env_cfgs, env_names, destination)
 
         console.print(f"[green]Exported {len(env_cfgs)} maps to: {destination}[/green]")
 
@@ -383,7 +223,7 @@ def clean_cmd(
         return
 
     with _command_timeout(ctx):
-        resolved_run_dir = _resolve_run_dir(run_dir)
+        resolved_run_dir = utils.resolve_run_dir(BASE_RUNS_DIR, run_dir)
         targets: list[Path] = []
 
         if remove_curricula:
@@ -580,7 +420,7 @@ def make_scenario(
                 variants.append(cfg)
 
             base_label = getattr(variants[0].game, "name", base_game or "map")
-            safe_base_label = _sanitize_filename(str(base_label)) or "map"
+            safe_base_label = utils.sanitize_filename(str(base_label)) or "map"
 
             if num_variants > 1:
                 if output is None:
@@ -704,7 +544,7 @@ def train_cmd(
 ) -> None:
     """Train a policy on a game."""
     with _command_timeout(ctx):
-        resolved_run_dir = _resolve_run_dir(run_dir)
+        resolved_run_dir = utils.resolve_run_dir(BASE_RUNS_DIR, run_dir)
         resolved_run_dir.mkdir(parents=True, exist_ok=True)
 
         backend = vector_backend.lower()
@@ -750,7 +590,11 @@ def train_cmd(
 
         torch_device = resolve_training_device(device)
         resolved_device_type = torch_device.type
-        resolved_num_envs, resolved_num_workers = _suggest_parallelism(resolved_device_type, num_envs, num_workers)
+        resolved_num_envs, resolved_num_workers = utils.suggest_parallelism(
+            resolved_device_type,
+            num_envs,
+            num_workers,
+        )
         if vector_backend.lower() == "multiprocessing" and sys.platform == "darwin":
             resolved_num_workers = 1
 
@@ -765,7 +609,16 @@ def train_cmd(
             fallback_folder=fallback_curricula,
             game_param="game_name",
         )
-        env_cfgs, env_names = _filter_uniform_agent_count(env_cfgs, env_names)
+        env_cfgs, env_names, dropped = utils.filter_uniform_agent_count(env_cfgs, env_names)
+        if dropped:
+            agent_count = env_cfgs[0].game.num_agents if env_cfgs else "?"
+            console.print(
+                "[yellow]Skipping {dropped} map(s) with mismatched agent counts. "
+                "Training will use configs with {agents} agent(s).[/yellow]".format(
+                    dropped=dropped,
+                    agents=agent_count,
+                )
+            )
 
         representative_game = env_names[0] if env_names else None
 
@@ -807,7 +660,7 @@ def train_cmd(
 
         resolved_initial = None
         if initial_weights_path is not None:
-            resolved_initial = _resolve_initial_weights(initial_weights_path)
+            resolved_initial = utils.resolve_initial_weights(initial_weights_path)
 
         default_batch = max(resolved_num_envs * 32, 512)
         if batch_size is not None:
@@ -837,7 +690,7 @@ def train_cmd(
         else:
             maps_dir = (resolved_run_dir / "curricula").resolve()
 
-        _dump_game_configs(env_cfgs, env_names, maps_dir)
+        utils.dump_game_configs(env_cfgs, env_names, maps_dir)
 
         full_policy_path = resolve_policy_class_path(policy_class_path)
 
