@@ -95,9 +95,9 @@ class TransformerPolicyConfig(PolicyArchitecture):
     transformer: TransformerBackboneConfig | None = None
 
     # Actor / critic head dimensions
-    critic_hidden_dim: int = 288
-    actor_hidden_dim: int = 144
-    action_embedding_dim: int = 13
+    critic_hidden_dim: int = 256
+    actor_hidden_dim: int = 128
+    action_embedding_dim: int = 12
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
 
     # Implementation options
