@@ -88,7 +88,7 @@ class TransformerPolicyConfig(PolicyArchitecture):
         feat_dim=8 + (4 * 3) + 1,
         latent_dim=32,
         num_latents=12,
-        num_heads=4,
+        num_heads=3,
         num_layers=1,
     )
 
