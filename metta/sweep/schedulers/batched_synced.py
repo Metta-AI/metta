@@ -145,7 +145,8 @@ class BatchedSyncedOptimizingScheduler:
                         logger.info(f"[BatchedSyncedOptimizingScheduler] Found run {run_id} completed")
                 if self.config.force_eval and force_eval_count > 0:
                     logger.info(
-                        f"[BatchedSyncedOptimizingScheduler] force_eval=True: Will re-dispatch {force_eval_count} evaluation job(s)"
+                        "[BatchedSyncedOptimizingScheduler] force_eval=True: Will re-dispatch "
+                        f"{force_eval_count} evaluation job(s)"
                     )
                     # Clear the flag after first use to prevent continuous re-dispatching
                     self.config.force_eval = False
