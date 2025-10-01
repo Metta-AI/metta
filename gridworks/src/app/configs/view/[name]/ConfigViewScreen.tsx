@@ -31,6 +31,7 @@ export const ConfigViewScreen: FC<{ cfg: Config }> = ({ cfg }) => {
         <ConfigViewer
           value={cfg.config.value}
           unsetFields={cfg.config.unset_fields}
+          kind={cfg.maker.kind}
         />
       </div>
     ),

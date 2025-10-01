@@ -1,9 +1,11 @@
 "use client";
 import clsx from "clsx";
 import { createContext, FC, ReactNode, use } from "react";
+import z from "zod/v4";
 
 import jsonSchemas from "../lib/schemas.json" assert { type: "json" };
 import { RepoRootContext } from "./RepoRootContext";
+import { Tooltip } from "./Tooltip";
 
 const YamlContext = createContext<{
   isSelected?: (key: string, value: string) => boolean;
@@ -12,7 +14,58 @@ const YamlContext = createContext<{
   kind?: string;
 }>({ unsetFields: new Set() });
 
-function getSchemaProperty(path: string, kind: string) {
+const propertyCommonSchema = {
+  title: z.string().optional(),
+  description: z.string().optional(),
+};
+
+const propertySchema = z.union([
+  z.discriminatedUnion("type", [
+    z.object({
+      ...propertyCommonSchema,
+      type: z.literal("string"),
+    }),
+    z.object({
+      ...propertyCommonSchema,
+      type: z.literal("number"),
+    }),
+    z.object({
+      ...propertyCommonSchema,
+      type: z.literal("integer"),
+    }),
+    z.object({
+      ...propertyCommonSchema,
+      type: z.literal("boolean"),
+    }),
+    z.object({
+      ...propertyCommonSchema,
+      type: z.literal("object"),
+      additionalProperties: z.object({
+        type: z.string(),
+      }),
+    }),
+    z.object({
+      ...propertyCommonSchema,
+      type: z.literal("array"),
+      items: z.object({
+        type: z.string(),
+      }),
+    }),
+  ]),
+  z.object({
+    ...propertyCommonSchema,
+    get anyOf() {
+      return z.array(propertySchema);
+    },
+  }),
+]);
+
+type SchemaProperty = z.infer<typeof propertySchema>;
+
+function getSchemaProperty(
+  path: string,
+  kind: string
+): SchemaProperty | undefined {
   const defs = jsonSchemas.$defs;
   let currentKind = kind;
   const parts = path.split(".");
@@ -20,11 +73,11 @@ function getSchemaProperty(path: string, kind: string) {
   for (const part of parts) {
     const def = (defs as any)[currentKind];
     if (!def) {
-      return null;
+      return undefined;
     }
     property = def.properties[part];
     if (!property) {
-      return null;
+      return undefined;
     }
     if (property.$ref) {
       currentKind = property.$ref.split("/").pop()!;
@@ -32,25 +85,60 @@ function getSchemaProperty(path: string, kind: string) {
       currentKind = "UNKNOWN";
     }
   }
-  return property;
+  const parsed = propertySchema.safeParse(property);
+  return parsed.success ? parsed.data : undefined;
 }
+
+function getPropertyTypeStr(property: SchemaProperty): string {
+  if ("type" in property) {
+    let typeStr: string = property.type;
+    if (property.type === "array") {
+      typeStr = `${typeStr}[${property.items.type}]`;
+    } else if (property.type === "object") {
+      typeStr = `${typeStr}[${property.additionalProperties.type}]`;
+    }
+    return typeStr;
+  } else if ("anyOf" in property) {
+    return property.anyOf.map(getPropertyTypeStr).join(" | ");
+  }
+}
+
+const JsonSchemaPropertyInfo: FC<{
+  property: SchemaProperty;
+}> = ({ property }) => {
+  let typeStr = "unknown";
+  return (
+    <div className="text-xs">
+      <div className="font-semibold">{property.title}</div>
+      <span className="font-semibold">Type:</span> {typeStr}
+      <div>{property.description}</div>
+    </div>
+  );
+};
 
 const YamlKey: FC<{
   name: string;
-  tooltip?: string;
+  property?: SchemaProperty | undefined;
   disabled?: boolean;
-}> = ({ name, disabled }) => {
-  const result = (
+}> = ({ name, disabled, property }) => {
+  let result = (
     <span
       className={clsx(
         disabled ? "text-gray-500" : "font-semibold text-blue-900"
       )}
     >
-      {name}:
+      <span className={clsx(property && "cursor-pointer hover:bg-blue-100")}>
+        {name}
+      </span>
+      :
     </span>
   );
-  if (tooltip) {
-    result = <Tooltip title={tooltip}>{result}</Tooltip>;
+  if (property) {
+    result = (
+      <Tooltip render={() => <JsonSchemaPropertyInfo property={property} />}>
+        {result}
+      </Tooltip>
+    );
   }
   return result;
 };
@@ -133,6 +221,12 @@ const YamlKeyValue: FC<{
 }> = ({ yamlKey, value, path, depth }) => {
   const fullKey = path ? `${path}.${yamlKey}` : yamlKey;
 
+  const { kind } = use(YamlContext);
+
+  const property: SchemaProperty | undefined = kind
+    ? getSchemaProperty(fullKey, kind)
+    : undefined;
+
   if (isScalar(value)) {
     const { isSelected, onSelectLine, unsetFields } = use(YamlContext);
 
@@ -151,7 +245,11 @@ const YamlKeyValue: FC<{
         )}
         onClick={onClick}
       >
-        <YamlKey name={yamlKey} disabled={unsetFields.has(fullKey)} />
+        <YamlKey
+          name={yamlKey}
+          disabled={unsetFields.has(fullKey)}
+          property={property}
+        />
         <YamlScalar value={value} />
       </div>
     );
@@ -163,7 +261,7 @@ const YamlKeyValue: FC<{
 
   return (
     <div className={clsx(singleLine && "flex gap-1")}>
-      <YamlKey name={yamlKey} />
+      <YamlKey name={yamlKey} property={property} />
       <div className={clsx(!singleLine && "ml-[2ch]")}>
         <YamlAny value={value} path={fullKey} depth={depth + 1} />
       </div>
