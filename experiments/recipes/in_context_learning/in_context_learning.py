@@ -430,7 +430,7 @@ class LPParams:
         progress_smoothing: float = 0.01,
         performance_bonus_weight: float = 0.0,
         # Task management
-        num_active_tasks: int = 1000,
+        num_active_tasks: int = 100,
         rand_task_rate: float = 0.01,
         sample_threshold: int = 10,
         memory: int = 25,
