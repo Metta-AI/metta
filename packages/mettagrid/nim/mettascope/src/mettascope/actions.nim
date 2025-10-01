@@ -40,12 +40,16 @@ proc sendAction*(agentId, actionId, argument: int) =
   requestPython = true
 
 proc processActionQueue*() =
-  ## Send queued actions only when Python is naturally requested by timeline.
-  # Only process when timeline naturally requests Python (out of replay steps)
+  ## Send queued actions only when Python is requested and no action is pending.
+  # Only process when Python is being requested (out of replay steps, etc)
   if not requestPython:
     return
   
-  # Don't process if we already handled this
+  # Don't process if there's already an action pending (e.g. from WASD)
+  if requestAction:
+    return
+  
+  # Don't process if we already handled this step
   if step == currentProcessedStep:
     return
   
@@ -53,7 +57,7 @@ proc processActionQueue*() =
   if actionQueue.len > 0:
     # Get the first queued action
     for agentId, action in actionQueue:
-      # Timeline already set requestPython=true, now add our action
+      # Python is being requested, add our action
       requestAction = true
       requestActionAgentId = action.agentId
       requestActionActionId = action.actionId
