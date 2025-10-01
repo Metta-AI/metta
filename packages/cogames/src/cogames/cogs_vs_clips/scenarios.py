@@ -1,6 +1,6 @@
 from collections import deque
 from pathlib import Path
-from typing import Deque, Dict, Tuple
+from typing import Deque, Dict, List, Tuple
 
 from cogames.cogs_vs_clips.stations import (
     assembler,
@@ -34,6 +34,7 @@ from mettagrid.util.char_encoder import grid_object_to_char
 
 _RANDOM_MAP_CACHE: Dict[Tuple[int, int, int, Tuple[Tuple[str, int], ...]], Deque[AsciiMapBuilder.Config]] = {}
 _NUM_PREGENERATED_RANDOM_MAPS = 8
+_MAX_BIOME_DIMENSION = 100
 
 
 def _game_map_to_ascii(game_map) -> list[list[str]]:
@@ -66,6 +67,22 @@ def _materialize_random_map(
     ascii_cfg = cache[0]
     cache.rotate(-1)
     return ascii_cfg
+
+
+def _crop_ascii_map(map_data: List[List[str]], max_dim: int) -> List[List[str]]:
+    if not map_data:
+        return map_data
+    height = len(map_data)
+    width = len(map_data[0])
+    if height <= max_dim and width <= max_dim:
+        return map_data
+
+    crop_h = min(max_dim, height)
+    crop_w = min(max_dim, width)
+    top = max(0, (height - crop_h) // 2)
+    left = max(0, (width - crop_w) // 2)
+    cropped = [row[left:left + crop_w] for row in map_data[top:top + crop_h]]
+    return cropped
 
 
 RESOURCE_REWARD_WEIGHTS: dict[str, float] = {
@@ -185,7 +202,9 @@ def make_game_from_map(map_name: str, num_agents: int = 96) -> MettaGridConfig:
     """Create a game configuration from a map file."""
     maps_dir = Path(__file__).parent.parent / "maps"
     map_path = maps_dir / map_name
-    map_builder = AsciiMapBuilder.Config.from_uri(str(map_path))
+    map_cfg = AsciiMapBuilder.Config.from_uri(str(map_path))
+    cropped_map = _crop_ascii_map(map_cfg.map_data, _MAX_BIOME_DIMENSION)
+    map_builder = AsciiMapBuilder.Config(map_data=cropped_map)
     return _base_game_config(num_agents, map_builder)
 
 
