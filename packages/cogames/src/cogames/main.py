@@ -16,6 +16,7 @@ from rich.console import Console
 
 from cogames import curriculum as curriculum_utils
 from cogames import game, play, serialization, train, utils
+from click.core import ParameterSource
 from mettagrid import MettaGridConfig
 
 from cogames.env import make_hierarchical_env
@@ -542,6 +543,14 @@ def train_cmd(
             return candidate
 
         torch_device = resolve_training_device(device)
+        if torch_device.type == "cuda":
+            steps_source = ctx.get_parameter_source("steps") if ctx else None
+            if steps_source in (None, ParameterSource.DEFAULT):
+                steps = 50_000_000
+                console.print(
+                    "[cyan]Auto-adjusting training steps to 50,000,000 for CUDA runs. "
+                    "Override with --steps if needed.[/cyan]"
+                )
         resolved_device_type = torch_device.type
         resolved_num_envs, resolved_num_workers = utils.suggest_parallelism(
             resolved_device_type,
