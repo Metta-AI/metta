@@ -105,6 +105,53 @@ def silicon_extractor(max_use: Optional[int] = None) -> AssemblerConfig:
     )
 
 
+def silicon_ex_dep() -> AssemblerConfig:
+    return AssemblerConfig(
+        name="silicon_ex_dep",
+        type_id=16,
+        recipes=[
+            (
+                ["Any"],
+                RecipeConfig(
+                    output_resources={"silicon": 1},
+                    cooldown=1,
+                    max_use=5,
+                ),
+            )
+        ],
+    )
+
+
+def germanium_ex_dep() -> AssemblerConfig:
+    return AssemblerConfig(
+        name="germanium_ex_dep",
+        type_id=20,
+        recipes=[
+            (["Any"], RecipeConfig(output_resources={"germanium": 1}, cooldown=1, max_use=5)),
+        ],
+    )
+
+
+def oxygen_ex_dep() -> ConverterConfig:
+    return ConverterConfig(
+        name="oxygen_ex_dep",
+        type_id=18,
+        output_resources={"oxygen": 1},
+        max_output=10,
+        cooldown=10,
+    )
+
+
+def carbon_ex_dep() -> AssemblerConfig:
+    return AssemblerConfig(
+        name="carbon_ex_dep",
+        type_id=19,
+        recipes=[
+            (["Any"], RecipeConfig(output_resources={"carbon": 1}, cooldown=1, max_use=5)),
+        ],
+    )
+
+
 def chest() -> ChestConfig:
     return ChestConfig(
         type_id=17,

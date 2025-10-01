@@ -93,11 +93,11 @@ class ActionsConfig(Config):
     Omitted actions are disabled by default.
     """
 
-    noop: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
-    move: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=True))  # Default movement action
+    noop: ActionConfig = Field(default_factory=lambda: ActionConfig())
+    move: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))  # Default movement action
     rotate: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
-    put_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=True))
-    get_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=True))
+    put_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
+    get_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     attack: AttackActionConfig = Field(default_factory=lambda: AttackActionConfig(enabled=False))
     swap: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     change_color: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
@@ -164,6 +164,13 @@ class AssemblerConfig(Config):
         ),
     )
     max_uses: int = Field(default=0, ge=0, description="Maximum number of uses (0 = unlimited)")
+    exhaustion: float = Field(
+        default=0.0,
+        ge=0.0,
+        description=(
+            "Exhaustion rate - cooldown multiplier grows by (1 + exhaustion) after each use (0 = no exhaustion)"
+        ),
+    )
 
 
 class ChestConfig(Config):
@@ -278,7 +285,6 @@ class MettaGridConfig(Config):
         map_builder = RandomMapBuilder.Config(agents=num_agents, width=width, height=height, border_width=border_width)
         actions = ActionsConfig(
             move=ActionConfig(),
-            rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
         )
         objects = {}
         if border_width > 0 or with_walls:

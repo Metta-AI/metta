@@ -13,16 +13,11 @@ from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
     Position,
 )
-from metta.tools.train import TrainTool
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
-import random
-from typing import Optional
 from experiments.recipes.in_context_learning.in_context_learning import (
     num_agents_to_positions,
     ICLTaskGenerator,
     _BuildCfg,
-    train_icl,
+    num_agents_to_positions,
     play_icl,
     replay_icl,
 )

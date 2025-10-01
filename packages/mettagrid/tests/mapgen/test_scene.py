@@ -1,16 +1,15 @@
 import numpy as np
 import pytest
 
-from mettagrid.config import Config
-from mettagrid.mapgen.scene import ChildrenAction, Scene
+from mettagrid.mapgen.scene import ChildrenAction, Scene, SceneConfig
 from mettagrid.mapgen.types import Area, AreaQuery, AreaWhere
 
 
-class MockParams(Config):
+class MockConfig(SceneConfig):
     pass
 
 
-class MockScene(Scene[MockParams]):
+class MockScene(Scene[MockConfig]):
     def render(self):
         pass
 
@@ -27,7 +26,7 @@ def make_scene(children_actions: list[ChildrenAction]):
         ]
     )
     area = Area.root_area_from_grid(grid)
-    scene = MockScene(area=area, seed=42, children_actions=children_actions)
+    scene = MockScene.Config(seed=42, children=children_actions).create(area=area, rng=np.random.default_rng())
     # Create some test areas with different tags
     scene.make_area(0, 0, 3, 2, tags=["tag1", "tag2", "scene1"])  # ABC / FGH
     scene.make_area(1, 2, 2, 2, tags=["tag2", "tag3", "scene2"])  # LM / QR
@@ -144,25 +143,22 @@ class TestSelectAreas:
 class TestSceneTree:
     def test_basic(self, scene):
         scene_tree = scene.get_scene_tree()
-        assert scene_tree["type"] == "MockScene"
-        assert scene_tree["params"] == {}
+        assert scene_tree["config"]["type"] == "tests.mapgen.test_scene.MockScene"
         assert scene_tree["area"] == scene.area.as_dict()
-        assert len(scene_tree["children"]) == 0
+        assert len(scene_tree["config"]["children"]) == 0
 
     def test_with_children(self):
         scene = make_scene(
             [
                 ChildrenAction(
-                    scene=MockScene.factory(),
+                    scene=MockScene.Config(),
                     where=AreaWhere(tags=["tag1"]),
                 )
             ]
         )
         scene.render_with_children()
         scene_tree = scene.get_scene_tree()
-        assert scene_tree["type"] == "MockScene"
-        assert scene_tree["params"] == {}
+        assert scene_tree["config"]["type"] == "tests.mapgen.test_scene.MockScene"
         assert scene_tree["area"] == scene.area.as_dict()
         assert len(scene_tree["children"]) == 2
-        assert scene_tree["children"][0]["type"] == "MockScene"
-        assert scene_tree["children"][0]["params"] == {}
+        assert scene_tree["children"][0]["config"]["type"] == "tests.mapgen.test_scene.MockScene"

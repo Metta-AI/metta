@@ -21,7 +21,7 @@ def make_nav_sequence_ascii_env(
         instances=num_instances,
         border_width=border_width,
         instance_border_width=instance_border_width,
-        instance_map=MapGen.Config.with_ascii_uri(ascii_map, border_width=border_width),
+        instance=MapGen.Config.with_ascii_uri(ascii_map, border_width=border_width),
     )
 
     # in evals, only complete the sequence once

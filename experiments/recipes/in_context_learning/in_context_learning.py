@@ -1,27 +1,26 @@
 import random
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List
 
-from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
-from pydantic import Field
-from mettagrid.builder import building, empty_converters
-from mettagrid.config.mettagrid_config import (
-    Position,
-    RecipeConfig,
-    MettaGridConfig,
-)
+from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-from metta.tools.train import TrainTool
-from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
-from typing import Callable
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
+from metta.tools.train import TrainTool
+from mettagrid.builder import building, empty_converters
 from mettagrid.builder.envs import make_icl_with_numpy
+from mettagrid.config.mettagrid_config import (
+    MettaGridConfig,
+    Position,
+    RecipeConfig,
+)
+from pydantic import Field
 
 CONVERTER_TYPES = {
     "mine_red": empty_converters.mine_red,
@@ -403,7 +402,7 @@ class ICLTaskGenerator(TaskGenerator):
             num_instances=num_instances,
             max_steps=max_steps,
             game_objects=game_objects,
-            instance_map=InContextLearningFromNumpy.Config(
+            instance=InContextLearningFromNumpy.Config(
                 agents=num_agents,
                 dir=dir,
                 objects=map_builder_objects,
