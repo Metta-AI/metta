@@ -678,12 +678,13 @@ def post_commit_status(
 # ============================================================================
 
 
-def filter_repo(source_path: Path, paths: list[str], root_subdir: str | None = None) -> Path:
+def filter_repo(source_path: Path, paths: list[str], make_root: str | None = None) -> Path:
     """Filter repository to only include specified paths.
 
     Args:
         source_path: Path to source repository
         paths: List of paths to keep (e.g., ["packages/mettagrid/", "mettascope/"])
+        make_root: If specified, move this path to become the repository root (e.g., "packages/mettagrid/")
 
     Returns:
         Path to the filtered repository
@@ -721,13 +722,14 @@ def filter_repo(source_path: Path, paths: list[str], root_subdir: str | None = N
 
     # Filter repository
     filter_cmd = ["git", "filter-repo", "--force"]
-    if root_subdir:
-        # Make specified subdirectory become repository root
-        filter_cmd.extend(["--subdirectory-filter", root_subdir])
-        print(f"Filtering to subdirectory root: {root_subdir}")
+    for path in paths:
+        filter_cmd.extend(["--path", path])
+
+    # Move specified path to root if requested
+    if make_root:
+        filter_cmd.extend(["--path-rename", f"{make_root}:"])
+        print(f"Filtering to: {', '.join(paths)}, moving {make_root} to root")
     else:
-        for path in paths:
-            filter_cmd.extend(["--path", path])
         print(f"Filtering to: {', '.join(paths)}")
 
     result = subprocess.run(filter_cmd, cwd=filtered_path, capture_output=True, text=True)
