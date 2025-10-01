@@ -187,6 +187,15 @@ class ChestConfig(Config):
     tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
 
 
+class ClipperConfig(Config):
+    """Global clipper that probabilistically clips assemblers each tick."""
+
+    recipe: RecipeConfig = Field(default_factory=RecipeConfig)
+    length_scale: float = Field(default=1.0, ge=0.0)
+    cutoff_distance: float = Field(default=0.0, ge=0.0)
+    clip_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
 class GameConfig(Config):
     """Python game configuration."""
 
@@ -233,6 +242,9 @@ class GameConfig(Config):
     inventory_regen_interval: int = Field(
         default=0, ge=0, description="Interval in timesteps between regenerations (0 = disabled)"
     )
+
+    # Global clipper system
+    clipper: Optional[ClipperConfig] = Field(default=None, description="Global clipper configuration")
 
     # Map builder configuration - accepts any MapBuilder config
     map_builder: "AnyMapBuilderConfig" = Field(default_factory=_default_map_builder_config)

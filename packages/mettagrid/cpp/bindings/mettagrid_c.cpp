@@ -34,6 +34,7 @@
 #include "objects/recipe.hpp"
 #include "objects/wall.hpp"
 #include "systems/clipper.hpp"
+#include "systems/clipper_config.hpp"
 #include "systems/observation_encoder.hpp"
 #include "systems/packed_coordinate.hpp"
 #include "systems/stats_tracker.hpp"
@@ -249,15 +250,13 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   set_buffers(observations, terminals, truncations, rewards);
 
   // Initialize global systems
-  if (_game_config.clipper_clip_rate > 0.0f) {
-    if (!_game_config.clipper_recipe) {
-      throw std::runtime_error("Clipper clip rate is greater than 0.0f, but no clipper recipe is provided");
+  if (_game_config.clipper) {
+    auto& clipper_cfg = *_game_config.clipper;
+    if (!clipper_cfg.recipe) {
+      throw std::runtime_error("Clipper config provided but recipe is null");
     }
-    _clipper = std::make_unique<Clipper>(*_grid,
-                                         _game_config.clipper_recipe,
-                                         _game_config.clipper_length_scale,
-                                         _game_config.clipper_cutoff_distance,
-                                         _game_config.clipper_clip_rate);
+    _clipper = std::make_unique<Clipper>(
+        *_grid, clipper_cfg.recipe, clipper_cfg.length_scale, clipper_cfg.cutoff_distance, clipper_cfg.clip_rate);
   }
 }
 
@@ -941,6 +940,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
   bind_attack_action_config(m);
   bind_change_glyph_action_config(m);
   bind_global_obs_config(m);
+  bind_clipper_config(m);
   bind_game_config(m);
 
   // Export data types from types.hpp

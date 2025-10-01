@@ -136,6 +136,19 @@ class Recipe:
     output_resources: dict[int, int]
     cooldown: int
 
+class ClipperConfig:
+    def __init__(
+        self,
+        recipe: Recipe,
+        length_scale: float,
+        cutoff_distance: float,
+        clip_rate: float,
+    ) -> None: ...
+    recipe: Recipe
+    length_scale: float
+    cutoff_distance: float
+    clip_rate: float
+
 class AttackActionConfig(ActionConfig):
     def __init__(
         self,
@@ -188,10 +201,7 @@ class GameConfig:
         reward_estimates: Optional[dict[str, float]] = None,
         inventory_regen_amounts: dict[int, int] | None = None,
         inventory_regen_interval: int = 0,
-        clipper_recipe: Optional[Recipe] = None,
-        clipper_length_scale: float = 1.0,
-        clipper_cutoff_distance: float = 0.0,
-        clipper_clip_rate: float = 0.0,
+        clipper: Optional[ClipperConfig] = None,
     ) -> None: ...
     num_agents: int
     max_steps: int
@@ -210,10 +220,7 @@ class GameConfig:
     tag_id_map: dict[int, str]
     inventory_regen_amounts: dict[int, int]
     inventory_regen_interval: int
-    clipper_recipe: Optional[Recipe]
-    clipper_length_scale: float
-    clipper_cutoff_distance: float
-    clipper_clip_rate: float
+    clipper: Optional[ClipperConfig]
 
 class MettaGrid:
     obs_width: int
