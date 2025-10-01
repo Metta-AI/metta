@@ -62,52 +62,49 @@ from metta.map.terrain_from_numpy import CogsVClippiesFromNumpy
 
 curriculum_args = {
     "multi_agent_singles": {
-        "num_cogs": [2, 4, 6, 8, 12],
+        "num_cogs": [2, 4, 8, 12, 24],
         "assembler_positions": [["Any"]],
-        "num_chargers": [3, 5, 10, 15],
         "charger_positions": [["Any"]],
         "carbon_extractor_positions": [["Any"]],
         "oxygen_extractor_positions": [["Any"]],
         "germanium_extractor_positions": [["Any"]],
         "silicon_extractor_positions": [["Any"]],
-        "num_chests": [1, 5, 10],
+        "num_obj_distribution": [2, 4, 8, 12, 20],
         "chest_positions": [["N"]],
         "regeneration_rate": [1, 2, 3, 4],
         "shareable_energy": [False],
-        "use_terrain": [True, False],
+        "use_terrain": [True],
         "sizes": ["small", "medium"],
     },
     "multi_agent_pairs": {
-        "num_cogs": [2, 4, 6, 8, 12],
+        "num_cogs": [2, 4, 8, 12, 24],
         "assembler_positions": [["Any", "Any"]],
-        "num_chargers": [3, 5, 10, 15],
         "charger_positions": [["Any", "Any"]],
         "carbon_extractor_positions": [["Any", "Any"]],
         "oxygen_extractor_positions": [["Any", "Any"]],
         "germanium_extractor_positions": [["Any", "Any"]],
         "silicon_extractor_positions": [["Any", "Any"]],
-        "num_chests": [1, 5, 10],
+        "num_obj_distribution": [2, 4, 8, 12, 20],
         "chest_positions": [["N", "S"]],
         "regeneration_rate": [1, 2, 3, 4],
         "shareable_energy": [True],
-        "use_terrain": [True, False],
+        "use_terrain": [True],
         "sizes": ["small", "medium"],
     },
     "multi_agent_triplets": {
-        "num_cogs": [3, 6, 8, 12, 24],
+        "num_cogs": [2, 4, 8, 12, 24],
         "assembler_positions": [["Any", "Any"]],
-        "num_chargers": [3, 5, 10, 15],
         "charger_positions": [["Any", "Any", "Any"]],
         "carbon_extractor_positions": [["Any", "Any", "Any"]],
         "oxygen_extractor_positions": [["Any", "Any", "Any"]],
         "num_germanium_extractors": [0, 0, 0, 5, 10],
         "germanium_extractor_positions": [["Any", "Any", "Any"]],
         "silicon_extractor_positions": [["Any", "Any", "Any"]],
-        "num_chests": [1, 5, 10],
+        "num_obj_distribution": [2, 4, 8, 12, 20],
         "chest_positions": [["N", "S", "E"]],
         "regeneration_rate": [1, 2, 3, 4],
         "shareable_energy": [True],
-        "use_terrain": [True, False],
+        "use_terrain": [True],
         "sizes": ["small", "medium"],
     },
     # "test":
@@ -140,73 +137,68 @@ evals = {
     "single_agent_no_terrain": {
         "num_cogs": 1,
         "assembler_positions": ["Any"],
-        "num_chargers": 5,
+        "num_obj_distribution": 3,
         "charger_positions": ["Any"],
         "carbon_extractor_positions": ["Any"],
         "oxygen_extractor_positions": ["Any"],
         "germanium_extractor_positions": ["Any"],
         "silicon_extractor_positions": ["Any"],
-        "num_chests": 5,
         "chest_positions": ["N"],
         "regeneration_rate": 10,
         "shareable_energy": False,
-        "use_terrain": False,
+        "use_terrain": True,
     },
     "two_agent_pairs_no_terrain": {
         "num_cogs": 2,
         "assembler_positions": ["Any", "Any"],
-        "num_chargers": 5,
+        "num_obj_distribution": 3,
         "charger_positions": ["Any", "Any"],
         "carbon_extractor_positions": ["Any", "Any"],
         "oxygen_extractor_positions": ["Any", "Any"],
         "germanium_extractor_positions": ["Any", "Any"],
         "silicon_extractor_positions": ["Any", "Any"],
-        "num_chests": 5,
         "chest_positions": ["N", "S"],
         "regeneration_rate": 10,
         "shareable_energy": True,
-        "use_terrain": False,
+        "use_terrain": True,
     },
     "three_agent_triplets_no_terrain": {
         "num_cogs": 3,
         "assembler_positions": ["Any", "Any", "Any"],
-        "num_chargers": 5,
+        "num_obj_distribution": 5,
         "charger_positions": ["Any", "Any", "Any"],
         "carbon_extractor_positions": ["Any", "Any", "Any"],
         "oxygen_extractor_positions": ["Any", "Any", "Any"],
         "germanium_extractor_positions": ["Any", "Any", "Any"],
         "silicon_extractor_positions": ["Any", "Any", "Any"],
-        "num_chests": 5,
         "chest_positions": ["N", "S", "E"],
         "regeneration_rate": 10,
         "shareable_energy": True,
-        "use_terrain": False,
+        "use_terrain": True,
     },
     "many_agent_triplets_no_terrain": {
         "num_cogs": 12,
         "assembler_positions": ["Any", "Any"],
-        "num_chargers": 5,
+        "num_obj_distribution": 5,
         "charger_positions": ["Any", "Any", "Any"],
         "carbon_extractor_positions": ["Any", "Any", "Any"],
         "oxygen_extractor_positions": ["Any", "Any", "Any"],
         "germanium_extractor_positions": ["Any", "Any", "Any"],
         "silicon_extractor_positions": ["Any", "Any", "Any"],
-        "num_chests": 5,
         "chest_positions": ["N", "S", "E"],
         "regeneration_rate": 10,
         "shareable_energy": True,
-        "use_terrain": False,
+        "use_terrain": True,
     },
     "single_agent_terrain_small": {
         "num_cogs": 1,
         "assembler_positions": ["Any"],
-        "num_chargers": 5,
+        "num_obj_distribution": 5,
         "charger_positions": ["Any"],
         "carbon_extractor_positions": ["Any"],
         "oxygen_extractor_positions": ["Any"],
         "germanium_extractor_positions": ["Any"],
         "silicon_extractor_positions": ["Any"],
-        "num_chests": 5,
         "chest_positions": ["N"],
         "regeneration_rate": 10,
         "shareable_energy": False,
@@ -215,13 +207,12 @@ evals = {
     "two_agent_pairs_terrain_small": {
         "num_cogs": 2,
         "assembler_positions": ["Any", "Any"],
-        "num_chargers": 5,
+        "num_obj_distribution": 5,
         "charger_positions": ["Any", "Any"],
         "carbon_extractor_positions": ["Any", "Any"],
         "oxygen_extractor_positions": ["Any", "Any"],
         "germanium_extractor_positions": ["Any", "Any"],
         "silicon_extractor_positions": ["Any", "Any"],
-        "num_chests": 5,
         "chest_positions": ["N", "S"],
         "regeneration_rate": 10,
         "shareable_energy": True,
@@ -230,13 +221,12 @@ evals = {
     "three_agent_triplets_terrain_small": {
         "num_cogs": 3,
         "assembler_positions": ["Any", "Any", "Any"],
-        "num_chargers": 5,
+        "num_obj_distribution": 5,
         "charger_positions": ["Any", "Any", "Any"],
         "carbon_extractor_positions": ["Any", "Any", "Any"],
         "oxygen_extractor_positions": ["Any", "Any", "Any"],
         "germanium_extractor_positions": ["Any", "Any", "Any"],
         "silicon_extractor_positions": ["Any", "Any", "Any"],
-        "num_chests": 5,
         "chest_positions": ["N", "S", "E"],
         "regeneration_rate": 10,
         "shareable_energy": True,
@@ -245,13 +235,12 @@ evals = {
     "many_agent_triplets_terrain_small": {
         "num_cogs": 12,
         "assembler_positions": ["Any", "Any", "Any"],
-        "num_chargers": 5,
+        "num_obj_distribution": 5,
         "charger_positions": ["Any", "Any", "Any"],
         "carbon_extractor_positions": ["Any", "Any", "Any"],
         "oxygen_extractor_positions": ["Any", "Any", "Any"],
         "germanium_extractor_positions": ["Any", "Any", "Any"],
         "silicon_extractor_positions": ["Any", "Any", "Any"],
-        "num_chests": 5,
         "chest_positions": ["N", "S", "E"],
         "regeneration_rate": 10,
         "shareable_energy": True,
@@ -263,9 +252,8 @@ evals = {
 class CogsVsClippiesTaskGenerator(TaskGenerator):
     class Config(TaskGeneratorConfig["CogsVsClippiesTaskGenerator"]):
         num_cogs: list[int] = Field(default=[1])
-        num_assemblers: list[int] = Field(default=[1])
+        num_obj_distribution: list[int] = Field(default=[10])
         assembler_positions: list[list[Position]] = Field(default=[["Any"]])
-        num_chargers: list[int] = Field(default=[1])
         charger_positions: list[list[Position]] = Field(default=[["Any"]])
         num_carbon_extractors: list[int] = Field(default=[0])
         carbon_extractor_positions: list[list[Position]] = Field(default=[["Any"]])
@@ -275,7 +263,6 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
         germanium_extractor_positions: list[list[Position]] = Field(default=[["Any"]])
         num_silicon_extractors: list[int] = Field(default=[0])
         silicon_extractor_positions: list[list[Position]] = Field(default=[["Any"]])
-        num_chests: list[int] = Field(default=[1])
         chest_positions: list[list[Position]] = Field(default=[["N"]])
         regeneration_rate: list[int] = Field(default=[5])
         shareable_energy: list[bool] = Field(default=[True])
@@ -288,17 +275,13 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
 
     def _set_width_and_height(self, num_cogs, num_objects, rng):
         """Set the width and height of the environment to be at least the minimum area required for the number of agents, altars, and generators."""
-        minimum_area = num_cogs + num_objects * rng.choice([3, 5, 7])
+        minimum_area = num_cogs + num_objects * rng.choice([1, 2, 4])
         width, height = minimum_area // 2, minimum_area // 2
         return width, height
 
     def _make_env_cfg(self, rng: random.Random):
         num_cogs = rng.choice(self.config.num_cogs)
-        num_chargers = rng.choice(self.config.num_chargers)
-        num_chests = rng.choice(self.config.num_chests)
         regeneration_rate = rng.choice(self.config.regeneration_rate)
-        num_assemblers = num_chests * 3
-        max_num_extractors = num_assemblers // 2
         include_extractors = rng.choice([True, False])
         chest_position = rng.choice(self.config.chest_positions)
         charger_position = rng.choice(self.config.charger_positions)
@@ -308,37 +291,51 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
         germanium_extractor_position = rng.choice(
             self.config.germanium_extractor_positions
         )
+        use_terrain = rng.choice(self.config.use_terrain)
+
+        if use_terrain:
+            terrain_density = rng.choice(["sparse", "balanced", "dense"])
+            room_size = rng.choice(self.config.sizes)
+            if room_size == "small":
+                num_obj_distribution = [2, 4, 6]
+            elif room_size == "medium":
+                num_obj_distribution = [5, 8, 12, 15]
+            elif room_size == "large":
+                num_obj_distribution = [10, 20, 30, 50]
+
+        else:
+            num_obj_distribution = self.config.num_obj_distribution
+
+        num_assemblers = rng.choice(num_obj_distribution)
+        num_chargers = rng.choice(num_obj_distribution)
+        num_chests = rng.choice(num_obj_distribution)
+        num_chests = max(4, num_chests)
+
         silicon_extractor_position = rng.choice(self.config.silicon_extractor_positions)
         if include_extractors:
-            num_carbon_extractors = rng.choice(
-                [0] + list(range(1, max_num_extractors + 1, 2))
-            )
-            num_oxygen_extractors = rng.choice(
-                [0] + list(range(max_num_extractors + 1, 2))
-            )
-            num_germanium_extractors = rng.choice(
-                [0] + list(range(max_num_extractors + 1, 2))
-            )
-            num_silicon_extractors = rng.choice(
-                [0] + list(range(max_num_extractors + 1, 2))
-            )
+            num_carbon_extractors = rng.choice([0] + num_obj_distribution)
+            num_oxygen_extractors = rng.choice([0] + num_obj_distribution)
+            num_germanium_extractors = rng.choice([0] + num_obj_distribution)
+            num_silicon_extractors = rng.choice([0] + num_obj_distribution)
         else:
             num_carbon_extractors = num_oxygen_extractors = num_germanium_extractors = (
                 num_silicon_extractors
             ) = 0
 
-        width, height = self._set_width_and_height(
-            num_cogs,
-            num_assemblers
-            + num_chargers
-            + num_carbon_extractors
-            + num_oxygen_extractors
-            + num_germanium_extractors
-            + num_silicon_extractors
-            + num_chests,
-            rng,
-        )
-        shareable_energy = rng.choice(self.config.shareable_energy)
+        if not use_terrain:
+            width, height = self._set_width_and_height(
+                num_cogs,
+                num_assemblers
+                + num_chargers
+                + num_carbon_extractors
+                + num_oxygen_extractors
+                + num_germanium_extractors
+                + num_silicon_extractors
+                + num_chests,
+                rng,
+            )
+        else:
+            width, height = 10, 10  # won't use for terrain
 
         num_instances = 24 // num_cogs
 
@@ -376,14 +373,12 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
         )
 
         env.game.inventory_regen_interval = regeneration_rate
-        env.game.inventory_regen_amounts = {"energy": 2}
-        if shareable_energy:
+        env.game.inventory_regen_amounts = {"energy": 1}
+        if rng.choice(self.config.shareable_energy):
             env.game.agent.shareable_resources = ["energy"]
         env.label = f"{env.game.num_agents}_cogs_{num_assemblers}_assemblers_{num_chargers}_chargers_{num_carbon_extractors + num_oxygen_extractors + num_germanium_extractors + num_silicon_extractors}_extractors_{num_chests}_chests_{env.game.inventory_regen_interval}_regeneration_rate"
 
-        if self.config.use_terrain:
-            terrain_density = rng.choice(["sparse", "balanced", "dense"])
-            size = rng.choice(self.config.sizes)
+        if use_terrain:
             map_builder = MapGen.Config(
                 instances=num_instances,
                 border_width=6,
@@ -400,7 +395,7 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
                         "chest": num_chests,
                     },
                     remove_altars=True,
-                    dir=f"varied_terrain/{terrain_density}_{size}",
+                    dir=f"varied_terrain/{terrain_density}_{room_size}",
                     rng=rng,
                 ),
             )
@@ -412,6 +407,10 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
                 num_agents=24,
             )
         env.game.num_agents = 24
+
+        print(
+            f"Generated env with {num_cogs} cogs, {num_instances} instances, {num_assemblers} assemblers, {num_chargers} chargers, {num_carbon_extractors} carbon extractors, {num_oxygen_extractors} oxygen extractors, {num_germanium_extractors} germanium extractors, {num_silicon_extractors} silicon extractors, {num_chests} chests"
+        )
         return env
 
     def _overwrite_positions(self, object, positions):
@@ -463,7 +462,7 @@ def train(
         policy_config = FastLSTMResetConfig()
     elif architecture == "transformer":
         policy_config = ViTSlidingTransConfig()
-        trainer_cfg.batch_size = 131072
+        trainer_cfg.batch_size = 516096
         trainer_cfg.minibatch_size = 4096
     else:
         raise ValueError(f"Invalid architecture: {architecture}")
@@ -488,13 +487,11 @@ def train(
 
 def make_env(
     num_cogs=1,
-    num_assemblers=1,
-    num_chargers=1,
+    num_obj_distribution=4,
     num_carbon_extractors=1,
     num_oxygen_extractors=1,
     num_germanium_extractors=1,
     num_silicon_extractors=1,
-    num_chests=1,
     chest_positions=["N"],
     assembler_positions=["Any"],
     charger_positions=["Any"],
@@ -509,15 +506,13 @@ def make_env(
     task_generator = CogsVsClippiesTaskGenerator(
         config=CogsVsClippiesTaskGenerator.Config(
             num_cogs=[num_cogs],
-            num_assemblers=[num_assemblers],
-            num_chargers=[num_chargers],
             num_carbon_extractors=[num_carbon_extractors],
             num_oxygen_extractors=[num_oxygen_extractors],
             num_germanium_extractors=[num_germanium_extractors],
             num_silicon_extractors=[num_silicon_extractors],
-            num_chests=[num_chests],
             chest_positions=[chest_positions],
             assembler_positions=[assembler_positions],
+            num_obj_distribution=[num_obj_distribution],
             charger_positions=[charger_positions],
             carbon_extractor_positions=[carbon_extractor_positions],
             oxygen_extractor_positions=[oxygen_extractor_positions],
@@ -549,7 +544,7 @@ def experiment():
                 [
                     "./devops/skypilot/launch.py",
                     "experiments.recipes.cogs_v_clips.level_1.train",
-                    f"run=daphne.cogs_v_clips.level_1.{curriculum_style}_{architecture}.{time.strftime('%Y-%m-%d')}",
+                    f"run=cogs_v_clips.level_1.{curriculum_style}_{architecture}.{time.strftime('%Y-%m-%d')}",
                     f"curriculum_style={curriculum_style}",
                     f"architecture={architecture}",
                     "--gpus=4",
