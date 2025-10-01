@@ -24,8 +24,8 @@ class TransformerBackboneVariant(str, Enum):
 
 _VARIANT_DEFAULTS: Dict[TransformerBackboneVariant, Dict[str, Any]] = {
     TransformerBackboneVariant.GTRXL: {
-        "latent_size": 44,
-        "hidden_size": 44,
+        "latent_size": 45,
+        "hidden_size": 45,
         "num_layers": 2,
         "n_heads": 3,
         "d_ff": 128,
@@ -45,8 +45,8 @@ _VARIANT_DEFAULTS: Dict[TransformerBackboneVariant, Dict[str, Any]] = {
         "use_fused_layernorm": False,
     },
     TransformerBackboneVariant.TRXL: {
-        "latent_size": 44,
-        "hidden_size": 44,
+        "latent_size": 45,
+        "hidden_size": 45,
         "num_layers": 2,
         "n_heads": 3,
         "d_ff": 128,
