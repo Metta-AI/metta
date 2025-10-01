@@ -408,7 +408,9 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
             )
         env.game.num_agents = 24
 
-        print(f"Generated env with {num_cogs} cogs, {num_instances} instances, {num_assemblers} assemblers, {num_chargers} chargers, {num_carbon_extractors} carbon extractors, {num_oxygen_extractors} oxygen extractors, {num_germanium_extractors} germanium extractors, {num_silicon_extractors} silicon extractors, {num_chests} chests")
+        print(
+            f"Generated env with {num_cogs} cogs, {num_instances} instances, {num_assemblers} assemblers, {num_chargers} chargers, {num_carbon_extractors} carbon extractors, {num_oxygen_extractors} oxygen extractors, {num_germanium_extractors} germanium extractors, {num_silicon_extractors} silicon extractors, {num_chests} chests"
+        )
         return env
 
     def _overwrite_positions(self, object, positions):
