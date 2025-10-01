@@ -3,12 +3,11 @@
 import contextlib
 import logging
 import os
-import re
 import shutil
 import sys
 from collections import Counter
 from pathlib import Path
-from typing import Annotated, Any, Iterable, Literal, Optional, Sequence, Tuple
+from typing import Annotated, Any, Literal, Optional, Sequence, Tuple
 
 # Always add current directory to Python path
 sys.path.insert(0, ".")
@@ -20,7 +19,6 @@ from rich.console import Console
 from cogames import curriculum as curriculum_utils
 from cogames import game, play, serialization, train, utils
 from mettagrid import MettaGridConfig, MettaGridEnv
-from mettagrid.util.module import load_symbol
 
 logger = logging.getLogger("cogames.main")
 
@@ -31,17 +29,6 @@ app.add_typer(policy_app, name="policy")
 
 BASE_RUNS_DIR = (Path(__file__).resolve().parent / "runs").resolve()
 
-DEFAULT_BIOME_GAMES: tuple[str, ...] = (
-    "machina_1",
-    "machina_1_big",
-    "machina_2_bigger",
-    "machina_3_big",
-    "machina_4_bigger",
-    "machina_5_big",
-    "machina_6_bigger",
-    "machina_7_big",
-)
-
 
 @contextlib.contextmanager
 def _command_timeout(ctx: typer.Context):
@@ -51,67 +38,6 @@ def _command_timeout(ctx: typer.Context):
         timeout = ctx.obj.get("timeout")
     with utils.cli_timeout(timeout):
         yield
-
-
-def _ensure_config(value: Any) -> MettaGridConfig:
-    if isinstance(value, MettaGridConfig):
-        return value
-    if isinstance(value, (str, Path)):
-        return game.get_game(str(value))
-    if isinstance(value, dict):
-        return MettaGridConfig.model_validate(value)
-    msg = f"Unsupported curriculum item type: {type(value)!r}."
-    raise ValueError(msg)
-
-
-def _load_curriculum_configs(source: Any, max_items: int) -> Sequence[MettaGridConfig]:
-    queue: list[Any] = [source]
-    configs: list[MettaGridConfig] = []
-
-    while queue and len(configs) < max_items:
-        item = queue.pop(0)
-
-        if isinstance(item, MettaGridConfig) or isinstance(item, (str, Path)) or isinstance(item, dict):
-            configs.append(_ensure_config(item))
-            continue
-
-        if callable(item):
-            produced = item()
-            queue.append(produced)
-            continue
-
-        if isinstance(item, Iterable) and not isinstance(item, (str, bytes)):
-            for produced in item:
-                queue.append(produced)
-                if len(configs) + len(queue) >= max_items:
-                    break
-            continue
-
-        msg = f"Curriculum source produced unsupported type: {type(item)!r}."
-        raise ValueError(msg)
-
-    if not configs:
-        raise ValueError("Curriculum did not yield any MettaGridConfig instances.")
-
-    return configs
-
-
-def _sanitize_filename(name: str) -> str:
-    sanitized = re.sub(r"[^A-Za-z0-9_.-]+", "_", name).strip("_")
-    return sanitized or "map"
-
-
-def _dump_game_configs(configs: Sequence[MettaGridConfig], names: Sequence[str], output_dir: Path) -> None:
-    output_dir.mkdir(parents=True, exist_ok=True)
-    for existing in output_dir.glob("*.yaml"):
-        existing.unlink()
-    for index, (config_obj, raw_name) in enumerate(zip(configs, names, strict=False)):
-        base_name = raw_name or f"map_{index:03d}"
-        file_stem = _sanitize_filename(base_name)
-        candidate = output_dir / f"{file_stem}.yaml"
-        if candidate.exists():
-            candidate = output_dir / f"{file_stem}_{index:03d}.yaml"
-        game.save_game_config(config_obj, candidate)
 
 
 def _resolve_run_dir(run_dir: Optional[Path]) -> Path:
@@ -153,49 +79,6 @@ def _suggest_parallelism(
             envs = max(envs, workers)
 
     return envs, workers
-
-
-def _collect_configs(
-    game_names: Iterable[str],
-    curriculum_path: Optional[str],
-    max_items: int,
-    fallback_folder: Optional[Path],
-    game_param: str,
-) -> Tuple[list[MettaGridConfig], list[str]]:
-    configs: list[MettaGridConfig] = []
-    names: list[str] = []
-
-    for game_name in game_names:
-        resolved_game, error = utils.resolve_game(game_name)
-        if error:
-            raise typer.BadParameter(error, param_name=game_param)
-        if resolved_game is None:
-            raise typer.BadParameter(f"game '{game_name}' not found", param_name=game_param)
-        configs.append(game.get_game(resolved_game))
-        names.append(resolved_game)
-
-    if curriculum_path is not None:
-        curriculum_source = load_symbol(curriculum_path)
-        curriculum_cfgs = _load_curriculum_configs(curriculum_source, max_items)
-        start_index = len(names)
-        for offset, cfg in enumerate(curriculum_cfgs):
-            cfg_name = getattr(getattr(cfg, "game", None), "name", None)
-            label = str(cfg_name) if cfg_name else f"curriculum_{start_index + offset:03d}"
-            configs.append(cfg)
-            names.append(label)
-    elif fallback_folder is not None and fallback_folder.exists():
-        try:
-            folder_cfgs, folder_names = curriculum_utils.load_map_folder_with_names(fallback_folder)
-        except (FileNotFoundError, NotADirectoryError, ValueError):
-            pass
-        else:
-            configs.extend(folder_cfgs)
-            names.extend(folder_names)
-
-    for index in range(len(names), len(configs)):
-        names.append(f"map_{index:03d}")
-
-    return configs, names
 
 
 def _filter_uniform_agent_count(
@@ -338,13 +221,16 @@ def curricula_cmd(
 
     with _command_timeout(ctx):
         selected_games = games or list(game.get_all_games().keys())
-        env_cfgs, env_names = _collect_configs(
-            selected_games,
-            curriculum,
-            max_items,
-            fallback_folder=None,
-            game_param="game_name",
-        )
+        try:
+            env_cfgs, env_names = curriculum_utils.collect_curriculum_configs(
+                selected_games,
+                curriculum_path=curriculum,
+                max_items=max_items,
+                fallback_folder=None,
+                game_param="game_name",
+            )
+        except curriculum_utils.CurriculumArgumentError as exc:
+            raise typer.BadParameter(str(exc), param_name=exc.param_name or "game") from exc
 
         if not env_cfgs:
             raise typer.BadParameter("no games or curriculum items to export", param_name="game")
@@ -354,7 +240,7 @@ def curricula_cmd(
         else:
             destination = (_resolve_run_dir(None) / "curricula").resolve()
 
-        _dump_game_configs(env_cfgs, env_names, destination)
+        curriculum_utils.dump_game_configs(env_cfgs, env_names, destination)
 
         console.print(f"[green]Exported {len(env_cfgs)} maps to: {destination}[/green]")
 
@@ -580,7 +466,7 @@ def make_scenario(
                 variants.append(cfg)
 
             base_label = getattr(variants[0].game, "name", base_game or "map")
-            safe_base_label = _sanitize_filename(str(base_label)) or "map"
+            safe_base_label = curriculum_utils.sanitize_map_name(str(base_label))
 
             if num_variants > 1:
                 if output is None:
@@ -757,14 +643,17 @@ def train_cmd(
         fallback_curricula = resolved_run_dir / "curricula"
         base_games = [game_name] if game_name is not None else []
         if not base_games and curriculum is None and not fallback_curricula.exists():
-            base_games = list(DEFAULT_BIOME_GAMES)
-        env_cfgs, env_names = _collect_configs(
-            base_games,
-            curriculum,
-            max(resolved_num_envs, 32),
-            fallback_folder=fallback_curricula,
-            game_param="game_name",
-        )
+            base_games = list(curriculum_utils.DEFAULT_BIOME_GAMES)
+        try:
+            env_cfgs, env_names = curriculum_utils.collect_curriculum_configs(
+                base_games,
+                curriculum_path=curriculum,
+                max_items=max(resolved_num_envs, 32),
+                fallback_folder=fallback_curricula,
+                game_param="game_name",
+            )
+        except curriculum_utils.CurriculumArgumentError as exc:
+            raise typer.BadParameter(str(exc), param_name=exc.param_name or "game_name") from exc
         env_cfgs, env_names = _filter_uniform_agent_count(env_cfgs, env_names)
 
         representative_game = env_names[0] if env_names else None
@@ -837,7 +726,7 @@ def train_cmd(
         else:
             maps_dir = (resolved_run_dir / "curricula").resolve()
 
-        _dump_game_configs(env_cfgs, env_names, maps_dir)
+        curriculum_utils.dump_game_configs(env_cfgs, env_names, maps_dir)
 
         full_policy_path = resolve_policy_class_path(policy_class_path)
 
