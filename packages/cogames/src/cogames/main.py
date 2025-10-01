@@ -19,9 +19,10 @@ from rich.console import Console
 
 from cogames import curriculum as curriculum_utils
 from cogames import game, play, serialization, train, utils
-from mettagrid import MettaGridConfig, MettaGridEnv
+from mettagrid import MettaGridConfig
 from mettagrid.util.module import load_symbol
 
+from cogames.env import make_hierarchical_env
 logger = logging.getLogger("cogames.main")
 
 app = typer.Typer(help="CoGames - Multi-agent cooperative and competitive games")
@@ -891,7 +892,7 @@ def policy_load(
     device: str = typer.Option("cpu", "--device", help="Device for the policy"),
 ) -> None:
     env_cfg = game.get_game(game_name)
-    env = MettaGridEnv(env_cfg=env_cfg)
+    env = make_hierarchical_env(env_cfg)
     policy = serialization.load_policy_from_bundle(bundle_dir, env, torch.device(device))
     policy.reset()
     console.print(f"[green]Loaded policy {policy.__class__.__name__} on {device}[/green]")

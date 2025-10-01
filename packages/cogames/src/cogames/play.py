@@ -8,9 +8,11 @@ import numpy as np
 import torch
 from rich.console import Console
 
-from mettagrid import MettaGridConfig, MettaGridEnv
+from mettagrid import MettaGridConfig
 from mettagrid.util.grid_object_formatter import format_grid_object
 from mettagrid.util.module import load_symbol
+
+from cogames.env import make_hierarchical_env
 
 logger = logging.getLogger("cogames.play")
 
@@ -48,7 +50,7 @@ def play(
         return
 
     # Create environment
-    env = MettaGridEnv(env_cfg=env_cfg)
+    env = make_hierarchical_env(env_cfg, render_mode=None)
     obs, _ = env.reset(seed=seed)
 
     # Load and create policy
@@ -83,7 +85,8 @@ def play(
     # Run episode
     step_count = 0
     num_agents = env_cfg.game.num_agents
-    actions = np.zeros((env.num_agents, 2), dtype=np.int32)
+    action_dim = env.single_action_space.nvec.size
+    hierarchical_actions = np.zeros((env.num_agents, action_dim), dtype=np.int32)
     total_rewards = np.zeros(env.num_agents)
 
     initial_replay = {
@@ -103,13 +106,14 @@ def play(
         return
 
     def generate_replay_step():
+        base_actions = env.project_actions(hierarchical_actions)
         grid_objects = []
         for grid_object in env.grid_objects.values():
             if "agent_id" in grid_object:
                 agent_id = grid_object["agent_id"]
                 total_rewards[agent_id] += env.rewards[agent_id]
             grid_objects.append(
-                format_grid_object(grid_object, actions, env.action_success, env.rewards, total_rewards)
+                format_grid_object(grid_object, base_actions, env.action_success, env.rewards, total_rewards)
             )
         step_replay = {"step": step_count, "objects": grid_objects}
         return json.dumps(step_replay)
@@ -120,16 +124,20 @@ def play(
 
         # Call each agent's policy to get actions
         for agent_id in range(num_agents):
-            actions[agent_id] = agent_policies[agent_id].step(obs[agent_id])
+            hierarchical_actions[agent_id] = agent_policies[agent_id].step(obs[agent_id])
 
         response = mettascope_module.render(step_count, replay_step)
         if response.should_close:
             break
         if response.action:
-            actions[response.action_agent_id, 0] = response.action_action_id
-            actions[response.action_agent_id, 1] = response.action_argument
+            agent_idx = response.action_agent_id
+            verb = int(response.action_action_id)
+            arg = int(response.action_argument)
+            hierarchical_actions[agent_idx, 1:] = 0
+            hierarchical_actions[agent_idx, 0] = verb
+            hierarchical_actions[agent_idx, 1 + verb] = arg
 
-        obs, rewards, dones, truncated, info = env.step(actions)
+        obs, rewards, dones, truncated, info = env.step(hierarchical_actions)
 
         step_count += 1
 

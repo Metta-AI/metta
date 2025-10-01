@@ -8,8 +8,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterable, Optional, Sequence, Tuple
 
 from cogames.policy import TrainablePolicy
-from mettagrid import MettaGridConfig, MettaGridEnv
+from mettagrid import MettaGridConfig
 from mettagrid.util.module import load_symbol
+
+from cogames.env import HierarchicalActionMettaGridEnv, make_hierarchical_env
 
 if TYPE_CHECKING:
     import torch
@@ -150,9 +152,12 @@ def train(
             torch.cuda.set_device(local_rank)
         seed += local_rank
 
-    def env_creator(buf: Optional[Any] = None, seed: Optional[int] = None) -> MettaGridEnv:
+    def env_creator(
+        buf: Optional[Any] = None,
+        seed: Optional[int] = None,
+    ) -> HierarchicalActionMettaGridEnv:
         cfg = cfg_iterator.take(seed=seed)
-        env = MettaGridEnv(env_cfg=cfg)
+        env = make_hierarchical_env(cfg, buf=buf)
         set_buffers(env, buf)
         return env
 
