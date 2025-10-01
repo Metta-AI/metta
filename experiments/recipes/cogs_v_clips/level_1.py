@@ -73,7 +73,7 @@ curriculum_args = {
         "chest_positions": [["N"]],
         "regeneration_rate": [1, 2, 3, 4],
         "shareable_energy": [False],
-        "use_terrain": [True, False],
+        "use_terrain": [True],
         "sizes": ["small", "medium"],
     },
     "multi_agent_pairs": {
@@ -104,7 +104,7 @@ curriculum_args = {
         "chest_positions": [["N", "S", "E"]],
         "regeneration_rate": [1, 2, 3, 4],
         "shareable_energy": [True],
-        "use_terrain": [True, False],
+        "use_terrain": [True],
         "sizes": ["small", "medium"],
     },
     # "test":
@@ -146,7 +146,7 @@ evals = {
         "chest_positions": ["N"],
         "regeneration_rate": 10,
         "shareable_energy": False,
-        "use_terrain": False,
+        "use_terrain": True,
     },
     "two_agent_pairs_no_terrain": {
         "num_cogs": 2,
@@ -160,7 +160,7 @@ evals = {
         "chest_positions": ["N", "S"],
         "regeneration_rate": 10,
         "shareable_energy": True,
-        "use_terrain": False,
+        "use_terrain": True,
     },
     "three_agent_triplets_no_terrain": {
         "num_cogs": 3,
@@ -174,7 +174,7 @@ evals = {
         "chest_positions": ["N", "S", "E"],
         "regeneration_rate": 10,
         "shareable_energy": True,
-        "use_terrain": False,
+        "use_terrain": True,
     },
     "many_agent_triplets_no_terrain": {
         "num_cogs": 12,
@@ -188,7 +188,7 @@ evals = {
         "chest_positions": ["N", "S", "E"],
         "regeneration_rate": 10,
         "shareable_energy": True,
-        "use_terrain": False,
+        "use_terrain": True,
     },
     "single_agent_terrain_small": {
         "num_cogs": 1,
