@@ -116,7 +116,7 @@ def train(
         losses=LossConfig(),
     )
 
-    if policy_architecture is None or isinstance(policy_architecture, str):
+    if policy_architecture is None:
         policy_architecture = TransformerPolicyConfig(
             variant=TransformerBackboneVariant.TRXL_NVIDIA,
             transformer=TransformerBackboneConfig(
