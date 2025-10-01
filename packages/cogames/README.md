@@ -240,7 +240,10 @@ uv run ./tools/run.py experiments.recipes.cogames.distributed_train \
 # Interactive mode for debugging
 cogames play machina_1 --interactive
 
-# Step-by-step execution
+# Use the text renderer
+cogames play machina_1 --interactive --render text
+
+# Non-interactive step-by-step execution
 cogames play machina_2 --steps 10
 ```
 
