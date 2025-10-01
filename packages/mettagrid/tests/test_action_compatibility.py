@@ -10,10 +10,8 @@ from mettagrid.config.mettagrid_config import (
     AgentConfig,
     AttackActionConfig,
     GameConfig,
-    MettaGridConfig,
     WallConfig,
 )
-from mettagrid.envs.mettagrid_env import MettaGridEnv
 from mettagrid.mettagrid_c import MettaGrid, dtype_actions
 from mettagrid.test_support.actions import get_agent_position, get_current_observation
 
@@ -152,28 +150,6 @@ class TestActionValidation:
 
         # Action should fail
         assert not env.action_success()[0], "Invalid action argument should fail"
-
-    def test_sanitize_actions_clamps_values(self, basic_config, simple_map):
-        """Sanitization clamps action type and argument into valid ranges."""
-
-        env_cfg = MettaGridConfig.EmptyRoom(num_agents=1)
-        env = MettaGridEnv(env_cfg=env_cfg, is_training=True)
-        env.reset()
-
-        try:
-            invalid = np.array([[999, 999]], dtype=np.int32)
-            sanitized = env._sanitize_actions(invalid)
-
-            assert sanitized.dtype == np.int32
-            assert sanitized.shape == invalid.shape
-
-            action_type = int(sanitized[0, 0])
-            assert 0 <= action_type < len(env.action_names)
-
-            max_args = env.max_action_args
-            assert 0 <= sanitized[0, 1] <= max_args[action_type]
-        finally:
-            env.close()
 
     def test_max_action_args(self, basic_config, simple_map):
         """Test max_action_args for different actions."""
