@@ -482,9 +482,17 @@ def setup_curriculum(task_generator_cfg, lp_params: LPParams) -> CurriculumConfi
 def train_icl(
     task_generator_cfg,
     evaluator_fn: Callable[[], list[SimulationConfig]],
-    lp_params: LPParams = LPParams(),
+    lp_params: LPParams | None = None,
 ) -> TrainTool:
-    curriculum = setup_curriculum(task_generator_cfg, lp_params)
+    # If lp_params provided (for backwards compatibility), use it
+    # Otherwise, create CurriculumConfig with defaults that can be overridden from command line
+    if lp_params is not None:
+        curriculum = setup_curriculum(task_generator_cfg, lp_params)
+    else:
+        curriculum = CurriculumConfig(
+            task_generator=task_generator_cfg,
+            algorithm_config=LearningProgressConfig(),
+        )
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
     )
