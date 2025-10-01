@@ -36,6 +36,7 @@ def _base_game_config(num_agents: int, map_builder) -> MettaGridConfig:
     stats_rewards: dict[str, float] = {
         "heart.gained": heart_reward,
         "heart.put": heart_reward * 0.5,
+        "energy.gained": 0.002,
     }
     for resource in ("carbon", "oxygen", "germanium", "silicon"):
         stats_rewards[f"{resource}.gained"] = 0.01
