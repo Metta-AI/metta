@@ -62,11 +62,6 @@ def play(
     else:
         raise ValueError("Policy class must implement either Policy or TrainablePolicy interface")
 
-    for agent_policy in agent_policies:
-        reset_method = getattr(agent_policy, "reset", None)
-        if callable(reset_method):
-            reset_method()
-
     # Run episode
     step_count = 0
     num_agents = env_cfg.game.num_agents
