@@ -533,10 +533,10 @@ class TransformerPolicy(Policy):
             if self.memory_len > 0:
                 packed_memory = self._pack_memory(memory_batch)
                 if packed_memory is not None:
-                    td.set(
-                        "transformer_memory_pre",
-                        packed_memory.detach().to(dtype=torch.float32, device=torch.device("cpu")),
-                    )
+                    memory_snapshot = packed_memory.detach()
+                    if memory_snapshot.dtype != torch.float32:
+                        memory_snapshot = memory_snapshot.to(dtype=torch.float32)
+                    td.set("transformer_memory_pre", memory_snapshot)
             core_out, new_memory = self.transformer_module(latent_seq, memory_batch)
         elif use_memory and tt > 1:
             packed_memory = td.get("transformer_memory_pre", None)
