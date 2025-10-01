@@ -36,7 +36,7 @@ def _base_game_config(num_agents: int, map_builder) -> MettaGridConfig:
             resource_names=resources,
             num_agents=num_agents,
             actions=ActionsConfig(
-                move=ActionConfig(consumed_resources={"energy": 1}),
+                move=ActionConfig(consumed_resources={"energy": 2}),
                 noop=ActionConfig(),
                 change_glyph=ChangeGlyphActionConfig(number_of_glyphs=16),
             ),
@@ -71,7 +71,10 @@ def _base_game_config(num_agents: int, map_builder) -> MettaGridConfig:
                 initial_inventory={
                     "energy": 100,
                 },
+                shareable_resources=["energy"],
+                inventory_regen_amounts={"energy": 1},
             ),
+            inventory_regen_interval=1,
         )
     )
 

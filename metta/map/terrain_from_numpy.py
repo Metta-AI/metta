@@ -230,6 +230,7 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
         num_agents = len(agent_labels)
         # Place agents in first slice
         agent_positions = valid_positions[:num_agents]
+        print(f"Placeing {num_agents} agents in {agent_positions}")
         for pos, label in zip(agent_positions, agent_labels, strict=False):
             grid[pos] = label
 
