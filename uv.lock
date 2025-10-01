@@ -2045,9 +2045,11 @@ dependencies = [
 ]
 
 [package.dev-dependencies]
+coverage = [
+    { name = "gcovr" },
+]
 dev = [
     { name = "cpplint" },
-    { name = "gcovr" },
     { name = "pyright" },
     { name = "pytest" },
     { name = "pytest-benchmark" },
@@ -2074,7 +2076,6 @@ lint = [
     { name = "ruff" },
 ]
 testing = [
-    { name = "gcovr" },
     { name = "pyright" },
     { name = "pytest" },
     { name = "pytest-benchmark" },
@@ -2148,9 +2149,9 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
+coverage = [{ name = "gcovr", specifier = ">=8.3" }]
 dev = [
     { name = "cpplint", specifier = ">=2.0.2" },
-    { name = "gcovr", specifier = ">=8.3" },
     { name = "pyright", specifier = ">=1.1.401" },
     { name = "pytest", specifier = ">=8.3.3" },
     { name = "pytest-benchmark", specifier = ">=5.1.0" },
@@ -2177,7 +2178,6 @@ lint = [
     { name = "ruff", specifier = ">=0.11.13" },
 ]
 testing = [
-    { name = "gcovr", specifier = ">=8.3" },
     { name = "pyright", specifier = ">=1.1.401" },
     { name = "pytest", specifier = ">=8.3.3" },
     { name = "pytest-benchmark", specifier = ">=5.1.0" },
