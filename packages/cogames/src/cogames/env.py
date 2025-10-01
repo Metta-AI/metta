@@ -47,9 +47,9 @@ class HierarchicalActionMettaGridEnv(MettaGridEnv):
         base_space = super().single_action_space
         self._base_action_dims = int(base_space.nvec[0])
         self._max_action_args = np.asarray(super().max_action_args, dtype=np.int64)
-        self._arg_dims = (self._max_action_args + 1).tolist()
 
-        nvec = np.array([self._base_action_dims] + self._arg_dims, dtype=np.int64)
+        arg_dims = (self._max_action_args + 1).tolist()
+        nvec = np.array([self._base_action_dims] + arg_dims, dtype=np.int64)
         self._hierarchical_action_space = spaces.MultiDiscrete(nvec)
 
         # Ensure Gym-style attribute access works (e.g. env.action_space.contains)
