@@ -225,14 +225,10 @@ def resolve_initial_weights(path: Optional[Path]) -> Optional[Path]:
         return path
     if not path.exists():
         raise ValueError(f"Initial weights path not found: {path}")
-    if not path.is_dir():
-        raise ValueError(f"Initial weights path is not a directory: {path}")
+    if path.is_dir():
+        raise ValueError(
+            "Initial weights must reference a checkpoint file. Passing a directory "
+            "(automatic latest-checkpoint detection) is temporarily disabled."
+        )
 
-    candidates = sorted(
-        (candidate for candidate in path.iterdir() if candidate.is_file()),
-        key=lambda candidate: candidate.stat().st_mtime,
-    )
-    for candidate in reversed(candidates):
-        if candidate.suffix in {".pt", ".pth", ".ckpt"}:
-            return candidate
-    raise ValueError(f"No checkpoint files found in directory: {path}")
+    raise ValueError(f"Initial weights path is not a checkpoint file: {path}")
