@@ -1,0 +1,21 @@
+# Example configuration for ClaudePolicy
+# Copy this file to claude_settings.yaml and fill in your API key
+# or set the ANTHROPIC_API_KEY environment variable
+
+# Anthropic API key (required if not set in environment)
+api_key: "sk-ant-api03-..."
+
+# Custom system prompt for Claude (optional)
+# If not provided, a default prompt will be generated based on the game environment
+prompt: |
+  You are an AI agent playing a cooperative multi-agent game.
+
+  Your goal is to cooperate with other agents to maximize rewards.
+  Focus on efficient resource gathering and strategic decision-making.
+
+  When responding, provide an action in the format: action: X, argument: Y
+  where X and Y are integers representing the action type and argument.
+
+# Claude model to use (optional, defaults to claude-sonnet-4-5-20250929)
+# Other options: claude-opus-4-5-20250929, claude-3-5-sonnet-20241022
+model: "claude-sonnet-4-5-20250929"

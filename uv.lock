@@ -546,6 +546,7 @@ requires-dist = [
 name = "cogames"
 source = { editable = "packages/cogames" }
 dependencies = [
+    { name = "anthropic" },
     { name = "einops" },
     { name = "mettagrid" },
     { name = "pufferlib-core" },
@@ -558,6 +559,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "anthropic", specifier = ">=0.40.0" },
     { name = "einops", specifier = ">=0.8.0" },
     { name = "mettagrid", editable = "packages/mettagrid" },
     { name = "pufferlib-core", editable = "packages/pufferlib-core" },

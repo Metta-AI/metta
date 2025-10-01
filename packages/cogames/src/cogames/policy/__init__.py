@@ -1,5 +1,6 @@
 """Policy interfaces and implementations for CoGames."""
 
+from cogames.policy.claude import ClaudePolicy
 from cogames.policy.lstm import LSTMPolicy
 from cogames.policy.policy import (
     AgentPolicy,
@@ -17,6 +18,7 @@ __all__ = [
     "StatefulAgentPolicy",
     "StatefulPolicyImpl",
     "TrainablePolicy",
+    "ClaudePolicy",
     "LSTMPolicy",
     "RandomPolicy",
     "SimplePolicy",
