@@ -1,5 +1,5 @@
 import
-  boxy, vmath, windy, fidget2, fidget2/hybridrender
+  boxy, vmath, windy, fidget2/hybridrender
 
 var
   typeface*: Typeface
@@ -44,7 +44,7 @@ proc drawBubbleLine*(bxy: Boxy, start: Vec2, stop: Vec2, color: Color) =
   let
     dir = (stop - start).normalize
   for i in 0 ..< int(dist(start, stop) / 5):
-    discard start + dir * i.float32 * 5
+    let pos = start + dir * i.float32 * 5
     # bxy.drawImage(
     #   "bubble",
     #   pos,
@@ -52,15 +52,6 @@ proc drawBubbleLine*(bxy: Boxy, start: Vec2, stop: Vec2, color: Color) =
     #   scale = 0.25,
     #   tint = color
     # )
-
-proc boxyMouse*(window: Window): Vec2 =
-  return inverse(bxy.getTransform()) * window.mousePos.vec2
-
-proc nodeTopLeft*(node: Node): Vec2 =
-  ## Return the global top-left position of a node.
-  if node.pixelBox.w != 0 or node.pixelBox.h != 0:
-    return node.pixelBox.xy
-  node.position
 
 proc newSeq2D*[T](width: int, height: int): seq[seq[T]] =
   result = newSeq[seq[T]](width)
