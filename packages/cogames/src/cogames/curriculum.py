@@ -9,6 +9,8 @@ from typing import Any, Deque, Iterable, Iterator, List, Optional, Sequence, Tup
 
 from cogames import game, utils
 from mettagrid import MettaGridConfig
+from mettagrid.map_builder.ascii import AsciiMapBuilder
+from mettagrid.util.char_encoder import grid_object_to_char
 from mettagrid.util.module import load_symbol
 
 DEFAULT_BIOME_GAMES: tuple[str, ...] = (
@@ -99,6 +101,27 @@ def sanitize_map_name(name: str) -> str:
     return sanitized or "map"
 
 
+def _materialize_map_builder(cfg: MettaGridConfig) -> MettaGridConfig:
+    copy_cfg = cfg.model_copy(deep=True)
+    map_builder_cfg = copy_cfg.game.map_builder
+    build_fn = getattr(map_builder_cfg, "create", None)
+    if not callable(build_fn):
+        return copy_cfg
+
+    try:
+        builder = build_fn()
+        game_map = builder.build()
+    except Exception:  # pragma: no cover - best effort fallback
+        return copy_cfg
+
+    ascii_map = [
+        [grid_object_to_char(cell) for cell in row]
+        for row in game_map.grid
+    ]
+    copy_cfg.game.map_builder = AsciiMapBuilder.Config(map_data=ascii_map)
+    return copy_cfg
+
+
 def dump_game_configs(configs: Sequence[MettaGridConfig], names: Sequence[str], output_dir: Path) -> None:
     """Write configs to disk, using sanitized file names derived from labels."""
 
@@ -111,7 +134,8 @@ def dump_game_configs(configs: Sequence[MettaGridConfig], names: Sequence[str], 
         candidate = output_dir / f"{file_stem}.yaml"
         if candidate.exists():
             candidate = output_dir / f"{file_stem}_{index:03d}.yaml"
-        game.save_game_config(config_obj, candidate)
+        materialized = _materialize_map_builder(config_obj)
+        game.save_game_config(materialized, candidate)
 
 
 def collect_curriculum_configs(
@@ -232,3 +256,28 @@ def curriculum_from_folder(directory: str | Path) -> Iterable[MettaGridConfig]:
     """Convenience wrapper returning a curriculum iterable for CLI usage."""
 
     return cycle_maps(directory)
+
+
+def load_cached_maps(directory: Path, count: int) -> Tuple[List[MettaGridConfig], List[str]]:
+    if count <= 0:
+        return [], []
+    try:
+        cfgs, names = load_map_folder_with_names(directory)
+    except (FileNotFoundError, NotADirectoryError, ValueError):
+        return [], []
+
+    if not cfgs:
+        return [], []
+
+    result_cfgs: List[MettaGridConfig] = []
+    result_names: List[str] = []
+
+    for idx in range(count):
+        cfg = cfgs[idx % len(cfgs)].model_copy(deep=True)
+        result_cfgs.append(cfg)
+        label = names[idx % len(names)]
+        if len(cfgs) < count:
+            label = f"{label}_{idx:03d}"
+        result_names.append(label)
+
+    return result_cfgs, result_names

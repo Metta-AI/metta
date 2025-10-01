@@ -571,16 +571,6 @@ def train_cmd(
             )
         except curriculum_utils.CurriculumArgumentError as exc:
             raise typer.BadParameter(str(exc), param_name=exc.param_name or "game_name") from exc
-        env_cfgs, env_names, dropped = utils.filter_uniform_agent_count(env_cfgs, env_names)
-        if dropped:
-            agent_count = env_cfgs[0].game.num_agents if env_cfgs else "?"
-            console.print(
-                "[yellow]Skipping {dropped} map(s) with mismatched agent counts. "
-                "Training will use configs with {agents} agent(s).[/yellow]".format(
-                    dropped=dropped,
-                    agents=agent_count,
-                )
-            )
 
         representative_game = env_names[0] if env_names else None
 
@@ -692,6 +682,22 @@ def train_cmd(
 
         if not maps_dir.exists() or not any(maps_dir.glob("*.yaml")):
             curriculum_utils.dump_game_configs(env_cfgs, env_names, maps_dir)
+
+        cached_cfgs, cached_names = curriculum_utils.load_cached_maps(maps_dir, resolved_num_envs)
+        if cached_cfgs:
+            env_cfgs = cached_cfgs
+            env_names = cached_names
+
+        env_cfgs, env_names, dropped = utils.filter_uniform_agent_count(env_cfgs, env_names)
+        if dropped:
+            agent_count = env_cfgs[0].game.num_agents if env_cfgs else "?"
+            console.print(
+                "[yellow]Skipping {dropped} map(s) with mismatched agent counts. "
+                "Training will use configs with {agents} agent(s).[/yellow]".format(
+                    dropped=dropped,
+                    agents=agent_count,
+                )
+            )
 
         full_policy_path = resolve_policy_class_path(policy_class_path)
 
