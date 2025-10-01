@@ -563,7 +563,7 @@ def make_env(
     shareable_energy=False,
     use_terrain=False,
     use_base=True,
-    sizes=["small"],
+    sizes="small",
 ):
     task_generator = CogsVsClippiesTaskGenerator(
         config=CogsVsClippiesTaskGenerator.Config(
