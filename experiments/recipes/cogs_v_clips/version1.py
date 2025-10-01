@@ -310,7 +310,9 @@ def play(curriculum_style: str = "multi_agent_pairs") -> PlayTool:
 
 
 def train(
-    curriculum_style: str = "multi_agent_pairs", architecture="vit_reset"
+    curriculum_style: str = "multi_agent_pairs",
+    architecture="vit_reset",
+    run: str = "default",
 ) -> TrainTool:
     task_generator_cfg = CogsVsClippiesTaskGenerator.Config(
         **curriculum_args[curriculum_style]
@@ -336,6 +338,7 @@ def train(
         max_slice_axes=3,
         enable_detailed_slice_logging=False,
         use_shared_memory=True,
+        session_id=f"cvc_{run}",  # Consistent session ID for multi-worker shared memory
     )
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
