@@ -1,10 +1,9 @@
 import numpy as np
 
-from mettagrid.config.config import Config
-from mettagrid.mapgen.scene import Scene
+from mettagrid.mapgen.scene import Scene, SceneConfig
 
 
-class SpiralParams(Config):
+class SpiralConfig(SceneConfig):
     objects: dict[str, int] = {}
     agents: int | dict[str, int] = 0
     spacing: int = 15  # Minimum spacing between objects along the spiral
@@ -15,7 +14,7 @@ class SpiralParams(Config):
     place_at_center: bool = True  # Whether to place first object at exact center
 
 
-class Spiral(Scene[SpiralParams]):
+class Spiral(Scene[SpiralConfig]):
     """
     Place objects along a spiral path emanating from the center of the map.
 
@@ -25,26 +24,26 @@ class Spiral(Scene[SpiralParams]):
     """
 
     def render(self):
-        height, width, params = self.height, self.width, self.params
+        height, width, config = self.height, self.width, self.config
 
         # Center of the map
         cx, cy = width // 2, height // 2
 
         # Collect all objects to place
         symbols = []
-        for obj_name, count in params.objects.items():
+        for obj_name, count in config.objects.items():
             symbols.extend([obj_name] * count)
 
         # Add agents
-        if isinstance(params.agents, int):
-            agents = ["agent.agent"] * params.agents
-        elif isinstance(params.agents, dict):
-            agents = ["agent." + str(agent) for agent, na in params.agents.items() for _ in range(na)]
+        if isinstance(config.agents, int):
+            agents = ["agent.agent"] * config.agents
+        elif isinstance(config.agents, dict):
+            agents = ["agent." + str(agent) for agent, na in config.agents.items() for _ in range(na)]
         else:
-            raise ValueError(f"Invalid agents: {params.agents}")
+            raise ValueError(f"Invalid agents: {config.agents}")
 
         # Determine placement order - agents first if placing at center
-        if params.place_at_center and agents:
+        if config.place_at_center and agents:
             all_symbols = agents + symbols
         else:
             all_symbols = symbols + agents
@@ -55,14 +54,14 @@ class Spiral(Scene[SpiralParams]):
         # Generate spiral positions
         positions = []
         angle = 0
-        radius = params.start_radius
+        radius = config.start_radius
 
         # Place first item at center if requested
-        if params.place_at_center and all_symbols:
+        if config.place_at_center and all_symbols:
             positions.append((cx, cy))
             # Don't remove the first symbol - we still need to place it!
             # all_symbols = all_symbols[1:]
-            angle += params.angle_increment
+            angle += config.angle_increment
 
         # Generate remaining positions along spiral
         last_x, last_y = cx, cy
@@ -74,11 +73,11 @@ class Spiral(Scene[SpiralParams]):
             # Check if we've moved far enough from the last position
             distance = np.sqrt((x - last_x) ** 2 + (y - last_y) ** 2)
 
-            if distance >= params.spacing:
+            if distance >= config.spacing:
                 # Add randomization if requested
-                if params.randomize_position > 0:
-                    offset_x = self.rng.integers(-params.randomize_position, params.randomize_position + 1)
-                    offset_y = self.rng.integers(-params.randomize_position, params.randomize_position + 1)
+                if config.randomize_position > 0:
+                    offset_x = self.rng.integers(-config.randomize_position, config.randomize_position + 1)
+                    offset_y = self.rng.integers(-config.randomize_position, config.randomize_position + 1)
                     x = np.clip(x + offset_x, 1, width - 2)
                     y = np.clip(y + offset_y, 1, height - 2)
 
@@ -88,8 +87,8 @@ class Spiral(Scene[SpiralParams]):
                     last_x, last_y = x, y
 
             # Update spiral parameters
-            angle += params.angle_increment
-            radius += params.radius_increment * params.angle_increment / (2 * np.pi)
+            angle += config.angle_increment
+            radius += config.radius_increment * config.angle_increment / (2 * np.pi)
 
             # Safety check to prevent infinite loop
             if radius > max(width, height):

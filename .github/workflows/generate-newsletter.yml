@@ -10,7 +10,7 @@ on:
         required: false
         default: "1"
         type: choice
-        options: ["1", "7", "14", "30"]
+        options: ["1", "3", "4", "7", "14", "30"]
       force_refresh:
         description: "Force cache refresh"
         required: false
@@ -21,6 +21,11 @@ on:
         required: false
         default: false
         type: boolean
+      historical_date:
+        description: "Generate newsletter for a historical date (YYYY-MM-DD format). Leave empty for current date."
+        required: false
+        default: ""
+        type: string
 
 jobs:
   generate-newsletter:
@@ -29,40 +34,70 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set days to scan
+      - name: Set days to scan and date range
         id: set-days
         run: |
-          if [ "${{ github.event_name }}" = "schedule" ]; then
-            # Get current day of week (0=Sunday, 1=Monday, etc.)
-            DAY_OF_WEEK=$(date +%w)
+          # Validate and set historical date if provided
+          if [ -n "${{ inputs.historical_date }}" ]; then
+            # Validate date format
+            if ! date -d "${{ inputs.historical_date }}" >/dev/null 2>&1; then
+              echo "❌ Invalid date format. Please use YYYY-MM-DD format."
+              exit 1
+            fi
 
-            # Set days based on day of week (in GMT)
-            # Remember: this runs Tue/Thu/Sat GMT = Mon/Wed/Fri PST
-            case $DAY_OF_WEEK in
-              2) # Tuesday GMT = Monday PST
-                DAYS=3
-                echo "Monday run: using 3 days of history"
-                ;;
-              4) # Thursday GMT = Wednesday PST
-                DAYS=2
-                echo "Wednesday run: using 2 days of history"
-                ;;
-              6) # Saturday GMT = Friday PST
-                DAYS=2
-                echo "Friday run: using 2 days of history"
-                ;;
-              *) # Fallback (shouldn't happen with your cron schedule)
-                DAYS="${{ vars.PR_NEWSLETTER_HISTORY_DAYS || '1' }}"
-                echo "Unexpected day, using default: $DAYS days"
-                ;;
-            esac
+            # Set the end date to the historical date
+            END_DATE="${{ inputs.historical_date }}"
+            echo "📅 Using historical date: $END_DATE"
+            echo "is_historical=true" >> $GITHUB_OUTPUT
+            echo "end_date=$END_DATE" >> $GITHUB_OUTPUT
+
+            # For historical runs, always use workflow input for days
+            DAYS="${{ inputs.days_to_scan || '7' }}"
+            echo "Using $DAYS days before $END_DATE"
           else
-            # Use workflow input for manual runs, fallback to 1 if not provided
-            DAYS="${{ inputs.days_to_scan || '1' }}"
-            echo "Using workflow input: $DAYS days"
+            # Normal operation - use current date
+            END_DATE=$(date +%Y-%m-%d)
+            echo "is_historical=false" >> $GITHUB_OUTPUT
+            echo "end_date=$END_DATE" >> $GITHUB_OUTPUT
+
+            if [ "${{ github.event_name }}" = "schedule" ]; then
+              # Get current day of week (0=Sunday, 1=Monday, etc.)
+              DAY_OF_WEEK=$(date +%w)
+
+              # Set days based on day of week (in GMT)
+              # Remember: this runs Tue/Thu/Sat GMT = Mon/Wed/Fri PST
+              case $DAY_OF_WEEK in
+                2) # Tuesday GMT = Monday PST
+                  DAYS=3
+                  echo "Monday run: using 3 days of history"
+                  ;;
+                4) # Thursday GMT = Wednesday PST
+                  DAYS=2
+                  echo "Wednesday run: using 2 days of history"
+                  ;;
+                6) # Saturday GMT = Friday PST
+                  DAYS=2
+                  echo "Friday run: using 2 days of history"
+                  ;;
+                *) # Fallback (shouldn't happen with your cron schedule)
+                  DAYS="${{ vars.PR_NEWSLETTER_HISTORY_DAYS || '1' }}"
+                  echo "Unexpected day, using default: $DAYS days"
+                  ;;
+              esac
+            else
+              # Use workflow input for manual runs, fallback to 1 if not provided
+              DAYS="${{ inputs.days_to_scan || '1' }}"
+              echo "Using workflow input: $DAYS days"
+            fi
           fi
+
           echo "days=$DAYS" >> $GITHUB_OUTPUT
-          echo "Selected days to scan: $DAYS"
+          echo "Selected days to scan: $DAYS (ending on $END_DATE)"
+
+          # Calculate start date for display
+          START_DATE=$(date -d "$END_DATE - $((DAYS - 1)) days" +%Y-%m-%d)
+          echo "start_date=$START_DATE" >> $GITHUB_OUTPUT
+          echo "Date range: $START_DATE to $END_DATE"
 
       - name: Restore PR Summaries Cache
         uses: actions/cache@v4
@@ -73,7 +108,7 @@ jobs:
           restore-keys: |
             pr-summaries-${{ github.repository }}-
 
-      - name: Install uv
+      - name: Set up environment (minimal)
         uses: ./.github/actions/setup-environment
         with:
           install-mode: minimal
@@ -85,8 +120,13 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           DAYS_TO_SCAN: ${{ steps.set-days.outputs.days }}
           PR_DIGEST_FILE: "pr_digest_output.json"
+          HISTORICAL_END_DATE: ${{ steps.set-days.outputs.end_date }}
+          IS_HISTORICAL_RUN: ${{ steps.set-days.outputs.is_historical }}
         run: |
           echo "Creating PR digest for last ${{ steps.set-days.outputs.days }} days..."
+          if [ "${{ steps.set-days.outputs.is_historical }}" = "true" ]; then
+            echo "Using date: ${{ steps.set-days.outputs.end_date }}"
+          fi
 
           # Show cache status before running
           if [ -d "pr-summaries" ]; then
@@ -162,6 +202,7 @@ jobs:
           GITHUB_RUN_ID: ${{ github.run_id }}
           FORCE_REFRESH: ${{ inputs.force_refresh || 'false' }}
           PREVIOUS_NEWSLETTERS_DIR: "previous-newsletters"
+          IS_HISTORICAL_RUN: ${{ steps.set-days.outputs.is_historical }}
         run: |
           echo "Analyzing ${{ steps.pr-digest.outputs.total_pr_count }} PRs with AI..."
           echo "(${{ steps.pr-digest.outputs.new_pr_count }} new, rest from cache)"
@@ -205,7 +246,7 @@ jobs:
       - name: Handle No PRs Case
         if: ${{ steps.pr-digest.outputs.has_prs_in_range == 'false' }}
         run: |
-          echo "ℹ️  No PRs found in the time period, creating minimal newsletter..."
+          echo "ℹ️ No PRs found in the time period, creating minimal newsletter..."
 
           cat > discord_summary_output.txt << EOF
           📊 **PR Summary Report** • ${{ steps.pr-digest.outputs.date_range_display }}
@@ -234,7 +275,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: newsletter-${{ github.run_number }}
+          name: newsletter-${{ steps.set-days.outputs.start_date }}-to-${{ steps.set-days.outputs.end_date }}
           path: |
             discord_summary_output.txt
             newsletter_output.txt

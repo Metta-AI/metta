@@ -16,39 +16,18 @@ jobs:
   validate-dependencies:
     name: Validate Workspace Dependencies
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-        with:
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
-          
-      - name: Set up Python
-        run: uv python install 3.11.7
 
-      - name: Validate uv.lock is up to date
-        run: |
-          echo "🔍 Checking if uv.lock is synchronized with pyproject.toml files..."
-          uv lock --check
+      - name: Set up environment
+        uses: ./.github/actions/setup-environment
 
-      - name: Sync environment
-        run: |
-          echo "📦 Syncing environment with uv.lock..."
-          uv sync
-
-      - name: Check for dependency conflicts
-        run: |
-          echo "🔍 Checking that environment stays frozen after sync..."
-          uv sync --frozen
-          
       - name: Validate workspace consistency
         run: |
           echo "🔍 Validating workspace package consistency..."
-          
+
           # Check that all workspace packages can be installed together
           uv run python -c "
           import sys
@@ -65,36 +44,36 @@ jobs:
               print(f'❌ Import error: {e}')
               sys.exit(1)
           "
-          
+
       - name: Check for duplicate dependencies
         run: |
           echo "🔍 Checking for duplicate dependency specifications..."
           uv run python .github/scripts/check_duplicates.py
-          
+
       - name: Generate dependency report
         if: always()
         run: |
           echo "📊 Generating dependency report..."
-          
+
           echo "## Workspace Packages" > dependency_report.md
           echo "" >> dependency_report.md
           ls -la */pyproject.toml | awk '{print "- " $9}' >> dependency_report.md
-          
+
           echo "" >> dependency_report.md
           echo "## Dependency Tree Summary" >> dependency_report.md
           echo "" >> dependency_report.md
           echo '```' >> dependency_report.md
           uv tree --package metta --depth 1 >> dependency_report.md || echo "Could not generate tree" >> dependency_report.md
           echo '```' >> dependency_report.md
-          
+
           echo "" >> dependency_report.md
           echo "## Lock File Status" >> dependency_report.md
           echo "" >> dependency_report.md
           echo "- Lock file entries: $(grep -c '^\[\[package\]\]' uv.lock)" >> dependency_report.md
           echo "- Python version: $(grep 'requires-python' uv.lock | head -1)" >> dependency_report.md
-          
+
           cat dependency_report.md
-          
+
       - name: Upload dependency report
         if: always()
         uses: actions/upload-artifact@v4

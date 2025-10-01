@@ -44,12 +44,19 @@ def play(
 
     # Load and create policy
     policy_class = load_symbol(policy_class_path)
-    policy = policy_class(env, torch.device("cpu"))
+    device = torch.device("cpu")
 
-    if policy_data_path and hasattr(policy, "load_checkpoint"):
-        policy.load_checkpoint(policy_data_path)
+    # Instantiate the policy
+    policy_instance = policy_class(env, device)
 
-    policy.reset()
+    # Create per-agent policies
+    agent_policies = []
+    # Load checkpoint if provided
+    if policy_data_path:
+        policy_instance.load_policy_data(policy_data_path)
+        # Create per-agent policies using agent_policy() method
+    for agent_id in range(env.num_agents):
+        agent_policies.append(policy_instance.agent_policy(agent_id))
 
     # Run episode
     step_count = 0
@@ -89,9 +96,9 @@ def play(
         # Generate replay step
         replay_step = generate_replay_step()
 
-        # Call policy once per agent to get actions
+        # Call each agent's policy to get actions
         for agent_id in range(num_agents):
-            actions[agent_id] = policy.step(agent_id, obs[agent_id])
+            actions[agent_id] = agent_policies[agent_id].step(obs[agent_id])
 
         response = mettascope.render(step_count, replay_step)
         if response.should_close:

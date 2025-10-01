@@ -9,13 +9,13 @@ class RandomSceneCandidate(Config):
     weight: float = 1
 
 
-class RandomSceneParams(Config):
+class RandomSceneConfig(SceneConfig):
     candidates: list[RandomSceneCandidate]
 
 
-class RandomScene(Scene[RandomSceneParams]):
+class RandomScene(Scene[RandomSceneConfig]):
     def get_children(self) -> list[ChildrenAction]:
-        candidates = self.params.candidates
+        candidates = self.config.candidates
         weights = np.array([c.weight for c in candidates], dtype=np.float32)
         weights /= weights.sum()
 
@@ -24,7 +24,6 @@ class RandomScene(Scene[RandomSceneParams]):
 
         return [
             ChildrenAction(scene=scene, where="full"),
-            *self.children_actions,
         ]
 
     def render(self):

@@ -16,21 +16,18 @@ The build order is:
     mini labyrinths → obstacles (large, small, crosses) → scattered walls → blocks → altars → agents.
 """
 
-from typing import List, Optional, Tuple
-
 import numpy as np
 
-from mettagrid.config.config import Config
-from mettagrid.mapgen.scene import Scene
+from mettagrid.mapgen.scene import Scene, SceneConfig
 
 
-class VariedTerrainParams(Config):
+class VariedTerrainConfig(SceneConfig):
     objects: dict[str, int]
     agents: int = 1
     style: str = "balanced"
 
 
-class VariedTerrain(Scene[VariedTerrainParams]):
+class VariedTerrain(Scene[VariedTerrainConfig]):
     # Base style parameters for a 60x60 (area=3600) grid.
     # These counts are intentionally moderate.
     STYLE_PARAMETERS = {
@@ -74,7 +71,7 @@ class VariedTerrain(Scene[VariedTerrainParams]):
     }
 
     def post_init(self):
-        style = self.params.style
+        style = self.config.style
         if style not in self.STYLE_PARAMETERS:
             raise ValueError(f"Unknown style: '{style}'. Available styles: {list(self.STYLE_PARAMETERS.keys())}")
         base_params = self.STYLE_PARAMETERS[style]
@@ -127,7 +124,7 @@ class VariedTerrain(Scene[VariedTerrainParams]):
         self._place_blocks()
 
         # Place agents.
-        for _ in range(self.params.agents):
+        for _ in range(self.config.agents):
             pos = self._choose_random_empty()
             if pos is None:
                 break
@@ -136,7 +133,7 @@ class VariedTerrain(Scene[VariedTerrainParams]):
             self._occupancy[r, c] = True
 
         # Place objects.
-        for obj_name, obj_count in self.params.objects.items():
+        for obj_name, obj_count in self.config.objects.items():
             num_objs_to_place = obj_count - np.where(self.grid == obj_name, 1, 0).sum()
             if num_objs_to_place > 0:
                 for _ in range(num_objs_to_place):
@@ -150,7 +147,7 @@ class VariedTerrain(Scene[VariedTerrainParams]):
     # ---------------------------
     # Helper Functions
     # ---------------------------
-    def _update_occupancy(self, top_left: Tuple[int, int], pattern: np.ndarray) -> None:
+    def _update_occupancy(self, top_left: tuple[int, int], pattern: np.ndarray) -> None:
         """
         Updates the occupancy mask for the region where the pattern was placed.
         """
@@ -158,7 +155,7 @@ class VariedTerrain(Scene[VariedTerrainParams]):
         p_h, p_w = pattern.shape
         self._occupancy[r : r + p_h, c : c + p_w] |= pattern != "empty"
 
-    def _find_candidates(self, region_shape: Tuple[int, int]) -> List[Tuple[int, int]]:
+    def _find_candidates(self, region_shape: tuple[int, int]) -> list[tuple[int, int]]:
         """
         Efficiently finds candidate top-left positions where a subregion of shape 'region_shape'
         is completely empty using a sliding window approach on the occupancy mask.
@@ -176,7 +173,7 @@ class VariedTerrain(Scene[VariedTerrainParams]):
         candidates = np.argwhere(window_sums == 0)
         return [tuple(idx) for idx in candidates]
 
-    def _choose_random_empty(self) -> Optional[Tuple[int, int]]:
+    def _choose_random_empty(self) -> tuple[int, int] | None:
         """
         Efficiently returns a random empty position using the occupancy mask.
         """

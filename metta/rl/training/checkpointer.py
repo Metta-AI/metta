@@ -62,8 +62,7 @@ class Checkpointer(TrainerComponent):
         candidate_uri: Optional[str] = policy_uri
 
         if candidate_uri is None:
-            existing = self._checkpoint_manager.select_checkpoints("latest", count=1)
-            candidate_uri = existing[0] if existing else None
+            candidate_uri = self._checkpoint_manager.get_latest_checkpoint()
 
         if self._distributed.is_master() and candidate_uri:
             normalized_uri = CheckpointManager.normalize_uri(candidate_uri)
@@ -89,8 +88,7 @@ class Checkpointer(TrainerComponent):
         """Return the most recent checkpoint URI tracked by this component."""
         if self._latest_policy_uri:
             return self._latest_policy_uri
-        latest = self._checkpoint_manager.select_checkpoints("latest", count=1)
-        return latest[0] if latest else None
+        return self._checkpoint_manager.get_latest_checkpoint()
 
     # ------------------------------------------------------------------
     # Callback entry-points
@@ -108,7 +106,7 @@ class Checkpointer(TrainerComponent):
         if not self._distributed.should_checkpoint():
             return
 
-        self._save_policy(self.context.epoch, force=True)
+        self._save_policy(self.context.epoch)
 
     # ------------------------------------------------------------------
     # Internal helpers

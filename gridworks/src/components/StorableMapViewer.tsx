@@ -1,78 +1,18 @@
 "use client";
-import { useQueryState } from "nuqs";
 import { FC, useCallback, useMemo, useState } from "react";
 
-import { FilterItem, parseFilterParam } from "@/app/stored-maps/dir/params";
 import { SceneTree, StorableMap } from "@/lib/api";
 import { MettaGrid } from "@/lib/MettaGrid";
-import { viewStoredMapRoute } from "@/lib/routes";
 
 import { ConfigViewer } from "./ConfigViewer";
 import { CopyToClipboardButton } from "./CopyToClipboardButton";
 import { MapViewer } from "./MapViewer";
 import { SceneTreeViewer } from "./SceneTreeViewer";
-import { StyledLink } from "./StyledLink";
 import { Tabs } from "./Tabs";
-
-// YAML viewer with the ability to click lines to filter the map list
-const FilterableFrontmatterViewer: FC<{
-  frontmatter: Record<string, unknown>;
-}> = ({ frontmatter }) => {
-  const [filters, setFilters] = useQueryState(
-    "filter",
-    parseFilterParam.withOptions({ shallow: false })
-  );
-
-  // Function to check if a key-value pair is currently in the filters
-  const isFiltered = (key: string, value: string) => {
-    if (key === "height") {
-      console.log({ filters, key, value });
-    }
-    return (
-      filters?.some(
-        (filter) => `config.${key}` === filter.key && filter.value === value
-      ) || false
-    );
-  };
-
-  // Function to handle clicking on a frontmatter line
-  const handleSelectLine = (configKey: string, value: string) => {
-    const key = `config.${configKey}`;
-    const newFilter: FilterItem = { key, value };
-
-    // Check if this filter already exists
-    const filterExists =
-      filters?.some((filter) => filter.key === key && filter.value === value) ||
-      false;
-
-    if (filterExists) {
-      // Remove the filter if it already exists
-      setFilters(
-        filters?.filter(
-          (filter) => !(filter.key === key && filter.value === value)
-        ) || []
-      );
-    } else {
-      // Add the new filter
-      setFilters([...(filters || []), newFilter]);
-    }
-  };
-
-  return (
-    <ConfigViewer
-      value={frontmatter}
-      isSelected={isFiltered}
-      onSelectLine={handleSelectLine}
-    />
-  );
-};
 
 export const StorableMapViewer: FC<{
   map: StorableMap;
-  url?: string;
-  // in /stored-maps list interface, we allow filtering by frontmatter props (which works by updating the URL)
-  filterable?: boolean;
-}> = ({ map, url, filterable = false }) => {
+}> = ({ map }) => {
   // Parse the frontmatter YAML
   const grid = useMemo(() => MettaGrid.fromAscii(map.data), [map.data]);
 
@@ -116,13 +56,7 @@ export const StorableMapViewer: FC<{
             {
               id: "config",
               label: "Config",
-              content: filterable ? (
-                <FilterableFrontmatterViewer
-                  frontmatter={map.frontmatter.config}
-                />
-              ) : (
-                <ConfigViewer value={map.frontmatter.config} />
-              ),
+              content: <ConfigViewer value={map.frontmatter.config} />,
             },
             {
               id: "metadata",
@@ -156,13 +90,6 @@ export const StorableMapViewer: FC<{
         <CopyToClipboardButton text={map.data}>
           Copy Map Data to Clipboard
         </CopyToClipboardButton>
-        {url &&
-          typeof window !== "undefined" &&
-          window.location.pathname !== "/stored-maps/view" && (
-            <StyledLink href={viewStoredMapRoute(url)} target="_blank">
-              Permalink
-            </StyledLink>
-          )}
       </div>
     </div>
   );

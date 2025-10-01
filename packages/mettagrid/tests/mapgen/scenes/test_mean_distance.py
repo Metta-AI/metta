@@ -7,7 +7,7 @@ from mettagrid.test_support.mapgen import render_scene
 def test_basic():
     """Test basic functionality of MeanDistance scene."""
     scene = render_scene(
-        MeanDistance.factory(MeanDistance.Params(mean_distance=3.0, objects={"altar": 2, "enemy": 1})),
+        MeanDistance.Config(mean_distance=3.0, objects={"altar": 2, "enemy": 1}),
         (11, 11),
     )
 
@@ -29,7 +29,7 @@ def test_basic():
 def test_object_placement():
     """Test that objects are placed at reasonable distances from agent."""
     scene = render_scene(
-        MeanDistance.factory(MeanDistance.Params(mean_distance=2.0, objects={"altar": 5})),
+        MeanDistance.Config(mean_distance=2.0, objects={"altar": 5}),
         (101, 101),
     )
 
@@ -56,7 +56,7 @@ def test_object_placement():
 def test_multiple_object_types():
     """Test placement of multiple different object types."""
     scene = render_scene(
-        MeanDistance.factory(MeanDistance.Params(mean_distance=4.0, objects={"altar": 3, "enemy": 2, "key": 1})),
+        MeanDistance.Config(mean_distance=4.0, objects={"altar": 3, "enemy": 2, "key": 1}),
         (21, 21),
     )
 
@@ -73,7 +73,7 @@ def test_multiple_object_types():
 def test_small_grid():
     """Test behavior with a smaller grid where placement might be constrained."""
     scene = render_scene(
-        MeanDistance.factory(MeanDistance.Params(mean_distance=2.0, objects={"altar": 2})),
+        MeanDistance.Config(mean_distance=2.0, objects={"altar": 2}),
         (7, 7),
     )
 

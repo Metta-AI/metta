@@ -10,7 +10,9 @@ import json
 import logging
 import random
 import sys
+from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 from gemini_analyze_pr import PRSummary
 from gemini_analyze_pr_digest import (
@@ -27,13 +29,17 @@ from gemini_client import GeminiAIClient
 class NewsletterGenerator:
     """Generates newsletter summaries from multiple PR summaries."""
 
-    def __init__(self, ai_client: GeminiAIClient):
+    def __init__(self, ai_client: GeminiAIClient, is_historical: bool = False):
         self.ai_client = ai_client
+        self.is_historical = is_historical
         self.newsletter_extractor = PreviousReportExtractor(report_type="newsletter")
 
-    def get_previous_newsletter_context(self) -> str:
+    def get_previous_newsletter_context(self, end_date: Optional[datetime] = None) -> str:
         """Format newsletter summaries for context."""
-        recent_summaries = self.newsletter_extractor.get_recent_summaries()
+        # For historical runs, pass the end date to filter out future newsletters
+        recent_summaries = self.newsletter_extractor.get_recent_summaries(
+            end_date=end_date if self.is_historical else None
+        )
 
         all_shout_outs = []
         for summary in recent_summaries:
@@ -122,10 +128,12 @@ class NewsletterGenerator:
         ]
         return random.choice(bonus_prompts)
 
-    def generate_newsletter(self, pr_summaries: list[PRSummary], date_range: str, repository: str) -> str:
+    def generate_newsletter(
+        self, pr_summaries: list[PRSummary], date_range: str, repository: str, end_date: Optional[datetime] = None
+    ) -> str:
         """Generate a comprehensive newsletter summary."""
         context = self.prepare_context(pr_summaries, date_range, repository)
-        previous_context = self.get_previous_newsletter_context()
+        previous_context = self.get_previous_newsletter_context(end_date)
 
         prompt = f"""
 You are creating an executive summary of development activity for {repository} from {date_range}.
@@ -240,6 +248,7 @@ def main():
         "PR_DIGEST_FILE": "pr_digest_output.json",
         "PR_DIGEST_STATS_FILE": "pr_digest_stats.json",
         "REPORT_PERIOD": "(unknown)",
+        "IS_HISTORICAL_RUN": "false",
     }
 
     # Parse configuration
@@ -253,6 +262,11 @@ def main():
     pr_digest_file = env_values["PR_DIGEST_FILE"]
     stats_file = env_values["PR_DIGEST_STATS_FILE"]
     report_period = env_values["REPORT_PERIOD"]
+    is_historical = env_values["IS_HISTORICAL_RUN"].lower() == "true"
+
+    # Log if this is a historical run
+    if is_historical:
+        logging.info(f"Generating newsletter for: {report_period}")
 
     # Construct GitHub run URL
     github_run_url = f"{github_server_url}/{github_repository}/actions/runs/{github_run_id}"
@@ -311,8 +325,22 @@ def main():
     # Generate newsletter content
     print("Generating newsletter content...")
     ai_client = GeminiAIClient(api_key)
-    newsletter_generator = NewsletterGenerator(ai_client)
-    newsletter_content = newsletter_generator.generate_newsletter(all_summaries, report_period, github_repository)
+    newsletter_generator = NewsletterGenerator(ai_client, is_historical)
+
+    # Parse end date for historical context filtering
+    end_date = None
+    if is_historical:
+        # Get the end date from the stats file
+        end_date_str = stats.get("end_date")
+        if end_date_str:
+            try:
+                end_date = datetime.fromisoformat(end_date_str)
+            except ValueError:
+                logging.warning(f"Could not parse end date from stats: {end_date_str}")
+
+    newsletter_content = newsletter_generator.generate_newsletter(
+        all_summaries, report_period, github_repository, end_date
+    )
 
     with open("newsletter_output.txt", "w") as f:
         f.write(newsletter_content)
