@@ -46,7 +46,6 @@ def play(
     render_mode = None if render == "gui" else "miniscope" if render == "text" else None
     env = MettaGridEnv(env_cfg=env_cfg, render_mode=render_mode)
 
-    obs, _ = env.reset(seed=seed)
     policy = instantiate_or_load_policy(policy_class_path, policy_data_path, env)
     agent_policies = [policy.agent_policy(agent_id) for agent_id in range(env.num_agents)]
 
