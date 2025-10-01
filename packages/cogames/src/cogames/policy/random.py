@@ -2,8 +2,26 @@
 
 from typing import Any, Optional
 
-from cogames.policy.policy import Policy
+from cogames.policy.policy import AgentPolicy, Policy
 from mettagrid import MettaGridEnv
+
+
+class RandomAgentPolicy(AgentPolicy):
+    """Per-agent random policy."""
+
+    def __init__(self, action_space):
+        self._action_space = action_space
+
+    def step(self, obs: Any) -> Any:
+        """Get random action.
+
+        Args:
+            obs: The observation (unused for random policy)
+
+        Returns:
+            A random action sampled from the action space
+        """
+        return self._action_space.sample()
 
 
 class RandomPolicy(Policy):
@@ -19,18 +37,13 @@ class RandomPolicy(Policy):
         self._env = env
         self._action_space = env.single_action_space
 
-    def step(self, obs: Any) -> Any:
-        """Get random action.
+    def agent_policy(self, agent_id: int) -> AgentPolicy:
+        """Get an AgentPolicy instance for a specific agent.
 
         Args:
-            obs: The observation (unused for random policy)
+            agent_id: The ID of the agent
 
         Returns:
-            A random action sampled from the action space
+            A RandomAgentPolicy instance
         """
-        # Return a random action
-        return self._action_space.sample()
-
-    def reset(self) -> None:
-        """Reset the policy state (no-op for random policy)."""
-        pass
+        return RandomAgentPolicy(self._action_space)

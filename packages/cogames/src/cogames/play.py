@@ -46,32 +46,17 @@ def play(
     policy_class = load_symbol(policy_class_path)
     device = torch.device("cpu")
 
-    # Check if this is a TrainablePolicy or a simple Policy
-    from cogames.policy import Policy, TrainablePolicy
-
     # Instantiate the policy
     policy_instance = policy_class(env, device)
 
     # Create per-agent policies
     agent_policies = []
-    if isinstance(policy_instance, TrainablePolicy):
-        # Load checkpoint if provided
-        if policy_data_path:
-            policy_instance.load_policy_data(policy_data_path)
-        # Create per-agent policies from the trainable policy
-        for agent_id in range(env.num_agents):
-            agent_policies.append(policy_instance.agent_policy(agent_id))
-    elif isinstance(policy_instance, Policy):
-        # Simple policy - use the same instance for all agents
-        # (like RandomPolicy which doesn't have agent-specific state)
-        for _ in range(env.num_agents):
-            agent_policies.append(policy_instance)
-    else:
-        raise ValueError("Policy class must implement either Policy or TrainablePolicy interface")
-
-    # Reset all agent policies
-    for policy in agent_policies:
-        policy.reset()
+    # Load checkpoint if provided
+    if policy_data_path:
+        policy_instance.load_policy_data(policy_data_path)
+        # Create per-agent policies using agent_policy() method
+    for agent_id in range(env.num_agents):
+        agent_policies.append(policy_instance.agent_policy(agent_id))
 
     # Run episode
     step_count = 0
