@@ -236,7 +236,18 @@ def _worker_process(
         start = time.time()
         if sem == RESET:
             seed = recv_pipe.recv()
+            logger.info(
+                "Worker %s received reset seed %s",  # makes stalls visible in remote logs
+                worker_idx,
+                seed,
+            )
+            reset_start = time.time()
             _, infos = envs.reset(seed=seed)
+            logger.info(
+                "Worker %s finished reset in %.3fs",  # allows diagnosing slow env initialization
+                worker_idx,
+                time.time() - reset_start,
+            )
         elif sem == STEP:
             _, _, _, _, infos = envs.step(atn_arr)
         elif sem == CLOSE:
