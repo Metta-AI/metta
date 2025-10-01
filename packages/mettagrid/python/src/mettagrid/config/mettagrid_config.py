@@ -174,6 +174,9 @@ class AssemblerConfig(Config):
             "Exhaustion rate - cooldown multiplier grows by (1 + exhaustion) after each use (0 = no exhaustion)"
         ),
     )
+    clip_immune: bool = Field(
+        default=False, description="If true, this assembler cannot be clipped by the Clipper system"
+    )
 
 
 class ChestConfig(Config):

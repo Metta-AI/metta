@@ -28,6 +28,8 @@ public:
       auto* obj = grid.object(static_cast<GridObjectId>(obj_id));
       if (!obj) continue;
       if (auto* assembler = dynamic_cast<Assembler*>(obj)) {
+        // Skip clip-immune assemblers
+        if (assembler->clip_immune) continue;
         assembler_infection_weight[assembler] = 0.0f;
         unclipped_assemblers.insert(assembler);
       }

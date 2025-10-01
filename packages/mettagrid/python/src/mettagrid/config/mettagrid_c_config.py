@@ -331,6 +331,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_assembler_config.allow_partial_usage = object_config.allow_partial_usage
             cpp_assembler_config.max_uses = object_config.max_uses
             cpp_assembler_config.exhaustion = object_config.exhaustion
+            cpp_assembler_config.clip_immune = object_config.clip_immune
             objects_cpp_params[object_type] = cpp_assembler_config
         elif isinstance(object_config, ChestConfig):
             # Convert resource type name to ID
