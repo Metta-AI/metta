@@ -69,7 +69,7 @@ curriculum_args = {
         "oxygen_extractor_positions": [["Any"]],
         "germanium_extractor_positions": [["Any"]],
         "silicon_extractor_positions": [["Any"]],
-        "num_obj_distribution": [2, 6, 10, 12, 15, 25],
+        "num_obj_distribution": [2, 4, 8, 12, 20],
         "chest_positions": [["N"]],
         "regeneration_rate": [1, 2, 3, 4],
         "shareable_energy": [False],
@@ -84,7 +84,7 @@ curriculum_args = {
         "oxygen_extractor_positions": [["Any", "Any"]],
         "germanium_extractor_positions": [["Any", "Any"]],
         "silicon_extractor_positions": [["Any", "Any"]],
-        "num_obj_distribution": [2, 6, 10, 12, 15, 25],
+        "num_obj_distribution": [2, 4, 8, 12, 20],
         "chest_positions": [["N", "S"]],
         "regeneration_rate": [1, 2, 3, 4],
         "shareable_energy": [True],
@@ -100,7 +100,7 @@ curriculum_args = {
         "num_germanium_extractors": [0, 0, 0, 5, 10],
         "germanium_extractor_positions": [["Any", "Any", "Any"]],
         "silicon_extractor_positions": [["Any", "Any", "Any"]],
-        "num_obj_distribution": [2, 6, 10, 12, 15, 25],
+        "num_obj_distribution": [2, 4, 8, 12, 20],
         "chest_positions": [["N", "S", "E"]],
         "regeneration_rate": [1, 2, 3, 4],
         "shareable_energy": [True],
@@ -407,6 +407,8 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
                 num_agents=24,
             )
         env.game.num_agents = 24
+
+        print(f"Generated env with {num_assemblers} assemblers, {num_chargers} chargers, {num_carbon_extractors} carbon extractors, {num_oxygen_extractors} oxygen extractors, {num_germanium_extractors} germanium extractors, {num_silicon_extractors} silicon extractors, {num_chests} chests")
         return env
 
     def _overwrite_positions(self, object, positions):
@@ -446,7 +448,7 @@ def train(
         max_memory_tasks=1000,
         max_slice_axes=3,
         progress_smoothing=0.15,
-        num_active_tasks=2000,
+        num_active_tasks=1000,
         rand_task_rate=0.25,
     )
     trainer_cfg = TrainerConfig(
@@ -458,7 +460,7 @@ def train(
         policy_config = FastLSTMResetConfig()
     elif architecture == "transformer":
         policy_config = ViTSlidingTransConfig()
-        trainer_cfg.batch_size = 131072
+        trainer_cfg.batch_size = 516096
         trainer_cfg.minibatch_size = 4096
     else:
         raise ValueError(f"Invalid architecture: {architecture}")
