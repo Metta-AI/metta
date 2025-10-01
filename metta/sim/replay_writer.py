@@ -80,7 +80,7 @@ class EpisodeReplay:
     def log_step(self, actions: np.ndarray, rewards: np.ndarray):
         """Log a single step of the episode."""
         self.total_rewards += rewards
-        for i, grid_object in enumerate(self.env.grid_objects.values()):
+        for i, grid_object in enumerate(self.env.grid_objects().values()):
             if len(self.objects) <= i:
                 self.objects.append({})
 

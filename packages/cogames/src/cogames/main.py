@@ -3,7 +3,7 @@
 import logging
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 # Always add current directory to Python path
 sys.path.insert(0, ".")
@@ -95,7 +95,8 @@ def play_cmd(
     ),
     policy_data_path: Optional[str] = typer.Option(None, "--policy-data", help="Path to initial policy weights"),
     interactive: bool = typer.Option(True, "--interactive", "-i", help="Run in interactive mode"),
-    steps: int = typer.Option(100, "--steps", "-s", help="Number of steps to run"),
+    steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run"),
+    render: Literal["gui", "text"] = typer.Option("gui", "--render", "-r", help="Render mode: 'gui' or 'text'"),
 ) -> None:
     """Play a game."""
     from cogames import game, utils
@@ -120,7 +121,7 @@ def play_cmd(
     full_policy_path = resolve_policy_class_path(policy_class_path)
 
     console.print(f"[cyan]Playing {resolved_game}[/cyan]")
-    console.print(f"Max Steps: {steps}, Interactive: {interactive}")
+    console.print(f"Max Steps: {steps}, Interactive: {interactive}, Render: {render}")
 
     from cogames import play as play_module
 
@@ -131,6 +132,7 @@ def play_cmd(
         policy_data_path=policy_data_path,
         max_steps=steps,
         seed=42,
+        render=render,
         verbose=interactive,  # Use interactive flag for verbose output
     )
 
