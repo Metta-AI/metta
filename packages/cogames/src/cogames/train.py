@@ -122,13 +122,13 @@ def train(
 
     # Use RNN-specific hyperparameters if needed
     if use_rnn:
-        learning_rate = 0.0003  # Much lower LR for RNN stability
+        learning_rate = 0.0003  # Conservative LR for recurrent policies
         bptt_horizon = 1  # Use bptt=1 for now (TODO: fix bptt>1 observation reshaping)
         optimizer = "adam"  # Adam is more stable for RNNs than Muon
         adam_eps = 1e-8  # Standard eps value, not too small
         logger.info("Using RNN-specific hyperparameters: lr=0.0003, bptt=1, optimizer=adam")
     else:
-        learning_rate = 0.015
+        learning_rate = 0.0003
         bptt_horizon = 1
         optimizer = "muon"
         adam_eps = 1e-12
@@ -195,7 +195,7 @@ def train(
         gae_lambda=0.90,
         update_epochs=1,
         clip_coef=0.2,
-        vf_coef=2.0,
+        vf_coef=1.0,
         vf_clip_coef=0.05,
         max_grad_norm=1.5,
         ent_coef=0.001,
