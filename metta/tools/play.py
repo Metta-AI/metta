@@ -79,24 +79,19 @@ class PlayTool(Tool):
                 step_replay = {"step": current_step, "objects": grid_objects}
                 return json.dumps(step_replay)
 
-            should_close = False
             while True:
                 replay_step = send_replay_step()
-                responses = mettascope2.render(current_step, replay_step)
-                for response in responses:
-                    if response.should_close:
-                        should_close = True
-                        break
-                if should_close:
+                response = mettascope2.render(current_step, replay_step)
+                if response.should_close:
                     break
 
                 actions = sim.generate_actions()
                 # Just do random actions for now.
                 actions[:, 0] = np.random.randint(0, 5, size=len(actions))  # Random action types
                 actions[:, 1] = np.random.randint(0, 4, size=len(actions))  # Random action args
-                for response in responses:
-                    actions[response.action_agent_id, 0] = response.action_action_id
-                    actions[response.action_agent_id, 1] = response.action_argument
+                for action in response.actions:
+                    actions[action.agent_id, 0] = action.action_id
+                    actions[action.agent_id, 1] = action.argument
 
                 sim.step_simulation(actions)
                 current_step += 1

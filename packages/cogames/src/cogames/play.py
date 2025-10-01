@@ -92,7 +92,6 @@ def play(
         step_replay = {"step": step_count, "objects": grid_objects}
         return json.dumps(step_replay)
 
-    should_close = False
     while max_steps is None or step_count < max_steps:
         # Generate replay step
         replay_step = generate_replay_step()
@@ -100,18 +99,13 @@ def play(
         # Call each agent's policy to get actions
         for agent_id in range(num_agents):
             actions[agent_id] = agent_policies[agent_id].step(obs[agent_id])
-
-        responses = mettascope.render(step_count, replay_step)
-        for response in responses:
-            if response.should_close:
-                should_close = True
-                break
-
-            actions[response.action_agent_id, 0] = response.action_action_id
-            actions[response.action_agent_id, 1] = response.action_argument
-
-        if should_close:
+        print("rendering")
+        response = mettascope.render(step_count, replay_step)
+        if response.should_close:
             break
+        for action in response.actions:
+            actions[action.agent_id, 0] = action.action_id
+            actions[action.agent_id, 1] = action.argument
 
         obs, rewards, dones, truncated, info = env.step(actions)
 

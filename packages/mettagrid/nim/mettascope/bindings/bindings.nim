@@ -3,14 +3,18 @@ import
   ../src/mettascope, ../src/mettascope/[replays, common, worldmap, timeline]
 
 type
-  RenderResponse* = object
+  ActionRequest* = object
+    agentId*: int
+    actionId*: int
+    argument*: int
+
+  RenderResponse* = ref object
     shouldClose*: bool
-    actionAgentId*: int
-    actionActionId*: int
-    actionArgument*: int
+    actions*: seq[ActionRequest]
 
 proc init(dataDir: string, replay: string): RenderResponse =
   try:
+    result = RenderResponse(shouldClose: false, actions: @[])
     #echo "Replay from python: ", replay
     echo "Data dir: ", dataDir
     playMode = Realtime
@@ -32,25 +36,26 @@ proc init(dataDir: string, replay: string): RenderResponse =
     result.shouldClose = true
     return
 
-proc render(currentStep: int, replayStep: string): seq[RenderResponse] =
+proc render(currentStep: int, replayStep: string): RenderResponse =
   try:
     common.replay.apply(replayStep)
     step = currentStep
     stepFloat = currentStep.float32
     onStepChanged()
     requestPython = false
+    result = RenderResponse(shouldClose: false, actions: @[])
     while true:
       if window.closeRequested:
         window.close()
-        result.add(RenderResponse(shouldClose: true))
+        result.shouldClose = true
         return
       mainLoop()
       if requestPython:
         for action in requestActions:
-          result.add(RenderResponse(
-            actionAgentId: action.agentId,
-            actionActionId: action.actionId,
-            actionArgument: action.argument
+          result.actions.add(ActionRequest(
+            agentId: action.agentId,
+            actionId: action.actionId,
+            argument: action.argument
           ))
         requestActions.setLen(0)
         return
@@ -59,14 +64,17 @@ proc render(currentStep: int, replayStep: string): seq[RenderResponse] =
     echo getCurrentException().getStackTrace()
     echo getCurrentExceptionMsg()
     echo "############################################################"
-    result.add(RenderResponse(shouldClose: true))
+    result.shouldClose = true
     return
 
-exportObject RenderResponse:
+exportObject ActionRequest:
   discard
 
-exportSeq seq[RenderResponse]:
-   discard
+exportRefObject RenderResponse:
+  fields:
+    shouldClose
+    actions
+
 
 exportProcs:
   init
