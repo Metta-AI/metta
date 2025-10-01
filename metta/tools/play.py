@@ -81,18 +81,16 @@ class PlayTool(Tool):
 
             while True:
                 replay_step = send_replay_step()
-                response = mettascope2.render(current_step, replay_step)
-                if response.should_close:
-                    break
-
+                responses = mettascope2.render(current_step, replay_step)
+                for response in responses:
+                    if response.should_close:
+                        break
+                        
                 actions = sim.generate_actions()
-
                 # Just do random actions for now.
                 actions[:, 0] = np.random.randint(0, 5, size=len(actions))  # Random action types
                 actions[:, 1] = np.random.randint(0, 4, size=len(actions))  # Random action args
-
-                # Get actions from mettascope.
-                if response.action:
+                for response in responses:
                     actions[response.action_agent_id, 0] = response.action_action_id
                     actions[response.action_agent_id, 1] = response.action_argument
 

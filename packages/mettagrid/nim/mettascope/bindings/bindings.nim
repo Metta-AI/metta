@@ -5,7 +5,6 @@ import
 type
   RenderResponse* = object
     shouldClose*: bool
-    action*: bool
     actionAgentId*: int
     actionActionId*: int
     actionArgument*: int
@@ -33,7 +32,7 @@ proc init(dataDir: string, replay: string): RenderResponse =
     result.shouldClose = true
     return
 
-proc render(currentStep: int, replayStep: string): RenderResponse =
+proc render(currentStep: int, replayStep: string): seq[RenderResponse] =
   try:
     common.replay.apply(replayStep)
     step = currentStep
@@ -43,15 +42,16 @@ proc render(currentStep: int, replayStep: string): RenderResponse =
     while true:
       if window.closeRequested:
         window.close()
-        result.shouldClose = true
+        result.add(RenderResponse(shouldClose: true))
         return
       mainLoop()
       if requestPython:
         if requestAction:
-          result.action = true
-          result.actionAgentId = requestActionAgentId
-          result.actionActionId = requestActionActionId
-          result.actionArgument = requestActionArgument
+          result.add(RenderResponse(
+            actionAgentId: requestActionAgentId,
+            actionActionId: requestActionActionId,
+            actionArgument: requestActionArgument
+          ))
           requestAction = false
           requestActionAgentId = 0
           requestActionActionId = 0
@@ -64,11 +64,14 @@ proc render(currentStep: int, replayStep: string): RenderResponse =
     echo getCurrentException().getStackTrace()
     echo getCurrentExceptionMsg()
     echo "############################################################"
-    result.shouldClose = true
+    result.add(RenderResponse(shouldClose: true))
     return
 
 exportObject RenderResponse:
   discard
+
+exportSeq seq[RenderResponse]:
+   discard
 
 exportProcs:
   init

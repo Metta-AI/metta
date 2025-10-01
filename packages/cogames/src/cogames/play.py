@@ -100,10 +100,11 @@ def play(
         for agent_id in range(num_agents):
             actions[agent_id] = agent_policies[agent_id].step(obs[agent_id])
 
-        response = mettascope.render(step_count, replay_step)
-        if response.should_close:
-            break
-        if response.action:
+        responses = mettascope.render(step_count, replay_step)
+        for response in responses:
+            if response.should_close:
+                break
+
             actions[response.action_agent_id, 0] = response.action_action_id
             actions[response.action_agent_id, 1] = response.action_argument
 
