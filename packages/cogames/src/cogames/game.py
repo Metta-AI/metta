@@ -20,16 +20,10 @@ def get_all_games() -> Dict[str, MettaGridConfig]:
     Returns:
         Dictionary of game names to their configurations
     """
-    # Flatten all scenarios into a single dictionary
-    all_games = {}
-
-    # Add cogs_vs_clips games
-    for game_name, game_config in cogs_vs_clips_games().items():
-        all_games[game_name] = game_config
+    all_games: Dict[str, MettaGridConfig] = cogs_vs_clips_games()
 
     # Future games can be added here
-    # for scenario_name, scenario_config in other_game_scenarios().items():
-    #     all_games[scenario_name] = scenario_config
+    # all_games |= other_game_scenarios()
 
     return all_games
 
