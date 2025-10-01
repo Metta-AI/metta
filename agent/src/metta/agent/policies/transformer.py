@@ -506,12 +506,19 @@ class TransformerPolicy(Policy):
         return td
 
     def _cast_floating_tensors(self, td: TensorDict) -> None:
+        fp32_targets = {"logits", "values", "action_probs", "advantages", "returns"}
+
         for key, value in td.items(include_nested=True):
-            if isinstance(value, torch.Tensor) and value.is_floating_point() and value.dtype != torch.float32:
-                leaf_key = key[-1] if isinstance(key, tuple) else key
-                if leaf_key == "transformer_memory_pre":
-                    continue
-                td[key] = value.to(dtype=torch.float32)
+            if not isinstance(value, torch.Tensor) or not value.is_floating_point():
+                continue
+            if value.dtype == torch.float32:
+                continue
+
+            leaf_key = key[-1] if isinstance(key, tuple) else key
+            if leaf_key == "transformer_memory_pre" or leaf_key not in fp32_targets:
+                continue
+
+            td[key] = value.to(dtype=torch.float32)
 
     def _forward_transformer(self, td: TensorDict, latent: torch.Tensor, batch_size: int, tt: int) -> torch.Tensor:
         if tt <= 0:
@@ -533,10 +540,10 @@ class TransformerPolicy(Policy):
             if self.memory_len > 0:
                 packed_memory = self._pack_memory(memory_batch)
                 if packed_memory is not None:
-                    td.set(
-                        "transformer_memory_pre",
-                        packed_memory.detach().to(dtype=torch.float32, device=torch.device("cpu")),
-                    )
+                    memory_snapshot = packed_memory.detach()
+                    if memory_snapshot.dtype != torch.float32:
+                        memory_snapshot = memory_snapshot.to(dtype=torch.float32)
+                    td.set("transformer_memory_pre", memory_snapshot)
             core_out, new_memory = self.transformer_module(latent_seq, memory_batch)
         elif use_memory and tt > 1:
             packed_memory = td.get("transformer_memory_pre", None)
