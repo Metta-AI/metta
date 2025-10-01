@@ -40,7 +40,6 @@ class RandomDcssScene(Scene[RandomDcssSceneConfig]):
 
         return [
             ChildrenAction(scene=scene, where="full"),
-            *self.config.children,
         ]
 
     def render(self):

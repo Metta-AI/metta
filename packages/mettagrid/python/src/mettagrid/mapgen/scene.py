@@ -136,12 +136,20 @@ class Scene(Generic[ConfigT]):
         """
         pass
 
-    # Subclasses can override this to provide a list of children actions.
-    # By default, children actions are static, which makes them configurable in the config file, but then can't depend
-    # on the specific generated content.
-    # TODO - rename to `get_children_actions()`?
     def get_children(self) -> list[ChildrenAction]:
-        return self.config.children
+        """
+        Subclasses can override this method to provide a list of dynamically generated children actions.
+
+        The list of static children actions from scene config will always be appended to the list returned by this
+        method.
+
+        Examples:
+        1) `RandomScene` picks a random scene and proxies rendering to it with `where="full"`.
+        2) `Mirror` scene renders its child scene on a half of the grid and then mirrors it.
+        3) `Auto` scene encapsulates the complex scene tree through a simple top-level config.
+        """
+
+        return []
 
     def get_scene_tree(self) -> dict:
         return {
@@ -163,9 +171,13 @@ class Scene(Generic[ConfigT]):
         raise NotImplementedError("Subclass must implement render method")
 
     def render_with_children(self):
+        # First, render the scene itself.
         self.render()
 
-        for action in self.get_children():
+        # Then, render the children scenes based on the children actions.
+        children_actions = self.get_children()
+        children_actions.extend(self.config.children)
+        for action in children_actions:
             areas = self.select_areas(action)
             for area in areas:
                 child_rng = self.rng.spawn(1)[0]

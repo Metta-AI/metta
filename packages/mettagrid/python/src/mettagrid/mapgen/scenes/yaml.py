@@ -14,7 +14,6 @@ class YamlScene(Scene[YamlSceneConfig]):
             scene = validate_any_scene_config(cfg)
         return [
             ChildrenAction(scene=scene, where="full"),
-            *self.config.children,
         ]
 
     def render(self):
