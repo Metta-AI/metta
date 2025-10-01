@@ -300,7 +300,7 @@ def make_swap_in_env() -> MettaGridConfig:
         },
         rewards={"heart": 1},
     )
-    env.game.actions.swap = ActionConfig(enabled=True)
+    env.game.actions.swap = ActionConfig()
     return env
 
 
@@ -321,7 +321,7 @@ def make_swap_out_env() -> MettaGridConfig:
         },
         rewards={"heart": 1},
     )
-    env.game.actions.swap = ActionConfig(enabled=True)
+    env.game.actions.swap = ActionConfig()
     return env
 
 
