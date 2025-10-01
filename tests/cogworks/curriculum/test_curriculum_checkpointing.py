@@ -161,10 +161,14 @@ class TestCurriculumStateSerialization:
         # Verify state structure
         assert state["type"] == "learning_progress"
         assert "task_tracker" in state
-        assert "outcomes" in state
-        assert "counter" in state
-        assert "p_fast" in state
-        assert "p_slow" in state
+        assert "scorer" in state
+
+        # Verify scorer state contains the right data
+        scorer_state = state["scorer"]
+        if curriculum_config.algorithm_config.use_bidirectional:
+            assert "outcomes" in scorer_state
+            assert "p_fast" in scorer_state
+            assert "p_slow" in scorer_state
 
         # Verify task tracker state
         task_tracker_state = state["task_tracker"]

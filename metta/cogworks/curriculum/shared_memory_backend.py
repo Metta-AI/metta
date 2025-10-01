@@ -25,7 +25,7 @@ class TaskMemoryBackend(ABC):
 
     # Task structure: [task_id, creation_time, completion_count, reward_ema, lp_score,
     #                  success_rate_ema, total_score, last_score, success_threshold,
-    #                  seed, generator_type, is_active]
+    #                  seed, generator_type, ema_squared, is_active]
     # Note: Actual sizes are configured per instance in __init__
 
     # Required attributes (must be set by subclasses)

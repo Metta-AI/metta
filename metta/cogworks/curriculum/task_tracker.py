@@ -25,7 +25,7 @@ class TaskTracker:
         backend: Optional[TaskMemoryBackend] = None,
         session_id: Optional[str] = None,
         use_shared_memory: bool = False,
-        task_struct_size: int = 12,
+        task_struct_size: int = 13,
         completion_history_size: int = 1000,
     ):
         """Initialize task tracker with configurable backend.
@@ -36,7 +36,7 @@ class TaskTracker:
             backend: Optional pre-configured backend. If None, creates based on use_shared_memory
             session_id: Unique identifier for shared memory session (only for shared memory)
             use_shared_memory: If True and backend is None, creates SharedMemoryBackend
-            task_struct_size: Size of each task's data structure (default: 12)
+            task_struct_size: Size of each task's data structure (default: 13)
             completion_history_size: Size of completion history array (default: 1000)
         """
         self.max_memory_tasks = max_memory_tasks
@@ -74,7 +74,7 @@ class TaskTracker:
             for i in range(self._backend.max_tasks):
                 task_data = self._backend.get_task_data(i)
                 task_id = int(task_data[0])
-                is_active = bool(task_data[11])
+                is_active = bool(task_data[12])
 
                 if is_active and task_id > 0:
                     self._task_id_to_index[task_id] = i
@@ -122,7 +122,8 @@ class TaskTracker:
             task_data[8] = success_threshold
             task_data[9] = float(seed)
             task_data[10] = generator_type
-            task_data[11] = 1.0  # is_active
+            task_data[11] = 0.0  # ema_squared (for variance calculation)
+            task_data[12] = 1.0  # is_active
 
             self._next_free_index += 1
 
@@ -154,6 +155,7 @@ class TaskTracker:
             success_rate_ema = task_data[5]
             total_score = task_data[6]
             task_success_threshold = task_data[8]
+            ema_squared = task_data[11]
 
             # Update counts and totals
             new_completion_count = completion_count + 1
@@ -164,6 +166,13 @@ class TaskTracker:
                 new_reward_ema = score
             else:
                 new_reward_ema = (1 - self.ema_alpha) * reward_ema + self.ema_alpha * score
+
+            # Update EMA of squared scores (for variance calculation)
+            score_squared = score * score
+            if completion_count == 0:
+                new_ema_squared = score_squared
+            else:
+                new_ema_squared = (1 - self.ema_alpha) * ema_squared + self.ema_alpha * score_squared
 
             # Update LP score if provided
             new_lp_score = lp_score if lp_score is not None else old_lp_score
@@ -184,6 +193,7 @@ class TaskTracker:
             task_data[6] = new_total_score
             task_data[7] = score
             task_data[8] = current_threshold
+            task_data[11] = new_ema_squared
 
             # Add score to completion history
             history = self._backend.get_completion_history()
@@ -218,7 +228,7 @@ class TaskTracker:
         index = self._task_id_to_index[task_id]
         task_data = self._backend.get_task_data(index)
 
-        if task_data[11] == 0:  # not active
+        if task_data[12] == 0:  # not active
             return None
 
         creation_time = task_data[1]
@@ -231,12 +241,14 @@ class TaskTracker:
         success_threshold = task_data[8]
         seed = task_data[9]
         generator_type = task_data[10]
+        ema_squared = task_data[11]
 
         if completion_count == 0:
             return {
                 "completion_count": 0,
                 "mean_score": 0.0,
                 "reward_ema": 0.0,
+                "ema_squared": 0.0,
                 "lp_score": 0.0,
                 "success_rate_ema": 0.0,
                 "last_score": 0.0,
@@ -250,6 +262,7 @@ class TaskTracker:
             "completion_count": completion_count,
             "mean_score": total_score / completion_count,
             "reward_ema": reward_ema,
+            "ema_squared": ema_squared,
             "lp_score": lp_score,
             "success_rate_ema": success_rate_ema,
             "last_score": last_score,
@@ -272,7 +285,7 @@ class TaskTracker:
             if task_id in self._task_id_to_index:
                 index = self._task_id_to_index[task_id]
                 task_data = self._backend.get_task_data(index)
-                task_data[11] = 0.0  # is_active = False
+                task_data[12] = 0.0  # is_active = False
                 del self._task_id_to_index[task_id]
 
     def get_global_stats(self) -> Dict[str, float]:
@@ -303,7 +316,7 @@ class TaskTracker:
         task_memory = {}
         for task_id, index in self._task_id_to_index.items():
             task_data = self._backend.get_task_data(index)
-            if task_data[11] > 0:  # is_active
+            if task_data[12] > 0:  # is_active
                 task_memory[task_id] = {
                     "creation_time": task_data[1],
                     "completion_count": int(task_data[2]),
@@ -315,6 +328,7 @@ class TaskTracker:
                     "success_threshold": task_data[8],
                     "seed": task_data[9],
                     "generator_type": task_data[10],
+                    "ema_squared": task_data[11],
                 }
 
         # Get completion history
@@ -365,7 +379,8 @@ class TaskTracker:
                 data[8] = task_data.get("success_threshold", 0.5)
                 data[9] = task_data.get("seed", 0.0)
                 data[10] = task_data.get("generator_type", 0.0)
-                data[11] = 1.0  # is_active
+                data[11] = task_data.get("ema_squared", 0.0)
+                data[12] = 1.0  # is_active
 
             self._next_free_index = len(state["task_memory"])
 

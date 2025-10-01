@@ -7,9 +7,13 @@ SliceAnalyzer for analyzing probability distributions across parameter slices.
 
 from abc import ABC, abstractmethod
 from collections import defaultdict, deque
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from .lp_scorers import LPScorer
+    from .task_tracker import TaskTracker
 
 
 def _make_default_dict_int():
@@ -157,106 +161,107 @@ class SliceAnalyzer:
             bin_index = self._get_bin_index(slice_name, value)
             if bin_index is not None:
                 self._slice_completion_counts[slice_name][bin_index] += 1
-                self._slice_completion_history[slice_name].append((bin_index, score))
 
-        # Invalidate density cache when completion data changes
+            # Update completion history (for density analysis)
+            self._slice_completion_history[slice_name].append((value, score))
+
+        # Invalidate density cache when new data added
         self._density_cache_valid = False
 
+    def _initialize_slice_bins(self, slice_name: str, value: Any) -> None:
+        """Initialize binning strategy for a slice based on first value."""
+        if isinstance(value, (int, float)):
+            # Continuous value - initialize with empty bins (will be populated as we see values)
+            self._slice_bins[slice_name] = []
+            self._slice_is_discrete[slice_name] = False
+        else:
+            # Discrete value (string, etc.) - treat categorically
+            self._slice_bins[slice_name] = [value]
+            self._slice_is_discrete[slice_name] = True
+
     def get_slice_distribution_stats(self) -> Dict[str, Dict[str, float]]:
-        """Get probability distribution statistics across parameter slices."""
-        # Return cached result if valid
+        """Get distribution statistics for each monitored slice.
+
+        Returns:
+            Dict mapping slice_name to its distribution stats (entropy, coverage, etc.)
+        """
         if self._density_cache_valid and self._density_stats_cache is not None:
             return self._density_stats_cache
 
-        stats = {}
+        slice_stats = {}
 
-        # Get sorted slice names to ensure consistent ordering for "first three slices"
-        sorted_slice_names = sorted(self._monitored_slices)
-
-        for slice_name in sorted_slice_names:
-            if slice_name not in self._slice_completion_counts:
+        for slice_name in self._monitored_slices:
+            counts = self._slice_completion_counts[slice_name]
+            if not counts:
                 continue
-
-            completion_counts = self._slice_completion_counts[slice_name]
-            if not completion_counts:
-                continue
-
-            # Basic distribution statistics
-            total_completions = sum(completion_counts.values())
-            num_bins_used = len(completion_counts)
-            num_total_bins = len(self._slice_bins.get(slice_name, []))
 
             # Calculate distribution metrics
-            coverage = num_bins_used / max(1, num_total_bins)
-            mean_completions_per_bin = total_completions / max(1, num_bins_used)
+            total_completions = sum(counts.values())
+            num_bins = len(self._slice_bins[slice_name])
+            num_bins_with_data = len(counts)
 
-            # Calculate entropy of slice distribution (higher = more uniform coverage)
-            slice_probs = [count / total_completions for count in completion_counts.values()]
-            entropy = -sum(p * np.log(p + 1e-10) for p in slice_probs if p > 0)
+            # Coverage: fraction of bins that have been seen
+            coverage = num_bins_with_data / max(1, num_bins)
 
-            # Identify underexplored regions
-            completion_values = list(completion_counts.values())
-            if completion_values:
-                distribution_variance = np.var(completion_values)
-                underexplored_bins = sum(1 for count in completion_values if count < mean_completions_per_bin * 0.5)
-            else:
-                distribution_variance = 0.0
-                underexplored_bins = 0
+            # Entropy: measure of distribution uniformity
+            probs = np.array(list(counts.values())) / max(1, total_completions)
+            entropy = -np.sum(probs * np.log(probs + 1e-10))
 
-            slice_stats = {
-                "total_completions": total_completions,
+            # Normalize entropy by maximum possible (log of number of bins)
+            max_entropy = np.log(max(1, num_bins_with_data))
+            normalized_entropy = entropy / max(1e-10, max_entropy)
+
+            slice_stats[slice_name] = {
                 "coverage": coverage,
-                "mean_completions_per_bin": mean_completions_per_bin,
-                "entropy": entropy,
-                "distribution_variance": distribution_variance,
-                "underexplored_bins": underexplored_bins,
-                "num_bins_used": num_bins_used,
-                "num_total_bins": num_total_bins,
+                "entropy": normalized_entropy,
+                "mean_completions_per_bin": total_completions / max(1, num_bins_with_data),
+                "total_completions": total_completions,
+                "num_bins": num_bins,
+                "num_bins_with_data": num_bins_with_data,
             }
 
-            # Add top bins if detailed logging is enabled and this is one of the first 3 dimensions
-            if self.enable_detailed_logging:
-                slice_index = sorted_slice_names.index(slice_name)
-                if slice_index < 3:  # First three dimensions
-                    # Log top 5 bins by count
-                    if total_completions > 0:
-                        # Get top 5 bins by count
-                        sorted_bins = sorted(completion_counts.items(), key=lambda x: x[1], reverse=True)[:5]
-                        for rank, (bin_idx, count) in enumerate(sorted_bins):
-                            slice_stats[f"top_bin_{rank}_count"] = count
-
-                            # Add bin value for context (if available)
-                            all_bins = self._slice_bins.get(slice_name, [])
-                            if bin_idx < len(all_bins):
-                                bin_value = all_bins[bin_idx]
-                                if isinstance(bin_value, (int, float)):
-                                    slice_stats[f"top_bin_{rank}_value"] = float(bin_value)
-
-            stats[slice_name] = slice_stats
-
-        # Cache the result
-        self._density_stats_cache = stats
+        self._density_stats_cache = slice_stats
         self._density_cache_valid = True
-        return stats
 
-    def get_underexplored_regions(self, slice_name: str) -> List[int]:
-        """Get bin indices for underexplored regions in a slice."""
-        if slice_name not in self._slice_completion_counts:
-            return []
+        return slice_stats
 
-        completion_counts = self._slice_completion_counts[slice_name]
-        if not completion_counts:
-            return []
+    def get_slice_value_for_task(self, task_id: int, slice_name: str) -> Optional[Any]:
+        """Get the slice value for a specific task and slice dimension."""
+        return self._slice_tracking.get(slice_name, {}).get(task_id)
 
-        mean_completions = sum(completion_counts.values()) / len(completion_counts)
-        threshold = mean_completions * 0.3  # Consider bins with <30% of mean as underexplored
+    def get_all_slice_names(self) -> List[str]:
+        """Get all tracked slice names."""
+        return list(self._monitored_slices)
 
-        underexplored = []
-        for bin_index, count in completion_counts.items():
-            if count < threshold:
-                underexplored.append(bin_index)
+    def invalidate_density_cache(self):
+        """Invalidate the density statistics cache."""
+        self._density_cache_valid = False
 
-        return underexplored
+    def get_state(self) -> Dict[str, Any]:
+        """Get slice analyzer state for checkpointing."""
+        return {
+            "slice_tracking": {k: dict(v) for k, v in self._slice_tracking.items()},
+            "slice_completion_counts": {k: dict(v) for k, v in self._slice_completion_counts.items()},
+            "slice_bins": self._slice_bins.copy(),
+            "slice_is_discrete": self._slice_is_discrete.copy(),
+            "monitored_slices": list(self._monitored_slices),
+            # Note: completion_history is not serialized (transient data)
+        }
+
+    def load_state(self, state: Dict[str, Any]) -> None:
+        """Load slice analyzer state from checkpoint."""
+        self._slice_tracking = defaultdict(dict, {k: dict(v) for k, v in state.get("slice_tracking", {}).items()})
+        self._slice_completion_counts = defaultdict(
+            _make_default_dict_int,
+            {k: defaultdict(int, v) for k, v in state.get("slice_completion_counts", {}).items()},
+        )
+        self._slice_bins = state.get("slice_bins", {})
+        self._slice_is_discrete = state.get("slice_is_discrete", {})
+        self._monitored_slices = set(state.get("monitored_slices", []))
+        # Reset completion history (transient data)
+        self._slice_completion_history = defaultdict(_make_deque_maxlen_100)
+        # Invalidate caches
+        self._density_cache_valid = False
 
     def get_base_stats(self) -> Dict[str, float]:
         """Get basic slice analysis statistics."""
@@ -290,49 +295,23 @@ class SliceAnalyzer:
             "avg_completions_per_bin": avg_completions_per_bin,
         }
 
-        # Add individual dimension statistics with proper prefixing
-        for slice_name, slice_stats in distribution_stats.items():
-            for stat_name, stat_value in slice_stats.items():
-                detailed_stats[f"dimension_{slice_name}_{stat_name}"] = stat_value
+        # Add per-slice stats with slice name prefix
+        for slice_name, stats in distribution_stats.items():
+            # Clean slice name for stat keys (replace dots/special chars)
+            clean_name = slice_name.replace(".", "_").replace("/", "_")
+            for key, value in stats.items():
+                detailed_stats[f"slice/{clean_name}/{key}"] = value
 
         return detailed_stats
 
-    def remove_task(self, task_id: int) -> None:
-        """Remove task from slice tracking."""
-        for slice_tasks in self._slice_tracking.values():
-            slice_tasks.pop(task_id, None)
-
-        # Invalidate density cache when tasks are removed
-        self._density_cache_valid = False
-
-    def _initialize_slice_bins(self, slice_name: str, sample_value: Any) -> None:
-        """Initialize binning for a new slice based on sample value."""
-        if isinstance(sample_value, (int, float)):
-            # Continuous values - create bins
-            if isinstance(sample_value, int) and sample_value in range(0, 20):
-                # Small integer range - treat as discrete
-                self._slice_bins[slice_name] = list(range(21))
-                self._slice_is_discrete[slice_name] = True
-            else:
-                # Continuous values - create 10 bins around sample
-                center = float(sample_value)
-                range_size = max(abs(center), 1.0)
-                bin_edges = np.linspace(center - range_size, center + range_size, 11)
-                self._slice_bins[slice_name] = bin_edges.tolist()
-                self._slice_is_discrete[slice_name] = False
-        else:
-            # Categorical/string values - treat as discrete
-            self._slice_bins[slice_name] = [sample_value]
-            self._slice_is_discrete[slice_name] = True
-
     def _get_bin_index(self, slice_name: str, value: Any) -> Optional[int]:
-        """Get bin index for a value in the specified slice."""
+        """Get bin index for a value in the given slice."""
         if slice_name not in self._slice_bins:
             return None
 
         bins = self._slice_bins[slice_name]
 
-        if self._slice_is_discrete[slice_name]:
+        if self._slice_is_discrete.get(slice_name, False):
             # Discrete values - find exact match or add new bin
             if value in bins:
                 return bins.index(value)
@@ -346,3 +325,144 @@ class SliceAnalyzer:
             bin_index = np.digitize(value, bin_edges) - 1
             # Clamp to valid range
             return max(0, min(bin_index, len(bin_edges) - 2))
+
+
+class LPStatsAggregator:
+    """Aggregates statistics from learning progress components.
+
+    Centralizes stats computation from:
+    - TaskTracker (task performance data)
+    - LPScorer (learning progress scores)
+    - SliceAnalyzer (parameter distribution analysis)
+    """
+
+    def __init__(
+        self,
+        task_tracker: "TaskTracker",
+        scorer: "LPScorer",
+        slice_analyzer: SliceAnalyzer,
+        num_tasks: int,
+    ):
+        """Initialize stats aggregator.
+
+        Args:
+            task_tracker: Task performance tracker
+            scorer: Learning progress scorer
+            slice_analyzer: Parameter slice analyzer
+            num_tasks: Total number of tasks in curriculum
+        """
+        self.task_tracker = task_tracker
+        self.scorer = scorer
+        self.slice_analyzer = slice_analyzer
+        self.num_tasks = num_tasks
+
+    def get_base_stats(self) -> Dict[str, float]:
+        """Get basic statistics from all components."""
+        stats = {
+            "num_tasks": self.num_tasks,
+            **self.slice_analyzer.get_base_stats(),
+        }
+
+        # Add task tracker stats with prefix
+        tracker_stats = self.task_tracker.get_global_stats()
+        for key, value in tracker_stats.items():
+            stats[f"tracker/{key}"] = value
+
+        return stats
+
+    def get_detailed_stats(self) -> Dict[str, float]:
+        """Get detailed statistics from all components."""
+        stats = {}
+
+        # Slice analyzer detailed stats
+        stats.update(self.slice_analyzer.get_detailed_stats())
+
+        # Learning progress stats from scorer with lp/ prefix
+        lp_stats = self.scorer.get_stats()
+        for key, value in lp_stats.items():
+            stats[f"lp/{key}"] = value
+
+        return stats
+
+    def get_all_stats(self, enable_detailed: bool = False) -> Dict[str, float]:
+        """Get all statistics (base + optionally detailed).
+
+        Args:
+            enable_detailed: Whether to include detailed stats
+
+        Returns:
+            Dictionary of all stats
+        """
+        stats = self.get_base_stats()
+
+        if enable_detailed:
+            stats.update(self.get_detailed_stats())
+
+        return stats
+
+
+class CacheCoordinator:
+    """Coordinates cache invalidation across curriculum components.
+
+    Centralizes cache management for:
+    - Algorithm stats cache
+    - Scorer task score cache
+    - SliceAnalyzer density cache
+    """
+
+    def __init__(
+        self,
+        stats_logger: Optional[StatsLogger] = None,
+        scorer: Optional["LPScorer"] = None,
+        slice_analyzer: Optional[SliceAnalyzer] = None,
+    ):
+        """Initialize cache coordinator.
+
+        Args:
+            stats_logger: Optional stats logger with cache
+            scorer: Optional learning progress scorer with cache
+            slice_analyzer: Optional slice analyzer with cache
+        """
+        self.stats_logger = stats_logger
+        self.scorer = scorer
+        self.slice_analyzer = slice_analyzer
+
+    def invalidate_all(self) -> None:
+        """Invalidate all caches across all components."""
+        if self.stats_logger:
+            self.stats_logger.invalidate_cache()
+        if self.scorer:
+            self.scorer.invalidate_cache()
+        if self.slice_analyzer:
+            self.slice_analyzer.invalidate_density_cache()
+
+    def invalidate_stats_cache(self) -> None:
+        """Invalidate only the stats cache."""
+        if self.stats_logger:
+            self.stats_logger.invalidate_cache()
+
+    def invalidate_scorer_cache(self) -> None:
+        """Invalidate only the scorer cache."""
+        if self.scorer:
+            self.scorer.invalidate_cache()
+
+    def invalidate_slice_cache(self) -> None:
+        """Invalidate only the slice analyzer cache."""
+        if self.slice_analyzer:
+            self.slice_analyzer.invalidate_density_cache()
+
+    def invalidate_task(self, task_id: int) -> None:
+        """Invalidate caches for a specific task.
+
+        Args:
+            task_id: Task to invalidate from caches
+        """
+        # Scorer has task-specific cache invalidation
+        if self.scorer:
+            self.scorer.remove_task(task_id)
+
+        # Stats cache needs full invalidation when any task changes
+        if self.stats_logger:
+            self.stats_logger.invalidate_cache()
+
+        # Slice cache is invalidated when new data is added, handled elsewhere
