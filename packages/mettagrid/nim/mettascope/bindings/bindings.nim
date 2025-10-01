@@ -1,6 +1,7 @@
 import
   genny, fidget2, openGL, jsony, vmath,
-  ../src/mettascope, ../src/mettascope/[replays, common, worldmap, timeline]
+  ../src/mettascope, ../src/mettascope/[replays, common, worldmap, timeline,
+  envconfig]
 
 type
   RenderResponse* = object
@@ -23,6 +24,7 @@ proc init(dataDir: string, replay: string): RenderResponse =
       dataDir = dataDir
     )
     common.replay = loadReplayString(replay, "MettaScope")
+    updateEnvConfig()
     return
   except Exception:
     echo "############ Error initializing Mettascope #################"
