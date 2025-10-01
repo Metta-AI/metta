@@ -80,10 +80,10 @@ proc getOrientationFromDelta(dx, dy: int): Orientation =
     return N
 
 proc agentControls*() =
-  ## Controls for agents. Auto-follows paths when playing.
+  ## Controls for agents. Auto-follows paths when playing or single stepping.
 
-  # Auto-follow paths for all agents when playing
-  if play and step != lastPathQueuedStep:
+  # Auto-follow paths for all agents when playing or when Python is requested
+  if (play or requestPython) and step != lastPathQueuedStep:
     for agentId, path in agentPaths:
       if path.len > 1:
         # Find the agent entity

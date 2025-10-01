@@ -70,6 +70,9 @@ proc playControls*() =
     echo "step: ", step
   if window.buttonPressed[KeyRightBracket]:
     step += 1
+    if playMode == Realtime and step >= replay.maxSteps:
+      requestPython = true
+      step = replay.maxSteps - 1
     step = clamp(step, 0, replay.maxSteps - 1)
     stepFloat = step.float32
     echo "step: ", step
