@@ -17,7 +17,7 @@ app = typer.Typer(help="CoGames - Multi-agent cooperative and competitive games"
 console = Console()
 
 
-def resolve_policy_class_path(policy: str) -> str:
+def _resolve_policy_class_path(policy: str) -> str:
     """Resolve a policy shorthand or full class path.
     Args:
         policy: Either a shorthand like "random", "simple", "lstm"
@@ -31,6 +31,20 @@ def resolve_policy_class_path(policy: str) -> str:
         "lstm": "cogames.policy.lstm.LSTMPolicy",
         "claude": "cogames.policy.claude.ClaudePolicy",
     }.get(policy, policy)
+
+
+def _require_game_argument(ctx: typer.Context, value: Optional[str]) -> str:
+    if value is not None:
+        return value
+
+    from cogames import game
+
+    console.print("[yellow]No game specified. Available games:[/yellow]")
+    table = game.list_games(console)
+    if table is not None:
+        console.print(table)
+    console.print(f"\n[dim]Usage: {ctx.command_path} <game>[/dim]")
+    raise typer.Exit(0)
 
 
 @app.callback(invoke_without_command=True)
@@ -78,26 +92,23 @@ def games_cmd(
 
 @app.command(name="play", no_args_is_help=True, help="Play a game")
 def play_cmd(
-    game_name: Optional[str] = typer.Argument(None, help="Name of the game to play"),
+    game_name: str = typer.Argument(
+        None,
+        help="Name of the game to play",
+        callback=_require_game_argument,
+    ),
     policy_class_path: str = typer.Option(
         "cogames.policy.random.RandomPolicy",
         "--policy",
         help="Path to policy class",
-        callback=resolve_policy_class_path,
+        callback=_resolve_policy_class_path,
     ),
     policy_data_path: Optional[str] = typer.Option(None, "--policy-data", help="Path to initial policy weights"),
     interactive: bool = typer.Option(True, "--interactive", "-i", help="Run in interactive mode"),
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
     render: Literal["gui", "text"] = typer.Option("gui", "--render", "-r", help="Render mode: 'gui' or 'text'"),
 ) -> None:
-    from cogames import game, utils
-
-    # If no game specified, list games
-    if game_name is None:
-        console.print("[yellow]No game specified. Available games:[/yellow]")
-        game.list_games(console)
-        console.print("\n[dim]Usage: cogames play <game>[/dim]")
-        return
+    from cogames import utils
 
     resolved_game, env_cfg = utils.get_game_config(console, game_name)
 
@@ -120,12 +131,16 @@ def play_cmd(
 
 @app.command(name="evaluate", no_args_is_help=True, help="Evaluate a policy on a game")
 def evaluate_cmd(
-    game_name: Optional[str] = typer.Argument(None, help="Name of the game to evaluate"),
+    game_name: str = typer.Argument(
+        None,
+        help="Name of the game to evaluate",
+        callback=_require_game_argument,
+    ),
     policy_class_path: str = typer.Option(
         "cogames.policy.random.RandomPolicy",
         "--policy",
         help="Path to policy class",
-        callback=resolve_policy_class_path,
+        callback=_resolve_policy_class_path,
     ),
     policy_data_path: Optional[str] = typer.Option(None, "--policy-data", help="Path to initial policy weights"),
     episodes: int = typer.Option(10, "--episodes", "-e", help="Number of evaluation episodes", min=1),
@@ -136,13 +151,7 @@ def evaluate_cmd(
         min=1,
     ),
 ) -> None:
-    from cogames import game, utils
-
-    if game_name is None:
-        console.print("[yellow]No game specified. Available games:[/yellow]")
-        game.list_games(console)
-        console.print("\n[dim]Usage: cogames evaluate <game> [--policy ...][/dim]")
-        return
+    from cogames import utils
 
     resolved_game, env_cfg = utils.get_game_config(console, game_name)
     console.print(f"[cyan]Evaluating on {resolved_game}[/cyan]")
@@ -169,7 +178,7 @@ def make_scenario(
     height: int = typer.Option(10, "--height", "-h", help="Map height", min=1),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (YAML or JSON)"),  # noqa: B008
 ) -> None:
-    from cogames import game, utils
+    from cogames import utils
 
     try:
         # If base_game specified, use it as template
@@ -199,7 +208,9 @@ def make_scenario(
         new_config.game.num_agents = num_agents
 
         if output:
-            game.save_game_config(new_config, output)
+            from cogames import game as game_module
+
+            game_module.save_game_config(new_config, output)
             console.print(f"[green]Game configuration saved to: {output}[/green]")
         else:
             console.print("\n[yellow]To save this configuration, use the --output option.[/yellow]")
@@ -211,12 +222,16 @@ def make_scenario(
 
 @app.command(name="train", help="Train a policy on a game")
 def train_cmd(
-    game_name: Optional[str] = typer.Argument(None, help="Name of the game to train on"),
+    game_name: str = typer.Argument(
+        None,
+        help="Name of the game to train on",
+        callback=_require_game_argument,
+    ),
     policy_class_path: str = typer.Option(
         "cogames.policy.simple.SimplePolicy",
         "--policy",
         help="Path to policy class",
-        callback=resolve_policy_class_path,
+        callback=_resolve_policy_class_path,
     ),
     initial_weights_path: Optional[str] = typer.Option(
         None, "--initial-weights", help="Path to initial policy weights"
@@ -236,15 +251,8 @@ def train_cmd(
     batch_size: int = typer.Option(4096, "--batch-size", help="Batch size for training", min=1),
     minibatch_size: int = typer.Option(4096, "--minibatch-size", help="Minibatch size for training", min=1),
 ) -> None:
-    from cogames import game, utils
     from cogames import train as train_module
-
-    # If no game specified, list games
-    if game_name is None:
-        console.print("[yellow]No game specified. Available games:[/yellow]")
-        game.list_games(console)
-        console.print("\n[dim]Usage: cogames train <game>[/dim]")
-        return
+    from cogames import utils
 
     resolved_game, env_cfg = utils.get_game_config(console, game_name)
 
