@@ -574,7 +574,7 @@ class TransformerPolicy(Policy):
             logger.info("[TRANSFORMER_DIAG] %s", _tensor_stats(core_flat, "core"))
             if new_memory is not None and isinstance(new_memory, dict):
                 hidden_states = new_memory.get("hidden_states")
-                if hidden_states:
+                if hidden_states and self.memory_len > 0:
                     norms = [
                         float(layer.float().norm().item()) if layer is not None and layer.numel() > 0 else 0.0
                         for layer in hidden_states
@@ -594,27 +594,28 @@ class TransformerPolicy(Policy):
 
                 env_indices = None
                 if hidden_states:
-                    stacked = torch.stack(hidden_states, dim=0)  # [layers, mem_len, batch, hidden]
-                    env_tensor = stacked.permute(2, 0, 1, 3).contiguous()  # [batch, layers, mem_len, hidden]
-                    env_tensor = env_tensor[:, :, -self.memory_len :, :]
-                    if env_tensor.size(2) < self.memory_len:
-                        pad = torch.zeros(
-                            env_tensor.size(0),
-                            env_tensor.size(1),
-                            self.memory_len - env_tensor.size(2),
-                            env_tensor.size(3),
-                            device=env_tensor.device,
-                            dtype=env_tensor.dtype,
-                        )
-                        env_tensor = torch.cat((pad, env_tensor), dim=2)
-                    self._ensure_memory_capacity(max(env_ids) + 1, env_tensor.device, env_tensor.dtype)
+                    self._ensure_memory_capacity(max(env_ids) + 1, device, dtype)
                     if self._memory_tensor is not None:
                         env_indices = torch.tensor(env_ids, dtype=torch.long, device=self._memory_tensor.device)
-                        self._memory_tensor.index_copy_(
-                            0,
-                            env_indices,
-                            env_tensor.to(device=self._memory_tensor.device, dtype=self._memory_tensor.dtype),
-                        )
+                        mem_device = self._memory_tensor.device
+                        mem_dtype = self._memory_tensor.dtype
+                        for layer_idx, layer_mem in enumerate(hidden_states):
+                            if layer_mem is None or layer_mem.numel() == 0:
+                                continue
+                            layer_tensor = layer_mem.to(device=mem_device, dtype=mem_dtype)
+                            if layer_tensor.size(0) > self.memory_len:
+                                layer_tensor = layer_tensor[-self.memory_len :]
+                            elif layer_tensor.size(0) < self.memory_len:
+                                pad = torch.zeros(
+                                    self.memory_len - layer_tensor.size(0),
+                                    layer_tensor.size(1),
+                                    layer_tensor.size(2),
+                                    device=mem_device,
+                                    dtype=mem_dtype,
+                                )
+                                layer_tensor = torch.cat((pad, layer_tensor), dim=0)
+                            layer_tensor = layer_tensor.permute(1, 0, 2).contiguous()  # [batch, mem_len, hidden]
+                            self._memory_tensor[env_indices, layer_idx, :, :] = layer_tensor
 
                 if reset_mask is not None and reset_mask.any() and self._memory_tensor is not None:
                     if env_indices is None:
