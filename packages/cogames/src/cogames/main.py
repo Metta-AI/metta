@@ -5,7 +5,7 @@ import logging
 import shutil
 import sys
 from pathlib import Path
-from typing import Annotated, Any, Iterable, Literal, Optional, Tuple
+from typing import Annotated, Any, Literal, Optional
 
 # Always add current directory to Python path
 sys.path.insert(0, ".")
@@ -17,7 +17,6 @@ from rich.console import Console
 from cogames import curriculum as curriculum_utils
 from cogames import game, play, serialization, train, utils
 from mettagrid import MettaGridConfig
-from mettagrid.util.module import load_symbol
 
 from cogames.env import make_hierarchical_env
 logger = logging.getLogger("cogames.main")
@@ -29,17 +28,6 @@ app.add_typer(policy_app, name="policy")
 
 BASE_RUNS_DIR = (Path(__file__).resolve().parent / "runs").resolve()
 
-DEFAULT_BIOME_GAMES: tuple[str, ...] = (
-    "machina_1",
-    "machina_1_big",
-    "machina_2_bigger",
-    "machina_3_big",
-    "machina_4_bigger",
-    "machina_5_big",
-    "machina_6_bigger",
-    "machina_7_big",
-)
-
 
 @contextlib.contextmanager
 def _command_timeout(ctx: typer.Context):
@@ -49,45 +37,6 @@ def _command_timeout(ctx: typer.Context):
         timeout = ctx.obj.get("timeout")
     with utils.cli_timeout(timeout):
         yield
-
-
-def _collect_configs(
-    game_names: Iterable[str],
-    curriculum_path: Optional[str],
-    max_items: int,
-    fallback_folder: Optional[Path],
-    game_param: str,
-) -> Tuple[list[MettaGridConfig], list[str]]:
-    configs: list[MettaGridConfig] = []
-    names: list[str] = []
-
-    for game_name in game_names:
-        resolved_game, error = utils.resolve_game(game_name)
-        if error:
-            raise typer.BadParameter(error, param_name=game_param)
-        if resolved_game is None:
-            raise typer.BadParameter(f"game '{game_name}' not found", param_name=game_param)
-        configs.append(game.get_game(resolved_game))
-        names.append(resolved_game)
-
-    if curriculum_path is not None:
-        curriculum_source = load_symbol(curriculum_path)
-        curriculum_cfgs = utils.load_curriculum_items(curriculum_source, max_items)
-        start_index = len(names)
-        for offset, cfg in enumerate(curriculum_cfgs):
-            cfg_name = getattr(getattr(cfg, "game", None), "name", None)
-            label = str(cfg_name) if cfg_name else f"curriculum_{start_index + offset:03d}"
-            configs.append(cfg)
-            names.append(label)
-    elif fallback_folder is not None and fallback_folder.exists():
-        folder_cfgs, folder_names = curriculum_utils.load_map_folder_with_names(fallback_folder)
-        configs.extend(folder_cfgs)
-        names.extend(folder_names)
-
-    if len(names) < len(configs):
-        names.extend(f"map_{index:03d}" for index in range(len(names), len(configs)))
-
-    return configs, names
 
 
 # Mapping of shorthand policy names to full class paths
@@ -179,13 +128,16 @@ def curricula_cmd(
 
     with _command_timeout(ctx):
         selected_games = games or list(game.get_all_games().keys())
-        env_cfgs, env_names = _collect_configs(
-            selected_games,
-            curriculum,
-            max_items,
-            fallback_folder=None,
-            game_param="game_name",
-        )
+        try:
+            env_cfgs, env_names = curriculum_utils.collect_curriculum_configs(
+                selected_games,
+                curriculum_path=curriculum,
+                max_items=max_items,
+                fallback_folder=None,
+                game_param="game_name",
+            )
+        except curriculum_utils.CurriculumArgumentError as exc:
+            raise typer.BadParameter(str(exc), param_name=exc.param_name or "game") from exc
 
         if not env_cfgs:
             raise typer.BadParameter("no games or curriculum items to export", param_name="game")
@@ -195,7 +147,7 @@ def curricula_cmd(
         else:
             destination = (utils.resolve_run_dir(BASE_RUNS_DIR, None) / "curricula").resolve()
 
-        utils.dump_game_configs(env_cfgs, env_names, destination)
+        curriculum_utils.dump_game_configs(env_cfgs, env_names, destination)
 
         console.print(f"[green]Exported {len(env_cfgs)} maps to: {destination}[/green]")
 
@@ -421,7 +373,7 @@ def make_scenario(
                 variants.append(cfg)
 
             base_label = getattr(variants[0].game, "name", base_game or "map")
-            safe_base_label = utils.sanitize_filename(str(base_label)) or "map"
+            safe_base_label = curriculum_utils.sanitize_map_name(str(base_label))
 
             if num_variants > 1:
                 if output is None:
@@ -602,14 +554,17 @@ def train_cmd(
         fallback_curricula = resolved_run_dir / "curricula"
         base_games = [game_name] if game_name is not None else []
         if not base_games and curriculum is None and not fallback_curricula.exists():
-            base_games = list(DEFAULT_BIOME_GAMES)
-        env_cfgs, env_names = _collect_configs(
-            base_games,
-            curriculum,
-            max(resolved_num_envs, 32),
-            fallback_folder=fallback_curricula,
-            game_param="game_name",
-        )
+            base_games = list(curriculum_utils.DEFAULT_BIOME_GAMES)
+        try:
+            env_cfgs, env_names = curriculum_utils.collect_curriculum_configs(
+                base_games,
+                curriculum_path=curriculum,
+                max_items=max(resolved_num_envs, 32),
+                fallback_folder=fallback_curricula,
+                game_param="game_name",
+            )
+        except curriculum_utils.CurriculumArgumentError as exc:
+            raise typer.BadParameter(str(exc), param_name=exc.param_name or "game_name") from exc
         env_cfgs, env_names, dropped = utils.filter_uniform_agent_count(env_cfgs, env_names)
         if dropped:
             agent_count = env_cfgs[0].game.num_agents if env_cfgs else "?"
@@ -691,7 +646,7 @@ def train_cmd(
         else:
             maps_dir = (resolved_run_dir / "curricula").resolve()
 
-        utils.dump_game_configs(env_cfgs, env_names, maps_dir)
+        curriculum_utils.dump_game_configs(env_cfgs, env_names, maps_dir)
 
         full_policy_path = resolve_policy_class_path(policy_class_path)
 
