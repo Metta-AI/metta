@@ -2,6 +2,11 @@
 
 This module must remain import-minimal to avoid circular dependencies.
 It should only import from typing and standard library.
+
+Future improvements:
+- Consider caching alias maps to avoid rebuilding on every call
+- Could extract tool info (name, aliases) into a dataclass for cleaner access
+- Potential to make registration automatic via __init_subclass__ instead of manual
 """
 
 from __future__ import annotations
@@ -37,9 +42,9 @@ class ToolRegistry:
         Args:
             tool_class: The tool class to register (must have tool_name set)
         """
-        tool_name = getattr(tool_class, "tool_name", None)
-        if not tool_name:
-            raise ValueError(f"Tool class {tool_class.__name__} must define tool_name to be registered")
+        # tool_name is guaranteed to exist by Tool.__init_subclass__ validation
+        tool_name = tool_class.tool_name
+        assert tool_name is not None, f"Tool class {tool_class.__name__} has no tool_name (validation failed?)"
 
         if tool_name in self._registry:
             # Allow re-registration of the same class (e.g., during testing or reloading)
@@ -69,10 +74,10 @@ class ToolRegistry:
         """
         mapping: dict[str, list[str]] = {}
         for tool_class in self._registry.values():
-            name = getattr(tool_class, "tool_name", None)
-            aliases = getattr(tool_class, "tool_aliases", [])
-            if name and aliases:
-                mapping[name] = list(aliases)
+            # tool_name is guaranteed to exist by Tool.__init_subclass__
+            aliases = tool_class.tool_aliases
+            if aliases:
+                mapping[tool_class.tool_name] = list(aliases)  # type: ignore[index]
         return mapping
 
     def get_tool_name_map(self) -> dict[str, str]:
@@ -81,13 +86,19 @@ class ToolRegistry:
         Built from Tool.tool_name and Tool.tool_aliases on all registered tools.
         """
         mapping: dict[str, str] = {}
-        for tool_class in self._registry.values():
-            tool_name = getattr(tool_class, "tool_name", None)
-            if not tool_name:
-                continue
+
+        # Build mapping from alias map to avoid duplication
+        alias_map = self.get_tool_aliases()
+
+        # Add canonical names pointing to themselves
+        for tool_name in self._registry.keys():
             mapping[tool_name] = tool_name
-            for alias in getattr(tool_class, "tool_aliases", []) or []:
-                mapping[alias] = tool_name
+
+        # Add aliases pointing to canonical names
+        for canonical, aliases in alias_map.items():
+            for alias in aliases:
+                mapping[alias] = canonical
+
         return mapping
 
     def clear(self) -> None:
