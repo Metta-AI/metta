@@ -268,6 +268,10 @@ class CurriculumConfig(Config):
         """Validate configuration after initialization."""
         super().model_post_init(__context)
 
+        # Sync num_active_tasks from algorithm_config if available
+        if self.algorithm_config and hasattr(self.algorithm_config, "num_active_tasks"):
+            self.num_active_tasks = self.algorithm_config.num_active_tasks
+
         if self.num_active_tasks > self.max_task_id:
             raise ValueError(
                 f"num_active_tasks ({self.num_active_tasks}) cannot exceed max_task_id ({self.max_task_id})"
