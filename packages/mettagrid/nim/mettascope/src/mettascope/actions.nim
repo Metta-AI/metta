@@ -49,11 +49,10 @@ proc processActionQueue*() =
   if step == currentProcessedStep:
     return
   
-  if selection != nil and selection.isAgent:
-    let agentId = selection.agentId
-    
-    if actionQueue.hasKey(agentId):
-      let action = actionQueue[agentId]
+  # Process any agent with a queued action (not just selected)
+  if actionQueue.len > 0:
+    # Get the first queued action
+    for agentId, action in actionQueue:
       # Timeline already set requestPython=true, now add our action
       requestAction = true
       requestActionAgentId = action.agentId
@@ -61,6 +60,7 @@ proc processActionQueue*() =
       requestActionArgument = action.argument
       actionQueue.del(agentId)
       currentProcessedStep = step
+      break  # Only process one action per step
 
 proc getOrientationFromDelta(dx, dy: int): Orientation =
   ## Get the orientation from a movement delta.
@@ -76,29 +76,37 @@ proc getOrientationFromDelta(dx, dy: int): Orientation =
     return N
 
 proc agentControls*() =
-  ## Controls for the selected agent. Auto-follows path when playing.
+  ## Controls for agents. Auto-follows paths when playing.
 
+  # Auto-follow paths for all agents when playing
+  if play and step != lastPathQueuedStep:
+    for agentId, path in agentPaths:
+      if path.len > 1:
+        # Find the agent entity
+        var agent: Entity = nil
+        for obj in replay.objects:
+          if obj.isAgent and obj.agentId == agentId:
+            agent = obj
+            break
+        
+        if agent != nil:
+          let currentPos = agent.location.at(step).xy
+          
+          if path[0] == currentPos and path.len > 1:
+            let nextPos = path[1]
+            let dx = nextPos.x - currentPos.x
+            let dy = nextPos.y - currentPos.y
+            let orientation = getOrientationFromDelta(dx.int, dy.int)
+            queueAction(agentId, replay.moveActionId, orientation.int)
+            agentPaths[agentId].delete(0)
+    
+    if agentPaths.len > 0:
+      lastPathQueuedStep = step
+  
+  # Manual controls with WASD for selected agent - immediate response.
   if selection != nil and selection.isAgent:
     let agent = selection
     
-    # Auto-follow path when playing - only queue once per step
-    if play and agentPaths.hasKey(agent.agentId) and agentPaths[agent.agentId].len > 1:
-      # Only queue if this is a new step we haven't processed yet
-      if step != lastPathQueuedStep:
-        let currentPos = agent.location.at(step).xy
-        let path = agentPaths[agent.agentId]
-        
-        if path[0] == currentPos and path.len > 1:
-          let nextPos = path[1]
-          let dx = nextPos.x - currentPos.x
-          let dy = nextPos.y - currentPos.y
-          let orientation = getOrientationFromDelta(dx.int, dy.int)
-          queueAction(agent.agentId, replay.moveActionId, orientation.int)
-          agentPaths[agent.agentId].delete(0)
-          lastPathQueuedStep = step
-      return
-    
-    # Manual controls with WASD - immediate response.
     if window.buttonPressed[KeyW] or window.buttonPressed[KeyUp]:
       sendAction(agent.agentId, replay.moveActionId, N.int)
       agentPaths.del(agent.agentId)
