@@ -47,6 +47,27 @@ def _require_game_argument(ctx: typer.Context, value: Optional[str]) -> str:
     raise typer.Exit(0)
 
 
+def _resolve_policy_data_path(policy_data_path: Optional[str]) -> Optional[str]:
+    """Resolve a checkpoint path if provided."""
+    if policy_data_path is None:
+        return None
+    path = Path(policy_data_path)
+    if path.is_file():
+        return str(path)
+    if not path.exists():
+        console.print(f"[red]Checkpoint path not found: {path}[/red]")
+        raise typer.Exit(1)
+
+    last_touched_checkpoint_file = max(
+        (p for p in path.rglob("*.pt")), key=lambda target: target.stat().st_mtime, default=None
+    )
+    if not last_touched_checkpoint_file:
+        console.print(f"[red]No checkpoint files (*.pt) found in directory: {path}[/red]")
+        raise typer.Exit(1)
+    console.print(f"[green]Using checkpoint: {last_touched_checkpoint_file}[/green]")
+    return str(last_touched_checkpoint_file)
+
+
 @app.callback(invoke_without_command=True)
 def default(ctx: typer.Context) -> None:
     """Show help when no command is provided."""
@@ -103,7 +124,9 @@ def play_cmd(
         help="Path to policy class",
         callback=_resolve_policy_class_path,
     ),
-    policy_data_path: Optional[str] = typer.Option(None, "--policy-data", help="Path to initial policy weights"),
+    policy_data_path: Optional[str] = typer.Option(
+        None, "--policy-data", help="Path to initial policy weights", callback=_resolve_policy_data_path
+    ),
     interactive: bool = typer.Option(True, "--interactive", "-i", help="Run in interactive mode"),
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
     render: Literal["gui", "text"] = typer.Option("gui", "--render", "-r", help="Render mode: 'gui' or 'text'"),
@@ -142,7 +165,9 @@ def evaluate_cmd(
         help="Path to policy class",
         callback=_resolve_policy_class_path,
     ),
-    policy_data_path: Optional[str] = typer.Option(None, "--policy-data", help="Path to initial policy weights"),
+    policy_data_path: Optional[str] = typer.Option(
+        None, "--policy-data", help="Path to policy weights", callback=_resolve_policy_data_path
+    ),
     episodes: int = typer.Option(10, "--episodes", "-e", help="Number of evaluation episodes", min=1),
     action_timeout_ms: int = typer.Option(
         250,
@@ -234,7 +259,9 @@ def train_cmd(
         callback=_resolve_policy_class_path,
     ),
     initial_weights_path: Optional[str] = typer.Option(
-        None, "--initial-weights", help="Path to initial policy weights"
+        None,
+        "--initial-weights",
+        help="Path to initial policy weights .pt file",
     ),
     checkpoints_path: str = typer.Option(
         "./train_dir",

@@ -94,19 +94,6 @@ def resolve_training_device(console: "Console", requested: str) -> "torch.device
     return candidate
 
 
-def _resolve_checkpoint_path(path: Path) -> Path:
-    """Resolve a checkpoint path, descending into directories if needed."""
-    if path.is_file():
-        return path
-    if not path.exists():
-        raise FileNotFoundError(f"Checkpoint path not found: {path}")
-
-    candidate_files = sorted((p for p in path.rglob("*.pt")), key=lambda target: target.stat().st_mtime)
-    if not candidate_files:
-        raise FileNotFoundError(f"No checkpoint files (*.pt) found in directory: {path}")
-    return candidate_files[-1]
-
-
 def instantiate_or_load_policy(
     policy_class_path: str, policy_data_path: Optional[str], env: Any, device: "torch.device | None" = None
 ) -> Policy:
@@ -116,9 +103,8 @@ def instantiate_or_load_policy(
     policy = policy_class(env, device or torch.device("cpu"))
 
     if policy_data_path:
-        resolved = _resolve_checkpoint_path(Path(policy_data_path))
         if not isinstance(policy, TrainablePolicy):
             raise TypeError("Policy data provided, but the selected policy does not support loading checkpoints.")
 
-        policy.load_policy_data(str(resolved))
+        policy.load_policy_data(policy_data_path)
     return policy
