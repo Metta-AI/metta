@@ -539,11 +539,11 @@ def make_eval_suite():
 
 def experiment():
     for curriculum_style in curriculum_args:
-        for architecture in ["vit_reset", "lstm_reset", "transformer"]:
+        for architecture in ["vit_reset", "lstm_reset"]:
             subprocess.run(
                 [
                     "./devops/skypilot/launch.py",
-                    "experiments.recipes.cogs_v_clips.level_1.train",
+                    "experiments.recipes.cogs_v_clips.level_1.with_base.train",
                     f"run=cogs_v_clips.level_1.{curriculum_style}_{architecture}.{time.strftime('%Y-%m-%d')}",
                     f"curriculum_style={curriculum_style}",
                     f"architecture={architecture}",
