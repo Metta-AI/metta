@@ -5,6 +5,7 @@ import logging
 import os
 import re
 import signal
+from datetime import date
 from collections import Counter
 from pathlib import Path
 from typing import Any, Iterable, Iterator, Optional, Sequence, Tuple
@@ -157,7 +158,10 @@ def dump_game_configs(
 
 
 def resolve_run_dir(base_runs_dir: Path, run_dir: Optional[Path]) -> Path:
-    return run_dir.expanduser().resolve() if run_dir else (base_runs_dir / "default").resolve()
+    if run_dir:
+        return run_dir.expanduser().resolve()
+    default_name = date.today().isoformat()
+    return (base_runs_dir / default_name).resolve()
 
 
 def suggest_parallelism(
