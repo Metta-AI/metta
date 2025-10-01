@@ -39,11 +39,6 @@ def forward(self, td: TensorDict, action: torch.Tensor = None) -> TensorDict:
 class FastDynamicsConfig(PolicyArchitecture):
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
-    _hidden_size = 32
-    _embedding_dim = 16
-
-    class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
-
     _embedding_dim = 16
     _token_embed_dim = 8
     _fourier_freqs = 3
@@ -94,7 +89,7 @@ class FastDynamicsConfig(PolicyArchitecture):
         ),
         ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embedding_dim),
         ActorQueryConfig(
-            in_key="actor_mlp", out_key="actor_query", hidden_size=_actor_hidden, embed_dim=_embedding_dim
+            in_key="actor_hidden", out_key="actor_query", hidden_size=_actor_hidden, embed_dim=_embedding_dim
         ),
         ActorKeyConfig(
             query_key="actor_query",
@@ -110,7 +105,7 @@ class FastDynamicsConfig(PolicyArchitecture):
         AgentClass = load_symbol(self.class_path)
         policy = AgentClass(env_metadata, self)
 
-        pred_input_dim = self._hidden_size + self._embedding_dim
+        pred_input_dim = self._lstm_latent + self._embedding_dim
         returns_module = nn.Linear(pred_input_dim, 1)
         reward_module = nn.Linear(pred_input_dim, 1)
         policy.returns_pred = TDM(returns_module, in_keys=["pred_input"], out_keys=["returns_pred"])
