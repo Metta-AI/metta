@@ -111,6 +111,7 @@ proc agentControls*() =
   if selection != nil and selection.isAgent:
     let agent = selection
     
+    # Move
     if window.buttonPressed[KeyW] or window.buttonPressed[KeyUp]:
       sendAction(agent.agentId, replay.moveActionId, N.int)
       agentPaths.del(agent.agentId)
