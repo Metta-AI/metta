@@ -12,6 +12,7 @@ from tensordict import TensorDict
 from cortex.cells.base import MemoryCell
 from cortex.cells.registry import register_cell
 from cortex.config import CausalConv1dConfig
+from cortex.kernels.conv1d import causal_conv1d_pytorch
 from cortex.types import MaybeState, ResetMask, Tensor
 
 
@@ -105,57 +106,29 @@ class CausalConv1d(MemoryCell):
             if is_step:
                 mask = resets.to(dtype=x.dtype).view(B, 1, 1)
                 conv_state = conv_state * (1.0 - mask)
-            else:
-                # For sequences, reset at beginning
-                # TODO: Handle per-timestep resets properly
-                pass
+            elif resets.dim() == 1:
+                # Batch-level resets for sequences: reset at beginning
+                mask = resets.to(dtype=x.dtype).view(B, 1, 1)
+                conv_state = conv_state * (1.0 - mask)
 
+        # Use unified kernel for all processing modes
+        assert self.conv is not None  # kernel_size > 0 guaranteed by early return
+
+        y, conv_state = causal_conv1d_pytorch(
+            conv_state=conv_state,
+            x=x,
+            weight=self.conv.weight,
+            bias=self.conv.bias if self.cfg.causal_conv_bias else None,
+            groups=self.groups,
+            pad=self.pad,
+            conv=self.conv,
+            resets=resets if not is_step else None,
+        )
+
+        new_state = TensorDict({"conv": conv_state}, batch_size=[B])
         if is_step:
-            # Step-by-step processing
-            assert T == 1, f"Step mode expects T=1, got T={T}"
-
-            # Update ring buffer: roll and append new input
-            conv_state = torch.roll(conv_state, shifts=-1, dims=1)
-            conv_state[:, -1:, :] = x
-
-            # One-step causal output via padding-free conv1d.
-            # Works for both depthwise (groups=F) and channel-mixing (groups=1).
-            # Input: [B, F, KS]  -> Output: [B, F, 1]
-            x_conv_in = conv_state.transpose(1, 2)  # [B, F, KS]
-            y = torch.nn.functional.conv1d(
-                x_conv_in,
-                self.conv.weight,
-                self.conv.bias if self.cfg.causal_conv_bias else None,
-                stride=1,
-                padding=0,
-                dilation=1,
-                groups=self.groups,
-            ).transpose(1, 2)  # [B, 1, F]
-
-            new_state = TensorDict({"conv": conv_state}, batch_size=[B])
             return y.squeeze(1), new_state
-
-        else:
-            # Full sequence processing
-            y = x.transpose(1, 2)  # [B, T, F] -> [B, F, T]
-            y = self.conv(y)  # [B, F, T+pad]
-
-            if self.pad > 0:
-                y = y[:, :, : -self.pad]  # Remove padding
-
-            y = y.transpose(1, 2)  # [B, F, T] -> [B, T, F]
-
-            # Update conv state with last kernel_size inputs
-            KS = self.cfg.kernel_size
-            if T >= KS:
-                new_conv_state = x[:, -KS:, :].clone()
-            else:
-                # Pad with zeros if sequence is shorter than kernel
-                pad_zeros = torch.zeros(B, KS - T, F, device=x.device, dtype=x.dtype)
-                new_conv_state = torch.cat([pad_zeros, x], dim=1)
-
-            new_state = TensorDict({"conv": new_conv_state}, batch_size=[B])
-            return y, new_state
+        return y, new_state
 
     def reset_state(self, state: MaybeState, mask: ResetMask) -> MaybeState:
         """Reset state for masked batch elements."""
