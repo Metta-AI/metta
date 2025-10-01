@@ -12,11 +12,14 @@ import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
 
 try:  # pragma: no cover - optional dependency
+    from apex.normalization.fused_layer_norm import FusedLayerNorm  # type: ignore
+except ImportError:  # pragma: no cover
+    FusedLayerNorm = None
+
+try:  # pragma: no cover - optional dependency
     from flash_attn.flash_attn_interface import flash_attn_func  # type: ignore
 except ImportError:  # pragma: no cover
     flash_attn_func = None
-
-from .transformer_common import XLPositionalEmbedding, ensure_mask_on_device, make_layer_norm
 
 
 def _record_function(name: str):
@@ -24,6 +27,12 @@ def _record_function(name: str):
     if profiler_mod is not None and hasattr(profiler_mod, "record_function"):
         return profiler_mod.record_function(name)
     return contextlib.nullcontext()
+
+
+def _make_layer_norm(d_model: int, use_fused: bool) -> nn.Module:
+    if use_fused and FusedLayerNorm is not None:
+        return FusedLayerNorm(d_model)
+    return nn.LayerNorm(d_model)
 
 
 class TF32Context:
@@ -306,8 +315,8 @@ class GTrXLTransformerBlock(nn.Module):
             attn_dropout=attn_dropout,
             use_flash_checkpoint=use_flash_checkpoint,
         )
-        self.norm1 = make_layer_norm(d_model, use_fused_layernorm)
-        self.norm2 = make_layer_norm(d_model, use_fused_layernorm)
+        self.norm1 = _make_layer_norm(d_model, use_fused_layernorm)
+        self.norm2 = _make_layer_norm(d_model, use_fused_layernorm)
 
         self.feed_forward = nn.Sequential(
             nn.Linear(d_model, d_ff),
@@ -407,7 +416,7 @@ class GTrXLModule(nn.Module):
                 for _ in range(n_layers)
             ]
         )
-        self.output_norm = make_layer_norm(d_model, self.use_fused_layernorm)
+        self.output_norm = _make_layer_norm(d_model, self.use_fused_layernorm)
         self.dropout = nn.Dropout(dropout)
         self._mask_cache: dict[tuple[int, torch.device], torch.Tensor] = {}
 
@@ -518,6 +527,27 @@ class GTrXLModule(nn.Module):
 # ---------------------------------------------------------------------------
 # Transformer-XL implementation (improved variant)
 # ---------------------------------------------------------------------------
+
+
+class XLPositionalEmbedding(nn.Module):
+    """Sinusoidal positional embedding identical to Transformer-XL."""
+
+    def __init__(self, d_model: int) -> None:
+        super().__init__()
+        inv_freq = 1.0 / (10000 ** (torch.arange(0.0, d_model, 2.0) / d_model))
+        self.register_buffer("inv_freq", inv_freq)
+
+    def forward(self, positions: torch.Tensor, batch_size: Optional[int] = None) -> torch.Tensor:
+        inv_freq = self.inv_freq
+        if inv_freq.device != positions.device or inv_freq.dtype != positions.dtype:
+            inv_freq = inv_freq.to(device=positions.device, dtype=positions.dtype)
+        sinusoid_inp = torch.outer(positions, inv_freq)
+        pos_emb = torch.cat([sinusoid_inp.sin(), sinusoid_inp.cos()], dim=-1)
+        if batch_size is not None:
+            return pos_emb[:, None, :].expand(-1, batch_size, -1)
+        return pos_emb[:, None, :]
+
+
 class XLPositionwiseFF(nn.Module):
     """Position-wise feed-forward layer for Transformer-XL."""
 
@@ -532,7 +562,7 @@ class XLPositionwiseFF(nn.Module):
     ) -> None:
         super().__init__()
         self.pre_lnorm = pre_lnorm
-        self.layer_norm = make_layer_norm(d_model, use_fused_layernorm)
+        self.layer_norm = _make_layer_norm(d_model, use_fused_layernorm)
         self.core = nn.Sequential(
             nn.Linear(d_model, d_inner),
             nn.ReLU(inplace=True),
@@ -574,7 +604,7 @@ class XLRelMultiHeadAttn(nn.Module):
         self.o_net = nn.Linear(n_head * d_head, d_model, bias=False)
         self.drop = nn.Dropout(dropout)
         self.dropatt = nn.Dropout(dropatt)
-        self.layer_norm = make_layer_norm(d_model, use_fused_layernorm)
+        self.layer_norm = _make_layer_norm(d_model, use_fused_layernorm)
 
     @staticmethod
     def _rel_shift(x: torch.Tensor) -> torch.Tensor:
@@ -620,7 +650,7 @@ class XLRelPartialLearnableMultiHeadAttn(XLRelMultiHeadAttn):
             use_fused_layernorm=use_fused_layernorm,
         )
         self.r_net = nn.Linear(d_model, n_head * d_head, bias=False)
-        self.layer_norm = make_layer_norm(d_model, use_fused_layernorm)
+        self.layer_norm = _make_layer_norm(d_model, use_fused_layernorm)
         self.use_flash_checkpoint = use_flash_checkpoint
 
     def forward(
@@ -632,9 +662,6 @@ class XLRelPartialLearnableMultiHeadAttn(XLRelMultiHeadAttn):
         attn_mask: Optional[torch.Tensor] = None,
         mems: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        if attn_mask is not None:
-            attn_mask = ensure_mask_on_device(attn_mask, device=content.device)
-
         qlen, rlen, batch_size = content.size(0), rel_pos.size(0), content.size(1)
         if attn_mask is not None and attn_mask.device != content.device:
             attn_mask = attn_mask.to(device=content.device)

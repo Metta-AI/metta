@@ -1,4 +1,5 @@
-from typing import Literal, Optional
+import math
+from typing import Literal
 
 import torch
 import torch.nn as nn
@@ -9,137 +10,168 @@ from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.components.component_config import ComponentConfig
 
-from .transformer_common import (
-    SinusoidalPositionEmbedding,
-    ensure_mask_on_device,
-    make_layer_norm,
-)
-
 
 class TransformerBlock(nn.Module):
-    """A single block of the sliding-window transformer architecture."""
+    """A single block of the transformer architecture."""
 
-    def __init__(
-        self,
-        d_model: int,
-        num_heads: int,
-        d_ff: int,
-        *,
-        use_fused_layernorm: bool = False,
-    ) -> None:
+    def __init__(self, output_dim, num_heads, ff_mult):
         super().__init__()
-        self.d_model = d_model
+        self.output_dim = output_dim
         self.num_heads = num_heads
-        self.head_dim = d_model // num_heads
+        self.head_dim = output_dim // num_heads
 
-        self.q_proj = nn.Linear(d_model, d_model)
-        self.k_proj = nn.Linear(d_model, d_model)
-        self.v_proj = nn.Linear(d_model, d_model)
-        self.out_proj = nn.Linear(d_model, d_model)
+        self.q_proj = nn.Linear(output_dim, output_dim)
+        self.k_proj = nn.Linear(output_dim, output_dim)
+        self.v_proj = nn.Linear(output_dim, output_dim)
+        self.out_proj = nn.Linear(output_dim, output_dim)
 
-        self.norm1 = make_layer_norm(d_model, use_fused_layernorm)
-        self.norm2 = make_layer_norm(d_model, use_fused_layernorm)
+        self.norm1 = nn.LayerNorm(output_dim)
+        self.norm2 = nn.LayerNorm(output_dim)
 
+        ff_hidden_dim = output_dim * ff_mult
         self.ffn = nn.Sequential(
-            nn.Linear(d_model, d_ff),
+            nn.Linear(output_dim, ff_hidden_dim),
             nn.GELU(),
-            nn.Linear(d_ff, d_model),
+            nn.Linear(ff_hidden_dim, output_dim),
         )
 
         self.norm_factor = self.head_dim**-0.5
 
-    def forward(
-        self,
-        x: torch.Tensor,
-        pk: Optional[torch.Tensor],
-        pv: Optional[torch.Tensor],
-        mask: Optional[torch.Tensor],
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        batch, token_count, _ = x.shape
+    def forward(self, x, pk, pv, mask):
+        B, T, E = x.shape  # Batch, Tokens, EmbedDim
 
+        # LayerNorm and Self-Attention
         x_norm = self.norm1(x)
-        q = self.q_proj(x_norm).view(batch, token_count, self.num_heads, self.head_dim).transpose(1, 2)
-        k = self.k_proj(x_norm).view(batch, token_count, self.num_heads, self.head_dim).transpose(1, 2)
-        v = self.v_proj(x_norm).view(batch, token_count, self.num_heads, self.head_dim).transpose(1, 2)
+        q = self.q_proj(x_norm).view(B, T, self.num_heads, self.head_dim).transpose(1, 2)
+        k = self.k_proj(x_norm).view(B, T, self.num_heads, self.head_dim).transpose(1, 2)
+        v = self.v_proj(x_norm).view(B, T, self.num_heads, self.head_dim).transpose(1, 2)
 
+        # Combine with past KV cache for this layer
         if pk is not None and pv is not None:
             k = torch.cat([pk, k], dim=2)
             v = torch.cat([pv, v], dim=2)
 
+        # Attention calculation
         attn_weights = (q @ k.transpose(-2, -1)) * self.norm_factor
         if mask is not None:
-            mask = ensure_mask_on_device(mask.to(dtype=torch.bool), device=attn_weights.device)
             attn_weights = attn_weights.masked_fill(mask, float("-inf"))
         attn_weights = F.softmax(attn_weights, dim=-1)
-        attn_output = (attn_weights @ v).transpose(1, 2).contiguous().view(batch, token_count, self.d_model)
+        attn_output = (attn_weights @ v).transpose(1, 2).contiguous().view(B, T, E)
 
+        # Residual connection and FFN
         x = x + self.out_proj(attn_output)
         x = x + self.ffn(self.norm2(x))
 
         return x, k, v
 
 
+class SlidingTransformerConfig(ComponentConfig):
+    in_key: str
+    out_key: str
+    name: str = "sliding_transformer"
+    output_dim: int = 16
+    input_dim: int = 64
+    num_heads: int = 1
+    ff_mult: int = 4
+    num_layers: int = 2
+    max_cache_size: int = 80
+    pool: Literal["cls", "mean", "none"] = "mean"
+
+    def make_component(self, env=None):
+        return SlidingTransformer(config=self, env=env)
+
+
 class SlidingTransformer(nn.Module):
-    """Sliding-window transformer with cached key/value memory."""
+    """ """
 
-    def __init__(
-        self,
-        *,
-        in_key: str,
-        out_key: str,
-        input_dim: int,
-        hidden_size: int,
-        num_heads: int,
-        num_layers: int,
-        d_ff: int,
-        max_cache_size: int,
-        pool: Literal["cls", "mean", "none"],
-        use_fused_layernorm: bool = False,
-        env=None,
-    ) -> None:
+    def __init__(self, config: SlidingTransformerConfig, env):
         super().__init__()
-        self.in_key = in_key
-        self.out_key = out_key
-        self.hidden_size = hidden_size
-        self.input_dim = input_dim
-        self.num_layers = num_layers
-        self.num_heads = num_heads
-        self.d_ff = d_ff
-        self.max_cache_size = max_cache_size
-        self.pool = pool
+        self.config = config
+        self.max_cache_size = self.config.max_cache_size
+        self.in_key = self.config.in_key
+        self.out_key = self.config.out_key
 
-        if input_dim == hidden_size:
+        self.output_dim = self.config.output_dim
+        self.num_layers = self.config.num_layers
+
+        input_dim = self.config.input_dim
+        if input_dim == self.output_dim:
             self.input_proj = nn.Identity()
         else:
-            self.input_proj = nn.Linear(input_dim, hidden_size)
+            self.input_proj = nn.Linear(input_dim, self.output_dim)
 
+        # Transformer blocks
         self.blocks = nn.ModuleList(
             [
                 TransformerBlock(
-                    hidden_size,
-                    num_heads,
-                    d_ff,
-                    use_fused_layernorm=use_fused_layernorm,
+                    output_dim=self.output_dim,
+                    num_heads=self.config.num_heads,
+                    ff_mult=self.config.ff_mult,
                 )
-                for _ in range(num_layers)
+                for _ in range(self.num_layers)
             ]
         )
 
-        self.last_action_proj = nn.Linear(2, hidden_size)
-        self.reward_proj = nn.Linear(1, hidden_size)
-        self.dones_truncateds_proj = nn.Linear(1, hidden_size)
+        self.last_action_proj = nn.Linear(2, self.output_dim)
+        self.reward_proj = nn.Linear(1, self.output_dim)
+        self.dones_truncateds_proj = nn.Linear(1, self.output_dim)
 
-        self.cls_token = nn.Parameter(torch.randn(1, 1, hidden_size))
-        self.final_norm = make_layer_norm(hidden_size, use_fused_layernorm)
-        self.position_embedding = SinusoidalPositionEmbedding(hidden_size)
+        self.cls_token = nn.Parameter(torch.randn(1, 1, self.output_dim))
+        self.final_norm = nn.LayerNorm(self.output_dim)
 
-        head_dim = hidden_size // num_heads
-        cache_shape = (0, num_layers, num_heads, max_cache_size, head_dim)
-        self.register_buffer("k_cache", torch.empty(cache_shape))
-        self.register_buffer("v_cache", torch.empty(cache_shape))
-        self.register_buffer("k_cache_training", torch.empty(cache_shape))
-        self.register_buffer("v_cache_training", torch.empty(cache_shape))
+        # State buffers (KV cache per layer)
+        self.register_buffer(
+            "k_cache",
+            torch.empty(
+                0,
+                self.num_layers,
+                self.config.num_heads,
+                self.max_cache_size,
+                self.config.output_dim // self.config.num_heads,
+            ),
+        )
+        self.register_buffer(
+            "v_cache",
+            torch.empty(
+                0,
+                self.num_layers,
+                self.config.num_heads,
+                self.max_cache_size,
+                self.config.output_dim // self.config.num_heads,
+            ),
+        )
+        self.register_buffer(
+            "k_cache_training",
+            torch.empty(
+                0,
+                self.num_layers,
+                self.config.num_heads,
+                self.max_cache_size,
+                self.config.output_dim // self.config.num_heads,
+            ),
+        )
+        self.register_buffer(
+            "v_cache_training",
+            torch.empty(
+                0,
+                self.num_layers,
+                self.config.num_heads,
+                self.max_cache_size,
+                self.config.output_dim // self.config.num_heads,
+            ),
+        )
         self.register_buffer("position_counter", torch.zeros(0, dtype=torch.long))
+
+        # av need to handle switching between rollout/train and eval
+
+    def _get_positional_encoding(self, positions: torch.Tensor, d_model: int) -> torch.Tensor:
+        """Generates sinusoidal positional encodings."""
+        device = positions.device
+        div_term = torch.exp(torch.arange(0, d_model, 2, device=device) * -(math.log(10000.0) / d_model))
+        pe = torch.zeros(*positions.shape, d_model, device=device)
+        pe[..., 0::2] = torch.sin(positions.unsqueeze(-1) * div_term)
+        pe[..., 1::2] = torch.cos(positions.unsqueeze(-1) * div_term)
+        return pe
 
     def forward(self, td: TensorDict):
         B = td.batch_size.numel()
@@ -188,7 +220,7 @@ class SlidingTransformer(nn.Module):
         # Final sequence shape: [B, TT, S, E] where S is num tokens per step
         x = torch.cat([cls_token, x, reward_reset_token, action_token], dim=2)
 
-        tokens_per_step = x.shape[2]
+        S = x.shape[2]  # Number of tokens per time-step
         x = rearrange(x, "b tt s d -> b (tt s) d")
 
         if TT == 1:  # rollout
@@ -206,8 +238,8 @@ class SlidingTransformer(nn.Module):
                 self.position_counter = torch.cat([self.position_counter, pos_filler])
 
             current_pos = self.position_counter[training_env_ids]
-            pos_enc = self.position_embedding(current_pos, dtype=x.dtype)
-            x = x + pos_enc.unsqueeze(1)
+            pos_enc = self._get_positional_encoding(current_pos, self.output_dim)
+            x = x + pos_enc.unsqueeze(1)  # Add to all S tokens for this timestep
 
             # 2. Process through transformer layers
             new_k_cache_list, new_v_cache_list = [], []
@@ -236,14 +268,14 @@ class SlidingTransformer(nn.Module):
             td.set("transformer_position", current_pos.detach())
 
             output = self.final_norm(x)
-            if self.pool == "cls":
+            if self.config.pool == "cls":
                 pooled_output = output[:, 0, :]  # Select CLS token output
-            elif self.pool == "mean":
+            elif self.config.pool == "mean":
                 pooled_output = output.mean(dim=1)
-            elif self.pool == "none":
+            elif self.config.pool == "none":
                 pooled_output = rearrange(output, "b s d -> b (s d)")
             else:
-                raise ValueError(f"Unsupported pool mode: {self.pool}")
+                raise ValueError(f"Unsupported pool mode: {self.config.pool}")
             td.set(self.out_key, pooled_output)
 
             # 5. Update and reset position counter
@@ -260,20 +292,18 @@ class SlidingTransformer(nn.Module):
             # The cache is from the step before this sequence started
             start_pos = td["transformer_position"].view(B, TT)[:, 0]
             positions = start_pos.unsqueeze(1) + torch.arange(TT, device=x.device)
-            pos_enc = self.position_embedding(positions, dtype=x.dtype)
-            pos_enc = pos_enc.unsqueeze(2).expand(-1, -1, tokens_per_step, -1)
+            pos_enc = self._get_positional_encoding(positions, self.output_dim)
+            pos_enc = pos_enc.unsqueeze(2).expand(-1, -1, S, -1)
             pos_enc = rearrange(pos_enc, "b tt s d -> b (tt s) d")
             x = x + pos_enc
 
             # 2. Prepare causal mask
-            q_len_tokens = TT * tokens_per_step
+            q_len_tokens = TT * S
             # pk_layers_at_start = td["past_key"].view(B, TT, *td["past_key"].shape[1:])[:, 0]
-            cache_len_tokens = self.k_cache_training.shape[3]
+            cache_len_tokens = self.k_cache_training.shape[3]  # av should this use some of the code in the line above?
 
             causal_mask_timesteps = torch.triu(torch.ones(TT, TT, device=x.device, dtype=torch.bool), diagonal=1)
-            causal_mask = causal_mask_timesteps.repeat_interleave(tokens_per_step, dim=0).repeat_interleave(
-                tokens_per_step, dim=1
-            )
+            causal_mask = causal_mask_timesteps.repeat_interleave(S, dim=0).repeat_interleave(S, dim=1)
             full_mask = torch.cat(
                 [
                     torch.zeros(q_len_tokens, cache_len_tokens, device=x.device, dtype=torch.bool),
@@ -310,14 +340,14 @@ class SlidingTransformer(nn.Module):
             # 4. Get final output
             output = self.final_norm(x)
             output = rearrange(output, "b (tt s) d -> b tt s d", tt=TT)
-            if self.pool == "cls":
+            if self.config.pool == "cls":
                 pooled_output = output[:, :, 0, :]  # Select CLS token
-            elif self.pool == "mean":
+            elif self.config.pool == "mean":
                 pooled_output = output.mean(dim=2)  # pool over S dimension
-            elif self.pool == "none":
+            elif self.config.pool == "none":
                 pooled_output = rearrange(output, "b tt s d -> b tt (s d)")
             else:
-                raise ValueError(f"Unsupported pool mode: {self.pool}")
+                raise ValueError(f"Unsupported pool mode: {self.config.pool}")
 
             pooled_output = rearrange(pooled_output, "b tt ... -> (b tt) ...")
             td.set(self.out_key, pooled_output)
@@ -353,40 +383,3 @@ class SlidingTransformer(nn.Module):
         device,
     ) -> None:
         pass
-
-
-class SlidingTransformerConfig(ComponentConfig):
-    in_key: str
-    out_key: str
-    name: str = "sliding_transformer"
-    output_dim: int = 16
-    input_dim: int = 64
-    num_heads: int = 1
-    ff_mult: int = 4
-    num_layers: int = 2
-    max_cache_size: int = 80
-    pool: Literal["cls", "mean", "none"] = "mean"
-    use_fused_layernorm: bool = False
-
-    def make_component(self, env=None):
-        from .transformer_core import TransformerBackboneConfig, TransformerBackboneVariant
-
-        hidden_size = self.output_dim
-        feedforward_dim = hidden_size * self.ff_mult
-        backbone_cfg = TransformerBackboneConfig(
-            name=self.name,
-            in_key=self.in_key,
-            out_key=self.out_key,
-            variant=TransformerBackboneVariant.SLIDING,
-            latent_size=self.input_dim,
-            hidden_size=hidden_size,
-            num_layers=self.num_layers,
-            n_heads=self.num_heads,
-            d_ff=feedforward_dim,
-            dropout=0.0,
-            attn_dropout=0.0,
-            max_cache_size=self.max_cache_size,
-            pool=self.pool,
-            use_fused_layernorm=self.use_fused_layernorm,
-        )
-        return backbone_cfg.make_component(env)
