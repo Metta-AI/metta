@@ -99,7 +99,6 @@ def play(
         # Call each agent's policy to get actions
         for agent_id in range(num_agents):
             actions[agent_id] = agent_policies[agent_id].step(obs[agent_id])
-        print("rendering")
         response = mettascope.render(step_count, replay_step)
         if response.should_close:
             break
