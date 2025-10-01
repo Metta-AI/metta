@@ -5,11 +5,10 @@ import logging
 from typing import Literal, Optional
 
 import numpy as np
-import torch
 from rich.console import Console
 
 import mettagrid.mettascope as mettascope
-from cogames import utils
+from cogames.policy.loader import instantiate_or_load_policy
 from mettagrid import MettaGridConfig, MettaGridEnv
 from mettagrid.util.grid_object_formatter import format_grid_object
 
@@ -42,9 +41,9 @@ def play(
     render_mode = None if render == "gui" else "miniscope" if render == "text" else None
     env = MettaGridEnv(env_cfg=env_cfg, render_mode=render_mode)
 
-    # Load and create policy
-    device = torch.device("cpu")
-    agent_policies = utils.load_agent_policies(policy_class_path, policy_data_path, env, device)
+    obs, _ = env.reset(seed=seed)
+    policy = instantiate_or_load_policy(policy_class_path, policy_data_path, env)
+    agent_policies = [policy.agent_policy(agent_id) for agent_id in range(env.num_agents)]
 
     # For text mode, use the interactive loop in miniscope
     if render == "text" and hasattr(env, "_renderer") and env._renderer:

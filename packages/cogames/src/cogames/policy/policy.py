@@ -30,7 +30,7 @@ class AgentPolicy:
 
     def reset(self) -> None:
         """Reset the policy state. Default implementation does nothing."""
-        pass  # Default: no-op for stateless policies
+        pass
 
 
 class Policy:

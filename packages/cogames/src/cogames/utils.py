@@ -9,9 +9,7 @@ if TYPE_CHECKING:
     import torch
     from rich.console import Console
 
-    from cogames.policy import AgentPolicy
     from mettagrid.config.mettagrid_config import MettaGridConfig
-    from mettagrid.envs.mettagrid_env import MettaGridEnv
 
 
 def resolve_game(game_arg: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
@@ -57,30 +55,6 @@ def get_game_config(game_arg: str) -> Tuple[str, "MettaGridConfig"]:
     if error or resolved_game is None:
         raise ValueError(error or "Unknown game")
     return resolved_game, game_module.get_game(resolved_game)
-
-
-def load_agent_policies(
-    policy_class_path: str, policy_data_path: Optional[str], env: "MettaGridEnv", device: "torch.device | None" = None
-) -> list["AgentPolicy"]:
-    import torch
-
-    from mettagrid.util.module import load_symbol
-
-    policy_class = load_symbol(policy_class_path)
-
-    # Instantiate the policy
-    policy_instance = policy_class(env, device or torch.device("cpu"))
-
-    # Create per-agent policies
-    agent_policies = []
-    # Load checkpoint if provided
-    if policy_data_path:
-        policy_instance.load_policy_data(policy_data_path)
-        # Create per-agent policies using agent_policy() method
-    for agent_id in range(env.num_agents):
-        agent_policies.append(policy_instance.agent_policy(agent_id))
-
-    return agent_policies
 
 
 def resolve_training_device(console: "Console", requested: str) -> "torch.device":

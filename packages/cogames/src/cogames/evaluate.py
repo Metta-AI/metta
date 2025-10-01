@@ -12,6 +12,7 @@ from rich.console import Console
 from rich.table import Table
 
 from cogames import utils
+from cogames.policy.loader import instantiate_or_load_policy
 from mettagrid import MettaGridEnv
 
 if TYPE_CHECKING:
@@ -33,7 +34,8 @@ def evaluate(
     resolved_game, env_cfg = utils.get_game_config(game_name)
     env = MettaGridEnv(env_cfg=env_cfg)
 
-    agent_policies = utils.load_agent_policies(policy_class_path, policy_data_path, env)
+    policy = instantiate_or_load_policy(policy_class_path, policy_data_path, env)
+    agent_policies = [policy.agent_policy(agent_id) for agent_id in range(env.num_agents)]
 
     per_episode_rewards: list[np.ndarray] = []
     per_episode_stats: list["EpisodeStats"] = []

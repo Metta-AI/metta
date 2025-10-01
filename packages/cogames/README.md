@@ -69,7 +69,7 @@ CoGames integrates with standard RL training frameworks. Currently supports:
 
 ```bash
 # Train a PPO agent on a single-agent scenario
-cogames train assembler_1_simple --algorithm ppo --steps 50000 --save ./my_policy.ckpt
+cogames train assembler_1_simple --algorithm ppo --steps 50000 --save ./my_policy.pt
 
 # Train with Weights & Biases logging
 cogames train assembler_2_complex --algorithm ppo --steps 100000 --wandb my-project
@@ -79,10 +79,7 @@ cogames train assembler_2_complex --algorithm ppo --steps 100000 --wandb my-proj
 
 ```bash
 # Evaluate a trained policy checkpoint
-cogames evaluate assembler_1_simple --policy simple --policy-data ./my_policy.ckpt --episodes 100
-
-# Evaluate a different policy class
-cogames evaluate assembler_2_complex --policy lstm --policy-data ./checkpoints --episodes 10
+cogames evaluate assembler_1_simple --policy simple --policy-data ./my_policy.pt --episodes 100
 
 # Baseline comparison with random policy
 cogames evaluate assembler_1_simple --policy random --episodes 100

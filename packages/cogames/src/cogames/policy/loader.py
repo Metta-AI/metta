@@ -12,12 +12,6 @@ if TYPE_CHECKING:
     import torch
 
 
-def instantiate_policy(class_path: str, env: Any, device: "torch.device") -> Policy:
-    """Instantiate a policy class for the provided environment and device."""
-    policy_class = load_symbol(class_path)
-    return policy_class(env, device)
-
-
 def resolve_checkpoint_path(path: Path) -> Path:
     """Resolve a checkpoint path, descending into directories if needed."""
     if path.is_file():
@@ -31,15 +25,12 @@ def resolve_checkpoint_path(path: Path) -> Path:
     return candidate_files[-1]
 
 
-def load_policy_checkpoint(policy: Policy, checkpoint: Optional[Path]) -> Optional[Path]:
-    """Load policy weights if ``checkpoint`` is provided.
+def load_policy_checkpoint(policy: Policy, checkpoint: str) -> Path:
+    """Load policy weights from ``checkpoint``
 
-    Returns the resolved checkpoint path if loading occurred.
+    Returns the resolved checkpoint path.
     """
-    if checkpoint is None:
-        return None
-
-    resolved = resolve_checkpoint_path(checkpoint)
+    resolved = resolve_checkpoint_path(Path(checkpoint))
     if not isinstance(policy, TrainablePolicy):
         raise TypeError("Policy data provided, but the selected policy does not support loading checkpoints.")
 
@@ -47,4 +38,17 @@ def load_policy_checkpoint(policy: Policy, checkpoint: Optional[Path]) -> Option
     return resolved
 
 
-__all__ = ["instantiate_policy", "resolve_checkpoint_path", "load_policy_checkpoint"]
+def instantiate_or_load_policy(
+    policy_class_path: str, policy_data_path: Optional[str], env: Any, device: "torch.device | None" = None
+) -> Policy:
+    import torch
+
+    policy_class = load_symbol(policy_class_path)
+    policy = policy_class(env, device or torch.device("cpu"))
+
+    if policy_data_path:
+        load_policy_checkpoint(policy, policy_data_path)
+    return policy
+
+
+__all__ = ["instantiate_or_load_policy"]
