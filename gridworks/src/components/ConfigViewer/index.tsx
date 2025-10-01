@@ -122,13 +122,17 @@ function isScalar(value: unknown): value is string | number | boolean | null {
   );
 }
 
+function extendPath(path: string, nextPart: string): string {
+  return path ? `${path}.${nextPart}` : nextPart;
+}
+
 const YamlKeyValue: FC<{
   yamlKey: string;
   value: unknown;
   path: string;
   depth: number;
 }> = ({ yamlKey, value, path, depth }) => {
-  const fullKey = path ? `${path}.${yamlKey}` : yamlKey;
+  const fullKey = extendPath(path, yamlKey);
 
   const { kind } = use(YamlContext);
 
@@ -224,7 +228,11 @@ const YamlArray: FC<{
       {value.map((v, i) => (
         <div key={`${path}.${i}`} className="flex gap-[1ch]">
           <div className="font-semibold text-blue-900">-</div>
-          <YamlAny value={v} path={path} depth={depth + 1} />
+          <YamlAny
+            value={v}
+            path={extendPath(path, String(i))}
+            depth={depth + 1}
+          />
         </div>
       ))}
     </div>
