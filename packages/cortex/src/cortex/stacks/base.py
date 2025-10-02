@@ -49,7 +49,8 @@ class CortexStack(nn.Module):
     def init_state(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> TensorDict:
         state = TensorDict({}, batch_size=[batch], device=torch.device(device))
         for i, block in enumerate(self.blocks):
-            state[f"block_{i}"] = block.init_state(batch=batch, device=device, dtype=dtype)
+            block_key = f"{block.__class__.__name__}_{i}"
+            state[block_key] = block.init_state(batch=batch, device=device, dtype=dtype)
         return state
 
     def forward(
@@ -64,9 +65,10 @@ class CortexStack(nn.Module):
         batch_size = x.shape[0]
         next_state = TensorDict({}, batch_size=[batch_size])
         for i, block in enumerate(self.blocks):
-            block_state = state.get(f"block_{i}") if isinstance(state, TensorDict) else None
+            block_key = f"{block.__class__.__name__}_{i}"
+            block_state = state.get(block_key) if isinstance(state, TensorDict) else None
             y, block_next_state = block(y, block_state, resets=resets)
-            next_state[f"block_{i}"] = (
+            next_state[block_key] = (
                 block_next_state
                 if isinstance(block_next_state, TensorDict)
                 else TensorDict({}, batch_size=[batch_size])
@@ -89,7 +91,8 @@ class CortexStack(nn.Module):
         batch_size = state.batch_size[0] if state.batch_size else mask.shape[0]
         new_state = TensorDict({}, batch_size=[batch_size], device=state.device)
         for i, block in enumerate(self.blocks):
-            new_state[f"block_{i}"] = block.reset_state(state.get(f"block_{i}"), mask)
+            block_key = f"{block.__class__.__name__}_{i}"
+            new_state[block_key] = block.reset_state(state.get(block_key), mask)
         return new_state
 
 

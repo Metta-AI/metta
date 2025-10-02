@@ -105,9 +105,9 @@ def test_slstm_with_postup_block() -> None:
     # Check that state exists and has correct structure
     assert state is not None, "State should not be None"
 
-    # The PostUpBlock wraps the cell state in a 'cell' key
-    assert "cell" in state, f"State should contain 'cell' key, got keys: {list(state.keys())}"
-    cell_state = state["cell"]
+    # The PostUpBlock wraps the cell state with the cell class name as key
+    assert "sLSTMCell" in state, f"State should contain 'sLSTMCell' key, got keys: {list(state.keys())}"
+    cell_state = state["sLSTMCell"]
 
     # Check cell state components
     assert "y" in cell_state, "Cell state should contain 'y' component"

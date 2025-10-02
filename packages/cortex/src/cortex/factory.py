@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from cortex.config import CortexStackConfig
-from cortex.stack import CortexStack
+from cortex.stacks import CortexStack
 
 
 def build_cortex(config: CortexStackConfig) -> CortexStack:

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Optional, Tuple
 
-import torch
 import torch.nn as nn
 from tensordict import TensorDict
 
@@ -42,7 +41,8 @@ class PostUpBlock(BaseBlock):
         *,
         resets: Optional[ResetMask] = None,
     ) -> Tuple[Tensor, MaybeState]:
-        cell_state = state.get("cell", None) if state is not None else None
+        cell_key = self.cell.__class__.__name__
+        cell_state = state.get(cell_key, None) if state is not None else None
         batch_size = state.batch_size[0] if state is not None and state.batch_size else x.shape[0]
 
         residual = x
@@ -64,7 +64,7 @@ class PostUpBlock(BaseBlock):
             y_ffn = self.out2(y_).reshape(B, T, self.d_hidden)
 
         y = ffn_residual + y_ffn
-        return y, TensorDict({"cell": new_cell_state}, batch_size=[batch_size])
+        return y, TensorDict({cell_key: new_cell_state}, batch_size=[batch_size])
 
 
 __all__ = ["PostUpBlock"]

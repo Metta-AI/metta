@@ -64,7 +64,8 @@ class GatedResidualBlock(BaseBlock):
         from tensordict import TensorDict
 
         # Extract cell state from block state
-        cell_state = state.get("cell", None) if state is not None else None
+        cell_key = self.cell.__class__.__name__
+        cell_state = state.get(cell_key, None) if state is not None else None
 
         # Process through cell
         y, new_cell_state = self.cell(x, cell_state, resets=resets)
@@ -77,7 +78,7 @@ class GatedResidualBlock(BaseBlock):
         output = gate * y + (1 - gate) * self.residual_weight * x
 
         # Wrap cell state in block state
-        return output, TensorDict({"cell": new_cell_state}, batch_size=[])
+        return output, TensorDict({cell_key: new_cell_state}, batch_size=[])
 
 
 def test_custom_block():
@@ -119,7 +120,7 @@ def test_custom_block():
 
     # Build the stack using the standard CortexStack - no custom class needed!
     # The registry system automatically handles our custom block type
-    from cortex.stack import CortexStack
+    from cortex.stacks import CortexStack
 
     stack = CortexStack(recipe)
 

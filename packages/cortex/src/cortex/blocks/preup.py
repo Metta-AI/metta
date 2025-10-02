@@ -62,7 +62,8 @@ class PreUpBlock(BaseBlock):
         a, z = torch.split(x_proj, split_size_or_sections=self.d_inner, dim=-1)
         a_act = self.act(a)
 
-        cell_state = state.get("cell", None) if state is not None else None
+        cell_key = self.cell.__class__.__name__
+        cell_state = state.get(cell_key, None) if state is not None else None
         y_inner, new_cell_state = self.cell(a, cell_state, resets=resets)
 
         # Gated skip and down-projection - always batch-first
@@ -79,7 +80,7 @@ class PreUpBlock(BaseBlock):
             y = self.out_proj(y_).reshape(B, T, self.d_hidden)
 
         y = residual + y
-        return y, TensorDict({"cell": new_cell_state}, batch_size=[batch_size])
+        return y, TensorDict({cell_key: new_cell_state}, batch_size=[batch_size])
 
 
 __all__ = ["PreUpBlock"]
