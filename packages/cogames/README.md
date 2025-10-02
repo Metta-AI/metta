@@ -83,6 +83,11 @@ cogames evaluate machina_1 --policy simple --policy-data ./train_dir/
 
 # Baseline comparison with random policy
 cogames evaluate machina_1 --policy random
+
+
+# Evaluate many policies
+# Accepts a list of policy specs, each in the format {policy class shorthand or path}:{proportion, default 1}:{optional policy data path}
+cogames evaluate-many machina_1 simple:1:./train_dir/my_policy1.pt simple:2:./train_dir/my_policy2.pt random:5
 ```
 
 ### Implementing Custom Policies

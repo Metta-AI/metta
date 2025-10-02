@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-import json
+import math
 import re
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FUT_TIMEOUT
 from copy import deepcopy
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
 
 import numpy as np
@@ -26,42 +27,87 @@ if TYPE_CHECKING:
 _SKIP_STATS = ["action.invalid_arg.*"]
 
 
+@dataclass(frozen=True)
+class PolicySpec:
+    """Specification for a policy used during evaluation."""
+
+    policy_class_path: str
+    proportion: float
+    policy_data_path: Optional[str]
+    requested_proportion: Optional[float] = None
+
+
+def _compute_policy_agent_counts(num_agents: int, policy_specs: list[PolicySpec]) -> list[int]:
+    total = sum(spec.proportion for spec in policy_specs)
+    if total <= 0:
+        raise ValueError("Total policy proportion must be positive.")
+    fractions = [spec.proportion / total for spec in policy_specs]
+
+    ideals = [num_agents * f for f in fractions]
+    counts = [math.floor(x) for x in ideals]
+    remaining = num_agents - sum(counts)
+
+    # distribute by largest remainder
+    remainders = [(i, ideals[i] - counts[i]) for i in range(len(fractions))]
+    remainders.sort(key=lambda x: x[1], reverse=True)
+    for i in range(remaining):
+        counts[remainders[i][0]] += 1
+    return counts
+
+
 def evaluate(
     console: Console,
     resolved_game: str,
     env_cfg: "MettaGridConfig",
-    policy_class_path: str,
-    policy_data_path: Optional[str],
+    policy_specs: list[PolicySpec],
     episodes: int,
     action_timeout_ms: int,
     seed: int = 42,
 ) -> None:
+    if not policy_specs:
+        raise ValueError("At least one policy specification must be provided for evaluation.")
+
     # Load env and policies
     env = MettaGridEnv(env_cfg=env_cfg)
     noop = np.zeros(env.action_space.shape, dtype=env.action_space.dtype)
 
-    policy = initialize_or_load_policy(policy_class_path, policy_data_path, env)
-    agent_policies = [policy.agent_policy(agent_id) for agent_id in range(env.num_agents)]
+    policy_instances = [
+        initialize_or_load_policy(spec.policy_class_path, spec.policy_data_path, env) for spec in policy_specs
+    ]
+    policy_counts = _compute_policy_agent_counts(env.num_agents, policy_specs)
+    policy_names = [spec.policy_class_path.split(".")[-1] for spec in policy_specs]
+
+    console.print(f"Policy counts: {policy_counts}")
+
+    assignments = np.repeat(np.arange(len(policy_specs)), policy_counts)
+
+    if len(assignments) != env.num_agents:
+        raise ValueError("Policy agent assignments match number of agents.")
 
     per_episode_rewards: list[np.ndarray] = []
     per_episode_stats: list["EpisodeStats"] = []
+    per_episode_assignments: list[np.ndarray] = []
 
     # Run episodes
     with ThreadPoolExecutor(max_workers=env.num_agents) as pool:
         progress_label = "Evaluating episodes"
+        rng = np.random.default_rng(seed)
         with typer.progressbar(range(episodes), label=progress_label) as progress:
             for episode_idx in progress:
                 obs, _ = env.reset(seed=seed + episode_idx)
-                for p in agent_policies:
-                    p.reset()
+                # Shuffle assignments in place
+                rng.shuffle(assignments)
+                agent_policies = [
+                    policy_instances[assignments[agent_id]].agent_policy(agent_id) for agent_id in range(env.num_agents)
+                ]
+                for agent_policy in agent_policies:
+                    agent_policy.reset()
 
                 done = np.zeros(env.num_agents, dtype=bool)
                 truncated = np.zeros(env.num_agents, dtype=bool)
 
                 while not done.all() and not truncated.all():
-                    # submit one callable per agent
                     futures = [pool.submit(agent_policies[i].step, obs[i]) for i in range(env.num_agents)]
-
                     actions = []
                     for i, fut in enumerate(futures):
                         try:
@@ -79,16 +125,17 @@ def evaluate(
 
             per_episode_rewards.append(np.array(env.get_episode_rewards(), dtype=float))
             per_episode_stats.append(deepcopy(env.get_episode_stats()))
+            per_episode_assignments.append(assignments.copy())
 
     # Report results
     stacked_rewards = np.stack(per_episode_rewards)
-    avg_rewards = stacked_rewards.mean(axis=0)
     total_rewards = stacked_rewards.sum(axis=1)
 
     aggregated_game_stats: dict[str, float] = defaultdict(float)
-    aggregated_agent_stats: list[dict[str, float]] = [defaultdict(float) for _ in range(env.num_agents)]
+    aggregated_policy_stats: list[dict[str, float]] = [defaultdict(float) for _ in policy_specs]
+    policy_reward_sums = np.zeros(len(policy_specs), dtype=float)
 
-    for stats in per_episode_stats:
+    for episode_idx, stats in enumerate(per_episode_stats):
         game_stats = stats.get("game", {}) if isinstance(stats, dict) else {}
         for key, value in game_stats.items():
             aggregated_game_stats[key] += float(value)
@@ -97,10 +144,17 @@ def evaluate(
         for agent_id, agent_stats in enumerate(agent_stats_list):
             if agent_id >= env.num_agents:
                 continue
+            policy_idx = int(per_episode_assignments[episode_idx][agent_id])
             for key, value in agent_stats.items():
                 if any(re.match(pattern, key) for pattern in _SKIP_STATS):
                     continue
-                aggregated_agent_stats[agent_id][key] += float(value)
+                aggregated_policy_stats[policy_idx][key] += float(value)
+
+    for episode_idx, rewards in enumerate(stacked_rewards):
+        assignments = per_episode_assignments[episode_idx]
+        for agent_id, reward in enumerate(rewards):
+            policy_idx = int(assignments[agent_id])
+            policy_reward_sums[policy_idx] += float(reward)
 
     summary_table = Table(
         title=f"Evaluation Results for {resolved_game}",
@@ -109,27 +163,31 @@ def evaluate(
     )
     summary_table.add_column("Episode", justify="right")
     summary_table.add_column("Total Reward", justify="right")
-    for agent_id in range(env.num_agents):
-        summary_table.add_column(f"Agent {agent_id}", justify="right")
+    for name in policy_names:
+        summary_table.add_column(f"Policy {name}", justify="right")
 
     for episode_idx, rewards in enumerate(stacked_rewards, start=1):
+        assignments = per_episode_assignments[episode_idx - 1]
         row = [str(episode_idx), f"{total_rewards[episode_idx - 1]:.2f}"]
-        row.extend(f"{reward:.2f}" for reward in rewards)
+        for policy_idx in range(len(policy_specs)):
+            mask = assignments == policy_idx
+            if mask.any():
+                policy_reward = rewards[mask].mean()
+                row.append(f"{policy_reward:.2f}")
+            else:
+                row.append("--")
         summary_table.add_row(*row)
+    summary_table.add_row(*row)
 
-    console.print(summary_table)
-    console.print(
-        "Average reward per agent: " + ", ".join(f"Agent {idx}: {reward:.2f}" for idx, reward in enumerate(avg_rewards))
-    )
-
-    console.print("\n[bold cyan]Average Agent Stats[/bold cyan]")
-    for agent_id, stats in enumerate(aggregated_agent_stats):
-        agent_table = Table(title=f"Agent {agent_id}", show_header=True, header_style="bold magenta")
-        agent_table.add_column("Metric")
-        agent_table.add_column("Average", justify="right")
+    console.print("\n[bold cyan]Average Policy Stats[/bold cyan]")
+    for policy_idx, stats in enumerate(aggregated_policy_stats):
+        policy_table = Table(title=f"Policy {policy_names[policy_idx]}", show_header=True, header_style="bold magenta")
+        policy_table.add_column("Metric")
+        policy_table.add_column("Average", justify="right")
+        count = policy_counts[policy_idx]
         for key, value in sorted(stats.items()):
-            agent_table.add_row(key, f"{value / episodes:.2f}")
-        console.print(agent_table)
+            policy_table.add_row(key, f"{value / count:.2f}")
+        console.print(policy_table)
 
     console.print("\n[bold cyan]Average Game Stats[/bold cyan]")
     game_stats_table = Table(show_header=True, header_style="bold magenta")
@@ -139,16 +197,6 @@ def evaluate(
         game_stats_table.add_row(key, f"{value / episodes:.2f}")
     console.print(game_stats_table)
 
-    evaluation_metadata = {
-        "game": resolved_game,
-        "policy": policy_class_path,
-        "policy_data": policy_data_path,
-        "episodes": episodes,
-        "average_rewards": avg_rewards.tolist(),
-    }
-    console.print("[dim]Metadata:[/dim]" + f" [dim]{json.dumps(evaluation_metadata, indent=2)}[/dim]")
-
-    console.print()
-    console.print("[green]Evaluation complete.[/green]")
+    console.print(summary_table)
 
     env.close()

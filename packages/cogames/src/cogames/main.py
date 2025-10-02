@@ -3,7 +3,10 @@
 import logging
 import sys
 from pathlib import Path
-from typing import Literal, Optional
+from typing import TYPE_CHECKING, Literal, Optional
+
+if TYPE_CHECKING:
+    from cogames.evaluate import PolicySpec
 
 # Always add current directory to Python path
 sys.path.insert(0, ".")
@@ -66,6 +69,52 @@ def _resolve_policy_data_path(policy_data_path: Optional[str]) -> Optional[str]:
         raise typer.Exit(1)
     console.print(f"[green]Using checkpoint: {last_touched_checkpoint_file}[/green]")
     return str(last_touched_checkpoint_file)
+
+
+def _parse_policy_option(spec: str) -> "PolicySpec":
+    """Parse a policy CLI option into its components.
+
+    Args:
+        spec: string in the form ``policy_class:proportion[:policy_data]``.
+
+    Returns:
+        A list of PolicySpec objects
+
+    Raises:
+        typer.BadParameter: If the specification is malformed or invalid.
+    """
+    from cogames.evaluate import PolicySpec
+
+    raw = spec.strip()
+    if not raw:
+        raise typer.BadParameter("Policy specification cannot be empty.")
+
+    parts = raw.split(":", maxsplit=2)
+    if len(parts) < 2:
+        raise typer.BadParameter("Policy specification must include both class path and proportion separated by ':'")
+
+    raw_class_path, raw_fraction = parts[0].strip(), parts[1].strip()
+    raw_policy_data = parts[2].strip() if len(parts) == 3 else None
+
+    if not raw_class_path:
+        raise typer.BadParameter("Policy class path cannot be empty.")
+
+    try:
+        fraction = float(raw_fraction)
+    except ValueError as exc:
+        raise typer.BadParameter(f"Invalid proportion value '{raw_fraction}'.") from exc
+
+    if fraction <= 0:
+        raise typer.BadParameter("Policy proportion must be a positive number.")
+
+    resolved_class_path = _resolve_policy_class_path(raw_class_path)
+    resolved_policy_data = _resolve_policy_data_path(raw_policy_data)
+
+    return PolicySpec(
+        policy_class_path=resolved_class_path,
+        proportion=fraction,
+        policy_data_path=resolved_policy_data,
+    )
 
 
 @app.callback(invoke_without_command=True)
@@ -184,12 +233,59 @@ def evaluate_cmd(
 
     from cogames import evaluate as evaluate_module
 
+    policy_specs = [
+        evaluate_module.PolicySpec(
+            policy_class_path=policy_class_path,
+            proportion=1.0,
+            policy_data_path=policy_data_path,
+        )
+    ]
     evaluate_module.evaluate(
         console,
         resolved_game=resolved_game,
         env_cfg=env_cfg,
-        policy_class_path=policy_class_path,
-        policy_data_path=policy_data_path,
+        policy_specs=policy_specs,
+        action_timeout_ms=action_timeout_ms,
+        episodes=episodes,
+    )
+
+
+@app.command(name="evaluate-many", no_args_is_help=True, help="Evaluate many policies together on a game")
+def evaluate_many_cmd(
+    game_name: str = typer.Argument(
+        None,
+        help="Name of the game to evaluate",
+        callback=_require_game_argument,
+    ),
+    policies: list[str] = typer.Argument(  # noqa: B008
+        help=(
+            "List of policies in the form 'class_path:proportion[:policy_data_path]'. "
+            "Provide multiple options for mixed populations."
+        ),
+    ),
+    episodes: int = typer.Option(10, "--episodes", "-e", help="Number of evaluation episodes", min=1),
+    action_timeout_ms: int = typer.Option(
+        250,
+        "--action-timeout-ms",
+        help="Max milliseconds afforded to generate each action before noop is used by default",
+        min=1,
+    ),
+) -> None:
+    policy_specs = [_parse_policy_option(spec) for spec in policies]
+
+    from cogames import utils
+
+    resolved_game, env_cfg = utils.get_game_config(console, game_name)
+    from cogames import evaluate as evaluate_module
+
+    console.print(f"[cyan]Evaluating {len(policy_specs)} policies on {resolved_game}[/cyan]")
+    console.print(f"Episodes: {episodes}")
+
+    evaluate_module.evaluate(
+        console,
+        resolved_game=resolved_game,
+        env_cfg=env_cfg,
+        policy_specs=policy_specs,
         action_timeout_ms=action_timeout_ms,
         episodes=episodes,
     )
