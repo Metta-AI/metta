@@ -188,6 +188,54 @@ def chest() -> ChestConfig:
     )
 
 
+def chest_carbon() -> ChestConfig:
+    return ChestConfig(
+        name="chest_carbon",
+        type_id=31,
+        map_char="L",
+        render_symbol="📦",
+        resource_type="carbon",
+        deposit_positions=["E"],
+        withdrawal_positions=["W"],
+    )
+
+
+def chest_oxygen() -> ChestConfig:
+    return ChestConfig(
+        name="chest_oxygen",
+        type_id=32,
+        map_char="M",
+        render_symbol="📦",
+        resource_type="oxygen",
+        deposit_positions=["E"],
+        withdrawal_positions=["W"],
+    )
+
+
+def chest_germanium() -> ChestConfig:
+    return ChestConfig(
+        name="chest_germanium",
+        type_id=33,
+        map_char="N",
+        render_symbol="📦",
+        resource_type="germanium",
+        deposit_positions=["E"],
+        withdrawal_positions=["W"],
+    )
+
+
+def chest_silicon() -> ChestConfig:
+    return ChestConfig(
+        name="chest_silicon",
+        type_id=34,
+        map_char="O",
+        render_symbol="📦",
+        resource_type="silicon",
+        deposit_positions=["E"],
+        withdrawal_positions=["W"],
+    )
+
+
 def assembler() -> AssemblerConfig:
     return AssemblerConfig(
         name="assembler",
