@@ -274,11 +274,13 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
 
         agent_positions = self.config.rng.sample(agent_position_possibities, num_agents)
 
+        # Use set for efficient removal
+        agent_positions_set = set(agent_positions)
         for pos, label in zip(agent_positions, agent_labels, strict=False):
             grid[pos] = label
-            # Convert numpy types to Python int for list.remove() to work
-            pos_tuple = (int(pos[0]), int(pos[1]))
-            valid_positions.remove(pos_tuple)
+
+        # Remove used positions from valid_positions
+        valid_positions = [pos for pos in valid_positions if pos not in agent_positions_set]
 
         if len(valid_positions) < sum(self.config.objects.values()):
             grid, empty_centers = self.carve_out_patches(
