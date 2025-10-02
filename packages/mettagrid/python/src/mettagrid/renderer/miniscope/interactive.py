@@ -8,6 +8,7 @@ import tty
 from typing import Callable, Dict, Optional
 
 import numpy as np
+from rich.console import Console
 
 from mettagrid.core import BoundingBox
 
@@ -334,9 +335,8 @@ def run_interactive_loop(
                     cursor_col if mode == "select" else None,
                 )
 
-                # Build agent info panel
                 agent_panel_height = viewport_height // 2
-                info_panel = build_agent_info_panel(
+                agent_table = build_agent_info_panel(
                     grid_objects,
                     object_type_names,
                     selected_agent,
@@ -345,16 +345,26 @@ def run_interactive_loop(
                     total_rewards,
                 )
 
+                # Convert Table to list of strings
+                temp_console = Console(width=23, legacy_windows=False)
+                with temp_console.capture() as capture:
+                    temp_console.print(agent_table)
+                info_panel = capture.get().split("\n")
+
                 # Build object info panel if in select mode
                 if mode == "select":
                     object_panel_height = viewport_height - agent_panel_height
-                    object_panel = build_object_info_panel(
+                    object_table = build_object_info_panel(
                         grid_objects, object_type_names, cursor_row, cursor_col, object_panel_height
                     )
+                    # Convert Table to list of strings
+                    with temp_console.capture() as capture:
+                        temp_console.print(object_table)
+                    object_panel = capture.get().split("\n")
                     # Combine both panels vertically
                     side_panel = info_panel + object_panel
                 else:
-                    side_panel = info_panel + ["                       "] * (viewport_height - agent_panel_height)
+                    side_panel = info_panel + ["                       "] * (viewport_height - len(info_panel))
 
                 # Combine grid and info panel side by side
                 grid_lines = grid_buffer.split("\n")
