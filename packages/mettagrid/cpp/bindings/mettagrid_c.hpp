@@ -73,7 +73,11 @@ public:
                    const py::array_t<TruncationType, py::array::c_style>& truncations,
                    const py::array_t<RewardType, py::array::c_style>& rewards);
   void validate_buffers();
-  py::dict grid_objects(int min_row = -1, int max_row = -1, int min_col = -1, int max_col = -1);
+  py::dict grid_objects(int min_row = -1,
+                        int max_row = -1,
+                        int min_col = -1,
+                        int max_col = -1,
+                        const py::list& ignore_types = py::list());
   py::list action_names();
 
   GridCoord map_width();
