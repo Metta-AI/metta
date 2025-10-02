@@ -108,7 +108,7 @@ def test_function_params_passed_to_invoke(invoke_run_tool):
 
 
 # --------------------------------------------------------------------------------------
-# Recipe Inference and Tool Discovery
+# Recipe Tool Discovery
 # --------------------------------------------------------------------------------------
 
 
@@ -138,34 +138,13 @@ def test_two_token_not_treated_as_bare_tool(invoke_run_tool):
     assert "Available Arguments" in output or "Function Parameters" in output
 
 
-def test_inferred_evaluate_from_simulations(invoke_run_tool):
-    """Verify evaluate tool is inferred when recipe provides simulations()."""
-    result = invoke_run_tool("mypackage.recipes.demo.evaluate", "--dry-run")
-
-    assert result.returncode == 0
-
-
-def test_evaluate_alias_resolves(invoke_run_tool):
-    """Verify 'eval' alias resolves to 'evaluate' tool."""
-    result = invoke_run_tool("mypackage.recipes.demo.eval", "--dry-run")
-
-    assert result.returncode == 0
-
-
-def test_inferred_evaluate_from_mettagrid_only(invoke_run_tool):
-    """Verify evaluate tool is inferred even when only mettagrid() is provided."""
-    result = invoke_run_tool("mypackage.recipes.onlymg.evaluate", "--dry-run")
-
-    assert result.returncode == 0
-
-
 # --------------------------------------------------------------------------------------
 # Tool Listing
 # --------------------------------------------------------------------------------------
 
 
-def test_list_shows_inferred_and_explicit_tools(invoke_run_tool):
-    """Verify --list displays both inferred and explicitly defined tools."""
+def test_list_shows_explicit_tools(invoke_run_tool):
+    """Verify --list displays explicitly defined tools."""
     result = invoke_run_tool("mypackage.recipes.demo", "--list")
 
     assert result.returncode == 0
@@ -174,26 +153,8 @@ def test_list_shows_inferred_and_explicit_tools(invoke_run_tool):
     # Should show the recipe module name
     assert "mypackage.recipes.demo" in output
 
-    # Should include inferred tools
-    assert "evaluate" in output
-    assert "play" in output
-    assert "replay" in output
-
     # Should include explicit tool-returning function
     assert "train_shaped" in output
-
-
-def test_list_works_with_mettagrid_only_recipe(invoke_run_tool):
-    """Verify --list works for recipes that only provide mettagrid()."""
-    result = invoke_run_tool("mypackage.recipes.onlymg", "--list")
-
-    assert result.returncode == 0
-    output = result.stdout + result.stderr
-
-    assert "mypackage.recipes.onlymg" in output
-    # Should infer common tools from mettagrid()
-    assert "train" in output
-    assert "evaluate" in output
 
 
 # --------------------------------------------------------------------------------------

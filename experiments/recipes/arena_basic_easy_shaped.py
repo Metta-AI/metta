@@ -127,6 +127,25 @@ def train(
     )
 
 
+def eval(policy_uris: Optional[Sequence[str]] = None) -> EvalTool:
+    """Evaluate policies on arena simulations."""
+    return EvalTool(simulations=simulations(), policy_uris=policy_uris or [])
+
+
+# Backward compatibility alias
+evaluate = eval
+
+
+def play(policy_uri: Optional[str] = None) -> PlayTool:
+    """Interactive play with a policy."""
+    return PlayTool(sim=simulations()[0], policy_uri=policy_uri)
+
+
+def replay(policy_uri: Optional[str] = None) -> ReplayTool:
+    """Generate replay from a policy."""
+    return ReplayTool(sim=simulations()[0], policy_uri=policy_uri)
+
+
 def evaluate_in_sweep(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> EvalTool:

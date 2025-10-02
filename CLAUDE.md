@@ -196,12 +196,12 @@ See `common/src/metta/common/tool/README.md` for the runner, two‑token usage, 
 # Train
 uv run ./tools/run.py train arena run=my_experiment
 
-# Evaluate locally (single policy)
-uv run ./tools/run.py evaluate arena \
+# Eval locally (single policy)
+uv run ./tools/run.py eval arena \
   policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
 
-# Evaluate remotely (dispatch to server)
-uv run ./tools/run.py evaluate_remote arena \
+# Eval remotely (dispatch to server)
+uv run ./tools/run.py eval_remote arena \
   policy_uri=s3://my-bucket/checkpoints/run/run:v10.pt
 
 # Analyze evaluation results
@@ -220,7 +220,6 @@ uv run ./tools/run.py eval arena --dry-run
 
 Notes:
 - Two‑token form: `./tools/run.py <tool> <recipe>` (e.g., `train arena`).
-- Aliases: `eval`/`sim` → `evaluate`, `eval_remote`/`sim_remote` → `evaluate_remote`.
 - Inference: play/replay prefer `simulations()[0]`; otherwise fallback to `mettagrid()`.
 
 #### Visualization Tools

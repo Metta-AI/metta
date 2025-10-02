@@ -10,7 +10,7 @@ essential functionality for training, evaluation, visualization, and development
 | **Training**      | `run.py train <recipe>`      | Train policies with recipe configurations     | ✓            | Optional        |
 |                   | `sweep_init.py`                         | Initialize hyperparameter sweep experiments   | ✗            | ✗               |
 |                   | `sweep_eval.py`                         | Evaluate policies from sweep runs             | ✓            | ✗               |
-| **Evaluation**    | `run.py evaluate <recipe>`  | Run policy evaluation with recipe system      | ✓            | ✓               |
+| **Evaluation**    | `run.py eval <recipe>`      | Run policy evaluation with recipe system      | ✓            | ✓               |
 |                   | `run.py analyze <recipe>`   | Analyze evaluation results with recipes       | ✗            | ✓               |
 | **Visualization** | `run.py play <recipe>`      | Interactive gameplay via recipe system        | ✗            | ✗               |
 |                   | `run.py replay <recipe>`    | Generate replay files via recipe system       | ✓            | ✗               |
@@ -33,7 +33,7 @@ The main entry point is `./tools/run.py` which uses the recipe system for all ma
 
 ```bash
 ./tools/run.py train arena run=my_experiment # Training
-./tools/run.py evaluate arena policy_uri=s3://my-bucket/checkpoints/my_experiment/my_experiment:v20.pt # Evaluation
+./tools/run.py eval arena policy_uri=s3://my-bucket/checkpoints/my_experiment/my_experiment:v20.pt # Evaluation
 ./tools/run.py play arena policy_uri=s3://my-bucket/checkpoints/my_experiment/my_experiment:v20.pt # Interactive play
 ```
 
@@ -41,8 +41,8 @@ The main entry point is `./tools/run.py` which uses the recipe system for all ma
 
 If a recipe module defines `def mettagrid() -> MettaGridConfig` and optionally `def simulations() -> list[SimulationConfig]`,
 `run.py` can infer common tools even if the module does not implement them explicitly. If both are present,
-`simulations()` takes precedence for evaluation (and for the evaluator in inferred training tools). Internally, tools
-use canonical names only: `train`, `play`, `replay`, `evaluate`, `evaluate_remote`.
+`simulations()` takes precedence for evaluation (and for the evaluator in inferred training tools). Inferred tools include:
+`train`, `play`, `replay`, `eval`, `eval_remote`.
 
 Inference details:
 - Play: inferred from `simulations()[0]` if present; otherwise from `mettagrid()`.
@@ -52,10 +52,10 @@ Examples:
 
 ```bash
 # Non-remote evaluation
-./tools/run.py evaluate arena policy_uris=mock://policy
+./tools/run.py eval arena policy_uris=mock://policy
 
 # Remote evaluation
-./tools/run.py evaluate_remote arena policy_uri=s3://bucket/run:v10.pt
+./tools/run.py eval_remote arena policy_uri=s3://bucket/run:v10.pt
 ```
 
 Shorthands:
@@ -235,17 +235,17 @@ programmatic processing
 **Usage**:
 
 ```bash
-# Evaluate a single policy
-./tools/run.py evaluate navigation policy_uri=s3://my-bucket/checkpoints/experiment_001/experiment_001:v12.pt
+# Eval a single policy
+./tools/run.py eval navigation policy_uri=s3://my-bucket/checkpoints/experiment_001/experiment_001:v12.pt
 
-# Evaluate with arena recipe
-./tools/run.py evaluate arena policy_uri=s3://my-bucket/checkpoints/experiment_001/experiment_001:v12.pt
+# Eval with arena recipe
+./tools/run.py eval arena policy_uri=s3://my-bucket/checkpoints/experiment_001/experiment_001:v12.pt
 
-# Evaluate with specific policy from file
-./tools/run.py evaluate arena policy_uri=file://./train_dir/my_run/checkpoints/my_run:v12.pt
+# Eval with specific policy from file
+./tools/run.py eval arena policy_uri=file://./train_dir/my_run/checkpoints/my_run:v12.pt
 
-# Evaluate using a remote checkpoint stored on S3
-./tools/run.py evaluate navigation policy_uri=s3://team-checkpoints/project/my_run/checkpoints/my_run:v0.pt
+# Eval using a remote checkpoint stored on S3
+./tools/run.py eval navigation policy_uri=s3://team-checkpoints/project/my_run/checkpoints/my_run:v0.pt
 ```
 
 **Key Features**:
@@ -766,8 +766,8 @@ GROUP BY policy_name, episode;
 # 1. Train a policy
 ./tools/run.py train navigation run=nav_experiment_001
 
-# 2. Evaluate the trained policy
-./tools/run.py evaluate navigation policy_uri=s3://my-bucket/checkpoints/nav_experiment_001/nav_experiment_001:v8.pt
+# 2. Eval the trained policy
+./tools/run.py eval navigation policy_uri=s3://my-bucket/checkpoints/nav_experiment_001/nav_experiment_001:v8.pt
 
 # 3. Analyze results
 ./tools/run.py analyze navigation eval_db_uri=./train_dir/eval_nav_experiment_001/stats.db

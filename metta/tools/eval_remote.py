@@ -1,5 +1,5 @@
 import logging
-from typing import ClassVar, Optional, Sequence
+from typing import ClassVar, Sequence
 
 from gitta import get_git_hash_for_remote_task
 from metta.app_backend.clients.stats_client import HttpStatsClient
@@ -9,27 +9,16 @@ from metta.common.util.constants import PROD_STATS_SERVER_URI
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.utils import get_or_create_policy_ids
-from mettagrid import MettaGridConfig
 
 logger = logging.getLogger(__name__)
 
 
 class EvalRemoteTool(Tool):
-    tool_name: ClassVar[str] = "evaluate_remote"
-    tool_aliases: ClassVar[list[str]] = ["sim_remote", "eval_remote"]
+    tool_name: ClassVar[str] = "eval_remote"
     stats_server_uri: str = PROD_STATS_SERVER_URI
 
     policy_uri: str
     simulations: Sequence[SimulationConfig]
-
-    @classmethod
-    def infer(
-        cls,
-        mettagrid: Optional[MettaGridConfig] = None,
-        simulations: Optional[list[SimulationConfig]] = None,
-    ) -> Optional["EvalRemoteTool"]:
-        """Cannot infer: requires explicit policy_uri."""
-        return None
 
     def invoke(self, args: dict[str, str]) -> int | None:
         stats_client = HttpStatsClient.create(self.stats_server_uri)

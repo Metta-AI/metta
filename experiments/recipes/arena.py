@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
@@ -9,6 +9,7 @@ from metta.cogworks.curriculum.curriculum import (
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.tools.eval import EvalTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from mettagrid.config import ConverterConfig
@@ -124,3 +125,19 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
         training_env=TrainingEnvironmentConfig(curriculum=cc.env_curriculum(env_cfg)),
         evaluator=EvaluatorConfig(simulations=simulations()),
     )
+
+
+# This could be inferred from simulations() i.e. no need to be expliiclty defined
+# but we keep ith ere so we can alias it
+# for backward compatibility to name "evaluate"
+def eval(
+    policy_uris: str | Sequence[str] | None = None,
+) -> EvalTool:
+    return EvalTool(
+        simulations=simulations(),
+        policy_uris=policy_uris,
+    )
+
+
+# Backward compatibility alias
+evaluate = eval

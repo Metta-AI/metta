@@ -2,7 +2,7 @@
 
 import json
 import logging
-from typing import ClassVar, Optional
+from typing import ClassVar
 
 import numpy as np
 import torch as torch
@@ -13,7 +13,6 @@ from metta.common.wandb.context import WandbConfig
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_wandb_config
-from mettagrid import MettaGridConfig
 from mettagrid.util.grid_object_formatter import format_grid_object
 
 logger = logging.getLogger(__name__)
@@ -38,21 +37,6 @@ class PlayTool(Tool):
     def effective_stats_dir(self) -> str:
         """Get the stats directory, defaulting to system.data_dir/stats if not specified."""
         return self.stats_dir if self.stats_dir is not None else f"{self.system.data_dir}/stats"
-
-    @classmethod
-    def infer(
-        cls,
-        mettagrid: Optional[MettaGridConfig] = None,
-        simulations: Optional[list[SimulationConfig]] = None,
-    ) -> Optional["PlayTool"]:
-        """Infer PlayTool from recipe. Prefers simulations[0]; falls back to mettagrid."""
-        # Prefer simulations()[0] if available; otherwise fall back to mettagrid()
-        if simulations and len(simulations) > 0:
-            return cls(sim=simulations[0])
-        if mettagrid is not None:
-            sim_cfg = SimulationConfig(suite="default", name="play", env=mettagrid)
-            return cls(sim=sim_cfg)
-        return None
 
     def invoke(self, args: dict[str, str]) -> int | None:
         if self.mettascope2:

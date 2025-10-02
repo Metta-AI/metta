@@ -325,7 +325,7 @@ def replay(
     return replay_icl(task_generator, policy_uri)
 
 
-def evaluate(
+def eval(
     simulations: Optional[Sequence[SimulationConfig]] = None,
 ) -> EvalTool:
     # Local import to avoid circular import at module load time
@@ -355,6 +355,10 @@ def evaluate(
         policy_uris=policy_uris,
         stats_server_uri="https://api.observatory.softmax-research.net",
     )
+
+
+# Backward compatibility alias
+evaluate = eval
 
 
 def experiment():
@@ -490,7 +494,7 @@ def sweep(
         protein_config=lp_protein_config,
         recipe_module="experiments.recipes.in_context_learning.ordered_chains",
         train_entrypoint="train",
-        eval_entrypoint="evaluate",
+        eval_entrypoint="eval",
         train_overrides={
             "trainer.total_timesteps": total_timesteps,
         },

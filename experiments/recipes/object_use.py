@@ -9,6 +9,9 @@ from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.tools.eval import EvalTool
+from metta.tools.play import PlayTool
+from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
 from mettagrid.builder import building, empty_converters
 from mettagrid.config.mettagrid_config import (
@@ -218,3 +221,22 @@ def train(
 
 def simulations() -> list[SimulationConfig]:
     return list(make_object_use_eval_suite())
+
+
+def eval(policy_uris: Optional[list[str]] = None) -> EvalTool:
+    """Evaluate policies on object use tasks."""
+    return EvalTool(simulations=simulations(), policy_uris=policy_uris or [])
+
+
+# Backward compatibility alias
+evaluate = eval
+
+
+def play(policy_uri: Optional[str] = None) -> PlayTool:
+    """Interactive play with a policy."""
+    return PlayTool(sim=simulations()[0], policy_uri=policy_uri)
+
+
+def replay(policy_uri: Optional[str] = None) -> ReplayTool:
+    """Generate replay from a policy."""
+    return ReplayTool(sim=simulations()[0], policy_uri=policy_uri)

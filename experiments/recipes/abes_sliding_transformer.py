@@ -142,7 +142,7 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     return ReplayTool(sim=SimulationConfig(suite="arena", env=eval_env, name="eval"))
 
 
-def evaluate(
+def eval(
     policy_uri: str | None = None,
     simulations: Optional[Sequence[SimulationConfig]] = None,
 ) -> EvalTool:
@@ -153,6 +153,10 @@ def evaluate(
         simulations=simulations,
         policy_uris=policy_uris,
     )
+
+
+# Backward compatibility alias
+evaluate = eval
 
 
 def evaluate_in_sweep(

@@ -6,7 +6,6 @@ import importlib
 from typing import Callable, Optional
 
 from metta.common.tool import Tool
-from metta.common.tool.tool_registry import get_tool_registry
 
 
 def _load_tool_maker(path: str) -> Optional[Callable[[], Tool]]:
@@ -44,42 +43,31 @@ def resolve_and_load_tool(tool_path: str) -> Callable[[], Tool] | None:
     """Resolve tool path and load the tool maker.
 
     Args:
-        tool_path: Tool path like 'arena.train', 'train arena', or 'eval'
+        tool_path: Tool path like 'arena.train' or 'experiments.recipes.arena.train'
 
-    Two-phase resolution:
-    1. Try raw path - direct load from import path
-    2. Try recipe registry - check if path maps to a known recipe, then infer tool
+    Resolution strategy:
+    1. Try direct import (e.g., 'experiments.recipes.arena.train')
+    2. If not found and path has a dot, split into module_path and tool_name:
+       - Look up recipe and get tool by name (handles both function names like
+         'replay_null', 'train_shaped' and tool names like 'evaluate', 'train')
 
     Returns:
         Tool maker callable, or None if not found
     """
     from metta.common.tool.recipe_registry import get_recipe_registry
 
-    # Phase 1: Try direct load with raw path
+    # Phase 1: Try direct import
     maker = _load_tool_maker(tool_path)
     if maker:
         return maker
 
-    # Phase 2: Check if this maps to a recipe in the registry
-    # Parse tool_path into possible (module_path, tool_name) combinations
+    # Phase 2: Try recipe lookup
     if "." in tool_path:
         module_path, tool_name = tool_path.rsplit(".", 1)
 
-        # Check recipe registry (handles both short and full paths)
         recipe_registry = get_recipe_registry()
         recipe = recipe_registry.get(module_path)
         if recipe:
-            # First try direct name lookup (for functions like train_shaped, replay_null)
-            if tool_name in recipe.get_all_tool_names():
-                # Access the tool directly from the _name_to_tool map
-                return recipe._name_to_tool.get(tool_name)
-
-            # If direct lookup fails, try canonical name (for aliases and inferred tools)
-            registry = get_tool_registry()
-            canonical = registry.get_canonical_name(tool_name) or tool_name
-            tools = recipe.get_tools_for_canonical(canonical)
-            if tools:
-                # Return first matching tool
-                return tools[0][1]
+            return recipe.get_tool(tool_name)
 
     return None

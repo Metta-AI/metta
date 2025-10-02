@@ -285,7 +285,7 @@ def replay(
     return replay_icl(task_generator, default_policy_uri)
 
 
-def evaluate():
+def eval():
     from experiments.evals.in_context_learning.assemblers.assembly_lines import (
         make_assembly_line_eval_suite,
     )
@@ -302,6 +302,10 @@ def evaluate():
         policy_uris=policy_uris,
         stats_server_uri="https://api.observatory.softmax-research.net",
     )
+
+
+# Backward compatibility alias
+evaluate = eval
 
 
 def experiment():
