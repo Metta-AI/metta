@@ -6,6 +6,7 @@ import importlib
 from typing import Callable, Optional
 
 from metta.common.tool import Tool
+from metta.common.tool.tool_registry import get_tool_registry
 
 
 def normalize_module_path(module_path: str) -> list[str]:
@@ -107,30 +108,46 @@ def resolve_and_load_tool(tool_path: str) -> Callable[[], Tool] | None:
     """Resolve tool path and load the tool maker.
 
     Args:
-        tool_path: Tool path like 'arena.train' or 'eval'
+        tool_path: Tool path like 'arena.train', 'train arena', or 'eval'
 
-    Tries in order:
-    1. Direct load (explicit tools defined in modules)
-    2. Recipe inference (for recipes with mettagrid/simulations)
+    Two-phase resolution:
+    1. Try raw path - direct load from import path
+    2. Try recipe registry - check if path maps to a known recipe, then infer tool
 
     Returns:
         Tool maker callable, or None if not found
     """
-    from metta.common.tool.recipe import infer_tool_from_recipe
+    from metta.common.tool.recipe_registry import get_recipe_registry
 
-    candidates = _resolve_tool_path(tool_path)
+    # Phase 1: Try direct load with raw path
+    maker = _load_tool_maker(tool_path)
+    if maker:
+        return maker
 
-    for candidate in candidates:
-        # Try direct load
-        maker = _load_tool_maker(candidate)
-        if maker:
-            return maker
+    # Phase 2: Check if this maps to a recipe in the registry
+    # Parse tool_path into possible (module_path, tool_name) combinations
+    if "." in tool_path:
+        module_path, tool_name = tool_path.rsplit(".", 1)
 
-        # Try recipe inference
-        if "." in candidate:
-            module_path, tool_name = candidate.rsplit(".", 1)
-            maker = infer_tool_from_recipe(module_path, tool_name)
-            if maker:
-                return maker
+        # Try both short and full recipe paths
+        recipe_registry = get_recipe_registry()
+        for candidate_module in normalize_module_path(module_path):
+            recipe = recipe_registry.get(candidate_module)
+            if recipe:
+                # Found recipe! Check if it supports this tool
+                canonical = _get_canonical_tool_name(tool_name)
+                if recipe.supports_tool(canonical):
+                    tools = recipe.get_tools_for_canonical(canonical)
+                    if tools:
+                        # Return first matching tool
+                        return tools[0][1]
 
     return None
+
+
+def _get_canonical_tool_name(tool_name: str) -> str:
+    """Get canonical name for a tool, handling aliases."""
+
+    registry = get_tool_registry()
+    canonical = registry.get_canonical_name(tool_name)
+    return canonical if canonical else tool_name
