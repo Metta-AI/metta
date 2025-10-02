@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -89,12 +89,15 @@ class LSTMPolicyNet(torch.nn.Module):
                     # PufferLib uses shape (batch_size, num_layers, hidden_size)
                     # but PyTorch LSTM expects (num_layers, batch_size, hidden_size)
                     if h.dim() == 3:
+                        # Transpose from (batch, layers, hidden) to (layers, batch, hidden)
                         h = h.transpose(0, 1)
                         c = c.transpose(0, 1)
                     elif h.dim() == 2:
+                        # (batch, hidden) -> (1, batch, hidden)
                         h = h.unsqueeze(0)
                         c = c.unsqueeze(0)
                     elif h.dim() == 1:
+                        # (hidden,) -> (1, 1, hidden)
                         h = h.unsqueeze(0).unsqueeze(0)
                         c = c.unsqueeze(0).unsqueeze(0)
                     rnn_state = (h, c)
@@ -111,23 +114,22 @@ class LSTMPolicyNet(torch.nn.Module):
 
         hidden, new_state = self._rnn(hidden, rnn_state)
 
-        # If a dict was provided, update it in-place with the new state for subsequent calls
-        if state_is_dict and new_state is not None:
+        # If state was passed as a dict with LSTM keys, update it in-place with new state
+        if state_has_keys:
             h, c = new_state
+            # Transpose back to PufferLib format: (layers, batch, hidden) -> (batch, layers, hidden)
             if h.dim() == 3:
-                h_store = h.transpose(0, 1)
-                c_store = c.transpose(0, 1)
+                h = h.transpose(0, 1)
+                c = c.transpose(0, 1)
             elif h.dim() == 2:
-                h_store = h.unsqueeze(1)
-                c_store = c.unsqueeze(1)
+                # (batch, hidden) -> (batch, layers=1, hidden)
+                h = h.unsqueeze(1)
+                c = c.unsqueeze(1)
             elif h.dim() == 1:
-                h_store = h.unsqueeze(0).unsqueeze(1)
-                c_store = c.unsqueeze(0).unsqueeze(1)
-            else:
-                h_store = h
-                c_store = c
-            state["lstm_h"] = h_store.detach()
-            state["lstm_c"] = c_store.detach()
+                # (hidden,) -> (batch=1, layers=1, hidden)
+                h = h.unsqueeze(0).unsqueeze(1)
+                c = c.unsqueeze(0).unsqueeze(1)
+            state["lstm_h"], state["lstm_c"] = h, c
 
         hidden = rearrange(hidden, "b t h -> (b t) h")
         logits = self._action_head(hidden)
@@ -205,7 +207,7 @@ class LSTMAgentPolicy(StatefulAgentPolicy[Tuple[torch.Tensor, torch.Tensor]]):
                 new_state = (h.detach(), c.detach())
 
             # Sample action from the logits
-            actions = []
+            actions: list[int] = []
             for logit in logits:
                 dist = torch.distributions.Categorical(logits=logit)
                 actions.append(dist.sample().item())

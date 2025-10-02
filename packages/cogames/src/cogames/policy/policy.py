@@ -1,7 +1,7 @@
 """Base policy classes and interfaces."""
 
 from abc import abstractmethod
-from typing import Generic, Optional, Tuple, TypeVar
+from typing import Any, Generic, Optional, Tuple, TypeVar
 
 import torch.nn as nn
 
@@ -29,13 +29,6 @@ class AgentPolicy:
             The action to take
         """
         raise NotImplementedError("Subclasses must implement step()")
-
-    def reset(self) -> None:
-        """Reset the policy state (e.g., for episodic tasks).
-
-        Default implementation does nothing.
-        """
-        pass  # Default: no-op for stateless policies
 
 
 class Policy:
