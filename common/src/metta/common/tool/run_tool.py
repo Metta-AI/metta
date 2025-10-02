@@ -22,6 +22,7 @@ from typing_extensions import TypeVar
 
 from metta.common.tool import Tool
 from metta.common.tool.recipe import Recipe
+from metta.common.tool.recipe_registry import get_recipe_registry
 from metta.common.tool.tool_path import normalize_module_path, resolve_and_load_tool, strip_recipe_prefix
 from metta.common.tool.tool_registry import get_tool_registry
 from metta.common.util.log_config import init_logging
@@ -394,7 +395,9 @@ def list_all_recipes(console: Console) -> None:
     """List all available recipes and their tools."""
     console.print("\n[bold cyan]Available Recipes:[/bold cyan]\n")
 
-    recipes = Recipe.discover_all()
+    recipe_registry = get_recipe_registry()
+    recipes = recipe_registry.get_all()
+
     if not recipes:
         console.print("[yellow]No recipes found.[/yellow]")
         return
@@ -539,7 +542,8 @@ constructor/function vs configuration overrides based on introspection.
         # If it's a known tool type, list all recipes that support it
         if canonical_tool in registry.get_all_tools():
             console.print(f"\n[bold]Recipes supporting '{tool_path}':[/bold]\n")
-            recipes = Recipe.discover_all()
+            recipe_registry = get_recipe_registry()
+            recipes = recipe_registry.get_all()
             found_any = False
 
             for recipe in sorted(recipes, key=lambda r: r.module_name):
