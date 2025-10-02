@@ -106,40 +106,57 @@ proc findAdjacentWalkable*(target: IVec2): seq[IVec2] =
   return adjacent
 
 proc recomputePath*(agentId: int, currentPos: IVec2) =
-  ## Recompute the path for an agent to their current destination.
+  ## Recompute the path for an agent through all their queued destinations.
   if not agentDestinations.hasKey(agentId) or agentDestinations[agentId].len == 0:
+    agentPaths.del(agentId)
     return
-  let dest = agentDestinations[agentId][0]
-  case dest.destinationType
-  of Move:
-    # for moving, we can path directly to the destination.
-    if currentPos == dest.pos:
-      agentDestinations[agentId].delete(0)
-      agentPaths.del(agentId)
-      if agentDestinations[agentId].len > 0:
-        recomputePath(agentId, currentPos)
+  
+  # Compute path through all destinations.
+  var fullPath: seq[IVec2] = @[]
+  var lastPos = currentPos
+  
+  for i, dest in agentDestinations[agentId]:
+    var segmentPath: seq[IVec2] = @[]
+    
+    case dest.destinationType
+    of Move:
+      # For moving, path directly to the destination.
+      segmentPath = findPath(lastPos, dest.pos)
+    of Bump:
+      # For bumping, path to an adjacent walkable position.
+      let adjacentTiles = findAdjacentWalkable(dest.pos)
+      if adjacentTiles.len == 0:
+        clearPath(agentId)
+        return
+      if lastPos in adjacentTiles:
+        # Already adjacent, use current position.
+        segmentPath = @[lastPos]
+      else:
+        # Find the shortest path to any adjacent tile.
+        var bestPath: seq[IVec2] = @[]
+        for adjacent in adjacentTiles:
+          let path = findPath(lastPos, adjacent)
+          if path.len > 0 and (bestPath.len == 0 or path.len < bestPath.len):
+            bestPath = path
+        segmentPath = bestPath
+    
+    if segmentPath.len == 0:
+      clearPath(agentId)
       return
-    let newPath = findPath(currentPos, dest.pos)
-    if newPath.len > 0:
-      agentPaths[agentId] = newPath
+    
+    if i == 0:
+      fullPath = segmentPath
     else:
-      clearPath(agentId)
-  of Bump:
-    # for bumping, we need to path to an adjacent walkable position before bumping it.
-    let adjacentTiles = findAdjacentWalkable(dest.pos)
-    if adjacentTiles.len == 0:
-      clearPath(agentId)
-      return
-    if currentPos in adjacentTiles:
-      agentPaths[agentId] = @[currentPos]
-      return
-    var bestPath: seq[IVec2] = @[]
-    for adjacent in adjacentTiles:
-      let path = findPath(currentPos, adjacent)
-      if path.len > 0 and (bestPath.len == 0 or path.len < bestPath.len):
-        bestPath = path
-    if bestPath.len > 0:
-      agentPaths[agentId] = bestPath
-    else:
-      clearPath(agentId)
+      if segmentPath.len > 1:
+        for j in 1 ..< segmentPath.len:
+          fullPath.add(segmentPath[j])
+      elif segmentPath.len == 1 and segmentPath[0] != fullPath[fullPath.len - 1]:
+        fullPath.add(segmentPath[0])
+    
+    lastPos = dest.pos
+  
+  if fullPath.len > 0:
+    agentPaths[agentId] = fullPath
+  else:
+    clearPath(agentId)
 

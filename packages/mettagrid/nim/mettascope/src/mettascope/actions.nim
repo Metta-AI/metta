@@ -50,8 +50,17 @@ proc processActions*() =
     
     if agentDestinations.hasKey(agentId) and agentDestinations[agentId].len > 0:
       let dest = agentDestinations[agentId][0]
-
-      # If this is a 'bump' destination and we are adjacent to it, bump it once.
+      
+      # Check if we've reached a Move destination and remove it.
+      if dest.destinationType == Move and dest.pos == currentPos:
+        agentDestinations[agentId].delete(0)
+        if agentDestinations[agentId].len == 0:
+          agentPaths.del(agentId)
+          continue
+        else:
+          recomputePath(agentId, currentPos)
+      
+      # If this is a Bump destination and we are adjacent to it, bump it once.
       if dest.destinationType == Bump and currentPos in findAdjacentWalkable(dest.pos):
         # TODO: Chests have special behavior.
         #   You must deposit on the right side and take out on the left side.
@@ -60,10 +69,10 @@ proc processActions*() =
         let dy = dest.pos.y - currentPos.y
         let targetOrientation = getOrientationFromDelta(dx.int, dy.int)
         sendAction(agentId, replay.moveActionId, targetOrientation.int)
-        # after bumping, the current destination is fulfilled.
+        # After bumping, the current destination is fulfilled.
         agentDestinations[agentId].delete(0)
         agentPaths.del(agentId)
-        # if there's another destination, pathfind to it.
+        # If there's another destination, pathfind to it.
         if agentDestinations[agentId].len > 0:
           recomputePath(agentId, currentPos)
         continue
@@ -72,9 +81,9 @@ proc processActions*() =
       continue
     let path = agentPaths[agentId]
     
-    if path.len > 1:
+    if path.len > 0:
       # If we are still on the expected path, continue moving.
-      # otherwise, assume something is blocking the path and recompute.
+      # Otherwise, assume something is blocking the path and recompute.
       if path[0] == currentPos:
         if path.len > 1:
           let nextPos = path[1]
