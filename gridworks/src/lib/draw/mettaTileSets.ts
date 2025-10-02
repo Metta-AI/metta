@@ -3,6 +3,7 @@ import { TileSetCollection } from "./TileSetCollection";
 
 const sources = [
   "altar",
+  "assembler",
   "armory",
   "carbon_extractor",
   "charger",

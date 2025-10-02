@@ -53,6 +53,7 @@ const objectDrawers: Record<string, ObjectDrawer> = {
     { tile: "generator" },
     { tile: "generator.color", modulate: { r: 0, g: 1, b: 0 } },
   ],
+  assembler: [{ tile: "assembler" }],
   carbon_extractor: [{ tile: "carbon_extractor" }],
   oxygen_extractor: [{ tile: "oxygen_extractor" }],
   germanium_extractor: [{ tile: "germanium_extractor" }],

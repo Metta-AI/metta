@@ -1,11 +1,11 @@
-from typing import List
+import math
+import random
+from typing import Callable, List, Optional
 
-import numpy as np
 from cogames.cogs_vs_clips import stations as cvc_stations
 from metta.sim.simulation_config import SimulationConfig
 from mettagrid import MettaGridConfig
 from mettagrid.builder.envs import make_navigation
-from mettagrid.config.config import Config
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.random.int import IntConstantDistribution
 from mettagrid.mapgen.scene import ChildrenAction, Scene
@@ -21,8 +21,11 @@ from mettagrid.mapgen.scenes.make_connected import MakeConnected, MakeConnectedP
 from mettagrid.mapgen.scenes.maze import Maze, MazeParams
 from mettagrid.mapgen.scenes.quadrants import Quadrants, QuadrantsParams
 from mettagrid.mapgen.scenes.radial_maze import RadialMaze, RadialMazeParams
+from mettagrid.mapgen.scenes.uniform_extractors import (
+    UniformExtractorParams,
+    UniformExtractorScene,
+)
 from mettagrid.mapgen.types import AreaWhere
-from pydantic import Field
 
 
 def areas_overlap(
@@ -164,195 +167,800 @@ def _linspace_positions(count: int, interior_size: int) -> list[int]:
     ]
 
 
-class UniformExtractorParams(Config):
-    rows: int = 4
-    cols: int = 4
-    jitter: int = 1
-    padding: int = 1
-    clear_existing: bool = False
-    frame_with_walls: bool = False
-    target_coverage: float | None = None
-    extractor_names: list[str] = Field(
-        default_factory=lambda: [
+def _compute_scale(width: int, height: int) -> float:
+    base_area = 500 * 500
+    current_area = width * height
+    return math.sqrt(current_area / base_area)
+
+
+def _scale_int(
+    base: int, scale: float, minimum: int, maximum: Optional[int] = None
+) -> int:
+    value = max(minimum, int(round(base * scale)))
+    if maximum is not None:
+        value = min(value, maximum)
+    return value
+
+
+def _rand_tag(prefix: str, rng: random.Random) -> str:
+    return f"{prefix}.{rng.randrange(10_000_000)}"
+
+
+def _build_zone_actions(
+    rng: random.Random,
+    scale: float,
+    count: int,
+    max_width: int,
+    max_height: int,
+) -> list[ChildrenAction]:
+    max_feature_width = max(32, max_width // 3)
+    max_feature_height = max(32, max_height // 3)
+
+    def _wrap_layout(
+        width: int,
+        height: int,
+        tag: str,
+        nested_children: list[ChildrenAction],
+        background: Optional[str] = "empty",
+    ):
+        clamped_width = max(12, min(width, max_feature_width))
+        clamped_height = max(12, min(height, max_feature_height))
+        children: list[ChildrenAction] = []
+        if background:
+            children.append(
+                ChildrenAction(
+                    scene=FillArea.factory(FillAreaParams(value=background)),
+                    where=AreaWhere(tags=[tag]),
+                )
+            )
+        children.extend(nested_children)
+        return Layout.factory(
+            LayoutParams(
+                areas=[
+                    LayoutArea(
+                        width=clamped_width,
+                        height=clamped_height,
+                        placement="center",
+                        tag=tag,
+                    )
+                ]
+            ),
+            children_actions=children,
+        )
+
+    def zone_desert_radial(randomizer: random.Random, factor: float) -> ChildrenAction:
+        outer_tag = _rand_tag("scalable.desert", randomizer)
+        inner_tag = f"{outer_tag}.radial"
+        outer_size = min(_scale_int(90, factor, 36, 220), max_feature_width)
+        inner_size = max(12, min(outer_size - 6, _scale_int(30, factor, 14, 160)))
+        inner_scene = _wrap_layout(
+            inner_size,
+            inner_size,
+            inner_tag,
+            [
+                ChildrenAction(
+                    scene=RadialMaze.factory(
+                        RadialMazeParams(
+                            arms=_scale_int(10, factor, 6, 18),
+                            arm_width=_scale_int(2, factor, 1, 5),
+                            arm_length=_scale_int(28, factor, 12, 90),
+                            fill_background=False,
+                        )
+                    ),
+                    where=AreaWhere(tags=[inner_tag]),
+                    limit=1,
+                )
+            ],
+        )
+        outer_children = [
+            ChildrenAction(
+                scene=BiomeDesert.factory(
+                    BiomeDesertParams(
+                        dune_period=_scale_int(8, factor, 4, 24),
+                        ridge_width=_scale_int(2, factor, 1, 7),
+                        angle=randomizer.uniform(0.3, 0.6),
+                        noise_prob=randomizer.uniform(0.35, 0.7),
+                    )
+                ),
+                where=AreaWhere(tags=[outer_tag]),
+            ),
+            ChildrenAction(
+                scene=inner_scene,
+                where=AreaWhere(tags=[outer_tag]),
+                limit=1,
+            ),
+        ]
+        return ChildrenAction(
+            scene=_wrap_layout(
+                outer_size, outer_size, outer_tag, outer_children, background="empty"
+            ),
+            where=AreaWhere(tags=["zone"]),
+            order_by="random",
+            lock="scalable.zone",
+            limit=1,
+        )
+
+    def zone_forest_bsp(randomizer: random.Random, factor: float) -> ChildrenAction:
+        outer_tag = _rand_tag("scalable.forest", randomizer)
+        inner_tag = f"{outer_tag}.bsp"
+        outer_width = min(_scale_int(80, factor, 30, 180), max_feature_width)
+        outer_height = min(_scale_int(70, factor, 30, 160), max_feature_height)
+        inner_width = max(12, min(outer_width - 6, _scale_int(40, factor, 18, 140)))
+        inner_height = max(12, min(outer_height - 6, _scale_int(34, factor, 18, 140)))
+        inner_scene = _wrap_layout(
+            inner_width,
+            inner_height,
+            inner_tag,
+            [
+                ChildrenAction(
+                    scene=BSP.factory(
+                        BSPParams(
+                            rooms=_scale_int(12, factor, 6, 32),
+                            min_room_size=_scale_int(5, factor, 3, 12),
+                            min_room_size_ratio=0.3,
+                            max_room_size_ratio=0.7,
+                        )
+                    ),
+                    where=AreaWhere(tags=[inner_tag]),
+                    limit=1,
+                )
+            ],
+        )
+        outer_children = [
+            ChildrenAction(
+                scene=BiomeForest.factory(
+                    BiomeForestParams(
+                        clumpiness=_scale_int(5, factor, 3, 14),
+                        seed_prob=randomizer.uniform(0.03, 0.12),
+                        growth_prob=randomizer.uniform(0.55, 0.75),
+                        dither_prob=min(0.4, randomizer.uniform(0.0, 0.3)),
+                    )
+                ),
+                where=AreaWhere(tags=[outer_tag]),
+            ),
+            ChildrenAction(
+                scene=inner_scene,
+                where=AreaWhere(tags=[outer_tag]),
+                limit=1,
+            ),
+        ]
+        return ChildrenAction(
+            scene=_wrap_layout(
+                outer_width,
+                outer_height,
+                outer_tag,
+                outer_children,
+                background="empty",
+            ),
+            where=AreaWhere(tags=["zone"]),
+            order_by="random",
+            lock="scalable.zone",
+            limit=1,
+        )
+
+    def zone_city_maze(randomizer: random.Random, factor: float) -> ChildrenAction:
+        outer_tag = _rand_tag("scalable.city", randomizer)
+        inner_tag = f"{outer_tag}.maze"
+        outer_width = min(_scale_int(70, factor, 28, 180), max_feature_width)
+        outer_height = min(_scale_int(70, factor, 28, 180), max_feature_height)
+        inner_size = max(
+            12, min(min(outer_width, outer_height) - 6, _scale_int(40, factor, 18, 150))
+        )
+        algorithm = randomizer.choice(["dfs", "kruskal"])
+        base_room = 3 if algorithm == "dfs" else 4
+        room_size = _scale_int(base_room, factor, 2, 8)
+        wall_size = min(
+            room_size, _scale_int(2 if algorithm == "kruskal" else 1, factor, 1, 5)
+        )
+        inner_scene = _wrap_layout(
+            inner_size,
+            inner_size,
+            inner_tag,
+            [
+                ChildrenAction(
+                    scene=Maze.factory(
+                        MazeParams(
+                            algorithm=algorithm,
+                            room_size=IntConstantDistribution(value=room_size),
+                            wall_size=IntConstantDistribution(value=wall_size),
+                        )
+                    ),
+                    where=AreaWhere(tags=[inner_tag]),
+                    limit=1,
+                )
+            ],
+        )
+        outer_children = [
+            ChildrenAction(
+                scene=BiomeCity.factory(
+                    BiomeCityParams(
+                        pitch=_scale_int(10, factor, 6, 18),
+                        road_width=_scale_int(2, factor, 1, 5),
+                        jitter=_scale_int(2, factor, 0, 5),
+                        place_prob=randomizer.uniform(0.75, 0.95),
+                    )
+                ),
+                where=AreaWhere(tags=[outer_tag]),
+            ),
+            ChildrenAction(
+                scene=inner_scene,
+                where=AreaWhere(tags=[outer_tag]),
+                limit=1,
+            ),
+        ]
+        return ChildrenAction(
+            scene=_wrap_layout(
+                outer_width,
+                outer_height,
+                outer_tag,
+                outer_children,
+                background="empty",
+            ),
+            where=AreaWhere(tags=["zone"]),
+            order_by="random",
+            lock="scalable.zone",
+            limit=1,
+        )
+
+    def zone_caves_cluster(randomizer: random.Random, factor: float) -> ChildrenAction:
+        outer_tag = _rand_tag("scalable.caves", randomizer)
+        area_width = min(_scale_int(70, factor, 28, 200), max_feature_width)
+        area_height = min(_scale_int(60, factor, 28, 200), max_feature_height)
+        outer_children = [
+            ChildrenAction(
+                scene=BiomeCaves.factory(
+                    BiomeCavesParams(
+                        fill_prob=randomizer.uniform(0.35, 0.55),
+                        steps=_scale_int(4, factor, 2, 7),
+                        birth_limit=_scale_int(5, factor, 3, 7),
+                        death_limit=_scale_int(3, factor, 2, 6),
+                    )
+                ),
+                where=AreaWhere(tags=[outer_tag]),
+            )
+        ]
+        return ChildrenAction(
+            scene=_wrap_layout(
+                area_width,
+                area_height,
+                outer_tag,
+                outer_children,
+                background="empty",
+            ),
+            where=AreaWhere(tags=["zone"]),
+            order_by="random",
+            lock="scalable.zone",
+            limit=1,
+        )
+
+    def zone_bsp_full(randomizer: random.Random, factor: float) -> ChildrenAction:
+        tag = _rand_tag("scalable.feature.bsp", randomizer)
+        width = min(_scale_int(70, factor, 28, 200), max_feature_width)
+        height = min(_scale_int(60, factor, 28, 200), max_feature_height)
+        params = BSPParams(
+            rooms=_scale_int(14, factor, 6, 40),
+            min_room_size=_scale_int(4, factor, 3, 12),
+            min_room_size_ratio=min(0.6, max(0.25, 0.35 * factor)),
+            max_room_size_ratio=min(0.9, max(0.5, 0.7 * factor)),
+        )
+        inner_children = [
+            ChildrenAction(
+                scene=BSP.factory(params),
+                where=AreaWhere(tags=[tag]),
+                limit=1,
+            )
+        ]
+        return ChildrenAction(
+            scene=_wrap_layout(
+                width,
+                height,
+                tag,
+                inner_children,
+                background="empty",
+            ),
+            where=AreaWhere(tags=["zone"]),
+            order_by="random",
+            lock="scalable.zone",
+            limit=1,
+        )
+
+    def zone_radial_full(randomizer: random.Random, factor: float) -> ChildrenAction:
+        tag = _rand_tag("scalable.feature.radial", randomizer)
+        width = min(_scale_int(72, factor, 28, 200), max_feature_width)
+        height = min(_scale_int(72, factor, 28, 200), max_feature_height)
+        params = RadialMazeParams(
+            arms=_scale_int(12, factor, 5, 22),
+            arm_width=_scale_int(3, factor, 1, 6),
+            arm_length=_scale_int(36, factor, 14, 96),
+            fill_background=False,
+        )
+        inner_children = [
+            ChildrenAction(
+                scene=RadialMaze.factory(params),
+                where=AreaWhere(tags=[tag]),
+                limit=1,
+            )
+        ]
+        return ChildrenAction(
+            scene=_wrap_layout(
+                width,
+                height,
+                tag,
+                inner_children,
+                background="empty",
+            ),
+            where=AreaWhere(tags=["zone"]),
+            order_by="random",
+            lock="scalable.zone",
+            limit=1,
+        )
+
+    def zone_maze_dense(randomizer: random.Random, factor: float) -> ChildrenAction:
+        tag = _rand_tag("scalable.feature.maze", randomizer)
+        width = min(_scale_int(60, factor, 24, 160), max_feature_width)
+        height = min(_scale_int(60, factor, 24, 160), max_feature_height)
+        room_size = _scale_int(2, factor, 2, 5)
+        wall_size = min(room_size, _scale_int(1, factor, 1, 3))
+        params = MazeParams(
+            algorithm="dfs",
+            room_size=IntConstantDistribution(value=room_size),
+            wall_size=IntConstantDistribution(value=wall_size),
+        )
+        inner_children = [
+            ChildrenAction(
+                scene=Maze.factory(params),
+                where=AreaWhere(tags=[tag]),
+                limit=1,
+            )
+        ]
+        return ChildrenAction(
+            scene=_wrap_layout(
+                width,
+                height,
+                tag,
+                inner_children,
+                background="empty",
+            ),
+            where=AreaWhere(tags=["zone"]),
+            order_by="random",
+            lock="scalable.zone",
+            limit=1,
+        )
+
+    def zone_city_dense(randomizer: random.Random, factor: float) -> ChildrenAction:
+        tag = _rand_tag("scalable.feature.city", randomizer)
+        width = min(_scale_int(60, factor, 24, 180), max_feature_width)
+        height = min(_scale_int(60, factor, 24, 180), max_feature_height)
+        params = BiomeCityParams(
+            pitch=_scale_int(12, factor, 6, 22),
+            road_width=_scale_int(3, factor, 1, 6),
+            jitter=_scale_int(3, factor, 0, 6),
+            place_prob=randomizer.uniform(0.7, 0.98),
+        )
+        inner_children = [
+            ChildrenAction(
+                scene=BiomeCity.factory(params),
+                where=AreaWhere(tags=[tag]),
+            )
+        ]
+        return ChildrenAction(
+            scene=_wrap_layout(
+                width,
+                height,
+                tag,
+                inner_children,
+                background="empty",
+            ),
+            where=AreaWhere(tags=["zone"]),
+            order_by="random",
+            lock="scalable.zone",
+            limit=1,
+        )
+
+    builders: list[Callable[[random.Random, float], ChildrenAction]] = [
+        zone_desert_radial,
+        zone_forest_bsp,
+        zone_city_maze,
+        zone_caves_cluster,
+        zone_bsp_full,
+        zone_radial_full,
+        zone_maze_dense,
+        zone_city_dense,
+    ]
+
+    return [rng.choice(builders)(rng, scale) for _ in range(count)]
+
+
+def _build_dungeon_actions(
+    rng: random.Random,
+    scale: float,
+    count: int,
+    max_width: int,
+    max_height: int,
+) -> list[ChildrenAction]:
+    max_dungeon_width = max(16, max_width // 4)
+    max_dungeon_height = max(16, max_height // 4)
+
+    def _wrap_dungeon(
+        width: int,
+        height: int,
+        tag: str,
+        inner_child: ChildrenAction,
+        background: str = "empty",
+    ):
+        clamped_width = max(10, min(width, max_dungeon_width))
+        clamped_height = max(10, min(height, max_dungeon_height))
+        children: list[ChildrenAction] = []
+        if background:
+            children.append(
+                ChildrenAction(
+                    scene=FillArea.factory(FillAreaParams(value=background)),
+                    where=AreaWhere(tags=[tag]),
+                )
+            )
+        children.append(inner_child)
+        return Layout.factory(
+            LayoutParams(
+                areas=[
+                    LayoutArea(
+                        width=clamped_width,
+                        height=clamped_height,
+                        placement="center",
+                        tag=tag,
+                    )
+                ]
+            ),
+            children_actions=children,
+        )
+
+    def dungeon_bsp(randomizer: random.Random, factor: float) -> ChildrenAction:
+        tag = _rand_tag("scalable.dungeon.bsp", randomizer)
+        width = _scale_int(48, factor, 20, 160)
+        height = _scale_int(36, factor, 18, 140)
+        params = BSPParams(
+            rooms=_scale_int(8, factor, 6, 20),
+            min_room_size=_scale_int(3, factor, 2, 8),
+            min_room_size_ratio=0.35,
+            max_room_size_ratio=0.7,
+        )
+        inner_child = ChildrenAction(
+            scene=BSP.factory(params),
+            where=AreaWhere(tags=[tag]),
+            limit=1,
+        )
+        return ChildrenAction(
+            scene=_wrap_dungeon(width, height, tag, inner_child, background="empty"),
+            where=AreaWhere(tags=["zone"]),
+            order_by="random",
+            lock="scalable.zone.dungeon",
+            limit=1,
+        )
+
+    def dungeon_dfs(randomizer: random.Random, factor: float) -> ChildrenAction:
+        tag = _rand_tag("scalable.dungeon.dfs", randomizer)
+        width = _scale_int(40, factor, 18, 140)
+        height = _scale_int(40, factor, 18, 140)
+        room_size = _scale_int(3, factor, 2, 5)
+        wall_size = max(1, min(room_size - 1, _scale_int(1, factor, 1, 3)))
+        params = MazeParams(
+            algorithm="dfs",
+            room_size=IntConstantDistribution(value=room_size),
+            wall_size=IntConstantDistribution(value=wall_size),
+        )
+        inner_child = ChildrenAction(
+            scene=Maze.factory(params),
+            where=AreaWhere(tags=[tag]),
+            limit=1,
+        )
+        return ChildrenAction(
+            scene=_wrap_dungeon(width, height, tag, inner_child, background="empty"),
+            where=AreaWhere(tags=["zone"]),
+            order_by="random",
+            lock="scalable.zone.dungeon",
+            limit=1,
+        )
+
+    def dungeon_kruskal(randomizer: random.Random, factor: float) -> ChildrenAction:
+        tag = _rand_tag("scalable.dungeon.kruskal", randomizer)
+        width = _scale_int(42, factor, 18, 150)
+        height = _scale_int(42, factor, 18, 150)
+        room_size = _scale_int(4, factor, 2, 6)
+        wall_size = max(1, min(room_size - 1, _scale_int(2, factor, 1, 4)))
+        params = MazeParams(
+            algorithm="kruskal",
+            room_size=IntConstantDistribution(value=room_size),
+            wall_size=IntConstantDistribution(value=wall_size),
+        )
+        inner_child = ChildrenAction(
+            scene=Maze.factory(params),
+            where=AreaWhere(tags=[tag]),
+            limit=1,
+        )
+        return ChildrenAction(
+            scene=_wrap_dungeon(width, height, tag, inner_child, background="empty"),
+            where=AreaWhere(tags=["zone"]),
+            order_by="random",
+            lock="scalable.zone.dungeon",
+            limit=1,
+        )
+
+    def dungeon_radial(randomizer: random.Random, factor: float) -> ChildrenAction:
+        tag = _rand_tag("scalable.dungeon.radial", randomizer)
+        width = _scale_int(44, factor, 18, 150)
+        height = _scale_int(44, factor, 18, 150)
+        params = RadialMazeParams(
+            arms=_scale_int(8, factor, 4, 16),
+            arm_width=_scale_int(2, factor, 1, 4),
+            arm_length=_scale_int(20, factor, 10, 40),
+            fill_background=False,
+        )
+        inner_child = ChildrenAction(
+            scene=RadialMaze.factory(params),
+            where=AreaWhere(tags=[tag]),
+            limit=1,
+        )
+        return ChildrenAction(
+            scene=_wrap_dungeon(width, height, tag, inner_child, background="empty"),
+            where=AreaWhere(tags=["zone"]),
+            order_by="random",
+            lock="scalable.zone.dungeon",
+            limit=1,
+        )
+
+    builders: list[Callable[[random.Random, float], ChildrenAction]] = [
+        dungeon_bsp,
+        dungeon_dfs,
+        dungeon_kruskal,
+        dungeon_radial,
+    ]
+
+    return [rng.choice(builders)(rng, scale) for _ in range(count)]
+
+
+def _uniform_extractor_params(scale: float) -> UniformExtractorParams:
+    target = min(0.2, max(0.003, 0.006 * scale))
+    return UniformExtractorParams(
+        target_coverage=target,
+        jitter=max(0, _scale_int(0, scale, 0, 2)),
+        extractor_names=[
             "carbon_extractor",
             "oxygen_extractor",
             "germanium_extractor",
             "silicon_extractor",
             "charger",
-        ]
+        ],
     )
 
 
-class UniformExtractorScene(Scene[UniformExtractorParams]):
-    """Place extractor stations on a jittered uniform grid."""
+def make_scalable_astroid(
+    width: int,
+    height: int,
+    seed: Optional[int] = None,
+) -> MettaGridConfig:
+    rng = random.Random(seed)
+    scale = _compute_scale(width, height)
 
-    def render(self):
-        params = self.params
-        if self.width < 3 or self.height < 3:
-            raise ValueError("Extractor map must be at least 3x3 to fit border walls")
+    env = make_navigation(num_agents=4)
+    _add_extractor_objects(env)
 
-        padding = max(0, params.padding)
-        row_min = padding
-        row_max = self.height - padding - 1
-        col_min = padding
-        col_max = self.width - padding - 1
+    resources = set(env.game.resource_names)
+    resources.update({"energy", "carbon", "oxygen", "germanium", "silicon"})
+    env.game.resource_names = sorted(resources)
 
-        if row_min > row_max or col_min > col_max:
-            return
+    base_caves = BiomeCavesParams(fill_prob=0.45, steps=4, birth_limit=5, death_limit=3)
 
-        if params.clear_existing:
-            # Start from an empty canvas when requested (used for dedicated showcase maps).
-            self.grid[:, :] = "empty"
-            if params.frame_with_walls:
-                self.grid[0, :] = "wall"
-                self.grid[-1, :] = "wall"
-                self.grid[:, 0] = "wall"
-                self.grid[:, -1] = "wall"
+    zone_count = max(6, _scale_int(12, scale, 6, 40))
 
-        interior_width = self.width - 2
-        interior_height = self.height - 2
+    sanctum_size = max(10, _scale_int(64, scale, 18, min(width, height) - 20))
+    sanctum_tag = "sanctum.outpost"
 
-        spacing = padding + 1
+    sanctum_outpost_action = ChildrenAction(
+        scene=Layout.factory(
+            LayoutParams(
+                areas=[
+                    LayoutArea(
+                        width=sanctum_size,
+                        height=sanctum_size,
+                        placement="center",
+                        tag=sanctum_tag,
+                    )
+                ]
+            ),
+            children_actions=[
+                ChildrenAction(
+                    scene=FillArea.factory(FillAreaParams(value="empty")),
+                    where=AreaWhere(tags=[sanctum_tag]),
+                ),
+                ChildrenAction(
+                    scene=BiomeCity.factory(
+                        BiomeCityParams(
+                            pitch=_scale_int(8, scale, 5, 16),
+                            road_width=_scale_int(2, scale, 1, 4),
+                            jitter=_scale_int(1, scale, 0, 3),
+                            place_prob=0.7,
+                        )
+                    ),
+                    where=AreaWhere(tags=[sanctum_tag]),
+                    order_by="first",
+                    limit=1,
+                ),
+                ChildrenAction(
+                    scene=BaseHub.factory(
+                        BaseHubParams(
+                            assembler_object="altar",
+                            include_inner_wall=True,
+                            corner_objects=[
+                                "carbon_ex_dep",
+                                "oxygen_ex_dep",
+                                "germanium_ex_dep",
+                                "silicon_ex_dep",
+                            ],
+                        )
+                    ),
+                    where=AreaWhere(tags=[sanctum_tag]),
+                    order_by="last",
+                    limit=1,
+                ),
+            ],
+        ),
+        where="full",
+        order_by="first",
+        lock="sanctum.outpost",
+        limit=1,
+    )
 
-        def carve_and_place(center_row: int, center_col: int, name: str) -> None:
-            for rr in range(center_row - padding, center_row + padding + 1):
-                if rr < 0 or rr >= self.height:
-                    continue
-                for cc in range(center_col - padding, center_col + padding + 1):
-                    if cc < 0 or cc >= self.width:
-                        continue
-                    if rr == center_row and cc == center_col:
-                        self.grid[rr, cc] = name
-                    else:
-                        self.grid[rr, cc] = "empty"
+    sanctum_center_action = ChildrenAction(
+        scene=Layout.factory(
+            LayoutParams(
+                areas=[
+                    LayoutArea(
+                        width=15,
+                        height=15,
+                        placement="center",
+                        tag="sanctum.center",
+                    )
+                ]
+            ),
+            children_actions=[
+                ChildrenAction(
+                    scene=UniformExtractorScene.factory(
+                        UniformExtractorParams(
+                            target_coverage=min(0.05, max(0.003, 0.003 * scale)),
+                            jitter=0,
+                            clear_existing=True,
+                            extractor_names=[
+                                "carbon_extractor",
+                                "oxygen_extractor",
+                                "germanium_extractor",
+                                "silicon_extractor",
+                                "charger",
+                            ],
+                        )
+                    ),
+                    where=AreaWhere(tags=["sanctum.center"]),
+                    order_by="first",
+                    lock="sanctum_extractors",
+                    limit=1,
+                ),
+                ChildrenAction(
+                    scene=BaseHub.factory(
+                        BaseHubParams(
+                            assembler_object="altar",
+                            include_inner_wall=True,
+                            corner_objects=[
+                                "carbon_ex_dep",
+                                "oxygen_ex_dep",
+                                "germanium_ex_dep",
+                                "silicon_ex_dep",
+                            ],
+                        )
+                    ),
+                    where=AreaWhere(tags=["sanctum.center"]),
+                    limit=1,
+                ),
+            ],
+        ),
+        where="full",
+        order_by="last",
+        lock="sanctum",
+        limit=1,
+    )
 
-        def can_place(
-            center_row: int, center_col: int, centers: list[tuple[int, int]]
-        ) -> bool:
-            return not any(
-                abs(center_row - r0) <= padding and abs(center_col - c0) <= padding
-                for r0, c0 in centers
+    zone_actions_primary = _build_zone_actions(
+        rng,
+        scale,
+        max(8, int(zone_count * 1.5)),
+        width,
+        height,
+    )
+    zone_actions_secondary = _build_zone_actions(
+        rng,
+        scale * 0.85,
+        max(6, zone_count),
+        width,
+        height,
+    )
+    zone_actions_tertiary = _build_zone_actions(
+        rng,
+        scale * 0.7,
+        max(4, zone_count // 2),
+        width,
+        height,
+    )
+    dungeon_actions = _build_dungeon_actions(
+        rng,
+        scale,
+        max(6, zone_count),
+        width,
+        height,
+    )
+
+    map_children: list[ChildrenAction] = [
+        ChildrenAction(
+            scene=BSPLayout.factory(
+                BSPLayoutParams(area_count=max(10, zone_count * 2)),
+                children_actions=zone_actions_primary,
+            ),
+            where="full",
+            order_by="first",
+            limit=1,
+        ),
+        ChildrenAction(
+            scene=BSPLayout.factory(
+                BSPLayoutParams(area_count=max(12, zone_count + zone_count // 2)),
+                children_actions=zone_actions_secondary,
+            ),
+            where="full",
+            order_by="first",
+            limit=1,
+        ),
+        ChildrenAction(
+            scene=BSPLayout.factory(
+                BSPLayoutParams(area_count=max(8, zone_count)),
+                children_actions=zone_actions_tertiary,
+            ),
+            where="full",
+            order_by="first",
+            limit=1,
+        ),
+        ChildrenAction(
+            scene=BSPLayout.factory(
+                BSPLayoutParams(area_count=max(12, zone_count + zone_count // 2)),
+                children_actions=dungeon_actions,
+            ),
+            where="full",
+            order_by="first",
+            limit=1,
+        ),
+        ChildrenAction(
+            scene=UniformExtractorScene.factory(_uniform_extractor_params(scale)),
+            where="full",
+            order_by="last",
+            lock="resources",
+            limit=1,
+        ),
+    ]
+
+    map_children.extend([sanctum_outpost_action, sanctum_center_action])
+
+    if max(width, height) <= 400:
+        map_children.append(
+            ChildrenAction(
+                scene=MakeConnected.factory(MakeConnectedParams()),
+                where="full",
+                order_by="last",
+                lock="connect",
+                limit=1,
             )
+        )
 
-        extractor_names = params.extractor_names or ["carbon_extractor"]
+    env.game.map_builder = MapGen.Config(
+        width=width,
+        height=height,
+        root=BiomeCaves.factory(base_caves, children_actions=map_children),
+    )
 
-        if params.target_coverage is not None:
-            available_height = row_max - row_min + 1
-            available_width = col_max - col_min + 1
-            if available_height <= 0 or available_width <= 0:
-                return
-
-            max_rows = max(0, (available_height + spacing - 1) // spacing)
-            max_cols = max(0, (available_width + spacing - 1) // spacing)
-            max_possible = max_rows * max_cols
-            if max_possible == 0:
-                return
-
-            desired = int(params.target_coverage * interior_width * interior_height)
-            placement_goal = min(max_possible, max(1, desired))
-
-            valid_row_starts = [
-                row_min + offset
-                for offset in range(spacing)
-                if row_min + offset <= row_max
-            ]
-            valid_col_starts = [
-                col_min + offset
-                for offset in range(spacing)
-                if col_min + offset <= col_max
-            ]
-            if not valid_row_starts or not valid_col_starts:
-                return
-
-            start_row = int(self.rng.choice(valid_row_starts))
-            start_col = int(self.rng.choice(valid_col_starts))
-
-            rows = list(range(start_row, row_max + 1, spacing))
-            cols = list(range(start_col, col_max + 1, spacing))
-            positions = [(r, c) for r in rows for c in cols]
-            if not positions:
-                return
-
-            positions = positions[:max_possible]
-            permutation = self.rng.permutation(len(positions))
-            positions = [positions[i] for i in permutation]
-            positions = positions[:placement_goal]
-
-            assignments = [
-                extractor_names[i % len(extractor_names)] for i in range(len(positions))
-            ]
-            assignment_perm = self.rng.permutation(len(assignments))
-            assignments = [assignments[i] for i in assignment_perm]
-
-            placed_centers_tc: list[tuple[int, int]] = []
-            for (row, col), name in zip(positions, assignments):
-                if not can_place(row, col, placed_centers_tc):
-                    continue
-                carve_and_place(row, col, name)
-                placed_centers_tc.append((row, col))
-            return
-
-        row_positions = _linspace_positions(params.rows, interior_height)
-        col_positions = _linspace_positions(params.cols, interior_width)
-
-        if not row_positions or not col_positions:
-            raise ValueError("rows and cols must be positive for extractor placement")
-
-        # Deduplicate potential overlaps caused by rounding.
-        raw_positions = [(row, col) for row in row_positions for col in col_positions]
-        positions: list[tuple[int, int]] = []
-        seen = set()
-        for row, col in raw_positions:
-            if (row, col) not in seen:
-                seen.add((row, col))
-                positions.append((row, col))
-
-        if not positions:
-            return
-
-        extractor_names = params.extractor_names or ["carbon_extractor"]
-        assignments = [
-            extractor_names[i % len(extractor_names)] for i in range(len(positions))
-        ]
-        # Shuffle assignments so a new seed changes extractor distribution.
-        self.rng.shuffle(assignments)
-
-        jitter = max(0, params.jitter)
-        placed_centers: list[tuple[int, int]] = []
-        for (base_row, base_col), name in zip(positions, assignments):
-            row = int(min(row_max, max(row_min, base_row)))
-            col = int(min(col_max, max(col_min, base_col)))
-            attempts = max(1, 8 if jitter else 1)
-            placement: tuple[int, int] | None = None
-            for _ in range(attempts):
-                offset_row = int(
-                    np.clip(
-                        row + (self.rng.integers(-jitter, jitter + 1) if jitter else 0),
-                        row_min,
-                        row_max,
-                    )
-                )
-                offset_col = int(
-                    np.clip(
-                        col + (self.rng.integers(-jitter, jitter + 1) if jitter else 0),
-                        col_min,
-                        col_max,
-                    )
-                )
-                if not (
-                    row_min <= offset_row <= row_max
-                    and col_min <= offset_col <= col_max
-                ):
-                    continue
-                if not can_place(offset_row, offset_col, placed_centers):
-                    continue
-                placement = (offset_row, offset_col)
-                break
-            if placement is None:
-                continue
-            row, col = placement
-            carve_and_place(row, col, name)
-            placed_centers.append((row, col))
+    return env
 
 
 def make_extractor_showcase() -> MettaGridConfig:
@@ -392,14 +1000,14 @@ def make_basehub_showcase() -> MettaGridConfig:
     _add_extractor_objects(env)
 
     env.game.map_builder = MapGen.Config(
-        width=21,
-        height=21,
+        width=11,
+        height=11,
         root=Layout.factory(
             LayoutParams(
                 areas=[
                     LayoutArea(
-                        width=21,
-                        height=21,
+                        width=11,
+                        height=11,
                         placement="center",
                         tag="sanctum.tight",
                     )
@@ -435,8 +1043,9 @@ def make_basehub_showcase() -> MettaGridConfig:
 
 
 def make_mettagrid(
-    width: int = 500, height: int = 500
+    width: int = 100, height: int = 100
 ) -> tuple[
+    MettaGridConfig,
     MettaGridConfig,
     MettaGridConfig,
     MettaGridConfig,
@@ -501,14 +1110,13 @@ def make_mettagrid(
                 death_limit=3,
             ),
             children_actions=[
-                # Sanctum outpost: orderly ring around central hub
                 ChildrenAction(
                     scene=Layout.factory(
                         LayoutParams(
                             areas=[
                                 LayoutArea(
-                                    width=120,
-                                    height=120,
+                                    width=64,
+                                    height=64,
                                     placement="center",
                                     tag="sanctum.outpost",
                                 )
@@ -516,30 +1124,34 @@ def make_mettagrid(
                         ),
                         children_actions=[
                             ChildrenAction(
-                                scene=FillArea.factory(FillAreaParams(value="empty")),
-                                where=AreaWhere(tags=["sanctum.outpost"]),
-                            ),
-                            ChildrenAction(
                                 scene=BiomeCity.factory(
                                     BiomeCityParams(
-                                        pitch=12,
-                                        road_width=3,
+                                        pitch=8,
+                                        road_width=2,
                                         jitter=1,
-                                        place_prob=0.6,
+                                        place_prob=0.7,
                                     )
                                 ),
                                 where=AreaWhere(tags=["sanctum.outpost"]),
+                                order_by="first",
+                                limit=1,
                             ),
                             ChildrenAction(
-                                scene=BiomeCaves.factory(
-                                    BiomeCavesParams(
-                                        fill_prob=0.25,
-                                        steps=2,
-                                        birth_limit=4,
-                                        death_limit=3,
+                                scene=BaseHub.factory(
+                                    BaseHubParams(
+                                        assembler_object="altar",
+                                        include_inner_wall=True,
+                                        corner_objects=[
+                                            "carbon_ex_dep",  # TL
+                                            "oxygen_ex_dep",  # TR
+                                            "germanium_ex_dep",  # BL
+                                            "silicon_ex_dep",  # BR
+                                        ],
                                     )
                                 ),
                                 where=AreaWhere(tags=["sanctum.outpost"]),
+                                order_by="first",
+                                limit=1,
                             ),
                         ],
                     ),
@@ -566,12 +1178,6 @@ def make_mettagrid(
                                         ]
                                     ),
                                     children_actions=[
-                                        ChildrenAction(
-                                            scene=FillArea.factory(
-                                                FillAreaParams(value="empty")
-                                            ),
-                                            where=AreaWhere(tags=["astroid.desert"]),
-                                        ),
                                         ChildrenAction(
                                             scene=BiomeDesert.factory(
                                                 BiomeDesertParams(
@@ -1332,6 +1938,25 @@ def make_mettagrid(
                     where="full",
                     limit=1,
                 ),
+                ChildrenAction(
+                    scene=UniformExtractorScene.factory(
+                        UniformExtractorParams(
+                            target_coverage=0.006,
+                            jitter=0,
+                            extractor_names=[
+                                "carbon_extractor",
+                                "oxygen_extractor",
+                                "germanium_extractor",
+                                "silicon_extractor",
+                                "charger",
+                            ],
+                        )
+                    ),
+                    where="full",
+                    order_by="last",
+                    lock="resources",
+                    limit=1,
+                ),
                 # Central sanctum retained as the cave nexus, stamped last.
                 ChildrenAction(
                     scene=Layout.factory(
@@ -1347,9 +1972,29 @@ def make_mettagrid(
                         ),
                         children_actions=[
                             ChildrenAction(
+                                scene=UniformExtractorScene.factory(
+                                    UniformExtractorParams(
+                                        target_coverage=0.003,
+                                        jitter=0,
+                                        clear_existing=True,
+                                        extractor_names=[
+                                            "carbon_extractor",
+                                            "oxygen_extractor",
+                                            "germanium_extractor",
+                                            "silicon_extractor",
+                                            "charger",
+                                        ],
+                                    )
+                                ),
+                                where=AreaWhere(tags=["sanctum.center"]),
+                                order_by="first",
+                                lock="sanctum_extractors",
+                                limit=1,
+                            ),
+                            ChildrenAction(
                                 scene=BaseHub.factory(
                                     BaseHubParams(
-                                        altar_object="altar",
+                                        assembler_object="altar",
                                         include_inner_wall=True,
                                         corner_objects=[
                                             "carbon_ex_dep",  # TL
@@ -1361,7 +2006,7 @@ def make_mettagrid(
                                 ),
                                 where=AreaWhere(tags=["sanctum.center"]),
                                 limit=1,
-                            )
+                            ),
                         ],
                     ),
                     where="full",
@@ -1374,25 +2019,6 @@ def make_mettagrid(
                     where="full",
                     order_by="last",
                     lock="connect",
-                    limit=1,
-                ),
-                ChildrenAction(
-                    scene=UniformExtractorScene.factory(
-                        UniformExtractorParams(
-                            target_coverage=0.05,
-                            jitter=0,
-                            extractor_names=[
-                                "carbon_extractor",
-                                "oxygen_extractor",
-                                "germanium_extractor",
-                                "silicon_extractor",
-                                "charger",
-                            ],
-                        )
-                    ),
-                    where="full",
-                    order_by="last",
-                    lock="sanctum_extractors",
                     limit=1,
                 ),
             ],
@@ -3391,7 +4017,7 @@ def make_mettagrid(
                             ChildrenAction(
                                 scene=BaseHub.factory(
                                     BaseHubParams(
-                                        altar_object="assembler",
+                                        assembler_object="assembler",
                                         include_inner_wall=True,
                                         corner_objects=[
                                             "carbon_ex_dep",  # TL
@@ -3650,7 +4276,7 @@ def make_mettagrid(
                             ChildrenAction(
                                 scene=BaseHub.factory(
                                     BaseHubParams(
-                                        altar_object="altar",
+                                        assembler_object="altar",
                                         include_inner_wall=True,
                                         corner_objects=[
                                             "carbon_ex_dep",  # TL
@@ -3699,6 +4325,8 @@ def make_mettagrid(
         ),
     )
 
+    scalable_astroid = make_scalable_astroid(width=width, height=height)
+
     extractor_showcase = make_extractor_showcase()
 
     return (
@@ -3709,6 +4337,7 @@ def make_mettagrid(
         forest,
         bsp_dungeon,
         radial_maze,
+        scalable_astroid,
         astroid,
         astroid_big,
         extractor_showcase,
@@ -3767,7 +4396,7 @@ def make_sanctum_caves_test() -> MettaGridConfig:
                             ChildrenAction(
                                 scene=BaseHub.factory(
                                     BaseHubParams(
-                                        altar_object="altar",
+                                        assembler_object="altar",
                                         include_inner_wall=True,
                                         corner_objects=[
                                             "carbon_ex_dep",
@@ -3810,6 +4439,7 @@ def make_evals() -> List[SimulationConfig]:
         forest,
         bsp_dungeon,
         radial_maze,
+        scalable_astroid,
         astroid,
         astroid_big,
         extractor_showcase,
@@ -3824,6 +4454,11 @@ def make_evals() -> List[SimulationConfig]:
         SimulationConfig(suite="biomes", name="forest", env=forest),
         SimulationConfig(suite="biomes", name="bsp_dungeon", env=bsp_dungeon),
         SimulationConfig(suite="biomes", name="radial_maze", env=radial_maze),
+        SimulationConfig(
+            suite="biomes",
+            name="scalable_astroid",
+            env=scalable_astroid,
+        ),
         SimulationConfig(suite="biomes", name="astroid", env=astroid),
         SimulationConfig(suite="biomes", name="astroid_big", env=astroid_big),
         SimulationConfig(

@@ -11,6 +11,7 @@ from rich.console import Console
 from rich.table import Table
 
 from cogames.cogs_vs_clips.scenarios import games as cogs_vs_clips_games
+from cogames.scalable_astroid import make_scalable_arena
 from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig
 
 
@@ -26,6 +27,8 @@ def get_all_games() -> Dict[str, MettaGridConfig]:
     # Add cogs_vs_clips games
     for game_name, game_config in cogs_vs_clips_games().items():
         all_games[game_name] = game_config
+
+    all_games["scalable_astroid"] = make_scalable_arena()
 
     # Future games can be added here
     # for scenario_name, scenario_config in other_game_scenarios().items():

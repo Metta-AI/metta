@@ -1,13 +1,11 @@
 from typing import Literal, Sequence
 
-import numpy as np
-
 from mettagrid.config.config import Config
 from mettagrid.mapgen.scene import Scene
 
 
 class BaseHubParams(Config):
-    altar_object: str = "altar"
+    assembler_object: str = "assembler"
     corner_generator: str = "generator_red"
     spawn_symbol: str = "agent.agent"
     include_inner_wall: bool = True
@@ -20,7 +18,7 @@ class BaseHubParams(Config):
 class BaseHub(Scene[BaseHubParams]):
     """
     Build a symmetric 11x11 base:
-    - Center cell: altar (assembler)
+    - Center cell: assembler with charger two cells above
     - Four corner generators with one empty cell of clearance on all sides
     - Symmetric L-shaped empty corridors at each corner to form 4 exits
     - Spawn pads around center with empty clearance
@@ -79,10 +77,29 @@ class BaseHub(Scene[BaseHubParams]):
         grid = self.grid
         h, w = self.height, self.width
 
-        # Place central altar with one-cell clearance.
-        # The area is already empty; we keep neighbors empty for access.
+        corridor_width = 3
+        half = corridor_width // 2
+
+        # Carve plus-shaped corridors that meet each gate with 3-tile width
+        x0 = max(1, cx - half)
+        x1 = min(w - 1, cx + half + 1)
+        y0 = max(1, cy - half)
+        y1 = min(h - 1, cy + half + 1)
+
+        grid[1 : h - 1, x0:x1] = "empty"
+        grid[y0:y1, 1 : w - 1] = "empty"
+
+        # Place central altar, charger, and chest after carving so they persist
         if 1 <= cx < w - 1 and 1 <= cy < h - 1:
-            grid[cy, cx] = self.params.altar_object
+            grid[cy, cx] = self.params.assembler_object
+
+            charger_y = cy - 3
+            if 1 <= charger_y < h - 1:
+                grid[charger_y, cx] = self.params.charger_object
+
+            chest_y = cy + 3
+            if 1 <= chest_y < h - 1:
+                grid[chest_y, cx] = "chest"
 
         # Spawn pads in plus-shape around center with clearance
         self._place_spawn_pads(
@@ -94,55 +111,17 @@ class BaseHub(Scene[BaseHubParams]):
             ]
         )
 
-        # Carve symmetric L-shaped exits in four corners: two-leg corridors 3-wide
-        # Ensure each L opens a gap in the inner wall ring to the outside.
-        # Top-left L
-        self._carve_L(1, 1, orientation="right-down")
-        # Top-right L
-        self._carve_L(w - 4, 1, orientation="left-down")
-        # Bottom-left L
-        self._carve_L(1, h - 4, orientation="right-up")
-        # Bottom-right L
-        self._carve_L(w - 4, h - 4, orientation="left-up")
-
-        # Place corner objects after carving corridors so they are not overwritten
-        # Corner order: TL, TR, BL, BR
-        primary_positions = [
+        # Place corner objects symmetrically
+        corner_positions = [
             (2, 2),
             (w - 3, 2),
             (2, h - 3),
             (w - 3, h - 3),
         ]
-        fallback_positions = [
-            (3, 3),
-            (w - 4, 3),
-            (3, h - 4),
-            (w - 4, h - 4),
-        ]
 
-        names = self._resolve_corner_names()
-
-        remaining: list[tuple[int, int, str]] = []
-        # First pass: try primary positions
-        for (x, y), name in zip(primary_positions, names, strict=False):
+        for (x, y), name in zip(corner_positions, self._resolve_corner_names(), strict=False):
             if 1 <= x < w - 1 and 1 <= y < h - 1:
-                x0, x1 = max(0, x - 1), min(w, x + 2)
-                y0, y1 = max(0, y - 1), min(h, y + 2)
-                if np.all(grid[y0:y1, x0:x1] == "empty"):
-                    grid[y, x] = name
-                else:
-                    remaining.append((x, y, name))
-            else:
-                remaining.append((x, y, name))
-
-        # Second pass: fallback inward spots for any that couldn't be placed
-        for (fx, fy), (_, _, name) in zip(fallback_positions, remaining, strict=False):
-            if 1 <= fx < w - 1 and 1 <= fy < h - 1 and grid[fy, fx] == "empty":
-                grid[fy, fx] = name
-
-        # Place chest directly below altar after corridors are carved
-        if 1 <= cx < w - 1 and 1 <= cy + 1 < h - 1:
-            grid[cy + 3, cx] = "chest"
+                grid[y, x] = name
 
     def _render_tight_layout(self, cx: int, cy: int) -> None:
         grid = self.grid
@@ -172,7 +151,7 @@ class BaseHub(Scene[BaseHubParams]):
             building_positions.append((x, y))
 
         if 1 <= cx < w - 1 and 1 <= cy < h - 1:
-            place_building(cx, cy, self.params.altar_object)
+            place_building(cx, cy, self.params.assembler_object)
 
         charger_y = cy - 2
         if 1 <= cx < w - 1 and 1 <= charger_y < h - 1:
@@ -281,7 +260,7 @@ class BaseHub(Scene[BaseHubParams]):
             carve_rect(x, y, leg, width)
             carve_rect(x + leg - width, y - leg + width, width, leg)
             # open left border
-            carve_rect(0, y - width + 1, 1, width)
+            carve_rect(0, y - width + 1, width, width)
         elif orientation == "left-up":
             carve_rect(x - leg + width, y, leg, width)
             carve_rect(x - leg + width, y - leg + width, width, leg)

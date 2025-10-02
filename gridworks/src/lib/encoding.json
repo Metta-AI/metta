@@ -15,6 +15,7 @@
   "generator_red": ["n", "R"],
   "generator_blue": ["B"],
   "generator_green": ["G"],
+  "assembler": ["Z"],
   "charger": ["H"],
   "chest": ["C"],
   "carbon_extractor": ["N"],
