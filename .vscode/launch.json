@@ -2,6 +2,7 @@
   "version": "0.2.0",
   // for more information on the VS Code debugger, visit https://go.microsoft.com/fwlink/?linkid=830387
   "configurations": [
+
     {
       "name": "Train Metta",
       "type": "debugpy",
@@ -146,5 +147,26 @@
       "python": "${workspaceFolder}/.venv/bin/python",
       "preLaunchTask": "${defaultBuildTask}",
     },
-  ],
+    {
+      "name": "Train Cogames",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "cogames.main",
+      "args": ["train", "machina_1", "--steps=1000000000"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
+      },
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "preLaunchTask": "${defaultBuildTask}",
+    },
+    // {
+    //   "name": "Attach to cogames (uv)",
+    //   "type": "debugpy",
+    //   "request": "attach",
+    //   "connect": { "host": "localhost", "port": 5678 },
+    //   "justMyCode": false
+    // },
+  ]
 }
