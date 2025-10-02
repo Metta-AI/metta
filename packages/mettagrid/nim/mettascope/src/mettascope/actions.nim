@@ -41,9 +41,6 @@ proc processActions*() =
   var agentIds: seq[int] = @[]
   for agentId in agentPaths.keys:
     agentIds.add(agentId)
-  for agentId in agentDestinations.keys:
-    if agentId notin agentIds:
-      agentIds.add(agentId)
   
   for agentId in agentIds:
     if not agentPaths.hasKey(agentId) and not (agentDestinations.hasKey(agentId) and agentDestinations[agentId].len > 0):
