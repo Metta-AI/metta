@@ -36,43 +36,6 @@ def strip_recipe_prefix(module_path: str) -> str:
     return module_path.replace("experiments.recipes.", "")
 
 
-def _resolve_tool_path(tool_path: str) -> list[str]:
-    """Convert tool path to candidate import paths.
-
-    Args:
-        tool_path: Tool path like 'arena.train', 'train', or 'eval'
-
-    Examples:
-        'arena.train' → ['arena.train', 'experiments.recipes.arena.train']
-        'eval' → ['eval', 'evaluate'] (alias expansion)
-
-    Returns ordered list of candidates to try.
-    """
-    from metta.common.tool.tool_registry import get_tool_registry
-
-    candidates = [tool_path]
-    registry = get_tool_registry()
-
-    # Add prefix for short forms (anything not starting with experiments.recipes.)
-    if not tool_path.startswith("experiments.recipes."):
-        candidates.append(f"experiments.recipes.{tool_path}")
-
-    # Expand aliases if last component is a tool alias
-    if "." in tool_path:
-        module, verb = tool_path.rsplit(".", 1)
-
-        # Get canonical name if this is an alias
-        canonical = registry.get_canonical_name(verb)
-        if canonical and canonical != verb:
-            # Add version with canonical name
-            candidates.append(f"{module}.{canonical}")
-            if not module.startswith("experiments.recipes."):
-                candidates.append(f"experiments.recipes.{module}.{canonical}")
-
-    # Remove duplicates while preserving order
-    return list(dict.fromkeys(candidates))
-
-
 def _load_tool_maker(path: str) -> Optional[Callable[[], Tool]]:
     """Load a tool maker from an import path.
 
@@ -129,25 +92,19 @@ def resolve_and_load_tool(tool_path: str) -> Callable[[], Tool] | None:
     if "." in tool_path:
         module_path, tool_name = tool_path.rsplit(".", 1)
 
+        # Get canonical tool name (handle aliases)
+        registry = get_tool_registry()
+        canonical = registry.get_canonical_name(tool_name) or tool_name
+
         # Try both short and full recipe paths
         recipe_registry = get_recipe_registry()
         for candidate_module in normalize_module_path(module_path):
             recipe = recipe_registry.get(candidate_module)
             if recipe:
-                # Found recipe! Check if it supports this tool
-                canonical = _get_canonical_tool_name(tool_name)
-                if recipe.supports_tool(canonical):
-                    tools = recipe.get_tools_for_canonical(canonical)
-                    if tools:
-                        # Return first matching tool
-                        return tools[0][1]
+                # Found recipe! Try to get tool
+                tools = recipe.get_tools_for_canonical(canonical)
+                if tools:
+                    # Return first matching tool
+                    return tools[0][1]
 
     return None
-
-
-def _get_canonical_tool_name(tool_name: str) -> str:
-    """Get canonical name for a tool, handling aliases."""
-
-    registry = get_tool_registry()
-    canonical = registry.get_canonical_name(tool_name)
-    return canonical if canonical else tool_name
