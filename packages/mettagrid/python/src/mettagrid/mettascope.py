@@ -12,8 +12,13 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
-# Find the Nim bindings. Prefer the packaged layout (wheel installs) but fall
-# back to the repo layout for editable installs.
+# Find the Nim bindings. Published wheels bundle the generated artifacts under
+# ``mettagrid/nim/mettascope`` (because our PEP‑517 backend copies the Nim
+# project into ``python/src`` during the build).  Editable installs, however,
+# serve the package straight from the repository checkout where the canonical
+# sources remain in ``packages/mettagrid/nim/mettascope`` and the copy step
+# never runs.  To support both layouts we try the packaged location first and,
+# if it is missing the bindings, walk upwards looking for the repository copy.
 package_root = Path(__file__).resolve().parent
 
 
