@@ -245,15 +245,12 @@ class TestAssemblerProperties:
         assembler = next((obj for obj in objects.values() if obj.get("type_name") == "assembler"), None)
 
         if assembler:
-            # Check recipe properties exist (may be None if no agents around)
-            assert (
-                "current_recipe_inputs" in assembler
-                or "current_recipe_inputs" not in assembler  # May not exist if no recipe
-            )
-            assert (
-                "current_recipe_outputs" in assembler
-                or "current_recipe_outputs" not in assembler  # May not exist if no recipe
-            )
+            # Recipe properties may or may not exist depending on whether agents are nearby
+            if "current_recipe_inputs" in assembler:
+                assert isinstance(assembler["current_recipe_inputs"], dict)
+
+            if "current_recipe_outputs" in assembler:
+                assert isinstance(assembler["current_recipe_outputs"], dict)
 
             # If recipe exists, verify structure
             if "current_recipe_inputs" in assembler:
