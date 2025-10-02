@@ -756,10 +756,17 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
     if (auto* agent = dynamic_cast<Agent*>(obj)) {
       obj_dict["orientation"] = static_cast<int>(agent->orientation);
       obj_dict["group_id"] = agent->group;
+      obj_dict["group_name"] = agent->group_name;
       obj_dict["is_frozen"] = !!agent->frozen;
       obj_dict["freeze_remaining"] = agent->frozen;
       obj_dict["freeze_duration"] = agent->freeze_duration;
       obj_dict["color"] = agent->color;
+      obj_dict["glyph"] = agent->glyph;
+      obj_dict["agent_id"] = agent->agent_id;
+      obj_dict["action_failure_penalty"] = agent->action_failure_penalty;
+      obj_dict["current_stat_reward"] = agent->current_stat_reward;
+      obj_dict["prev_action_name"] = agent->prev_action_name;
+      obj_dict["steps_without_motion"] = agent->steps_without_motion;
 
       // We made resource limits more complicated than this, and need to review how to expose them.
       // py::dict resource_limits_dict;
@@ -767,7 +774,6 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
       //   resource_limits_dict[py::int_(resource)] = quantity;
       // }
       // obj_dict["resource_limits"] = resource_limits_dict;
-      obj_dict["agent_id"] = agent->agent_id;
     }
 
     if (auto* converter = dynamic_cast<Converter*>(obj)) {
