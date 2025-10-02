@@ -22,11 +22,11 @@ proc isWalkablePos*(pos: IVec2): bool =
   ## Check if a position is walkable.
   if pos.x < 0 or pos.x >= replay.mapSize[0] or pos.y < 0 or pos.y >= replay.mapSize[1]:
     return false
-  for obj in replay.objects:
-    if obj.location.at(step).xy == pos:
-      let typeName = replay.typeNames[obj.typeId]
-      if typeName != "agent":
-        return false
+  let obj = getObjectAtLocation(pos)
+  if obj != nil:
+    let typeName = replay.typeNames[obj.typeId]
+    if typeName != "agent":
+      return false
   return true
 
 proc findPath*(start, goal: IVec2): seq[IVec2] =
@@ -94,6 +94,17 @@ proc clearPath*(agentId: int) =
   agentPaths.del(agentId)
   agentDestinations.del(agentId)
 
+proc findAdjacentWalkable*(target: IVec2): seq[IVec2] =
+  ## Find walkable positions adjacent to the target position.
+  ## mainly used to path to an object before bumping it.
+  const directions = [ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0)]
+  var adjacent: seq[IVec2] = @[]
+  for dir in directions:
+    let pos = ivec2(target.x + dir.x, target.y + dir.y)
+    if isWalkablePos(pos):
+      adjacent.add(pos)
+  return adjacent
+
 proc recomputePath*(agentId: int, currentPos: IVec2) =
   ## Recompute the path for an agent through all their queued destinations.
   if not agentDestinations.hasKey(agentId) or agentDestinations[agentId].len == 0:
@@ -105,7 +116,30 @@ proc recomputePath*(agentId: int, currentPos: IVec2) =
   var lastPos = currentPos
   
   for i, dest in agentDestinations[agentId]:
-    let segmentPath = findPath(lastPos, dest)
+    var segmentPath: seq[IVec2] = @[]
+    
+    case dest.destinationType
+    of Move:
+      # For moving, path directly to the destination.
+      segmentPath = findPath(lastPos, dest.pos)
+    of Bump:
+      # For bumping, path to an adjacent walkable position.
+      let adjacentTiles = findAdjacentWalkable(dest.pos)
+      if adjacentTiles.len == 0:
+        clearPath(agentId)
+        return
+      if lastPos in adjacentTiles:
+        # Already adjacent, use current position.
+        segmentPath = @[lastPos]
+      else:
+        # Find the shortest path to any adjacent tile.
+        var bestPath: seq[IVec2] = @[]
+        for adjacent in adjacentTiles:
+          let path = findPath(lastPos, adjacent)
+          if path.len > 0 and (bestPath.len == 0 or path.len < bestPath.len):
+            bestPath = path
+        segmentPath = bestPath
+    
     if segmentPath.len == 0:
       clearPath(agentId)
       return
@@ -116,8 +150,10 @@ proc recomputePath*(agentId: int, currentPos: IVec2) =
       if segmentPath.len > 1:
         for j in 1 ..< segmentPath.len:
           fullPath.add(segmentPath[j])
+      elif segmentPath.len == 1 and segmentPath[0] != fullPath[fullPath.len - 1]:
+        fullPath.add(segmentPath[0])
     
-    lastPos = dest
+    lastPos = dest.pos
   
   if fullPath.len > 0:
     agentPaths[agentId] = fullPath
