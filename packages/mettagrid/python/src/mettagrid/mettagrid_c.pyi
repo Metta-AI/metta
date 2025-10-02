@@ -256,7 +256,12 @@ class MettaGrid:
         self, observations: np.ndarray, terminals: np.ndarray, truncations: np.ndarray, rewards: np.ndarray
     ) -> None: ...
     def grid_objects(
-        self, min_row: int = -1, max_row: int = -1, min_col: int = -1, max_col: int = -1
+        self,
+        min_row: int = -1,
+        max_row: int = -1,
+        min_col: int = -1,
+        max_col: int = -1,
+        ignore_types: list[str] = [],
     ) -> dict[int, dict]: ...
     def action_names(self) -> list[str]: ...
     def get_episode_rewards(self) -> np.ndarray: ...

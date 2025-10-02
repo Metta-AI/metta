@@ -210,11 +210,18 @@ class ChestConfig(GridObjectConfig):
 
     type: Literal["chest"] = Field(default="chest")
     resource_type: str = Field(description="Resource type that this chest can store")
-    deposit_positions: list[FixedPosition] = Field(
-        default_factory=list, description="Positions where agents can deposit resources"
+    position_deltas: list[tuple[FixedPosition, int]] = Field(
+        default_factory=list,
+        description=(
+            "List of (position, delta) tuples. "
+            "Positive delta = deposit, negative = withdraw (e.g., (E, 1) deposits 1, (N, -5) withdraws 5)"
+        ),
     )
-    withdrawal_positions: list[FixedPosition] = Field(
-        default_factory=list, description="Positions where agents can withdraw resources"
+    initial_inventory: int = Field(default=0, ge=0, description="Initial amount of resource_type in the chest")
+    max_inventory: int = Field(
+        default=255,
+        ge=-1,
+        description="Maximum inventory (resources are destroyed when depositing beyond this, -1 = unlimited)",
     )
 
 
