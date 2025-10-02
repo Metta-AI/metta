@@ -52,19 +52,34 @@ Success = exit code 0. Failures show in red with error details.
 - `-l/--logs`: Show detailed logs
 - `-n/--tail-lines`: Lines of logs to show (default 200)
 
-## Output
+## State Persistence
 
-Saves to `<tool>_validation_jobs.json`:
+Validation runs are saved to `devops/stable/state/<version>.json`:
 ```json
 {
-  "test_run_info": { "base_name": "train_validation", ... },
-  "launched_jobs": [
-    { "job_id": "123", "recipe": "arena_remote", "status": "running" }
-  ]
+  "version": "validation_train",
+  "created_at": "2025-10-02T12:00:00",
+  "repo_root": "/Users/jack/src/metta",
+  "commit_sha": "abc123...",
+  "validations": {
+    "arena_local": {
+      "name": "arena_local",
+      "lifecycle": "completed",
+      "outcome": "passed",
+      "started_at": "2025-10-02T12:00:10",
+      "ended_at": "2025-10-02T12:01:45",
+      "metrics": {},
+      "notes": "Completed in 95.2s"
+    }
+  }
 }
 ```
 
-Local results stored inline. Remote jobs tracked by job ID.
+**Benefits:**
+- Resumable validations
+- Historical tracking
+- Machine-readable results
+- Timestamps and metrics
 
 ## Adding Validations
 
