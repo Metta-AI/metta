@@ -22,7 +22,7 @@ def train(
     enable_detailed_slice_logging: bool = False,
     policy_architecture: PolicyArchitecture | None = None,
 ):
-    policy = policy_architecture or TRXLConfig()
+    policy = policy_architecture or TransformerPolicyConfig(transformer=TRXLConfig())
     tool = base.train(
         curriculum=curriculum,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
