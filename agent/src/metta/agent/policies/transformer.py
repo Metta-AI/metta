@@ -139,8 +139,7 @@ class TransformerPolicy(Policy):
         transformer_config = self.config.transformer
         if transformer_config is None:
             raise ValueError("TransformerPolicyConfig must include a transformer_config instance")
-        self.transformer = transformer_config
-        self.transformer_config = transformer_config
+        self.transformer_cfg = transformer_config
         self.latent_size = transformer_config.latent_size
         self.hidden_size = transformer_config.hidden_size
         self._uses_sliding_backbone = transformer_config.variant == "sliding"
@@ -256,7 +255,7 @@ class TransformerPolicy(Policy):
         self.action_probs = self.config.action_probs_config.make_component()
 
     def _build_transformer(self) -> None:
-        self.transformer_module = self.transformer_config.build()
+        self.transformer_module = self.transformer_cfg.build()
         self._memory_enabled = self.memory_len > 0
 
     # ------------------------------------------------------------------
@@ -789,7 +788,7 @@ class TransformerPolicy(Policy):
             return
 
         self._memory_len = new_len
-        self.transformer_config.memory_len = new_len
+        self.transformer_cfg.memory_len = new_len
         if hasattr(self.transformer_module, "memory_len"):
             self.transformer_module.memory_len = new_len  # type: ignore[assignment]
         core = getattr(self.transformer_module, "core", None)
