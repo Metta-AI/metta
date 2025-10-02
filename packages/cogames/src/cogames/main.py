@@ -11,6 +11,8 @@ from typing import Literal, Optional
 
 from packaging.version import Version
 
+from cogames import curricula, game, utils
+
 # Always add current directory to Python path
 sys.path.insert(0, ".")
 
@@ -106,7 +108,6 @@ def play_cmd(
     render: Literal["gui", "text"] = typer.Option("gui", "--render", "-r", help="Render mode: 'gui' or 'text'"),
 ) -> None:
     """Play a game."""
-    from cogames import game, utils
 
     # If no game specified, list games
     if game_name is None:
@@ -153,7 +154,6 @@ def make_scenario(
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (YAML or JSON)"),  # noqa: B008
 ) -> None:
     """Create a new game configuration."""
-    from cogames import game, utils
 
     try:
         # If base_game specified, use it as template
@@ -265,24 +265,22 @@ def train_cmd(
 
         representative_game = curriculum
 
-    # If no game specified and no curriculum, list games
-    if game_name is None and curriculum_callable is None:
-        console.print("[yellow]No game specified. Available games:[/yellow]")
-        table = game.list_games(console)
-        console.print(table)
-        console.print("\n[dim]Usage: cogames train <game>[/dim]")
-        return
-
     env_cfg: Optional[MettaGridConfig] = None
     resolved_game: Optional[str] = None
     if curriculum_callable is None:
-        resolved_game, error = utils.resolve_game(game_name)
-        if error:
-            console.print(f"[red]Error: {error}[/red]")
-            raise typer.Exit(1)
-        assert resolved_game is not None
-        env_cfg = game.get_game(resolved_game)
-        representative_game = resolved_game
+        rotation_aliases = {"training_facility_rotation", "training_rotation", "training_cycle"}
+        if game_name is None or (game_name in rotation_aliases):
+            curriculum_callable = curricula.training_facility_rotation()
+            representative_game = "training_facility_rotation"
+            game_name = None
+        else:
+            resolved_game, error = utils.resolve_game(game_name)
+            if error:
+                console.print(f"[red]Error: {error}[/red]")
+                raise typer.Exit(1)
+            assert resolved_game is not None
+            env_cfg = game.get_game(resolved_game)
+            representative_game = resolved_game
     elif game_name is not None:
         console.print("[yellow]Ignoring explicit game name because a curriculum was supplied.[/yellow]")
 
