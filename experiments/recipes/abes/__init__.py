@@ -1,9 +1,11 @@
-"""Arena basic easy shaped recipes per policy variant."""
+from metta.agent.policies.transformer import (
+    gtrxl_policy_config,
+    trxl_policy_config,
+    trxl_nvidia_policy_config,
+)
 
 __all__ = [
-    "gtrxl",
-    "trxl",
-    "trxl_nvidia",
-    "vit",
-    "sliding",
+    "gtrxl_policy_config",
+    "trxl_policy_config",
+    "trxl_nvidia_policy_config",
 ]
