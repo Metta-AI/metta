@@ -278,34 +278,23 @@ TEST_F(ClipperPercolationTest, AutoLengthScaleBasic) {
   Grid grid(50, 50);
   place_assemblers(grid, 25);
 
-  Clipper clipper(grid, unclip_recipe, 1.0f, 0.0f, 0.1f, true, 1.0f);
+  Clipper clipper(grid, {unclip_recipe}, -1.0f, 0.0f, 0.1f);
 
   // Expected: (50 / sqrt(25)) * sqrt(4.51 / (4*π)) ≈ 5.991
   EXPECT_NEAR(clipper.length_scale, 5.991f, 0.01f);
 }
 
-// Test 2: Manual length_scale (auto disabled)
+// Test 2: Manual length_scale (positive value)
 TEST_F(ClipperPercolationTest, ManualLengthScale) {
   Grid grid(50, 50);
   place_assemblers(grid, 25);
 
-  Clipper clipper(grid, unclip_recipe, 3.14f, 0.0f, 0.1f, false, 1.0f);
+  Clipper clipper(grid, {unclip_recipe}, 3.14f, 0.0f, 0.1f);
 
   EXPECT_FLOAT_EQ(clipper.length_scale, 3.14f);
 }
 
-// Test 3: Fudge factor tuning
-TEST_F(ClipperPercolationTest, LengthScaleFactor) {
-  Grid grid(50, 50);
-  place_assemblers(grid, 25);
-
-  Clipper clipper(grid, unclip_recipe, 1.0f, 0.0f, 0.1f, true, 1.5f);
-
-  // Expected: 5.991 * 1.5 ≈ 8.986
-  EXPECT_NEAR(clipper.length_scale, 8.986f, 0.01f);
-}
-
-// Test 4: Clip-immune assemblers excluded from count
+// Test 3: Clip-immune assemblers excluded from count
 TEST_F(ClipperPercolationTest, ClipImmuneExcluded) {
   Grid grid(50, 50);
 
@@ -315,25 +304,25 @@ TEST_F(ClipperPercolationTest, ClipImmuneExcluded) {
   // Place 5 clip-immune assemblers
   place_assemblers(grid, 5, true);
 
-  Clipper clipper(grid, unclip_recipe, 1.0f, 0.0f, 0.1f, true, 1.0f);
+  Clipper clipper(grid, {unclip_recipe}, -1.0f, 0.0f, 0.1f);
 
   // Should use 20 (not 25) for calculation
   // Expected: (50 / sqrt(20)) * sqrt(4.51 / (4*π)) ≈ 6.704
   EXPECT_NEAR(clipper.length_scale, 6.704f, 0.01f);
 }
 
-// Test 5: No assemblers - fall back to provided value
+// Test 4: No assemblers - keeps provided value
 TEST_F(ClipperPercolationTest, NoAssemblers) {
   Grid grid(50, 50);
   // Don't place any assemblers
 
-  Clipper clipper(grid, unclip_recipe, 2.5f, 0.0f, 0.1f, true, 1.0f);
+  Clipper clipper(grid, {unclip_recipe}, 2.5f, 0.0f, 0.1f);
 
-  // Should keep provided length_scale when no buildings
+  // Should keep provided length_scale when no buildings (no auto-calculation)
   EXPECT_FLOAT_EQ(clipper.length_scale, 2.5f);
 }
 
-// Test 6: Grid size scaling (larger grid → larger length_scale)
+// Test 5: Grid size scaling (larger grid → larger length_scale)
 TEST_F(ClipperPercolationTest, GridSizeScaling) {
   Grid grid_small(25, 25);
   Grid grid_large(100, 100);
@@ -342,15 +331,15 @@ TEST_F(ClipperPercolationTest, GridSizeScaling) {
   place_assemblers(grid_small, 25);
   place_assemblers(grid_large, 25);
 
-  Clipper clipper_small(grid_small, unclip_recipe, 1.0f, 0.0f, 0.1f, true, 1.0f);
-  Clipper clipper_large(grid_large, unclip_recipe, 1.0f, 0.0f, 0.1f, true, 1.0f);
+  Clipper clipper_small(grid_small, {unclip_recipe}, -1.0f, 0.0f, 0.1f);
+  Clipper clipper_large(grid_large, {unclip_recipe}, -1.0f, 0.0f, 0.1f);
 
   // Ratio should be 100/25 = 4x
   float ratio = clipper_large.length_scale / clipper_small.length_scale;
   EXPECT_NEAR(ratio, 4.0f, 0.01f);
 }
 
-// Test 7: Building density scaling (more buildings → smaller length_scale)
+// Test 6: Building density scaling (more buildings → smaller length_scale)
 TEST_F(ClipperPercolationTest, BuildingDensityScaling) {
   Grid grid_sparse(50, 50);
   Grid grid_dense(50, 50);
@@ -359,15 +348,15 @@ TEST_F(ClipperPercolationTest, BuildingDensityScaling) {
   place_assemblers(grid_sparse, 25);
   place_assemblers(grid_dense, 100);
 
-  Clipper clipper_sparse(grid_sparse, unclip_recipe, 1.0f, 0.0f, 0.1f, true, 1.0f);
-  Clipper clipper_dense(grid_dense, unclip_recipe, 1.0f, 0.0f, 0.1f, true, 1.0f);
+  Clipper clipper_sparse(grid_sparse, {unclip_recipe}, -1.0f, 0.0f, 0.1f);
+  Clipper clipper_dense(grid_dense, {unclip_recipe}, -1.0f, 0.0f, 0.1f);
 
   // Ratio should be sqrt(100/25) = 2x (sparse should be larger)
   float ratio = clipper_sparse.length_scale / clipper_dense.length_scale;
   EXPECT_NEAR(ratio, 2.0f, 0.01f);
 }
 
-// Test 8: Non-square grids use max dimension
+// Test 7: Non-square grids use max dimension
 TEST_F(ClipperPercolationTest, NonSquareGrid) {
   Grid grid_horizontal(30, 60);  // width > height
   Grid grid_vertical(60, 30);    // height > width
@@ -375,8 +364,8 @@ TEST_F(ClipperPercolationTest, NonSquareGrid) {
   place_assemblers(grid_horizontal, 25);
   place_assemblers(grid_vertical, 25);
 
-  Clipper clipper_horizontal(grid_horizontal, unclip_recipe, 1.0f, 0.0f, 0.1f, true, 1.0f);
-  Clipper clipper_vertical(grid_vertical, unclip_recipe, 1.0f, 0.0f, 0.1f, true, 1.0f);
+  Clipper clipper_horizontal(grid_horizontal, {unclip_recipe}, -1.0f, 0.0f, 0.1f);
+  Clipper clipper_vertical(grid_vertical, {unclip_recipe}, -1.0f, 0.0f, 0.1f);
 
   // Both should use max(width, height) = 60, so should have same length_scale
   EXPECT_FLOAT_EQ(clipper_horizontal.length_scale, clipper_vertical.length_scale);
