@@ -16,11 +16,24 @@ from cortex.types import MaybeState, ResetMask, Tensor
 class PostUpBlock(BaseBlock):
     """Post-processing block with cell followed by FFN.
 
-    Block layout:
-    1. Input → LayerNorm → Cell
+    Hidden-size inference
+    - When constructed via ``CortexStackConfig``/``build_cortex``, the nested
+      cell's ``hidden_size`` may be ``None``. The stack builder will infer and
+      set it to ``d_hidden`` for this block (the cell runs at the external
+      stack dimension).
+    - If constructing directly (without the stack builder), pass a concrete
+      ``hidden_size`` equal to ``d_hidden``.
+
+    Block layout (batch-first)
+    1. Input → LayerNorm → Cell (cell hidden size = ``d_hidden``)
     2. Add residual from input
-    3. Result → LayerNorm → FFN (up-projection → activation → down-projection)
+    3. Result → LayerNorm → FFN: up-projection to ``d_inner = int(proj_factor * d_hidden)``
+       → activation (SiLU) → down-projection to ``d_hidden``
     4. Add residual from step 2
+
+    Constraints
+    - ``cell.hidden_size == d_hidden``; the builder enforces this and this
+      class asserts it in construction.
     """
 
     def __init__(self, config: PostUpBlockConfig, d_hidden: int, cell: MemoryCell) -> None:

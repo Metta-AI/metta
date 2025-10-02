@@ -67,7 +67,7 @@ def test_adapter_wraps_preup():
         blocks=[
             AdapterBlockConfig(
                 base_block=PreUpBlockConfig(
-                    cell=LSTMCellConfig(hidden_size=128, num_layers=1),
+                    cell=LSTMCellConfig(hidden_size=None, num_layers=1),
                     proj_factor=2.0,
                 ),
                 bottleneck=16,
@@ -228,7 +228,7 @@ def test_adapter_multiple_in_stack():
             PassThroughBlockConfig(cell=LSTMCellConfig(hidden_size=64, num_layers=1)),
             AdapterBlockConfig(
                 base_block=PreUpBlockConfig(
-                    cell=LSTMCellConfig(hidden_size=128, num_layers=1),
+                    cell=LSTMCellConfig(hidden_size=None, num_layers=1),
                     proj_factor=2.0,
                 ),
                 bottleneck=32,

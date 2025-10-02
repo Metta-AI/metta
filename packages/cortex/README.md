@@ -38,6 +38,18 @@ The separation of concerns between cells, blocks, and stacks provides several ad
 - **Registry system**: Extensible architecture supporting custom cells and blocks
 - **Type-safe configuration**: Pydantic-based configs with validation
 
+### Hidden Size Inference in Blocks
+
+Some blocks define the working dimension of their nested cell. For those cases,
+you may set the nested cell config's `hidden_size` to `None` and let the stack
+builder infer it:
+
+- `PreUpBlock`: infers `hidden_size = int(proj_factor * d_hidden)`.
+- `PostUpBlock`: infers `hidden_size = d_hidden`.
+
+This inference happens only when building via `CortexStackConfig`/`build_cortex`.
+If you instantiate cells directly, provide a concrete `hidden_size`.
+
 ## Quick Start
 
 ```python
@@ -55,7 +67,7 @@ config = CortexStackConfig(
     blocks=[
         # First block: project up 2x, apply LSTM, project down
         PreUpBlockConfig(
-            cell=LSTMCellConfig(hidden_size=512, num_layers=2),
+            cell=LSTMCellConfig(hidden_size=None, num_layers=2),  # inferred: 2.0 * d_hidden
             proj_factor=2.0
         ),
         # Second block: direct LSTM application

@@ -39,7 +39,7 @@ def select_backend(
     use_triton = TRITON_AVAILABLE and triton_fn is not None and allow_triton and tensor.is_cuda
 
     if use_triton:
-        logger.info(f"Using Triton backend for {triton_fn.__name__} (device={tensor.device}, dtype={tensor.dtype})")
+        logger.debug(f"Using Triton backend for {triton_fn.__name__} (device={tensor.device}, dtype={tensor.dtype})")
         return triton_fn  # type: ignore[return-value]
     else:
         reasons = []
@@ -53,7 +53,7 @@ def select_backend(
             reasons.append(f"tensor on {tensor.device}")
 
         reason_str = ", ".join(reasons) if reasons else "unknown reason"
-        logger.info(f"Using PyTorch backend for {pytorch_fn.__name__} ({reason_str})")
+        logger.debug(f"Using PyTorch backend for {pytorch_fn.__name__} ({reason_str})")
         return pytorch_fn
 
 
