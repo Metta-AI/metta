@@ -19,21 +19,32 @@ public:
   float cutoff_distance;
   Grid& grid;
   float clip_rate;
+  std::mt19937 rng;
 
-  Clipper(Grid& grid, std::vector<std::shared_ptr<Recipe>> recipe_ptrs, float length_scale, float cutoff_distance, float clip_rate)
+  Clipper(Grid& grid, std::vector<std::shared_ptr<Recipe>> recipe_ptrs, float length_scale, float cutoff_distance, float clip_rate, std::mt19937 rng_init)
       : unclipping_recipes(std::move(recipe_ptrs)),
         length_scale(length_scale),
         cutoff_distance(cutoff_distance),
         grid(grid),
-        clip_rate(clip_rate) {
+        clip_rate(clip_rate),
+        rng(std::move(rng_init)) {
     for (size_t obj_id = 1; obj_id < grid.objects.size(); obj_id++) {
       auto* obj = grid.object(static_cast<GridObjectId>(obj_id));
       if (!obj) continue;
       if (auto* assembler = dynamic_cast<Assembler*>(obj)) {
         // Skip clip-immune assemblers
         if (assembler->clip_immune) continue;
+
         assembler_infection_weight[assembler] = 0.0f;
-        unclipped_assemblers.insert(assembler);
+
+        // Check if this assembler should start clipped
+        if (assembler->start_clipped) {
+          // Clip it immediately without adding to unclipped set
+          clip_assembler(*assembler);
+        } else {
+          // Add to unclipped assemblers set
+          unclipped_assemblers.insert(assembler);
+        }
       }
     }
 
@@ -72,7 +83,7 @@ public:
     return std::sqrt(std::pow(location_a.r - location_b.r, 2) + std::pow(location_a.c - location_b.c, 2));
   }
 
-  void clip_assembler(Assembler& to_infect, std::mt19937& rng) {
+  void clip_assembler(Assembler& to_infect) {
     for (auto& [other, weight] : assembler_infection_weight) {
       if (other == &to_infect) continue;
       weight += infection_weight(to_infect, *other);
@@ -98,7 +109,7 @@ public:
     unclipped_assemblers.insert(&to_unclip);
   }
 
-  Assembler* pick_assembler_to_clip(std::mt19937& rng) {
+  Assembler* pick_assembler_to_clip() {
     float total_weight = 0.0f;
     for (auto& candidate_assembler : unclipped_assemblers) {
       total_weight += assembler_infection_weight.at(candidate_assembler);
@@ -113,7 +124,7 @@ public:
     return nullptr;
   }
 
-  Assembler* pick_initial_assembler_to_clip(std::mt19937& rng) {
+  Assembler* pick_initial_assembler_to_clip() {
     // Pick an assembler uniformly at random.
     float total_weight = unclipped_assemblers.size();
     float random_weight = std::generate_canonical<float, 10>(rng) * total_weight;
@@ -128,10 +139,10 @@ public:
     return nullptr;
   }
 
-  void maybe_clip_new_assembler(std::mt19937& rng) {
+  void maybe_clip_new_assembler() {
     if (std::generate_canonical<float, 10>(rng) < clip_rate) {
-      Assembler* assembler = pick_assembler_to_clip(rng);
-      if (assembler) clip_assembler(*assembler, rng);
+      Assembler* assembler = pick_assembler_to_clip();
+      if (assembler) clip_assembler(*assembler);
     }
   }
 };

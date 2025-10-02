@@ -203,6 +203,9 @@ class AssemblerConfig(GridObjectConfig):
     clip_immune: bool = Field(
         default=False, description="If true, this assembler cannot be clipped by the Clipper system"
     )
+    start_clipped: bool = Field(
+        default=False, description="If true, this assembler starts in a clipped state at the beginning of the game"
+    )
 
 
 class ChestConfig(GridObjectConfig):
