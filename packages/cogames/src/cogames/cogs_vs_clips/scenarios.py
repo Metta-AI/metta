@@ -32,11 +32,13 @@ from mettagrid.map_builder.random import RandomMapBuilder
 def _base_game_config(num_agents: int) -> MettaGridConfig:
     """Shared base configuration for all game types."""
 
-    heart_reward = 1.0
+    heart_gain_reward = 3.0
+    heart_deposit_reward = 3.0
+    chest_reward = 1.5
     stats_rewards: dict[str, float] = {
-        "heart.gained": heart_reward,
-        "heart.put": heart_reward * 0.5,
-        "chest.heart.amount": heart_reward,
+        "heart.gained": heart_gain_reward,
+        "heart.put": heart_deposit_reward,
+        "chest.heart.amount": chest_reward,
     }
 
     return MettaGridConfig(
@@ -137,7 +139,7 @@ def tutorial_assembler_complex(num_cogs: int = 1) -> MettaGridConfig:
     )
     cfg.game.objects["assembler"] = assembler()
     cfg.game.objects["assembler"].recipes = [
-        (["Any"], RecipeConfig(input_resources={"energy": 2}, output_resources={"heart": 1}, cooldown=1))
+        (["Any"], RecipeConfig(input_resources={"energy": 1}, output_resources={"heart": 1}, cooldown=1))
     ]
     return cfg
 
