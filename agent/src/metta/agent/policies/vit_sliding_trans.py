@@ -42,7 +42,11 @@ class ViTSlidingTransConfig(PolicyArchitecture):
             num_layers=2,
         ),
         SlidingTransformerConfig(
-            in_key="encoded_obs", out_key="core", output_dim=_core_out_dim, num_layers=_memory_num_layers
+            in_key="encoded_obs",
+            out_key="core",
+            hidden_size=_core_out_dim,
+            latent_size=_latent_dim,
+            num_layers=_memory_num_layers,
         ),
         MLPConfig(
             in_key="core",

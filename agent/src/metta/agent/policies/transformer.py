@@ -18,7 +18,7 @@ from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 import pufferlib.pytorch
 from metta.agent.components import gtrxl as backbone_gtrxl
-from metta.agent.components import sliding as backbone_sliding
+from metta.agent.components import sliding_transformer as backbone_sliding
 from metta.agent.components import trxl as backbone_trxl
 from metta.agent.components import trxl_nvidia as backbone_trxl_nvidia
 from metta.agent.components.action import ActionEmbedding, ActionEmbeddingConfig
@@ -41,14 +41,14 @@ TransformerBackboneConfigType: TypeAlias = (
     backbone_gtrxl.GTrXLConfig
     | backbone_trxl.TRXLConfig
     | backbone_trxl_nvidia.TRXLNvidiaConfig
-    | backbone_sliding.SlidingTransformerBackboneConfig
+    | backbone_sliding.SlidingTransformerConfig
 )
 
 BACKBONE_CONFIGS: dict[str, type[TransformerBackboneConfigType]] = {
     "gtrxl": backbone_gtrxl.GTrXLConfig,
     "trxl": backbone_trxl.TRXLConfig,
     "trxl_nvidia": backbone_trxl_nvidia.TRXLNvidiaConfig,
-    "sliding": backbone_sliding.SlidingTransformerBackboneConfig,
+    "sliding": backbone_sliding.SlidingTransformerConfig,
 }
 
 
