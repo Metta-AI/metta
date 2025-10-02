@@ -167,6 +167,21 @@ class ChangeGlyphActionConfig(ActionConfig):
     ) -> None: ...
     number_of_glyphs: int
 
+class ResourceModConfig(ActionConfig):
+    def __init__(
+        self,
+        required_resources: dict[int, int] = {},
+        consumed_resources: dict[int, float] = {},
+        modifies: dict[int, float] = {},
+        agent_radius: int = 0,
+        converter_radius: int = 0,
+        scales: bool = False,
+    ) -> None: ...
+    modifies: dict[int, float]
+    agent_radius: int
+    converter_radius: int
+    scales: bool
+
 class GlobalObsConfig:
     def __init__(
         self,
