@@ -11,6 +11,7 @@ resources = [
     "heart",
     "decoder",
     "modulator",
+    "battery_red",
     "resonator",
     "scrambler",
 ]

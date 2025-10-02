@@ -95,11 +95,15 @@ def make_game(
     num_silicon_extractors: int = 0,
     num_chests: int = 0,
 ) -> MettaGridConfig:
+    # Keep a reasonably thick wall while guaranteeing interior space for agents/objects.
+    max_border = max(0, min(width, height) // 2 - 1)
+    border_width = min(2, max_border) if max_border > 0 else 0
+
     map_builder = RandomMapBuilder.Config(
         width=width,
         height=height,
         agents=num_cogs,
-        border_width=5,
+        border_width=border_width,
         objects={
             "assembler": num_assemblers,
             "charger": num_chargers,
