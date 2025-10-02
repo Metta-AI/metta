@@ -809,7 +809,7 @@ class TransformerPolicy(Policy):
 class GTrXLConfig(TransformerPolicyConfig):
     """Canonical configuration for the GTrXL transformer policy variant."""
 
-    variant: TransformerBackboneVariant = TransformerBackboneVariant.GTRXL
+    variant: str = "gtrxl"
 
 
 def gtrxl_policy_config() -> TransformerPolicyConfig:
@@ -821,7 +821,7 @@ def gtrxl_policy_config() -> TransformerPolicyConfig:
 class TRXLConfig(TransformerPolicyConfig):
     """Canonical configuration for the standard Transformer-XL policy variant."""
 
-    variant: TransformerBackboneVariant = TransformerBackboneVariant.TRXL
+    variant: str = "trxl"
 
 
 def trxl_policy_config() -> TransformerPolicyConfig:
@@ -833,7 +833,7 @@ def trxl_policy_config() -> TransformerPolicyConfig:
 class TRXLNvidiaConfig(TransformerPolicyConfig):
     """Canonical configuration for the NVIDIA-optimized Transformer-XL variant."""
 
-    variant: TransformerBackboneVariant = TransformerBackboneVariant.TRXL_NVIDIA
+    variant: str = "trxl"_NVIDIA
 
 
 def trxl_nvidia_policy_config() -> TransformerPolicyConfig:
