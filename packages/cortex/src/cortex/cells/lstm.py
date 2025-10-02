@@ -10,7 +10,9 @@ from cortex.cells.base import MemoryCell
 from cortex.cells.registry import register_cell
 from cortex.config import LSTMCellConfig
 from cortex.kernels.pytorch.lstm import lstm_sequence_pytorch
+from cortex.kernels.triton.lstm import lstm_sequence_triton
 from cortex.types import MaybeState, ResetMask, Tensor
+from cortex.utils import select_backend
 
 
 @register_cell(LSTMCellConfig)
@@ -27,15 +29,19 @@ class LSTMCell(MemoryCell):
 
     def __init__(self, cfg: LSTMCellConfig) -> None:
         super().__init__(hidden_size=cfg.hidden_size)
+        if cfg.num_layers != 1:
+            raise ValueError("LSTMCell currently supports num_layers == 1 for both backends")
+        if cfg.proj_size not in (0, None):
+            raise ValueError("LSTMCell Triton backend does not support proj_size > 0")
         self.cfg = cfg
         self.net = nn.LSTM(
             input_size=cfg.hidden_size,
             hidden_size=cfg.hidden_size,
-            num_layers=cfg.num_layers,
+            num_layers=1,
             bias=cfg.bias,
-            batch_first=True,  # Always batch-first
-            dropout=cfg.dropout,
-            proj_size=cfg.proj_size,
+            batch_first=True,
+            dropout=0.0,
+            proj_size=0,
         )
 
     @property
@@ -88,17 +94,38 @@ class LSTMCell(MemoryCell):
         else:
             resets_bt = resets
 
-        y_seq, hn_bf, cn_bf = lstm_sequence_pytorch(
-            lstm=self.net,
-            x_seq=x_seq,
-            h0_bf=h0,
-            c0_bf=c0,
-            resets=resets_bt,
+        backend_kwargs = {
+            "lstm": self.net,
+            "x_seq": x_seq.contiguous(),
+            "h0_bf": h0,
+            "c0_bf": c0,
+            "resets": resets_bt,
+        }
+
+        allow_triton = (
+            x_seq.is_cuda
+            and x_seq.dtype in (torch.float32, torch.float16, torch.bfloat16)
+            and self.net.weight_ih_l0.shape[1] == self.cfg.hidden_size
+            and self._hidden_size_power_of_two
         )
+
+        backend_fn = select_backend(
+            triton_fn=lstm_sequence_triton if allow_triton else None,
+            pytorch_fn=lstm_sequence_pytorch,
+            tensor=x_seq,
+            allow_triton=allow_triton,
+        )
+
+        y_seq, hn_bf, cn_bf = backend_fn(**backend_kwargs)
 
         y = y_seq.squeeze(1) if is_step else y_seq
         new_state = TensorDict({"h": hn_bf, "c": cn_bf}, batch_size=[batch_size])
         return y, new_state
+
+    @property
+    def _hidden_size_power_of_two(self) -> bool:
+        H = self.cfg.hidden_size
+        return H > 0 and (H & (H - 1)) == 0
 
     def reset_state(self, state: MaybeState, mask: ResetMask) -> MaybeState:
         if state is None:
