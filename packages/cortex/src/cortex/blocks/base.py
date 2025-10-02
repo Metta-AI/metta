@@ -21,12 +21,14 @@ class BaseBlock(nn.Module, ABC):
 
     def init_state(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> TensorDict:
         cell_state = self.cell.init_state(batch=batch, device=device, dtype=dtype)
-        return TensorDict({"cell": cell_state}, batch_size=[batch])
+        cell_key = self.cell.__class__.__name__
+        return TensorDict({cell_key: cell_state}, batch_size=[batch])
 
     def reset_state(self, state: MaybeState, mask: ResetMask) -> MaybeState:
         if state is None:
             return None
-        cell_state = state.get("cell", None)
+        cell_key = self.cell.__class__.__name__
+        cell_state = state.get(cell_key, None)
         new_cell_state = self.cell.reset_state(cell_state, mask)
         if new_cell_state is None:
             return None
@@ -35,7 +37,7 @@ class BaseBlock(nn.Module, ABC):
             if state.batch_size
             else (new_cell_state.batch_size[0] if new_cell_state.batch_size else mask.shape[0])
         )
-        return TensorDict({"cell": new_cell_state}, batch_size=[batch_size])
+        return TensorDict({cell_key: new_cell_state}, batch_size=[batch_size])
 
     @abstractmethod
     def forward(

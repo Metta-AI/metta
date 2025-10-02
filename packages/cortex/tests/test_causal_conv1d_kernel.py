@@ -18,11 +18,8 @@ except NameError:
     PKG_ROOT = Path.cwd().parent
 sys.path.insert(0, os.fspath(PKG_ROOT / "src"))
 
-from cortex.kernels.conv1d import (  # noqa: E402
-    TRITON_AVAILABLE,
-    causal_conv1d_pytorch,
-    causal_conv1d_triton,
-)
+from cortex.kernels import causal_conv1d_pytorch, causal_conv1d_triton  # noqa: E402
+from cortex.utils import TRITON_AVAILABLE  # noqa: E402
 
 
 def get_test_device():

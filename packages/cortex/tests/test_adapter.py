@@ -42,7 +42,7 @@ def test_adapter_identity_at_init():
 
     # Run the wrapped block directly (without adapter)
     base_block = stack.blocks[0].wrapped_block
-    base_state = state["block_0"]["wrapped"]
+    base_state = state["AdapterBlock_0"]["wrapped"]
     y_base, _ = base_block(x, base_state)
 
     # Run through adapter
@@ -87,8 +87,8 @@ def test_adapter_wraps_preup():
 
     # Check shapes
     assert y.shape == x.shape, f"Expected {x.shape}, got {y.shape}"
-    assert "block_0" in new_state
-    assert "wrapped" in new_state["block_0"]
+    assert "AdapterBlock_0" in new_state
+    assert "wrapped" in new_state["AdapterBlock_0"]
 
 
 def test_adapter_state_management():
@@ -125,10 +125,10 @@ def test_adapter_state_management():
     assert y2.shape == (batch_size, d_hidden)
 
     # Check state structure
-    assert "block_0" in state
-    assert "wrapped" in state["block_0"]
-    assert "cell" in state["block_0"]["wrapped"]
-    assert "h" in state["block_0"]["wrapped"]["cell"]
+    assert "AdapterBlock_0" in state
+    assert "wrapped" in state["AdapterBlock_0"]
+    assert "LSTMCell" in state["AdapterBlock_0"]["wrapped"]
+    assert "h" in state["AdapterBlock_0"]["wrapped"]["LSTMCell"]
 
 
 def test_adapter_reset_handling():
