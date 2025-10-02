@@ -192,18 +192,14 @@ class TransformerPolicy(Policy):
                 linear = pufferlib.pytorch.layer_init(linear, std=gain)
             return linear
 
-        actor_linear = _init_linear(
-            nn.Linear(self.hidden_size, self.config.actor_hidden_dim), gain=1.0
-        )
+        actor_linear = _init_linear(nn.Linear(self.hidden_size, self.config.actor_hidden_dim), gain=1.0)
         self.actor_head = TensorDictModule(
             nn.Sequential(actor_linear, nn.ReLU()),
             in_keys=["core"],
             out_keys=["actor_1"],
         )
 
-        critic_linear = _init_linear(
-            nn.Linear(self.hidden_size, self.config.critic_hidden_dim), gain=math.sqrt(2)
-        )
+        critic_linear = _init_linear(nn.Linear(self.hidden_size, self.config.critic_hidden_dim), gain=math.sqrt(2))
         self.critic_head = TensorDictModule(
             nn.Sequential(critic_linear, nn.Tanh()),
             in_keys=["core"],
@@ -384,9 +380,7 @@ class TransformerPolicy(Policy):
         if self.memory_len <= 0 or packed.numel() == 0:
             return {"hidden_states": None}
         if packed.dim() != 4:
-            raise ValueError(
-                "transformer_memory_pre must have shape (batch, num_layers, memory_len, hidden_size)"
-            )
+            raise ValueError("transformer_memory_pre must have shape (batch, num_layers, memory_len, hidden_size)")
         packed = packed.to(device=device, dtype=dtype)
         packed = packed[:, : self.transformer_layers, -self.memory_len :, :]
         unpacked = packed.permute(1, 2, 0, 3).contiguous()  # [num_layers, mem_len, batch, hidden]
@@ -770,9 +764,7 @@ class TransformerPolicy(Policy):
         if new_len < 0:
             raise ValueError("memory length must be non-negative")
         if new_len > self._memory_len_initial:
-            raise ValueError(
-                f"memory length {new_len} exceeds initial allocation {self._memory_len_initial}"
-            )
+            raise ValueError(f"memory length {new_len} exceeds initial allocation {self._memory_len_initial}")
         if new_len == self._memory_len:
             return
 
@@ -812,10 +804,16 @@ class TransformerPolicy(Policy):
         return Composite(**spec)
 
 
-def gtrxl_policy_config() -> TransformerPolicyConfig:
-    """Return a policy config for the GTrXL variant."""
+class GTrXLConfig(TransformerPolicyConfig):
+    """Canonical configuration for the GTrXL transformer policy variant."""
 
-    return TransformerPolicyConfig(variant="gtrxl")
+    variant: TransformerBackboneVariant = TransformerBackboneVariant.GTRXL
+
+
+def gtrxl_policy_config() -> TransformerPolicyConfig:
+    """Return a policy config for the GTrXL variant (legacy helper)."""
+
+    return GTrXLConfig()
 
 
 def trxl_policy_config() -> TransformerPolicyConfig:
@@ -833,6 +831,7 @@ def trxl_nvidia_policy_config() -> TransformerPolicyConfig:
 __all__ = [
     "TransformerPolicyConfig",
     "TransformerPolicy",
+    "GTrXLConfig",
     "gtrxl_policy_config",
     "trxl_policy_config",
     "trxl_nvidia_policy_config",
