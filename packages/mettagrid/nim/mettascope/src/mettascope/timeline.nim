@@ -35,10 +35,10 @@ proc bindTimelineNodes() =
   if nodesBound or globalTimelinePanel.isNil or globalTimelinePanel.node.isNil:
     return
   nodeTimeline = globalTimelinePanel.node
-  nodeTimelineReadout = nodeTimeline.find("**/TimelineReadout")
-  nodeStepCounter = nodeTimeline.find("**/#step-counter")
-  nodeScrubberBg = nodeTimeline.find("**/ScrubberBg")
-  nodeScrubber = nodeTimeline.find("**/Scrubber")
+  nodeTimelineReadout = nodeTimeline.find("TimelineReadout")
+  nodeStepCounter = nodeTimelineReadout.find("StepCounter")
+  nodeScrubberBg = nodeTimeline.find("ScrubberBg")
+  nodeScrubber = nodeTimeline.find("Scrubber")
   nodesBound = true
 
 proc playControls*() =
@@ -80,7 +80,6 @@ proc playControls*() =
       step = replay.maxSteps - 1
     step = clamp(step, 0, replay.maxSteps - 1)
     stepFloat = step.float32
-  
   # Fire onStepChanged once and only once when step changes.
   if step != previousStep:
     previousStep = step
@@ -169,8 +168,12 @@ proc drawFrozenMarkers(panel: Panel) =
 
 proc trackRect(panel: Panel): Rect =
   ## Track rectangle in panel-local coordinates.
-  return Rect(x: nodeScrubberBg.position.x, y: nodeScrubberBg.position.y,
-              w: nodeScrubberBg.size.x, h: nodeScrubberBg.size.y)
+  return rect(
+    nodeScrubberBg.position.x,
+    nodeScrubberBg.position.y,
+    nodeScrubberBg.size.x,
+    nodeScrubberBg.size.y
+  )
 
 proc updateScrubber() =
   ## Timeline should act like a video playbar:
@@ -206,17 +209,8 @@ proc updateScrubber() =
     fillW = progress * trackWidth2
   # Ensure the scrubber fill is visible at step 0: minimum width ~1px.
   fillW = max(fillW, 1f)
-  # Anchor left and scale width using node scale to support VECTOR nodes.
-  var changed = false
-  if abs(nodeScrubber.position.x - trackLeft2) > 0.1f:
-    nodeScrubber.position = vec2(trackLeft2, nodeScrubber.position.y)
-    changed = true
-  let baseW = (if nodeScrubber.origSize.x > 0: nodeScrubber.origSize.x else: max(1f, nodeScrubber.size.x))
-  let scaleX = max(fillW / baseW, 0.001f)
-  if abs(nodeScrubber.scale.x - scaleX) > 0.001f or abs(nodeScrubber.scale.y - 1f) > 0.001f:
-    nodeScrubber.scale = vec2(scaleX, 1f)
-    changed = true
-  if changed:
+  if nodeScrubber.size.x != fillW:
+    nodeScrubber.size.x = fillW
     nodeScrubber.dirty = true
 
 proc drawTimeline*(panel: Panel) =
