@@ -1,12 +1,10 @@
 import logging
-import os
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import torch
 from pydantic import ConfigDict
 from tensordict import TensorDict
-from torch.cuda.amp import GradScaler, autocast
 
 from metta.agent.policy import Policy
 from metta.rl.loss import Loss
@@ -37,10 +35,6 @@ class CoreTrainingLoop:
         optimizer: torch.optim.Optimizer,
         device: torch.device,
         context: ComponentContext,
-        *,
-        amp_enabled: bool = False,
-        amp_dtype: torch.dtype = torch.float32,
-        grad_scaler: Optional[GradScaler] = None,
     ):
         """Initialize core training loop.
 
@@ -59,9 +53,6 @@ class CoreTrainingLoop:
         self.accumulate_minibatches = experience.accumulate_minibatches
         self.context = context
         self.last_action = None
-        self._amp_enabled = amp_enabled and self.device.type == "cuda"
-        self._amp_dtype = amp_dtype if self._amp_enabled else torch.float32
-        self._grad_scaler: Optional[GradScaler] = grad_scaler if self._amp_enabled else None
 
         # Cache environment indices to avoid reallocating per rollout batch
         self._env_index_cache = experience._range_tensor.to(device=device, dtype=torch.long)
@@ -100,22 +91,20 @@ class CoreTrainingLoop:
 
         while not self.experience.ready_for_training:
             # Get observation from environment
-            with context.stopwatch("rollout.env_fetch"):
-                o, r, d, t, info, training_env_id, _, num_steps = env.get_observations()
+            o, r, d, t, info, training_env_id, _, num_steps = env.get_observations()
             last_env_id = training_env_id
 
             # Prepare data for policy
-            td = buffer_step[training_env_id]
+            td = buffer_step[training_env_id].clone()
             target_device = td.device
-            with context.stopwatch("rollout.tensor_transfer"):
-                td["env_obs"] = o.to(device=target_device, non_blocking=True)
-                td["rewards"] = r.to(device=target_device, non_blocking=True)
-                td["dones"] = d.to(device=target_device, dtype=torch.float32, non_blocking=True)
-                td["truncateds"] = t.to(device=target_device, dtype=torch.float32, non_blocking=True)
-                td["training_env_ids"] = self._gather_env_indices(training_env_id, td.device).unsqueeze(1)
+            td["env_obs"] = o.to(device=target_device, non_blocking=True)
+            td["rewards"] = r.to(device=target_device, non_blocking=True)
+            td["dones"] = d.to(device=target_device, dtype=torch.float32, non_blocking=True)
+            td["truncateds"] = t.to(device=target_device, dtype=torch.float32, non_blocking=True)
+            td["training_env_ids"] = self._gather_env_indices(training_env_id, td.device).unsqueeze(1)
             self.add_last_action_to_td(td, env)
 
-            self._ensure_rollout_metadata(td, training_env_id)
+            self._ensure_rollout_metadata(td)
 
             # Allow losses to mutate td (policy inference, bookkeeping, etc.)
             context.training_env_id = training_env_id
@@ -137,25 +126,6 @@ class CoreTrainingLoop:
         if last_env_id is None:
             raise RuntimeError("Rollout completed without receiving any environment data")
 
-        fetch_time = context.stopwatch.get_elapsed("rollout.env_fetch")
-        rollout_time = context.stopwatch.get_elapsed("_rollout")
-        if rollout_time > 0 and fetch_time > 0:
-            fetch_ratio = fetch_time / rollout_time
-            if fetch_ratio > 0.1:
-                logger.info(
-                    "Rollout env fetch consumed %.1f%% of rollout time (%.3fs / %.3fs)",
-                    fetch_ratio * 100,
-                    fetch_time,
-                    rollout_time,
-                )
-            else:
-                logger.debug(
-                    "Rollout env fetch ratio %.2f%% (%.3fs of %.3fs)",
-                    fetch_ratio * 100,
-                    fetch_time,
-                    rollout_time,
-                )
-
         context.training_env_id = last_env_id
         return RolloutResult(raw_infos=raw_infos, agent_steps=total_steps, training_env_id=last_env_id)
 
@@ -165,40 +135,15 @@ class CoreTrainingLoop:
             env_indices = env_indices.to(device=device)
         return env_indices
 
-    def _ensure_rollout_metadata(self, td: TensorDict, training_env_id: slice) -> None:
+    def _ensure_rollout_metadata(self, td: TensorDict) -> None:
         """Populate metadata fields needed downstream while reusing cached tensors."""
 
         batch_elems = td.batch_size.numel()
         device = td.device
-        diag_enabled = os.getenv("TRANSFORMER_DIAG", "0") == "1"
-
         if "batch" not in td.keys():
             td.set("batch", self._get_constant_tensor("batch", (batch_elems,), batch_elems, device))
         if "bptt" not in td.keys():
             td.set("bptt", self._get_constant_tensor("bptt", (batch_elems,), 1, device))
-
-        if diag_enabled:
-            batch_tensor = td.get("batch")
-            bptt_tensor = td.get("bptt")
-            logger.info(
-                "[TRANSFORMER_DIAG] rollout metadata batch=%s bptt=%s",
-                batch_tensor[0].item() if batch_tensor is not None and batch_tensor.numel() else None,
-                bptt_tensor[0].item() if bptt_tensor is not None and bptt_tensor.numel() else None,
-            )
-
-        training_env_shape = tuple(int(dim) for dim in td.batch_size) or (batch_elems,)
-        env_start = training_env_id.start if training_env_id.start is not None else 0
-
-        if "training_env_id" not in td.keys():
-            td.set(
-                "training_env_id",
-                self._get_constant_tensor("training_env_id", training_env_shape, env_start, device),
-            )
-        if "training_env_id_start" not in td.keys():
-            td.set(
-                "training_env_id_start",
-                self._get_constant_tensor("training_env_id_start", training_env_shape, env_start, device),
-            )
 
     def _get_constant_tensor(
         self,
@@ -259,30 +204,21 @@ class CoreTrainingLoop:
                 if mb_idx % self.accumulate_minibatches == 0:
                     self.optimizer.zero_grad()
 
-                total_loss = torch.zeros((), dtype=torch.float32, device=self.device)
+                total_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
                 stop_update_epoch_mb = False
 
-                autocast_enabled = self._amp_enabled and self.device.type == "cuda"
-                autocast_kwargs = {"enabled": autocast_enabled}
-                if autocast_enabled:
-                    autocast_kwargs["dtype"] = self._amp_dtype
-
-                with autocast(**autocast_kwargs):
-                    for _loss_name, loss_obj in self.losses.items():
-                        loss_val, shared_loss_mb_data, loss_requests_stop = loss_obj.train(
-                            shared_loss_mb_data, context, mb_idx
-                        )
-                        total_loss = total_loss + loss_val
-                        stop_update_epoch_mb = stop_update_epoch_mb or loss_requests_stop
+                for _loss_name, loss_obj in self.losses.items():
+                    loss_val, shared_loss_mb_data, loss_requests_stop = loss_obj.train(
+                        shared_loss_mb_data, context, mb_idx
+                    )
+                    total_loss = total_loss + loss_val
+                    stop_update_epoch_mb = stop_update_epoch_mb or loss_requests_stop
 
                 if stop_update_epoch_mb:
                     stop_update_epoch = True
                     break
 
-                if self._grad_scaler is not None and self._grad_scaler.is_enabled():
-                    self._grad_scaler.scale(total_loss).backward()
-                else:
-                    total_loss.backward()
+                total_loss.backward()
 
                 # Optimizer step with gradient accumulation
                 if (mb_idx + 1) % self.accumulate_minibatches == 0:
@@ -293,14 +229,8 @@ class CoreTrainingLoop:
                             actual_max_grad_norm = loss_obj.loss_cfg.max_grad_norm
                             break
 
-                    if self._grad_scaler is not None and self._grad_scaler.is_enabled():
-                        self._grad_scaler.unscale_(self.optimizer)
-                        torch.nn.utils.clip_grad_norm_(self.policy.parameters(), actual_max_grad_norm)
-                        self._grad_scaler.step(self.optimizer)
-                        self._grad_scaler.update()
-                    else:
-                        torch.nn.utils.clip_grad_norm_(self.policy.parameters(), actual_max_grad_norm)
-                        self.optimizer.step()
+                    torch.nn.utils.clip_grad_norm_(self.policy.parameters(), actual_max_grad_norm)
+                    self.optimizer.step()
 
                     if self.device.type == "cuda":
                         torch.cuda.synchronize()

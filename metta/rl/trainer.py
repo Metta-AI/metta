@@ -2,7 +2,6 @@ import importlib
 from typing import Any, Callable, Optional
 
 import torch
-from torch.cuda.amp import GradScaler
 
 from metta.agent.policy import Policy
 from metta.common.util.log_config import getRankAwareLogger
@@ -89,24 +88,6 @@ class Trainer:
 
         self.optimizer = create_optimizer(self._cfg.optimizer, self._policy)
 
-        self._amp_enabled = bool(self._cfg.amp_enabled and self._device.type == "cuda")
-        if self._amp_enabled:
-            if self._cfg.amp_dtype == "bfloat16":
-                self._amp_dtype = torch.bfloat16
-            elif self._cfg.amp_dtype == "float16":
-                self._amp_dtype = torch.float16
-            else:
-                self._amp_dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
-        else:
-            self._amp_dtype = torch.float32
-
-        scaler_enabled = self._amp_enabled and self._amp_dtype == torch.float16
-        self._grad_scaler = GradScaler(
-            enabled=scaler_enabled,
-            init_scale=self._cfg.amp_init_scale,
-            growth_interval=self._cfg.amp_growth_interval,
-        )
-
         self._state = TrainerState()
 
         # Extract curriculum from environment if available
@@ -136,9 +117,6 @@ class Trainer:
             optimizer=self.optimizer,
             device=self._device,
             context=self._context,
-            amp_enabled=self._amp_enabled,
-            amp_dtype=self._amp_dtype,
-            grad_scaler=self._grad_scaler,
         )
 
         self._losses = losses

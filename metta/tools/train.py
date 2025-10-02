@@ -123,30 +123,6 @@ class TrainTool(Tool):
             if hint is not None and self.trainer.optimizer.learning_rate == default_lr:
                 self.trainer.optimizer.learning_rate = hint
 
-            default_opt_type = OptimizerConfig.model_fields["type"].default
-            if self.trainer.optimizer.type == default_opt_type:
-                self.trainer.optimizer.type = "adamw"
-            if self.trainer.optimizer.weight_decay == 0:
-                self.trainer.optimizer.weight_decay = 0.01
-            if self.trainer.optimizer.warmup_steps == 0:
-                self.trainer.optimizer.warmup_steps = 2_000
-            if self.trainer.optimizer.min_learning_rate == 0.0:
-                self.trainer.optimizer.min_learning_rate = self.trainer.optimizer.learning_rate * 0.05
-
-            sched_cfg = self.trainer.hyperparameter_scheduler
-            if sched_cfg.enabled:
-                sched_cfg.enabled = False
-
-            seq_cfg = self.trainer.sequence_curriculum
-            if not seq_cfg.enabled:
-                seq_cfg.enabled = True
-            if seq_cfg.max_bptt < self.trainer.bptt_horizon:
-                seq_cfg.max_bptt = self.trainer.bptt_horizon
-            if seq_cfg.min_bptt >= seq_cfg.max_bptt:
-                seq_cfg.min_bptt = max(2, min(seq_cfg.max_bptt // 2, seq_cfg.max_bptt))
-            if seq_cfg.warmup_steps == 0:
-                seq_cfg.warmup_steps = 200_000
-
         return self
 
     def invoke(self, args: dict[str, str]) -> int | None:
@@ -218,8 +194,9 @@ class TrainTool(Tool):
             if stats_client and hasattr(stats_client, "close"):
                 stats_client.close()
             distributed_helper.cleanup()
-            if hasattr(self, "_sdpa_context_stack") and self._sdpa_context_stack is not None:
-                self._sdpa_context_stack.close()
+            sdpa_stack = getattr(self, "_sdpa_context_stack", None)
+            if sdpa_stack is not None:
+                sdpa_stack.close()
                 self._sdpa_context_stack = None
 
     def _load_or_create_policy(
@@ -414,15 +391,18 @@ class TrainTool(Tool):
         try:
             torch.backends.cuda.matmul.allow_tf32 = True
             torch.backends.cudnn.allow_tf32 = True
-            context = build_sdpa_context(
-                prefer_flash=True,
-                prefer_mem_efficient=True,
-                prefer_math=True,
-                set_priority=True,
-            )
-            if context is not None:
-                if not hasattr(self, "_sdpa_context_stack") or self._sdpa_context_stack is None:
-                    self._sdpa_context_stack = contextlib.ExitStack()
-                self._sdpa_context_stack.enter_context(context)
         except Exception as exc:  # pragma: no cover - backend feature gating
-            logger.debug("Skipping CUDA backend configuration: %s", exc)
+            logger.debug("Skipping CUDA matmul backend configuration: %s", exc)
+
+        context = build_sdpa_context(
+            prefer_flash=True,
+            prefer_mem_efficient=True,
+            prefer_math=True,
+            set_priority=True,
+        )
+        if context is not None:
+            stack = getattr(self, "_sdpa_context_stack", None)
+            if stack is None:
+                stack = contextlib.ExitStack()
+                self._sdpa_context_stack = stack
+            stack.enter_context(context)

@@ -1,5 +1,3 @@
-import logging
-import os
 from typing import Any, Tuple
 
 import numpy as np
@@ -95,7 +93,6 @@ class PPO(Loss):
         "anneal_beta",
         "burn_in_steps",
         "burn_in_steps_iter",
-        "_diag_batch_logged",
         "last_action",
     )
 
@@ -115,7 +112,6 @@ class PPO(Loss):
         if hasattr(self.policy, "burn_in_steps"):
             self.burn_in_steps = self.policy.burn_in_steps
         self.burn_in_steps_iter = 0
-        self._diag_batch_logged = False
         self.last_action = None
         self.register_state_attr("anneal_beta", "burn_in_steps_iter")
 
@@ -177,49 +173,20 @@ class PPO(Loss):
             prio_beta=self.anneal_beta,
         )
 
-        seq_len = minibatch.shape[1]
-        effective_tt = self._effective_sequence_len(context, seq_len)
-        if effective_tt < seq_len:
-            minibatch = minibatch[:, -effective_tt:]
-
         shared_loss_data["sampled_mb"] = minibatch  # one loss should write the sampled mb for others to use
         shared_loss_data["indices"] = NonTensorData(indices)  # av this breaks compile
 
         # Then forward the policy using the sampled minibatch
         policy_td = minibatch.select(*self.policy_experience_spec.keys(include_nested=True))
         B, TT = policy_td.batch_size
-        if os.getenv("TRANSFORMER_DIAG", "0") == "1" and not getattr(self, "_diag_batch_logged", False):
-            logger = logging.getLogger(__name__)
-            logger.info("[TRANSFORMER_DIAG] PPO minibatch shape B=%s TT=%s", B, TT)
-            self._diag_batch_logged = True
         policy_td = policy_td.reshape(B * TT)
         policy_td.set("bptt", torch.full((B * TT,), TT, device=policy_td.device, dtype=torch.long))
         policy_td.set("batch", torch.full((B * TT,), B, device=policy_td.device, dtype=torch.long))
-
-        if TT > 1:
-            disable_memory = torch.ones((B * TT,), device=policy_td.device, dtype=torch.bool)
-            policy_td.set("_disable_transformer_memory", disable_memory)
 
         flat_actions = minibatch["actions"].reshape(B * TT, -1)
 
         policy_td = self.policy.forward(policy_td, action=flat_actions)
         shared_loss_data["policy_td"] = policy_td.reshape(B, TT)
-
-        if os.getenv("TRANSFORMER_DIAG", "0") == "1":
-            logger = logging.getLogger(__name__)
-            adv = self.advantages if isinstance(self.advantages, torch.Tensor) else torch.tensor(self.advantages)
-            values_tensor = minibatch["values"].float()
-            ratio_tensor = minibatch.get("ratio", torch.ones_like(values_tensor)).float()
-            logger.info(
-                "[TRANSFORMER_DIAG] PPO rollout stats: values_mean=%s values_std=%s "
-                "advantages_mean=%s advantages_std=%s ratio_mean=%s ratio_std=%s",
-                float(values_tensor.mean().item()),
-                float(values_tensor.std().item()),
-                float(adv.float().mean().item()),
-                float(adv.float().std().item()),
-                float(ratio_tensor.mean().item()),
-                float(ratio_tensor.std().item()),
-            )
 
         # Finally, calculate the loss!
         loss = self._process_minibatch_update(
@@ -230,24 +197,6 @@ class PPO(Loss):
         )
 
         return loss, shared_loss_data, stop_update_epoch
-
-    def _effective_sequence_len(self, context: ComponentContext, tt: int) -> int:
-        """Compute the curriculum-adjusted sequence length for training."""
-
-        curriculum = getattr(self.trainer_cfg, "sequence_curriculum", None)
-        if curriculum is None or not getattr(curriculum, "enabled", False):
-            return tt
-
-        min_tt = max(1, int(curriculum.min_bptt))
-        max_tt = max(min_tt, int(curriculum.max_bptt))
-        if tt <= min_tt:
-            return tt
-
-        warmup_steps = max(int(curriculum.warmup_steps), 1)
-        progress = min(max(context.agent_step / warmup_steps, 0.0), 1.0)
-        target_tt = min_tt + int(round((max_tt - min_tt) * progress))
-
-        return min(tt, max(target_tt, min_tt))
 
     def on_train_phase_end(self, context: ComponentContext) -> None:
         with torch.no_grad():
@@ -302,14 +251,6 @@ class PPO(Loss):
         newvalue = policy_td["values"]
 
         importance_sampling_ratio = self._importance_ratio(new_logprob, old_logprob)
-        if os.getenv("TRANSFORMER_DIAG", "0") == "1":
-            logger = logging.getLogger(__name__)
-            logger.info(
-                "[TRANSFORMER_DIAG] logprob_stats: old_mean=%s new_mean=%s diff_mean=%s",
-                float(old_logprob.mean().item()),
-                float(new_logprob.mean().item()),
-                float((new_logprob - old_logprob).mean().item()),
-            )
 
         # Re-compute advantages with new ratios (V-trace)
         adv = compute_advantage(
