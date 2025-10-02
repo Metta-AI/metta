@@ -50,7 +50,7 @@ After setup, use `uv run` to execute commands in the project environment:
 uv run python -c "import metta; print('Metta is ready!')"
 
 # Run training
-uv run ./tools/run.py experiments.recipes.arena.train run=my_experiment wandb.enabled=false
+uv run ./tools/run.py train arena run=my_experiment wandb.enabled=false
 
 # Run tests
 uv run pytest
