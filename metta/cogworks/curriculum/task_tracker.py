@@ -27,6 +27,8 @@ class TaskTracker:
         use_shared_memory: bool = False,
         task_struct_size: int = 13,
         completion_history_size: int = 1000,
+        default_success_threshold: float = 0.5,
+        default_generator_type: float = 0.0,
     ):
         """Initialize task tracker with configurable backend.
 
@@ -38,9 +40,13 @@ class TaskTracker:
             use_shared_memory: If True and backend is None, creates SharedMemoryBackend
             task_struct_size: Size of each task's data structure (default: 13)
             completion_history_size: Size of completion history array (default: 1000)
+            default_success_threshold: Default success threshold for new tasks (default: 0.5)
+            default_generator_type: Default generator type identifier (default: 0.0)
         """
         self.max_memory_tasks = max_memory_tasks
         self.ema_alpha = ema_alpha
+        self.default_success_threshold = default_success_threshold
+        self.default_generator_type = default_generator_type
 
         # Initialize or use provided backend
         if backend is None:
@@ -88,15 +94,19 @@ class TaskTracker:
     def track_task_creation(
         self,
         task_id: int,
-        success_threshold: float = 0.5,
+        success_threshold: Optional[float] = None,
         seed: Optional[float] = None,
-        generator_type: float = 0.0,
+        generator_type: Optional[float] = None,
     ) -> None:
         """Track when a task is created with metadata."""
         with self._backend.acquire_lock():
             timestamp = time.time()
             if seed is None:
                 seed = hash(str(task_id) + str(timestamp)) % (2**31)
+            if success_threshold is None:
+                success_threshold = self.default_success_threshold
+            if generator_type is None:
+                generator_type = self.default_generator_type
 
             # Check if task already exists
             if task_id in self._task_id_to_index:

@@ -147,7 +147,7 @@ class CurriculumAlgorithm(StatsLogger, ABC):
         """Set reference to curriculum for stats updates. Override if needed."""
         pass
 
-    def should_evict_task(self, task_id: int, min_presentations: int = 5) -> bool:
+    def should_evict_task(self, task_id: int, min_presentations: int) -> bool:
         """Check if a task should be evicted based on algorithm-specific criteria.
 
         Default implementation returns False (no eviction). Subclasses should override
@@ -156,6 +156,7 @@ class CurriculumAlgorithm(StatsLogger, ABC):
         Args:
             task_id: The task to check
             min_presentations: Minimum number of task presentations before eviction
+                              (should be passed from CurriculumConfig.min_presentations_for_eviction)
 
         Returns:
             True if task should be evicted
@@ -243,6 +244,8 @@ class CurriculumConfig(Config):
     num_active_tasks: int = Field(default=1000, gt=0, description="Number of active tasks to maintain")
 
     # Curriculum behavior options
+    seed: int = Field(default=0, description="Random seed for curriculum task generation")
+    defer_init: bool = Field(default=False, description="Defer task pool initialization (used for checkpoint loading)")
     min_presentations_for_eviction: int = Field(
         default=5, gt=0, description="Minimum task presentations before eviction"
     )
@@ -292,13 +295,13 @@ class Curriculum(StatsLogger):
     Inherits from StatsLogger to provide unified statistics interface.
     """
 
-    def __init__(self, config: CurriculumConfig, seed: int = 0, defer_init: bool = False):
+    def __init__(self, config: CurriculumConfig):
         # Initialize StatsLogger (algorithm handles detailed stats)
         StatsLogger.__init__(self, enable_detailed_logging=False)
 
         self._config = config
         self._task_generator = config.task_generator.create()
-        self._rng = random.Random(seed)
+        self._rng = random.Random(config.seed)
         self._tasks: dict[int, CurriculumTask] = {}
         self._task_ids: set[int] = set()
         self._num_created = 0
@@ -312,7 +315,7 @@ class Curriculum(StatsLogger):
                 self._algorithm.set_curriculum_reference(self)
 
         # Initialize task pool at capacity unless deferred (e.g., for checkpoint loading)
-        if not defer_init:
+        if not config.defer_init:
             self._initialize_at_capacity()
 
     def get_task(self) -> CurriculumTask:

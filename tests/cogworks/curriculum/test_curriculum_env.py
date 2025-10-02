@@ -19,7 +19,8 @@ class TestCurriculumEnv:
         """Helper to create a test curriculum."""
         task_gen_config = SingleTaskGenerator.Config(env=MettaGridConfig())
         config = CurriculumConfig(task_generator=task_gen_config, num_active_tasks=5)
-        return Curriculum(config, seed=0)
+        config.seed = 0
+        return Curriculum(config)
 
     def create_mock_env(self):
         """Helper to create a mock environment."""
@@ -147,7 +148,8 @@ class TestCurriculumEnv:
 
         task_gen_config = SingleTaskGenerator.Config(env=MettaGridConfig())
         config = CurriculumConfig(task_generator=task_gen_config)
-        curriculum = Curriculum(config, seed=0)
+        config.seed = 0
+        curriculum = Curriculum(config)
 
         wrapper = CurriculumEnv(mock_env, curriculum)
 
@@ -278,7 +280,8 @@ class TestCurriculumEnv:
 
         task_gen_config = SingleTaskGenerator.Config(env=MettaGridConfig())
         config = CurriculumConfig(task_generator=task_gen_config)
-        curriculum = Curriculum(config, seed=0)
+        config.seed = 0
+        curriculum = Curriculum(config)
 
         wrapper = CurriculumEnv(mock_env, curriculum)
         initial_task = wrapper._current_task
@@ -306,7 +309,8 @@ class TestCurriculumEnv:
 
         task_gen_config = SingleTaskGenerator.Config(env=MettaGridConfig())
         config = CurriculumConfig(task_generator=task_gen_config)
-        curriculum = Curriculum(config, seed=0)
+        config.seed = 0
+        curriculum = Curriculum(config)
 
         wrapper = CurriculumEnv(mock_env, curriculum)
 
@@ -333,7 +337,8 @@ class TestCurriculumEnv:
 
         task_gen_config = SingleTaskGenerator.Config(env=MettaGridConfig())
         config = CurriculumConfig(task_generator=task_gen_config, num_active_tasks=2)
-        curriculum = Curriculum(config, seed=0)
+        config.seed = 0
+        curriculum = Curriculum(config)
         wrapper = CurriculumEnv(mock_env, curriculum)
 
         # Initial curriculum stats

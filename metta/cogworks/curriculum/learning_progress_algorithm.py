@@ -47,6 +47,10 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     # Task tracker EMA configuration
     task_tracker_ema_alpha: float = 0.02  # Learning rate for task tracker EMAs (reward, success rate)
 
+    # Task creation defaults
+    task_default_success_threshold: float = 0.5  # Default success threshold for new tasks
+    task_default_generator_type: float = 0.0  # Default generator type identifier for tasks
+
     # Performance and memory management
     max_slice_axes: int = 3  # Updated terminology
 
@@ -88,6 +92,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             use_shared_memory=hypers.use_shared_memory,
             task_struct_size=hypers.task_struct_size,
             completion_history_size=hypers.completion_history_size,
+            default_success_threshold=hypers.task_default_success_threshold,
+            default_generator_type=hypers.task_default_generator_type,
         )
 
         # Note: slice_analyzer is already initialized in parent class via StatsLogger
