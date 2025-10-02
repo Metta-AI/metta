@@ -62,7 +62,7 @@ class mLSTMCellConfig(CellConfig):
 
     hidden_size: int | None = Field(default=None)
     num_heads: int = Field(default=4, ge=1)
-    chunk_size: int = Field(default=256, ge=1)
+    chunk_size: int = Field(default=64, ge=1)
     # Always apply conv-in inside the cell (depthwise causal conv)
     conv1d_kernel_size: int = Field(default=4, ge=1)
 

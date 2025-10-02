@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 import random
 from dataclasses import dataclass
-import logging
 from typing import Callable, Dict, Tuple
 
 import torch
@@ -50,6 +50,7 @@ def _ensure_disjoint_splits(train_ds, val_ds, test_ds) -> None:
     to assert there is no overlap between splits. If `ids` is missing, we
     log a warning and skip the check.
     """
+
     def _get_ids(ds):
         return getattr(ds, "ids", None)
 
@@ -77,7 +78,7 @@ class TaskSpec:
 
 def make_task(task: str, *, num_samples: int, seed: int) -> TaskSpec:
     if task == "delayed_recall":
-        delay = 50
+        delay = 512
 
         def _splits():
             return DelayedRecallDataset.splits(num_samples=num_samples, delay=delay, seed=seed)
@@ -85,7 +86,7 @@ def make_task(task: str, *, num_samples: int, seed: int) -> TaskSpec:
         return TaskSpec(name=task, make_splits=_splits, vocab_size=3, n_classes=2)
 
     if task == "majority":
-        length = 100
+        length = 128
 
         def _splits():
             return MajorityDataset.splits(num_samples=num_samples, length=length, seed=seed)
@@ -179,7 +180,9 @@ def train_one(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Cortex synthetic evaluations")
     parser.add_argument("--task", choices=["delayed_recall", "majority", "dyck"], required=True)
-    parser.add_argument("--stack", choices=["slstm_postup", "mlstm_preup", "xlstm", "all"], default="all")
+    # Build stack choices dynamically from the registry so new entries in STACKS are auto-discovered.
+    stack_choices = sorted(list(STACKS.keys())) + ["all"]
+    parser.add_argument("--stack", choices=stack_choices, default="all")
     parser.add_argument("--epochs", type=int, default=5)
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--lr", type=float, default=1e-3)
@@ -225,7 +228,13 @@ def main() -> None:
             lr=args.lr,
         )
         results[name] = metrics
-        logging.info("finished stack=%s val_acc=%.4f test_acc=%.4f test_loss=%.4f", name, metrics["val_acc"], metrics["test_acc"], metrics["test_loss"])
+        logging.info(
+            "finished stack=%s val_acc=%.4f test_acc=%.4f test_loss=%.4f",
+            name,
+            metrics["val_acc"],
+            metrics["test_acc"],
+            metrics["test_loss"],
+        )
 
     # Pretty print
     logging.info("summary task=%s results=%s", task.name, results)

@@ -2,9 +2,10 @@
 from typing import Optional
 
 import torch
-import triton
 import triton.language as tl
 from einops import rearrange
+
+import triton
 from triton import OutOfResources
 
 from .triton_utils import is_power_of_2, next_multiple_of, torch2triton_dtype

@@ -9,8 +9,9 @@ The work is partitioned such that there is no limit on either the chunk size or 
 We use tiling in the chunk dimension L. We tile in Bq and Bkv blocks.
 """
 
-import triton
 import triton.language as tl
+
+import triton
 
 
 @triton.jit

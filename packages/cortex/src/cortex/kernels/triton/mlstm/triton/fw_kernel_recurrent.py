@@ -6,8 +6,9 @@
 It is adapted such that it allows to write out the C states at every NC-th chunk.
 """
 
-import triton
 import triton.language as tl
+
+import triton
 
 
 @triton.jit

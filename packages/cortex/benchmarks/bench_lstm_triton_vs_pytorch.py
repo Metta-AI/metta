@@ -62,7 +62,7 @@ def benchmark_lstm(
     results = {}
 
     # Benchmark PyTorch implementation
-    print(f"  Benchmarking PyTorch implementation...")
+    print("  Benchmarking PyTorch implementation...")
     for _ in range(num_warmup):
         _ = lstm_sequence_pytorch(
             lstm=lstm,
@@ -93,7 +93,7 @@ def benchmark_lstm(
 
     # Benchmark Triton implementation
     if device.type == "cuda":
-        print(f"  Benchmarking Triton implementation...")
+        print("  Benchmarking Triton implementation...")
         try:
             for _ in range(num_warmup):
                 _ = lstm_sequence_triton(
@@ -136,7 +136,7 @@ def benchmark_lstm(
         results["triton_ms"] = None
         results["speedup"] = None
         results["max_diff"] = None
-        print(f"  Skipping Triton (CUDA not available)")
+        print("  Skipping Triton (CUDA not available)")
 
     return results
 
