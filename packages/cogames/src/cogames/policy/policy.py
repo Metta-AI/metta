@@ -1,9 +1,11 @@
 """Base policy classes and interfaces."""
 
 from abc import abstractmethod
+from pathlib import Path
 from typing import Generic, Optional, Tuple, TypeVar
 
 import torch.nn as nn
+from pydantic import BaseModel
 
 from mettagrid import MettaGridAction, MettaGridObservation
 
@@ -29,6 +31,10 @@ class AgentPolicy:
             The action to take
         """
         raise NotImplementedError("Subclasses must implement step()")
+
+    def reset(self) -> None:
+        """Reset the policy state. Default implementation does nothing."""
+        pass
 
 
 class Policy:
@@ -182,3 +188,26 @@ class TrainablePolicy(Policy):
         import torch
 
         torch.save(self.network().state_dict(), policy_data_path)
+
+
+class PolicySpec(BaseModel):
+    """Specification for a policy used during evaluation."""
+
+    # Path to policy class, or shorthand
+    policy_class_path: str
+
+    # Path to policy weights, if applicable
+    policy_data_path: Optional[str]
+
+    # Proportion of total agents to assign to this policy
+    proportion: float
+
+    @property
+    def name(self) -> str:
+        """Get the name of the policy."""
+        parts = [
+            self.policy_class_path.split(".")[-1],
+        ]
+        if self.policy_data_path:
+            parts.append(Path(self.policy_data_path).name)
+        return "-".join(parts)
