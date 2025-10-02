@@ -50,7 +50,8 @@ class SimplePolicyNet(torch.nn.Module):
         logits = logits.split(self.action_nvec, dim=1)
 
         values = self.value_head(hidden)
-        return list(logits), values
+        # return list(logits), values
+        return logits, values
 
     # We use this to work around a major torch perf issue
     def forward(
