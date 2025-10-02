@@ -139,8 +139,9 @@ class TerrainFromNumpy(MapBuilder):
         self.config.rng.shuffle(indices_list)
         return valid_positions[indices_list]
 
-    def clean_grid(self, grid, assemblers=True, mass_in_center=False):
-        grid[grid == "agent.agent"] = "empty"
+    def clean_grid(self, grid, assemblers=True, mass_in_center=False, clear_agents=True):
+        if clear_agents:
+            grid[grid == "agent.agent"] = "empty"
         if self.config.remove_altars:
             grid[grid == "altar"] = "empty"
 
@@ -267,11 +268,10 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
         num_agents = len(agent_labels)
         # Place all agents
         for pos, label in zip(valid_agent_positions[:num_agents], agent_labels, strict=False):
-            print(f"Placing agent {label} at {pos}")
             grid[tuple(pos)] = label
 
         grid, valid_assembler_positions, _ = self.clean_grid(
-            grid, assemblers=True, mass_in_center=self.config.mass_in_center
+            grid, assemblers=True, mass_in_center=self.config.mass_in_center, clear_agents=False
         )
 
         # GUARANTEE: Ensure we have enough valid positions for all objects
