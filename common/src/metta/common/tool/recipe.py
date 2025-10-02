@@ -15,6 +15,7 @@ from typing import Callable, Optional
 from typing_extensions import get_type_hints
 
 from metta.common.tool import Tool
+from metta.common.tool.tool_registry import get_tool_registry
 from metta.sim.simulation_config import SimulationConfig
 from mettagrid import MettaGridConfig
 
@@ -32,7 +33,6 @@ class Recipe:
 
     def _build_tool_maps(self) -> None:
         """Build name->tool and canonical->tools maps for efficient lookup."""
-        from metta.common.tool.tool_registry import get_tool_registry
 
         registry = get_tool_registry()
 
@@ -204,3 +204,35 @@ def _get_recipe_configs(module: ModuleType) -> tuple[MettaGridConfig | None, lis
             pass
 
     return mg, sims
+
+
+def infer_tool_from_recipe(module_path: str, tool_name: str) -> Optional[Callable[[], Tool]]:
+    """Try to infer a tool from a recipe module.
+
+    Args:
+        module_path: Recipe module like 'experiments.recipes.arena'
+        tool_name: Tool to infer like 'train' or 'evaluate'
+
+    Returns:
+        Tool factory if inference succeeds, None otherwise
+    """
+    from metta.common.tool.tool_registry import get_tool_registry
+
+    registry = get_tool_registry()
+
+    # Normalize to canonical tool name
+    canonical = registry.get_canonical_name(tool_name)
+    if not canonical:
+        canonical = tool_name
+
+    # Get tool class
+    tool_class = registry._registry.get(canonical)
+    if not tool_class:
+        return None
+
+    # Load recipe and try inference
+    recipe = Recipe.load(module_path)
+    if not recipe:
+        return None
+
+    return recipe.infer_tool(tool_class)

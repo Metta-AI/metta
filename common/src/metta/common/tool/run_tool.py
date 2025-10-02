@@ -22,6 +22,7 @@ from typing_extensions import TypeVar
 
 from metta.common.tool import Tool
 from metta.common.tool.recipe import Recipe
+from metta.common.tool.tool_path import normalize_module_path, resolve_and_load_tool, strip_recipe_prefix
 from metta.common.tool.tool_registry import get_tool_registry
 from metta.common.util.log_config import init_logging
 from metta.common.util.text_styles import bold, cyan, green, red, yellow
@@ -399,7 +400,7 @@ def list_all_recipes(console: Console) -> None:
         return
 
     for recipe in sorted(recipes, key=lambda r: r.module_name):
-        short_name = recipe.module_name.replace("experiments.recipes.", "")
+        short_name = strip_recipe_prefix(recipe.module_name)
         tool_names = recipe.get_all_tool_names()
 
         if tool_names:
@@ -411,12 +412,8 @@ def list_all_recipes(console: Console) -> None:
 
 def list_module_tools(module_path: str, console: Console) -> bool:
     """List all tools available in a module. Returns True if successful."""
-    # Try to load recipe with experiments.recipes prefix if needed
-    candidates = [module_path]
-    if not module_path.startswith("experiments.recipes."):
-        candidates.append(f"experiments.recipes.{module_path}")
-
-    for module_name in candidates:
+    # Try to load recipe with normalized path
+    for module_name in normalize_module_path(module_path):
         recipe = Recipe.load(module_name)
         if not recipe:
             continue
@@ -425,7 +422,7 @@ def list_module_tools(module_path: str, console: Console) -> bool:
 
         # Display results
         console.print(f"\n[bold]Available tools in {module_name}:[/bold]\n")
-        short_mod = module_name.replace("experiments.recipes.", "")
+        short_mod = strip_recipe_prefix(module_name)
         for name in sorted(tool_names):
             console.print(f"  {short_mod}.{name}")
         return True
@@ -460,11 +457,6 @@ Common tools:
   replay          - View recorded gameplay
   evaluate        - Run evaluation suite (aliases: eval, sim)
   evaluate_remote - Remote evaluation (aliases: eval_remote, sim_remote)
-
-Recipe requirements:
-  - Define mettagrid() -> MettaGridConfig for basic functionality
-  - Define simulations() -> list[SimulationConfig] for custom evaluations
-  - Or define explicit tool functions for full control
 
 Advanced:
   %(prog)s arena.train -h                           # List all arguments
@@ -553,7 +545,7 @@ constructor/function vs configuration overrides based on introspection.
             for recipe in sorted(recipes, key=lambda r: r.module_name):
                 tools = recipe.get_tools_for_canonical(canonical_tool)
                 if tools:
-                    short_name = recipe.module_name.replace("experiments.recipes.", "")
+                    short_name = strip_recipe_prefix(recipe.module_name)
                     # Show all function names that provide this tool
                     for func_name, _ in tools:
                         console.print(f"  {short_name}.{func_name}")
@@ -569,20 +561,19 @@ constructor/function vs configuration overrides based on introspection.
         # If listing failed, continue to show error below
 
     # Try two-part form first if next arg looks like a module name (not key=value)
-    registry = get_tool_registry()
     tool_maker = None
     args_consumed = 0
 
     if raw_positional_args and ("=" not in raw_positional_args[0]) and (not raw_positional_args[0].startswith("-")):
         # Try 'train arena' → 'arena.train'
         two_part_path = f"{raw_positional_args[0]}.{tool_path}"
-        tool_maker = registry.resolve_and_load_tool(two_part_path)
+        tool_maker = resolve_and_load_tool(two_part_path)
         if tool_maker:
             args_consumed = 1
 
     # If two-part didn't work, try single form
     if not tool_maker:
-        tool_maker = registry.resolve_and_load_tool(tool_path)
+        tool_maker = resolve_and_load_tool(tool_path)
 
     # Rebuild the arg list to parse (skip consumed args)
     all_args = raw_positional_args[args_consumed:] + unknown_args
@@ -603,17 +594,17 @@ constructor/function vs configuration overrides based on introspection.
         # Try to provide helpful hints
         if "." in tool_path:
             module_part = tool_path.rsplit(".", 1)[0]
-            # Try adding experiments.recipes prefix if not present
-            if not module_part.startswith("experiments.recipes."):
-                module_part = f"experiments.recipes.{module_part}"
 
-            recipe = Recipe.load(module_part)
-            if recipe:
-                mg, sims = recipe.get_configs()
-                if mg is not None or sims is not None:
-                    registry = get_tool_registry()
-                    output_info(f"\n{yellow('Hint:')} Recipe module exists but tool not found.")
-                    output_info(f"Available inferred tools: {', '.join(registry.get_tool_display_names())}")
+            # Try loading with normalized path
+            for normalized in normalize_module_path(module_part):
+                recipe = Recipe.load(normalized)
+                if recipe:
+                    mg, sims = recipe.get_configs()
+                    if mg is not None or sims is not None:
+                        registry = get_tool_registry()
+                        output_info(f"\n{yellow('Hint:')} Recipe module exists but tool not found.")
+                        output_info(f"Available inferred tools: {', '.join(registry.get_tool_display_names())}")
+                    break
 
         return 1
 

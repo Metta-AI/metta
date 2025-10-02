@@ -282,39 +282,6 @@ The project uses OmegaConf for configuration, with config files organized in `co
 - `user/`: User-specific configurations
 - `wandb/`: Weights & Biases settings
 
-#### Running Training and Tools
-
-All tools are now run through `./tools/run.py` with recipe functions:
-
-```bash
-# Training with arena recipe
-uv run ./tools/run.py arena.train run=my_experiment
-
-# Training with navigation recipe
-uv run ./tools/run.py navigation.train run=my_experiment
-
-# Play/test a trained policy (interactive browser)
-uv run ./tools/run.py arena.play \
-  policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
-
-# Run evaluation
-uv run ./tools/run.py arena.evaluate \
-  policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
-
-# View replays
-uv run ./tools/run.py arena.replay \
-  policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
-```
-
-#### Configuration System
-
-The project now uses Pydantic-based configuration instead of Hydra/YAML. Configurations are built programmatically in
-recipe files:
-
-- Recipes define training setups, environments, and evaluation suites
-- Each recipe function returns a Tool configuration object
-- Override parameters can be passed via command line arguments to the recipe functions
-
 ### Development Workflows
 
 #### Adding a New Evaluation Task

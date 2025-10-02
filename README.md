@@ -189,26 +189,7 @@ builds its configuration, and runs it. The current available tasks are:
 
   `./tools/run.py evaluate arena policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`
 
-### Runner arguments
-
-Use the runner like this:
-
-```bash
-./tools/run.py <task_name> [key=value ...] [--verbose]
-```
-
-Example tasks:
-
-| Task                        | Command                                                                                                                |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Train (arena)               | `./tools/run.py arena.train run=my_experiment`                                                                         |
-| Train (navigation)          | `./tools/run.py navigation.train run=my_experiment`                                                                    |
-| Play (browser)              | `./tools/run.py arena.play`                                                                                            |
-| Replay (policy)             | `./tools/run.py arena.replay policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`                 |
-| Evaluate (arena)            | `./tools/run.py arena.evaluate policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`               |
-| Evaluate (navigation suite) | `./tools/run.py navigation.eval policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`             |
-
-#### Task arguments
+### Task arguments
 
 run.py applies arguments provided through `[key=value ...]`, classifying each:
 
