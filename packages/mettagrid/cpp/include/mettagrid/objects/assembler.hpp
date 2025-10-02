@@ -108,6 +108,9 @@ public:
   // Clipped state
   bool is_clipped;
 
+  // Clip immunity - if true, cannot be clipped
+  bool clip_immune;
+
   // Current cooldown state
   unsigned int cooldown_end_timestep;
   unsigned int cooldown_duration;  // Total duration of current cooldown
@@ -141,6 +144,7 @@ public:
       : recipes(cfg.recipes),
         unclip_recipes(),
         is_clipped(false),
+        clip_immune(cfg.clip_immune),
         cooldown_end_timestep(0),
         cooldown_duration(0),
         uses_count(0),

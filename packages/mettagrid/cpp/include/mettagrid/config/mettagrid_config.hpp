@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "core/types.hpp"
-#include "objects/recipe.hpp"
+#include "systems/clipper_config.hpp"
 
 // Forward declarations
 struct ActionConfig;
@@ -45,17 +45,11 @@ struct GameConfig {
   bool allow_diagonals = false;
   std::map<std::string, float> reward_estimates = {};
 
-  // Inventory regeneration settings
-  // Long term we should accomplish this by making Agents effectively be a form of Converter; but in the short
-  // term, this is a straightforward patch.
-  std::map<InventoryItem, InventoryQuantity> inventory_regen_amounts = {};  // Resources to regenerate and their amounts
-  unsigned int inventory_regen_interval = 0;                                // Interval in timesteps (0 = disabled)
+  // Inventory regeneration interval (global check timing)
+  unsigned int inventory_regen_interval = 0;  // Interval in timesteps (0 = disabled)
 
   // Global clipper settings
-  std::shared_ptr<Recipe> clipper_recipe = nullptr;
-  float clipper_length_scale = 1.0f;
-  float clipper_cutoff_distance = 0.0f;
-  float clipper_clip_rate = 0.0f;
+  std::shared_ptr<ClipperConfig> clipper = nullptr;
 };
 
 namespace py = pybind11;
@@ -96,14 +90,10 @@ inline void bind_game_config(py::module& m) {
                     const std::map<std::string, float>&,
 
                     // Inventory regeneration
-                    const std::map<InventoryItem, InventoryQuantity>&,
                     unsigned int,
 
                     // Clipper
-                    const std::shared_ptr<Recipe>&,
-                    float,
-                    float,
-                    float>(),
+                    const std::shared_ptr<ClipperConfig>&>(),
            py::arg("num_agents"),
            py::arg("max_steps"),
            py::arg("episode_truncates"),
@@ -124,14 +114,10 @@ inline void bind_game_config(py::module& m) {
            py::arg("reward_estimates") = std::map<std::string, float>(),
 
            // Inventory regeneration
-           py::arg("inventory_regen_amounts") = std::map<InventoryItem, InventoryQuantity>(),
            py::arg("inventory_regen_interval") = 0,
 
            // Clipper
-           py::arg("clipper_recipe") = std::shared_ptr<Recipe>(nullptr),
-           py::arg("clipper_length_scale") = 1.0f,
-           py::arg("clipper_cutoff_distance") = 0.0f,
-           py::arg("clipper_clip_rate") = 0.0f)
+           py::arg("clipper") = std::shared_ptr<ClipperConfig>(nullptr))
       .def_readwrite("num_agents", &GameConfig::num_agents)
       .def_readwrite("max_steps", &GameConfig::max_steps)
       .def_readwrite("episode_truncates", &GameConfig::episode_truncates)
@@ -157,14 +143,10 @@ inline void bind_game_config(py::module& m) {
       .def_readwrite("reward_estimates", &GameConfig::reward_estimates)
 
       // Inventory regeneration
-      .def_readwrite("inventory_regen_amounts", &GameConfig::inventory_regen_amounts)
       .def_readwrite("inventory_regen_interval", &GameConfig::inventory_regen_interval)
 
       // Clipper
-      .def_readwrite("clipper_recipe", &GameConfig::clipper_recipe)
-      .def_readwrite("clipper_length_scale", &GameConfig::clipper_length_scale)
-      .def_readwrite("clipper_cutoff_distance", &GameConfig::clipper_cutoff_distance)
-      .def_readwrite("clipper_clip_rate", &GameConfig::clipper_clip_rate);
+      .def_readwrite("clipper", &GameConfig::clipper);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_CONFIG_METTAGRID_CONFIG_HPP_

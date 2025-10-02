@@ -50,7 +50,10 @@ class AgentConfig(Config):
     """Python agent configuration."""
 
     default_resource_limit: int = Field(default=255, ge=0)
-    resource_limits: dict[str, int] = Field(default_factory=dict)
+    resource_limits: dict[str | tuple[str, ...], int] = Field(
+        default_factory=dict,
+        description="Resource limits - keys can be single resource names or tuples of names for shared limits",
+    )
     freeze_duration: int = Field(default=10, ge=-1)
     rewards: AgentRewards = Field(default_factory=AgentRewards)
     action_failure_penalty: float = Field(default=0, ge=0)
@@ -62,6 +65,9 @@ class AgentConfig(Config):
     )
     shareable_resources: list[str] = Field(
         default_factory=list, description="Resources that will be shared when we use another agent"
+    )
+    inventory_regen_amounts: dict[str, int] = Field(
+        default_factory=dict, description="Resources to regenerate and their amounts per regeneration interval"
     )
 
 
@@ -171,6 +177,9 @@ class AssemblerConfig(Config):
             "Exhaustion rate - cooldown multiplier grows by (1 + exhaustion) after each use (0 = no exhaustion)"
         ),
     )
+    clip_immune: bool = Field(
+        default=False, description="If true, this assembler cannot be clipped by the Clipper system"
+    )
 
 
 class ChestConfig(Config):
@@ -185,6 +194,15 @@ class ChestConfig(Config):
         default_factory=list, description="Positions where agents can withdraw resources"
     )
     tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
+
+
+class ClipperConfig(Config):
+    """Global clipper that probabilistically clips assemblers each tick."""
+
+    unclipping_recipes: list[RecipeConfig] = Field(default_factory=list)
+    length_scale: float = Field(default=1.0, ge=0.0)
+    cutoff_distance: float = Field(default=0.0, ge=0.0)
+    clip_rate: float = Field(default=0.0, ge=0.0, le=1.0)
 
 
 class GameConfig(Config):
@@ -226,13 +244,13 @@ class GameConfig(Config):
 
     resource_loss_prob: float = Field(default=0.0, description="Probability of resource loss per step")
 
-    # Inventory regeneration settings
-    inventory_regen_amounts: dict[str, int] = Field(
-        default_factory=dict, description="Resources to regenerate and their amounts per regeneration interval"
-    )
+    # Inventory regeneration interval (global check timing)
     inventory_regen_interval: int = Field(
         default=0, ge=0, description="Interval in timesteps between regenerations (0 = disabled)"
     )
+
+    # Global clipper system
+    clipper: Optional[ClipperConfig] = Field(default=None, description="Global clipper configuration")
 
     # Map builder configuration - accepts any MapBuilder config
     map_builder: "AnyMapBuilderConfig" = Field(default_factory=_default_map_builder_config)

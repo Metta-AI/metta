@@ -10,6 +10,8 @@ Codex agents working in this repository should follow these guidelines:
 
 ## Quality checks
 
+Before finalizing changes (e.g. before a commit), or upon request from the user:
+
 - Run `ruff format` and `ruff check` on Python files before committing.
 - Run the unit tests with `uv run pytest` or by activating the venv and running `pytest`.
 
