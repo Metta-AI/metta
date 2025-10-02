@@ -54,7 +54,7 @@
           # Prevent uv from downloading its own Python
           export UV_PYTHON="${mettaPython}/bin/python3.11"
           # Clear PYTHONPATH to avoid conflicts
-          export PYTHONPATH=""s
+          export PYTHONPATH=""
 
           # Set LD_LIBRARY_PATH for bazel to run properly during uv sync
           export LD_LIBRARY_PATH="${pkgs.stdenv.cc.cc.lib}/lib:$LD_LIBRARY_PATH"
@@ -68,7 +68,7 @@
           mkdir -p "$EM_CACHE"
 
           # Create and activate a virtual environment with uv
-          #uv sync
+          uv sync
           source .venv/bin/activate
 
           # Build frontend
