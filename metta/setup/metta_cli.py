@@ -606,7 +606,7 @@ def cmd_publish(
         error(f"Failed to tag: {exc}.")
         raise typer.Exit(exc.returncode) from exc
 
-    success(f"Created tag {tag_name}, pushing to {remote}...")
+    success(f"Published {tag_name} to {remote}.")
 
     try:
         if not no_repo:
