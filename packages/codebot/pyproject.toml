@@ -1,0 +1,26 @@
+[project]
+name = "codebot"
+version = "0.1.0"
+description = "Codebot tools for AI development"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["typer>=0.9.0", "tiktoken>=0.9.0", "gitta>=0.1.0"]
+
+[project.scripts]
+codeclip = "codebot.codeclip.cli:app"
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.uv.sources]
+gitta = { workspace = true }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+python_classes = ["Test*"]

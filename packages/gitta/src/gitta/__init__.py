@@ -209,9 +209,21 @@ def get_branch_commit(branch: str) -> str:
 
 
 @lru_cache(maxsize=256)
+def _get_commit_message_cached(commit_hash: str) -> str:
+    """Internal cached function - only call with resolved commit hashes."""
+    return run_git("log", "-1", "--pretty=%B", commit_hash)
+
+
 def get_commit_message(commit_hash: str) -> str:
     """Get the commit message for a given commit."""
-    return run_git("log", "-1", "--pretty=%B", commit_hash)
+    # Only resolve if it's not already a full hex hash (40 chars)
+    if len(commit_hash) == 40 and all(c in "0123456789abcdef" for c in commit_hash.lower()):
+        # Already a full commit hash, use directly
+        return _get_commit_message_cached(commit_hash)
+    else:
+        # Symbolic ref (HEAD, branch name, etc.) or short hash - resolve first
+        resolved_hash = run_git("rev-parse", commit_hash)
+        return _get_commit_message_cached(resolved_hash)
 
 
 def has_unstaged_changes(allow_untracked: bool = False) -> tuple[bool, str]:
