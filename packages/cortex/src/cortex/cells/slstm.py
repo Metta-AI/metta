@@ -13,7 +13,8 @@ from cortex.cells.conv import CausalConv1d
 from cortex.cells.mlstm import MultiHeadLayerNorm, bias_linspace_init_
 from cortex.cells.registry import register_cell
 from cortex.config import CausalConv1dConfig, sLSTMCellConfig
-from cortex.kernels.pytorch.slstm import slstm_sequence_pytorch, slstm_sequence_triton
+from cortex.kernels.pytorch.slstm import slstm_sequence_pytorch
+from cortex.kernels.triton.slstm import slstm_sequence_triton
 from cortex.types import MaybeState, ResetMask, Tensor
 from cortex.utils import select_backend
 

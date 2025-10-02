@@ -12,7 +12,8 @@ from tensordict import TensorDict
 from cortex.cells.base import MemoryCell
 from cortex.cells.registry import register_cell
 from cortex.config import CausalConv1dConfig
-from cortex.kernels.pytorch.conv1d import causal_conv1d_pytorch, causal_conv1d_triton
+from cortex.kernels.pytorch.conv1d import causal_conv1d_pytorch
+from cortex.kernels.triton.conv1d import causal_conv1d_triton
 from cortex.types import MaybeState, ResetMask, Tensor
 from cortex.utils import select_backend
 
