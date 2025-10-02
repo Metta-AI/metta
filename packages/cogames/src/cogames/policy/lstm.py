@@ -14,9 +14,9 @@ logger = logging.getLogger("cogames.policies.lstm_policy")
 
 
 class LSTMPolicyNet(torch.nn.Module):
-    def __init__(self, env):
+    def __init__(self, env: MettaGridEnv):
         super().__init__()
-        # Public: Required by PufferLib for RNN state management
+        # Public: required by PufferLib for RNN state management
         self.hidden_size = 128
         self._obs_shape = tuple(env.single_observation_space.shape)
         self._obs_size = int(np.prod(env.single_observation_space.shape))
@@ -109,17 +109,14 @@ class LSTMPolicyNet(torch.nn.Module):
 class LSTMAgentPolicy(StatefulAgentPolicy[LSTMState]):
     """Per-agent policy that uses the shared LSTM network."""
 
-    def __init__(self, net: LSTMPolicyNet, device: torch.device, action_nvec: tuple):
+    def __init__(self, net: LSTMPolicyNet, device: torch.device, action_nvec: tuple[int, ...]):
         self._net = net
         self._device = device
         self._action_nvec = action_nvec
         self._obs_shape = getattr(net, "_obs_shape", None)
 
     def agent_state(self) -> Optional[LSTMState]:
-        """Get initial state for a new agent.
-
-        For LSTM, we return None and let the network initialize the state on first forward pass.
-        """
+        """Return the initial recurrent state for a new agent."""
         return None
 
     def step_with_state(
@@ -162,7 +159,7 @@ class LSTMAgentPolicy(StatefulAgentPolicy[LSTMState]):
                     if torch.isnan(param).any():
                         logger.error("NaN in parameter %s", name)
 
-            actions = []
+            actions: list[int] = []
             for logit in logits:
                 dist = torch.distributions.Categorical(logits=logit)
                 actions.append(dist.sample().item())
