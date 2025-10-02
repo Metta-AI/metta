@@ -334,7 +334,7 @@ VIT_POLICY_BASE = make_custom_protein_config(
         "policy_architecture.fourier_freqs": ParameterConfig(
             distribution="int_uniform",
             min=2,
-            max=14,
+            max=8,
             mean=4,
             scale="auto",
         ),
