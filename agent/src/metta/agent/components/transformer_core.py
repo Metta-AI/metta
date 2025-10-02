@@ -8,7 +8,7 @@ from pydantic import Field, model_validator
 
 from metta.agent.components.component_config import ComponentConfig
 
-from .transformers import available_backbones, get_backbone_entry
+from .transformers import available_backbones, get_backbone_spec
 
 
 class TransformerBackboneConfig(ComponentConfig):
@@ -44,7 +44,7 @@ class TransformerBackboneConfig(ComponentConfig):
 
     @model_validator(mode="after")
     def _apply_variant_defaults(self) -> "TransformerBackboneConfig":
-        entry = get_backbone_entry(self.variant)
+        entry = get_backbone_spec(self.variant)
         for field_name, default_value in entry.defaults.items():
             if getattr(self, field_name, None) is None:
                 setattr(self, field_name, default_value)
@@ -59,7 +59,7 @@ class TransformerBackboneConfig(ComponentConfig):
     # ------------------------------------------------------------------
 
     def make_component(self, env: Any | None = None):  # type: ignore[override]
-        entry = get_backbone_entry(self.variant)
+        entry = get_backbone_spec(self.variant)
         return entry.builder(self, env)
 
 

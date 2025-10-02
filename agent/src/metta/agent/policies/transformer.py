@@ -29,7 +29,7 @@ from metta.agent.components.obs_enc import ObsPerceiverLatent, ObsPerceiverLaten
 from metta.agent.components.obs_shim import ObsShimTokens, ObsShimTokensConfig
 from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourier, ObsAttrEmbedFourierConfig
 from metta.agent.components.transformer_core import TransformerBackboneConfig
-from metta.agent.components.transformers import get_backbone_entry
+from metta.agent.components.transformers import get_backbone_spec
 from metta.agent.policy import Policy, PolicyArchitecture
 
 logger = logging.getLogger(__name__)
@@ -93,7 +93,7 @@ class TransformerPolicyConfig(PolicyArchitecture):
         overrides["variant"] = self.variant
         self.transformer = TransformerBackboneConfig(**overrides)
 
-        entry = get_backbone_entry(self.variant)
+        entry = get_backbone_spec(self.variant)
         defaults = entry.policy_defaults
         if self.manual_init is None:
             self.manual_init = defaults.get("manual_init", False)
