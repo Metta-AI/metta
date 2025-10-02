@@ -31,6 +31,14 @@ from mettagrid.map_builder.random import RandomMapBuilder
 
 def _base_game_config(num_agents: int) -> MettaGridConfig:
     """Shared base configuration for all game types."""
+
+    heart_reward = 0.05
+    stats_rewards: dict[str, float] = {
+        "heart.gained": heart_reward,
+        "heart.put": heart_reward * 0.5,
+        "chest.heart.amount": heart_reward,
+    }
+
     return MettaGridConfig(
         game=GameConfig(
             resource_names=resources,
@@ -61,12 +69,7 @@ def _base_game_config(num_agents: int) -> MettaGridConfig:
                     "heart": 1,
                     "energy": 100,
                 },
-                rewards=AgentRewards(
-                    stats={"chest.heart.amount": 1},
-                    # inventory={
-                    #     "heart": 1,
-                    # },
-                ),
+                rewards=AgentRewards(stats=stats_rewards),
                 initial_inventory={
                     "energy": 100,
                 },
@@ -91,11 +94,13 @@ def make_game(
     num_chests: int = 0,
 ) -> MettaGridConfig:
     cfg = _base_game_config(num_cogs)
+    max_border = max(0, min(width, height) // 2 - 1)
+    border_width = min(2, max_border)
     map_builder = RandomMapBuilder.Config(
         width=width,
         height=height,
         agents=num_cogs,
-        border_width=5,
+        border_width=border_width,
         objects={
             "assembler": num_assemblers,
             "charger": num_chargers,
@@ -115,7 +120,7 @@ def tutorial_assembler_simple(num_cogs: int = 1) -> MettaGridConfig:
     cfg = make_game(num_cogs=num_cogs, num_assemblers=1)
     cfg.game.objects["assembler"] = assembler()
     cfg.game.objects["assembler"].recipes = [
-        (["Any"], RecipeConfig(input_resources={"battery_red": 3}, output_resources={"heart": 1}, cooldown=10))
+        (["Any"], RecipeConfig(input_resources={"energy": 1}, output_resources={"heart": 1}, cooldown=1))
     ]
     return cfg
 
@@ -132,7 +137,7 @@ def tutorial_assembler_complex(num_cogs: int = 1) -> MettaGridConfig:
     )
     cfg.game.objects["assembler"] = assembler()
     cfg.game.objects["assembler"].recipes = [
-        (["Any"], RecipeConfig(input_resources={"battery_red": 3}, output_resources={"heart": 1}, cooldown=10))
+        (["Any"], RecipeConfig(input_resources={"energy": 2}, output_resources={"heart": 1}, cooldown=1))
     ]
     return cfg
 
