@@ -4,8 +4,6 @@ from typing import TYPE_CHECKING, Any
 
 from metta.agent.components.transformer_nvidia_module import NvidiaTransformerModule
 
-from .spec import TransformerSpec
-
 if TYPE_CHECKING:  # pragma: no cover
     from metta.agent.components.transformer_core import TransformerBackboneConfig
 
@@ -59,8 +57,8 @@ def build_backbone(config: "TransformerBackboneConfig", env: Any | None) -> Nvid
     )
 
 
-SPEC = TransformerSpec(
-    defaults=DEFAULTS,
-    policy_defaults=POLICY_DEFAULTS,
-    builder=build_backbone,
-)
+SPEC = {
+    "defaults": DEFAULTS,
+    "policy_defaults": POLICY_DEFAULTS,
+    "builder": build_backbone,
+}
