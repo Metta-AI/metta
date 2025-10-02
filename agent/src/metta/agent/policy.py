@@ -4,11 +4,11 @@ This ensures that all policies (ComponentPolicy, PyTorch agents with mixin, etc.
 implement the required methods that MettaAgent depends on."""
 
 from abc import ABC, abstractmethod
-from typing import ClassVar, List
+from typing import ClassVar, List, Optional
 
 import torch
 import torch.nn as nn
-from pydantic import ConfigDict
+from pydantic import BaseModel, ConfigDict
 from tensordict import TensorDict
 from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
@@ -146,3 +146,16 @@ class ExternalPolicyWrapper(Policy):
 
     def reset_memory(self):
         pass
+
+
+class PolicySpec(BaseModel):
+    """Specification for a policy used during evaluation."""
+
+    # Path to policy class, or shorthand
+    policy_class_path: str
+
+    # Path to policy weights, if applicable
+    policy_data_path: Optional[str]
+
+    # Proportion of total agents to assign to this policy
+    proportion: float

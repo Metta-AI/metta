@@ -1,20 +1,20 @@
 """Utility functions for CoGames CLI."""
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Optional
+
+from rich.console import Console
 
 from cogames import game as game_module
 from cogames.policy import Policy, TrainablePolicy
+from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.util.module import load_symbol
 
 if TYPE_CHECKING:
     import torch
-    from rich.console import Console
-
-    from mettagrid.config.mettagrid_config import MettaGridConfig
 
 
-def resolve_game(game_arg: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
+def resolve_game(game_arg: Optional[str]) -> tuple[Optional[str], Optional[str]]:
     """Resolve a game name from user input.
 
     Args:
@@ -51,7 +51,7 @@ def resolve_game(game_arg: Optional[str]) -> Tuple[Optional[str], Optional[str]]
         return None, f"Game '{game_arg}' not found. Use 'cogames games' to list available games."
 
 
-def get_game_config(console: "Console", game_arg: str) -> tuple[str, "MettaGridConfig"]:
+def get_game_config(console: Console, game_arg: str) -> tuple[str, MettaGridConfig]:
     """Return a resolved game name and configuration for cli usage."""
     import typer
 
@@ -62,7 +62,7 @@ def get_game_config(console: "Console", game_arg: str) -> tuple[str, "MettaGridC
     return resolved_game, game_module.get_game(resolved_game)
 
 
-def resolve_training_device(console: "Console", requested: str) -> "torch.device":
+def resolve_training_device(console: Console, requested: str) -> "torch.device":
     import torch
 
     normalized = requested.strip().lower()

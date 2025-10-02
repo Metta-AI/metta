@@ -7,32 +7,21 @@ import re
 import time
 from collections import defaultdict
 from copy import deepcopy
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 import numpy as np
 import typer
-from pydantic.main import BaseModel
 from rich.console import Console
 from rich.table import Table
 
 from cogames.utils import initialize_or_load_policy
-from mettagrid import MettaGridEnv
+from metta.agent.policy import PolicySpec
+from mettagrid import MettaGridConfig, MettaGridEnv
 
 if TYPE_CHECKING:
-    from mettagrid import MettaGridConfig
     from mettagrid.mettagrid_c import EpisodeStats
 
-
-_SKIP_STATS = ["^action\.invalid_arg\..+$"]
-
-
-class PolicySpec(BaseModel):
-    """Specification for a policy used during evaluation."""
-
-    policy_class_path: str
-    proportion: float
-    policy_data_path: Optional[str]
-    requested_proportion: Optional[float] = None
+_SKIP_STATS = [r"^action\.invalid_arg\..+$"]
 
 
 def _compute_policy_agent_counts(num_agents: int, policy_specs: list[PolicySpec]) -> list[int]:
@@ -56,7 +45,7 @@ def _compute_policy_agent_counts(num_agents: int, policy_specs: list[PolicySpec]
 def evaluate(
     console: Console,
     resolved_game: str,
-    env_cfg: "MettaGridConfig",
+    env_cfg: MettaGridConfig,
     policy_specs: list[PolicySpec],
     episodes: int,
     action_timeout_ms: int,
