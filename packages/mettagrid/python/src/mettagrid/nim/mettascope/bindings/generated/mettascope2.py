@@ -1,29 +1,24 @@
-import os
-import sys
 from ctypes import *
+import os, sys
 
 dir = os.path.dirname(sys.modules["mettascope2"].__file__)
 if sys.platform == "win32":
-    libName = "mettascope2.dll"
+  libName = "mettascope2.dll"
 elif sys.platform == "darwin":
-    libName = "libmettascope2.dylib"
+  libName = "libmettascope2.dylib"
 else:
-    libName = "libmettascope2.so"
+  libName = "libmettascope2.so"
 dll = cdll.LoadLibrary(os.path.join(dir, libName))
-
 
 class Mettascope2Error(Exception):
     pass
-
 
 class SeqIterator(object):
     def __init__(self, seq):
         self.idx = 0
         self.seq = seq
-
     def __iter__(self):
         return self
-
     def __next__(self):
         if self.idx < len(self.seq):
             self.idx += 1
@@ -32,9 +27,12 @@ class SeqIterator(object):
             self.idx = 0
             raise StopIteration
 
-
 class ActionRequest(Structure):
-    _fields_ = [("agent_id", c_longlong), ("action_id", c_longlong), ("argument", c_longlong)]
+    _fields_ = [
+        ("agent_id", c_longlong),
+        ("action_id", c_longlong),
+        ("argument", c_longlong)
+    ]
 
     def __init__(self, agent_id, action_id, argument):
         self.agent_id = agent_id
@@ -43,7 +41,6 @@ class ActionRequest(Structure):
 
     def __eq__(self, obj):
         return self.agent_id == obj.agent_id and self.action_id == obj.action_id and self.argument == obj.argument
-
 
 class RenderResponse(Structure):
     _fields_ = [("ref", c_ulonglong)]
@@ -66,6 +63,7 @@ class RenderResponse(Structure):
         dll.mettascope2_render_response_set_should_close(self, should_close)
 
     class RenderResponseActions:
+
         def __init__(self, render_response):
             self.render_response = render_response
 
@@ -94,16 +92,13 @@ class RenderResponse(Structure):
     def actions(self):
         return self.RenderResponseActions(self)
 
-
 def init(data_dir, replay):
     result = dll.mettascope2_init(data_dir.encode("utf8"), replay.encode("utf8"))
     return result
 
-
 def render(current_step, replay_step):
     result = dll.mettascope2_render(current_step, replay_step.encode("utf8"))
     return result
-
 
 dll.mettascope2_render_response_unref.argtypes = [RenderResponse]
 dll.mettascope2_render_response_unref.restype = None
@@ -137,3 +132,4 @@ dll.mettascope2_init.restype = RenderResponse
 
 dll.mettascope2_render.argtypes = [c_longlong, c_char_p]
 dll.mettascope2_render.restype = RenderResponse
+
