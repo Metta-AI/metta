@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict
 
 from metta.agent.components.transformer_nvidia_module import NvidiaTransformerModule
 
@@ -54,7 +53,7 @@ class TRXLNvidiaConfig:
             allow_tf32=self.allow_tf32,
         )
 
-    def policy_defaults(self) -> Dict[str, Any]:
+    def policy_defaults(self) -> dict[str, object]:
         """Return default policy-level overrides for this variant."""
 
         return {

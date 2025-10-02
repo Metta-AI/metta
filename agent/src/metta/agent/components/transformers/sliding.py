@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Literal
+from typing import Literal
 
 from metta.agent.components.sliding_transformer import SlidingTransformer, SlidingTransformerConfig
 
@@ -46,7 +46,7 @@ class SlidingTransformerBackboneConfig:
         )
         return SlidingTransformer(config=sliding_cfg, env=None)
 
-    def policy_defaults(self) -> Dict[str, Any]:
+    def policy_defaults(self) -> dict[str, object]:
         """Return default policy-level overrides for this variant."""
 
         return {
