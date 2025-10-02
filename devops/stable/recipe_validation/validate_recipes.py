@@ -17,6 +17,7 @@ from devops.stable.recipe_validation.recipe_validator import (
     RecipeValidator,
     ValidationLocation,
 )
+from devops.stable.state_manager import StateManager
 from metta.common.util.text_styles import bold, cyan, green, red, yellow
 
 
@@ -42,10 +43,24 @@ def launch_tool_validations(args):
         print(f"  • {yellow(recipe.name)} [{location_str}]: {recipe.description}")
     print()
 
+    # Initialize state manager
+    state_manager = StateManager()
+
+    # Create or load state
+    version = args.version or f"validation_{tool_name}"
+    state = state_manager.load_state(version)
+    if state is None:
+        repo_root = RecipeValidator._get_repo_root()
+        state = state_manager.create_state(version, repo_root)
+        print(f"{cyan('Created new validation state:')} {version}")
+    else:
+        print(f"{cyan('Resuming validation state:')} {version}")
+
     # Create validator
     validator = RecipeValidator(
         base_name=f"{tool_name}_validation",
         skip_git_check=args.skip_git_check,
+        state_manager=state_manager,
     )
 
     # Check git state for remote validations
@@ -57,11 +72,19 @@ def launch_tool_validations(args):
     # Run validations
     results = validator.validate_tool(tool)
 
+    # Save validation results to state
+    for _name, check_result in validator.validation_results.items():
+        state.add_validation_result(check_result)
+
+    # Save state
+    state_path = state_manager.save_state(state)
+    print(f"\n{cyan('State saved to:')} {state_path}")
+
     # Save results if remote launcher was used
     if validator.remote_launcher:
         output_file = args.output_file or f"{tool_name}_validation_jobs.json"
         output_path = validator.remote_launcher.save_results(output_file)
-        print(f"\n{cyan('Results saved to:')} {output_path.absolute()}")
+        print(f"{cyan('Remote job tracker saved to:')} {output_path.absolute()}")
         validator.remote_launcher.print_summary()
 
         # Exit with error if any launches failed
@@ -74,6 +97,16 @@ def launch_tool_validations(args):
     for recipe_name, status in results.items():
         color_fn = status_colors.get(status.value, yellow)
         print(f"  {recipe_name}: {color_fn(status.value)}")
+
+    # Print summary
+    summary = state.validation_summary
+    print(f"\n{bold('Summary:')}")
+    if summary["passed"] > 0:
+        print(f"  {green('Passed')}: {summary['passed']}")
+    if summary["failed"] > 0:
+        print(f"  {red('Failed')}: {summary['failed']}")
+    if summary["running"] > 0:
+        print(f"  {cyan('Running')}: {summary['running']}")
 
     # Exit with error if any validations failed
     if any(status == "failed" for status in results.values()):
@@ -161,6 +194,9 @@ def main():
         "tool",
         choices=list(TOOL_VALIDATIONS.keys()),
         help="Tool to validate",
+    )
+    launch_parser.add_argument(
+        "--version", help="Version/state name (default: auto-generated from tool name)", default=None
     )
     launch_parser.add_argument("--output-file", help="Output JSON file (default: <tool>_validation_jobs.json)")
     launch_parser.add_argument("--skip-git-check", action="store_true", help="Skip git state validation")
