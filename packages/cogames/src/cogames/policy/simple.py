@@ -29,13 +29,13 @@ class SimplePolicyNet(torch.nn.Module):
         self.action_head = torch.nn.Sequential(
             torch.nn.Linear(self.hidden_size, 2 * self.hidden_size),
             torch.nn.ReLU(),
-            torch.nn.Linear(self.hidden_size, sum(self.action_nvec)),
+            torch.nn.Linear(2 * self.hidden_size, sum(self.action_nvec)),
         )
         # self.value_head = torch.nn.Linear(self.hidden_size, 1)
         self.value_head = torch.nn.Sequential(
             torch.nn.Linear(self.hidden_size, 4 * self.hidden_size),
             torch.nn.ReLU(),
-            torch.nn.Linear(self.hidden_size, 1),
+            torch.nn.Linear(4 * self.hidden_size, 1),
         )
 
     def forward_eval(
