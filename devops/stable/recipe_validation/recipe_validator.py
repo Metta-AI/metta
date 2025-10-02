@@ -15,6 +15,8 @@ from devops.skypilot.utils.testing_helpers import (
     SkyPilotTestLauncher,
     TestCondition,
 )
+from devops.stable.domain import CheckResult, Lifecycle, Outcome
+from devops.stable.state_manager import StateManager
 from metta.common.util.text_styles import green, red
 
 
@@ -59,13 +61,19 @@ class RecipeValidator:
     """Manages validation of recipes/tools locally and remotely."""
 
     def __init__(
-        self, base_name: str = "recipe_validation", skip_git_check: bool = False, repo_root: Optional[str] = None
+        self,
+        base_name: str = "recipe_validation",
+        skip_git_check: bool = False,
+        repo_root: Optional[str] = None,
+        state_manager: Optional[StateManager] = None,
     ):
         self.base_name = base_name
         self.skip_git_check = skip_git_check
         self.repo_root = repo_root or self._get_repo_root()
         self.remote_launcher: Optional[SkyPilotTestLauncher] = None
         self.local_results: list[dict] = []
+        self.state_manager = state_manager or StateManager()
+        self.validation_results: dict[str, CheckResult] = {}
 
     @staticmethod
     def _get_repo_root() -> str:
@@ -105,6 +113,9 @@ class RecipeValidator:
         """Run a recipe validation locally."""
         print(f"\n  Running local validation: {recipe.name}")
 
+        # Create check result
+        check_result = CheckResult(name=recipe.name, lifecycle=Lifecycle.PENDING).mark_started()
+
         try:
             run_name = f"local_val_{recipe.name}_{int(time.time())}"
             cmd = [
@@ -117,34 +128,40 @@ class RecipeValidator:
             ]
 
             print(f"  Command: {' '.join(cmd)}")
-            start_time = time.time()
 
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=300, cwd=self.repo_root)
-            duration = time.time() - start_time
 
-            # Store result
+            # Store structured result
             self.local_results.append(
                 {
                     "recipe": recipe.name,
-                    "duration": duration,
+                    "duration": check_result.duration_seconds,
                     "exit_code": result.returncode,
                     "stderr": result.stderr[-500:] if result.stderr else "",
                 }
             )
 
             if result.returncode != 0:
+                check_result.mark_failed(f"Exit code {result.returncode}: {result.stderr[-200:]}")
+                self.validation_results[recipe.name] = check_result
                 print(f"  {red('✗ Failed')} - Exit code: {result.returncode}")
                 if result.stderr:
                     print(f"  Error: {result.stderr[-200:]}")
                 return ValidationStatus.FAILED
 
-            print(f"  {green('✓ Passed')} - Duration: {duration:.1f}s")
+            check_result.mark_completed(Outcome.PASSED, f"Completed in {check_result.duration_seconds:.1f}s")
+            self.validation_results[recipe.name] = check_result
+            print(f"  {green('✓ Passed')} - Duration: {check_result.duration_seconds:.1f}s")
             return ValidationStatus.PASSED
 
         except subprocess.TimeoutExpired:
+            check_result.mark_failed("Timeout after 300 seconds")
+            self.validation_results[recipe.name] = check_result
             print(f"  {red('✗ Timeout')} - Exceeded 5 minutes")
             return ValidationStatus.FAILED
         except Exception as e:
+            check_result.mark_failed(str(e))
+            self.validation_results[recipe.name] = check_result
             print(f"  {red('✗ Error')}: {str(e)}")
             return ValidationStatus.FAILED
 
