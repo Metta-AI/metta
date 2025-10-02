@@ -8,12 +8,12 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
 )
-from metta.rl.trainer_config import TrainerConfig, OptimizerConfig
+from metta.rl.trainer_config import OptimizerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.sim import SimTool
+from metta.tools.eval import EvalTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from mettagrid.config import ConverterConfig
@@ -145,11 +145,11 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
 def evaluate(
     policy_uri: str | None = None,
     simulations: Optional[Sequence[SimulationConfig]] = None,
-) -> SimTool:
+) -> EvalTool:
     simulations = simulations or make_evals()
     policy_uris = [policy_uri] if policy_uri is not None else None
 
-    return SimTool(
+    return EvalTool(
         simulations=simulations,
         policy_uris=policy_uris,
     )
@@ -157,7 +157,7 @@ def evaluate(
 
 def evaluate_in_sweep(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
-) -> SimTool:
+) -> EvalTool:
     """Evaluation function optimized for sweep runs.
 
     Uses 10 episodes per simulation with a 4-minute time limit to get
@@ -188,7 +188,7 @@ def evaluate_in_sweep(
             ),
         ]
 
-    return SimTool(
+    return EvalTool(
         simulations=simulations,
         policy_uris=[policy_uri],
     )

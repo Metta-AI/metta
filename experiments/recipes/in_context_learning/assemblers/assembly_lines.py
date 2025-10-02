@@ -6,13 +6,14 @@ from typing import Optional
 
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.sim import SimTool
+from metta.tools.eval import EvalTool
 from metta.tools.train import TrainTool
 from mettagrid.builder.envs import make_icl_assembler
 from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
     Position,
 )
+
 from experiments.recipes.in_context_learning.in_context_learning import (
     ICLTaskGenerator,
     _BuildCfg,
@@ -296,7 +297,7 @@ def evaluate():
         policy_uris.append(policy_uri)
 
     simulations = make_assembly_line_eval_suite()
-    return SimTool(
+    return EvalTool(
         simulations=simulations,
         policy_uris=policy_uris,
         stats_server_uri="https://api.observatory.softmax-research.net",

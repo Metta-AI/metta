@@ -238,7 +238,7 @@ Shorthands are supported:
 - Omit `experiments.recipes.`: `arena.train` == `experiments.recipes.arena.train`
 - Two‑token form: `train arena` == `arena.train`
 
-Note on evaluation tool rename: the evaluation tool is now `EvalTool` (replacing `SimTool`). If you import directly,
+Note on evaluation tool rename: the evaluation tool is now `EvalTool` (replacing `EvalTool`). If you import directly,
 use `from metta.tools.eval import EvalTool`.
 
 Tips:
