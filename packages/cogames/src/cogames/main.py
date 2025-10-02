@@ -2,7 +2,6 @@
 
 """CLI for CoGames - collection of environments for multi-agent cooperative and competitive games."""
 
-import importlib
 import importlib.metadata
 import logging
 import sys
@@ -11,7 +10,8 @@ from typing import Literal, Optional
 
 from packaging.version import Version
 
-from cogames import curricula, game, utils
+from cogames import game, utils
+from cogames.policy.utils import parse_policy_spec, resolve_policy_class_path, resolve_policy_data_path
 
 # Always add current directory to Python path
 sys.path.insert(0, ".")
@@ -22,111 +22,75 @@ from rich.table import Table
 
 logger = logging.getLogger("cogames.main")
 
-app = typer.Typer(help="CoGames - Multi-agent cooperative and competitive games")
+app = typer.Typer(
+    help="CoGames - Multi-agent cooperative and competitive games",
+    context_settings={"help_option_names": ["-h", "--help"]},
+)
 console = Console()
-
-# Mapping of shorthand policy names to full class paths
-POLICY_SHORTCUTS = {
-    "random": "cogames.policy.random.RandomPolicy",
-    "simple": "cogames.policy.simple.SimplePolicy",
-    "default": "cogames.policy.token.TokenPolicy",
-    "token": "cogames.policy.token.TokenPolicy",
-    "lstm": "cogames.policy.lstm.LSTMPolicy",
-    "claude": "cogames.policy.claude.ClaudePolicy",
-}
-
-
-def resolve_policy_class_path(policy: str) -> str:
-    """Resolve a policy shorthand or full class path.
-
-    Args:
-        policy: Either a shorthand like "random", "simple", "lstm"
-                or a full class path like "cogames.policy.random.RandomPolicy"
-
-    Returns:
-        Full class path to the policy
-    """
-    # If it's a shorthand, expand it
-    if policy in POLICY_SHORTCUTS:
-        return POLICY_SHORTCUTS[policy]
-    # Otherwise assume it's already a full class path
-    return policy
 
 
 @app.callback(invoke_without_command=True)
 def default(ctx: typer.Context) -> None:
     """Show help when no command is provided."""
     if ctx.invoked_subcommand is None:
-        # No command provided, show help
         print(ctx.get_help())
 
 
-@app.command("games")
+@app.command("games", help="List all available games or describe a specific game")
 def games_cmd(
     game_name: Optional[str] = typer.Argument(None, help="Name of the game to describe"),
     save: Optional[Path] = typer.Option(None, "--save", "-s", help="Save game configuration to file (YAML or JSON)"),  # noqa: B008
 ) -> None:
-    """List all available games or describe a specific game."""
-    from cogames import game
-
     if game_name is None:
-        # List all games
-        table = game.list_games(console)
-        console.print(table)
-    else:
-        # Get the game configuration
-        try:
-            game_config = game.get_game(game_name)
-        except ValueError as e:
-            console.print(f"[red]Error: {e}[/red]")
-            raise typer.Exit(1) from e
-
-        # Save configuration if requested
-        if save:
-            try:
-                game.save_game_config(game_config, save)
-                console.print(f"[green]Game configuration saved to: {save}[/green]")
-            except ValueError as e:
-                console.print(f"[red]Error saving configuration: {e}[/red]")
-                raise typer.Exit(1) from e
-        else:
-            # Otherwise describe the game
-            try:
-                game.describe_game(game_name, console)
-            except ValueError as e:
-                console.print(f"[red]Error: {e}[/red]")
-                raise typer.Exit(1) from e
-
-
-@app.command(name="play")
-def play_cmd(
-    game_name: Optional[str] = typer.Argument(None, help="Name of the game to play"),
-    policy_class_path: str = typer.Option("token", "--policy", help="Path to policy class or shortcut"),
-    policy_data_path: Optional[str] = typer.Option(None, "--policy-data", help="Path to initial policy weights"),
-    interactive: bool = typer.Option(True, "--interactive", "-i", help="Run in interactive mode"),
-    steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run"),
-    render: Literal["gui", "text"] = typer.Option("gui", "--render", "-r", help="Render mode: 'gui' or 'text'"),
-) -> None:
-    """Play a game."""
-
-    # If no game specified, list games
-    if game_name is None:
-        console.print("[yellow]No game specified. Available games:[/yellow]")
-        table = game.list_games(console)
-        console.print(table)
-        console.print("\n[dim]Usage: cogames play <game>[/dim]")
+        game.list_games(console)
         return
 
-    # Resolve game name
-    resolved_game, error = utils.resolve_game(game_name)
-    if error:
-        console.print(f"[red]Error: {error}[/red]")
-        raise typer.Exit(1)
-    assert resolved_game is not None
-    env_cfg = game.get_game(resolved_game)
+    try:
+        game_config = game.get_game(game_name)
+    except ValueError as exc:  # pragma: no cover - user input
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(1) from exc
 
-    # Resolve policy shorthand
-    full_policy_path = resolve_policy_class_path(policy_class_path)
+    if save:
+        try:
+            game.save_game_config(game_config, save)
+        except ValueError as exc:  # pragma: no cover - user input
+            console.print(f"[red]Error saving configuration: {exc}[/red]")
+            raise typer.Exit(1) from exc
+        console.print(f"[green]Game configuration saved to: {save}[/green]")
+        return
+
+    try:
+        game.describe_game(game_name, console)
+    except ValueError as exc:  # pragma: no cover - user input
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(1) from exc
+
+
+@app.command(name="play", no_args_is_help=True, help="Play a game")
+def play_cmd(
+    game_name: str = typer.Argument(
+        None,
+        help="Name of the game to play",
+        callback=lambda ctx, value: game.require_game_argument(ctx, value, console),
+    ),
+    policy_class_path: str = typer.Option(
+        "cogames.policy.random.RandomPolicy",
+        "--policy",
+        help="Path to policy class",
+        callback=resolve_policy_class_path,
+    ),
+    policy_data_path: Optional[str] = typer.Option(
+        None,
+        "--policy-data",
+        help="Path to policy weights file or directory",
+        callback=resolve_policy_data_path,
+    ),
+    interactive: bool = typer.Option(True, "--interactive", "-i", help="Run in interactive mode"),
+    steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
+    render: Literal["gui", "text"] = typer.Option("gui", "--render", "-r", help="Render mode"),
+) -> None:
+    resolved_game, env_cfg = utils.get_game_config(console, game_name)
 
     console.print(f"[cyan]Playing {resolved_game}[/cyan]")
     console.print(f"Max Steps: {steps}, Interactive: {interactive}, Render: {render}")
@@ -136,28 +100,27 @@ def play_cmd(
     play_module.play(
         console,
         env_cfg=env_cfg,
-        policy_class_path=full_policy_path,
+        policy_class_path=policy_class_path,
         policy_data_path=policy_data_path,
         game_name=resolved_game,
         max_steps=steps,
         seed=42,
         render=render,
-        verbose=interactive,  # Use interactive flag for verbose output
+        verbose=interactive,
     )
 
 
-@app.command("make-game")
+@app.command("make-game", help="Create a new game configuration")
 def make_scenario(
     base_game: Optional[str] = typer.Argument(None, help="Base game to use as template"),
-    num_agents: int = typer.Option(2, "--agents", "-a", help="Number of agents"),
-    width: int = typer.Option(10, "--width", "-w", help="Map width"),
-    height: int = typer.Option(10, "--height", "-h", help="Map height"),
+    num_agents: int = typer.Option(2, "--agents", "-a", help="Number of agents", min=1),
+    width: int = typer.Option(10, "--width", "-w", help="Map width", min=1),
+    height: int = typer.Option(10, "--height", "-h", help="Map height", min=1),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (YAML or JSON)"),  # noqa: B008
 ) -> None:
-    """Create a new game configuration."""
+    from cogames import utils
 
     try:
-        # If base_game specified, use it as template
         if base_game:
             resolved_game, error = utils.resolve_game(base_game)
             if error:
@@ -168,19 +131,16 @@ def make_scenario(
         else:
             console.print("[cyan]Creating new game from scratch[/cyan]")
 
-        # Use cogs_vs_clips make_game for now
         from cogames.cogs_vs_clips.scenarios import make_game
 
-        # Create game with specified parameters
         new_config = make_game(
             num_cogs=num_agents,
             num_assemblers=1,
             num_chests=1,
         )
 
-        # Update map dimensions
-        new_config.game.map_builder.width = width
-        new_config.game.map_builder.height = height
+        new_config.game.map_builder.width = width  # type: ignore[attr-defined]
+        new_config.game.map_builder.height = height  # type: ignore[attr-defined]
         new_config.game.num_agents = num_agents
 
         if output:
@@ -189,145 +149,57 @@ def make_scenario(
         else:
             console.print("\n[yellow]To save this configuration, use the --output option.[/yellow]")
 
-    except Exception as e:
-        console.print(f"[red]Error: {e}[/red]")
-        raise typer.Exit(1) from e
+    except Exception as exc:  # pragma: no cover - user input
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(1) from exc
 
 
-@app.command(name="train")
+@app.command(name="train", help="Train a policy on a game")
 def train_cmd(
-    game_name: Optional[str] = typer.Argument(None, help="Name of the game to train on"),
-    policy_class_path: str = typer.Option("token", "--policy", help="Path to policy class or shortcut"),
+    game_name: str = typer.Argument(
+        None,
+        help="Name of the game to train on",
+        callback=lambda ctx, value: game.require_game_argument(ctx, value, console),
+    ),
+    policy_class_path: str = typer.Option(
+        "cogames.policy.simple.SimplePolicy",
+        "--policy",
+        help="Path to policy class",
+        callback=resolve_policy_class_path,
+    ),
     initial_weights_path: Optional[str] = typer.Option(
-        None, "--initial-weights", help="Path to initial policy weights"
+        None,
+        "--initial-weights",
+        help="Path to initial policy weights .pt file",
     ),
     checkpoints_path: str = typer.Option(
         "./train_dir",
         "--checkpoints",
         help="Path to save training data",
     ),
-    steps: int = typer.Option(1_000_000_000, "--steps", "-s", help="Number of training steps"),
+    steps: int = typer.Option(10000, "--steps", "-s", help="Number of training steps", min=1),
     device: str = typer.Option(
         "auto",
         "--device",
         help="Device to train on (e.g. 'auto', 'cpu', 'cuda')",
     ),
-    seed: int = typer.Option(42, "--seed", help="Seed for training"),
-    batch_size: int = typer.Option(4096, "--batch-size", help="Batch size for training"),
-    minibatch_size: int = typer.Option(4096, "--minibatch-size", help="Minibatch size for training"),
-    curriculum: Optional[str] = typer.Option(
-        None,
-        "--curriculum",
-        help="Python path to a callable returning MettaGridConfig instances",
-    ),
+    seed: int = typer.Option(42, "--seed", help="Seed for training", min=0),
+    batch_size: int = typer.Option(4096, "--batch-size", help="Batch size for training", min=1),
+    minibatch_size: int = typer.Option(4096, "--minibatch-size", help="Minibatch size for training", min=1),
     logits_debug_path: Optional[Path] = typer.Option(  # noqa: B008
         None,
         "--logits-debug",
-        help="Write per-step action logit snapshots to this JSONL file",
+        help="Write per-update action logit statistics to this JSONL file",
     ),
 ) -> None:
-    """Train a policy on a game."""
-    import torch
-
-    from cogames import game, utils
     from cogames import train as train_module
-    from mettagrid import MettaGridConfig
-
-    curriculum_callable = None
-    representative_game: Optional[str] = None
-
-    if curriculum is not None:
-        if ":" not in curriculum:
-            raise typer.BadParameter(
-                "Curriculum must be provided as 'module:function'",
-                param_name="curriculum",
-            )
-        module_name, func_name = curriculum.split(":", 1)
-        try:
-            module = importlib.import_module(module_name)
-        except ModuleNotFoundError as exc:
-            raise typer.BadParameter(
-                f"Cannot import curriculum module '{module_name}'",
-                param_name="curriculum",
-            ) from exc
-        try:
-            candidate = getattr(module, func_name)
-        except AttributeError as exc:
-            raise typer.BadParameter(
-                f"Module '{module_name}' has no attribute '{func_name}'",
-                param_name="curriculum",
-            ) from exc
-        if not callable(candidate):
-            raise typer.BadParameter("Curriculum target must be callable", param_name="curriculum")
-
-        def curriculum_callable() -> MettaGridConfig:
-            cfg = candidate()
-            if not isinstance(cfg, MettaGridConfig):
-                raise typer.BadParameter(
-                    "Curriculum callable must return a MettaGridConfig",
-                    param_name="curriculum",
-                )
-            return cfg
-
-        representative_game = curriculum
-
-    env_cfg: Optional[MettaGridConfig] = None
-    resolved_game: Optional[str] = None
-    if curriculum_callable is None:
-        rotation_aliases = {"training_facility_rotation", "training_rotation", "training_cycle"}
-        if game_name is None or (game_name in rotation_aliases):
-            curriculum_callable = curricula.training_rotation()
-            representative_game = "training_rotation"
-            game_name = None
-        else:
-            resolved_game, error = utils.resolve_game(game_name)
-            if error:
-                console.print(f"[red]Error: {error}[/red]")
-                raise typer.Exit(1)
-            assert resolved_game is not None
-            env_cfg = game.get_game(resolved_game)
-            representative_game = resolved_game
-    elif game_name is not None:
-        console.print("[yellow]Ignoring explicit game name because a curriculum was supplied.[/yellow]")
-
-    # Resolve policy shorthand
-    full_policy_path = resolve_policy_class_path(policy_class_path)
-
-    def resolve_training_device(requested: str) -> torch.device:
-        normalized = requested.strip().lower()
-
-        def cuda_usable() -> bool:
-            cuda_backend = getattr(torch.backends, "cuda", None)
-            if cuda_backend is None or not cuda_backend.is_built():
-                return False
-            if not hasattr(torch._C, "_cuda_getDeviceCount"):
-                return False
-            return torch.cuda.is_available()
-
-        if normalized == "auto":
-            if cuda_usable():
-                return torch.device("cuda")
-            console.print("[yellow]CUDA not available; falling back to CPU for training.[/yellow]")
-            return torch.device("cpu")
-
-        try:
-            candidate = torch.device(requested)
-        except (RuntimeError, ValueError):
-            console.print(f"[yellow]Warning: Unknown device '{requested}'. Falling back to CPU.[/yellow]")
-            return torch.device("cpu")
-
-        if candidate.type == "cuda" and not cuda_usable():
-            console.print("[yellow]CUDA requested but unavailable. Training will run on CPU instead.[/yellow]")
-            return torch.device("cpu")
-
-        return candidate
-
-    torch_device = resolve_training_device(device)
+    resolved_game, env_cfg = utils.get_game_config(console, game_name)
+    torch_device = utils.resolve_training_device(console, device)
 
     try:
         train_module.train(
             env_cfg=env_cfg,
-            policy_class_path=full_policy_path,
+            policy_class_path=policy_class_path,
             initial_weights_path=initial_weights_path,
             device=torch_device,
             num_steps=steps,
@@ -335,26 +207,62 @@ def train_cmd(
             seed=seed,
             batch_size=batch_size,
             minibatch_size=minibatch_size,
-            game_name=representative_game,
-            env_cfg_supplier=curriculum_callable,
+            game_name=resolved_game,
             logits_debug_path=logits_debug_path,
         )
-
-    except ValueError as e:
-        console.print(f"[red]Error: {e}[/red]")
-        raise typer.Exit(1) from e
+    except ValueError as exc:  # pragma: no cover - user input
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(1) from exc
 
     console.print(f"[green]Training complete. Checkpoints saved to: {checkpoints_path}[/green]")
 
 
-@app.command()
-def evaluate(
-    game_name: Optional[str] = typer.Argument(None, help="Name of the game to evaluate"),
-    policy: Optional[str] = typer.Argument(None, help="Path to policy checkpoint or 'random' for random policy"),
-    episodes: int = typer.Option(10, "--episodes", "-e", help="Number of evaluation episodes"),
+@app.command(
+    name="evaluate",
+    no_args_is_help=True,
+    help="Evaluate one or more policies on a game",
+)
+@app.command("eval", hidden=True)
+def evaluate_cmd(
+    game_name: str = typer.Argument(
+        None,
+        help="Name of the game to evaluate",
+        callback=lambda ctx, value: game.require_game_argument(ctx, value, console),
+    ),
+    policies: list[str] = typer.Argument(  # noqa: B008
+        None,
+        help=(
+            "List of policies in the form '{policy_class_path}[:policy_data_path][:proportion]'. "
+            "Provide multiple options for mixed populations."
+        ),
+    ),
+    episodes: int = typer.Option(10, "--episodes", "-e", help="Number of evaluation episodes", min=1),
+    action_timeout_ms: int = typer.Option(
+        250,
+        "--action-timeout-ms",
+        help="Max milliseconds afforded to generate each action before noop is used by default",
+        min=1,
+    ),
 ) -> None:
-    """Evaluate a policy on a game."""
-    console.print("[red]Coming soon...[/red]")
+    if not policies:
+        console.print("[red]Error: No policies provided[/red]")
+        raise typer.Exit(1)
+
+    policy_specs = [parse_policy_spec(spec) for spec in policies]
+
+    resolved_game, env_cfg = utils.get_game_config(console, game_name)
+    console.print(f"[cyan]Evaluating {len(policy_specs)} policies on {resolved_game} over {episodes} episodes[/cyan]")
+
+    from cogames import evaluate as evaluate_module
+
+    evaluate_module.evaluate(
+        console,
+        resolved_game=resolved_game,
+        env_cfg=env_cfg,
+        policy_specs=policy_specs,
+        action_timeout_ms=action_timeout_ms,
+        episodes=episodes,
+    )
 
 
 @app.command(name="version", help="Show version information")

@@ -13,7 +13,9 @@ logger = logging.getLogger("cogames.policies.simple_policy")
 
 
 class SimplePolicyNet(torch.nn.Module):
-    def __init__(self, env: MettaGridEnv):
+    """Feed-forward baseline for discrete action spaces."""
+
+    def __init__(self, env: MettaGridEnv) -> None:
         super().__init__()
         self.hidden_size = 128
         obs_size = int(np.prod(env.single_observation_space.shape))
@@ -37,12 +39,11 @@ class SimplePolicyNet(torch.nn.Module):
         obs_flat = observations.view(batch_size, -1).float() / 255.0
         hidden = self.net(obs_flat)
         logits = self.action_head(hidden)
-        logits = logits.split(self.action_nvec, dim=1)
+        logits_split = logits.split(self.action_nvec, dim=1)
 
         values = self.value_head(hidden)
-        return list(logits), values
+        return list(logits_split), values
 
-    # We use this to work around a major torch perf issue
     def forward(
         self,
         observations: torch.Tensor,
@@ -52,15 +53,14 @@ class SimplePolicyNet(torch.nn.Module):
 
 
 class SimpleAgentPolicyImpl(AgentPolicy):
-    """Per-agent policy that uses the shared feedforward network."""
+    """Per-agent policy wrapper sharing the feed-forward network."""
 
-    def __init__(self, net: SimplePolicyNet, device: torch.device, action_nvec: tuple[int, ...]):
+    def __init__(self, net: SimplePolicyNet, device: torch.device, action_nvec: tuple[int, ...]) -> None:
         self._net = net
         self._device = device
         self._action_nvec = action_nvec
 
     def step(self, obs: MettaGridObservation) -> MettaGridAction:
-        """Get action for this agent."""
         obs_tensor = torch.tensor(obs, device=self._device).unsqueeze(0).float()
 
         with torch.no_grad():
@@ -78,7 +78,7 @@ class SimpleAgentPolicyImpl(AgentPolicy):
 class SimplePolicy(TrainablePolicy):
     """Simple feedforward policy."""
 
-    def __init__(self, env: MettaGridEnv, device: torch.device):
+    def __init__(self, env: MettaGridEnv, device: torch.device) -> None:
         super().__init__()
         self._net = SimplePolicyNet(env).to(device)
         self._device = device
@@ -88,7 +88,6 @@ class SimplePolicy(TrainablePolicy):
         return self._net
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
-        """Create a Policy instance for a specific agent."""
         return SimpleAgentPolicyImpl(self._net, self._device, self.action_nvec)
 
     def load_policy_data(self, checkpoint_path: str) -> None:
