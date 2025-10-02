@@ -466,16 +466,24 @@ class PuffeRL:
         if config["anneal_lr"]:
             self.scheduler.step()
 
-        y_pred = self.values.flatten()
-        y_true = advantages.flatten() + self.values.flatten()
-        var_y_tensor = y_true.var()
-        var_y = var_y_tensor.item()
-        if var_y == 0.0:
-            explained_var = float("nan")
-        else:
-            residual = (y_true - y_pred).var().item()
-            explained_var = 1.0 - residual / var_y
-        losses["explained_variance"] = explained_var
+        # Compute explained variance robustly as a float. Avoid calling .item()
+        # on Python floats and guard against zero/NaN variance.
+        with torch.no_grad():
+            y_pred = self.values.flatten()
+            y_true = advantages.flatten() + self.values.flatten()
+            var_y_tensor = y_true.var()
+
+            ev: float
+            if not torch.isfinite(var_y_tensor) or var_y_tensor.item() == 0.0:
+                ev = float("nan")
+            else:
+                residual_var = (y_true - y_pred).var()
+                if not torch.isfinite(residual_var):
+                    ev = float("nan")
+                else:
+                    ev = 1.0 - residual_var.item() / var_y_tensor.item()
+
+        losses["explained_variance"] = ev
 
         profile.end()
         logs = None
