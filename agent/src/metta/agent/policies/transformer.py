@@ -820,14 +820,7 @@ class TransformerPolicy(Policy):
         return Composite(**spec)
 
 
-gtrxl_policy_config = backbone_gtrxl.gtrxl_policy_config
-trxl_policy_config = backbone_trxl.trxl_policy_config
-trxl_nvidia_policy_config = backbone_trxl_nvidia.trxl_nvidia_policy_config
-
 __all__ = [
     "TransformerPolicyConfig",
     "TransformerPolicy",
-    "gtrxl_policy_config",
-    "trxl_policy_config",
-    "trxl_nvidia_policy_config",
 ]

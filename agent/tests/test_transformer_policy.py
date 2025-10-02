@@ -9,13 +9,7 @@ from metta.agent.policies import gtrxl as backbone_gtrxl
 from metta.agent.policies import sliding_transformer as backbone_sliding
 from metta.agent.policies import trxl as backbone_trxl
 from metta.agent.policies import trxl_nvidia as backbone_trxl_nvidia
-from metta.agent.policies.transformer import (
-    TransformerPolicy,
-    TransformerPolicyConfig,
-    gtrxl_policy_config,
-    trxl_nvidia_policy_config,
-    trxl_policy_config,
-)
+from metta.agent.policies.transformer import TransformerPolicy, TransformerPolicyConfig
 from metta.rl.training.training_environment import EnvironmentMetaData
 from metta.rl.utils import ensure_sequence_metadata
 
@@ -52,9 +46,9 @@ def _build_token_observations(batch_size: int, num_tokens: int) -> TensorDict:
 @pytest.mark.parametrize(
     ("config_factory", "expected_backbone"),
     [
-        (gtrxl_policy_config, backbone_gtrxl.GTrXLConfig),
-        (trxl_policy_config, backbone_trxl.TRXLConfig),
-        (trxl_nvidia_policy_config, backbone_trxl_nvidia.TRXLNvidiaConfig),
+        (backbone_gtrxl.gtrxl_policy_config, backbone_gtrxl.GTrXLConfig),
+        (backbone_trxl.trxl_policy_config, backbone_trxl.TRXLConfig),
+        (backbone_trxl_nvidia.trxl_nvidia_policy_config, backbone_trxl_nvidia.TRXLNvidiaConfig),
         (
             lambda: TransformerPolicyConfig(transformer=backbone_sliding.SlidingTransformerConfig()),
             backbone_sliding.SlidingTransformerConfig,
@@ -82,7 +76,7 @@ def test_transformer_config_creates_policy(config_factory, expected_backbone):
 
 def test_transformer_policy_initialization_sets_action_metadata():
     env_metadata = _build_env_metadata()
-    policy = gtrxl_policy_config().make_policy(env_metadata)
+    policy = backbone_gtrxl.gtrxl_policy_config().make_policy(env_metadata)
 
     policy.initialize_to_environment(env_metadata, torch.device("cpu"))
 
@@ -92,7 +86,7 @@ def test_transformer_policy_initialization_sets_action_metadata():
 
 def test_padding_tokens_do_not_zero_valid_entries():
     env_metadata = _build_env_metadata()
-    policy = gtrxl_policy_config().make_policy(env_metadata)
+    policy = backbone_gtrxl.gtrxl_policy_config().make_policy(env_metadata)
     policy.initialize_to_environment(env_metadata, torch.device("cpu"))
     policy.eval()
 
@@ -123,7 +117,7 @@ def test_padding_tokens_do_not_zero_valid_entries():
 
 def test_transformer_reset_memory_is_noop():
     env_metadata = _build_env_metadata()
-    policy = gtrxl_policy_config().make_policy(env_metadata)
+    policy = backbone_gtrxl.gtrxl_policy_config().make_policy(env_metadata)
     policy.initialize_to_environment(env_metadata, torch.device("cpu"))
 
     policy._memory[0] = torch.ones(1, policy.hidden_size)
@@ -137,7 +131,7 @@ def test_transformer_reset_memory_is_noop():
 
 def test_transformer_memory_len_update():
     env_metadata = _build_env_metadata()
-    policy = trxl_policy_config().make_policy(env_metadata)
+    policy = backbone_trxl.trxl_policy_config().make_policy(env_metadata)
     policy.initialize_to_environment(env_metadata, torch.device("cpu"))
 
     td = _build_token_observations(batch_size=1, num_tokens=4)
