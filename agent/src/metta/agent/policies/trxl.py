@@ -331,7 +331,7 @@ class TransformerXLModule(nn.Module):
 
             with _record_function("TransformerXLModule/attn_mask"):
                 attn_mask = self._get_attn_mask(seq_len, mlen, klen, device)
-                attn_mask = attn_mask[:, :, None]
+                attn_mask = attn_mask.unsqueeze(0)
 
             with _record_function("TransformerXLModule/positional"):
                 pos_seq = self._get_pos_seq(klen, device, dtype)

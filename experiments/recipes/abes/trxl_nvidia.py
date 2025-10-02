@@ -23,7 +23,16 @@ def train(
     policy_architecture: PolicyArchitecture | None = None,
 ):
     if policy_architecture is None:
-        policy_architecture = TransformerPolicyConfig(transformer=TRXLNvidiaConfig())
+        policy_architecture = TransformerPolicyConfig(
+            transformer=TRXLNvidiaConfig(
+                hidden_size=40,
+                d_ff=160,
+                num_layers=1,
+                memory_len=16,
+                activation_checkpoint=True,
+                use_flash_checkpoint=True,
+            )
+        )
 
     tool = base.train(
         curriculum=curriculum,
