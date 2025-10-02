@@ -1,5 +1,6 @@
 from experiments.recipes import arena_basic_easy_shaped as base
-from metta.agent.policies.transformer import TRXLNvidiaConfig, TransformerPolicyConfig
+from metta.agent.policies.trxl_nvidia import TRXLNvidiaConfig
+from metta.agent.policies.transformer import TransformerPolicyConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.rl.trainer_config import OptimizerConfig
 
