@@ -229,14 +229,36 @@ class WandbStore:
         total_timesteps = None
         current_steps = None
 
-        # Get total_timesteps from config
+        # Get total_timesteps from config. Handle both flat and nested configs.
         if hasattr(run, "config"):
-            config = dict(run.config)
-            # Check trainer.total_timesteps
-            if "trainer" in config and isinstance(config["trainer"], dict):
-                total_timesteps = config["trainer"].get("total_timesteps")
-                if total_timesteps is not None:
-                    total_timesteps = int(total_timesteps)
+            cfg_obj = run.config
+            try:
+                config = dict(cfg_obj)
+            except Exception:
+                config = {}
+
+            def _extract_total_steps(d: dict) -> int | None:
+                # Direct path: top-level trainer
+                t = None
+                if isinstance(d, dict):
+                    if "trainer" in d and isinstance(d["trainer"], dict):
+                        t = d["trainer"].get("total_timesteps")
+                        if t is not None:
+                            try:
+                                return int(t)
+                            except Exception:
+                                pass
+                    # Nested path: search child dicts (e.g., {"TrainTool": {"trainer": {...}}})
+                    for v in d.values():
+                        if isinstance(v, dict):
+                            found = _extract_total_steps(v)
+                            if found is not None:
+                                return found
+                return None
+
+            maybe_total = _extract_total_steps(config)
+            if maybe_total is not None:
+                total_timesteps = maybe_total
 
         # Get current_steps from summary
         if "metric/agent_step" in summary:

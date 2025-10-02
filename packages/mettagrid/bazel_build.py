@@ -27,6 +27,8 @@ from setuptools.dist import Distribution
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 METTASCOPE_DIR = PROJECT_ROOT / "nim" / "mettascope"
+PYTHON_PACKAGE_DIR = PROJECT_ROOT / "python" / "src" / "mettagrid"
+METTASCOPE_PACKAGE_DIR = PYTHON_PACKAGE_DIR / "nim" / "mettascope"
 
 
 def _run_bazel_build() -> None:
@@ -159,11 +161,29 @@ def _nim_artifacts_up_to_date() -> bool:
     return oldest_output_mtime >= latest_source_mtime
 
 
+def _sync_mettascope_package_data() -> None:
+    """Ensure Nim artifacts are vendored inside the Python package."""
+
+    destination_root = METTASCOPE_PACKAGE_DIR
+    destination_root.parent.mkdir(parents=True, exist_ok=True)
+
+    if destination_root.exists():
+        shutil.rmtree(destination_root)
+
+    shutil.copytree(
+        METTASCOPE_DIR,
+        destination_root,
+        dirs_exist_ok=True,
+        ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "nimbledeps", "dist", "build"),
+    )
+
+
 def _run_mettascope_build() -> None:
     """Build Nim artifacts when cache misses."""
 
     if _nim_artifacts_up_to_date():
         print("Skipping Nim build; artifacts up to date.")
+        _sync_mettascope_package_data()
         return
 
     # Check if nim and nimble are available
@@ -189,6 +209,7 @@ def _run_mettascope_build() -> None:
             print(f"Mettascope build {cmd} STDOUT:", file=sys.stderr)
             raise RuntimeError("Mettascope build failed")
     print("Successfully built mettascope")
+    _sync_mettascope_package_data()
 
 
 def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):

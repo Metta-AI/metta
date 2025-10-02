@@ -1,9 +1,18 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Literal, Optional
+from typing import TYPE_CHECKING, Annotated, Any, Literal, Optional, Union
 
-from pydantic import ConfigDict, Field, TypeAdapter, field_validator, model_validator
+from pydantic import (
+    ConfigDict,
+    Discriminator,
+    Field,
+    SerializeAsAny,
+    Tag,
+    TypeAdapter,
+    field_validator,
+    model_validator,
+)
 
 from mettagrid.config.config import Config
 
@@ -66,6 +75,9 @@ class AgentConfig(Config):
     shareable_resources: list[str] = Field(
         default_factory=list, description="Resources that will be shared when we use another agent"
     )
+    inventory_regen_amounts: dict[str, int] = Field(
+        default_factory=dict, description="Resources to regenerate and their amounts per regeneration interval"
+    )
 
 
 class ActionConfig(Config):
@@ -89,6 +101,15 @@ class ChangeGlyphActionConfig(ActionConfig):
     number_of_glyphs: int = Field(default=0, ge=0, le=255)
 
 
+class ResourceModActionConfig(ActionConfig):
+    """Resource mod action configuration."""
+
+    modifies: dict[str, float] = Field(default_factory=dict)
+    agent_radius: int = Field(default=0, ge=0, le=255)
+    converter_radius: int = Field(default=0, ge=0, le=255)
+    scales: bool = Field(default=False)
+
+
 class ActionsConfig(Config):
     """
     Actions configuration.
@@ -105,6 +126,7 @@ class ActionsConfig(Config):
     swap: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     change_color: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     change_glyph: ChangeGlyphActionConfig = Field(default_factory=lambda: ChangeGlyphActionConfig(enabled=False))
+    resource_mod: ResourceModActionConfig = Field(default_factory=lambda: ResourceModActionConfig(enabled=False))
 
 
 class GlobalObsConfig(Config):
@@ -121,44 +143,48 @@ class GlobalObsConfig(Config):
     visitation_counts: bool = Field(default=False)
 
 
-class WallConfig(Config):
-    """Python wall/block configuration."""
+class GridObjectConfig(Config):
+    """Base configuration for all grid objects."""
 
-    type_id: int
-    swappable: bool = Field(default=False)
+    name: str = Field(default="", description="Object name (used for identification)")
+    type_id: int = Field(ge=0, le=255, description="Numeric type ID for C++ runtime")
+    map_char: str = Field(default="?", description="Character used in ASCII maps")
+    render_symbol: str = Field(default="❓", description="Symbol used for rendering (e.g., emoji)")
     tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
 
 
-class ConverterConfig(Config):
+class WallConfig(GridObjectConfig):
+    """Python wall/block configuration."""
+
+    type: Literal["wall"] = Field(default="wall")
+    swappable: bool = Field(default=False)
+
+
+class ConverterConfig(GridObjectConfig):
     """Python converter configuration."""
 
-    name: str = Field(default="converter")
+    type: Literal["converter"] = Field(default="converter")
     input_resources: dict[str, int] = Field(default_factory=dict)
     output_resources: dict[str, int] = Field(default_factory=dict)
-    type_id: int = Field(default=0, ge=0, le=255)
     max_output: int = Field(ge=-1, default=5)
     max_conversions: int = Field(default=-1)
     conversion_ticks: int = Field(ge=0, default=1)
     cooldown: int = Field(ge=0)
     initial_resource_count: int = Field(ge=0, default=0)
     color: int = Field(default=0, ge=0, le=255)
-    tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
 
 
 class RecipeConfig(Config):
     input_resources: dict[str, int] = Field(default_factory=dict)
     output_resources: dict[str, int] = Field(default_factory=dict)
     cooldown: int = Field(ge=0, default=0)
-    max_use: Optional[int] = Field(ge=0, default=None)
 
 
-class AssemblerConfig(Config):
+class AssemblerConfig(GridObjectConfig):
     """Python assembler configuration."""
 
-    name: str = Field(default="assembler")
-    type_id: int = Field(default=0, ge=0, le=255)
+    type: Literal["assembler"] = Field(default="assembler")
     recipes: list[tuple[list[Position], RecipeConfig]] = Field(default_factory=list)
-    tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
     allow_partial_usage: bool = Field(
         default=False,
         description=(
@@ -179,10 +205,10 @@ class AssemblerConfig(Config):
     )
 
 
-class ChestConfig(Config):
+class ChestConfig(GridObjectConfig):
     """Python chest configuration."""
 
-    type_id: int = Field(default=0, ge=0, le=255)
+    type: Literal["chest"] = Field(default="chest")
     resource_type: str = Field(description="Resource type that this chest can store")
     deposit_positions: list[FixedPosition] = Field(
         default_factory=list, description="Positions where agents can deposit resources"
@@ -190,16 +216,28 @@ class ChestConfig(Config):
     withdrawal_positions: list[FixedPosition] = Field(
         default_factory=list, description="Positions where agents can withdraw resources"
     )
-    tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
 
 
 class ClipperConfig(Config):
     """Global clipper that probabilistically clips assemblers each tick."""
 
-    recipe: RecipeConfig = Field(default_factory=RecipeConfig)
+    unclipping_recipes: list[RecipeConfig] = Field(default_factory=list)
     length_scale: float = Field(default=1.0, ge=0.0)
     cutoff_distance: float = Field(default=0.0, ge=0.0)
     clip_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
+AnyGridObjectConfig = SerializeAsAny[
+    Annotated[
+        Union[
+            Annotated[WallConfig, Tag("wall")],
+            Annotated[ConverterConfig, Tag("converter")],
+            Annotated[AssemblerConfig, Tag("assembler")],
+            Annotated[ChestConfig, Tag("chest")],
+        ],
+        Discriminator("type"),
+    ]
+]
 
 
 class GameConfig(Config):
@@ -233,7 +271,7 @@ class GameConfig(Config):
     agents: list[AgentConfig] = Field(default_factory=list)
     actions: ActionsConfig = Field(default_factory=lambda: ActionsConfig(noop=ActionConfig()))
     global_obs: GlobalObsConfig = Field(default_factory=GlobalObsConfig)
-    objects: dict[str, ConverterConfig | WallConfig | AssemblerConfig | ChestConfig] = Field(default_factory=dict)
+    objects: dict[str, AnyGridObjectConfig] = Field(default_factory=dict)
     # these are not used in the C++ code, but we allow them to be set for other uses.
     # E.g., templates can use params as a place where values are expected to be written,
     # and other parts of the template can read from there.
@@ -241,10 +279,7 @@ class GameConfig(Config):
 
     resource_loss_prob: float = Field(default=0.0, description="Probability of resource loss per step")
 
-    # Inventory regeneration settings
-    inventory_regen_amounts: dict[str, int] = Field(
-        default_factory=dict, description="Resources to regenerate and their amounts per regeneration interval"
-    )
+    # Inventory regeneration interval (global check timing)
     inventory_regen_interval: int = Field(
         default=0, ge=0, description="Interval in timesteps between regenerations (0 = disabled)"
     )
@@ -290,7 +325,10 @@ class MettaGridConfig(Config):
     def with_ascii_map(self, map_data: list[list[str]]) -> "MettaGridConfig":
         from mettagrid.map_builder.ascii import AsciiMapBuilder
 
-        self.game.map_builder = AsciiMapBuilder.Config(map_data=map_data)
+        self.game.map_builder = AsciiMapBuilder.Config(
+            map_data=map_data,
+            char_to_name_map={o.map_char: o.name for o in self.game.objects.values()},
+        )
         return self
 
     @staticmethod
@@ -306,7 +344,7 @@ class MettaGridConfig(Config):
         )
         objects = {}
         if border_width > 0 or with_walls:
-            objects["wall"] = WallConfig(type_id=1, swappable=False)
+            objects["wall"] = WallConfig(name="wall", type_id=1, map_char="#", render_symbol="⬛", swappable=False)
         return MettaGridConfig(
             game=GameConfig(map_builder=map_builder, actions=actions, num_agents=num_agents, objects=objects)
         )

@@ -1,15 +1,21 @@
+#!/usr/bin/env -S uv run
+
 """CLI for CoGames - collection of environments for multi-agent cooperative and competitive games."""
 
+import importlib.metadata
 import logging
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
+
+from packaging.version import Version
 
 # Always add current directory to Python path
 sys.path.insert(0, ".")
 
 import typer
 from rich.console import Console
+from rich.table import Table
 
 logger = logging.getLogger("cogames.main")
 
@@ -95,7 +101,8 @@ def play_cmd(
     ),
     policy_data_path: Optional[str] = typer.Option(None, "--policy-data", help="Path to initial policy weights"),
     interactive: bool = typer.Option(True, "--interactive", "-i", help="Run in interactive mode"),
-    steps: int = typer.Option(100, "--steps", "-s", help="Number of steps to run"),
+    steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run"),
+    render: Literal["gui", "text"] = typer.Option("gui", "--render", "-r", help="Render mode: 'gui' or 'text'"),
 ) -> None:
     """Play a game."""
     from cogames import game, utils
@@ -120,7 +127,7 @@ def play_cmd(
     full_policy_path = resolve_policy_class_path(policy_class_path)
 
     console.print(f"[cyan]Playing {resolved_game}[/cyan]")
-    console.print(f"Max Steps: {steps}, Interactive: {interactive}")
+    console.print(f"Max Steps: {steps}, Interactive: {interactive}, Render: {render}")
 
     from cogames import play as play_module
 
@@ -131,6 +138,7 @@ def play_cmd(
         policy_data_path=policy_data_path,
         max_steps=steps,
         seed=42,
+        render=render,
         verbose=interactive,  # Use interactive flag for verbose output
     )
 
@@ -293,6 +301,21 @@ def evaluate(
 ) -> None:
     """Evaluate a policy on a game."""
     console.print("[red]Coming soon...[/red]")
+
+
+@app.command(name="version", help="Show version information")
+def version_cmd() -> None:
+    def public_version(dist_name: str) -> str:
+        return str(Version(importlib.metadata.version(dist_name)).public)
+
+    table = Table(show_header=False, box=None, show_lines=False, pad_edge=False)
+    table.add_column("", justify="right", style="bold cyan")
+    table.add_column("", justify="right")
+
+    for dist_name in ["mettagrid", "pufferlib-core", "cogames"]:
+        table.add_row(dist_name, public_version(dist_name))
+
+    console.print(table)
 
 
 if __name__ == "__main__":

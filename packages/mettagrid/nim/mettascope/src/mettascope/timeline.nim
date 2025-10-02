@@ -1,7 +1,7 @@
 import
   std/[times, math],
   boxy, vmath, windy, fidget2, fidget2/[hybridrender, common],
-  common, panels, objectinfo
+  common, panels, actions, objectinfo
 
 const
   BgColor = parseHtmlColor("#1D1D1D")
@@ -25,9 +25,11 @@ var
   nodeScrubberBg: Node
   nodeScrubber: Node
 
-proc stepChanged() =
+proc onStepChanged*() =
+  ## Must be called when the step changes so that UI is updated.
   echo "step: ", step
   updateObjectInfo()
+  processActions()
 
 proc bindTimelineNodes() =
   if nodesBound or globalTimelinePanel.isNil or globalTimelinePanel.node.isNil:
@@ -66,18 +68,23 @@ proc playControls*() =
         stepFloat = replay.maxSteps.float32 - 1
     step = stepFloat.int
     step = step.clamp(0, replay.maxSteps - 1)
-    stepChanged()
 
   if window.buttonPressed[KeyLeftBracket]:
     step -= 1
     step = clamp(step, 0, replay.maxSteps - 1)
     stepFloat = step.float32
-    stepChanged()
   if window.buttonPressed[KeyRightBracket]:
     step += 1
+    if playMode == Realtime and step >= replay.maxSteps:
+      requestPython = true
+      step = replay.maxSteps - 1
     step = clamp(step, 0, replay.maxSteps - 1)
     stepFloat = step.float32
-    stepChanged()
+  
+  # Fire onStepChanged once and only once when step changes.
+  if step != previousStep:
+    previousStep = step
+    onStepChanged()
 
 proc getStepFromX(localX, panelWidth: float32): int =
   ## Maps a local X coordinate within the timeline panel to a replay step.
@@ -94,8 +101,11 @@ proc getStepFromX(localX, panelWidth: float32): int =
 proc onScrubberChange(localX, panelWidth: float32) =
   ## Updates global step based on local X.
   let s = getStepFromX(localX, panelWidth)
-  step = s
-  stepFloat = step.float32
+  if s != step:
+    step = s
+    stepFloat = step.float32
+    previousStep = step
+    onStepChanged()
 
 proc centerTracesOnStep(targetStep: int) =
   ## Recenters the Agent Traces panel on the given step.
