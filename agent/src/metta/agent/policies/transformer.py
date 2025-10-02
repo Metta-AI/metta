@@ -28,10 +28,10 @@ from metta.agent.components.actor import (
 from metta.agent.components.obs_enc import ObsPerceiverLatent, ObsPerceiverLatentConfig
 from metta.agent.components.obs_shim import ObsShimTokens, ObsShimTokensConfig
 from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourier, ObsAttrEmbedFourierConfig
-from metta.agent.policies.backbones import gtrxl as backbone_gtrxl
-from metta.agent.policies.backbones import sliding_transformer as backbone_sliding
-from metta.agent.policies.backbones import trxl as backbone_trxl
-from metta.agent.policies.backbones import trxl_nvidia as backbone_trxl_nvidia
+from metta.agent.policies import gtrxl as backbone_gtrxl
+from metta.agent.policies import sliding_transformer as backbone_sliding
+from metta.agent.policies import trxl as backbone_trxl
+from metta.agent.policies import trxl_nvidia as backbone_trxl_nvidia
 from metta.agent.policy import Policy, PolicyArchitecture
 
 logger = logging.getLogger(__name__)
