@@ -44,8 +44,8 @@ class TransformerBackboneConfig(ComponentConfig):
 
     @model_validator(mode="after")
     def _apply_variant_defaults(self) -> "TransformerBackboneConfig":
-        entry = get_backbone_spec(self.variant)
-        for field_name, default_value in entry.defaults.items():
+        spec = get_backbone_spec(self.variant)
+        for field_name, default_value in spec.defaults.items():
             if getattr(self, field_name, None) is None:
                 setattr(self, field_name, default_value)
 
@@ -59,8 +59,8 @@ class TransformerBackboneConfig(ComponentConfig):
     # ------------------------------------------------------------------
 
     def make_component(self, env: Any | None = None):  # type: ignore[override]
-        entry = get_backbone_spec(self.variant)
-        return entry.builder(self, env)
+        spec = get_backbone_spec(self.variant)
+        return spec.builder(self, env)
 
 
 __all__ = ["TransformerBackboneConfig", "available_backbones"]

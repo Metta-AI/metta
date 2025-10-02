@@ -11,16 +11,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
 
-try:  # pragma: no cover - optional dependency
-    from apex.normalization.fused_layer_norm import FusedLayerNorm  # type: ignore
-except ImportError:  # pragma: no cover
-    FusedLayerNorm = None
-
-try:  # pragma: no cover - optional dependency
-    from flash_attn.flash_attn_interface import flash_attn_func  # type: ignore
-except ImportError:  # pragma: no cover
-    flash_attn_func = None
-
 
 def sinusoidal_position_encoding(positions: torch.Tensor, d_model: int, *, scale: float = 1.0) -> torch.Tensor:
     """Generate sinusoidal positional encodings for arbitrary position tensors."""
@@ -44,25 +34,8 @@ def _record_function(name: str):
     return contextlib.nullcontext()
 
 
-def _make_layer_norm(d_model: int, use_fused: bool) -> nn.Module:
-    if use_fused and FusedLayerNorm is not None:
-        return FusedLayerNorm(d_model)
+def _make_layer_norm(d_model: int, _: bool) -> nn.Module:
     return nn.LayerNorm(d_model)
-
-
-class TF32Context:
-    def __init__(self, enabled: bool) -> None:
-        self.enabled = enabled and torch.cuda.is_available()
-        self.prev = None
-
-    def __enter__(self):
-        if self.enabled:
-            self.prev = torch.backends.cuda.matmul.allow_tf32
-            torch.backends.cuda.matmul.allow_tf32 = True
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if self.enabled and self.prev is not None:
-            torch.backends.cuda.matmul.allow_tf32 = self.prev
 
 
 def empty_memory(
@@ -204,7 +177,6 @@ class GTrXLMultiHeadSelfAttention(nn.Module):
         dropout: float = 0.1,
         use_causal_mask: bool = True,
         attn_dropout: float = 0.1,
-        use_flash_checkpoint: bool = False,
     ) -> None:
         super().__init__()
         if d_model % n_heads != 0:
@@ -217,10 +189,8 @@ class GTrXLMultiHeadSelfAttention(nn.Module):
         self.qkv_proj = nn.Linear(d_model, 3 * d_model, bias=False)
         self.out_proj = nn.Linear(d_model, d_model)
         self.dropout = nn.Dropout(dropout)
-        self._flash_available = flash_attn_func is not None
         self._attn_dropout_p = float(attn_dropout)
         self._dropout_p = float(dropout)
-        self.use_flash_checkpoint = use_flash_checkpoint
 
         nn.init.xavier_uniform_(self.qkv_proj.weight, gain=1.0)
         nn.init.xavier_uniform_(self.out_proj.weight, gain=1.0)
@@ -233,42 +203,9 @@ class GTrXLMultiHeadSelfAttention(nn.Module):
         qkv = qkv.permute(2, 1, 3, 0, 4)  # (3, batch, heads, seq, d_k)
         q, k, v = qkv[0], qkv[1], qkv[2]
 
-        if attn_mask is None and self.use_causal_mask and flash_attn_func is not None and x.is_cuda:
-            dropout_p = self._attn_dropout_p if self.training else 0.0
-            q_flash = q.permute(0, 3, 1, 2)  # (batch, seq, heads, d)
-            k_flash = k.permute(0, 3, 1, 2)
-            v_flash = v.permute(0, 3, 1, 2)
-            def _flash(q_t, k_t, v_t):
-                return flash_attn_func(
-                    q_t,
-                    k_t,
-                    v_t,
-                    dropout_p=dropout_p,
-                    softmax_scale=None,
-                    causal=True,
-                )
+        dropout_p = self._attn_dropout_p if self.training else 0.0
 
-            if self.use_flash_checkpoint and q_flash.requires_grad:
-                out = checkpoint(_flash, q_flash, k_flash, v_flash, use_reentrant=False)
-            else:
-                out = _flash(q_flash, k_flash, v_flash)
-            out = out.permute(1, 0, 2, 3).reshape(seq_len, batch_size, self.d_model)
-            return self.out_proj(out)
-
-        if attn_mask is None and hasattr(F, "scaled_dot_product_attention"):
-            dropout_p = self._attn_dropout_p if self.training else 0.0
-            out = F.scaled_dot_product_attention(
-                q,
-                k,
-                v,
-                attn_mask=None,
-                dropout_p=dropout_p,
-                is_causal=self.use_causal_mask,
-            )
-            out = out.permute(2, 0, 1, 3).reshape(seq_len, batch_size, self.d_model)
-            return self.out_proj(out)
-
-        # Fallback path with explicit masking or CPU execution
+        # Explicit masking attention path
         q_2d = q.reshape(batch_size * self.n_heads, seq_len, self.d_k)
         k_2d = k.reshape(batch_size * self.n_heads, seq_len, self.d_k)
         v_2d = v.reshape(batch_size * self.n_heads, seq_len, self.d_k)
@@ -280,19 +217,10 @@ class GTrXLMultiHeadSelfAttention(nn.Module):
             scores = scores.masked_fill(causal_mask.unsqueeze(0), float("-inf"))
 
         if attn_mask is not None:
-            if attn_mask.dim() == 2:
-                expanded = attn_mask.unsqueeze(0)
-            elif attn_mask.dim() == 3:
-                expanded = attn_mask
-                if expanded.size(0) == 1:
-                    expanded = expanded.expand(batch_size, -1, -1)
-            else:
-                raise ValueError("Attention mask must have dim 2 or 3.")
-            expanded = expanded.to(device=x.device)
+            expanded = self._prepare_attn_mask(attn_mask, batch_size, seq_len, x.device)
             expanded = expanded.unsqueeze(1).expand(batch_size, self.n_heads, seq_len, seq_len)
-            scores = scores.view(batch_size, self.n_heads, seq_len, seq_len)
-            scores = scores.masked_fill(expanded.to(torch.bool), float("-inf"))
-            scores = scores.view(batch_size * self.n_heads, seq_len, seq_len)
+            expanded = expanded.view(batch_size * self.n_heads, seq_len, seq_len)
+            scores = scores.masked_fill(expanded, float("-inf"))
 
         weights = F.softmax(scores, dim=-1)
         weights = F.dropout(weights, p=self._attn_dropout_p if self.training else 0.0, training=self.training)
@@ -301,6 +229,29 @@ class GTrXLMultiHeadSelfAttention(nn.Module):
         out = out.view(batch_size, self.n_heads, seq_len, self.d_k)
         out = out.permute(2, 0, 1, 3).reshape(seq_len, batch_size, self.d_model)
         return self.out_proj(out)
+
+    @staticmethod
+    def _prepare_attn_mask(
+        attn_mask: Optional[torch.Tensor],
+        batch_size: int,
+        seq_len: int,
+        device: torch.device,
+    ) -> Optional[torch.Tensor]:
+        if attn_mask is None:
+            return None
+
+        mask = attn_mask
+        if mask.dim() == 2:
+            mask = mask.bool().unsqueeze(0).expand(batch_size, -1, -1)
+        elif mask.dim() == 3:
+            if mask.size(0) == 1:
+                mask = mask.expand(batch_size, -1, -1)
+            mask = mask.bool()
+        else:
+            raise ValueError("Attention mask must have dim 2 or 3.")
+
+        mask = mask.to(device=device)
+        return mask
 
 
 class GTrXLTransformerBlock(nn.Module):
@@ -316,8 +267,6 @@ class GTrXLTransformerBlock(nn.Module):
         use_gating: bool,
         *,
         attn_dropout: float = 0.1,
-        use_flash_checkpoint: bool = False,
-        use_fused_layernorm: bool = False,
     ) -> None:
         super().__init__()
         self.use_gating = use_gating
@@ -327,10 +276,9 @@ class GTrXLTransformerBlock(nn.Module):
             dropout,
             use_causal_mask,
             attn_dropout=attn_dropout,
-            use_flash_checkpoint=use_flash_checkpoint,
         )
-        self.norm1 = _make_layer_norm(d_model, use_fused_layernorm)
-        self.norm2 = _make_layer_norm(d_model, use_fused_layernorm)
+        self.norm1 = _make_layer_norm(d_model, False)
+        self.norm2 = _make_layer_norm(d_model, False)
 
         self.feed_forward = nn.Sequential(
             nn.Linear(d_model, d_ff),
@@ -379,9 +327,6 @@ class GTrXLModule(nn.Module):
         positional_scale: float = 0.1,
         attn_dropout: float = 0.1,
         activation_checkpoint: bool = False,
-        use_flash_checkpoint: bool = False,
-        use_fused_layernorm: bool = False,
-        allow_tf32: bool = True,
     ) -> None:
         super().__init__()
         if d_model % n_heads != 0:
@@ -397,10 +342,7 @@ class GTrXLModule(nn.Module):
         self.use_gating = use_gating
         self.use_causal_mask = use_causal_mask
         self.use_activation_checkpoint = activation_checkpoint
-        self.use_flash_checkpoint = use_flash_checkpoint
-        self.use_fused_layernorm = use_fused_layernorm
         self.attn_dropout = attn_dropout
-        self.allow_tf32 = allow_tf32
 
         positional_max = max_seq_len + self.memory_len + 1024
         self.positional_encoding = FCPositionalEncoding(
@@ -424,13 +366,11 @@ class GTrXLModule(nn.Module):
                     use_causal_mask=use_causal_mask,
                     use_gating=self.use_gating,
                     attn_dropout=attn_dropout,
-                    use_flash_checkpoint=self.use_flash_checkpoint,
-                    use_fused_layernorm=self.use_fused_layernorm,
                 )
                 for _ in range(n_layers)
             ]
         )
-        self.output_norm = _make_layer_norm(d_model, self.use_fused_layernorm)
+        self.output_norm = _make_layer_norm(d_model, False)
         self.dropout = nn.Dropout(dropout)
         self._mask_cache: dict[tuple[int, torch.device], torch.Tensor] = {}
 
@@ -439,7 +379,7 @@ class GTrXLModule(nn.Module):
         inputs: torch.Tensor,
         memory: Optional[Dict[str, Optional[List[torch.Tensor]]]] = None,
     ) -> Tuple[torch.Tensor, Dict[str, Optional[List[torch.Tensor]]]]:
-        with _record_function("GTrXLModule/forward"), TF32Context(self.allow_tf32):
+        with _record_function("GTrXLModule/forward"):
             squeeze = False
             if inputs.dim() == 2:
                 inputs = inputs.unsqueeze(0)
@@ -567,12 +507,10 @@ class XLPositionwiseFF(nn.Module):
         d_inner: int,
         dropout: float,
         pre_lnorm: bool,
-        *,
-        use_fused_layernorm: bool = False,
     ) -> None:
         super().__init__()
         self.pre_lnorm = pre_lnorm
-        self.layer_norm = _make_layer_norm(d_model, use_fused_layernorm)
+        self.layer_norm = _make_layer_norm(d_model, False)
         self.core = nn.Sequential(
             nn.Linear(d_model, d_inner),
             nn.ReLU(inplace=True),
@@ -600,8 +538,6 @@ class XLRelMultiHeadAttn(nn.Module):
         dropout: float,
         dropatt: float,
         pre_lnorm: bool,
-        *,
-        use_fused_layernorm: bool = False,
     ) -> None:
         super().__init__()
         self.n_head = n_head
@@ -614,7 +550,7 @@ class XLRelMultiHeadAttn(nn.Module):
         self.o_net = nn.Linear(n_head * d_head, d_model, bias=False)
         self.drop = nn.Dropout(dropout)
         self.dropatt = nn.Dropout(dropatt)
-        self.layer_norm = _make_layer_norm(d_model, use_fused_layernorm)
+        self.layer_norm = _make_layer_norm(d_model, False)
 
     @staticmethod
     def _rel_shift(x: torch.Tensor) -> torch.Tensor:
@@ -646,22 +582,10 @@ class XLRelPartialLearnableMultiHeadAttn(XLRelMultiHeadAttn):
         dropout: float,
         dropatt: float,
         pre_lnorm: bool,
-        *,
-        use_flash_checkpoint: bool = False,
-        use_fused_layernorm: bool = False,
     ) -> None:
-        super().__init__(
-            n_head,
-            d_model,
-            d_head,
-            dropout,
-            dropatt,
-            pre_lnorm,
-            use_fused_layernorm=use_fused_layernorm,
-        )
+        super().__init__(n_head, d_model, d_head, dropout, dropatt, pre_lnorm)
         self.r_net = nn.Linear(d_model, n_head * d_head, bias=False)
-        self.layer_norm = _make_layer_norm(d_model, use_fused_layernorm)
-        self.use_flash_checkpoint = use_flash_checkpoint
+        self.layer_norm = _make_layer_norm(d_model, False)
 
     def forward(
         self,
@@ -696,46 +620,6 @@ class XLRelPartialLearnableMultiHeadAttn(XLRelMultiHeadAttn):
         w_head_k = w_head_k.view(klen, batch_size, self.n_head, self.d_head)
         w_head_v = w_head_v.view(klen, batch_size, self.n_head, self.d_head)
         r_head_k = r_head_k.view(rlen, self.n_head, self.d_head)
-
-        if hasattr(F, "scaled_dot_product_attention") and w_head_q.is_cuda:
-            try:
-                q_tilde = w_head_q + r_w_bias[None, None, :, :]
-                q_sdpa = q_tilde.permute(1, 2, 0, 3).contiguous()
-                k_sdpa = w_head_k.permute(1, 2, 0, 3).contiguous()
-                v_sdpa = w_head_v.permute(1, 2, 0, 3).contiguous()
-
-                rr_head_q = w_head_q + r_r_bias[None, None, :, :]
-                BD = torch.einsum("ibnd,jnd->ijbn", rr_head_q, r_head_k)
-                BD = self._rel_shift(BD)
-                attn_bias = BD.permute(2, 3, 0, 1).contiguous() * self.scale
-
-                if attn_mask is not None:
-                    if attn_mask.dim() == 2:
-                        mask = attn_mask[None, None, :, :]
-                    elif attn_mask.dim() == 3:
-                        mask = attn_mask[:, None, :, :]
-                    else:
-                        raise ValueError("Attention mask must have dim 2 or 3.")
-                    mask = mask.to(attn_bias.device)
-                    attn_bias = attn_bias.masked_fill(mask.bool(), float("-inf"))
-
-                dropout_p = self.dropatt.p if self.training else 0.0
-                attn_out = F.scaled_dot_product_attention(
-                    q_sdpa,
-                    k_sdpa,
-                    v_sdpa,
-                    attn_mask=attn_bias,
-                    dropout_p=dropout_p,
-                    is_causal=False,
-                )
-                attn_out = attn_out.permute(2, 0, 1, 3).reshape(qlen, batch_size, self.n_head * self.d_head)
-                attn_out = self.drop(self.o_net(attn_out))
-
-                if self.pre_lnorm:
-                    return content + attn_out
-                return self.layer_norm(content + attn_out)
-            except RuntimeError:
-                pass
 
         rw_head_q = w_head_q + r_w_bias
         AC = torch.einsum("ibnd,jbnd->ijbn", (rw_head_q, w_head_k))
@@ -778,9 +662,6 @@ class XLRelPartialLearnableDecoderLayer(nn.Module):
         dropout: float,
         dropatt: float,
         pre_lnorm: bool,
-        *,
-        use_flash_checkpoint: bool = False,
-        use_fused_layernorm: bool = False,
     ) -> None:
         super().__init__()
         self.attn = XLRelPartialLearnableMultiHeadAttn(
@@ -790,15 +671,12 @@ class XLRelPartialLearnableDecoderLayer(nn.Module):
             dropout,
             dropatt,
             pre_lnorm,
-            use_flash_checkpoint=use_flash_checkpoint,
-            use_fused_layernorm=use_fused_layernorm,
         )
         self.ff = XLPositionwiseFF(
             d_model,
             d_inner,
             dropout,
             pre_lnorm,
-            use_fused_layernorm=use_fused_layernorm,
         )
 
     def forward(
@@ -834,9 +712,6 @@ class TransformerXLModule(nn.Module):
         ext_len: int = 0,
         attn_type: int = 0,
         activation_checkpoint: bool = False,
-        use_flash_checkpoint: bool = False,
-        use_fused_layernorm: bool = False,
-        allow_tf32: bool = True,
     ) -> None:
         super().__init__()
         if d_model % n_heads != 0:
@@ -855,13 +730,6 @@ class TransformerXLModule(nn.Module):
         self.ext_len = ext_len
         self.attn_type = attn_type
         self.use_activation_checkpoint = activation_checkpoint
-        self.use_flash_checkpoint = use_flash_checkpoint
-        self.use_fused_layernorm = use_fused_layernorm
-        self.allow_tf32 = allow_tf32
-        self.use_activation_checkpoint = activation_checkpoint
-        self.use_flash_checkpoint = use_flash_checkpoint
-        self.use_fused_layernorm = use_fused_layernorm
-        self.allow_tf32 = allow_tf32
 
         d_head = d_model // n_heads
 
@@ -879,8 +747,6 @@ class TransformerXLModule(nn.Module):
                     dropout,
                     dropatt,
                     pre_lnorm,
-                    use_flash_checkpoint=self.use_flash_checkpoint,
-                    use_fused_layernorm=self.use_fused_layernorm,
                 )
                 for _ in range(n_layers)
             ]
@@ -893,7 +759,7 @@ class TransformerXLModule(nn.Module):
     def forward(
         self, inputs: torch.Tensor, memory: Optional[Dict[str, List[torch.Tensor]]] = None
     ) -> Tuple[torch.Tensor, Dict[str, Optional[List[torch.Tensor]]]]:
-        with _record_function("TransformerXLModule/forward"), TF32Context(self.allow_tf32):
+        with _record_function("TransformerXLModule/forward"):
             if inputs.dim() == 2:
                 inputs = inputs.unsqueeze(0)
             if inputs.dim() != 3:
