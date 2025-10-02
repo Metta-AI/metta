@@ -113,7 +113,7 @@ class WandbContext:
                     # Assume it's a Config object with model_dump method
                     class_name = self.run_config.__class__.__name__
                     key = self.run_config_name or class_name or "extra_config_object"
-                    config = {key: self.run_config.model_dump()}
+                    config = {key: self.run_config.model_dump(mode="json")}
                 elif isinstance(self.run_config, str):
                     config = self.run_config
                 else:
