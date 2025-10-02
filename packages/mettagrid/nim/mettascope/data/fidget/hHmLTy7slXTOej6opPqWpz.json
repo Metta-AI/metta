@@ -45070,7 +45070,7 @@
                     "children": [
                       {
                         "id": "2364:367",
-                        "name": "#step-counter",
+                        "name": "StepCounter",
                         "type": "TEXT",
                         "scrollBehavior": "SCROLLS",
                         "blendMode": "PASS_THROUGH",
@@ -45246,9 +45246,9 @@
                     "interactions": []
                   },
                   {
-                    "id": "2368:955",
+                    "id": "2478:492",
                     "name": "ScrubberBg",
-                    "type": "VECTOR",
+                    "type": "RECTANGLE",
                     "scrollBehavior": "SCROLLS",
                     "blendMode": "PASS_THROUGH",
                     "fills": [
@@ -45256,16 +45256,16 @@
                         "blendMode": "NORMAL",
                         "type": "SOLID",
                         "color": {
-                          "r": 0.20207332074642181,
-                          "g": 0.20207332074642181,
-                          "b": 0.20207332074642181,
+                          "r": 0.0561160109937191,
+                          "g": 0.06603515893220901,
+                          "b": 0.07938326150178909,
                           "a": 1.0
                         }
                       }
                     ],
                     "fillGeometry": [
                       {
-                        "path": "M0 4C0 1.79086 1.79086 0 4 0L1707 0C1709.21 0 1711 1.79086 1711 4L1711 12C1711 14.2091 1709.21 16 1707 16L4 16C1.79086 16 0 14.2091 0 12L0 4Z",
+                        "path": "M0 8C0 3.58172 3.58172 0 8 0L1176 0C1180.42 0 1184 3.58172 1184 8C1184 12.4183 1180.42 16 1176 16L8.00003 16C3.58175 16 0 12.4183 0 8Z",
                         "windingRule": "NONZERO"
                       }
                     ],
@@ -45273,29 +45273,29 @@
                     "strokeWeight": 1.0,
                     "strokeAlign": "INSIDE",
                     "strokeGeometry": [],
-                    "cornerRadius": 4.0,
+                    "cornerRadius": 8.0,
                     "cornerSmoothing": 0.0,
                     "absoluteBoundingBox": {
-                      "x": 1801.0,
+                      "x": 1795.0,
                       "y": 710.0,
-                      "width": 1711.0,
+                      "width": 1184.0,
                       "height": 16.0
                     },
                     "absoluteRenderBounds": {
-                      "x": 1801.0,
+                      "x": 1795.0,
                       "y": 710.0,
-                      "width": 1186.0,
+                      "width": 1184.0,
                       "height": 16.0
                     },
                     "constraints": {
                       "vertical": "TOP",
-                      "horizontal": "LEFT"
+                      "horizontal": "LEFT_RIGHT"
                     },
                     "relativeTransform": [
                       [
                         1.0,
                         0.0,
-                        14.0
+                        8.0
                       ],
                       [
                         0.0,
@@ -45304,16 +45304,16 @@
                       ]
                     ],
                     "size": {
-                      "x": 1711.0,
+                      "x": 1184.0,
                       "y": 16.0
                     },
                     "effects": [],
                     "interactions": []
                   },
                   {
-                    "id": "2368:958",
+                    "id": "2478:493",
                     "name": "Scrubber",
-                    "type": "VECTOR",
+                    "type": "RECTANGLE",
                     "scrollBehavior": "SCROLLS",
                     "blendMode": "PASS_THROUGH",
                     "fills": [
@@ -45330,7 +45330,7 @@
                     ],
                     "fillGeometry": [
                       {
-                        "path": "M0 4C0 1.79086 1.79086 0 4 0L856 0C858.209 0 860 1.79086 860 4L860 12C860 14.2091 858.209 16 856 16L4.00002 16C1.79088 16 0 14.2091 0 12L0 4Z",
+                        "path": "M0 8C0 3.58172 3.58172 0 8 0L951 0C955.418 0 959 3.58172 959 8C959 12.4183 955.418 16 951 16L8 16C3.58173 16 0 12.4183 0 8Z",
                         "windingRule": "NONZERO"
                       }
                     ],
@@ -45338,18 +45338,18 @@
                     "strokeWeight": 1.0,
                     "strokeAlign": "INSIDE",
                     "strokeGeometry": [],
-                    "cornerRadius": 4.0,
+                    "cornerRadius": 8.0,
                     "cornerSmoothing": 0.0,
                     "absoluteBoundingBox": {
-                      "x": 1801.0,
+                      "x": 1795.0,
                       "y": 710.0,
-                      "width": 860.0,
+                      "width": 959.0,
                       "height": 16.0
                     },
                     "absoluteRenderBounds": {
-                      "x": 1801.0,
+                      "x": 1795.0,
                       "y": 710.0,
-                      "width": 860.0,
+                      "width": 959.0,
                       "height": 16.0
                     },
                     "constraints": {
@@ -45360,7 +45360,7 @@
                       [
                         1.0,
                         0.0,
-                        14.0
+                        8.0
                       ],
                       [
                         0.0,
@@ -45369,7 +45369,7 @@
                       ]
                     ],
                     "size": {
-                      "x": 860.0,
+                      "x": 959.0,
                       "y": 16.0
                     },
                     "effects": [],
@@ -45377,7 +45377,7 @@
                   }
                 ],
                 "blendMode": "PASS_THROUGH",
-                "clipsContent": true,
+                "clipsContent": false,
                 "background": [
                   {
                     "blendMode": "NORMAL",
@@ -86573,9 +86573,9 @@
   "schemaVersion": 0,
   "styles": {},
   "name": "MetaScope V2 Rig",
-  "lastModified": "2025-10-01T22:06:28Z",
-  "thumbnailUrl": "https://s3-alpha.figma.com/thumbnails/5d6959de-0c9b-49f5-8e7c-b3de695e9a31?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAQ4GOSFWC6UK6QLJ2%2F20250928%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20250928T120000Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=7245cf4d5e7fb593d31057ce90dc08a9d4e1a844139cf48ead80530d0101d558",
-  "version": "2270067263645975411",
+  "lastModified": "2025-10-02T22:05:47Z",
+  "thumbnailUrl": "https://s3-alpha.figma.com/thumbnails/1cb48a0d-142f-439a-a43f-12743c3eed7b?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAQ4GOSFWC6UK6QLJ2%2F20251002%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20251002T000000Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=fe3c45cd1e79d18bd5c8d21b6788ee5979260a32c72a31227b3f2cb0179cf848",
+  "version": "2270443124815105226",
   "role": "owner",
   "editorType": "figma",
   "linkAccess": "inherit"
