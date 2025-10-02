@@ -110,9 +110,9 @@ def test_mlstm_with_preup_block() -> None:
     # Check that state exists and has correct structure
     assert state is not None, "State should not be None"
 
-    # The PreUpBlock wraps the cell state in a 'cell' key
-    assert "cell" in state, f"State should contain 'cell' key, got keys: {list(state.keys())}"
-    cell_state = state["cell"]
+    # The PreUpBlock wraps the cell state with the cell class name as key
+    assert "mLSTMCell" in state, f"State should contain 'mLSTMCell' key, got keys: {list(state.keys())}"
+    cell_state = state["mLSTMCell"]
 
     # Check cell state components
     assert "c" in cell_state, "Cell state should contain 'c' component"

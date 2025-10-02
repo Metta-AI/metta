@@ -7,20 +7,20 @@ from cortex.blocks import (
     build_block,
     register_block,
 )
-from cortex.cells import LSTMCell, mLSTMCell, MemoryCell, build_cell, register_cell
+from cortex.cells import LSTMCell, MemoryCell, build_cell, mLSTMCell, register_cell
 from cortex.config import (
     AdapterBlockConfig,
     BlockConfig,
     CellConfig,
     CortexStackConfig,
     LSTMCellConfig,
-    mLSTMCellConfig,
     PassThroughBlockConfig,
     PostUpBlockConfig,
     PreUpBlockConfig,
+    mLSTMCellConfig,
 )
 from cortex.factory import build_cortex, build_from_dict
-from cortex.stack import CortexStack
+from cortex.stacks import CortexStack
 from cortex.types import MaybeState, ResetMask, State, Tensor
 from cortex.utils import TRITON_AVAILABLE, select_backend
 
