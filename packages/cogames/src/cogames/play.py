@@ -11,6 +11,7 @@ from rich.console import Console
 
 import mettagrid.mettascope as mettascope
 from cogames import serialization
+from cogames.aws_storage import maybe_download_checkpoint
 from cogames.env import make_hierarchical_env
 from mettagrid import MettaGridConfig
 from mettagrid.util.grid_object_formatter import format_grid_object
@@ -23,6 +24,7 @@ def play(
     env_cfg: MettaGridConfig,
     policy_class_path: str,
     policy_data_path: Optional[str] = None,
+    game_name: Optional[str] = None,
     max_steps: Optional[int] = None,
     seed: int = 42,
     render: Literal["gui", "text"] = "gui",
@@ -48,6 +50,16 @@ def play(
     # Load and create policy via shared serialization helpers
     device = torch.device("cpu")
     policy_path = Path(policy_data_path) if policy_data_path else None
+    if policy_path and not policy_path.exists() and not policy_path.is_dir():
+        downloaded = maybe_download_checkpoint(
+            policy_path=policy_path,
+            game_name=game_name,
+            policy_class_path=policy_class_path,
+            console=console,
+        )
+        if not downloaded and not policy_path.exists():
+            console.print(f"[red]Policy checkpoint not found at {policy_path} and no remote copy was located.[/red]")
+            raise FileNotFoundError(f"Policy checkpoint not found: {policy_path}")
     if policy_path and policy_path.is_dir():
         policy_instance = serialization.load_policy_from_bundle(policy_path, env, device)
     else:
