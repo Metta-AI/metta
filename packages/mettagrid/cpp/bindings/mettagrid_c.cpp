@@ -849,20 +849,14 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
     // Add chest-specific info
     if (auto* chest = dynamic_cast<Chest*>(obj)) {
       obj_dict["resource_type"] = static_cast<int>(chest->resource_type);
+      obj_dict["max_inventory"] = chest->max_inventory;
 
-      // Convert deposit_positions set to list
-      py::list deposit_list;
-      for (int pos : chest->deposit_positions) {
-        deposit_list.append(pos);
+      // Convert position_deltas map to dict
+      py::dict position_deltas_dict;
+      for (const auto& [pos, delta] : chest->position_deltas) {
+        position_deltas_dict[py::int_(pos)] = delta;
       }
-      obj_dict["deposit_positions"] = deposit_list;
-
-      // Convert withdrawal_positions set to list
-      py::list withdrawal_list;
-      for (int pos : chest->withdrawal_positions) {
-        withdrawal_list.append(pos);
-      }
-      obj_dict["withdrawal_positions"] = withdrawal_list;
+      obj_dict["position_deltas"] = position_deltas_dict;
     }
 
     objects[py::int_(obj_id)] = obj_dict;
