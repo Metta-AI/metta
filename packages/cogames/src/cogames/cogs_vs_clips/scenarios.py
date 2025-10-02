@@ -32,7 +32,7 @@ from mettagrid.map_builder.random import RandomMapBuilder
 def _base_game_config(num_agents: int) -> MettaGridConfig:
     """Shared base configuration for all game types."""
 
-    heart_reward = 0.05
+    heart_reward = 1.0
     stats_rewards: dict[str, float] = {
         "heart.gained": heart_reward,
         "heart.put": heart_reward * 0.5,
