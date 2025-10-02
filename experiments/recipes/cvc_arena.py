@@ -165,9 +165,6 @@ def train_shaped(rewards: bool = True, assemblers: bool = True) -> TrainTool:
     )
 
 
-# This could be inferred from simulations() i.e. no need to be expliiclty defined
-# but we keep ith ere so we can alias it
-# for backward compatibility to name "evaluate"
 def eval(
     policy_uris: str | Sequence[str] | None = None,
 ) -> EvalTool:

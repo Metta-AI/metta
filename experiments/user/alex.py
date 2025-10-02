@@ -18,6 +18,7 @@ from metta.rl.loss.ppo import PPOConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.tools.eval import EvalTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
@@ -138,10 +139,15 @@ def play() -> PlayTool:
     return PlayTool(sim=SimulationConfig(suite="alex", name="eval", env=env))
 
 
+def evaluate(run: str = "local.alex.1") -> EvalTool:
+    cfg = arena.eval(policy_uri=f"wandb://run/{run}")
+
+    # If your run doesn't exist, try this:
+    # cfg = arena.evaluate(policy_uri="wandb://run/daveey.combat.lpsm.8x4")
+    return cfg
+
+
 def replay() -> ReplayTool:
     env = mettagrid()
     env.game.max_steps = 100
     return ReplayTool(sim=SimulationConfig(suite="alex", name="eval", env=env))
-
-
-"""Evaluate tool inferred via simulations(); use run.py alex.evaluate policy_uris=..."""

@@ -469,11 +469,6 @@ class Simulation:
     def full_name(self) -> str:
         return self._full_name
 
-    @property
-    def name(self) -> str:
-        """Alias for full_name for backward compatibility."""
-        return self._full_name
-
     def get_envs(self):
         """Returns a list of all envs in the simulation."""
         return self._vecenv.envs
