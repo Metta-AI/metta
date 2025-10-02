@@ -1,6 +1,7 @@
 """PyTorch kernel implementations for Cortex cells."""
 
 from cortex.kernels.pytorch.conv1d import causal_conv1d_pytorch, causal_conv1d_triton
+from cortex.kernels.pytorch.lstm import lstm_sequence_pytorch
 from cortex.kernels.pytorch.mlstm import (
     mlstm_chunkwise_simple,
     mlstm_chunkwise_triton,
@@ -14,6 +15,7 @@ __all__ = [
     "mlstm_chunkwise_simple",
     "mlstm_chunkwise_triton",
     "mlstm_recurrent_step_stabilized_simple",
+    "lstm_sequence_pytorch",
     "slstm_sequence_pytorch",
     "slstm_sequence_triton",
 ]
