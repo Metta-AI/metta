@@ -28,10 +28,7 @@ from metta.agent.components.actor import (
 from metta.agent.components.obs_enc import ObsPerceiverLatent, ObsPerceiverLatentConfig
 from metta.agent.components.obs_shim import ObsShimTokens, ObsShimTokensConfig
 from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourier, ObsAttrEmbedFourierConfig
-from metta.agent.components.transformer_core import (
-    TransformerBackboneConfig,
-    TransformerBackboneVariant,
-)
+from metta.agent.components.transformer_core import TransformerBackboneConfig
 from metta.agent.components.transformers import get_backbone_spec
 from metta.agent.policy import Policy, PolicyArchitecture
 
