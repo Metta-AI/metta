@@ -9,23 +9,6 @@ type
     S = 1
     W = 2
     E = 3
-  
-  QueuedAction = object
-    agentId: int
-    actionId: int
-    argument: int
-
-var
-  ## Action queue for each agent. Only one action per step.
-  actionQueue = initTable[int, QueuedAction]()
-
-proc queueAction(agentId, actionId, argument: int) =
-  ## Queue an action for the agent. Will be sent on next step.
-  actionQueue[agentId] = QueuedAction(
-    agentId: agentId,
-    actionId: actionId,
-    argument: argument
-  )
 
 proc sendAction*(agentId, actionId, argument: int) =
   ## Send an action to the Python from the user.
@@ -50,7 +33,7 @@ proc getOrientationFromDelta(dx, dy: int): Orientation =
     return N
 
 proc processActions*() =
-  ## Process pathfinding and action queue. Called on step change.
+  ## Process pathfinding and send actions. Called on step change.
   if not (play or requestPython):
     return
   
@@ -76,7 +59,7 @@ proc processActions*() =
         let dx = dest.pos.x - currentPos.x
         let dy = dest.pos.y - currentPos.y
         let targetOrientation = getOrientationFromDelta(dx.int, dy.int)
-        queueAction(agentId, replay.moveActionId, targetOrientation.int)
+        sendAction(agentId, replay.moveActionId, targetOrientation.int)
         # after bumping, the current destination is fulfilled.
         agentDestinations[agentId].delete(0)
         agentPaths.del(agentId)
@@ -98,21 +81,12 @@ proc processActions*() =
           let dx = nextPos.x - currentPos.x
           let dy = nextPos.y - currentPos.y
           let orientation = getOrientationFromDelta(dx.int, dy.int)
-          queueAction(agentId, replay.moveActionId, orientation.int)
+          sendAction(agentId, replay.moveActionId, orientation.int)
           agentPaths[agentId].delete(0)
         else:
           recomputePath(agentId, currentPos)
       else:
         recomputePath(agentId, currentPos)
-  
-  if actionQueue.len > 0:
-    for agentId, action in actionQueue:
-      requestActions.add(ActionRequest(
-        agentId: action.agentId,
-        actionId: action.actionId,
-        argument: action.argument
-      ))
-    actionQueue.clear()
 
 proc agentControls*() =
   ## Manual controls with WASD for selected agent.

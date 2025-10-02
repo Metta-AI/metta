@@ -26,9 +26,12 @@ var
   nodeScrubber: Node
 
 proc onStepChanged*() =
-  ## Must be called when the step changes so that UI is updated.
+  ## Called after the step changes so that UI is updated.
   echo "step: ", step
   updateObjectInfo()
+
+proc onRequestPython*() =
+  ## Called before requesting Python to process the next step.
   processActions()
 
 proc bindTimelineNodes() =
