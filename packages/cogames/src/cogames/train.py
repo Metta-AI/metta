@@ -4,10 +4,11 @@ import logging
 import multiprocessing
 import platform
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional
 
+from cogames.env import make_hierarchical_env
 from cogames.policy import TrainablePolicy
-from mettagrid import MettaGridConfig, MettaGridEnv
+from mettagrid import MettaGridConfig
 from mettagrid.util.module import load_symbol
 
 if TYPE_CHECKING:
@@ -17,7 +18,7 @@ logger = logging.getLogger("cogames.pufferlib")
 
 
 def train(
-    env_cfg: MettaGridConfig,
+    env_cfg: Optional[MettaGridConfig],
     policy_class_path: str,
     device: "torch.device",
     initial_weights_path: Optional[str],
@@ -31,14 +32,28 @@ def train(
     vector_num_envs: Optional[int] = None,
     vector_batch_size: Optional[int] = None,
     vector_num_workers: Optional[int] = None,
+    env_cfg_supplier: Optional[Callable[[], MettaGridConfig]] = None,
 ) -> None:
     import pufferlib.pytorch  # noqa: F401 - ensure modules register with torch
     import pufferlib.vector
     from pufferlib import pufferl
     from pufferlib.pufferlib import set_buffers
 
-    def env_creator(cfg: MettaGridConfig, buf: Optional[Any] = None, seed: Optional[int] = None):
-        env = MettaGridEnv(env_cfg=cfg)
+    if env_cfg_supplier is None and env_cfg is None:
+        raise ValueError("Either env_cfg or env_cfg_supplier must be provided to train a policy")
+
+    def _next_config() -> MettaGridConfig:
+        if env_cfg_supplier is not None:
+            cfg = env_cfg_supplier()
+            if not isinstance(cfg, MettaGridConfig):
+                raise TypeError("Curriculum callable must return a MettaGridConfig instance")
+            return cfg.model_copy(deep=True)
+        assert env_cfg is not None
+        return env_cfg.model_copy(deep=True)
+
+    def env_creator(buf: Optional[Any] = None, seed: Optional[int] = None):
+        cfg = _next_config()
+        env = make_hierarchical_env(cfg, buf=buf)
         set_buffers(env, buf)
         return env
 
@@ -96,9 +111,6 @@ def train(
         num_workers=num_workers,
         batch_size=vector_batch_size,
         backend=backend,
-        env_kwargs={
-            "cfg": env_cfg,
-        },
     )
 
     # Load the TrainablePolicy class using the new API
@@ -121,13 +133,13 @@ def train(
 
     # Use RNN-specific hyperparameters if needed
     if use_rnn:
-        learning_rate = 0.0003  # Much lower LR for RNN stability
-        bptt_horizon = 1  # Use bptt=1 for now (TODO: fix bptt>1 observation reshaping)
-        optimizer = "adam"  # Adam is more stable for RNNs than Muon
-        adam_eps = 1e-8  # Standard eps value, not too small
-        logger.info("Using RNN-specific hyperparameters: lr=0.0003, bptt=1, optimizer=adam")
+        learning_rate = 1e-4  # Slightly gentler LR to keep critic stable
+        bptt_horizon = 1  # TODO: revisit once observation reshaping supports >1
+        optimizer = "adam"
+        adam_eps = 1e-8
+        logger.info("Using RNN hyperparameters: lr=1e-4, bptt=1, optimizer=adam")
     else:
-        learning_rate = 0.015
+        learning_rate = 1e-4
         bptt_horizon = 1
         optimizer = "muon"
         adam_eps = 1e-12
@@ -190,14 +202,14 @@ def train(
         anneal_lr=True,
         precision="float32",
         learning_rate=learning_rate,
-        gamma=0.995,
-        gae_lambda=0.90,
+        gamma=0.998,
+        gae_lambda=0.95,
         update_epochs=1,
-        clip_coef=0.2,
-        vf_coef=2.0,
-        vf_clip_coef=0.2,
-        max_grad_norm=1.5,
-        ent_coef=0.001,
+        clip_coef=0.1,
+        vf_coef=0.05,
+        vf_clip_coef=0.1,
+        max_grad_norm=0.5,
+        ent_coef=0.01,
         adam_beta1=0.95,
         adam_beta2=0.999,
         adam_eps=adam_eps,

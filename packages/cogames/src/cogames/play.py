@@ -2,6 +2,7 @@
 
 import json
 import logging
+from pathlib import Path
 from typing import Literal, Optional
 
 import numpy as np
@@ -9,9 +10,10 @@ import torch
 from rich.console import Console
 
 import mettagrid.mettascope as mettascope
-from mettagrid import MettaGridConfig, MettaGridEnv
+from cogames import serialization
+from cogames.env import make_hierarchical_env
+from mettagrid import MettaGridConfig
 from mettagrid.util.grid_object_formatter import format_grid_object
-from mettagrid.util.module import load_symbol
 
 logger = logging.getLogger("cogames.play")
 
@@ -38,61 +40,80 @@ def play(
         render: Render mode - "gui" (default) or "text"
         verbose: Whether to print detailed progress
     """
-    # Create environment with appropriate render mode
+
+    # Create environment with appropriate render mode while preserving hierarchical actions
     render_mode = None if render == "gui" else "miniscope" if render == "text" else None
-    env = MettaGridEnv(env_cfg=env_cfg, render_mode=render_mode)
+    env = make_hierarchical_env(env_cfg, render_mode=render_mode)
 
-    # Load and create policy
-    policy_class = load_symbol(policy_class_path)
+    # Load and create policy via shared serialization helpers
     device = torch.device("cpu")
+    policy_path = Path(policy_data_path) if policy_data_path else None
+    if policy_path and policy_path.is_dir():
+        policy_instance = serialization.load_policy_from_bundle(policy_path, env, device)
+    else:
+        artifact = serialization.PolicyArtifact(policy_class=policy_class_path, weights_path=policy_path)
+        policy_instance = serialization.load_policy(artifact, env, device)
 
-    # Instantiate the policy
-    policy_instance = policy_class(env, device)
+    from cogames.policy import AgentPolicy, Policy, TrainablePolicy
 
-    # Load checkpoint if provided
-    if policy_data_path:
-        policy_instance.load_policy_data(policy_data_path)
+    agent_policies: list[AgentPolicy] = []
+    if isinstance(policy_instance, (TrainablePolicy, Policy)):
+        for agent_id in range(env.num_agents):
+            agent_policies.append(policy_instance.agent_policy(agent_id))
+    else:
+        raise ValueError("Policy class must implement either Policy or TrainablePolicy interface")
 
-    # Create per-agent policies
-    agent_policies = []
-    for agent_id in range(env.num_agents):
-        agent_policies.append(policy_instance.agent_policy(agent_id))
+    action_dim = int(env.single_action_space.nvec.size)
 
-    # For text mode, use the interactive loop in miniscope
-    if render == "text" and hasattr(env, "_renderer") and env._renderer:
+    # Text mode: drive miniscope interactive loop
+    if render == "text" and getattr(env, "_renderer", None):
+        move_action_id = env.action_names.index("move") if "move" in env.action_names else 0
 
         def get_actions_fn(
             obs: np.ndarray, selected_agent: Optional[int], manual_action: Optional[int | tuple]
         ) -> np.ndarray:
-            """Get actions for all agents, with optional manual override."""
-            actions = np.zeros((env.num_agents, 2), dtype=np.int32)
-            for agent_id in range(env.num_agents):
-                if agent_id == selected_agent and manual_action is not None:
-                    # manual_action can be a tuple of (action_id, arg) or just a direction for move
-                    if isinstance(manual_action, tuple):
-                        actions[agent_id] = list(manual_action)
-                    else:
-                        # Get move action ID from environment
-                        move_action_id = env.action_names.index("move") if "move" in env.action_names else 0
-                        actions[agent_id] = [move_action_id, manual_action]
+            """Return hierarchical actions for all agents with optional manual override."""
+
+            actions = np.zeros((env.num_agents, action_dim), dtype=np.int32)
+            for agent in range(env.num_agents):
+                actions[agent] = agent_policies[agent].step(obs[agent])
+
+            if selected_agent is not None and manual_action is not None:
+                override = actions[selected_agent]
+                override[1:] = 0
+
+                if isinstance(manual_action, tuple):
+                    verb, arg = manual_action
+                    verb_idx = int(verb)
+                    override[0] = verb_idx
+                    arg_slot = 1 + verb_idx
+                    if arg_slot < override.size:
+                        override[arg_slot] = int(arg)
                 else:
-                    actions[agent_id] = agent_policies[agent_id].step(obs[agent_id])
+                    override[0] = move_action_id
+                    arg_slot = 1 + move_action_id
+                    if arg_slot < override.size:
+                        override[arg_slot] = int(manual_action)
+
+                actions[selected_agent] = override
+
             return actions
 
+        env.reset(seed=seed)
         result = env._renderer.interactive_loop(env, get_actions_fn, max_steps=max_steps)
         console.print("\n[bold green]Episode Complete![/bold green]")
         console.print(f"Steps: {result['steps']}")
         console.print(f"Total Rewards: {result['total_rewards']}")
         return
 
-    # GUI mode: use mettascope
+    # GUI mode: use mettascope replay visualizer
     obs, _ = env.reset(seed=seed)
     step_count = 0
     num_agents = env_cfg.game.num_agents
-    actions = np.zeros((env.num_agents, 2), dtype=np.int32)
+    hierarchical_actions = np.zeros((env.num_agents, action_dim), dtype=np.int32)
     total_rewards = np.zeros(env.num_agents)
 
-    # Initialize GUI replay
+    # Initialize GUI replay payload
     initial_replay = {
         "version": 2,
         "action_names": env.action_names,
@@ -109,36 +130,54 @@ def play(
     if response.should_close:
         return
 
-    def generate_replay_step():
+    def generate_replay_step() -> str:
+        base_actions = env.project_actions(hierarchical_actions)
         grid_objects = []
         for grid_object in env.grid_objects().values():
             if "agent_id" in grid_object:
                 agent_id = grid_object["agent_id"]
                 total_rewards[agent_id] += env.rewards[agent_id]
             grid_objects.append(
-                format_grid_object(grid_object, actions, env.action_success, env.rewards, total_rewards)
+                format_grid_object(grid_object, base_actions, env.action_success, env.rewards, total_rewards)
             )
         step_replay = {"step": step_count, "objects": grid_objects}
         return json.dumps(step_replay)
 
     # GUI rendering loop
     while max_steps is None or step_count < max_steps:
-        # Get actions from policies
         for agent_id in range(num_agents):
-            actions[agent_id] = agent_policies[agent_id].step(obs[agent_id])
+            hierarchical_actions[agent_id] = agent_policies[agent_id].step(obs[agent_id])
 
-        # Render and get user input
         replay_step = generate_replay_step()
         response = mettascope.render(step_count, replay_step)
         if response.should_close:
             break
-        for action in response.actions:
-            actions[action.agent_id, 0] = action.action_id
-            actions[action.agent_id, 1] = action.argument
 
-        obs, rewards, dones, truncated, info = env.step(actions)
+        manual_actions = getattr(response, "actions", None)
+        if manual_actions:
+            for manual in manual_actions:
+                agent_idx = int(manual.agent_id)
+                if agent_idx < 0 or agent_idx >= env.num_agents:
+                    continue
+                verb = int(manual.action_id)
+                arg = int(manual.argument)
+                hierarchical_actions[agent_idx, 1:] = 0
+                hierarchical_actions[agent_idx, 0] = verb
+                arg_slot = 1 + verb
+                if arg_slot < hierarchical_actions.shape[1]:
+                    hierarchical_actions[agent_idx, arg_slot] = arg
+        elif getattr(response, "action", None):  # Back-compat for single-action responses
+            agent_idx = int(response.action_agent_id)
+            verb = int(response.action_action_id)
+            arg = int(response.action_argument)
+            hierarchical_actions[agent_idx, 1:] = 0
+            hierarchical_actions[agent_idx, 0] = verb
+            arg_slot = 1 + verb
+            if arg_slot < hierarchical_actions.shape[1]:
+                hierarchical_actions[agent_idx, arg_slot] = arg
 
-        # Update total rewards
+        obs, rewards, dones, truncated, _ = env.step(hierarchical_actions)
+
         for agent_id in range(num_agents):
             total_rewards[agent_id] += rewards[agent_id]
 
@@ -150,6 +189,6 @@ def play(
         if all(dones) or all(truncated):
             break
 
-    # Print summary
     console.print("\n[bold green]Episode Complete![/bold green]")
     console.print(f"Steps: {step_count}")
+    console.print(f"Total Rewards: {total_rewards.sum():.2f}")

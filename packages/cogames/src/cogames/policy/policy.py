@@ -1,9 +1,11 @@
 """Base policy classes and interfaces."""
 
 from abc import abstractmethod
-from typing import Any, Generic, Optional, Tuple, TypeVar
+from typing import Generic, Optional, Tuple, TypeVar
 
 import torch.nn as nn
+
+from mettagrid import MettaGridAction, MettaGridObservation
 
 # Type variable for agent state - can be any type
 StateType = TypeVar("StateType")
@@ -17,15 +19,8 @@ class AgentPolicy:
     This is what play.py and evaluation code use directly.
     """
 
-    def step(self, obs: Any) -> Any:
-        """Get action given an observation.
-
-        Args:
-            obs: The observation for this agent
-
-        Returns:
-            The action to take
-        """
+    def step(self, obs: MettaGridObservation) -> MettaGridAction:
+        """Return the action for the provided observation."""
         raise NotImplementedError("Subclasses must implement step()")
 
 
@@ -40,34 +35,15 @@ class Policy:
 
     @abstractmethod
     def agent_policy(self, agent_id: int) -> AgentPolicy:
-        """Get an AgentPolicy instance for a specific agent.
-
-        Args:
-            agent_id: The ID of the agent
-
-        Returns:
-            An AgentPolicy instance for this agent
-        """
+        """Return the per-agent policy for the requested agent id."""
         ...
 
     def load_policy_data(self, policy_data_path: str) -> None:
-        """Load policy data from a file.
-
-        Args:
-            policy_data_path: Path to the policy data file
-
-        Default implementation does nothing. Override to load weights/parameters.
-        """
+        """Load policy parameters from ``policy_data_path``."""
         pass  # Default: no-op for policies without learnable parameters
 
     def save_policy_data(self, policy_data_path: str) -> None:
-        """Save policy data to a file.
-
-        Args:
-            policy_data_path: Path to save the policy data
-
-        Default implementation does nothing. Override to save weights/parameters.
-        """
+        """Persist policy parameters to ``policy_data_path``."""
         pass  # Default: no-op for policies without learnable parameters
 
 
@@ -82,18 +58,13 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
     """
 
     def __init__(self, base_policy: "StatefulPolicyImpl[StateType]", agent_id: int):
-        """Initialize stateful wrapper.
-
-        Args:
-            base_policy: The underlying stateful policy implementation
-            agent_id: The ID of the agent this policy is for
-        """
+        """Wrap a stateful policy implementation for a specific agent id."""
         self._base_policy = base_policy
         self._agent_id = agent_id
         # Initialize state using the base policy's agent_state() method
         self._state: Optional[StateType] = self._base_policy.agent_state()
 
-    def step(self, obs: Any) -> Any:
+    def step(self, obs: MettaGridObservation) -> MettaGridAction:
         """Get action and update hidden state."""
         action, self._state = self._base_policy.step_with_state(obs, self._state)
         return action
@@ -113,24 +84,13 @@ class StatefulPolicyImpl(Generic[StateType]):
 
     @abstractmethod
     def agent_state(self) -> Optional[StateType]:
-        """Get the initial state for a new agent.
-
-        Returns:
-            Initial state for the agent, or None if no initial state needed.
-            For LSTMs, this typically returns None (states are initialized by the network).
-        """
+        """Return the initial state for a new agent, or ``None`` for stateless policies."""
         ...
 
-    def step_with_state(self, obs: Any, state: Optional[StateType]) -> Tuple[Any, Optional[StateType]]:
-        """Get action and potentially update state.
-
-        Args:
-            obs: The observation
-            state: Current hidden state (e.g., RNN hidden state)
-
-        Returns:
-            Tuple of (action, new_state)
-        """
+    def step_with_state(
+        self, obs: MettaGridObservation, state: Optional[StateType]
+    ) -> Tuple[MettaGridAction, Optional[StateType]]:
+        """Return the action and updated state for the provided observation/state."""
         raise NotImplementedError
 
 
@@ -148,33 +108,17 @@ class TrainablePolicy(Policy):
 
     @abstractmethod
     def agent_policy(self, agent_id: int) -> AgentPolicy:
-        """Get an AgentPolicy instance for a specific agent.
-
-        This must be overridden by trainable policies to return
-        per-agent policy instances.
-
-        Args:
-            agent_id: The ID of the agent
-
-        Returns:
-            An AgentPolicy instance for this agent
-        """
+        """Return the per-agent policy for the requested agent id."""
         ...
 
     def load_policy_data(self, policy_data_path: str) -> None:
-        """Load network weights from file.
-
-        Default implementation loads PyTorch state dict.
-        """
+        """Load network weights from ``policy_data_path`` using ``torch.load``."""
         import torch
 
         self.network().load_state_dict(torch.load(policy_data_path, map_location="cpu"))
 
     def save_policy_data(self, policy_data_path: str) -> None:
-        """Save network weights to file.
-
-        Default implementation uses torch.save.
-        """
+        """Save network weights to ``policy_data_path`` using ``torch.save``."""
         import torch
 
         torch.save(self.network().state_dict(), policy_data_path)
