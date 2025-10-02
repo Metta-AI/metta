@@ -285,7 +285,12 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
                     valid_positions.remove(position)
             else:
                 center_positions = valid_positions[:2]
-                other_positions = self.config.rng.sample(valid_positions[2:], count - 2)
+                num_surrounding_objs = count - 2
+                if num_surrounding_objs > 0 and len(valid_positions[2:]) > 0:
+                    other_positions = self.config.rng.sample(valid_positions[2:], num_surrounding_objs)
+                else:
+                    other_positions = []
+
                 for position in center_positions + other_positions:
                     grid[position] = obj_name
                     valid_positions.remove(position)
