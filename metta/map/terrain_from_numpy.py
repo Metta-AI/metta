@@ -276,7 +276,9 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
 
         for pos, label in zip(agent_positions, agent_labels, strict=False):
             grid[pos] = label
-            valid_positions.remove(pos)
+            # Convert numpy types to Python int for list.remove() to work
+            pos_tuple = (int(pos[0]), int(pos[1]))
+            valid_positions.remove(pos_tuple)
 
         if len(valid_positions) < sum(self.config.objects.values()):
             grid, empty_centers = self.carve_out_patches(
