@@ -145,11 +145,12 @@ def chest() -> ChestConfig:
     )
 
 
+# Chest characters are the letter after the relative resource type.
 def chest_carbon() -> ChestConfig:
     return ChestConfig(
         name="chest_carbon",
         type_id=31,
-        map_char="L",
+        map_char="D",
         render_symbol="📦",
         resource_type="carbon",
         position_deltas=[("E", 1), ("W", -1), ("N", 5), ("S", -5)],
@@ -160,7 +161,7 @@ def chest_oxygen() -> ChestConfig:
     return ChestConfig(
         name="chest_oxygen",
         type_id=32,
-        map_char="M",
+        map_char="P",
         render_symbol="📦",
         resource_type="oxygen",
         position_deltas=[("E", 1), ("W", -1), ("N", 10), ("S", -10)],
@@ -171,7 +172,7 @@ def chest_germanium() -> ChestConfig:
     return ChestConfig(
         name="chest_germanium",
         type_id=33,
-        map_char="N",
+        map_char="H",
         render_symbol="📦",
         resource_type="germanium",
         position_deltas=[("E", 1), ("W", -1), ("N", 5), ("S", -5)],
@@ -182,7 +183,7 @@ def chest_silicon() -> ChestConfig:
     return ChestConfig(
         name="chest_silicon",
         type_id=34,
-        map_char="O",
+        map_char="T",
         render_symbol="📦",
         resource_type="silicon",
         position_deltas=[("E", 1), ("W", -1), ("N", 25), ("S", -25)],
