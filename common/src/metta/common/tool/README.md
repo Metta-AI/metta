@@ -21,41 +21,49 @@ This automatically creates empty `__init__.py` files in any subdirectories that 
 ./tools/run.py train arena run=my_experiment
 
 # Evaluate a policy
-./tools/run.py evaluate arena policy_uri=s3://my-bucket/checkpoints/run/run:v12.pt
+./tools/run.py evaluate arena policy_uri=file://./train_dir/my_run/checkpoints
 
 # Interactive play (browser)
-./tools/run.py play arena policy_uri=file://./train_dir/run/checkpoints/run:v12.pt
+./tools/run.py play arena policy_uri=file://./train_dir/my_run/checkpoints
 
 # Generate & view a replay
-./tools/run.py replay arena policy_uri=file://./train_dir/run/checkpoints/run:v12.pt
+./tools/run.py replay arena policy_uri=file://./train_dir/my_run/checkpoints
 ```
 
 ## Two-Token Form and Shorthands
 
-- Two-token: `./tools/run.py <tool> <recipe>` is equivalent to `<recipe>.<tool>`.
-- Omit prefix: `arena` maps to `experiments.recipes.arena`.
+The runner supports flexible syntax for invoking tools:
 
-Examples:
+**Two-token form**: `./tools/run.py <tool> <recipe>` is equivalent to `<recipe>.<tool>`
+- Example: `train arena` → `arena.train`
 
+**Short recipe names**: Omit the `experiments.recipes.` prefix
+- Example: `arena` → `experiments.recipes.arena`
+
+**Equivalent invocations**:
 ```bash
-# Equivalent invocations
-./tools/run.py evaluate arena policy_uri=...
-./tools/run.py arena.evaluate policy_uri=...
+./tools/run.py train arena run=test
+./tools/run.py arena.train run=test
+./tools/run.py experiments.recipes.arena.train run=test
 ```
 
-## Listing Tools
+## Discovering Tools
+
+Use `--list` to discover available tools:
 
 ```bash
-# List tools for a recipe module (explicit + inferred)
+# List all tools in a specific recipe
 ./tools/run.py arena --list
+./tools/run.py navigation --list
 
-# Equivalent (explicit tool given; same module resolution):
-./tools/run.py train arena --list
-./tools/run.py arena.train --list
+# List all recipes that provide a specific tool
+./tools/run.py train --list          # Shows all recipes with train tools
+./tools/run.py evaluate --list       # Shows all recipes with evaluate tools
 ```
 
-- Shows explicit tools exported by that recipe (functions/classes returning `Tool`).
-- Also includes inferred tool names when the recipe provides `mettagrid()`/`simulations()`.
+The output shows both:
+- **Explicit tools**: Functions/classes that return a Tool (e.g., `train_shaped`)
+- **Inferred tools**: Automatically generated from `mettagrid()`/`simulations()` (e.g., `train`, `evaluate`, `play`, `replay`)
 
 ## Dry-Run
 

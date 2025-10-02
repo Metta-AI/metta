@@ -529,6 +529,13 @@ constructor/function vs configuration overrides based on introspection.
             list_all_recipes(console)
             return 0
 
+        # Check for two-token form first (e.g., 'train arena --list' should list arena tools)
+        if raw_positional_args and ("=" not in raw_positional_args[0]) and (not raw_positional_args[0].startswith("-")):
+            # This looks like 'train arena --list' → list tools in arena, not all train implementations
+            recipe_path = raw_positional_args[0]
+            if list_module_tools(recipe_path, console):
+                return 0
+
         # Check if it's a bare tool name (like 'train', 'evaluate')
         # Get canonical tool name (handles aliases)
         registry = get_tool_registry()

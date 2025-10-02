@@ -65,15 +65,18 @@ def resolve_and_load_tool(tool_path: str) -> Callable[[], Tool] | None:
     if "." in tool_path:
         module_path, tool_name = tool_path.rsplit(".", 1)
 
-        # Get canonical tool name (handle aliases)
-        registry = get_tool_registry()
-        canonical = registry.get_canonical_name(tool_name) or tool_name
-
         # Check recipe registry (handles both short and full paths)
         recipe_registry = get_recipe_registry()
         recipe = recipe_registry.get(module_path)
         if recipe:
-            # Found recipe! Try to get tool
+            # First try direct name lookup (for functions like train_shaped, replay_null)
+            if tool_name in recipe.get_all_tool_names():
+                # Access the tool directly from the _name_to_tool map
+                return recipe._name_to_tool.get(tool_name)
+
+            # If direct lookup fails, try canonical name (for aliases and inferred tools)
+            registry = get_tool_registry()
+            canonical = registry.get_canonical_name(tool_name) or tool_name
             tools = recipe.get_tools_for_canonical(canonical)
             if tools:
                 # Return first matching tool

@@ -22,6 +22,8 @@ from mettagrid import MettaGridConfig
 class Recipe:
     """Represents a recipe module that can provide tools."""
 
+    # TODO: Replace with actual Recipe class that experiments/recipes files inherit from
+
     def __init__(self, module: ModuleType):
         self.module = module
         self.module_name = module.__name__
@@ -32,7 +34,6 @@ class Recipe:
 
     @property
     def short_name(self) -> str:
-        """Get short name without 'experiments.recipes.' prefix."""
         return self.module_name.replace("experiments.recipes.", "")
 
     def _build_tool_maps(self) -> None:
