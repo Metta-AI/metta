@@ -507,7 +507,7 @@ def play(curriculum_style: str = "test") -> PlayTool:
 
 
 def train(
-    curriculum_style: str = "multi_agent_pairs",
+    curriculum_style: str = "multi_agent_pairs_uniform",
     architecture="vit_reset",
     run: str = "default",
 ) -> TrainTool:
