@@ -10,7 +10,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
 
-from metta.agent.policies._transformer_utils import (
+from metta.agent.components.transformer_utils import (
     _make_layer_norm,
     _record_function,
     empty_memory,
