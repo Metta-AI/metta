@@ -37,16 +37,19 @@ The main entry point is `./tools/run.py` which uses the recipe system for all ma
 ./tools/run.py play arena policy_uri=s3://my-bucket/checkpoints/my_experiment/my_experiment:v20.pt # Interactive play
 ```
 
-### Recipe Inference
+### Recipe Structure
 
-If a recipe module defines `def mettagrid() -> MettaGridConfig` and optionally `def simulations() -> list[SimulationConfig]`,
-`run.py` can infer common tools even if the module does not implement them explicitly. If both are present,
-`simulations()` takes precedence for evaluation (and for the evaluator in inferred training tools). Inferred tools include:
-`train`, `play`, `replay`, `eval`, `eval_remote`.
+Recipe modules define explicit tool functions that return Tool instances:
 
-Inference details:
-- Play: inferred from `simulations()[0]` if present; otherwise from `mettagrid()`.
-- Replay: inferred from `simulations()[0]` if present; otherwise from `mettagrid()`.
+```python
+def train() -> TrainTool:
+    return TrainTool(...)
+
+def eval() -> EvalTool:
+    return EvalTool(simulations=[...])
+```
+
+Recipes can optionally define helper functions like `mettagrid()` or `simulations()` to avoid duplication when multiple tools need the same configuration.
 
 Examples:
 
