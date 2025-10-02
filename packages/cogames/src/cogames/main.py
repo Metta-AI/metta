@@ -174,7 +174,10 @@ def play_cmd(
         callback=_resolve_policy_class_path,
     ),
     policy_data_path: Optional[str] = typer.Option(
-        None, "--policy-data", help="Path to initial policy weights", callback=_resolve_policy_data_path
+        None,
+        "--policy-data",
+        help="Path to policy weights file or directory",
+        callback=_resolve_policy_data_path,
     ),
     interactive: bool = typer.Option(True, "--interactive", "-i", help="Run in interactive mode"),
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
@@ -215,7 +218,10 @@ def evaluate_cmd(
         callback=_resolve_policy_class_path,
     ),
     policy_data_path: Optional[str] = typer.Option(
-        None, "--policy-data", help="Path to policy weights", callback=_resolve_policy_data_path
+        None,
+        "--policy-data",
+        help="Path to policy weights file or directory",
+        callback=_resolve_policy_data_path,
     ),
     episodes: int = typer.Option(10, "--episodes", "-e", help="Number of evaluation episodes", min=1),
     action_timeout_ms: int = typer.Option(

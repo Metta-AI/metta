@@ -8,11 +8,11 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FUT_TIMEOUT
 from copy import deepcopy
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 import typer
+from pydantic.main import BaseModel
 from rich.console import Console
 from rich.table import Table
 
@@ -24,11 +24,10 @@ if TYPE_CHECKING:
     from mettagrid.mettagrid_c import EpisodeStats
 
 
-_SKIP_STATS = ["action.invalid_arg.*"]
+_SKIP_STATS = ["^action\.invalid_arg\..+$"]
 
 
-@dataclass(frozen=True)
-class PolicySpec:
+class PolicySpec(BaseModel):
     """Specification for a policy used during evaluation."""
 
     policy_class_path: str
@@ -123,61 +122,31 @@ def evaluate(
                     actions = np.stack(actions, axis=0)
                     obs, rewards, done, truncated, _ = env.step(actions)
 
-            per_episode_rewards.append(np.array(env.get_episode_rewards(), dtype=float))
-            per_episode_stats.append(deepcopy(env.get_episode_stats()))
-            per_episode_assignments.append(assignments.copy())
+                per_episode_rewards.append(np.array(env.get_episode_rewards(), dtype=float))
+
+                per_episode_stats.append(deepcopy(env.get_episode_stats()))
+                per_episode_assignments.append(assignments.copy())
 
     # Report results
-    stacked_rewards = np.stack(per_episode_rewards)
-    total_rewards = stacked_rewards.sum(axis=1)
 
     aggregated_game_stats: dict[str, float] = defaultdict(float)
     aggregated_policy_stats: list[dict[str, float]] = [defaultdict(float) for _ in policy_specs]
-    policy_reward_sums = np.zeros(len(policy_specs), dtype=float)
 
     for episode_idx, stats in enumerate(per_episode_stats):
-        game_stats = stats.get("game", {}) if isinstance(stats, dict) else {}
+        game_stats = stats.get("game", {})
         for key, value in game_stats.items():
             aggregated_game_stats[key] += float(value)
 
-        agent_stats_list = stats.get("agent", []) if isinstance(stats, dict) else []
+        agent_stats_list = stats.get("agent", [])
         for agent_id, agent_stats in enumerate(agent_stats_list):
             if agent_id >= env.num_agents:
                 continue
-            policy_idx = int(per_episode_assignments[episode_idx][agent_id])
+            assignments = per_episode_assignments[episode_idx]
+            policy_idx = int(assignments[agent_id])
             for key, value in agent_stats.items():
                 if any(re.match(pattern, key) for pattern in _SKIP_STATS):
                     continue
                 aggregated_policy_stats[policy_idx][key] += float(value)
-
-    for episode_idx, rewards in enumerate(stacked_rewards):
-        assignments = per_episode_assignments[episode_idx]
-        for agent_id, reward in enumerate(rewards):
-            policy_idx = int(assignments[agent_id])
-            policy_reward_sums[policy_idx] += float(reward)
-
-    summary_table = Table(
-        title=f"Evaluation Results for {resolved_game}",
-        show_header=True,
-        header_style="bold magenta",
-    )
-    summary_table.add_column("Episode", justify="right")
-    summary_table.add_column("Total Reward", justify="right")
-    for name in policy_names:
-        summary_table.add_column(f"Policy {name}", justify="right")
-
-    for episode_idx, rewards in enumerate(stacked_rewards, start=1):
-        assignments = per_episode_assignments[episode_idx - 1]
-        row = [str(episode_idx), f"{total_rewards[episode_idx - 1]:.2f}"]
-        for policy_idx in range(len(policy_specs)):
-            mask = assignments == policy_idx
-            if mask.any():
-                policy_reward = rewards[mask].mean()
-                row.append(f"{policy_reward:.2f}")
-            else:
-                row.append("--")
-        summary_table.add_row(*row)
-    summary_table.add_row(*row)
 
     console.print("\n[bold cyan]Average Policy Stats[/bold cyan]")
     for policy_idx, stats in enumerate(aggregated_policy_stats):
@@ -197,6 +166,33 @@ def evaluate(
         game_stats_table.add_row(key, f"{value / episodes:.2f}")
     console.print(game_stats_table)
 
+    console.print("\n[bold cyan]Average Reward per Agent[/bold cyan]")
+    summary_table = Table(
+        show_header=True,
+        header_style="bold magenta",
+    )
+    summary_table.add_column("Episode", justify="right")
+    for name in policy_names:
+        summary_table.add_column(f"Policy {name}", justify="right")
+
+    total_avg_agent_reward_per_policy = defaultdict(float)
+    for episode_idx, rewards in enumerate(per_episode_rewards):
+        assignments = per_episode_assignments[episode_idx]
+        row = [str(episode_idx)]
+        episode_reward_per_policy = defaultdict(float)
+        for agent_id, reward in enumerate(rewards):
+            policy_idx = int(assignments[agent_id])
+            episode_reward_per_policy[policy_idx] += float(reward)
+        for policy_idx in range(len(policy_specs)):
+            avg_reward_per_agent = episode_reward_per_policy[policy_idx] / policy_counts[policy_idx]
+            row.append(str(avg_reward_per_agent))
+            total_avg_agent_reward_per_policy[policy_idx] += avg_reward_per_agent
+
+        summary_table.add_row(*row)
+    summary_table.add_row(
+        "Total",
+        *[str(total_avg_agent_reward_per_policy[policy_idx]) for policy_idx in range(len(policy_specs))],
+    )
     console.print(summary_table)
 
     env.close()
