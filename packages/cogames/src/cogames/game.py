@@ -294,8 +294,6 @@ def require_game_argument(ctx: typer.Context, value: Optional[str], console: Con
         return value
 
     console.print("[yellow]No game specified. Available games:[/yellow]")
-    table = list_games(console)
-    if table is not None:
-        console.print(table)
+    list_games(console)
     console.print(f"\n[dim]Usage: {ctx.command_path} <game>[/dim]")
     raise typer.Exit(0)

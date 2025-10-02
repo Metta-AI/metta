@@ -49,7 +49,7 @@ def parse_policy_spec(spec: str) -> PolicySpec:
     proportion is an optional non-negative float. If omitted, defaults to 1.
 
     Returns:
-        A list of PolicySpec objects
+        A PolicySpec object
 
     Raises:
         typer.BadParameter: If the specification is malformed or invalid.
