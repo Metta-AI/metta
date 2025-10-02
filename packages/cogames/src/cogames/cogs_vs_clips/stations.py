@@ -22,7 +22,7 @@ def charger(max_uses: Optional[int] = None) -> AssemblerConfig:
     return AssemblerConfig(
         name="charger",
         type_id=5,
-        map_char="H",
+        map_char="+",
         render_symbol="⚡",
         allow_partial_usage=True,  # can use it while its on cooldown
         max_uses=max_uses or 0,
@@ -193,7 +193,7 @@ def assembler() -> AssemblerConfig:
     return AssemblerConfig(
         name="assembler",
         type_id=8,
-        map_char="+",
+        map_char="&",
         render_symbol="🔄",
         recipes=[
             (["N"], protocols.one_agent_heart_recipe()),
