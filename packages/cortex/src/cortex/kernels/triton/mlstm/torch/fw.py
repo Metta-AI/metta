@@ -6,12 +6,12 @@
 It should allow arbitrary large chunk sizes and head dimensions.
 """
 
+
 import torch
 
 from ..triton.chunkwise_kernel_param_heuristics import (
     get_xl_chunk_kernel_params,
 )
-import math
 from ..utils import contiguous_noctx
 from .fw_parallel import mlstm_chunkwise__parallel_fw_Hintra
 from .fw_recurrent import mlstm_chunkwise__recurrent_fw_C

@@ -1,6 +1,6 @@
 # Cortex
 
-`cortex` provides an interface for a unified agent memory architecture.
+`cortex` is a modular memory stack library for building recurrent backbones and agent memory systems. It separates cell-level recurrence from architectural concerns (projections, skips, normalization) so you can compose new stacks quickly and safely.
 
 ## Architecture
 
@@ -99,6 +99,29 @@ x_step = torch.randn(batch_size, 256)  # [B, H]
 output_step, state = stack.step(x_step, state)
 ```
 
+## Template Architectures
+
+The repo ships with a few small templates to get you started and to make quick comparisons easier.
+
+- xlstm
+  - Alternating `mLSTM` (PreUp) and `sLSTM` (PostUp) blocks.
+  - Provided as a convenience builder `build_xlstm_stack(d_hidden, num_blocks, ...)`.
+
+Example (xLSTM):
+
+```python
+from cortex.stacks.xlstm import build_xlstm_stack
+
+stack = build_xlstm_stack(
+    d_hidden=128,
+    num_blocks=5,           # alternate mLSTM/sLSTM 5 times
+    mlstm_proj_factor=2.0,  # PreUp factor for mLSTM blocks
+    slstm_proj_factor=1.5,  # PostUp factor for sLSTM blocks
+)
+```
+
+You can also run these templates in the synthetic evaluation harness (see “Evaluate Quickly”).
+
 ## Extending Cortex
 
 ### Custom Cell
@@ -135,3 +158,74 @@ class MyBlock(BaseBlock):
 ```
 
 Both custom cells and blocks are automatically available through the configuration system once registered.
+
+### Create a New Architecture (Stack Recipe)
+
+Follow this process to add a new architecture:
+
+1) Pick a block pattern and sizes
+- Decide how many blocks you want and whether each should be `PreUp`, `PostUp`, or `PassThrough`.
+- Choose `proj_factor` for `PreUp`/`PostUp` blocks; `d_hidden` is the fixed external width.
+
+2) Write a builder in `cortex/stacks/`
+- Create `packages/cortex/src/cortex/stacks/my_arch.py` with a small helper that returns a `CortexStack`.
+
+```python
+from cortex.config import CortexStackConfig, PreUpBlockConfig, PostUpBlockConfig, mLSTMCellConfig, sLSTMCellConfig
+from cortex.stacks.base import CortexStack
+
+def build_my_arch(d_hidden: int, *, num_blocks: int = 4) -> CortexStack:
+    blocks = [
+        PreUpBlockConfig(cell=mLSTMCellConfig(hidden_size=None, num_heads=4), proj_factor=2.0),
+        PostUpBlockConfig(cell=sLSTMCellConfig(hidden_size=None, num_heads=4), proj_factor=1.5),
+        # ...repeat or vary as needed...
+    ]
+    cfg = CortexStackConfig(d_hidden=d_hidden, blocks=blocks, post_norm=True)
+    return CortexStack(cfg)
+```
+
+3) Export it
+- Add the builder to `packages/cortex/src/cortex/stacks/__init__.py` so users can import it.
+
+```python
+from cortex.stacks.my_arch import build_my_arch  # and add to __all__
+```
+
+4) Register a template for quick evals (optional, but recommended)
+- Edit `packages/cortex/evaluations/stacks.py` and register your builder under `STACKS`:
+
+```python
+from cortex.stacks.my_arch import build_my_arch
+STACKS["my_arch"] = StackSpec(name="my_arch", builder=lambda: build_my_arch(d_hidden=128), d_hidden=128)
+```
+
+5) Evaluate quickly (CLI)
+- Run the synthetic tasks to sanity‑check wiring and step/sequence parity:
+
+```bash
+python packages/cortex/evaluations/run.py --task delayed_recall --stack my_arch
+python packages/cortex/evaluations/run.py --task majority --stack all   # runs all registered templates
+```
+
+6) (Optional) Add tests
+- See `packages/cortex/tests/test_cortex_stack.py` for examples that check shapes, state handling, and resets.
+
+### Evaluate Quickly
+
+The `packages/cortex/evaluations/` folder contains a lightweight trainer for synthetic sequence tasks (delayed recall, majority, Dyck‑1).
+
+Common commands:
+- Single stack
+  - `python packages/cortex/evaluations/run.py --task delayed_recall --stack xlstm`
+- All registered stacks
+  - `python packages/cortex/evaluations/run.py --task majority --stack all`
+
+Flags
+- `--task {delayed_recall, majority, dyck}`
+- `--stack` is populated from `STACKS` in `packages/cortex/evaluations/stacks.py`
+- `--epochs`, `--batch-size`, `--lr`, `--seed`, `--log-level`
+
+### Tips
+- Prefer batch‑first shapes `[B, T, H]` and pass state explicitly.
+- Use `PreUpBlock` when a cell benefits from a larger inner width; use `PostUpBlock` to stabilize depth with a cell at `d_hidden`.
+- Let the stack infer `cell.hidden_size=None` inside `PreUpBlock`/`PostUpBlock` unless you’re composing blocks manually.

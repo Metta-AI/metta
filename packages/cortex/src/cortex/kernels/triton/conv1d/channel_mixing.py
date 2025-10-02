@@ -10,8 +10,9 @@ from __future__ import annotations
 from typing import Optional
 
 import torch
-import triton
 import triton.language as tl
+
+import triton
 
 _TORCH_TO_TRITON_DTYPE = {
     torch.float16: tl.float16,

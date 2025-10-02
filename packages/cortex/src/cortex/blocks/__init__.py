@@ -1,7 +1,6 @@
-from cortex.blocks.base import BaseBlock
-
 # Import blocks to register them
 from cortex.blocks.adapter import AdapterBlock
+from cortex.blocks.base import BaseBlock
 from cortex.blocks.passthrough import PassThroughBlock
 from cortex.blocks.postup import PostUpBlock
 from cortex.blocks.preup import PreUpBlock

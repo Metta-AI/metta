@@ -4,8 +4,8 @@ from cortex.cells.base import MemoryCell
 from cortex.cells.conv import CausalConv1d
 from cortex.cells.lstm import LSTMCell
 from cortex.cells.mlstm import mLSTMCell
-from cortex.cells.slstm import sLSTMCell
 from cortex.cells.registry import build_cell, get_cell_class, register_cell
+from cortex.cells.slstm import sLSTMCell
 
 __all__ = [
     "MemoryCell",
