@@ -412,8 +412,6 @@ class GTrXLConfig:
         if self.latent_size is None:
             self.latent_size = self.hidden_size
 
-    variant: str = "gtrxl"
-
     def build(self) -> GTrXLModule:
         """Construct the GTrXL backbone module."""
 

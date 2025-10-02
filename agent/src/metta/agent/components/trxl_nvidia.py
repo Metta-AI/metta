@@ -396,8 +396,6 @@ class TRXLNvidiaConfig:
         if self.latent_size is None:
             self.latent_size = self.hidden_size
 
-    variant: str = "trxl_nvidia"
-
     def build(self) -> NvidiaTransformerModule:
         """Construct the NVIDIA Transformer-XL backbone module."""
 

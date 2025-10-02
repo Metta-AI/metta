@@ -5,6 +5,10 @@ import pytest
 import torch
 from tensordict import TensorDict
 
+from metta.agent.components import gtrxl as backbone_gtrxl
+from metta.agent.components import sliding_transformer as backbone_sliding
+from metta.agent.components import trxl as backbone_trxl
+from metta.agent.components import trxl_nvidia as backbone_trxl_nvidia
 from metta.agent.policies.transformer import (
     TransformerPolicy,
     TransformerPolicyConfig,
@@ -46,22 +50,22 @@ def _build_token_observations(batch_size: int, num_tokens: int) -> TensorDict:
 
 
 @pytest.mark.parametrize(
-    ("config_factory", "variant"),
+    ("config_factory", "expected_backbone"),
     [
-        (gtrxl_policy_config, "gtrxl"),
-        (trxl_policy_config, "trxl"),
-        (trxl_nvidia_policy_config, "trxl_nvidia"),
+        (gtrxl_policy_config, backbone_gtrxl.GTrXLConfig),
+        (trxl_policy_config, backbone_trxl.TRXLConfig),
+        (trxl_nvidia_policy_config, backbone_trxl_nvidia.TRXLNvidiaConfig),
         (
-            lambda: TransformerPolicyConfig(variant="sliding"),
-            "sliding",
+            lambda: TransformerPolicyConfig(transformer=backbone_sliding.SlidingTransformerConfig()),
+            backbone_sliding.SlidingTransformerConfig,
         ),
     ],
 )
-def test_transformer_config_creates_policy(config_factory, variant):
+def test_transformer_config_creates_policy(config_factory, expected_backbone):
     env_metadata = _build_env_metadata()
     policy = config_factory().make_policy(env_metadata)
     assert isinstance(policy, TransformerPolicy)
-    assert policy.config.variant is variant
+    assert isinstance(policy.config.transformer, expected_backbone)
     policy.initialize_to_environment(env_metadata, torch.device("cpu"))
     policy.eval()
 

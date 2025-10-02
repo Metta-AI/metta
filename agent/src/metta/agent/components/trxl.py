@@ -435,8 +435,6 @@ class TRXLConfig:
         if self.latent_size is None:
             self.latent_size = self.hidden_size
 
-    variant: str = "trxl"
-
     def build(self) -> TransformerXLModule:
         """Construct the Transformer-XL backbone module."""
 

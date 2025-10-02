@@ -71,8 +71,6 @@ class SlidingTransformerConfig(ComponentConfig):
     """Hyperparameters for the sliding-window transformer backbone."""
 
     name: str = "sliding_transformer"
-    variant: str = "sliding"
-
     in_key: str = "encoded_obs"
     out_key: str = "core"
 
