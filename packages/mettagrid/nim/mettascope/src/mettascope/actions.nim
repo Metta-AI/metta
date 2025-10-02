@@ -60,22 +60,24 @@ proc processActions*() =
         else:
           recomputePath(agentId, currentPos)
       
-      # If this is a Bump destination and we are adjacent to it, bump it once.
-      if dest.destinationType == Bump and currentPos in findAdjacentWalkable(dest.pos):
-        # TODO: Chests have special behavior.
-        #   You must deposit on the right side and take out on the left side.
-        #   This is not implemented yet.
-        let dx = dest.pos.x - currentPos.x
-        let dy = dest.pos.y - currentPos.y
-        let targetOrientation = getOrientationFromDelta(dx.int, dy.int)
-        sendAction(agentId, replay.moveActionId, targetOrientation.int)
-        # After bumping, the current destination is fulfilled.
-        agentDestinations[agentId].delete(0)
-        agentPaths.del(agentId)
-        # If there's another destination, pathfind to it.
-        if agentDestinations[agentId].len > 0:
-          recomputePath(agentId, currentPos)
-        continue
+      # If this is a Bump destination and we are at the approach position, bump it once.
+      if dest.destinationType == Bump:
+        let approachPos = ivec2(dest.pos.x + dest.approachDir.x, dest.pos.y + dest.approachDir.y)
+        if currentPos == approachPos:
+          # TODO: Chests have special behavior.
+          #   You must deposit on the right side and take out on the left side.
+          #   This is not implemented yet.
+          let dx = dest.pos.x - currentPos.x
+          let dy = dest.pos.y - currentPos.y
+          let targetOrientation = getOrientationFromDelta(dx.int, dy.int)
+          sendAction(agentId, replay.moveActionId, targetOrientation.int)
+          # After bumping, the current destination is fulfilled.
+          agentDestinations[agentId].delete(0)
+          agentPaths.del(agentId)
+          # If there's another destination, pathfind to it.
+          if agentDestinations[agentId].len > 0:
+            recomputePath(agentId, currentPos)
+          continue
     
     if not agentPaths.hasKey(agentId):
       continue
