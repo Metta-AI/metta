@@ -6,10 +6,16 @@ from pydantic import BaseModel, Field
 class CellConfig(BaseModel):
     """Base configuration for a memory cell.
 
-    All cell configurations should inherit from this class.
+    hidden_size may be left as ``None`` when the cell config is nested inside
+    a block that defines the working dimension (e.g., ``PreUpBlock`` or
+    ``PostUpBlock``). The stack builder will then infer and set the correct
+    size based on the block recipe.
+
+    When constructing a cell directly (not via a stack/block), ``hidden_size``
+    must be provided as a positive integer.
     """
 
-    hidden_size: int = Field(ge=1)
+    hidden_size: int | None = Field(default=None)
 
     class Config:
         extra = "allow"  # Allow additional fields for extensibility
@@ -24,7 +30,7 @@ class LSTMCellConfig(CellConfig):
     - Always uses batch_first=True internally.
     """
 
-    hidden_size: int = Field(ge=1)
+    hidden_size: int | None = Field(default=None)
     num_layers: int = Field(default=1, ge=1)
     bias: bool = Field(default=True)
     dropout: float = Field(default=0.0, ge=0.0)
@@ -54,7 +60,7 @@ class mLSTMCellConfig(CellConfig):
     and supports both parallel and recurrent computation modes.
     """
 
-    hidden_size: int = Field(ge=1)
+    hidden_size: int | None = Field(default=None)
     num_heads: int = Field(default=4, ge=1)
     chunk_size: int = Field(default=256, ge=1)
     # Always apply conv-in inside the cell (depthwise causal conv)
@@ -71,7 +77,7 @@ class sLSTMCellConfig(CellConfig):
     state tensors per batch row: y, c, n, m.
     """
 
-    hidden_size: int = Field(ge=1)
+    hidden_size: int | None = Field(default=None)
     num_heads: int = Field(default=4, ge=1)  # Must be power of 2 for triton to work.
     # Optional depthwise causal conv to precondition inputs (0 disables)
     conv1d_kernel_size: int = Field(default=4, ge=0)
@@ -115,6 +121,10 @@ class PreUpBlockConfig(BlockConfig):
     """Configuration for a pre-up projection block.
 
     Projects up before the cell, then down after.
+
+    Notes
+    - The nested ``cell.hidden_size`` may be left as ``None``; the stack builder
+      will set it to ``int(proj_factor * d_hidden)``.
     """
 
     proj_factor: float = Field(default=2.0, gt=0.0)
@@ -128,6 +138,10 @@ class PostUpBlockConfig(BlockConfig):
     """Configuration for a post-up projection block.
 
     Applies cell first, then projects up and down.
+
+    Notes
+    - The nested ``cell.hidden_size`` may be left as ``None``; the stack builder
+      will set it to ``d_hidden`` for this block type.
     """
 
     proj_factor: float = Field(default=1.5, gt=0.0)

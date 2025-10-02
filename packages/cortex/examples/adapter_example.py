@@ -158,7 +158,7 @@ def test_adapter_wrapping_preup():
         blocks=[
             AdapterBlockConfig(
                 base_block=PreUpBlockConfig(
-                    cell=LSTMCellConfig(hidden_size=256, num_layers=2),  # 2x upsampling
+                    cell=LSTMCellConfig(hidden_size=None, num_layers=2),  # Inferred: 2x upsampling
                     proj_factor=2.0,
                 ),
                 bottleneck=64,

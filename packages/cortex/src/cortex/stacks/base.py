@@ -35,8 +35,12 @@ class CortexStack(nn.Module):
                 # Get the appropriate hidden size for the cell
                 cell_hidden_size = block_cfg.get_cell_hidden_size(d_hidden)
 
-                # Build cell with the appropriate hidden size using generic builder
-                cell_config = type(block_cfg.cell)(**{**block_cfg.cell.model_dump(), "hidden_size": cell_hidden_size})
+                # Build cell with the appropriate hidden size using generic builder.
+                # We intentionally overwrite any provided hidden_size (including None)
+                # so that blocks can infer and enforce their dimensionality.
+                dumped = block_cfg.cell.model_dump()
+                dumped["hidden_size"] = cell_hidden_size
+                cell_config = type(block_cfg.cell)(**dumped)
                 cell = build_cell(cell_config)
 
                 # Use generic block builder

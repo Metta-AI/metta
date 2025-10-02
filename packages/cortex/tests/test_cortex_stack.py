@@ -34,7 +34,7 @@ def test_cortex_stack():
         blocks=[
             PreUpBlockConfig(
                 cell=LSTMCellConfig(
-                    hidden_size=512,  # Will be overridden to match d_inner
+                    hidden_size=None,  # Inferred as d_inner = proj_factor * d_hidden
                     num_layers=1,
                     dropout=0.1,
                 ),
@@ -48,7 +48,7 @@ def test_cortex_stack():
             ),
             PostUpBlockConfig(
                 cell=LSTMCellConfig(
-                    hidden_size=256,  # Must match d_hidden
+                    hidden_size=None,  # Inferred as d_hidden
                     num_layers=1,
                 ),
                 proj_factor=1.5,
@@ -178,7 +178,7 @@ def test_cortex_stack():
         d_hidden=64,
         blocks=[
             PreUpBlockConfig(
-                cell=LSTMCellConfig(hidden_size=128, num_layers=1),
+                cell=LSTMCellConfig(hidden_size=None, num_layers=1),
                 proj_factor=2.0,
             )
         ],
