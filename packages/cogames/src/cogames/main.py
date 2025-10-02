@@ -17,6 +17,8 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from cogames.cogs_vs_clips.scenarios import make_map_game, supports_dynamic_spawn
+
 logger = logging.getLogger("cogames.main")
 
 app = typer.Typer(help="CoGames - Multi-agent cooperative and competitive games")
@@ -103,6 +105,9 @@ def play_cmd(
     interactive: bool = typer.Option(True, "--interactive", "-i", help="Run in interactive mode"),
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run"),
     render: Literal["gui", "text"] = typer.Option("gui", "--render", "-r", help="Render mode: 'gui' or 'text'"),
+    num_cogs: Optional[int] = typer.Option(
+        None, "--num-cogs", help="Override number of agents (uses dynamic spawning)"
+    ),
 ) -> None:
     """Play a game."""
     from cogames import game, utils
@@ -121,7 +126,20 @@ def play_cmd(
         console.print(f"[red]Error: {error}[/red]")
         raise typer.Exit(1)
     assert resolved_game is not None
+
+    # Get the game configuration
     env_cfg = game.get_game(resolved_game)
+
+    # If num_cogs is specified, try to create a dynamic version
+    if num_cogs is not None:
+        if supports_dynamic_spawn(resolved_game):
+            env_cfg = make_map_game(resolved_game, num_agents=num_cogs, dynamic_spawn=True)
+            console.print(f"[green]Using dynamic spawning with {num_cogs} agents[/green]")
+        else:
+            console.print(
+                f"[yellow]Warning: --num-cogs not supported for game '{resolved_game}', "
+                f"using default configuration[/yellow]"
+            )
 
     # Resolve policy shorthand
     full_policy_path = resolve_policy_class_path(policy_class_path)

@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from cogames.cogs_vs_clips.map_utils import DynamicAgentAsciiMapBuilder
 from cogames.cogs_vs_clips.stations import (
     assembler,
     carbon_ex_dep,
@@ -31,6 +32,32 @@ from mettagrid.config.mettagrid_config import (
 )
 from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.map_builder.random import RandomMapBuilder
+
+MAP_GAME_FILES: dict[str, str] = {
+    "machina_1": "cave_base_50.map",
+    "machina_2": "machina_100_stations.map",
+    "machina_3": "machina_200_stations.map",
+    "machina_1_big": "canidate1_500_stations.map",
+    "machina_2_bigger": "canidate1_1000_stations.map",
+    "machina_3_big": "canidate2_500_stations.map",
+    "machina_4_bigger": "canidate2_1000_stations.map",
+    "machina_5_big": "canidate3_500_stations.map",
+    "machina_6_bigger": "canidate3_1000_stations.map",
+    "machina_7_big": "canidate4_500_stations.map",
+    "training_facility_1": "training_facility_open_1.map",
+    "training_facility_2": "training_facility_open_2.map",
+    "training_facility_3": "training_facility_open_3.map",
+    "training_facility_4": "training_facility_tight_4.map",
+    "training_facility_5": "training_facility_tight_5.map",
+}
+
+MAPS_DIR = Path(__file__).resolve().parent.parent / "maps"
+
+
+def supports_dynamic_spawn(game_key: str) -> bool:
+    """Return whether the provided game key supports dynamic agent spawning."""
+
+    return game_key in MAP_GAME_FILES
 
 
 def _base_game_config(num_agents: int) -> MettaGridConfig:
@@ -146,24 +173,61 @@ def tutorial_assembler_complex(num_cogs: int = 1) -> MettaGridConfig:
     return cfg
 
 
-def make_game_from_map(map_name: str, num_agents: int = 4) -> MettaGridConfig:
-    """Create a game configuration from a map file."""
+def make_game_from_map(map_name: str, num_agents: int = 4, dynamic_spawn: bool = False) -> MettaGridConfig:
+    """Create a game configuration from a map file.
+
+    Args:
+        map_name: Name of the map file to load
+        num_agents: Number of agents to spawn
+        dynamic_spawn: If True, spawn agents dynamically in center area instead of using map's @ markers
+    """
 
     # Build the full config first to get the objects
     config = _base_game_config(num_agents)
 
-    maps_dir = Path(__file__).parent.parent / "maps"
-    map_path = maps_dir / map_name
-    map_builder = AsciiMapBuilder.Config.from_uri(
-        str(map_path), {o.map_char: o.name for o in config.game.objects.values()}
-    )
+    map_path = MAPS_DIR / map_name
+
+    if dynamic_spawn:
+        # Create a custom map builder that handles dynamic agent spawning
+        map_builder = DynamicAgentAsciiMapBuilder.Config.from_uri(
+            str(map_path), {o.map_char: o.name for o in config.game.objects.values()}, num_agents=num_agents
+        )
+    else:
+        # Use standard ASCII map builder
+        map_builder = AsciiMapBuilder.Config.from_uri(
+            str(map_path), {o.map_char: o.name for o in config.game.objects.values()}
+        )
+
     config.game.map_builder = map_builder
 
     return config
 
 
+def make_map_game(game_key: str, num_agents: int = 4, dynamic_spawn: bool = False) -> MettaGridConfig:
+    """Create a map-based game configuration by key."""
+
+    map_file = MAP_GAME_FILES.get(game_key)
+    if map_file is None:
+        raise ValueError(f"Unknown map-based game: {game_key}")
+
+    return make_game_from_map(map_file, num_agents=num_agents, dynamic_spawn=dynamic_spawn)
+
+
+def make_game_from_map_with_agents(map_name: str, num_agents: int) -> MettaGridConfig:
+    """Convenience function to create a game from a map with dynamic agent spawning.
+
+    This function automatically enables dynamic_spawn=True and places the specified
+    number of agents in the center area of the map, ignoring the original @ markers.
+
+    Args:
+        map_name: Name of the map file to load
+        num_agents: Number of agents to spawn dynamically in the center
+    """
+    return make_game_from_map(map_name, num_agents=num_agents, dynamic_spawn=True)
+
+
 def games() -> dict[str, MettaGridConfig]:
-    return {
+    games_dict: dict[str, MettaGridConfig] = {
         "assembler_1_simple": tutorial_assembler_complex(num_cogs=1),
         "assembler_1_complex": tutorial_assembler_simple(num_cogs=1),
         "assembler_2_simple": tutorial_assembler_simple(num_cogs=4),
@@ -178,20 +242,22 @@ def games() -> dict[str, MettaGridConfig]:
         # "forage_4": tutorial_forage(num_cogs=4),
         # "chest_1": tutorial_chest(num_cogs=1),
         # "chest_4": tutorial_chest(num_cogs=4),
-        # Biomes dungeon maps with stations
-        "machina_1": make_game_from_map("cave_base_50.map"),
-        "machina_2": make_game_from_map("machina_100_stations.map"),
-        "machina_3": make_game_from_map("machina_200_stations.map"),
-        "machina_1_big": make_game_from_map("canidate1_500_stations.map"),
-        "machina_2_bigger": make_game_from_map("canidate1_1000_stations.map"),
-        "machina_3_big": make_game_from_map("canidate2_500_stations.map"),
-        "machina_4_bigger": make_game_from_map("canidate2_1000_stations.map"),
-        "machina_5_big": make_game_from_map("canidate3_500_stations.map"),
-        "machina_6_bigger": make_game_from_map("canidate3_1000_stations.map"),
-        "machina_7_big": make_game_from_map("canidate4_500_stations.map"),
-        "training_facility_1": make_game_from_map("training_facility_open_1.map"),
-        "training_facility_2": make_game_from_map("training_facility_open_2.map"),
-        "training_facility_3": make_game_from_map("training_facility_open_3.map"),
-        "training_facility_4": make_game_from_map("training_facility_tight_4.map"),
-        "training_facility_5": make_game_from_map("training_facility_tight_5.map"),
     }
+
+    # Add map-based games from shared mapping
+    for game_key, map_filename in MAP_GAME_FILES.items():
+        games_dict[game_key] = make_game_from_map(map_filename)
+
+    # Dynamic agent spawning examples (agents spawn in center area)
+    games_dict["machina_1_8agents"] = make_game_from_map(MAP_GAME_FILES["machina_1"], num_agents=8, dynamic_spawn=True)
+    games_dict["machina_1_16agents"] = make_game_from_map(
+        MAP_GAME_FILES["machina_1"], num_agents=16, dynamic_spawn=True
+    )
+    games_dict["training_facility_1_8agents"] = make_game_from_map(
+        MAP_GAME_FILES["training_facility_1"], num_agents=8, dynamic_spawn=True
+    )
+    games_dict["training_facility_1_16agents"] = make_game_from_map(
+        MAP_GAME_FILES["training_facility_1"], num_agents=16, dynamic_spawn=True
+    )
+
+    return games_dict
