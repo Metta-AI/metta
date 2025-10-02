@@ -1,15 +1,19 @@
 """CLI for CoGames - collection of environments for multi-agent cooperative and competitive games."""
 
+import importlib.metadata
 import logging
 import sys
 from pathlib import Path
 from typing import Literal, Optional
+
+from packaging.version import Version
 
 # Always add current directory to Python path
 sys.path.insert(0, ".")
 
 import typer
 from rich.console import Console
+from rich.table import Table
 
 logger = logging.getLogger("cogames.main")
 
@@ -295,6 +299,21 @@ def evaluate(
 ) -> None:
     """Evaluate a policy on a game."""
     console.print("[red]Coming soon...[/red]")
+
+
+@app.command(name="version", help="Show version information")
+def version_cmd() -> None:
+    def public_version(dist_name: str) -> str:
+        return str(Version(importlib.metadata.version(dist_name)).public)
+
+    table = Table(show_header=False, box=None, show_lines=False, pad_edge=False)
+    table.add_column("", justify="right", style="bold cyan")
+    table.add_column("", justify="right")
+
+    for dist_name in ["mettagrid", "pufferlib-core", "cogames"]:
+        table.add_row(dist_name, public_version(dist_name))
+
+    console.print(table)
 
 
 if __name__ == "__main__":
