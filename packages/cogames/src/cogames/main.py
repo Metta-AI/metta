@@ -39,35 +39,20 @@ def default(ctx: typer.Context) -> None:
 
 @app.command("games", help="List all available games or describe a specific game")
 def games_cmd(
-    game_name: Optional[str] = typer.Argument(None, help="Name of the game to describe"),
-    save: Optional[Path] = typer.Option(None, "--save", "-s", help="Save game configuration to file (YAML or JSON)"),  # noqa: B008
+    game_name: str = typer.Argument(
+        None,
+        help="Name of the game to describe",
+        callback=lambda ctx, value: game.require_game_argument(ctx, value, console),
+    ),
 ) -> None:
-    if game_name is None:
-        # List all games
-        game.list_games(console)
-    else:
-        # Get the game configuration
-        try:
-            game_config = game.get_game(game_name)
-        except ValueError as e:
-            console.print(f"[red]Error: {e}[/red]")
-            raise typer.Exit(1) from e
+    from cogames import utils
 
-        # Save configuration if requested
-        if save:
-            try:
-                game.save_game_config(game_config, save)
-                console.print(f"[green]Game configuration saved to: {save}[/green]")
-            except ValueError as e:
-                console.print(f"[red]Error saving configuration: {e}[/red]")
-                raise typer.Exit(1) from e
-        else:
-            # Otherwise describe the game
-            try:
-                game.describe_game(game_name, console)
-            except ValueError as e:
-                console.print(f"[red]Error: {e}[/red]")
-                raise typer.Exit(1) from e
+    resolved_game, env_cfg = utils.get_game_config(console, game_name)
+    try:
+        game.describe_game(resolved_game, env_cfg, console)
+    except ValueError as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(1) from e
 
 
 @app.command(name="play", no_args_is_help=True, help="Play a game")

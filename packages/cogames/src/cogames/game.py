@@ -101,7 +101,7 @@ def get_game(game_name: str, mission_name: Optional[str] = None) -> MettaGridCon
             raise ValueError(f"Ambiguous game name '{game_name}'. Matches: {', '.join(matches)}")
         else:
             raise ValueError(f"Game '{game_name}' not found. Available games: {', '.join(all_games.keys())}")
-    return entry.generate_game(mission_name or entry.default_mission)
+    return entry.generate(mission_name or entry.default_mission)
 
 
 def list_games(console: Console) -> None:
@@ -118,10 +118,10 @@ def list_games(console: Console) -> None:
     table.add_column("Game", style="cyan", no_wrap=True)
     table.add_column("Agents", style="yellow", justify="center")
     table.add_column("Map Size", style="green", justify="center")
-    table.add_column("Default Mission", style="lightblue", justify="center")
+    table.add_column("Default Mission", style="blue", justify="center")
 
     for game_entry in GAMES_CATALOG:
-        game_config = game_entry.generate_game(game_entry.default_mission)
+        game_config = game_entry.generate(game_entry.default_mission)
         num_agents = game_config.game.num_agents
 
         # Try to get map size if available
@@ -143,19 +143,14 @@ def list_games(console: Console) -> None:
     console.print(table)
 
 
-def describe_game(game_name: str, console: Console) -> None:
+def describe_game(game_name: str, game_config: MettaGridConfig, console: Console) -> None:
     """Print detailed information about a specific game.
 
     Args:
         game_name: Name of the game
+        env_cfg: Environment configuration
         console: Rich console for output
     """
-
-    try:
-        game_config = get_game(game_name)
-    except ValueError as e:
-        console.print(f"[red]Error: {e}[/red]")
-        return
 
     console.print(f"\n[bold cyan]{game_name}[/bold cyan]\n")
 
@@ -163,7 +158,8 @@ def describe_game(game_name: str, console: Console) -> None:
     console.print("[bold]Game Configuration:[/bold]")
     console.print(f"  • Number of agents: {game_config.game.num_agents}")
     console.print(f"  • Map size: {game_config.game.map_builder.width}x{game_config.game.map_builder.height}")  # type: ignore[attr-defined]
-    console.print(f"  • Number of agents on map: {game_config.game.map_builder.agents}")  # type: ignore[attr-defined]
+    if hasattr(game_config.game.map_builder, "agents"):
+        console.print(f"  • Number of agents on map: {game_config.game.map_builder.agents}")  # type: ignore[attr-defined]
 
     # Display available actions
     console.print("\n[bold]Available Actions:[/bold]")
