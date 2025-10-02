@@ -8,7 +8,6 @@ from typing import Any, Dict, Literal
 from pydantic import Field, model_validator
 
 from metta.agent.components.component_config import ComponentConfig
-
 from metta.agent.components.sliding_transformer import (
     SlidingTransformer,
     SlidingTransformerConfig,
@@ -44,9 +43,6 @@ _VARIANT_DEFAULTS: Dict[TransformerBackboneVariant, Dict[str, Any]] = {
         "use_gating": True,
         "ext_len": 0,
         "activation_checkpoint": False,
-        "use_flash_checkpoint": False,
-        "allow_tf32": True,
-        "use_fused_layernorm": False,
     },
     TransformerBackboneVariant.TRXL: {
         "latent_size": 32,
@@ -65,9 +61,6 @@ _VARIANT_DEFAULTS: Dict[TransformerBackboneVariant, Dict[str, Any]] = {
         "use_gating": False,
         "ext_len": 0,
         "activation_checkpoint": False,
-        "use_flash_checkpoint": False,
-        "allow_tf32": True,
-        "use_fused_layernorm": False,
     },
     TransformerBackboneVariant.TRXL_NVIDIA: {
         "latent_size": 48,
@@ -86,9 +79,6 @@ _VARIANT_DEFAULTS: Dict[TransformerBackboneVariant, Dict[str, Any]] = {
         "use_gating": False,
         "ext_len": 0,
         "activation_checkpoint": False,
-        "use_flash_checkpoint": False,
-        "allow_tf32": True,
-        "use_fused_layernorm": False,
     },
     TransformerBackboneVariant.SLIDING: {
         "latent_size": 16,
@@ -107,9 +97,6 @@ _VARIANT_DEFAULTS: Dict[TransformerBackboneVariant, Dict[str, Any]] = {
         "use_gating": False,
         "ext_len": 0,
         "activation_checkpoint": False,
-        "use_flash_checkpoint": False,
-        "allow_tf32": True,
-        "use_fused_layernorm": False,
         "max_cache_size": 80,
         "pool": "mean",
     },
@@ -141,9 +128,6 @@ class TransformerBackboneConfig(ComponentConfig):
     use_gating: bool | None = None
     ext_len: int | None = None
     activation_checkpoint: bool | None = None
-    use_flash_checkpoint: bool | None = None
-    allow_tf32: bool | None = None
-    use_fused_layernorm: bool | None = None
     max_cache_size: int | None = None
     pool: Literal["cls", "mean", "none"] | None = None
 
@@ -180,9 +164,6 @@ class TransformerBackboneConfig(ComponentConfig):
                 positional_scale=self.positional_scale or 0.1,
                 attn_dropout=self.attn_dropout or self.dropout or 0.0,
                 activation_checkpoint=bool(self.activation_checkpoint),
-                use_flash_checkpoint=bool(self.use_flash_checkpoint),
-                use_fused_layernorm=bool(self.use_fused_layernorm),
-                allow_tf32=bool(self.allow_tf32),
             )
         elif self.variant is TransformerBackboneVariant.TRXL:
             core = TransformerXLModule(
@@ -200,9 +181,6 @@ class TransformerBackboneConfig(ComponentConfig):
                 ext_len=int(self.ext_len or 0),
                 attn_type=0,
                 activation_checkpoint=bool(self.activation_checkpoint),
-                use_flash_checkpoint=bool(self.use_flash_checkpoint),
-                use_fused_layernorm=bool(self.use_fused_layernorm),
-                allow_tf32=bool(self.allow_tf32),
             )
         elif self.variant is TransformerBackboneVariant.TRXL:
             core = TransformerXLModule(
@@ -220,9 +198,6 @@ class TransformerBackboneConfig(ComponentConfig):
                 ext_len=int(self.ext_len or 0),
                 attn_type=0,
                 activation_checkpoint=bool(self.activation_checkpoint),
-                use_flash_checkpoint=bool(self.use_flash_checkpoint),
-                use_fused_layernorm=bool(self.use_fused_layernorm),
-                allow_tf32=bool(self.allow_tf32),
             )
         elif self.variant is TransformerBackboneVariant.TRXL_NVIDIA:
             core = NvidiaTransformerModule(
@@ -238,9 +213,6 @@ class TransformerBackboneConfig(ComponentConfig):
                 clamp_len=self.clamp_len or -1,
                 ext_len=int(self.ext_len or 0),
                 activation_checkpoint=bool(self.activation_checkpoint),
-                use_flash_checkpoint=bool(self.use_flash_checkpoint),
-                use_fused_layernorm=bool(self.use_fused_layernorm),
-                allow_tf32=bool(self.allow_tf32),
             )
         else:
             hidden_size = self.hidden_size or self.latent_size or 16

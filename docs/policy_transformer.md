@@ -19,10 +19,7 @@
 - `TransformerBackboneConfig.use_gating`: enable/disable GRU-style gating (GTrXL).
 - `ext_len`: retain an additional memory tail beyond the sliding window (TRXL/NVIDIA).
 - `attn_dropout`: independent attention-dropout rate alongside `dropout`.
-- `activation_checkpoint` / `use_flash_checkpoint`: wrap attention blocks with PyTorch or FlashAttention checkpointing to trade compute for memory.
-- `allow_tf32`: opt into TF32 matmuls on supported GPUs. We restore the prior flag on exit.
-- `use_fused_layernorm`: leverage Apex fused layer norm when installed.
-- `MemorySchedulerConfig`: optionally shrink/grow the transformer memory length across milestones during training.
+- `activation_checkpoint`: wrap attention blocks with PyTorch checkpointing to trade compute for memory.
 
 ## Paper Summary
 **Title**: "Stabilizing Transformers for Reinforcement Learning"  

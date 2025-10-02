@@ -9,12 +9,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from metta.agent.components.transformer_module import (
-    TF32Context,
-    empty_memory,
-    normalize_memory,
-    update_memory_window,
-)
+from metta.agent.components.transformer_module import empty_memory, normalize_memory, update_memory_window
 
 
 class NvidiaPositionalEmbedding(nn.Module):
@@ -308,9 +303,6 @@ class NvidiaTransformerModule(nn.Module):
         ext_len: int = 0,
         attn_type: int = 0,
         activation_checkpoint: bool = False,
-        use_flash_checkpoint: bool = False,
-        use_fused_layernorm: bool = False,
-        allow_tf32: bool = True,
     ) -> None:
         super().__init__()
         if same_length:
@@ -333,7 +325,6 @@ class NvidiaTransformerModule(nn.Module):
         self.d_model = d_model
         self.n_layers = n_layers
         self.memory_len = memory_len
-        self.allow_tf32 = allow_tf32
 
     def forward(
         self,
@@ -345,23 +336,22 @@ class NvidiaTransformerModule(nn.Module):
         if inputs.dim() != 3:
             raise ValueError(f"Expected tensor of shape (T, B, D), received {inputs.shape}")
 
-        with TF32Context(self.allow_tf32):
-            stored_memory = memory.get("hidden_states") if isinstance(memory, dict) else None
-            normalized = normalize_memory(
-                self.memory_len,
-                self.n_layers,
-                stored_memory,
-                inputs.size(1),
-                self.d_model,
-                inputs.device,
-                inputs.dtype,
-            )
-            mem_enabled = normalized is not None
-            mem_list = normalized if mem_enabled else None
+        stored_memory = memory.get("hidden_states") if isinstance(memory, dict) else None
+        normalized = normalize_memory(
+            self.memory_len,
+            self.n_layers,
+            stored_memory,
+            inputs.size(1),
+            self.d_model,
+            inputs.device,
+            inputs.dtype,
+        )
+        mem_enabled = normalized is not None
+        mem_list = normalized if mem_enabled else None
 
-            core_out, new_memory = self.core(inputs, mem_list)
-            core_out = self.output_dropout(core_out)
-            return core_out, {"hidden_states": new_memory if mem_enabled and new_memory else None}
+        core_out, new_memory = self.core(inputs, mem_list)
+        core_out = self.output_dropout(core_out)
+        return core_out, {"hidden_states": new_memory if mem_enabled and new_memory else None}
 
     def initialize_memory(self, batch_size: int) -> Dict[str, Optional[List[torch.Tensor]]]:
         if self.memory_len <= 0:
