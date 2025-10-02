@@ -220,6 +220,11 @@ def train_cmd(
         "--curriculum",
         help="Python path to a callable returning MettaGridConfig instances",
     ),
+    logits_debug_path: Optional[Path] = typer.Option(  # noqa: B008
+        None,
+        "--logits-debug",
+        help="Write per-step action logit snapshots to this JSONL file",
+    ),
 ) -> None:
     """Train a policy on a game."""
     import torch
@@ -332,6 +337,7 @@ def train_cmd(
             minibatch_size=minibatch_size,
             game_name=representative_game,
             env_cfg_supplier=curriculum_callable,
+            logits_debug_path=logits_debug_path,
         )
 
     except ValueError as e:

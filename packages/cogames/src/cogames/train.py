@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import json
 import logging
 import multiprocessing
 import platform
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Optional
+from typing import IO, TYPE_CHECKING, Any, Callable, Optional, Union
+
+import numpy as np
 
 from cogames.aws_storage import maybe_upload_checkpoint
 from cogames.env import make_hierarchical_env
@@ -34,6 +37,7 @@ def train(
     vector_batch_size: Optional[int] = None,
     vector_num_workers: Optional[int] = None,
     env_cfg_supplier: Optional[Callable[[], MettaGridConfig]] = None,
+    logits_debug_path: Optional[Path] = None,
 ) -> None:
     import pufferlib.pytorch  # noqa: F401 - ensure modules register with torch
     import pufferlib.vector
@@ -114,6 +118,74 @@ def train(
         backend=backend,
     )
 
+    debug_file: Optional[IO[str]] = None
+    instrumentation_env: Optional[Any] = None
+    instrumentation_actions: Optional[np.ndarray] = None
+    instrumentation_rollout_steps = 4
+
+    if logits_debug_path is not None:
+        import torch
+
+        logits_debug_path.parent.mkdir(parents=True, exist_ok=True)
+        debug_file = logits_debug_path.open("w", encoding="utf-8")
+        instrumentation_cfg = vecenv.driver_env.mg_config.model_copy(deep=True)
+        instrumentation_env = make_hierarchical_env(instrumentation_cfg)
+        action_dim = int(instrumentation_env.single_action_space.nvec.size)
+        instrumentation_actions = np.zeros((instrumentation_env.num_agents, action_dim), dtype=np.int32)
+
+        def _write_logit_snapshot(global_step: int) -> None:
+            if debug_file is None or instrumentation_env is None or instrumentation_actions is None:
+                return
+
+            obs, _ = instrumentation_env.reset(seed=seed + int(global_step))
+            entry: dict[str, Any] = {"global_step": int(global_step), "steps": []}
+            for rollout_step in range(instrumentation_rollout_steps):
+                obs_tensor = torch.tensor(obs, dtype=torch.uint8, device=device)
+                network = policy.network()
+                network.eval()
+                with torch.no_grad():
+                    logits_raw, _ = network.forward_eval(obs_tensor)
+
+                logits_cpu = [tensor.detach().to("cpu") for tensor in logits_raw]
+                step_dims: list[dict[str, Union[float, int]]] = []
+                for dim_index, logits in enumerate(logits_cpu):
+                    stats: dict[str, Union[float, int]] = {
+                        "dim": int(dim_index),
+                        "logit_mean": float(logits.mean().item()),
+                        "logit_std": float(logits.std(unbiased=False).item()),
+                    }
+
+                    try:
+                        dist = torch.distributions.Categorical(logits=logits)
+                        entropy = float(dist.entropy().mean().item())
+                        top_prob = float(dist.probs.max(dim=1).values.mean().item())
+                    except ValueError:
+                        entropy = 0.0
+                        top_prob = 1.0
+
+                    stats["mean_entropy"] = entropy
+                    stats["mean_top_prob"] = top_prob
+                    step_dims.append(stats)
+
+                entry["steps"].append({"rollout_step": rollout_step, "dims": step_dims})
+
+                for agent_id in range(instrumentation_env.num_agents):
+                    for dim_index, logits in enumerate(logits_cpu):
+                        dist = torch.distributions.Categorical(logits=logits[agent_id])
+                        instrumentation_actions[agent_id, dim_index] = int(dist.sample().item())
+
+                obs, _, done, truncated, _ = instrumentation_env.step(instrumentation_actions)
+                if all(done) or all(truncated):
+                    break
+
+            debug_file.write(json.dumps(entry) + "\n")
+            debug_file.flush()
+
+    else:
+
+        def _write_logit_snapshot(global_step: int) -> None:
+            return
+
     # Load the TrainablePolicy class using the new API
     policy_class = load_symbol(policy_class_path)
     policy = policy_class(vecenv.driver_env, device)
@@ -129,6 +201,9 @@ def train(
 
     # Detect if policy uses RNN (e.g., LSTM)
     use_rnn = policy.is_recurrent()
+
+    if logits_debug_path is not None:
+        _write_logit_snapshot(0)
 
     env_name = "cogames.cogs_vs_clips"
 
@@ -252,8 +327,17 @@ def train(
             training_diverged = True
             break
 
+        if logits_debug_path is not None:
+            _write_logit_snapshot(trainer.global_step)
+
     trainer.print_dashboard()
     trainer.close()
+
+    if debug_file is not None:
+        debug_file.close()
+
+    if instrumentation_env is not None:
+        instrumentation_env.close()
 
     # Print checkpoint path and usage commands with colored output
     from rich.console import Console
