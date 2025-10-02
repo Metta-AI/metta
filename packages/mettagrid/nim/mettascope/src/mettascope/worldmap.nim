@@ -27,6 +27,8 @@ proc useSelections*(panel: Panel) =
   else:
     window.buttonDown[KeyLeftControl] or window.buttonDown[KeyRightControl]
   
+  let shiftDown = window.buttonDown[KeyLeftShift] or window.buttonDown[KeyRightShift]
+  
   # Track mouse down position to distinguish clicks from drags.
   if window.buttonPressed[MouseLeft] and not modifierDown:
     mouseDownPos = window.mousePos.vec2
@@ -54,22 +56,32 @@ proc useSelections*(panel: Panel) =
       if gridPos.x >= 0 and gridPos.x < replay.mapSize[0] and
         gridPos.y >= 0 and gridPos.y < replay.mapSize[1]:
         let startPos = selection.location.at(step).xy
+        
+        # Determine if this is a Bump or Move destination.
         let targetObj = getObjectAtLocation(gridPos)
+        var destType = Move
         if targetObj != nil:
           let typeName = replay.typeNames[targetObj.typeId]
           if typeName != "agent" and typeName != "wall":
-            agentDestinations[selection.agentId] = @[Destination(pos: gridPos, destinationType: Bump)]
+            destType = Bump
+        
+        let destination = Destination(pos: gridPos, destinationType: destType)
+        
+        if shiftDown:
+          # Queue up additional destinations.
+          if not agentDestinations.hasKey(selection.agentId) or agentDestinations[selection.agentId].len == 0:
+            # No existing destinations, start fresh.
+            agentDestinations[selection.agentId] = @[destination]
             recomputePath(selection.agentId, startPos)
           else:
-            let path = findPath(startPos, gridPos)
-            if path.len > 0:
-              agentPaths[selection.agentId] = path
-              agentDestinations[selection.agentId] = @[Destination(pos: gridPos, destinationType: Move)]
+            # Append to existing destinations.
+            agentDestinations[selection.agentId].add(destination)
+            # Recompute path to include all destinations.
+            recomputePath(selection.agentId, startPos)
         else:
-          let path = findPath(startPos, gridPos)
-          if path.len > 0:
-            agentPaths[selection.agentId] = path
-            agentDestinations[selection.agentId] = @[Destination(pos: gridPos, destinationType: Move)]
+          # Replace the entire destination queue.
+          agentDestinations[selection.agentId] = @[destination]
+          recomputePath(selection.agentId, startPos)
 
 proc drawFloor*() =
   # Draw the floor tiles.
@@ -389,15 +401,19 @@ proc drawPlannedPath*() =
           scale = 1/200,
           tint = color(1, 1, 1, alpha)
         )
-      
-      let goalPos = path[path.len - 1]
-      bxy.drawImage(
-        "selection",
-        goalPos.vec2,
-        angle = 0,
-        scale = 1/200,
-        tint = color(1, 1, 1, 0.5)
-      )
+    
+    # Draw final queued destination.
+    if agentDestinations.hasKey(agentId):
+      let destinations = agentDestinations[agentId]
+      if destinations.len > 0:
+        let dest = destinations[^1]
+        bxy.drawImage(
+          "selection",
+          dest.pos.vec2,
+          angle = 0,
+          scale = 1.0 / 200.0,
+          tint = color(1, 1, 1, 0.5)
+        )
 
 proc drawSelection*() =
   # Draw selection.
