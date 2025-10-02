@@ -1,6 +1,7 @@
 import numpy as np
 
-from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig, map_grid_dtype
+from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
+from mettagrid.mapgen.types import map_grid_dtype
 
 
 class TestGameMap:
