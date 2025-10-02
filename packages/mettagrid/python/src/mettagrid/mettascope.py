@@ -14,8 +14,9 @@ from typing import TYPE_CHECKING
 
 # Find the nim/mettascope/bindings/generated directory
 # This is relative to the mettagrid package root
-package_root = Path(__file__).parent.parent.parent.parent  # Up to packages/mettagrid
-nim_bindings_path = package_root / "nim" / "mettascope" / "bindings" / "generated"
+package_root = Path(__file__).resolve().parent
+nim_root = package_root / "nim" / "mettascope"
+nim_bindings_path = nim_root / "bindings" / "generated"
 
 # Type stubs for static analysis
 if TYPE_CHECKING:
@@ -50,7 +51,7 @@ else:
 
             # Re-export the functions and classes
             def init(replay):
-                return mettascope2.init(data_dir=str(package_root / "nim" / "mettascope" / "data"), replay=replay)
+                return mettascope2.init(data_dir=str(nim_root / "data"), replay=replay)
 
             render = mettascope2.render
             Mettascope2Error = mettascope2.Mettascope2Error
