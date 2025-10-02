@@ -65,7 +65,7 @@ where = ["python/src", "cpp/src"]
 include = ["mettagrid", "mettagrid.*"]
 
 [tool.setuptools.package-data]
-"mettagrid" = ["py.typed", "*.so", "*.pyi", "*.pyd", "*.dylib"]
+"mettagrid" = ["py.typed", "*.so", "*.pyi", "*.pyd", "*.dylib", "nim/mettascope/**/*"]
 
 [tool.uv.sources]
 metta-common = { workspace = true }
