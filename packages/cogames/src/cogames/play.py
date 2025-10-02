@@ -51,14 +51,29 @@ def play(
     device = torch.device("cpu")
     policy_path = Path(policy_data_path) if policy_data_path else None
     if policy_path and not policy_path.exists() and not policy_path.is_dir():
-        downloaded = maybe_download_checkpoint(
+        download_outcome = maybe_download_checkpoint(
             policy_path=policy_path,
             game_name=game_name,
             policy_class_path=policy_class_path,
             console=console,
         )
-        if not downloaded and not policy_path.exists():
-            console.print(f"[red]Policy checkpoint not found at {policy_path} and no remote copy was located.[/red]")
+        if not download_outcome.downloaded and not policy_path.exists():
+            if download_outcome.reason == "not_found":
+                searched_prefix = download_outcome.details or "(unknown prefix)"
+                console.print(
+                    "[red]Policy checkpoint not found locally or in Softmax S3 (searched prefix: "
+                    f"{searched_prefix}).[/red]"
+                )
+            elif download_outcome.reason == "aws_not_enabled":
+                console.print("[red]Policy checkpoint missing locally and AWS policy storage is not configured.[/red]")
+            elif download_outcome.reason == "boto3_missing":
+                console.print("[red]Policy checkpoint missing locally and boto3 is unavailable to fetch from S3.[/red]")
+            elif download_outcome.reason == "invalid_prefix":
+                console.print(
+                    "[red]Policy checkpoint missing locally and remote prefix configuration is invalid.[/red]"
+                )
+            elif download_outcome.reason == "error":
+                console.print(f"[red]Failed to download policy checkpoint from S3: {download_outcome.details}[/red]")
             raise FileNotFoundError(f"Policy checkpoint not found: {policy_path}")
     if policy_path and policy_path.is_dir():
         policy_instance = serialization.load_policy_from_bundle(policy_path, env, device)
