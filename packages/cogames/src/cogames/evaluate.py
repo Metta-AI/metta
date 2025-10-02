@@ -63,7 +63,15 @@ def evaluate(
     policy_counts = _compute_policy_agent_counts(env.num_agents, policy_specs)
     policy_names = [spec.policy_class_path.split(".")[-1] for spec in policy_specs]
 
-    console.print(f"Policy counts: {policy_counts}")
+    if len(policy_specs) > 1:
+        console.print("\n[bold cyan]Policy Assignments[/bold cyan]")
+        policy_counts_table = Table(show_header=True, header_style="bold magenta")
+        policy_counts_table.add_column("Policy")
+        policy_counts_table.add_column("Num Agents", justify="right")
+        for policy_name, count in zip(policy_names, policy_counts, strict=True):
+            policy_counts_table.add_row(policy_name, str(count))
+        console.print(policy_counts_table)
+        console.print()
 
     assignments = np.repeat(np.arange(len(policy_specs)), policy_counts)
 

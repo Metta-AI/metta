@@ -259,8 +259,7 @@ def evaluate_cmd(
     resolved_game, env_cfg = utils.get_game_config(console, game_name)
     from cogames import evaluate as evaluate_module
 
-    console.print(f"[cyan]Evaluating {len(policy_specs)} policies on {resolved_game}[/cyan]")
-    console.print(f"Episodes: {episodes}")
+    console.print(f"[cyan]Evaluating {len(policy_specs)} policies on {resolved_game} over {episodes} episodes[/cyan]")
 
     evaluate_module.evaluate(
         console,
