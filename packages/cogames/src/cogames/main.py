@@ -28,6 +28,8 @@ POLICY_SHORTCUTS = {
     "random": "cogames.policy.random.RandomPolicy",
     "simple": "cogames.policy.simple.SimplePolicy",
     "default": "cogames.policy.simple.SimplePolicy",
+    "token": "cogames.policy.token.TokenPolicy",
+    "basic": "cogames.policy.token.TokenPolicy",
     "lstm": "cogames.policy.lstm.LSTMPolicy",
     "claude": "cogames.policy.claude.ClaudePolicy",
 }
