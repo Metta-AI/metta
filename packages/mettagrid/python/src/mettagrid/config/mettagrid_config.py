@@ -201,9 +201,10 @@ class ClipperConfig(Config):
     based on distance from already-clipped buildings. The length_scale parameter
     controls the exponential decay: weight = exp(-distance / length_scale).
 
-    By default, length_scale is automatically calculated based on percolation theory
-    using the grid size and number of buildings. Set auto_length_scale=False to
-    use a manual length_scale value instead.
+    By default, length_scale is automatically calculated in the C++ layer after
+    map generation, based on percolation theory using the actual grid size and
+    number of buildings placed. Set auto_length_scale=False to use a manual
+    length_scale value instead.
     """
 
     recipe: RecipeConfig = Field(default_factory=RecipeConfig)
@@ -211,19 +212,42 @@ class ClipperConfig(Config):
         default=1.0,
         ge=0.0,
         description="Controls spatial spread rate: weight = exp(-distance / length_scale). "
-        "Auto-calculated from percolation theory if auto_length_scale=True",
+        "Ignored if auto_length_scale=True (calculated in C++ after map generation)",
     )
     cutoff_distance: float = Field(default=0.0, ge=0.0)
     clip_rate: float = Field(default=0.0, ge=0.0, le=1.0)
     auto_length_scale: bool = Field(
         default=True,
-        description="Automatically calculate length_scale from percolation theory based on grid density",
+        description="Automatically calculate length_scale from percolation theory after map generation",
     )
     length_scale_factor: float = Field(
         default=1.0,
         ge=0.0,
-        description="Fudge factor for percolation-based length scale calculation (only used if auto_length_scale=True)",
+        description="Tuning factor for percolation-based length scale (only used if auto_length_scale=True)",
     )
+
+    @model_validator(mode="after")
+    def validate_length_scale_config(self) -> "ClipperConfig":
+        """Warn users about potential configuration issues."""
+        import warnings
+
+        # Warn if user set length_scale but forgot to disable auto
+        if self.auto_length_scale and self.length_scale != 1.0:
+            warnings.warn(
+                f"length_scale={self.length_scale} will be overridden by auto-calculation. "
+                "Set auto_length_scale=False to use your manual value.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+        # Warn if factor is set but auto is disabled
+        if not self.auto_length_scale and self.length_scale_factor != 1.0:
+            warnings.warn(
+                "length_scale_factor is ignored when auto_length_scale=False",
+                UserWarning,
+                stacklevel=2,
+            )
+        return self
 
 
 class GameConfig(Config):
@@ -298,40 +322,6 @@ class GameConfig(Config):
     allow_diagonals: bool = Field(default=False, description="Enable actions to be aware of diagonal orientations")
 
     reward_estimates: Optional[dict[str, float]] = Field(default=None)
-
-    @model_validator(mode="after")
-    def _auto_configure_clipper_length_scale(self) -> "GameConfig":
-        """Automatically calculate clipper length_scale from percolation theory if enabled."""
-        import numpy as np
-
-        if self.clipper is None or not self.clipper.auto_length_scale:
-            return self
-
-        # Get grid dimensions from map_builder
-        map_builder_config = self.map_builder
-        width = getattr(map_builder_config, "width", None)
-        height = getattr(map_builder_config, "height", None)
-
-        if width is None or height is None:
-            # Can't auto-calculate, leave length_scale as-is
-            return self
-
-        # Calculate grid size (use max dimension)
-        grid_size = max(width, height)
-
-        # Count assemblers in objects
-        num_buildings = sum(1 for obj in self.objects.values() if isinstance(obj, AssemblerConfig))
-
-        if num_buildings == 0:
-            # No buildings to base calculation on, leave default
-            return self
-
-        # Calculate percolation-based length scale
-        # Formula: (GRID_SIZE / sqrt(NUM_BUILDINGS)) * sqrt(4.51 / (4 * pi))
-        theoretical_length_scale = (grid_size / np.sqrt(num_buildings)) * np.sqrt(4.51 / (4 * np.pi))
-        self.clipper.length_scale = theoretical_length_scale * self.clipper.length_scale_factor
-
-        return self
 
 
 class MettaGridConfig(Config):

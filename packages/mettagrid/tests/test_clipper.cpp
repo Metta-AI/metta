@@ -58,7 +58,7 @@ TEST_F(ClipperTest, InfectionWeightCalculation) {
   Assembler* a3_medium = create_assembler(3, 4);  // Distance = 5
   Assembler* a4_far = create_assembler(5, 5);     // Distance ~7.07
 
-  Clipper clipper(*grid, unclip_recipe, length_scale, cutoff_distance, clip_rate);
+  Clipper clipper(*grid, unclip_recipe, length_scale, cutoff_distance, clip_rate, false, 1.0f);
 
   // Test distance calculation
   float dist_close = clipper.distance(*a1, *a2_close);
@@ -93,7 +93,7 @@ TEST_F(ClipperTest, WeightAdjustmentDuringClipping) {
   Assembler* a2 = create_assembler(0, 2);  // Distance 2 from a1
   Assembler* a3 = create_assembler(0, 4);  // Distance 4 from a1, distance 2 from a2
 
-  Clipper clipper(*grid, unclip_recipe, length_scale, cutoff_distance, clip_rate);
+  Clipper clipper(*grid, unclip_recipe, length_scale, cutoff_distance, clip_rate, false, 1.0f);
 
   // Initially all assemblers should have weight 0
   EXPECT_FLOAT_EQ(clipper.assembler_infection_weight[a1], 0.0f);
@@ -134,7 +134,7 @@ TEST_F(ClipperTest, WeightAdjustmentDuringUnclipping) {
   Assembler* a2 = create_assembler(0, 2);  // Distance 2 from a1
   Assembler* a3 = create_assembler(0, 4);  // Distance 4 from a1, distance 2 from a2
 
-  Clipper clipper(*grid, unclip_recipe, length_scale, cutoff_distance, clip_rate);
+  Clipper clipper(*grid, unclip_recipe, length_scale, cutoff_distance, clip_rate, false, 1.0f);
 
   // Clip a2
   clipper.clip_assembler(*a2);
@@ -171,7 +171,7 @@ TEST_F(ClipperTest, MultipleClippedAssemblersAccumulateWeights) {
   Assembler* a3 = create_assembler(2, 0);
   Assembler* a4 = create_assembler(2, 2);  // Center-ish target
 
-  Clipper clipper(*grid, unclip_recipe, length_scale, cutoff_distance, clip_rate);
+  Clipper clipper(*grid, unclip_recipe, length_scale, cutoff_distance, clip_rate, false, 1.0f);
 
   // Clip a1 and a2
   clipper.clip_assembler(*a1);
@@ -201,7 +201,7 @@ TEST_F(ClipperTest, PickAssemblerRespectsWeights) {
   Assembler* a_high_weight = create_assembler(0, 0);
   Assembler* a_low_weight = create_assembler(5, 5);
 
-  Clipper clipper(*grid, unclip_recipe, length_scale, cutoff_distance, clip_rate);
+  Clipper clipper(*grid, unclip_recipe, length_scale, cutoff_distance, clip_rate, false, 1.0f);
 
   // Give a_high_weight artificial high weight
   clipper.assembler_infection_weight[a_high_weight] = 100.0f;
@@ -221,4 +221,166 @@ TEST_F(ClipperTest, PickAssemblerRespectsWeights) {
 
   // With such a large weight difference, high_weight should be picked almost always
   EXPECT_GT(high_weight_picked, 90);  // At least 90% of the time
+}
+
+// ================================================================================================
+// PERCOLATION-BASED LENGTH SCALE TESTS
+// ================================================================================================
+
+class ClipperPercolationTest : public ::testing::Test {
+protected:
+  void SetUp() override {
+    current_timestep = 0;
+    unclip_recipe = std::make_shared<Recipe>(std::map<InventoryItem, InventoryQuantity>{{TestItems::ORE, 1}},
+                                             std::map<InventoryItem, InventoryQuantity>{{TestItems::BATTERY, 1}}, 10);
+  }
+
+  void TearDown() override {}
+
+  std::shared_ptr<Recipe> unclip_recipe;
+  unsigned int current_timestep;
+
+  // Helper to create an assembler at a specific location
+  Assembler* create_assembler(Grid& grid, GridCoord r, GridCoord c, bool clip_immune = false) {
+    std::vector<std::shared_ptr<Recipe>> recipes(256, nullptr);
+    AssemblerConfig cfg(1, "test_assembler");
+    cfg.recipes = recipes;
+    cfg.clip_immune = clip_immune;
+
+    Assembler* assembler = new Assembler(r, c, cfg);
+    grid.add_object(assembler);
+    assembler->set_current_timestep_ptr(&current_timestep);
+    return assembler;
+  }
+
+  // Helper to place N assemblers in a grid (evenly spaced)
+  void place_assemblers(Grid& grid, size_t count, bool clip_immune = false) {
+    GridCoord width = grid.width;
+    GridCoord height = grid.height;
+
+    // Simple grid placement - spread assemblers evenly
+    size_t sqrt_count = static_cast<size_t>(std::sqrt(count)) + 1;
+    size_t placed = 0;
+
+    for (size_t i = 0; i < sqrt_count && placed < count; i++) {
+      for (size_t j = 0; j < sqrt_count && placed < count; j++) {
+        GridCoord r = (i + 1) * height / (sqrt_count + 1);
+        GridCoord c = (j + 1) * width / (sqrt_count + 1);
+        create_assembler(grid, r, c, clip_immune);
+        placed++;
+      }
+    }
+  }
+};
+
+// Test 1: Auto-calculation enabled with valid buildings
+TEST_F(ClipperPercolationTest, AutoLengthScaleBasic) {
+  Grid grid(50, 50);
+  place_assemblers(grid, 25);
+
+  Clipper clipper(grid, unclip_recipe, 1.0f, 0.0f, 0.1f, true, 1.0f);
+
+  // Expected: (50 / sqrt(25)) * sqrt(4.51 / (4*π)) ≈ 5.991
+  EXPECT_NEAR(clipper.length_scale, 5.991f, 0.01f);
+}
+
+// Test 2: Manual length_scale (auto disabled)
+TEST_F(ClipperPercolationTest, ManualLengthScale) {
+  Grid grid(50, 50);
+  place_assemblers(grid, 25);
+
+  Clipper clipper(grid, unclip_recipe, 3.14f, 0.0f, 0.1f, false, 1.0f);
+
+  EXPECT_FLOAT_EQ(clipper.length_scale, 3.14f);
+}
+
+// Test 3: Fudge factor tuning
+TEST_F(ClipperPercolationTest, LengthScaleFactor) {
+  Grid grid(50, 50);
+  place_assemblers(grid, 25);
+
+  Clipper clipper(grid, unclip_recipe, 1.0f, 0.0f, 0.1f, true, 1.5f);
+
+  // Expected: 5.991 * 1.5 ≈ 8.986
+  EXPECT_NEAR(clipper.length_scale, 8.986f, 0.01f);
+}
+
+// Test 4: Clip-immune assemblers excluded from count
+TEST_F(ClipperPercolationTest, ClipImmuneExcluded) {
+  Grid grid(50, 50);
+
+  // Place 20 normal assemblers
+  place_assemblers(grid, 20, false);
+
+  // Place 5 clip-immune assemblers
+  place_assemblers(grid, 5, true);
+
+  Clipper clipper(grid, unclip_recipe, 1.0f, 0.0f, 0.1f, true, 1.0f);
+
+  // Should use 20 (not 25) for calculation
+  // Expected: (50 / sqrt(20)) * sqrt(4.51 / (4*π)) ≈ 6.704
+  EXPECT_NEAR(clipper.length_scale, 6.704f, 0.01f);
+}
+
+// Test 5: No assemblers - fall back to provided value
+TEST_F(ClipperPercolationTest, NoAssemblers) {
+  Grid grid(50, 50);
+  // Don't place any assemblers
+
+  Clipper clipper(grid, unclip_recipe, 2.5f, 0.0f, 0.1f, true, 1.0f);
+
+  // Should keep provided length_scale when no buildings
+  EXPECT_FLOAT_EQ(clipper.length_scale, 2.5f);
+}
+
+// Test 6: Grid size scaling (larger grid → larger length_scale)
+TEST_F(ClipperPercolationTest, GridSizeScaling) {
+  Grid grid_small(25, 25);
+  Grid grid_large(100, 100);
+
+  // Place 25 assemblers in each
+  place_assemblers(grid_small, 25);
+  place_assemblers(grid_large, 25);
+
+  Clipper clipper_small(grid_small, unclip_recipe, 1.0f, 0.0f, 0.1f, true, 1.0f);
+  Clipper clipper_large(grid_large, unclip_recipe, 1.0f, 0.0f, 0.1f, true, 1.0f);
+
+  // Ratio should be 100/25 = 4x
+  float ratio = clipper_large.length_scale / clipper_small.length_scale;
+  EXPECT_NEAR(ratio, 4.0f, 0.01f);
+}
+
+// Test 7: Building density scaling (more buildings → smaller length_scale)
+TEST_F(ClipperPercolationTest, BuildingDensityScaling) {
+  Grid grid_sparse(50, 50);
+  Grid grid_dense(50, 50);
+
+  // Place 25 vs 100 assemblers
+  place_assemblers(grid_sparse, 25);
+  place_assemblers(grid_dense, 100);
+
+  Clipper clipper_sparse(grid_sparse, unclip_recipe, 1.0f, 0.0f, 0.1f, true, 1.0f);
+  Clipper clipper_dense(grid_dense, unclip_recipe, 1.0f, 0.0f, 0.1f, true, 1.0f);
+
+  // Ratio should be sqrt(100/25) = 2x (sparse should be larger)
+  float ratio = clipper_sparse.length_scale / clipper_dense.length_scale;
+  EXPECT_NEAR(ratio, 2.0f, 0.01f);
+}
+
+// Test 8: Non-square grids use max dimension
+TEST_F(ClipperPercolationTest, NonSquareGrid) {
+  Grid grid_horizontal(30, 60);  // width > height
+  Grid grid_vertical(60, 30);    // height > width
+
+  place_assemblers(grid_horizontal, 25);
+  place_assemblers(grid_vertical, 25);
+
+  Clipper clipper_horizontal(grid_horizontal, unclip_recipe, 1.0f, 0.0f, 0.1f, true, 1.0f);
+  Clipper clipper_vertical(grid_vertical, unclip_recipe, 1.0f, 0.0f, 0.1f, true, 1.0f);
+
+  // Both should use max(width, height) = 60, so should have same length_scale
+  EXPECT_FLOAT_EQ(clipper_horizontal.length_scale, clipper_vertical.length_scale);
+
+  // Expected: (60 / sqrt(25)) * sqrt(4.51 / (4*π)) ≈ 7.189
+  EXPECT_NEAR(clipper_horizontal.length_scale, 7.189f, 0.01f);
 }
