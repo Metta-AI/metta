@@ -58,7 +58,7 @@ TEST_F(ClipperTest, InfectionWeightCalculation) {
   Assembler* a3_medium = create_assembler(3, 4);  // Distance = 5
   Assembler* a4_far = create_assembler(5, 5);     // Distance ~7.07
 
-  Clipper clipper(*grid, unclip_recipe, length_scale, cutoff_distance, clip_rate, false, 1.0f);
+  Clipper clipper(*grid, unclip_recipe, length_scale, cutoff_distance, clip_rate);
 
   // Test distance calculation
   float dist_close = clipper.distance(*a1, *a2_close);
@@ -93,7 +93,7 @@ TEST_F(ClipperTest, WeightAdjustmentDuringClipping) {
   Assembler* a2 = create_assembler(0, 2);  // Distance 2 from a1
   Assembler* a3 = create_assembler(0, 4);  // Distance 4 from a1, distance 2 from a2
 
-  Clipper clipper(*grid, unclip_recipe, length_scale, cutoff_distance, clip_rate, false, 1.0f);
+  Clipper clipper(*grid, unclip_recipe, length_scale, cutoff_distance, clip_rate);
 
   // Initially all assemblers should have weight 0
   EXPECT_FLOAT_EQ(clipper.assembler_infection_weight[a1], 0.0f);
@@ -134,7 +134,7 @@ TEST_F(ClipperTest, WeightAdjustmentDuringUnclipping) {
   Assembler* a2 = create_assembler(0, 2);  // Distance 2 from a1
   Assembler* a3 = create_assembler(0, 4);  // Distance 4 from a1, distance 2 from a2
 
-  Clipper clipper(*grid, unclip_recipe, length_scale, cutoff_distance, clip_rate, false, 1.0f);
+  Clipper clipper(*grid, unclip_recipe, length_scale, cutoff_distance, clip_rate);
 
   // Clip a2
   clipper.clip_assembler(*a2);
@@ -171,7 +171,7 @@ TEST_F(ClipperTest, MultipleClippedAssemblersAccumulateWeights) {
   Assembler* a3 = create_assembler(2, 0);
   Assembler* a4 = create_assembler(2, 2);  // Center-ish target
 
-  Clipper clipper(*grid, unclip_recipe, length_scale, cutoff_distance, clip_rate, false, 1.0f);
+  Clipper clipper(*grid, unclip_recipe, length_scale, cutoff_distance, clip_rate);
 
   // Clip a1 and a2
   clipper.clip_assembler(*a1);
@@ -201,7 +201,7 @@ TEST_F(ClipperTest, PickAssemblerRespectsWeights) {
   Assembler* a_high_weight = create_assembler(0, 0);
   Assembler* a_low_weight = create_assembler(5, 5);
 
-  Clipper clipper(*grid, unclip_recipe, length_scale, cutoff_distance, clip_rate, false, 1.0f);
+  Clipper clipper(*grid, unclip_recipe, length_scale, cutoff_distance, clip_rate);
 
   // Give a_high_weight artificial high weight
   clipper.assembler_infection_weight[a_high_weight] = 100.0f;
