@@ -6,6 +6,7 @@ import platform
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Optional
 
+from cogames.aws_storage import maybe_upload_checkpoint
 from cogames.env import make_hierarchical_env
 from cogames.policy import TrainablePolicy
 from mettagrid import MettaGridConfig
@@ -309,6 +310,13 @@ def train(
         console.print("To play with this policy:", style="bold")
         console.print(
             f"  [yellow]cogames play{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
+        )
+
+        maybe_upload_checkpoint(
+            final_checkpoint=final_checkpoint,
+            game_name=game_name,
+            policy_class_path=policy_class_path,
+            console=console,
         )
     elif checkpoints and training_diverged:
         console.print()

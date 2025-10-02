@@ -138,6 +138,7 @@ def play_cmd(
         env_cfg=env_cfg,
         policy_class_path=full_policy_path,
         policy_data_path=policy_data_path,
+        game_name=resolved_game,
         max_steps=steps,
         seed=42,
         render=render,
