@@ -158,6 +158,7 @@ def make_game_from_map(map_name: str, num_agents: int = 4) -> MettaGridConfig:
         str(map_path), {o.map_char: o.name for o in config.game.objects.values()}
     )
     config.game.map_builder = map_builder
+    config.game.max_steps *= 20
 
     return config
 
