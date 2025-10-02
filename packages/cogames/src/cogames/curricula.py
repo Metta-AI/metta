@@ -41,7 +41,7 @@ def alternating(sequence: Deque[str] | None = None) -> MettaGridConfig:
     raise ValueError("Curriculum contains no maps with the expected agent count")
 
 
-def training_facility_rotation(names: Iterable[str] | None = None):
+def training_rotation(names: Iterable[str] | None = None):
     """Create a supplier that cycles training facility boards and machina_1."""
 
     rotation = deque(tuple(names) if names is not None else _TRAINING_ROTATION_NAMES)
@@ -54,3 +54,7 @@ def training_facility_rotation(names: Iterable[str] | None = None):
         return game.get_game(map_name).model_copy(deep=True)
 
     return _supplier
+
+
+# Backward compatibility: preserve the old name until downstream code migrates.
+training_facility_rotation = training_rotation

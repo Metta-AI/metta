@@ -271,8 +271,8 @@ def train_cmd(
     if curriculum_callable is None:
         rotation_aliases = {"training_facility_rotation", "training_rotation", "training_cycle"}
         if game_name is None or (game_name in rotation_aliases):
-            curriculum_callable = curricula.training_facility_rotation()
-            representative_game = "training_facility_rotation"
+            curriculum_callable = curricula.training_rotation()
+            representative_game = "training_rotation"
             game_name = None
         else:
             resolved_game, error = utils.resolve_game(game_name)
