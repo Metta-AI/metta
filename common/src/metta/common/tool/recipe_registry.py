@@ -42,6 +42,16 @@ class RecipeRegistry:
             if full_path in self._recipes:
                 return self._recipes[full_path]
 
+        # Try to load directly as a fallback for recipes outside experiments.recipes
+        # This supports test fixtures and external recipe packages
+        recipe = Recipe.load(module_path)
+        if recipe:
+            # Check if it has tools or configs (valid recipe)
+            if recipe.get_explicit_tools() or recipe.get_configs() != (None, None):
+                # Cache it for future lookups
+                self._recipes[module_path] = recipe
+                return recipe
+
         return None
 
     def has(self, module_path: str) -> bool:

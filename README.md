@@ -167,27 +167,25 @@ The repository contains command-line tools in the `tools/` directory.
 ### Quickstart: train, evaluate, play, and replay
 
 `run.py` is a script that kicks off tasks like training, evaluation, and visualization. The runner looks up the task,
-builds its configuration, and runs it. The current available tasks are:
+builds its configuration, and runs it.
 
-- **arena.train**: Train on the arena curriculum
+**Discover available tools**:
+```bash
+# List all tools in a recipe
+./tools/run.py arena --list
 
-  `./tools/run.py train arena run=my_experiment`
+# List all recipes that provide a specific tool
+./tools/run.py train --list
+```
 
-- **navigation.train**: Train on the navigation curriculum
+**Common tasks**:
 
-  `./tools/run.py train navigation run=my_experiment`
+- **Train**: `./tools/run.py train arena run=my_experiment`
+- **Evaluate**: `./tools/run.py evaluate arena policy_uri=file://./train_dir/my_run/checkpoints`
+- **Play** (browser): `./tools/run.py play arena policy_uri=file://./train_dir/my_run/checkpoints`
+- **Replay**: `./tools/run.py replay arena policy_uri=file://./train_dir/my_run/checkpoints`
 
-- **arena.play**: Play in the browser
-
-  `./tools/run.py play arena`
-
-- **arena.replay**: Replay a single episode from a saved policy
-
-  `./tools/run.py replay arena policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`
-
-- **arena.evaluate**: Evaluate a policy on the arena eval suite
-
-  `./tools/run.py evaluate arena policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`
+**Navigation recipe**: Replace `arena` with `navigation` for navigation tasks
 
 ### Task arguments
 

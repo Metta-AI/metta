@@ -138,3 +138,15 @@ The system supports two-token syntax for conciseness:
 - **Replay**: `replay arena` for viewing recorded gameplay
 
 Alternative dot-notation also works: `arena.train`, `navigation.evaluate`, etc.
+
+### Discovering Available Tools
+
+```bash
+# List all tools in a specific recipe
+uv run ./tools/run.py arena --list
+uv run ./tools/run.py navigation --list
+
+# List all recipes that provide a specific tool
+uv run ./tools/run.py train --list          # Shows all recipes with train
+uv run ./tools/run.py evaluate --list       # Shows all recipes with evaluate
+```

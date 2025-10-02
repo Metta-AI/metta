@@ -2,6 +2,19 @@
 
 To quickly test that training, simulation, and analysis are working correctly, use these commands:
 
+### Discovering Available Tools
+
+Use `--list` to see what tools are available:
+
+```bash
+# List all tools in a specific recipe
+uv run ./tools/run.py arena --list
+
+# List all recipes that provide a specific tool (e.g., train, evaluate)
+uv run ./tools/run.py train --list
+uv run ./tools/run.py evaluate --list
+```
+
 ### Quick 30-second test
 
 ```bash
@@ -30,17 +43,17 @@ The system supports different training and evaluation environments:
 
   ```bash
   uv run ./tools/run.py train arena run=my_experiment
-  uv run ./tools/run.py evaluate arena policy_uri=file://./checkpoints
+  uv run ./tools/run.py evaluate arena policy_uri=file://./train_dir/my_run/checkpoints
   ```
 
 - **Navigation Recipe**: Single-agent navigation tasks
 
   ```bash
   uv run ./tools/run.py train navigation run=my_experiment
-  uv run ./tools/run.py evaluate navigation policy_uri=file://./checkpoints
+  uv run ./tools/run.py evaluate navigation policy_uri=file://./train_dir/my_run/checkpoints
   ```
 
 - **Interactive Testing**: Browser-based interactive testing (Note: may not work well in Claude Code)
   ```bash
-  uv run ./tools/run.py play arena policy_uri=file://./checkpoints
+  uv run ./tools/run.py play arena policy_uri=file://./train_dir/my_run/checkpoints
   ```
