@@ -193,6 +193,7 @@ def train_cmd(
     ),
 ) -> None:
     from cogames import train as train_module
+
     resolved_game, env_cfg = utils.get_game_config(console, game_name)
     torch_device = utils.resolve_training_device(console, device)
 
