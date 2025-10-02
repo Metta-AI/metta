@@ -1,7 +1,7 @@
 import
-  std/[strformat, math, os, strutils],
+  std/[strformat, math, os, strutils, tables],
   boxy, vmath, windy, fidget2/[hybridrender, common],
-  common, panels, actions, utils, replays, objectinfo
+  common, panels, actions, utils, replays, objectinfo, pathfinding
 
 proc buildAtlas*() =
   ## Build the atlas.
@@ -33,6 +33,19 @@ proc useSelections*(panel: Panel) =
         if obj.location.at(step).xy == gridPos:
           selectObject(obj)
           break
+  
+  if window.buttonPressed[MouseRight]:
+    if selection != nil and selection.isAgent:
+      let
+        mousePos = bxy.getTransform().inverse * window.mousePos.vec2
+        gridPos = (mousePos + vec2(0.5, 0.5)).ivec2
+      if gridPos.x >= 0 and gridPos.x < replay.mapSize[0] and
+        gridPos.y >= 0 and gridPos.y < replay.mapSize[1]:
+        let startPos = selection.location.at(step).xy
+        let path = findPath(startPos, gridPos)
+        if path.len > 0:
+          agentPaths[selection.agentId] = path
+          agentDestinations[selection.agentId] = @[gridPos]
 
 proc drawFloor*() =
   # Draw the floor tiles.
@@ -323,6 +336,46 @@ proc drawInventory*() =
         )
         x += xAdvance
 
+proc drawPlannedPath*() =
+  ## Draw the planned path for the selected agent.
+  if selection != nil and selection.isAgent and agentPaths.hasKey(selection.agentId):
+    let path = agentPaths[selection.agentId]
+    if path.len > 1:
+      for i in 0 ..< path.len - 1:
+        let
+          pos0 = path[i]
+          pos1 = path[i + 1]
+          dx = pos1.x - pos0.x
+          dy = pos1.y - pos0.y
+        
+        var rotation: float32 = 0
+        if dx > 0 and dy == 0:
+          rotation = 0
+        elif dx < 0 and dy == 0:
+          rotation = Pi
+        elif dx == 0 and dy > 0:
+          rotation = -Pi / 2
+        elif dx == 0 and dy < 0:
+          rotation = Pi / 2
+        
+        let alpha = 0.6
+        bxy.drawImage(
+          "agents/path",
+          pos0.vec2,
+          angle = rotation,
+          scale = 1/200,
+          tint = color(1, 1, 1, alpha)
+        )
+      
+      let goalPos = path[path.len - 1]
+      bxy.drawImage(
+        "selection",
+        goalPos.vec2,
+        angle = 0,
+        scale = 1/200,
+        tint = color(1, 1, 1, 0.5)
+      )
+
 proc drawSelection*() =
   # Draw selection.
   if selection != nil:
@@ -510,6 +563,7 @@ proc drawWorldMain*() =
   drawActions()
   drawAgentDecorations()
   drawSelection()
+  drawPlannedPath()
   drawInventory()
   drawRewards()
 

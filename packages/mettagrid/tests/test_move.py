@@ -27,26 +27,25 @@ from mettagrid.test_support.orientation import Orientation
 
 # Test fixtures for MettaGrid environments
 @pytest.fixture
-def base_config():
+def base_config() -> GameConfig:
     """Base configuration for MettaGrid tests."""
-    return {
-        "max_steps": 50,
-        "num_agents": 1,
-        "obs_width": 3,
-        "obs_height": 3,
-        "num_observation_tokens": 100,
-        "resource_names": ["laser", "armor"],
-        "actions": {
-            "noop": {"enabled": True},
-            "move": {"enabled": True},
-            "rotate": {"enabled": True},
+    return GameConfig(
+        max_steps=50,
+        num_agents=1,
+        obs_width=3,
+        obs_height=3,
+        num_observation_tokens=100,
+        resource_names=["laser", "armor"],
+        actions=ActionsConfig(
+            noop=ActionConfig(enabled=True),
+            move=ActionConfig(enabled=True),
+            rotate=ActionConfig(enabled=True),
+        ),
+        objects={
+            "wall": WallConfig(type_id=1),
         },
-        "objects": {
-            "wall": {"type_id": 1},
-        },
-        "agent": {"rewards": {}},
-        "allow_diagonals": True,
-    }
+        allow_diagonals=True,
+    )
 
 
 @pytest.fixture
@@ -99,9 +98,11 @@ def configured_env(base_config):
     """Factory fixture that creates a configured MettaGrid environment."""
 
     def _create_env(game_map, config_overrides=None):
-        game_config = base_config.copy()
         if config_overrides:
-            game_config.update(config_overrides)
+            # Create a new config with overrides
+            game_config = base_config.model_copy(update=config_overrides)
+        else:
+            game_config = base_config
 
         env = MettaGrid(from_mettagrid_config(game_config), game_map, 42)
 

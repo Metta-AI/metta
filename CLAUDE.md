@@ -99,7 +99,12 @@ implementation.
    - Any known limitations or future work
    - Lessons learned (if applicable)
 2. **Verify success criteria** - Check off completed criteria in the plan
-3. **Clean up** - Ensure all code is properly tested and documented
+3. **Run CI checks** - ALWAYS run `metta ci` to verify all tests pass:
+   ```bash
+   metta ci
+   ```
+   Fix any test failures before marking the work complete.
+4. **Clean up** - Ensure all code is properly tested and documented
 
 ---
 
@@ -245,6 +250,9 @@ See @.cursor/commands.md for quick test commands and examples.
 #### Code Quality
 
 ```bash
+# Run full CI (tests + linting) - ALWAYS run this to verify changes
+metta ci
+
 # Run all tests with coverage
 metta test --cov=mettagrid --cov-report=term-missing
 
@@ -261,6 +269,8 @@ uv run ./devops/tools/auto_ruff_fix.py path/to/file
 # Format shell scripts
 ./devops/tools/format_sh.sh
 ```
+
+**IMPORTANT**: Always run `metta ci` after making changes to verify that all tests pass. This is the standard way to check if your changes are working correctly.
 
 #### Building
 

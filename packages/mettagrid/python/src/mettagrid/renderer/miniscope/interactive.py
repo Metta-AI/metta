@@ -9,6 +9,8 @@ from typing import Callable, Dict, Optional
 
 import numpy as np
 
+from mettagrid.core import BoundingBox
+
 from .buffer import build_grid_buffer, compute_bounds
 from .info_panels import build_agent_info_panel, build_object_info_panel
 
@@ -73,6 +75,7 @@ def _adjust_camera_to_keep_in_view(
 def run_interactive_loop(
     env,
     object_type_names: list[str],
+    symbol_map: dict[str, str],
     get_actions_fn: Callable[[np.ndarray, Optional[int], Optional[int | tuple]], np.ndarray],
     max_steps: Optional[int] = None,
     target_fps: int = 4,
@@ -82,6 +85,7 @@ def run_interactive_loop(
     Args:
         env: MettaGrid environment
         object_type_names: List mapping type IDs to names
+        symbol_map: Map from object type names to render symbols
         get_actions_fn: Function that takes (obs, selected_agent, manual_action_direction)
                        and returns actions for all agents
         max_steps: Maximum steps to run (None for unlimited)
@@ -107,7 +111,8 @@ def run_interactive_loop(
 
     # Compute bounds once
     obs, _ = env.reset()
-    grid_objects = env.grid_objects(0, env.map_height, 0, env.map_width)
+    bbox = BoundingBox(min_row=0, max_row=env.map_height, min_col=0, max_col=env.map_width)
+    grid_objects = env.grid_objects(bbox)
     min_row, min_col, height, width = compute_bounds(grid_objects, object_type_names)
 
     # Clamp cursor to actual playable bounds
@@ -282,7 +287,8 @@ def run_interactive_loop(
                 # Auto-pan camera to keep selected agent in view (in follow mode)
                 if mode == "follow" and selected_agent is not None:
                     # Find the selected agent's position
-                    grid_objects_full = env.grid_objects(0, env.map_height, 0, env.map_width)
+                    bbox_full = BoundingBox(min_row=0, max_row=env.map_height, min_col=0, max_col=env.map_width)
+                    grid_objects_full = env.grid_objects(bbox_full)
                     for obj in grid_objects_full.values():
                         if obj.get("agent_id") == selected_agent:
                             agent_row = obj["r"]
@@ -306,12 +312,16 @@ def run_interactive_loop(
                 view_max_col = min(env.map_width, view_min_col + viewport_width)
 
                 # Get objects within viewport bounds (performance optimization)
-                grid_objects = env.grid_objects(view_min_row, view_max_row, view_min_col, view_max_col)
+                bbox_view = BoundingBox(
+                    min_row=view_min_row, max_row=view_max_row, min_col=view_min_col, max_col=view_max_col
+                )
+                grid_objects = env.grid_objects(bbox_view)
 
                 # Build display components
                 grid_buffer = build_grid_buffer(
                     grid_objects,
                     object_type_names,
+                    symbol_map,
                     min_row,
                     min_col,
                     height,

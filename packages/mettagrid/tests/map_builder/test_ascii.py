@@ -5,7 +5,8 @@ import numpy as np
 import pytest
 
 from mettagrid.map_builder.ascii import AsciiMapBuilder
-from mettagrid.map_builder.map_builder import GameMap, map_grid_dtype
+from mettagrid.map_builder.map_builder import GameMap
+from mettagrid.mapgen.types import map_grid_dtype
 
 
 class TestAsciiMapBuilderConfig:
@@ -119,11 +120,11 @@ class TestAsciiMapBuilder:
             config = AsciiMapBuilder.Config.from_uri("nonexistent_file.txt")
             AsciiMapBuilder(config)
 
-    def test_with_aliases(self):
-        # Test that aliases work correctly (W for wall, A for agent, etc.)
-        ascii_content = """WWW
-WA.
-WWW"""
+    def test_with_basic_chars(self):
+        # Test basic character mappings
+        ascii_content = """###
+#@.
+###"""
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write(ascii_content)
@@ -143,8 +144,8 @@ WWW"""
         finally:
             os.unlink(temp_file)
 
-    def test_with_spaces_as_empty(self):
-        # Test that spaces are treated as empty
+    def test_with_spaces_raises_error(self):
+        # Test that spaces now raise an error (no longer supported as empty)
         ascii_content = """###
 # @
 ###"""
@@ -155,15 +156,8 @@ WWW"""
 
         try:
             config = AsciiMapBuilder.Config.from_uri(temp_file)
-            builder = AsciiMapBuilder(config)
-            game_map = builder.build()
-
-            expected = np.array(
-                [["wall", "wall", "wall"], ["wall", "empty", "agent.agent"], ["wall", "wall", "wall"]],
-                dtype=map_grid_dtype,
-            )
-
-            assert np.array_equal(game_map.grid, expected)
+            with pytest.raises(ValueError, match="Unknown character: ' '"):
+                AsciiMapBuilder(config)
         finally:
             os.unlink(temp_file)
 
