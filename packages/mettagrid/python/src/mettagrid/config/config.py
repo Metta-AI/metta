@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from typing import Any, ClassVar, Dict, NoReturn, Self, Union, get_args, get_origin
+from typing import Any, NoReturn, Self, Union, get_args, get_origin
 
 from pydantic import BaseModel, ConfigDict, TypeAdapter
-
-from mettagrid.util.module import load_symbol
 
 
 class Config(BaseModel):
@@ -15,8 +13,6 @@ class Config(BaseModel):
     """
 
     model_config = ConfigDict(extra="forbid")
-
-    _aliases: ClassVar[Dict[str, str]] = {}
 
     def _auto_initialize_field(self, parent_obj: "Config", field_name: str) -> "Config | None":
         """Auto-initialize a None Config field if possible."""
@@ -108,57 +104,3 @@ class Config(BaseModel):
         for key, value in updates.items():
             self.override(key, value)
         return self
-
-    @classmethod
-    def register_alias(cls, alias: str, target: str) -> None:
-        if "_aliases" not in cls.__dict__:
-            cls._aliases = dict(cls._aliases)
-        cls._aliases[alias] = target
-
-    @classmethod
-    def _lookup_alias(cls, reference: str) -> str:
-        for base in cls.__mro__:
-            mapping = getattr(base, "_aliases", None)
-            if mapping and reference in mapping:
-                return mapping[reference]
-        return reference
-
-    @classmethod
-    def resolve(cls, value: Any) -> "Config":
-        if isinstance(value, cls):
-            return value
-
-        if isinstance(value, str):
-            reference = cls._lookup_alias(value)
-            target = load_symbol(reference)
-            return cls._coerce_resolved(target, value)
-
-        if isinstance(value, type) and issubclass(value, cls):
-            return value()
-
-        if callable(value):
-            candidate = value()
-            if isinstance(candidate, cls):
-                return candidate
-
-        raise TypeError(f"Unable to resolve value {value!r} into an instance of {cls.__name__}")
-
-    @classmethod
-    def _coerce_resolved(cls, resolved: Any, original: str) -> "Config":
-        if isinstance(resolved, cls):
-            return resolved
-
-        if isinstance(resolved, Config):
-            if isinstance(resolved, cls):
-                return resolved
-            raise TypeError(f"Resolved object {resolved!r} for reference {original!r} is not a {cls.__name__}")
-
-        if isinstance(resolved, type) and issubclass(resolved, cls):
-            return resolved()
-
-        if callable(resolved):
-            candidate = resolved()
-            if isinstance(candidate, cls):
-                return candidate
-
-        raise TypeError(f"Unable to resolve reference {original!r} to an instance of {cls.__name__}")

@@ -1,5 +1,4 @@
-packages/mettagrid/.bazel_output/
-external
+external/
 resources
 
 # Environment and IDE
