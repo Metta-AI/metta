@@ -218,7 +218,7 @@ def sweep_async_progressive_vit(
                 min=min_timesteps,
                 max=max_timesteps,
                 mean=initial_timesteps,
-                distribution="log_normal",
+                distribution="int_uniform",
                 scale="auto"
             )
         })
