@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Optional
 
-from metta.agent.policy import PolicySpec
+from cogames.policy.policy import PolicySpec
 
 
 def resolve_policy_class_path(policy: str) -> str:

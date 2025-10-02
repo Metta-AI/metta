@@ -4,6 +4,7 @@ from abc import abstractmethod
 from typing import Any, Generic, Optional, Tuple, TypeVar
 
 import torch.nn as nn
+from pydantic import BaseModel
 
 # Type variable for agent state - can be any type
 StateType = TypeVar("StateType")
@@ -182,3 +183,16 @@ class TrainablePolicy(Policy):
         import torch
 
         torch.save(self.network().state_dict(), policy_data_path)
+
+
+class PolicySpec(BaseModel):
+    """Specification for a policy used during evaluation."""
+
+    # Path to policy class, or shorthand
+    policy_class_path: str
+
+    # Path to policy weights, if applicable
+    policy_data_path: Optional[str]
+
+    # Proportion of total agents to assign to this policy
+    proportion: float

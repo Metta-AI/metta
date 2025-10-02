@@ -1,17 +1,16 @@
 """Utility functions for CoGames CLI."""
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import Any, Optional
 
+import torch
+import typer
 from rich.console import Console
 
 from cogames import game as game_module
 from cogames.policy import Policy, TrainablePolicy
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.util.module import load_symbol
-
-if TYPE_CHECKING:
-    import torch
 
 
 def resolve_game(game_arg: Optional[str]) -> tuple[Optional[str], Optional[str]]:
@@ -53,8 +52,6 @@ def resolve_game(game_arg: Optional[str]) -> tuple[Optional[str], Optional[str]]
 
 def get_game_config(console: Console, game_arg: str) -> tuple[str, MettaGridConfig]:
     """Return a resolved game name and configuration for cli usage."""
-    import typer
-
     resolved_game, error = resolve_game(game_arg)
     if error or resolved_game is None:
         console.print(f"[red]Error: {error or 'Unknown game'}[/red]")
@@ -62,9 +59,7 @@ def get_game_config(console: Console, game_arg: str) -> tuple[str, MettaGridConf
     return resolved_game, game_module.get_game(resolved_game)
 
 
-def resolve_training_device(console: Console, requested: str) -> "torch.device":
-    import torch
-
+def resolve_training_device(console: Console, requested: str) -> torch.device:
     normalized = requested.strip().lower()
 
     def cuda_usable() -> bool:
@@ -97,8 +92,6 @@ def resolve_training_device(console: Console, requested: str) -> "torch.device":
 def initialize_or_load_policy(
     policy_class_path: str, policy_data_path: Optional[str], env: Any, device: "torch.device | None" = None
 ) -> Policy:
-    import torch
-
     policy_class = load_symbol(policy_class_path)
     policy = policy_class(env, device or torch.device("cpu"))
 
