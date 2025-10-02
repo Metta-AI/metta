@@ -61,6 +61,8 @@ def parse_policy_spec(spec: str) -> PolicySpec:
     parts = raw.split(":", maxsplit=2)
     if len(parts) < 2:
         raise ValueError("Policy specification must include both class path and proportion separated by ':'")
+    elif len(parts) > 3:
+        raise ValueError("Policy specification must include at most two ':' separated values.")
 
     raw_class_path, raw_fraction = parts[0].strip(), parts[1].strip()
     raw_policy_data = parts[2].strip() if len(parts) == 3 else None
