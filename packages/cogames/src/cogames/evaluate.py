@@ -85,6 +85,7 @@ def evaluate(
     per_episode_rewards: list[np.ndarray] = []
     per_episode_stats: list["EpisodeStats"] = []
     per_episode_assignments: list[np.ndarray] = []
+    per_policy_timeouts = defaultdict(int)
 
     # Run episodes
     with ThreadPoolExecutor(max_workers=env.num_agents) as pool:
@@ -112,7 +113,7 @@ def evaluate(
                             a = fut.result(timeout=action_timeout_ms / 1000)
                         except FUT_TIMEOUT:
                             a = noop
-                            typer.echo(f"[yellow]agent {i} timed out; using noop[/yellow]")
+                            per_policy_timeouts[assignments[i]] += 1
                         except Exception as e:
                             a = noop
                             typer.echo(f"[red]agent {i} failed: {e}; using noop[/red]")
@@ -193,5 +194,11 @@ def evaluate(
         *[str(total_avg_agent_reward_per_policy[policy_idx]) for policy_idx in range(len(policy_specs))],
     )
     console.print(summary_table)
+
+    if per_policy_timeouts:
+        console.print("\n[bold cyan]Action Generation Timeouts per Policy[/bold cyan]")
+        for policy_idx, timeouts in per_policy_timeouts.items():
+            policy_name = policy_names[policy_idx]
+            console.print(f"Policy {policy_name}: {timeouts} timeouts")
 
     env.close()
