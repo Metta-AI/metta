@@ -251,7 +251,7 @@ class NvidiaTransformerCore(nn.Module):
         klen = mlen + seq_len
 
         attn_mask = torch.triu(torch.ones(seq_len, klen, device=device, dtype=torch.bool), diagonal=1 + mlen)
-        attn_mask = attn_mask[:, :, None]
+        attn_mask = attn_mask.unsqueeze(0)
 
         pos_seq = torch.arange(klen - 1, -1, -1.0, device=device, dtype=dtype)
         if self.clamp_len > 0:
