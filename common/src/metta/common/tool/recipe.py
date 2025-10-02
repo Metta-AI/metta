@@ -25,6 +25,45 @@ class Recipe:
     def __init__(self, module: ModuleType):
         self.module = module
         self.module_name = module.__name__
+        # Build tool maps on initialization
+        self._name_to_tool: dict[str, Callable[[], Tool]] = {}
+        self._canonical_to_tools: dict[str, list[tuple[str, Callable[[], Tool]]]] = {}
+        self._build_tool_maps()
+
+    def _build_tool_maps(self) -> None:
+        """Build name->tool and canonical->tools maps for efficient lookup."""
+        from metta.common.tool.tool_registry import get_tool_registry
+
+        registry = get_tool_registry()
+
+        # Get explicit tools
+        explicit_tools = self.get_explicit_tools()
+
+        # Build both maps
+        for func_name, func in explicit_tools.items():
+            # Add to name->tool map
+            self._name_to_tool[func_name] = func
+
+            # Determine which tool class this function returns
+            try:
+                hints = get_type_hints(func)
+                return_type = hints.get("return")
+                if return_type and isinstance(return_type, type) and issubclass(return_type, Tool):
+                    # Get canonical name for this tool class
+                    tool_name = return_type.tool_name
+                    if tool_name not in self._canonical_to_tools:
+                        self._canonical_to_tools[tool_name] = []
+                    self._canonical_to_tools[tool_name].append((func_name, func))
+            except Exception:
+                pass
+
+        # Add inferred tools to both maps
+        for canonical_name, tool_class in registry.get_all_tools().items():
+            inferred = self.infer_tool(tool_class)
+            if inferred is not None and canonical_name not in self._canonical_to_tools:
+                # Add inferred tool (no specific function name, use canonical)
+                self._name_to_tool[canonical_name] = inferred
+                self._canonical_to_tools[canonical_name] = [(canonical_name, inferred)]
 
     @classmethod
     def load(cls, module_path: str) -> Optional["Recipe"]:
@@ -87,17 +126,16 @@ class Recipe:
 
     def get_all_tool_names(self) -> set[str]:
         """Get all tool names available from this recipe (explicit + inferred)."""
-        from metta.common.tool.tool_registry import get_tool_registry
+        # Use the pre-built maps
+        return set(self._name_to_tool.keys())
 
-        tool_names = set(self.get_explicit_tools().keys())
+    def supports_tool(self, canonical_tool_name: str) -> bool:
+        """Check if this recipe supports a tool with the given canonical name."""
+        return canonical_tool_name in self._canonical_to_tools
 
-        # Add inferred tools
-        registry = get_tool_registry()
-        for canonical_name, tool_class in registry.get_all_tools().items():
-            if canonical_name not in tool_names and self.infer_tool(tool_class) is not None:
-                tool_names.add(canonical_name)
-
-        return tool_names
+    def get_tools_for_canonical(self, canonical_tool_name: str) -> list[tuple[str, Callable[[], Tool]]]:
+        """Get all tools (by name and callable) that return the given canonical tool type."""
+        return self._canonical_to_tools.get(canonical_tool_name, [])
 
     @staticmethod
     def discover_all(base_package: str = "experiments.recipes") -> list[Recipe]:

@@ -549,11 +549,16 @@ constructor/function vs configuration overrides based on introspection.
             console.print(f"\n[bold]Recipes supporting '{tool_path}':[/bold]\n")
             recipes = Recipe.discover_all()
             found_any = False
+
             for recipe in sorted(recipes, key=lambda r: r.module_name):
-                if recipe.infer_tool(registry.get_all_tools()[canonical_tool]) is not None:
+                tools = recipe.get_tools_for_canonical(canonical_tool)
+                if tools:
                     short_name = recipe.module_name.replace("experiments.recipes.", "")
-                    console.print(f"  {short_name}.{tool_path}")
+                    # Show all function names that provide this tool
+                    for func_name, _ in tools:
+                        console.print(f"  {short_name}.{func_name}")
                     found_any = True
+
             if not found_any:
                 console.print(f"[yellow]No recipes found supporting '{tool_path}'[/yellow]")
             return 0
