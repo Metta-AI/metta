@@ -63,7 +63,7 @@ Shorthands:
 - Omit prefix: `arena.train` == `experiments.recipes.arena.train`
 - Two-token sugar: `train arena` == `arena.train`
 
-Note: The evaluation tool class is `EvalTool` (renamed from `SimTool`). If importing directly, use:
+Note: The evaluation tool class is `EvalTool` (renamed from `EvalTool`). If importing directly, use:
 
 ```python
 from metta.tools.eval import EvalTool
