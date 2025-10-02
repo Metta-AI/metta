@@ -4,6 +4,7 @@ import os
 import sys
 from pathlib import Path
 
+import pytest
 import torch
 
 # Make cortex package importable relative to this test
@@ -12,6 +13,9 @@ sys.path.insert(0, os.fspath(PKG_ROOT / "src"))
 
 from cortex.cells.lstm import LSTMCell  # noqa: E402
 from cortex.config import LSTMCellConfig  # noqa: E402
+from cortex.kernels.pytorch.lstm import lstm_sequence_pytorch  # noqa: E402
+from cortex.kernels.triton.lstm import lstm_sequence_triton  # noqa: E402
+from cortex.utils import TRITON_AVAILABLE  # noqa: E402
 
 
 def get_test_device():
@@ -30,7 +34,7 @@ def test_lstm_sequence_forward():
 
     B = 2  # batch size
     T = 10  # sequence length
-    H = 64  # hidden size
+    H = 32  # hidden size
 
     cfg = LSTMCellConfig(hidden_size=H, num_layers=1, dropout=0.0)
     cell = LSTMCell(cfg).to(device=device, dtype=dtype)
@@ -57,7 +61,7 @@ def test_lstm_single_step():
     dtype = torch.float32
 
     B = 2  # batch size
-    H = 64  # hidden size
+    H = 32  # hidden size
 
     cfg = LSTMCellConfig(hidden_size=H, num_layers=1, dropout=0.0)
     cell = LSTMCell(cfg).to(device=device, dtype=dtype)
@@ -83,7 +87,7 @@ def test_lstm_sequential_vs_parallel():
 
     B = 2  # batch size
     T = 16  # sequence length
-    H = 64  # hidden size
+    H = 32  # hidden size
 
     cfg = LSTMCellConfig(hidden_size=H, num_layers=1, dropout=0.0)
     cell = LSTMCell(cfg).to(device=device, dtype=dtype)
@@ -111,54 +115,20 @@ def test_lstm_sequential_vs_parallel():
     torch.testing.assert_close(y_parallel, y_sequential, rtol=1e-5, atol=1e-5)
 
 
-def test_lstm_multi_layer():
-    """Test LSTM with multiple layers."""
-    torch.manual_seed(42)
+def test_lstm_multi_layer_unsupported():
+    """Multi-layer configuration should raise now that kernels are single-layer only."""
 
-    device = get_test_device()
-    dtype = torch.float32
-
-    B = 2  # batch size
-    T = 10  # sequence length
-    H = 64  # hidden size
-    num_layers = 3
-
-    cfg = LSTMCellConfig(hidden_size=H, num_layers=num_layers, dropout=0.0)
-    cell = LSTMCell(cfg).to(device=device, dtype=dtype)
-    cell.eval()
-
-    x = torch.randn(B, T, H, device=device, dtype=dtype)
-    y, state = cell(x, state=None)
-
-    # Check shapes
-    assert y.shape == (B, T, H), f"Expected output shape {(B, T, H)}, got {y.shape}"
-    assert state["h"].shape == (B, num_layers, H), f"Expected h shape {(B, num_layers, H)}, got {state['h'].shape}"
-    assert state["c"].shape == (B, num_layers, H), f"Expected c shape {(B, num_layers, H)}, got {state['c'].shape}"
+    cfg = LSTMCellConfig(hidden_size=64, num_layers=2, dropout=0.0)
+    with pytest.raises(ValueError):
+        LSTMCell(cfg)
 
 
-def test_lstm_with_projection():
-    """Test LSTM with projection layer."""
-    torch.manual_seed(42)
+def test_lstm_projection_unsupported():
+    """Projection size >0 is not supported by the fused implementation."""
 
-    device = get_test_device()
-    dtype = torch.float32
-
-    B = 2  # batch size
-    T = 10  # sequence length
-    H = 64  # hidden size
-    proj_size = 32
-
-    cfg = LSTMCellConfig(hidden_size=H, num_layers=1, proj_size=proj_size, dropout=0.0)
-    cell = LSTMCell(cfg).to(device=device, dtype=dtype)
-    cell.eval()
-
-    x = torch.randn(B, T, H, device=device, dtype=dtype)
-    y, state = cell(x, state=None)
-
-    # Output should have proj_size instead of H
-    assert y.shape == (B, T, proj_size), f"Expected output shape {(B, T, proj_size)}, got {y.shape}"
-    assert state["h"].shape == (B, 1, proj_size), f"Expected h shape {(B, 1, proj_size)}, got {state['h'].shape}"
-    assert state["c"].shape == (B, 1, H), f"Expected c shape {(B, 1, H)}, got {state['c'].shape}"
+    cfg = LSTMCellConfig(hidden_size=64, num_layers=1, proj_size=16, dropout=0.0)
+    with pytest.raises(ValueError):
+        LSTMCell(cfg)
 
 
 def test_lstm_state_reset():
@@ -169,7 +139,7 @@ def test_lstm_state_reset():
     dtype = torch.float32
 
     B = 4  # batch size
-    H = 64  # hidden size
+    H = 32  # hidden size
 
     cfg = LSTMCellConfig(hidden_size=H, num_layers=1, dropout=0.0)
     cell = LSTMCell(cfg).to(device=device, dtype=dtype)
@@ -200,9 +170,78 @@ def test_lstm_state_reset():
     assert torch.allclose(new_h[:2], torch.zeros_like(new_h[:2]))
     assert torch.allclose(new_c[:2], torch.zeros_like(new_c[:2]))
 
-    # Check that last 2 samples are unchanged
+    # Remaining samples should be unchanged
     assert torch.allclose(new_h[2:], state["h"][2:])
     assert torch.allclose(new_c[2:], state["c"][2:])
+
+
+@pytest.mark.skipif(not torch.cuda.is_available() or not TRITON_AVAILABLE, reason="Triton backend unavailable")
+def test_lstm_reset_forward_backward_match_backends():
+    """Ensure Triton reset behaviour matches PyTorch forward/backward on CUDA."""
+
+    torch.manual_seed(1234)
+
+    device = torch.device("cuda")
+    dtype = torch.float32
+    B, T, H = 3, 5, 32
+
+    cfg = LSTMCellConfig(hidden_size=H, num_layers=1, dropout=0.0)
+    cell = LSTMCell(cfg).to(device=device, dtype=dtype)
+    cell.net.reset_parameters()
+    net = cell.net
+
+    state0 = cell.init_state(batch=B, device=device, dtype=dtype)
+    h0 = state0.get("h")
+    c0 = state0.get("c")
+    assert h0 is not None and c0 is not None
+
+    resets = torch.zeros(B, T, dtype=torch.bool, device=device)
+    resets[0, 2] = True
+    resets[1, 0] = True
+
+    x_base = torch.randn(B, T, H, device=device, dtype=dtype)
+
+    # PyTorch reference
+    net.zero_grad(set_to_none=True)
+    x_pt = x_base.clone().detach().requires_grad_(True)
+    y_pt, hn_pt, cn_pt = lstm_sequence_pytorch(lstm=net, x_seq=x_pt, h0_bf=h0.clone(), c0_bf=c0.clone(), resets=resets)
+    loss_pt = y_pt.square().sum() + hn_pt.square().sum() + cn_pt.square().sum()
+    loss_pt.backward()
+    grad_x_pt = x_pt.grad.detach().clone()
+    grad_wih_pt = net.weight_ih_l0.grad.detach().clone()
+    grad_whh_pt = net.weight_hh_l0.grad.detach().clone()
+    grad_bias_pt = (
+        (net.bias_ih_l0.grad + net.bias_hh_l0.grad).detach().clone()
+        if net.bias
+        else torch.zeros_like(grad_wih_pt[:, 0])
+    )
+    net.zero_grad(set_to_none=True)
+
+    # Triton implementation
+    x_tr = x_base.clone().detach().requires_grad_(True)
+    y_tr, hn_tr, cn_tr = lstm_sequence_triton(lstm=net, x_seq=x_tr, h0_bf=h0.clone(), c0_bf=c0.clone(), resets=resets)
+    loss_tr = y_tr.square().sum() + hn_tr.square().sum() + cn_tr.square().sum()
+    loss_tr.backward()
+    grad_x_tr = x_tr.grad.detach().clone()
+    grad_wih_tr = net.weight_ih_l0.grad.detach().clone()
+    grad_whh_tr = net.weight_hh_l0.grad.detach().clone()
+    grad_bias_tr = (
+        (net.bias_ih_l0.grad + net.bias_hh_l0.grad).detach().clone()
+        if net.bias
+        else torch.zeros_like(grad_wih_tr[:, 0])
+    )
+
+    tol_values = {"rtol": 1e-3, "atol": 1e-2}
+    tol_grads = {"rtol": 1e-3, "atol": 1e-1}
+
+    torch.testing.assert_close(y_pt, y_tr, **tol_values)
+    torch.testing.assert_close(hn_pt, hn_tr, **tol_values)
+    torch.testing.assert_close(cn_pt, cn_tr, **tol_values)
+
+    torch.testing.assert_close(grad_x_pt, grad_x_tr, **tol_grads)
+    torch.testing.assert_close(grad_wih_pt, grad_wih_tr, **tol_grads)
+    torch.testing.assert_close(grad_whh_pt, grad_whh_tr, **tol_grads)
+    torch.testing.assert_close(grad_bias_pt, grad_bias_tr, **tol_grads)
 
 
 def test_lstm_with_resets():
@@ -214,7 +253,7 @@ def test_lstm_with_resets():
 
     B = 2  # batch size
     T = 10  # sequence length
-    H = 64  # hidden size
+    H = 32  # hidden size
 
     cfg = LSTMCellConfig(hidden_size=H, num_layers=1, dropout=0.0)
     cell = LSTMCell(cfg).to(device=device, dtype=dtype)
@@ -262,13 +301,14 @@ def test_lstm_gradient_flow():
 
 
 if __name__ == "__main__":
-    # Run tests
+    # Run all tests
     test_lstm_sequence_forward()
     test_lstm_single_step()
     test_lstm_sequential_vs_parallel()
-    test_lstm_multi_layer()
-    test_lstm_with_projection()
+    test_lstm_multi_layer_unsupported()
+    test_lstm_projection_unsupported()
     test_lstm_state_reset()
+    if torch.cuda.is_available() and TRITON_AVAILABLE:
+        test_lstm_reset_forward_backward_match_backends()
     test_lstm_with_resets()
     test_lstm_gradient_flow()
-    print("All LSTM tests passed!")
