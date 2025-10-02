@@ -5,20 +5,24 @@ import logging
 from typing import Literal, Optional
 
 import numpy as np
-import torch
 from rich.console import Console
+from typing_extensions import TYPE_CHECKING
 
 import mettagrid.mettascope as mettascope
+from cogames.utils import initialize_or_load_policy
 from mettagrid import MettaGridConfig, MettaGridEnv
 from mettagrid.util.grid_object_formatter import format_grid_object
-from mettagrid.util.module import load_symbol
+
+if TYPE_CHECKING:
+    from mettagrid import MettaGridConfig
+
 
 logger = logging.getLogger("cogames.play")
 
 
 def play(
     console: Console,
-    env_cfg: MettaGridConfig,
+    env_cfg: "MettaGridConfig",
     policy_class_path: str,
     policy_data_path: Optional[str] = None,
     max_steps: Optional[int] = None,
@@ -42,21 +46,8 @@ def play(
     render_mode = None if render == "gui" else "miniscope" if render == "text" else None
     env = MettaGridEnv(env_cfg=env_cfg, render_mode=render_mode)
 
-    # Load and create policy
-    policy_class = load_symbol(policy_class_path)
-    device = torch.device("cpu")
-
-    # Instantiate the policy
-    policy_instance = policy_class(env, device)
-
-    # Load checkpoint if provided
-    if policy_data_path:
-        policy_instance.load_policy_data(policy_data_path)
-
-    # Create per-agent policies
-    agent_policies = []
-    for agent_id in range(env.num_agents):
-        agent_policies.append(policy_instance.agent_policy(agent_id))
+    policy = initialize_or_load_policy(policy_class_path, policy_data_path, env)
+    agent_policies = [policy.agent_policy(agent_id) for agent_id in range(env.num_agents)]
 
     # For text mode, use the interactive loop in miniscope
     if render == "text" and hasattr(env, "_renderer") and env._renderer:

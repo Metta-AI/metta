@@ -1,12 +1,19 @@
 """Utility functions for CoGames CLI."""
 
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Any, Optional
+
+import torch
+import typer
+from rich.console import Console
 
 from cogames import game as game_module
+from cogames.policy import Policy, TrainablePolicy
+from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.util.module import load_symbol
 
 
-def resolve_game(game_arg: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
+def resolve_game(game_arg: Optional[str]) -> tuple[Optional[str], Optional[str]]:
     """Resolve a game name from user input.
 
     Args:
@@ -41,3 +48,56 @@ def resolve_game(game_arg: Optional[str]) -> Tuple[Optional[str], Optional[str]]
         return None, f"Ambiguous game name '{game_arg}'. Matches: {', '.join(matches)}"
     else:
         return None, f"Game '{game_arg}' not found. Use 'cogames games' to list available games."
+
+
+def get_game_config(console: Console, game_arg: str) -> tuple[str, MettaGridConfig]:
+    """Return a resolved game name and configuration for cli usage."""
+    resolved_game, error = resolve_game(game_arg)
+    if error or resolved_game is None:
+        console.print(f"[red]Error: {error or 'Unknown game'}[/red]")
+        raise typer.Exit(1)
+    return resolved_game, game_module.get_game(resolved_game)
+
+
+def resolve_training_device(console: Console, requested: str) -> torch.device:
+    normalized = requested.strip().lower()
+
+    def cuda_usable() -> bool:
+        cuda_backend = getattr(torch.backends, "cuda", None)
+        if cuda_backend is None or not cuda_backend.is_built():
+            return False
+        if not hasattr(torch._C, "_cuda_getDeviceCount"):
+            return False
+        return torch.cuda.is_available()
+
+    if normalized == "auto":
+        if cuda_usable():
+            return torch.device("cuda")
+        console.print("[yellow]CUDA not available; falling back to CPU for training.[/yellow]")
+        return torch.device("cpu")
+
+    try:
+        candidate = torch.device(requested)
+    except (RuntimeError, ValueError):
+        console.print(f"[yellow]Warning: Unknown device '{requested}'. Falling back to CPU.[/yellow]")
+        return torch.device("cpu")
+
+    if candidate.type == "cuda" and not cuda_usable():
+        console.print("[yellow]CUDA requested but unavailable. Training will run on CPU instead.[/yellow]")
+        return torch.device("cpu")
+
+    return candidate
+
+
+def initialize_or_load_policy(
+    policy_class_path: str, policy_data_path: Optional[str], env: Any, device: "torch.device | None" = None
+) -> Policy:
+    policy_class = load_symbol(policy_class_path)
+    policy = policy_class(env, device or torch.device("cpu"))
+
+    if policy_data_path:
+        if not isinstance(policy, TrainablePolicy):
+            raise TypeError("Policy data provided, but the selected policy does not support loading checkpoints.")
+
+        policy.load_policy_data(policy_data_path)
+    return policy
