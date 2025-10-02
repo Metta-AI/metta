@@ -197,52 +197,44 @@ def assembler() -> AssemblerConfig:
         map_char="&",
         render_symbol="🔄",
         recipes=[
+            # Single agent heart recipes (cardinal directions)
             (["N"], protocols.one_agent_heart_recipe()),
             (["W"], protocols.one_agent_heart_recipe()),
             (["S"], protocols.one_agent_heart_recipe()),
             (["E"], protocols.one_agent_heart_recipe()),
+            # Two agent heart recipes (two cardinal directions)
             (["N", "E"], protocols.two_agent_heart_recipe()),
             (["N", "W"], protocols.two_agent_heart_recipe()),
             (["N", "S"], protocols.two_agent_heart_recipe()),
             (["E", "S"], protocols.two_agent_heart_recipe()),
             (["E", "W"], protocols.two_agent_heart_recipe()),
             (["S", "W"], protocols.two_agent_heart_recipe()),
+            # Three agent heart recipes
             (["N", "E", "W"], protocols.three_agent_heart_recipe()),
             (["N", "E", "S"], protocols.three_agent_heart_recipe()),
             (["N", "W", "S"], protocols.three_agent_heart_recipe()),
             (["E", "W", "S"], protocols.three_agent_heart_recipe()),
+            # Four agent heart recipe
             (["N", "E", "W", "S"], protocols.four_agent_heart_recipe()),
+            # Equipment recipes: NE diagonal + cardinal = decoder
+            (["NE", "N"], protocols.decoder_recipe()),
+            (["NE", "E"], protocols.decoder_recipe()),
+            (["NE", "S"], protocols.decoder_recipe()),
+            (["NE", "W"], protocols.decoder_recipe()),
+            # Equipment recipes: SE diagonal + cardinal = modulator
+            (["SE", "N"], protocols.modulator_recipe()),
+            (["SE", "E"], protocols.modulator_recipe()),
+            (["SE", "S"], protocols.modulator_recipe()),
+            (["SE", "W"], protocols.modulator_recipe()),
+            # Equipment recipes: SW diagonal + cardinal = scrambler
+            (["SW", "N"], protocols.scrambler_recipe()),
+            (["SW", "E"], protocols.scrambler_recipe()),
+            (["SW", "S"], protocols.scrambler_recipe()),
+            (["SW", "W"], protocols.scrambler_recipe()),
+            # Equipment recipes: NW diagonal + cardinal = resonator
+            (["NW", "N"], protocols.resonator_recipe()),
+            (["NW", "E"], protocols.resonator_recipe()),
+            (["NW", "S"], protocols.resonator_recipe()),
+            (["NW", "W"], protocols.resonator_recipe()),
         ],
-        # (
-        #     ["E"],
-        #     RecipeConfig(
-        #         input_resources={"energy": 3},
-        #         output_resources={"heart": 1},
-        #         cooldown=1,
-        #     ),
-        # ),
-        # (
-        #     ["N"],
-        #     RecipeConfig(
-        #         input_resources={"germanium": 1},
-        #         output_resources={"decoder": 1},
-        #         cooldown=1,
-        #     ),
-        # ),
-        # (
-        #     ["S"],
-        #     RecipeConfig(
-        #         input_resources={"carbon": 3},
-        #         output_resources={"modulator": 1},
-        #         cooldown=1,
-        #     ),
-        # ),
-        # (
-        #     ["W"],
-        #     RecipeConfig(
-        #         input_resources={"oxygen": 3},
-        #         output_resources={"scrambler": 1},
-        #         cooldown=1,
-        #     ),
-        # ),
     )
