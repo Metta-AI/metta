@@ -60,6 +60,8 @@ from mettagrid.config.mettagrid_config import RecipeConfig
 # second -> in all the cardinal directions there are holes in the walls so you can go out and forage for resources
 # outside of the base there are assemblers with better recipes than assemblers in the base
 
+
+#integrate facility training environments
 curriculum_args = {
     "multi_agent_singles": {
         "num_cogs": [2, 4, 8, 12, 24],
@@ -352,6 +354,7 @@ evals = {
         "use_terrain": True,
         "sizes": "medium",
     },
+    #ADD DAVIDS ENVS
 }
 
 
@@ -405,7 +408,6 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
                 num_obj_distribution = [5, 8, 10]
             elif room_size == "large":
                 num_obj_distribution = [10, 20, 25]
-
         else:
             num_obj_distribution = self.config.num_obj_distribution
 
@@ -604,8 +606,8 @@ def train(
         policy_architecture=policy_config,
         evaluator=EvaluatorConfig(
             simulations=make_eval_suite(),
-            evaluate_remote=True,
-            evaluate_local=False,
+            evaluate_remote=False,
+            evaluate_local=True,
         ),
         stats_server_uri="https://api.observatory.softmax-research.net",
     )
@@ -666,7 +668,7 @@ def experiment():
                 [
                     "./devops/skypilot/launch.py",
                     "experiments.recipes.cogs_v_clips.level_1.train",
-                    f"run=cogs_v_clips.level_1.eval_remote.{curriculum_style}_{architecture}.{time.strftime('%Y-%m-%d')}",
+                    f"run=cogs_v_clips.level_1.eval_local.{curriculum_style}_{architecture}.{time.strftime('%Y-%m-%d')}",
                     f"curriculum_style={curriculum_style}",
                     f"architecture={architecture}",
                     "--gpus=4",
