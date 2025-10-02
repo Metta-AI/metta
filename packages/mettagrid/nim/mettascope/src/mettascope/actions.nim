@@ -33,7 +33,7 @@ proc getOrientationFromDelta(dx, dy: int): Orientation =
     return N
 
 proc processActions*() =
-  ## Process pathfinding and send actions. Called on step change.
+  ## Process pathfinding and send actions for the current step while in play mode.
   if not (play or requestPython):
     return
   
