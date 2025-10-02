@@ -87,8 +87,8 @@ def silicon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
 def clipped_carbon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
     return AssemblerConfig(
         name="clipped_carbon_extractor",
-        type_id=21,
-        map_char="n",
+        type_id=35,
+        map_char="B",
         render_symbol="⚫",
         max_uses=max_uses or 0,
         start_clipped=True,
@@ -98,9 +98,9 @@ def clipped_carbon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
 
 def clipped_oxygen_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
     return AssemblerConfig(
-        name="clipper_oxygen_extractor",
-        type_id=21,
-        map_char="o",
+        name="clipped_oxygen_extractor",
+        type_id=36,
+        map_char="N",
         render_symbol="🔵",
         max_uses=max_uses or 0,
         start_clipped=True,
@@ -110,11 +110,11 @@ def clipped_oxygen_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
 
 def clipped_germanium_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
     return AssemblerConfig(
-        name="clipper_germanium_extractor",
-        type_id=21,
-        map_char="e",
+        name="clipped_germanium_extractor",
+        type_id=37,
+        map_char="F",
         render_symbol="🟣",
-        max_uses=max_uses or 0,
+        max_uses=max_uses or 2,
         start_clipped=True,
         recipes=protocols.protocol(protocols.germanium_recipe(1), num_agents=1)
         + protocols.protocol(protocols.germanium_recipe(2), num_agents=2)
@@ -125,9 +125,9 @@ def clipped_germanium_extractor(max_uses: Optional[int] = None) -> AssemblerConf
 
 def clipped_silicon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
     return AssemblerConfig(
-        name="clipper_silicon_extractor",
-        type_id=21,
-        map_char="i",
+        name="clipped_silicon_extractor",
+        type_id=38,
+        map_char="R",
         render_symbol="🔷",
         max_uses=max_uses or 0,
         start_clipped=True,
@@ -204,6 +204,7 @@ def chest_carbon() -> ChestConfig:
         map_char="D",
         render_symbol="📦",
         resource_type="carbon",
+        initial_inventory=50,
         position_deltas=[("E", 1), ("W", -1), ("N", 5), ("S", -5)],
     )
 
@@ -215,6 +216,7 @@ def chest_oxygen() -> ChestConfig:
         map_char="P",
         render_symbol="📦",
         resource_type="oxygen",
+        initial_inventory=50,
         position_deltas=[("E", 1), ("W", -1), ("N", 10), ("S", -10)],
     )
 
@@ -226,6 +228,7 @@ def chest_germanium() -> ChestConfig:
         map_char="H",
         render_symbol="📦",
         resource_type="germanium",
+        initial_inventory=5,
         position_deltas=[("E", 1), ("W", -1), ("N", 5), ("S", -5)],
     )
 
@@ -237,6 +240,7 @@ def chest_silicon() -> ChestConfig:
         map_char="T",
         render_symbol="📦",
         resource_type="silicon",
+        initial_inventory=100,
         position_deltas=[("E", 1), ("W", -1), ("N", 25), ("S", -25)],
     )
 
