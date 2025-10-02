@@ -42,11 +42,11 @@ def parse_policy_spec(spec: str) -> PolicySpec:
     """Parse a policy CLI option into its components.
 
     Args:
-        spec: string in the form "policy_class:[proportion][:policy_data]".
+        spec: string in the form "policy_class[:policy_data][:proportion]".
 
     policy_class is a shorthand or full class path to the policy.
+    policy_data is an optional path to a policy data file or directory.
     proportion is an optional non-negative float. If omitted, defaults to 1.
-    policy_data is an optional path to a policy data file or directory containing policy data files.
 
     Returns:
         A list of PolicySpec objects
@@ -58,14 +58,13 @@ def parse_policy_spec(spec: str) -> PolicySpec:
     if not raw:
         raise ValueError("Policy specification cannot be empty.")
 
-    parts = raw.split(":", maxsplit=2)
-    if len(parts) < 2:
-        raise ValueError("Policy specification must include both class path and proportion separated by ':'")
-    elif len(parts) > 3:
+    parts = [part.strip() for part in raw.split(":")]
+    if len(parts) > 3:
         raise ValueError("Policy specification must include at most two ':' separated values.")
 
-    raw_class_path, raw_fraction = parts[0].strip(), parts[1].strip()
-    raw_policy_data = parts[2].strip() if len(parts) == 3 else None
+    raw_class_path = parts[0]
+    raw_policy_data = parts[1] if len(parts) > 1 else None
+    raw_fraction = parts[2] if len(parts) > 2 else None
 
     if not raw_class_path:
         raise ValueError("Policy class path cannot be empty.")
@@ -82,7 +81,7 @@ def parse_policy_spec(spec: str) -> PolicySpec:
             raise ValueError("Policy proportion must be a positive number.")
 
     resolved_class_path = resolve_policy_class_path(raw_class_path)
-    resolved_policy_data = resolve_policy_data_path(raw_policy_data)
+    resolved_policy_data = resolve_policy_data_path(raw_policy_data or None)
 
     return PolicySpec(
         policy_class_path=resolved_class_path,

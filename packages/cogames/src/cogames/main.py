@@ -12,7 +12,6 @@ from packaging.version import Version
 
 from cogames import game
 from cogames.policy.utils import parse_policy_spec, resolve_policy_class_path, resolve_policy_data_path
-from metta.agent.policy import PolicySpec
 
 # Always add current directory to Python path
 sys.path.insert(0, ".")
@@ -23,7 +22,10 @@ from rich.table import Table
 
 logger = logging.getLogger("cogames.main")
 
-app = typer.Typer(help="CoGames - Multi-agent cooperative and competitive games")
+app = typer.Typer(
+    help="CoGames - Multi-agent cooperative and competitive games",
+    context_settings={"help_option_names": ["-h", "--help"]},
+)
 console = Console()
 
 
@@ -221,68 +223,21 @@ def train_cmd(
     console.print(f"[green]Training complete. Checkpoints saved to: {checkpoints_path}[/green]")
 
 
-@app.command(name="evaluate", no_args_is_help=True, help="Evaluate a policy on a game")
+@app.command(
+    name="evaluate",
+    no_args_is_help=True,
+    help="Evaluate one or more policies on a game",
+)
 def evaluate_cmd(
     game_name: str = typer.Argument(
         None,
         help="Name of the game to evaluate",
         callback=lambda ctx, value: game.require_game_argument(ctx, value, console),
     ),
-    policy_class_path: str = typer.Option(
-        "cogames.policy.random.RandomPolicy",
-        "--policy",
-        help="Path to policy class",
-        callback=resolve_policy_class_path,
-    ),
-    policy_data_path: Optional[str] = typer.Option(
-        None,
-        "--policy-data",
-        help="Path to policy weights file or directory",
-        callback=resolve_policy_data_path,
-    ),
-    episodes: int = typer.Option(10, "--episodes", "-e", help="Number of evaluation episodes", min=1),
-    action_timeout_ms: int = typer.Option(
-        250,
-        "--action-timeout-ms",
-        help="Max milliseconds afforded to generate each action before noop is used by default",
-        min=1,
-    ),
-) -> None:
-    from cogames import utils
-
-    resolved_game, env_cfg = utils.get_game_config(console, game_name)
-    console.print(f"[cyan]Evaluating on {resolved_game}[/cyan]")
-    console.print(f"Episodes: {episodes}")
-
-    from cogames import evaluate as evaluate_module
-
-    policy_specs = [
-        PolicySpec(
-            policy_class_path=policy_class_path,
-            proportion=1.0,
-            policy_data_path=policy_data_path,
-        )
-    ]
-    evaluate_module.evaluate(
-        console,
-        resolved_game=resolved_game,
-        env_cfg=env_cfg,
-        policy_specs=policy_specs,
-        action_timeout_ms=action_timeout_ms,
-        episodes=episodes,
-    )
-
-
-@app.command(name="evaluate-many", no_args_is_help=True, help="Evaluate many policies together on a game")
-def evaluate_many_cmd(
-    game_name: str = typer.Argument(
-        None,
-        help="Name of the game to evaluate",
-        callback=lambda ctx, value: game.require_game_argument(ctx, value, console),
-    ),
     policies: list[str] = typer.Argument(  # noqa: B008
+        None,
         help=(
-            "List of policies in the form 'class_path:proportion[:policy_data_path]'. "
+            "List of policies in the form '{policy_class_path}[:policy_data_path][:proportion]'. "
             "Provide multiple options for mixed populations."
         ),
     ),
@@ -295,6 +250,9 @@ def evaluate_many_cmd(
     ),
 ) -> None:
     policy_specs = [parse_policy_spec(spec) for spec in policies]  # noqa: F821
+    if not policy_specs:
+        console.print("[red]Error: No policies provided[/red]")
+        raise typer.Exit(1)
 
     from cogames import utils
 

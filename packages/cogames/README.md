@@ -74,21 +74,37 @@ cogames train machina_1 --steps 50000
 
 ### Evaluating Policies
 
+Run evaluation for one or more policies on a game. Takes a game name and one or more **policy specs**.
+
+**Policy spec format**
+
+```
+{policy_class_path}[:policy_data_path][:proportion]
+```
+
+- **policy_class_path**: required. Either a fully qualified path (`cogames.policy.lstm.LSTMPolicy`) or shorthand
+  (`simple`, `random`).
+- **policy_data_path**: optional. A file or directory. If a directory, the latest checkpoint is used.
+- **proportion**: optional, defaults to 1. Use when evaluating multiple policies to set the relative number of agents
+  using each policy.
+
+**Examples**
+
 ```bash
-# Evaluate a specific trained policy checkpoint
-cogames evaluate machina_1 --policy simple --policy-data ./train_dir/my_policy.pt
+# Evaluate a random policy
+cogames evaluate machina_1 random
 
-# Evaluate the latest policy checkpoint in a directory
-cogames evaluate machina_1 --policy simple --policy-data ./train_dir/
+# Evaluate a trained policy from a checkpoint file
+cogames evaluate machina_1 simple:train_dir/my_policy.pt
 
-# Baseline comparison with random policy
-cogames evaluate machina_1 --policy random
+# Evaluate the latest checkpoint in a directory
+cogames evaluate machina_1 simple:train_dir/
 
+# Compare multiple trained policies
+cogames evaluate machina_1 simple:train_dir/my_policy1.pt simple:train_dir/my_policy2.pt
 
-# Evaluate many policies
-# Accepts a list of policy specs, each in the format
-#   {policy class shorthand or path}:{optional proportion, default 1}:{optional policy data path}
-cogames evaluate-many machina_1 simple:1:./train_dir/my_policy1.pt simple:2:./train_dir/my_policy2.pt random:5
+# Evaluate a trained policy in games in which it directs 1/3 of the agents and the rest take random actions
+cogames evaluate machina_1 simple:train_dir/my_policy.pt:1 random::2
 ```
 
 ### Implementing Custom Policies
