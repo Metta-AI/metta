@@ -112,6 +112,7 @@ proc recomputePath*(agentId: int, currentPos: IVec2) =
     of Move:
       # For moving, path directly to the destination.
       segmentPath = findPath(lastPos, dest.pos)
+      lastPos = dest.pos
     of Bump:
       # For bumping, path to the specified approach position.
       let approachPos = ivec2(dest.pos.x + dest.approachDir.x, dest.pos.y + dest.approachDir.y)
@@ -125,6 +126,7 @@ proc recomputePath*(agentId: int, currentPos: IVec2) =
       else:
         # Path to the approach position.
         segmentPath = findPath(lastPos, approachPos)
+      lastPos = approachPos
     
     if segmentPath.len == 0:
       clearPath(agentId)
@@ -138,8 +140,6 @@ proc recomputePath*(agentId: int, currentPos: IVec2) =
           fullPath.add(segmentPath[j])
       elif segmentPath.len == 1 and segmentPath[0] != fullPath[fullPath.len - 1]:
         fullPath.add(segmentPath[0])
-    
-    lastPos = dest.pos
   
   if fullPath.len > 0:
     agentPaths[agentId] = fullPath
