@@ -15,20 +15,15 @@ import sys
 import tempfile
 import traceback
 import warnings
-from typing import Any
+from types import ModuleType
+from typing import Any, Callable
 
 from pydantic import BaseModel, TypeAdapter
 from rich.console import Console
 from typing_extensions import TypeVar
 
 from metta.common.tool import Tool
-from metta.common.tool.tool_registry import (
-    get_available_tools,
-    get_tool_name_map,
-    get_tool_registry,
-    infer_tool_from_recipe,
-    resolve_tool_path,
-)
+from metta.common.tool.tool_registry import get_tool_registry
 from metta.common.util.log_config import init_logging
 from metta.common.util.text_styles import bold, cyan, green, red, yellow
 from metta.rl.system_config import seed_everything
@@ -391,6 +386,98 @@ def list_tool_arguments(tool_maker: Any, console: Console) -> None:
 
 
 # --------------------------------------------------------------------------------------
+# Tool Resolution
+# --------------------------------------------------------------------------------------
+
+
+def _get_available_tools(module: ModuleType) -> list[tuple[str, Callable[[], object]]]:
+    """Get explicit tool-returning functions defined in a module.
+
+    Uses type hints to identify functions that return Tool instances.
+    """
+    from typing import get_type_hints
+
+    tools: list[tuple[str, Callable[[], object]]] = []
+
+    for name in dir(module):
+        # Skip private/special attributes
+        if name.startswith("_"):
+            continue
+
+        attr = getattr(module, name)
+
+        # Must be callable and not a class
+        if not callable(attr) or isinstance(attr, type):
+            continue
+
+        # Check return type hint
+        try:
+            hints = get_type_hints(attr)
+            return_type = hints.get("return")
+
+            # Check if return type is a Tool subclass
+            if return_type and isinstance(return_type, type) and issubclass(return_type, Tool):
+                tools.append((name, attr))
+        except Exception:
+            # No type hints or invalid hints - skip
+            pass
+
+    return tools
+
+
+def resolve_and_load_tool(
+    tool_path: str, two_part_second: str | None
+) -> tuple[str | None, Any, list[tuple[str, Exception]]]:
+    """Resolve tool path and attempt to load the tool maker.
+
+    Returns (resolved_path, tool_maker, load_errors)
+    """
+    registry = get_tool_registry()
+    resolved_path, tool_maker = registry.resolve_and_load_tool(tool_path, two_part_second)
+
+    # For error reporting, we need to track what was tried
+    # This is a simplified version - the registry doesn't expose load_errors
+    # but we can reconstruct them if needed
+    load_errors: list[tuple[str, Exception]] = []
+
+    return resolved_path, tool_maker, load_errors
+
+
+def list_module_tools(module_path: str, console: Console) -> bool:
+    """List all tools available in a module. Returns True if successful."""
+    registry = get_tool_registry()
+
+    # Try with and without experiments.recipes prefix
+    module_candidates = [module_path]
+    if not module_path.startswith("experiments.recipes."):
+        module_candidates.append(f"experiments.recipes.{module_path}")
+
+    for mod_name in module_candidates:
+        try:
+            mod = importlib.import_module(mod_name)
+        except Exception:
+            continue
+
+        # Collect explicit tools
+        explicit_tools = dict(_get_available_tools(mod))
+        tool_names = set(explicit_tools.keys())
+
+        # Add all tools that can be inferred from this module
+        for canonical_name in registry.get_all_tools().keys():
+            if canonical_name not in tool_names and registry.infer_tool_from_recipe(mod.__name__, canonical_name):
+                tool_names.add(canonical_name)
+
+        # Display results
+        console.print(f"\n[bold]Available tools in {mod_name}:[/bold]\n")
+        short_mod = mod_name.replace("experiments.recipes.", "")
+        for name in sorted(tool_names):
+            console.print(f"  {short_mod}.{name}")
+        return True
+
+    return False
+
+
+# --------------------------------------------------------------------------------------
 # Main
 # --------------------------------------------------------------------------------------
 
@@ -491,80 +578,16 @@ constructor/function vs configuration overrides based on introspection.
     # Exit on ctrl+c with proper exit code
     signal.signal(signal.SIGINT, lambda sig, frame: sys.exit(130))  # 130 = interrupted by Ctrl-C
 
-    # Check if this is a bare tool name (e.g., 'train', 'evaluate', 'sweep')
-    tool_path = known_args.tool_path  # The first positional arg (e.g., 'train' or 'arena.train')
+    tool_path = known_args.tool_path
 
-    # Determine the tool path and adjust remaining args accordingly
-    candidate_paths = resolve_tool_path(
-        known_args.tool_path,
-        two_part_second,
-    )
-    resolved_path: str | None = None
-    tool_maker = None
-    load_errors: list[tuple[str, Exception]] = []
-
-    if not candidate_paths:
-        output_error(f"{red('Error:')} Missing tool path. See -h for usage.")
-        return 2
-
-    # If listing is requested for a module path
+    # Handle --list early
     if known_args.list:
-        # If it looks like a module path, try to list its tools
-        module_candidates: list[str] = [tool_path]
-        if not tool_path.startswith("experiments.recipes."):
-            module_candidates.append(f"experiments.recipes.{tool_path}")
-
-        # Try to import the first valid module and list its tools
-        for mod_name in module_candidates:
-            try:
-                mod = importlib.import_module(mod_name)
-            except Exception:
-                continue
-            # Start with explicit tools
-            tools = dict(get_available_tools(mod))
-            names = set(tools.keys())
-            # Add inferred tools (canonical) when supported and inferable
-            for canonical in set(get_tool_name_map().values()):
-                try:
-                    if canonical not in names and infer_tool_from_recipe(mod.__name__, canonical):
-                        names.add(canonical)
-                except Exception:
-                    # Ignore inference errors during listing
-                    pass
-
-            console.print(f"\n[bold]Available tools in {mod_name}:[/bold]\n")
-            for name in sorted(names):
-                # Show short form
-                short_mod = mod_name.replace("experiments.recipes.", "")
-                console.print(f"  {short_mod}.{name}")
+        if list_module_tools(tool_path, console):
             return 0
-        # If module import failed, fall back to full resolution flow below
+        # If listing failed, continue to show error below
 
-    # Try to load the symbol using the candidates in order (already alias-expanded)
-    for cand in candidate_paths:
-        try:
-            tool_maker = load_symbol(cand)
-            resolved_path = cand
-            break
-        except Exception as e:
-            load_errors.append((cand, e))
-
-    # If not found, attempt to infer a tool factory from a recipe module's mettagrid
-    if tool_maker is None:
-        for cand in candidate_paths:
-            if "." not in cand:
-                continue
-            module_name, verb = cand.rsplit(".", 1)
-            try:
-                mod = importlib.import_module(module_name)
-            except Exception as e:
-                load_errors.append((cand, e))
-                continue
-            factory = infer_tool_from_recipe(module_name, verb)
-            if factory is not None:
-                tool_maker = factory
-                resolved_path = cand
-                break
+    # Resolve and load the tool
+    resolved_path, tool_maker, load_errors = resolve_and_load_tool(tool_path, two_part_second)
 
     # If we selected a two-part mapping, consume that second token from args; otherwise keep args untouched
     if resolved_path is not None and two_part_second is not None:
@@ -589,41 +612,25 @@ constructor/function vs configuration overrides based on introspection.
     nested_cli = nestify(cli_args)
 
     if resolved_path is None or tool_maker is None:
-        output_error(f"{red('Error:')} Could not find tool '{known_args.tool_path}'")
+        output_error(f"{red('Error:')} Could not find tool '{tool_path}'")
 
-        # Check if it's a recipe that might need inference and suggest verbs
-        for cand in candidate_paths:
-            if "." in cand:
-                module_name, verb = cand.rsplit(".", 1)
-                try:
-                    mod = importlib.import_module(module_name)
-                except Exception:
-                    continue
+        # Try to provide helpful hints
+        registry = get_tool_registry()
+
+        # Check if this looks like a recipe module that might support inference
+        if "." in tool_path:
+            module_part = tool_path.rsplit(".", 1)[0]
+            # Try adding experiments.recipes prefix if not present
+            if not module_part.startswith("experiments.recipes."):
+                module_part = f"experiments.recipes.{module_part}"
+
+            try:
+                mod = importlib.import_module(module_part)
                 if hasattr(mod, "mettagrid") or hasattr(mod, "simulations"):
-                    output_info(f"\n{yellow('Hint:')} Recipe '{module_name}' exists but doesn't define '{verb}'.")
-                    # Build the available tools list from tool registry
-                    registry = get_tool_registry()
-                    alias_map = registry.get_tool_aliases()
-                    tools_with_aliases = []
-                    for canonical, alias_list in sorted(alias_map.items()):
-                        if alias_list:
-                            alias_str = "/".join([canonical] + alias_list)
-                            tools_with_aliases.append(f"{alias_str}")
-                        else:
-                            tools_with_aliases.append(canonical)
-                    output_info(f"Available inferred tools: {', '.join(tools_with_aliases)}")
-                    break
-
-        # Show what was tried (deduplicate by target to avoid showing same path twice)
-        if load_errors:
-            output_info(f"\n{yellow('Searched in:')}")
-            seen_targets = set()
-            display_count = 0
-            for target, err in load_errors:
-                if target not in seen_targets:
-                    seen_targets.add(target)
-                    display_count += 1
-                    output_info(f"  {display_count}. {target}: {str(err)[:80]}...")
+                    output_info(f"\n{yellow('Hint:')} Recipe module exists but tool not found.")
+                    output_info(f"Available inferred tools: {', '.join(registry.get_tool_display_names())}")
+            except Exception:
+                pass
 
         return 1
 
@@ -632,20 +639,6 @@ constructor/function vs configuration overrides based on introspection.
     # If help flag is set, list arguments and exit
     if known_args.help:
         list_tool_arguments(tool_maker, console)
-        return 0
-
-    # List tools for the resolved recipe module
-    if known_args.list and resolved_path:
-        module_name = resolved_path.rsplit(".", 1)[0]
-        try:
-            mod = importlib.import_module(module_name)
-            tools = get_available_tools(mod)
-            console.print(f"\n[bold]Tools defined by recipe module {module_name}:[/bold]\n")
-            for name, _ in tools:
-                console.print(f"  {module_name}.{name}")
-        except Exception as e:
-            output_exception(f"{red('Error listing tools for')} {module_name}: {e}")
-            return 1
         return 0
 
     # ----------------------------------------------------------------------------------
