@@ -1,5 +1,6 @@
-import math
-from typing import Literal
+from __future__ import annotations
+
+from typing import Any, Literal
 
 import torch
 import torch.nn as nn
@@ -9,6 +10,7 @@ from tensordict import TensorDict
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.components.component_config import ComponentConfig
+from metta.agent.components.transformer_utils import sinusoidal_position_encoding
 
 
 class TransformerBlock(nn.Module):
@@ -66,18 +68,46 @@ class TransformerBlock(nn.Module):
 
 
 class SlidingTransformerConfig(ComponentConfig):
-    in_key: str
-    out_key: str
+    """Hyperparameters for the sliding-window transformer backbone."""
+
     name: str = "sliding_transformer"
-    output_dim: int = 16
-    input_dim: int = 64
-    num_heads: int = 1
-    ff_mult: int = 4
+    in_key: str = "encoded_obs"
+    out_key: str = "core"
+
+    hidden_size: int = 16
+    latent_size: int | None = None
     num_layers: int = 2
+    n_heads: int = 1
+    d_ff: int = 64
     max_cache_size: int = 80
     pool: Literal["cls", "mean", "none"] = "mean"
+    memory_len: int = 0
 
-    def make_component(self, env=None):
+    def model_post_init(self, __context: Any) -> None:  # type: ignore[override]
+        if self.latent_size is None:
+            object.__setattr__(self, "latent_size", self.hidden_size)
+        if self.hidden_size % self.n_heads != 0:
+            raise ValueError("hidden_size must be divisible by n_heads")
+
+    def _ff_mult(self) -> int:
+        return max(1, self.d_ff // self.hidden_size)
+
+    def build(self) -> "SlidingTransformer":
+        """Construct the sliding transformer backbone module."""
+
+        return SlidingTransformer(config=self, env=None)
+
+    def policy_defaults(self) -> dict[str, object]:
+        """Return default policy-level overrides for this variant."""
+
+        return {
+            "manual_init": False,
+            "strict_attr_indices": False,
+            "learning_rate_hint": 7.5e-4,
+        }
+
+    # ComponentConfig API -------------------------------------------------
+    def make_component(self, env=None):  # type: ignore[override]
         return SlidingTransformer(config=self, env=env)
 
 
@@ -91,33 +121,38 @@ class SlidingTransformer(nn.Module):
         self.in_key = self.config.in_key
         self.out_key = self.config.out_key
 
-        self.output_dim = self.config.output_dim
+        self.hidden_size = self.config.hidden_size
         self.num_layers = self.config.num_layers
+        self.num_heads = self.config.n_heads
 
-        input_dim = self.config.input_dim
-        if input_dim == self.output_dim:
+        if self.config.latent_size is None:
+            input_dim = self.hidden_size
+        else:
+            input_dim = self.config.latent_size
+
+        if input_dim == self.hidden_size:
             self.input_proj = nn.Identity()
         else:
-            self.input_proj = nn.Linear(input_dim, self.output_dim)
+            self.input_proj = nn.Linear(input_dim, self.hidden_size)
 
         # Transformer blocks
         self.blocks = nn.ModuleList(
             [
                 TransformerBlock(
-                    output_dim=self.output_dim,
-                    num_heads=self.config.num_heads,
-                    ff_mult=self.config.ff_mult,
+                    output_dim=self.hidden_size,
+                    num_heads=self.num_heads,
+                    ff_mult=self.config._ff_mult(),
                 )
                 for _ in range(self.num_layers)
             ]
         )
 
-        self.last_action_proj = nn.Linear(2, self.output_dim)
-        self.reward_proj = nn.Linear(1, self.output_dim)
-        self.dones_truncateds_proj = nn.Linear(1, self.output_dim)
+        self.last_action_proj = nn.Linear(2, self.hidden_size)
+        self.reward_proj = nn.Linear(1, self.hidden_size)
+        self.dones_truncateds_proj = nn.Linear(1, self.hidden_size)
 
-        self.cls_token = nn.Parameter(torch.randn(1, 1, self.output_dim))
-        self.final_norm = nn.LayerNorm(self.output_dim)
+        self.cls_token = nn.Parameter(torch.randn(1, 1, self.hidden_size))
+        self.final_norm = nn.LayerNorm(self.hidden_size)
 
         # State buffers (KV cache per layer)
         self.register_buffer(
@@ -125,9 +160,9 @@ class SlidingTransformer(nn.Module):
             torch.empty(
                 0,
                 self.num_layers,
-                self.config.num_heads,
+                self.num_heads,
                 self.max_cache_size,
-                self.config.output_dim // self.config.num_heads,
+                self.hidden_size // self.num_heads,
             ),
         )
         self.register_buffer(
@@ -135,9 +170,9 @@ class SlidingTransformer(nn.Module):
             torch.empty(
                 0,
                 self.num_layers,
-                self.config.num_heads,
+                self.num_heads,
                 self.max_cache_size,
-                self.config.output_dim // self.config.num_heads,
+                self.hidden_size // self.num_heads,
             ),
         )
         self.register_buffer(
@@ -145,9 +180,9 @@ class SlidingTransformer(nn.Module):
             torch.empty(
                 0,
                 self.num_layers,
-                self.config.num_heads,
+                self.num_heads,
                 self.max_cache_size,
-                self.config.output_dim // self.config.num_heads,
+                self.hidden_size // self.num_heads,
             ),
         )
         self.register_buffer(
@@ -155,23 +190,14 @@ class SlidingTransformer(nn.Module):
             torch.empty(
                 0,
                 self.num_layers,
-                self.config.num_heads,
+                self.num_heads,
                 self.max_cache_size,
-                self.config.output_dim // self.config.num_heads,
+                self.hidden_size // self.num_heads,
             ),
         )
         self.register_buffer("position_counter", torch.zeros(0, dtype=torch.long))
 
         # av need to handle switching between rollout/train and eval
-
-    def _get_positional_encoding(self, positions: torch.Tensor, d_model: int) -> torch.Tensor:
-        """Generates sinusoidal positional encodings."""
-        device = positions.device
-        div_term = torch.exp(torch.arange(0, d_model, 2, device=device) * -(math.log(10000.0) / d_model))
-        pe = torch.zeros(*positions.shape, d_model, device=device)
-        pe[..., 0::2] = torch.sin(positions.unsqueeze(-1) * div_term)
-        pe[..., 1::2] = torch.cos(positions.unsqueeze(-1) * div_term)
-        return pe
 
     def forward(self, td: TensorDict):
         B = td.batch_size.numel()
@@ -212,8 +238,8 @@ class SlidingTransformer(nn.Module):
         # Project inputs to tokens
         reward_token = self.reward_proj(reward)
         reset_token = self.dones_truncateds_proj(resets)
-        reward_reset_token = (reward_token + reset_token).view(B, TT, 1, self.output_dim)
-        action_token = self.last_action_proj(last_actions.float()).view(B, TT, 1, self.output_dim)
+        reward_reset_token = (reward_token + reset_token).view(B, TT, 1, self.hidden_size)
+        action_token = self.last_action_proj(last_actions.float()).view(B, TT, 1, self.hidden_size)
 
         # Combine all tokens for each timestep
         cls_token = self.cls_token.expand(B, TT, -1, -1)
@@ -238,7 +264,7 @@ class SlidingTransformer(nn.Module):
                 self.position_counter = torch.cat([self.position_counter, pos_filler])
 
             current_pos = self.position_counter[training_env_ids]
-            pos_enc = self._get_positional_encoding(current_pos, self.output_dim)
+            pos_enc = sinusoidal_position_encoding(current_pos, self.hidden_size)
             x = x + pos_enc.unsqueeze(1)  # Add to all S tokens for this timestep
 
             # 2. Process through transformer layers
@@ -292,7 +318,7 @@ class SlidingTransformer(nn.Module):
             # The cache is from the step before this sequence started
             start_pos = td["transformer_position"].view(B, TT)[:, 0]
             positions = start_pos.unsqueeze(1) + torch.arange(TT, device=x.device)
-            pos_enc = self._get_positional_encoding(positions, self.output_dim)
+            pos_enc = sinusoidal_position_encoding(positions, self.hidden_size)
             pos_enc = pos_enc.unsqueeze(2).expand(-1, -1, S, -1)
             pos_enc = rearrange(pos_enc, "b tt s d -> b (tt s) d")
             x = x + pos_enc
