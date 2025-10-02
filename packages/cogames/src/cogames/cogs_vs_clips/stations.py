@@ -84,6 +84,57 @@ def silicon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
     )
 
 
+def clipped_carbon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
+    return AssemblerConfig(
+        name="clipped_carbon_extractor",
+        type_id=21,
+        map_char="n",
+        render_symbol="⚫",
+        max_uses=max_uses or 0,
+        start_clipped=True,
+        recipes=protocols.protocol(protocols.standard_carbon_recipe()),
+    )
+
+
+def clipped_oxygen_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
+    return AssemblerConfig(
+        name="clipper_oxygen_extractor",
+        type_id=21,
+        map_char="o",
+        render_symbol="🔵",
+        max_uses=max_uses or 0,
+        start_clipped=True,
+        recipes=protocols.protocol(protocols.standard_carbon_recipe()),
+    )
+
+
+def clipped_germanium_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
+    return AssemblerConfig(
+        name="clipper_germanium_extractor",
+        type_id=21,
+        map_char="e",
+        render_symbol="🟣",
+        max_uses=max_uses or 0,
+        start_clipped=True,
+        recipes=protocols.protocol(protocols.germanium_recipe(1), num_agents=1)
+        + protocols.protocol(protocols.germanium_recipe(2), num_agents=2)
+        + protocols.protocol(protocols.germanium_recipe(3), num_agents=3)
+        + protocols.protocol(protocols.germanium_recipe(4), min_agents=4),
+    )
+
+
+def clipped_silicon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
+    return AssemblerConfig(
+        name="clipper_silicon_extractor",
+        type_id=21,
+        map_char="i",
+        render_symbol="🔷",
+        max_uses=max_uses or 0,
+        start_clipped=True,
+        recipes=protocols.protocol(protocols.standard_silicon_recipe()),
+    )
+
+
 def carbon_ex_dep() -> AssemblerConfig:
     return AssemblerConfig(
         name="carbon_ex_dep",
