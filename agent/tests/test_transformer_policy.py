@@ -6,9 +6,10 @@ import torch
 from tensordict import TensorDict
 
 from metta.agent.policies import gtrxl as backbone_gtrxl
+from metta.agent.policies import sliding_transformer as backbone_sliding
 from metta.agent.policies import trxl as backbone_trxl
 from metta.agent.policies import trxl_nvidia as backbone_trxl_nvidia
-from metta.agent.policies.transformer import TransformerPolicy
+from metta.agent.policies.transformer import TransformerPolicy, TransformerPolicyConfig
 from metta.rl.training.training_environment import EnvironmentMetaData
 from metta.rl.utils import ensure_sequence_metadata
 
@@ -48,11 +49,10 @@ def _build_token_observations(batch_size: int, num_tokens: int) -> TensorDict:
         (backbone_gtrxl.gtrxl_policy_config, backbone_gtrxl.GTrXLConfig),
         (backbone_trxl.trxl_policy_config, backbone_trxl.TRXLConfig),
         (backbone_trxl_nvidia.trxl_nvidia_policy_config, backbone_trxl_nvidia.TRXLNvidiaConfig),
-        # TODO(metta#sliding-transformer): re-enable once SlidingTransformer implements TransformerPolicy interface.
-        # (
-        #     lambda: TransformerPolicyConfig(transformer=backbone_sliding.SlidingTransformerConfig()),
-        #     backbone_sliding.SlidingTransformerConfig,
-        # ),
+        (
+            lambda: TransformerPolicyConfig(transformer=backbone_sliding.SlidingTransformerConfig()),
+            backbone_sliding.SlidingTransformerConfig,
+        ),
     ],
 )
 def test_transformer_config_creates_policy(config_factory, expected_backbone):

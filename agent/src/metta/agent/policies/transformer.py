@@ -517,6 +517,9 @@ class TransformerPolicy(Policy):
         if total_batch != batch_size * tt:
             raise ValueError("encoded_obs batch dimension must be divisible by bptt")
 
+        if self._uses_sliding_backbone:
+            return self._forward_sliding_transformer(td, latent, batch_size, tt)
+
         latent_seq = latent.view(batch_size, tt, self.hidden_size).transpose(0, 1)
 
         use_memory = self._memory_enabled
@@ -615,6 +618,33 @@ class TransformerPolicy(Policy):
                 if self._diag_enabled and self._diag_counter < self._diag_limit:
                     logger.info("[TRANSFORMER_DIAG] cleared cached memory for envs %s (tt=%s)", env_ids, tt)
 
+        return core_flat
+
+    def _forward_sliding_transformer(
+        self,
+        td: TensorDict,
+        latent: torch.Tensor,
+        batch_size: int,
+        tt: int,
+    ) -> torch.Tensor:
+        in_key = getattr(self.transformer_cfg, "in_key", "encoded_obs")
+        out_key = getattr(self.transformer_cfg, "out_key", "core")
+
+        reshaped_latent = latent.view(batch_size * tt, -1)
+        td.set(in_key, reshaped_latent)
+
+        # Sliding transformer expects metadata such as bptt to already be present.
+        sliding_td = self.transformer_module(td)
+        core_output = sliding_td.get(out_key)
+
+        if core_output.dim() == 1:
+            core_output = core_output.unsqueeze(0)
+        if core_output.shape[0] == batch_size:
+            core_flat = core_output.reshape(batch_size * tt, -1)
+        else:
+            core_flat = core_output.view(batch_size * tt, -1)
+
+        td.set(out_key, core_flat)
         return core_flat
 
     def _prepare_observations(self, td: TensorDict) -> Tuple[TensorDict, torch.Tensor, int, int, Optional[torch.Size]]:
