@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Dict
 
 from metta.agent.components.transformer_nvidia_module import NvidiaTransformerModule
 

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Dict, Type
-
 from .gtrxl import GTrXLConfig
 from .sliding import SlidingTransformerBackboneConfig
 from .trxl import TRXLConfig
@@ -11,7 +9,7 @@ from .trxl_nvidia import TRXLNvidiaConfig
 
 TransformerBackboneConfigType = GTrXLConfig | TRXLConfig | TRXLNvidiaConfig | SlidingTransformerBackboneConfig
 
-BACKBONE_CONFIGS: Dict[str, Type] = {
+BACKBONE_CONFIGS: dict[str, type[TransformerBackboneConfigType]] = {
     "gtrxl": GTrXLConfig,
     "trxl": TRXLConfig,
     "trxl_nvidia": TRXLNvidiaConfig,

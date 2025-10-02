@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict
 
 from metta.agent.components.transformer_module import GTrXLModule
 
@@ -52,7 +51,7 @@ class GTrXLConfig:
             allow_tf32=self.allow_tf32,
         )
 
-    def policy_defaults(self) -> Dict[str, Any]:
+    def policy_defaults(self) -> dict[str, object]:
         """Return default policy-level overrides for this variant."""
 
         return {

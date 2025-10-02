@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Literal
+from typing import Dict, Literal
 
 from metta.agent.components.sliding_transformer import SlidingTransformer, SlidingTransformerConfig
 

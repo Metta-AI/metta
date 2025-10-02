@@ -823,7 +823,7 @@ class TransformerPolicy(Policy):
         return Composite(**spec)
 
 
-class GTrXLPolicyConfig(TransformerPolicyConfig):
+class GTrXLConfig(TransformerPolicyConfig):
     """Canonical configuration for the GTrXL transformer policy variant."""
 
     variant: str = "gtrxl"
@@ -832,10 +832,10 @@ class GTrXLPolicyConfig(TransformerPolicyConfig):
 def gtrxl_policy_config() -> TransformerPolicyConfig:
     """Return a policy config for the GTrXL variant (legacy helper)."""
 
-    return GTrXLPolicyConfig()
+    return GTrXLConfig()
 
 
-class TRXLPolicyConfig(TransformerPolicyConfig):
+class TRXLConfig(TransformerPolicyConfig):
     """Canonical configuration for the standard Transformer-XL policy variant."""
 
     variant: str = "trxl"
@@ -844,10 +844,10 @@ class TRXLPolicyConfig(TransformerPolicyConfig):
 def trxl_policy_config() -> TransformerPolicyConfig:
     """Return a policy config for the vanilla Transformer-XL variant."""
 
-    return TRXLPolicyConfig()
+    return TRXLConfig()
 
 
-class TRXLNvidiaPolicyConfig(TransformerPolicyConfig):
+class TRXLNvidiaConfig(TransformerPolicyConfig):
     """Canonical configuration for the NVIDIA-optimized Transformer-XL variant."""
 
     variant: str = "trxl_nvidia"
@@ -856,15 +856,15 @@ class TRXLNvidiaPolicyConfig(TransformerPolicyConfig):
 def trxl_nvidia_policy_config() -> TransformerPolicyConfig:
     """Return a policy config for the NVIDIA Transformer-XL variant."""
 
-    return TRXLNvidiaPolicyConfig()
+    return TRXLNvidiaConfig()
 
 
 __all__ = [
     "TransformerPolicyConfig",
     "TransformerPolicy",
-    "GTrXLPolicyConfig",
-    "TRXLPolicyConfig",
-    "TRXLNvidiaPolicyConfig",
+    "GTrXLConfig",
+    "TRXLConfig",
+    "TRXLNvidiaConfig",
     "gtrxl_policy_config",
     "trxl_policy_config",
     "trxl_nvidia_policy_config",
