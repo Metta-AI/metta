@@ -7,7 +7,6 @@ from typing import Optional
 import torch
 from pydantic import Field, model_validator
 
-from metta.agent.components.transformers import get_backbone_spec
 from metta.agent.policies.transformer import TransformerPolicyConfig
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
@@ -90,8 +89,7 @@ class TrainTool(Tool):
                 )
 
         if isinstance(self.policy_architecture, TransformerPolicyConfig):
-            spec = get_backbone_spec(self.policy_architecture.variant)
-            hint = spec.policy_defaults.get("learning_rate_hint")
+            hint = self.policy_architecture.learning_rate_hint
             if (
                 hint is not None
                 and self.trainer.optimizer.learning_rate
