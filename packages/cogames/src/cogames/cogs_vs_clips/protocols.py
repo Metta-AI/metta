@@ -111,13 +111,9 @@ def low_silicon_recipe() -> RecipeConfig:
 
 
 # Germanium is rare and exhausts / regenerates slowly.
-def standard_germanium_recipe() -> RecipeConfig:
+# Outputs are always low, and the different between high and low is the number of uses.
+def germanium_recipe(num_agents: int) -> RecipeConfig:
+    amount = 1 + 1 * (min(num_agents, 4))
     return RecipeConfig(
-        output_resources={"germanium": 1},
-    )
-
-
-def one_agent_low_germanium_recipe() -> RecipeConfig:
-    return RecipeConfig(
-        output_resources={"germanium": 1},
+        output_resources={"germanium": amount},
     )

@@ -62,8 +62,13 @@ def germanium_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         type_id=4,
         map_char="E",
         render_symbol="🟣",
-        max_uses=max_uses or 0,
-        recipes=protocols.protocol(protocols.standard_germanium_recipe()),
+        max_uses=max_uses or 2,
+        recipes=(
+            protocols.protocol(protocols.germanium_recipe(1), num_agents=1)
+            + protocols.protocol(protocols.germanium_recipe(2), num_agents=2)
+            + protocols.protocol(protocols.germanium_recipe(3), num_agents=3)
+            + protocols.protocol(protocols.germanium_recipe(4), min_agents=4)
+        ),
     )
 
 
@@ -108,8 +113,13 @@ def germanium_ex_dep() -> AssemblerConfig:
         type_id=20,
         map_char="Y",
         render_symbol="🟪",
-        max_uses=10,
-        recipes=protocols.protocol(protocols.low_germanium_recipe()),
+        max_uses=1,
+        recipes=(
+            protocols.protocol(protocols.germanium_recipe(1), num_agents=1)
+            + protocols.protocol(protocols.germanium_recipe(2), num_agents=2)
+            + protocols.protocol(protocols.germanium_recipe(3), num_agents=3)
+            + protocols.protocol(protocols.germanium_recipe(4), min_agents=4)
+        ),
     )
 
 
@@ -190,12 +200,23 @@ def assembler() -> AssemblerConfig:
         type_id=8,
         map_char="Z",
         render_symbol="🔄",
-        recipes=(
-            protocols.protocol(protocols.one_agent_heart_recipe(), num_agents=1)
-            + protocols.protocol(protocols.two_agent_heart_recipe(), num_agents=2)
-            + protocols.protocol(protocols.three_agent_heart_recipe(), num_agents=3)
-            + protocols.protocol(protocols.four_agent_heart_recipe(), num_agents=4)
-        ),
+        recipes=[
+            (["N"], protocols.one_agent_heart_recipe()),
+            (["W"], protocols.one_agent_heart_recipe()),
+            (["S"], protocols.one_agent_heart_recipe()),
+            (["W"], protocols.one_agent_heart_recipe()),
+            (["N", "E"], protocols.two_agent_heart_recipe()),
+            (["N", "W"], protocols.two_agent_heart_recipe()),
+            (["N", "S"], protocols.two_agent_heart_recipe()),
+            (["E", "S"], protocols.two_agent_heart_recipe()),
+            (["E", "W"], protocols.two_agent_heart_recipe()),
+            (["S", "W"], protocols.two_agent_heart_recipe()),
+            (["N", "E", "W"], protocols.three_agent_heart_recipe()),
+            (["N", "E", "S"], protocols.three_agent_heart_recipe()),
+            (["N", "W", "S"], protocols.three_agent_heart_recipe()),
+            (["E", "W", "S"], protocols.three_agent_heart_recipe()),
+            (["N", "E", "W", "S"], protocols.four_agent_heart_recipe()),
+        ],
         # (
         #     ["E"],
         #     RecipeConfig(
