@@ -1,15 +1,19 @@
 """CLI for CoGames - collection of environments for multi-agent cooperative and competitive games."""
 
+import importlib.metadata
 import logging
 import sys
 from pathlib import Path
 from typing import Literal, Optional
+
+from packaging.version import Version
 
 # Always add current directory to Python path
 sys.path.insert(0, ".")
 
 import typer
 from rich.console import Console
+from rich.table import Table
 
 logger = logging.getLogger("cogames.main")
 
@@ -299,14 +303,8 @@ def evaluate(
 
 @app.command(name="version", help="Show version information")
 def version_cmd() -> None:
-    import importlib.metadata
-
-    from packaging.version import Version
-
     def public_version(dist_name: str) -> str:
         return str(Version(importlib.metadata.version(dist_name)).public)
-
-    from rich.table import Table
 
     table = Table(show_header=False, box=None, show_lines=False, pad_edge=False)
     table.add_column("", justify="right", style="bold cyan")
