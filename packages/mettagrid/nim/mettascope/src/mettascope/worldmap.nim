@@ -394,19 +394,17 @@ proc drawPlannedPath*() =
           tint = color(1, 1, 1, alpha)
         )
     
-    # Draw all queued destinations.
+    # Draw final queued destination.
     if agentDestinations.hasKey(agentId):
       let destinations = agentDestinations[agentId]
-      for i, dest in destinations:
-        let isLastDestination = i == destinations.len - 1
-        let alpha = if isLastDestination: 0.5 else: 0.3
-        let scale = if isLastDestination: 1.0 / 200.0 else: 0.8 / 200.0
+      if destinations.len > 0:
+        let dest = destinations[^1]
         bxy.drawImage(
           "selection",
           dest.pos.vec2,
           angle = 0,
-          scale = scale,
-          tint = color(1, 1, 1, alpha)
+          scale = 1.0 / 200.0,
+          tint = color(1, 1, 1, 0.5)
         )
 
 proc drawSelection*() =
