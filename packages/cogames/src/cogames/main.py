@@ -12,6 +12,7 @@ from packaging.version import Version
 
 from cogames import game, utils
 from cogames.policy.utils import parse_policy_spec, resolve_policy_class_path, resolve_policy_data_path
+from mettagrid import MettaGridConfig
 
 # Always add current directory to Python path
 sys.path.insert(0, ".")
@@ -192,9 +193,23 @@ def train_cmd(
         help="Write per-update action logit statistics to this JSONL file",
     ),
 ) -> None:
+    from cogames import curricula
     from cogames import train as train_module
 
-    resolved_game, env_cfg = utils.get_game_config(console, game_name)
+    rotation_aliases = {"training_rotation", "training_facility_rotation", "training_cycle"}
+
+    env_cfg: Optional[MettaGridConfig]
+    curriculum_callable = None
+    representative_game: Optional[str]
+
+    if game_name in rotation_aliases:
+        curriculum_callable = curricula.training_rotation()
+        env_cfg = None
+        representative_game = "training_rotation"
+    else:
+        resolved_game, env_cfg = utils.get_game_config(console, game_name)
+        representative_game = resolved_game
+
     torch_device = utils.resolve_training_device(console, device)
 
     try:
@@ -208,8 +223,9 @@ def train_cmd(
             seed=seed,
             batch_size=batch_size,
             minibatch_size=minibatch_size,
-            game_name=resolved_game,
+            game_name=representative_game,
             logits_debug_path=logits_debug_path,
+            env_cfg_supplier=curriculum_callable,
         )
     except ValueError as exc:  # pragma: no cover - user input
         console.print(f"[red]Error: {exc}[/red]")

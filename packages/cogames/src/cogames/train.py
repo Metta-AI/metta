@@ -5,7 +5,7 @@ import logging
 import multiprocessing
 import platform
 from pathlib import Path
-from typing import IO, TYPE_CHECKING, Any, Optional
+from typing import IO, TYPE_CHECKING, Any, Callable, Optional
 
 import numpy as np
 
@@ -21,7 +21,7 @@ logger = logging.getLogger("cogames.pufferlib")
 
 
 def train(
-    env_cfg: MettaGridConfig,
+    env_cfg: Optional[MettaGridConfig],
     policy_class_path: str,
     device: "torch.device",
     initial_weights_path: Optional[str],
@@ -36,14 +36,35 @@ def train(
     vector_batch_size: Optional[int] = None,
     vector_num_workers: Optional[int] = None,
     logits_debug_path: Optional[Path] = None,
+    env_cfg_supplier: Optional[Callable[[], MettaGridConfig]] = None,
 ) -> None:
     import pufferlib.pytorch  # noqa: F401 - ensure modules register with torch
     import pufferlib.vector
     from pufferlib import pufferl
     from pufferlib.pufferlib import set_buffers
 
-    def env_creator(cfg: MettaGridConfig, buf: Optional[Any] = None, seed: Optional[int] = None):
-        env = make_hierarchical_env(cfg, buf=buf)
+    if env_cfg_supplier is None and env_cfg is None:
+        raise ValueError("Either env_cfg or env_cfg_supplier must be provided")
+
+    pending_cfg: list[MettaGridConfig] = []
+
+    def _next_cfg() -> MettaGridConfig:
+        if pending_cfg:
+            return pending_cfg.pop().model_copy(deep=True)
+        if env_cfg_supplier is not None:
+            cfg = env_cfg_supplier()
+            if not isinstance(cfg, MettaGridConfig):
+                raise TypeError("env_cfg_supplier must return a MettaGridConfig")
+            return cfg.model_copy(deep=True)
+        assert env_cfg is not None
+        return env_cfg.model_copy(deep=True)
+
+    base_cfg = _next_cfg()
+    pending_cfg.append(base_cfg)
+
+    def env_creator(cfg: Optional[MettaGridConfig] = None, buf: Optional[Any] = None, seed: Optional[int] = None):
+        target_cfg = cfg if cfg is not None else _next_cfg()
+        env = make_hierarchical_env(target_cfg, buf=buf)
         set_buffers(env, buf)
         return env
 
@@ -101,7 +122,7 @@ def train(
         batch_size=vector_batch_size,
         backend=backend,
         env_kwargs={
-            "cfg": env_cfg.model_copy(deep=True),
+            "cfg": base_cfg.model_copy(deep=True),
         },
     )
 
@@ -120,7 +141,7 @@ def train(
 
         logits_debug_path.parent.mkdir(parents=True, exist_ok=True)
         debug_file = logits_debug_path.open("w", encoding="utf-8")
-        instrumentation_env = make_hierarchical_env(env_cfg.model_copy(deep=True))
+        instrumentation_env = make_hierarchical_env(base_cfg.model_copy(deep=True))
         action_dim = int(instrumentation_env.single_action_space.nvec.size)
         instrumentation_actions = np.zeros((instrumentation_env.num_agents, action_dim), dtype=np.int32)
 
