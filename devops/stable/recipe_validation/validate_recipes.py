@@ -11,9 +11,12 @@ import argparse
 import sys
 from pathlib import Path
 
-from devops.recipe_validator import TOOL_VALIDATIONS, RecipeValidator, ValidationLocation
-
 from devops.skypilot.utils.testing_helpers import SkyPilotJobChecker
+from devops.stable.recipe_validation.recipe_validator import (
+    TOOL_VALIDATIONS,
+    RecipeValidator,
+    ValidationLocation,
+)
 from metta.common.util.text_styles import bold, cyan, green, red, yellow
 
 
@@ -67,9 +70,14 @@ def launch_tool_validations(args):
 
     # Print overall results
     print(f"\n{bold('Validation Results:')}")
+    status_colors = {"passed": green, "failed": red, "running": cyan, "pending": yellow, "skipped": yellow}
     for recipe_name, status in results.items():
-        status_str = green(str(status)) if status.value == "running" else yellow(str(status))
-        print(f"  {recipe_name}: {status_str}")
+        color_fn = status_colors.get(status.value, yellow)
+        print(f"  {recipe_name}: {color_fn(status.value)}")
+
+    # Exit with error if any validations failed
+    if any(status == "failed" for status in results.values()):
+        sys.exit(1)
 
 
 def check_validations(args):
