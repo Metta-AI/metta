@@ -50,7 +50,7 @@ from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from mettagrid.mapgen.mapgen import MapGen
 from metta.map.terrain_from_numpy import CogsVClippiesFromNumpy
-from mettagrid.config.mettagrid_config import AssemblerConfig, RecipeConfig
+from mettagrid.config.mettagrid_config import RecipeConfig
 # ADDING TERRAIN
 
 # base has all the assemblers, in the middle, surrounded by walls
@@ -61,7 +61,7 @@ from mettagrid.config.mettagrid_config import AssemblerConfig, RecipeConfig
 # outside of the base there are assemblers with better recipes than assemblers in the base
 
 curriculum_args = {
- "multi_agent_singles": {
+    "multi_agent_singles": {
         "num_cogs": [2, 4, 8, 12, 24],
         "assembler_positions": [["Any"]],
         "charger_positions": [["Any"]],
@@ -71,9 +71,9 @@ curriculum_args = {
         "silicon_extractor_positions": [["Any"]],
         "num_obj_distribution": [2, 4, 8, 10, 15],
         "chest_positions": [["N"]],
-        "regeneration_rate": [2,4,6],
+        "regeneration_rate": [2, 4, 6],
         "sizes": ["small", "medium"],
-        "use_base": [True,False],
+        "use_base": [True, False],
     },
     "multi_agent_pairs": {
         "num_cogs": [2, 4, 8, 12, 24],
@@ -85,9 +85,9 @@ curriculum_args = {
         "silicon_extractor_positions": [["Any"], ["Any", "Any"]],
         "num_obj_distribution": [2, 4, 8, 10, 15],
         "chest_positions": [["N", "S"]],
-        "regeneration_rate": [2,4,6],
+        "regeneration_rate": [2, 4, 6],
         "sizes": ["small", "medium"],
-        "use_base": [True,False],
+        "use_base": [True, False],
     },
     "multi_agent_triplets": {
         "num_cogs": [2, 4, 8, 12, 24],
@@ -103,11 +103,10 @@ curriculum_args = {
         "silicon_extractor_positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
         "num_obj_distribution": [2, 4, 8, 10, 15],
         "chest_positions": [["N", "S", "E"]],
-        "regeneration_rate": [2,4,6],
+        "regeneration_rate": [2, 4, 6],
         "sizes": ["small", "medium"],
-        "use_base": [True,False],
+        "use_base": [True, False],
     },
-
     "multi_agent_singles_bases": {
         "num_cogs": [2, 4, 8, 12, 24],
         "assembler_positions": [["Any"]],
@@ -118,7 +117,7 @@ curriculum_args = {
         "silicon_extractor_positions": [["Any"]],
         "num_obj_distribution": [2, 4, 8, 10, 15],
         "chest_positions": [["N"]],
-        "regeneration_rate": [2,4,6],
+        "regeneration_rate": [2, 4, 6],
         "sizes": ["small", "medium"],
         "use_base": [True],
     },
@@ -132,7 +131,7 @@ curriculum_args = {
         "silicon_extractor_positions": [["Any"], ["Any", "Any"]],
         "num_obj_distribution": [2, 4, 8, 10, 15],
         "chest_positions": [["N", "S"]],
-        "regeneration_rate": [2,4,6],
+        "regeneration_rate": [2, 4, 6],
         "sizes": ["small", "medium"],
         "use_base": [True],
     },
@@ -150,7 +149,7 @@ curriculum_args = {
         "silicon_extractor_positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
         "num_obj_distribution": [2, 4, 8, 10, 15],
         "chest_positions": [["N", "S", "E"]],
-        "regeneration_rate": [2,4,6],
+        "regeneration_rate": [2, 4, 6],
         "sizes": ["small", "medium"],
         "use_base": [True],
     },
@@ -403,7 +402,7 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
             if room_size == "small":
                 num_obj_distribution = [2, 4, 6]
             elif room_size == "medium":
-                num_obj_distribution = [5, 8, 12]
+                num_obj_distribution = [5, 8, 10]
             elif room_size == "large":
                 num_obj_distribution = [10, 20, 25]
 
@@ -417,7 +416,12 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
 
         silicon_extractor_position = rng.choice(self.config.silicon_extractor_positions)
         if include_extractors:
-            num_extractors = {"carbon": rng.choice([0] + num_obj_distribution), "oxygen": rng.choice([0] + num_obj_distribution), "germanium": rng.choice([0] + num_obj_distribution), "silicon": rng.choice([0] + num_obj_distribution)}
+            num_extractors = {
+                "carbon": rng.choice([0] + num_obj_distribution),
+                "oxygen": rng.choice([0] + num_obj_distribution),
+                "germanium": rng.choice([0] + num_obj_distribution),
+                "silicon": rng.choice([0] + num_obj_distribution),
+            }
         else:
             num_extractors = {"carbon": 0, "oxygen": 0, "germanium": 0, "silicon": 0}
 
@@ -451,7 +455,9 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
             num_silicon_extractors=num_extractors["silicon"],
             num_chests=num_chests,
         )
-        self._make_assembler_recipes(env.game.objects["assembler"], rng, num_extractors, assembler_position)
+        self._make_assembler_recipes(
+            env.game.objects["assembler"], rng, num_extractors, assembler_position
+        )
         self._overwrite_positions(env.game.objects["charger"], charger_position)
         self._overwrite_positions(
             env.game.objects["carbon_extractor"], carbon_extractor_position
@@ -510,12 +516,27 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
 
         return env
 
-    def _make_assembler_recipes(self, assembler, rng: random.Random, num_extractors: dict[str, int], assembler_position: list[Position]):
+    def _make_assembler_recipes(
+        self,
+        assembler,
+        rng: random.Random,
+        num_extractors: dict[str, int],
+        assembler_position: list[Position],
+    ):
         input_resources = {"energy": 3}
         for resource, num_extractor in num_extractors.items():
             if num_extractor > 0 and rng.choice([True, False]):
                 input_resources[resource] = 1
-        assembler.recipes = [(assembler_position, RecipeConfig(input_resources=input_resources, output_resources={"heart": 1}, cooldown=1))]
+        assembler.recipes = [
+            (
+                assembler_position,
+                RecipeConfig(
+                    input_resources=input_resources,
+                    output_resources={"heart": 1},
+                    cooldown=1,
+                ),
+            )
+        ]
         return assembler
 
     def _overwrite_positions(self, object, positions):

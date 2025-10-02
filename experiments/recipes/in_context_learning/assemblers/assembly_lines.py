@@ -60,7 +60,7 @@ curriculum_args = {
         "num_chests": [1],
         "room_sizes": ["medium"],
         "positions": [["Any", "Any"]],
-    }
+    },
 }
 
 
