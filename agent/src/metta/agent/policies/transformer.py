@@ -28,7 +28,10 @@ from metta.agent.components.actor import (
 from metta.agent.components.obs_enc import ObsPerceiverLatent, ObsPerceiverLatentConfig
 from metta.agent.components.obs_shim import ObsShimTokens, ObsShimTokensConfig
 from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourier, ObsAttrEmbedFourierConfig
-from metta.agent.components.transformer_core import TransformerBackboneConfig
+from metta.agent.components.transformer_core import (
+    TransformerBackboneConfig,
+    TransformerBackboneVariant,
+)
 from metta.agent.components.transformers import get_backbone_spec
 from metta.agent.policy import Policy, PolicyArchitecture
 
@@ -816,22 +819,36 @@ def gtrxl_policy_config() -> TransformerPolicyConfig:
     return GTrXLConfig()
 
 
+class TRXLConfig(TransformerPolicyConfig):
+    """Canonical configuration for the standard Transformer-XL policy variant."""
+
+    variant: TransformerBackboneVariant = TransformerBackboneVariant.TRXL
+
+
 def trxl_policy_config() -> TransformerPolicyConfig:
     """Return a policy config for the vanilla Transformer-XL variant."""
 
-    return TransformerPolicyConfig(variant="trxl")
+    return TRXLConfig()
+
+
+class TRXLNvidiaConfig(TransformerPolicyConfig):
+    """Canonical configuration for the NVIDIA-optimized Transformer-XL variant."""
+
+    variant: TransformerBackboneVariant = TransformerBackboneVariant.TRXL_NVIDIA
 
 
 def trxl_nvidia_policy_config() -> TransformerPolicyConfig:
     """Return a policy config for the NVIDIA Transformer-XL variant."""
 
-    return TransformerPolicyConfig(variant="trxl_nvidia")
+    return TRXLNvidiaConfig()
 
 
 __all__ = [
     "TransformerPolicyConfig",
     "TransformerPolicy",
     "GTrXLConfig",
+    "TRXLConfig",
+    "TRXLNvidiaConfig",
     "gtrxl_policy_config",
     "trxl_policy_config",
     "trxl_nvidia_policy_config",
