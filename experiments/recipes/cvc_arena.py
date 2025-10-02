@@ -39,9 +39,6 @@ def mettagrid(num_agents: int = 24) -> MettaGridConfig:
     return arena_env
 
 
-"""Default mettagrid() defined above."""
-
-
 def make_curriculum(
     arena_env: Optional[MettaGridConfig] = None,
     enable_detailed_slice_logging: bool = False,
