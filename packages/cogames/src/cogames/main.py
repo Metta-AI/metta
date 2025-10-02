@@ -297,5 +297,26 @@ def evaluate(
     console.print("[red]Coming soon...[/red]")
 
 
+@app.command(name="version", help="Show version information")
+def version_cmd() -> None:
+    import importlib.metadata
+
+    from rich.table import Table
+
+    mettagrid_version = importlib.metadata.version("mettagrid")
+    pufferlib_core_version = importlib.metadata.version("pufferlib-core")
+    cogames_version = importlib.metadata.version("cogames")
+
+    table = Table(show_header=False, box=None, show_lines=False, pad_edge=False)
+    table.add_column("", justify="right", style="bold cyan")
+    table.add_column("", justify="right")
+
+    table.add_row("mettagrid:", mettagrid_version)
+    table.add_row("pufferlib-core:", pufferlib_core_version)
+    table.add_row("cogames:", cogames_version)
+
+    console.print(table)
+
+
 if __name__ == "__main__":
     app()
