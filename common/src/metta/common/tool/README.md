@@ -8,7 +8,7 @@ The tool system is built on two core concepts:
 
 **Tools** are runnable units of work defined as Pydantic config classes that inherit from `Tool`. Each tool type has:
 - A `tool_name` class variable (e.g., "train", "eval", "play")
-- Configuration fields defining its behavior
+- Configuration fields defining its behavior and input
 - An `invoke()` method that executes the tool
 
 Common tool types:
@@ -29,6 +29,10 @@ Tools are defined in `metta/tools/` and provide the interface for all operations
 A recipe module contains:
 - **Tool functions**: Functions with return type annotations that return Tool instances (e.g., `def train() -> TrainTool`)
 - **Helper functions** (optional): Shared config like `mettagrid()` or `simulations()` to avoid duplication across tools
+
+TODO: Make Recipe subclasses or otherwise allow you to get many tool definitions from a few core such functions.
+Jack previously explored this and found the code complexity to benefit ratio wasn't there, but it could be if
+we make Recipes first-class objects and/or discover specific patterns that are worth "automating".
 
 Example recipe structure:
 ```python
@@ -71,7 +75,7 @@ This ensures training, evaluation, and play all use the same arena configuration
    - Calls `train()` to get a configured `TrainTool` instance
    - Applies CLI argument overrides to the tool config
    - Calls `tool.invoke()` to execute
-3. **Layering**: Recipes depend on Tools (not vice versa) - tools are reusable, recipes configure them for specific use cases
+3. **Layering**: Recipes depend on Tools (not vice versa) - tools are reusable "verbs", recipes are "nouns" that configure them for specific use cases
 
 ## Recipe Discovery
 
