@@ -337,9 +337,8 @@ proc drawInventory*() =
         x += xAdvance
 
 proc drawPlannedPath*() =
-  ## Draw the planned path for the selected agent.
-  if selection != nil and selection.isAgent and agentPaths.hasKey(selection.agentId):
-    let path = agentPaths[selection.agentId]
+  ## Draw the planned paths for all agents.
+  for agentId, path in agentPaths:
     if path.len > 1:
       for i in 0 ..< path.len - 1:
         let
