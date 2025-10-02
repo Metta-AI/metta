@@ -5,7 +5,6 @@ invokes the function, and then runs the tool defined by the config."""
 import argparse
 import copy
 import functools
-import importlib
 import inspect
 import json
 import logging
@@ -15,14 +14,14 @@ import sys
 import tempfile
 import traceback
 import warnings
-from types import ModuleType
-from typing import Any, Callable
+from typing import Any
 
 from pydantic import BaseModel, TypeAdapter
 from rich.console import Console
 from typing_extensions import TypeVar
 
 from metta.common.tool import Tool
+from metta.common.tool.recipe import Recipe
 from metta.common.tool.tool_registry import get_tool_registry
 from metta.common.util.log_config import init_logging
 from metta.common.util.text_styles import bold, cyan, green, red, yellow
@@ -390,86 +389,43 @@ def list_tool_arguments(tool_maker: Any, console: Console) -> None:
 # --------------------------------------------------------------------------------------
 
 
-def _get_available_tools(module: ModuleType) -> list[tuple[str, Callable[[], object]]]:
-    """Get explicit tool-returning functions defined in a module.
+def list_all_recipes(console: Console) -> None:
+    """List all available recipes and their tools."""
+    console.print("\n[bold cyan]Available Recipes:[/bold cyan]\n")
 
-    Uses type hints to identify functions that return Tool instances.
-    """
-    from typing import get_type_hints
+    recipes = Recipe.discover_all()
+    if not recipes:
+        console.print("[yellow]No recipes found.[/yellow]")
+        return
 
-    tools: list[tuple[str, Callable[[], object]]] = []
+    for recipe in sorted(recipes, key=lambda r: r.module_name):
+        short_name = recipe.module_name.replace("experiments.recipes.", "")
+        tool_names = recipe.get_all_tool_names()
 
-    for name in dir(module):
-        # Skip private/special attributes
-        if name.startswith("_"):
-            continue
-
-        attr = getattr(module, name)
-
-        # Must be callable and not a class
-        if not callable(attr) or isinstance(attr, type):
-            continue
-
-        # Check return type hint
-        try:
-            hints = get_type_hints(attr)
-            return_type = hints.get("return")
-
-            # Check if return type is a Tool subclass
-            if return_type and isinstance(return_type, type) and issubclass(return_type, Tool):
-                tools.append((name, attr))
-        except Exception:
-            # No type hints or invalid hints - skip
-            pass
-
-    return tools
-
-
-def resolve_and_load_tool(
-    tool_path: str, two_part_second: str | None
-) -> tuple[str | None, Any, list[tuple[str, Exception]]]:
-    """Resolve tool path and attempt to load the tool maker.
-
-    Returns (resolved_path, tool_maker, load_errors)
-    """
-    registry = get_tool_registry()
-    resolved_path, tool_maker = registry.resolve_and_load_tool(tool_path, two_part_second)
-
-    # For error reporting, we need to track what was tried
-    # This is a simplified version - the registry doesn't expose load_errors
-    # but we can reconstruct them if needed
-    load_errors: list[tuple[str, Exception]] = []
-
-    return resolved_path, tool_maker, load_errors
+        if tool_names:
+            console.print(f"[bold]{short_name}[/bold]")
+            for tool_name in sorted(tool_names):
+                console.print(f"  └─ {tool_name}")
+            console.print()
 
 
 def list_module_tools(module_path: str, console: Console) -> bool:
     """List all tools available in a module. Returns True if successful."""
-    registry = get_tool_registry()
-
-    # Try with and without experiments.recipes prefix
-    module_candidates = [module_path]
+    # Try to load recipe with experiments.recipes prefix if needed
+    candidates = [module_path]
     if not module_path.startswith("experiments.recipes."):
-        module_candidates.append(f"experiments.recipes.{module_path}")
+        candidates.append(f"experiments.recipes.{module_path}")
 
-    for mod_name in module_candidates:
-        try:
-            mod = importlib.import_module(mod_name)
-        except Exception:
+    for module_name in candidates:
+        recipe = Recipe.load(module_name)
+        if not recipe:
             continue
 
-        # Collect explicit tools
-        explicit_tools = dict(_get_available_tools(mod))
-        tool_names = set(explicit_tools.keys())
-
-        # Add all tools that can be inferred from this module
-        for canonical_name in registry.get_all_tools().keys():
-            if canonical_name not in tool_names and registry.infer_tool_from_recipe(mod.__name__, canonical_name):
-                tool_names.add(canonical_name)
+        tool_names = recipe.get_all_tool_names()
 
         # Display results
-        console.print(f"\n[bold]Available tools in {mod_name}:[/bold]\n")
-        short_mod = mod_name.replace("experiments.recipes.", "")
+        console.print(f"\n[bold]Available tools in {module_name}:[/bold]\n")
+        short_mod = module_name.replace("experiments.recipes.", "")
         for name in sorted(tool_names):
             console.print(f"  {short_mod}.{name}")
         return True
@@ -567,39 +523,43 @@ constructor/function vs configuration overrides based on introspection.
         return 2
     # Support shorthand syntax for tool path:
     #  - Allow omitting 'experiments.recipes.' prefix, e.g. 'arena.train'
-    #  - Allow two-part form 'x y' as sugar for 'y.x', e.g. 'train arena'
-    raw_positional_args: list[str] = list(known_args.args or [])
-
-    # Peek at potential two-part token (do not consume yet; only consume if that candidate is chosen)
-    two_part_second: str | None = None
-    if raw_positional_args and ("=" not in raw_positional_args[0]) and (not raw_positional_args[0].startswith("-")):
-        two_part_second = raw_positional_args[0]
+    #  - Allow two-part form 'train arena' as sugar for 'arena.train'
 
     # Exit on ctrl+c with proper exit code
     signal.signal(signal.SIGINT, lambda sig, frame: sys.exit(130))  # 130 = interrupted by Ctrl-C
 
     tool_path = known_args.tool_path
+    raw_positional_args: list[str] = list(known_args.args or [])
 
     # Handle --list early
     if known_args.list:
+        # If no tool_path provided, list all recipes
+        if not tool_path:
+            list_all_recipes(console)
+            return 0
+        # Otherwise list tools in specific recipe
         if list_module_tools(tool_path, console):
             return 0
         # If listing failed, continue to show error below
 
-    # Resolve and load the tool
-    resolved_path, tool_maker, load_errors = resolve_and_load_tool(tool_path, two_part_second)
+    # Try two-part form first if next arg looks like a module name (not key=value)
+    registry = get_tool_registry()
+    tool_maker = None
+    args_consumed = 0
 
-    # If we selected a two-part mapping, consume that second token from args; otherwise keep args untouched
-    if resolved_path is not None and two_part_second is not None:
-        # Two-part mapping yields either 'second.first' or 'experiments.recipes.second.first'
-        expected_a = f"{two_part_second}.{known_args.tool_path}"
-        expected_b = f"experiments.recipes.{two_part_second}.{known_args.tool_path}"
-        if resolved_path in (expected_a, expected_b):
-            # Now it's safe to consume the token
-            raw_positional_args.pop(0)
+    if raw_positional_args and ("=" not in raw_positional_args[0]) and (not raw_positional_args[0].startswith("-")):
+        # Try 'train arena' → 'arena.train'
+        two_part_path = f"{raw_positional_args[0]}.{tool_path}"
+        tool_maker = registry.resolve_and_load_tool(two_part_path)
+        if tool_maker:
+            args_consumed = 1
 
-    # Rebuild the arg list to parse
-    all_args = raw_positional_args + unknown_args
+    # If two-part didn't work, try single form
+    if not tool_maker:
+        tool_maker = registry.resolve_and_load_tool(tool_path)
+
+    # Rebuild the arg list to parse (skip consumed args)
+    all_args = raw_positional_args[args_consumed:] + unknown_args
 
     # Parse CLI arguments
     try:
@@ -611,30 +571,27 @@ constructor/function vs configuration overrides based on introspection.
     # Build nested payload from dotted paths for Pydantic validation
     nested_cli = nestify(cli_args)
 
-    if resolved_path is None or tool_maker is None:
+    if tool_maker is None:
         output_error(f"{red('Error:')} Could not find tool '{tool_path}'")
 
         # Try to provide helpful hints
-        registry = get_tool_registry()
-
-        # Check if this looks like a recipe module that might support inference
         if "." in tool_path:
             module_part = tool_path.rsplit(".", 1)[0]
             # Try adding experiments.recipes prefix if not present
             if not module_part.startswith("experiments.recipes."):
                 module_part = f"experiments.recipes.{module_part}"
 
-            try:
-                mod = importlib.import_module(module_part)
-                if hasattr(mod, "mettagrid") or hasattr(mod, "simulations"):
+            recipe = Recipe.load(module_part)
+            if recipe:
+                mg, sims = recipe.get_configs()
+                if mg is not None or sims is not None:
+                    registry = get_tool_registry()
                     output_info(f"\n{yellow('Hint:')} Recipe module exists but tool not found.")
                     output_info(f"Available inferred tools: {', '.join(registry.get_tool_display_names())}")
-            except Exception:
-                pass
 
         return 1
 
-    output_info(f"\n{bold(cyan('Loading tool:'))} {resolved_path}")
+    output_info(f"\n{bold(cyan('Loading tool:'))} {tool_maker.__module__}.{tool_maker.__name__}")
 
     # If help flag is set, list arguments and exit
     if known_args.help:
@@ -782,7 +739,7 @@ constructor/function vs configuration overrides based on introspection.
         output_info(f"\n{bold(green('✅ Configuration validation successful'))}")
         if known_args.verbose:
             output_info(f"Tool type: {type(tool_cfg).__name__}")
-            output_info(f"Module: {resolved_path}")
+            output_info(f"Module: {tool_maker.__module__}.{tool_maker.__name__}")
         return 0
 
     # ----------------------------------------------------------------------------------

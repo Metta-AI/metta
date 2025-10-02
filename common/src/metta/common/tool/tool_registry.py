@@ -3,12 +3,9 @@
 Public API:
 - get_tool_registry() -> ToolRegistry singleton instance
 
-The ToolRegistry class provides methods for:
+The ToolRegistry class provides public methods:
 - get_all_tools() -> All registered tool classes
-- get_tool_aliases() -> Alias mappings
-- get_tool_name_map() -> Name/alias to canonical name mappings
 - get_tool_display_names() -> Formatted display names (canonical/alias1/alias2)
-- resolve_tool_path() -> Convert user input to candidate import paths
 - infer_tool_from_recipe() -> Attempt to infer tool from recipe module
 - resolve_and_load_tool() -> Resolve user input and load tool maker
 """
@@ -16,12 +13,10 @@ The ToolRegistry class provides methods for:
 from __future__ import annotations
 
 import importlib
-from functools import lru_cache
-from types import ModuleType
 from typing import Callable, Optional
 
 from metta.common.tool import Tool
-from metta.sim.simulation_config import SimulationConfig
+from metta.common.tool.recipe import Recipe
 from metta.tools.analyze import AnalysisTool
 from metta.tools.eval import EvalTool
 from metta.tools.eval_remote import EvalRemoteTool
@@ -29,7 +24,6 @@ from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
-from mettagrid import MettaGridConfig
 
 # -----------------------------------------------------------------------------
 # Tool Registry
@@ -64,7 +58,7 @@ class ToolRegistry:
         """Get all registered tool classes mapped by their canonical name."""
         return dict(self._registry)
 
-    def get_tool_aliases(self) -> dict[str, list[str]]:
+    def _get_tool_aliases(self) -> dict[str, list[str]]:
         """Build alias map (canonical -> aliases) from registered tools.
 
         Only includes tools that declare aliases via Tool.tool_aliases.
@@ -82,7 +76,7 @@ class ToolRegistry:
         self._tool_aliases_cache = mapping
         return mapping
 
-    def get_tool_name_map(self) -> dict[str, str]:
+    def _get_tool_name_map(self) -> dict[str, str]:
         """Map of every supported tool name and alias -> canonical name.
 
         Built from Tool.tool_name and Tool.tool_aliases on all registered tools.
@@ -93,7 +87,7 @@ class ToolRegistry:
         mapping: dict[str, str] = {}
 
         # Build mapping from alias map to avoid duplication
-        alias_map = self.get_tool_aliases()
+        alias_map = self._get_tool_aliases()
 
         # Add canonical names pointing to themselves
         for tool_name in self._registry.keys():
@@ -115,38 +109,34 @@ class ToolRegistry:
 
     def get_tool_display_names(self) -> list[str]:
         """Get friendly display names for all tools (canonical/alias1/alias2 format)."""
-        alias_map = self.get_tool_aliases()
+        alias_map = self._get_tool_aliases()
         display_names = []
         for canonical, alias_list in sorted(alias_map.items()):
             display_names.append("/".join([canonical] + alias_list) if alias_list else canonical)
         return display_names
 
-    def resolve_tool_path(self, user_input: str, second_token: str | None = None) -> list[str]:
-        """Convert user input to candidate import paths.
+    def _resolve_tool_path(self, tool_path: str) -> list[str]:
+        """Convert tool path to candidate import paths.
+
+        Args:
+            tool_path: Tool path like 'arena.train', 'train', or 'eval'
 
         Examples:
             'arena.train' → ['arena.train', 'experiments.recipes.arena.train']
-            'train' + 'arena' → ['arena.train', 'experiments.recipes.arena.train']
             'eval' → ['eval', 'evaluate'] (alias expansion)
 
         Returns ordered list of candidates to try.
         """
-        # Build base path(s)
-        if second_token:
-            base = f"{second_token}.{user_input}"
-        else:
-            base = user_input
-
-        candidates = [base]
+        candidates = [tool_path]
 
         # Add prefix for short forms
-        if base.count(".") <= 1:
-            candidates.append(f"experiments.recipes.{base}")
+        if tool_path.count(".") <= 1:
+            candidates.append(f"experiments.recipes.{tool_path}")
 
         # Expand aliases if last component is a tool alias
-        if "." in base:
-            module, verb = base.rsplit(".", 1)
-            alias_map = self.get_tool_aliases()
+        if "." in tool_path:
+            module, verb = tool_path.rsplit(".", 1)
+            alias_map = self._get_tool_aliases()
 
             # Check if verb is canonical and has aliases
             if verb in alias_map:
@@ -156,7 +146,7 @@ class ToolRegistry:
                         candidates.append(f"experiments.recipes.{module}.{alias}")
 
             # Check if verb is an alias for a canonical name
-            name_map = self.get_tool_name_map()
+            name_map = self._get_tool_name_map()
             if verb in name_map and name_map[verb] != verb:
                 canonical = name_map[verb]
                 candidates.append(f"{module}.{canonical}")
@@ -176,65 +166,50 @@ class ToolRegistry:
         Returns:
             Tool factory if inference succeeds, None otherwise
         """
-        from metta.common.tool import Tool
-
         # Normalize to canonical tool name
-        canonical = self.get_tool_name_map().get(tool_name, tool_name)
+        canonical = self._get_tool_name_map().get(tool_name, tool_name)
 
         # Get tool class
         tool_class = self._registry.get(canonical)
         if not tool_class:
             return None
 
-        # Skip if tool doesn't support inference
-        if tool_class.infer == Tool.infer:
+        # Load recipe and try inference
+        recipe = Recipe.load(module_path)
+        if not recipe:
             return None
 
-        # Load recipe module and get configs
-        try:
-            module = importlib.import_module(module_path)
-        except ImportError:
-            return None
+        return recipe.infer_tool(tool_class)
 
-        mg, sims = _get_recipe_configs(module)
-        if mg is None and sims is None:
-            return None
+    def resolve_and_load_tool(self, tool_path: str) -> Callable[[], Tool] | None:
+        """Resolve tool path and load the tool maker.
 
-        # Try inferring the tool
-        tool = tool_class.infer(mettagrid=mg, simulations=sims)
-        if tool is None:
-            return None
-
-        return lambda: tool
-
-    def resolve_and_load_tool(
-        self, user_input: str, second_token: str | None = None
-    ) -> tuple[str | None, Callable[[], Tool] | None]:
-        """Resolve user input and load the tool maker.
+        Args:
+            tool_path: Tool path like 'arena.train' or 'eval'
 
         Tries in order:
         1. Direct load (explicit tools defined in modules)
         2. Recipe inference (for recipes with mettagrid/simulations)
 
         Returns:
-            (resolved_path, tool_maker) or (None, None) if not found
+            Tool maker callable, or None if not found
         """
-        candidates = self.resolve_tool_path(user_input, second_token)
+        candidates = self._resolve_tool_path(tool_path)
 
         for candidate in candidates:
             # Try direct load
             maker = _load_tool_maker(candidate)
             if maker:
-                return candidate, maker
+                return maker
 
             # Try recipe inference
             if "." in candidate:
                 module_path, tool_name = candidate.rsplit(".", 1)
                 maker = self.infer_tool_from_recipe(module_path, tool_name)
                 if maker:
-                    return candidate, maker
+                    return maker
 
-        return None, None
+        return None
 
 
 # Global singleton instance
@@ -289,39 +264,3 @@ def _load_tool_maker(path: str) -> Optional[Callable[[], Tool]]:
 
     except (ImportError, AttributeError):
         return None
-
-
-# -----------------------------------------------------------------------------
-# Recipe Integration (Auto-Factory)
-# -----------------------------------------------------------------------------
-
-
-@lru_cache(maxsize=128)
-def _get_recipe_configs(module: ModuleType) -> tuple[MettaGridConfig | None, list[SimulationConfig] | None]:
-    """Get mettagrid() and simulations() from a recipe module.
-
-    Cached to avoid repeated construction.
-    Returns (mettagrid, simulations) tuple.
-    """
-    # Try mettagrid()
-    mg = None
-    if hasattr(module, "mettagrid") and callable(module.mettagrid):
-        try:
-            result = module.mettagrid()
-            if isinstance(result, MettaGridConfig):
-                mg = result
-        except Exception:
-            pass
-
-    # Try simulations()
-    sims = None
-    if hasattr(module, "simulations") and callable(module.simulations):
-        try:
-            result = module.simulations()
-            if isinstance(result, (list, tuple)) and result:
-                if isinstance(result[0], SimulationConfig):
-                    sims = list(result)
-        except Exception:
-            pass
-
-    return mg, sims
