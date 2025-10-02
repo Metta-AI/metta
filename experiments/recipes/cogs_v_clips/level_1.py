@@ -624,6 +624,7 @@ def experiment():
                     f"architecture={architecture}",
                     "--gpus=4",
                     "--heartbeat-timeout=3600",
+                    "--skip-git-check",
                 ]
             )
         time.sleep(1)

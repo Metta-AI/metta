@@ -211,9 +211,6 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
 
     def carve_out_patches(self, grid, valid_positions, num_patches):
         """Carve out 9x9 empty patches and return their centers as a numpy array."""
-        if num_patches <= 0:
-            return grid, np.empty((0, 2), dtype=int)
-
         patch_size = 9
         half_patch = patch_size // 2
         grid_shape = grid.shape
@@ -224,8 +221,8 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
 
         # Pre-compute valid ranges for center positions
         min_coord = half_patch
-        max_y = grid_shape[0] - half_patch - 1
-        max_x = grid_shape[1] - half_patch - 1
+        max_y = grid_shape[0] - 3
+        max_x = grid_shape[1] - 3
 
         attempts = 0
         max_attempts = num_patches * 20
@@ -253,6 +250,72 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
 
         return grid, np.array(empty_centers, dtype=int)
 
+        ps, h = 9, 4  # patch size, half-width
+        H, W = grid.shape
+        vp_mask = np.zeros(grid.shape, bool)
+        if len(valid_positions):
+            vp_mask[valid_positions[:, 0], valid_positions[:, 1]] = True
+
+    def carve_out_patches(self, grid, valid_positions, num_patches):
+        """
+        Carve out square 9x9 'empty' patches to create space.
+
+        Rules:
+        - Allowed to carve over walls/objects/empties.
+        - NOT allowed to carve over agents (cells equal to "agent.agent").
+        - Keeps patches fully inside bounds.
+        - Returns centers of patches actually carved.
+
+        Args:
+            grid: np.ndarray (H, W) of labels (object/str dtype).
+            valid_positions: unused (kept for API compatibility).
+            num_patches: number of patches to try to carve.
+
+        Returns:
+            grid: modified in-place (also returned for convenience)
+            centers: np.ndarray (M, 2) of int (y, x) centers, M <= num_patches
+        """
+        PATCH = 9
+        HALF = PATCH // 2  # = 4
+        H, W = grid.shape
+
+        # Precompute where agents are; faster than re-checking strings each loop.
+        #TODO update this to be if it starts with "agent."
+        agent_mask = (grid == "agent.agent")
+
+        centers = []
+        centers_set = set()  # O(1) duplicate check
+        attempts = 0
+        max_attempts = num_patches * 20  # simple cap to avoid long loops
+
+        vp_mask = np.zeros(grid.shape, bool)
+        vp_mask[valid_positions[:, 0], valid_positions[:, 1]] = True
+
+        while len(centers) < num_patches and attempts < max_attempts:
+            attempts += 1
+
+            # Sample a center that can fit a 9x9 patch fully inside the grid.
+            y = self.config.rng.randint(HALF, H - HALF - 1)
+            x = self.config.rng.randint(HALF, W - HALF - 1)
+            if (y, x) in centers_set:
+                continue
+
+            ys = slice(y - HALF, y + HALF + 1)  # inclusive on both sides → width 9
+            xs = slice(x - HALF, x + HALF + 1)
+
+
+            # Skip if the 9x9 patch would touch any agent cell.
+            if agent_mask[ys, xs].any() or vp_mask[ys, xs].any():
+                continue
+
+            # Carve: set the region to "empty" (allowed over walls/anything except agents).
+            grid[ys, xs] = "empty"
+            centers.append((y, x))
+            centers_set.add((y, x))
+
+        return grid, np.array(centers, dtype=int)
+
+
     def build(self):
         map_dir = self.setup()
         if self.config.file is None:
@@ -278,6 +341,7 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
         total_objects = sum(self.config.objects.values())
         if len(valid_assembler_positions) < total_objects:
             patches_needed = total_objects - len(valid_assembler_positions)
+            print(f"Carving out {patches_needed} patches")
             grid, empty_centers = self.carve_out_patches(grid, valid_assembler_positions, patches_needed)
             if len(empty_centers) > 0:
                 valid_assembler_positions = np.vstack([valid_assembler_positions, empty_centers])
