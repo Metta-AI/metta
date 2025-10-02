@@ -9,6 +9,7 @@ from tensordict import TensorDict
 from cortex.cells.base import MemoryCell
 from cortex.cells.registry import register_cell
 from cortex.config import LSTMCellConfig
+from cortex.kernels.pytorch.lstm import lstm_sequence_pytorch
 from cortex.types import MaybeState, ResetMask, Tensor
 
 
@@ -75,49 +76,27 @@ class LSTMCell(MemoryCell):
             st = state
             batch_size = st.batch_size[0] if st.batch_size else x_seq.shape[0]
 
-        # Get state tensors and transpose from [B, L, H] to [L, B, H] for nn.LSTM
-        h = st.get("h").transpose(0, 1)  # [B, L, H] -> [L, B, H]
-        c = st.get("c").transpose(0, 1)  # [B, L, H] -> [L, B, H]
+        h0 = st.get("h")
+        c0 = st.get("c")
+        assert h0 is not None and c0 is not None, "LSTM state must contain 'h' and 'c' tensors"
 
-        # Apply resets across time where provided
-        if resets is not None:
-            # Always expect batch-first resets: [B] or [B, T]
-            if is_step:
-                resets_bt = resets.reshape(-1, 1)  # [B] -> [B, 1]
-            else:
-                resets_bt = resets  # Already [B, T]
-
-            # Iterate time steps to zero h/c for masked batches before step t
-            if is_step:
-                mask_b = resets_bt[:, 0].to(dtype=h.dtype).view(1, -1, 1)
-                h = h * (1.0 - mask_b)
-                c = c * (1.0 - mask_b)
-                out, (hn, cn) = self.net(x_seq, (h, c))
-            else:
-                T = x_seq.shape[1]  # Always batch-first
-                outputs = []
-                h_t, c_t = h, c
-                for t in range(T):
-                    mask_b = resets_bt[:, t].to(dtype=h.dtype).view(1, -1, 1)
-                    h_t = h_t * (1.0 - mask_b)
-                    c_t = c_t * (1.0 - mask_b)
-                    x_t = x_seq[:, t : t + 1]  # Always batch-first
-                    out_t, (h_t, c_t) = self.net(x_t, (h_t, c_t))
-                    outputs.append(out_t)
-                out = torch.cat(outputs, dim=1)  # Always batch-first
-                hn, cn = h_t, c_t
+        resets_bt: ResetMask | None
+        if resets is None:
+            resets_bt = None
+        elif is_step:
+            resets_bt = resets.reshape(-1, 1)
         else:
-            out, (hn, cn) = self.net(x_seq, (h, c))
+            resets_bt = resets
 
-        # Convert output back to expected shape
-        if is_step:
-            y = out.squeeze(1)  # [B, 1, H] -> [B, H]
-        else:
-            y = out  # Already [B, T, H]
+        y_seq, hn_bf, cn_bf = lstm_sequence_pytorch(
+            lstm=self.net,
+            x_seq=x_seq,
+            h0_bf=h0,
+            c0_bf=c0,
+            resets=resets_bt,
+        )
 
-        # Transpose state back to batch-first: [L, B, H] -> [B, L, H]
-        hn_bf = hn.transpose(0, 1)
-        cn_bf = cn.transpose(0, 1)
+        y = y_seq.squeeze(1) if is_step else y_seq
         new_state = TensorDict({"h": hn_bf, "c": cn_bf}, batch_size=[batch_size])
         return y, new_state
 
