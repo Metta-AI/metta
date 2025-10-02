@@ -181,7 +181,7 @@ builds its configuration, and runs it.
 **Common tasks**:
 
 - **Train**: `./tools/run.py train arena run=my_experiment`
-- **Evaluate**: `./tools/run.py evaluate arena policy_uri=file://./train_dir/my_run/checkpoints`
+- **Eval**: `./tools/run.py eval arena policy_uri=file://./train_dir/my_run/checkpoints`
 - **Play** (browser): `./tools/run.py play arena policy_uri=file://./train_dir/my_run/checkpoints`
 - **Replay**: `./tools/run.py replay arena policy_uri=file://./train_dir/my_run/checkpoints`
 
@@ -201,8 +201,8 @@ Examples:
 ./tools/run.py train arena run=local.alice.1 \
   system.device=cpu wandb.enabled=false trainer.total_timesteps=100000
 
-# Evaluate a specific policy URI
-./tools/run.py evaluate arena policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
+# Eval a specific policy URI
+./tools/run.py eval arena policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
 
 # Use --verbose to see how arguments are classified
 ./tools/run.py train arena run=test --verbose
@@ -219,25 +219,22 @@ def simulations() -> list[SimulationConfig]: ...  # optional curated eval suite
 
 When present, the runner can infer common tools even if not explicitly defined in the module. If both `simulations()`
 and `mettagrid()` exist, `simulations()` takes precedence for evaluation tools and the evaluator used by inferred
-training tools. Internally, tools use canonical names (train, play, replay, evaluate, evaluate_remote).
+training tools.
 
 Inference details:
 - Play: uses `simulations()[0]` when available; otherwise falls back to `mettagrid()`.
 - Replay: uses `simulations()[0]` when available; falls back to `mettagrid()` if `simulations()` is absent.
 
-- Inferred tools: `train`, `play`, `replay`, `evaluate`, and `evaluate_remote`
+- Inferred tools: `train`, `play`, `replay`, `eval`, and `eval_remote`
 - Example:
   - `./tools/run.py play arena`
-  - `./tools/run.py evaluate arena policy_uris=mock://test`
-  - `./tools/run.py evaluate_remote arena policy_uri=s3://...`
+  - `./tools/run.py eval arena policy_uris=mock://test`
+  - `./tools/run.py eval_remote arena policy_uri=s3://...`
 
 Shorthands are supported:
 
 - Omit `experiments.recipes.`: `arena.train` == `experiments.recipes.arena.train`
 - Two‑token form: `train arena` == `arena.train`
-
-Note on evaluation tool rename: the evaluation tool is now `EvalTool` (replacing `EvalTool`). If you import directly,
-use `from metta.tools.eval import EvalTool`.
 
 Tips:
 
@@ -350,16 +347,16 @@ Now you can run training with your personal WandB config:
 
 #### Evaluate a policy
 
-Evaluate a policy against the arena eval suite:
+Eval a policy against the arena eval suite:
 
 ```
-./tools/run.py evaluate arena policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
+./tools/run.py eval arena policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
 ```
 
-Evaluate on the navigation eval suite (provide the policy URI):
+Eval on the navigation eval suite (provide the policy URI):
 
 ```
-./tools/run.py evaluate navigation policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
+./tools/run.py eval navigation policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
 ```
 
 ### Specifying your agent architecture
@@ -408,13 +405,13 @@ pyright metta  # optional, some stubs are missing
 
 ### CLI cheat sheet
 
-| Task                        | Command                                                                                                                |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Train (arena)               | `./tools/run.py train arena run=my_experiment`                                                                         |
-| Train (navigation)          | `./tools/run.py train navigation run=my_experiment`                                                                    |
-| Play (browser)              | `./tools/run.py play arena`                                                                                            |
-| Replay (policy)             | `./tools/run.py replay arena policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`                 |
-| Evaluate (arena)            | `./tools/run.py evaluate arena policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`               |
-| Evaluate (navigation suite) | `./tools/run.py evaluate navigation policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`         |
+| Task                    | Command                                                                                                        |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Train (arena)           | `./tools/run.py train arena run=my_experiment`                                                                 |
+| Train (navigation)      | `./tools/run.py train navigation run=my_experiment`                                                            |
+| Play (browser)          | `./tools/run.py play arena`                                                                                    |
+| Replay (policy)         | `./tools/run.py replay arena policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`         |
+| Eval (arena)            | `./tools/run.py eval arena policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`           |
+| Eval (navigation suite) | `./tools/run.py eval navigation policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`     |
 
 Running these commands mirrors our CI configuration and helps keep the codebase consistent.

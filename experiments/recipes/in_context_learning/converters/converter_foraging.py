@@ -216,10 +216,10 @@ def replay(
     return replay_icl(task_generator, policy_uri)
 
 
-def evaluate(
+def eval(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> EvalTool:
-    # Local import to   avoid circular import at module load time
+    # Local import to avoid circular import at module load time
     from experiments.evals.in_context_learning.converters.converter_foraging import (
         make_unordered_chain_eval_suite,
     )
@@ -230,6 +230,10 @@ def evaluate(
         policy_uris=[policy_uri],
         stats_server_uri="https://api.observatory.softmax-research.net",
     )
+
+
+# Backward compatibility alias
+evaluate = eval
 
 
 def experiment():

@@ -454,8 +454,8 @@ Common tools:
   train           - Train a new policy
   play            - Interactive browser-based gameplay
   replay          - View recorded gameplay
-  evaluate        - Run evaluation suite (aliases: eval, sim)
-  evaluate_remote - Remote evaluation (aliases: eval_remote, sim_remote)
+  evaluate        - Run evaluation suite
+  evaluate_remote - Remote evaluation
 
 Advanced:
   %(prog)s arena.train -h                           # List all arguments
@@ -537,23 +537,20 @@ constructor/function vs configuration overrides based on introspection.
                 return 0
 
         # Check if it's a bare tool name (like 'train', 'evaluate')
-        # Get canonical tool name (handles aliases)
         registry = get_tool_registry()
-        tool_name_map = registry._get_tool_name_map()
-        canonical_tool = tool_name_map.get(tool_path, tool_path)
 
         # If it's a known tool type, list all recipes that support it
-        if canonical_tool in registry.get_all_tools():
+        if tool_path in registry.get_all_tools():
             console.print(f"\n[bold]Recipes supporting '{tool_path}':[/bold]\n")
             recipe_registry = get_recipe_registry()
             recipes = recipe_registry.get_all()
             found_any = False
 
             for recipe in sorted(recipes, key=lambda r: r.module_name):
-                tools = recipe.get_tools_for_canonical(canonical_tool)
-                if tools:
+                functions = recipe.get_functions_for_tool(tool_path)
+                if functions:
                     # Show all function names that provide this tool
-                    for func_name, _ in tools:
+                    for func_name, _ in functions:
                         console.print(f"  {recipe.short_name}.{func_name}")
                     found_any = True
 
@@ -596,20 +593,6 @@ constructor/function vs configuration overrides based on introspection.
 
     if tool_maker is None:
         output_error(f"{red('Error:')} Could not find tool '{tool_path}'")
-
-        # Try to provide helpful hints
-        if "." in tool_path:
-            module_part = tool_path.rsplit(".", 1)[0]
-
-            # Try loading recipe (handles both short and full paths)
-            recipe_registry = get_recipe_registry()
-            recipe = recipe_registry.get(module_part)
-            if recipe:
-                mg, sims = recipe.get_configs()
-                if mg is not None or sims is not None:
-                    registry = get_tool_registry()
-                    output_info(f"\n{yellow('Hint:')} Recipe module exists but tool not found.")
-                    output_info(f"Available inferred tools: {', '.join(registry.get_tool_display_names())}")
 
         return 1
 

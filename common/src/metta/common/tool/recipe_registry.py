@@ -46,8 +46,8 @@ class RecipeRegistry:
         # This supports test fixtures and external recipe packages
         recipe = Recipe.load(module_path)
         if recipe:
-            # Check if it has tools or configs (valid recipe)
-            if recipe.get_explicit_tools() or recipe.get_configs() != (None, None):
+            # Check if it has tools (valid recipe)
+            if recipe.get_explicit_tools():
                 # Cache it for future lookups
                 self._recipes[module_path] = recipe
                 return recipe
@@ -91,8 +91,8 @@ class RecipeRegistry:
             if not ispkg:
                 recipe = Recipe.load(modname)
                 if recipe:
-                    # Only include if it has tools or configs
-                    if recipe.get_explicit_tools() or recipe.get_configs() != (None, None):
+                    # Only include if it has tools
+                    if recipe.get_explicit_tools():
                         self._recipes[modname] = recipe
 
     def clear(self) -> None:

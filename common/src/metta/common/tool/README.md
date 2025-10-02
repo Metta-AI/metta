@@ -1,6 +1,6 @@
 # Tool Runner (./tools/run.py)
 
-The tool runner loads a Tool from a recipe module, applies CLI overrides, and invokes it. It supports convenient two-token shorthand and recipe inference.
+The tool runner loads a Tool from a recipe module, applies CLI overrides, and invokes it. It supports convenient two-token shorthand.
 
 ## Recipe Discovery
 
@@ -20,8 +20,8 @@ This automatically creates empty `__init__.py` files in any subdirectories that 
 # Train (arena)
 ./tools/run.py train arena run=my_experiment
 
-# Evaluate a policy
-./tools/run.py evaluate arena policy_uri=file://./train_dir/my_run/checkpoints
+# Eval a policy
+./tools/run.py eval arena policy_uri=file://./train_dir/my_run/checkpoints
 
 # Interactive play (browser)
 ./tools/run.py play arena policy_uri=file://./train_dir/my_run/checkpoints
@@ -58,35 +58,34 @@ Use `--list` to discover available tools:
 
 # List all recipes that provide a specific tool
 ./tools/run.py train --list          # Shows all recipes with train tools
-./tools/run.py evaluate --list       # Shows all recipes with evaluate tools
+./tools/run.py eval --list           # Shows all recipes with eval tools
 ```
 
-The output shows both:
-- **Explicit tools**: Functions/classes that return a Tool (e.g., `train_shaped`)
-- **Inferred tools**: Automatically generated from `mettagrid()`/`simulations()` (e.g., `train`, `evaluate`, `play`, `replay`)
+The output shows all available tool functions that return Tool instances (e.g., `train`, `eval`, `train_shaped`).
 
 ## Dry-Run
 
 ```bash
 # Validate resolution only (does not construct or run the tool)
-./tools/run.py evaluate arena --dry-run
+./tools/run.py eval arena --dry-run
 ```
 
-## Recipe Inference
+## Recipe Structure
 
-Recipes can expose either of the following:
+Recipes define explicit tool functions that return Tool instances:
 
 ```python
-def mettagrid() -> MettaGridConfig: ...
-def simulations() -> list[SimulationConfig]: ...
+from metta.tools.train import TrainTool
+from metta.tools.eval import EvalTool
+
+def train() -> TrainTool:
+    return TrainTool(...)
+
+def eval() -> EvalTool:
+    return EvalTool(simulations=[...])
 ```
 
-When present, the runner can infer common tools even if the module does not export them explicitly:
-
-- `train`: requires `mettagrid()`. If `simulations()` is present, it is used for the evaluator in training.
-- `play`: uses `simulations()[0]` when available; otherwise falls back to `mettagrid()`.
-- `replay`: uses `simulations()[0]` when available; otherwise falls back to `mettagrid()`.
-- `evaluate`/`evaluate_remote`: use `simulations()` if present; otherwise wrap `mettagrid()` as a single simulation.
+Recipes can optionally define helper functions like `mettagrid()` or `simulations()` to avoid duplication when multiple tools need the same configuration.
 
 ## Argument Classification
 

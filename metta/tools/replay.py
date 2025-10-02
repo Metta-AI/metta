@@ -3,7 +3,7 @@
 import logging
 import os
 import platform
-from typing import ClassVar, Optional
+from typing import ClassVar
 from urllib.parse import quote
 
 import mettascope.server as server
@@ -14,7 +14,6 @@ from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.utils.auto_config import auto_wandb_config
-from mettagrid import MettaGridConfig
 
 logger = logging.getLogger(__name__)
 
@@ -32,21 +31,6 @@ class ReplayTool(Tool):
     replay_dir: str = "./train_dir/replays"
     stats_dir: str = "./train_dir/stats"
     open_browser_on_start: bool = True
-
-    @classmethod
-    def infer(
-        cls,
-        mettagrid: Optional[MettaGridConfig] = None,
-        simulations: Optional[list[SimulationConfig]] = None,
-    ) -> Optional["ReplayTool"]:
-        """Infer ReplayTool from recipe. Prefers simulations[0]; falls back to mettagrid."""
-        # Same logic as PlayTool - prefer simulations[0], fall back to mettagrid
-        if simulations and len(simulations) > 0:
-            return cls(sim=simulations[0])
-        if mettagrid is not None:
-            sim_cfg = SimulationConfig(suite="default", name="replay", env=mettagrid)
-            return cls(sim=sim_cfg)
-        return None
 
     def invoke(self, args: dict[str, str]) -> int | None:
         # Create simulation using CheckpointManager integration

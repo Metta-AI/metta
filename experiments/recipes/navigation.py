@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
@@ -13,6 +13,7 @@ from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.tools.eval import EvalTool
 from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.map_builder.random import RandomMapBuilder
@@ -109,3 +110,19 @@ def train(
         training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
         evaluator=evaluator_cfg,
     )
+
+
+# This could be inferred from simulations() i.e. no need to be expliiclty defined
+# but we keep ith ere so we can alias it
+# for backward compatibility to name "evaluate"
+def eval(
+    policy_uris: str | Sequence[str] | None = None,
+) -> EvalTool:
+    return EvalTool(
+        simulations=simulations(),
+        policy_uris=policy_uris,
+    )
+
+
+# Backward compatibility alias
+evaluate = eval
