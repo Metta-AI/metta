@@ -191,3 +191,8 @@ class LSTMPolicy(TrainablePolicy):
         super().load_policy_data(checkpoint_path)
         self._net = self._net.to(self._device)
         self._agent_policy._net = self._net
+
+    def is_recurrent(self) -> bool:
+        """Return True to mark this policy as recurrent for training configuration."""
+
+        return True

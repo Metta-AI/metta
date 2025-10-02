@@ -122,3 +122,8 @@ class TrainablePolicy(Policy):
         import torch
 
         torch.save(self.network().state_dict(), policy_data_path)
+
+    def is_recurrent(self) -> bool:
+        """Return whether the policy expects recurrent (RNN-style) training."""
+
+        return False

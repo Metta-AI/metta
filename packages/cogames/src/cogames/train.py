@@ -127,7 +127,7 @@ def train(
         policy.load_policy_data(initial_weights_path)
 
     # Detect if policy uses RNN (e.g., LSTM)
-    use_rnn = "lstm" in policy_class_path.lower() or "rnn" in policy_class_path.lower()
+    use_rnn = policy.is_recurrent()
 
     env_name = "cogames.cogs_vs_clips"
 
