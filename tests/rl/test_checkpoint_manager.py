@@ -59,7 +59,7 @@ class TestBasicSaveLoad:
         checkpoint_manager.save_agent(mock_agent, epoch=3, policy_architecture=mock_policy_architecture)
 
         latest_uri = f"file://{checkpoint_manager.checkpoint_dir}:latest"
-        artifact = CheckpointManager.load_from_uri(latest_uri)
+        artifact = CheckpointManager.load_artifact_from_uri(latest_uri)
 
         assert artifact.state_dict is not None
         metadata = CheckpointManager.get_policy_metadata(latest_uri)
@@ -79,7 +79,7 @@ class TestBasicSaveLoad:
         assert metadata["run_name"] == "test_run"
         assert metadata["epoch"] == 5
 
-        artifact = CheckpointManager.load_from_uri(agent_file.as_uri())
+        artifact = CheckpointManager.load_artifact_from_uri(agent_file.as_uri())
         assert artifact.state_dict is not None
 
     def test_remote_prefix_upload(self, test_system_cfg, mock_agent, mock_policy_architecture):
@@ -108,7 +108,7 @@ class TestBasicSaveLoad:
         latest_checkpoint = checkpoint_manager.get_latest_checkpoint()
         assert latest_checkpoint is not None
         assert latest_checkpoint.endswith(":v10.mpt")
-        artifact = CheckpointManager.load_from_uri(latest_checkpoint)
+        artifact = CheckpointManager.load_artifact_from_uri(latest_checkpoint)
         assert artifact.state_dict is not None
 
     def test_trainer_state_save_load(self, checkpoint_manager, mock_agent, mock_policy_architecture):

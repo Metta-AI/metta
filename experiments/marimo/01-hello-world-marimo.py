@@ -1001,12 +1001,9 @@ def _(
 
             print(f"Evaluating checkpoint: {latest_ckpt.name}")
 
-            checkpoint_uri = CheckpointManager.normalize_uri(str(latest_ckpt))
-
-            metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
-            run_name_from_ckpt = metadata["run_name"]
-
-            trained_artifact = CheckpointManager.load_from_uri(checkpoint_uri)
+            trained_artifact = CheckpointManager.load_artifact_from_uri(
+                str(latest_ckpt)
+            )
             trained_policy = trained_artifact.policy
             if trained_policy is None:
                 raise RuntimeError(
@@ -1665,7 +1662,9 @@ def _(
         metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
         run_name_from_ckpt = metadata["run_name"]
 
-        trained_artifact = CheckpointManager.load_from_uri(checkpoint_uri)
+        trained_artifact = CheckpointManager.load_from_uri(
+            str(latest_ckpt), env_metadata, device
+        )
         trained_policy = trained_artifact.policy
         if trained_policy is None:
             raise RuntimeError(

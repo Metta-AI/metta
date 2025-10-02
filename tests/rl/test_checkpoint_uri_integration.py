@@ -63,7 +63,7 @@ class TestFileURIs:
     def test_load_single_file_uri(self, tmp_path: Path, mock_policy):
         ckpt = create_checkpoint(tmp_path, checkpoint_filename("run", 5), mock_policy)
         uri = f"file://{ckpt}"
-        artifact = CheckpointManager.load_from_uri(uri)
+        artifact = CheckpointManager.load_artifact_from_uri(uri)
         assert artifact.policy is not None
 
     def test_load_from_directory(self, tmp_path: Path, mock_policy):
@@ -72,14 +72,14 @@ class TestFileURIs:
         latest = create_checkpoint(ckpt_dir, checkpoint_filename("run", 7), mock_policy)
 
         uri = f"file://{ckpt_dir}"
-        artifact = CheckpointManager.load_from_uri(uri)
+        artifact = CheckpointManager.load_artifact_from_uri(uri)
         assert artifact.policy is not None
         assert Path(uri[7:]).is_dir()
         assert latest.exists()
 
     def test_invalid_file_uri(self):
         with pytest.raises(FileNotFoundError):
-            CheckpointManager.load_from_uri("file:///does/not/exist.mpt")
+            CheckpointManager.load_artifact_from_uri("file:///does/not/exist.mpt")
 
 
 class TestS3URIs:
@@ -91,7 +91,7 @@ class TestS3URIs:
         mock_local_copy.return_value.__exit__ = Mock(return_value=None)
 
         uri = "s3://bucket/run/checkpoints/run:v12.mpt"
-        artifact = CheckpointManager.load_from_uri(uri)
+        artifact = CheckpointManager.load_artifact_from_uri(uri)
 
         assert artifact.policy is not None
 

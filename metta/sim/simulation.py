@@ -47,8 +47,7 @@ class Simulation:
     def __init__(
         self,
         cfg: SimulationConfig,
-        policy_artifact: PolicyArtifact,
-        policy_uri: str,
+        policy_uri: str | None,
         device: torch.device,
         vectorization: str,
         stats_dir: str = "/tmp/stats",
@@ -60,7 +59,6 @@ class Simulation:
         self._config = cfg
         self._id = uuid.uuid4().hex[:12]
         self._eval_task_id = eval_task_id
-        self._policy_uri = policy_uri
 
         replay_dir = f"{replay_dir}/{self._id}" if replay_dir else None
 
@@ -72,6 +70,13 @@ class Simulation:
         self._device = device
 
         self._full_name = f"{cfg.suite}/{cfg.name}"
+
+        if policy_uri:
+            policy_artifact = CheckpointManager.load_artifact_from_uri(policy_uri)
+            resolved_policy_uri = CheckpointManager.normalize_uri(policy_uri)
+        else:
+            policy_artifact = PolicyArtifact(policy=MockAgent())
+            resolved_policy_uri = "mock://"
 
         # Calculate number of parallel environments and episodes per environment
         # to achieve the target total number of episodes
@@ -105,10 +110,10 @@ class Simulation:
 
         self._policy_artifact = policy_artifact
         self._policy: Policy | None = None
-        self._policy_uri = policy_uri
+        self._policy_uri = resolved_policy_uri
         # Load NPC policy if specified
         if cfg.npc_policy_uri:
-            self._npc_artifact = CheckpointManager.load_from_uri(cfg.npc_policy_uri)
+            self._npc_artifact = CheckpointManager.load_artifact_from_uri(cfg.npc_policy_uri)
             self._npc_policy: Policy | None = None
         else:
             self._npc_artifact = None
@@ -185,20 +190,13 @@ class Simulation:
         policy_uri: str | None = None,
     ) -> "Simulation":
         """Create a Simulation with sensible defaults."""
-        # Create policy record from URI
-        if policy_uri:
-            policy_artifact = CheckpointManager.load_from_uri(policy_uri, device=device)
-        else:
-            policy_artifact = PolicyArtifact(policy=MockAgent())
-
         # Create replay directory path with simulation name
         full_replay_dir = f"{replay_dir}/{sim_config.name}"
 
         # Create and return simulation
         return cls(
             sim_config,
-            policy_artifact=policy_artifact,
-            policy_uri=policy_uri or "mock://",
+            policy_uri=policy_uri,
             device=torch.device(device),
             vectorization=vectorization,
             stats_dir=stats_dir,

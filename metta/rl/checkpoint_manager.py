@@ -16,6 +16,7 @@ from metta.rl.policy_artifact import (
     save_policy_artifact_safetensors,
 )
 from metta.rl.system_config import SystemConfig
+from metta.rl.training.training_environment import EnvironmentMetaData
 from metta.tools.utils.auto_config import auto_policy_storage_decision
 from metta.utils.file import local_copy, write_file
 from metta.utils.uri import ParsedURI
@@ -184,7 +185,12 @@ class CheckpointManager:
         return self._remote_prefix is not None
 
     @staticmethod
-    def load_from_uri(uri: str, device: str | torch.device = "cpu") -> PolicyArtifact:
+    def load_from_uri(uri: str, env_metadata: EnvironmentMetaData, device: torch.device) -> Policy:
+        artifact = CheckpointManager.load_artifact_from_uri(uri)
+        return artifact.instantiate(env_metadata, device)
+
+    @staticmethod
+    def load_artifact_from_uri(uri: str) -> PolicyArtifact:
         """Load a policy from a URI (file://, s3://, or mock://).
 
         Supports :latest selector for automatic resolution to the most recent checkpoint:

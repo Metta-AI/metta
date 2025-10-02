@@ -46,7 +46,7 @@ def validate_and_normalize_policy_uri(policy_uri: str) -> str | None:
     """Validate that a policy URI is accessible and return normalized URI with metadata."""
     try:
         normalized_uri = CheckpointManager.normalize_uri(policy_uri)
-        artifact = CheckpointManager.load_from_uri(normalized_uri, device="cpu")
+        artifact = CheckpointManager.load_artifact_from_uri(normalized_uri)
         if artifact.state_dict is None:
             raise ValueError("Policy artifact did not contain model weights")
         del artifact

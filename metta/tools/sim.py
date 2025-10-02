@@ -151,13 +151,10 @@ class SimTool(Tool):
             eval_task_id = uuid.UUID(self.eval_task_id)
 
         for policy_uri in self.policy_uris:
-            # Normalize the URI using CheckpointManager
-            normalized_uri = CheckpointManager.normalize_uri(policy_uri)
-
             # Verify the checkpoint exists
             try:
-                agent = CheckpointManager.load_from_uri(normalized_uri, device="cpu")
-                metadata = CheckpointManager.get_policy_metadata(normalized_uri)
+                normalized_uri = CheckpointManager.normalize_uri(policy_uri)
+                agent = CheckpointManager.load_artifact_from_uri(normalized_uri)
                 del agent
             except Exception as e:
                 logger.warning(f"Failed to load policy from {normalized_uri}: {e}")

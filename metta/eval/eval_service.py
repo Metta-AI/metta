@@ -40,7 +40,6 @@ def evaluate_policy(
     sims = [
         Simulation(
             cfg=sim,
-            policy_artifact=CheckpointManager.load_from_uri(checkpoint_uri, device=device),
             policy_uri=checkpoint_uri,
             device=device,
             vectorization=vectorization,
