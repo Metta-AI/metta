@@ -1,14 +1,101 @@
-"""Lightweight helpers for LSTM policy state handling."""
+"""Policy helper utilities, including LSTM state adapters."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, Optional, Tuple, Union
 
 import torch
 
+from cogames.policy.policy import PolicySpec
+
+# ---------------------------------------------------------------------------
+# Policy resolution helpers (existing functionality from main)
+# ---------------------------------------------------------------------------
+
+def resolve_policy_class_path(policy: str) -> str:
+    """Resolve a policy shorthand or full class path.
+
+    Args:
+        policy: Either a shorthand like "random", "simple", "lstm" or a full class path.
+
+    Returns:
+        Full class path to the policy.
+    """
+    return {
+        "random": "cogames.policy.random.RandomPolicy",
+        "simple": "cogames.policy.simple.SimplePolicy",
+        "lstm": "cogames.policy.lstm.LSTMPolicy",
+        "claude": "cogames.policy.claude.ClaudePolicy",
+    }.get(policy, policy)
+
+
+def resolve_policy_data_path(policy_data_path: Optional[str]) -> Optional[str]:
+    """Resolve a checkpoint path if provided."""
+    if policy_data_path is None:
+        return None
+    path = Path(policy_data_path)
+    if path.is_file():
+        return str(path)
+    if not path.exists():
+        raise FileNotFoundError(f"Checkpoint path not found: {path}")
+
+    last_touched_checkpoint_file = max(
+        (p for p in path.rglob("*.pt")),
+        key=lambda target: target.stat().st_mtime,
+        default=None,
+    )
+    if not last_touched_checkpoint_file:
+        raise FileNotFoundError(f"No checkpoint files (*.pt) found in directory: {path}")
+    return str(last_touched_checkpoint_file)
+
+
+def parse_policy_spec(spec: str) -> PolicySpec:
+    """Parse a policy CLI option into its components."""
+    raw = spec.strip()
+    if not raw:
+        raise ValueError("Policy specification cannot be empty.")
+
+    parts = [part.strip() for part in raw.split(":")]
+    if len(parts) > 3:
+        raise ValueError("Policy specification must include at most two ':' separated values.")
+
+    raw_class_path = parts[0]
+    raw_policy_data = parts[1] if len(parts) > 1 else None
+    raw_fraction = parts[2] if len(parts) > 2 else None
+
+    if not raw_class_path:
+        raise ValueError("Policy class path cannot be empty.")
+
+    if not raw_fraction:
+        fraction = 1.0
+    else:
+        try:
+            fraction = float(raw_fraction)
+        except ValueError as exc:
+            raise ValueError(f"Invalid proportion value '{raw_fraction}'.") from exc
+
+        if fraction <= 0:
+            raise ValueError("Policy proportion must be a positive number.")
+
+    resolved_class_path = resolve_policy_class_path(raw_class_path)
+    resolved_policy_data = resolve_policy_data_path(raw_policy_data or None)
+
+    return PolicySpec(
+        policy_class_path=resolved_class_path,
+        proportion=fraction,
+        policy_data_path=resolved_policy_data,
+    )
+
+
+# ---------------------------------------------------------------------------
+# LSTM state helpers (new functionality for typed LSTM policies)
+# ---------------------------------------------------------------------------
+
 LSTMStateTuple = Tuple[torch.Tensor, torch.Tensor]
 LSTMStateDict = Dict[str, torch.Tensor]
+
 
 def _canonical_component(component: torch.Tensor, expected_layers: Optional[int]) -> torch.Tensor:
     """Return a ``(layers, batch, hidden)`` tensor, adding axes as needed."""
@@ -31,7 +118,7 @@ def _canonical_component(component: torch.Tensor, expected_layers: Optional[int]
 
 @dataclass
 class LSTMState:
-    """Canonical representation of an LSTM hidden state."""
+    """Canonical representation of an LSTM hidden/cell state."""
 
     hidden: torch.Tensor
     cell: torch.Tensor
@@ -97,4 +184,12 @@ class LSTMState:
         return LSTMState(self.hidden.detach(), self.cell.detach())
 
 
-__all__ = ["LSTMState", "LSTMStateDict", "LSTMStateTuple"]
+__all__ = [
+    "PolicySpec",
+    "resolve_policy_class_path",
+    "resolve_policy_data_path",
+    "parse_policy_spec",
+    "LSTMState",
+    "LSTMStateDict",
+    "LSTMStateTuple",
+]
