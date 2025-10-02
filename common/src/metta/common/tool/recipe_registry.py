@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import importlib
-from pathlib import Path
+import pkgutil
 
 from metta.common.tool.recipe import Recipe
 
@@ -56,7 +56,8 @@ class RecipeRegistry:
     def discover_all(self, base_package: str = "experiments.recipes") -> None:
         """Discover all recipe modules under a base package and add to registry.
 
-        Uses file-system walking to find all .py files, not just packages with __init__.py.
+        Uses pkgutil.walk_packages() to recursively walk all subpackages.
+        Requires __init__.py files for proper package structure.
 
         Args:
             base_package: Base package to search for recipes (default: experiments.recipes)
@@ -70,24 +71,14 @@ class RecipeRegistry:
         if not hasattr(base_module, "__path__"):
             return
 
-        # Walk filesystem to find all .py files (not just packages)
-        for package_path in base_module.__path__:
-            base_dir = Path(package_path)
-            if not base_dir.exists():
+        # Walk packages recursively
+        for _importer, modname, ispkg in pkgutil.walk_packages(path=base_module.__path__, prefix=f"{base_package}."):
+            # Skip private modules
+            if any(part.startswith("_") for part in modname.split(".")):
                 continue
 
-            # Find all .py files recursively
-            for py_file in base_dir.rglob("*.py"):
-                # Skip __init__.py and private modules
-                if py_file.name.startswith("_"):
-                    continue
-
-                # Convert file path to module name
-                rel_path = py_file.relative_to(base_dir)
-                module_parts = list(rel_path.parts[:-1]) + [rel_path.stem]
-                modname = f"{base_package}.{'.'.join(module_parts)}"
-
-                # Try to load as recipe
+            # Try to load as recipe (skip packages, only load modules)
+            if not ispkg:
                 recipe = Recipe.load(modname)
                 if recipe:
                     # Only include if it has tools or configs
