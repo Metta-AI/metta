@@ -1,13 +1,20 @@
-"""Domain models for stable release validation.
+"""Data models for stable release validation.
 
-Core types for tracking release state, validation outcomes, and lifecycle.
+Types for tracking release state, validation results, and outcomes.
 """
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
+
+
+class Location(StrEnum):
+    """Job execution location."""
+
+    LOCAL = "local"
+    REMOTE = "remote"
 
 
 class Lifecycle(StrEnum):
@@ -27,39 +34,76 @@ class Outcome(StrEnum):
     INCONCLUSIVE = "inconclusive"
 
 
-class CheckResult(BaseModel):
-    """Result of a single check/validation."""
+class Artifact(BaseModel):
+    """Artifact produced by a validation run."""
 
     name: str
+    uri: str  # file path or URL
+    type: Literal["log", "html", "json", "image", "table", "other"] = "log"
+    mime: Optional[str] = None
+
+
+class ThresholdCheck(BaseModel):
+    """A single threshold check with operator and expected value."""
+
+    key: str
+    op: Literal[">=", ">", "<=", "<", "==", "!="] = ">="
+    expected: float
+    actual: Optional[float] = None
+    passed: Optional[bool] = None
+    note: Optional[str] = None
+
+
+class GateResult(BaseModel):
+    """Result of running a gate (bug check, workflow validation, etc)."""
+
+    name: str  # e.g., "workflow", "bug"
+    outcome: Outcome
+    started_at: datetime | None = None
+    ended_at: datetime | None = None
+    notes: Optional[str] = None
+    failed_checks: list[ThresholdCheck] = Field(default_factory=list)
+    artifacts: list[Artifact] = Field(default_factory=list)
+
+
+class RunResult(BaseModel):
+    """Result of a single validation run."""
+
+    name: str
+    location: Location
     lifecycle: Lifecycle
     outcome: Optional[Outcome] = None
     started_at: Optional[datetime] = None
     ended_at: Optional[datetime] = None
+    exit_code: int = 0
     metrics: dict[str, float] = Field(default_factory=dict)
-    artifacts: dict[str, str] = Field(default_factory=dict)  # name -> URL/path
+    artifacts: list[Artifact] = Field(default_factory=list)
     logs_path: Optional[str] = None
+    external_id: Optional[str] = None  # e.g., SkyPilot job_id
     notes: Optional[str] = None
     error: Optional[str] = None
 
-    def mark_started(self) -> "CheckResult":
-        """Mark this check as started."""
+    def mark_started(self) -> "RunResult":
+        """Mark this run as started."""
         self.lifecycle = Lifecycle.RUNNING
         self.started_at = datetime.utcnow()
         return self
 
-    def mark_completed(self, outcome: Outcome, notes: Optional[str] = None) -> "CheckResult":
-        """Mark this check as completed with outcome."""
+    def mark_completed(self, outcome: Outcome, exit_code: int = 0, notes: Optional[str] = None) -> "RunResult":
+        """Mark this run as completed with outcome."""
         self.lifecycle = Lifecycle.COMPLETED
         self.outcome = outcome
+        self.exit_code = exit_code
         self.ended_at = datetime.utcnow()
         if notes:
             self.notes = notes
         return self
 
-    def mark_failed(self, error: str) -> "CheckResult":
-        """Mark this check as failed."""
+    def mark_failed(self, error: str, exit_code: int = 1) -> "RunResult":
+        """Mark this run as failed."""
         self.lifecycle = Lifecycle.COMPLETED
         self.outcome = Outcome.FAILED
+        self.exit_code = exit_code
         self.ended_at = datetime.utcnow()
         self.error = error
         return self
@@ -72,15 +116,15 @@ class CheckResult(BaseModel):
         return None
 
 
-class ValidationConfig(BaseModel):
-    """Configuration for a single validation."""
+class Validation(BaseModel):
+    """Configuration for a single validation run."""
 
     name: str
     module: str
-    location: str  # "local" or "remote"
+    location: Location
     args: list[str] = Field(default_factory=list)
-    acceptance: dict[str, float] = Field(default_factory=dict)  # e.g., {"sps_min": 40000}
-    timeout_seconds: int = 300
+    timeout_s: int = 900
+    acceptance: list[ThresholdCheck] = Field(default_factory=list)  # inline criteria
 
 
 class ReleaseState(BaseModel):
@@ -91,16 +135,18 @@ class ReleaseState(BaseModel):
     repo_root: str
     commit_sha: Optional[str] = None
 
-    # Step results
-    prepare_branch: Optional[CheckResult] = None
-    bug_check: Optional[CheckResult] = None
-    validations: dict[str, CheckResult] = Field(default_factory=dict)  # validation_name -> result
+    gates: list[GateResult] = Field(default_factory=list)
+    validations: dict[str, RunResult] = Field(default_factory=dict)  # validation_name -> result
 
-    def add_validation_result(self, result: CheckResult) -> None:
+    def add_validation_result(self, result: RunResult) -> None:
         """Add or update a validation result."""
         self.validations[result.name] = result
 
-    def get_validation_result(self, name: str) -> Optional[CheckResult]:
+    def add_gate_result(self, gate: GateResult) -> None:
+        """Add a gate result."""
+        self.gates.append(gate)
+
+    def get_validation_result(self, name: str) -> Optional[RunResult]:
         """Get result for a specific validation."""
         return self.validations.get(name)
 
