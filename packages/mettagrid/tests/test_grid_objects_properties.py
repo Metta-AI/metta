@@ -87,8 +87,7 @@ def env_with_chest():
                 "chest": ChestConfig(
                     type_id=3,
                     resource_type="gold",
-                    deposit_positions=["NW", "N", "NE"],
-                    withdrawal_positions=["SW", "S", "SE"],
+                    position_deltas=[("NW", 1), ("N", 1), ("NE", 1), ("SW", -1), ("S", -1), ("SE", -1)],
                 ),
             },
             map_builder=RandomMapBuilder.Config(
@@ -303,15 +302,21 @@ class TestChestProperties:
         if chest:
             # Check chest-specific properties
             assert "resource_type" in chest
-            assert "deposit_positions" in chest
-            assert "withdrawal_positions" in chest
+            assert "position_deltas" in chest
+            assert "max_inventory" in chest
 
             # Check values match config
             assert chest["resource_type"] == 0, "Should be gold (resource 0)"
             # Positions are stored as integers internally (bit indices)
             # NW=0, N=1, NE=2, SW=5, S=6, SE=7
-            assert set(chest["deposit_positions"]) == {0, 1, 2}, "Deposit positions should match config"
-            assert set(chest["withdrawal_positions"]) == {5, 6, 7}, "Withdrawal positions should match config"
+            # Positive delta = deposit, negative delta = withdraw
+            position_deltas = chest["position_deltas"]
+            assert position_deltas[0] == 1, "NW should have delta +1 (deposit)"
+            assert position_deltas[1] == 1, "N should have delta +1 (deposit)"
+            assert position_deltas[2] == 1, "NE should have delta +1 (deposit)"
+            assert position_deltas[5] == -1, "SW should have delta -1 (withdraw)"
+            assert position_deltas[6] == -1, "S should have delta -1 (withdraw)"
+            assert position_deltas[7] == -1, "SE should have delta -1 (withdraw)"
 
             # Check that chest has inventory dict
             assert "inventory" in chest
