@@ -375,20 +375,20 @@ class NvidiaTransformerModule(nn.Module):
 class TRXLNvidiaConfig:
     """Backbone parameters for the NVIDIA-optimized Transformer-XL variant."""
 
-    hidden_size: int = 48
+    hidden_size: int = 40
     latent_size: int | None = None
-    num_layers: int = 2
+    num_layers: int = 1
     n_heads: int = 2
-    d_ff: int = 192
+    d_ff: int = 160
     max_seq_len: int = 192
-    memory_len: int = 32
+    memory_len: int = 16
     dropout: float = 0.05
     attn_dropout: float = 0.0
     pre_lnorm: bool = False
     clamp_len: int = -1
     ext_len: int = 0
-    activation_checkpoint: bool = False
-    use_flash_checkpoint: bool = False
+    activation_checkpoint: bool = True
+    use_flash_checkpoint: bool = True
     allow_tf32: bool = True
     use_fused_layernorm: bool = False
 
