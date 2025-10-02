@@ -123,7 +123,7 @@ class TransformerPolicy(Policy):
         self.transformer_cfg = self.config.transformer
         self.latent_size = self.transformer_cfg.latent_size
         self.hidden_size = self.transformer_cfg.hidden_size
-        self._uses_sliding_backbone = self.transformer_cfg.variant is TransformerBackboneVariant.SLIDING
+        self._uses_sliding_backbone = self.transformer_cfg.variant == "sliding"
         self.strict_attr_indices = getattr(self.config, "strict_attr_indices", False)
         self.use_aux_tokens = getattr(self.config, "use_aux_tokens", False)
         self.num_layers = max(env.feature_normalizations.keys()) + 1
