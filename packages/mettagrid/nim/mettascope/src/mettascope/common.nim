@@ -1,4 +1,5 @@
-import std/[times],
+import
+  std/[times, tables],
   boxy, windy, vmath, fidget2,
   replays
 
@@ -81,6 +82,7 @@ var
 
   step*: int = 0
   stepFloat*: float32 = 0
+  previousStep*: int = -1
   replay*: Replay
   play*: bool
   playSpeed*: float32 = 0.1
@@ -89,14 +91,25 @@ var
 
   ## Signals when we want to give control back to Python (DLL mode only).
   requestPython*: bool = false
-  requestAction*: bool = false
-  requestActionAgentId*: int
-  requestActionActionId*: int
-  requestActionArgument*: int
+
+type
+  ActionRequest* = object
+    agentId*: int
+    actionId*: int
+    argument*: int
+
+var
+  requestActions*: seq[ActionRequest]
 
   followSelection*: bool = false
   mouseCaptured*: bool = false
   mouseCapturedPanel*: Panel = nil
+
+var
+  ## Path queue for each agent. Maps agentId to a sequence of grid positions.
+  agentPaths* = initTable[int, seq[IVec2]]()
+  ## Destination queue for each agent. Maps agentId to a sequence of destinations.
+  agentDestinations* = initTable[int, seq[IVec2]]()
 
 proc at*[T](sequence: seq[T], step: int): T =
   # Get the value at the given step.

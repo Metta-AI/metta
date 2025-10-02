@@ -123,6 +123,7 @@ packages/mettagrid/nim/mettascope/dist/
 packages/mettagrid/nim/mettascope/bindings/generated/
 mettascope.out
 !packages/mettagrid/nim/mettascope/data/resources/
+tmp/
 
 # Nim runtime
 .nim_runtime

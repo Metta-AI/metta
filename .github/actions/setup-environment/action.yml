@@ -120,11 +120,6 @@ runs:
             uv sync --no-group interactive --no-group dev --group testing
             ;;
 
-          "coverage")
-            # Install only the coverage group, excluding the main, interactive and dev deps
-            uv sync --no-group interactive --no-group dev --group testing --group coverage
-            ;;
-
           "linting")
             # Install only the lint group, excluding the main, interactive and dev deps
             uv sync --only-group lint

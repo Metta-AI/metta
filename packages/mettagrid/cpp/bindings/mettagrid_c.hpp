@@ -73,7 +73,7 @@ public:
                    const py::array_t<TruncationType, py::array::c_style>& truncations,
                    const py::array_t<RewardType, py::array::c_style>& rewards);
   void validate_buffers();
-  py::dict grid_objects();
+  py::dict grid_objects(int min_row = -1, int max_row = -1, int min_col = -1, int max_col = -1);
   py::list action_names();
 
   GridCoord map_width();
@@ -163,7 +163,6 @@ private:
   float _resource_loss_prob;
 
   // Inventory regeneration
-  std::map<InventoryItem, InventoryQuantity> _inventory_regen_amounts;
   unsigned int _inventory_regen_interval;
 
   // Global systems

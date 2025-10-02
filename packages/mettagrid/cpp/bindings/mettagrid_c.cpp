@@ -34,6 +34,7 @@
 #include "objects/recipe.hpp"
 #include "objects/wall.hpp"
 #include "systems/clipper.hpp"
+#include "systems/clipper_config.hpp"
 #include "systems/observation_encoder.hpp"
 #include "systems/packed_coordinate.hpp"
 #include "systems/stats_tracker.hpp"
@@ -51,7 +52,6 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
       _num_observation_tokens(game_config.num_observation_tokens),
       _track_movement_metrics(game_config.track_movement_metrics),
       _resource_loss_prob(game_config.resource_loss_prob),
-      _inventory_regen_amounts(game_config.inventory_regen_amounts),
       _inventory_regen_interval(game_config.inventory_regen_interval) {
   _seed = seed;
   _rng = std::mt19937(seed);
@@ -249,11 +249,13 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   set_buffers(observations, terminals, truncations, rewards);
 
   // Initialize global systems
-  if (_game_config.clipper_clip_rate > 0.0f) {
-    if (!_game_config.clipper_recipe) {
-      throw std::runtime_error("Clipper clip rate is greater than 0.0f, but no clipper recipe is provided");
+  if (_game_config.clipper) {
+    auto& clipper_cfg = *_game_config.clipper;
+    if (clipper_cfg.unclipping_recipes.empty()) {
+      throw std::runtime_error("Clipper config provided but unclipping_recipes is empty");
     }
-    _clipper = std::make_unique<Clipper>(_game_config.clipper_recipe, _game_config.clipper_clip_rate);
+    _clipper = std::make_unique<Clipper>(
+        *_grid, clipper_cfg.unclipping_recipes, clipper_cfg.length_scale, clipper_cfg.cutoff_distance, clipper_cfg.clip_rate);
   }
 }
 
@@ -494,18 +496,20 @@ void MettaGrid::_step(Actions actions) {
     }
   }
 
-  // Handle inventory regeneration
+  // Handle per-agent inventory regeneration (global interval check, per-agent amounts)
   if (_inventory_regen_interval > 0 && current_step % _inventory_regen_interval == 0) {
     for (auto* agent : _agents) {
-      for (const auto& [item, amount] : _inventory_regen_amounts) {
-        agent->update_inventory(item, amount);
+      if (!agent->inventory_regen_amounts.empty()) {
+        for (const auto& [item, amount] : agent->inventory_regen_amounts) {
+          agent->update_inventory(item, amount);
+        }
       }
     }
   }
 
   // Apply global systems
   if (_clipper) {
-    _clipper->clip_at_random(*_grid, _rng);
+    _clipper->maybe_clip_new_assembler(_rng);
   }
 
   // Compute observations for next step
@@ -674,12 +678,23 @@ py::tuple MettaGrid::step(const py::array_t<ActionType, py::array::c_style> acti
   return py::make_tuple(_observations, _rewards, _terminals, _truncations, py::dict());
 }
 
-py::dict MettaGrid::grid_objects() {
+py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_col) {
   py::dict objects;
+
+  // Determine if bounding box filtering is enabled
+  bool use_bounds = (min_row >= 0 && max_row >= 0 && min_col >= 0 && max_col >= 0);
 
   for (unsigned int obj_id = 1; obj_id < _grid->objects.size(); obj_id++) {
     auto obj = _grid->object(obj_id);
     if (!obj) continue;
+
+    // Filter by bounding box if specified
+    if (use_bounds) {
+      if (obj->location.r < min_row || obj->location.r >= max_row ||
+          obj->location.c < min_col || obj->location.c >= max_col) {
+        continue;
+      }
+    }
 
     py::dict obj_dict;
     obj_dict["id"] = obj_id;
@@ -893,7 +908,12 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("terminals").noconvert(),
            py::arg("truncations").noconvert(),
            py::arg("rewards").noconvert())
-      .def("grid_objects", &MettaGrid::grid_objects)
+      .def("grid_objects",
+           &MettaGrid::grid_objects,
+           py::arg("min_row") = -1,
+           py::arg("max_row") = -1,
+           py::arg("min_col") = -1,
+           py::arg("max_col") = -1)
       .def("action_names", &MettaGrid::action_names)
       .def_property_readonly("map_width", &MettaGrid::map_width)
       .def_property_readonly("map_height", &MettaGrid::map_height)
@@ -937,6 +957,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
   bind_attack_action_config(m);
   bind_change_glyph_action_config(m);
   bind_global_obs_config(m);
+  bind_clipper_config(m);
   bind_game_config(m);
 
   // Export data types from types.hpp

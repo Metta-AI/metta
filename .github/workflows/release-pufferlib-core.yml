@@ -29,8 +29,8 @@ permissions:
   deployments: write
 
 jobs:
-  build:
-    name: Build distributions
+  build-sdist:
+    name: Build source distribution
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -40,20 +40,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11.7"
-      - name: Install build tooling
-        run: python -m pip install --upgrade pip build twine
-      - name: Build distributions
-        run: python -m build --outdir dist packages/pufferlib-core
-      - name: Check distributions
-        run: python -m twine check dist/*
+      - name: Build sdist
+        run: pipx run build --sdist --outdir dist packages/pufferlib-core
       - uses: actions/upload-artifact@v4
         with:
-          name: pufferlib-core-dist
-          path: dist/*
+          name: pufferlib-core-sdist
+          path: dist/*.tar.gz
 
   publish:
     name: Publish to PyPI
-    needs: build
+    needs: build-sdist
     if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.publish == 'yes' }}
     runs-on: ubuntu-latest
     environment:
@@ -65,10 +61,12 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: pufferlib-core-dist
           path: dist
+          merge-multiple: false
       - name: List distributions
         run: ls -l dist
+      - name: Check distributions
+        run: pipx run twine check dist/*
       - name: Create deployment record
         id: create_deployment
         uses: actions/github-script@v7

@@ -52,13 +52,20 @@ def carbon_extractor(max_use: Optional[int] = 1) -> AssemblerConfig:
 
 
 # accumulates oxygen over time, needs to be emptied periodically
-def oxygen_extractor() -> ConverterConfig:
-    return ConverterConfig(
+def oxygen_extractor(max_use: Optional[int] = None) -> AssemblerConfig:
+    return AssemblerConfig(
         name="oxygen_extractor",
         type_id=3,
-        output_resources={"oxygen": 1},
-        max_output=10,
-        cooldown=10,
+        allow_partial_usage=True,  # can use it while its on cooldown
+        recipes=[
+            (
+                ["Any"],
+                RecipeConfig(
+                    output_resources={"oxygen": 1},
+                    max_use=max_use,
+                ),
+            )
+        ],
     )
 
 
@@ -161,12 +168,36 @@ def assembler() -> AssemblerConfig:
         type_id=8,
         recipes=[
             (
-                ["Any"],
+                ["E"],
                 RecipeConfig(
                     input_resources={"energy": 3},
                     output_resources={"heart": 1},
                     cooldown=1,
                 ),
-            )
+            ),
+            (
+                ["N"],
+                RecipeConfig(
+                    input_resources={"germanium": 1},
+                    output_resources={"decoder": 1},
+                    cooldown=1,
+                ),
+            ),
+            (
+                ["S"],
+                RecipeConfig(
+                    input_resources={"carbon": 3},
+                    output_resources={"modulator": 1},
+                    cooldown=1,
+                ),
+            ),
+            (
+                ["W"],
+                RecipeConfig(
+                    input_resources={"oxygen": 3},
+                    output_resources={"scrambler": 1},
+                    cooldown=1,
+                ),
+            ),
         ],
     )

@@ -61,7 +61,7 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-environment
         with:
-          install-mode: "coverage"
+          install-mode: "testing"
 
       - name: Setup Bazel caching
         run: |
@@ -108,7 +108,7 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-environment
         with:
-          install-mode: "coverage"
+          install-mode: "testing"
 
       - name: Run Python benchmarks
         env:
@@ -141,7 +141,7 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-environment
         with:
-          install-mode: "coverage"
+          install-mode: "testing"
 
       - name: Setup Bazel caching
         run: |
