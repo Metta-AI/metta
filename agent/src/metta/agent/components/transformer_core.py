@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from enum import StrEnum
 from typing import Any, Literal
 
 from pydantic import Field, model_validator
@@ -11,6 +12,29 @@ from metta.agent.components.component_config import ComponentConfig
 from .transformers import available_backbones, get_backbone_spec
 
 
+class TransformerBackboneVariant(StrEnum):
+    """Enum of supported transformer backbone identifiers."""
+
+    GTRXL = "gtrxl"
+    TRXL = "trxl"
+    TRXL_NVIDIA = "trxl_nvidia"
+    SLIDING = "sliding"
+
+    @classmethod
+    def values(cls) -> tuple[str, ...]:
+        """Return all variant values."""
+
+        return tuple(member.value for member in cls)
+
+
+def _variant_name(value: str | TransformerBackboneVariant) -> str:
+    """Normalize variant inputs to the canonical string value."""
+
+    if isinstance(value, TransformerBackboneVariant):
+        return value.value
+    return value
+
+
 class TransformerBackboneConfig(ComponentConfig):
     """Configures the transformer stack used by transformer policies."""
 
@@ -18,7 +42,7 @@ class TransformerBackboneConfig(ComponentConfig):
     in_key: str = "encoded_obs"
     out_key: str = "core"
 
-    variant: str = "gtrxl"
+    variant: TransformerBackboneVariant | str = TransformerBackboneVariant.GTRXL
 
     latent_size: int | None = None
     hidden_size: int | None = None
@@ -44,7 +68,9 @@ class TransformerBackboneConfig(ComponentConfig):
 
     @model_validator(mode="after")
     def _apply_variant_defaults(self) -> "TransformerBackboneConfig":
-        spec = get_backbone_spec(self.variant)
+        variant_name = _variant_name(self.variant)
+        spec = get_backbone_spec(variant_name)
+        self.variant = variant_name
         for field_name, default_value in spec.defaults.items():
             if getattr(self, field_name, None) is None:
                 setattr(self, field_name, default_value)
@@ -59,8 +85,8 @@ class TransformerBackboneConfig(ComponentConfig):
     # ------------------------------------------------------------------
 
     def make_component(self, env: Any | None = None):  # type: ignore[override]
-        spec = get_backbone_spec(self.variant)
+        spec = get_backbone_spec(_variant_name(self.variant))
         return spec.builder(self, env)
 
 
-__all__ = ["TransformerBackboneConfig", "available_backbones"]
+__all__ = ["TransformerBackboneConfig", "TransformerBackboneVariant", "available_backbones"]

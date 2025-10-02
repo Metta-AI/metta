@@ -93,10 +93,12 @@ class TransformerPolicyConfig(PolicyArchitecture):
         overrides = {}
         if self.transformer is not None:
             overrides = self.transformer.model_dump(exclude_none=True)
-        overrides["variant"] = self.variant
+        variant_name = self.variant.value if isinstance(self.variant, TransformerBackboneVariant) else self.variant
+        overrides["variant"] = variant_name
         self.transformer = TransformerBackboneConfig(**overrides)
 
-        entry = get_backbone_spec(self.variant)
+        self.variant = variant_name
+        entry = get_backbone_spec(variant_name)
         defaults = entry.policy_defaults
         if self.manual_init is None:
             self.manual_init = defaults.get("manual_init", False)
