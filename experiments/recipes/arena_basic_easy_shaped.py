@@ -212,7 +212,16 @@ def sweep_async_progressive_vit(
         SweepTool configured for async-capped scheduling and progressive timesteps.
     """
 
-    protein_cfg = VIT_POLICY_BASE
+    protein_cfg = make_custom_protein_config(base_config=VIT_POLICY_BASE,
+        parameters={
+            "trainer.total_timesteps": ParameterConfig(
+                min=min_timesteps,
+                max=max_timesteps,
+                mean=initial_timesteps,
+                distribution="log_normal",
+                scale="auto"
+            )
+        })
 
     return SweepTool(
         # Protein with swept timesteps
