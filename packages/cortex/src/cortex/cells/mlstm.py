@@ -12,9 +12,9 @@ from cortex.cells.registry import register_cell
 from cortex.config import CausalConv1dConfig, mLSTMCellConfig
 from cortex.kernels.pytorch.mlstm import (
     mlstm_chunkwise_simple,
-    mlstm_chunkwise_triton,
     mlstm_recurrent_step_stabilized_simple,
 )
+from cortex.kernels.triton.mlstm import mlstm_chunkwise_triton
 from cortex.types import MaybeState, ResetMask, Tensor
 from cortex.utils import select_backend
 

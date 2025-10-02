@@ -35,7 +35,7 @@ def test_cortex_stack():
             PreUpBlockConfig(
                 cell=LSTMCellConfig(
                     hidden_size=512,  # Will be overridden to match d_inner
-                    num_layers=2,
+                    num_layers=1,
                     dropout=0.1,
                 ),
                 proj_factor=2.0,
