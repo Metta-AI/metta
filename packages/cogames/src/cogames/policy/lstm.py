@@ -8,6 +8,7 @@ from einops import rearrange
 
 import pufferlib.pytorch
 from cogames.policy.policy import AgentPolicy, StatefulAgentPolicy, TrainablePolicy
+from cogames.policy.utils import LSTMState, LSTMStateDict
 from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation
 
 logger = logging.getLogger("cogames.policies.lstm_policy")
@@ -37,7 +38,7 @@ class LSTMPolicyNet(torch.nn.Module):
     def forward_eval(
         self,
         observations: torch.Tensor,
-        state: Optional[Union[Tuple[torch.Tensor, torch.Tensor], Dict[str, torch.Tensor]]] = None,
+        state: Optional[Union[LSTMState, Tuple[torch.Tensor, torch.Tensor], Dict[str, torch.Tensor]]] = None,
     ) -> Tuple[List[torch.Tensor], torch.Tensor]:
         # Handle different input shapes:
         # - bptt_horizon=1: (batch_size, *obs_shape) e.g. (128, 7, 7, 3)
@@ -147,7 +148,7 @@ class LSTMPolicyNet(torch.nn.Module):
         return self.forward_eval(observations, state)
 
 
-class LSTMAgentPolicy(StatefulAgentPolicy[Tuple[torch.Tensor, torch.Tensor]]):
+class LSTMAgentPolicy(StatefulAgentPolicy[LSTMState]):
     """Per-agent policy that uses the shared LSTM network."""
 
     def __init__(self, net: LSTMPolicyNet, device: torch.device, action_nvec: tuple):
@@ -155,7 +156,7 @@ class LSTMAgentPolicy(StatefulAgentPolicy[Tuple[torch.Tensor, torch.Tensor]]):
         self._device = device
         self._action_nvec = action_nvec
 
-    def agent_state(self) -> Optional[Tuple[torch.Tensor, torch.Tensor]]:
+    def agent_state(self) -> Optional[LSTMState]:
         """Get initial state for a new agent.
 
         For LSTM, we return None and let the network initialize the state on first forward pass.
@@ -165,8 +166,8 @@ class LSTMAgentPolicy(StatefulAgentPolicy[Tuple[torch.Tensor, torch.Tensor]]):
     def step_with_state(
         self,
         obs: Union[MettaGridObservation, torch.Tensor],
-        state: Optional[Tuple[torch.Tensor, torch.Tensor]],
-    ) -> Tuple[MettaGridAction, Optional[Tuple[torch.Tensor, torch.Tensor]]]:
+        state: Optional[LSTMState],
+    ) -> Tuple[MettaGridAction, Optional[LSTMState]]:
         """Get action and update state for this agent."""
         # Convert single observation to batch of 1 for network forward pass
         if isinstance(obs, torch.Tensor):
@@ -177,9 +178,10 @@ class LSTMAgentPolicy(StatefulAgentPolicy[Tuple[torch.Tensor, torch.Tensor]]):
         with torch.no_grad():
             self._net.eval()
             # For inference, we pass state through a dict so forward_eval can populate it
-            state_dict = {"lstm_h": None, "lstm_c": None}
+            state_dict: LSTMStateDict = {"lstm_h": None, "lstm_c": None}
             if state is not None:
-                state_dict["lstm_h"], state_dict["lstm_c"] = state
+                hidden, cell = state.to_tuple()
+                state_dict["lstm_h"], state_dict["lstm_c"] = hidden, cell
 
             # Debug: check observation
             if torch.isnan(obs_tensor).any():
@@ -201,10 +203,12 @@ class LSTMAgentPolicy(StatefulAgentPolicy[Tuple[torch.Tensor, torch.Tensor]]):
                         logger.error(f"NaN in parameter {name}")
 
             # Extract the new state from the dict
-            new_state = None
+            new_state: Optional[LSTMState] = None
             if "lstm_h" in state_dict and "lstm_c" in state_dict:
                 h, c = state_dict["lstm_h"], state_dict["lstm_c"]
-                new_state = (h.detach(), c.detach())
+                tuple_state = (h.detach(), c.detach())
+                layers = self._net._rnn.num_layers * (2 if self._net._rnn.bidirectional else 1)
+                new_state = LSTMState.from_tuple(tuple_state, layers)
 
             # Sample action from the logits
             actions: list[int] = []
@@ -212,7 +216,7 @@ class LSTMAgentPolicy(StatefulAgentPolicy[Tuple[torch.Tensor, torch.Tensor]]):
                 dist = torch.distributions.Categorical(logits=logit)
                 actions.append(dist.sample().item())
 
-            return np.array(actions, dtype=np.int32), new_state
+            return np.array(actions, dtype=np.int32), new_state.detach() if new_state is not None else None
 
 
 class LSTMPolicy(TrainablePolicy):
