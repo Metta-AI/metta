@@ -37,7 +37,6 @@ proc processActions*() =
   if not (play or requestPython):
     return
   
-  # Collect agent IDs to avoid modifying table while iterating.
   var agentIds: seq[int] = @[]
   for agentId in agentPaths.keys:
     agentIds.add(agentId)
