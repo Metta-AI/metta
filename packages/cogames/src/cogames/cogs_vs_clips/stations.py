@@ -166,8 +166,7 @@ def chest() -> ChestConfig:
         map_char="C",
         render_symbol="📦",
         resource_type="heart",
-        deposit_positions=["E"],
-        withdrawal_positions=["W"],
+        position_deltas=[("E", 1), ("W", -1)],
     )
 
 
@@ -178,8 +177,7 @@ def chest_carbon() -> ChestConfig:
         map_char="L",
         render_symbol="📦",
         resource_type="carbon",
-        deposit_positions=["E"],
-        withdrawal_positions=["W"],
+        position_deltas=[("E", 1), ("W", -1), ("N", 5), ("S", -5)],
     )
 
 
@@ -190,8 +188,7 @@ def chest_oxygen() -> ChestConfig:
         map_char="M",
         render_symbol="📦",
         resource_type="oxygen",
-        deposit_positions=["E"],
-        withdrawal_positions=["W"],
+        position_deltas=[("E", 1), ("W", -1), ("N", 10), ("S", -10)],
     )
 
 
@@ -202,8 +199,7 @@ def chest_germanium() -> ChestConfig:
         map_char="N",
         render_symbol="📦",
         resource_type="germanium",
-        deposit_positions=["E"],
-        withdrawal_positions=["W"],
+        position_deltas=[("E", 1), ("W", -1), ("N", 5), ("S", -5)],
     )
 
 
@@ -214,8 +210,7 @@ def chest_silicon() -> ChestConfig:
         map_char="O",
         render_symbol="📦",
         resource_type="silicon",
-        deposit_positions=["E"],
-        withdrawal_positions=["W"],
+        position_deltas=[("E", 1), ("W", -1), ("N", 25), ("S", -25)],
     )
 
 
