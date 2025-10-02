@@ -9,23 +9,6 @@ type
     S = 1
     W = 2
     E = 3
-  
-  QueuedAction = object
-    agentId: int
-    actionId: int
-    argument: int
-
-var
-  ## Action queue for each agent. Only one action per step.
-  actionQueue = initTable[int, QueuedAction]()
-
-proc queueAction(agentId, actionId, argument: int) =
-  ## Queue an action for the agent. Will be sent on next step.
-  actionQueue[agentId] = QueuedAction(
-    agentId: agentId,
-    actionId: actionId,
-    argument: argument
-  )
 
 proc sendAction*(agentId, actionId, argument: int) =
   ## Send an action to the Python from the user.
@@ -50,42 +33,60 @@ proc getOrientationFromDelta(dx, dy: int): Orientation =
     return N
 
 proc processActions*() =
-  ## Process pathfinding and action queue. Called on step change.
+  ## Process pathfinding and send actions for the current step while in play mode.
   if not (play or requestPython):
     return
   
-  for agentId, path in agentPaths:
+  var agentIds: seq[int] = @[]
+  for agentId in agentPaths.keys:
+    agentIds.add(agentId)
+  
+  for agentId in agentIds:
+    if not agentPaths.hasKey(agentId) and not (agentDestinations.hasKey(agentId) and agentDestinations[agentId].len > 0):
+      continue
+    
+    let agent = getAgentById(agentId)
+    let currentPos = agent.location.at(step).xy
+    
+    if agentDestinations.hasKey(agentId) and agentDestinations[agentId].len > 0:
+      let dest = agentDestinations[agentId][0]
+
+      # If this is a 'bump' destination and we are adjacent to it, bump it once.
+      if dest.destinationType == Bump and currentPos in findAdjacentWalkable(dest.pos):
+        # TODO: Chests have special behavior.
+        #   You must deposit on the right side and take out on the left side.
+        #   This is not implemented yet.
+        let dx = dest.pos.x - currentPos.x
+        let dy = dest.pos.y - currentPos.y
+        let targetOrientation = getOrientationFromDelta(dx.int, dy.int)
+        sendAction(agentId, replay.moveActionId, targetOrientation.int)
+        # after bumping, the current destination is fulfilled.
+        agentDestinations[agentId].delete(0)
+        agentPaths.del(agentId)
+        # if there's another destination, pathfind to it.
+        if agentDestinations[agentId].len > 0:
+          recomputePath(agentId, currentPos)
+        continue
+    
+    if not agentPaths.hasKey(agentId):
+      continue
+    let path = agentPaths[agentId]
+    
     if path.len > 1:
-      var agent: Entity = nil
-      for obj in replay.objects:
-        if obj.isAgent and obj.agentId == agentId:
-          agent = obj
-          break
-      
-      if agent != nil:
-        let currentPos = agent.location.at(step).xy
-        
-        if path[0] == currentPos:
-          if path.len > 1:
-            let nextPos = path[1]
-            let dx = nextPos.x - currentPos.x
-            let dy = nextPos.y - currentPos.y
-            let orientation = getOrientationFromDelta(dx.int, dy.int)
-            queueAction(agentId, replay.moveActionId, orientation.int)
-            agentPaths[agentId].delete(0)
-          else:
-            recomputePath(agentId, currentPos)
+      # If we are still on the expected path, continue moving.
+      # otherwise, assume something is blocking the path and recompute.
+      if path[0] == currentPos:
+        if path.len > 1:
+          let nextPos = path[1]
+          let dx = nextPos.x - currentPos.x
+          let dy = nextPos.y - currentPos.y
+          let orientation = getOrientationFromDelta(dx.int, dy.int)
+          sendAction(agentId, replay.moveActionId, orientation.int)
+          agentPaths[agentId].delete(0)
         else:
           recomputePath(agentId, currentPos)
-  
-  if actionQueue.len > 0:
-    for agentId, action in actionQueue:
-      requestActions.add(ActionRequest(
-        agentId: action.agentId,
-        actionId: action.actionId,
-        argument: action.argument
-      ))
-    actionQueue.clear()
+      else:
+        recomputePath(agentId, currentPos)
 
 proc agentControls*() =
   ## Manual controls with WASD for selected agent.
