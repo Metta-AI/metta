@@ -2,13 +2,13 @@ import contextlib
 import os
 import platform
 from datetime import timedelta
-from typing import Optional
+from typing import Any, Optional
 
 import torch
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from metta.agent.policies.vit import ViTDefaultConfig
-from metta.agent.policy import Policy, PolicyArchitecture
+from metta.agent.policy import POLICY_PRESETS, Policy, PolicyArchitecture
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
 from metta.common.util.heartbeat import record_heartbeat
@@ -54,6 +54,17 @@ logger = getRankAwareLogger(__name__)
 
 
 class TrainTool(Tool):
+    @classmethod
+    def policy_presets(cls) -> dict[str, str]:
+        return {name: f"{preset().__module__}.{preset().__name__}" for name, preset in POLICY_PRESETS.items()}
+
+    @field_validator("policy_architecture", mode="before")
+    @classmethod
+    def _coerce_policy_architecture(cls, value: Any) -> Any:
+        if value is None or isinstance(value, PolicyArchitecture):
+            return value
+        return PolicyArchitecture.resolve(value)
+
     run: Optional[str] = None
 
     trainer: TrainerConfig = Field(default_factory=TrainerConfig)
@@ -96,8 +107,13 @@ class TrainTool(Tool):
         if self.run is None:
             self.run = auto_run_name(prefix="local")
 
+        group_override = args.get("group")
+
         if self.wandb == WandbConfig.Unconfigured():
             self.wandb = auto_wandb_config(self.run)
+
+        if group_override:
+            self.group = group_override
 
         if self.group:
             self.wandb.group = self.group

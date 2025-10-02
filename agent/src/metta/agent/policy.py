@@ -4,7 +4,7 @@ This ensures that all policies (ComponentPolicy, PyTorch agents with mixin, etc.
 implement the required methods that MettaAgent depends on."""
 
 from abc import ABC, abstractmethod
-from typing import ClassVar, List
+from typing import Any, Callable, ClassVar, Dict, List
 
 import torch
 import torch.nn as nn
@@ -24,6 +24,21 @@ from metta.rl.training import EnvironmentMetaData
 from mettagrid.config import Config
 from mettagrid.util.module import load_symbol
 
+PolicyPresetFactory = Callable[[], type["PolicyArchitecture"]]
+
+
+def _resolve_symbol(path: str) -> Any:
+    try:
+        return load_symbol(path)
+    except (AttributeError, ModuleNotFoundError, ValueError) as exc:
+        raise ValueError(f"Failed to resolve symbol '{path}': {exc}") from exc
+
+
+POLICY_PRESETS: Dict[str, PolicyPresetFactory] = {
+    "fast": lambda: _resolve_symbol("metta.agent.policies.fast.FastConfig"),
+    "vit": lambda: _resolve_symbol("metta.agent.policies.vit.ViTDefaultConfig"),
+}
+
 
 class PolicyArchitecture(Config):
     """Policy architecture configuration."""
@@ -37,11 +52,41 @@ class PolicyArchitecture(Config):
     # a separate component that optionally accepts actions and process logits into log probs, entropy, etc.
     action_probs_config: ComponentConfig
 
+    @classmethod
+    def resolve(cls, value: Any) -> "PolicyArchitecture":
+        if isinstance(value, cls):
+            return value
+
+        if isinstance(value, str):
+            preset = POLICY_PRESETS.get(value.lower())
+            if preset is not None:
+                resolved_cls = preset()
+                if isinstance(resolved_cls, type) and issubclass(resolved_cls, cls):
+                    return resolved_cls()
+                raise TypeError("Policy preset factory must return a PolicyArchitecture subclass")
+
+            try:
+                resolved_obj = _resolve_symbol(value)
+            except ValueError as exc:
+                available = ", ".join(sorted(POLICY_PRESETS))
+                raise ValueError(f"Unknown policy preset: {value}. Available presets: [{available}]") from exc
+
+            if isinstance(resolved_obj, type) and issubclass(resolved_obj, cls):
+                return resolved_obj()
+            if isinstance(resolved_obj, cls):
+                return resolved_obj
+            raise TypeError("Policy preset path must resolve to a PolicyArchitecture type or instance")
+
+        if isinstance(value, type) and issubclass(value, cls):
+            return value()
+
+        raise TypeError(f"Unable to resolve value {value!r} into a {cls.__name__}")
+
     def make_policy(self, env_metadata: EnvironmentMetaData) -> "Policy":
         """Create an agent instance from configuration."""
 
-        AgentClass = load_symbol(self.class_path)
-        return AgentClass(env_metadata, self)
+        agent_cls = _resolve_symbol(self.class_path)
+        return agent_cls(env_metadata, self)
 
 
 class Policy(ABC, nn.Module):
