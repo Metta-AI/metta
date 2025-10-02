@@ -12,6 +12,7 @@ import torch
 from einops import rearrange
 from pydantic import model_validator
 from tensordict import TensorDict
+from tensordict.nn import TensorDictModule
 from torch import nn
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
@@ -24,7 +25,6 @@ from metta.agent.components.actor import (
     ActorQuery,
     ActorQueryConfig,
 )
-from metta.agent.components.heads import LinearHead, LinearHeadConfig
 from metta.agent.components.obs_enc import ObsPerceiverLatent, ObsPerceiverLatentConfig
 from metta.agent.components.obs_shim import ObsShimTokens, ObsShimTokensConfig
 from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourier, ObsAttrEmbedFourierConfig
@@ -207,44 +207,38 @@ class TransformerPolicy(Policy):
 
     def _build_heads(self) -> None:
         manual = self.config.manual_init
-        actor_init_std = 1.0
-        critic_init_std = math.sqrt(2)
-        value_init_std = 1.0
 
-        self.actor_head = LinearHead(
-            LinearHeadConfig(
-                in_key="core",
-                out_key="actor_1",
-                in_features=self.hidden_size,
-                out_features=self.config.actor_hidden_dim,
-                activation="ReLU",
-                manual_init=manual,
-                init_std=actor_init_std,
-            )
+        def _init_linear(linear: nn.Linear, gain: float) -> nn.Linear:
+            if manual:
+                nn.init.orthogonal_(linear.weight, gain)
+                nn.init.zeros_(linear.bias)
+            else:
+                linear = pufferlib.pytorch.layer_init(linear, std=gain)
+            return linear
+
+        actor_linear = _init_linear(
+            nn.Linear(self.hidden_size, self.config.actor_hidden_dim), gain=1.0
+        )
+        self.actor_head = TensorDictModule(
+            nn.Sequential(actor_linear, nn.ReLU()),
+            in_keys=["core"],
+            out_keys=["actor_1"],
         )
 
-        self.critic_head = LinearHead(
-            LinearHeadConfig(
-                in_key="core",
-                out_key="critic_1",
-                in_features=self.hidden_size,
-                out_features=self.config.critic_hidden_dim,
-                activation="Tanh",
-                manual_init=manual,
-                init_std=critic_init_std,
-            )
+        critic_linear = _init_linear(
+            nn.Linear(self.hidden_size, self.config.critic_hidden_dim), gain=math.sqrt(2)
+        )
+        self.critic_head = TensorDictModule(
+            nn.Sequential(critic_linear, nn.Tanh()),
+            in_keys=["core"],
+            out_keys=["critic_1"],
         )
 
-        self.value_head = LinearHead(
-            LinearHeadConfig(
-                in_key="critic_1",
-                out_key="values",
-                in_features=self.config.critic_hidden_dim,
-                out_features=1,
-                activation=None,
-                manual_init=manual,
-                init_std=value_init_std,
-            )
+        value_linear = _init_linear(nn.Linear(self.config.critic_hidden_dim, 1), gain=1.0)
+        self.value_head = TensorDictModule(
+            value_linear,
+            in_keys=["critic_1"],
+            out_keys=["values"],
         )
 
         self.action_embeddings = ActionEmbedding(
