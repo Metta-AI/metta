@@ -131,7 +131,7 @@ class SweepTool(Tool):
     # Controller settings
     max_parallel_jobs: int = 6
     monitoring_interval: int = 60
-    sweep_server_uri: str = "https://api.observatory.softmax-research.net"
+    sweep_server_uri: str = PROD_STATS_SERVER_URI
     gpus: int = 1  # Number of GPUs per training job
     nodes: int = 1  # Number of nodes per training job
 
@@ -166,6 +166,7 @@ class SweepTool(Tool):
             # The keys include the full path "trainer.batch_size" not just "batch_size"
             self.protein_config.parameters.pop("trainer.batch_size", None)
             self.protein_config.parameters.pop("trainer.minibatch_size", None)
+            self.protein_config.parameters.pop("trainer.total_timesteps", None)
 
         # Handle sweep_name being passed via cmd line
         if "sweep_name" in args:

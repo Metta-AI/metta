@@ -537,7 +537,28 @@ constructor/function vs configuration overrides based on introspection.
         if not tool_path:
             list_all_recipes(console)
             return 0
-        # Otherwise list tools in specific recipe
+
+        # Check if it's a bare tool name (like 'train', 'evaluate')
+        # Get canonical tool name (handles aliases)
+        registry = get_tool_registry()
+        tool_name_map = registry._get_tool_name_map()
+        canonical_tool = tool_name_map.get(tool_path, tool_path)
+
+        # If it's a known tool type, list all recipes that support it
+        if canonical_tool in registry.get_all_tools():
+            console.print(f"\n[bold]Recipes supporting '{tool_path}':[/bold]\n")
+            recipes = Recipe.discover_all()
+            found_any = False
+            for recipe in sorted(recipes, key=lambda r: r.module_name):
+                if recipe.infer_tool(registry.get_all_tools()[canonical_tool]) is not None:
+                    short_name = recipe.module_name.replace("experiments.recipes.", "")
+                    console.print(f"  {short_name}.{tool_path}")
+                    found_any = True
+            if not found_any:
+                console.print(f"[yellow]No recipes found supporting '{tool_path}'[/yellow]")
+            return 0
+
+        # Otherwise try to list tools in specific recipe
         if list_module_tools(tool_path, console):
             return 0
         # If listing failed, continue to show error below
