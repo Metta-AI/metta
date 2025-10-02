@@ -150,9 +150,7 @@ class LSTMAgentPolicy(StatefulAgentPolicy[LSTMState]):
             self._net.eval()
             state_dict: LSTMStateDict = {}
             if state is not None:
-                hidden, cell = state.to_tuple()
-                state_dict["lstm_h"] = hidden
-                state_dict["lstm_c"] = cell
+                state.write_dict(state_dict)
 
             # Debug: check observation
             if torch.isnan(obs_tensor).any():
@@ -168,13 +166,11 @@ class LSTMAgentPolicy(StatefulAgentPolicy[LSTMState]):
                     f"NaN in logits! obs shape: {obs_tensor.shape}, obs min/max: {obs_tensor.min()}/{obs_tensor.max()}"
                 )
                 logger.error(f"Logits: {[logit for logit in logits]}")
-                # Check network parameters
                 for name, param in self._net.named_parameters():
                     if torch.isnan(param).any():
                         logger.error(f"NaN in parameter {name}")
 
-            expected_layers = self._net._rnn.num_layers * (2 if self._net._rnn.bidirectional else 1)
-            new_state = LSTMState.from_dict(state_dict, expected_layers)
+            new_state = LSTMState.from_dict(state_dict, self._net._expected_layers)
             if new_state is not None:
                 new_state = new_state.detach()
 

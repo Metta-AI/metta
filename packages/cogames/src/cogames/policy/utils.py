@@ -9,9 +9,6 @@ import torch
 
 LSTMStateTuple = Tuple[torch.Tensor, torch.Tensor]
 LSTMStateDict = Dict[str, torch.Tensor]
-LSTMStateLike = Union["LSTMState", LSTMStateTuple]
-
-
 def _canonical_component(component: torch.Tensor, expected_layers: Optional[int]) -> torch.Tensor:
     """Return a ``(layers, batch, hidden)`` tensor, adding axes as needed."""
     if component.dim() > 3:
@@ -72,7 +69,7 @@ class LSTMState:
     @classmethod
     def from_any(
         cls,
-        state: Optional[Union[LSTMStateLike, LSTMStateDict]],
+        state: Optional[Union["LSTMState", LSTMStateTuple, LSTMStateDict]],
         expected_layers: Optional[int],
     ) -> Optional["LSTMState"]:
         if state is None:
