@@ -142,7 +142,7 @@ def play_cmd(
             )
 
     # Resolve policy shorthand
-    full_policy_path = resolve_policy_class_path(policy_class_path)
+    policy_class_path = resolve_policy_class_path(policy_class_path)
 
     console.print(f"[cyan]Playing {resolved_game}[/cyan]")
     console.print(f"Max Steps: {steps}, Interactive: {interactive}, Render: {render}")
@@ -152,7 +152,7 @@ def play_cmd(
     play_module.play(
         console,
         env_cfg=env_cfg,
-        policy_class_path=full_policy_path,
+        policy_class_path=policy_class_path,
         policy_data_path=policy_data_path,
         max_steps=steps,
         seed=42,
