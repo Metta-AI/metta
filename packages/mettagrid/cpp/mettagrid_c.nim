@@ -1,7 +1,7 @@
 import os, strutils
 
 # PWD is assumed to be the root of the mettagrid package.
-# cd to metta/packages/mettagrid and run `nim cpp mettagrid_c.nim`
+# cd to metta/packages/mettagrid/cpp and run `nim cpp --app:lib mettagrid_c.nim`
 const pwd = getEnv("PWD")
 {.passC: "-I" & pwd & "/include/mettagrid".}
 
