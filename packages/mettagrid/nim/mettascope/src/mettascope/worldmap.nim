@@ -22,7 +22,12 @@ proc agentColor*(id: int): Color =
 
 proc useSelections*(panel: Panel) =
   ## Reads the mouse position and selects the thing under it.
-  if window.buttonPressed[MouseLeft]:
+  let modifierDown = when defined(macosx):
+    window.buttonDown[KeyLeftSuper] or window.buttonDown[KeyRightSuper]
+  else:
+    window.buttonDown[KeyLeftControl] or window.buttonDown[KeyRightControl]
+  
+  if window.buttonPressed[MouseLeft] and not modifierDown:
     selection = nil
     let
       mousePos = bxy.getTransform().inverse * window.mousePos.vec2
@@ -34,7 +39,7 @@ proc useSelections*(panel: Panel) =
           selectObject(obj)
           break
   
-  if window.buttonPressed[MouseRight]:
+  if window.buttonPressed[MouseRight] or (window.buttonPressed[MouseLeft] and modifierDown):
     if selection != nil and selection.isAgent:
       let
         mousePos = bxy.getTransform().inverse * window.mousePos.vec2
@@ -337,9 +342,8 @@ proc drawInventory*() =
         x += xAdvance
 
 proc drawPlannedPath*() =
-  ## Draw the planned path for the selected agent.
-  if selection != nil and selection.isAgent and agentPaths.hasKey(selection.agentId):
-    let path = agentPaths[selection.agentId]
+  ## Draw the planned paths for all agents.
+  for agentId, path in agentPaths:
     if path.len > 1:
       for i in 0 ..< path.len - 1:
         let
