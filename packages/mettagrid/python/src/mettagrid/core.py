@@ -139,8 +139,7 @@ class MettaGridCore:
         # Validate number of agents
         level_agents = np.count_nonzero(np.char.startswith(game_map.grid, "agent"))
         assert self.__mg_config.game.num_agents == level_agents, (
-            f"Number of agents {self.__mg_config.game.num_agents} "
-            f"does not match number  of agents in map {level_agents}"
+            f"Number of agents {self.__mg_config.game.num_agents} does not match number of agents in map {level_agents}"
         )
         game_config_dict = self.__mg_config.game.model_dump()
 
@@ -327,19 +326,23 @@ class MettaGridCore:
 
         return features
 
-    def grid_objects(self, bbox: Optional[BoundingBox] = None) -> Dict[int, Dict[str, Any]]:
-        """Get grid objects information, optionally filtered by bounding box.
-        The box must be fully specified, not just one dimension.
+    def grid_objects(
+        self, bbox: Optional[BoundingBox] = None, ignore_types: Optional[List[str]] = None
+    ) -> Dict[int, Dict[str, Any]]:
+        """Get grid objects information, optionally filtered by bounding box and type.
 
         Args:
             bbox: Bounding box, None for no limit
+            ignore_types: List of type names to exclude from results (e.g., ["wall"])
 
         Returns:
             Dictionary mapping object IDs to object dictionaries
         """
         if bbox is None:
             bbox = BoundingBox(min_row=-1, max_row=-1, min_col=-1, max_col=-1)
-        return self.__c_env_instance.grid_objects(bbox.min_row, bbox.max_row, bbox.min_col, bbox.max_col)
+
+        ignore_list = ignore_types if ignore_types is not None else []
+        return self.__c_env_instance.grid_objects(bbox.min_row, bbox.max_row, bbox.min_col, bbox.max_col, ignore_list)
 
     def set_inventory(self, agent_id: int, inventory: Dict[str, int]) -> None:
         """Set an agent's inventory by resource name.

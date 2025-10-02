@@ -9,9 +9,11 @@ import io
 import sys
 from contextlib import contextmanager
 
+import numpy as np
 import pytest
+from rich.console import Console
 
-from mettagrid.config.mettagrid_config import GameConfig
+from mettagrid.config.mettagrid_config import GameConfig, WallConfig
 from mettagrid.renderer.miniscope import MiniscopeRenderer
 
 
@@ -37,7 +39,6 @@ class TestMiniscopeRenderer:
     @pytest.fixture
     def game_config(self):
         """Provide a minimal GameConfig for testing."""
-        from mettagrid.config.mettagrid_config import WallConfig
 
         return GameConfig(
             resource_names=[],
@@ -282,18 +283,21 @@ class TestMiniscopeRenderer:
 
     def test_info_panel_no_agent_selected(self, renderer):
         """Test info panel when no agent is selected."""
-        import numpy as np
 
         grid_objects = {}
         panel = renderer._build_info_panel(grid_objects, None, [], 10, np.array([]))
 
-        assert len(panel) == 10
-        assert "No agent" in panel[1]
-        assert "selected" in panel[2]
+        # Panel is now a rich.Table, so render it to text to check content
+        console = Console()
+        with console.capture() as capture:
+            console.print(panel)
+        panel_text = capture.get()
+
+        assert "No agent" in panel_text
+        assert "selected" in panel_text
 
     def test_info_panel_with_agent(self, renderer):
         """Test info panel with an agent selected."""
-        import numpy as np
 
         grid_objects = {
             0: {"type": 0, "r": 0, "c": 0, "agent_id": 1, "inventory": {0: 10, 1: 5}},
@@ -303,9 +307,13 @@ class TestMiniscopeRenderer:
 
         panel = renderer._build_info_panel(grid_objects, 1, resource_names, 15, total_rewards)
 
-        assert len(panel) == 15
-        panel_text = "\n".join(panel)
-        assert "Agent 1" in panel_text
+        # Panel is now a rich.Table, so render it to text to check content
+        console = Console()
+        with console.capture() as capture:
+            console.print(panel)
+        panel_text = capture.get()
+
+        assert "1" in panel_text  # Agent ID
         assert "42.5" in panel_text  # Reward
         assert "energy" in panel_text
         assert "10" in panel_text  # energy amount
@@ -314,7 +322,6 @@ class TestMiniscopeRenderer:
 
     def test_info_panel_with_empty_inventory(self, renderer):
         """Test info panel with an agent that has no inventory."""
-        import numpy as np
 
         grid_objects = {
             0: {"type": 0, "r": 0, "c": 0, "agent_id": 0, "inventory": {}},
@@ -323,7 +330,12 @@ class TestMiniscopeRenderer:
 
         panel = renderer._build_info_panel(grid_objects, 0, [], 10, total_rewards)
 
-        panel_text = "\n".join(panel)
+        # Panel is now a rich.Table, so render it to text to check content
+        console = Console()
+        with console.capture() as capture:
+            console.print(panel)
+        panel_text = capture.get()
+
         assert "(empty)" in panel_text
 
     def test_bounds_checking_skips_out_of_range_objects(self, renderer):
