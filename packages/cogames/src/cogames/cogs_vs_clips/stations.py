@@ -1,6 +1,7 @@
 from typing import Optional
 
-from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, RecipeConfig
+from cogames.cogs_vs_clips import protocols
+from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig
 
 resources = [
     "energy",
@@ -17,21 +18,15 @@ resources = [
 
 
 def charger(max_uses: Optional[int] = None) -> AssemblerConfig:
+    recipe = protocols.standard_charging_recipe()
     return AssemblerConfig(
         name="charger",
         type_id=5,
         map_char="H",
         render_symbol="⚡",
+        allow_partial_usage=True,  # can use it while its on cooldown
         max_uses=max_uses or 0,
-        recipes=[
-            (
-                ["Any"],
-                RecipeConfig(
-                    output_resources={"energy": 50},
-                    cooldown=1,
-                ),
-            )
-        ],
+        recipes=protocols.protocol(recipe),
     )
 
 
@@ -43,14 +38,7 @@ def carbon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         map_char="N",
         render_symbol="⚫",
         max_uses=max_uses or 0,
-        recipes=[
-            (
-                ["Any"],
-                RecipeConfig(
-                    output_resources={"carbon": 5},
-                ),
-            )
-        ],
+        recipes=protocols.protocol(protocols.standard_carbon_recipe()),
     )
 
 
@@ -63,15 +51,7 @@ def oxygen_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         render_symbol="🔵",
         allow_partial_usage=True,  # can use it while its on cooldown
         max_uses=max_uses or 0,
-        recipes=[
-            (
-                ["Any"],
-                RecipeConfig(
-                    output_resources={"oxygen": 100},
-                    cooldown=100,
-                ),
-            )
-        ],
+        recipes=protocols.protocol(protocols.standard_oxygen_recipe()),
     )
 
 
@@ -82,16 +62,13 @@ def germanium_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         type_id=4,
         map_char="E",
         render_symbol="🟣",
-        max_uses=max_uses or 0,
-        recipes=[
-            (
-                ["Any"],
-                RecipeConfig(
-                    output_resources={"germanium": 1},
-                    cooldown=250,
-                ),
-            )
-        ],
+        max_uses=max_uses or 2,
+        recipes=(
+            protocols.protocol(protocols.germanium_recipe(1), num_agents=1)
+            + protocols.protocol(protocols.germanium_recipe(2), num_agents=2)
+            + protocols.protocol(protocols.germanium_recipe(3), num_agents=3)
+            + protocols.protocol(protocols.germanium_recipe(4), min_agents=4)
+        ),
     )
 
 
@@ -103,16 +80,7 @@ def silicon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         map_char="I",
         render_symbol="🔷",
         max_uses=max_uses or 0,
-        recipes=[
-            (
-                ["Any"],
-                RecipeConfig(
-                    input_resources={"energy": 25},
-                    output_resources={"silicon": 25},
-                    cooldown=1,
-                ),
-            )
-        ],
+        recipes=protocols.protocol(protocols.standard_silicon_recipe()),
     )
 
 
@@ -122,10 +90,8 @@ def carbon_ex_dep() -> AssemblerConfig:
         type_id=19,
         map_char="K",
         render_symbol="⬛",
-        max_uses=50,
-        recipes=[
-            (["Any"], RecipeConfig(output_resources={"carbon": 1}, cooldown=1)),
-        ],
+        max_uses=100,
+        recipes=protocols.protocol(protocols.low_carbon_recipe()),
     )
 
 
@@ -135,11 +101,9 @@ def oxygen_ex_dep() -> AssemblerConfig:
         type_id=18,
         map_char="Q",
         render_symbol="⬜",
-        max_uses=5,
+        max_uses=10,
         allow_partial_usage=True,
-        recipes=[
-            (["Any"], RecipeConfig(output_resources={"oxygen": 20}, cooldown=20)),
-        ],
+        recipes=protocols.protocol(protocols.low_oxygen_recipe()),
     )
 
 
@@ -149,10 +113,13 @@ def germanium_ex_dep() -> AssemblerConfig:
         type_id=20,
         map_char="Y",
         render_symbol="🟪",
-        max_uses=5,
-        recipes=[
-            (["Any"], RecipeConfig(output_resources={"germanium": 1}, cooldown=1)),
-        ],
+        max_uses=1,
+        recipes=(
+            protocols.protocol(protocols.germanium_recipe(1), num_agents=1)
+            + protocols.protocol(protocols.germanium_recipe(2), num_agents=2)
+            + protocols.protocol(protocols.germanium_recipe(3), num_agents=3)
+            + protocols.protocol(protocols.germanium_recipe(4), min_agents=4)
+        ),
     )
 
 
@@ -162,17 +129,8 @@ def silicon_ex_dep() -> AssemblerConfig:
         type_id=16,
         map_char="V",
         render_symbol="🔹",
-        max_uses=5,
-        recipes=[
-            (
-                ["Any"],
-                RecipeConfig(
-                    input_resources={"energy": 25},
-                    output_resources={"silicon": 10},
-                    cooldown=1,
-                ),
-            )
-        ],
+        max_uses=10,
+        recipes=protocols.protocol(protocols.low_silicon_recipe()),
     )
 
 
@@ -183,8 +141,7 @@ def chest() -> ChestConfig:
         map_char="C",
         render_symbol="📦",
         resource_type="heart",
-        deposit_positions=["E"],
-        withdrawal_positions=["W"],
+        position_deltas=[("E", 1), ("W", -1)],
     )
 
 
@@ -195,8 +152,7 @@ def chest_carbon() -> ChestConfig:
         map_char="L",
         render_symbol="📦",
         resource_type="carbon",
-        deposit_positions=["E"],
-        withdrawal_positions=["W"],
+        position_deltas=[("E", 1), ("W", -1), ("N", 5), ("S", -5)],
     )
 
 
@@ -207,8 +163,7 @@ def chest_oxygen() -> ChestConfig:
         map_char="M",
         render_symbol="📦",
         resource_type="oxygen",
-        deposit_positions=["E"],
-        withdrawal_positions=["W"],
+        position_deltas=[("E", 1), ("W", -1), ("N", 10), ("S", -10)],
     )
 
 
@@ -219,8 +174,7 @@ def chest_germanium() -> ChestConfig:
         map_char="N",
         render_symbol="📦",
         resource_type="germanium",
-        deposit_positions=["E"],
-        withdrawal_positions=["W"],
+        position_deltas=[("E", 1), ("W", -1), ("N", 5), ("S", -5)],
     )
 
 
@@ -231,8 +185,7 @@ def chest_silicon() -> ChestConfig:
         map_char="O",
         render_symbol="📦",
         resource_type="silicon",
-        deposit_positions=["E"],
-        withdrawal_positions=["W"],
+        position_deltas=[("E", 1), ("W", -1), ("N", 25), ("S", -25)],
     )
 
 
@@ -243,37 +196,52 @@ def assembler() -> AssemblerConfig:
         map_char="Z",
         render_symbol="🔄",
         recipes=[
-            (
-                ["E"],
-                RecipeConfig(
-                    input_resources={"energy": 3},
-                    output_resources={"heart": 1},
-                    cooldown=1,
-                ),
-            ),
-            (
-                ["N"],
-                RecipeConfig(
-                    input_resources={"germanium": 1},
-                    output_resources={"decoder": 1},
-                    cooldown=1,
-                ),
-            ),
-            (
-                ["S"],
-                RecipeConfig(
-                    input_resources={"carbon": 3},
-                    output_resources={"modulator": 1},
-                    cooldown=1,
-                ),
-            ),
-            (
-                ["W"],
-                RecipeConfig(
-                    input_resources={"oxygen": 3},
-                    output_resources={"scrambler": 1},
-                    cooldown=1,
-                ),
-            ),
+            (["N"], protocols.one_agent_heart_recipe()),
+            (["W"], protocols.one_agent_heart_recipe()),
+            (["S"], protocols.one_agent_heart_recipe()),
+            (["E"], protocols.one_agent_heart_recipe()),
+            (["N", "E"], protocols.two_agent_heart_recipe()),
+            (["N", "W"], protocols.two_agent_heart_recipe()),
+            (["N", "S"], protocols.two_agent_heart_recipe()),
+            (["E", "S"], protocols.two_agent_heart_recipe()),
+            (["E", "W"], protocols.two_agent_heart_recipe()),
+            (["S", "W"], protocols.two_agent_heart_recipe()),
+            (["N", "E", "W"], protocols.three_agent_heart_recipe()),
+            (["N", "E", "S"], protocols.three_agent_heart_recipe()),
+            (["N", "W", "S"], protocols.three_agent_heart_recipe()),
+            (["E", "W", "S"], protocols.three_agent_heart_recipe()),
+            (["N", "E", "W", "S"], protocols.four_agent_heart_recipe()),
         ],
+        # (
+        #     ["E"],
+        #     RecipeConfig(
+        #         input_resources={"energy": 3},
+        #         output_resources={"heart": 1},
+        #         cooldown=1,
+        #     ),
+        # ),
+        # (
+        #     ["N"],
+        #     RecipeConfig(
+        #         input_resources={"germanium": 1},
+        #         output_resources={"decoder": 1},
+        #         cooldown=1,
+        #     ),
+        # ),
+        # (
+        #     ["S"],
+        #     RecipeConfig(
+        #         input_resources={"carbon": 3},
+        #         output_resources={"modulator": 1},
+        #         cooldown=1,
+        #     ),
+        # ),
+        # (
+        #     ["W"],
+        #     RecipeConfig(
+        #         input_resources={"oxygen": 3},
+        #         output_resources={"scrambler": 1},
+        #         cooldown=1,
+        #     ),
+        # ),
     )

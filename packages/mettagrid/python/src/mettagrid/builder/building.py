@@ -234,14 +234,24 @@ def make_chest(
     name: str = "chest",
     map_char: str = "C",
     render_symbol: str = "📦",
-    deposit_positions: list[Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE"]] | None = None,
-    withdrawal_positions: list[Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE"]] | None = None,
+    position_deltas: list[tuple[Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE"], int]] | None = None,
+    initial_inventory: int = 0,
+    max_inventory: int = 255,
 ) -> ChestConfig:
-    """Create a chest configuration for a specific resource type."""
-    if deposit_positions is None:
-        deposit_positions = []  # Default to no deposit positions
-    if withdrawal_positions is None:
-        withdrawal_positions = []  # Default to no withdrawal positions
+    """Create a chest configuration for a specific resource type.
+
+    Args:
+        resource_type: Resource type that this chest can store
+        type_id: Unique type ID
+        name: Name of the chest
+        map_char: Character for ASCII maps
+        render_symbol: Symbol for rendering
+        position_deltas: List of (position, delta) tuples. Positive delta = deposit amount, negative = withdraw amount
+        initial_inventory: Initial amount of resource_type in the chest
+        max_inventory: Maximum inventory (255 = default, -1 = unlimited, resources destroyed when full)
+    """
+    if position_deltas is None:
+        position_deltas = []  # Default to no positions configured
 
     return ChestConfig(
         name=name,
@@ -249,10 +259,11 @@ def make_chest(
         map_char=map_char,
         render_symbol=render_symbol,
         resource_type=resource_type,
-        deposit_positions=deposit_positions,
-        withdrawal_positions=withdrawal_positions,
+        position_deltas=position_deltas,
+        initial_inventory=initial_inventory,
+        max_inventory=max_inventory,
     )
 
 
 # Example chest configurations
-chest_heart = make_chest("heart", 20, deposit_positions=["N"], withdrawal_positions=["S"])
+chest_heart = make_chest("heart", 20, position_deltas=[("N", 1), ("S", -1)])
