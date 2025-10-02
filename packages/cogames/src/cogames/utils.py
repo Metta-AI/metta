@@ -55,7 +55,7 @@ def get_game_config(console: Console, game_arg: str) -> tuple[str, MettaGridConf
     resolved_game, error = resolve_game(game_arg)
     if error or resolved_game is None:
         console.print(f"[red]Error: {error or 'Unknown game'}[/red]")
-        raise typer.Exit(1) from ValueError(error)
+        raise typer.Exit(1)
     return resolved_game, game_module.get_game(resolved_game)
 
 
