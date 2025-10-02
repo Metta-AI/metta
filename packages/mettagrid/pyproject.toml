@@ -77,8 +77,7 @@ source = ["mettagrid"]
 demo = "mettagrid.demo:main"
 
 [tool.setuptools_scm]
-# Accept both historical `vX.Y.Z` tags and new `mettagrid-vX.Y.Z` tags.
-tag_regex = "^(?:mettagrid-)?v(?P<version>\\d+\\.\\d+\\.\\d+(?:\\.\\d+)?)$"
+tag_regex = "^mettagrid-v(?P<version>\\d+\\.\\d+\\.\\d+(?:\\.\\d+)?)$"
 version_scheme = "no-guess-dev"
 local_scheme = "node-and-date"
 root = "../.."

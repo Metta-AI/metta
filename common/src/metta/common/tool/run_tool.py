@@ -9,14 +9,12 @@ import inspect
 import json
 import logging
 import os
-import platform
 import signal
 import sys
 import tempfile
 import traceback
-import types
 import warnings
-from typing import Any, Union, get_args, get_origin
+from typing import Any
 
 from pydantic import BaseModel, TypeAdapter
 from rich.console import Console
@@ -48,27 +46,6 @@ def init_mettagrid_system_environment() -> None:
     warnings.filterwarnings("ignore", category=DeprecationWarning)
     warnings.filterwarnings("ignore", category=DeprecationWarning, module="pkg_resources")
     warnings.filterwarnings("ignore", category=DeprecationWarning, module="pygame.pkgdata")
-
-    _enable_flash_attention_default()
-
-
-def _enable_flash_attention_default() -> None:
-    if platform.system() == "Darwin":
-        return
-    if os.environ.get("FLASH_ATTENTION"):
-        return
-    try:
-        import torch
-
-        if not torch.cuda.is_available():
-            return
-        try:
-            import flash_attn  # noqa: F401
-        except ImportError:
-            return
-        os.environ["FLASH_ATTENTION"] = "1"
-    except Exception:  # pragma: no cover - best effort
-        logger.debug("Unable to enable flash attention by default", exc_info=True)
 
 
 T = TypeVar("T", bound=Config)
@@ -140,12 +117,6 @@ def parse_value(value_str: str) -> Any:
     return value_str
 
 
-CLI_KEY_ALIASES: dict[str, str] = {
-    "policy": "policy_architecture",
-    "policy_config": "policy_architecture",
-}
-
-
 def parse_cli_args(cli_args: list[str]) -> dict[str, Any]:
     """Parse CLI arguments in key=value format, keeping dotted keys flat."""
     parsed: dict[str, Any] = {}
@@ -154,8 +125,7 @@ def parse_cli_args(cli_args: list[str]) -> dict[str, Any]:
         if "=" not in arg:
             raise ValueError(f"Invalid argument format: {arg}. Expected key=value")
         key, value = arg.split("=", 1)
-        canonical_key = CLI_KEY_ALIASES.get(key, key)
-        parsed[canonical_key] = parse_value(value)
+        parsed[key] = parse_value(value)
     return parsed
 
 
@@ -219,36 +189,10 @@ def classify_remaining_args(remaining_args: dict[str, Any], tool_fields: set[str
     return overrides, unknown
 
 
-def _try_parse_config(annotation: Any, value: Any):
-    if isinstance(annotation, type) and issubclass(annotation, Config):
-        return annotation.resolve(value)
-
-    origin = get_origin(annotation)
-    if origin in (Union, types.UnionType):
-        errors: list[Exception] = []
-        for arg in get_args(annotation):
-            if arg is type(None) and value is None:
-                return None
-            try:
-                return _try_parse_config(arg, value)
-            except Exception as exc:
-                errors.append(exc)
-        if errors:
-            raise errors[-1]
-
-    raise TypeError
-
-
 def type_parse(value: Any, annotation: Any) -> Any:
     """Type-aware coercion using Pydantic when a function annotation is present."""
     if annotation is inspect._empty:
         return value
-
-    try:
-        return _try_parse_config(annotation, value)
-    except TypeError:
-        pass
-
     adapter = TypeAdapter(annotation)
     return adapter.validate_python(value)
 

@@ -154,21 +154,14 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
 
         self._num_workers = num_workers
 
-        vecenv_kwargs = {
-            "num_envs": self._num_envs,
-            "batch_size": self._batch_size,
-            "num_workers": num_workers,
-            "zero_copy": cfg.zero_copy,
-            "is_training": True,
-        }
-
-        sharing_strategy = os.getenv("TORCH_MP_SHARING")
-        if not cfg.zero_copy and sharing_strategy:
-            vecenv_kwargs["mp_context"] = sharing_strategy
         self._vecenv = make_vecenv(
             self._curriculum,
             cfg.vectorization,
-            **vecenv_kwargs,
+            num_envs=self._num_envs,
+            batch_size=self._batch_size,
+            num_workers=num_workers,
+            zero_copy=cfg.zero_copy,
+            is_training=True,
         )
 
         # NOTE: Downstream rollout code currently assumes that PufferLib returns

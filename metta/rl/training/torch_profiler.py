@@ -4,7 +4,6 @@ import gzip
 import logging
 import os
 import shutil
-import sys
 import tempfile
 from pathlib import Path
 from typing import Any, Optional
@@ -40,23 +39,11 @@ class TorchProfileSession:
         self._start_epoch: int | None = None
         self._profile_filename_base: str | None = None
         self._first_profile_epoch = 300  # allow torch warmup cycles before profiling
-        self._duration_epochs: int = max(1, int(getattr(self._profiler_config, "duration_epochs", 1)))
-        self._epochs_remaining: int = 0
 
-    def prepare_for_epoch(self, epoch: int) -> None:
-        """Arm the profiler if the upcoming epoch should be captured."""
-
-        if self._active:
-            return
-
-        interval = getattr(self._profiler_config, "interval_epochs", 0)
-        if interval <= 0:
-            return
-
-        target_epoch = epoch + 1
-        force = target_epoch == self._first_profile_epoch
-        if should_run(target_epoch, interval, force=force):
-            self._setup_profiler(target_epoch)
+    def on_epoch_end(self, epoch: int) -> None:
+        force = (epoch == self._first_profile_epoch) if not self._active else False
+        if should_run(epoch, getattr(self._profiler_config, "interval_epochs", 0), force=force):
+            self._setup_profiler(epoch)
 
     def _setup_profiler(self, epoch: int) -> None:
         if self._active:
@@ -68,32 +55,26 @@ class TorchProfileSession:
 
         self._active = True
         self._start_epoch = epoch
-        self._epochs_remaining = self._duration_epochs
         run_basename = os.path.basename(self._run_dir) if self._run_dir else "unknown_run"
         self._profile_filename_base = f"trace_{run_basename}_epoch_{self._start_epoch}"
-        logger.info("Torch profiler scheduled for epoch %s", epoch)
+        logger.info("Torch profiler armed for epoch %s", epoch)
 
     def __enter__(self):
         if not self._active:
             return self
 
-        if self._profiler is None:
-            logger.info(
-                "Starting torch profiler for epoch %s (duration=%s epochs)",
-                self._start_epoch,
-                self._duration_epochs,
-            )
-            self._profiler = torch.profiler.profile(
-                activities=[
-                    torch.profiler.ProfilerActivity.CPU,
-                    torch.profiler.ProfilerActivity.CUDA,
-                ],
-                record_shapes=True,
-                profile_memory=True,
-                with_stack=True,
-                with_modules=True,
-            )
-            self._profiler.start()
+        logger.info("Starting torch profiler for epoch %s", self._start_epoch)
+        self._profiler = torch.profiler.profile(
+            activities=[
+                torch.profiler.ProfilerActivity.CPU,
+                torch.profiler.ProfilerActivity.CUDA,
+            ],
+            record_shapes=True,
+            profile_memory=True,
+            with_stack=True,
+            with_modules=True,
+        )
+        self._profiler.start()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -101,24 +82,9 @@ class TorchProfileSession:
             self._active = False
             return False
 
-        try:
-            self._profiler.step()
-        except Exception:  # pragma: no cover - defensive
-            logger.exception("Failed to advance torch profiler step")
-
-        self._epochs_remaining -= 1
-        if self._epochs_remaining > 0:
-            logger.info(
-                "Continuing torch profiler for epoch %s (%s epochs remaining)",
-                self._start_epoch,
-                self._epochs_remaining,
-            )
-            return False
-
         logger.info("Stopping torch profiler for epoch %s", self._start_epoch)
         try:
             self._profiler.stop()
-            self._log_profile_summary(self._profiler)
             self._save_profile(self._profiler)
         except Exception:  # pragma: no cover - defensive
             logger.exception("Failed to save torch profile")
@@ -126,55 +92,8 @@ class TorchProfileSession:
             self._profiler = None
             self._active = False
             self._profile_filename_base = None
-            self._epochs_remaining = 0
 
         return False
-
-    def _log_profile_summary(self, prof: torch.profiler.profile) -> None:
-        try:
-            logger.info("Torch profiler: collecting key averages for epoch %s", self._start_epoch)
-            events = prof.key_averages()
-            logger.info("Torch profiler: collected %s events for epoch %s", len(events), self._start_epoch)
-            cpu_events = sorted(events, key=lambda evt: evt.self_cpu_time_total, reverse=True)[:15]
-            if cpu_events:
-                header = f"Torch profiler CPU top ops for epoch {self._start_epoch}:"
-                print(header, flush=True)
-                logger.info(header)
-                for evt in cpu_events:
-                    line = (
-                        f"  {evt.key:<60} self_cpu={evt.self_cpu_time_total / 1000.0:7.2f}ms "
-                        f"total_cpu={evt.cpu_time_total / 1000.0:7.2f}ms "
-                        f"self_cuda={getattr(evt, 'self_cuda_time_total', 0.0) / 1000.0:7.2f}ms "
-                        f"calls={evt.count:6d}"
-                    )
-                    print(line, flush=True)
-                    logger.info(line)
-
-            if torch.cuda.is_available():
-                cuda_events = [evt for evt in events if getattr(evt, "self_cuda_time_total", 0.0) > 0]
-                cuda_events.sort(key=lambda evt: evt.self_cuda_time_total, reverse=True)
-                cuda_events = cuda_events[:15]
-                if cuda_events:
-                    header = f"Torch profiler CUDA top ops for epoch {self._start_epoch}:"
-                    print(header, flush=True)
-                    logger.info(header)
-                    for evt in cuda_events:
-                        line = (
-                            f"  {evt.key:<60} self_cuda={evt.self_cuda_time_total / 1000.0:7.2f}ms "
-                            f"total_cuda={getattr(evt, 'cuda_time_total', 0.0) / 1000.0:7.2f}ms "
-                            f"self_cpu={evt.self_cpu_time_total / 1000.0:7.2f}ms "
-                            f"calls={evt.count:6d}"
-                        )
-                        print(line, flush=True)
-                        logger.info(line)
-        except Exception as exc:  # pragma: no cover - defensive
-            print(f"Profiler summary failed: {exc}", file=sys.stderr, flush=True)
-            logger.exception("Failed to log torch profiler summary")
-            raise
-
-    @property
-    def is_active(self) -> bool:
-        return self._active
 
     # Internal helpers -------------------------------------------------
     def _save_profile(self, prof: torch.profiler.profile) -> None:
@@ -260,8 +179,6 @@ class TorchProfiler(TrainerComponent):
         def wrapped_train_epoch():
             if self._session is None:
                 return original_train_epoch()
-            current_epoch = self.context.epoch
-            self._session.prepare_for_epoch(current_epoch)
             with self._session:
                 return original_train_epoch()
 
@@ -269,10 +186,8 @@ class TorchProfiler(TrainerComponent):
         self._original_train_epoch = original_train_epoch
 
     def on_epoch_end(self, epoch: int) -> None:  # type: ignore[override]
-        # Profiling sessions are scoped to the epoch via the context manager, so
-        # no additional teardown is required here. This hook is retained for
-        # compatibility with the TrainerComponent interface.
-        return
+        if self._session:
+            self._session.on_epoch_end(epoch)
 
     def on_training_complete(self) -> None:  # type: ignore[override]
         if self._original_train_epoch is not None:
