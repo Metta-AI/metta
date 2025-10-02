@@ -67,6 +67,11 @@ class TerrainFromNumpy(MapBuilder):
     def __init__(self, config: Config):
         self.config = config
 
+    def sort_by_distance_from_center(self, positions):
+        center = np.array(positions.shape) / 2
+        distances = np.sum((positions - center) ** 2, axis=1)
+        return positions[np.argsort(distances)]
+
     def setup(self):
         root = self.config.dir.split("/")[0]
 
@@ -104,19 +109,16 @@ class TerrainFromNumpy(MapBuilder):
         valid_mask = empty_mask & has_empty_neighbor
 
         # Exclude border cells for non-assemblers
-        if not assemblers:
-            valid_mask[0, :] = False
-            valid_mask[-1, :] = False
-            valid_mask[:, 0] = False
-            valid_mask[:, -1] = False
+        valid_mask[0, :] = False
+        valid_mask[-1, :] = False
+        valid_mask[:, 0] = False
+        valid_mask[:, -1] = False
 
         # Get coordinates as numpy array
         valid_positions = np.array(np.where(valid_mask)).T  # Shape: (N, 2)
 
-        if mass_in_center:
-            center = np.array(level.shape) / 2
-            distances = np.sum((valid_positions - center) ** 2, axis=1)
-            valid_positions = valid_positions[np.argsort(distances)]
+        if assemblers and mass_in_center:
+            valid_positions = self.sort_by_distance_from_center(valid_positions)
 
             # Space out positions to ensure neighbors are empty
             occupied = np.zeros(level.shape, dtype=bool)
@@ -278,13 +280,22 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
 
         grid = np.load(f"{map_dir}/{uri}", allow_pickle=True)
 
-        grid, valid_agent_positions, agent_labels = self.clean_grid(grid, mass_in_center=self.config.mass_in_center)
-        # Place agents with bias towards center
-        # Take first half of positions (already sorted by distance from center if mass_in_center=True)
+        grid, valid_agent_positions, agent_labels = self.clean_grid(
+            grid
+        )
+        if self.config.mass_in_center:
+            valid_agent_positions = self.sort_by_distance_from_center(valid_agent_positions)
+
         num_agents = len(agent_labels)
-        # Place all agents
-        for pos, label in zip(valid_agent_positions[:num_agents], agent_labels, strict=False):
+        if len(valid_agent_positions) < num_agents:
+            raise ValueError(
+                f"Not enough valid positions for {num_agents} agents "
+                f"(only {len(valid_agent_positions)} available) in map {uri}"
+            )
+
+        for pos, label in zip(valid_agent_positions[:num_agents], agent_labels, strict=True):
             grid[tuple(pos)] = label
+
 
         grid, valid_assembler_positions, _ = self.clean_grid(
             grid, assemblers=True, mass_in_center=self.config.mass_in_center, clear_agents=False
@@ -332,6 +343,10 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
                 used_set = set(map(tuple, all_positions))
                 mask = np.array([tuple(pos) not in used_set for pos in valid_assembler_positions])
                 valid_assembler_positions = valid_assembler_positions[mask]
+
+        num_agents_in_grid = (grid == "agent.agent").sum()
+        if num_agents_in_grid != len(agent_labels):
+            raise ValueError(f"Number of agents in grid ({num_agents_in_grid}) does not match number of agents ({len(agent_labels)}) for map {uri}")
 
         return GameMap(grid=grid)
 

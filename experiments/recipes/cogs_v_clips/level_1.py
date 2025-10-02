@@ -72,8 +72,6 @@ curriculum_args = {
         "num_obj_distribution": [2, 4, 8, 10, 15],
         "chest_positions": [["N"]],
         "regeneration_rate": [2,4,6],
-        "shareable_energy": [False],
-        "use_terrain": [True],
         "sizes": ["small", "medium"],
         "use_base": [True,False],
     },
@@ -88,8 +86,6 @@ curriculum_args = {
         "num_obj_distribution": [2, 4, 8, 10, 15],
         "chest_positions": [["N", "S"]],
         "regeneration_rate": [2,4,6],
-        "shareable_energy": [True],
-        "use_terrain": [True],
         "sizes": ["small", "medium"],
         "use_base": [True,False],
     },
@@ -108,8 +104,6 @@ curriculum_args = {
         "num_obj_distribution": [2, 4, 8, 10, 15],
         "chest_positions": [["N", "S", "E"]],
         "regeneration_rate": [2,4,6],
-        "shareable_energy": [True],
-        "use_terrain": [True],
         "sizes": ["small", "medium"],
         "use_base": [True,False],
     },
@@ -381,7 +375,7 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
         chest_positions: list[list[Position]] = Field(default=[["N"]])
         regeneration_rate: list[int] = Field(default=[5])
         shareable_energy: list[bool] = Field(default=[True])
-        use_terrain: list[bool] = Field(default=[False])
+        use_terrain: list[bool] = Field(default=[True])
         sizes: list[str] = Field(default=["small"])
         use_base: list[bool] = Field(default=[True])
 
@@ -415,9 +409,9 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
             if room_size == "small":
                 num_obj_distribution = [2, 4, 6]
             elif room_size == "medium":
-                num_obj_distribution = [5, 8, 12, 15]
+                num_obj_distribution = [5, 8, 12]
             elif room_size == "large":
-                num_obj_distribution = [10, 20, 30, 50]
+                num_obj_distribution = [10, 20, 25]
 
         else:
             num_obj_distribution = self.config.num_obj_distribution
@@ -490,35 +484,34 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
             env.game.agent.shareable_resources = ["energy"]
         env.label = f"{env.game.num_agents}_cogs_{room_size}_{env.game.inventory_regen_interval}_regeneration_rate_{use_base}_base"
 
-        if use_terrain:
-            map_builder = MapGen.Config(
-                instances=num_instances,
-                border_width=6,
-                instance_border_width=3,
-                instance=CogsVClippiesFromNumpy.Config(
-                    agents=num_cogs,
-                    objects={
-                        "assembler": num_assemblers,
-                        "charger": num_chargers,
-                        "carbon_extractor": num_extractors["carbon"],
-                        "oxygen_extractor": num_extractors["oxygen"],
-                        "germanium_extractor": num_extractors["germanium"],
-                        "silicon_extractor": num_extractors["silicon"],
-                        "chest": num_chests,
-                    },
-                    remove_altars=True,
-                    dir=f"varied_terrain/{terrain_density}_{room_size}",
-                    mass_in_center=use_base,
-                    rng=rng,
-                ),
-            )
-            env.game.map_builder = map_builder
-        else:
-            env.game.map_builder = MapGen.Config(
-                instances=num_instances,
-                instance_map=env.game.map_builder,
-                num_agents=24,
-            )
+        map_builder = MapGen.Config(
+            instances=num_instances,
+            border_width=6,
+            instance_border_width=3,
+            instance=CogsVClippiesFromNumpy.Config(
+                agents=num_cogs,
+                objects={
+                    "assembler": num_assemblers,
+                    "charger": num_chargers,
+                    "carbon_extractor": num_extractors["carbon"],
+                    "oxygen_extractor": num_extractors["oxygen"],
+                    "germanium_extractor": num_extractors["germanium"],
+                    "silicon_extractor": num_extractors["silicon"],
+                    "chest": num_chests,
+                },
+                remove_altars=True,
+                dir=f"varied_terrain/{terrain_density}_{room_size}",
+                mass_in_center=use_base,
+                rng=rng,
+            ),
+        )
+        env.game.map_builder = map_builder
+        # else:
+        #     env.game.map_builder = MapGen.Config(
+        #         instances=num_instances,
+        #         instance_map=env.game.map_builder,
+        #         num_agents=24,
+        #     )
         env.game.num_agents = 24
 
         return env
