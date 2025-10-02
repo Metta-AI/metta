@@ -2,6 +2,7 @@
 
 import json
 import logging
+from typing import ClassVar
 
 import numpy as np
 import torch as torch
@@ -18,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 class PlayTool(Tool):
+    tool_name: ClassVar[str] = "play"
     wandb: WandbConfig = auto_wandb_config()
     sim: SimulationConfig
     policy_uri: str | None = None

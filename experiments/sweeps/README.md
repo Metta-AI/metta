@@ -62,7 +62,7 @@ The orchestrator starts and creates the sweep configuration:
 
 ```
 [SweepOrchestrator] Starting sweep: ppo_arena_basic
-[SweepOrchestrator] Recipe: experiments.recipes.arena_basic_easy_shaped.train
+[SweepOrchestrator] Recipe: arena_basic_easy_shaped.train
 [SweepOrchestrator] Max trials: 3
 [SweepOrchestrator] Dispatcher type: hybrid_remote_train
 ```
@@ -84,7 +84,7 @@ The Protein optimizer suggests hyperparameters, and the orchestrator builds the 
 /Users/axel/Documents/Softmax/metta-repo/devops/skypilot/launch.py \
     --no-spot \
     --gpus=1 \
-    experiments.recipes.arena_basic_easy_shaped.train \
+    arena_basic_easy_shaped.train \
     run=ppo_arena_basic_trial_0001 \
     trainer.optimizer.learning_rate=0.0003421 \
     trainer.losses.loss_configs.ppo.clip_coef=0.182 \
@@ -116,7 +116,7 @@ After training completes, the orchestrator schedules evaluation:
 **Actual dispatched command (via LocalDispatcher for evaluation):**
 
 ```bash
-uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.evaluate \
+uv run ./tools/run.py arena_basic_easy_shaped.evaluate \
     policy_uri=file://./train_dir/ppo_arena_basic_trial_0001/checkpoints/ppo_arena_basic_trial_0001:v50.pt \
     push_metrics_to_wandb=True
 ```

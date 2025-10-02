@@ -1,4 +1,3 @@
-import importlib
 import netrc
 import os
 import re
@@ -15,8 +14,10 @@ from sky.server.common import RequestId, get_server_url
 
 import gitta as git
 from metta.app_backend.clients.base_client import get_machine_token
+from metta.common.tool.discover import generate_candidate_paths
 from metta.common.util.git_repo import REPO_SLUG
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
+from mettagrid.util.module import load_symbol
 
 
 def get_devops_skypilot_dir() -> Path:
@@ -70,48 +71,38 @@ def check_git_state(commit_hash: str) -> str | None:
 
 def validate_module_path(module_path: str) -> bool:
     """
-    Check that a module path like 'experiments.recipes.arena_basic_easy_shaped.train'
-    points to a valid function.
+    Validate a module path points to a callable function.
+
+    Uses generate_candidate_paths with its default metta-specific settings,
+    which automatically handles shorthand names like 'arena.train'.
     """
     try:
-        # Split module path and function name
-        # e.g., "experiments.recipes.arena_basic_easy_shaped.train"
-        # -> module: "experiments.recipes.arena_basic_easy_shaped", function: "train"
-        parts = module_path.split(".")
-        module_name = ".".join(parts[:-1])
-        function_name = parts[-1]
+        last_error: Exception | None = None
+        for cand in generate_candidate_paths(module_path):
+            if cand.count(".") < 1:
+                continue
 
-        # First check if the file exists (for better error messages)
-        module_file_path = module_name.replace(".", "/") + ".py"
-        if not Path(module_file_path).exists():
-            print(red(f"❌ Module file '{module_file_path}' does not exist"))
-            return False
+            # Try to load the symbol using centralized logic
+            try:
+                func = load_symbol(cand)
+            except (ImportError, ModuleNotFoundError, AttributeError, ValueError) as e:
+                last_error = e
+                continue
 
-        # Try to import the module
-        try:
-            module = importlib.import_module(module_name)
-        except ImportError as e:
-            print(red(f"❌ Failed to import module '{module_name}': {e}"))
-            return False
+            # Check that it's callable
+            if not callable(func):
+                last_error = TypeError(f"'{cand}' exists but is not callable")
+                continue
 
-        # Check if the function exists in the module
-        if not hasattr(module, function_name):
-            print(red(f"❌ Function '{function_name}' not found in module '{module_name}'"))
-            # List available functions as suggestions
-            available_funcs = [
-                name for name in dir(module) if not name.startswith("_") and callable(getattr(module, name))
-            ]
-            if available_funcs:
-                print(f"    Available functions: {', '.join(available_funcs[:5])}")
-            return False
+            # Success
+            return True
 
-        # Optionally, verify it's callable
-        func = getattr(module, function_name)
-        if not callable(func):
-            print(red(f"❌ '{function_name}' exists but is not callable"))
-            return False
-
-        return True
+        # If we get here, all candidates failed
+        if last_error:
+            print(red(f"❌ Failed to validate module path '{module_path}': {last_error}"))
+        else:
+            print(red(f"❌ Invalid module path: '{module_path}'"))
+        return False
 
     except Exception as e:
         print(red(f"❌ Error validating module path '{module_path}': {e}"))

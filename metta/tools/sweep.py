@@ -5,7 +5,7 @@ import os
 import uuid
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, ClassVar, Optional
 
 from cogweb.cogweb_client import CogwebClient
 from metta.adaptive import AdaptiveConfig, AdaptiveController
@@ -16,14 +16,8 @@ from metta.common.util.constants import PROD_STATS_SERVER_URI
 from metta.common.util.log_config import init_logging
 from metta.common.wandb.context import WandbConfig
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig
-from metta.sweep.schedulers.async_capped import (
-    AsyncCappedOptimizingScheduler,
-    AsyncCappedSchedulerConfig,
-)
-from metta.sweep.schedulers.batched_synced import (
-    BatchedSyncedOptimizingScheduler,
-    BatchedSyncedSchedulerConfig,
-)
+from metta.sweep.schedulers.async_capped import AsyncCappedOptimizingScheduler, AsyncCappedSchedulerConfig
+from metta.sweep.schedulers.batched_synced import BatchedSyncedOptimizingScheduler, BatchedSyncedSchedulerConfig
 from metta.tools.utils.auto_config import auto_wandb_config
 
 logger = logging.getLogger(__name__)
@@ -94,6 +88,7 @@ class SweepSchedulerType(StrEnum):
 
 
 class SweepTool(Tool):
+    tool_name: ClassVar[str] = "sweep"
     """Tool for Bayesian hyperparameter optimization using adaptive experiments.
 
     This tool is specialized for hyperparameter tuning using Bayesian optimization.
@@ -125,7 +120,7 @@ class SweepTool(Tool):
     batch_size: int = 4  # Number of suggestions per batch
     recipe_module: str = "experiments.recipes.arena"
     train_entrypoint: str = "train"
-    eval_entrypoint: str = "evaluate"
+    eval_entrypoint: str = "eval"
 
     # Scheduler selection and async-specific settings
     scheduler_type: SweepSchedulerType = SweepSchedulerType.BATCHED_SYNCED

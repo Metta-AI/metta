@@ -5,15 +5,15 @@ essential functionality for training, evaluation, visualization, and development
 
 ## Quick Reference Table
 
-| Category          | Tool                                    | Purpose                                       | GPU Required | Database Access |
-| ----------------- | --------------------------------------- | --------------------------------------------- | ------------ | --------------- |
-| **Training**      | `run.py experiments.recipes.*.train`    | Train policies with recipe configurations     | ✓            | Optional        |
+| Category          | Tool                         | Purpose                                       | GPU Required | Database Access |
+| ----------------- | ---------------------------- | --------------------------------------------- | ------------ | --------------- |
+| **Training**      | `run.py train <recipe>`      | Train policies with recipe configurations     | ✓            | Optional        |
 |                   | `sweep_init.py`                         | Initialize hyperparameter sweep experiments   | ✗            | ✗               |
 |                   | `sweep_eval.py`                         | Evaluate policies from sweep runs             | ✓            | ✗               |
-| **Evaluation**    | `run.py experiments.recipes.*.evaluate` | Run policy evaluation with recipe system      | ✓            | ✓               |
-|                   | `run.py experiments.recipes.*.analyze`  | Analyze evaluation results with recipes       | ✗            | ✓               |
-| **Visualization** | `run.py experiments.recipes.*.play`     | Interactive gameplay via recipe system        | ✗            | ✗               |
-|                   | `run.py experiments.recipes.*.replay`   | Generate replay files via recipe system       | ✓            | ✗               |
+| **Evaluation**    | `run.py eval <recipe>`      | Run policy evaluation with recipe system      | ✓            | ✓               |
+|                   | `run.py analyze <recipe>`   | Analyze evaluation results with recipes       | ✗            | ✓               |
+| **Visualization** | `run.py play <recipe>`      | Interactive gameplay via recipe system        | ✗            | ✗               |
+|                   | `run.py replay <recipe>`    | Generate replay files via recipe system       | ✓            | ✗               |
 |                   | `renderer.py`                           | Real-time ASCII/Miniscope rendering (legacy)  | ✓            | ✗               |
 |                   | `dashboard.py`                          | Generate dashboard data for web visualization | ✗            | ✓               |
 | **Map Tools**     | `map/gen.py`                            | Generate maps from configuration files        | ✗            | ✗               |
@@ -32,9 +32,44 @@ essential functionality for training, evaluation, visualization, and development
 The main entry point is `./tools/run.py` which uses the recipe system for all major operations:
 
 ```bash
-./tools/run.py experiments.recipes.arena.train run=my_experiment # Training
-./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/my_experiment/my_experiment:v20.pt # Evaluation
-./tools/run.py experiments.recipes.arena.play policy_uri=s3://my-bucket/checkpoints/my_experiment/my_experiment:v20.pt # Interactive play
+./tools/run.py train arena run=my_experiment # Training
+./tools/run.py eval arena policy_uri=s3://my-bucket/checkpoints/my_experiment/my_experiment:v20.pt # Evaluation
+./tools/run.py play arena policy_uri=s3://my-bucket/checkpoints/my_experiment/my_experiment:v20.pt # Interactive play
+```
+
+### Recipe Structure
+
+Recipe modules define explicit tool functions that return Tool instances:
+
+```python
+def train() -> TrainTool:
+    return TrainTool(...)
+
+def eval() -> EvalTool:
+    return EvalTool(simulations=[...])
+```
+
+Recipes can optionally define helper functions like `mettagrid()` or `simulations()` to avoid duplication when multiple tools need the same configuration.
+
+Examples:
+
+```bash
+# Non-remote evaluation
+./tools/run.py eval arena policy_uris=mock://policy
+
+# Remote evaluation
+./tools/run.py eval_remote arena policy_uri=s3://bucket/run:v10.pt
+```
+
+Shorthands:
+
+- Omit prefix: `arena.train` == `experiments.recipes.arena.train`
+- Two-token sugar: `train arena` == `arena.train`
+
+Note: The evaluation tool class is `EvalTool` (renamed from `EvalTool`). If importing directly, use:
+
+```python
+from metta.tools.eval import EvalTool
 ```
 
 ## Training Tools
@@ -62,16 +97,16 @@ The tool integrates with:
 
 ```bash
 # Basic arena training
-./tools/run.py experiments.recipes.arena.train run=my_experiment
+./tools/run.py train arena run=my_experiment
 
 # Navigation training
-./tools/run.py experiments.recipes.navigation.train run=my_experiment
+./tools/run.py train navigation run=my_experiment
 
 # Training with custom parameters
-./tools/run.py experiments.recipes.arena.train run=my_experiment trainer.total_timesteps=1000000
+./tools/run.py train arena run=my_experiment trainer.total_timesteps=1000000
 
 # Training with specific device and wandb settings
-./tools/run.py experiments.recipes.arena.train run=my_experiment system.device=cpu wandb.enabled=false
+./tools/run.py train arena run=my_experiment system.device=cpu wandb.enabled=false
 ```
 
 **Key Features**:
@@ -203,17 +238,17 @@ programmatic processing
 **Usage**:
 
 ```bash
-# Evaluate a single policy
-./tools/run.py experiments.recipes.navigation.evaluate policy_uri=s3://my-bucket/checkpoints/experiment_001/experiment_001:v12.pt
+# Eval a single policy
+./tools/run.py eval navigation policy_uri=s3://my-bucket/checkpoints/experiment_001/experiment_001:v12.pt
 
-# Evaluate with arena recipe
-./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/experiment_001/experiment_001:v12.pt
+# Eval with arena recipe
+./tools/run.py eval arena policy_uri=s3://my-bucket/checkpoints/experiment_001/experiment_001:v12.pt
 
-# Evaluate with specific policy from file
-./tools/run.py experiments.recipes.arena.evaluate policy_uri=file://./train_dir/my_run/checkpoints/my_run:v12.pt
+# Eval with specific policy from file
+./tools/run.py eval arena policy_uri=file://./train_dir/my_run/checkpoints/my_run:v12.pt
 
-# Evaluate using a remote checkpoint stored on S3
-./tools/run.py experiments.recipes.navigation.evaluate policy_uri=s3://team-checkpoints/project/my_run/checkpoints/my_run:v0.pt
+# Eval using a remote checkpoint stored on S3
+./tools/run.py eval navigation policy_uri=s3://team-checkpoints/project/my_run/checkpoints/my_run:v0.pt
 ```
 
 **Key Features**:
@@ -273,13 +308,13 @@ performance metrics, and learning progress.
 
 ```bash
 # Analyze arena evaluation results
-./tools/run.py experiments.recipes.arena.analyze eval_db_uri=./train_dir/eval_experiment/stats.db
+./tools/run.py analyze arena eval_db_uri=./train_dir/eval_experiment/stats.db
 
 # Analyze navigation evaluation results
-./tools/run.py experiments.recipes.navigation.analyze eval_db_uri=./train_dir/eval_experiment/stats.db
+./tools/run.py analyze navigation eval_db_uri=./train_dir/eval_experiment/stats.db
 
 # Analyze with specific evaluation database
-./tools/run.py experiments.recipes.arena.analyze eval_db_uri=wandb://artifacts/navigation_db
+./tools/run.py analyze arena eval_db_uri=wandb://artifacts/navigation_db
 ```
 
 **Dependencies**:
@@ -345,13 +380,13 @@ environments with support for multiple rendering backends.
 
 ```bash
 # Generate replay for a policy
-./tools/run.py experiments.recipes.arena.replay policy_uri=s3://my-bucket/checkpoints/abc123/abc123:v5.pt
+./tools/run.py replay arena policy_uri=s3://my-bucket/checkpoints/abc123/abc123:v5.pt
 
 # Generate replay with navigation environment
-./tools/run.py experiments.recipes.navigation.replay policy_uri=s3://my-bucket/checkpoints/abc123/abc123:v5.pt
+./tools/run.py replay navigation policy_uri=s3://my-bucket/checkpoints/abc123/abc123:v5.pt
 
 # Generate replay from local checkpoint
-./tools/run.py experiments.recipes.arena.replay policy_uri=file://./train_dir/my_run/checkpoints/my_run:v12.pt
+./tools/run.py replay arena policy_uri=file://./train_dir/my_run/checkpoints/my_run:v12.pt
 ```
 
 **Key Features**:
@@ -369,13 +404,13 @@ environments with support for multiple rendering backends.
 
 ```bash
 # Start interactive session
-./tools/run.py experiments.recipes.arena.play
+./tools/run.py play arena
 
 # Interactive play with specific policy
-./tools/run.py experiments.recipes.arena.play policy_uri=s3://my-bucket/checkpoints/my_experiment/my_experiment:v20.pt
+./tools/run.py play arena policy_uri=s3://my-bucket/checkpoints/my_experiment/my_experiment:v20.pt
 
 # Interactive navigation environment
-./tools/run.py experiments.recipes.navigation.play policy_uri=file://./train_dir/nav_experiment/checkpoints/nav_experiment:v8.pt
+./tools/run.py play navigation policy_uri=file://./train_dir/nav_experiment/checkpoints/nav_experiment:v8.pt
 ```
 
 **Key Features**:
@@ -732,16 +767,16 @@ GROUP BY policy_name, episode;
 
 ```bash
 # 1. Train a policy
-./tools/run.py experiments.recipes.navigation.train run=nav_experiment_001
+./tools/run.py train navigation run=nav_experiment_001
 
-# 2. Evaluate the trained policy
-./tools/run.py experiments.recipes.navigation.evaluate policy_uri=s3://my-bucket/checkpoints/nav_experiment_001/nav_experiment_001:v8.pt
+# 2. Eval the trained policy
+./tools/run.py eval navigation policy_uri=s3://my-bucket/checkpoints/nav_experiment_001/nav_experiment_001:v8.pt
 
 # 3. Analyze results
-./tools/run.py experiments.recipes.navigation.analyze eval_db_uri=./train_dir/eval_nav_experiment_001/stats.db
+./tools/run.py analyze navigation eval_db_uri=./train_dir/eval_nav_experiment_001/stats.db
 
 # 4. Interactive play with trained policy
-./tools/run.py experiments.recipes.navigation.play policy_uri=s3://my-bucket/checkpoints/nav_experiment_001/nav_experiment_001:v8.pt
+./tools/run.py play navigation policy_uri=s3://my-bucket/checkpoints/nav_experiment_001/nav_experiment_001:v8.pt
 ```
 
 ### Hyperparameter Sweep Workflow
@@ -757,7 +792,7 @@ GROUP BY policy_name, episode;
 ./tools/sweep_eval.py run=<run_id> sweep_name=hyperparam_search_001
 
 # 4. Interactive play with best policy
-./tools/run.py experiments.recipes.arena.play \
+./tools/run.py play arena \
    policy_uri="s3://my-bucket/checkpoints/sweeps/hyperparam_search_001/hyperparam_search_001:v42.pt"
 ```
 
@@ -795,17 +830,17 @@ Key environment variables used by tools:
 
 ```bash
 # Use CPU for testing
-./tools/run.py experiments.recipes.arena.train run=cpu_test system.device=cpu
+./tools/run.py train arena run=cpu_test system.device=cpu
 
 # Reduce training time for quick testing
-./tools/run.py experiments.recipes.arena.train run=quick_test trainer.total_timesteps=10000
+./tools/run.py train arena run=quick_test trainer.total_timesteps=10000
 ```
 
 ### Database Access
 
 ```bash
 # For local testing without external services
-./tools/run.py experiments.recipes.arena.train run=local_test wandb.enabled=false system.device=cpu
+./tools/run.py train arena run=local_test wandb.enabled=false system.device=cpu
 ```
 
 ## Best Practices
