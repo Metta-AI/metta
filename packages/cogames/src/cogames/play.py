@@ -132,9 +132,9 @@ def play(
         response = mettascope.render(step_count, replay_step)
         if response.should_close:
             break
-        if response.action:
-            actions[response.action_agent_id, 0] = response.action_action_id
-            actions[response.action_agent_id, 1] = response.action_argument
+        for action in response.actions:
+            actions[action.agent_id, 0] = action.action_id
+            actions[action.agent_id, 1] = action.argument
 
         obs, rewards, dones, truncated, info = env.step(actions)
 
