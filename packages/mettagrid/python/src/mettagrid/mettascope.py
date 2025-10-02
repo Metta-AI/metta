@@ -13,9 +13,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 # Find the nim/mettascope/bindings/generated directory
-# This is relative to the mettagrid package root
+# This is in the nim package, not the python package
 package_root = Path(__file__).resolve().parent
-nim_root = package_root / "nim" / "mettascope"
+# Navigate up to the packages directory and then into the nim package
+packages_dir = package_root.parent.parent.parent.parent
+nim_root = packages_dir / "mettagrid" / "nim" / "mettascope"
 nim_bindings_path = nim_root / "bindings" / "generated"
 
 # Type stubs for static analysis

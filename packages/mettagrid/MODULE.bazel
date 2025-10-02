@@ -37,3 +37,11 @@ bazel_dep(name = "google_benchmark", version = "1.9.4")
 
 # Abseil (dependency of some Google libraries)
 bazel_dep(name = "abseil-cpp", version = "20250814.0")
+
+# make compile_commands.json with: bazel run @hedron_compile_commands//:refresh_all
+bazel_dep(name = "hedron_compile_commands", version = "")
+git_override(
+    module_name = "hedron_compile_commands",
+    remote = "https://github.com/hedronvision/bazel-compile-commands-extractor.git",
+    commit = "abb61a688167623088f8768cc9264798df6a9d10",
+)
