@@ -1,6 +1,7 @@
 #  Copyright (c) NXAI GmbH.
 #  This software may be used and distributed according to the terms of the NXAI Community License Agreement.
 
+import os
 import torch
 
 import triton
@@ -54,12 +55,37 @@ def mlstm_chunkwise__parallel_fw_Hintra(
     if qk_scale is None:
         qk_scale = DHQK**-0.5
 
+    # Head-dim tiling (loop for Q/K, parallel for V)
     siz_b_DHQK = get_head_dim_block_size(head_dim=DHQK, min_block_size=64) if siz_b_DHQK is None else siz_b_DHQK
+    siz_b_DHHV = get_head_dim_block_size(head_dim=DHHV, min_block_size=128) if siz_b_DHHV is None else siz_b_DHHV
 
-    if siz_b_DHHV is None:
-        siz_b_DHHV = get_head_dim_block_size(head_dim=DHHV, min_block_size=128)
-    else:
-        siz_b_DHHV = siz_b_DHHV
+    # Soft shared-memory cap to avoid Triton OutOfResources on GPUs with ~100KB SMEM (e.g., T4/A10).
+    # The dominant SMEM consumer is the float32 accumulator `matH_intra_acc` of shape (siz_b_LQ, siz_b_DHHV).
+    # Keep a safety margin for other temporaries by budgeting only a fraction of the available SMEM.
+    smem_soft_limit = int(os.environ.get("CORTEX_TRITON_SMEM_SOFT_LIMIT", str(96 * 1024)))  # bytes
+    bytes_per_acc = 4  # accumulators are float32 in-kernel
+    # Account for TWO accumulators of shape (siz_b_LQ, siz_b_DHHV): intra + inter
+    denom = max(1, 2 * siz_b_DHHV * bytes_per_acc)
+    # Compute a safe upper bound for `siz_b_LQ` given current `siz_b_DHHV`
+    max_lq_by_smem = max(16, (smem_soft_limit // denom))
+    # Round down to a power of two (Triton block shapes must be power of two)
+    pow2 = 1
+    while (pow2 << 1) <= max_lq_by_smem:
+        pow2 <<= 1
+    max_lq_by_smem = max(16, pow2)
+    # Apply caps
+    if siz_b_LQ > max_lq_by_smem:
+        siz_b_LQ = max_lq_by_smem
+    # Ensure `siz_b_LKV` stays <= `siz_b_LQ` and divides it; fall back to 32 or 16 when needed
+    siz_b_LKV = min(siz_b_LKV, siz_b_LQ)
+    if siz_b_LQ % siz_b_LKV != 0:
+        # choose the largest divisor of siz_b_LQ among {64, 32, 16}
+        for cand in (64, 32, 16):
+            if siz_b_LQ % cand == 0 and cand <= siz_b_LKV:
+                siz_b_LKV = cand
+                break
+        else:
+            siz_b_LKV = 16
 
     assert siz_b_LQ <= L, "siz_b_LQ must be less than or equal to chunk size L"
     assert siz_b_LKV <= L, "siz_b_LKV must be less than or equal to chunk size L"
