@@ -59,7 +59,6 @@ proc processActions*() =
           continue
         else:
           recomputePath(agentId, currentPos)
-          continue
       
       # If this is a Bump destination and we are adjacent to it, bump it once.
       if dest.destinationType == Bump and currentPos in findAdjacentWalkable(dest.pos):
