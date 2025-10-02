@@ -301,19 +301,19 @@ def evaluate(
 def version_cmd() -> None:
     import importlib.metadata
 
-    from rich.table import Table
+    from packaging.version import Version
 
-    mettagrid_version = importlib.metadata.version("mettagrid")
-    pufferlib_core_version = importlib.metadata.version("pufferlib-core")
-    cogames_version = importlib.metadata.version("cogames")
+    def public_version(dist_name: str) -> str:
+        return str(Version(importlib.metadata.version(dist_name)).public)
+
+    from rich.table import Table
 
     table = Table(show_header=False, box=None, show_lines=False, pad_edge=False)
     table.add_column("", justify="right", style="bold cyan")
     table.add_column("", justify="right")
 
-    table.add_row("mettagrid:", mettagrid_version)
-    table.add_row("pufferlib-core:", pufferlib_core_version)
-    table.add_row("cogames:", cogames_version)
+    for dist_name in ["mettagrid", "pufferlib-core", "cogames"]:
+        table.add_row(dist_name, public_version(dist_name))
 
     console.print(table)
 
