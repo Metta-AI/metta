@@ -15,6 +15,8 @@ if TYPE_CHECKING:
     import torch
 
 logger = logging.getLogger("cogames.pufferlib")
+
+
 def train(
     env_cfg: Optional[MettaGridConfig],
     policy_class_path: str,
@@ -36,7 +38,6 @@ def train(
     import pufferlib.vector
     from pufferlib import pufferl
     from pufferlib.pufferlib import set_buffers
-
 
     if env_cfg_supplier is None and env_cfg is None:
         raise ValueError("Either env_cfg or env_cfg_supplier must be provided to train a policy")
