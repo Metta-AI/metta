@@ -27,7 +27,7 @@ console = Console()
 POLICY_SHORTCUTS = {
     "random": "cogames.policy.random.RandomPolicy",
     "simple": "cogames.policy.simple.SimplePolicy",
-    "default": "cogames.policy.simple.SimplePolicy",
+    "default": "cogames.policy.token.TokenPolicy",
     "token": "cogames.policy.token.TokenPolicy",
     "basic": "cogames.policy.token.TokenPolicy",
     "lstm": "cogames.policy.lstm.LSTMPolicy",
@@ -100,7 +100,7 @@ def games_cmd(
 @app.command(name="play")
 def play_cmd(
     game_name: Optional[str] = typer.Argument(None, help="Name of the game to play"),
-    policy_class_path: str = typer.Option("simple", "--policy", help="Path to policy class or shortcut"),
+    policy_class_path: str = typer.Option("token", "--policy", help="Path to policy class or shortcut"),
     policy_data_path: Optional[str] = typer.Option(None, "--policy-data", help="Path to initial policy weights"),
     interactive: bool = typer.Option(True, "--interactive", "-i", help="Run in interactive mode"),
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run"),
@@ -197,7 +197,7 @@ def make_scenario(
 @app.command(name="train")
 def train_cmd(
     game_name: Optional[str] = typer.Argument(None, help="Name of the game to train on"),
-    policy_class_path: str = typer.Option("simple", "--policy", help="Path to policy class or shortcut"),
+    policy_class_path: str = typer.Option("token", "--policy", help="Path to policy class or shortcut"),
     initial_weights_path: Optional[str] = typer.Option(
         None, "--initial-weights", help="Path to initial policy weights"
     ),

@@ -297,6 +297,7 @@ def train(
         policy_shorthand = {
             "cogames.policy.random.RandomPolicy": "random",
             "cogames.policy.simple.SimplePolicy": "simple",
+            "cogames.policy.token.TokenPolicy": "token",
             "cogames.policy.lstm.LSTMPolicy": "lstm",
         }.get(policy_class_path)
 
