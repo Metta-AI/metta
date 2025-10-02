@@ -1,6 +1,4 @@
-import logging
 import math
-import os
 from typing import Any, Optional
 
 import torch
@@ -149,14 +147,6 @@ class ActionProbs(nn.Module):
         td["actions"] = action.to(dtype=torch.int32)
         td["act_log_prob"] = selected_log_probs
         td["full_log_probs"] = full_log_probs
-
-        if os.getenv("TRANSFORMER_DIAG", "0") == "1":
-            logger = logging.getLogger(__name__)
-            logger.info(
-                "[TRANSFORMER_DIAG] actions(action_type_mean=%s, action_param_mean=%s)",
-                float(action[:, 0].float().mean().item()),
-                float(action[:, 1].float().mean().item()),
-            )
 
         return td
 
