@@ -17,12 +17,24 @@ from cortex.types import MaybeState, ResetMask, Tensor
 class PreUpBlock(BaseBlock):
     """Pre-upsampling block with gated skip connection.
 
-    Block layout:
-    1. Input → LayerNorm
-    2. Project up: d_hidden → 2*d_inner (split into a, z)
-    3. Cell processes a, with learnable skip from activated a
-    4. Gate with z and project down: d_inner → d_hidden
+    Hidden-size inference
+    - When constructed via ``CortexStackConfig``/``build_cortex``, the nested
+      cell's ``hidden_size`` may be ``None``. The stack builder will infer and
+      set it to ``d_inner = int(proj_factor * d_hidden)`` for this block.
+    - If you instantiate a cell and block directly (bypassing the stack
+      builder), pass a concrete ``hidden_size`` that equals ``d_inner``.
+
+    Shapes and flow
+    1. Input (batch-first) → LayerNorm
+    2. Linear up-projection to ``2 * d_inner`` and split into ``a`` and ``z``
+    3. Cell processes ``a`` (size ``d_inner``); add learnable skip from
+       ``SiLU(a)``: ``y_inner + learnable_skip * SiLU(a)``
+    4. Gate with ``z`` (``SiLU(z)``), project down: ``d_inner → d_hidden``
     5. Add residual from input
+
+    Constraints
+    - ``cell.hidden_size == d_inner``; this is enforced by the stack builder
+      and asserted here when constructed.
     """
 
     def __init__(self, config: PreUpBlockConfig, d_hidden: int, cell: MemoryCell) -> None:
