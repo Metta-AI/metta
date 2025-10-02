@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from metta.agent.components.transformer_utils import empty_memory, normalize_memory, update_memory_window
+from metta.agent.policies.backbones.transformer_utils import empty_memory, normalize_memory, update_memory_window
 
 
 class NvidiaPositionalEmbedding(nn.Module):

@@ -16,7 +16,7 @@ from metta.agent.components.obs_shim import ObsShimTokensConfig
 from metta.agent.components.obs_tokenizers import (
     ObsAttrEmbedFourierConfig,
 )
-from metta.agent.components.sliding_transformer import SlidingTransformerConfig
+from metta.agent.policies.backbones.sliding_transformer import SlidingTransformerConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.training import EnvironmentMetaData
 from mettagrid.util.module import load_symbol

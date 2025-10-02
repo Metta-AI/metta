@@ -5,10 +5,10 @@ import pytest
 import torch
 from tensordict import TensorDict
 
-from metta.agent.components import gtrxl as backbone_gtrxl
-from metta.agent.components import sliding_transformer as backbone_sliding
-from metta.agent.components import trxl as backbone_trxl
-from metta.agent.components import trxl_nvidia as backbone_trxl_nvidia
+from metta.agent.policies.backbones import gtrxl as backbone_gtrxl
+from metta.agent.policies.backbones import sliding_transformer as backbone_sliding
+from metta.agent.policies.backbones import trxl as backbone_trxl
+from metta.agent.policies.backbones import trxl_nvidia as backbone_trxl_nvidia
 from metta.agent.policies.transformer import (
     TransformerPolicy,
     TransformerPolicyConfig,

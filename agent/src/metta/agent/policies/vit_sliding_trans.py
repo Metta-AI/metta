@@ -8,7 +8,7 @@ from metta.agent.components.misc import MLPConfig
 from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
 from metta.agent.components.obs_shim import ObsShimTokensConfig
 from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourierConfig
-from metta.agent.components.sliding_transformer import SlidingTransformerConfig
+from metta.agent.policies.backbones.sliding_transformer import SlidingTransformerConfig
 from metta.agent.policy import PolicyArchitecture
 
 logger = logging.getLogger(__name__)
