@@ -29,10 +29,9 @@ proc useSelections*(panel: Panel) =
       gridPos = (mousePos + vec2(0.5, 0.5)).ivec2
     if gridPos.x >= 0 and gridPos.x < replay.mapSize[0] and
       gridPos.y >= 0 and gridPos.y < replay.mapSize[1]:
-      for obj in replay.objects:
-        if obj.location.at(step).xy == gridPos:
-          selectObject(obj)
-          break
+      let obj = getObjectAtLocation(gridPos)
+      if obj != nil:
+        selectObject(obj)
   
   if window.buttonPressed[MouseRight]:
     if selection != nil and selection.isAgent:
@@ -42,10 +41,22 @@ proc useSelections*(panel: Panel) =
       if gridPos.x >= 0 and gridPos.x < replay.mapSize[0] and
         gridPos.y >= 0 and gridPos.y < replay.mapSize[1]:
         let startPos = selection.location.at(step).xy
-        let path = findPath(startPos, gridPos)
-        if path.len > 0:
-          agentPaths[selection.agentId] = path
-          agentDestinations[selection.agentId] = @[gridPos]
+        let targetObj = getObjectAtLocation(gridPos)
+        if targetObj != nil:
+          let typeName = replay.typeNames[targetObj.typeId]
+          if typeName != "agent" and typeName != "wall":
+            agentDestinations[selection.agentId] = @[Destination(pos: gridPos, destinationType: Bump)]
+            recomputePath(selection.agentId, startPos)
+          else:
+            let path = findPath(startPos, gridPos)
+            if path.len > 0:
+              agentPaths[selection.agentId] = path
+              agentDestinations[selection.agentId] = @[Destination(pos: gridPos, destinationType: Move)]
+        else:
+          let path = findPath(startPos, gridPos)
+          if path.len > 0:
+            agentPaths[selection.agentId] = path
+            agentDestinations[selection.agentId] = @[Destination(pos: gridPos, destinationType: Move)]
 
 proc drawFloor*() =
   # Draw the floor tiles.
