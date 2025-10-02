@@ -157,12 +157,12 @@ class WandbContext:
 
         except (TimeoutError, CommError) as e:
             error_type = "timeout" if isinstance(e, TimeoutError) else "communication"
-            logger.warning(f"W&B initialization failed due to {error_type} error: {str(e)}")
+            logger.error(f"W&B initialization failed due to {error_type} error: {str(e)}", exc_info=e)
             logger.info("Continuing without W&B logging")
             self.run = None
 
         except Exception as e:
-            logger.error(f"Unexpected error during W&B initialization: {str(e)}")
+            logger.error(f"Unexpected error during W&B initialization: {str(e)}", exc_info=e)
             logger.info("Continuing without W&B logging")
             self.run = None
 
