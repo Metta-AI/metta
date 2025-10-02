@@ -6,10 +6,9 @@ import torch
 from tensordict import TensorDict
 
 from metta.agent.policies import gtrxl as backbone_gtrxl
-from metta.agent.policies import sliding_transformer as backbone_sliding
 from metta.agent.policies import trxl as backbone_trxl
 from metta.agent.policies import trxl_nvidia as backbone_trxl_nvidia
-from metta.agent.policies.transformer import TransformerPolicy, TransformerPolicyConfig
+from metta.agent.policies.transformer import TransformerPolicy
 from metta.rl.training.training_environment import EnvironmentMetaData
 from metta.rl.utils import ensure_sequence_metadata
 
