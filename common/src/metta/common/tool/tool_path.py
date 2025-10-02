@@ -9,33 +9,6 @@ from metta.common.tool import Tool
 from metta.common.tool.tool_registry import get_tool_registry
 
 
-def normalize_module_path(module_path: str) -> list[str]:
-    """Normalize a module path to possible full paths.
-
-    Args:
-        module_path: Module path like 'arena' or 'experiments.recipes.arena'
-
-    Returns:
-        List of candidate full module paths to try (e.g., ['arena', 'experiments.recipes.arena'])
-    """
-    candidates = [module_path]
-    if not module_path.startswith("experiments.recipes."):
-        candidates.append(f"experiments.recipes.{module_path}")
-    return candidates
-
-
-def strip_recipe_prefix(module_path: str) -> str:
-    """Strip the 'experiments.recipes.' prefix if present.
-
-    Args:
-        module_path: Full module path like 'experiments.recipes.arena'
-
-    Returns:
-        Short name like 'arena'
-    """
-    return module_path.replace("experiments.recipes.", "")
-
-
 def _load_tool_maker(path: str) -> Optional[Callable[[], Tool]]:
     """Load a tool maker from an import path.
 
@@ -96,15 +69,14 @@ def resolve_and_load_tool(tool_path: str) -> Callable[[], Tool] | None:
         registry = get_tool_registry()
         canonical = registry.get_canonical_name(tool_name) or tool_name
 
-        # Try both short and full recipe paths
+        # Check recipe registry (handles both short and full paths)
         recipe_registry = get_recipe_registry()
-        for candidate_module in normalize_module_path(module_path):
-            recipe = recipe_registry.get(candidate_module)
-            if recipe:
-                # Found recipe! Try to get tool
-                tools = recipe.get_tools_for_canonical(canonical)
-                if tools:
-                    # Return first matching tool
-                    return tools[0][1]
+        recipe = recipe_registry.get(module_path)
+        if recipe:
+            # Found recipe! Try to get tool
+            tools = recipe.get_tools_for_canonical(canonical)
+            if tools:
+                # Return first matching tool
+                return tools[0][1]
 
     return None

@@ -30,6 +30,11 @@ class Recipe:
         self._canonical_to_tools: dict[str, list[tuple[str, Callable[[], Tool]]]] = {}
         self._build_tool_maps()
 
+    @property
+    def short_name(self) -> str:
+        """Get short name without 'experiments.recipes.' prefix."""
+        return self.module_name.replace("experiments.recipes.", "")
+
     def _build_tool_maps(self) -> None:
         """Build name->tool and canonical->tools maps for efficient lookup."""
 
