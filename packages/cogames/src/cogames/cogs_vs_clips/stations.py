@@ -1,6 +1,6 @@
 from typing import Optional
 
-from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, ConverterConfig, RecipeConfig
+from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, RecipeConfig
 
 resources = [
     "energy",
@@ -16,92 +16,93 @@ resources = [
 ]
 
 
-def charger(max_use: Optional[int] = None) -> AssemblerConfig:
+def charger(max_uses: Optional[int] = None) -> AssemblerConfig:
     return AssemblerConfig(
         name="charger",
         type_id=5,
         map_char="H",
         render_symbol="⚡",
+        max_uses=max_uses or 0,
         recipes=[
             (
                 ["Any"],
                 RecipeConfig(
                     output_resources={"energy": 50},
                     cooldown=1,
-                    max_use=max_use,
                 ),
             )
         ],
     )
 
 
-# rare but easy to mine
-def carbon_extractor(max_use: Optional[int] = 1) -> AssemblerConfig:
+# Time consuming but easy to mine.
+def carbon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
     return AssemblerConfig(
         name="carbon_extractor",
         type_id=2,
         map_char="N",
         render_symbol="⚫",
+        max_uses=max_uses or 0,
         recipes=[
             (
                 ["Any"],
                 RecipeConfig(
-                    input_resources={"energy": 4},
-                    output_resources={"carbon": 25},
-                    max_use=max_use,
+                    output_resources={"carbon": 5},
                 ),
             )
         ],
     )
 
 
-# accumulates oxygen over time, needs to be emptied periodically
-def oxygen_extractor(max_use: Optional[int] = None) -> AssemblerConfig:
+# Accumulates oxygen over time, needs to be emptied periodically. Takes a lot of space, relative to usage needs.
+def oxygen_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
     return AssemblerConfig(
         name="oxygen_extractor",
         type_id=3,
         map_char="O",
         render_symbol="🔵",
         allow_partial_usage=True,  # can use it while its on cooldown
+        max_uses=max_uses or 0,
         recipes=[
             (
                 ["Any"],
                 RecipeConfig(
-                    output_resources={"oxygen": 1},
-                    max_use=max_use,
+                    output_resources={"oxygen": 100},
+                    cooldown=100,
                 ),
             )
         ],
     )
 
 
-# need little, takes a long time to regen
-def germanium_extractor(max_use: Optional[int] = None) -> AssemblerConfig:
+# Need little, takes a long time to regen.
+def germanium_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
     return AssemblerConfig(
         name="germanium_extractor",
         type_id=4,
         map_char="E",
         render_symbol="🟣",
+        max_uses=max_uses or 0,
         recipes=[
             (
                 ["Any"],
                 RecipeConfig(
                     output_resources={"germanium": 1},
                     cooldown=250,
-                    max_use=max_use,
                 ),
             )
         ],
     )
 
 
-# plentiful but requires energy / work and need a lot
-def silicon_extractor(max_use: Optional[int] = None) -> AssemblerConfig:
+# Plentiful but requires energy / work and need a lot.
+def silicon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
     return AssemblerConfig(
         name="silicon_extractor",
         type_id=15,
         map_char="I",
         render_symbol="🔷",
+        max_uses=max_uses or 0,
         recipes=[
             (
                 ["Any"],
@@ -109,28 +110,35 @@ def silicon_extractor(max_use: Optional[int] = None) -> AssemblerConfig:
                     input_resources={"energy": 25},
                     output_resources={"silicon": 25},
                     cooldown=1,
-                    max_use=max_use,
                 ),
             )
         ],
     )
 
 
-def silicon_ex_dep() -> AssemblerConfig:
+def carbon_ex_dep() -> AssemblerConfig:
     return AssemblerConfig(
-        name="silicon_ex_dep",
-        type_id=16,
-        map_char="V",
-        render_symbol="🔹",
+        name="carbon_ex_dep",
+        type_id=19,
+        map_char="K",
+        render_symbol="⬛",
+        max_uses=50,
         recipes=[
-            (
-                ["Any"],
-                RecipeConfig(
-                    output_resources={"silicon": 1},
-                    cooldown=1,
-                    max_use=5,
-                ),
-            )
+            (["Any"], RecipeConfig(output_resources={"carbon": 1}, cooldown=1)),
+        ],
+    )
+
+
+def oxygen_ex_dep() -> AssemblerConfig:
+    return AssemblerConfig(
+        name="oxygen_ex_dep",
+        type_id=18,
+        map_char="Q",
+        render_symbol="⬜",
+        max_uses=5,
+        allow_partial_usage=True,
+        recipes=[
+            (["Any"], RecipeConfig(output_resources={"oxygen": 20}, cooldown=20)),
         ],
     )
 
@@ -141,32 +149,29 @@ def germanium_ex_dep() -> AssemblerConfig:
         type_id=20,
         map_char="Y",
         render_symbol="🟪",
+        max_uses=5,
         recipes=[
-            (["Any"], RecipeConfig(output_resources={"germanium": 1}, cooldown=1, max_use=5)),
+            (["Any"], RecipeConfig(output_resources={"germanium": 1}, cooldown=1)),
         ],
     )
 
 
-def oxygen_ex_dep() -> ConverterConfig:
-    return ConverterConfig(
-        name="oxygen_ex_dep",
-        type_id=18,
-        map_char="Q",
-        render_symbol="⬜",
-        output_resources={"oxygen": 1},
-        max_output=10,
-        cooldown=10,
-    )
-
-
-def carbon_ex_dep() -> AssemblerConfig:
+def silicon_ex_dep() -> AssemblerConfig:
     return AssemblerConfig(
-        name="carbon_ex_dep",
-        type_id=19,
-        map_char="K",
-        render_symbol="⬛",
+        name="silicon_ex_dep",
+        type_id=16,
+        map_char="V",
+        render_symbol="🔹",
+        max_uses=5,
         recipes=[
-            (["Any"], RecipeConfig(output_resources={"carbon": 1}, cooldown=1, max_use=5)),
+            (
+                ["Any"],
+                RecipeConfig(
+                    input_resources={"energy": 25},
+                    output_resources={"silicon": 10},
+                    cooldown=1,
+                ),
+            )
         ],
     )
 
