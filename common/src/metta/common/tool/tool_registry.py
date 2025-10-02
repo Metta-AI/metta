@@ -129,8 +129,8 @@ class ToolRegistry:
         """
         candidates = [tool_path]
 
-        # Add prefix for short forms
-        if tool_path.count(".") <= 1:
+        # Add prefix for short forms (anything not starting with experiments.recipes.)
+        if not tool_path.startswith("experiments.recipes."):
             candidates.append(f"experiments.recipes.{tool_path}")
 
         # Expand aliases if last component is a tool alias
@@ -142,7 +142,7 @@ class ToolRegistry:
             if verb in alias_map:
                 for alias in alias_map[verb]:
                     candidates.append(f"{module}.{alias}")
-                    if module.count(".") == 0:
+                    if not module.startswith("experiments.recipes."):
                         candidates.append(f"experiments.recipes.{module}.{alias}")
 
             # Check if verb is an alias for a canonical name
@@ -150,7 +150,7 @@ class ToolRegistry:
             if verb in name_map and name_map[verb] != verb:
                 canonical = name_map[verb]
                 candidates.append(f"{module}.{canonical}")
-                if module.count(".") == 0:
+                if not module.startswith("experiments.recipes."):
                     candidates.append(f"experiments.recipes.{module}.{canonical}")
 
         # Remove duplicates while preserving order
