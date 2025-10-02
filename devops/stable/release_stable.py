@@ -28,11 +28,13 @@ class ReleaseStep(StrEnum):
     ANNOUNCE = "announce"
 
 
-def check_asana_bugs_automated() -> bool:
+def check_asana_bugs_automated() -> bool | None:
     """Check for incomplete tasks in the Active section of an Asana project using env vars.
 
     Returns:
-        True if check passed, False if failed, None if automation not available
+        True if check passed (no incomplete tasks)
+        False if check failed (has incomplete tasks)
+        None if automation not available or inconclusive
     """
     asana_token = os.getenv("ASANA_TOKEN")
     asana_project_id = os.getenv("ASANA_PROJECT_ID")
@@ -41,7 +43,6 @@ def check_asana_bugs_automated() -> bool:
         return None  # Automation not available
 
     print("Using automated Asana bug checking...")
-    print(f"Project ID: {asana_project_id}")
 
     try:
         # Initialize Asana client
@@ -66,8 +67,8 @@ def check_asana_bugs_automated() -> bool:
                 break
 
         if not active_section:
-            print(yellow("⚠️  No 'Active' section found in project"))
-            return True  # No active section means no blocking bugs
+            print(yellow("⚠️  No 'Active' section found in project - inconclusive"))
+            return None  # Strict: missing section is inconclusive, not pass
 
         # Get tasks in Active section
         tasks_api = asana.TasksApi(api_client)
@@ -170,25 +171,28 @@ def step_2_bug_status_check(version: str, check_mode: bool = False) -> None:
         print("- Bug Triage: @Nishad Singh")
         sys.exit(1)
 
-    # result is None - fall back to manual check
-    print("Automated check not available (set ASANA_TOKEN and ASANA_PROJECT_ID to enable)")
-    print("\nManual steps required:")
-    print("1. Open Asana project for bug tracking")
-    print("2. Verify no active/open bugs marked as blockers")
-    print("3. Update bug statuses as needed in consultation with bug owners")
-    print("4. Note any known issues that are acceptable for release")
-    print("\nContacts:")
-    print("- Release Manager: @Robb")
-    print("- Technical Lead: @Jack Heart")
-    print("- Bug Triage: @Nishad Singh")
-    print()
+    # result is None - inconclusive
+    if result is None:
+        print(yellow("\n⚠️  Bug check INCONCLUSIVE - automated check unavailable or missing 'Active' section"))
+        print("\nTo enable automated checking:")
+        print("  export ASANA_TOKEN='your_personal_access_token'")
+        print("  export ASANA_PROJECT_ID='your_project_id'")
+        print("\nManual steps required:")
+        print("1. Open Asana project for bug tracking")
+        print("2. Verify no active/open bugs marked as blockers")
+        print("3. Update bug statuses as needed in consultation with bug owners")
+        print("\nContacts:")
+        print("- Release Manager: @Robb")
+        print("- Technical Lead: @Jack Heart")
+        print("- Bug Triage: @Nishad Singh")
+        print()
 
-    # Ask user for confirmation
-    if not get_user_confirmation("Have you completed the bug status check and is it PASSED?"):
-        print(red("\n❌ Bug check FAILED - user indicated issues remain"))
-        sys.exit(1)
+        # Ask user for confirmation
+        if not get_user_confirmation("Have you completed the bug status check and is it PASSED?"):
+            print(red("\n❌ Bug check FAILED - user indicated issues remain"))
+            sys.exit(1)
 
-    print(green("\n✅ Bug check PASSED - user confirmed"))
+        print(green("\n✅ Bug check PASSED - user confirmed"))
 
 
 def step_3_workflow_validation(version: str, check_mode: bool = False) -> None:
@@ -197,39 +201,49 @@ def step_3_workflow_validation(version: str, check_mode: bool = False) -> None:
     print("STEP 3: Workflow Validation")
     print(f"{'=' * 60}\n")
 
-    print("Tool-based validation:\n")
-    print("Training Tool:")
-    print("  Launch validations:")
-    print("    devops/validate_recipes.py launch train")
-    print("  Check results:")
-    print("    devops/validate_recipes.py check")
-    print()
-    print("Cluster Configuration:")
-    print("  Launch validations:")
-    print("    devops/validate_recipes.py launch cluster")
-    print("  Check results:")
-    print("    devops/validate_recipes.py check")
-    print()
-    print("\nFor each tool/recipe validation, verify:")
-    print("  - Training metrics (loss, rewards, etc.)")
-    print("  - Performance metrics (SPS near 40k, no significant dips)")
-    print("  - Model checkpoints saved")
-    print("  - Evaluation results generated")
-    print("  - Replays and replay links created")
-    print()
-    print("Additional manual validations:")
-    print("  - Play workflow: Launch play environment and verify agent navigation")
-    print("  - Sweep workflow: Ask Axel via Discord to verify sweeps")
-    print("  - Observatory: Ask Pasha via Discord to verify observatory")
-    print("  - CI workflow: Verify CI pipeline completed successfully on main")
-    print()
+    if check_mode:
+        print(yellow("[CHECK MODE] Would run automated validations"))
+        print("  - Training: 1 local + 1 remote validation")
+        print("  - Cluster: 1 timeout handling test")
+        return
 
-    # Ask user for confirmation
-    if not get_user_confirmation("Have you completed all workflow validations and did they all PASS?"):
-        print(red("\n❌ Workflow validation FAILED - user indicated issues remain"))
+    print("Running automated workflow validations...\n")
+
+    # Run training validations
+    print("=== Training Validations ===")
+    train_result = subprocess.run(
+        ["./devops/stable/recipe_validation/validate_recipes.py", "launch", "train"],
+        capture_output=False,
+    )
+
+    # Run cluster validations
+    print("\n=== Cluster Validations ===")
+    cluster_result = subprocess.run(
+        ["./devops/stable/recipe_validation/validate_recipes.py", "launch", "cluster"],
+        capture_output=False,
+    )
+
+    # Check if any failed
+    if train_result.returncode != 0 or cluster_result.returncode != 0:
+        print(red("\n❌ Automated workflow validation FAILED"))
+        print("\nTo check detailed results:")
+        print("  ./devops/stable/recipe_validation/validate_recipes.py check -l")
         sys.exit(1)
 
-    print(green("\n✅ Workflow validation PASSED - user confirmed"))
+    print(green("\n✅ Automated workflow validation PASSED"))
+
+    # Manual validations still required
+    print("\nManual validations (if applicable):")
+    print("  - Play workflow: Launch play environment if testing interactivity")
+    print("  - Sweep workflow: Coordinate with Axel if running sweeps")
+    print("  - Observatory: Coordinate with Pasha if changes affect observatory")
+    print()
+
+    if not get_user_confirmation("Have you completed any required manual validations?"):
+        print(red("\n❌ Manual validations not confirmed"))
+        sys.exit(1)
+
+    print(green("\n✅ All workflow validations PASSED"))
 
 
 def step_4_release(version: str, check_mode: bool = False) -> None:
