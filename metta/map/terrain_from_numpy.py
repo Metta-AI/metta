@@ -210,53 +210,6 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
         super().__init__(config)
 
     def carve_out_patches(self, grid, valid_positions, num_patches):
-        """Carve out 9x9 empty patches and return their centers as a numpy array."""
-        patch_size = 9
-        half_patch = patch_size // 2
-        grid_shape = grid.shape
-
-        # Build set for quick exclusion
-        valid_positions_set = set(map(tuple, valid_positions))
-        empty_centers = []
-
-        # Pre-compute valid ranges for center positions
-        min_coord = half_patch
-        max_y = grid_shape[0] - 3
-        max_x = grid_shape[1] - 3
-
-        attempts = 0
-        max_attempts = num_patches * 20
-
-        while len(empty_centers) < num_patches and attempts < max_attempts:
-            attempts += 1
-
-            center = (self.config.rng.randint(min_coord, max_y), self.config.rng.randint(min_coord, max_x))
-
-            if center in valid_positions_set or center in empty_centers:
-                continue
-
-            # Check if patch overlaps any valid position
-            y_range = range(center[0] - half_patch, center[0] + half_patch + 1)
-            x_range = range(center[1] - half_patch, center[1] + half_patch + 1)
-
-            if any((i, j) in valid_positions_set for i in y_range for j in x_range):
-                continue
-
-            # Carve out the patch using slicing (faster than loop)
-            y_slice = slice(center[0] - half_patch, center[0] + half_patch + 1)
-            x_slice = slice(center[1] - half_patch, center[1] + half_patch + 1)
-            grid[y_slice, x_slice] = "empty"
-            empty_centers.append(center)
-
-        return grid, np.array(empty_centers, dtype=int)
-
-        ps, h = 9, 4  # patch size, half-width
-        H, W = grid.shape
-        vp_mask = np.zeros(grid.shape, bool)
-        if len(valid_positions):
-            vp_mask[valid_positions[:, 0], valid_positions[:, 1]] = True
-
-    def carve_out_patches(self, grid, valid_positions, num_patches):
         """
         Carve out square 9x9 'empty' patches to create space.
 

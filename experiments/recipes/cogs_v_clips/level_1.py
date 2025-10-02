@@ -69,9 +69,9 @@ curriculum_args = {
         "oxygen_extractor_positions": [["Any"]],
         "germanium_extractor_positions": [["Any"]],
         "silicon_extractor_positions": [["Any"]],
-        "num_obj_distribution": [2, 4, 8, 12, 20],
+        "num_obj_distribution": [2, 4, 8, 10, 15],
         "chest_positions": [["N"]],
-        "regeneration_rate": [1, 2, 3, 4],
+        "regeneration_rate": [2,4,6],
         "shareable_energy": [False],
         "use_terrain": [True],
         "sizes": ["small", "medium"],
@@ -85,9 +85,9 @@ curriculum_args = {
         "oxygen_extractor_positions": [["Any"], ["Any", "Any"]],
         "germanium_extractor_positions": [["Any"], ["Any", "Any"]],
         "silicon_extractor_positions": [["Any"], ["Any", "Any"]],
-        "num_obj_distribution": [2, 4, 8, 12, 20],
+        "num_obj_distribution": [2, 4, 8, 10, 15],
         "chest_positions": [["N", "S"]],
-        "regeneration_rate": [1, 2, 3, 4],
+        "regeneration_rate": [2,4,6],
         "shareable_energy": [True],
         "use_terrain": [True],
         "sizes": ["small", "medium"],
@@ -99,16 +99,15 @@ curriculum_args = {
         "charger_positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
         "carbon_extractor_positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
         "oxygen_extractor_positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
-        "num_germanium_extractors": [0, 0, 0, 5, 10],
         "germanium_extractor_positions": [
             ["Any"],
             ["Any", "Any"],
             ["Any", "Any", "Any"],
         ],
         "silicon_extractor_positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
-        "num_obj_distribution": [2, 4, 8, 12, 20],
+        "num_obj_distribution": [2, 4, 8, 10, 15],
         "chest_positions": [["N", "S", "E"]],
-        "regeneration_rate": [2, 3, 4, 5],
+        "regeneration_rate": [2,4,6],
         "shareable_energy": [True],
         "use_terrain": [True],
         "sizes": ["small", "medium"],
@@ -122,9 +121,9 @@ curriculum_args = {
         "oxygen_extractor_positions": [["Any"]],
         "germanium_extractor_positions": [["Any"]],
         "silicon_extractor_positions": [["Any"]],
-        "num_obj_distribution": [2, 4, 8, 12, 20],
+        "num_obj_distribution": [2, 4, 8, 10, 15],
         "chest_positions": [["N"]],
-        "regeneration_rate": [1, 2, 3, 4],
+        "regeneration_rate": [2,4,6],
         "shareable_energy": [False],
         "use_terrain": [True],
         "sizes": ["small", "medium"],
@@ -138,9 +137,9 @@ curriculum_args = {
         "oxygen_extractor_positions": [["Any"], ["Any", "Any"]],
         "germanium_extractor_positions": [["Any"], ["Any", "Any"]],
         "silicon_extractor_positions": [["Any"], ["Any", "Any"]],
-        "num_obj_distribution": [2, 4, 8, 12, 20],
+        "num_obj_distribution": [2, 4, 8, 10, 15],
         "chest_positions": [["N", "S"]],
-        "regeneration_rate": [1, 2, 3, 4],
+        "regeneration_rate": [2,4,6],
         "shareable_energy": [True],
         "use_terrain": [True],
         "sizes": ["small", "medium"],
@@ -152,14 +151,13 @@ curriculum_args = {
         "charger_positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
         "carbon_extractor_positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
         "oxygen_extractor_positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
-        "num_germanium_extractors": [0, 0, 0, 5, 10],
         "germanium_extractor_positions": [
             ["Any"],
             ["Any", "Any"],
             ["Any", "Any", "Any"],
         ],
         "silicon_extractor_positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
-        "num_obj_distribution": [2, 4, 8, 12, 20],
+        "num_obj_distribution": [2, 4, 8, 10, 15],
         "chest_positions": [["N", "S", "E"]],
         "regeneration_rate": [2, 3, 4, 5],
         "shareable_energy": [True],
@@ -323,13 +321,9 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
         num_obj_distribution: list[int] = Field(default=[10])
         assembler_positions: list[list[Position]] = Field(default=[["Any"]])
         charger_positions: list[list[Position]] = Field(default=[["Any"]])
-        num_carbon_extractors: list[int] = Field(default=[0])
         carbon_extractor_positions: list[list[Position]] = Field(default=[["Any"]])
-        num_oxygen_extractors: list[int] = Field(default=[0])
         oxygen_extractor_positions: list[list[Position]] = Field(default=[["Any"]])
-        num_germanium_extractors: list[int] = Field(default=[0])
         germanium_extractor_positions: list[list[Position]] = Field(default=[["Any"]])
-        num_silicon_extractors: list[int] = Field(default=[0])
         silicon_extractor_positions: list[list[Position]] = Field(default=[["Any"]])
         chest_positions: list[list[Position]] = Field(default=[["N"]])
         regeneration_rate: list[int] = Field(default=[5])
@@ -559,10 +553,6 @@ def train(
 def make_env(
     num_cogs=1,
     num_obj_distribution=4,
-    num_carbon_extractors=1,
-    num_oxygen_extractors=1,
-    num_germanium_extractors=1,
-    num_silicon_extractors=1,
     chest_positions=["N"],
     assembler_positions=["Any"],
     charger_positions=["Any"],
@@ -579,10 +569,6 @@ def make_env(
     task_generator = CogsVsClippiesTaskGenerator(
         config=CogsVsClippiesTaskGenerator.Config(
             num_cogs=[num_cogs],
-            num_carbon_extractors=[num_carbon_extractors],
-            num_oxygen_extractors=[num_oxygen_extractors],
-            num_germanium_extractors=[num_germanium_extractors],
-            num_silicon_extractors=[num_silicon_extractors],
             chest_positions=[chest_positions],
             assembler_positions=[assembler_positions],
             num_obj_distribution=[num_obj_distribution],
