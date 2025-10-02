@@ -134,13 +134,13 @@ def train(
 
     # Use RNN-specific hyperparameters if needed
     if use_rnn:
-        learning_rate = 3e-4  # Match main's gentler defaults for RNNs
+        learning_rate = 1e-4  # Slightly gentler LR to keep critic stable
         bptt_horizon = 1  # TODO: revisit once observation reshaping supports >1
-        optimizer = "adam"  # Adam is more stable for RNNs than Muon
+        optimizer = "adam"
         adam_eps = 1e-8
-        logger.info("Using RNN-specific hyperparameters: lr=0.0003, bptt=1, optimizer=adam")
+        logger.info("Using RNN hyperparameters: lr=1e-4, bptt=1, optimizer=adam")
     else:
-        learning_rate = 0.015
+        learning_rate = 1e-4
         bptt_horizon = 1
         optimizer = "muon"
         adam_eps = 1e-12
@@ -203,14 +203,14 @@ def train(
         anneal_lr=True,
         precision="float32",
         learning_rate=learning_rate,
-        gamma=0.995,
+        gamma=0.97,
         gae_lambda=0.90,
         update_epochs=1,
-        clip_coef=0.2,
-        vf_coef=2.0,
-        vf_clip_coef=0.2,
-        max_grad_norm=1.5,
-        ent_coef=0.001,
+        clip_coef=0.1,
+        vf_coef=0.1,
+        vf_clip_coef=0.1,
+        max_grad_norm=0.5,
+        ent_coef=0.01,
         adam_beta1=0.95,
         adam_beta2=0.999,
         adam_eps=adam_eps,
