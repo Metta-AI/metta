@@ -8,7 +8,6 @@ from tensordict import TensorDict
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.components.component_config import ComponentConfig
-
 from metta.agent.components.transformer_module import sinusoidal_position_encoding
 
 

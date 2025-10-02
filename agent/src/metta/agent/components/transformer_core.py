@@ -2,118 +2,13 @@
 
 from __future__ import annotations
 
-from enum import Enum
-from typing import Any, Dict, Literal
+from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
 from metta.agent.components.component_config import ComponentConfig
 
-from metta.agent.components.sliding_transformer import (
-    SlidingTransformer,
-    SlidingTransformerConfig,
-)
-from metta.agent.components.transformer_module import GTrXLModule, TransformerXLModule
-from metta.agent.components.transformer_nvidia_module import NvidiaTransformerModule
-
-
-class TransformerBackboneVariant(str, Enum):
-    """Supported transformer backbone variants."""
-
-    GTRXL = "gtrxl"
-    TRXL = "trxl"
-    TRXL_NVIDIA = "trxl_nvidia"
-    SLIDING = "sliding"
-
-
-_VARIANT_DEFAULTS: Dict[TransformerBackboneVariant, Dict[str, Any]] = {
-    TransformerBackboneVariant.GTRXL: {
-        "latent_size": 32,
-        "hidden_size": 32,
-        "num_layers": 1,
-        "n_heads": 2,
-        "d_ff": 128,
-        "max_seq_len": 256,
-        "memory_len": 32,
-        "dropout": 0.05,
-        "attn_dropout": 0.05,
-        "pre_lnorm": True,
-        "same_length": False,
-        "clamp_len": -1,
-        "positional_scale": 0.1,
-        "use_gating": True,
-        "ext_len": 0,
-        "activation_checkpoint": False,
-        "use_flash_checkpoint": False,
-        "allow_tf32": True,
-        "use_fused_layernorm": False,
-    },
-    TransformerBackboneVariant.TRXL: {
-        "latent_size": 32,
-        "hidden_size": 32,
-        "num_layers": 1,
-        "n_heads": 2,
-        "d_ff": 128,
-        "max_seq_len": 192,
-        "memory_len": 32,
-        "dropout": 0.05,
-        "attn_dropout": 0.05,
-        "pre_lnorm": True,
-        "same_length": False,
-        "clamp_len": -1,
-        "positional_scale": 0.1,
-        "use_gating": False,
-        "ext_len": 0,
-        "activation_checkpoint": False,
-        "use_flash_checkpoint": False,
-        "allow_tf32": True,
-        "use_fused_layernorm": False,
-    },
-    TransformerBackboneVariant.TRXL_NVIDIA: {
-        "latent_size": 48,
-        "hidden_size": 48,
-        "num_layers": 2,
-        "n_heads": 2,
-        "d_ff": 192,
-        "max_seq_len": 192,
-        "memory_len": 32,
-        "dropout": 0.05,
-        "attn_dropout": 0.0,
-        "pre_lnorm": False,
-        "same_length": False,
-        "clamp_len": -1,
-        "positional_scale": 0.1,
-        "use_gating": False,
-        "ext_len": 0,
-        "activation_checkpoint": False,
-        "use_flash_checkpoint": False,
-        "allow_tf32": True,
-        "use_fused_layernorm": False,
-    },
-    TransformerBackboneVariant.SLIDING: {
-        "latent_size": 16,
-        "hidden_size": 16,
-        "num_layers": 2,
-        "n_heads": 1,
-        "d_ff": 64,
-        "max_seq_len": 80,
-        "memory_len": 0,
-        "dropout": 0.0,
-        "attn_dropout": 0.0,
-        "pre_lnorm": False,
-        "same_length": False,
-        "clamp_len": -1,
-        "positional_scale": 0.1,
-        "use_gating": False,
-        "ext_len": 0,
-        "activation_checkpoint": False,
-        "use_flash_checkpoint": False,
-        "allow_tf32": True,
-        "use_fused_layernorm": False,
-        "max_cache_size": 80,
-        "pool": "mean",
-    },
-}
+from .transformers import available_backbones, get_backbone_entry
 
 
 class TransformerBackboneConfig(ComponentConfig):
@@ -123,7 +18,7 @@ class TransformerBackboneConfig(ComponentConfig):
     in_key: str = "encoded_obs"
     out_key: str = "core"
 
-    variant: TransformerBackboneVariant = TransformerBackboneVariant.GTRXL
+    variant: str = "gtrxl"
 
     latent_size: int | None = None
     hidden_size: int | None = None
@@ -149,9 +44,9 @@ class TransformerBackboneConfig(ComponentConfig):
 
     @model_validator(mode="after")
     def _apply_variant_defaults(self) -> "TransformerBackboneConfig":
-        defaults = _VARIANT_DEFAULTS[self.variant]
-        for field_name, default_value in defaults.items():
-            if getattr(self, field_name) is None:
+        entry = get_backbone_entry(self.variant)
+        for field_name, default_value in entry.defaults.items():
+            if getattr(self, field_name, None) is None:
                 setattr(self, field_name, default_value)
 
         if self.latent_size is None and self.hidden_size is not None:
@@ -164,102 +59,8 @@ class TransformerBackboneConfig(ComponentConfig):
     # ------------------------------------------------------------------
 
     def make_component(self, env: Any | None = None):  # type: ignore[override]
-        memory_len = int(self.memory_len or 0)
-
-        if self.variant is TransformerBackboneVariant.GTRXL:
-            core = GTrXLModule(
-                d_model=self.hidden_size,
-                n_heads=self.n_heads,
-                n_layers=self.num_layers,
-                d_ff=self.d_ff,
-                max_seq_len=self.max_seq_len,
-                memory_len=memory_len,
-                dropout=self.dropout,
-                use_gating=bool(self.use_gating),
-                use_causal_mask=True,
-                positional_scale=self.positional_scale or 0.1,
-                attn_dropout=self.attn_dropout or self.dropout or 0.0,
-                activation_checkpoint=bool(self.activation_checkpoint),
-                use_flash_checkpoint=bool(self.use_flash_checkpoint),
-                use_fused_layernorm=bool(self.use_fused_layernorm),
-                allow_tf32=bool(self.allow_tf32),
-            )
-        elif self.variant is TransformerBackboneVariant.TRXL:
-            core = TransformerXLModule(
-                d_model=self.hidden_size,
-                n_heads=self.n_heads,
-                n_layers=self.num_layers,
-                d_ff=self.d_ff,
-                max_seq_len=self.max_seq_len,
-                memory_len=memory_len,
-                dropout=self.dropout,
-                dropatt=self.attn_dropout or 0.0,
-                pre_lnorm=bool(self.pre_lnorm),
-                same_length=bool(self.same_length),
-                clamp_len=self.clamp_len or -1,
-                ext_len=int(self.ext_len or 0),
-                attn_type=0,
-                activation_checkpoint=bool(self.activation_checkpoint),
-                use_flash_checkpoint=bool(self.use_flash_checkpoint),
-                use_fused_layernorm=bool(self.use_fused_layernorm),
-                allow_tf32=bool(self.allow_tf32),
-            )
-        elif self.variant is TransformerBackboneVariant.TRXL:
-            core = TransformerXLModule(
-                d_model=self.hidden_size,
-                n_heads=self.n_heads,
-                n_layers=self.num_layers,
-                d_ff=self.d_ff,
-                max_seq_len=self.max_seq_len,
-                memory_len=memory_len,
-                dropout=self.dropout,
-                dropatt=self.attn_dropout or 0.0,
-                pre_lnorm=bool(self.pre_lnorm),
-                same_length=bool(self.same_length),
-                clamp_len=self.clamp_len or -1,
-                ext_len=int(self.ext_len or 0),
-                attn_type=0,
-                activation_checkpoint=bool(self.activation_checkpoint),
-                use_flash_checkpoint=bool(self.use_flash_checkpoint),
-                use_fused_layernorm=bool(self.use_fused_layernorm),
-                allow_tf32=bool(self.allow_tf32),
-            )
-        elif self.variant is TransformerBackboneVariant.TRXL_NVIDIA:
-            core = NvidiaTransformerModule(
-                d_model=self.hidden_size,
-                n_heads=self.n_heads,
-                n_layers=self.num_layers,
-                d_ff=self.d_ff,
-                max_seq_len=self.max_seq_len,
-                memory_len=memory_len,
-                dropout=self.dropout,
-                dropatt=self.attn_dropout or 0.0,
-                pre_lnorm=bool(self.pre_lnorm),
-                clamp_len=self.clamp_len or -1,
-                ext_len=int(self.ext_len or 0),
-                activation_checkpoint=bool(self.activation_checkpoint),
-                use_flash_checkpoint=bool(self.use_flash_checkpoint),
-                use_fused_layernorm=bool(self.use_fused_layernorm),
-                allow_tf32=bool(self.allow_tf32),
-            )
-        else:
-            hidden_size = self.hidden_size or self.latent_size or 16
-            input_dim = self.latent_size or hidden_size
-            ff_mult = max(1, (self.d_ff or hidden_size * 4) // hidden_size)
-            sliding_cfg = SlidingTransformerConfig(
-                in_key=self.in_key,
-                out_key=self.out_key,
-                output_dim=hidden_size,
-                input_dim=input_dim,
-                num_heads=self.n_heads or 1,
-                ff_mult=ff_mult,
-                num_layers=self.num_layers or 2,
-                max_cache_size=self.max_cache_size or self.max_seq_len or 80,
-                pool=self.pool or "mean",
-            )
-            core = SlidingTransformer(config=sliding_cfg, env=env)
-
-        return core
+        entry = get_backbone_entry(self.variant)
+        return entry.builder(self, env)
 
 
-__all__ = ["TransformerBackboneConfig", "TransformerBackboneVariant"]
+__all__ = ["TransformerBackboneConfig", "available_backbones"]

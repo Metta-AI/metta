@@ -2,10 +2,7 @@ from typing import List, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from metta.agent.policies.transformer import (
-    TransformerPolicyConfig,
-    TransformerBackboneVariant,
-)
+from metta.agent.policies.transformer import TransformerPolicyConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
@@ -116,9 +113,7 @@ def train(
     )
 
     if policy_architecture is None:
-        policy_architecture = TransformerPolicyConfig(
-            variant=TransformerBackboneVariant.TRXL
-        )
+        policy_architecture = TransformerPolicyConfig(variant="trxl")
 
     return TrainTool(
         trainer=trainer_cfg,

@@ -6,7 +6,6 @@ import torch
 from tensordict import TensorDict
 
 from metta.agent.policies.transformer import (
-    TransformerBackboneVariant,
     TransformerPolicy,
     TransformerPolicyConfig,
     gtrxl_policy_config,
@@ -49,12 +48,12 @@ def _build_token_observations(batch_size: int, num_tokens: int) -> TensorDict:
 @pytest.mark.parametrize(
     ("config_factory", "variant"),
     [
-        (gtrxl_policy_config, TransformerBackboneVariant.GTRXL),
-        (trxl_policy_config, TransformerBackboneVariant.TRXL),
-        (trxl_nvidia_policy_config, TransformerBackboneVariant.TRXL_NVIDIA),
+        (gtrxl_policy_config, "gtrxl"),
+        (trxl_policy_config, "trxl"),
+        (trxl_nvidia_policy_config, "trxl_nvidia"),
         (
-            lambda: TransformerPolicyConfig(variant=TransformerBackboneVariant.SLIDING),
-            TransformerBackboneVariant.SLIDING,
+            lambda: TransformerPolicyConfig(variant="sliding"),
+            "sliding",
         ),
     ],
 )

@@ -6,7 +6,7 @@ import contextlib
 import logging
 import math
 import os
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import torch
 from einops import rearrange
@@ -28,10 +28,8 @@ from metta.agent.components.heads import LinearHead, LinearHeadConfig
 from metta.agent.components.obs_enc import ObsPerceiverLatent, ObsPerceiverLatentConfig
 from metta.agent.components.obs_shim import ObsShimTokens, ObsShimTokensConfig
 from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourier, ObsAttrEmbedFourierConfig
-from metta.agent.components.transformer_core import (
-    TransformerBackboneConfig,
-    TransformerBackboneVariant,
-)
+from metta.agent.components.transformer_core import TransformerBackboneConfig
+from metta.agent.components.transformers import get_backbone_entry
 from metta.agent.policy import Policy, PolicyArchitecture
 
 logger = logging.getLogger(__name__)
@@ -47,36 +45,12 @@ def _tensor_stats(tensor: torch.Tensor, name: str) -> str:
     )
 
 
-_POLICY_VARIANT_DEFAULTS: Dict[TransformerBackboneVariant, Dict[str, Any]] = {
-    TransformerBackboneVariant.GTRXL: {
-        "manual_init": False,
-        "strict_attr_indices": False,
-        "learning_rate_hint": 7.5e-4,
-    },
-    TransformerBackboneVariant.TRXL: {
-        "manual_init": False,
-        "strict_attr_indices": False,
-        "learning_rate_hint": 9.0e-4,
-    },
-    TransformerBackboneVariant.TRXL_NVIDIA: {
-        "manual_init": True,
-        "strict_attr_indices": True,
-        "learning_rate_hint": 3.0e-4,
-    },
-    TransformerBackboneVariant.SLIDING: {
-        "manual_init": False,
-        "strict_attr_indices": False,
-        "learning_rate_hint": 7.5e-4,
-    },
-}
-
-
 class TransformerPolicyConfig(PolicyArchitecture):
     """Configures the end-to-end transformer policy."""
 
     class_path: str = "metta.agent.policies.transformer.TransformerPolicy"
 
-    variant: TransformerBackboneVariant = TransformerBackboneVariant.GTRXL
+    variant: str = "gtrxl"
 
     # Observation preprocessing
     obs_shim_config: ObsShimTokensConfig = ObsShimTokensConfig(in_key="env_obs", out_key="obs_tokens", max_tokens=48)
@@ -119,7 +93,8 @@ class TransformerPolicyConfig(PolicyArchitecture):
         overrides["variant"] = self.variant
         self.transformer = TransformerBackboneConfig(**overrides)
 
-        defaults = _POLICY_VARIANT_DEFAULTS[self.variant]
+        entry = get_backbone_entry(self.variant)
+        defaults = entry.policy_defaults
         if self.manual_init is None:
             self.manual_init = defaults.get("manual_init", False)
         if self.strict_attr_indices is None:
@@ -845,25 +820,24 @@ class TransformerPolicy(Policy):
 def gtrxl_policy_config() -> TransformerPolicyConfig:
     """Return a policy config for the GTrXL variant."""
 
-    return TransformerPolicyConfig(variant=TransformerBackboneVariant.GTRXL)
+    return TransformerPolicyConfig(variant="gtrxl")
 
 
 def trxl_policy_config() -> TransformerPolicyConfig:
     """Return a policy config for the vanilla Transformer-XL variant."""
 
-    return TransformerPolicyConfig(variant=TransformerBackboneVariant.TRXL)
+    return TransformerPolicyConfig(variant="trxl")
 
 
 def trxl_nvidia_policy_config() -> TransformerPolicyConfig:
     """Return a policy config for the NVIDIA Transformer-XL variant."""
 
-    return TransformerPolicyConfig(variant=TransformerBackboneVariant.TRXL_NVIDIA)
+    return TransformerPolicyConfig(variant="trxl_nvidia")
 
 
 __all__ = [
     "TransformerPolicyConfig",
     "TransformerPolicy",
-    "TransformerBackboneVariant",
     "gtrxl_policy_config",
     "trxl_policy_config",
     "trxl_nvidia_policy_config",

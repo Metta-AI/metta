@@ -10,10 +10,9 @@ Summary of Additions
 
 ### 1. Transformer Backbone Refactor (`agent/components/transformer_core.py`)
 
-- Introduced `TransformerBackboneVariant.backbone_defaults()` with new dimension/dropout defaults (wider 48-dim models, 2 layers, tuned memory settings).
-- Added `policy_defaults()` to surface variant-specific optimizer hints (`learning_rate_hint`, `manual_init`, `strict_attr_indices`).
-- Extended enum with `SLIDING` variant and wiring for sliding-window transformer implementation.
-- Added optional config fields (`max_cache_size`, `pool`) for non-GTrXL variants.
+- Variant-specific defaults now live in dedicated modules under `agent/components/transformers/` (e.g., `gtrxl.py`, `trxl.py`).
+- Each module registers itself via the transformer registry, exposing both backbone defaults and optimizer hints.
+- `TransformerBackboneConfig` pulls configuration from the registry, so backbones share a single instantiation path while remaining easy to find by name.
 
 ### 2. Sliding Transformer Rewrite (`agent/components/sliding_transformer.py`)
 
@@ -69,4 +68,3 @@ Next Steps
 1. Revert transformer-related files to commit `73bca6e6ec` to restore the known-good architecture and training flow.
 2. Rebenchmark to confirm SPS and heart.get trajectories match the baseline run.
 3. Incrementally reapply the desired improvements from the list above, validating performance after each addition.
-
