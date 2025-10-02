@@ -2,6 +2,18 @@
 
 The tool runner loads a Tool from a recipe module, applies CLI overrides, and invokes it. It supports convenient two-token shorthand and recipe inference.
 
+## Recipe Discovery
+
+Recipes are automatically discovered from the `experiments/recipes` directory and all subdirectories.
+
+**Important**: Python requires subdirectories to have `__init__.py` files to be importable as packages. If you create a new subdirectory for recipes, run:
+
+```bash
+uv run python devops/tools/ensure_recipe_packages.py
+```
+
+This automatically creates empty `__init__.py` files in any subdirectories that need them.
+
 ## Quick Start
 
 ```bash
