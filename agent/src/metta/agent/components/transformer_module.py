@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import math
+import warnings
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import torch
@@ -203,8 +204,6 @@ class GTrXLMultiHeadSelfAttention(nn.Module):
         qkv = qkv.permute(2, 1, 3, 0, 4)  # (3, batch, heads, seq, d_k)
         q, k, v = qkv[0], qkv[1], qkv[2]
 
-        dropout_p = self._attn_dropout_p if self.training else 0.0
-
         # Explicit masking attention path
         q_2d = q.reshape(batch_size * self.n_heads, seq_len, self.d_k)
         k_2d = k.reshape(batch_size * self.n_heads, seq_len, self.d_k)
@@ -327,6 +326,9 @@ class GTrXLModule(nn.Module):
         positional_scale: float = 0.1,
         attn_dropout: float = 0.1,
         activation_checkpoint: bool = False,
+        use_flash_checkpoint: bool = False,
+        use_fused_layernorm: bool = False,
+        allow_tf32: bool = True,
     ) -> None:
         super().__init__()
         if d_model % n_heads != 0:
@@ -343,6 +345,19 @@ class GTrXLModule(nn.Module):
         self.use_causal_mask = use_causal_mask
         self.use_activation_checkpoint = activation_checkpoint
         self.attn_dropout = attn_dropout
+        self.use_flash_checkpoint = use_flash_checkpoint
+        self.use_fused_layernorm = use_fused_layernorm
+        self.allow_tf32 = allow_tf32
+        if use_flash_checkpoint:
+            warnings.warn(
+                "GTrXLModule ignores use_flash_checkpoint; set this to False to silence the warning.",
+                stacklevel=2,
+            )
+        if use_fused_layernorm:
+            warnings.warn(
+                "GTrXLModule ignores use_fused_layernorm; set this to False to silence the warning.",
+                stacklevel=2,
+            )
 
         positional_max = max_seq_len + self.memory_len + 1024
         self.positional_encoding = FCPositionalEncoding(
@@ -433,6 +448,7 @@ class GTrXLModule(nn.Module):
                         attn_mask = self._get_causal_mask(total_len, device)
 
                     if self.use_activation_checkpoint and combined.requires_grad:
+
                         def _layer_run(inp, *, _layer=layer, _mask=attn_mask):
                             return _layer(inp, _mask)
 
@@ -712,6 +728,10 @@ class TransformerXLModule(nn.Module):
         ext_len: int = 0,
         attn_type: int = 0,
         activation_checkpoint: bool = False,
+        *,
+        use_flash_checkpoint: bool = False,
+        use_fused_layernorm: bool = False,
+        allow_tf32: bool = True,
     ) -> None:
         super().__init__()
         if d_model % n_heads != 0:
@@ -730,6 +750,19 @@ class TransformerXLModule(nn.Module):
         self.ext_len = ext_len
         self.attn_type = attn_type
         self.use_activation_checkpoint = activation_checkpoint
+        self.use_flash_checkpoint = use_flash_checkpoint
+        self.use_fused_layernorm = use_fused_layernorm
+        self.allow_tf32 = allow_tf32
+        if use_flash_checkpoint:
+            warnings.warn(
+                "TransformerXLModule ignores use_flash_checkpoint; set this to False to silence the warning.",
+                stacklevel=2,
+            )
+        if use_fused_layernorm:
+            warnings.warn(
+                "TransformerXLModule ignores use_fused_layernorm; set this to False to silence the warning.",
+                stacklevel=2,
+            )
 
         d_head = d_model // n_heads
 
@@ -806,9 +839,7 @@ class TransformerXLModule(nn.Module):
 
                     if self.use_activation_checkpoint and core_out.requires_grad:
                         placeholder = (
-                            mem_layer
-                            if mem_layer is not None
-                            else core_out.new_zeros(0, batch_size, self.d_model)
+                            mem_layer if mem_layer is not None else core_out.new_zeros(0, batch_size, self.d_model)
                         )
 
                         def _layer_run(
