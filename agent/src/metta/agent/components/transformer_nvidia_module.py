@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import warnings
 from typing import Dict, List, Optional, Tuple
 
 import torch
@@ -303,12 +304,30 @@ class NvidiaTransformerModule(nn.Module):
         ext_len: int = 0,
         attn_type: int = 0,
         activation_checkpoint: bool = False,
+        *,
+        use_flash_checkpoint: bool = False,
+        use_fused_layernorm: bool = False,
+        allow_tf32: bool = True,
     ) -> None:
         super().__init__()
         if same_length:
             raise NotImplementedError("same_length masking is not implemented for the NVIDIA transformer module")
         if attn_type != 0:
             raise NotImplementedError("Only relative positional attention (attn_type=0) is supported.")
+
+        self.use_flash_checkpoint = use_flash_checkpoint
+        self.use_fused_layernorm = use_fused_layernorm
+        self.allow_tf32 = allow_tf32
+        if use_flash_checkpoint:
+            warnings.warn(
+                "NvidiaTransformerModule ignores use_flash_checkpoint; set this to False to silence the warning.",
+                stacklevel=2,
+            )
+        if use_fused_layernorm:
+            warnings.warn(
+                "NvidiaTransformerModule ignores use_fused_layernorm; set this to False to silence the warning.",
+                stacklevel=2,
+            )
 
         self.core = NvidiaTransformerCore(
             d_model=d_model,

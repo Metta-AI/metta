@@ -119,7 +119,6 @@ class TrainTool(Tool):
             self._minimize_config_for_debugging()  # this overrides many config settings for local testings
 
         if self.evaluator and self.evaluator.evaluate_local:
-            # suppress NCCL watchdog timeouts while ranks wait for master to complete evals
             logger.warning("Local policy evaluation can be inefficient - consider switching to remote evaluation!")
             self.system.nccl_timeout = timedelta(hours=4)
 
@@ -133,7 +132,6 @@ class TrainTool(Tool):
 
         checkpoint_manager = CheckpointManager(run=self.run or "default", system_cfg=self.system)
 
-        # this check is not in the model validator because we setup the remote prefix in `invoke` rather than `init``
         if self.evaluator.evaluate_remote and not checkpoint_manager.remote_checkpoints_enabled:
             raise ValueError("without a remote prefix we cannot use remote evaluation")
 
@@ -197,16 +195,10 @@ class TrainTool(Tool):
     ) -> Trainer:
         trainer = Trainer(
             self.trainer,
-            env,
             policy,
-            torch.device(self.system.device),
-            distributed_helper=distributed_helper,
-            run_name=self.run,
+            env,
+            distributed_helper,
         )
-
-        if not self.gradient_reporter.epoch_interval and getattr(self.trainer, "grad_mean_variance_interval", 0):
-            self.gradient_reporter.epoch_interval = self.stats_reporter.grad_mean_variance_interval
-
         return trainer
 
     def _configure_torch_backends(self) -> None:
@@ -231,146 +223,3 @@ class TrainTool(Tool):
                 stack = contextlib.ExitStack()
                 self._sdpa_context_stack = stack
             stack.enter_context(context)
-
-    def _register_components(
-        self,
-        *,
-        trainer: Trainer,
-        distributed_helper: DistributedHelper,
-        checkpoint_manager: CheckpointManager,
-        stats_client: Optional[StatsClient],
-        policy_checkpointer: Checkpointer,
-        wandb_run,
-    ) -> None:
-        components: list[TrainerComponent] = []
-
-        heartbeat_cfg = getattr(self.trainer, "heartbeat", None)
-        if heartbeat_cfg is not None:
-            components.append(Heartbeat(epoch_interval=heartbeat_cfg.epoch_interval))
-
-        # Ensure learning-rate schedules stay in sync across ranks
-        hyper_cfg = getattr(self.trainer, "hyperparameter_scheduler", None)
-        if hyper_cfg and getattr(hyper_cfg, "enabled", False):
-            interval = getattr(hyper_cfg, "epoch_interval", 1) or 1
-            hyper_component = Scheduler(SchedulerConfig(interval=max(1, int(interval))))
-            components.append(hyper_component)
-
-        stats_component: TrainerComponent | None = None
-
-        if distributed_helper.is_master():
-            stats_config = self.stats_reporter.model_copy(update={"report_to_wandb": bool(wandb_run)})
-            reporting_enabled = (
-                stats_config.report_to_wandb or stats_config.report_to_stats_client or stats_config.report_to_console
-            )
-
-            if self.gradient_reporter.epoch_interval:
-                components.append(GradientReporter(self.gradient_reporter))
-
-            stats_component = StatsReporter.from_config(
-                stats_config,
-                stats_client=stats_client,
-                wandb_run=wandb_run,
-            )
-
-            if stats_component is not None:
-                components.append(stats_component)
-
-            components.append(policy_checkpointer)
-
-            self.evaluator = self.evaluator.model_copy(deep=True)
-            components.append(
-                Evaluator(
-                    config=self.evaluator,
-                    device=torch.device(self.system.device),
-                    system_cfg=self.system,
-                    stats_client=stats_client,
-                )
-            )
-
-            components.append(
-                Uploader(
-                    config=self.uploader,
-                    checkpoint_manager=checkpoint_manager,
-                    distributed_helper=distributed_helper,
-                    wandb_run=wandb_run,
-                )
-            )
-
-            components.append(Monitor(enabled=reporting_enabled))
-            components.append(ProgressLogger())
-        else:
-            components.append(policy_checkpointer)
-
-        trainer_checkpointer = ContextCheckpointer(
-            config=self.context_checkpointer,
-            checkpoint_manager=checkpoint_manager,
-            distributed_helper=distributed_helper,
-        )
-        components.append(trainer_checkpointer)
-
-        components.append(WandbAborter(wandb_run=wandb_run, config=self.wandb_aborter))
-
-        if distributed_helper.is_master() and getattr(self.torch_profiler, "interval_epochs", 0):
-            components.append(
-                TorchProfiler(
-                    profiler_config=self.torch_profiler,
-                    wandb_run=wandb_run,
-                    run_dir=checkpoint_manager.run_dir,
-                    is_master=True,
-                )
-            )
-
-        for component in components:
-            if component is None:
-                continue
-            trainer.register(component)
-
-        if wandb_run is not None and distributed_helper.is_master():
-            trainer.register(WandbLogger(wandb_run))
-
-    def _log_run_configuration(
-        self,
-        distributed_helper: DistributedHelper,
-        checkpoint_manager: CheckpointManager,
-        env: VectorizedTrainingEnvironment,
-    ) -> None:
-        if not distributed_helper.is_master():
-            return
-
-        if not checkpoint_manager.run_dir:
-            raise ValueError("cannot _log_run_configuration without a valid run_dir")
-
-        logger.info(f"Training environment: {env}")
-        config_path = os.path.join(checkpoint_manager.run_dir, "config.json")
-        with open(config_path, "w") as config_file:
-            config_file.write(self.model_dump_json(indent=2))
-        logger.info(f"Config saved to {config_path}")
-
-    def _maybe_create_stats_client(self, distributed_helper: DistributedHelper) -> Optional[StatsClient]:
-        if not (distributed_helper.is_master() and self.stats_server_uri):
-            return None
-        try:
-            return StatsClient.create(stats_server_uri=self.stats_server_uri)
-
-        except Exception as exc:
-            logger.warning("Failed to initialize stats client: %s", exc)
-            return None
-
-    def _build_wandb_manager(self, distributed_helper: DistributedHelper):
-        if distributed_helper.is_master() and self.wandb.enabled:
-            return WandbContext(self.wandb, self)
-        return contextlib.nullcontext(None)
-
-    def _minimize_config_for_debugging(self) -> None:
-        self.trainer.minibatch_size = min(self.trainer.minibatch_size, 1024)
-        self.trainer.batch_size = min(self.trainer.batch_size, 1024)
-        self.trainer.bptt_horizon = min(self.trainer.bptt_horizon, 8)
-
-        self.training_env.async_factor = 1
-        self.training_env.forward_pass_minibatch_target_size = min(
-            self.training_env.forward_pass_minibatch_target_size, 4
-        )
-        self.context_checkpointer.epoch_interval = min(self.context_checkpointer.epoch_interval, 10)
-        self.checkpointer.epoch_interval = min(self.checkpointer.epoch_interval, 10)
-        self.uploader.epoch_interval = min(self.uploader.epoch_interval, 10)
-        self.evaluator.epoch_interval = min(self.evaluator.epoch_interval, 10)
