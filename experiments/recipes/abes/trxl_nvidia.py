@@ -2,7 +2,7 @@ from typing import List, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from metta.agent.policies.transformer import TRXLNvidiaConfig
+from metta.agent.policies.transformer import TRXLNvidiaConfig, TransformerPolicyConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
@@ -10,7 +10,7 @@ from metta.cogworks.curriculum.curriculum import (
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.loss import LossConfig
-from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
+from metta.rl.trainer_config import OptimizerConfig, TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
@@ -98,6 +98,18 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
     ]
 
 
+DEFAULT_LR = OptimizerConfig.model_fields["learning_rate"].default
+
+
+def _apply_policy_defaults(
+    policy_architecture: PolicyArchitecture, trainer_cfg: TrainerConfig
+) -> None:
+    if isinstance(policy_architecture, TransformerPolicyConfig):
+        hint = policy_architecture.learning_rate_hint
+        if hint is not None and trainer_cfg.optimizer.learning_rate == DEFAULT_LR:
+            trainer_cfg.optimizer.learning_rate = hint
+
+
 def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
@@ -114,6 +126,8 @@ def train(
 
     if policy_architecture is None:
         policy_architecture = TRXLNvidiaConfig()
+
+    _apply_policy_defaults(policy_architecture, trainer_cfg)
 
     return TrainTool(
         trainer=trainer_cfg,
