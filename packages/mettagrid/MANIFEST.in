@@ -9,4 +9,5 @@ recursive-include cpp *.cpp *.hpp *.bazel BUILD
 recursive-include benchmarks *.cpp *.py BUILD
 recursive-include tests *.cpp *.py BUILD
 recursive-include lint *.sh *.bzl BUILD
+recursive-include nim *.nim *.nims *.cfg *.txt *.yaml *.json *.png *.ttf *.html *.js *.css *.svg *.ico *.wasm *.md *.so *.dylib *.dll
 
