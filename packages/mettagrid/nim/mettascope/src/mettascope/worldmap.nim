@@ -442,6 +442,7 @@ proc drawPlannedPath*() =
       for dest in destinations:
         if dest.destinationType == Bump and (dest.approachDir.x != 0 or dest.approachDir.y != 0):
           let approachPos = ivec2(dest.pos.x + dest.approachDir.x, dest.pos.y + dest.approachDir.y)
+          let offset = vec2(-dest.approachDir.x.float32 * 0.35, -dest.approachDir.y.float32 * 0.35)
           var rotation: float32 = 0
           if dest.approachDir.x > 0:
             rotation = Pi / 2
@@ -453,7 +454,7 @@ proc drawPlannedPath*() =
             rotation = Pi
           bxy.drawImage(
             "actions/arrow",
-            approachPos.vec2,
+            approachPos.vec2 + offset,
             angle = rotation,
             scale = 1/200,
             tint = color(1, 1, 1, 0.7)
