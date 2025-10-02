@@ -29,18 +29,6 @@ def compute_advantage(
 ) -> Tensor:
     """CUDA kernel for puffer advantage with automatic CPU & MPS fallback."""
 
-    # Validate inputs for NaN/Inf values
-    if torch.isnan(values).any():
-        raise ValueError(f"NaN detected in values tensor: {torch.isnan(values).sum().item()} NaNs")
-    if torch.isnan(rewards).any():
-        raise ValueError(f"NaN detected in rewards tensor: {torch.isnan(rewards).sum().item()} NaNs")
-    if torch.isnan(dones).any():
-        raise ValueError(f"NaN detected in dones tensor: {torch.isnan(dones).sum().item()} NaNs")
-    if torch.isnan(importance_sampling_ratio).any():
-        raise ValueError(
-            f"NaN detected in importance_sampling_ratio tensor: {torch.isnan(importance_sampling_ratio).sum().item()} NaNs"
-        )
-
     # Move tensors to device and compute advantage
     if str(device) == "mps":
         return mps.advantage(
