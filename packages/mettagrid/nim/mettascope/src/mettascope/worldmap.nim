@@ -22,9 +22,12 @@ proc agentColor*(id: int): Color =
 
 proc useSelections*(panel: Panel) =
   ## Reads the mouse position and selects the thing under it.
-  let metaDown = window.buttonDown[KeyLeftSuper] or window.buttonDown[KeyRightSuper]
+  let modifierDown = when defined(macosx):
+    window.buttonDown[KeyLeftSuper] or window.buttonDown[KeyRightSuper]
+  else:
+    window.buttonDown[KeyLeftControl] or window.buttonDown[KeyRightControl]
   
-  if window.buttonPressed[MouseLeft] and not metaDown:
+  if window.buttonPressed[MouseLeft] and not modifierDown:
     selection = nil
     let
       mousePos = bxy.getTransform().inverse * window.mousePos.vec2
@@ -36,7 +39,7 @@ proc useSelections*(panel: Panel) =
           selectObject(obj)
           break
   
-  if window.buttonPressed[MouseRight] or (window.buttonPressed[MouseLeft] and metaDown):
+  if window.buttonPressed[MouseRight] or (window.buttonPressed[MouseLeft] and modifierDown):
     if selection != nil and selection.isAgent:
       let
         mousePos = bxy.getTransform().inverse * window.mousePos.vec2
