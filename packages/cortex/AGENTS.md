@@ -37,6 +37,16 @@ Always read both documents before making changes inside `packages/cortex`.
 - Capture failure cases with informative asserts (e.g. tolerances, shapes) to
   make future debugging easier.
 
+### Evaluations policy (do not edit for testing)
+
+- Do not modify anything under `packages/cortex/evaluations/` to validate kernels
+  or fixes. Always add or extend unit tests under `packages/cortex/tests/` instead.
+- Avoid adding new presets, flags, or CLI changes in the evaluation harness for
+  ad‑hoc sanity checks. Express such checks as pytest tests so they run in CI and
+  serve as regressions.
+- If an evaluation change is absolutely necessary (e.g., to expose a tested feature
+  in a demo), get explicit maintainer approval and document the rationale in the PR.
+
 ## 4. Iterate Until Tests Pass
 
 - Use the PyTorch reference to debug numerical drift; only relax tolerances when

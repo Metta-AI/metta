@@ -86,7 +86,7 @@ def make_task(task: str, *, num_samples: int, seed: int) -> TaskSpec:
         return TaskSpec(name=task, make_splits=_splits, vocab_size=3, n_classes=2)
 
     if task == "majority":
-        length = 128
+        length = 1024
 
         def _splits():
             return MajorityDataset.splits(num_samples=num_samples, length=length, seed=seed)
@@ -128,6 +128,11 @@ def train_one(
 
     model = SequenceClassifier(stack=stack, vocab_size=task.vocab_size, d_hidden=d_hidden, n_classes=task.n_classes)
     model.to(device)
+
+    # Count and log model parameters
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    logging.info("model parameters: total=%d trainable=%d", total_params, trainable_params)
 
     opt = torch.optim.AdamW(model.parameters(), lr=lr)
     criterion = nn.CrossEntropyLoss()

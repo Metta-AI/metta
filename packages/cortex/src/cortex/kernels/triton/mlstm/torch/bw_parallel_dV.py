@@ -1,6 +1,7 @@
 #  Copyright (c) NXAI GmbH.
 #  This software may be used and distributed according to the terms of the NXAI Community License Agreement.
 
+import os
 import torch
 
 import triton
@@ -60,6 +61,30 @@ def mlstm_chunkwise__parallel_bw_dV(
 
     siz_b_DHQK = get_head_dim_block_size(head_dim=DHQK, min_block_size=64) if siz_b_DHQK is None else siz_b_DHQK
     siz_b_DHHV = get_head_dim_block_size(head_dim=DHHV, min_block_size=128) if siz_b_DHHV is None else siz_b_DHHV
+
+    # Shared-memory soft cap: primary accumulator is (siz_b_LKV, siz_b_DHHV) float32.
+    # Secondary buffers (LKV x LQ) appear transiently; budget for both by using (DHHV + LQ_small).
+    smem_soft_limit = int(os.environ.get("CORTEX_TRITON_SMEM_SOFT_LIMIT", str(96 * 1024)))
+    bytes_per = 4
+    # Choose a small, power-of-two LQ that divides LKV and reduces temporary sizes
+    def pow2_le(x: int) -> int:
+        p = 1
+        while (p << 1) <= x:
+            p <<= 1
+        return max(16, p)
+
+    LQ_small_target = pow2_le(min(siz_b_LQ, 32))
+    # Account for double-buffered accumulators of shape (LKV, DHHV) plus an (LKV, LQ) temp
+    denom = bytes_per * (2 * max(1, DHHV) + LQ_small_target)
+    max_lkv = max(16, smem_soft_limit // denom)
+    max_lkv = pow2_le(min(max_lkv, L))
+    if siz_b_LKV > max_lkv:
+        siz_b_LKV = max_lkv
+    # Ensure LQ <= LKV and LKV % LQ == 0
+    siz_b_LQ = min(siz_b_LQ, siz_b_LKV)
+    siz_b_LQ = pow2_le(siz_b_LQ)
+    while siz_b_LKV % siz_b_LQ != 0 and siz_b_LQ > 16:
+        siz_b_LQ //= 2
 
     assert siz_b_LQ <= L, "siz_b_LQ must be less than or equal to chunk size L"
     assert siz_b_LKV <= L, "siz_b_LKV must be less than or equal to chunk size L"
