@@ -442,4 +442,12 @@ class GTrXLConfig:
         }
 
 
-__all__ = ["GTrXLModule", "GTrXLConfig"]
+__all__ = ["GTrXLModule", "GTrXLConfig", "gtrxl_policy_config"]
+
+
+def gtrxl_policy_config():
+    """Create a `TransformerPolicyConfig` preloaded with this backbone."""
+
+    from metta.agent.policies.transformer import TransformerPolicyConfig
+
+    return TransformerPolicyConfig(transformer=GTrXLConfig())

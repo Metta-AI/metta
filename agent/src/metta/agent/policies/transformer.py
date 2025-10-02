@@ -820,48 +820,13 @@ class TransformerPolicy(Policy):
         return Composite(**spec)
 
 
-class GTrXLConfig(TransformerPolicyConfig):
-    """Transformer policy configuration preloaded with the GTrXL backbone."""
-
-    transformer: backbone_gtrxl.GTrXLConfig = Field(default_factory=backbone_gtrxl.GTrXLConfig)
-
-
-def gtrxl_policy_config() -> TransformerPolicyConfig:
-    """Return a policy config for the GTrXL variant (legacy helper)."""
-
-    return GTrXLConfig()
-
-
-class TRXLConfig(TransformerPolicyConfig):
-    """Transformer policy configuration preloaded with the Transformer-XL backbone."""
-
-    transformer: backbone_trxl.TRXLConfig = Field(default_factory=backbone_trxl.TRXLConfig)
-
-
-def trxl_policy_config() -> TransformerPolicyConfig:
-    """Return a policy config for the vanilla Transformer-XL variant."""
-
-    return TRXLConfig()
-
-
-class TRXLNvidiaConfig(TransformerPolicyConfig):
-    """Transformer policy configuration preloaded with the NVIDIA Transformer-XL backbone."""
-
-    transformer: backbone_trxl_nvidia.TRXLNvidiaConfig = Field(default_factory=backbone_trxl_nvidia.TRXLNvidiaConfig)
-
-
-def trxl_nvidia_policy_config() -> TransformerPolicyConfig:
-    """Return a policy config for the NVIDIA Transformer-XL variant."""
-
-    return TRXLNvidiaConfig()
-
+gtrxl_policy_config = backbone_gtrxl.gtrxl_policy_config
+trxl_policy_config = backbone_trxl.trxl_policy_config
+trxl_nvidia_policy_config = backbone_trxl_nvidia.trxl_nvidia_policy_config
 
 __all__ = [
     "TransformerPolicyConfig",
     "TransformerPolicy",
-    "GTrXLConfig",
-    "TRXLConfig",
-    "TRXLNvidiaConfig",
     "gtrxl_policy_config",
     "trxl_policy_config",
     "trxl_nvidia_policy_config",

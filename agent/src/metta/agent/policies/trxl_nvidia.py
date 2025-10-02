@@ -427,4 +427,12 @@ class TRXLNvidiaConfig:
         }
 
 
-__all__ = ["NvidiaTransformerModule", "TRXLNvidiaConfig"]
+__all__ = ["NvidiaTransformerModule", "TRXLNvidiaConfig", "trxl_nvidia_policy_config"]
+
+
+def trxl_nvidia_policy_config():
+    """Create a `TransformerPolicyConfig` preloaded with the NVIDIA Transformer-XL backbone."""
+
+    from metta.agent.policies.transformer import TransformerPolicyConfig
+
+    return TransformerPolicyConfig(transformer=TRXLNvidiaConfig())

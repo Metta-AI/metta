@@ -467,4 +467,12 @@ class TRXLConfig:
         }
 
 
-__all__ = ["TransformerXLModule", "TRXLConfig"]
+__all__ = ["TransformerXLModule", "TRXLConfig", "trxl_policy_config"]
+
+
+def trxl_policy_config():
+    """Create a `TransformerPolicyConfig` preloaded with the Transformer-XL backbone."""
+
+    from metta.agent.policies.transformer import TransformerPolicyConfig
+
+    return TransformerPolicyConfig(transformer=TRXLConfig())
