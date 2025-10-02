@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import importlib
-import pkgutil
+from pathlib import Path
 
 from metta.common.tool.recipe import Recipe
 
@@ -56,10 +56,11 @@ class RecipeRegistry:
     def discover_all(self, base_package: str = "experiments.recipes") -> None:
         """Discover all recipe modules under a base package and add to registry.
 
+        Uses file-system walking to find all .py files, not just packages with __init__.py.
+
         Args:
             base_package: Base package to search for recipes (default: experiments.recipes)
         """
-
         try:
             base_module = importlib.import_module(base_package)
         except ImportError:
@@ -69,19 +70,29 @@ class RecipeRegistry:
         if not hasattr(base_module, "__path__"):
             return
 
-        package_paths = base_module.__path__
-
-        # Walk through all modules in the package
-        for _, modname, _ in pkgutil.walk_packages(package_paths, prefix=f"{base_package}."):
-            # Skip private modules
-            if modname.split(".")[-1].startswith("_"):
+        # Walk filesystem to find all .py files (not just packages)
+        for package_path in base_module.__path__:
+            base_dir = Path(package_path)
+            if not base_dir.exists():
                 continue
 
-            recipe = Recipe.load(modname)
-            if recipe:
-                # Only include if it has tools or configs
-                if recipe.get_explicit_tools() or recipe.get_configs() != (None, None):
-                    self._recipes[modname] = recipe
+            # Find all .py files recursively
+            for py_file in base_dir.rglob("*.py"):
+                # Skip __init__.py and private modules
+                if py_file.name.startswith("_"):
+                    continue
+
+                # Convert file path to module name
+                rel_path = py_file.relative_to(base_dir)
+                module_parts = list(rel_path.parts[:-1]) + [rel_path.stem]
+                modname = f"{base_package}.{'.'.join(module_parts)}"
+
+                # Try to load as recipe
+                recipe = Recipe.load(modname)
+                if recipe:
+                    # Only include if it has tools or configs
+                    if recipe.get_explicit_tools() or recipe.get_configs() != (None, None):
+                        self._recipes[modname] = recipe
 
     def clear(self) -> None:
         """Clear the registry (mainly for testing)."""
