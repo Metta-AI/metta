@@ -204,7 +204,7 @@ def assembler() -> AssemblerConfig:
             (["N"], protocols.one_agent_heart_recipe()),
             (["W"], protocols.one_agent_heart_recipe()),
             (["S"], protocols.one_agent_heart_recipe()),
-            (["W"], protocols.one_agent_heart_recipe()),
+            (["E"], protocols.one_agent_heart_recipe()),
             (["N", "E"], protocols.two_agent_heart_recipe()),
             (["N", "W"], protocols.two_agent_heart_recipe()),
             (["N", "S"], protocols.two_agent_heart_recipe()),
