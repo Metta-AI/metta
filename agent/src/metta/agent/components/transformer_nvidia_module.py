@@ -9,7 +9,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .transformer_module import TF32Context, empty_memory, normalize_memory, update_memory_window
+from metta.agent.components.transformer_module import (
+    TF32Context,
+    empty_memory,
+    normalize_memory,
+    update_memory_window,
+)
 
 
 class NvidiaPositionalEmbedding(nn.Module):

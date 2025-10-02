@@ -9,7 +9,7 @@ from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.components.component_config import ComponentConfig
 
-from .transformer_module import sinusoidal_position_encoding
+from metta.agent.components.transformer_module import sinusoidal_position_encoding
 
 
 class TransformerBlock(nn.Module):

@@ -9,9 +9,12 @@ from pydantic import Field, model_validator
 
 from metta.agent.components.component_config import ComponentConfig
 
-from .sliding_transformer import SlidingTransformer, SlidingTransformerConfig
-from .transformer_module import GTrXLModule, TransformerXLModule
-from .transformer_nvidia_module import NvidiaTransformerModule
+from metta.agent.components.sliding_transformer import (
+    SlidingTransformer,
+    SlidingTransformerConfig,
+)
+from metta.agent.components.transformer_module import GTrXLModule, TransformerXLModule
+from metta.agent.components.transformer_nvidia_module import NvidiaTransformerModule
 
 
 class TransformerBackboneVariant(str, Enum):
