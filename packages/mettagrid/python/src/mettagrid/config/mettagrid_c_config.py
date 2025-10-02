@@ -23,6 +23,7 @@ from mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
 from mettagrid.mettagrid_c import Recipe as CppRecipe
+from mettagrid.mettagrid_c import ResourceModConfig as CppResourceModConfig
 from mettagrid.mettagrid_c import WallConfig as CppWallConfig
 
 # Note that these are left to right, top to bottom.
@@ -401,6 +402,23 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 "number_of_glyphs": action_config["number_of_glyphs"],
             }
             actions_cpp_params[action_name] = CppChangeGlyphActionConfig(**change_glyph_params)
+        elif action_name == "resource_mod":
+            # Extract the specific parameters needed for ResourceModConfig
+            modifies_dict = action_config.get("modifies", {})
+            unknown_modifies = set(modifies_dict.keys()) - set(resource_name_to_id.keys())
+            if unknown_modifies:
+                unknown_list = sorted(unknown_modifies)
+                raise ValueError(f"Unknown resource names in modifies for action '{action_name}': {unknown_list}")
+
+            resource_mod_params = {
+                "required_resources": action_cpp_params.get("required_resources", {}),
+                "consumed_resources": action_cpp_params.get("consumed_resources", {}),
+                "modifies": {resource_name_to_id[k]: float(v) for k, v in modifies_dict.items()},
+                "agent_radius": action_config.get("agent_radius", 0),
+                "converter_radius": action_config.get("converter_radius", 0),
+                "scales": action_config.get("scales", False),
+            }
+            actions_cpp_params[action_name] = CppResourceModConfig(**resource_mod_params)
         else:
             actions_cpp_params[action_name] = CppActionConfig(**action_cpp_params)
 
