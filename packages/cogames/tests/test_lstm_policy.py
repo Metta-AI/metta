@@ -5,6 +5,7 @@ import torch
 from gymnasium.spaces import Box, MultiDiscrete
 
 from cogames.policy.lstm import LSTMAgentPolicy, LSTMPolicyNet
+from cogames.policy.utils import LSTMState
 
 
 class MockEnv:
@@ -137,9 +138,9 @@ def test_agent_policy_returns_tuple_state():
     obs = env.single_observation_space.sample()
 
     action, state = agent_policy.step_with_state(obs, None)
-    assert isinstance(state, tuple)
+    assert isinstance(state, LSTMState)
     assert action.shape == (len(env.single_action_space.nvec),)
 
     next_action, next_state = agent_policy.step_with_state(obs, state)
-    assert isinstance(next_state, tuple)
+    assert isinstance(next_state, LSTMState)
     assert next_action.shape == action.shape
