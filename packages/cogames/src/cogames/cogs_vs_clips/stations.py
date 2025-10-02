@@ -18,6 +18,7 @@ resources = [
 
 
 def charger(max_uses: Optional[int] = None) -> AssemblerConfig:
+    recipe = protocols.standard_charging_recipe()
     return AssemblerConfig(
         name="charger",
         type_id=5,
@@ -25,12 +26,7 @@ def charger(max_uses: Optional[int] = None) -> AssemblerConfig:
         render_symbol="⚡",
         allow_partial_usage=True,  # can use it while its on cooldown
         max_uses=max_uses or 0,
-        recipes=[
-            (
-                ["Any"],
-                protocols.standard_charging_recipe(),
-            )
-        ],
+        recipes=protocols.protocol(recipe),
     )
 
 
@@ -42,12 +38,7 @@ def carbon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         map_char="N",
         render_symbol="⚫",
         max_uses=max_uses or 0,
-        recipes=[
-            (
-                ["Any"],
-                protocols.standard_carbon_recipe(),
-            )
-        ],
+        recipes=protocols.protocol(protocols.standard_carbon_recipe()),
     )
 
 
@@ -60,12 +51,7 @@ def oxygen_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         render_symbol="🔵",
         allow_partial_usage=True,  # can use it while its on cooldown
         max_uses=max_uses or 0,
-        recipes=[
-            (
-                ["Any"],
-                protocols.standard_oxygen_recipe(),
-            )
-        ],
+        recipes=protocols.protocol(protocols.standard_oxygen_recipe()),
     )
 
 
@@ -77,12 +63,7 @@ def germanium_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         map_char="E",
         render_symbol="🟣",
         max_uses=max_uses or 0,
-        recipes=[
-            (
-                ["Any"],
-                protocols.standard_germanium_recipe(),
-            )
-        ],
+        recipes=protocols.protocol(protocols.standard_germanium_recipe()),
     )
 
 
@@ -94,12 +75,7 @@ def silicon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         map_char="I",
         render_symbol="🔷",
         max_uses=max_uses or 0,
-        recipes=[
-            (
-                ["Any"],
-                protocols.standard_silicon_recipe(),
-            )
-        ],
+        recipes=protocols.protocol(protocols.standard_silicon_recipe()),
     )
 
 
@@ -110,9 +86,7 @@ def carbon_ex_dep() -> AssemblerConfig:
         map_char="K",
         render_symbol="⬛",
         max_uses=100,
-        recipes=[
-            (["Any"], protocols.low_carbon_recipe()),
-        ],
+        recipes=protocols.protocol(protocols.low_carbon_recipe()),
     )
 
 
@@ -124,9 +98,7 @@ def oxygen_ex_dep() -> AssemblerConfig:
         render_symbol="⬜",
         max_uses=10,
         allow_partial_usage=True,
-        recipes=[
-            (["Any"], protocols.low_oxygen_recipe()),
-        ],
+        recipes=protocols.protocol(protocols.low_oxygen_recipe()),
     )
 
 
@@ -137,9 +109,7 @@ def germanium_ex_dep() -> AssemblerConfig:
         map_char="Y",
         render_symbol="🟪",
         max_uses=10,
-        recipes=[
-            (["Any"], protocols.low_germanium_recipe()),
-        ],
+        recipes=protocols.protocol(protocols.low_germanium_recipe()),
     )
 
 
@@ -150,12 +120,7 @@ def silicon_ex_dep() -> AssemblerConfig:
         map_char="V",
         render_symbol="🔹",
         max_uses=10,
-        recipes=[
-            (
-                ["Any"],
-                protocols.low_silicon_recipe(),
-            )
-        ],
+        recipes=protocols.protocol(protocols.low_silicon_recipe()),
     )
 
 
@@ -225,46 +190,42 @@ def assembler() -> AssemblerConfig:
         type_id=8,
         map_char="Z",
         render_symbol="🔄",
-        recipes=[
-            (
-                ["Any"],
-                protocols.standard_heart_recipe(),
-            ),
-            (
-                ["Any", "Any"],
-                protocols.low_germanium_heart_recipe(),
-            ),
-            # (
-            #     ["E"],
-            #     RecipeConfig(
-            #         input_resources={"energy": 3},
-            #         output_resources={"heart": 1},
-            #         cooldown=1,
-            #     ),
-            # ),
-            # (
-            #     ["N"],
-            #     RecipeConfig(
-            #         input_resources={"germanium": 1},
-            #         output_resources={"decoder": 1},
-            #         cooldown=1,
-            #     ),
-            # ),
-            # (
-            #     ["S"],
-            #     RecipeConfig(
-            #         input_resources={"carbon": 3},
-            #         output_resources={"modulator": 1},
-            #         cooldown=1,
-            #     ),
-            # ),
-            # (
-            #     ["W"],
-            #     RecipeConfig(
-            #         input_resources={"oxygen": 3},
-            #         output_resources={"scrambler": 1},
-            #         cooldown=1,
-            #     ),
-            # ),
-        ],
+        recipes=(
+            protocols.protocol(protocols.one_agent_heart_recipe(), num_agents=1)
+            + protocols.protocol(protocols.two_agent_heart_recipe(), num_agents=2)
+            + protocols.protocol(protocols.three_agent_heart_recipe(), num_agents=3)
+            + protocols.protocol(protocols.four_agent_heart_recipe(), num_agents=4)
+        ),
+        # (
+        #     ["E"],
+        #     RecipeConfig(
+        #         input_resources={"energy": 3},
+        #         output_resources={"heart": 1},
+        #         cooldown=1,
+        #     ),
+        # ),
+        # (
+        #     ["N"],
+        #     RecipeConfig(
+        #         input_resources={"germanium": 1},
+        #         output_resources={"decoder": 1},
+        #         cooldown=1,
+        #     ),
+        # ),
+        # (
+        #     ["S"],
+        #     RecipeConfig(
+        #         input_resources={"carbon": 3},
+        #         output_resources={"modulator": 1},
+        #         cooldown=1,
+        #     ),
+        # ),
+        # (
+        #     ["W"],
+        #     RecipeConfig(
+        #         input_resources={"oxygen": 3},
+        #         output_resources={"scrambler": 1},
+        #         cooldown=1,
+        #     ),
+        # ),
     )

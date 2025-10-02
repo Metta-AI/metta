@@ -1,7 +1,34 @@
-from mettagrid.config.mettagrid_config import RecipeConfig
+from mettagrid.config.mettagrid_config import Position, RecipeConfig
 
 
-def standard_heart_recipe() -> RecipeConfig:
+def protocol(
+    recipe: RecipeConfig,
+    num_agents: int | None = None,
+    min_agents: int | None = None,
+    max_agents: int | None = None,
+    fixed_positions: list[Position] | None = None,
+) -> list[tuple[list[Position], RecipeConfig]]:
+    if num_agents is not None:
+        assert min_agents is None
+        assert max_agents is None
+        min_agents = num_agents
+        max_agents = num_agents
+    if min_agents is None:
+        min_agents = 1
+    if max_agents is None:
+        max_agents = 8
+    result = []
+    if fixed_positions is None:
+        fixed_positions = []
+    for num_agents in range(min_agents, max_agents + 1):
+        num_any = num_agents - len(fixed_positions)
+        if num_any < 0:
+            continue
+        result.append((fixed_positions + ["Any"] * num_any, recipe))
+    return result
+
+
+def one_agent_heart_recipe() -> RecipeConfig:
     return RecipeConfig(
         input_resources={"carbon": 20, "oxygen": 20, "germanium": 5, "silicon": 50, "energy": 20},
         output_resources={"heart": 1},
@@ -9,10 +36,25 @@ def standard_heart_recipe() -> RecipeConfig:
     )
 
 
-# We might want this to just make more hearts, but agent inventory is limited, so cheaper is better.
-def low_germanium_heart_recipe() -> RecipeConfig:
+def two_agent_heart_recipe() -> RecipeConfig:
+    return RecipeConfig(
+        input_resources={"carbon": 20, "oxygen": 20, "germanium": 4, "silicon": 50, "energy": 20},
+        output_resources={"heart": 1},
+        cooldown=1,
+    )
+
+
+def three_agent_heart_recipe() -> RecipeConfig:
     return RecipeConfig(
         input_resources={"carbon": 20, "oxygen": 20, "germanium": 3, "silicon": 50, "energy": 20},
+        output_resources={"heart": 1},
+        cooldown=1,
+    )
+
+
+def four_agent_heart_recipe() -> RecipeConfig:
+    return RecipeConfig(
+        input_resources={"carbon": 20, "oxygen": 20, "germanium": 2, "silicon": 50, "energy": 20},
         output_resources={"heart": 1},
         cooldown=1,
     )
@@ -75,7 +117,7 @@ def standard_germanium_recipe() -> RecipeConfig:
     )
 
 
-def low_germanium_recipe() -> RecipeConfig:
+def one_agent_low_germanium_recipe() -> RecipeConfig:
     return RecipeConfig(
         output_resources={"germanium": 1},
     )
