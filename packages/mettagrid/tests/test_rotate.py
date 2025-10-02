@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from mettagrid.config.mettagrid_c_config import from_mettagrid_config
+from mettagrid.config.mettagrid_config import ActionConfig, ActionsConfig, AgentConfig, GameConfig, WallConfig
 from mettagrid.mettagrid_c import (
     MettaGrid,
     dtype_observations,
@@ -16,25 +17,24 @@ from mettagrid.test_support.actions import get_agent_orientation, rotate
 
 
 @pytest.fixture
-def base_config():
+def base_config() -> GameConfig:
     """Base configuration for rotation tests."""
-    return {
-        "max_steps": 50,
-        "num_agents": 1,
-        "obs_width": 3,
-        "obs_height": 3,
-        "num_observation_tokens": 100,
-        "resource_names": [],
-        "actions": {
-            "noop": {"enabled": True},
-            "rotate": {"enabled": True},
+    return GameConfig(
+        max_steps=50,
+        num_agents=1,
+        obs_width=3,
+        obs_height=3,
+        num_observation_tokens=100,
+        resource_names=[],
+        actions=ActionsConfig(
+            noop=ActionConfig(enabled=True),
+            rotate=ActionConfig(enabled=True),
+        ),
+        objects={
+            "wall": WallConfig(type_id=1),
         },
-        "objects": {
-            "wall": {"type_id": 1},
-        },
-        "agent": {"rewards": {}},
-        "allow_diagonals": True,
-    }
+        allow_diagonals=True,
+    )
 
 
 @pytest.fixture
@@ -53,15 +53,14 @@ def simple_game_map():
 def configured_env(base_config):
     """Factory fixture that creates a configured MettaGrid environment."""
 
-    def _create_env(game_map, config_overrides=None):
-        game_config = base_config.copy()
-        if config_overrides:
-            game_config.update(config_overrides)
+    def _create_env(game_map, game_config: GameConfig | None = None):
+        if game_config is None:
+            game_config = base_config
 
         env = MettaGrid(from_mettagrid_config(game_config), game_map, 42)
 
         # Set up buffers based on number of agents
-        num_agents = game_config.get("num_agents", 1)
+        num_agents = game_config.num_agents
         observations = np.zeros((num_agents, 100, 3), dtype=dtype_observations)
         terminals = np.zeros(num_agents, dtype=dtype_terminals)
         truncations = np.zeros(num_agents, dtype=dtype_truncations)
@@ -157,7 +156,7 @@ def test_rotation_preserves_position(configured_env, simple_game_map):
         )
 
 
-def test_multiple_agents_rotation(configured_env):
+def test_multiple_agents_rotation(configured_env, base_config):
     """Test rotation with multiple agents."""
     # Create a map with multiple agents
     multi_agent_map = [
@@ -167,15 +166,17 @@ def test_multiple_agents_rotation(configured_env):
         ["wall", "wall", "wall", "wall", "wall"],
     ]
 
-    config_overrides = {
-        "num_agents": 2,
-        "agents": [
-            {"team_id": 0},  # red
-            {"team_id": 1},  # blue
-        ],
-    }
+    game_config = base_config.model_copy(
+        update={
+            "num_agents": 2,
+            "agents": [
+                AgentConfig(team_id=0),  # red
+                AgentConfig(team_id=1),  # blue
+            ],
+        }
+    )
 
-    env = configured_env(multi_agent_map, config_overrides)
+    env = configured_env(multi_agent_map, game_config)
 
     # Rotate each agent to different orientations
     result0 = rotate(env, Orientation.EAST, agent_idx=0)
@@ -224,16 +225,18 @@ def test_rotation_helper_return_values(configured_env, simple_game_map):
     assert result["target_orientation"] == target_orientation.value
 
 
-def test_rotation_without_rotate_action(configured_env, simple_game_map):
+def test_rotation_without_rotate_action(configured_env, simple_game_map, base_config):
     """Test that rotation fails gracefully when rotate action is not available."""
-    config_overrides = {
-        "actions": {
-            "noop": {"enabled": True},
-            # rotate is not enabled
+    game_config = base_config.model_copy(
+        update={
+            "actions": ActionsConfig(
+                noop=ActionConfig(enabled=True),
+                # rotate is not enabled
+            )
         }
-    }
+    )
 
-    env = configured_env(simple_game_map, config_overrides)
+    env = configured_env(simple_game_map, game_config)
 
     result = rotate(env, Orientation.EAST)
 

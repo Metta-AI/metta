@@ -29,7 +29,7 @@ from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.map_builder.random import RandomMapBuilder
 
 
-def _base_game_config(num_agents: int, map_builder) -> MettaGridConfig:
+def _base_game_config(num_agents: int) -> MettaGridConfig:
     """Shared base configuration for all game types."""
 
     heart_reward = 0.05
@@ -48,7 +48,7 @@ def _base_game_config(num_agents: int, map_builder) -> MettaGridConfig:
                 change_glyph=ChangeGlyphActionConfig(number_of_glyphs=16),
             ),
             objects={
-                "wall": WallConfig(type_id=1),
+                "wall": WallConfig(name="wall", type_id=1, map_char="#", render_symbol="⬛"),
                 "charger": charger(),
                 "carbon_extractor": carbon_extractor(),
                 "oxygen_extractor": oxygen_extractor(),
@@ -62,7 +62,6 @@ def _base_game_config(num_agents: int, map_builder) -> MettaGridConfig:
                 "chest": chest(),
                 "assembler": assembler(),
             },
-            map_builder=map_builder,
             agent=AgentConfig(
                 default_resource_limit=10,
                 resource_limits={
@@ -99,6 +98,7 @@ def make_game(
     max_border = max(0, min(width, height) // 2 - 1)
     border_width = min(2, max_border) if max_border > 0 else 0
 
+    cfg = _base_game_config(num_cogs)
     map_builder = RandomMapBuilder.Config(
         width=width,
         height=height,
@@ -115,7 +115,8 @@ def make_game(
         },
         seed=42,
     )
-    return _base_game_config(num_cogs, map_builder)
+    cfg.game.map_builder = map_builder
+    return cfg
 
 
 def tutorial_assembler_simple(num_cogs: int = 1) -> MettaGridConfig:
@@ -146,10 +147,18 @@ def tutorial_assembler_complex(num_cogs: int = 1) -> MettaGridConfig:
 
 def make_game_from_map(map_name: str, num_agents: int = 4) -> MettaGridConfig:
     """Create a game configuration from a map file."""
+
+    # Build the full config first to get the objects
+    config = _base_game_config(num_agents)
+
     maps_dir = Path(__file__).parent.parent / "maps"
     map_path = maps_dir / map_name
-    map_builder = AsciiMapBuilder.Config.from_uri(str(map_path))
-    return _base_game_config(num_agents, map_builder)
+    map_builder = AsciiMapBuilder.Config.from_uri(
+        str(map_path), {o.map_char: o.name for o in config.game.objects.values()}
+    )
+    config.game.map_builder = map_builder
+
+    return config
 
 
 def games() -> dict[str, MettaGridConfig]:
