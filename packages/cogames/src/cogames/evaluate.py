@@ -61,7 +61,7 @@ def evaluate(
         initialize_or_load_policy(spec.policy_class_path, spec.policy_data_path, env) for spec in policy_specs
     ]
     policy_counts = _compute_policy_agent_counts(env.num_agents, policy_specs)
-    policy_names = [spec.policy_class_path.split(".")[-1] for spec in policy_specs]
+    policy_names = [spec.name for spec in policy_specs]
 
     if len(policy_specs) > 1:
         console.print("\n[bold cyan]Policy Assignments[/bold cyan]")
@@ -139,7 +139,7 @@ def evaluate(
 
     console.print("\n[bold cyan]Average Policy Stats[/bold cyan]")
     for policy_idx, stats in enumerate(aggregated_policy_stats):
-        policy_table = Table(title=f"Policy {policy_names[policy_idx]}", show_header=True, header_style="bold magenta")
+        policy_table = Table(title=policy_names[policy_idx], show_header=True, header_style="bold magenta")
         policy_table.add_column("Metric")
         policy_table.add_column("Average", justify="right")
         count = policy_counts[policy_idx]
@@ -162,7 +162,7 @@ def evaluate(
     )
     summary_table.add_column("Episode", justify="right")
     for name in policy_names:
-        summary_table.add_column(f"Policy {name}", justify="right")
+        summary_table.add_column(name, justify="right")
 
     total_avg_agent_reward_per_policy = defaultdict(float)
     for episode_idx, rewards in enumerate(per_episode_rewards):
@@ -187,7 +187,6 @@ def evaluate(
     if per_policy_timeouts:
         console.print("\n[bold cyan]Action Generation Timeouts per[/bold cyan]")
         for policy_idx, timeouts in per_policy_timeouts.items():
-            policy_name = policy_names[policy_idx]
-            console.print(f"Policy {policy_name}: {timeouts} timeouts")
+            console.print(f"{policy_names[policy_idx]}: {timeouts} timeouts")
 
     env.close()

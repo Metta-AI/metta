@@ -1,6 +1,7 @@
 """Base policy classes and interfaces."""
 
 from abc import abstractmethod
+from pathlib import Path
 from typing import Any, Generic, Optional, Tuple, TypeVar
 
 import torch.nn as nn
@@ -196,3 +197,13 @@ class PolicySpec(BaseModel):
 
     # Proportion of total agents to assign to this policy
     proportion: float
+
+    @property
+    def name(self) -> str:
+        """Get the name of the policy."""
+        parts = [
+            self.policy_class_path.split(".")[-1],
+        ]
+        if self.policy_data_path:
+            parts.append(Path(self.policy_data_path).name)
+        return "-".join(parts)

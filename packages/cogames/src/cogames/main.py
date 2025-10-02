@@ -228,6 +228,7 @@ def train_cmd(
     no_args_is_help=True,
     help="Evaluate one or more policies on a game",
 )
+@app.command("eval", hidden=True)
 def evaluate_cmd(
     game_name: str = typer.Argument(
         None,
@@ -249,10 +250,10 @@ def evaluate_cmd(
         min=1,
     ),
 ) -> None:
-    policy_specs = [parse_policy_spec(spec) for spec in policies]  # noqa: F821
-    if not policy_specs:
+    if not policies:
         console.print("[red]Error: No policies provided[/red]")
         raise typer.Exit(1)
+    policy_specs = [parse_policy_spec(spec) for spec in policies]  # noqa: F821
 
     from cogames import utils
 
