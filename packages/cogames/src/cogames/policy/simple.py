@@ -1,5 +1,4 @@
 import logging
-from typing import Any
 
 import numpy as np
 import torch
@@ -7,7 +6,7 @@ import torch.nn as nn
 
 import pufferlib.pytorch
 from cogames.policy.policy import AgentPolicy, TrainablePolicy
-from mettagrid import MettaGridEnv
+from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation
 
 logger = logging.getLogger("cogames.policies.simple_policy")
 
@@ -52,7 +51,7 @@ class SimpleAgentPolicyImpl(AgentPolicy):
         self._device = device
         self._action_nvec = action_nvec
 
-    def step(self, obs: Any) -> Any:
+    def step(self, obs: MettaGridObservation) -> MettaGridAction:
         """Get action for this agent."""
         # Convert single observation to batch of 1 for network forward pass
         obs_tensor = torch.tensor(obs, device=self._device).unsqueeze(0).float()
@@ -61,7 +60,6 @@ class SimpleAgentPolicyImpl(AgentPolicy):
             self._net.eval()
             logits, _ = self._net.forward_eval(obs_tensor)
 
-            # Sample action from the logits
             actions = []
             for logit in logits:
                 dist = torch.distributions.Categorical(logits=logit)
