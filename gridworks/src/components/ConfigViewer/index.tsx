@@ -20,6 +20,7 @@ export const ConfigViewer: FC<{
         onSelectLine,
         unsetFields: new Set(unsetFields ?? []),
         kind,
+        topValue: value,
       }}
     >
       <div className="overflow-auto rounded border border-gray-200 bg-gray-50 p-4 font-mono text-xs">
