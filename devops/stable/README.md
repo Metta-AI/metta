@@ -1,130 +1,114 @@
-# Release Qualification Guide
+# SkyPilot Recipe Tests
 
-This document outlines the manual process for qualifying a release before tagging and pushing to the stable branch.
+A unified script for launching and checking SkyPilot test jobs across all active recipes.
 
-For questions about this release process, contact:
-
-- Release Manager: @Robb
-- Technical Lead: @Jack Heart
-- Bug Triage: @Nishad Singh
-
-## Release Qualification Checklist
-
-### 1. Prepare Release Branch
-
-Create a temporary release qualification branch off of the commit you intend to tag
+## Basic Use
 
 ```bash
-git checkout -b release-qual/<VERSION>
-git push -u origin release-qual/<VERSION>
+# Launch 5 jobs: one per recipe
+./recipe_test.py launch
+
+# Check results
+./recipe_test.py check
+
+# Check with detailed logs
+./recipe_test.py check -l
 ```
 
-### 2. Bug Status Check
+## Test Configurations
 
-- Open Asana project for bug tracking
-- Verify no active/open bugs marked as blockers
-- Update bug statuses as needed in consultation with bug owners
-- Note any known issues that are acceptable for release
+- **Recipes tested**:
+  - `arena_basic_easy_shaped`: Basic arena with easy shaping
+  - `arena`: Standard arena recipe
+  - `icl_resource_chain`: In-context learning resource chain
+  - `navigation`: Navigation task
+  - `navigation_sequence`: Sequential navigation task
 
-### 3. Workflow Tests
+- **Fixed parameters**:
+  - Single node configuration
+  - 50,000 timesteps
+  - CI tests disabled
 
-#### 3.1 Launch Training Runs
+## Termination Tracking
 
-- **Cluster Test**
+The framework automatically parses and color-codes:
 
-  ```bash
-  devops/skypilot/tests/cluster_test launch
-  devops/skypilot/tests/cluster_test check
-  ```
+- **Exit codes**: 0 (green), non-zero (red)
+- **Termination reasons**:
+  - `job_completed` (green)
+  - `heartbeat_timeout`, `max_runtime_reached` (yellow)
+  - Other reasons (red)
+- **Restart counts**: 0 (green), >0 (yellow)
 
-- **Recipe Test**
-  ```bash
-  tests/experiments/recipes/recipe_test launch
-  tests/experiments/recipes/recipe_test check
-  ```
+## Command Options
 
-#### 3.2 Check Train Workflow
+### Launch Command
 
-- Pick any Job ID from 3.1
-- Verify job appears in W&B
-- Verify training metrics [define further]
-- Verify performance metrics [define further; one possibility: SPS near 40k and does not dip]
-- Verify model checkpoints are saved [define further]
-
-#### 3.3 Check Eval Workflow
-
-- Pick any Job ID from 3.1
-- Verify job appears in W&B
-- Verify evaluation results [define further]
-- Verify evaluation reports are generated
-- Verify replay and replay link are generated
-
-#### 3.4 Play Workflow
-
-- Launch play environment from VS code
-- Verify interactions work correctly by navigating an agent to collect a heart
-
-#### 3.5 Sweep Workflow
-
-- Ask Axel via discord to verify that sweeps are working to his satisfaction.
-
-#### 3.6 Observatory Workflow
-
-- Ask Pasha via discord to verify that observatory is working to his satisfaction.
-
-#### 3.7 CI Workflow
-
-- Verify CI pipeline has completed successful on the release commit push to main.
-
-### 4. Release
-
-#### 4.1 Prepare Release PR
-
-1. Open a review PR from `release-qual/<VERSION>` into `stable` so the team can approve the release candidate.
-   - Store the release notes as `devops/stable/release-notes/v<VERSION>.md` on the qualification branch and link to the
-     file in the PR description.
-   - Follow this template for the PR description:
-
-```markdown
-## Version <VERSION>
-
-### Known Issues
-
-<Notes from step 2>
-
-### W&B Run Links
-
-- Training: <link to job id examined in step 3.2>
-- Evaluation: <link to job id examined step 3.3>
+```bash
+./recipe_test.py launch [options]
 ```
 
-#### 4.2 Merge Release PR and update stable tag
+- `--base-name`: Base name for test runs (default: recipe_test)
+- `--output-file`: JSON file to save results (default: recipe_test_jobs.json)
+- `--skip-git-check`: Skip git state validation
 
-1. After the PR is approved, create an annotated release tag on the qualification branch tip
+### Check Command
 
-   ```bash
-   git tag -a v<VERSION> -m "Release version <VERSION>"
-   ```
+```bash
+./recipe_test.py check [options]
+```
 
-2. Click **Merge** on the PR.
+- `-f, --input-file`: JSON file to check (default: recipe_test_jobs.json)
+- `-l, --logs`: Show detailed logs for each job
+- `-n, --tail-lines`: Number of log lines to tail (default: 200)
 
-3. Push the annotated tag and remove the qualification branch if it still exists on origin
+## Output Format
 
-   ```bash
-   git push origin v<VERSION>
-   git push origin --delete release-qual/<VERSION>
-   ```
+Launching jobs produces a JSON file with the structure:
 
-### 5. Announce
+```json
+{
+  "test_run_info": {
+    "base_name": "...",
+    "launch_time": "...",
+    "total_jobs": N,
+    "successful_launches": N,
+    "failed_launches": N
+  },
+  "launched_jobs": [...],
+  "failed_launches": [...]
+}
+```
 
-- Post release process completion to Discord in #eng-process
+Each job entry includes:
 
-## Future Work
+- Recipe name and module path
+- Test configuration (timesteps, nodes, CI status)
+- Job ID and status information
 
-This process will be progressively automated. Planned automation includes:
+## Examples
 
-- A `metta` script that walks through this process
-- Selenium or Playwright for UI testing
-- Automated W&B metrics extraction
-- CI/CD integration for automatic checks
-- Automated performance regression detection
+```bash
+# Launch with custom base name
+./recipe_test.py launch --base-name my_recipe_validation
+
+# Check specific output file with more log lines
+./recipe_test.py check -f my_recipes.json -n 500
+
+# Launch without git validation
+./recipe_test.py launch --skip-git-check
+
+# Get help for specific commands
+./recipe_test.py launch --help
+./recipe_test.py check --help
+```
+
+## Purpose
+
+This test suite validates that all active recipes can:
+
+- Launch successfully on SkyPilot
+- Complete training without errors
+- Exit cleanly after the specified timesteps
+
+It serves as a smoke test to ensure recipe configurations remain valid across updates.
