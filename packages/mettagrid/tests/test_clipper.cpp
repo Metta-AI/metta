@@ -59,7 +59,8 @@ TEST_F(ClipperTest, InfectionWeightCalculation) {
   Assembler* a4_far = create_assembler(5, 5);     // Distance ~7.07
 
   std::vector<std::shared_ptr<Recipe>> unclip_recipes = {unclip_recipe};
-  Clipper clipper(*grid, unclip_recipes, length_scale, cutoff_distance, clip_rate);
+  std::mt19937 rng(42);
+  Clipper clipper(*grid, unclip_recipes, length_scale, cutoff_distance, clip_rate, rng);
 
   // Test distance calculation
   float dist_close = clipper.distance(*a1, *a2_close);
@@ -95,7 +96,8 @@ TEST_F(ClipperTest, WeightAdjustmentDuringClipping) {
   Assembler* a3 = create_assembler(0, 4);  // Distance 4 from a1, distance 2 from a2
 
   std::vector<std::shared_ptr<Recipe>> unclip_recipes = {unclip_recipe};
-  Clipper clipper(*grid, unclip_recipes, length_scale, cutoff_distance, clip_rate);
+  std::mt19937 rng(42);
+  Clipper clipper(*grid, unclip_recipes, length_scale, cutoff_distance, clip_rate, rng);
 
   // Initially all assemblers should have weight 0
   EXPECT_FLOAT_EQ(clipper.assembler_infection_weight[a1], 0.0f);
@@ -108,8 +110,7 @@ TEST_F(ClipperTest, WeightAdjustmentDuringClipping) {
   EXPECT_EQ(clipper.unclipped_assemblers.count(a3), 1);
 
   // Clip a2 (the middle one)
-  std::mt19937 rng(42);
-  clipper.clip_assembler(*a2, rng);
+  clipper.clip_assembler(*a2);
 
   // a2 should now be clipped and removed from unclipped set
   EXPECT_TRUE(a2->is_clipped);
@@ -138,11 +139,11 @@ TEST_F(ClipperTest, WeightAdjustmentDuringUnclipping) {
   Assembler* a3 = create_assembler(0, 4);  // Distance 4 from a1, distance 2 from a2
 
   std::vector<std::shared_ptr<Recipe>> unclip_recipes = {unclip_recipe};
-  Clipper clipper(*grid, unclip_recipes, length_scale, cutoff_distance, clip_rate);
+  std::mt19937 rng(42);
+  Clipper clipper(*grid, unclip_recipes, length_scale, cutoff_distance, clip_rate, rng);
 
   // Clip a2
-  std::mt19937 rng(42);
-  clipper.clip_assembler(*a2, rng);
+  clipper.clip_assembler(*a2);
 
   float weight_a1_after_clip = clipper.assembler_infection_weight[a1];
   float weight_a3_after_clip = clipper.assembler_infection_weight[a3];
@@ -177,12 +178,12 @@ TEST_F(ClipperTest, MultipleClippedAssemblersAccumulateWeights) {
   Assembler* a4 = create_assembler(2, 2);  // Center-ish target
 
   std::vector<std::shared_ptr<Recipe>> unclip_recipes = {unclip_recipe};
-  Clipper clipper(*grid, unclip_recipes, length_scale, cutoff_distance, clip_rate);
+  std::mt19937 rng(42);
+  Clipper clipper(*grid, unclip_recipes, length_scale, cutoff_distance, clip_rate, rng);
 
   // Clip a1 and a2
-  std::mt19937 rng(42);
-  clipper.clip_assembler(*a1, rng);
-  clipper.clip_assembler(*a2, rng);
+  clipper.clip_assembler(*a1);
+  clipper.clip_assembler(*a2);
 
   // a4 should have accumulated weight from both a1 and a2
   float weight_from_a1 = clipper.infection_weight(*a1, *a4);
@@ -209,19 +210,19 @@ TEST_F(ClipperTest, PickAssemblerRespectsWeights) {
   Assembler* a_low_weight = create_assembler(5, 5);
 
   std::vector<std::shared_ptr<Recipe>> unclip_recipes = {unclip_recipe};
-  Clipper clipper(*grid, unclip_recipes, length_scale, cutoff_distance, clip_rate);
+  std::mt19937 rng(42);
+  Clipper clipper(*grid, unclip_recipes, length_scale, cutoff_distance, clip_rate, rng);
 
   // Give a_high_weight artificial high weight
   clipper.assembler_infection_weight[a_high_weight] = 100.0f;
   clipper.assembler_infection_weight[a_low_weight] = 0.1f;
 
   // Pick many times and verify high-weight assembler is picked more often
-  std::mt19937 rng(42);
   int high_weight_picked = 0;
   int iterations = 100;
 
   for (int i = 0; i < iterations; i++) {
-    Assembler* picked = clipper.pick_assembler_to_clip(rng);
+    Assembler* picked = clipper.pick_assembler_to_clip();
     if (picked == a_high_weight) {
       high_weight_picked++;
     }
