@@ -22,7 +22,7 @@ def charger(max_uses: Optional[int] = None) -> AssemblerConfig:
     return AssemblerConfig(
         name="charger",
         type_id=5,
-        map_char="H",
+        map_char="+",
         render_symbol="⚡",
         allow_partial_usage=True,  # can use it while its on cooldown
         max_uses=max_uses or 0,
@@ -35,7 +35,7 @@ def carbon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
     return AssemblerConfig(
         name="carbon_extractor",
         type_id=2,
-        map_char="N",
+        map_char="C",
         render_symbol="⚫",
         max_uses=max_uses or 0,
         recipes=protocols.protocol(protocols.standard_carbon_recipe()),
@@ -60,7 +60,7 @@ def germanium_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
     return AssemblerConfig(
         name="germanium_extractor",
         type_id=4,
-        map_char="E",
+        map_char="G",
         render_symbol="🟣",
         max_uses=max_uses or 2,
         recipes=(
@@ -77,7 +77,7 @@ def silicon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
     return AssemblerConfig(
         name="silicon_extractor",
         type_id=15,
-        map_char="I",
+        map_char="S",
         render_symbol="🔷",
         max_uses=max_uses or 0,
         recipes=protocols.protocol(protocols.standard_silicon_recipe()),
@@ -88,7 +88,7 @@ def carbon_ex_dep() -> AssemblerConfig:
     return AssemblerConfig(
         name="carbon_ex_dep",
         type_id=19,
-        map_char="K",
+        map_char="c",
         render_symbol="⬛",
         max_uses=100,
         recipes=protocols.protocol(protocols.low_carbon_recipe()),
@@ -99,7 +99,7 @@ def oxygen_ex_dep() -> AssemblerConfig:
     return AssemblerConfig(
         name="oxygen_ex_dep",
         type_id=18,
-        map_char="Q",
+        map_char="o",  # lowercase o for depleted oxygen
         render_symbol="⬜",
         max_uses=10,
         allow_partial_usage=True,
@@ -111,7 +111,7 @@ def germanium_ex_dep() -> AssemblerConfig:
     return AssemblerConfig(
         name="germanium_ex_dep",
         type_id=20,
-        map_char="Y",
+        map_char="g",
         render_symbol="🟪",
         max_uses=1,
         recipes=(
@@ -127,7 +127,7 @@ def silicon_ex_dep() -> AssemblerConfig:
     return AssemblerConfig(
         name="silicon_ex_dep",
         type_id=16,
-        map_char="V",
+        map_char="s",
         render_symbol="🔹",
         max_uses=10,
         recipes=protocols.protocol(protocols.low_silicon_recipe()),
@@ -138,7 +138,7 @@ def chest() -> ChestConfig:
     return ChestConfig(
         name="chest",
         type_id=17,
-        map_char="C",
+        map_char="=",
         render_symbol="📦",
         resource_type="heart",
         position_deltas=[("E", 1), ("W", -1)],
@@ -193,7 +193,7 @@ def assembler() -> AssemblerConfig:
     return AssemblerConfig(
         name="assembler",
         type_id=8,
-        map_char="Z",
+        map_char="&",
         render_symbol="🔄",
         recipes=[
             (["N"], protocols.one_agent_heart_recipe()),
