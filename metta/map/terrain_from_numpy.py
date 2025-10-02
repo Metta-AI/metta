@@ -113,7 +113,7 @@ class TerrainFromNumpy(MapBuilder):
         # Get coordinates as numpy array
         valid_positions = np.array(np.where(valid_mask)).T  # Shape: (N, 2)
 
-        if assemblers and mass_in_center:
+        if mass_in_center:
             center = np.array(level.shape) / 2
             distances = np.sum((valid_positions - center) ** 2, axis=1)
             valid_positions = valid_positions[np.argsort(distances)]
@@ -261,44 +261,25 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
 
         grid = np.load(f"{map_dir}/{uri}", allow_pickle=True)
 
-        grid, valid_positions, agent_labels = self.clean_grid(
-            grid, assemblers=True, mass_in_center=self.config.mass_in_center
-        )
-        num_agents = len(agent_labels)
-
-        # GUARANTEE: Ensure we have enough valid positions for all agents
-        if len(valid_positions) < num_agents:
-            patches_needed = num_agents - len(valid_positions)
-            grid, empty_centers = self.carve_out_patches(grid, valid_positions, patches_needed)
-            if len(empty_centers) > 0:
-                valid_positions = np.vstack([valid_positions, empty_centers])
-
+        grid, valid_agent_positions, agent_labels = self.clean_grid(grid, mass_in_center=self.config.mass_in_center)
         # Place agents with bias towards center
         # Take first half of positions (already sorted by distance from center if mass_in_center=True)
-        half_point = len(valid_positions) // 2
-        agent_pool_size = max(half_point, num_agents)  # Ensure we have enough positions
-        agent_position_pool = valid_positions[:agent_pool_size]
-
-        # Sample agent positions
-        agent_indices = self.config.rng.sample(range(len(agent_position_pool)), num_agents)
-        agent_positions = agent_position_pool[agent_indices]
-
+        num_agents = len(agent_labels)
         # Place all agents
-        for pos, label in zip(agent_positions, agent_labels, strict=False):
+        for pos, label in zip(valid_agent_positions[:num_agents], agent_labels, strict=False):
             grid[tuple(pos)] = label
 
-        # Remove agent positions from valid_positions
-        agent_positions_set = set(map(tuple, agent_positions))
-        mask = np.array([tuple(pos) not in agent_positions_set for pos in valid_positions])
-        valid_positions = valid_positions[mask]
+        grid, valid_assembler_positions, _ = self.clean_grid(
+            grid, assemblers=True, mass_in_center=self.config.mass_in_center
+        )
 
         # GUARANTEE: Ensure we have enough valid positions for all objects
         total_objects = sum(self.config.objects.values())
-        if len(valid_positions) < total_objects:
-            patches_needed = total_objects - len(valid_positions)
-            grid, empty_centers = self.carve_out_patches(grid, valid_positions, patches_needed)
+        if len(valid_assembler_positions) < total_objects:
+            patches_needed = total_objects - len(valid_assembler_positions)
+            grid, empty_centers = self.carve_out_patches(grid, valid_assembler_positions, patches_needed)
             if len(empty_centers) > 0:
-                valid_positions = np.vstack([valid_positions, empty_centers])
+                valid_assembler_positions = np.vstack([valid_assembler_positions, empty_centers])
 
         # Place objects (ensuring they have empty neighbors since valid_positions came from assemblers=True)
         for obj_name, count in self.config.objects.items():
@@ -307,17 +288,17 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
 
             if count <= 2:
                 # Place first 'count' positions
-                positions = valid_positions[:count]
+                positions = valid_assembler_positions[:count]
                 for position in positions:
                     grid[tuple(position)] = obj_name
-                valid_positions = valid_positions[count:]
+                valid_assembler_positions = valid_assembler_positions[count:]
             else:
                 # Place 2 at start, rest scattered
-                center_positions = valid_positions[:2]
+                center_positions = valid_assembler_positions[:2]
                 num_surrounding = count - 2
 
-                if num_surrounding > 0 and len(valid_positions) > 2:
-                    available = valid_positions[2:]
+                if num_surrounding > 0 and len(valid_assembler_positions) > 2:
+                    available = valid_assembler_positions[2:]
                     num_to_sample = min(num_surrounding, len(available))
                     sample_indices = self.config.rng.sample(range(len(available)), num_to_sample)
                     other_positions = available[sample_indices]
@@ -331,8 +312,8 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
 
                 # Remove used positions
                 used_set = set(map(tuple, all_positions))
-                mask = np.array([tuple(pos) not in used_set for pos in valid_positions])
-                valid_positions = valid_positions[mask]
+                mask = np.array([tuple(pos) not in used_set for pos in valid_assembler_positions])
+                valid_assembler_positions = valid_assembler_positions[mask]
 
         return GameMap(grid=grid)
 

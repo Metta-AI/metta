@@ -50,7 +50,7 @@ from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from mettagrid.mapgen.mapgen import MapGen
 from metta.map.terrain_from_numpy import CogsVClippiesFromNumpy
-
+from mettagrid.config.mettagrid_config import AssemblerConfig, RecipeConfig
 # ADDING TERRAIN
 
 # base has all the assemblers, in the middle, surrounded by walls
@@ -382,24 +382,19 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
 
         silicon_extractor_position = rng.choice(self.config.silicon_extractor_positions)
         if include_extractors:
-            num_carbon_extractors = rng.choice([0] + num_obj_distribution)
-            num_oxygen_extractors = rng.choice([0] + num_obj_distribution)
-            num_germanium_extractors = rng.choice([0] + num_obj_distribution)
-            num_silicon_extractors = rng.choice([0] + num_obj_distribution)
+            num_extractors = {"carbon": rng.choice([0] + num_obj_distribution), "oxygen": rng.choice([0] + num_obj_distribution), "germanium": rng.choice([0] + num_obj_distribution), "silicon": rng.choice([0] + num_obj_distribution)}
         else:
-            num_carbon_extractors = num_oxygen_extractors = num_germanium_extractors = (
-                num_silicon_extractors
-            ) = 0
+            num_extractors = {"carbon": 0, "oxygen": 0, "germanium": 0, "silicon": 0}
 
         if not use_terrain:
             width, height = self._set_width_and_height(
                 num_cogs,
                 num_assemblers
                 + num_chargers
-                + num_carbon_extractors
-                + num_oxygen_extractors
-                + num_germanium_extractors
-                + num_silicon_extractors
+                + num_extractors["carbon"]
+                + num_extractors["oxygen"]
+                + num_extractors["germanium"]
+                + num_extractors["silicon"]
                 + num_chests,
                 rng,
             )
@@ -415,13 +410,13 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
             height=height,
             num_assemblers=num_assemblers,
             num_chargers=num_chargers,
-            num_carbon_extractors=num_carbon_extractors,
-            num_oxygen_extractors=num_oxygen_extractors,
-            num_germanium_extractors=num_germanium_extractors,
-            num_silicon_extractors=num_silicon_extractors,
+            num_carbon_extractors=num_extractors["carbon"],
+            num_oxygen_extractors=num_extractors["oxygen"],
+            num_germanium_extractors=num_extractors["germanium"],
+            num_silicon_extractors=num_extractors["silicon"],
             num_chests=num_chests,
         )
-        self._overwrite_positions(env.game.objects["assembler"], assembler_position)
+        self._make_assembler_recipes(env.game.objects["assembler"], rng, num_extractors, assembler_position)
         self._overwrite_positions(env.game.objects["charger"], charger_position)
         self._overwrite_positions(
             env.game.objects["carbon_extractor"], carbon_extractor_position
@@ -458,10 +453,10 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
                     objects={
                         "assembler": num_assemblers,
                         "charger": num_chargers,
-                        "carbon_extractor": num_carbon_extractors,
-                        "oxygen_extractor": num_oxygen_extractors,
-                        "germanium_extractor": num_germanium_extractors,
-                        "silicon_extractor": num_silicon_extractors,
+                        "carbon_extractor": num_extractors["carbon"],
+                        "oxygen_extractor": num_extractors["oxygen"],
+                        "germanium_extractor": num_extractors["germanium"],
+                        "silicon_extractor": num_extractors["silicon"],
                         "chest": num_chests,
                     },
                     remove_altars=True,
@@ -480,6 +475,14 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
         env.game.num_agents = 24
 
         return env
+
+    def _make_assembler_recipes(self, assembler, rng: random.Random, num_extractors: dict[str, int], assembler_position: list[Position]):
+        input_resources = {"energy": 3}
+        for resource, num_extractor in num_extractors.items():
+            if num_extractor > 0 and rng.choice([True, False]):
+                input_resources[resource] = 1
+        assembler.recipes = [(assembler_position, RecipeConfig(input_resources=input_resources, output_resources={"heart": 1}, cooldown=1))]
+        return assembler
 
     def _overwrite_positions(self, object, positions):
         for i, recipe in enumerate(object.recipes):
@@ -616,7 +619,7 @@ def experiment():
                 [
                     "./devops/skypilot/launch.py",
                     "experiments.recipes.cogs_v_clips.level_1.train",
-                    f"run=cogs_v_clips.level_1.{curriculum_style}_{architecture}.{time.strftime('%Y-%m-%d')}",
+                    f"run=cogs_v_clips.level_1.withrecipes.{curriculum_style}_{architecture}.{time.strftime('%Y-%m-%d')}",
                     f"curriculum_style={curriculum_style}",
                     f"architecture={architecture}",
                     "--gpus=4",
