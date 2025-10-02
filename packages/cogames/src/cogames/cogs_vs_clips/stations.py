@@ -1,6 +1,7 @@
 from typing import Optional
 
-from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, RecipeConfig
+from cogames.cogs_vs_clips import protocols
+from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig
 
 resources = [
     "energy",
@@ -22,14 +23,12 @@ def charger(max_uses: Optional[int] = None) -> AssemblerConfig:
         type_id=5,
         map_char="H",
         render_symbol="⚡",
+        allow_partial_usage=True,  # can use it while its on cooldown
         max_uses=max_uses or 0,
         recipes=[
             (
                 ["Any"],
-                RecipeConfig(
-                    output_resources={"energy": 50},
-                    cooldown=1,
-                ),
+                protocols.standard_charging_recipe(),
             )
         ],
     )
@@ -46,9 +45,7 @@ def carbon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         recipes=[
             (
                 ["Any"],
-                RecipeConfig(
-                    output_resources={"carbon": 5},
-                ),
+                protocols.standard_carbon_recipe(),
             )
         ],
     )
@@ -66,10 +63,7 @@ def oxygen_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         recipes=[
             (
                 ["Any"],
-                RecipeConfig(
-                    output_resources={"oxygen": 100},
-                    cooldown=100,
-                ),
+                protocols.standard_oxygen_recipe(),
             )
         ],
     )
@@ -86,10 +80,7 @@ def germanium_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         recipes=[
             (
                 ["Any"],
-                RecipeConfig(
-                    output_resources={"germanium": 1},
-                    cooldown=250,
-                ),
+                protocols.standard_germanium_recipe(),
             )
         ],
     )
@@ -106,11 +97,7 @@ def silicon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         recipes=[
             (
                 ["Any"],
-                RecipeConfig(
-                    input_resources={"energy": 25},
-                    output_resources={"silicon": 25},
-                    cooldown=1,
-                ),
+                protocols.standard_silicon_recipe(),
             )
         ],
     )
@@ -124,7 +111,7 @@ def carbon_ex_dep() -> AssemblerConfig:
         render_symbol="⬛",
         max_uses=50,
         recipes=[
-            (["Any"], RecipeConfig(output_resources={"carbon": 1}, cooldown=1)),
+            (["Any"], protocols.low_carbon_recipe()),
         ],
     )
 
@@ -135,10 +122,9 @@ def oxygen_ex_dep() -> AssemblerConfig:
         type_id=18,
         map_char="Q",
         render_symbol="⬜",
-        max_uses=5,
         allow_partial_usage=True,
         recipes=[
-            (["Any"], RecipeConfig(output_resources={"oxygen": 20}, cooldown=20)),
+            (["Any"], protocols.low_oxygen_recipe()),
         ],
     )
 
@@ -149,9 +135,9 @@ def germanium_ex_dep() -> AssemblerConfig:
         type_id=20,
         map_char="Y",
         render_symbol="🟪",
-        max_uses=5,
+        max_uses=10,
         recipes=[
-            (["Any"], RecipeConfig(output_resources={"germanium": 1}, cooldown=1)),
+            (["Any"], protocols.low_germanium_recipe()),
         ],
     )
 
@@ -162,15 +148,10 @@ def silicon_ex_dep() -> AssemblerConfig:
         type_id=16,
         map_char="V",
         render_symbol="🔹",
-        max_uses=5,
         recipes=[
             (
                 ["Any"],
-                RecipeConfig(
-                    input_resources={"energy": 25},
-                    output_resources={"silicon": 10},
-                    cooldown=1,
-                ),
+                protocols.low_silicon_recipe(),
             )
         ],
     )
@@ -244,36 +225,44 @@ def assembler() -> AssemblerConfig:
         render_symbol="🔄",
         recipes=[
             (
-                ["E"],
-                RecipeConfig(
-                    input_resources={"energy": 3},
-                    output_resources={"heart": 1},
-                    cooldown=1,
-                ),
+                ["Any"],
+                protocols.standard_heart_recipe(),
             ),
             (
-                ["N"],
-                RecipeConfig(
-                    input_resources={"germanium": 1},
-                    output_resources={"decoder": 1},
-                    cooldown=1,
-                ),
+                ["Any", "Any"],
+                protocols.low_germanium_heart_recipe(),
             ),
-            (
-                ["S"],
-                RecipeConfig(
-                    input_resources={"carbon": 3},
-                    output_resources={"modulator": 1},
-                    cooldown=1,
-                ),
-            ),
-            (
-                ["W"],
-                RecipeConfig(
-                    input_resources={"oxygen": 3},
-                    output_resources={"scrambler": 1},
-                    cooldown=1,
-                ),
-            ),
+            # (
+            #     ["E"],
+            #     RecipeConfig(
+            #         input_resources={"energy": 3},
+            #         output_resources={"heart": 1},
+            #         cooldown=1,
+            #     ),
+            # ),
+            # (
+            #     ["N"],
+            #     RecipeConfig(
+            #         input_resources={"germanium": 1},
+            #         output_resources={"decoder": 1},
+            #         cooldown=1,
+            #     ),
+            # ),
+            # (
+            #     ["S"],
+            #     RecipeConfig(
+            #         input_resources={"carbon": 3},
+            #         output_resources={"modulator": 1},
+            #         cooldown=1,
+            #     ),
+            # ),
+            # (
+            #     ["W"],
+            #     RecipeConfig(
+            #         input_resources={"oxygen": 3},
+            #         output_resources={"scrambler": 1},
+            #         cooldown=1,
+            #     ),
+            # ),
         ],
     )
