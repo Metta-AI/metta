@@ -301,7 +301,7 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
             grid, assemblers=True, mass_in_center=self.config.mass_in_center, clear_agents=False
         )
 
-        # GUARANTEE: Ensure we have enough valid positions for all objects
+        # Ensure we have enough valid positions for all objects
         total_objects = sum(self.config.objects.values())
         if len(valid_assembler_positions) < total_objects:
             patches_needed = total_objects - len(valid_assembler_positions)
@@ -310,24 +310,25 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
             if len(empty_centers) > 0:
                 valid_assembler_positions = np.vstack([valid_assembler_positions, empty_centers])
 
+        if len(valid_assembler_positions) < total_objects:
+            print(f"Not enough valid positions for {total_objects} objects "
+                             f"(only {len(valid_assembler_positions)} available) in map {uri}")
+
         # Place objects (ensuring they have empty neighbors since valid_positions came from assemblers=True)
+
         for obj_name, count in self.config.objects.items():
-            if count <= 0:
+            if count <= 0 or len(valid_assembler_positions) == 0:
                 continue
+            if count > 1:
+                num_to_place_in_center = count // 2
+                num_surrounding = count - num_to_place_in_center
 
-            if count <= 2:
-                # Place first 'count' positions
-                positions = valid_assembler_positions[:count]
-                for position in positions:
-                    grid[tuple(position)] = obj_name
-                valid_assembler_positions = valid_assembler_positions[count:]
-            else:
-                # Place 2 at start, rest scattered
-                center_positions = valid_assembler_positions[:2]
-                num_surrounding = count - 2
+                # Place half at center
+                center_positions = valid_assembler_positions[:num_to_place_in_center].copy()
 
-                if num_surrounding > 0 and len(valid_assembler_positions) > 2:
-                    available = valid_assembler_positions[2:]
+                #place the remaining randomly
+                if num_surrounding > 0 and len(valid_assembler_positions) > num_to_place_in_center:
+                    available = valid_assembler_positions[num_to_place_in_center:].copy()
                     num_to_sample = min(num_surrounding, len(available))
                     sample_indices = self.config.rng.sample(range(len(available)), num_to_sample)
                     other_positions = available[sample_indices]
@@ -342,7 +343,16 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
                 # Remove used positions
                 used_set = set(map(tuple, all_positions))
                 mask = np.array([tuple(pos) not in used_set for pos in valid_assembler_positions])
+                if len(mask) == 0:
+                    continue
                 valid_assembler_positions = valid_assembler_positions[mask]
+
+            else:
+                # Place first 'count' positions
+                positions = valid_assembler_positions[:count]
+                for position in positions:
+                    grid[tuple(position)] = obj_name
+                valid_assembler_positions = valid_assembler_positions[count:]
 
         num_agents_in_grid = (grid == "agent.agent").sum()
         if num_agents_in_grid != len(agent_labels):
