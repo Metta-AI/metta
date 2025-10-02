@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+import importlib
+import pkgutil
 from collections.abc import Mapping
 from dataclasses import dataclass
 from types import MappingProxyType, ModuleType
 from typing import Any, Callable, Dict
-
-from . import gtrxl, sliding, trxl, trxl_nvidia
 
 
 @dataclass(frozen=True)
@@ -46,12 +46,23 @@ def _build_spec(module: ModuleType) -> TransformerBackboneSpec:
     return TransformerBackboneSpec(defaults=defaults, policy_defaults=policy_defaults, builder=builder)
 
 
-_BACKBONE_MODULES: Dict[str, ModuleType] = {
-    "gtrxl": gtrxl,
-    "trxl": trxl,
-    "trxl_nvidia": trxl_nvidia,
-    "sliding": sliding,
-}
+def _iter_backbone_modules() -> Dict[str, ModuleType]:
+    """Discover backbone modules within this package."""
+
+    modules: Dict[str, ModuleType] = {}
+    package_name = __name__
+    for module_info in pkgutil.iter_modules(__path__):  # type: ignore[name-defined]
+        if module_info.name.startswith("_"):
+            continue
+        module = importlib.import_module(f"{package_name}.{module_info.name}")
+        variant_name = getattr(module, "VARIANT_NAME", module_info.name)
+        if variant_name in modules:  # pragma: no cover
+            raise ValueError(f"Duplicate transformer backbone variant '{variant_name}' detected")
+        modules[variant_name] = module
+    return modules
+
+
+_BACKBONE_MODULES: Dict[str, ModuleType] = _iter_backbone_modules()
 
 _SPECS: Dict[str, TransformerBackboneSpec] = {name: _build_spec(module) for name, module in _BACKBONE_MODULES.items()}
 

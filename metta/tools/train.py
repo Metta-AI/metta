@@ -92,8 +92,7 @@ class TrainTool(Tool):
             hint = self.policy_architecture.learning_rate_hint
             if (
                 hint is not None
-                and self.trainer.optimizer.learning_rate
-                == OptimizerConfig.model_fields["learning_rate"].default
+                and self.trainer.optimizer.learning_rate == OptimizerConfig.model_fields["learning_rate"].default
             ):
                 self.trainer.optimizer.learning_rate = hint
 
