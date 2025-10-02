@@ -110,6 +110,8 @@ var
   agentPaths* = initTable[int, seq[IVec2]]()
   ## Destination queue for each agent. Maps agentId to a sequence of destinations.
   agentDestinations* = initTable[int, seq[IVec2]]()
+  ## Track mouse down position to distinguish clicks from drags.
+  mouseDownPos*: Vec2
 
 proc at*[T](sequence: seq[T], step: int): T =
   # Get the value at the given step.

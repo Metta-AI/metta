@@ -27,17 +27,25 @@ proc useSelections*(panel: Panel) =
   else:
     window.buttonDown[KeyLeftControl] or window.buttonDown[KeyRightControl]
   
+  # Track mouse down position to distinguish clicks from drags.
   if window.buttonPressed[MouseLeft] and not modifierDown:
-    selection = nil
-    let
-      mousePos = bxy.getTransform().inverse * window.mousePos.vec2
-      gridPos = (mousePos + vec2(0.5, 0.5)).ivec2
-    if gridPos.x >= 0 and gridPos.x < replay.mapSize[0] and
-      gridPos.y >= 0 and gridPos.y < replay.mapSize[1]:
-      for obj in replay.objects:
-        if obj.location.at(step).xy == gridPos:
-          selectObject(obj)
-          break
+    mouseDownPos = window.mousePos.vec2
+  
+  # Only select on mouse up, and only if we didn't drag much.
+  if window.buttonReleased[MouseLeft] and not modifierDown:
+    let mouseDragDistance = (window.mousePos.vec2 - mouseDownPos).length
+    const maxClickDragDistance = 5.0
+    if mouseDragDistance < maxClickDragDistance:
+      selection = nil
+      let
+        mousePos = bxy.getTransform().inverse * window.mousePos.vec2
+        gridPos = (mousePos + vec2(0.5, 0.5)).ivec2
+      if gridPos.x >= 0 and gridPos.x < replay.mapSize[0] and
+        gridPos.y >= 0 and gridPos.y < replay.mapSize[1]:
+        for obj in replay.objects:
+          if obj.location.at(step).xy == gridPos:
+            selectObject(obj)
+            break
   
   if window.buttonPressed[MouseRight] or (window.buttonPressed[MouseLeft] and modifierDown):
     if selection != nil and selection.isAgent:
