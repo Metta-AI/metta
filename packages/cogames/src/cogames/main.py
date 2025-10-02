@@ -204,99 +204,6 @@ def play_cmd(
     )
 
 
-@app.command(name="evaluate", no_args_is_help=True, help="Evaluate a policy on a game")
-def evaluate_cmd(
-    game_name: str = typer.Argument(
-        None,
-        help="Name of the game to evaluate",
-        callback=_require_game_argument,
-    ),
-    policy_class_path: str = typer.Option(
-        "cogames.policy.random.RandomPolicy",
-        "--policy",
-        help="Path to policy class",
-        callback=_resolve_policy_class_path,
-    ),
-    policy_data_path: Optional[str] = typer.Option(
-        None,
-        "--policy-data",
-        help="Path to policy weights file or directory",
-        callback=_resolve_policy_data_path,
-    ),
-    episodes: int = typer.Option(10, "--episodes", "-e", help="Number of evaluation episodes", min=1),
-    action_timeout_ms: int = typer.Option(
-        250,
-        "--action-timeout-ms",
-        help="Max milliseconds afforded to generate each action before noop is used by default",
-        min=1,
-    ),
-) -> None:
-    from cogames import utils
-
-    resolved_game, env_cfg = utils.get_game_config(console, game_name)
-    console.print(f"[cyan]Evaluating on {resolved_game}[/cyan]")
-    console.print(f"Episodes: {episodes}")
-
-    from cogames import evaluate as evaluate_module
-
-    policy_specs = [
-        evaluate_module.PolicySpec(
-            policy_class_path=policy_class_path,
-            proportion=1.0,
-            policy_data_path=policy_data_path,
-        )
-    ]
-    evaluate_module.evaluate(
-        console,
-        resolved_game=resolved_game,
-        env_cfg=env_cfg,
-        policy_specs=policy_specs,
-        action_timeout_ms=action_timeout_ms,
-        episodes=episodes,
-    )
-
-
-@app.command(name="evaluate-many", no_args_is_help=True, help="Evaluate many policies together on a game")
-def evaluate_many_cmd(
-    game_name: str = typer.Argument(
-        None,
-        help="Name of the game to evaluate",
-        callback=_require_game_argument,
-    ),
-    policies: list[str] = typer.Argument(  # noqa: B008
-        help=(
-            "List of policies in the form 'class_path:proportion[:policy_data_path]'. "
-            "Provide multiple options for mixed populations."
-        ),
-    ),
-    episodes: int = typer.Option(10, "--episodes", "-e", help="Number of evaluation episodes", min=1),
-    action_timeout_ms: int = typer.Option(
-        250,
-        "--action-timeout-ms",
-        help="Max milliseconds afforded to generate each action before noop is used by default",
-        min=1,
-    ),
-) -> None:
-    policy_specs = [_parse_policy_option(spec) for spec in policies]
-
-    from cogames import utils
-
-    resolved_game, env_cfg = utils.get_game_config(console, game_name)
-    from cogames import evaluate as evaluate_module
-
-    console.print(f"[cyan]Evaluating {len(policy_specs)} policies on {resolved_game}[/cyan]")
-    console.print(f"Episodes: {episodes}")
-
-    evaluate_module.evaluate(
-        console,
-        resolved_game=resolved_game,
-        env_cfg=env_cfg,
-        policy_specs=policy_specs,
-        action_timeout_ms=action_timeout_ms,
-        episodes=episodes,
-    )
-
-
 @app.command("make-game", help="Create a new game configuration")
 def make_scenario(
     base_game: Optional[str] = typer.Argument(None, help="Base game to use as template"),
@@ -406,6 +313,99 @@ def train_cmd(
         raise typer.Exit(1) from e
 
     console.print(f"[green]Training complete. Checkpoints saved to: {checkpoints_path}[/green]")
+
+
+@app.command(name="evaluate", no_args_is_help=True, help="Evaluate a policy on a game")
+def evaluate_cmd(
+    game_name: str = typer.Argument(
+        None,
+        help="Name of the game to evaluate",
+        callback=_require_game_argument,
+    ),
+    policy_class_path: str = typer.Option(
+        "cogames.policy.random.RandomPolicy",
+        "--policy",
+        help="Path to policy class",
+        callback=_resolve_policy_class_path,
+    ),
+    policy_data_path: Optional[str] = typer.Option(
+        None,
+        "--policy-data",
+        help="Path to policy weights file or directory",
+        callback=_resolve_policy_data_path,
+    ),
+    episodes: int = typer.Option(10, "--episodes", "-e", help="Number of evaluation episodes", min=1),
+    action_timeout_ms: int = typer.Option(
+        250,
+        "--action-timeout-ms",
+        help="Max milliseconds afforded to generate each action before noop is used by default",
+        min=1,
+    ),
+) -> None:
+    from cogames import utils
+
+    resolved_game, env_cfg = utils.get_game_config(console, game_name)
+    console.print(f"[cyan]Evaluating on {resolved_game}[/cyan]")
+    console.print(f"Episodes: {episodes}")
+
+    from cogames import evaluate as evaluate_module
+
+    policy_specs = [
+        evaluate_module.PolicySpec(
+            policy_class_path=policy_class_path,
+            proportion=1.0,
+            policy_data_path=policy_data_path,
+        )
+    ]
+    evaluate_module.evaluate(
+        console,
+        resolved_game=resolved_game,
+        env_cfg=env_cfg,
+        policy_specs=policy_specs,
+        action_timeout_ms=action_timeout_ms,
+        episodes=episodes,
+    )
+
+
+@app.command(name="evaluate-many", no_args_is_help=True, help="Evaluate many policies together on a game")
+def evaluate_many_cmd(
+    game_name: str = typer.Argument(
+        None,
+        help="Name of the game to evaluate",
+        callback=_require_game_argument,
+    ),
+    policies: list[str] = typer.Argument(  # noqa: B008
+        help=(
+            "List of policies in the form 'class_path:proportion[:policy_data_path]'. "
+            "Provide multiple options for mixed populations."
+        ),
+    ),
+    episodes: int = typer.Option(10, "--episodes", "-e", help="Number of evaluation episodes", min=1),
+    action_timeout_ms: int = typer.Option(
+        250,
+        "--action-timeout-ms",
+        help="Max milliseconds afforded to generate each action before noop is used by default",
+        min=1,
+    ),
+) -> None:
+    policy_specs = [_parse_policy_option(spec) for spec in policies]
+
+    from cogames import utils
+
+    resolved_game, env_cfg = utils.get_game_config(console, game_name)
+    from cogames import evaluate as evaluate_module
+
+    console.print(f"[cyan]Evaluating {len(policy_specs)} policies on {resolved_game}[/cyan]")
+    console.print(f"Episodes: {episodes}")
+
+    evaluate_module.evaluate(
+        console,
+        resolved_game=resolved_game,
+        env_cfg=env_cfg,
+        policy_specs=policy_specs,
+        action_timeout_ms=action_timeout_ms,
+        episodes=episodes,
+    )
 
 
 if __name__ == "__main__":
