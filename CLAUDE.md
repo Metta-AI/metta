@@ -188,7 +188,7 @@ metta install core                   # Reinstall core dependencies only
 
 ### Key Entry Points
 
-See `common/src/metta/common/tool/README.md` for the runner, two‑token usage, and recipe inference.
+See `common/src/metta/common/tool/README.md` for the runner and two‑token usage.
 
 #### Common Workflows
 
@@ -208,7 +208,7 @@ uv run ./tools/run.py eval_remote arena \
 uv run ./tools/run.py analyze arena eval_db_uri=./train_dir/eval/stats.db
 
 # Interactive play / Replay
-uv run ./tools/run.py play arena policy_uri=... 
+uv run ./tools/run.py play arena policy_uri=...
 uv run ./tools/run.py replay arena policy_uri=...
 
 # List explicit tools for a recipe module (recommended)
@@ -217,10 +217,6 @@ uv run ./tools/run.py arena --list
 # Dry run (resolve only; does not construct or run the tool)
 uv run ./tools/run.py eval arena --dry-run
 ```
-
-Notes:
-- Two‑token form: `./tools/run.py <tool> <recipe>` (e.g., `train arena`).
-- Inference: play/replay prefer `simulations()[0]`; otherwise fallback to `mettagrid()`.
 
 #### Visualization Tools
 

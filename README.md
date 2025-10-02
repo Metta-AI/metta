@@ -208,28 +208,23 @@ Examples:
 ./tools/run.py train arena run=test --verbose
 ```
 
-### Recipe Inference
+### Recipe Structure
 
-Recipes should expose simple functions:
+Recipes define explicit tool functions that return Tool instances:
 
 ```python
-def mettagrid() -> MettaGridConfig: ...           # basic environment
-def simulations() -> list[SimulationConfig]: ...  # optional curated eval suite
+def train() -> TrainTool:
+    return TrainTool(...)
+
+def eval() -> EvalTool:
+    return EvalTool(simulations=[...])
 ```
 
-When present, the runner can infer common tools even if not explicitly defined in the module. If both `simulations()`
-and `mettagrid()` exist, `simulations()` takes precedence for evaluation tools and the evaluator used by inferred
-training tools.
+Recipes can optionally define helper functions like `mettagrid()` or `simulations()` to avoid duplication when multiple tools need the same configuration.
 
-Inference details:
-- Play: uses `simulations()[0]` when available; otherwise falls back to `mettagrid()`.
-- Replay: uses `simulations()[0]` when available; falls back to `mettagrid()` if `simulations()` is absent.
-
-- Inferred tools: `train`, `play`, `replay`, `eval`, and `eval_remote`
-- Example:
-  - `./tools/run.py play arena`
+Examples:
+  - `./tools/run.py train arena`
   - `./tools/run.py eval arena policy_uris=mock://test`
-  - `./tools/run.py eval_remote arena policy_uri=s3://...`
 
 Shorthands are supported:
 
