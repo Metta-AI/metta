@@ -819,22 +819,36 @@ def gtrxl_policy_config() -> TransformerPolicyConfig:
     return GTrXLConfig()
 
 
+class TRXLConfig(TransformerPolicyConfig):
+    """Canonical configuration for the standard Transformer-XL policy variant."""
+
+    variant: TransformerBackboneVariant = TransformerBackboneVariant.TRXL
+
+
 def trxl_policy_config() -> TransformerPolicyConfig:
     """Return a policy config for the vanilla Transformer-XL variant."""
 
-    return TransformerPolicyConfig(variant="trxl")
+    return TRXLConfig()
+
+
+class TRXLNvidiaConfig(TransformerPolicyConfig):
+    """Canonical configuration for the NVIDIA-optimized Transformer-XL variant."""
+
+    variant: TransformerBackboneVariant = TransformerBackboneVariant.TRXL_NVIDIA
 
 
 def trxl_nvidia_policy_config() -> TransformerPolicyConfig:
     """Return a policy config for the NVIDIA Transformer-XL variant."""
 
-    return TransformerPolicyConfig(variant="trxl_nvidia")
+    return TRXLNvidiaConfig()
 
 
 __all__ = [
     "TransformerPolicyConfig",
     "TransformerPolicy",
     "GTrXLConfig",
+    "TRXLConfig",
+    "TRXLNvidiaConfig",
     "gtrxl_policy_config",
     "trxl_policy_config",
     "trxl_nvidia_policy_config",
