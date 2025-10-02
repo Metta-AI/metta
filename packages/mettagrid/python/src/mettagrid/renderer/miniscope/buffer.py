@@ -2,7 +2,35 @@
 
 from typing import Dict
 
-from .symbols import MINISCOPE_SYMBOLS, get_symbol_for_object
+# Agent-specific colored squares for agent IDs 0-9 (consistent width)
+AGENT_SQUARES = ["🟦", "🟧", "🟩", "🟨", "🟪", "🟥", "🟫", "⬛", "🟦", "🟧"]
+
+
+def get_symbol_for_object(obj: dict, object_type_names: list[str], symbol_map: dict[str, str]) -> str:
+    """Get the emoji symbol for an object.
+
+    Args:
+        obj: Object dict with 'type' and optional 'agent_id'
+        object_type_names: List mapping type IDs to names
+        symbol_map: Map from object type names to render symbols
+
+    Returns:
+        Emoji symbol string
+    """
+    type_name = object_type_names[obj["type"]]
+
+    # Handle numbered agents specially
+    if type_name.startswith("agent"):
+        agent_id = obj.get("agent_id")
+        if agent_id is not None and 0 <= agent_id < 10:
+            return AGENT_SQUARES[agent_id]
+
+    # Try full type name first, then base type
+    if type_name in symbol_map:
+        return symbol_map[type_name]
+
+    base = type_name.split(".")[0]
+    return symbol_map.get(base, symbol_map.get("?", "❓"))
 
 
 def compute_bounds(grid_objects: Dict[int, dict], object_type_names: list[str]) -> tuple[int, int, int, int]:
@@ -41,6 +69,7 @@ def compute_bounds(grid_objects: Dict[int, dict], object_type_names: list[str]) 
 def build_grid_buffer(
     grid_objects: Dict[int, dict],
     object_type_names: list[str],
+    symbol_map: dict[str, str],
     min_row: int,
     min_col: int,
     height: int,
@@ -57,6 +86,7 @@ def build_grid_buffer(
     Args:
         grid_objects: Dictionary of grid objects to render
         object_type_names: List mapping type IDs to names
+        symbol_map: Map from object type names to render symbols
         min_row: Minimum row in full grid
         min_col: Minimum column in full grid
         height: Full grid height
@@ -91,7 +121,8 @@ def build_grid_buffer(
         view_max_col = min_col + width
 
     # Initialize grid with empty spaces
-    grid = [[MINISCOPE_SYMBOLS["empty"] for _ in range(view_width)] for _ in range(view_height)]
+    empty_symbol = symbol_map.get("empty", "⬜")
+    grid = [[empty_symbol for _ in range(view_width)] for _ in range(view_height)]
 
     # Place objects in viewport
     for obj in grid_objects.values():
@@ -101,14 +132,15 @@ def build_grid_buffer(
         c = obj_c - view_min_col
         # Skip objects outside viewport bounds
         if 0 <= r < view_height and 0 <= c < view_width:
-            grid[r][c] = get_symbol_for_object(obj, object_type_names)
+            grid[r][c] = get_symbol_for_object(obj, object_type_names, symbol_map)
 
     # Add selection cursor if in select mode
     if cursor_row is not None and cursor_col is not None:
         cursor_r = cursor_row - view_min_row
         cursor_c = cursor_col - view_min_col
         if 0 <= cursor_r < view_height and 0 <= cursor_c < view_width:
-            grid[cursor_r][cursor_c] = MINISCOPE_SYMBOLS["cursor"]
+            cursor_symbol = symbol_map.get("cursor", "🎯")
+            grid[cursor_r][cursor_c] = cursor_symbol
 
     # Add directional arrows at edges if there's more content beyond viewport
     has_more_top = view_min_row > min_row

@@ -19,7 +19,7 @@ from metta.common.util.constants import METTA_GITHUB_ORGANIZATION
 
 
 def get_remote_url(package_name: str) -> str:
-    return f"git@github.com:{METTA_GITHUB_ORGANIZATION}/{package_name}.git"
+    return f"https://github.com/{METTA_GITHUB_ORGANIZATION}/{package_name}.git"
 
 
 def sync_repo(package_name: str, dry_run: bool = False, skip_confirmation: bool = False):
