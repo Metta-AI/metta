@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -38,7 +38,7 @@ class LSTMPolicyNet(torch.nn.Module):
     def forward_eval(
         self,
         observations: torch.Tensor,
-        state: Optional[Union[LSTMState, Tuple[torch.Tensor, torch.Tensor], LSTMStateDict]] = None,
+        state: Optional[Union[LSTMState, Tuple[torch.Tensor, torch.Tensor], Dict[str, torch.Tensor]]] = None,
     ) -> Tuple[List[torch.Tensor], torch.Tensor]:
         # Handle different input shapes:
         # - bptt_horizon=1: (batch_size, *obs_shape) e.g. (128, 7, 7, 3)
@@ -76,33 +76,61 @@ class LSTMPolicyNet(torch.nn.Module):
         hidden = self._net(observations)
         hidden = rearrange(hidden, "(b t) h -> b t h", t=bptt_horizon, b=segments)
 
-        expected_layers = self._rnn.num_layers * (2 if self._rnn.bidirectional else 1)
-        dict_state: Optional[LSTMStateDict] = state if isinstance(state, dict) else None
+        # Handle state being passed as either a dict (from PufferLib) or tuple (from our API)
+        rnn_state = None
+        state_is_dict = isinstance(state, dict)
+        state_has_keys = state_is_dict and "lstm_h" in state and "lstm_c" in state
 
-        tuple_state: Optional[Tuple[torch.Tensor, torch.Tensor]]
-        if dict_state is not None:
-            lstm_state = LSTMState.from_dict(dict_state, expected_layers)
-            tuple_state = lstm_state.to_tuple() if lstm_state is not None else None
-        elif isinstance(state, LSTMState):
-            tuple_state = state.to_tuple()
-        else:
-            tuple_state = state
+        if state is not None:
+            if state_has_keys:
+                # PufferLib passes state as dict with "lstm_h" and "lstm_c" keys
+                h, c = state["lstm_h"], state["lstm_c"]
+                # Handle None state (initial state)
+                if h is not None and c is not None:
+                    # PufferLib uses shape (batch_size, num_layers, hidden_size)
+                    # but PyTorch LSTM expects (num_layers, batch_size, hidden_size)
+                    if h.dim() == 3:
+                        # Transpose from (batch, layers, hidden) to (layers, batch, hidden)
+                        h = h.transpose(0, 1)
+                        c = c.transpose(0, 1)
+                    elif h.dim() == 2:
+                        # (batch, hidden) -> (1, batch, hidden)
+                        h = h.unsqueeze(0)
+                        c = c.unsqueeze(0)
+                    elif h.dim() == 1:
+                        # (hidden,) -> (1, 1, hidden)
+                        h = h.unsqueeze(0).unsqueeze(0)
+                        c = c.unsqueeze(0).unsqueeze(0)
+                    rnn_state = (h, c)
+            elif not state_is_dict:
+                # Tuple state for inference mode - assume correct shape
+                h, c = state
+                if h.dim() == 2:
+                    h = h.unsqueeze(0)
+                    c = c.unsqueeze(0)
+                elif h.dim() == 1:
+                    h = h.unsqueeze(0).unsqueeze(0)
+                    c = c.unsqueeze(0).unsqueeze(0)
+                rnn_state = (h, c)
 
-        if tuple_state is not None:
-            h, c = tuple_state
-            if h.dim() == 2:
-                h = h.unsqueeze(0)
-                c = c.unsqueeze(0)
+        hidden, new_state = self._rnn(hidden, rnn_state)
+
+        # If state was passed as a dict with LSTM keys, update it in-place with new state
+        if state_has_keys:
+            h, c = new_state
+            # Transpose back to PufferLib format: (layers, batch, hidden) -> (batch, layers, hidden)
+            if h.dim() == 3:
+                h = h.transpose(0, 1)
+                c = c.transpose(0, 1)
+            elif h.dim() == 2:
+                # (batch, hidden) -> (batch, layers=1, hidden)
+                h = h.unsqueeze(1)
+                c = c.unsqueeze(1)
             elif h.dim() == 1:
-                h = h.unsqueeze(0).unsqueeze(0)
-                c = c.unsqueeze(0).unsqueeze(0)
-            tuple_state = (h, c)
-
-        hidden, new_state_tuple = self._rnn(hidden, tuple_state)
-        new_state = LSTMState.from_tuple(new_state_tuple, expected_layers)
-
-        if dict_state is not None and new_state is not None:
-            new_state.write_dict(dict_state)
+                # (hidden,) -> (batch=1, layers=1, hidden)
+                h = h.unsqueeze(0).unsqueeze(1)
+                c = c.unsqueeze(0).unsqueeze(1)
+            state["lstm_h"], state["lstm_c"] = h, c
 
         hidden = rearrange(hidden, "b t h -> (b t) h")
         logits = self._action_head(hidden)
@@ -115,7 +143,7 @@ class LSTMPolicyNet(torch.nn.Module):
     def forward(
         self,
         observations: torch.Tensor,
-        state: Optional[Union[LSTMState, Tuple[torch.Tensor, torch.Tensor], LSTMStateDict]] = None,
+        state: Optional[Union[Tuple[torch.Tensor, torch.Tensor], Dict[str, torch.Tensor]]] = None,
     ) -> Tuple[List[torch.Tensor], torch.Tensor]:
         return self.forward_eval(observations, state)
 
@@ -141,6 +169,7 @@ class LSTMAgentPolicy(StatefulAgentPolicy[LSTMState]):
         state: Optional[LSTMState],
     ) -> Tuple[MettaGridAction, Optional[LSTMState]]:
         """Get action and update state for this agent."""
+        # Convert single observation to batch of 1 for network forward pass
         if isinstance(obs, torch.Tensor):
             obs_tensor = obs.to(self._device).unsqueeze(0) if obs.dim() < 2 else obs.to(self._device)
         else:
@@ -148,9 +177,11 @@ class LSTMAgentPolicy(StatefulAgentPolicy[LSTMState]):
 
         with torch.no_grad():
             self._net.eval()
-            state_dict: LSTMStateDict = {}
+            # For inference, we pass state through a dict so forward_eval can populate it
+            state_dict: LSTMStateDict = {"lstm_h": None, "lstm_c": None}
             if state is not None:
-                state.write_dict(state_dict)
+                hidden, cell = state.to_tuple()
+                state_dict["lstm_h"], state_dict["lstm_c"] = hidden, cell
 
             # Debug: check observation
             if torch.isnan(obs_tensor).any():
@@ -166,13 +197,18 @@ class LSTMAgentPolicy(StatefulAgentPolicy[LSTMState]):
                     f"NaN in logits! obs shape: {obs_tensor.shape}, obs min/max: {obs_tensor.min()}/{obs_tensor.max()}"
                 )
                 logger.error(f"Logits: {[logit for logit in logits]}")
+                # Check network parameters
                 for name, param in self._net.named_parameters():
                     if torch.isnan(param).any():
                         logger.error(f"NaN in parameter {name}")
 
-            new_state = LSTMState.from_dict(state_dict, self._net._expected_layers)
-            if new_state is not None:
-                new_state = new_state.detach()
+            # Extract the new state from the dict
+            new_state: Optional[LSTMState] = None
+            if "lstm_h" in state_dict and "lstm_c" in state_dict:
+                h, c = state_dict["lstm_h"], state_dict["lstm_c"]
+                tuple_state = (h.detach(), c.detach())
+                layers = self._net._rnn.num_layers * (2 if self._net._rnn.bidirectional else 1)
+                new_state = LSTMState.from_tuple(tuple_state, layers)
 
             # Sample action from the logits
             actions: list[int] = []
@@ -180,7 +216,7 @@ class LSTMAgentPolicy(StatefulAgentPolicy[LSTMState]):
                 dist = torch.distributions.Categorical(logits=logit)
                 actions.append(dist.sample().item())
 
-            return np.array(actions, dtype=np.int32), new_state
+            return np.array(actions, dtype=np.int32), new_state.detach() if new_state is not None else None
 
 
 class LSTMPolicy(TrainablePolicy):

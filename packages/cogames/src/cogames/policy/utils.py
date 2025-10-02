@@ -9,6 +9,7 @@ import torch
 
 LSTMStateTuple = Tuple[torch.Tensor, torch.Tensor]
 LSTMStateDict = Dict[str, torch.Tensor]
+
 def _canonical_component(component: torch.Tensor, expected_layers: Optional[int]) -> torch.Tensor:
     """Return a ``(layers, batch, hidden)`` tensor, adding axes as needed."""
     if component.dim() > 3:
