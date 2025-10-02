@@ -1,3 +1,5 @@
+#!/usr/bin/env -S uv run
+
 """CLI for CoGames - collection of environments for multi-agent cooperative and competitive games."""
 
 import importlib
