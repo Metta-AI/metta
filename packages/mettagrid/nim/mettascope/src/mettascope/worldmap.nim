@@ -60,12 +60,35 @@ proc useSelections*(panel: Panel) =
         # Determine if this is a Bump or Move destination.
         let targetObj = getObjectAtLocation(gridPos)
         var destType = Move
+        var approachDir = ivec2(0, 0)
         if targetObj != nil:
           let typeName = replay.typeNames[targetObj.typeId]
           if typeName != "agent" and typeName != "wall":
             destType = Bump
+            # Calculate which quadrant of the tile was clicked.
+            # The tile center is at gridPos, and mousePos has fractional parts.
+            let
+              tileCenterX = gridPos.x.float32
+              tileCenterY = gridPos.y.float32
+              offsetX = mousePos.x - tileCenterX
+              offsetY = mousePos.y - tileCenterY
+            # Divide the tile into 4 quadrants at 45-degree angles (diamond shape).
+            # If the click is more horizontal than vertical, use left/right approach.
+            # If the click is more vertical than horizontal, use top/bottom approach.
+            if abs(offsetX) > abs(offsetY):
+              # Left or right quadrant.
+              if offsetX > 0:
+                approachDir = ivec2(1, 0)   # Clicked right, approach from right.
+              else:
+                approachDir = ivec2(-1, 0)  # Clicked left, approach from left.
+            else:
+              # Top or bottom quadrant.
+              if offsetY > 0:
+                approachDir = ivec2(0, 1)   # Clicked bottom, approach from bottom.
+              else:
+                approachDir = ivec2(0, -1)  # Clicked top, approach from top.
         
-        let destination = Destination(pos: gridPos, destinationType: destType)
+        let destination = Destination(pos: gridPos, destinationType: destType, approachDir: approachDir)
         
         if shiftDown:
           # Queue up additional destinations.

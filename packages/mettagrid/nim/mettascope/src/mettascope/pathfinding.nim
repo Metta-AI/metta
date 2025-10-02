@@ -94,16 +94,6 @@ proc clearPath*(agentId: int) =
   agentPaths.del(agentId)
   agentDestinations.del(agentId)
 
-proc findAdjacentWalkable*(target: IVec2): seq[IVec2] =
-  ## Find walkable positions adjacent to the target position.
-  ## mainly used to path to an object before bumping it.
-  const directions = [ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0)]
-  var adjacent: seq[IVec2] = @[]
-  for dir in directions:
-    let pos = ivec2(target.x + dir.x, target.y + dir.y)
-    if isWalkablePos(pos):
-      adjacent.add(pos)
-  return adjacent
 
 proc recomputePath*(agentId: int, currentPos: IVec2) =
   ## Recompute the path for an agent through all their queued destinations.
@@ -123,22 +113,18 @@ proc recomputePath*(agentId: int, currentPos: IVec2) =
       # For moving, path directly to the destination.
       segmentPath = findPath(lastPos, dest.pos)
     of Bump:
-      # For bumping, path to an adjacent walkable position.
-      let adjacentTiles = findAdjacentWalkable(dest.pos)
-      if adjacentTiles.len == 0:
+      # For bumping, path to the specified approach position.
+      let approachPos = ivec2(dest.pos.x + dest.approachDir.x, dest.pos.y + dest.approachDir.y)
+      if not isWalkablePos(approachPos):
+        # Approach position is not walkable, clear path.
         clearPath(agentId)
         return
-      if lastPos in adjacentTiles:
-        # Already adjacent, use current position.
+      if lastPos == approachPos:
+        # Already at the approach position, use current position.
         segmentPath = @[lastPos]
       else:
-        # Find the shortest path to any adjacent tile.
-        var bestPath: seq[IVec2] = @[]
-        for adjacent in adjacentTiles:
-          let path = findPath(lastPos, adjacent)
-          if path.len > 0 and (bestPath.len == 0 or path.len < bestPath.len):
-            bestPath = path
-        segmentPath = bestPath
+        # Path to the approach position.
+        segmentPath = findPath(lastPos, approachPos)
     
     if segmentPath.len == 0:
       clearPath(agentId)
