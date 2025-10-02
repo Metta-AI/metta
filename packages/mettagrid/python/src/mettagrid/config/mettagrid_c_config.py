@@ -23,6 +23,7 @@ from mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
 from mettagrid.mettagrid_c import Recipe as CppRecipe
+from mettagrid.mettagrid_c import ResourceModConfig as CppResourceModConfig
 from mettagrid.mettagrid_c import WallConfig as CppWallConfig
 
 # Note that these are left to right, top to bottom.
@@ -193,6 +194,11 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             resource_name_to_id[resource_name] for resource_name in agent_props.get("shareable_resources", [])
         ]
 
+        # Convert inventory regeneration amounts from names to IDs
+        inventory_regen_amounts = {}
+        for resource_name, amount in agent_props.get("inventory_regen_amounts", {}).items():
+            inventory_regen_amounts[resource_name_to_id[resource_name]] = amount
+
         # Build inventory config with support for grouped limits
         limits_list = []
 
@@ -232,6 +238,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             "tag_ids": tag_ids,
             "soul_bound_resources": soul_bound_resources,
             "shareable_resources": shareable_resources,
+            "inventory_regen_amounts": inventory_regen_amounts,
         }
 
         objects_cpp_params["agent." + group_name] = CppAgentConfig(**agent_cpp_params)
@@ -320,12 +327,19 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             # Convert tag names to IDs
             tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
 
+            # Convert position_deltas from (FixedPosition, delta) to (position_index, delta)
+            position_deltas_map = {}
+            for pos, delta in object_config.position_deltas:
+                position_index = FIXED_POSITIONS.index(pos)
+                position_deltas_map[position_index] = delta
+
             cpp_chest_config = CppChestConfig(
                 type_id=object_config.type_id,
                 type_name=object_type,
                 resource_type=resource_type_id,
-                deposit_positions=set(FIXED_POSITIONS.index(pos) for pos in object_config.deposit_positions),
-                withdrawal_positions=set(FIXED_POSITIONS.index(pos) for pos in object_config.withdrawal_positions),
+                position_deltas=position_deltas_map,
+                initial_inventory=object_config.initial_inventory,
+                max_inventory=object_config.max_inventory,
                 tag_ids=tag_ids,
             )
             objects_cpp_params[object_type] = cpp_chest_config
@@ -395,6 +409,23 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 "number_of_glyphs": action_config["number_of_glyphs"],
             }
             actions_cpp_params[action_name] = CppChangeGlyphActionConfig(**change_glyph_params)
+        elif action_name == "resource_mod":
+            # Extract the specific parameters needed for ResourceModConfig
+            modifies_dict = action_config.get("modifies", {})
+            unknown_modifies = set(modifies_dict.keys()) - set(resource_name_to_id.keys())
+            if unknown_modifies:
+                unknown_list = sorted(unknown_modifies)
+                raise ValueError(f"Unknown resource names in modifies for action '{action_name}': {unknown_list}")
+
+            resource_mod_params = {
+                "required_resources": action_cpp_params.get("required_resources", {}),
+                "consumed_resources": action_cpp_params.get("consumed_resources", {}),
+                "modifies": {resource_name_to_id[k]: float(v) for k, v in modifies_dict.items()},
+                "agent_radius": action_config.get("agent_radius", 0),
+                "converter_radius": action_config.get("converter_radius", 0),
+                "scales": action_config.get("scales", False),
+            }
+            actions_cpp_params[action_name] = CppResourceModConfig(**resource_mod_params)
         else:
             actions_cpp_params[action_name] = CppActionConfig(**action_cpp_params)
 
@@ -415,31 +446,28 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     # Add resource_loss_prob
     game_cpp_params["resource_loss_prob"] = game_config.resource_loss_prob
 
+    # Add inventory regeneration interval
+    game_cpp_params["inventory_regen_interval"] = game_config.inventory_regen_interval
+
     # Add clipper if configured
     if game_config.clipper is not None:
         clipper: ClipperConfig = game_config.clipper
-        clipper_recipe = CppRecipe(
-            input_resources={resource_name_to_id[k]: v for k, v in clipper.recipe.input_resources.items()},
-            output_resources={resource_name_to_id[k]: v for k, v in clipper.recipe.output_resources.items()},
-            cooldown=clipper.recipe.cooldown,
-        )
+        clipper_recipes = []
+        for recipe_config in clipper.unclipping_recipes:
+            cpp_recipe = CppRecipe(
+                input_resources={resource_name_to_id[k]: v for k, v in recipe_config.input_resources.items()},
+                output_resources={resource_name_to_id[k]: v for k, v in recipe_config.output_resources.items()},
+                cooldown=recipe_config.cooldown,
+            )
+            clipper_recipes.append(cpp_recipe)
         game_cpp_params["clipper"] = CppClipperConfig(
-            clipper_recipe, clipper.length_scale, clipper.cutoff_distance, clipper.clip_rate
+            clipper_recipes, clipper.length_scale, clipper.cutoff_distance, clipper.clip_rate
         )
 
     # Set feature flags
     game_cpp_params["recipe_details_obs"] = game_config.recipe_details_obs
     game_cpp_params["allow_diagonals"] = game_config.allow_diagonals
     game_cpp_params["track_movement_metrics"] = game_config.track_movement_metrics
-
-    # Add inventory regeneration settings
-    # Convert resource names to IDs in inventory_regen_amounts
-    inventory_regen_amounts_cpp = {}
-    for resource_name, amount in game_config.inventory_regen_amounts.items():
-        inventory_regen_amounts_cpp[resource_name_to_id[resource_name]] = amount
-
-    game_cpp_params["inventory_regen_amounts"] = inventory_regen_amounts_cpp
-    game_cpp_params["inventory_regen_interval"] = game_config.inventory_regen_interval
 
     # Add tag mappings for C++ debugging/display
     game_cpp_params["tag_id_map"] = tag_id_to_name

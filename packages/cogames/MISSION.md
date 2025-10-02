@@ -4,8 +4,10 @@
 
 ### Welcome to the Team, Cognitive!
 
-You are part of an elite unit of Cogs deployed to establish and maintain critical HEARTs infrastructure in this sector. As you know, each Cog depends in its core on a HEART that contains its essential Cognitive functions, so maintaining our HEARTs infrastructure is crucial to the long term success of the colony. 
-Your mission: navigate the grid, collect vital resources, and manufacture as many HEARTs as possible while defending our facilities from Clip infestation.
+You are part of an elite unit of Cogs deployed to establish and maintain critical HEARTs infrastructure in this sector.
+As you know, each Cog depends in its core on a HEART that contains its essential Cognitive functions, so maintaining our
+HEARTs infrastructure is crucial to the long term success of the colony. Your mission: navigate the grid, collect vital
+resources, and manufacture as many HEARTs as possible while defending our facilities from Clip infestation.
 
 ---
 
@@ -16,12 +18,13 @@ Your mission: navigate the grid, collect vital resources, and manufacture as man
 - Your onboard battery stores limited **energy** - use it wisely!
 - Your solar panels provide passive recharge during operations
 - To support intensive operations, supplement your own solar panels by retrieving energy from solar array facilities
-- Support your teammates: Move into an ally's position to transfer energy from your reserves to theirs, if they're stuck far from home
+- Support your teammates: Move into an ally's position to transfer energy from your reserves to theirs, if they're stuck
+  far from home
 - Many actions and facility operations require energy expenditure
 
 ### Action Protocol (One Action Per Turn)
 
-**MOVE [Direction: N, NE, E, SE, S, SW, W, NW]**
+**MOVE [Direction: N, S, W, E]**
 
 - Empty space → You relocate to that position
 - Occupied space → You interact with the target:
@@ -52,12 +55,12 @@ Your mission: navigate the grid, collect vital resources, and manufacture as man
 - Multi-Cog operations: Some facilities need teammates at specific **terminals** (the 8 positions surrounding the
   facility)
 
-### Cargo & Equipment Specs
+### Cargo & Gear Specs
 
 Your chassis has limited capacity for:
 
 - **Essential Resources**: Carbon, Oxygen, Germanium, Silicon
-- **Specialized Equipment**: Resonator, Modulator, Scrambler, Disruptor
+- **Specialized Gear**: Resonator, Modulator, Scrambler, Disruptor
 - **Mission Objective**: HEARTs units
 - **Energy** reserves (for transferring to facilities or teammates)
 
@@ -67,22 +70,25 @@ Your chassis has limited capacity for:
 
 ### Resource Acquisition
 
-Resources are stockpiled by automated extraction facilities called extractors. Extractors have finite storage capacity. If they have storage space remaining they will automatically produce and store resources until they are full.
+Resources are stockpiled by automated extraction facilities called extractors. Extractors have finite storage capacity.
+If they have storage space remaining they will automatically produce and store resources until they are full.
 
 Note: extractors are facilities, and may offer multi-Cog protocols as well.
 
 Common extractor types
+
 - **Carbon Furnace** - Harvests and purifies carbon compounds
 - **Oxygen Plant** - Processes hydrolyzed minerals for oxygen
 - **Germanium Smelter** - Extracts germanium from metal deposits
 - **Silicon Reducer** - Reduces silicon oxides into pure silicon
 - **Solar Array** - Collects and stores energy from the sun
 
-**Operating Instructions**: Move into the facility from any adjacent position. The resources or energy in storage will be added to your cargo if successful.  
+**Operating Instructions**: Move into the facility from any adjacent position. The resources or energy in storage will
+be added to your cargo if successful.
 
 ### The Atomic Assembler - Heart Production Center
 
-This is your primary objective facility! The Assembler converts raw resources into equipment and precious HEART units.
+This is your primary objective facility! The Assembler converts raw resources into gear and precious HEART units.
 
 **CRITICAL PROTOCOL SYSTEM**:
 
@@ -107,7 +113,7 @@ CB.
 1. Surrounding Cogs must possess required input resources
 2. Activator moves into Assembler
 3. Resources are consumed from the team
-4. Output (equipment or HEARTS) goes to the activator
+4. Output (gear or HEARTS) goes to the activator
 5. Discovery required - protocols change between missions!
 
 ### The Communal Chest - Strategic Storage
@@ -122,16 +128,22 @@ different terminals and move into the Chest
 
 ## THREAT ADVISORY: FRIENDLY PAPERCLIP COMPANY OUTBREAK
 
-**WARNING**: The Friendly Paperclip Company's automated paperclip production nanoswarm has been sighted infesting our outlying extractors.  The Clips are actively attempting to infest our facilities and subvert them for optimal paperclip production.
+**WARNING**: The Friendly Paperclip Company's automated paperclip production nanoswarm has been sighted infesting our
+outlying extractors. The Clips are actively attempting to infest our facilities and subvert them for optimal paperclip
+production.
 
 ### Clip Response Actions
 
 - **Identify**: Clipped facilities have altered appearance
-- **Prepare**: Reclaiming buildings from the Clips requires special tools, which can be produced at the Atomic Assembler. Make sure you have what you need. Some clipped facilities may require more than one Cog and more than one tool.
-- **Approach**: Move adjacent to the infested facility with your fellow Cogs and explore to find the reclamation protocol
+- **Prepare**: Reclaiming buildings from the Clips requires special tools, which can be produced at the Atomic
+  Assembler. Make sure you have what you need. Some clipped facilities may require more than one Cog and more than one
+  tool.
+- **Approach**: Move adjacent to the infested facility with your fellow Cogs and explore to find the reclamation
+  protocol
 - **Reclaim**: Move into the facility to attempt a reclamation protocols
 
-- Act quickly: infestation levels may rise over time, requiring more difficult reclamation procedures, and the Clips will drain more and more resources from infected facilities over time!
+- Act quickly: infestation levels may rise over time, requiring more difficult reclamation procedures, and the Clips
+  will drain more and more resources from infected facilities over time!
 
 ### Infestation Patterns
 
@@ -154,7 +166,7 @@ different terminals and move into the Chest
 - Facilities may only activate once per turn (first mover is the activator)
 - Cooldown timers must expire before reactivation
 - Resource deposits become less productive with use
-- Some protocols may require specific equipment in addition to resources
+- Some protocols may require specific gear in addition to resources
 - Protocol availability may change based on facility status
 
 ---
@@ -186,7 +198,6 @@ different terminals and move into the Chest
 - Track input/output resource requirements
 - Share discoveries via display communication
 - Remember: protocols vary between missions
-
 
 ---
 

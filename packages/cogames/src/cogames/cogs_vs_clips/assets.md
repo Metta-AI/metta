@@ -6,7 +6,7 @@
 - germanium
 - silicon
 
-## Equipment
+## Gear
 
 - heart
 
