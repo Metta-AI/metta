@@ -1,9 +1,13 @@
 """Base policy classes and interfaces."""
 
 from abc import abstractmethod
-from typing import Any, Generic, Optional, Tuple, TypeVar
+from pathlib import Path
+from typing import Generic, Optional, Tuple, TypeVar
 
 import torch.nn as nn
+from pydantic import BaseModel
+
+from mettagrid import MettaGridAction, MettaGridObservation
 
 # Type variable for agent state - can be any type
 StateType = TypeVar("StateType")
@@ -17,7 +21,7 @@ class AgentPolicy:
     This is what play.py and evaluation code use directly.
     """
 
-    def step(self, obs: Any) -> Any:
+    def step(self, obs: MettaGridObservation) -> MettaGridAction:
         """Get action given an observation.
 
         Args:
@@ -27,6 +31,10 @@ class AgentPolicy:
             The action to take
         """
         raise NotImplementedError("Subclasses must implement step()")
+
+    def reset(self) -> None:
+        """Reset the policy state. Default implementation does nothing."""
+        pass
 
 
 class Policy:
@@ -93,7 +101,7 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
         # Initialize state using the base policy's agent_state() method
         self._state: Optional[StateType] = self._base_policy.agent_state()
 
-    def step(self, obs: Any) -> Any:
+    def step(self, obs: MettaGridObservation) -> MettaGridAction:
         """Get action and update hidden state."""
         action, self._state = self._base_policy.step_with_state(obs, self._state)
         return action
@@ -121,7 +129,9 @@ class StatefulPolicyImpl(Generic[StateType]):
         """
         ...
 
-    def step_with_state(self, obs: Any, state: Optional[StateType]) -> Tuple[Any, Optional[StateType]]:
+    def step_with_state(
+        self, obs: MettaGridObservation, state: Optional[StateType]
+    ) -> Tuple[MettaGridAction, Optional[StateType]]:
         """Get action and potentially update state.
 
         Args:
@@ -178,3 +188,26 @@ class TrainablePolicy(Policy):
         import torch
 
         torch.save(self.network().state_dict(), policy_data_path)
+
+
+class PolicySpec(BaseModel):
+    """Specification for a policy used during evaluation."""
+
+    # Path to policy class, or shorthand
+    policy_class_path: str
+
+    # Path to policy weights, if applicable
+    policy_data_path: Optional[str]
+
+    # Proportion of total agents to assign to this policy
+    proportion: float
+
+    @property
+    def name(self) -> str:
+        """Get the name of the policy."""
+        parts = [
+            self.policy_class_path.split(".")[-1],
+        ]
+        if self.policy_data_path:
+            parts.append(Path(self.policy_data_path).name)
+        return "-".join(parts)
