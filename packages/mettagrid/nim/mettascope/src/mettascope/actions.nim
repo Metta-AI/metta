@@ -54,8 +54,16 @@ proc processActions*() =
   if not (play or requestPython):
     return
   
-  for agentId, path in agentPaths:
-    if path.len > 1:
+  # Collect agent IDs to avoid modifying table while iterating.
+  var agentIds: seq[int] = @[]
+  for agentId in agentPaths.keys:
+    agentIds.add(agentId)
+  
+  for agentId in agentIds:
+    if not agentPaths.hasKey(agentId):
+      continue
+    let path = agentPaths[agentId]
+    if path.len > 0:
       var agent: Entity = nil
       for obj in replay.objects:
         if obj.isAgent and obj.agentId == agentId:
@@ -64,6 +72,14 @@ proc processActions*() =
       
       if agent != nil:
         let currentPos = agent.location.at(step).xy
+        
+        # Check if we've reached any destination and remove it.
+        if agentDestinations.hasKey(agentId) and agentDestinations[agentId].len > 0:
+          if agentDestinations[agentId][0] == currentPos:
+            agentDestinations[agentId].delete(0)
+            if agentDestinations[agentId].len == 0:
+              agentPaths.del(agentId)
+              continue
         
         if path[0] == currentPos:
           if path.len > 1:

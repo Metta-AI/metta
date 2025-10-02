@@ -27,6 +27,8 @@ proc useSelections*(panel: Panel) =
   else:
     window.buttonDown[KeyLeftControl] or window.buttonDown[KeyRightControl]
   
+  let shiftDown = window.buttonDown[KeyLeftShift] or window.buttonDown[KeyRightShift]
+  
   if window.buttonPressed[MouseLeft] and not modifierDown:
     selection = nil
     let
@@ -47,10 +49,26 @@ proc useSelections*(panel: Panel) =
       if gridPos.x >= 0 and gridPos.x < replay.mapSize[0] and
         gridPos.y >= 0 and gridPos.y < replay.mapSize[1]:
         let startPos = selection.location.at(step).xy
-        let path = findPath(startPos, gridPos)
-        if path.len > 0:
-          agentPaths[selection.agentId] = path
-          agentDestinations[selection.agentId] = @[gridPos]
+        
+        if shiftDown:
+          # Queue up additional destinations.
+          if not agentDestinations.hasKey(selection.agentId) or agentDestinations[selection.agentId].len == 0:
+            # No existing destinations, start fresh.
+            let path = findPath(startPos, gridPos)
+            if path.len > 0:
+              agentPaths[selection.agentId] = path
+              agentDestinations[selection.agentId] = @[gridPos]
+          else:
+            # Append to existing destinations.
+            agentDestinations[selection.agentId].add(gridPos)
+            # Recompute path to include all destinations.
+            recomputePath(selection.agentId, startPos)
+        else:
+          # Replace the entire destination queue.
+          let path = findPath(startPos, gridPos)
+          if path.len > 0:
+            agentPaths[selection.agentId] = path
+            agentDestinations[selection.agentId] = @[gridPos]
 
 proc drawFloor*() =
   # Draw the floor tiles.
@@ -370,15 +388,21 @@ proc drawPlannedPath*() =
           scale = 1/200,
           tint = color(1, 1, 1, alpha)
         )
-      
-      let goalPos = path[path.len - 1]
-      bxy.drawImage(
-        "selection",
-        goalPos.vec2,
-        angle = 0,
-        scale = 1/200,
-        tint = color(1, 1, 1, 0.5)
-      )
+    
+    # Draw all queued destinations.
+    if agentDestinations.hasKey(agentId):
+      let destinations = agentDestinations[agentId]
+      for i, dest in destinations:
+        let isLastDestination = i == destinations.len - 1
+        let alpha = if isLastDestination: 0.5 else: 0.3
+        let scale = if isLastDestination: 1.0 / 200.0 else: 0.8 / 200.0
+        bxy.drawImage(
+          "selection",
+          dest.vec2,
+          angle = 0,
+          scale = scale,
+          tint = color(1, 1, 1, alpha)
+        )
 
 proc drawSelection*() =
   # Draw selection.

@@ -95,19 +95,32 @@ proc clearPath*(agentId: int) =
   agentDestinations.del(agentId)
 
 proc recomputePath*(agentId: int, currentPos: IVec2) =
-  ## Recompute the path for an agent to their current destination.
+  ## Recompute the path for an agent through all their queued destinations.
   if not agentDestinations.hasKey(agentId) or agentDestinations[agentId].len == 0:
-    return
-  let destination = agentDestinations[agentId][0]
-  if currentPos == destination:
-    agentDestinations[agentId].delete(0)
     agentPaths.del(agentId)
-    if agentDestinations[agentId].len > 0:
-      recomputePath(agentId, currentPos)
     return
-  let newPath = findPath(currentPos, destination)
-  if newPath.len > 0:
-    agentPaths[agentId] = newPath
+  
+  # Compute path through all destinations.
+  var fullPath: seq[IVec2] = @[]
+  var lastPos = currentPos
+  
+  for i, dest in agentDestinations[agentId]:
+    let segmentPath = findPath(lastPos, dest)
+    if segmentPath.len == 0:
+      clearPath(agentId)
+      return
+    
+    if i == 0:
+      fullPath = segmentPath
+    else:
+      if segmentPath.len > 1:
+        for j in 1 ..< segmentPath.len:
+          fullPath.add(segmentPath[j])
+    
+    lastPos = dest
+  
+  if fullPath.len > 0:
+    agentPaths[agentId] = fullPath
   else:
     clearPath(agentId)
 
