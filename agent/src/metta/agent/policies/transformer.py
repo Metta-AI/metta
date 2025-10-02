@@ -6,7 +6,7 @@ import contextlib
 import logging
 import math
 import os
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Type
 
 import torch
 from einops import rearrange
@@ -28,8 +28,7 @@ from metta.agent.components.actor import (
 from metta.agent.components.obs_enc import ObsPerceiverLatent, ObsPerceiverLatentConfig
 from metta.agent.components.obs_shim import ObsShimTokens, ObsShimTokensConfig
 from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourier, ObsAttrEmbedFourierConfig
-from metta.agent.components.transformer_core import TransformerBackboneConfig, TransformerBackboneVariant
-from metta.agent.components.transformers import get_backbone_spec
+from metta.agent.components.transformers import BACKBONE_CONFIGS, TransformerBackboneConfigType
 from metta.agent.policy import Policy, PolicyArchitecture
 
 logger = logging.getLogger(__name__)
@@ -71,7 +70,7 @@ class TransformerPolicyConfig(PolicyArchitecture):
         num_layers=1,
     )
 
-    transformer: TransformerBackboneConfig | None = None
+    transformer: TransformerBackboneConfigType | dict[str, object] | None = None
 
     # Actor / critic head dimensions
     critic_hidden_dim: int = 512
@@ -87,16 +86,31 @@ class TransformerPolicyConfig(PolicyArchitecture):
 
     @model_validator(mode="after")
     def _apply_variant_defaults(self) -> "TransformerPolicyConfig":
-        overrides = {}
-        if self.transformer is not None:
-            overrides = self.transformer.model_dump(exclude_none=True)
-        variant_name = self.variant.value if isinstance(self.variant, TransformerBackboneVariant) else self.variant
-        overrides["variant"] = variant_name
-        self.transformer = TransformerBackboneConfig(**overrides)
+        variant_name = self.variant
+        config_type: Type | None = BACKBONE_CONFIGS.get(variant_name)
+        if config_type is None:
+            raise ValueError(f"Unknown transformer variant '{variant_name}'")
 
-        self.variant = variant_name
-        entry = get_backbone_spec(variant_name)
-        defaults = entry.policy_defaults
+        config_instance: TransformerBackboneConfigType
+        raw_config = self.transformer
+        if raw_config is None:
+            config_instance = config_type()
+        elif isinstance(raw_config, dict):
+            config_instance = config_type(**raw_config)  # type: ignore[arg-type]
+        elif isinstance(raw_config, config_type):
+            config_instance = raw_config  # type: ignore[assignment]
+        else:
+            config_variant = getattr(raw_config, "variant", None)
+            if config_variant is not None and str(config_variant) != variant_name:
+                raise ValueError(
+                    f"Transformer config variant '{config_variant}' does not match requested variant '{variant_name}'"
+                )
+            config_instance = raw_config  # type: ignore[assignment]
+
+        self.transformer = config_instance
+        self.variant = getattr(config_instance, "variant", variant_name)
+
+        defaults = config_instance.policy_defaults()
         if self.manual_init is None:
             self.manual_init = defaults.get("manual_init", False)
         if self.strict_attr_indices is None:
@@ -122,15 +136,19 @@ class TransformerPolicy(Policy):
         self.is_continuous = False
         self.action_space = env.action_space
 
-        self.transformer_cfg = self.config.transformer
-        self.latent_size = self.transformer_cfg.latent_size
-        self.hidden_size = self.transformer_cfg.hidden_size
-        self._uses_sliding_backbone = self.transformer_cfg.variant == "sliding"
+        transformer_config = self.config.transformer
+        if transformer_config is None:
+            raise ValueError("TransformerPolicyConfig must include a transformer_config instance")
+        self.transformer = transformer_config
+        self.transformer_config = transformer_config
+        self.latent_size = transformer_config.latent_size
+        self.hidden_size = transformer_config.hidden_size
+        self._uses_sliding_backbone = transformer_config.variant == "sliding"
         self.strict_attr_indices = getattr(self.config, "strict_attr_indices", False)
         self.use_aux_tokens = getattr(self.config, "use_aux_tokens", False)
         self.num_layers = max(env.feature_normalizations.keys()) + 1
-        self._memory_len = int(getattr(self.transformer_cfg, "memory_len", 0) or 0)
-        self._transformer_layers = int(getattr(self.transformer_cfg, "num_layers", 0) or 0)
+        self._memory_len = int(getattr(transformer_config, "memory_len", 0) or 0)
+        self._transformer_layers = int(getattr(transformer_config, "num_layers", 0) or 0)
         self._memory_len_initial = self._memory_len
 
         encoder_out = self.config.obs_encoder.latent_dim
@@ -238,7 +256,7 @@ class TransformerPolicy(Policy):
         self.action_probs = self.config.action_probs_config.make_component()
 
     def _build_transformer(self) -> None:
-        self.transformer_module = self.transformer_cfg.make_component(self.env)
+        self.transformer_module = self.transformer_config.build()
         self._memory_enabled = self.memory_len > 0
 
     # ------------------------------------------------------------------
@@ -771,7 +789,7 @@ class TransformerPolicy(Policy):
             return
 
         self._memory_len = new_len
-        self.transformer_cfg.memory_len = new_len
+        self.transformer_config.memory_len = new_len
         if hasattr(self.transformer_module, "memory_len"):
             self.transformer_module.memory_len = new_len  # type: ignore[assignment]
         core = getattr(self.transformer_module, "core", None)
@@ -806,7 +824,7 @@ class TransformerPolicy(Policy):
         return Composite(**spec)
 
 
-class GTrXLConfig(TransformerPolicyConfig):
+class GTrXLPolicyConfig(TransformerPolicyConfig):
     """Canonical configuration for the GTrXL transformer policy variant."""
 
     variant: str = "gtrxl"
@@ -815,10 +833,10 @@ class GTrXLConfig(TransformerPolicyConfig):
 def gtrxl_policy_config() -> TransformerPolicyConfig:
     """Return a policy config for the GTrXL variant (legacy helper)."""
 
-    return GTrXLConfig()
+    return GTrXLPolicyConfig()
 
 
-class TRXLConfig(TransformerPolicyConfig):
+class TRXLPolicyConfig(TransformerPolicyConfig):
     """Canonical configuration for the standard Transformer-XL policy variant."""
 
     variant: str = "trxl"
@@ -827,10 +845,10 @@ class TRXLConfig(TransformerPolicyConfig):
 def trxl_policy_config() -> TransformerPolicyConfig:
     """Return a policy config for the vanilla Transformer-XL variant."""
 
-    return TRXLConfig()
+    return TRXLPolicyConfig()
 
 
-class TRXLNvidiaConfig(TransformerPolicyConfig):
+class TRXLNvidiaPolicyConfig(TransformerPolicyConfig):
     """Canonical configuration for the NVIDIA-optimized Transformer-XL variant."""
 
     variant: str = "trxl_nvidia"
@@ -839,15 +857,15 @@ class TRXLNvidiaConfig(TransformerPolicyConfig):
 def trxl_nvidia_policy_config() -> TransformerPolicyConfig:
     """Return a policy config for the NVIDIA Transformer-XL variant."""
 
-    return TRXLNvidiaConfig()
+    return TRXLNvidiaPolicyConfig()
 
 
 __all__ = [
     "TransformerPolicyConfig",
     "TransformerPolicy",
-    "GTrXLConfig",
-    "TRXLConfig",
-    "TRXLNvidiaConfig",
+    "GTrXLPolicyConfig",
+    "TRXLPolicyConfig",
+    "TRXLNvidiaPolicyConfig",
     "gtrxl_policy_config",
     "trxl_policy_config",
     "trxl_nvidia_policy_config",
