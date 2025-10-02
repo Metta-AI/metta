@@ -1,7 +1,7 @@
 """Base policy classes and interfaces."""
 
 from abc import abstractmethod
-from typing import Any, Generic, Optional, Tuple, TypeVar
+from typing import Generic, Optional, Tuple, TypeVar
 
 import torch.nn as nn
 
