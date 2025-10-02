@@ -22,15 +22,17 @@ def train(
     enable_detailed_slice_logging: bool = False,
     policy_architecture: PolicyArchitecture | None = None,
 ):
-    policy = policy_architecture or TransformerPolicyConfig(transformer=GTrXLConfig())
+    if policy_architecture is None:
+        policy_architecture = TransformerPolicyConfig(transformer=GTrXLConfig())
+
     tool = base.train(
         curriculum=curriculum,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
-        policy_architecture=policy,
+        policy_architecture=policy_architecture,
     )
 
-    if isinstance(policy, TransformerPolicyConfig):
-        hint = policy.learning_rate_hint
+    if isinstance(policy_architecture, TransformerPolicyConfig):
+        hint = policy_architecture.learning_rate_hint
         optimizer = tool.trainer.optimizer
         if hint is not None and optimizer.learning_rate == DEFAULT_LR:
             optimizer.learning_rate = hint
