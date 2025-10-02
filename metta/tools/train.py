@@ -316,6 +316,15 @@ class TrainTool(Tool):
         except Exception as exc:  # pragma: no cover - diagnostic only
             logger.debug("Skipping CUDA matmul backend configuration: %s", exc)
 
+        # Opportunistically enable flash attention when available
+        if os.environ.get("FLASH_ATTENTION") is None:
+            try:
+                import flash_attn  # noqa: F401
+            except ImportError:
+                pass
+            else:
+                os.environ["FLASH_ATTENTION"] = "1"
+
         context = build_sdpa_context(
             prefer_flash=True,
             prefer_mem_efficient=True,

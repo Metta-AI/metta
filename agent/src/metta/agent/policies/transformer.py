@@ -173,6 +173,13 @@ class TransformerPolicy(Policy):
         self._diag_train_logged = False
 
         if torch.cuda.is_available():
+            if os.environ.get("FLASH_ATTENTION") is None:
+                try:
+                    import flash_attn  # noqa: F401
+                except ImportError:
+                    pass
+                else:
+                    os.environ["FLASH_ATTENTION"] = "1"
             torch.backends.cuda.matmul.allow_tf32 = True
             self._autocast_enabled = True
             self._autocast_dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
