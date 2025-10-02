@@ -201,53 +201,19 @@ class ClipperConfig(Config):
     based on distance from already-clipped buildings. The length_scale parameter
     controls the exponential decay: weight = exp(-distance / length_scale).
 
-    By default, length_scale is automatically calculated in the C++ layer after
-    map generation, based on percolation theory using the actual grid size and
-    number of buildings placed. Set auto_length_scale=False to use a manual
-    length_scale value instead.
+    If length_scale is <= 0 (default -1.0), it will be automatically calculated
+    at runtime in C++ using percolation theory based on the actual grid size and
+    number of buildings placed. Set length_scale > 0 to use a manual value instead.
     """
 
     recipe: RecipeConfig = Field(default_factory=RecipeConfig)
     length_scale: float = Field(
-        default=1.0,
-        ge=0.0,
+        default=-1.0,
         description="Controls spatial spread rate: weight = exp(-distance / length_scale). "
-        "Ignored if auto_length_scale=True (calculated in C++ after map generation)",
+        "If <= 0, automatically calculated using percolation theory at runtime.",
     )
     cutoff_distance: float = Field(default=0.0, ge=0.0)
     clip_rate: float = Field(default=0.0, ge=0.0, le=1.0)
-    auto_length_scale: bool = Field(
-        default=True,
-        description="Automatically calculate length_scale from percolation theory after map generation",
-    )
-    length_scale_factor: float = Field(
-        default=1.0,
-        ge=0.0,
-        description="Tuning factor for percolation-based length scale (only used if auto_length_scale=True)",
-    )
-
-    @model_validator(mode="after")
-    def validate_length_scale_config(self) -> "ClipperConfig":
-        """Warn users about potential configuration issues."""
-        import warnings
-
-        # Warn if user set length_scale but forgot to disable auto
-        if self.auto_length_scale and self.length_scale != 1.0:
-            warnings.warn(
-                f"length_scale={self.length_scale} will be overridden by auto-calculation. "
-                "Set auto_length_scale=False to use your manual value.",
-                UserWarning,
-                stacklevel=2,
-            )
-
-        # Warn if factor is set but auto is disabled
-        if not self.auto_length_scale and self.length_scale_factor != 1.0:
-            warnings.warn(
-                "length_scale_factor is ignored when auto_length_scale=False",
-                UserWarning,
-                stacklevel=2,
-            )
-        return self
 
 
 class GameConfig(Config):

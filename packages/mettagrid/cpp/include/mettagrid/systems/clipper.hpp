@@ -3,6 +3,7 @@
 
 #include <cmath>
 #include <memory>
+#include <numbers>
 #include <vector>
 
 #include "core/grid.hpp"
@@ -19,15 +20,13 @@ public:
   Grid& grid;
   float clip_rate;
 
-  Clipper(Grid& grid, std::shared_ptr<Recipe> recipe_ptr, float length_scale, float cutoff_distance, float clip_rate,
-          bool auto_length_scale = true, float length_scale_factor = 1.0f)
+  Clipper(Grid& grid, std::shared_ptr<Recipe> recipe_ptr, float length_scale, float cutoff_distance, float clip_rate)
       : recipe(std::move(recipe_ptr)),
         length_scale(length_scale),
         cutoff_distance(cutoff_distance),
         grid(grid),
         clip_rate(clip_rate) {
-    // Count actual assemblers on the map (excluding clip-immune)
-    size_t num_assemblers = 0;
+    // Populate assembler map (excluding clip-immune)
     for (size_t obj_id = 1; obj_id < grid.objects.size(); obj_id++) {
       auto* obj = grid.object(static_cast<GridObjectId>(obj_id));
       if (!obj) continue;
@@ -36,12 +35,11 @@ public:
         if (assembler->clip_immune) continue;
         assembler_infection_weight[assembler] = 0.0f;
         unclipped_assemblers.insert(assembler);
-        num_assemblers++;
       }
     }
 
-    // Auto-calculate length_scale based on percolation theory if enabled
-    if (auto_length_scale && num_assemblers > 0) {
+    // Auto-calculate length_scale based on percolation theory if length_scale <= 0
+    if (length_scale <= 0.0f && !assembler_infection_weight.empty()) {
       // Get grid dimensions
       GridCoord grid_width = grid.width;
       GridCoord grid_height = grid.height;
@@ -51,10 +49,11 @@ public:
       // Formula: (grid_size / sqrt(num_buildings)) * sqrt(4.51 / (4*π))
       // The constant 4.51 is the critical percolation density for 2D continuum percolation
       constexpr float PERCOLATION_CONSTANT = 4.51f;
-      constexpr float PI = 3.14159265358979323846f;
+      size_t num_assemblers = assembler_infection_weight.size();
       float theoretical_length_scale =
-          (grid_size / std::sqrt(static_cast<float>(num_assemblers))) * std::sqrt(PERCOLATION_CONSTANT / (4.0f * PI));
-      this->length_scale = theoretical_length_scale * length_scale_factor;
+          (grid_size / std::sqrt(static_cast<float>(num_assemblers))) *
+          std::sqrt(PERCOLATION_CONSTANT / (4.0f * std::numbers::pi_v<float>));
+      this->length_scale = theoretical_length_scale;
     }
     // else: use the provided length_scale value
   }
