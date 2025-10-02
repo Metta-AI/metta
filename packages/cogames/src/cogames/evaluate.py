@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import math
 import re
+import time
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor
-from concurrent.futures import TimeoutError as FUT_TIMEOUT
 from copy import deepcopy
 from typing import TYPE_CHECKING, Optional
 
@@ -68,7 +67,6 @@ def evaluate(
 
     # Load env and policies
     env = MettaGridEnv(env_cfg=env_cfg)
-    noop = np.zeros(env.action_space.shape, dtype=env.action_space.dtype)
 
     policy_instances = [
         initialize_or_load_policy(spec.policy_class_path, spec.policy_data_path, env) for spec in policy_specs
@@ -88,44 +86,38 @@ def evaluate(
     per_policy_timeouts = defaultdict(int)
 
     # Run episodes
-    with ThreadPoolExecutor(max_workers=env.num_agents) as pool:
-        progress_label = "Evaluating episodes"
-        rng = np.random.default_rng(seed)
-        with typer.progressbar(range(episodes), label=progress_label) as progress:
-            for episode_idx in progress:
-                obs, _ = env.reset(seed=seed + episode_idx)
-                # Shuffle assignments in place
-                rng.shuffle(assignments)
-                agent_policies = [
-                    policy_instances[assignments[agent_id]].agent_policy(agent_id) for agent_id in range(env.num_agents)
-                ]
-                for agent_policy in agent_policies:
-                    agent_policy.reset()
+    progress_label = "Evaluating episodes"
+    rng = np.random.default_rng(seed)
+    noop = np.zeros(env.action_space.shape[0], dtype=env.action_space.dtype)
+    with typer.progressbar(range(episodes), label=progress_label) as progress:
+        for episode_idx in progress:
+            obs, _ = env.reset(seed=seed + episode_idx)
+            # Shuffle assignments in place
+            rng.shuffle(assignments)
+            agent_policies = [
+                policy_instances[assignments[agent_id]].agent_policy(agent_id) for agent_id in range(env.num_agents)
+            ]
+            for agent_policy in agent_policies:
+                agent_policy.reset()
 
-                done = np.zeros(env.num_agents, dtype=bool)
-                truncated = np.zeros(env.num_agents, dtype=bool)
+            done = np.zeros(env.num_agents, dtype=bool)
+            truncated = np.zeros(env.num_agents, dtype=bool)
+            while not done.all() and not truncated.all():
+                actions = np.zeros((env.num_agents, env.action_space.shape[0]), dtype=env.action_space.dtype)
+                for i in range(env.num_agents):
+                    start_time = time.time()
+                    action, _ = agent_policies[i].step(obs[i])
+                    end_time = time.time()
+                    if (end_time - start_time) > action_timeout_ms / 1000:
+                        per_policy_timeouts[assignments[i]] += 1
+                        action = noop
+                    actions[i] = action
+                obs, rewards, done, truncated, _ = env.step(actions)
 
-                while not done.all() and not truncated.all():
-                    futures = [pool.submit(agent_policies[i].step, obs[i]) for i in range(env.num_agents)]
-                    actions = []
-                    for i, fut in enumerate(futures):
-                        try:
-                            a = fut.result(timeout=action_timeout_ms / 1000)
-                        except FUT_TIMEOUT:
-                            a = noop
-                            per_policy_timeouts[assignments[i]] += 1
-                        except Exception as e:
-                            a = noop
-                            typer.echo(f"[red]agent {i} failed: {e}; using noop[/red]")
-                        actions.append(np.asarray(a))
+            per_episode_rewards.append(np.array(env.get_episode_rewards(), dtype=float))
 
-                    actions = np.stack(actions, axis=0)
-                    obs, rewards, done, truncated, _ = env.step(actions)
-
-                per_episode_rewards.append(np.array(env.get_episode_rewards(), dtype=float))
-
-                per_episode_stats.append(deepcopy(env.get_episode_stats()))
-                per_episode_assignments.append(assignments.copy())
+            per_episode_stats.append(deepcopy(env.get_episode_stats()))
+            per_episode_assignments.append(assignments.copy())
 
     # Report results
 
@@ -196,7 +188,7 @@ def evaluate(
     console.print(summary_table)
 
     if per_policy_timeouts:
-        console.print("\n[bold cyan]Action Generation Timeouts per Policy[/bold cyan]")
+        console.print("\n[bold cyan]Action Generation Timeouts per[/bold cyan]")
         for policy_idx, timeouts in per_policy_timeouts.items():
             policy_name = policy_names[policy_idx]
             console.print(f"Policy {policy_name}: {timeouts} timeouts")
