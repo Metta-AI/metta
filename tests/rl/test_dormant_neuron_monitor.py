@@ -1,5 +1,7 @@
 """Tests for dormant neuron monitor component."""
 
+from unittest.mock import Mock
+
 import torch
 
 from metta.rl.training.dormant_neuron_monitor import DormantNeuronMonitor, DormantNeuronMonitorConfig
@@ -16,17 +18,24 @@ class TestDormantNeuronMonitor:
         assert config.min_layer_size == 10
         assert config.track_by_layer is True
         assert config.track_overall is True
+        assert config.report_to_wandb is True
 
     def test_config_custom_values(self):
         """Test that config can be created with custom values."""
         config = DormantNeuronMonitorConfig(
-            epoch_interval=5, weight_threshold=1e-4, min_layer_size=20, track_by_layer=False, track_overall=True
+            epoch_interval=5,
+            weight_threshold=1e-4,
+            min_layer_size=20,
+            track_by_layer=False,
+            track_overall=True,
+            report_to_wandb=False,
         )
         assert config.epoch_interval == 5
         assert config.weight_threshold == 1e-4
         assert config.min_layer_size == 20
         assert config.track_by_layer is False
         assert config.track_overall is True
+        assert config.report_to_wandb is False
 
     def test_monitor_initialization(self):
         """Test that monitor can be initialized."""
@@ -164,3 +173,38 @@ class TestDormantNeuronMonitor:
 
         # Since all layers are too small, we should get no stats at all
         assert len(stats) == 0
+
+    def test_wandb_integration_without_wandb_run(self):
+        """Test that monitor works without wandb run."""
+        config = DormantNeuronMonitorConfig(weight_threshold=0.1, min_layer_size=1)
+        monitor = DormantNeuronMonitor(config, wandb_run=None)
+
+        assert monitor._wandb_enabled is False
+        status = monitor.get_wandb_status()
+        assert status["wandb_enabled"] is False
+        assert status["wandb_run_available"] is False
+        assert status["report_to_wandb"] is True
+
+    def test_wandb_integration_with_wandb_run(self):
+        """Test that monitor works with wandb run."""
+        config = DormantNeuronMonitorConfig(weight_threshold=0.1, min_layer_size=1)
+        mock_wandb_run = Mock()
+        monitor = DormantNeuronMonitor(config, wandb_run=mock_wandb_run)
+
+        assert monitor._wandb_enabled is True
+        status = monitor.get_wandb_status()
+        assert status["wandb_enabled"] is True
+        assert status["wandb_run_available"] is True
+        assert status["report_to_wandb"] is True
+
+    def test_wandb_integration_disabled(self):
+        """Test that monitor works when wandb reporting is disabled."""
+        config = DormantNeuronMonitorConfig(weight_threshold=0.1, min_layer_size=1, report_to_wandb=False)
+        mock_wandb_run = Mock()
+        monitor = DormantNeuronMonitor(config, wandb_run=mock_wandb_run)
+
+        assert monitor._wandb_enabled is False
+        status = monitor.get_wandb_status()
+        assert status["wandb_enabled"] is False
+        assert status["wandb_run_available"] is True
+        assert status["report_to_wandb"] is False

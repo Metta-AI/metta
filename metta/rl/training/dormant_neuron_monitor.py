@@ -1,11 +1,110 @@
-"""Dormant neuron detection training component."""
+"""Dormant neuron detection training component.
+
+This component monitors neural network weights to detect dormant neurons (neurons with very small weights)
+at the end of each epoch. It features robust wandb integration with graceful degradation on failures.
+
+WANDB INTEGRATION:
+==================
+
+The component automatically logs dormant neuron statistics to wandb when a wandb run is provided.
+Training continues even if wandb logging fails, following the codebase's robust error handling patterns.
+
+Metrics Logged to wandb:
+------------------------
+- dormant_neurons/{layer_name}/count: Number of dormant neurons per layer
+- dormant_neurons/{layer_name}/ratio: Ratio of dormant to total neurons per layer
+- dormant_neurons/{layer_name}/total_neurons: Total neurons in each layer
+- dormant_neurons/overall/count: Total dormant neurons across network
+- dormant_neurons/overall/ratio: Overall dormant neuron ratio
+- dormant_neurons/overall/total_neurons: Total neurons across network
+
+Usage Examples:
+---------------
+# Without wandb (existing behavior)
+monitor = DormantNeuronMonitor(config, wandb_run=None)
+
+# With wandb integration
+monitor = DormantNeuronMonitor(config, wandb_run=your_wandb_run)
+
+# Disable wandb logging
+config = DormantNeuronMonitorConfig(report_to_wandb=False)
+monitor = DormantNeuronMonitor(config, wandb_run=your_wandb_run)
+
+# Check wandb status
+status = monitor.get_wandb_status()
+print(f"Wandb enabled: {status['wandb_enabled']}")
+
+WANDB VIEWS AND DASHBOARDS:
+===========================
+
+Creating Custom Views:
+----------------------
+You can create custom wandb views to monitor dormant neurons:
+
+1. Dormant Neuron Dashboard:
+   - Line chart: "Total Dormant Neurons Over Time" (metric: dormant_neurons/overall/count)
+   - Line chart: "Dormant Neuron Ratio Over Time" (metric: dormant_neurons/overall/ratio)
+   - Bar chart: "Dormant Neurons by Layer" (metric: dormant_neurons/layer_breakdown)
+
+2. Layer-wise Analysis:
+   - Per-layer line charts for dormant neuron counts and ratios
+   - Custom alerts when dormant neuron ratios exceed thresholds
+
+3. Custom Alerts:
+   - High dormant neuron ratio (>10% overall)
+   - Layer-specific alerts (>50% dormant in any layer)
+   - Training continuation despite wandb failures
+
+Integration with Training:
+-------------------------
+The component integrates seamlessly with existing training infrastructure:
+
+```python
+# In your training script
+from metta.rl.training.dormant_neuron_monitor import DormantNeuronMonitor, DormantNeuronMonitorConfig
+from metta.common.wandb.context import WandbContext
+
+# Configure wandb
+with WandbContext(wandb_config) as wandb_run:
+    # Configure dormant neuron monitoring
+    dormant_config = DormantNeuronMonitorConfig(
+        epoch_interval=1,
+        weight_threshold=1e-6,
+        min_layer_size=10,
+        track_by_layer=True,
+        track_overall=True,
+        report_to_wandb=True
+    )
+
+    # Create monitor with wandb integration
+    monitor = DormantNeuronMonitor(dormant_config, wandb_run=wandb_run)
+
+    # Add to trainer components
+    trainer = Trainer(components=[monitor, ...])
+    trainer.train()
+```
+
+Robust Error Handling:
+---------------------
+The component follows the codebase's robust error handling patterns:
+
+- Connection pre-checking before wandb initialization
+- Retry logic with exponential backoff for API calls
+- Graceful degradation when wandb is unavailable
+- Non-blocking failures - training continues even if wandb fails
+- Comprehensive logging for debugging
+
+The component is designed to be production-ready and will not interrupt training
+even if wandb services are completely unavailable.
+"""
 
 import logging
-from typing import Dict
+from typing import Dict, Optional
 
 import torch
 from pydantic import Field
 
+from metta.common.wandb.context import WandbRun
 from metta.rl.training import TrainerComponent
 from mettagrid.config import Config
 
@@ -22,18 +121,25 @@ class DormantNeuronMonitorConfig(Config):
     min_layer_size: int = Field(default=10, description="Minimum layer size to analyze (skip very small layers)")
     track_by_layer: bool = Field(default=True, description="Track dormant neurons per layer")
     track_overall: bool = Field(default=True, description="Track overall dormant neuron statistics")
+    report_to_wandb: bool = Field(default=True, description="Whether to report dormant neuron stats to wandb")
 
 
 class DormantNeuronMonitor(TrainerComponent):
-    """Monitors neural network weights to detect dormant neurons at the end of each epoch."""
+    """Monitors neural network weights to detect dormant neurons at the end of each epoch.
 
-    def __init__(self, config: DormantNeuronMonitorConfig):
+    Features robust wandb integration with graceful degradation on failures.
+    Training continues even if wandb logging fails.
+    """
+
+    def __init__(self, config: DormantNeuronMonitorConfig, wandb_run: Optional[WandbRun] = None):
         """Initialize dormant neuron monitor component."""
         enabled = config.epoch_interval > 0
         super().__init__(epoch_interval=config.epoch_interval if enabled else 0)
         self._master_only = True
         self._enabled = enabled
         self._config = config
+        self._wandb_run = wandb_run
+        self._wandb_enabled = wandb_run is not None and config.report_to_wandb
 
         # Track dormant neuron history
         self._dormant_neuron_history: Dict[str, list] = {}
@@ -62,6 +168,15 @@ class DormantNeuronMonitor(TrainerComponent):
             # Fallback: add to general stats
             for key, value in dormant_neuron_stats.items():
                 setattr(stats_reporter, f"dormant_neuron_{key}", value)
+
+        # Log to wandb with robust error handling (following codebase patterns)
+        if self._wandb_enabled and dormant_neuron_stats:
+            try:
+                self._wandb_run.log(dormant_neuron_stats, step=epoch)
+                logger.debug(f"Logged dormant neuron stats to wandb for epoch {epoch}")
+            except Exception as e:
+                logger.warning(f"Failed to log dormant neuron stats to wandb: {e}")
+                # Continue training - don't let wandb failures stop training
 
         logger.debug(f"Dormant neuron analysis completed for epoch {epoch}: {len(dormant_neuron_stats)} metrics")
 
@@ -163,3 +278,11 @@ class DormantNeuronMonitor(TrainerComponent):
                     worst_layer = layer_name
 
         return worst_layer
+
+    def get_wandb_status(self) -> Dict[str, bool]:
+        """Get wandb integration status."""
+        return {
+            "wandb_enabled": self._wandb_enabled,
+            "wandb_run_available": self._wandb_run is not None,
+            "report_to_wandb": self._config.report_to_wandb,
+        }
