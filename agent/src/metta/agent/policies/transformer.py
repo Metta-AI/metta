@@ -6,7 +6,7 @@ import contextlib
 import logging
 import math
 import os
-from typing import Dict, List, Optional, Tuple, Type
+from typing import Dict, List, Optional, Tuple, TypeAlias
 
 import torch
 from einops import rearrange
@@ -17,6 +17,10 @@ from torch import nn
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 import pufferlib.pytorch
+from metta.agent.components import gtrxl as backbone_gtrxl
+from metta.agent.components import sliding as backbone_sliding
+from metta.agent.components import trxl as backbone_trxl
+from metta.agent.components import trxl_nvidia as backbone_trxl_nvidia
 from metta.agent.components.action import ActionEmbedding, ActionEmbeddingConfig
 from metta.agent.components.actor import (
     ActionProbsConfig,
@@ -28,10 +32,24 @@ from metta.agent.components.actor import (
 from metta.agent.components.obs_enc import ObsPerceiverLatent, ObsPerceiverLatentConfig
 from metta.agent.components.obs_shim import ObsShimTokens, ObsShimTokensConfig
 from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourier, ObsAttrEmbedFourierConfig
-from metta.agent.components.transformers import BACKBONE_CONFIGS, TransformerBackboneConfigType
 from metta.agent.policy import Policy, PolicyArchitecture
 
 logger = logging.getLogger(__name__)
+
+
+TransformerBackboneConfigType: TypeAlias = (
+    backbone_gtrxl.GTrXLConfig
+    | backbone_trxl.TRXLConfig
+    | backbone_trxl_nvidia.TRXLNvidiaConfig
+    | backbone_sliding.SlidingTransformerBackboneConfig
+)
+
+BACKBONE_CONFIGS: dict[str, type[TransformerBackboneConfigType]] = {
+    "gtrxl": backbone_gtrxl.GTrXLConfig,
+    "trxl": backbone_trxl.TRXLConfig,
+    "trxl_nvidia": backbone_trxl_nvidia.TRXLNvidiaConfig,
+    "sliding": backbone_sliding.SlidingTransformerBackboneConfig,
+}
 
 
 def _tensor_stats(tensor: torch.Tensor, name: str) -> str:
@@ -87,7 +105,7 @@ class TransformerPolicyConfig(PolicyArchitecture):
     @model_validator(mode="after")
     def _apply_variant_defaults(self) -> "TransformerPolicyConfig":
         variant_name = self.variant
-        config_type: Type | None = BACKBONE_CONFIGS.get(variant_name)
+        config_type: type[TransformerBackboneConfigType] | None = BACKBONE_CONFIGS.get(variant_name)
         if config_type is None:
             raise ValueError(f"Unknown transformer variant '{variant_name}'")
 
