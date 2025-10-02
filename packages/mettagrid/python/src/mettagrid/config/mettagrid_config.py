@@ -101,6 +101,15 @@ class ChangeGlyphActionConfig(ActionConfig):
     number_of_glyphs: int = Field(default=0, ge=0, le=255)
 
 
+class ResourceModActionConfig(ActionConfig):
+    """Resource mod action configuration."""
+
+    modifies: dict[str, float] = Field(default_factory=dict)
+    agent_radius: int = Field(default=0, ge=0, le=255)
+    converter_radius: int = Field(default=0, ge=0, le=255)
+    scales: bool = Field(default=False)
+
+
 class ActionsConfig(Config):
     """
     Actions configuration.
@@ -117,6 +126,7 @@ class ActionsConfig(Config):
     swap: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     change_color: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     change_glyph: ChangeGlyphActionConfig = Field(default_factory=lambda: ChangeGlyphActionConfig(enabled=False))
+    resource_mod: ResourceModActionConfig = Field(default_factory=lambda: ResourceModActionConfig(enabled=False))
 
 
 class GlobalObsConfig(Config):
