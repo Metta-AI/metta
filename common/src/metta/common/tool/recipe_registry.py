@@ -29,14 +29,24 @@ class RecipeRegistry:
             self._discovered = True
 
     def get(self, module_path: str) -> Recipe | None:
-        """Get a recipe by module path."""
+        """Get a recipe by module path (tries both short and full paths)."""
         self._ensure_discovered()
-        return self._recipes.get(module_path)
+
+        # Try exact match first
+        if module_path in self._recipes:
+            return self._recipes[module_path]
+
+        # Try with prefix if it's a short name
+        if not module_path.startswith("experiments.recipes."):
+            full_path = f"experiments.recipes.{module_path}"
+            if full_path in self._recipes:
+                return self._recipes[full_path]
+
+        return None
 
     def has(self, module_path: str) -> bool:
         """Check if a recipe exists at the given module path."""
-        self._ensure_discovered()
-        return module_path in self._recipes
+        return self.get(module_path) is not None
 
     def get_all(self) -> list[Recipe]:
         """Get all discovered recipes."""

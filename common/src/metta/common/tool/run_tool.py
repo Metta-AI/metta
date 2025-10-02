@@ -21,9 +21,8 @@ from rich.console import Console
 from typing_extensions import TypeVar
 
 from metta.common.tool import Tool
-from metta.common.tool.recipe import Recipe
 from metta.common.tool.recipe_registry import get_recipe_registry
-from metta.common.tool.tool_path import normalize_module_path, resolve_and_load_tool, strip_recipe_prefix
+from metta.common.tool.tool_path import resolve_and_load_tool
 from metta.common.tool.tool_registry import get_tool_registry
 from metta.common.util.log_config import init_logging
 from metta.common.util.text_styles import bold, cyan, green, red, yellow
@@ -403,11 +402,10 @@ def list_all_recipes(console: Console) -> None:
         return
 
     for recipe in sorted(recipes, key=lambda r: r.module_name):
-        short_name = strip_recipe_prefix(recipe.module_name)
         tool_names = recipe.get_all_tool_names()
 
         if tool_names:
-            console.print(f"[bold]{short_name}[/bold]")
+            console.print(f"[bold]{recipe.short_name}[/bold]")
             for tool_name in sorted(tool_names):
                 console.print(f"  └─ {tool_name}")
             console.print()
@@ -415,22 +413,20 @@ def list_all_recipes(console: Console) -> None:
 
 def list_module_tools(module_path: str, console: Console) -> bool:
     """List all tools available in a module. Returns True if successful."""
-    # Try to load recipe with normalized path
-    for module_name in normalize_module_path(module_path):
-        recipe = Recipe.load(module_name)
-        if not recipe:
-            continue
+    # Try to load recipe (handles both short and full paths)
+    recipe_registry = get_recipe_registry()
+    recipe = recipe_registry.get(module_path)
 
-        tool_names = recipe.get_all_tool_names()
+    if not recipe:
+        return False
 
-        # Display results
-        console.print(f"\n[bold]Available tools in {module_name}:[/bold]\n")
-        short_mod = strip_recipe_prefix(module_name)
-        for name in sorted(tool_names):
-            console.print(f"  {short_mod}.{name}")
-        return True
+    tool_names = recipe.get_all_tool_names()
 
-    return False
+    # Display results
+    console.print(f"\n[bold]Available tools in {recipe.module_name}:[/bold]\n")
+    for name in sorted(tool_names):
+        console.print(f"  {recipe.short_name}.{name}")
+    return True
 
 
 # --------------------------------------------------------------------------------------
@@ -549,10 +545,9 @@ constructor/function vs configuration overrides based on introspection.
             for recipe in sorted(recipes, key=lambda r: r.module_name):
                 tools = recipe.get_tools_for_canonical(canonical_tool)
                 if tools:
-                    short_name = strip_recipe_prefix(recipe.module_name)
                     # Show all function names that provide this tool
                     for func_name, _ in tools:
-                        console.print(f"  {short_name}.{func_name}")
+                        console.print(f"  {recipe.short_name}.{func_name}")
                     found_any = True
 
             if not found_any:
@@ -599,16 +594,15 @@ constructor/function vs configuration overrides based on introspection.
         if "." in tool_path:
             module_part = tool_path.rsplit(".", 1)[0]
 
-            # Try loading with normalized path
-            for normalized in normalize_module_path(module_part):
-                recipe = Recipe.load(normalized)
-                if recipe:
-                    mg, sims = recipe.get_configs()
-                    if mg is not None or sims is not None:
-                        registry = get_tool_registry()
-                        output_info(f"\n{yellow('Hint:')} Recipe module exists but tool not found.")
-                        output_info(f"Available inferred tools: {', '.join(registry.get_tool_display_names())}")
-                    break
+            # Try loading recipe (handles both short and full paths)
+            recipe_registry = get_recipe_registry()
+            recipe = recipe_registry.get(module_part)
+            if recipe:
+                mg, sims = recipe.get_configs()
+                if mg is not None or sims is not None:
+                    registry = get_tool_registry()
+                    output_info(f"\n{yellow('Hint:')} Recipe module exists but tool not found.")
+                    output_info(f"Available inferred tools: {', '.join(registry.get_tool_display_names())}")
 
         return 1
 
