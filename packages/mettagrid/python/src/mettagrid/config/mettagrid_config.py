@@ -168,7 +168,6 @@ class RecipeConfig(Config):
     input_resources: dict[str, int] = Field(default_factory=dict)
     output_resources: dict[str, int] = Field(default_factory=dict)
     cooldown: int = Field(ge=0, default=0)
-    max_use: Optional[int] = Field(ge=0, default=None)
 
 
 class AssemblerConfig(GridObjectConfig):
