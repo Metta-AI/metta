@@ -4,7 +4,7 @@ The tool runner loads a Tool from a recipe module, applies CLI overrides, and in
 
 ## Recipe Discovery
 
-Recipes are automatically discovered from the `experiments/recipes` directory and all subdirectories.
+Recipes are automatically discovered from the `experiments/recipes` directory using `pkgutil.walk_packages()`.
 
 **Important**: Python requires subdirectories to have `__init__.py` files to be importable as packages. If you create a new subdirectory for recipes, run:
 
