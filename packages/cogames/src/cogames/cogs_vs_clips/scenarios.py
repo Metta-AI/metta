@@ -159,6 +159,8 @@ def games() -> dict[str, MettaGridConfig]:
         # "chest_4": tutorial_chest(num_cogs=4),
         # Biomes dungeon maps with stations
         "machina_1": make_game_from_map("cave_base_50.map"),
+        "machina_2": make_game_from_map("machina_100_stations.map"),
+        "machina_3": make_game_from_map("machina_200_stations.map"),
         "machina_1_big": make_game_from_map("canidate1_500_stations.map"),
         "machina_2_bigger": make_game_from_map("canidate1_1000_stations.map"),
         "machina_3_big": make_game_from_map("canidate2_500_stations.map"),
