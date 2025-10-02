@@ -5,5 +5,4 @@ __all__ = [
     "trxl",
     "trxl_nvidia",
     "vit",
-    "sliding",
 ]

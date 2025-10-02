@@ -3,9 +3,8 @@ from typing import List, Optional, Sequence
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
 from metta.agent.policies.transformer import (
-    TransformerBackboneConfig,
-    TransformerBackboneVariant,
     TransformerPolicyConfig,
+    TransformerBackboneVariant,
 )
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
@@ -105,7 +104,7 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
 def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
-    policy_architecture: PolicyArchitecture | str | None = None,
+    policy_architecture: Optional[PolicyArchitecture] = None,
 ) -> TrainTool:
     curriculum = curriculum or make_curriculum(
         enable_detailed_slice_logging=enable_detailed_slice_logging
@@ -118,32 +117,7 @@ def train(
 
     if policy_architecture is None:
         policy_architecture = TransformerPolicyConfig(
-            variant=TransformerBackboneVariant.GTRXL,
-            transformer=TransformerBackboneConfig(
-                variant=TransformerBackboneVariant.GTRXL,
-                latent_size=36,
-                hidden_size=36,
-                num_layers=3,
-                n_heads=4,
-                d_ff=128,
-                max_seq_len=80,
-                memory_len=20,
-                dropout=0.0,
-                attn_dropout=0.0,
-                pre_lnorm=True,
-                same_length=False,
-                clamp_len=-1,
-                positional_scale=0.1,
-                use_gating=True,
-                ext_len=0,
-                activation_checkpoint=False,
-                use_flash_checkpoint=False,
-                allow_tf32=True,
-                use_fused_layernorm=False,
-            ),
-            critic_hidden_dim=288,
-            actor_hidden_dim=144,
-            action_embedding_dim=13,
+            variant=TransformerBackboneVariant.GTRXL
         )
 
     return TrainTool(

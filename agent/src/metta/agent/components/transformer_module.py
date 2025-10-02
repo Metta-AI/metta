@@ -223,7 +223,6 @@ class GTrXLMultiHeadSelfAttention(nn.Module):
             q_flash = q.permute(0, 3, 1, 2)  # (batch, seq, heads, d)
             k_flash = k.permute(0, 3, 1, 2)
             v_flash = v.permute(0, 3, 1, 2)
-
             def _flash(q_t, k_t, v_t):
                 return flash_attn_func(
                     q_t,
@@ -479,7 +478,6 @@ class GTrXLModule(nn.Module):
                         attn_mask = self._get_causal_mask(total_len, device)
 
                     if self.use_activation_checkpoint and combined.requires_grad:
-
                         def _layer_run(inp, *, _layer=layer, _mask=attn_mask):
                             return _layer(inp, _mask)
 
@@ -538,10 +536,7 @@ class XLPositionalEmbedding(nn.Module):
         self.register_buffer("inv_freq", inv_freq)
 
     def forward(self, positions: torch.Tensor, batch_size: Optional[int] = None) -> torch.Tensor:
-        inv_freq = self.inv_freq
-        if inv_freq.device != positions.device or inv_freq.dtype != positions.dtype:
-            inv_freq = inv_freq.to(device=positions.device, dtype=positions.dtype)
-        sinusoid_inp = torch.outer(positions, inv_freq)
+        sinusoid_inp = torch.outer(positions, self.inv_freq)
         pos_emb = torch.cat([sinusoid_inp.sin(), sinusoid_inp.cos()], dim=-1)
         if batch_size is not None:
             return pos_emb[:, None, :].expand(-1, batch_size, -1)
@@ -663,8 +658,6 @@ class XLRelPartialLearnableMultiHeadAttn(XLRelMultiHeadAttn):
         mems: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         qlen, rlen, batch_size = content.size(0), rel_pos.size(0), content.size(1)
-        if attn_mask is not None and attn_mask.device != content.device:
-            attn_mask = attn_mask.to(device=content.device)
 
         if mems is not None:
             cat = torch.cat([mems, content], dim=0)
@@ -921,8 +914,6 @@ class TransformerXLModule(nn.Module):
                 if self.clamp_len > 0:
                     pos_seq = pos_seq.clamp(max=float(self.clamp_len))
                 pos_emb = self.pos_emb(pos_seq)
-                if pos_emb.device != device or pos_emb.dtype != dtype:
-                    pos_emb = pos_emb.to(device=device, dtype=dtype)
                 pos_emb = self.drop(pos_emb)
 
             core_out = self.drop(inputs)
@@ -934,7 +925,9 @@ class TransformerXLModule(nn.Module):
 
                     if self.use_activation_checkpoint and core_out.requires_grad:
                         placeholder = (
-                            mem_layer if mem_layer is not None else core_out.new_zeros(0, batch_size, self.d_model)
+                            mem_layer
+                            if mem_layer is not None
+                            else core_out.new_zeros(0, batch_size, self.d_model)
                         )
 
                         def _layer_run(
