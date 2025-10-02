@@ -203,8 +203,6 @@ class GTrXLMultiHeadSelfAttention(nn.Module):
         qkv = qkv.permute(2, 1, 3, 0, 4)  # (3, batch, heads, seq, d_k)
         q, k, v = qkv[0], qkv[1], qkv[2]
 
-        dropout_p = self._attn_dropout_p if self.training else 0.0
-
         # Explicit masking attention path
         q_2d = q.reshape(batch_size * self.n_heads, seq_len, self.d_k)
         k_2d = k.reshape(batch_size * self.n_heads, seq_len, self.d_k)

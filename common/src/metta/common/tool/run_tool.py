@@ -9,6 +9,7 @@ import inspect
 import json
 import logging
 import os
+import platform
 import signal
 import sys
 import tempfile
@@ -46,6 +47,27 @@ def init_mettagrid_system_environment() -> None:
     warnings.filterwarnings("ignore", category=DeprecationWarning)
     warnings.filterwarnings("ignore", category=DeprecationWarning, module="pkg_resources")
     warnings.filterwarnings("ignore", category=DeprecationWarning, module="pygame.pkgdata")
+
+    _enable_flash_attention_default()
+
+
+def _enable_flash_attention_default() -> None:
+    if platform.system() == "Darwin":
+        return
+    if os.environ.get("FLASH_ATTENTION"):
+        return
+    try:
+        import torch
+
+        if not torch.cuda.is_available():
+            return
+        try:
+            import flash_attn  # noqa: F401
+        except ImportError:
+            return
+        os.environ["FLASH_ATTENTION"] = "1"
+    except Exception:  # pragma: no cover - best effort
+        logger.debug("Unable to enable flash attention by default", exc_info=True)
 
 
 T = TypeVar("T", bound=Config)
@@ -116,6 +138,11 @@ def parse_value(value_str: str) -> Any:
 
     return value_str
 
+CLI_KEY_ALIASES: dict[str, str] = {
+    "policy": "policy_architecture",
+    "policy_config": "policy_architecture",
+}
+
 
 def parse_cli_args(cli_args: list[str]) -> dict[str, Any]:
     """Parse CLI arguments in key=value format, keeping dotted keys flat."""
@@ -125,7 +152,8 @@ def parse_cli_args(cli_args: list[str]) -> dict[str, Any]:
         if "=" not in arg:
             raise ValueError(f"Invalid argument format: {arg}. Expected key=value")
         key, value = arg.split("=", 1)
-        parsed[key] = parse_value(value)
+        canonical_key = CLI_KEY_ALIASES.get(key, key)
+        parsed[canonical_key] = parse_value(value)
     return parsed
 
 

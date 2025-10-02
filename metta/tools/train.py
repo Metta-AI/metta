@@ -7,8 +7,11 @@ from typing import Optional
 import torch
 from pydantic import Field, model_validator
 
+from metta.agent.components.transformers import get_backbone_spec
+from metta.agent.policies.transformer import TransformerPolicyConfig
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
+from metta.agent.util.torch_backends import build_sdpa_context
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
 from metta.common.util.heartbeat import record_heartbeat
@@ -16,7 +19,7 @@ from metta.common.util.log_config import getRankAwareLogger, init_logging
 from metta.common.wandb.context import WandbConfig, WandbContext
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.trainer import Trainer
-from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
+from metta.rl.trainer_config import OptimizerConfig, TorchProfilerConfig, TrainerConfig
 from metta.rl.training import (
     Checkpointer,
     CheckpointerConfig,
@@ -86,6 +89,16 @@ class TrainTool(Tool):
                     "to ensure policies are saved before evaluation"
                 )
 
+        if isinstance(self.policy_architecture, TransformerPolicyConfig):
+            spec = get_backbone_spec(self.policy_architecture.variant)
+            hint = spec.policy_defaults.get("learning_rate_hint")
+            if (
+                hint is not None
+                and self.trainer.optimizer.learning_rate
+                == OptimizerConfig.model_fields["learning_rate"].default
+            ):
+                self.trainer.optimizer.learning_rate = hint
+
         return self
 
     def invoke(self, args: dict[str, str]) -> int | None:
@@ -115,6 +128,8 @@ class TrainTool(Tool):
 
         self.training_env.seed += distributed_helper.get_rank()
         env = VectorizedTrainingEnvironment(self.training_env)
+
+        self._configure_torch_backends()
 
         checkpoint_manager = CheckpointManager(run=self.run or "default", system_cfg=self.system)
 
@@ -151,6 +166,10 @@ class TrainTool(Tool):
             if stats_client and hasattr(stats_client, "close"):
                 stats_client.close()
             distributed_helper.cleanup()
+            stack = getattr(self, "_sdpa_context_stack", None)
+            if stack is not None:
+                stack.close()
+                self._sdpa_context_stack = None
 
     def _load_or_create_policy(
         self,
@@ -189,6 +208,29 @@ class TrainTool(Tool):
             self.gradient_reporter.epoch_interval = self.stats_reporter.grad_mean_variance_interval
 
         return trainer
+
+    def _configure_torch_backends(self) -> None:
+        if not torch.cuda.is_available():
+            return
+
+        try:
+            torch.backends.cuda.matmul.allow_tf32 = True
+            torch.backends.cudnn.allow_tf32 = True
+        except Exception as exc:  # pragma: no cover - backend feature gating
+            logger.debug("Skipping CUDA matmul backend configuration: %s", exc)
+
+        context = build_sdpa_context(
+            prefer_flash=True,
+            prefer_mem_efficient=True,
+            prefer_math=True,
+            set_priority=True,
+        )
+        if context is not None:
+            stack = getattr(self, "_sdpa_context_stack", None)
+            if stack is None:
+                stack = contextlib.ExitStack()
+                self._sdpa_context_stack = stack
+            stack.enter_context(context)
 
     def _register_components(
         self,
