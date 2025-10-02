@@ -28,13 +28,13 @@ def standard_charging_recipe() -> RecipeConfig:
 # Carbon takes time.
 def standard_carbon_recipe() -> RecipeConfig:
     return RecipeConfig(
-        output_resources={"carbon": 5},
+        output_resources={"carbon": 4},
     )
 
 
 def low_carbon_recipe() -> RecipeConfig:
     return RecipeConfig(
-        output_resources={"carbon": 2},
+        output_resources={"carbon": 1},
     )
 
 

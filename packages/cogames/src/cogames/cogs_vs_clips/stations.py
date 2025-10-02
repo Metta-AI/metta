@@ -109,7 +109,7 @@ def carbon_ex_dep() -> AssemblerConfig:
         type_id=19,
         map_char="K",
         render_symbol="⬛",
-        max_uses=50,
+        max_uses=100,
         recipes=[
             (["Any"], protocols.low_carbon_recipe()),
         ],
@@ -122,6 +122,7 @@ def oxygen_ex_dep() -> AssemblerConfig:
         type_id=18,
         map_char="Q",
         render_symbol="⬜",
+        max_uses=10,
         allow_partial_usage=True,
         recipes=[
             (["Any"], protocols.low_oxygen_recipe()),
@@ -148,6 +149,7 @@ def silicon_ex_dep() -> AssemblerConfig:
         type_id=16,
         map_char="V",
         render_symbol="🔹",
+        max_uses=10,
         recipes=[
             (
                 ["Any"],
