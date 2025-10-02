@@ -11,11 +11,128 @@ import subprocess
 import sys
 from datetime import datetime
 from enum import StrEnum
+from typing import TYPE_CHECKING, Protocol
 
 import asana
 
 from metta.common.util.cli import get_user_confirmation
 from metta.common.util.text_styles import green, red, yellow
+
+if TYPE_CHECKING:
+    from devops.stable.models import GateResult, ReleaseState, Validation
+
+# ============================================================================
+# Release Plan and Gates
+# ============================================================================
+
+
+class Gate(Protocol):
+    """Protocol for release gates."""
+
+    name: str
+    required: bool
+
+    def run(self, state: "ReleaseState") -> "GateResult":
+        """Run the gate check and return result."""
+        ...
+
+
+class BugGate:
+    """Gate that checks for blocking bugs in Asana."""
+
+    def __init__(
+        self,
+        name: str = "bug",
+        required: bool = True,
+        project_env: str = "ASANA_PROJECT_ID",
+        token_env: str = "ASANA_TOKEN",
+        section: str = "Active",
+    ):
+        self.name = name
+        self.required = required
+        self.project_env = project_env
+        self.token_env = token_env
+        self.section = section
+
+    def run(self, state: "ReleaseState") -> "GateResult":
+        """Run Asana bug check."""
+        from devops.stable.models import GateResult, Outcome
+
+        result = check_asana_bugs_automated()
+
+        if result is True:
+            return GateResult(name=self.name, outcome=Outcome.PASSED, notes="No blocking bugs in Asana Active section")
+        elif result is False:
+            return GateResult(
+                name=self.name, outcome=Outcome.FAILED, notes="Blocking bugs found in Asana Active section"
+            )
+        else:
+            return GateResult(
+                name=self.name,
+                outcome=Outcome.INCONCLUSIVE,
+                notes="Asana automation not available, manual check required",
+            )
+
+
+class WorkflowGate:
+    """Gate that runs validation workflows."""
+
+    def __init__(self, name: str = "workflow", required: bool = True, validations: list["Validation"] | None = None):
+        self.name = name
+        self.required = required
+        self.validations = validations or []
+
+    def run(self, state: "ReleaseState") -> "GateResult":
+        """Run workflow validations."""
+        from devops.stable.models import GateResult, Outcome
+        from devops.stable.orchestrator import run_validations
+
+        new_state = run_validations(version=state.version, validations=self.validations, state_manager=None)
+
+        for v in new_state.validations.values():
+            state.add_validation_result(v)
+
+        summary = state.validation_summary
+        outcome = Outcome.PASSED if state.all_validations_passed else Outcome.FAILED
+        notes = f"Passed={summary['passed']} Failed={summary['failed']} Running={summary['running']}"
+
+        return GateResult(name=self.name, outcome=outcome, notes=notes)
+
+
+def get_release_plan() -> dict:
+    """Get the release plan with gates and validations."""
+    from devops.stable.models import Location, ThresholdCheck, Validation
+
+    validations = [
+        Validation(
+            name="arena_local_smoke",
+            module="experiments.recipes.arena_basic_easy_shaped.train",
+            location=Location.LOCAL,
+            args=["run=stable.smoke", "trainer.total_timesteps=1000", "wandb.enabled=false"],
+            timeout_s=600,
+            acceptance=[ThresholdCheck(key="sps_max", op=">=", expected=30000)],
+        ),
+        Validation(
+            name="arena_remote_50k",
+            module="experiments.recipes.arena_basic_easy_shaped.train",
+            location=Location.REMOTE,
+            args=["trainer.total_timesteps=50000"],
+            timeout_s=3600,
+            acceptance=[ThresholdCheck(key="sps_max", op=">=", expected=40000)],
+        ),
+    ]
+
+    gates = [
+        BugGate(name="bug", required=True, project_env="ASANA_PROJECT_ID", token_env="ASANA_TOKEN", section="Active"),
+        WorkflowGate(name="workflow", required=True, validations=validations),
+    ]
+
+    return {"gates": gates, "version_format": "%Y.%m.%d-%H%M"}
+
+
+# ============================================================================
+# Release Steps
+# ============================================================================
 
 
 class ReleaseStep(StrEnum):
@@ -196,7 +313,10 @@ def step_2_bug_status_check(version: str, check_mode: bool = False) -> None:
 
 
 def step_3_workflow_validation(version: str, check_mode: bool = False) -> None:
-    """Run workflow validation."""
+    """Run workflow validation using gates."""
+    from devops.stable.models import Outcome
+    from devops.stable.orchestrator import StateManager, print_validation_summary
+
     print(f"\n{'=' * 60}")
     print("STEP 3: Workflow Validation")
     print(f"{'=' * 60}\n")
@@ -204,30 +324,34 @@ def step_3_workflow_validation(version: str, check_mode: bool = False) -> None:
     if check_mode:
         print(yellow("[CHECK MODE] Would run automated validations"))
         print("  - Training: 1 local + 1 remote validation")
-        print("  - Cluster: 1 timeout handling test")
         return
 
     print("Running automated workflow validations...\n")
 
-    # Run training validations
-    print("=== Training Validations ===")
-    train_result = subprocess.run(
-        ["./devops/stable/recipe_validation/validate_recipes.py", "launch", "train"],
-        capture_output=False,
-    )
+    # Load plan and get workflow gate
+    plan = get_release_plan()
+    workflow_gate = next((g for g in plan["gates"] if g.name == "workflow"), None)
 
-    # Run cluster validations
-    print("\n=== Cluster Validations ===")
-    cluster_result = subprocess.run(
-        ["./devops/stable/recipe_validation/validate_recipes.py", "launch", "cluster"],
-        capture_output=False,
-    )
+    if not workflow_gate:
+        print(red("❌ No workflow gate found in release plan"))
+        sys.exit(1)
 
-    # Check if any failed
-    if train_result.returncode != 0 or cluster_result.returncode != 0:
+    # Create or load state
+    state_mgr = StateManager()
+    state = state_mgr.load_state(f"release_{version}") or state_mgr.create_state(f"release_{version}", ".")
+
+    # Run the workflow gate
+    gate_result = workflow_gate.run(state)
+    state.add_gate_result(gate_result)
+    state_mgr.save_state(state)
+
+    # Print summary
+    print_validation_summary(state)
+
+    # Check if gate passed
+    if gate_result.outcome != Outcome.PASSED:
         print(red("\n❌ Automated workflow validation FAILED"))
-        print("\nTo check detailed results:")
-        print("  ./devops/stable/recipe_validation/validate_recipes.py check -l")
+        print(f"\nState saved to: devops/stable/state/release_{version}.json")
         sys.exit(1)
 
     print(green("\n✅ Automated workflow validation PASSED"))
