@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from cortex.config import (
     CortexStackConfig,
-    mLSTMCellConfig,
     PostUpBlockConfig,
     PreUpBlockConfig,
+    mLSTMCellConfig,
     sLSTMCellConfig,
 )
 from cortex.stacks.base import CortexStack

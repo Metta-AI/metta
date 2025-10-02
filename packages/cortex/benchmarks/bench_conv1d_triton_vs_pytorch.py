@@ -76,7 +76,7 @@ def benchmark_conv1d(
     results = {}
 
     # Benchmark PyTorch implementation (without resets for fair comparison)
-    print(f"  Benchmarking PyTorch implementation...")
+    print("  Benchmarking PyTorch implementation...")
     for _ in range(num_warmup):
         _ = causal_conv1d_pytorch(
             conv_state=conv_state.clone(),
@@ -113,7 +113,7 @@ def benchmark_conv1d(
 
     # Benchmark Triton implementation (requires resets parameter)
     if device.type == "cuda":
-        print(f"  Benchmarking Triton implementation...")
+        print("  Benchmarking Triton implementation...")
         for _ in range(num_warmup):
             try:
                 _ = causal_conv1d_triton(
@@ -159,7 +159,7 @@ def benchmark_conv1d(
         results["triton_ms"] = None
         results["speedup"] = None
         results["max_diff"] = None
-        print(f"  Skipping Triton (CUDA not available)")
+        print("  Skipping Triton (CUDA not available)")
 
     return results
 

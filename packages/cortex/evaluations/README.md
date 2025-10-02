@@ -13,8 +13,7 @@ Quick start
 
 Common flags
 - `--task {delayed_recall, majority, dyck}`
-- `--stack {slstm_postup, mlstm_preup, all}`
-- `--stack {slstm_postup, mlstm_preup, xlstm, all}`
+- `--stack {slstm_postup, mlstm_preup, xlstm, all}` (auto-discovers new stacks added to `STACKS`)
 - `--epochs`, `--batch-size`, `--lr`, `--seed`
 - `--log-level {DEBUG, INFO, WARNING, ERROR}` (default: `INFO`)
 

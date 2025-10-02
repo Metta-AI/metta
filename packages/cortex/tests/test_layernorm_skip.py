@@ -2,11 +2,10 @@
 
 import torch
 import torch.nn as nn
-
-from cortex.blocks.preup import PreUpBlock
 from cortex.blocks.postup import PostUpBlock
+from cortex.blocks.preup import PreUpBlock
 from cortex.cells.lstm import LSTMCell
-from cortex.config import PreUpBlockConfig, PostUpBlockConfig, LSTMCellConfig
+from cortex.config import LSTMCellConfig, PostUpBlockConfig, PreUpBlockConfig
 
 
 def test_preup_block_has_layernorm():

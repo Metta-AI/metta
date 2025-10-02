@@ -58,7 +58,7 @@ def benchmark_mlstm(
     results = {}
 
     # Benchmark PyTorch implementation
-    print(f"  Benchmarking PyTorch implementation...")
+    print("  Benchmarking PyTorch implementation...")
     for _ in range(num_warmup):
         _ = mlstm_chunkwise_simple(
             queries=queries,
@@ -91,7 +91,7 @@ def benchmark_mlstm(
 
     # Benchmark Triton implementation
     if device.type == "cuda":
-        print(f"  Benchmarking Triton implementation...")
+        print("  Benchmarking Triton implementation...")
         for _ in range(num_warmup):
             _ = mlstm_chunkwise_triton(
                 queries=queries,
@@ -128,7 +128,7 @@ def benchmark_mlstm(
         results["triton_ms"] = None
         results["speedup"] = None
         results["max_diff"] = None
-        print(f"  Skipping Triton (CUDA not available)")
+        print("  Skipping Triton (CUDA not available)")
 
     return results
 
