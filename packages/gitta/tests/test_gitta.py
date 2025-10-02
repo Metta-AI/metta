@@ -484,6 +484,9 @@ class TestGitHubCLI:
         assert result[0] == 123
         assert result[1] == "Test PR"
 
+        # Clear cache to test different scenario with same inputs
+        get_matched_pr.cache_clear()
+
         # No matching PR
         mock_response.json.return_value = []
         result = get_matched_pr("abc123", "Metta-AI/metta")
