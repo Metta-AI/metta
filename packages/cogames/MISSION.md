@@ -55,12 +55,12 @@ resources, and manufacture as many HEARTs as possible while defending our facili
 - Multi-Cog operations: Some facilities need teammates at specific **terminals** (the 8 positions surrounding the
   facility)
 
-### Cargo & Equipment Specs
+### Cargo & Gear Specs
 
 Your chassis has limited capacity for:
 
 - **Essential Resources**: Carbon, Oxygen, Germanium, Silicon
-- **Specialized Equipment**: Resonator, Modulator, Scrambler, Disruptor
+- **Specialized Gear**: Resonator, Modulator, Scrambler, Disruptor
 - **Mission Objective**: HEARTs units
 - **Energy** reserves (for transferring to facilities or teammates)
 
@@ -88,7 +88,7 @@ be added to your cargo if successful.
 
 ### The Atomic Assembler - Heart Production Center
 
-This is your primary objective facility! The Assembler converts raw resources into equipment and precious HEART units.
+This is your primary objective facility! The Assembler converts raw resources into gear and precious HEART units.
 
 **CRITICAL PROTOCOL SYSTEM**:
 
@@ -113,7 +113,7 @@ CB.
 1. Surrounding Cogs must possess required input resources
 2. Activator moves into Assembler
 3. Resources are consumed from the team
-4. Output (equipment or HEARTS) goes to the activator
+4. Output (gear or HEARTS) goes to the activator
 5. Discovery required - protocols change between missions!
 
 ### The Communal Chest - Strategic Storage
@@ -166,7 +166,7 @@ production.
 - Facilities may only activate once per turn (first mover is the activator)
 - Cooldown timers must expire before reactivation
 - Resource deposits become less productive with use
-- Some protocols may require specific equipment in addition to resources
+- Some protocols may require specific gear in addition to resources
 - Protocol availability may change based on facility status
 
 ---
