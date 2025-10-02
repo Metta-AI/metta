@@ -57,10 +57,3 @@ def build_backbone(config: "TransformerBackboneConfig", env: Any | None) -> Tran
         use_fused_layernorm=bool(config.use_fused_layernorm),
         allow_tf32=bool(config.allow_tf32),
     )
-
-
-SPEC = {
-    "defaults": DEFAULTS,
-    "policy_defaults": POLICY_DEFAULTS,
-    "builder": build_backbone,
-}

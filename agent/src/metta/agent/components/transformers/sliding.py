@@ -55,10 +55,3 @@ def build_backbone(config: "TransformerBackboneConfig", env: Any | None) -> Slid
         pool=config.pool or DEFAULTS["pool"],
     )
     return SlidingTransformer(config=sliding_cfg, env=env)
-
-
-SPEC = {
-    "defaults": DEFAULTS,
-    "policy_defaults": POLICY_DEFAULTS,
-    "builder": build_backbone,
-}
