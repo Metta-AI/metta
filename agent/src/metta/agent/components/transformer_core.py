@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Dict
+from typing import Any, Dict, Literal
 
 from pydantic import Field, model_validator
 
 from metta.agent.components.component_config import ComponentConfig
 
+from .sliding_transformer import SlidingTransformer, SlidingTransformerConfig
 from .transformer_module import GTrXLModule, TransformerXLModule
 from .transformer_nvidia_module import NvidiaTransformerModule
 
@@ -19,6 +20,7 @@ class TransformerBackboneVariant(str, Enum):
     GTRXL = "gtrxl"
     TRXL = "trxl"
     TRXL_NVIDIA = "trxl_nvidia"
+    SLIDING = "sliding"
 
 
 _VARIANT_DEFAULTS: Dict[TransformerBackboneVariant, Dict[str, Any]] = {
@@ -85,6 +87,29 @@ _VARIANT_DEFAULTS: Dict[TransformerBackboneVariant, Dict[str, Any]] = {
         "allow_tf32": True,
         "use_fused_layernorm": False,
     },
+    TransformerBackboneVariant.SLIDING: {
+        "latent_size": 16,
+        "hidden_size": 16,
+        "num_layers": 2,
+        "n_heads": 1,
+        "d_ff": 64,
+        "max_seq_len": 80,
+        "memory_len": 0,
+        "dropout": 0.0,
+        "attn_dropout": 0.0,
+        "pre_lnorm": False,
+        "same_length": False,
+        "clamp_len": -1,
+        "positional_scale": 0.1,
+        "use_gating": False,
+        "ext_len": 0,
+        "activation_checkpoint": False,
+        "use_flash_checkpoint": False,
+        "allow_tf32": True,
+        "use_fused_layernorm": False,
+        "max_cache_size": 80,
+        "pool": "mean",
+    },
 }
 
 
@@ -116,6 +141,8 @@ class TransformerBackboneConfig(ComponentConfig):
     use_flash_checkpoint: bool | None = None
     allow_tf32: bool | None = None
     use_fused_layernorm: bool | None = None
+    max_cache_size: int | None = None
+    pool: Literal["cls", "mean", "none"] | None = None
 
     @model_validator(mode="after")
     def _apply_variant_defaults(self) -> "TransformerBackboneConfig":
@@ -174,7 +201,27 @@ class TransformerBackboneConfig(ComponentConfig):
                 use_fused_layernorm=bool(self.use_fused_layernorm),
                 allow_tf32=bool(self.allow_tf32),
             )
-        else:
+        elif self.variant is TransformerBackboneVariant.TRXL:
+            core = TransformerXLModule(
+                d_model=self.hidden_size,
+                n_heads=self.n_heads,
+                n_layers=self.num_layers,
+                d_ff=self.d_ff,
+                max_seq_len=self.max_seq_len,
+                memory_len=memory_len,
+                dropout=self.dropout,
+                dropatt=self.attn_dropout or 0.0,
+                pre_lnorm=bool(self.pre_lnorm),
+                same_length=bool(self.same_length),
+                clamp_len=self.clamp_len or -1,
+                ext_len=int(self.ext_len or 0),
+                attn_type=0,
+                activation_checkpoint=bool(self.activation_checkpoint),
+                use_flash_checkpoint=bool(self.use_flash_checkpoint),
+                use_fused_layernorm=bool(self.use_fused_layernorm),
+                allow_tf32=bool(self.allow_tf32),
+            )
+        elif self.variant is TransformerBackboneVariant.TRXL_NVIDIA:
             core = NvidiaTransformerModule(
                 d_model=self.hidden_size,
                 n_heads=self.n_heads,
@@ -192,6 +239,22 @@ class TransformerBackboneConfig(ComponentConfig):
                 use_fused_layernorm=bool(self.use_fused_layernorm),
                 allow_tf32=bool(self.allow_tf32),
             )
+        else:
+            hidden_size = self.hidden_size or self.latent_size or 16
+            input_dim = self.latent_size or hidden_size
+            ff_mult = max(1, (self.d_ff or hidden_size * 4) // hidden_size)
+            sliding_cfg = SlidingTransformerConfig(
+                in_key=self.in_key,
+                out_key=self.out_key,
+                output_dim=hidden_size,
+                input_dim=input_dim,
+                num_heads=self.n_heads or 1,
+                ff_mult=ff_mult,
+                num_layers=self.num_layers or 2,
+                max_cache_size=self.max_cache_size or self.max_seq_len or 80,
+                pool=self.pool or "mean",
+            )
+            core = SlidingTransformer(config=sliding_cfg, env=env)
 
         return core
 

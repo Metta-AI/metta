@@ -63,6 +63,11 @@ _POLICY_VARIANT_DEFAULTS: Dict[TransformerBackboneVariant, Dict[str, Any]] = {
         "strict_attr_indices": True,
         "learning_rate_hint": 3.0e-4,
     },
+    TransformerBackboneVariant.SLIDING: {
+        "manual_init": False,
+        "strict_attr_indices": False,
+        "learning_rate_hint": 7.5e-4,
+    },
 }
 
 

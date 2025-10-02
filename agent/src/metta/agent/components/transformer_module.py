@@ -22,6 +22,21 @@ except ImportError:  # pragma: no cover
     flash_attn_func = None
 
 
+def sinusoidal_position_encoding(positions: torch.Tensor, d_model: int, *, scale: float = 1.0) -> torch.Tensor:
+    """Generate sinusoidal positional encodings for arbitrary position tensors."""
+
+    positions = positions.to(dtype=torch.float32)
+    device = positions.device
+
+    log_term = -math.log(10000.0) / d_model
+    div_term = torch.exp(torch.arange(0, d_model, 2, device=device, dtype=torch.float32) * log_term)
+    pe = torch.zeros(*positions.shape, d_model, device=device, dtype=torch.float32)
+    expanded = positions.unsqueeze(-1)
+    pe[..., 0::2] = torch.sin(expanded * div_term)
+    pe[..., 1::2] = torch.cos(expanded * div_term)
+    return pe * scale
+
+
 def _record_function(name: str):
     profiler_mod = getattr(torch, "profiler", None)
     if profiler_mod is not None and hasattr(profiler_mod, "record_function"):

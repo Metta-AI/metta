@@ -1,4 +1,3 @@
-import math
 from typing import Literal
 
 import torch
@@ -9,6 +8,8 @@ from tensordict import TensorDict
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.components.component_config import ComponentConfig
+
+from .transformer_module import sinusoidal_position_encoding
 
 
 class TransformerBlock(nn.Module):
@@ -164,15 +165,6 @@ class SlidingTransformer(nn.Module):
 
         # av need to handle switching between rollout/train and eval
 
-    def _get_positional_encoding(self, positions: torch.Tensor, d_model: int) -> torch.Tensor:
-        """Generates sinusoidal positional encodings."""
-        device = positions.device
-        div_term = torch.exp(torch.arange(0, d_model, 2, device=device) * -(math.log(10000.0) / d_model))
-        pe = torch.zeros(*positions.shape, d_model, device=device)
-        pe[..., 0::2] = torch.sin(positions.unsqueeze(-1) * div_term)
-        pe[..., 1::2] = torch.cos(positions.unsqueeze(-1) * div_term)
-        return pe
-
     def forward(self, td: TensorDict):
         B = td.batch_size.numel()
         if td["bptt"][0] != 1:
@@ -238,7 +230,7 @@ class SlidingTransformer(nn.Module):
                 self.position_counter = torch.cat([self.position_counter, pos_filler])
 
             current_pos = self.position_counter[training_env_ids]
-            pos_enc = self._get_positional_encoding(current_pos, self.output_dim)
+            pos_enc = sinusoidal_position_encoding(current_pos, self.output_dim)
             x = x + pos_enc.unsqueeze(1)  # Add to all S tokens for this timestep
 
             # 2. Process through transformer layers
@@ -292,7 +284,7 @@ class SlidingTransformer(nn.Module):
             # The cache is from the step before this sequence started
             start_pos = td["transformer_position"].view(B, TT)[:, 0]
             positions = start_pos.unsqueeze(1) + torch.arange(TT, device=x.device)
-            pos_enc = self._get_positional_encoding(positions, self.output_dim)
+            pos_enc = sinusoidal_position_encoding(positions, self.output_dim)
             pos_enc = pos_enc.unsqueeze(2).expand(-1, -1, S, -1)
             pos_enc = rearrange(pos_enc, "b tt s d -> b (tt s) d")
             x = x + pos_enc
