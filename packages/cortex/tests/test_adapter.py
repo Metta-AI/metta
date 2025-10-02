@@ -102,7 +102,7 @@ def test_adapter_state_management():
         d_hidden=d_hidden,
         blocks=[
             AdapterBlockConfig(
-                base_block=PassThroughBlockConfig(cell=LSTMCellConfig(hidden_size=64, num_layers=2)),
+                base_block=PassThroughBlockConfig(cell=LSTMCellConfig(hidden_size=64, num_layers=1)),
                 bottleneck=16,
             )
         ],

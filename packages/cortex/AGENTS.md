@@ -61,3 +61,22 @@ Always read both documents before making changes inside `packages/cortex`.
 - Run mypy on the modified modules (or the narrowest package that contains them):
   `uv run mypy packages/cortex/src/cortex/...`.
 - Re-run the targeted pytest command after linting to guard against regressions.
+
+##  Triton Kernel Notes
+
+- Triton prefers dot operands with tile dimensions ≥16. For kernels that must
+  handle smaller tiles (e.g., batch padding of size 8), emulate matmul with
+  explicit reductions instead of relying on `tl.dot`.
+- Keep shared memory budgets in mind—large tiles or extra staging buffers can
+  exceed 100 KB on common GPUs. Profile both forward and backward kernels after
+  changing tile sizes or adding scratch space.
+- Numerical parity: default tolerances for Triton vs. PyTorch parity checks are
+  `rtol=1e-3, atol=1e-2` for forward/last-state comparisons and `rtol=1e-3,
+  atol=1e-1` for gradient checks. Tighten only when justified and update the
+  tests accordingly.
+- Regression tests should cover both forward correctness and autograd parity.
+  Re-run the dedicated `test_<kernel>_reset_forward_backward_match_backends`
+  style tests (or add one if missing) whenever kernel math changes.
+- Unknown coverage: multi-layer wiring, projection heads, and non power-of-two
+  hidden sizes are still PyTorch-only in several cells. When extending Triton
+  support, document the new limits and keep the PyTorch path as reference.
