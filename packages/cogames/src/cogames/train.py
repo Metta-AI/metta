@@ -15,6 +15,8 @@ if TYPE_CHECKING:
     import torch
 
 logger = logging.getLogger("cogames.pufferlib")
+
+
 def train(
     env_cfg: Optional[MettaGridConfig],
     policy_class_path: str,
@@ -36,7 +38,6 @@ def train(
     import pufferlib.vector
     from pufferlib import pufferl
     from pufferlib.pufferlib import set_buffers
-
 
     if env_cfg_supplier is None and env_cfg is None:
         raise ValueError("Either env_cfg or env_cfg_supplier must be provided to train a policy")
@@ -205,7 +206,7 @@ def train(
         gae_lambda=0.95,
         update_epochs=1,
         clip_coef=0.1,
-        vf_coef=0.05,
+        vf_coef=0.02,  # 0.05,
         vf_clip_coef=0.1,
         max_grad_norm=0.5,
         ent_coef=0.01,
@@ -216,8 +217,8 @@ def train(
         compile=False,
         vtrace_rho_clip=1.0,
         vtrace_c_clip=1.0,
-        prio_alpha=0.8,
-        prio_beta0=0.2,
+        prio_alpha=0,  # 0.8,
+        prio_beta0=0,  # 0.2,
     )
 
     # Pass the neural network from TrainablePolicy to PuffeRL for training

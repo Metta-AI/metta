@@ -91,9 +91,7 @@ def games_cmd(
 @app.command(name="play")
 def play_cmd(
     game_name: Optional[str] = typer.Argument(None, help="Name of the game to play"),
-    policy_class_path: str = typer.Option(
-        "cogames.policy.lstm.LSTMPolicy", "--policy", help="Path to policy class"
-    ),
+    policy_class_path: str = typer.Option("cogames.policy.lstm.LSTMPolicy", "--policy", help="Path to policy class"),
     policy_data_path: Optional[str] = typer.Option(None, "--policy-data", help="Path to initial policy weights"),
     interactive: bool = typer.Option(True, "--interactive", "-i", help="Run in interactive mode"),
     steps: int = typer.Option(100, "--steps", "-s", help="Number of steps to run"),
@@ -189,7 +187,10 @@ def make_scenario(
 def train_cmd(
     game_name: Optional[str] = typer.Argument(None, help="Name of the game to train on"),
     policy_class_path: str = typer.Option(
-        "cogames.policy.lstm.LSTMPolicy", "--policy", help="Path to policy class"
+        # "cogames.policy.lstm.LSTMPolicy", "--policy", help="Path to policy class"
+        "cogames.policy.simple.SimplePolicy",
+        "--policy",
+        help="Path to policy class",
     ),
     initial_weights_path: Optional[str] = typer.Option(
         None, "--initial-weights", help="Path to initial policy weights"
@@ -278,9 +279,7 @@ def train_cmd(
         env_cfg = game.get_game(resolved_game)
         representative_game = resolved_game
     elif game_name is not None:
-        console.print(
-            "[yellow]Ignoring explicit game name because a curriculum was supplied.[/yellow]"
-        )
+        console.print("[yellow]Ignoring explicit game name because a curriculum was supplied.[/yellow]")
 
     # Resolve policy shorthand
     full_policy_path = resolve_policy_class_path(policy_class_path)
