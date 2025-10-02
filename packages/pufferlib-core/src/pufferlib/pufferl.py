@@ -660,7 +660,7 @@ class PuffeRL:
             self.last_stats = self.stats
 
         for metric, value in (self.stats or self.last_stats).items():
-            if metric.startswith("game/"):
+            if not (metric.startswith("agent/") or "heart" in metric):
                 continue
             try:  # Discard non-numeric values
                 int(value)
