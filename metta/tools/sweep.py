@@ -18,7 +18,7 @@ from metta.common.wandb.context import WandbConfig
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig
 from metta.sweep.schedulers.async_capped import AsyncCappedOptimizingScheduler, AsyncCappedSchedulerConfig
 from metta.sweep.schedulers.batched_synced import BatchedSyncedOptimizingScheduler, BatchedSyncedSchedulerConfig
-from metta.tools.utils.auto_config import auto_stats_server_uri, auto_wandb_config
+from metta.tools.utils.auto_config import auto_wandb_config
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +78,13 @@ class DispatcherType(StrEnum):
 
     LOCAL = "local"  # All jobs run locally
     SKYPILOT = "skypilot"  # All jobs run on Skypilot
+
+
+class SweepSchedulerType(StrEnum):
+    """Available scheduler types for sweep orchestration."""
+
+    BATCHED_SYNCED = "batched_synced"
+    ASYNC_CAPPED = "async_capped"
 
 
 class SweepTool(Tool):
