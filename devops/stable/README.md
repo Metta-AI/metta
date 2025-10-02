@@ -1,114 +1,130 @@
-# SkyPilot Recipe Tests
+# Stable Release Process
 
-A unified script for launching and checking SkyPilot test jobs across all active recipes.
+Automated qualification system for creating stable releases.
 
-## Basic Use
+**Contacts:**
+- Release Manager: @Robb
+- Technical Lead: @Jack Heart
+- Bug Triage: @Nishad Singh
 
-```bash
-# Launch 5 jobs: one per recipe
-./recipe_test.py launch
+## For Release Managers
 
-# Check results
-./recipe_test.py check
-
-# Check with detailed logs
-./recipe_test.py check -l
-```
-
-## Test Configurations
-
-- **Recipes tested**:
-  - `arena_basic_easy_shaped`: Basic arena with easy shaping
-  - `arena`: Standard arena recipe
-  - `icl_resource_chain`: In-context learning resource chain
-  - `navigation`: Navigation task
-  - `navigation_sequence`: Sequential navigation task
-
-- **Fixed parameters**:
-  - Single node configuration
-  - 50,000 timesteps
-  - CI tests disabled
-
-## Termination Tracking
-
-The framework automatically parses and color-codes:
-
-- **Exit codes**: 0 (green), non-zero (red)
-- **Termination reasons**:
-  - `job_completed` (green)
-  - `heartbeat_timeout`, `max_runtime_reached` (yellow)
-  - Other reasons (red)
-- **Restart counts**: 0 (green), >0 (yellow)
-
-## Command Options
-
-### Launch Command
+### Quick Start
 
 ```bash
-./recipe_test.py launch [options]
+# Run all steps for a new release (auto-generates version from date/time)
+./devops/stable/release_stable.py --all
+
+# Or run steps individually:
+./devops/stable/release_stable.py --step prepare-branch
+./devops/stable/release_stable.py --step bug-check
+./devops/stable/release_stable.py --step workflow-tests
+./devops/stable/release_stable.py --step release
+./devops/stable/release_stable.py --step announce
 ```
 
-- `--base-name`: Base name for test runs (default: recipe_test)
-- `--output-file`: JSON file to save results (default: recipe_test_jobs.json)
-- `--skip-git-check`: Skip git state validation
+### Release Steps
 
-### Check Command
+#### Step 1: Prepare Branch
+Creates and pushes a `release-qual/{version}` branch.
 
 ```bash
-./recipe_test.py check [options]
+./devops/stable/release_stable.py --step prepare-branch --version 2025.10.02
 ```
 
-- `-f, --input-file`: JSON file to check (default: recipe_test_jobs.json)
-- `-l, --logs`: Show detailed logs for each job
-- `-n, --tail-lines`: Number of log lines to tail (default: 200)
+#### Step 2: Bug Check
+Checks Asana for blocking bugs in the "Active" section.
 
-## Output Format
-
-Launching jobs produces a JSON file with the structure:
-
-```json
-{
-  "test_run_info": {
-    "base_name": "...",
-    "launch_time": "...",
-    "total_jobs": N,
-    "successful_launches": N,
-    "failed_launches": N
-  },
-  "launched_jobs": [...],
-  "failed_launches": [...]
-}
-```
-
-Each job entry includes:
-
-- Recipe name and module path
-- Test configuration (timesteps, nodes, CI status)
-- Job ID and status information
-
-## Examples
-
+**Setup (first time only):**
 ```bash
-# Launch with custom base name
-./recipe_test.py launch --base-name my_recipe_validation
-
-# Check specific output file with more log lines
-./recipe_test.py check -f my_recipes.json -n 500
-
-# Launch without git validation
-./recipe_test.py launch --skip-git-check
-
-# Get help for specific commands
-./recipe_test.py launch --help
-./recipe_test.py check --help
+export ASANA_TOKEN="your_personal_access_token"
+export ASANA_PROJECT_ID="your_project_id"
 ```
 
-## Purpose
+If not configured, will prompt for manual confirmation.
 
-This test suite validates that all active recipes can:
+#### Step 3: Workflow Validation
+Runs automated training validations (local + remote):
 
-- Launch successfully on SkyPilot
-- Complete training without errors
-- Exit cleanly after the specified timesteps
+- **arena_local_smoke**: 1k timesteps locally, expects SPS ≥ 30k
+- **arena_remote_50k**: 50k timesteps on SkyPilot, expects SPS ≥ 40k
 
-It serves as a smoke test to ensure recipe configurations remain valid across updates.
+State is saved to `devops/stable/state/release_{version}.json` for resumability.
+
+**If validations fail:**
+- Check logs in `devops/stable/logs/`
+- Review metrics in the printed summary
+- Fix issues and re-run (completed validations are skipped)
+
+#### Step 4: Release
+Creates the release PR and tags.
+
+1. **Create release notes**: `devops/stable/release-notes/v{version}.md`
+2. **Open PR**: From `release-qual/{version}` to `stable`
+3. **After approval**:
+   ```bash
+   git tag -a v{version} -m "Release version {version}"
+   git push origin v{version}
+   # Merge PR on GitHub
+   git push origin --delete release-qual/{version}
+   ```
+
+#### Step 5: Announce
+Post to Discord #eng-process:
+```
+Released stable version v{version} 🎉
+Release notes: devops/stable/release-notes/v{version}.md
+```
+
+### Modifying Validations
+
+Edit `get_release_plan()` in `release_stable.py`:
+
+```python
+validations = [
+    Validation(
+        name="my_validation",
+        module="experiments.recipes.my_recipe.train",
+        location=Location.LOCAL,  # or Location.REMOTE
+        args=["run=stable.test", "trainer.total_timesteps=1000"],
+        timeout_s=600,
+        acceptance=[
+            ThresholdCheck(key="sps_max", op=">=", expected=30000),
+        ],
+    ),
+]
+```
+
+**Supported operators**: `>=`, `>`, `<=`, `<`, `==`, `!=`
+
+**Available metrics** (extracted from logs):
+- `sps_max` - Maximum samples per second
+- `sps_last` - Last SPS value
+- `eval_success_rate` - Evaluation success rate
+
+### Troubleshooting
+
+**"metric missing" failure:**
+The expected metric wasn't found in logs. Check:
+- Log file location in error output
+- Metric extraction regex patterns in `acceptance.py`
+
+**Timeout:**
+Validation exceeded timeout. Check logs and consider:
+- Increasing `timeout_s` in validation definition
+- Checking if training is stuck
+
+**Remote launch failed:**
+Check SkyPilot configuration and cluster availability.
+
+### Check Mode
+
+Dry-run steps without making changes:
+```bash
+./devops/stable/release_stable.py --step workflow-tests --check
+```
+
+Useful for:
+- Verifying configuration
+- Understanding what will happen
+- Testing step 4 (release) and step 5 (announce) safely
