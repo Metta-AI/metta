@@ -116,7 +116,11 @@ def play_cmd(
 
 @app.command("make-game", help="Create a new game configuration")
 def make_scenario(
-    base_game: Optional[str] = typer.Argument(None, help="Base game to use as template"),
+    base_game: str = typer.Argument(
+        None,
+        help="Base game to use as template",
+        callback=lambda ctx, value: game.require_game_argument(ctx, value, console),
+    ),
     num_agents: int = typer.Option(2, "--agents", "-a", help="Number of agents", min=1),
     width: int = typer.Option(10, "--width", "-w", help="Map width", min=1),
     height: int = typer.Option(10, "--height", "-h", help="Map height", min=1),
@@ -125,34 +129,15 @@ def make_scenario(
     from cogames import utils
 
     try:
-        # If base_game specified, use it as template
-        if base_game:
-            resolved_game, error = utils.resolve_game(base_game)
-            if error:
-                console.print(f"[red]Error: {error}[/red]")
-                console.print("Creating from scratch instead...")
-            else:
-                console.print(f"[cyan]Using {resolved_game} as template[/cyan]")
-        else:
-            console.print("[cyan]Creating new game from scratch[/cyan]")
-
-        # Use cogs_vs_clips make_game for now
-        from cogames.cogs_vs_clips.scenarios import make_game
-
-        # Create game with specified parameters
-        new_config = make_game(
-            num_cogs=num_agents,
-            num_assemblers=1,
-            num_chests=1,
-        )
+        _, env_cfg = utils.get_game_config(console, base_game)
 
         # Update map dimensions
-        new_config.game.map_builder.width = width  # type: ignore[attr-defined]
-        new_config.game.map_builder.height = height  # type: ignore[attr-defined]
-        new_config.game.num_agents = num_agents
+        env_cfg.game.map_builder.width = width  # type: ignore[attr-defined]
+        env_cfg.game.map_builder.height = height  # type: ignore[attr-defined]
+        env_cfg.game.num_agents = num_agents
 
         if output:
-            game.save_game_config(new_config, output)
+            game.save_game_config(env_cfg, output)
             console.print(f"[green]Game configuration saved to: {output}[/green]")
         else:
             console.print("\n[yellow]To save this configuration, use the --output option.[/yellow]")

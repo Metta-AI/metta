@@ -4,35 +4,16 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Optional
 
 import typer
 import yaml
 from rich.console import Console
 from rich.table import Table
 
-from cogames.cogs_vs_clips.scenarios import games as cogs_vs_clips_games
+from cogames.cogs_vs_clips.missions import get_all_missions
+from cogames.cogs_vs_clips.scenarios import GAMES_CATALOG
 from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig
-
-
-def get_all_games() -> Dict[str, MettaGridConfig]:
-    """Get all available games (scenarios).
-
-    Returns:
-        Dictionary of game names to their configurations
-    """
-    # Flatten all scenarios into a single dictionary
-    all_games = {}
-
-    # Add cogs_vs_clips games
-    for game_name, game_config in cogs_vs_clips_games().items():
-        all_games[game_name] = game_config
-
-    # Future games can be added here
-    # for scenario_name, scenario_config in other_game_scenarios().items():
-    #     all_games[scenario_name] = scenario_config
-
-    return all_games
 
 
 def load_game_config_from_python(path: Path) -> MettaGridConfig:
@@ -79,7 +60,7 @@ def load_game_config_from_python(path: Path) -> MettaGridConfig:
     return config
 
 
-def get_game(game_name: str) -> MettaGridConfig:
+def get_game(game_name: str, mission_name: Optional[str] = None) -> MettaGridConfig:
     """Get a specific game configuration by name or file path.
 
     Args:
@@ -108,48 +89,19 @@ def get_game(game_name: str) -> MettaGridConfig:
             raise ValueError(f"Unsupported file format: {path.suffix}")
 
     # Otherwise, treat it as a game name
-    all_games = get_all_games()
-    if game_name not in all_games:
+    all_games = {game_entry.name: game_entry for game_entry in GAMES_CATALOG}
+    if game_name in all_games:
+        entry = all_games[game_name]
+    else:
         # Try partial match
         matches = [name for name in all_games if game_name.lower() in name.lower()]
         if len(matches) == 1:
-            return all_games[matches[0]]
+            entry = all_games[matches[0]]
         elif len(matches) > 1:
             raise ValueError(f"Ambiguous game name '{game_name}'. Matches: {', '.join(matches)}")
         else:
             raise ValueError(f"Game '{game_name}' not found. Available games: {', '.join(all_games.keys())}")
-    return all_games[game_name]
-
-
-def resolve_game_name(game_arg: Optional[str]) -> Optional[str]:
-    """Resolve a game name from user input.
-
-    Args:
-        game_arg: User input for game name
-
-    Returns:
-        Resolved game name or None if not found
-    """
-    if not game_arg:
-        return None
-
-    all_games = get_all_games()
-
-    # Exact match
-    if game_arg in all_games:
-        return game_arg
-
-    # Case-insensitive match
-    lower_map = {name.lower(): name for name in all_games}
-    if game_arg.lower() in lower_map:
-        return lower_map[game_arg.lower()]
-
-    # Partial match
-    matches = [name for name in all_games if game_arg.lower() in name.lower()]
-    if len(matches) == 1:
-        return matches[0]
-
-    return None
+    return entry.generate_game(mission_name or entry.default_mission)
 
 
 def list_games(console: Console) -> None:
@@ -162,24 +114,31 @@ def list_games(console: Console) -> None:
         Rich Table with game information
     """
 
-    all_games = get_all_games()
-
     table = Table(title="Available Games", show_header=True, header_style="bold magenta")
     table.add_column("Game", style="cyan", no_wrap=True)
     table.add_column("Agents", style="yellow", justify="center")
     table.add_column("Map Size", style="green", justify="center")
+    table.add_column("Default Mission", style="lightblue", justify="center")
 
-    for game_name, game_config in all_games.items():
+    for game_entry in GAMES_CATALOG:
+        game_config = game_entry.generate_game(game_entry.default_mission)
         num_agents = game_config.game.num_agents
 
         # Try to get map size if available
         map_builder = game_config.game.map_builder
         if hasattr(map_builder, "width") and hasattr(map_builder, "height"):
-            map_size = f"{map_builder.width}x{map_builder.height}"
+            map_size = f"{map_builder.width}x{map_builder.height}"  # type: ignore[attr-defined]
         else:
             map_size = "N/A"
 
-        table.add_row(game_name, str(num_agents), map_size)
+        table.add_row(game_entry.name, str(num_agents), map_size, game_entry.default_mission)
+    console.print(table)
+
+    table = Table(title="Available Missions", show_header=True, header_style="bold magenta")
+    table.add_column("Mission", style="cyan", no_wrap=True)
+    table.add_column("Description", style="blue", justify="center")
+    for mission_name, mission_config in get_all_missions().items():
+        table.add_row(mission_name, mission_config.description)
 
     console.print(table)
 
@@ -203,8 +162,8 @@ def describe_game(game_name: str, console: Console) -> None:
     # Display game configuration
     console.print("[bold]Game Configuration:[/bold]")
     console.print(f"  • Number of agents: {game_config.game.num_agents}")
-    console.print(f"  • Map size: {game_config.game.map_builder.width}x{game_config.game.map_builder.height}")
-    console.print(f"  • Number of agents on map: {game_config.game.map_builder.agents}")
+    console.print(f"  • Map size: {game_config.game.map_builder.width}x{game_config.game.map_builder.height}")  # type: ignore[attr-defined]
+    console.print(f"  • Number of agents on map: {game_config.game.map_builder.agents}")  # type: ignore[attr-defined]
 
     # Display available actions
     console.print("\n[bold]Available Actions:[/bold]")

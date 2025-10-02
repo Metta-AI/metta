@@ -1,126 +1,24 @@
 from pathlib import Path
+from typing import Any, Optional, Protocol
 
-from cogames.cogs_vs_clips.stations import (
-    assembler,
-    carbon_ex_dep,
-    carbon_extractor,
-    charger,
-    chest,
-    chest_carbon,
-    chest_germanium,
-    chest_oxygen,
-    chest_silicon,
-    clipped_carbon_extractor,
-    clipped_germanium_extractor,
-    clipped_oxygen_extractor,
-    clipped_silicon_extractor,
-    germanium_ex_dep,
-    germanium_extractor,
-    oxygen_ex_dep,
-    oxygen_extractor,
-    resources,
-    silicon_ex_dep,
-    silicon_extractor,
-)
+from pydantic import BaseModel
+
+from cogames.cogs_vs_clips.missions import get_all_missions
+from cogames.cogs_vs_clips.stations import assembler
 from mettagrid.config.mettagrid_config import (
-    ActionConfig,
-    ActionsConfig,
-    AgentConfig,
-    AgentRewards,
-    ChangeGlyphActionConfig,
-    ClipperConfig,
-    GameConfig,
     MettaGridConfig,
     RecipeConfig,
-    WallConfig,
 )
 from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.map_builder.random import RandomMapBuilder
 
 
-def _base_game_config(num_agents: int) -> MettaGridConfig:
-    """Shared base configuration for all game types."""
-    return MettaGridConfig(
-        game=GameConfig(
-            resource_names=resources,
-            num_agents=num_agents,
-            actions=ActionsConfig(
-                move=ActionConfig(consumed_resources={"energy": 2}),
-                noop=ActionConfig(),
-                change_glyph=ChangeGlyphActionConfig(number_of_glyphs=16),
-            ),
-            objects={
-                "wall": WallConfig(name="wall", type_id=1, map_char="#", render_symbol="⬛"),
-                "charger": charger(),
-                "carbon_extractor": carbon_extractor(),
-                "oxygen_extractor": oxygen_extractor(),
-                "germanium_extractor": germanium_extractor(),
-                "silicon_extractor": silicon_extractor(),
-                # depleted variants
-                "silicon_ex_dep": silicon_ex_dep(),
-                "oxygen_ex_dep": oxygen_ex_dep(),
-                "carbon_ex_dep": carbon_ex_dep(),
-                "germanium_ex_dep": germanium_ex_dep(),
-                "clipped_carbon_extractor": clipped_carbon_extractor(),
-                "clipped_oxygen_extractor": clipped_oxygen_extractor(),
-                "clipped_germanium_extractor": clipped_germanium_extractor(),
-                "clipped_silicon_extractor": clipped_silicon_extractor(),
-                "chest": chest(),
-                "chest_carbon": chest_carbon(),
-                "chest_oxygen": chest_oxygen(),
-                "chest_germanium": chest_germanium(),
-                "chest_silicon": chest_silicon(),
-                "assembler": assembler(),
-            },
-            agent=AgentConfig(
-                resource_limits={
-                    "heart": 1,
-                    "energy": 100,
-                    ("carbon", "oxygen", "germanium", "silicon"): 100,
-                    ("scrambler", "modulator", "decoder", "resonator"): 5,
-                },
-                rewards=AgentRewards(
-                    stats={"chest.heart.amount": 1},
-                    # inventory={
-                    #     "heart": 1,
-                    # },
-                ),
-                initial_inventory={
-                    "energy": 100,
-                },
-                shareable_resources=["energy"],
-                inventory_regen_amounts={"energy": 1},
-            ),
-            inventory_regen_interval=1,
-            # Enable clipper system to allow start_clipped assemblers to work
-            clipper=ClipperConfig(
-                unclipping_recipes=[
-                    RecipeConfig(
-                        input_resources={"decoder": 1},
-                        cooldown=1,
-                    ),
-                    RecipeConfig(
-                        input_resources={"modulator": 1},
-                        cooldown=1,
-                    ),
-                    RecipeConfig(
-                        input_resources={"scrambler": 1},
-                        cooldown=1,
-                    ),
-                    RecipeConfig(
-                        input_resources={"resonator": 1},
-                        cooldown=1,
-                    ),
-                ],
-                length_scale=10.0,
-                cutoff_distance=0.0,
-                clip_rate=0.0,  # Don't clip during gameplay, only use start_clipped
-            ),
-        )
-    )
+def _get_base_cfg_from_mission(mission_name: str) -> MettaGridConfig:
+    return MettaGridConfig(game=get_all_missions()[mission_name].game)
 
 
 def make_game(
+    mission_name: str,
     num_cogs: int = 4,
     width: int = 10,
     height: int = 10,
@@ -132,7 +30,8 @@ def make_game(
     num_silicon_extractors: int = 0,
     num_chests: int = 0,
 ) -> MettaGridConfig:
-    cfg = _base_game_config(num_cogs)
+    cfg = _get_base_cfg_from_mission(mission_name)
+    cfg.game.num_agents = num_cogs
     map_builder = RandomMapBuilder.Config(
         width=width,
         height=height,
@@ -153,8 +52,8 @@ def make_game(
     return cfg
 
 
-def tutorial_assembler_simple(num_cogs: int = 1) -> MettaGridConfig:
-    cfg = make_game(num_cogs=num_cogs, num_assemblers=1)
+def tutorial_assembler_simple(mission_name: str, num_cogs: int = 1) -> MettaGridConfig:
+    cfg = make_game(mission_name=mission_name, num_cogs=num_cogs, num_assemblers=1)
     cfg.game.objects["assembler"] = assembler()
     cfg.game.objects["assembler"].recipes = [
         (["Any"], RecipeConfig(input_resources={"battery_red": 3}, output_resources={"heart": 1}, cooldown=10))
@@ -162,8 +61,9 @@ def tutorial_assembler_simple(num_cogs: int = 1) -> MettaGridConfig:
     return cfg
 
 
-def tutorial_assembler_complex(num_cogs: int = 1) -> MettaGridConfig:
+def tutorial_assembler_complex(mission_name: str, num_cogs: int = 1) -> MettaGridConfig:
     cfg = make_game(
+        mission_name=mission_name,
         num_cogs=num_cogs,
         num_assemblers=1,
         num_chests=1,
@@ -179,11 +79,12 @@ def tutorial_assembler_complex(num_cogs: int = 1) -> MettaGridConfig:
     return cfg
 
 
-def make_game_from_map(map_name: str, num_agents: int = 4) -> MettaGridConfig:
+def make_game_from_map(mission_name: str, map_name: str, num_agents: int = 4) -> MettaGridConfig:
     """Create a game configuration from a map file."""
 
     # Build the full config first to get the objects
-    config = _base_game_config(num_agents)
+    config = _get_base_cfg_from_mission(mission_name or "default")
+    config.game.num_agents = num_agents
 
     maps_dir = Path(__file__).parent.parent / "maps"
     map_path = maps_dir / map_name
@@ -195,7 +96,62 @@ def make_game_from_map(map_name: str, num_agents: int = 4) -> MettaGridConfig:
     return config
 
 
-def games() -> dict[str, MettaGridConfig]:
+class GenerateGameFn(Protocol):
+    def __call__(self, mission_name: str, *args: Any, **kwargs: Any) -> MettaGridConfig: ...
+
+
+class GameCatalogEntry(BaseModel):
+    name: str
+    generate_game: GenerateGameFn
+    default_mission: str = "default"
+
+    config = dict(arbitrary_types_allowed=True)
+
+
+GAMES_CATALOG: list[GameCatalogEntry] = [
+    GameCatalogEntry(
+        name="assembler_1_simple",
+        generate_game=tutorial_assembler_complex,
+    ),
+    GameCatalogEntry(
+        name="assembler_1_complex",
+        generate_game=tutorial_assembler_simple,
+    ),
+    GameCatalogEntry(
+        name="assembler_2_simple",
+        generate_game=tutorial_assembler_simple,
+    ),
+    GameCatalogEntry(
+        name="assembler_2_complex",
+        generate_game=tutorial_assembler_complex,
+    ),
+    # "extractor_1cog_1resource": tutorial_extractor(num_cogs=1),""
+    # "extractor_1cog_4resource": tutorial_extractor(num_cogs=1),
+    # "harvest_1": tutorial_harvest(mission_name=mission_name, num_cogs=1),
+    # "harvest_4": tutorial_harvest(num_cogs=4),
+    # "base_1": tutorial_base(num_cogs=1),
+    # "base_4": tutorial_base(num_cogs=4),
+    # "forage_1": tutorial_forage(num_cogs=1),
+    # "forage_4": tutorial_forage(num_cogs=4),
+    # "chest_1": tutorial_chest(num_cogs=1),
+    # "chest_4": tutorial_chest(num_cogs=4),
+    # Biomes dungeon maps with stations
+    GameCatalogEntry(
+        name="machina_1",
+        generate_game=make_game_from_map,
+    ),
+    GameCatalogEntry(
+        name="machina_2",
+        generate_game=make_game_from_map,
+    ),
+    GameCatalogEntry(
+        name="machina_3",
+        generate_game=make_game_from_map,
+    ),
+]
+
+
+def games(mission_name: Optional[str], *args: Any, **kwargs: Any) -> dict[str, MettaGridConfig]:
     return {
         "assembler_1_simple": tutorial_assembler_complex(num_cogs=1),
         "assembler_1_complex": tutorial_assembler_simple(num_cogs=1),
