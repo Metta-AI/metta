@@ -105,6 +105,7 @@ type
   Destination* = object
     pos*: IVec2
     destinationType*: DestinationType
+    approachDir*: IVec2 ## Direction to approach from for Bump actions (e.g., ivec2(-1, 0) means approach from the left).
 
 var
   requestActions*: seq[ActionRequest]
