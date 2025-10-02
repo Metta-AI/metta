@@ -546,8 +546,8 @@ def train(
         policy_architecture=policy_config,
         evaluator=EvaluatorConfig(
             simulations=make_eval_suite(),
-            evaluate_remote=False,
-            evaluate_local=True,
+            evaluate_remote=True,
+            evaluate_local=False,
         ),
         stats_server_uri="https://api.observatory.softmax-research.net",
     )
