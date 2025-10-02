@@ -32,11 +32,11 @@ from mettagrid.map_builder.random import RandomMapBuilder
 def _base_game_config(num_agents: int, map_builder) -> MettaGridConfig:
     """Shared base configuration for all game types."""
 
-    heart_reward = 0.05
-    stats_rewards: dict[str, float] = {
-        "heart.gained": heart_reward,
-        "heart.put": heart_reward * 0.5,
-    }
+    # heart_reward = 0.05
+    # stats_rewards: dict[str, float] = {
+    #     "heart.gained": heart_reward,
+    #     "heart.put": heart_reward * 0.5,
+    # }
 
     return MettaGridConfig(
         game=GameConfig(
@@ -66,15 +66,20 @@ def _base_game_config(num_agents: int, map_builder) -> MettaGridConfig:
             agent=AgentConfig(
                 default_resource_limit=10,
                 resource_limits={
-                    "heart": 1,
+                    "heart": 10,
                     "energy": 100,
                 },
                 rewards=AgentRewards(
-                    stats={**stats_rewards, "chest.heart.amount": heart_reward},
+                    #     stats={**stats_rewards, "chest.heart.amount": heart_reward},
+                    # ),
+                    # initial_inventory={
+                    #     "energy": 100,
+                    # },
+                    # stats={"chest.heart.amount": 1},
+                    inventory={
+                        "heart": 1,
+                    },
                 ),
-                initial_inventory={
-                    "energy": 100,
-                },
             ),
         )
     )
