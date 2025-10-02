@@ -80,8 +80,7 @@ def evaluate(
 
     assignments = np.repeat(np.arange(len(policy_specs)), policy_counts)
 
-    if len(assignments) != env.num_agents:
-        raise ValueError("Policy agent assignments match number of agents.")
+    assert len(assignments) == env.num_agents
 
     per_episode_rewards: list[np.ndarray] = []
     per_episode_stats: list["EpisodeStats"] = []
@@ -166,7 +165,7 @@ def evaluate(
         game_stats_table.add_row(key, f"{value / episodes:.2f}")
     console.print(game_stats_table)
 
-    console.print("\n[bold cyan]Average Reward per Agent[/bold cyan]")
+    console.print(f"\n[bold cyan]Average Reward per Agent on {resolved_game}[/bold cyan]")
     summary_table = Table(
         show_header=True,
         header_style="bold magenta",
