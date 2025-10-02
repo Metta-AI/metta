@@ -12,7 +12,7 @@ export const YamlArray: FC<{
   }
 
   if (
-    node.path[-1] === "map_data" &&
+    node.path[node.path.length - 2] === "map_data" &&
     node.value.every((v) => typeof v === "string" && v.length === 1)
   ) {
     // special case for readability - string[]

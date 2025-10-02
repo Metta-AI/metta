@@ -3,7 +3,7 @@ import clsx from "clsx";
 import { FC, use } from "react";
 
 import { Tooltip } from "../Tooltip";
-import { getSchema, getSchemaTypeStr, JsonSchema } from "./schema";
+import { getSchemaTypeStr, JsonSchema, useNodeSchema } from "./schema";
 import { ConfigNode } from "./utils";
 import { YamlContext } from "./YamlContext";
 
@@ -24,10 +24,7 @@ const JsonSchemaInfo: FC<{
 };
 
 const YamlKeyTooltip: FC<{ node: ConfigNode }> = ({ node }) => {
-  const { kind } = use(YamlContext);
-  const schema: JsonSchema | undefined = kind
-    ? getSchema(node, kind)
-    : undefined;
+  const schema: JsonSchema | undefined = useNodeSchema(node);
 
   return (
     <div className="max-w-[80ch] text-xs">

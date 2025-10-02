@@ -1,7 +1,9 @@
+import { use } from "react";
 import z from "zod/v4";
 
 import mettaSchema from "../../lib/schemas.json" assert { type: "json" };
 import { ConfigNode } from "./utils";
+import { YamlContext } from "./YamlContext";
 
 const commonJsonMetaSchema = {
   title: z.string().optional(),
@@ -169,18 +171,39 @@ function parseKind(kind: string): JsonSchema {
   return { $ref: "#/$defs/" + kind };
 }
 
-export function getSchema(
-  node: ConfigNode,
-  kind: string
-): JsonSchema | undefined {
+export function useNodeSchema(node: ConfigNode): JsonSchema | undefined {
+  const { kind } = use(YamlContext);
+  if (!kind) {
+    return undefined;
+  }
   const initialType = resolveType(parseKind(kind));
   if (!initialType) {
     return undefined;
   }
   let currentType: JsonSchema = initialType;
 
+  const getValueByPath = (path: string[]): unknown => {
+    const { topValue } = use(YamlContext);
+    let currentValue: any = topValue;
+    for (const part of path) {
+      if (typeof currentValue !== "object" || currentValue === null) {
+        return null;
+      }
+      if (part.match(/^\d+$/)) {
+        currentValue = currentValue[Number(part)];
+      } else {
+        currentValue = currentValue[part];
+      }
+    }
+    return currentValue ?? null;
+  };
+
   for (const part of node.path) {
     let nextType: JsonSchema | undefined;
+
+    console.log(part);
+    if (part === "map_builder" || part === "game")
+      console.log(part, currentType);
 
     if (!("type" in currentType)) {
       return undefined;

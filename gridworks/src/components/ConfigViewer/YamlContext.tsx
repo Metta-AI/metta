@@ -6,4 +6,5 @@ export const YamlContext = createContext<{
   onSelectLine?: (key: string, value: string) => void;
   unsetFields: Set<string>;
   kind?: string;
-}>({ unsetFields: new Set() });
+  topValue: unknown;
+}>({ unsetFields: new Set(), topValue: undefined });

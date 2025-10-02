@@ -8,16 +8,22 @@ from mettagrid.builder.envs import MettaGridConfig
 from mettagrid.config import Config
 from mettagrid.mapgen.mapgen import MapGen
 
-_, top_level_schema = models_json_schema(
-    [
-        (x, "serialization")
-        for x in [
-            Config,  # including Config here guarantees that MapGen.Config name will be fully qualified
-            MettaGridConfig,
-            SimulationConfig,
-            MapGen.Config,
-        ]
-    ],
-    title="Gridworks Schemas",
-)
-print(json.dumps(top_level_schema, indent=2))
+
+def main():
+    _, top_level_schema = models_json_schema(
+        [
+            (x, "serialization")
+            for x in [
+                Config,  # including Config here guarantees that MapGen.Config name will be fully qualified
+                MettaGridConfig,
+                SimulationConfig,
+                MapGen.Config,
+            ]
+        ],
+        title="Gridworks Schemas",
+    )
+    print(json.dumps(top_level_schema, indent=2))
+
+
+if __name__ == "__main__":
+    main()
