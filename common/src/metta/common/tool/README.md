@@ -24,28 +24,43 @@ Tools are defined in `metta/tools/` and provide the interface for all operations
 
 **Recipes** are Python modules (typically in `experiments/recipes/`) that define **tool functions** - functions that return configured Tool instances for specific experiments or environments.
 
+**Key benefit**: Recipes group related configurations together. For example, an `arena` recipe ensures you train, evaluate, and play on the same maps and configurations - maintaining consistency across your entire workflow.
+
 A recipe module contains:
 - **Tool functions**: Functions with return type annotations that return Tool instances (e.g., `def train() -> TrainTool`)
-- **Helper functions** (optional): Shared config like `mettagrid()` or `simulations()` to avoid duplication
+- **Helper functions** (optional): Shared config like `mettagrid()` or `simulations()` to avoid duplication across tools
 
 Example recipe structure:
 ```python
 # experiments/recipes/arena.py
 from metta.tools.train import TrainTool
 from metta.tools.eval import EvalTool
+from metta.tools.play import PlayTool
+
+def simulations():
+    """Shared arena simulations used across tools."""
+    return [
+        SimulationConfig(suite="arena", name="basic", env=make_arena()),
+        SimulationConfig(suite="arena", name="combat", env=make_arena_combat()),
+    ]
 
 def train() -> TrainTool:
-    """Standard arena training."""
-    return TrainTool(...)
-
-def train_shaped() -> TrainTool:
-    """Arena training with shaped rewards."""
-    return TrainTool(...)
+    """Train on arena maps."""
+    return TrainTool(
+        training_env=...,
+        evaluator=EvaluatorConfig(simulations=simulations())  # Same maps for eval
+    )
 
 def eval() -> EvalTool:
-    """Evaluate on arena simulations."""
-    return EvalTool(simulations=[...])
+    """Evaluate on arena maps (same as training)."""
+    return EvalTool(simulations=simulations())
+
+def play() -> PlayTool:
+    """Interactive play on arena maps."""
+    return PlayTool(sim=simulations()[0])
 ```
+
+This ensures training, evaluation, and play all use the same arena configurations.
 
 ### How They Work Together
 
