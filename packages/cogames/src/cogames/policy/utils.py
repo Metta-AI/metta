@@ -10,9 +10,6 @@ import torch
 
 from cogames.policy.policy import PolicySpec
 
-# ---------------------------------------------------------------------------
-# Policy resolution helpers (existing functionality from main)
-# ---------------------------------------------------------------------------
 
 def resolve_policy_class_path(policy: str) -> str:
     """Resolve a policy shorthand or full class path.
@@ -88,10 +85,6 @@ def parse_policy_spec(spec: str) -> PolicySpec:
         policy_data_path=resolved_policy_data,
     )
 
-
-# ---------------------------------------------------------------------------
-# LSTM state helpers (new functionality for typed LSTM policies)
-# ---------------------------------------------------------------------------
 
 LSTMStateTuple = Tuple[torch.Tensor, torch.Tensor]
 LSTMStateDict = Dict[str, torch.Tensor]
