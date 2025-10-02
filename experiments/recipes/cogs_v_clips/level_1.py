@@ -507,7 +507,7 @@ def play(curriculum_style: str = "test") -> PlayTool:
 
 
 def train(
-    curriculum_style: str = "multi_agent_pairs", architecture="vit_reset"
+    curriculum_style: str = "multi_agent_pairs_uniform", architecture="vit_reset"
 ) -> TrainTool:
     task_generator_cfg = CogsVsClippiesTaskGenerator.Config(
         **curriculum_args[curriculum_style]
