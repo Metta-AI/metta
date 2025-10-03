@@ -1,6 +1,7 @@
 #ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_SYSTEMS_CLIPPER_HPP_
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_SYSTEMS_CLIPPER_HPP_
 
+#include <algorithm>
 #include <cmath>
 #include <memory>
 #include <numbers>
@@ -15,19 +16,26 @@ public:
   std::vector<std::shared_ptr<Recipe>> unclipping_recipes;
   std::map<Assembler*, float> assembler_infection_weight;
   std::set<Assembler*> unclipped_assemblers;
+  std::map<Assembler*, vector<Assembler*>> adjacent_assemblers;
   float length_scale;
   float cutoff_distance;
   Grid& grid;
   float clip_rate;
   std::mt19937 rng;
 
-  Clipper(Grid& grid, std::vector<std::shared_ptr<Recipe>> recipe_ptrs, float length_scale, float cutoff_distance, float clip_rate, std::mt19937 rng_init)
+  Clipper(Grid& grid,
+          std::vector<std::shared_ptr<Recipe>> recipe_ptrs,
+          float length_scale,
+          float cutoff_distance,
+          float clip_rate,
+          std::mt19937 rng_init)
       : unclipping_recipes(std::move(recipe_ptrs)),
         length_scale(length_scale),
         cutoff_distance(cutoff_distance),
         grid(grid),
         clip_rate(clip_rate),
         rng(std::move(rng_init)) {
+    std::vector<Assembler*> starting_clipped_assemblers;
     for (size_t obj_id = 1; obj_id < grid.objects.size(); obj_id++) {
       auto* obj = grid.object(static_cast<GridObjectId>(obj_id));
       if (!obj) continue;
@@ -36,14 +44,11 @@ public:
         if (assembler->clip_immune) continue;
 
         assembler_infection_weight[assembler] = 0.0f;
+        unclipped_assemblers.insert(assembler);
 
-        // Check if this assembler should start clipped
         if (assembler->start_clipped) {
-          // Clip it immediately without adding to unclipped set
-          clip_assembler(*assembler);
-        } else {
-          // Add to unclipped assemblers set
-          unclipped_assemblers.insert(assembler);
+          // We'll actually do the clipping in a later step.
+          starting_clipped_assemblers.push_back(assembler);
         }
       }
     }
@@ -64,8 +69,8 @@ public:
       // We use diameter basis which becomes 4.51
 
       constexpr float PERCOLATION_CONSTANT = 4.51f;
-      this->length_scale =
-          (grid_size / std::sqrt(static_cast<float>(assembler_infection_weight.size()))) * std::sqrt(PERCOLATION_CONSTANT / (4.0f * std::numbers::pi_v<float>));
+      this->length_scale = (grid_size / std::sqrt(static_cast<float>(assembler_infection_weight.size()))) *
+                           std::sqrt(PERCOLATION_CONSTANT / (4.0f * std::numbers::pi_v<float>));
     }
     // else: use the provided positive length_scale value as-is
 
@@ -73,6 +78,13 @@ public:
     // At 3*length_scale, exp(-3) ≈ 0.05, so weights beyond this are negligible
     if (cutoff_distance <= 0.0f) {
       this->cutoff_distance = 3.0f * this->length_scale;
+    }
+
+    compute_adjacencies();
+
+    // Clip all starting clipped assemblers
+    for (auto* assembler : starting_clipped_assemblers) {
+      clip_assembler(*assembler);
     }
   }
 
@@ -89,10 +101,54 @@ public:
     return std::sqrt(std::pow(location_a.r - location_b.r, 2) + std::pow(location_a.c - location_b.c, 2));
   }
 
+  void compute_adjacencies() {
+    // Clear existing adjacencies
+    adjacent_assemblers.clear();
+
+    // Collect all assemblers and sort by x coordinate (column)
+    std::vector<Assembler*> sorted_assemblers;
+    for (auto& [assembler, _] : assembler_infection_weight) {
+      sorted_assemblers.push_back(assembler);
+    }
+
+    // Sort assemblers by their column. In the future we could consider sorting by row instead when
+    // height > width.
+    std::sort(sorted_assemblers.begin(), sorted_assemblers.end(), [](Assembler* a, Assembler* b) {
+      return a->location.c < b->location.c;
+    });
+
+    // For each assembler, find adjacent assemblers within cutoff_distance
+    for (size_t i = 0; i < sorted_assemblers.size(); ++i) {
+      Assembler* assembler_a = sorted_assemblers[i];
+      GridCoord a_x = assembler_a->location.c;
+
+      // Check assemblers with x coordinates within cutoff_distance
+      for (size_t j = i + 1; j < sorted_assemblers.size(); ++j) {
+        Assembler* assembler_b = sorted_assemblers[j];
+        GridCoord b_x = assembler_b->location.c;
+
+        // If x difference exceeds cutoff_distance, no need to check further
+        if (b_x - a_x > cutoff_distance) {
+          break;
+        }
+
+        // Calculate actual distance
+        float dist = distance(*assembler_a, *assembler_b);
+
+        // If within cutoff_distance, they are adjacent
+        if (dist <= cutoff_distance) {
+          // Add both directions of connection
+          adjacent_assemblers[assembler_a].push_back(assembler_b);
+          adjacent_assemblers[assembler_b].push_back(assembler_a);
+        }
+      }
+    }
+  }
+
   void clip_assembler(Assembler& to_infect) {
-    for (auto& [other, weight] : assembler_infection_weight) {
-      if (other == &to_infect) continue;
-      weight += infection_weight(to_infect, *other);
+    // Update infection weights only for adjacent assemblers
+    for (auto* adjacent : adjacent_assemblers[&to_infect]) {
+      assembler_infection_weight[adjacent] += infection_weight(to_infect, *adjacent);
     }
     unclipped_assemblers.erase(&to_infect);
 
@@ -108,9 +164,9 @@ public:
   }
 
   void on_unclip_assembler(Assembler& to_unclip) {
-    for (auto& [other, weight] : assembler_infection_weight) {
-      if (other == &to_unclip) continue;
-      weight -= infection_weight(to_unclip, *other);
+    // Update infection weights only for adjacent assemblers
+    for (auto* adjacent : adjacent_assemblers[&to_unclip]) {
+      assembler_infection_weight[adjacent] -= infection_weight(to_unclip, *adjacent);
     }
     unclipped_assemblers.insert(&to_unclip);
   }
