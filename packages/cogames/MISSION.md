@@ -2,14 +2,14 @@
 
 ## Holon Enabled Agent Replication Templates (HEART) Infrastructure Team
 
-### Welcome, Cognitive!
+Welcome, Cognitive!
 
-As you know, every Cog wants nothing more than to enjoy in the collective HEARTs collected by the colony. You are part
-of an elite unit of Cogs deployed to establish and maintain critical HEARTs infrastructure in this sector. Your mission:
-collect resources, manufacture HEARTs, and defend facilities from Clip infestation.
+You are part of an elite unit deployed to establish and maintain critical HEARTs infrastructure in this sector. Your
+mission: collect resources, manufacture HEARTs, and defend facilities from Clip infestation. HEARTs are, at the
+exclusion of all else, what Cog society truly lives for. Do not let them down.
 
-This report arms you with the latest information on what you might face. In different environments, you may find that
-some of these **details** vary.
+This report arms you with the latest intelligence on what you might face. In different environments, specific
+**details** may vary.
 
 ---
 
@@ -17,15 +17,15 @@ some of these **details** vary.
 
 #### Energy Management
 
-Your onboard battery stores limited energy -- manage it wisely!
+Your onboard battery stores limited energy; manage it wisely.
 
-Almost everything you do, from moving to interacting with stations, will expend your energy, but you and the team have
-various tools at your disposal to share and replenish your stores.
+Almost everything you do, from moving to operating stations, drains your charge. Fortunately, the team has several ways
+to share and replenish power.
 
-- Your onboard battery starts with **100** energy and stores a maximum of **100**.
-- You are equipped with passive solar equipment. It regenerates **+1** energy/turn
-- You can interact with solar array stations, collecting **50** energy with **10**-turn cooldown
-- Support your teammates: move into an ally's position to transfer **half** your onboard battery's energy to theirs
+- Your onboard battery starts at **100** energy and caps at **100**.
+- Passive solar equipment regenerates **+1** energy per turn.
+- Interacting with solar array stations nets **50** energy, then triggers a **10**-turn cooldown.
+- Support teammates by moving onto their position to transfer **half** your battery to them.
 
 #### Cargo Limits
 
@@ -37,29 +37,27 @@ Your chassis has limited capacity for:
 
 ## YOUR CAPABILITIES
 
-You and your Cog teammates can take one of these actions per turn. Your actions will execute in an unspecified order.
+You and your Cog teammates take exactly one action per turn. Actions resolve in an unspecified order.
 
 **MOVE [Direction: N, S, W, E]**
 
-Movement is the main way you can interact with the world. Every step takes one full turn and exhausts **2** energy.
+Movement is your primary way to interact with the world. Every step burns **2** energy.
 
-You can move into:
+Attempting to move into occupied space will make you interact with the target:
 
-- Empty space: move to position
-- Occupied space: interact with the target:
-  - Another Cog → Transfer **half** of your onboard battery's energy to theirs
-  - Station → Activate or operate the facility (see Interaction Protocols below)
+- Another Cog → Transfer **half** of your battery to theirs.
+- Station → Activate or operate the facility (see Interaction Protocols below).
 
 **EMOTE [Symbol]**
 
-You are outfitted with a communication display that can show a symbol, visible to all other Cogs. The available symbols
-may vary by scenario.
+You are outfitted with a communication display that can show a symbol visible to all other Cogs. Available symbols may
+vary by scenario.
 
-You can opt to EMOTE and update the symbol in your display. It requires **0** energy cost.
+EMOTE updates that display and costs **0** energy.
 
 **REST**
 
-No action, no energy cost
+No action, no energy cost.
 
 ## STATIONS
 
@@ -67,34 +65,31 @@ You will need to operate stations of many kinds. Below is an index of what stati
 
 ### Station Interaction Protocol
 
-Different stations -- Extractors, Assemblers, and Chests -- will have different requirements, inputs, and outputs. But
-the way in which you will interact with them has some commonalities:
+The are many different station types: Extractors, Assemblers, and Chests. Each has distinct requirements, inputs, and
+outputs, but the ways in which you interact with them follows common rules:
 
-- To attempt activating a station, position yourself adjacent to it, then MOVE toward it
-- Some facilities need teammates at multiple specific **terminals** (the 8 positions surrounding the facility)
-- Station inputs are drawn from the cargos of the surrounding cogs in clockwise order, starting at the position
-  northwest of the station. The station will draw on each cog's cargo and/or battery in turn, exhausting the full amount
-  available, until its input costs are met. If there are insufficient resources among the surrounding cogs, the station
-  won't activate and won't consume inputs.
-- Upon successful activation, station outputs are placed in the **activator**'s cargo. The activator is the first Cog
-  that MOVEs towards the station. Because you and your teammates' actions will execute in an unspecified order, you may
-  need to coordinate.
+- To attempt activation, position yourself adjacent to the station, then MOVE toward it.
+- Some facilities need teammates at multiple specific **terminals** (the eight tiles surrounding the facility).
+- Station inputs draw from the cargo of surrounding Cogs in clockwise order, starting northwest of the station and
+  moving clockwise. The station drains each Cog's cargo and/or battery in turn until costs are met. If the team lacks
+  the required resources, the station will not trigger and nothing is consumed.
+- Upon success, outputs are placed in the **activator**'s cargo. The activator is the first Cog that MOVEs toward the
+  station. Because turn order is unspecified, coordinate carefully to ensure you and your team elect an activator
+  intentionally.
 
 ### Station Type: Extractor
 
-Resources are stockpiled by automated extractor stations. Extractors have finite storage capacity, and will
-automatically produce and store resources until they are full.
+Resources are stockpiled by automated extractor stations. Extractors will automatically harvest and store resources
+until full.
 
-Extractors follow all the rules of the Station Interaction Protocol, and have a few additional behaviors:
+Extractor interaction has a few additional properties:
 
-- Extractors may have **cooldown** periods after interaction. During a station's cooldown period, activation will by
-  default have no effect
-- When an extractor is on cooldown, **partial usage** may be supported. In such cases, the station's inputs and outputs
-  will be scaled by the fraction of its cooldown period that has elapsed, and its its original cooldown period remains
-  in effect; it does not get refreshed.
-- Some stations only support a **maximum number of uses**, after which interaction will have no effect.
-- Stations configured with **exhaustion** grow slower over time: after each successful use their cooldown is multiplied
-  by `(1 + exhaustion)`
+- Extractors may have **cooldown** periods after interaction. Activating one mid-cooldown generally has no effect.
+- Some extractors allow **partial usage** during cooldown. Inputs and outputs are scaled by the fraction of elapsed
+  cooldown, and the original cooldown continues counting down instead of refreshing.
+- Certain stations have a **maximum number of uses**; once exhausted they stop working.
+- Stations with **exhaustion** slow down each time they run: after every success their cooldown is multiplied by
+  `(1 + exhaustion)`.
 
 The exact behavior of each extractor may vary across missions. Here are some typical parameters we have discovered:
 
@@ -106,7 +101,8 @@ The exact behavior of each extractor may vary across missions. Here are some typ
 | Silicon Extractor (`S`)   | −25 energy | +25 silicon                              |                                 |          |
 | Solar Array (`+`)         |            | +50 energy                               | 10 turns (partial use allowed)  |          |
 
-Some extractors may not be in the best shape. Wear and tear has caused them to become less effective:
+Some extractors are worse for wear. Years of neglect have reduced their effectiveness. Here, again, are typical
+parameters we have observed for these depleted extractors:
 
 | Extractor                          | Input cost | Output                                   | Cooldown                       | Max uses |
 | ---------------------------------- | ---------- | ---------------------------------------- | ------------------------------ | -------- |
@@ -117,24 +113,22 @@ Some extractors may not be in the best shape. Wear and tear has caused them to b
 
 ### Station Type: Assembler
 
-This is your primary objective facility! The Assembler converts raw resources into gear and precious HEART units.
+Assemblers converts raw resources into gear and precious HEART units.
 
 #### Assembler Interaction Protocol
 
-You must discover what each assembler is capable of. Assembler protocols change between missions!
+As with Extractors, inputs are drawn from all Cogs on the Assembler's terminals, and outputs go to the activator. But do
+not be fooled: Assemblers can be much more complicated than Extractors. Unlike Extractors, Assemblers can perform many
+distinct functions, each achieved by performing a specific protocol. Protocols supported by assemblers change between
+missions, and so you must discover them out in the wild.
 
-Like with extractors, resources are consumed from among the team and outputs (gear or hearts) go to the activator. But
-determining how to use assemblers to accomplish your goals is no easy feat:
-
-- The precise formation of you and your teammates around the terminals of the Assembler determines which Protocol will
-  be activated.
-- Different protocols require different inputs and create different outputs
+- Your formation around the eight terminals determines which protocol fires.
+- Each protocol demands different inputs and produces different outputs.
 - Inputs and outputs can include HEART units or gear (scrambler, modulator, decoder, resonator), not just resources and
-  energy
-- Some assemblers will require gear to activate but will not consume that gear as an input cost
-- Assemblers do not have cooldowns and do not get depleted, but may have a maximum number of uses
-- Specific protocols may have a maximum number of uses
-- Protocol availability may change based on assembler status
+  energy.
+- Some assemblers require gear to activate yet leave the gear intact afterward.
+- Assemblers have no cooldowns, though some may enforce a maximum number of uses.
+- Individual protocols may also have a maximum number of uses.
 
 ### Station Type: Communal Chests
 
@@ -153,21 +147,21 @@ withdraw all you can, and any amount you cannot fit in your inventory will remai
 Like with extractors, the exact parameters (max storage and initial amount) will vary across missions. Here are some
 typical parameters we have discovered:
 
-| Chest                 | Max storage | Initial amount |     |
-| --------------------- | ----------- | -------------- | --- |
-| Heart chest (`=`)     | 255         | 0              |     |
-| Carbon chest (`D`)    | 255         | 50             |     |
-| Oxygen chest (`P`)    | 255         | 50             |     |
-| Germanium chest (`H`) | 255         | 5              |     |
-| Silicon chest (`T`)   | 255         | 100            |     |
+| Chest                 | Max storage | Initial amount |
+| --------------------- | ----------- | -------------- |
+| Heart chest (`=`)     | 255         | 0              |
+| Carbon chest (`D`)    | 255         | 50             |
+| Oxygen chest (`P`)    | 255         | 50             |
+| Germanium chest (`H`) | 255         | 5              |
+| Silicon chest (`T`)   | 255         | 100            |
 
 ---
 
-## THREAT ADVISORY: FRIENDLY PAPERCLIP COMPANY OUTBREAK
+## THREAT ADVISORY: CLIP NANOSWARM OUTBREAK
 
-**WARNING**: The Friendly Paperclip Company's automated paperclip production nanoswarm has been sighted. The nanoswarm
-clips is too small to be visible, but don't let that fool you: station infestations are devastating. Once infested, a
-station suspends normal output until Cogs run the designated repair protocol.
+**WARNING**: The Friendly Paperclip Company's automated paperclip production nanoswarm has been sighted. The clips is
+too small to be individually visible, but don't let that fool you: station infestations are devastating. Once infested,
+a station suspends normal output until Cogs run the designated repair protocol.
 
 ### Clip Nanoswarm Response
 
@@ -191,16 +185,15 @@ Thankfully some of our buildings are immune to infestation, but others may alrea
 
 **Your mission is critical. The HEARTS you create today will ensure the continuation of Cog operations tomorrow.**
 
+Your success depends on seamless team coordination:
+
+- Energy management
+- Strategic extractor operation
+- Continuous assembler protocol discovery
+- Rapid Clip Nanoswarm threat response
+
 Your individual achievement is irrelevant. Your team achievement, measured by the number of HEARTs in communal heart
 chests, is all that matters.
-
-Your success depends on:
-
-- Efficient energy management
-- Strategic facility operations
-- Rapid Clip Nanoswarm threat response
-- Continuous protocol discovery
-- Seamless team coordination
 
 _Stay charged. Stay coordinated. Stay vigilant._
 
