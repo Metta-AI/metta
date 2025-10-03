@@ -9,10 +9,7 @@ from rich.console import Console
 from typing_extensions import TYPE_CHECKING
 
 import mettagrid.mettascope as mettascope
-<<<<<<< HEAD
-=======
 from cogames.cogs_vs_clips.glyphs import GLYPHS
->>>>>>> c00b2780b53b94be4240736274b53711ec209179
 from cogames.utils import initialize_or_load_policy
 from mettagrid import MettaGridConfig, MettaGridEnv
 from mettagrid.util.grid_object_formatter import format_grid_object

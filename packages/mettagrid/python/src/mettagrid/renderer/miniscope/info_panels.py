@@ -3,14 +3,10 @@
 from typing import Dict, List, Optional
 
 import numpy as np
-<<<<<<< HEAD
-from rich.table import Table
-=======
 from rich import box
 from rich.table import Table
 
 from .buffer import get_symbol_for_object
->>>>>>> c00b2780b53b94be4240736274b53711ec209179
 
 
 def build_agent_info_panel(
@@ -20,12 +16,9 @@ def build_agent_info_panel(
     resource_names: List[str],
     panel_height: int,
     total_rewards: np.ndarray,
-<<<<<<< HEAD
-=======
     glyphs: list[str] | None = None,
     symbol_map: dict[str, str] | None = None,
     manual_agents: set[int] | None = None,
->>>>>>> c00b2780b53b94be4240736274b53711ec209179
 ) -> Table:
     """Build info panel showing selected agent's inventory using rich.Table.
 
@@ -43,14 +36,9 @@ def build_agent_info_panel(
     Returns:
         Rich Table object
     """
-<<<<<<< HEAD
-    table = Table(title="Agent Info", show_header=False, box=None, padding=(0, 1))
-    table.add_column("Key", style="cyan", no_wrap=True)
-=======
 
     table = Table(title="Agent Info", show_header=False, box=box.ROUNDED, padding=(0, 1), width=46)
     table.add_column("Key", style="cyan", no_wrap=True, width=12)
->>>>>>> c00b2780b53b94be4240736274b53711ec209179
     table.add_column("Value", style="white")
 
     if selected_agent is None:
@@ -69,10 +57,6 @@ def build_agent_info_panel(
         else:
             # Build inventory display
             reward = total_rewards[selected_agent] if selected_agent < len(total_rewards) else 0.0
-<<<<<<< HEAD
-            table.add_row("Agent", str(selected_agent))
-            table.add_row("Reward", f"{reward:.1f}")
-=======
 
             # Get agent symbol
             agent_symbol = ""
@@ -94,7 +78,6 @@ def build_agent_info_panel(
             if glyph_id is not None and glyphs and 0 <= glyph_id < len(glyphs):
                 glyph_symbol = glyphs[glyph_id]
                 table.add_row("Glyph", f"{glyph_id} {glyph_symbol}")
->>>>>>> c00b2780b53b94be4240736274b53711ec209179
 
             inventory = agent_obj.get("inventory", {})
             if not inventory or not isinstance(inventory, dict):
@@ -111,8 +94,6 @@ def build_agent_info_panel(
                     table.add_row("Inventory", "(empty)")
 
     return table
-<<<<<<< HEAD
-=======
 
 
 def build_symbols_table(
@@ -170,7 +151,6 @@ def build_symbols_table(
         table.add_row("⋯", f"({remaining} more)", "", "")
 
     return table
->>>>>>> c00b2780b53b94be4240736274b53711ec209179
 
 
 def build_object_info_panel(
@@ -179,10 +159,7 @@ def build_object_info_panel(
     cursor_row: int,
     cursor_col: int,
     panel_height: int,
-<<<<<<< HEAD
-=======
     resource_names: list[str] | None = None,
->>>>>>> c00b2780b53b94be4240736274b53711ec209179
 ) -> Table:
     """Build info panel showing selected object's properties using rich.Table.
 
@@ -191,23 +168,14 @@ def build_object_info_panel(
         object_type_names: List mapping type IDs to names
         cursor_row: Row position of cursor
         cursor_col: Column position of cursor
-<<<<<<< HEAD
-        panel_height: Height of the panel in lines (unused, kept for compatibility)
-=======
         panel_height: Height of the panel in lines to limit table size
         resource_names: List mapping resource IDs to names
->>>>>>> c00b2780b53b94be4240736274b53711ec209179
 
     Returns:
         Rich Table object
     """
-<<<<<<< HEAD
-    table = Table(title="Object Info", show_header=False, box=None, padding=(0, 1))
-    table.add_column("Key", style="cyan", no_wrap=True)
-=======
     table = Table(title="Object Info", show_header=False, box=box.ROUNDED, padding=(0, 1), width=46)
     table.add_column("Key", style="cyan", no_wrap=True, width=12)
->>>>>>> c00b2780b53b94be4240736274b53711ec209179
     table.add_column("Value", style="white")
 
     # Find object at cursor position
@@ -222,14 +190,10 @@ def build_object_info_panel(
     else:
         type_name = object_type_names[selected_obj["type"]]
         table.add_row("Type", type_name)
-<<<<<<< HEAD
-        table.add_row("Position", f"({cursor_row}, {cursor_col})")
-=======
         actual_r = selected_obj.get("r", "?")
         actual_c = selected_obj.get("c", "?")
         table.add_row("Cursor pos", f"({cursor_row}, {cursor_col})")
         table.add_row("Object pos", f"({actual_r}, {actual_c})")
->>>>>>> c00b2780b53b94be4240736274b53711ec209179
 
         # Check if this object has recipes (e.g., assembler)
         has_recipes = "recipes" in selected_obj

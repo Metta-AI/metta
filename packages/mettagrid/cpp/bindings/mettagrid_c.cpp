@@ -761,10 +761,6 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
       obj_dict["is_frozen"] = !!agent->frozen;
       obj_dict["freeze_remaining"] = agent->frozen;
       obj_dict["freeze_duration"] = agent->freeze_duration;
-<<<<<<< HEAD
-      obj_dict["color"] = agent->color;
-=======
->>>>>>> c00b2780b53b94be4240736274b53711ec209179
       obj_dict["glyph"] = agent->glyph;
       obj_dict["agent_id"] = agent->agent_id;
       obj_dict["action_failure_penalty"] = agent->action_failure_penalty;
