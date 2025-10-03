@@ -22,7 +22,7 @@ class GRPOConfig(Config):
     # Clip coefficient for policy gradient
     clip_coef: float = Field(default=0.2, gt=0, le=1.0)
     # Entropy regularization weight (higher for more exploration and stability)
-    ent_coef: float = Field(default=0.01, ge=0)
+    ent_coef: float = Field(default=0.05, ge=0)
     # Discount factor for returns
     gamma: float = Field(default=0.99, ge=0, le=1.0)
     # Number of responses to sample per prompt for group comparison
