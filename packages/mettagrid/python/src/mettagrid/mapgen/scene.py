@@ -5,7 +5,7 @@ from typing import Any, ClassVar, Generic, TypeVar, get_args, get_origin
 import numpy as np
 from pydantic import model_serializer
 
-from mettagrid.config.config import Config
+from mettagrid.base_config import Config
 from mettagrid.mapgen.types import Area, AreaQuery, MapGrid
 from mettagrid.util.module import load_symbol
 

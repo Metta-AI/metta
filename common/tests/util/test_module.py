@@ -32,6 +32,6 @@ def test_load_self() -> None:
 
 
 def test_load_config() -> None:
-    result = load_symbol("mettagrid.config.Config")
+    result = load_symbol("mettagrid.base_config.Config")
     assert isinstance(result, type)
     assert result.__name__ == "Config"
