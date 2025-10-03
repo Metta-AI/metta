@@ -3,7 +3,6 @@ import subprocess
 import time
 from typing import Optional, Dict, Any
 from dataclasses import dataclass, field
-
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
@@ -42,6 +41,8 @@ class _BuildCfg:
 
 
 class ForagingTaskGenerator(TaskGenerator):
+    """Pure foraging, no energy or chargers"""
+
     class Config(TaskGeneratorConfig["ForagingTaskGenerator"]):
         num_cogs: list[int]
         num_assemblers: list[int]
@@ -301,7 +302,7 @@ def experiment():
             [
                 "./devops/skypilot/launch.py",
                 "experiments.recipes.cogs_v_clips.foraging.train",
-                f"run=in_context.foraging_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
+                f"run=cogs_v_clips.foraging_{curriculum_style}.{random.randint(0, 10000)}.{time.strftime('%Y-%m-%d')}",
                 f"curriculum_style={curriculum_style}",
                 "--gpus=4",
                 "--heartbeat-timeout=3600",

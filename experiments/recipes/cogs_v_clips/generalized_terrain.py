@@ -1,12 +1,15 @@
-from mettagrid.config.mettagrid_config import MettaGridConfig
-from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 import random
-from mettagrid.config.mettagrid_config import Field
-from mettagrid.config.mettagrid_config import Position
+from mettagrid.config.mettagrid_config import (
+    MettaGridConfig,
+    Field,
+    Position,
+    ChestConfig,
+    RecipeConfig,
+)
+from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 from cogames.cogs_vs_clips.scenarios import make_game
 from metta.tools.play import PlayTool
 from metta.sim.simulation_config import SimulationConfig
-from mettagrid.config.mettagrid_config import ChestConfig
 from metta.tools.train import TrainTool
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.trainer_config import TrainerConfig
@@ -17,7 +20,6 @@ from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from mettagrid.mapgen.mapgen import MapGen
 from metta.map.terrain_from_numpy import CogsVClippiesFromNumpy
-from mettagrid.config.mettagrid_config import RecipeConfig
 from metta.tools.replay import ReplayTool
 from experiments.recipes.cogs_v_clips.config import (
     generalized_terrain_curriculum_args,
