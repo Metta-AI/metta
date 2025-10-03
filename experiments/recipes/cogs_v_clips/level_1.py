@@ -553,8 +553,8 @@ def experiment():
                     f"run=harsh.cogs_v_clips.level_1.{curriculum_style}_{architecture}.{time.strftime('%Y-%m-%d')}",
                     f"curriculum_style={curriculum_style}",
                     f"architecture={architecture}",
+                    "--heartbeat-timeout=3600",
                     "--gpus=4",
-                    "--skip-git-check"
                 ]
             )
         time.sleep(1)
