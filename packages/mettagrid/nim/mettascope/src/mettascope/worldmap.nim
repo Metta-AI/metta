@@ -409,6 +409,9 @@ proc drawInventory*() =
 
 proc drawPlannedPath*() =
   ## Draw the planned paths for all agents.
+  ## Only show paths when in realtime mode and viewing the latest step.
+  if playMode != Realtime or step != replay.maxSteps - 1:
+    return
   for agentId, pathActions in agentPaths:
     if pathActions.len == 0:
       continue
