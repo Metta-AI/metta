@@ -12,7 +12,6 @@ set -euo pipefail
 
 # Exit code constants
 : "${EXIT_SUCCESS:?Missing EXIT_SUCCESS}"
-: "${EXIT_FAILURE:?Missing EXIT_FAILURE}"
 : "${EXIT_NCCL_TEST_FAILURE:?Missing EXIT_NCCL_TEST_FAILURE}"
 
 cleanup() {
