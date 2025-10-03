@@ -1118,7 +1118,7 @@ def train(
     trainer_cfg = TrainerConfig(
         losses=LossConfig(loss_configs={"ppo": PPOConfig(ent_coef=entropy_coef)}),
         optimizer=OptimizerConfig(learning_rate=learning_rate),
-        total_timesteps=10_000_000,
+        total_timesteps=10_000_000_000_000,
     )
 
     # Use ViT with LSTM reset policy
