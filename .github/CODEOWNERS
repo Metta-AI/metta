@@ -7,7 +7,7 @@
 
 # CI, formatting, linting
 /.github @rjwalters
-/ruff.toml @rjwalters
+/.ruff.toml @rjwalters
 
 /.github/CODEOWNERS @daveey
 
@@ -22,8 +22,8 @@
 /devops @daveey
 
 # Specific packages
-/mettagrid/mettagrid @sasmith
+/packages/mettagrid @sasmith
 
-/metta/agent @Al-does @daveey
+/agent @Al-does @daveey
 /metta/map @sasmith @berekuk
 /metta/rl @Al-does @daveey
