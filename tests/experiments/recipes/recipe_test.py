@@ -4,11 +4,13 @@ Test script for validating recipes.
 
 Usage:
     recipe_test.py launch              # Launch test jobs
+    recipe_test.py launch --staging    # Launch staging jobs (long arena_basic run)
     recipe_test.py check               # Check test results
     recipe_test.py check -l            # Check with detailed logs
 """
 
 import sys
+from argparse import ArgumentParser
 
 from devops.skypilot.utils.testing_helpers import (
     BaseTestRunner,
@@ -60,6 +62,16 @@ TEST_CONDITION = TestCondition(
 # Base configuration
 BASE_ARGS = ["--no-spot", "--gpus=4", "--nodes", "1"]
 
+# Override config for long arena_basic test (for stable qualification)
+ARENA_BASIC_CONDITION = TestCondition(
+    name="Extended Arena Basic Run",
+    extra_args=["trainer.total_timesteps=2000000000"],
+    description="Extended run for release qualification (~2B timesteps on 4x4 GPUs cluster)",
+    ci=False,
+)
+
+ARENA_BASIC_ARGS = ["--no-spot", "--gpus=4", "--nodes", "4"]  # 4 nodes, 4 GPUs each (16 total)
+
 
 class RecipeTestRunner(BaseTestRunner):
     """Test runner for recipe validation tests."""
@@ -73,16 +85,19 @@ class RecipeTestRunner(BaseTestRunner):
             test_type="Recipe Test",
         )
 
+    def add_custom_launch_args(self, parser: ArgumentParser) -> None:
+        parser.add_argument(
+            "--staging",
+            action="store_true",
+            help="Run extended staging tests (arena_basic_easy_shaped long run on larger cluster).",
+        )
+
     def launch_tests(self, args):
-        """Launch recipe test jobs."""
-        # Create launcher
         launcher = SkyPilotTestLauncher(base_name=args.base_name, skip_git_check=args.skip_git_check)
 
-        # Check git state
         if not launcher.check_git_state():
             sys.exit(1)
 
-        # Show test configuration
         print(f"\n{bold('=== Recipe Test Configuration ===')}")
         print(f"{cyan('Recipes to test:')}")
         for recipe_key, recipe in RECIPES.items():
@@ -93,38 +108,44 @@ class RecipeTestRunner(BaseTestRunner):
         print(f"\n{cyan('Total jobs to launch:')} {len(RECIPES)}")
         print(f"{cyan('Output file:')} {args.output_file}")
 
-        # Launch jobs
+        if args.staging:
+            print(cyan("Staging mode enabled: arena_basic_easy_shaped will run long test"))
+
         for recipe_key, recipe in RECIPES.items():
-            # Generate run name
             run_name = launcher.generate_run_name(recipe_key)
 
-            # Test config for tracking
+            # Defaults
+            test_condition = TEST_CONDITION
+            base_args = BASE_ARGS
+
+            # Override for staging mode
+            if args.staging and recipe_key == "arena_basic_easy_shaped":
+                test_condition = ARENA_BASIC_CONDITION
+                base_args = ARENA_BASIC_ARGS
+
             test_config = {
                 "recipe": recipe_key,
                 "description": recipe["description"],
-                "timesteps": 50000,
-                "nodes": 1,
+                "timesteps": (2000000000 if args.staging and recipe_key == "arena_basic_easy_shaped" else 50000),
+                "nodes": 4 if args.staging and recipe_key == "arena_basic_easy_shaped" else 1,
+                "gpus_per_node": 4,  # explicit
                 "ci_tests_enabled": False,
+                "staging_mode": args.staging,
             }
 
-            # Launch the job
             launcher.launch_job(
                 module=recipe["module"],
                 run_name=run_name,
-                base_args=BASE_ARGS,
-                extra_args=TEST_CONDITION.extra_args,
+                base_args=base_args,
+                extra_args=test_condition.extra_args,
                 test_config=test_config,
                 enable_ci_tests=False,
             )
 
-        # Save results
         output_path = launcher.save_results(args.output_file)
         print(f"{cyan('Results saved to:')} {output_path.absolute()}")
-
-        # Print summary
         launcher.print_summary()
 
-        # Exit with error if any launches failed
         if launcher.failed_launches:
             sys.exit(1)
 

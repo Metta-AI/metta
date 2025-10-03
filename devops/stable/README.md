@@ -58,12 +58,14 @@ devops/skypilot/tests/cluster_test check
 #### 3.2 Recipe Tests
 
 ```bash
-tests/experiments/recipes/recipe_test launch
+tests/experiments/recipes/recipe_test launch --staging
 tests/experiments/recipes/recipe_test check
 ```
 
 - Verify jobs run through to completion in Skypilot.
 - Confirm W&B logs and artifacts are generated.
+
+Important: the `--staging` argument extends the `arena_basic_easy_shaped` test to run for 2B steps.
 
 #### 3.3 Train Workflow
 
