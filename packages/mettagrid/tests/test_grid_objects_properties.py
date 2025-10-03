@@ -218,7 +218,7 @@ class TestAssemblerProperties:
             assert "cooldown_duration" in assembler
             assert "cooldown_progress" in assembler
             assert "is_clipped" in assembler
-            assert "clip_immune" in assembler
+            assert "is_clip_immune" in assembler
             assert "uses_count" in assembler
             assert "max_uses" in assembler
             assert "allow_partial_usage" in assembler
@@ -278,12 +278,11 @@ class TestAssemblerProperties:
 
             # Verify structure of first recipe
             recipe = assembler["recipes"][0]
-            assert "pattern_index" in recipe
-            assert "input_resources" in recipe
-            assert "output_resources" in recipe
+            assert "inputs" in recipe
+            assert "outputs" in recipe
             assert "cooldown" in recipe
-            assert isinstance(recipe["input_resources"], dict)
-            assert isinstance(recipe["output_resources"], dict)
+            assert isinstance(recipe["inputs"], dict)
+            assert isinstance(recipe["outputs"], dict)
             assert isinstance(recipe["cooldown"], int)
 
 
@@ -345,7 +344,6 @@ class TestAgentProperties:
             "is_frozen",
             "freeze_remaining",
             "freeze_duration",
-            "color",
             "inventory",
         ]
 
