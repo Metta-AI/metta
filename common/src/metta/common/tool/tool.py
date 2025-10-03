@@ -3,7 +3,7 @@ from abc import abstractmethod
 from pydantic import Field
 
 from metta.rl.system_config import SystemConfig
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 
 class Tool(Config):

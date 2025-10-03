@@ -7,7 +7,7 @@ import logging
 from metta.common.wandb.context import WandbRun
 from metta.common.wandb.utils import abort_requested
 from metta.rl.training import ComponentContext, TrainerComponent
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
 
