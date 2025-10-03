@@ -4,35 +4,18 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Optional
 
 import typer
 import yaml
 from rich.console import Console
 from rich.table import Table
 
-from cogames.cogs_vs_clips.scenarios import games as cogs_vs_clips_games
+from cogames.cogs_vs_clips.missions import get_all_missions
+from cogames.cogs_vs_clips.scenarios import GAMES_CATALOG
 from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig
 
-
-def get_all_games() -> Dict[str, MettaGridConfig]:
-    """Get all available games (scenarios).
-
-    Returns:
-        Dictionary of game names to their configurations
-    """
-    # Flatten all scenarios into a single dictionary
-    all_games = {}
-
-    # Add cogs_vs_clips games
-    for game_name, game_config in cogs_vs_clips_games().items():
-        all_games[game_name] = game_config
-
-    # Future games can be added here
-    # for scenario_name, scenario_config in other_game_scenarios().items():
-    #     all_games[scenario_name] = scenario_config
-
-    return all_games
+_SUPPORTED_GAME_EXTENSIONS = [".yaml", ".yml", ".json", ".py"]
 
 
 def load_game_config_from_python(path: Path) -> MettaGridConfig:
@@ -79,7 +62,7 @@ def load_game_config_from_python(path: Path) -> MettaGridConfig:
     return config
 
 
-def get_game(game_name: str) -> MettaGridConfig:
+def get_game(map_name: str, mission_name: Optional[str] = None) -> tuple[MettaGridConfig, Optional[str], Optional[str]]:
     """Get a specific game configuration by name or file path.
 
     Args:
@@ -92,64 +75,36 @@ def get_game(game_name: str) -> MettaGridConfig:
         ValueError: If game not found or file cannot be loaded
     """
     # Check if it's a file path
-    if any(game_name.endswith(ext) for ext in [".yaml", ".yml", ".json", ".py"]):
-        path = Path(game_name)
+    if any(map_name.endswith(ext) for ext in [".yaml", ".yml", ".json", ".py"]):
+        path = Path(map_name)
         if not path.exists():
-            raise ValueError(f"File not found: {game_name}")
+            raise ValueError(f"File not found: {map_name}")
         if not path.is_file():
-            raise ValueError(f"Not a file: {game_name}")
+            raise ValueError(f"Not a file: {map_name}")
 
         # Load config based on file extension
         if path.suffix == ".py":
-            return load_game_config_from_python(path)
+            return load_game_config_from_python(path), None, None
         elif path.suffix in [".yaml", ".yml", ".json"]:
-            return load_game_config(path)
+            return load_game_config(path), None, None
         else:
             raise ValueError(f"Unsupported file format: {path.suffix}")
 
     # Otherwise, treat it as a game name
-    all_games = get_all_games()
-    if game_name not in all_games:
+    games_by_map = {game_entry.map_name: game_entry for game_entry in GAMES_CATALOG}
+    if map_name in games_by_map:
+        entry = games_by_map[map_name]
+    else:
         # Try partial match
-        matches = [name for name in all_games if game_name.lower() in name.lower()]
+        matches = [name for name in games_by_map if map_name.lower() in name.lower()]
         if len(matches) == 1:
-            return all_games[matches[0]]
+            entry = games_by_map[matches[0]]
         elif len(matches) > 1:
-            raise ValueError(f"Ambiguous game name '{game_name}'. Matches: {', '.join(matches)}")
+            raise ValueError(f"Ambiguous map name '{map_name}'. Matches: {', '.join(matches)}")
         else:
-            raise ValueError(f"Game '{game_name}' not found. Available games: {', '.join(all_games.keys())}")
-    return all_games[game_name]
-
-
-def resolve_game_name(game_arg: Optional[str]) -> Optional[str]:
-    """Resolve a game name from user input.
-
-    Args:
-        game_arg: User input for game name
-
-    Returns:
-        Resolved game name or None if not found
-    """
-    if not game_arg:
-        return None
-
-    all_games = get_all_games()
-
-    # Exact match
-    if game_arg in all_games:
-        return game_arg
-
-    # Case-insensitive match
-    lower_map = {name.lower(): name for name in all_games}
-    if game_arg.lower() in lower_map:
-        return lower_map[game_arg.lower()]
-
-    # Partial match
-    matches = [name for name in all_games if game_arg.lower() in name.lower()]
-    if len(matches) == 1:
-        return matches[0]
-
-    return None
+            raise ValueError(f"Map '{map_name}' not found. Available maps: {', '.join(games_by_map.keys())}")
+    effective_mission = mission_name or entry.default_mission
+    return entry.generate(effective_mission), entry.map_name, effective_mission
 
 
 def list_games(console: Console) -> None:
@@ -162,49 +117,58 @@ def list_games(console: Console) -> None:
         Rich Table with game information
     """
 
-    all_games = get_all_games()
-
-    table = Table(title="Available Games", show_header=True, header_style="bold magenta")
-    table.add_column("Game", style="cyan", no_wrap=True)
+    table = Table(title="Available Maps", show_header=True, header_style="bold magenta")
+    table.add_column("Map", style="cyan", no_wrap=True)
     table.add_column("Agents", style="yellow", justify="center")
     table.add_column("Map Size", style="green", justify="center")
+    table.add_column("Default Mission", style="blue", justify="center")
 
-    for game_name, game_config in all_games.items():
+    for game_entry in GAMES_CATALOG:
+        game_config = game_entry.generate(game_entry.default_mission)
         num_agents = game_config.game.num_agents
 
         # Try to get map size if available
         map_builder = game_config.game.map_builder
         if hasattr(map_builder, "width") and hasattr(map_builder, "height"):
-            map_size = f"{map_builder.width}x{map_builder.height}"
+            map_size = f"{map_builder.width}x{map_builder.height}"  # type: ignore[attr-defined]
         else:
             map_size = "N/A"
 
-        table.add_row(game_name, str(num_agents), map_size)
-
+        table.add_row(game_entry.map_name, str(num_agents), map_size, game_entry.default_mission)
     console.print(table)
 
+    table = Table(title="Available Missions", show_header=True, header_style="bold magenta")
+    table.add_column("Mission", style="cyan", no_wrap=True)
+    table.add_column("Description", style="blue", justify="center")
+    for mission_name, mission_config in get_all_missions().items():
+        table.add_row(mission_name, mission_config.description)
 
-def describe_game(game_name: str, console: Console) -> None:
+    console.print(table)
+    console.print()
+    console.print("To specify a <[bold cyan]game[/bold cyan]>, you can:")
+    console.print("  • Use the map name, e.g. 'machina_1'. Will use the default mission for that map.")
+    console.print("  • Use the map name and mission name, e.g. 'machina_1:energy_intensive'")
+    console.print(
+        f"  • Use a path to a game configuration file, e.g. 'path/to/game.yaml' "
+        f"(supported extensions: {', '.join(_SUPPORTED_GAME_EXTENSIONS)})"
+    )
+
+
+def describe_game(game_name: str, game_config: MettaGridConfig, console: Console) -> None:
     """Print detailed information about a specific game.
 
     Args:
         game_name: Name of the game
+        env_cfg: Environment configuration
         console: Rich console for output
     """
-
-    try:
-        game_config = get_game(game_name)
-    except ValueError as e:
-        console.print(f"[red]Error: {e}[/red]")
-        return
 
     console.print(f"\n[bold cyan]{game_name}[/bold cyan]\n")
 
     # Display game configuration
     console.print("[bold]Game Configuration:[/bold]")
     console.print(f"  • Number of agents: {game_config.game.num_agents}")
-    console.print(f"  • Map size: {game_config.game.map_builder.width}x{game_config.game.map_builder.height}")
-    console.print(f"  • Number of agents on map: {game_config.game.map_builder.agents}")
+    console.print(f"  • Map size: {game_config.game.map_builder.width}x{game_config.game.map_builder.height}")  # type: ignore[attr-defined]
 
     # Display available actions
     console.print("\n[bold]Available Actions:[/bold]")
@@ -250,19 +214,16 @@ def save_game_config(config: MettaGridConfig, output_path: Path) -> None:
     Raises:
         ValueError: If file extension is not supported
     """
-    config_dict = config.model_dump()
-
-    # Convert tuples to lists for better serialization compatibility
-    config_dict = _convert_tuples_to_lists(config_dict)
-
     if output_path.suffix in [".yaml", ".yml"]:
         with open(output_path, "w") as f:
-            yaml.dump(config_dict, f, default_flow_style=False, sort_keys=False)
+            yaml.dump(config.model_dump(mode="yaml"), f, default_flow_style=False, sort_keys=False)
     elif output_path.suffix == ".json":
         with open(output_path, "w") as f:
-            json.dump(config_dict, f, indent=2)
+            json.dump(config.model_dump(mode="json"), f, indent=2)
     else:
-        raise ValueError(f"Unsupported file format: {output_path.suffix}. Use .yaml, .yml, or .json")
+        raise ValueError(
+            f"Unsupported file format: {output_path.suffix}. Supported: {', '.join(_SUPPORTED_GAME_EXTENSIONS)}"
+        )
 
 
 def load_game_config(path: Path) -> MettaGridConfig:
@@ -284,7 +245,7 @@ def load_game_config(path: Path) -> MettaGridConfig:
         with open(path, "r") as f:
             config_dict = json.load(f)
     else:
-        raise ValueError(f"Unsupported file format: {path.suffix}. Use .yaml, .yml, or .json")
+        raise ValueError(f"Unsupported file format: {path.suffix}. Supported: {', '.join(_SUPPORTED_GAME_EXTENSIONS)}")
 
     return MettaGridConfig(**config_dict)
 
@@ -293,7 +254,7 @@ def require_game_argument(ctx: typer.Context, value: Optional[str], console: Con
     if value is not None:
         return value
 
-    console.print("[yellow]No game specified. Available games:[/yellow]")
     list_games(console)
     console.print(f"\n[dim]Usage: {ctx.command_path} <game>[/dim]")
+    console.print()
     raise typer.Exit(0)

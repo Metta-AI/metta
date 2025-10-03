@@ -37,46 +37,32 @@ def default(ctx: typer.Context) -> None:
         print(ctx.get_help())
 
 
-@app.command("games", help="List all available games or describe a specific game")
-def games_cmd(
-    game_name: Optional[str] = typer.Argument(None, help="Name of the game to describe"),
-    save: Optional[Path] = typer.Option(None, "--save", "-s", help="Save game configuration to file (YAML or JSON)"),  # noqa: B008
-) -> None:
-    if game_name is None:
-        # List all games
-        game.list_games(console)
-    else:
-        # Get the game configuration
-        try:
-            game_config = game.get_game(game_name)
-        except ValueError as e:
-            console.print(f"[red]Error: {e}[/red]")
-            raise typer.Exit(1) from e
+game_argument = typer.Argument(
+    None,
+    help="Name of the game. Can be in the format 'map_name' or 'map_name.custom_mission_name' or 'path/to/game.yaml'.",
+    callback=lambda ctx, value: game.require_game_argument(ctx, value, console),
+)
 
-        # Save configuration if requested
-        if save:
-            try:
-                game.save_game_config(game_config, save)
-                console.print(f"[green]Game configuration saved to: {save}[/green]")
-            except ValueError as e:
-                console.print(f"[red]Error saving configuration: {e}[/red]")
-                raise typer.Exit(1) from e
-        else:
-            # Otherwise describe the game
-            try:
-                game.describe_game(game_name, console)
-            except ValueError as e:
-                console.print(f"[red]Error: {e}[/red]")
-                raise typer.Exit(1) from e
+
+@app.command(
+    "games", help="List all available maps and missions (that can be combined into a game), or describe a specific game"
+)
+def games_cmd(
+    game_name: str = game_argument,
+) -> None:
+    from cogames import utils
+
+    game_name, env_cfg = utils.get_game_config(console, game_name)
+    try:
+        game.describe_game(game_name, env_cfg, console)
+    except ValueError as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(1) from e
 
 
 @app.command(name="play", no_args_is_help=True, help="Play a game")
 def play_cmd(
-    game_name: str = typer.Argument(
-        None,
-        help="Name of the game to play",
-        callback=lambda ctx, value: game.require_game_argument(ctx, value, console),
-    ),
+    game_name: str = game_argument,
     policy_class_path: str = typer.Option(
         "cogames.policy.random.RandomPolicy",
         "--policy",
@@ -95,9 +81,9 @@ def play_cmd(
 ) -> None:
     from cogames import utils
 
-    resolved_game, env_cfg = utils.get_game_config(console, game_name)
+    game_name, env_cfg = utils.get_game_config(console, game_name)
 
-    console.print(f"[cyan]Playing {resolved_game}[/cyan]")
+    console.print(f"[cyan]Playing {game_name}[/cyan]")
     console.print(f"Max Steps: {steps}, Interactive: {interactive}, Render: {render}")
 
     from cogames import play as play_module
@@ -115,44 +101,25 @@ def play_cmd(
 
 
 @app.command("make-game", help="Create a new game configuration")
-def make_scenario(
-    base_game: Optional[str] = typer.Argument(None, help="Base game to use as template"),
+def make_game(
+    base_game: str = game_argument,
     num_agents: int = typer.Option(2, "--agents", "-a", help="Number of agents", min=1),
     width: int = typer.Option(10, "--width", "-w", help="Map width", min=1),
     height: int = typer.Option(10, "--height", "-h", help="Map height", min=1),
-    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (YAML or JSON)"),  # noqa: B008
+    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (yml or json)"),  # noqa: B008
 ) -> None:
     from cogames import utils
 
     try:
-        # If base_game specified, use it as template
-        if base_game:
-            resolved_game, error = utils.resolve_game(base_game)
-            if error:
-                console.print(f"[red]Error: {error}[/red]")
-                console.print("Creating from scratch instead...")
-            else:
-                console.print(f"[cyan]Using {resolved_game} as template[/cyan]")
-        else:
-            console.print("[cyan]Creating new game from scratch[/cyan]")
-
-        # Use cogs_vs_clips make_game for now
-        from cogames.cogs_vs_clips.scenarios import make_game
-
-        # Create game with specified parameters
-        new_config = make_game(
-            num_cogs=num_agents,
-            num_assemblers=1,
-            num_chests=1,
-        )
+        _, env_cfg = utils.get_game_config(console, base_game)
 
         # Update map dimensions
-        new_config.game.map_builder.width = width  # type: ignore[attr-defined]
-        new_config.game.map_builder.height = height  # type: ignore[attr-defined]
-        new_config.game.num_agents = num_agents
+        env_cfg.game.map_builder.width = width  # type: ignore[attr-defined]
+        env_cfg.game.map_builder.height = height  # type: ignore[attr-defined]
+        env_cfg.game.num_agents = num_agents
 
         if output:
-            game.save_game_config(new_config, output)
+            game.save_game_config(env_cfg, output)
             console.print(f"[green]Game configuration saved to: {output}[/green]")
         else:
             console.print("\n[yellow]To save this configuration, use the --output option.[/yellow]")
@@ -164,11 +131,7 @@ def make_scenario(
 
 @app.command(name="train", help="Train a policy on a game")
 def train_cmd(
-    game_name: str = typer.Argument(
-        None,
-        help="Name of the game to train on",
-        callback=lambda ctx, value: game.require_game_argument(ctx, value, console),
-    ),
+    game_name: str = game_argument,
     policy_class_path: str = typer.Option(
         "cogames.policy.simple.SimplePolicy",
         "--policy",
@@ -198,7 +161,7 @@ def train_cmd(
     from cogames import train as train_module
     from cogames import utils
 
-    resolved_game, env_cfg = utils.get_game_config(console, game_name)
+    game_name, env_cfg = utils.get_game_config(console, game_name)
 
     torch_device = utils.resolve_training_device(console, device)
 
@@ -213,7 +176,7 @@ def train_cmd(
             seed=seed,
             batch_size=batch_size,
             minibatch_size=minibatch_size,
-            game_name=resolved_game,
+            game_name=game_name,
         )
 
     except ValueError as e:
@@ -230,11 +193,7 @@ def train_cmd(
 )
 @app.command("eval", hidden=True)
 def evaluate_cmd(
-    game_name: str = typer.Argument(
-        None,
-        help="Name of the game to evaluate",
-        callback=lambda ctx, value: game.require_game_argument(ctx, value, console),
-    ),
+    game_name: str = game_argument,
     policies: list[str] = typer.Argument(  # noqa: B008
         None,
         help=(

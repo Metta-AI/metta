@@ -1,126 +1,24 @@
 from pathlib import Path
+from typing import Callable
 
-from cogames.cogs_vs_clips.stations import (
-    assembler,
-    carbon_ex_dep,
-    carbon_extractor,
-    charger,
-    chest,
-    chest_carbon,
-    chest_germanium,
-    chest_oxygen,
-    chest_silicon,
-    clipped_carbon_extractor,
-    clipped_germanium_extractor,
-    clipped_oxygen_extractor,
-    clipped_silicon_extractor,
-    germanium_ex_dep,
-    germanium_extractor,
-    oxygen_ex_dep,
-    oxygen_extractor,
-    resources,
-    silicon_ex_dep,
-    silicon_extractor,
-)
+from pydantic import BaseModel, ConfigDict
+
+from cogames.cogs_vs_clips.missions import get_all_missions
+from cogames.cogs_vs_clips.stations import assembler
 from mettagrid.config.mettagrid_config import (
-    ActionConfig,
-    ActionsConfig,
-    AgentConfig,
-    AgentRewards,
-    ChangeGlyphActionConfig,
-    ClipperConfig,
-    GameConfig,
     MettaGridConfig,
     RecipeConfig,
-    WallConfig,
 )
 from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.map_builder.random import RandomMapBuilder
 
 
-def _base_game_config(num_agents: int) -> MettaGridConfig:
-    """Shared base configuration for all game types."""
-    return MettaGridConfig(
-        game=GameConfig(
-            resource_names=resources,
-            num_agents=num_agents,
-            actions=ActionsConfig(
-                move=ActionConfig(consumed_resources={"energy": 2}),
-                noop=ActionConfig(),
-                change_glyph=ChangeGlyphActionConfig(number_of_glyphs=16),
-            ),
-            objects={
-                "wall": WallConfig(name="wall", type_id=1, map_char="#", render_symbol="⬛"),
-                "charger": charger(),
-                "carbon_extractor": carbon_extractor(),
-                "oxygen_extractor": oxygen_extractor(),
-                "germanium_extractor": germanium_extractor(),
-                "silicon_extractor": silicon_extractor(),
-                # depleted variants
-                "silicon_ex_dep": silicon_ex_dep(),
-                "oxygen_ex_dep": oxygen_ex_dep(),
-                "carbon_ex_dep": carbon_ex_dep(),
-                "germanium_ex_dep": germanium_ex_dep(),
-                "clipped_carbon_extractor": clipped_carbon_extractor(),
-                "clipped_oxygen_extractor": clipped_oxygen_extractor(),
-                "clipped_germanium_extractor": clipped_germanium_extractor(),
-                "clipped_silicon_extractor": clipped_silicon_extractor(),
-                "chest": chest(),
-                "chest_carbon": chest_carbon(),
-                "chest_oxygen": chest_oxygen(),
-                "chest_germanium": chest_germanium(),
-                "chest_silicon": chest_silicon(),
-                "assembler": assembler(),
-            },
-            agent=AgentConfig(
-                resource_limits={
-                    "heart": 1,
-                    "energy": 100,
-                    ("carbon", "oxygen", "germanium", "silicon"): 100,
-                    ("scrambler", "modulator", "decoder", "resonator"): 5,
-                },
-                rewards=AgentRewards(
-                    stats={"chest.heart.amount": 1},
-                    # inventory={
-                    #     "heart": 1,
-                    # },
-                ),
-                initial_inventory={
-                    "energy": 100,
-                },
-                shareable_resources=["energy"],
-                inventory_regen_amounts={"energy": 1},
-            ),
-            inventory_regen_interval=1,
-            # Enable clipper system to allow start_clipped assemblers to work
-            clipper=ClipperConfig(
-                unclipping_recipes=[
-                    RecipeConfig(
-                        input_resources={"decoder": 1},
-                        cooldown=1,
-                    ),
-                    RecipeConfig(
-                        input_resources={"modulator": 1},
-                        cooldown=1,
-                    ),
-                    RecipeConfig(
-                        input_resources={"scrambler": 1},
-                        cooldown=1,
-                    ),
-                    RecipeConfig(
-                        input_resources={"resonator": 1},
-                        cooldown=1,
-                    ),
-                ],
-                length_scale=10.0,
-                cutoff_distance=0.0,
-                clip_rate=0.0,  # Don't clip during gameplay, only use start_clipped
-            ),
-        )
-    )
+def _get_base_cfg_from_mission(mission_name: str, num_cogs: int) -> MettaGridConfig:
+    return MettaGridConfig(game=get_all_missions(num_agents=num_cogs)[mission_name].game)
 
 
 def make_game(
+    mission_name: str,
     num_cogs: int = 4,
     width: int = 10,
     height: int = 10,
@@ -132,7 +30,8 @@ def make_game(
     num_silicon_extractors: int = 0,
     num_chests: int = 0,
 ) -> MettaGridConfig:
-    cfg = _base_game_config(num_cogs)
+    cfg = _get_base_cfg_from_mission(mission_name, num_cogs)
+    cfg.game.num_agents = num_cogs
     map_builder = RandomMapBuilder.Config(
         width=width,
         height=height,
@@ -153,79 +52,103 @@ def make_game(
     return cfg
 
 
-def tutorial_assembler_simple(num_cogs: int = 1) -> MettaGridConfig:
-    cfg = make_game(num_cogs=num_cogs, num_assemblers=1)
-    cfg.game.objects["assembler"] = assembler()
-    cfg.game.objects["assembler"].recipes = [
-        (["Any"], RecipeConfig(input_resources={"battery_red": 3}, output_resources={"heart": 1}, cooldown=10))
-    ]
-    return cfg
+def tutorial_assembler_simple(num_cogs: int = 1) -> Callable[[str], MettaGridConfig]:
+    def generate(mission_name: str) -> MettaGridConfig:
+        cfg = make_game(mission_name=mission_name, num_cogs=num_cogs, num_assemblers=1)
+        cfg.game.objects["assembler"] = assembler()
+        cfg.game.objects["assembler"].recipes = [
+            (["Any"], RecipeConfig(input_resources={"battery_red": 3}, output_resources={"heart": 1}, cooldown=10))
+        ]
+        return cfg
+
+    return generate
 
 
-def tutorial_assembler_complex(num_cogs: int = 1) -> MettaGridConfig:
-    cfg = make_game(
-        num_cogs=num_cogs,
-        num_assemblers=1,
-        num_chests=1,
-        num_carbon_extractors=1,
-        num_oxygen_extractors=1,
-        num_germanium_extractors=1,
-        num_silicon_extractors=1,
-    )
-    cfg.game.objects["assembler"] = assembler()
-    cfg.game.objects["assembler"].recipes = [
-        (["Any"], RecipeConfig(input_resources={"battery_red": 3}, output_resources={"heart": 1}, cooldown=10))
-    ]
-    return cfg
+def tutorial_assembler_complex(num_cogs: int = 1) -> Callable[[str], MettaGridConfig]:
+    def generate(mission_name: str) -> MettaGridConfig:
+        cfg = make_game(
+            mission_name=mission_name,
+            num_cogs=num_cogs,
+            num_assemblers=1,
+            num_chests=1,
+            num_carbon_extractors=1,
+            num_oxygen_extractors=1,
+            num_germanium_extractors=1,
+            num_silicon_extractors=1,
+        )
+        cfg.game.objects["assembler"] = assembler()
+        cfg.game.objects["assembler"].recipes = [
+            (["Any"], RecipeConfig(input_resources={"battery_red": 3}, output_resources={"heart": 1}, cooldown=10))
+        ]
+        return cfg
+
+    return generate
 
 
-def make_game_from_map(map_name: str, num_agents: int = 4) -> MettaGridConfig:
+def make_game_from_map(map_name: str, num_agents: int = 4) -> Callable[[str], MettaGridConfig]:
     """Create a game configuration from a map file."""
 
     # Build the full config first to get the objects
-    config = _base_game_config(num_agents)
+    def generate(mission_name: str) -> MettaGridConfig:
+        config = _get_base_cfg_from_mission(mission_name or "default", num_agents)
+        config.game.num_agents = num_agents
 
-    maps_dir = Path(__file__).parent.parent / "maps"
-    map_path = maps_dir / map_name
-    map_builder = AsciiMapBuilder.Config.from_uri(
-        str(map_path), {o.map_char: o.name for o in config.game.objects.values()}
-    )
-    config.game.map_builder = map_builder
+        maps_dir = Path(__file__).parent.parent / "maps"
+        map_path = maps_dir / map_name
+        map_builder = AsciiMapBuilder.Config.from_uri(
+            str(map_path), {o.map_char: o.name for o in config.game.objects.values()}
+        )
+        config.game.map_builder = map_builder
+        return config
 
-    return config
+    return generate
 
 
-def games() -> dict[str, MettaGridConfig]:
-    return {
-        "assembler_1_simple": tutorial_assembler_complex(num_cogs=1),
-        "assembler_1_complex": tutorial_assembler_simple(num_cogs=1),
-        "assembler_2_simple": tutorial_assembler_simple(num_cogs=4),
-        "assembler_2_complex": tutorial_assembler_complex(num_cogs=4),
-        # "extractor_1cog_1resource": tutorial_extractor(num_cogs=1),""
-        # "extractor_1cog_4resource": tutorial_extractor(num_cogs=1),
-        # "harvest_1": tutorial_harvest(num_cogs=1),
-        # "harvest_4": tutorial_harvest(num_cogs=4),
-        # "base_1": tutorial_base(num_cogs=1),
-        # "base_4": tutorial_base(num_cogs=4),
-        # "forage_1": tutorial_forage(num_cogs=1),
-        # "forage_4": tutorial_forage(num_cogs=4),
-        # "chest_1": tutorial_chest(num_cogs=1),
-        # "chest_4": tutorial_chest(num_cogs=4),
-        # Biomes dungeon maps with stations
-        "machina_1": make_game_from_map("cave_base_50.map"),
-        "machina_2": make_game_from_map("machina_100_stations.map"),
-        "machina_3": make_game_from_map("machina_200_stations.map"),
-        "machina_1_big": make_game_from_map("canidate1_500_stations.map"),
-        "machina_2_bigger": make_game_from_map("canidate1_1000_stations.map"),
-        "machina_3_big": make_game_from_map("canidate2_500_stations.map"),
-        "machina_4_bigger": make_game_from_map("canidate2_1000_stations.map"),
-        "machina_5_big": make_game_from_map("canidate3_500_stations.map"),
-        "machina_6_bigger": make_game_from_map("canidate3_1000_stations.map"),
-        "machina_7_big": make_game_from_map("canidate4_500_stations.map"),
-        "training_facility_1": make_game_from_map("training_facility_open_1.map"),
-        "training_facility_2": make_game_from_map("training_facility_open_2.map"),
-        "training_facility_3": make_game_from_map("training_facility_open_3.map"),
-        "training_facility_4": make_game_from_map("training_facility_tight_4.map"),
-        "training_facility_5": make_game_from_map("training_facility_tight_5.map"),
-        "training_facility_6": make_game_from_map("training_facility_clipped.map"),
-    }
+class GameCatalogEntry(BaseModel):
+    map_name: str
+
+    # Takes in a mission name and returns a game configuration
+    generate: Callable[[str], MettaGridConfig]
+
+    default_mission: str = "default"
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+
+GAMES_CATALOG: list[GameCatalogEntry] = [
+    GameCatalogEntry(map_name="assembler_1_simple", generate=tutorial_assembler_simple(num_cogs=1)),
+    GameCatalogEntry(map_name="assembler_1_complex", generate=tutorial_assembler_complex(num_cogs=1)),
+    GameCatalogEntry(map_name="assembler_2_simple", generate=tutorial_assembler_simple(num_cogs=4)),
+    GameCatalogEntry(map_name="assembler_2_complex", generate=tutorial_assembler_complex(num_cogs=4)),
+    # "extractor_1cog_1resource": tutorial_extractor(num_cogs=1),""
+    # "extractor_1cog_4resource": tutorial_extractor(num_cogs=1),
+    # "harvest_1": tutorial_harvest(num_cogs=1),
+    # "harvest_4": tutorial_harvest(num_cogs=4),
+    # "base_1": tutorial_base(num_cogs=1),
+    # "base_4": tutorial_base(num_cogs=4),
+    # "forage_1": tutorial_forage(num_cogs=1),
+    # "forage_4": tutorial_forage(num_cogs=4),
+    # "chest_1": tutorial_chest(num_cogs=1),
+    # "chest_4": tutorial_chest(num_cogs=4),
+    # Biomes dungeon maps with stations
+    GameCatalogEntry(map_name="machina_1", generate=make_game_from_map("cave_base_50.map")),
+    GameCatalogEntry(map_name="machina_2", generate=make_game_from_map("machina_100_stations.map")),
+    GameCatalogEntry(map_name="machina_3", generate=make_game_from_map("machina_200_stations.map")),
+    GameCatalogEntry(map_name="machina_1_big", generate=make_game_from_map("canidate1_500_stations.map")),
+    GameCatalogEntry(map_name="machina_2_bigger", generate=make_game_from_map("canidate1_1000_stations.map")),
+    GameCatalogEntry(map_name="machina_3_big", generate=make_game_from_map("canidate2_500_stations.map")),
+    GameCatalogEntry(map_name="machina_4_bigger", generate=make_game_from_map("canidate2_1000_stations.map")),
+    GameCatalogEntry(map_name="machina_5_big", generate=make_game_from_map("canidate3_500_stations.map")),
+    GameCatalogEntry(map_name="machina_6_bigger", generate=make_game_from_map("canidate3_1000_stations.map")),
+    GameCatalogEntry(map_name="machina_7_big", generate=make_game_from_map("canidate4_500_stations.map")),
+    GameCatalogEntry(map_name="training_facility_1", generate=make_game_from_map("training_facility_open_1.map")),
+    GameCatalogEntry(map_name="training_facility_2", generate=make_game_from_map("training_facility_open_2.map")),
+    GameCatalogEntry(map_name="training_facility_3", generate=make_game_from_map("training_facility_open_3.map")),
+    GameCatalogEntry(map_name="training_facility_4", generate=make_game_from_map("training_facility_tight_4.map")),
+    GameCatalogEntry(map_name="training_facility_5", generate=make_game_from_map("training_facility_tight_5.map")),
+    GameCatalogEntry(
+        map_name="training_facility_1_onerous",
+        generate=make_game_from_map("training_facility_open_1.map"),
+        default_mission="energy_intensive",
+    ),
+]
