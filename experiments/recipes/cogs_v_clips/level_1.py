@@ -44,6 +44,8 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.loss import LossConfig
 from metta.agent.policies.vit_reset import ViTResetConfig
+from metta.agent.policies.memory_free import MemoryFreeConfig
+from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
 from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
@@ -464,6 +466,10 @@ def train(
         policy_config = ViTSlidingTransConfig()
         trainer_cfg.batch_size = 516096
         trainer_cfg.minibatch_size = 4096
+    elif architecture == "memory_free":
+        policy_config = MemoryFreeConfig()
+    elif architecture == "vit_default":
+        policy_config = ViTDefaultConfig()
     else:
         raise ValueError(f"Invalid architecture: {architecture}")
 
@@ -539,7 +545,7 @@ def make_eval_suite():
 
 def experiment():
     for curriculum_style in curriculum_args:
-        for architecture in ["vit_reset", "lstm_reset", "transformer"]:
+        for architecture in ["vit_reset", "lstm_reset", "transformer", "memory_free", "vit_default"]:
             subprocess.run(
                 [
                     "./devops/skypilot/launch.py",
