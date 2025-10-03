@@ -48,10 +48,7 @@ uv pip install cogames
 cogames games
 
 # Play a simple single-agent assembler scenario
-cogames play assembler_1_simple --steps 100 --render
-
-# Play a multi-agent scenario
-cogames play assembler_2_complex --steps 200 --render
+cogames play training_facility_1 --steps 100 --render
 
 # Run without rendering for faster execution
 cogames play machina_2 --no-render --steps 500
@@ -177,10 +174,7 @@ for step in range(1000):
 
 ### Tutorial Scenarios
 
-- `assembler_1_simple`: Single agent, simple assembly recipe
-- `assembler_1_complex`: Single agent, complex recipes
-- `assembler_2_simple`: 4 agents, simple cooperation
-- `assembler_2_complex`: 4 agents, complex cooperation
+- `training_facility_1`: Single agent, simple assembly recipe
 
 ### Competition Scenarios
 
