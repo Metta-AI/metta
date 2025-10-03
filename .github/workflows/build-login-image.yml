@@ -1,0 +1,41 @@
+name: "Build login Backend Docker Image"
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - main
+      - 09-08-login_worker_on_eks
+    paths:
+      - "login/**"
+      - "devops/charts/login/**"
+      - ".github/workflows/build-login-image.yml"
+
+jobs:
+  build-and-push-image:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        id: build-image
+        uses: ./.github/actions/docker-build
+        with:
+          image_name: softmax-login
+          dockerfile: login/Dockerfile
+          aws_role: ${{ vars.AWS_ROLE }}
+
+      - name: Deploy helm chart
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/09-08-login_worker_on_eks'
+        run: |
+          aws eks update-kubeconfig --name main --region us-east-1
+          helm upgrade -n login login ./devops/charts/login \
+            --set image.tag=${{ steps.build-image.outputs.tag }}
