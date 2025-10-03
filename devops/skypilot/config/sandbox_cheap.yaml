@@ -1,7 +1,7 @@
 resources:
   cloud: aws
   region: us-east-1
-  instance_type: m6i.2xlarge  # 8 vCPUs, 32GB RAM (~$0.384/hour on-demand)
+  instance_type: m6i.2xlarge # 8 vCPUs, 32GB RAM (~$0.384/hour on-demand)
   cpus: 8+
   memory: 32+
   image_id: docker:metta:latest
@@ -40,7 +40,7 @@ run: |
   fi
   . .venv/bin/activate
 
-  echo "[SETUP] Setting up Python environment..."
+  echo "Setting up Python environment..."
   uv sync
 
   bash ./devops/skypilot/config/lifecycle/configure_environment.sh
@@ -48,8 +48,7 @@ run: |
   METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
   source "$METTA_ENV_FILE"
 
-  echo "Starting bash shell..."
-  exec bash
+  echo "Sandbox setup complete. Ready for SSH."
 
 envs:
   GITHUB_REPOSITORY: Metta-AI/metta
