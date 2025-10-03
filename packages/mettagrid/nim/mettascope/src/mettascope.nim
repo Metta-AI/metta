@@ -148,10 +148,11 @@ find "/UI/Main":
 
     playControls()
 
-    # super+w closes window.
-    let superDown = window.buttonDown[KeyLeftSuper] or window.buttonDown[KeyRightSuper]
-    if superDown and window.buttonPressed[KeyW]:
-      window.closeRequested = true
+    # super+w or super+q closes window on Mac.
+    when defined(macosx):
+      let superDown = window.buttonDown[KeyLeftSuper] or window.buttonDown[KeyRightSuper]
+      if superDown and (window.buttonPressed[KeyW] or window.buttonPressed[KeyQ]):
+        window.closeRequested = true
 
     if window.buttonReleased[MouseLeft]:
       mouseCaptured = false
