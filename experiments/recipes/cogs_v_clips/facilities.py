@@ -81,7 +81,7 @@ def make_task_generator(facility_env: Optional[MettaGridConfig] = None):
     # facility_tasks.add_bucket("game.agent.rewards.inventory.oxygen", [0, 0.5, 1])
     # facility_tasks.add_bucket("game.agent.rewards.inventory.germanium", [0, 0.5, 1])
     # facility_tasks.add_bucket("game.agent.rewards.inventory.silicon", [0, 0.5, 1])
-    # facility_tasks.add_bucket("game.max_steps", [250, 500, 1000, 1500])
+    facility_tasks.add_bucket("game.max_steps", [1000, 1100])
 
     return facility_tasks
 
