@@ -88,8 +88,11 @@ def make_task_generator(facility_env: Optional[MettaGridConfig] = None):
 
 def make_curriculum(
     facility_env: Optional[MettaGridConfig] = None,
+<<<<<<< HEAD
     enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
+=======
+>>>>>>> ce000491da (format)
 ) -> CurriculumConfig:
     facility_tasks = make_task_generator(facility_env)
 
@@ -100,30 +103,18 @@ def make_curriculum(
     )
 
 
-def train(
-    curriculum: Optional[CurriculumConfig] = None,
-    enable_detailed_slice_logging: bool = False,
-) -> TrainTool:
+def train() -> TrainTool:
     from experiments.evals.cogs_v_clips import make_cogs_v_clips_ascii_evals
 
-    resolved_curriculum = curriculum or make_curriculum(
-        enable_detailed_slice_logging=enable_detailed_slice_logging
-    )
-
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
-    )
-
-    evaluator_cfg = EvaluatorConfig(
-        simulations=make_cogs_v_clips_ascii_evals(),
-    )
-    policy_config = ViTResetConfig()
-
     return TrainTool(
-        trainer=trainer_cfg,
-        training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
-        evaluator=evaluator_cfg,
-        policy_architecture=policy_config,
+        trainer=TrainerConfig(
+            losses=LossConfig(),
+        ),
+        training_env=TrainingEnvironmentConfig(curriculum=make_curriculum()),
+        evaluator=EvaluatorConfig(
+            simulations=make_cogs_v_clips_ascii_evals(),
+        ),
+        policy_architecture=ViTResetConfig(),
     )
 
 
