@@ -116,8 +116,8 @@ class GameCatalogEntry(BaseModel):
 
 
 GAMES_CATALOG: list[GameCatalogEntry] = [
-    GameCatalogEntry(map_name="assembler_1_simple", generate=tutorial_assembler_complex(num_cogs=1)),
-    GameCatalogEntry(map_name="assembler_1_complex", generate=tutorial_assembler_simple(num_cogs=1)),
+    GameCatalogEntry(map_name="assembler_1_simple", generate=tutorial_assembler_simple(num_cogs=1)),
+    GameCatalogEntry(map_name="assembler_1_complex", generate=tutorial_assembler_complex(num_cogs=1)),
     GameCatalogEntry(map_name="assembler_2_simple", generate=tutorial_assembler_simple(num_cogs=4)),
     GameCatalogEntry(map_name="assembler_2_complex", generate=tutorial_assembler_complex(num_cogs=4)),
     # "extractor_1cog_1resource": tutorial_extractor(num_cogs=1),""
