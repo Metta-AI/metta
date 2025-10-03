@@ -106,6 +106,16 @@ type
     pos*: IVec2
     destinationType*: DestinationType
     approachDir*: IVec2 ## Direction to approach from for Bump actions (e.g., ivec2(-1, 0) means approach from the left).
+  
+  PathActionType* = enum
+    PathMove # Move to a position.
+    PathBump # Bump at current position.
+  
+  PathAction* = object
+    actionType*: PathActionType
+    pos*: IVec2 ## Target position for PathMove, or bump target for PathBump.
+    bumpDir*: IVec2 ## Direction to bump for PathBump actions.
+    destinationIdx*: int ## Index of the destination this action is for.
 
 var
   requestActions*: seq[ActionRequest]
@@ -115,8 +125,8 @@ var
   mouseCapturedPanel*: Panel = nil
 
 var
-  ## Path queue for each agent. Maps agentId to a sequence of grid positions.
-  agentPaths* = initTable[int, seq[IVec2]]()
+  ## Path queue for each agent. Maps agentId to a sequence of path actions.
+  agentPaths* = initTable[int, seq[PathAction]]()
   ## Destination queue for each agent. Maps agentId to a sequence of destinations.
   agentDestinations* = initTable[int, seq[Destination]]()
   ## Track mouse down position to distinguish clicks from drags.

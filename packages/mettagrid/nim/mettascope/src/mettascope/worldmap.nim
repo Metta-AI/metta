@@ -397,12 +397,21 @@ proc drawInventory*() =
 
 proc drawPlannedPath*() =
   ## Draw the planned paths for all agents.
-  for agentId, path in agentPaths:
-    if path.len > 1:
-      for i in 0 ..< path.len - 1:
+  for agentId, pathActions in agentPaths:
+    if pathActions.len == 0:
+      continue
+    
+    # Get agent's current position.
+    let agent = getAgentById(agentId)
+    var currentPos = agent.location.at(step).xy
+    
+    for action in pathActions:
+      case action.actionType
+      of PathMove:
+        # Draw arrow from current position to target position.
         let
-          pos0 = path[i]
-          pos1 = path[i + 1]
+          pos0 = currentPos
+          pos1 = action.pos
           dx = pos1.x - pos0.x
           dy = pos1.y - pos0.y
         
@@ -424,6 +433,9 @@ proc drawPlannedPath*() =
           scale = 1/200,
           tint = color(1, 1, 1, alpha)
         )
+        currentPos = action.pos
+      of PathBump:
+        discard
     
     # Draw final queued destination.
     if agentDestinations.hasKey(agentId):
