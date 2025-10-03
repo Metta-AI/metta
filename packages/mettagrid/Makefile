@@ -52,7 +52,7 @@ coverage:
 	@echo "Building with coverage..."
 	@echo "Note: C++ coverage on macOS is currently not supported by bazel"
 	@echo "    Running tests instead..."
-	bazel test //tests:tests_all
+	bazel test --config=dbg //tests:tests_all
 	@echo "Tests completed successfully"
 	@echo "    For Python coverage, use: make pytest-coverage"
 
