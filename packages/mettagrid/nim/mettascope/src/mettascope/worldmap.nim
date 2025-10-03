@@ -28,6 +28,7 @@ proc useSelections*(panel: Panel) =
     window.buttonDown[KeyLeftControl] or window.buttonDown[KeyRightControl]
 
   let shiftDown = window.buttonDown[KeyLeftShift] or window.buttonDown[KeyRightShift]
+  let rDown = window.buttonDown[KeyR]
 
   # Track mouse down position to distinguish clicks from drags.
   if window.buttonPressed[MouseLeft] and not modifierDown:
@@ -88,7 +89,7 @@ proc useSelections*(panel: Panel) =
               else:
                 approachDir = ivec2(0, -1)  # Clicked top, approach from top.
 
-        let destination = Destination(pos: gridPos, destinationType: destType, approachDir: approachDir)
+        let destination = Destination(pos: gridPos, destinationType: destType, approachDir: approachDir, repeat: rDown)
 
         if shiftDown:
           # Queue up additional destinations.
@@ -360,6 +361,17 @@ proc drawAgentDecorations*() =
       bxy.drawImage(
         "agents/frozen",
         agent.location.at.xy.vec2,
+        angle = 0,
+        scale = 1/200
+      )
+
+proc drawClippedStatus*() =
+  # Draw the clipped status of the selected agent.
+  for obj in replay.objects:
+    if obj.isClipped.at:
+      bxy.drawImage(
+        "agents/frozen",
+        obj.location.at.xy.vec2,
         angle = 0,
         scale = 1/200
       )
@@ -656,6 +668,7 @@ proc drawWorldMain*() =
   drawObjects()
   drawActions()
   drawAgentDecorations()
+  drawClippedStatus()
   drawSelection()
   drawPlannedPath()
   drawInventory()
