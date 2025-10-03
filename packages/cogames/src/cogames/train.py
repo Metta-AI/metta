@@ -326,6 +326,27 @@ def train(
 
     console = Console()
     console.print()
+    # ---Print element reward weights used in this run
+    try:
+        stats_rewards = base_cfg.game.agent.rewards.stats
+        element_keys = (
+            "carbon.gained",
+            "oxygen.gained",
+            "silicon.gained",
+            "germanium.gained",
+        )
+        console.print("=" * 80, style="bold blue")
+        console.print("Element reward weights:", style="bold blue")
+        for key in element_keys:
+            if key in stats_rewards:
+                console.print(f"  [cyan]{key}[/cyan]: {stats_rewards[key]}")
+        console.print("=" * 80, style="bold blue")
+        console.print()
+    except Exception:
+        # Best-effort: do not fail training if config shape changes
+        pass
+    # --- end print element reward weights used in this run
+
     if training_diverged:
         console.print("=" * 80, style="bold red")
         console.print("Training diverged (NaN detected)! Stopped early.", style="bold red")

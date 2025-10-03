@@ -2,12 +2,10 @@ import logging
 from typing import Dict, Optional
 
 import numpy as np
-import tensordict
 import torch
 import torch.nn as nn
 
-from cogames.policy.obs_shims import ObsShimTokensConfig
-from cogames.policy.obs_tokenizers import ObsAttrEmbedFourierConfig, ObsPerceiverLatentConfig
+import pufferlib.pytorch
 from cogames.policy.policy import AgentPolicy, TrainablePolicy
 from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation
 
@@ -21,31 +19,32 @@ class SimplePolicyNet(torch.nn.Module):
         super().__init__()
         self.hidden_size = 64  # 128
 
-        # --- vit obs ---
-        shim_config = ObsShimTokensConfig(in_key="env_obs", out_key="box_obs", max_tokens=96)
-        self.obs_shim = shim_config.make_component(env)
-        embed_config = ObsAttrEmbedFourierConfig(in_key="box_obs", out_key="embed_obs", attr_embed_dim=8, num_freqs=3)
-        self.obs_embed = embed_config.make_component(env)
-        vit_config = ObsPerceiverLatentConfig(
-            in_key="embed_obs",
-            out_key="vit_obs",
-            feat_dim=21,
-            latent_dim=64,
-            num_latents=12,
-            num_heads=4,
-            num_layers=2,
-            pool="mean",
-        )
-        self.vit = vit_config.make_component(env)
-        # --- end vit obs ---
+        # # --- vit obs ---
+        # shim_config = ObsShimTokensConfig(in_key="env_obs", out_key="box_obs", max_tokens=96)
+        # self.obs_shim = shim_config.make_component(env)
+        # embed_config = ObsAttrEmbedFourierConfig(in_key="box_obs", out_key="embed_obs", attr_embed_dim=8, num_freqs=3)
+        # self.obs_embed = embed_config.make_component(env)
+        # vit_config = ObsPerceiverLatentConfig(
+        #     in_key="embed_obs",
+        #     out_key="vit_obs",
+        #     feat_dim=21,
+        #     latent_dim=64,
+        #     num_latents=12,
+        #     num_heads=4,
+        #     num_layers=2,
+        #     pool="mean",
+        # )
+        # self.vit = vit_config.make_component(env)
+        # # --- end vit obs ---
 
         # --- old obs ---
-        # obs_size = int(np.prod(env.single_observation_space.shape))
-        # self.net = torch.nn.Sequential(
-        #     pufferlib.pytorch.layer_init(torch.nn.Linear(obs_size, self.hidden_size)),
-        #     torch.nn.ReLU(),
-        #     pufferlib.pytorch.layer_init(torch.nn.Linear(self.hidden_size, self.hidden_size)),
-        # )
+        obs_size = int(np.prod(env.single_observation_space.shape))
+        self.net = torch.nn.Sequential(
+            pufferlib.pytorch.layer_init(torch.nn.Linear(obs_size, self.hidden_size)),
+            torch.nn.ReLU(),
+            pufferlib.pytorch.layer_init(torch.nn.Linear(self.hidden_size, self.hidden_size)),
+        )
+        # --- end old obs ---
 
         self.action_nvec = tuple(env.single_action_space.nvec)
 
@@ -60,17 +59,17 @@ class SimplePolicyNet(torch.nn.Module):
         batch_size = observations.shape[0]
 
         # --- old obs ---
-        # obs_flat = observations.view(batch_size, -1).float() / 255.0
-        # hidden = self.net(obs_flat)
+        obs_flat = observations.view(batch_size, -1).float() / 255.0
+        hidden = self.net(obs_flat)
         # --- end old obs ---
 
-        # --- vit obs ---
-        td = tensordict.TensorDict({"env_obs": observations}, batch_size=(batch_size,))
-        td = self.obs_shim(td)
-        td = self.obs_embed(td)
-        td = self.vit(td)
-        hidden = td["vit_obs"]
-        # --- end vit obs ---
+        # # --- vit obs ---
+        # td = tensordict.TensorDict({"env_obs": observations}, batch_size=(batch_size,))
+        # td = self.obs_shim(td)
+        # td = self.obs_embed(td)
+        # td = self.vit(td)
+        # hidden = td["vit_obs"]
+        # # --- end vit obs ---
 
         logits = self.action_head(hidden)
         logits_split = logits.split(self.action_nvec, dim=1)

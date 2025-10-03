@@ -38,11 +38,21 @@ def _base_game_config(num_agents: int) -> MettaGridConfig:
 
     heart_gain_reward = 5.0
     heart_deposit_reward = 7.5
-    chest_reward = 2.5
+    # chest_reward = 2.5
+    carbon_gain_reward = 1
+    oxygen_gain_reward = 1
+    silicon_gain_reward = 1
+    germanium_gain_reward = 1
+    # energy_gain_reward = 0.005
     stats_rewards: dict[str, float] = {
         "heart.gained": heart_gain_reward,
         "heart.put": heart_deposit_reward,
-        "chest.heart.amount": chest_reward,
+        # "chest.heart.amount": chest_reward,
+        "carbon.gained": carbon_gain_reward,
+        "oxygen.gained": oxygen_gain_reward,
+        "silicon.gained": silicon_gain_reward,
+        "germanium.gained": germanium_gain_reward,
+        # "energy.gained": energy_gain_reward,
     }
 
     return MettaGridConfig(
@@ -50,9 +60,10 @@ def _base_game_config(num_agents: int) -> MettaGridConfig:
             resource_names=resources,
             num_agents=num_agents,
             actions=ActionsConfig(
-                move=ActionConfig(consumed_resources={"energy": 2}),
-                noop=ActionConfig(),
-                change_glyph=ChangeGlyphActionConfig(number_of_glyphs=16),
+                # move=ActionConfig(consumed_resources={"energy": 2}),
+                move=ActionConfig(),  # av added
+                noop=ActionConfig(),  # av added
+                change_glyph=ChangeGlyphActionConfig(number_of_glyphs=2),
             ),
             objects={
                 "wall": WallConfig(name="wall", type_id=1, map_char="#", render_symbol="⬛"),
