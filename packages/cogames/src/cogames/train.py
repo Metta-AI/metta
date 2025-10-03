@@ -8,11 +8,15 @@ from pathlib import Path
 from typing import IO, TYPE_CHECKING, Any, Callable, Optional
 
 import numpy as np
+import psutil
+from rich.console import Console
 
 from cogames.env import make_hierarchical_env
 from cogames.policy import TrainablePolicy
 from cogames.utils import initialize_or_load_policy
 from mettagrid import MettaGridConfig
+from pufferlib import pufferl
+from pufferlib.pufferlib import set_buffers
 
 if TYPE_CHECKING:
     import torch
@@ -39,48 +43,25 @@ def train(
     env_cfg_supplier: Optional[Callable[[], MettaGridConfig]] = None,
 ) -> None:
     import pufferlib.pytorch  # noqa: F401 - ensure modules register with torch
-    import pufferlib.vector
-    from pufferlib import pufferl
-    from pufferlib.pufferlib import set_buffers
 
     if env_cfg_supplier is None and env_cfg is None:
         raise ValueError("Either env_cfg or env_cfg_supplier must be provided")
-
-    pending_cfg: list[MettaGridConfig] = []
-
-    def _next_cfg() -> MettaGridConfig:
-        if pending_cfg:
-            return pending_cfg.pop().model_copy(deep=True)
-        if env_cfg_supplier is not None:
-            cfg = env_cfg_supplier()
-            if not isinstance(cfg, MettaGridConfig):
-                raise TypeError("env_cfg_supplier must return a MettaGridConfig")
-            return cfg.model_copy(deep=True)
-        assert env_cfg is not None
-        return env_cfg.model_copy(deep=True)
-
-    base_cfg = _next_cfg()
-    pending_cfg.append(base_cfg)
-
-    def env_creator(cfg: Optional[MettaGridConfig] = None, buf: Optional[Any] = None, seed: Optional[int] = None):
-        target_cfg = cfg if cfg is not None else _next_cfg()
-        env = make_hierarchical_env(target_cfg, buf=buf)
-        set_buffers(env, buf)
-        return env
 
     backend = pufferlib.vector.Multiprocessing
     if platform.system() == "Darwin":
         multiprocessing.set_start_method("spawn", force=True)
         backend = pufferlib.vector.Serial
 
-    desired_workers = vector_num_workers if vector_num_workers is not None else 8
     cpu_cores = None
     try:
-        import psutil
-
         cpu_cores = psutil.cpu_count(logical=False) or psutil.cpu_count(logical=True)
     except Exception:  # pragma: no cover - best effort fallback
         cpu_cores = None
+
+    if vector_num_workers is None:
+        desired_workers = cpu_cores if cpu_cores is not None else 8
+    else:
+        desired_workers = vector_num_workers
 
     if cpu_cores is not None:
         adjusted_workers = min(desired_workers, max(1, cpu_cores))
@@ -114,6 +95,27 @@ def train(
         vector_batch_size,
         envs_per_worker,
     )
+
+    pending_cfg: list[MettaGridConfig] = []
+
+    def _next_cfg() -> MettaGridConfig:
+        if pending_cfg:
+            return pending_cfg.pop().model_copy(deep=True)
+        if env_cfg_supplier is not None:
+            cfg = env_cfg_supplier()
+            if not isinstance(cfg, MettaGridConfig):
+                raise TypeError("env_cfg_supplier must return a MettaGridConfig")
+            return cfg.model_copy(deep=True)
+        assert env_cfg is not None
+        return env_cfg.model_copy(deep=True)
+
+    base_cfg = _next_cfg()
+
+    def env_creator(cfg: Optional[MettaGridConfig] = None, buf: Optional[Any] = None, seed: Optional[int] = None):
+        target_cfg = cfg if cfg is not None else _next_cfg()
+        env = make_hierarchical_env(target_cfg, buf=buf)
+        set_buffers(env, buf)
+        return env
 
     vecenv = pufferlib.vector.make(
         env_creator,
@@ -187,7 +189,7 @@ def train(
 
     else:
 
-        def _write_logit_snapshot(global_step: int) -> None:
+        def _write_logit_snapshot(global_step: int) -> None:  # type: ignore[unused-ignore]
             return
 
     use_rnn = getattr(policy, "is_recurrent", lambda: False)()
@@ -321,8 +323,6 @@ def train(
         debug_file.close()
     if instrumentation_env is not None:
         instrumentation_env.close()
-
-    from rich.console import Console
 
     console = Console()
     console.print()

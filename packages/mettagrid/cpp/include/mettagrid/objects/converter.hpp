@@ -77,7 +77,6 @@ public:
   unsigned short cooldown;          // Time to wait after producing before starting again
   bool converting;                  // Currently in production phase
   bool cooling_down;                // Currently in cooldown phase
-  unsigned char color;
   bool recipe_details_obs;
   EventManager* event_manager;
   ObservationType input_recipe_offset;
@@ -95,7 +94,6 @@ public:
         cooldown(cfg.cooldown),
         converting(false),
         cooling_down(false),
-        color(cfg.color),
         recipe_details_obs(cfg.recipe_details_obs),
         event_manager(nullptr),
         input_recipe_offset(cfg.input_recipe_offset),
@@ -160,7 +158,6 @@ public:
     features.reserve(capacity);
 
     features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
-    features.push_back({ObservationFeature::Color, static_cast<ObservationType>(this->color)});
     features.push_back({ObservationFeature::ConvertingOrCoolingDown,
                         static_cast<ObservationType>(this->converting || this->cooling_down)});
 

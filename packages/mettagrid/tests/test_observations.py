@@ -177,125 +177,6 @@ class TestObservations:
         # Verify wall count
         assert len(agent1_wall_tokens) == 3, "Agent 1 should see exactly 3 walls"
 
-    def test_agent_surrounded_by_altars(self):
-        """Test agent observation when surrounded by colored altars."""
-        # Create a 5x5 environment with agent in center surrounded by altars
-        game_map = create_grid(5, 5, fill_value=".")
-        helper = ObservationHelper()
-
-        # Add walls around perimeter
-        game_map[0, :] = "#"
-        game_map[-1, :] = "#"
-        game_map[:, 0] = "#"
-        game_map[:, -1] = "#"
-
-        # Place agent in center at grid position (2,2)
-        game_map[2, 2] = "@"
-
-        # Place 8 altars around the agent with different colors
-        # Layout:
-        #   0 1 2 3 4  (x)
-        # 0 W W W W W
-        # 1 W A B C W    A-H are altars with colors 1-8
-        # 2 W D & E W    & is the agent
-        # 3 W F G H W
-        # 4 W W W W W
-        # (y)
-
-        altar_positions = [
-            (1, 1, 1),  # A: top-left, color 1
-            (2, 1, 2),  # B: top-center, color 2
-            (3, 1, 3),  # C: top-right, color 3
-            (1, 2, 4),  # D: middle-left, color 4
-            (3, 2, 5),  # E: middle-right, color 5
-            (1, 3, 6),  # F: bottom-left, color 6
-            (2, 3, 7),  # G: bottom-center, color 7
-            (3, 3, 8),  # H: bottom-right, color 8
-        ]
-
-        # Place altars on the map
-        for x, y, _color in altar_positions:
-            game_map[y, x] = "_"  # Use underscore character for altars
-
-        # Create altar objects configuration - single altar type for simplicity
-        objects = {
-            "wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID),
-            "altar": ConverterConfig(
-                type_id=TokenTypes.ALTAR_TYPE_ID,
-                input_resources={"resource1": 1},
-                output_resources={"resource2": 1},
-                max_output=10,
-                conversion_ticks=5,
-                cooldown=3,
-                initial_resource_count=0,
-                color=42,  # Single color for all altars
-            ),
-        }
-
-        # Create the environment using direct MettaGridConfig
-        cfg = MettaGridConfig(
-            game=GameConfig(
-                num_agents=1,
-                max_steps=10,
-                obs_width=3,  # Use 3x3 observation window for this test
-                obs_height=3,
-                num_observation_tokens=NUM_OBS_TOKENS,
-                actions=ActionsConfig(
-                    noop=ActionConfig(),
-                    move=ActionConfig(),
-                    rotate=ActionConfig(),
-                    get_items=ActionConfig(),
-                ),
-                objects=objects,
-                resource_names=["laser", "resource1", "resource2"],  # include laser to allow attack
-                map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist()),
-            )
-        )
-
-        env = MettaGridCore(cfg)
-        type_id_feature_id = env.c_env.feature_spec()["type_id"]["id"]
-        color_feature_id = env.c_env.feature_spec()["agent:color"]["id"]
-
-        obs, _ = env.reset()
-        agent_obs = obs[0]
-
-        # The agent at (2,2) should see all 8 altars in its 3x3 observation window
-        # Expected altar positions in observation coordinates:
-        #   A B C     (0,0) (1,0) (2,0)
-        #   D & E  -> (0,1) (1,1) (2,1)
-        #   F G H     (0,2) (1,2) (2,2)
-
-        expected_altar_positions = [
-            (0, 0),  # A: top-left
-            (1, 0),  # B: top-center
-            (2, 0),  # C: top-right
-            (0, 1),  # D: middle-left
-            (2, 1),  # E: middle-right (center 1,1 is agent)
-            (0, 2),  # F: bottom-left
-            (1, 2),  # G: bottom-center
-            (2, 2),  # H: bottom-right
-        ]
-
-        # Check that we see altars at all expected positions
-        for x, y in expected_altar_positions:
-            # Check altar exists at location
-            altar_tokens = helper.find_tokens(
-                agent_obs, location=(x, y), feature_id=type_id_feature_id, value=TokenTypes.ALTAR_TYPE_ID
-            )
-            assert len(altar_tokens) == 1, f"Should have altar at ({x}, {y})"
-
-            # Check color token
-            color_values = helper.find_token_values(agent_obs, location=(x, y), feature_id=color_feature_id)
-            assert color_values == [42], f"Altar at ({x}, {y}) should have color 42, got {color_values}"
-
-        # Verify the agent sees itself at center (1,1)
-        agent_tokens = helper.find_tokens(agent_obs, location=(1, 1))
-        assert len(agent_tokens) > 0, "Agent should see itself at center position"
-
-        # Count total altars
-        altar_tokens = helper.find_tokens(agent_obs, feature_id=type_id_feature_id, value=TokenTypes.ALTAR_TYPE_ID)
-        assert len(altar_tokens) == 8, f"Should see 8 altars, got {len(altar_tokens)}"
-
     def test_agents_see_each_other(self, adjacent_agents_env):
         """Test that adjacent agents can see each other."""
         obs, _ = adjacent_agents_env.reset()
@@ -636,7 +517,6 @@ class TestEdgeObservations:
                         conversion_ticks=5,
                         cooldown=3,
                         initial_resource_count=0,
-                        color=42,  # Distinctive color
                     ),
                 },
                 resource_names=["laser", "resource1", "resource2"],  # laser required for attack action

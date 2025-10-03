@@ -8,6 +8,7 @@ import numpy as np
 from rich.console import Console
 
 import mettagrid.mettascope as mettascope
+from cogames.cogs_vs_clips.glyphs import GLYPHS
 from cogames.env import make_hierarchical_env
 from cogames.utils import initialize_or_load_policy
 from mettagrid import MettaGridConfig
@@ -38,15 +39,24 @@ def play(
 
     if render == "text" and getattr(env, "_renderer", None):
         move_action_id = env.action_names.index("move") if "move" in env.action_names else 0
+        noop_action_id = env.action_names.index("noop") if "noop" in env.action_names else 0
 
         def get_actions_fn(
             obs: np.ndarray,
             selected_agent: Optional[int],
             manual_action: Optional[int | tuple[int, int]],
+            manual_agents: set[int],
         ) -> np.ndarray:
             actions = np.zeros((env.num_agents, action_dim), dtype=np.int32)
             for agent in range(env.num_agents):
                 actions[agent] = agent_policies[agent].step(obs[agent])
+
+            for agent in manual_agents:
+                if agent != selected_agent and 0 <= agent < env.num_agents:
+                    override = actions[agent]
+                    override[1:] = 0
+                    override[0] = noop_action_id
+                    actions[agent] = override
 
             if selected_agent is not None and manual_action is not None:
                 override = actions[selected_agent]
@@ -64,8 +74,13 @@ def play(
 
             return actions
 
+        glyphs = None
+        change_glyph_cfg = getattr(env_cfg.game.actions, "change_glyph", None)
+        if change_glyph_cfg and getattr(change_glyph_cfg, "enabled", False):
+            glyphs = GLYPHS
+
         env.reset(seed=seed)
-        result = env._renderer.interactive_loop(env, get_actions_fn, max_steps=max_steps)
+        result = env._renderer.interactive_loop(env, get_actions_fn, max_steps=max_steps, glyphs=glyphs)
         console.print("\n[bold green]Episode Complete![/bold green]")
         console.print(f"Steps: {result['steps']}")
         console.print(f"Total Rewards: {result['total_rewards']}")

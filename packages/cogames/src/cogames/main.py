@@ -10,7 +10,11 @@ from typing import Literal, Optional
 
 from packaging.version import Version
 
+from cogames import evaluate as evaluate_module
 from cogames import game, utils
+from cogames import play as play_module
+from cogames import train as train_module
+from cogames.cogs_vs_clips.scenarios import make_game
 from cogames.policy.utils import parse_policy_spec, resolve_policy_class_path, resolve_policy_data_path
 from mettagrid import MettaGridConfig
 
@@ -89,14 +93,12 @@ def play_cmd(
     ),
     interactive: bool = typer.Option(True, "--interactive", "-i", help="Run in interactive mode"),
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
-    render: Literal["gui", "text"] = typer.Option("gui", "--render", "-r", help="Render mode"),
+    render: Literal["gui", "text"] = typer.Option("gui", "--render", "-r", help="Render mode: 'gui' or 'text'"),
 ) -> None:
     resolved_game, env_cfg = utils.get_game_config(console, game_name)
 
     console.print(f"[cyan]Playing {resolved_game}[/cyan]")
     console.print(f"Max Steps: {steps}, Interactive: {interactive}, Render: {render}")
-
-    from cogames import play as play_module
 
     play_module.play(
         console,
@@ -119,8 +121,6 @@ def make_scenario(
     height: int = typer.Option(10, "--height", "-h", help="Map height", min=1),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (YAML or JSON)"),  # noqa: B008
 ) -> None:
-    from cogames import utils
-
     try:
         if base_game:
             resolved_game, error = utils.resolve_game(base_game)
@@ -131,8 +131,6 @@ def make_scenario(
                 console.print(f"[cyan]Using {resolved_game} as template[/cyan]")
         else:
             console.print("[cyan]Creating new game from scratch[/cyan]")
-
-        from cogames.cogs_vs_clips.scenarios import make_game
 
         new_config = make_game(
             num_cogs=num_agents,
@@ -187,6 +185,12 @@ def train_cmd(
     seed: int = typer.Option(42, "--seed", help="Seed for training", min=0),
     batch_size: int = typer.Option(4096, "--batch-size", help="Batch size for training", min=1),
     minibatch_size: int = typer.Option(4096, "--minibatch-size", help="Minibatch size for training", min=1),
+    num_workers: Optional[int] = typer.Option(
+        None,
+        "--num-workers",
+        help="Number of worker processes (defaults to number of CPU cores)",
+        min=1,
+    ),
     logits_debug_path: Optional[Path] = typer.Option(  # noqa: B008
         None,
         "--logits-debug",
@@ -194,13 +198,12 @@ def train_cmd(
     ),
 ) -> None:
     from cogames import curricula
-    from cogames import train as train_module
 
     rotation_aliases = {"training_rotation", "training_facility_rotation", "training_cycle"}
 
     env_cfg: Optional[MettaGridConfig]
     curriculum_callable = None
-    representative_game: Optional[str]
+    representative_game: str
 
     if game_name in rotation_aliases:
         curriculum_callable = curricula.training_rotation()
@@ -224,9 +227,11 @@ def train_cmd(
             batch_size=batch_size,
             minibatch_size=minibatch_size,
             game_name=representative_game,
+            vector_num_workers=num_workers,
             logits_debug_path=logits_debug_path,
             env_cfg_supplier=curriculum_callable,
         )
+
     except ValueError as exc:  # pragma: no cover - user input
         console.print(f"[red]Error: {exc}[/red]")
         raise typer.Exit(1) from exc
@@ -264,13 +269,11 @@ def evaluate_cmd(
     if not policies:
         console.print("[red]Error: No policies provided[/red]")
         raise typer.Exit(1)
-
     policy_specs = [parse_policy_spec(spec) for spec in policies]
 
     resolved_game, env_cfg = utils.get_game_config(console, game_name)
-    console.print(f"[cyan]Evaluating {len(policy_specs)} policies on {resolved_game} over {episodes} episodes[/cyan]")
 
-    from cogames import evaluate as evaluate_module
+    console.print(f"[cyan]Evaluating {len(policy_specs)} policies on {resolved_game} over {episodes} episodes[/cyan]")
 
     evaluate_module.evaluate(
         console,
