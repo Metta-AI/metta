@@ -41,10 +41,10 @@ class Mission(BaseModel):
     game: GameConfig
 
 
-def _default_mission() -> Mission:
+def _default_mission(num_agents: int) -> Mission:
     game = GameConfig(
         resource_names=resources,
-        num_agents=4,
+        num_agents=num_agents,
         actions=ActionsConfig(
             move=ActionConfig(consumed_resources={"energy": 2}),
             noop=ActionConfig(),
@@ -122,8 +122,8 @@ def _default_mission() -> Mission:
     return Mission(name="default", description="Default mission", game=game)
 
 
-def energy_intensive() -> Mission:
-    mission = _default_mission()
+def energy_intensive(num_agents: int = 4) -> Mission:
+    mission = _default_mission(num_agents)
     mission.name = "energy_intensive"
     mission.description = "Energy intensive mission"
     mission.game.actions.move.consumed_resources = {"energy": 5}
@@ -138,8 +138,8 @@ def energy_intensive() -> Mission:
     return mission
 
 
-def get_all_missions() -> dict[str, Mission]:
+def get_all_missions(num_agents: int = 4) -> dict[str, Mission]:
     return {
-        "default": _default_mission(),
-        "energy_intensive": energy_intensive(),
+        "default": _default_mission(num_agents),
+        "energy_intensive": energy_intensive(num_agents),
     }

@@ -13,8 +13,8 @@ from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.map_builder.random import RandomMapBuilder
 
 
-def _get_base_cfg_from_mission(mission_name: str) -> MettaGridConfig:
-    return MettaGridConfig(game=get_all_missions()[mission_name].game)
+def _get_base_cfg_from_mission(mission_name: str, num_cogs: int) -> MettaGridConfig:
+    return MettaGridConfig(game=get_all_missions(num_agents=num_cogs)[mission_name].game)
 
 
 def make_game(
@@ -30,7 +30,7 @@ def make_game(
     num_silicon_extractors: int = 0,
     num_chests: int = 0,
 ) -> MettaGridConfig:
-    cfg = _get_base_cfg_from_mission(mission_name)
+    cfg = _get_base_cfg_from_mission(mission_name, num_cogs)
     cfg.game.num_agents = num_cogs
     map_builder = RandomMapBuilder.Config(
         width=width,
@@ -90,7 +90,7 @@ def make_game_from_map(map_name: str, num_agents: int = 4) -> Callable[[str], Me
 
     # Build the full config first to get the objects
     def generate(mission_name: str) -> MettaGridConfig:
-        config = _get_base_cfg_from_mission(mission_name or "default")
+        config = _get_base_cfg_from_mission(mission_name or "default", num_agents)
         config.game.num_agents = num_agents
 
         maps_dir = Path(__file__).parent.parent / "maps"
