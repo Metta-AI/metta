@@ -57,6 +57,9 @@
         },
         "change_glyph": {
           "$ref": "#/$defs/ChangeGlyphActionConfig"
+        },
+        "resource_mod": {
+          "$ref": "#/$defs/ResourceModActionConfig"
         }
       },
       "title": "ActionsConfig",
@@ -76,6 +79,7 @@
           "additionalProperties": {
             "type": "integer"
           },
+          "description": "Resource limits - keys can be single resource names or tuples of names for shared limits",
           "title": "Resource Limits",
           "type": "object"
         },
@@ -131,6 +135,14 @@
           },
           "title": "Shareable Resources",
           "type": "array"
+        },
+        "inventory_regen_amounts": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "description": "Resources to regenerate and their amounts per regeneration interval",
+          "title": "Inventory Regen Amounts",
+          "type": "object"
         }
       },
       "title": "AgentConfig",
@@ -192,16 +204,43 @@
       "description": "Python assembler configuration.",
       "properties": {
         "name": {
-          "default": "assembler",
+          "default": "",
+          "description": "Object name (used for identification)",
           "title": "Name",
           "type": "string"
         },
         "type_id": {
-          "default": 0,
+          "description": "Numeric type ID for C++ runtime",
           "maximum": 255,
           "minimum": 0,
           "title": "Type Id",
           "type": "integer"
+        },
+        "map_char": {
+          "default": "?",
+          "description": "Character used in ASCII maps",
+          "title": "Map Char",
+          "type": "string"
+        },
+        "render_symbol": {
+          "default": "\u2753",
+          "description": "Symbol used for rendering (e.g., emoji)",
+          "title": "Render Symbol",
+          "type": "string"
+        },
+        "tags": {
+          "description": "Tags for this object instance",
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "type": {
+          "const": "assembler",
+          "default": "assembler",
+          "title": "Type",
+          "type": "string"
         },
         "recipes": {
           "items": {
@@ -241,14 +280,6 @@
           "title": "Recipes",
           "type": "array"
         },
-        "tags": {
-          "description": "Tags for this object instance",
-          "items": {
-            "type": "string"
-          },
-          "title": "Tags",
-          "type": "array"
-        },
         "allow_partial_usage": {
           "default": false,
           "description": "Allow assembler to be used during cooldown with scaled resource requirements/outputs. This makes less sense if the assembler has multiple recipes.",
@@ -268,8 +299,23 @@
           "minimum": 0.0,
           "title": "Exhaustion",
           "type": "number"
+        },
+        "clip_immune": {
+          "default": false,
+          "description": "If true, this assembler cannot be clipped by the Clipper system",
+          "title": "Clip Immune",
+          "type": "boolean"
+        },
+        "start_clipped": {
+          "default": false,
+          "description": "If true, this assembler starts in a clipped state at the beginning of the game",
+          "title": "Start Clipped",
+          "type": "boolean"
         }
       },
+      "required": [
+        "type_id"
+      ],
       "title": "AssemblerConfig",
       "type": "object"
     },
@@ -345,53 +391,30 @@
       "additionalProperties": false,
       "description": "Python chest configuration.",
       "properties": {
+        "name": {
+          "default": "",
+          "description": "Object name (used for identification)",
+          "title": "Name",
+          "type": "string"
+        },
         "type_id": {
-          "default": 0,
+          "description": "Numeric type ID for C++ runtime",
           "maximum": 255,
           "minimum": 0,
           "title": "Type Id",
           "type": "integer"
         },
-        "resource_type": {
-          "description": "Resource type that this chest can store",
-          "title": "Resource Type",
+        "map_char": {
+          "default": "?",
+          "description": "Character used in ASCII maps",
+          "title": "Map Char",
           "type": "string"
         },
-        "deposit_positions": {
-          "description": "Positions where agents can deposit resources",
-          "items": {
-            "enum": [
-              "NW",
-              "N",
-              "NE",
-              "W",
-              "E",
-              "SW",
-              "S",
-              "SE"
-            ],
-            "type": "string"
-          },
-          "title": "Deposit Positions",
-          "type": "array"
-        },
-        "withdrawal_positions": {
-          "description": "Positions where agents can withdraw resources",
-          "items": {
-            "enum": [
-              "NW",
-              "N",
-              "NE",
-              "W",
-              "E",
-              "SW",
-              "S",
-              "SE"
-            ],
-            "type": "string"
-          },
-          "title": "Withdrawal Positions",
-          "type": "array"
+        "render_symbol": {
+          "default": "\u2753",
+          "description": "Symbol used for rendering (e.g., emoji)",
+          "title": "Render Symbol",
+          "type": "string"
         },
         "tags": {
           "description": "Tags for this object instance",
@@ -400,9 +423,63 @@
           },
           "title": "Tags",
           "type": "array"
+        },
+        "type": {
+          "const": "chest",
+          "default": "chest",
+          "title": "Type",
+          "type": "string"
+        },
+        "resource_type": {
+          "description": "Resource type that this chest can store",
+          "title": "Resource Type",
+          "type": "string"
+        },
+        "position_deltas": {
+          "description": "List of (position, delta) tuples. Positive delta = deposit, negative = withdraw (e.g., (E, 1) deposits 1, (N, -5) withdraws 5)",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "enum": [
+                  "NW",
+                  "N",
+                  "NE",
+                  "W",
+                  "E",
+                  "SW",
+                  "S",
+                  "SE"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Position Deltas",
+          "type": "array"
+        },
+        "initial_inventory": {
+          "default": 0,
+          "description": "Initial amount of resource_type in the chest",
+          "minimum": 0,
+          "title": "Initial Inventory",
+          "type": "integer"
+        },
+        "max_inventory": {
+          "default": 255,
+          "description": "Maximum inventory (resources are destroyed when depositing beyond this, -1 = unlimited)",
+          "minimum": -1,
+          "title": "Max Inventory",
+          "type": "integer"
         }
       },
       "required": [
+        "type_id",
         "resource_type"
       ],
       "title": "ChestConfig",
@@ -483,13 +560,82 @@
       "title": "ChildrenAction",
       "type": "object"
     },
+    "ClipperConfig": {
+      "additionalProperties": false,
+      "description": "Global clipper that probabilistically clips assemblers each tick.\n\nThe clipper system uses a spatial diffusion process where clipping spreads\nbased on distance from already-clipped buildings. The length_scale parameter\ncontrols the exponential decay: weight = exp(-distance / length_scale).\n\nIf length_scale is <= 0 (default 0.0), it will be automatically calculated\nat runtime in C++ using percolation based on the actual grid size and\nnumber of buildings placed. Set length_scale > 0 to use a manual value instead.\n\nIf cutoff_distance is <= 0 (default 0.0), it will be automatically set to\n3 * length_scale at runtime. At this distance, exp(-3) \u2248 0.05, making weights\nnegligible. Set cutoff_distance > 0 to use a manual cutoff.",
+      "properties": {
+        "unclipping_recipes": {
+          "items": {
+            "$ref": "#/$defs/RecipeConfig"
+          },
+          "title": "Unclipping Recipes",
+          "type": "array"
+        },
+        "length_scale": {
+          "default": 0.0,
+          "description": "Controls spatial spread rate: weight = exp(-distance / length_scale). If <= 0, automatically calculated using percolation at runtime.",
+          "title": "Length Scale",
+          "type": "number"
+        },
+        "cutoff_distance": {
+          "default": 0.0,
+          "description": "Maximum distance for infection weight calculations. If <= 0, automatically set to 3 * length_scale at runtime.",
+          "minimum": 0.0,
+          "title": "Cutoff Distance",
+          "type": "number"
+        },
+        "clip_rate": {
+          "default": 0.0,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Clip Rate",
+          "type": "number"
+        }
+      },
+      "title": "ClipperConfig",
+      "type": "object"
+    },
     "ConverterConfig": {
       "additionalProperties": false,
       "description": "Python converter configuration.",
       "properties": {
         "name": {
-          "default": "converter",
+          "default": "",
+          "description": "Object name (used for identification)",
           "title": "Name",
+          "type": "string"
+        },
+        "type_id": {
+          "description": "Numeric type ID for C++ runtime",
+          "maximum": 255,
+          "minimum": 0,
+          "title": "Type Id",
+          "type": "integer"
+        },
+        "map_char": {
+          "default": "?",
+          "description": "Character used in ASCII maps",
+          "title": "Map Char",
+          "type": "string"
+        },
+        "render_symbol": {
+          "default": "\u2753",
+          "description": "Symbol used for rendering (e.g., emoji)",
+          "title": "Render Symbol",
+          "type": "string"
+        },
+        "tags": {
+          "description": "Tags for this object instance",
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "type": {
+          "const": "converter",
+          "default": "converter",
+          "title": "Type",
           "type": "string"
         },
         "input_resources": {
@@ -505,13 +651,6 @@
           },
           "title": "Output Resources",
           "type": "object"
-        },
-        "type_id": {
-          "default": 0,
-          "maximum": 255,
-          "minimum": 0,
-          "title": "Type Id",
-          "type": "integer"
         },
         "max_output": {
           "default": 5,
@@ -547,17 +686,10 @@
           "minimum": 0,
           "title": "Color",
           "type": "integer"
-        },
-        "tags": {
-          "description": "Tags for this object instance",
-          "items": {
-            "type": "string"
-          },
-          "title": "Tags",
-          "type": "array"
         }
       },
       "required": [
+        "type_id",
         "cooldown"
       ],
       "title": "ConverterConfig",
@@ -655,12 +787,21 @@
         },
         "objects": {
           "additionalProperties": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/ConverterConfig"
+            "discriminator": {
+              "mapping": {
+                "assembler": "#/$defs/AssemblerConfig",
+                "chest": "#/$defs/ChestConfig",
+                "converter": "#/$defs/ConverterConfig",
+                "wall": "#/$defs/WallConfig"
               },
+              "propertyName": "type"
+            },
+            "oneOf": [
               {
                 "$ref": "#/$defs/WallConfig"
+              },
+              {
+                "$ref": "#/$defs/ConverterConfig"
               },
               {
                 "$ref": "#/$defs/AssemblerConfig"
@@ -689,14 +830,6 @@
           "title": "Resource Loss Prob",
           "type": "number"
         },
-        "inventory_regen_amounts": {
-          "additionalProperties": {
-            "type": "integer"
-          },
-          "description": "Resources to regenerate and their amounts per regeneration interval",
-          "title": "Inventory Regen Amounts",
-          "type": "object"
-        },
         "inventory_regen_interval": {
           "default": 0,
           "description": "Interval in timesteps between regenerations (0 = disabled)",
@@ -704,8 +837,30 @@
           "title": "Inventory Regen Interval",
           "type": "integer"
         },
+        "clipper": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ClipperConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Global clipper configuration"
+        },
         "map_builder": {
-          "title": "Map Builder"
+          "$ref": "#/$defs/MapBuilderConfig_Any_",
+          "default": {
+            "type": "mettagrid.map_builder.random.RandomMapBuilder",
+            "seed": null,
+            "width": 10,
+            "height": 10,
+            "objects": {},
+            "agents": 24,
+            "border_width": 0,
+            "border_object": "wall"
+          }
         },
         "track_movement_metrics": {
           "default": true,
@@ -821,22 +976,62 @@
           "minimum": 0,
           "title": "Cooldown",
           "type": "integer"
-        },
-        "max_use": {
-          "anyOf": [
-            {
-              "minimum": 0,
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Max Use"
         }
       },
       "title": "RecipeConfig",
+      "type": "object"
+    },
+    "ResourceModActionConfig": {
+      "additionalProperties": false,
+      "description": "Resource mod action configuration.",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "required_resources": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Required Resources",
+          "type": "object"
+        },
+        "consumed_resources": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Consumed Resources",
+          "type": "object"
+        },
+        "modifies": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Modifies",
+          "type": "object"
+        },
+        "agent_radius": {
+          "default": 0,
+          "maximum": 255,
+          "minimum": 0,
+          "title": "Agent Radius",
+          "type": "integer"
+        },
+        "converter_radius": {
+          "default": 0,
+          "maximum": 255,
+          "minimum": 0,
+          "title": "Converter Radius",
+          "type": "integer"
+        },
+        "scales": {
+          "default": false,
+          "title": "Scales",
+          "type": "boolean"
+        }
+      },
+      "title": "ResourceModActionConfig",
       "type": "object"
     },
     "SceneConfig": {
@@ -947,14 +1142,30 @@
       "additionalProperties": false,
       "description": "Python wall/block configuration.",
       "properties": {
+        "name": {
+          "default": "",
+          "description": "Object name (used for identification)",
+          "title": "Name",
+          "type": "string"
+        },
         "type_id": {
+          "description": "Numeric type ID for C++ runtime",
+          "maximum": 255,
+          "minimum": 0,
           "title": "Type Id",
           "type": "integer"
         },
-        "swappable": {
-          "default": false,
-          "title": "Swappable",
-          "type": "boolean"
+        "map_char": {
+          "default": "?",
+          "description": "Character used in ASCII maps",
+          "title": "Map Char",
+          "type": "string"
+        },
+        "render_symbol": {
+          "default": "\u2753",
+          "description": "Symbol used for rendering (e.g., emoji)",
+          "title": "Render Symbol",
+          "type": "string"
         },
         "tags": {
           "description": "Tags for this object instance",
@@ -963,6 +1174,17 @@
           },
           "title": "Tags",
           "type": "array"
+        },
+        "type": {
+          "const": "wall",
+          "default": "wall",
+          "title": "Type",
+          "type": "string"
+        },
+        "swappable": {
+          "default": false,
+          "title": "Swappable",
+          "type": "boolean"
         }
       },
       "required": [
@@ -971,11 +1193,11 @@
       "title": "WallConfig",
       "type": "object"
     },
-    "mettagrid__config__config__Config": {
+    "mettagrid__base_config__Config": {
       "additionalProperties": false,
       "description": "Common extension of Pydantic's BaseModel that:\n- sets `extra=\"forbid\"` by default\n- adds `override` and `update` methods for overriding values based on `path.to.value` keys",
       "properties": {},
-      "title": "Config",
+      "title": "mettagrid.base_config.Config",
       "type": "object"
     },
     "mettagrid__mapgen__mapgen__MapGen__Config": {
@@ -1100,7 +1322,7 @@
           "type": "integer"
         }
       },
-      "title": "Config",
+      "title": "mettagrid.mapgen.mapgen.MapGen.Config",
       "type": "object"
     }
   },

@@ -7,4 +7,11 @@ export const YamlContext = createContext<{
   unsetFields: Set<string>;
   kind?: string;
   topValue: unknown;
-}>({ unsetFields: new Set(), topValue: undefined });
+  showDebugInfo: boolean;
+  setShowDebugInfo: (showDebugInfo: boolean) => void;
+}>({
+  unsetFields: new Set(),
+  topValue: undefined,
+  showDebugInfo: false,
+  setShowDebugInfo: () => {},
+});
