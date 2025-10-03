@@ -38,7 +38,7 @@ from mettagrid.config.mettagrid_config import (
     RecipeConfig,
     Field as ConfigField,
 )
-from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
+from metta.agent.policies.vit_reset import ViTResetConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
@@ -1054,18 +1054,18 @@ def _create_stage_configs() -> list[CogologyStageConfig]:
 def train(
     stage: str = "all",
     speed_reward_coef: float = 0.01,
-    entropy_coef: float = 0.01,
+    entropy_coef: float = 0.01,  # PPO default
     learning_rate: float = 3e-4,
     stochastic_shaping: bool = False,
     run_name: str | None = None,
 ) -> TrainTool:
     """
-    Train agents with automatic curriculum progression.
+    Train agents with automatic curriculum progression using ViT + LSTM reset policy.
     
     Args:
         stage: "all" for automatic progression, or "stage_1" through "stage_9"
         speed_reward_coef: Coefficient for speed-to-3-hearts reward
-        entropy_coef: Entropy coefficient for exploration
+        entropy_coef: Entropy coefficient for exploration (default: 0.01, PPO default)
         learning_rate: Learning rate for optimizer
         stochastic_shaping: Enable stochastic reward shaping (Stages 4-5)
         run_name: Optional run name for tracking
@@ -1121,8 +1121,8 @@ def train(
         total_timesteps=10_000_000,
     )
 
-    # Use LSTM policy
-    policy_config = FastLSTMResetConfig()
+    # Use ViT with LSTM reset policy
+    policy_config = ViTResetConfig()
 
     # Set up evaluator
     evaluator = EvaluatorConfig(
@@ -1296,7 +1296,7 @@ def experiment(
 
     for speed_coef in speed_reward_coefs:
         for ent_coef in entropy_coefs:
-            run_name = f"cogology_{stage_to_run}_speed{speed_coef:.4f}_ent{ent_coef:.4f}_{timestamp}"
+            run_name = f"msb_cogology_{stage_to_run}_speed{speed_coef:.4f}_ent{ent_coef:.4f}_{timestamp}"
 
             cmd = [
                 "./devops/skypilot/launch.py",
@@ -1305,7 +1305,7 @@ def experiment(
                 f"stage={stage_to_run}",
                 f"speed_reward_coef={speed_coef}",
                 f"entropy_coef={ent_coef}",
-                "--gpus=4",
+                "--gpus=1",
                 "--heartbeat-timeout=3600",
             ]
 
