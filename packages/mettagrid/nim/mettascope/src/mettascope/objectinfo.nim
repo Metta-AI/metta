@@ -37,6 +37,25 @@ proc updateObjectInfo*() =
     addParam("Agent ID", $selection.agentId)
     addParam("Reward", $selection.totalReward.at)
 
+  if selection.cooldownRemaining.at > 0:
+    addParam("Cooldown Remaining", $selection.cooldownRemaining.at)
+  if selection.cooldownDuration > 0:
+    addParam("Cooldown Duration", $selection.cooldownDuration)
+  if selection.isClipped.at:
+    addParam("Is Clipped", $selection.isClipped.at)
+  if selection.isClipImmune.at:
+    addParam("Is Clip Immune", $selection.isClipImmune.at)
+  if selection.usesCount.at > 0:
+    addParam("Uses Count", $selection.usesCount.at)
+  if selection.maxUses > 0:
+    addParam("Max Uses", $selection.maxUses)
+  if selection.allowPartialUsage:
+    addParam("Allow Partial Usage", $selection.allowPartialUsage)
+  # if selection.exhaustion.at > 0:
+  #   addParam("Exhaustion", $selection.exhaustion.at)
+  # if selection.cooldownMultiplier > 0:
+  #   addParam("Cooldown Multiplier", $selection.cooldownMultiplier.at)
+
   proc addResource(area: Node, itemAmount: ItemAmount) =
     let i = item.copy()
     i.find("**/Image").fills[0].imageRef = "../../" & replay.itemImages[itemAmount.itemId]
