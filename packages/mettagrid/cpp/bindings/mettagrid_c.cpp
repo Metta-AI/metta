@@ -965,6 +965,8 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
           recipe_dict["cooldown"] = active_recipes[i]->cooldown;
 
           recipes_list.append(recipe_dict);
+        } else {
+          recipes_list.append(py::none());
         }
       }
       obj_dict["recipes"] = recipes_list;
