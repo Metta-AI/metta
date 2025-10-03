@@ -7,7 +7,10 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.rl.loss.grpo import GRPOConfig
+from metta.rl.loss.loss_config import LossConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.trainer_config import TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval_remote import EvalRemoteTool
 from metta.tools.play import PlayTool
@@ -91,6 +94,22 @@ def train(
     return TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=EvaluatorConfig(simulations=make_evals()),
+    )
+
+
+def train_grpo(
+    curriculum: Optional[CurriculumConfig] = None,
+    enable_detailed_slice_logging: bool = False,
+) -> TrainTool:
+    """Train with GRPO loss instead of PPO."""
+    curriculum = curriculum or make_curriculum(
+        enable_detailed_slice_logging=enable_detailed_slice_logging
+    )
+
+    return TrainTool(
+        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
+        evaluator=EvaluatorConfig(simulations=make_evals()),
+        trainer=TrainerConfig(losses=LossConfig(loss_configs={"grpo": GRPOConfig()})),
     )
 
 
