@@ -108,6 +108,8 @@ def train() -> TrainTool:
         training_env=TrainingEnvironmentConfig(curriculum=make_curriculum()),
         evaluator=EvaluatorConfig(
             simulations=make_cogs_v_clips_ascii_evals(),
+            evaluate_local=False,
+            evaluate_remote=True,
         ),
         policy_architecture=ViTResetConfig(),
     )

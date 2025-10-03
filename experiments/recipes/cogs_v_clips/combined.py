@@ -66,6 +66,8 @@ def train() -> TrainTool:
         policy_architecture=policy_config,
         evaluator=EvaluatorConfig(
             simulations=make_cogs_v_clips_evals(),
+            evaluate_local=False,
+            evaluate_remote=True,
         ),
         stats_server_uri="https://api.observatory.softmax-research.net",
     )
