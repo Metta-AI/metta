@@ -1362,6 +1362,17 @@ def experiment(
             subprocess.run(cmd)
             time.sleep(2)
 
+    # Return a dummy tool to satisfy the tool system
+    # (The actual work is launching remote jobs via subprocess)
+    from metta.common.tool import Tool
+
+    class ExperimentLauncher(Tool):
+        def invoke(self, args):
+            print(f"Launched {len(speed_reward_coefs) * len(entropy_coefs)} jobs")
+            return 0
+
+    return ExperimentLauncher()
+
 
 if __name__ == "__main__":
     experiment()
