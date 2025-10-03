@@ -229,7 +229,7 @@ class ForagingTaskGenerator(TaskGenerator):
         rng: random.Random,
         num_instances: Optional[int] = None,
     ) -> MettaGridConfig:
-        return self._generate_task(task_id, rng, num_instances)
+        return self._generate_task(task_id, rng)
 
 
 def train(curriculum_style: str = "all") -> TrainTool:

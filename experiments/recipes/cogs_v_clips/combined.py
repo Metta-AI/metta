@@ -46,7 +46,7 @@ class CogsVClipsTaskGenerator(TaskGenerator):
         task_generator = self.task_generators[
             rng.choice(list(self.task_generators.keys()))
         ]
-        return task_generator.generate_task(task_id, rng)
+        return task_generator._generate_task(task_id, rng)
 
 
 def train() -> TrainTool:
