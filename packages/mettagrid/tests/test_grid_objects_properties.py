@@ -344,7 +344,6 @@ class TestAgentProperties:
             "is_frozen",
             "freeze_remaining",
             "freeze_duration",
-            "color",
             "inventory",
         ]
 

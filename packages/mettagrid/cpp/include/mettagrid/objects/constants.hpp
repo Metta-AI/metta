@@ -37,20 +37,19 @@ constexpr ObservationType TypeId = 0;
 constexpr ObservationType Group = 1;
 constexpr ObservationType Frozen = 2;
 constexpr ObservationType Orientation = 3;
-constexpr ObservationType Color = 4;
-constexpr ObservationType ConvertingOrCoolingDown = 5;
-constexpr ObservationType Swappable = 6;
-constexpr ObservationType EpisodeCompletionPct = 7;
-constexpr ObservationType LastAction = 8;
-constexpr ObservationType LastActionArg = 9;
-constexpr ObservationType LastReward = 10;
-constexpr ObservationType Glyph = 11;
-constexpr ObservationType VisitationCounts = 12;
-constexpr ObservationType Tag = 13;
-constexpr ObservationType CooldownRemaining = 14;
-constexpr ObservationType Clipped = 15;
-constexpr ObservationType RemainingUses = 16;
-constexpr ObservationType ObservationFeatureCount = 17;
+constexpr ObservationType ConvertingOrCoolingDown = 4;
+constexpr ObservationType Swappable = 5;
+constexpr ObservationType EpisodeCompletionPct = 6;
+constexpr ObservationType LastAction = 7;
+constexpr ObservationType LastActionArg = 8;
+constexpr ObservationType LastReward = 9;
+constexpr ObservationType Glyph = 10;
+constexpr ObservationType VisitationCounts = 11;
+constexpr ObservationType Tag = 12;
+constexpr ObservationType CooldownRemaining = 13;
+constexpr ObservationType Clipped = 14;
+constexpr ObservationType RemainingUses = 15;
+constexpr ObservationType ObservationFeatureCount = 16;
 }  // namespace ObservationFeature
 
 const ObservationType InventoryFeatureOffset = ObservationFeature::ObservationFeatureCount;
@@ -62,7 +61,6 @@ inline const std::map<ObservationType, std::string>& GetFeatureNames() {
       {ObservationFeature::Group, "agent:group"},
       {ObservationFeature::Frozen, "agent:frozen"},
       {ObservationFeature::Orientation, "agent:orientation"},
-      {ObservationFeature::Color, "agent:color"},
       {ObservationFeature::ConvertingOrCoolingDown, "converting"},
       {ObservationFeature::Swappable, "swappable"},
       {ObservationFeature::EpisodeCompletionPct, "episode_completion_pct"},
@@ -92,7 +90,6 @@ inline const std::map<ObservationType, float>& GetFeatureNormalizations() {
       {ObservationFeature::Group, 10.0},
       {ObservationFeature::Frozen, 1.0},
       {ObservationFeature::Orientation, 1.0},
-      {ObservationFeature::Color, 255.0},
       {ObservationFeature::ConvertingOrCoolingDown, 1.0},
       {ObservationFeature::Swappable, 1.0},
       {ObservationFeature::Glyph, 255.0},

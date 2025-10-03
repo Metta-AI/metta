@@ -486,7 +486,6 @@ def _(
     mg_config.game.actions.get_items.enabled = True
     mg_config.game.actions.put_items.enabled = False  # Training had this disabled
     mg_config.game.actions.attack.enabled = True  # Training had attack enabled
-    mg_config.game.actions.change_color.enabled = False
     mg_config.game.actions.change_glyph.enabled = False
     mg_config.game.actions.swap.enabled = False
 
@@ -1293,7 +1292,6 @@ def _(
     mg_config2.game.actions.attack.enabled = False
     mg_config2.game.actions.get_items.enabled = True
     mg_config2.game.actions.put_items.enabled = True
-    mg_config2.game.actions.change_color.enabled = False
     mg_config2.game.actions.change_glyph.enabled = False
     mg_config2.game.actions.swap.enabled = False
 
