@@ -181,7 +181,7 @@ class ForagingTaskGenerator(TaskGenerator):
             inventory_rewards=inventory_rewards,
             resource_limits=resource_limits,
             stat_rewards=stat_rewards,
-            terrain=rng.choice(["sparse", "balanced", "denseno-terrain"]),
+            terrain=rng.choice(["sparse", "balanced", "dense", "no-terrain"]),
         )
 
     def _calculate_max_steps(self, num_objects: int, width: int, height: int) -> int:
