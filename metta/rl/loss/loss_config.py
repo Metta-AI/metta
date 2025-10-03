@@ -25,7 +25,6 @@ class LossConfig(Config):
         # If loss_configs is empty, add default PPO config
         if not self.loss_configs:
             # Import here to avoid circular dependency
-            # from metta.rl.loss.ppo import PPOConfig
             from metta.rl.loss.grpo import GRPOConfig
 
             self.loss_configs = {"grpo": GRPOConfig()}
