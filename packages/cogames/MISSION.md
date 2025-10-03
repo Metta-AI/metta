@@ -134,7 +134,7 @@ determining how to use assemblers to accomplish your goals is no easy feat:
 - Some assemblers will require gear to activate but will not consume that gear as an input cost
 - Assemblers do not have cooldowns and do not get depleted, but may have a maximum number of uses
 - Specific protocols may have a maximum number of uses
-- Protocol availability may change based on assembler status [[check: how does status change?]]
+- Protocol availability may change based on assembler status
 
 ### Station Type: Communal Chests
 
