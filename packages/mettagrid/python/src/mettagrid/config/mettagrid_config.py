@@ -210,10 +210,10 @@ class ChestConfig(GridObjectConfig):
 
     type: Literal["chest"] = Field(default="chest")
     resource_type: str = Field(description="Resource type that this chest can store")
-    deposit_positions: list[FixedPosition] = Field(
+    deposit_positions: list[Position] = Field(
         default_factory=list, description="Positions where agents can deposit resources"
     )
-    withdrawal_positions: list[FixedPosition] = Field(
+    withdrawal_positions: list[Position] = Field(
         default_factory=list, description="Positions where agents can withdraw resources"
     )
 

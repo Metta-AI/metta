@@ -19,8 +19,8 @@ import random
 from typing import Optional
 from experiments.recipes.in_context_learning.assemblers import foraging
 from experiments.recipes.in_context_learning.assemblers import assembly_lines
+from mettagrid.config.mettagrid_config import MettaGridConfig
 from experiments.recipes.in_context_learning.in_context_learning import (
-    MettaGridConfig,
     num_agents_to_positions,
     play_icl,
     train_icl,

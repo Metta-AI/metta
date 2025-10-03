@@ -72,6 +72,7 @@ def _base_game_config(num_agents: int) -> MettaGridConfig:
                 },
                 rewards=AgentRewards(
                     stats={"chest.heart.amount": 1},
+                    inventory={"heart": 0},
                     # inventory={
                     #     "heart": 1,
                     # },

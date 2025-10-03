@@ -67,8 +67,8 @@ class TerrainFromNumpy(MapBuilder):
     def __init__(self, config: Config):
         self.config = config
 
-    def sort_by_distance_from_center(self, positions):
-        center = np.array(positions.shape) / 2
+    def sort_by_distance_from_center(self, positions, grid_shape):
+        center = np.array(grid_shape) / 2  # Use grid dimensions
         distances = np.sum((positions - center) ** 2, axis=1)
         return positions[np.argsort(distances)]
 
@@ -118,7 +118,7 @@ class TerrainFromNumpy(MapBuilder):
         valid_positions = np.array(np.where(valid_mask)).T  # Shape: (N, 2)
 
         if assemblers and mass_in_center:
-            valid_positions = self.sort_by_distance_from_center(valid_positions)
+            valid_positions = self.sort_by_distance_from_center(valid_positions, level.shape)
 
             # Space out positions to ensure neighbors are empty
             occupied = np.zeros(level.shape, dtype=bool)
@@ -280,8 +280,7 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
 
         grid, valid_agent_positions, agent_labels = self.clean_grid(grid)
         if self.config.mass_in_center:
-            valid_agent_positions = self.sort_by_distance_from_center(valid_agent_positions)
-
+            valid_agent_positions = self.sort_by_distance_from_center(valid_agent_positions, grid.shape)
         num_agents = len(agent_labels)
         if len(valid_agent_positions) < num_agents:
             raise ValueError(
@@ -354,7 +353,7 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
         num_agents_in_grid = (grid == "agent.agent").sum()
         if num_agents_in_grid != len(agent_labels):
             raise ValueError(
-                f"Number of agents in grid ({num_agents_in_grid}) does not match number of agents ({len(agent_labels)}) for map {uri}"
+                f"Number of agents in grid ({num_agents_in_grid}) does not match ({len(agent_labels)}) for map {uri}"
             )
 
         return GameMap(grid=grid)
