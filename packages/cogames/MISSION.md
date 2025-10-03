@@ -17,7 +17,7 @@ some of these **details** vary.
 
 #### Energy Management
 
-You onboard battery stores limited energy -- manage it wisely!
+Your onboard battery stores limited energy -- manage it wisely!
 
 Almost everything you do, from moving to interacting with stations, will expend your energy, but you and the team have
 various tools at your disposal to share and replenish your stores.
@@ -37,7 +37,7 @@ Your chassis has limited capacity for:
 
 ## YOUR CAPABILITIES
 
-You can take one of these actions per turn
+You and your Cog teammates can take one of these actions per turn. Your actions will execute in an unspecified order.
 
 **MOVE [Direction: N, S, W, E]**
 
@@ -73,11 +73,14 @@ You will need to operate stations of many kinds. Below is an index of what stati
   - Station inputs are drawn from the cargos of the surrounding cogs in clockwise order, starting at the position
     northwest of the station. The station will draw on each cog's cargo and/or battery in turn, exhausting the full
     amount available, until its input costs are met. If there are insufficient resources among the surrounding cogs, the
-    station will fail to activate.
-  - Upon successful activation, station outputs are placed in the activator's cargo. The first Cog that MOVEs towards
-    the station becomes its **activator**.
+    station won't activate and won't consume inputs.
+  - Upon successful activation, station outputs are placed in the **activator**'s cargo. The activator is the first Cog
+    that MOVEs towards the station. Because you and your teammates' actions will execute in an unspecified order, you
+    may need to coordinate.
 - Stations may have **cooldown** periods after interaction. During a station's cooldown period, activation will by
   default have no effect
+- Stations configured with **exhaustion** grow slower over time: after each successful use their cooldown is multiplied
+  by `(1 + exhaustion)`
 
 ### Station Type: Extractor
 
@@ -94,49 +97,43 @@ Stations largely follow the rules of the Station Interaction Protocol. There are
 
 Below are default settings for the known extractors, but remember that they can vary by scenario.
 
-| Station                            | Input cost (default) | Output (default)                         | Cooldown                        | Max uses |
-| ---------------------------------- | -------------------- | ---------------------------------------- | ------------------------------- | -------- |
-| Carbon Extractor (`C`)             |                      | +4 carbon                                |                                 |          |
-| Oxygen Extractor (`O`)             |                      | +100 oxygen                              | 200 turns (partial use allowed) |          |
-| Germanium Extractor (`G`)          |                      | +2/+3/+4/+5 germanium for 1/2/3/4 agents |                                 | 2        |
-| Silicon Extractor (`S`)            | −25 energy           | +25 silicon                              |                                 |          |
-| Solar Array (`+`)                  |                      | +50 energy                               | 10 turns (partial use allowed)  |          |
-| Depleted Carbon Extractor (`c`)    |                      | +1                                       |                                 | 100      |
-| Depleted Oxygen (`o`)              |                      | +10 oxygen                               | 40 turns (partial use allowed)  | 10       |
-| Depleted Germanium Extractor (`g`) |                      | +2/+3/+4/+5 germanium for 1/2/3/4 agents |                                 | 1        |
-| Depleted Silicon (`s`)             | -25                  | +10 silicon                              |                                 | 10       |
+| Station                            | Input cost | Output                                   | Cooldown                        | Max uses |
+| ---------------------------------- | ---------- | ---------------------------------------- | ------------------------------- | -------- |
+| Carbon Extractor (`C`)             |            | +4 carbon                                |                                 |          |
+| Oxygen Extractor (`O`)             |            | +100 oxygen                              | 200 turns (partial use allowed) |          |
+| Germanium Extractor (`G`)          |            | +2/+3/+4/+5 germanium for 1/2/3/4 agents |                                 | 2        |
+| Silicon Extractor (`S`)            | −25 energy | +25 silicon                              |                                 |          |
+| Solar Array (`+`)                  |            | +50 energy                               | 10 turns (partial use allowed)  |          |
+| Depleted Carbon Extractor (`c`)    |            | +1                                       |                                 | 100      |
+| Depleted Oxygen (`o`)              |            | +10 oxygen                               | 40 turns (partial use allowed)  | 10       |
+| Depleted Germanium Extractor (`g`) |            | +2/+3/+4/+5 germanium for 1/2/3/4 agents |                                 | 1        |
+| Depleted Silicon (`s`)             | -25        | +10 silicon                              |                                 | 10       |
 
 ### Station Type: Assembler
 
 This is your primary objective facility! The Assembler converts raw resources into gear and precious HEART units.
 
-**CRITICAL PROTOCOL SYSTEM**:
+#### Assembler Interaction Protocol
 
-- Position teammates at specific terminals around the Assembler
-- The activating Cog moves into the center
-- Different formations unlock different protocols!
+You must discover what each assembler is capable of. Assembler protocols change between missions!
 
-Example formations:
+- Like extractors:
+  - The first Cog that MOVEs into the Assembler activates it
+  - Resources are consumed from the team (in the same way)
+  - Outputs (gear or hearts) go to the activator
+- Unlike extractors:
+  - The precise formation of you and your teammates around the terminals of the Assembler determines which Protocol will
+    be activated.
+  - Different protocols require different inputs and create different outputs
+  - Inputs and outputs can include HEART units or gear (scrambler, modulator, decoder, resonator), not just resources
+    and energy
+  - Some assemblers will require gear to activate but will not consume that gear as an input cost
+  - Assemblers do not have cooldowns or a maximum number of uses, and do not get depleted
+  - Protocol availability may change based on assembler status [[check: how does status change?]]
 
-```
-.C.     (Protocol Type Alpha)
-CBC
-...
+### Station Type: Chests
 
-.C.     (Protocol Type Beta)
-CB.
-..C
-```
-
-**Protocol Execution**:
-
-1. Surrounding Cogs must possess required input resources
-2. Activator moves into Assembler
-3. Resources are consumed from the team
-4. Output (gear or HEARTS) goes to the activator
-5. Discovery required - protocols change between missions!
-
-### Station Type: The Communal Chest
+Chests can store resources and HEARTs. Crucially, depositing HEARTs into the communal
 
 **To Deposit**: Position yourself at specific terminals and move into the Chest **To Withdraw**: Position yourself at
 different terminals and move into the Chest
@@ -173,33 +170,14 @@ production.
 
 ---
 
-## MISSION PARAMETERS
-
-### Success Metrics
-
-- Individual achievement: Irrelevant
-- Team achievement: Each HEART in the Communal Chest = shared points among all Cogs
-
-### Operational Constraints
-
-- Actions execute in unspecified order each turn - coordinate accordingly
-- Facilities may only activate once per turn (first mover is the activator)
-- Cooldown timers must expire before reactivation
-- Resource deposits become less productive with use
-- Some stations permit partial usage mid-cooldown; the engine scales the recipe to match progress (you still pay for the
-  fraction you take)
-- Stations configured with exhaustion grow slower over time: after each successful use their cooldown is multiplied by
-  `(1 + exhaustion)`
-- Some protocols may require specific gear in addition to resources
-- Protocol availability may change based on facility status
-
----
-
 ## FINAL DIRECTIVE
 
 **Your mission is critical. The HEARTS you create today will ensure the continuation of Cog operations tomorrow.**
 
-Success depends on:
+Your individual achievement is irrelevant. Your team achievement, measured by the number of HEARTs in the communal heart
+chest, is all that matters.
+
+Your success depends on:
 
 - Efficient energy management
 - Strategic facility operations
