@@ -28,6 +28,7 @@ proc useSelections*(panel: Panel) =
     window.buttonDown[KeyLeftControl] or window.buttonDown[KeyRightControl]
 
   let shiftDown = window.buttonDown[KeyLeftShift] or window.buttonDown[KeyRightShift]
+  let rDown = window.buttonDown[KeyR]
 
   # Track mouse down position to distinguish clicks from drags.
   if window.buttonPressed[MouseLeft] and not modifierDown:
@@ -88,7 +89,7 @@ proc useSelections*(panel: Panel) =
               else:
                 approachDir = ivec2(0, -1)  # Clicked top, approach from top.
 
-        let destination = Destination(pos: gridPos, destinationType: destType, approachDir: approachDir)
+        let destination = Destination(pos: gridPos, destinationType: destType, approachDir: approachDir, repeat: rDown)
 
         if shiftDown:
           # Queue up additional destinations.
