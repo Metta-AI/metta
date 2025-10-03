@@ -156,7 +156,7 @@ typical parameters we have discovered:
 
 ## THREAT ADVISORY: CLIP NANOSWARM OUTBREAK
 
-**WARNING**: The Friendly Paperclip Company's automated paperclip production nanoswarm has been sighted. The clips is
+**WARNING**: The Friendly Paperclip Company's automated paperclip production nanoswarm has been sighted. The clips are
 too small to be individually visible, but don't let that fool you: station infestations are devastating. Once infested,
 a station suspends normal output until Cogs run the designated repair protocol.
 
