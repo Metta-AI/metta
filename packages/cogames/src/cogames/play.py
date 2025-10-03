@@ -92,7 +92,7 @@ def play(
 
         # Get glyphs from environment config if available
         glyphs = None
-        if hasattr(env_cfg.game.actions, "change_glyph") and env_cfg.game.actions.change_glyph.enabled:
+        if env_cfg.game.actions.change_glyph.enabled:
             glyphs = GLYPHS
 
         result = env._renderer.interactive_loop(env, get_actions_fn, max_steps=max_steps, glyphs=glyphs)

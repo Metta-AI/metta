@@ -3,12 +3,10 @@
 from typing import Dict, List, Optional
 
 import numpy as np
+from rich import box
 from rich.table import Table
 
-try:
-    from cogames.cogs_vs_clips.glyphs import GLYPH_DATA
-except ImportError:
-    GLYPH_DATA = None
+from .buffer import get_symbol_for_object
 
 
 def build_agent_info_panel(
@@ -38,9 +36,6 @@ def build_agent_info_panel(
     Returns:
         Rich Table object
     """
-    from rich import box
-
-    from .buffer import get_symbol_for_object
 
     table = Table(title="Agent Info", show_header=False, box=box.ROUNDED, padding=(0, 1), width=46)
     table.add_column("Key", style="cyan", no_wrap=True, width=12)
@@ -116,8 +111,6 @@ def build_symbols_table(
     Returns:
         Rich Table object
     """
-    from rich import box
-
     table = Table(title="Symbols", show_header=False, box=box.ROUNDED, padding=(0, 1), width=46)
     table.add_column("Symbol", no_wrap=True, style="white", width=3)
     table.add_column("Name", style="cyan", overflow="ellipsis", width=15)
@@ -181,8 +174,6 @@ def build_object_info_panel(
     Returns:
         Rich Table object
     """
-    from rich import box
-
     table = Table(title="Object Info", show_header=False, box=box.ROUNDED, padding=(0, 1), width=46)
     table.add_column("Key", style="cyan", no_wrap=True, width=12)
     table.add_column("Value", style="white")
