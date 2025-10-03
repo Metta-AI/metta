@@ -227,14 +227,19 @@ def make_icl_assembler(
     max_steps,
     game_objects: dict,
     map_builder_objects: dict,
+    inventory_rewards,
+    stat_rewards,
+    terrain,
+    resources,
+    resource_limits,
     width: int = 6,
     height: int = 6,
-    terrain: str = "no-terrain",
 ) -> MettaGridConfig:
     game_objects["wall"] = empty_converters.wall
     cfg = MettaGridConfig(
         desync_episodes=False,
         game=GameConfig(
+            resource_names=resources,
             max_steps=max_steps,
             num_agents=num_agents * num_instances,
             objects=game_objects,
@@ -257,51 +262,12 @@ def make_icl_assembler(
             ),
             agent=AgentConfig(
                 rewards=AgentRewards(
-                    stats={"chest.heart.amount": 4},
-                    inventory_max={"heart": 15},
-                    inventory={"heart": 1, "carbon": 0.5, "oxygen": 0.5, "germanium": 0.5, "silicon": 0.5},
+                    stats=stat_rewards,
+                    inventory=inventory_rewards,
                 ),
                 default_resource_limit=3,
-                resource_limits={"heart": 30},
+                resource_limits=resource_limits,
             ),
         ),
     )
-    return cfg
-
-
-def make_icl_with_numpy(
-    num_agents: int,
-    num_instances: int,
-    max_steps,
-    game_objects: dict,
-    instance: MapBuilderConfig,
-) -> MettaGridConfig:
-    game_objects["wall"] = empty_converters.wall
-    cfg = MettaGridConfig(
-        desync_episodes=False,
-        game=GameConfig(
-            max_steps=max_steps,
-            num_agents=num_agents * num_instances,
-            objects=game_objects,
-            map_builder=MapGen.Config(
-                instances=num_instances,
-                instance=instance,
-            ),
-            actions=ActionsConfig(
-                move=ActionConfig(),
-                get_items=ActionConfig(),
-                put_items=ActionConfig(),
-            ),
-            agent=AgentConfig(
-                rewards=AgentRewards(
-                    inventory={
-                        "heart": 1,
-                    },
-                ),
-                default_resource_limit=1,
-                resource_limits={"heart": 15},
-            ),
-        ),
-    )
-
     return cfg

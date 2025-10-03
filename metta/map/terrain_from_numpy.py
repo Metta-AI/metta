@@ -357,36 +357,3 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
             )
 
         return GameMap(grid=grid)
-
-
-# class InContextLearningFromNumpy(TerrainFromNumpy):
-#     def __init__(self, config: TerrainFromNumpy.Config):
-#         super().__init__(config)
-
-#     def build(self):
-#         map_dir = self.setup()
-
-#         if self.config.file is None:
-#             uri = pick_random_file(map_dir, self.config.rng)
-#         else:
-#             uri = self.config.file
-
-#         grid = np.load(f"{map_dir}/{uri}", allow_pickle=True)
-
-#         grid, valid_positions, agent_labels = self.clean_grid(grid)
-#         num_agents = len(agent_labels)
-#         agent_positions = valid_positions[:num_agents]
-#         for pos, label in zip(agent_positions, agent_labels, strict=False):
-#             grid[tuple(pos)] = label
-#         # placeholder indices for objects
-#         mask = ~np.isin(grid, ("agent.agent", "wall", "empty"))
-#         converter_indices = np.argwhere(mask)
-#         grid[mask] = "empty"
-
-#         object_names = [name for name in self.config.objects for _ in range(self.config.objects[name])]
-#         self.config.rng.shuffle(object_names)
-
-#         for idx, object in zip(converter_indices, object_names, strict=False):
-#             grid[tuple(idx)] = object
-
-#         return GameMap(grid=grid)

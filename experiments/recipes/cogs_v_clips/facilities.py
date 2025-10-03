@@ -22,6 +22,7 @@ from metta.tools.train import TrainTool
 from mettagrid.config import MettaGridConfig
 from cogames.cogs_vs_clips.scenarios import make_game
 from mettagrid.mapgen.mapgen import MapGen
+from metta.agent.policies.vit_reset import ViTResetConfig
 
 
 def make_mettagrid(
@@ -116,11 +117,13 @@ def train(
     evaluator_cfg = EvaluatorConfig(
         simulations=make_cogs_v_clips_ascii_evals(),
     )
+    policy_config = ViTResetConfig()
 
     return TrainTool(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
         evaluator=evaluator_cfg,
+        policy_architecture=policy_config,
     )
 
 

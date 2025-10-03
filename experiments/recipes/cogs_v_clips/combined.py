@@ -1,9 +1,8 @@
-from experiments.recipes.in_context_learning.in_context_learning import (
-    TaskGenerator,
-    TaskGeneratorConfig,
+from experiments.recipes.cogs_v_clips import facilities, generalized_terrain, foraging
+from experiments.recipes.cogs_v_clips.config import (
+    generalized_terrain_curriculum_args,
+    foraging_curriculum_args,
 )
-from experiments.recipes.cogs_v_clips import facilities, generalized_terrain
-from experiments.recipes.cogs_v_clips.config import generalized_terrain_curriculum_args
 import random
 from typing import Optional
 from metta.agent.policies.vit_reset import ViTResetConfig
@@ -15,6 +14,7 @@ from metta.rl.loss import LossConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from experiments.evals.cogs_v_clips import make_cogs_v_clips_evals
+from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 
 
 class CogsVClipsTaskGenerator(TaskGenerator):
@@ -22,7 +22,10 @@ class CogsVClipsTaskGenerator(TaskGenerator):
         pass
 
     def __init__(
-        self, config: "TaskGeneratorConfig", terrain_curriculum="multi_agent_triplets"
+        self,
+        config: "TaskGeneratorConfig",
+        terrain_curriculum="multi_agent_triplets",
+        foraging_curriculum="all",
     ):
         super().__init__(config)
 
@@ -31,6 +34,9 @@ class CogsVClipsTaskGenerator(TaskGenerator):
                 **generalized_terrain_curriculum_args[terrain_curriculum]
             ),
             "facilities": facilities.make_task_generator().create(),
+            "foraging": foraging.ForagingTaskGenerator(
+                **foraging_curriculum_args[foraging_curriculum]
+            ),
         }
 
     def _generate_task(

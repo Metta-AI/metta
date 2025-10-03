@@ -1,6 +1,7 @@
 from cogames.cogs_vs_clips.scenarios import make_game
 from mettagrid.mapgen.mapgen import MapGen
 import random
+from experiments.evals.foraging import make_foraging_eval_suite
 from metta.sim.simulation_config import SimulationConfig
 
 # macina 1 and macina 2 + the others
@@ -131,4 +132,8 @@ def make_cogs_v_clips_terrain_evals() -> list[SimulationConfig]:
 
 
 def make_cogs_v_clips_evals() -> list[SimulationConfig]:
-    return make_cogs_v_clips_ascii_evals() + make_cogs_v_clips_terrain_evals()
+    return (
+        make_cogs_v_clips_ascii_evals()
+        + make_cogs_v_clips_terrain_evals()
+        + make_foraging_eval_suite()
+    )
