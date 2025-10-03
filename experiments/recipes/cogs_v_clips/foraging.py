@@ -109,7 +109,7 @@ class ForagingTaskGenerator(TaskGenerator):
         self, num_assemblers, cfg, position, num_extractors, rng: random.Random
     ):
         input_resources = {}
-        max_recipe_inputs = 3
+        max_input_resources = 3
 
         if num_extractors > 0:
             input_resources.update(
@@ -118,7 +118,7 @@ class ForagingTaskGenerator(TaskGenerator):
                     for resource in rng.sample(
                         list(self.used_resources),
                         rng.randint(
-                            1, min(len(self.used_resources), max_recipe_inputs)
+                            1, min(len(self.used_resources), max_input_resources)
                         ),
                     )
                 }
