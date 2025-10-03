@@ -332,16 +332,15 @@ class CogologyTaskGenerator(TaskGenerator):
 
         # Add chargers if stage has them
         if self.stage.num_chargers > 0:
-            # Use 'h' for charger (assuming it's in the char mapping)
             objects.extend(
-                ["h"]
+                ["H"]
                 * min(self.stage.num_chargers, len(empty_positions) - len(objects))
             )
 
-        # Add extractors
+        # Add extractors (using official map_char from stations.py)
         if self.stage.num_carbon_extractors > 0:
             objects.extend(
-                ["c"]
+                ["N"]  # carbon_extractor map_char
                 * min(
                     self.stage.num_carbon_extractors,
                     len(empty_positions) - len(objects),
@@ -349,7 +348,7 @@ class CogologyTaskGenerator(TaskGenerator):
             )
         if self.stage.num_oxygen_extractors > 0:
             objects.extend(
-                ["o"]
+                ["O"]  # oxygen_extractor map_char
                 * min(
                     self.stage.num_oxygen_extractors,
                     len(empty_positions) - len(objects),
@@ -357,7 +356,7 @@ class CogologyTaskGenerator(TaskGenerator):
             )
         if self.stage.num_germanium_extractors > 0:
             objects.extend(
-                ["g"]
+                ["E"]  # germanium_extractor map_char
                 * min(
                     self.stage.num_germanium_extractors,
                     len(empty_positions) - len(objects),
@@ -365,7 +364,7 @@ class CogologyTaskGenerator(TaskGenerator):
             )
         if self.stage.num_silicon_extractors > 0:
             objects.extend(
-                ["s"]
+                ["I"]  # silicon_extractor map_char
                 * min(
                     self.stage.num_silicon_extractors,
                     len(empty_positions) - len(objects),
