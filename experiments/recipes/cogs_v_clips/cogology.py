@@ -205,6 +205,9 @@ class CogologyTaskGenerator(TaskGenerator):
         # Set unique chest_id for each chest (room-based)
         self._configure_chest_ids(env, num_rooms)
 
+        # Configure resource limits per stage
+        self._configure_resource_limits(env)
+
         # Set extractor depletion if configured
         if self.stage.extractor_max_uses is not None:
             self._set_extractor_depletion(env)
@@ -223,20 +226,24 @@ class CogologyTaskGenerator(TaskGenerator):
         Returns:
             ASCII string with agents marked as '@'
         """
-        # Create a simple room with agents spread out
-        # For 1 agent: "@"
-        # For 2 agents: ".@.\n.@."
-        # For 3 agents: "@.@\n.@."
-        # For 4 agents: "@.@\n@.@"
+        import random as stdlib_random
 
+        # 50% chance of small room (5x5) vs medium room (7x7)
+        use_small = stdlib_random.random() < 0.5
+
+        # Create a simple room with agents spread out
         if agents_per_room == 1:
-            return "@"
+            # Small: just agent, Medium: agent with padding
+            return "@" if use_small else ".@."
         elif agents_per_room == 2:
-            return ".@.\n.@."
+            # Small: tight spacing, Medium: more space
+            return "@\n@" if use_small else ".@.\n.@."
         elif agents_per_room == 3:
-            return "@.@\n.@."
+            # Small: 2x2 grid, Medium: spread out
+            return "@.@\n@" if use_small else "@.@\n.@."
         elif agents_per_room == 4:
-            return "@.@\n@.@"
+            # Small: 2x2 tight, Medium: 2x2 with space
+            return "@.@\n@.@" if use_small else "@...@\n.....\n@...@"
         else:
             # Fallback: single agent
             return "@"
@@ -416,6 +423,29 @@ class CogologyTaskGenerator(TaskGenerator):
         # Assign unique chest_id to each chest
         for i, (chest_key, chest_config) in enumerate(chest_objects[:num_rooms]):
             chest_config.chest_id = f"room_{i}"
+
+    def _configure_resource_limits(self, env: MettaGridConfig):
+        """Configure resource limits based on stage requirements.
+
+        Stage 1 needs higher heart limits (agents start with 3-5 hearts).
+        Later stages may need higher resource limits for complex crafting.
+        """
+        # Stage-specific resource limits
+        if self.stage.stage_id == 1:
+            # Stage 1: Agents start with 3-5 hearts, need to hold them
+            env.game.agent.resource_limits["heart"] = 5
+        else:
+            env.game.agent.resource_limits["heart"] = 1
+
+        # Ensure energy is sufficient (especially for stages without chargers)
+        if self.stage.num_chargers == 0:
+            # No chargers: increase energy capacity
+            env.game.agent.resource_limits["energy"] = 200
+
+        # Copy to all per-agent configs if they exist
+        if env.game.agents:
+            for agent_config in env.game.agents:
+                agent_config.resource_limits = env.game.agent.resource_limits.copy()
 
     def _configure_per_agent_rewards(
         self,
@@ -1118,7 +1148,7 @@ def train(
     trainer_cfg = TrainerConfig(
         losses=LossConfig(loss_configs={"ppo": PPOConfig(ent_coef=entropy_coef)}),
         optimizer=OptimizerConfig(learning_rate=learning_rate),
-        total_timesteps=10_000_000_000_000,
+        total_timesteps=10_000_000,
     )
 
     # Use ViT with LSTM reset policy
