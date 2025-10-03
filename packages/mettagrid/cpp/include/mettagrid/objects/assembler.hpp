@@ -84,6 +84,16 @@ private:
     }
   }
 
+  // Returns true if the recipe yields any positive output amount (legacy name retained for compatibility)
+  bool recipe_has_positive_output(const Recipe& recipe) const {
+    for (const auto& [item, amount] : recipe.output_resources) {
+      if (amount > 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
 public:
   // Consume resources from surrounding agents for the given recipe
   // Intended to be private, but made public for testing. We couldn't get `friend` to work as expected.
@@ -303,6 +313,9 @@ public:
 
     std::vector<Agent*> surrounding_agents = get_surrounding_agents();
     if (!can_afford_recipe(recipe_to_use, surrounding_agents)) {
+      return false;
+    }
+    if (!recipe_has_positive_output(recipe_to_use)) {
       return false;
     }
     consume_resources_for_recipe(recipe_to_use, surrounding_agents);
