@@ -59,9 +59,10 @@ EMOTE updates that display and costs **0** energy.
 
 No action, no energy cost.
 
-## STATIONS
+## FIELD OPERATIONS
 
-You will need to operate stations of many kinds. Below is an index of what stations are available to you.
+Your primary form of interaction with the outside world will be through stations. Below is an index of stations you may
+find and how to use them.
 
 ### Station Interaction Protocol
 
