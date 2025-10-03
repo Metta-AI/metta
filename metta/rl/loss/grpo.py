@@ -179,28 +179,23 @@ class GRPO(Loss):
         pass
 
     def _compute_group_advantages(self, context: ComponentContext) -> Tensor:
-        """Compute advantages from discounted returns with mean baseline.
-
-        GRPO uses discounted returns to provide temporal credit assignment,
-        then subtracts the mean as a baseline to center the advantages.
-
-        Uses simple in-place computation for speed - similar to PPO but without value network.
-        """
+        """Compute advantages for GRPO using discounted returns with mean baseline."""
         cfg = self.loss_cfg
         with torch.no_grad():
-            rewards = self.replay.buffer["rewards"]
+            rewards = self.replay.buffer["rewards"]  # [B, T]
             dones = self.replay.buffer["dones"]
+
+            # Compute discounted returns using efficient backward pass
             B, T = rewards.shape
+            returns = torch.zeros_like(rewards)
+            next_return = torch.zeros(B, device=rewards.device)
 
-            # Compute returns in-place with backward iteration
-            # This is the fastest approach without a custom CUDA kernel
-            returns = rewards.clone()
+            for t in reversed(range(T)):
+                # Bootstrap from next timestep, reset at episode boundaries
+                next_return = rewards[:, t] + cfg.gamma * next_return * (1.0 - dones[:, t])
+                returns[:, t] = next_return
 
-            # Backward pass through time
-            for t in range(T - 2, -1, -1):
-                returns[:, t] += cfg.gamma * returns[:, t + 1] * (1.0 - dones[:, t])
-
-            # Use mean return as baseline (equivalent to REINFORCE with baseline)
+            # Baseline = mean return across batch
             baseline = returns.mean()
             advantages = returns - baseline
 
