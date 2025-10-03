@@ -8,6 +8,7 @@ import { YamlContext } from "./YamlContext";
 const commonJsonMetaSchema = {
   title: z.string().optional(),
   description: z.string().optional(),
+  deprecated: z.boolean().optional(),
   // injected by TS code
   isTopLevelDef: z.boolean().optional(),
 };
@@ -374,9 +375,16 @@ export function getSchemaTypeStr(property: JsonSchema): string {
   if ("type" in property) {
     let typeStr: string = property.type;
     if (property.type === "array") {
-      typeStr = `${typeStr}[${property.items ? getSchemaTypeStr(property.items) : "unknown"}]`;
+      typeStr = `list[${property.items ? getSchemaTypeStr(property.items) : "unknown"}]`;
     } else if (property.type === "object") {
-      typeStr = `${typeStr}[${property.additionalProperties ? getSchemaTypeStr(property.additionalProperties) : "unknown"}]`;
+      typeStr = `dict[str, ${property.additionalProperties ? getSchemaTypeStr(property.additionalProperties) : "unknown"}]`;
+      // prefer python-like names
+    } else if (property.type === "integer") {
+      typeStr = "int";
+    } else if (property.type === "number") {
+      typeStr = "float";
+    } else if (property.type === "boolean") {
+      typeStr = "bool";
     }
     return typeStr;
   } else if ("anyOf" in property) {

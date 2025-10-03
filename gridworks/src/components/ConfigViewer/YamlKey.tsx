@@ -14,6 +14,9 @@ const JsonSchemaInfo: FC<{
   return (
     <div>
       <span className="font-semibold">Type:</span> {typeStr}
+      {"deprecated" in schema && schema.deprecated && (
+        <span className="text-red-700"> (deprecated)</span>
+      )}
       <div>
         {"description" in schema && (
           <div className="mt-1 text-gray-500">{schema.description}</div>
