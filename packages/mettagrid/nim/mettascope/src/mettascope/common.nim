@@ -115,7 +115,6 @@ type
     actionType*: PathActionType
     pos*: IVec2 ## Target position for PathMove, or bump target for PathBump.
     bumpDir*: IVec2 ## Direction to bump for PathBump actions.
-    destinationIdx*: int ## Index of the destination this action is for.
 
 var
   requestActions*: seq[ActionRequest]

@@ -116,7 +116,7 @@ proc recomputePath*(agentId: int, currentPos: IVec2) =
       # Convert positions to PathMove actions.
       for pos in movePath:
         if pos != lastPos:
-          pathActions.add(PathAction(actionType: PathMove, pos: pos, destinationIdx: destIdx))
+          pathActions.add(PathAction(actionType: PathMove, pos: pos))
       lastPos = dest.pos
     of Bump:
       # For bumping, path to the specified approach position.
@@ -133,13 +133,12 @@ proc recomputePath*(agentId: int, currentPos: IVec2) =
           return
         for pos in movePath:
           if pos != lastPos:
-            pathActions.add(PathAction(actionType: PathMove, pos: pos, destinationIdx: destIdx))
+            pathActions.add(PathAction(actionType: PathMove, pos: pos))
       # Add the bump action.
       pathActions.add(PathAction(
         actionType: PathBump,
         pos: dest.pos,
         bumpDir: ivec2(dest.pos.x - approachPos.x, dest.pos.y - approachPos.y),
-        destinationIdx: destIdx
       ))
       lastPos = approachPos
   
