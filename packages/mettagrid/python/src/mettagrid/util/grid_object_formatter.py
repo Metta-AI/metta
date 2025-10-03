@@ -65,6 +65,14 @@ def format_assembler_properties(grid_object: dict, update_object: dict) -> None:
     update_object["max_uses"] = grid_object.get("max_uses", 0)
     update_object["allow_partial_usage"] = grid_object.get("allow_partial_usage", False)
 
+    update_object["recipes"] = []
+    for recipe in grid_object.get("recipes", []):
+        update_recipe = {}
+        update_recipe["inputs"] = list(recipe.get("inputs", {}).items())
+        update_recipe["outputs"] = list(recipe.get("outputs", {}).items())
+        update_recipe["cooldown"] = recipe["cooldown"]
+        update_object["recipes"].append(update_recipe)
+
 
 def format_grid_object(
     grid_object: dict,
