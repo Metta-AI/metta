@@ -92,18 +92,11 @@ def make_curriculum(
 ) -> CurriculumConfig:
     facility_tasks = make_task_generator(facility_env)
 
-    if algorithm_config is None:
-        algorithm_config = LearningProgressConfig(
-            ema_timescale=0.001,
-            exploration_bonus=0.15,
-            max_memory_tasks=1000,
-            max_slice_axes=3,
-            progress_smoothing=0.15,
+    return facility_tasks.to_curriculum(
+        algorithm_config=LearningProgressConfig(
             num_active_tasks=1000,
-            rand_task_rate=0.25,
         )
-
-    return facility_tasks.to_curriculum(algorithm_config=algorithm_config)
+    )
 
 
 def train(
