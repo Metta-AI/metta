@@ -78,22 +78,20 @@ public:
     _rng = rng;
   }
 
-  bool handle_action(GridObjectId actor_object_id, ActionArg arg) {
-    Agent* actor = static_cast<Agent*>(_grid->object(actor_object_id));
-
+  bool handle_action(Agent& actor, ActionArg arg) {
     // Handle frozen status
-    if (actor->frozen != 0) {
-      actor->stats.incr("status.frozen.ticks");
-      actor->stats.incr("status.frozen.ticks." + actor->group_name);
-      if (actor->frozen > 0) {
-        actor->frozen -= 1;
+    if (actor.frozen != 0) {
+      actor.stats.incr("status.frozen.ticks");
+      actor.stats.incr("status.frozen.ticks." + actor.group_name);
+      if (actor.frozen > 0) {
+        actor.frozen -= 1;
       }
       return false;
     }
 
     bool has_needed_resources = true;
     for (const auto& [item, amount] : _required_resources) {
-      if (actor->inventory.amount(item) < amount) {
+      if (actor.inventory.amount(item) < amount) {
         has_needed_resources = false;
         break;
       }
@@ -104,35 +102,35 @@ public:
 
     // The intention here is to provide a metric that reports when an agent has stayed in one location for a long
     // period, perhaps spinning in circles. We think this could be a good indicator that a policy has collapsed.
-    if (actor->location == actor->prev_location) {
-      actor->steps_without_motion += 1;
-      if (actor->steps_without_motion > actor->stats.get("status.max_steps_without_motion")) {
-        actor->stats.set("status.max_steps_without_motion", actor->steps_without_motion);
+    if (actor.location == actor.prev_location) {
+      actor.steps_without_motion += 1;
+      if (actor.steps_without_motion > actor.stats.get("status.max_steps_without_motion")) {
+        actor.stats.set("status.max_steps_without_motion", actor.steps_without_motion);
       }
     } else {
-      actor->steps_without_motion = 0;
+      actor.steps_without_motion = 0;
     }
 
     // Update tracking for this agent
-    actor->prev_action_name = _action_name;
-    actor->prev_location = actor->location;
+    actor.prev_action_name = _action_name;
+    actor.prev_location = actor.location;
 
     // Track success/failure
     if (success) {
-      actor->stats.incr("action." + _action_name + ".success");
+      actor.stats.incr("action." + _action_name + ".success");
       for (const auto& [item, amount] : _consumed_resources) {
         InventoryDelta delta = compute_probabilistic_delta(-amount);
         if (delta != 0) {
-          [[maybe_unused]] InventoryDelta actual_delta = actor->update_inventory(item, delta);
+          [[maybe_unused]] InventoryDelta actual_delta = actor.update_inventory(item, delta);
           // We consume resources after the action succeeds, but in the future we might have an action that uses the
           // resource. This check will catch that.
           assert(actual_delta == delta);
         }
       }
     } else {
-      actor->stats.incr("action." + _action_name + ".failed");
-      actor->stats.incr("action.failure_penalty");
-      *actor->reward -= actor->action_failure_penalty;
+      actor.stats.incr("action." + _action_name + ".failed");
+      actor.stats.incr("action.failure_penalty");
+      *actor.reward -= actor.action_failure_penalty;
     }
 
     return success;
@@ -147,7 +145,7 @@ public:
   }
 
 protected:
-  virtual bool _handle_action(Agent* actor, ActionArg arg) = 0;
+  virtual bool _handle_action(Agent& actor, ActionArg arg) = 0;
 
   InventoryDelta compute_probabilistic_delta(InventoryProbability amount) const {
     if (_rng == nullptr) {

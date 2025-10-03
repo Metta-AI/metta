@@ -1,6 +1,6 @@
 from typing_extensions import TypedDict
 
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 
 class ErrorResult(TypedDict):

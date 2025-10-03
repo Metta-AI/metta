@@ -6,7 +6,6 @@ load("@pybind11_bazel//:build_defs.bzl", "pybind_extension", "pybind_library")
 exports_files([
     "bindings/mettagrid_c.cpp",
     "bindings/mettagrid_c.hpp",
-    "src/renderer/hermes.cpp",
 ])
 
 # Compiler flags
@@ -24,9 +23,6 @@ pybind_library(
     hdrs = glob([
         "include/mettagrid/**/*.hpp",
     ]),
-    srcs = glob([
-        "src/**/*.cpp",
-    ], exclude = ["bindings/**/*.cpp"]),
     copts = [
         "-std=c++20",
         "-DNPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION",
@@ -45,7 +41,6 @@ pybind_extension(
         "bindings/mettagrid_c.hpp",
     ] + glob([
         "include/mettagrid/**/*.hpp",
-        "src/**/*.cpp",
     ]),
     copts = COPTS,
     includes = ["include/mettagrid", "."],

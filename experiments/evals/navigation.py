@@ -39,7 +39,7 @@ def make_nav_ascii_env(
         instances=num_instances,
         border_width=border_width,
         instance_border_width=instance_border_width,
-        instance_map=MapGen.Config.with_ascii_map(ascii_map, border_width=border_width),
+        instance=MapGen.Config.with_ascii_map(ascii_map, border_width=border_width),
     )
 
     return make_nav_eval_env(env)
@@ -50,15 +50,13 @@ def make_emptyspace_sparse_env() -> MettaGridConfig:
     env.game.max_steps = 300
     env.game.map_builder = MapGen.Config(
         instances=4,
-        instance_map=MapGen.Config(
+        instance=MapGen.Config(
             width=60,
             height=60,
             border_width=3,
-            root=MeanDistance.factory(
-                params=MeanDistance.Params(
-                    mean_distance=30,
-                    objects={"altar": 3},
-                )
+            instance=MeanDistance.Config(
+                mean_distance=30,
+                objects={"altar": 3},
             ),
         ),
     )

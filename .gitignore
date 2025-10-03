@@ -1,3 +1,4 @@
+external/
 resources
 
 # Environment and IDE
@@ -39,6 +40,7 @@ build-coverage/
 # Bazel build artifacts
 **/bazel-*
 **/.bazel_output/
+**/bazel-mettagrid/*
 
 # Node.js / Frontend
 node_modules/
@@ -117,3 +119,10 @@ cluster_test_jobs.json
 # MetaScope
 packages/mettagrid/nim/mettascope/dist/
 packages/mettagrid/nim/mettascope/bindings/generated/
+mettascope.out
+!packages/mettagrid/nim/mettascope/data/resources/
+tmp/
+packages/mettagrid/python/src/mettagrid/nim/mettascope/
+
+# Nim runtime
+.nim_runtime
