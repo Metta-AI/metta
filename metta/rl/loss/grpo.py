@@ -22,7 +22,7 @@ class GRPOConfig(Config):
     # Clip coefficient for policy gradient
     clip_coef: float = Field(default=0.2, gt=0, le=1.0)
     # Entropy regularization weight (higher for more exploration and stability)
-    ent_coef: float = Field(default=0.05, ge=0)
+    ent_coef: float = Field(default=0.01, ge=0)
     # Discount factor for returns
     gamma: float = Field(default=0.99, ge=0, le=1.0)
     # Number of responses to sample per prompt for group comparison
@@ -183,21 +183,22 @@ class GRPO(Loss):
 
         GRPO uses discounted returns to provide temporal credit assignment,
         then subtracts the mean as a baseline to center the advantages.
+
+        Uses simple in-place computation for speed - similar to PPO but without value network.
         """
         cfg = self.loss_cfg
         with torch.no_grad():
             rewards = self.replay.buffer["rewards"]
             dones = self.replay.buffer["dones"]
-
-            # Compute discounted returns using efficient backward pass
             B, T = rewards.shape
-            returns = torch.zeros_like(rewards)
-            next_return = torch.zeros(B, device=rewards.device)
 
-            for t in reversed(range(T)):
-                # Bootstrap from next timestep, reset at episode boundaries
-                next_return = rewards[:, t] + cfg.gamma * next_return * (1.0 - dones[:, t])
-                returns[:, t] = next_return
+            # Compute returns in-place with backward iteration
+            # This is the fastest approach without a custom CUDA kernel
+            returns = rewards.clone()
+
+            # Backward pass through time
+            for t in range(T - 2, -1, -1):
+                returns[:, t] += cfg.gamma * returns[:, t + 1] * (1.0 - dones[:, t])
 
             # Use mean return as baseline (equivalent to REINFORCE with baseline)
             baseline = returns.mean()
