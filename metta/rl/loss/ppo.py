@@ -12,7 +12,7 @@ from metta.rl.advantage import compute_advantage, normalize_advantage_distribute
 from metta.rl.loss import Loss
 from metta.rl.training import ComponentContext, TrainingEnvironment
 from metta.utils.batch import calculate_prioritized_sampling_params
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 
 class PrioritizedExperienceReplayConfig(Config):

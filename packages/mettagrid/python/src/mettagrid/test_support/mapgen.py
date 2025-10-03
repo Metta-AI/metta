@@ -1,9 +1,9 @@
-import numpy as np
 import pytest
 
 from mettagrid.map_builder.utils import create_grid
+from mettagrid.mapgen.area import Area
 from mettagrid.mapgen.scene import Scene, SceneConfig
-from mettagrid.mapgen.types import Area, MapGrid
+from mettagrid.mapgen.types import MapGrid
 from mettagrid.mapgen.utils.ascii_grid import add_pretty_border, char_grid_to_lines, default_char_to_name, grid_to_lines
 
 
@@ -13,7 +13,7 @@ def render_scene(
 ):
     grid = create_grid(shape[0], shape[1])
     area = Area.root_area_from_grid(grid)
-    scene = scene_cfg.create(area, np.random.default_rng())
+    scene = scene_cfg.create_root(area)
     scene.render_with_children()
     return scene
 

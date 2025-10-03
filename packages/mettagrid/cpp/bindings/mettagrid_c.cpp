@@ -12,13 +12,12 @@
 
 #include "actions/action_handler.hpp"
 #include "actions/attack.hpp"
-#include "actions/change_color.hpp"
 #include "actions/change_glyph.hpp"
 #include "actions/get_output.hpp"
-#include "actions/resource_mod.hpp"
 #include "actions/move.hpp"
 #include "actions/noop.hpp"
 #include "actions/put_recipe_items.hpp"
+#include "actions/resource_mod.hpp"
 #include "actions/rotate.hpp"
 #include "actions/swap.hpp"
 #include "core/event.hpp"
@@ -107,8 +106,6 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
       _action_handlers.push_back(std::make_unique<ChangeGlyph>(*change_glyph_config));
     } else if (action_name == "swap") {
       _action_handlers.push_back(std::make_unique<Swap>(*action_config));
-    } else if (action_name == "change_color") {
-      _action_handlers.push_back(std::make_unique<ChangeColor>(*action_config));
     } else if (action_name == "resource_mod") {
       auto modify_config = std::static_pointer_cast<const ResourceModConfig>(action_config);
       _action_handlers.push_back(std::make_unique<ResourceMod>(*modify_config, action_name));
@@ -260,8 +257,12 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
     if (clipper_cfg.unclipping_recipes.empty()) {
       throw std::runtime_error("Clipper config provided but unclipping_recipes is empty");
     }
-    _clipper = std::make_unique<Clipper>(
-        *_grid, clipper_cfg.unclipping_recipes, clipper_cfg.length_scale, clipper_cfg.cutoff_distance, clipper_cfg.clip_rate);
+    _clipper = std::make_unique<Clipper>(*_grid,
+                                         clipper_cfg.unclipping_recipes,
+                                         clipper_cfg.length_scale,
+                                         clipper_cfg.cutoff_distance,
+                                         clipper_cfg.clip_rate,
+                                         _rng);
   }
 }
 
@@ -515,7 +516,7 @@ void MettaGrid::_step(Actions actions) {
 
   // Apply global systems
   if (_clipper) {
-    _clipper->maybe_clip_new_assembler(_rng);
+    _clipper->maybe_clip_new_assembler();
   }
 
   // Compute observations for next step
@@ -717,8 +718,8 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
 
     // Filter by bounding box if specified
     if (use_bounds) {
-      if (obj->location.r < min_row || obj->location.r >= max_row ||
-          obj->location.c < min_col || obj->location.c >= max_col) {
+      if (obj->location.r < min_row || obj->location.r >= max_row || obj->location.c < min_col ||
+          obj->location.c >= max_col) {
         continue;
       }
     }
@@ -756,10 +757,16 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
     if (auto* agent = dynamic_cast<Agent*>(obj)) {
       obj_dict["orientation"] = static_cast<int>(agent->orientation);
       obj_dict["group_id"] = agent->group;
+      obj_dict["group_name"] = agent->group_name;
       obj_dict["is_frozen"] = !!agent->frozen;
       obj_dict["freeze_remaining"] = agent->frozen;
       obj_dict["freeze_duration"] = agent->freeze_duration;
-      obj_dict["color"] = agent->color;
+      obj_dict["glyph"] = agent->glyph;
+      obj_dict["agent_id"] = agent->agent_id;
+      obj_dict["action_failure_penalty"] = agent->action_failure_penalty;
+      obj_dict["current_stat_reward"] = agent->current_stat_reward;
+      obj_dict["prev_action_name"] = agent->prev_action_name;
+      obj_dict["steps_without_motion"] = agent->steps_without_motion;
 
       // We made resource limits more complicated than this, and need to review how to expose them.
       // py::dict resource_limits_dict;
@@ -767,7 +774,6 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
       //   resource_limits_dict[py::int_(resource)] = quantity;
       // }
       // obj_dict["resource_limits"] = resource_limits_dict;
-      obj_dict["agent_id"] = agent->agent_id;
     }
 
     if (auto* converter = dynamic_cast<Converter*>(obj)) {
@@ -776,7 +782,6 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
       obj_dict["conversion_duration"] = converter->conversion_ticks;
       obj_dict["cooldown_duration"] = converter->cooldown;
       obj_dict["output_limit"] = converter->max_output;
-      obj_dict["color"] = converter->color;
       py::dict input_resources_dict;
       for (const auto& [resource, quantity] : converter->input_resources) {
         input_resources_dict[py::int_(resource)] = quantity;
@@ -795,12 +800,15 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
       obj_dict["cooldown_duration"] = assembler->cooldown_duration;
       obj_dict["cooldown_progress"] = assembler->cooldown_progress();
       obj_dict["is_clipped"] = assembler->is_clipped;
-      obj_dict["clip_immune"] = assembler->clip_immune;
+      obj_dict["is_clip_immune"] = assembler->clip_immune;
       obj_dict["uses_count"] = assembler->uses_count;
       obj_dict["max_uses"] = assembler->max_uses;
       obj_dict["allow_partial_usage"] = assembler->allow_partial_usage;
       obj_dict["exhaustion"] = assembler->exhaustion;
       obj_dict["cooldown_multiplier"] = assembler->cooldown_multiplier;
+
+      // Add current recipe ID (pattern byte)
+      obj_dict["current_recipe_id"] = static_cast<int>(assembler->get_agent_pattern_byte());
 
       // Add current recipe information
       const Recipe* current_recipe = assembler->get_current_recipe();
@@ -819,25 +827,26 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
         obj_dict["current_recipe_cooldown"] = current_recipe->cooldown;
       }
 
-      // Add all recipes information
-      const std::vector<std::shared_ptr<Recipe>>& active_recipes = assembler->is_clipped ? assembler->unclip_recipes : assembler->recipes;
+      // Add all recipes information (only non-null recipes)
+      const std::vector<std::shared_ptr<Recipe>>& active_recipes =
+          assembler->is_clipped ? assembler->unclip_recipes : assembler->recipes;
       py::list recipes_list;
+
       for (size_t i = 0; i < active_recipes.size(); ++i) {
         if (active_recipes[i]) {
           py::dict recipe_dict;
-          recipe_dict["pattern_index"] = static_cast<int>(i);
 
           py::dict input_resources_dict;
           for (const auto& [resource, quantity] : active_recipes[i]->input_resources) {
             input_resources_dict[py::int_(resource)] = quantity;
           }
-          recipe_dict["input_resources"] = input_resources_dict;
+          recipe_dict["inputs"] = input_resources_dict;
 
           py::dict output_resources_dict;
           for (const auto& [resource, quantity] : active_recipes[i]->output_resources) {
             output_resources_dict[py::int_(resource)] = quantity;
           }
-          recipe_dict["output_resources"] = output_resources_dict;
+          recipe_dict["outputs"] = output_resources_dict;
           recipe_dict["cooldown"] = active_recipes[i]->cooldown;
 
           recipes_list.append(recipe_dict);

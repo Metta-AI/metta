@@ -97,6 +97,15 @@ type
     agentId*: int
     actionId*: int
     argument*: int
+  
+  DestinationType* = enum
+    Move # Move to a specific position.
+    Bump # Bump an object at a specific position to interact with it.
+  
+  Destination* = object
+    pos*: IVec2
+    destinationType*: DestinationType
+    approachDir*: IVec2 ## Direction to approach from for Bump actions (e.g., ivec2(-1, 0) means approach from the left).
 
 var
   requestActions*: seq[ActionRequest]
@@ -109,7 +118,9 @@ var
   ## Path queue for each agent. Maps agentId to a sequence of grid positions.
   agentPaths* = initTable[int, seq[IVec2]]()
   ## Destination queue for each agent. Maps agentId to a sequence of destinations.
-  agentDestinations* = initTable[int, seq[IVec2]]()
+  agentDestinations* = initTable[int, seq[Destination]]()
+  ## Track mouse down position to distinguish clicks from drags.
+  mouseDownPos*: Vec2
 
 proc at*[T](sequence: seq[T], step: int): T =
   # Get the value at the given step.
@@ -143,3 +154,24 @@ proc logicalMousePos*(window: Window): Vec2 =
 
 proc logicalMouseDelta*(window: Window): Vec2 =
   window.mouseDelta.vec2 / window.contentScale
+
+proc getAgentById*(agentId: int): Entity =
+  ## Get an agent by ID. Asserts the agent exists.
+  for obj in replay.objects:
+    if obj.isAgent and obj.agentId == agentId:
+      return obj
+  raise newException(ValueError, "Agent with ID " & $agentId & " does not exist")
+
+proc getObjectById*(objectId: int): Entity =
+  ## Get an object by ID. Asserts the object exists.
+  for obj in replay.objects:
+    if obj.id == objectId:
+      return obj
+  raise newException(ValueError, "Object with ID " & $objectId & " does not exist")
+
+proc getObjectAtLocation*(pos: IVec2): Entity =
+  ## Get the first object at the given position. Returns nil if no object is there.
+  for obj in replay.objects:
+    if obj.location.at(step).xy == pos:
+      return obj
+  return nil

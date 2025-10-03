@@ -23,7 +23,7 @@ class CodebotSetup(SetupModule):
 
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
         """Install codebot as a uv tool."""
-        codebot_dir = self.repo_root / "codebot"
+        codebot_dir = self.repo_root / "packages" / "codebot"
 
         if not codebot_dir.exists():
             warning(f"Codebot directory not found at {codebot_dir}")
