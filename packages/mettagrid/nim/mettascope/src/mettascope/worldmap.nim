@@ -369,7 +369,7 @@ proc drawClippedStatus*() =
   for obj in replay.objects:
     if obj.isClipped.at:
       bxy.drawImage(
-        "agents/frozen",
+        "agents/clipped",
         obj.location.at.xy.vec2,
         angle = 0,
         scale = 1/200
@@ -408,33 +408,43 @@ proc drawInventory*() =
 
 proc drawPlannedPath*() =
   ## Draw the planned paths for all agents.
-  for agentId, path in agentPaths:
-    if path.len > 1:
-      for i in 0 ..< path.len - 1:
-        let
-          pos0 = path[i]
-          pos1 = path[i + 1]
-          dx = pos1.x - pos0.x
-          dy = pos1.y - pos0.y
+  for agentId, pathActions in agentPaths:
+    if pathActions.len == 0:
+      continue
 
-        var rotation: float32 = 0
-        if dx > 0 and dy == 0:
-          rotation = 0
-        elif dx < 0 and dy == 0:
-          rotation = Pi
-        elif dx == 0 and dy > 0:
-          rotation = -Pi / 2
-        elif dx == 0 and dy < 0:
-          rotation = Pi / 2
+    # Get agent's current position.
+    let agent = getAgentById(agentId)
+    var currentPos = agent.location.at(step).xy
 
-        let alpha = 0.6
-        bxy.drawImage(
-          "agents/path",
-          pos0.vec2,
-          angle = rotation,
-          scale = 1/200,
-          tint = color(1, 1, 1, alpha)
-        )
+    for action in pathActions:
+      if action.actionType != PathMove:
+        continue
+      # Draw arrow from current position to target position.
+      let
+        pos0 = currentPos
+        pos1 = action.pos
+        dx = pos1.x - pos0.x
+        dy = pos1.y - pos0.y
+
+      var rotation: float32 = 0
+      if dx > 0 and dy == 0:
+        rotation = 0
+      elif dx < 0 and dy == 0:
+        rotation = Pi
+      elif dx == 0 and dy > 0:
+        rotation = -Pi / 2
+      elif dx == 0 and dy < 0:
+        rotation = Pi / 2
+
+      let alpha = 0.6
+      bxy.drawImage(
+        "agents/path",
+        pos0.vec2,
+        angle = rotation,
+        scale = 1/200,
+        tint = color(1, 1, 1, alpha)
+      )
+      currentPos = action.pos
 
     # Draw final queued destination.
     if agentDestinations.hasKey(agentId):
