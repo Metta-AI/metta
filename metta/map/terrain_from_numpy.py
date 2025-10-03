@@ -67,6 +67,11 @@ class TerrainFromNumpy(MapBuilder):
     def __init__(self, config: Config):
         self.config = config
 
+    def sort_by_distance_from_center(self, positions):
+        center = np.array(positions.shape) / 2
+        distances = np.sum((positions - center) ** 2, axis=1)
+        return positions[np.argsort(distances)]
+
     def setup(self):
         root = self.config.dir.split("/")[0]
 
@@ -104,19 +109,16 @@ class TerrainFromNumpy(MapBuilder):
         valid_mask = empty_mask & has_empty_neighbor
 
         # Exclude border cells for non-assemblers
-        if not assemblers:
-            valid_mask[0, :] = False
-            valid_mask[-1, :] = False
-            valid_mask[:, 0] = False
-            valid_mask[:, -1] = False
+        valid_mask[0, :] = False
+        valid_mask[-1, :] = False
+        valid_mask[:, 0] = False
+        valid_mask[:, -1] = False
 
         # Get coordinates as numpy array
         valid_positions = np.array(np.where(valid_mask)).T  # Shape: (N, 2)
 
         if assemblers and mass_in_center:
-            center = np.array(level.shape) / 2
-            distances = np.sum((valid_positions - center) ** 2, axis=1)
-            valid_positions = valid_positions[np.argsort(distances)]
+            valid_positions = self.sort_by_distance_from_center(valid_positions)
 
             # Space out positions to ensure neighbors are empty
             occupied = np.zeros(level.shape, dtype=bool)
@@ -139,8 +141,9 @@ class TerrainFromNumpy(MapBuilder):
         self.config.rng.shuffle(indices_list)
         return valid_positions[indices_list]
 
-    def clean_grid(self, grid, assemblers=True, mass_in_center=False):
-        grid[grid == "agent.agent"] = "empty"
+    def clean_grid(self, grid, assemblers=True, mass_in_center=False, clear_agents=True):
+        if clear_agents:
+            grid[grid == "agent.agent"] = "empty"
         if self.config.remove_altars:
             grid[grid == "altar"] = "empty"
 
@@ -209,48 +212,62 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
         super().__init__(config)
 
     def carve_out_patches(self, grid, valid_positions, num_patches):
-        """Carve out 9x9 empty patches and return their centers as a numpy array."""
-        if num_patches <= 0:
-            return grid, np.empty((0, 2), dtype=int)
+        """
+        Carve out square 9x9 'empty' patches to create space.
 
-        patch_size = 9
-        half_patch = patch_size // 2
-        grid_shape = grid.shape
+        Rules:
+        - Allowed to carve over walls/objects/empties.
+        - NOT allowed to carve over agents (cells equal to "agent.agent").
+        - Keeps patches fully inside bounds.
+        - Returns centers of patches actually carved.
 
-        # Build set for quick exclusion
-        valid_positions_set = set(map(tuple, valid_positions))
-        empty_centers = []
+        Args:
+            grid: np.ndarray (H, W) of labels (object/str dtype).
+            valid_positions: unused (kept for API compatibility).
+            num_patches: number of patches to try to carve.
 
-        # Pre-compute valid ranges for center positions
-        min_coord = half_patch
-        max_y = grid_shape[0] - half_patch - 1
-        max_x = grid_shape[1] - half_patch - 1
+        Returns:
+            grid: modified in-place (also returned for convenience)
+            centers: np.ndarray (M, 2) of int (y, x) centers, M <= num_patches
+        """
+        PATCH = 9
+        HALF = PATCH // 2  # = 4
+        H, W = grid.shape
 
+        # Precompute where agents are; faster than re-checking strings each loop.
+        # TODO update this to be if it starts with "agent."
+        agent_mask = grid == "agent.agent"
+
+        centers = []
+        centers_set = set()  # O(1) duplicate check
         attempts = 0
-        max_attempts = num_patches * 20
+        max_attempts = num_patches * 20  # simple cap to avoid long loops
 
-        while len(empty_centers) < num_patches and attempts < max_attempts:
+        vp_mask = np.zeros(grid.shape, bool)
+        vp_mask[valid_positions[:, 0], valid_positions[:, 1]] = True
+
+        while len(centers) < num_patches and attempts < max_attempts:
             attempts += 1
 
-            center = (self.config.rng.randint(min_coord, max_y), self.config.rng.randint(min_coord, max_x))
-
-            if center in valid_positions_set or center in empty_centers:
+            # Sample a center that can fit a 9x9 patch fully inside the grid.
+            y = self.config.rng.randint(HALF, H - HALF - 1)
+            x = self.config.rng.randint(HALF, W - HALF - 1)
+            if (y, x) in centers_set:
                 continue
 
-            # Check if patch overlaps any valid position
-            y_range = range(center[0] - half_patch, center[0] + half_patch + 1)
-            x_range = range(center[1] - half_patch, center[1] + half_patch + 1)
+            ys = slice(y - HALF, y + HALF + 1)  # inclusive on both sides → width 9
+            xs = slice(x - HALF, x + HALF + 1)
 
-            if any((i, j) in valid_positions_set for i in y_range for j in x_range):
+            # Skip if the 9x9 patch would touch any agent cell.
+            if agent_mask[ys, xs].any() or vp_mask[ys, xs].any():
                 continue
 
-            # Carve out the patch using slicing (faster than loop)
-            y_slice = slice(center[0] - half_patch, center[0] + half_patch + 1)
-            x_slice = slice(center[1] - half_patch, center[1] + half_patch + 1)
-            grid[y_slice, x_slice] = "empty"
-            empty_centers.append(center)
+            # Carve: set the region to "empty" (allowed over walls/anything except agents).
+            grid[ys, xs] = "empty"
+            centers.append((y, x))
+            centers_set.add((y, x))
 
-        return grid, np.array(empty_centers, dtype=int)
+        return grid, np.array(centers, dtype=int)
 
     def build(self):
         map_dir = self.setup()
@@ -261,63 +278,54 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
 
         grid = np.load(f"{map_dir}/{uri}", allow_pickle=True)
 
-        grid, valid_positions, agent_labels = self.clean_grid(
-            grid, assemblers=True, mass_in_center=self.config.mass_in_center
-        )
+        grid, valid_agent_positions, agent_labels = self.clean_grid(grid)
+        if self.config.mass_in_center:
+            valid_agent_positions = self.sort_by_distance_from_center(valid_agent_positions)
+
         num_agents = len(agent_labels)
+        if len(valid_agent_positions) < num_agents:
+            raise ValueError(
+                f"Not enough valid positions for {num_agents} agents "
+                f"(only {len(valid_agent_positions)} available) in map {uri}"
+            )
 
-        # GUARANTEE: Ensure we have enough valid positions for all agents
-        if len(valid_positions) < num_agents:
-            patches_needed = num_agents - len(valid_positions)
-            grid, empty_centers = self.carve_out_patches(grid, valid_positions, patches_needed)
-            if len(empty_centers) > 0:
-                valid_positions = np.vstack([valid_positions, empty_centers])
-
-        # Place agents with bias towards center
-        # Take first half of positions (already sorted by distance from center if mass_in_center=True)
-        half_point = len(valid_positions) // 2
-        agent_pool_size = max(half_point, num_agents)  # Ensure we have enough positions
-        agent_position_pool = valid_positions[:agent_pool_size]
-
-        # Sample agent positions
-        agent_indices = self.config.rng.sample(range(len(agent_position_pool)), num_agents)
-        agent_positions = agent_position_pool[agent_indices]
-
-        # Place all agents
-        for pos, label in zip(agent_positions, agent_labels, strict=False):
+        for pos, label in zip(valid_agent_positions[:num_agents], agent_labels, strict=True):
             grid[tuple(pos)] = label
 
-        # Remove agent positions from valid_positions
-        agent_positions_set = set(map(tuple, agent_positions))
-        mask = np.array([tuple(pos) not in agent_positions_set for pos in valid_positions])
-        valid_positions = valid_positions[mask]
+        grid, valid_assembler_positions, _ = self.clean_grid(
+            grid, assemblers=True, mass_in_center=self.config.mass_in_center, clear_agents=False
+        )
 
-        # GUARANTEE: Ensure we have enough valid positions for all objects
+        # Ensure we have enough valid positions for all objects
         total_objects = sum(self.config.objects.values())
-        if len(valid_positions) < total_objects:
-            patches_needed = total_objects - len(valid_positions)
-            grid, empty_centers = self.carve_out_patches(grid, valid_positions, patches_needed)
+        if len(valid_assembler_positions) < total_objects:
+            patches_needed = total_objects - len(valid_assembler_positions)
+            print(f"Carving out {patches_needed} patches")
+            grid, empty_centers = self.carve_out_patches(grid, valid_assembler_positions, patches_needed)
             if len(empty_centers) > 0:
-                valid_positions = np.vstack([valid_positions, empty_centers])
+                valid_assembler_positions = np.vstack([valid_assembler_positions, empty_centers])
+
+        if len(valid_assembler_positions) < total_objects:
+            print(
+                f"Not enough valid positions for {total_objects} objects "
+                f"(only {len(valid_assembler_positions)} available) in map {uri}"
+            )
 
         # Place objects (ensuring they have empty neighbors since valid_positions came from assemblers=True)
+
         for obj_name, count in self.config.objects.items():
-            if count <= 0:
+            if count <= 0 or len(valid_assembler_positions) == 0:
                 continue
+            if count > 1:
+                num_to_place_in_center = count // 2
+                num_surrounding = count - num_to_place_in_center
 
-            if count <= 2:
-                # Place first 'count' positions
-                positions = valid_positions[:count]
-                for position in positions:
-                    grid[tuple(position)] = obj_name
-                valid_positions = valid_positions[count:]
-            else:
-                # Place 2 at start, rest scattered
-                center_positions = valid_positions[:2]
-                num_surrounding = count - 2
+                # Place half at center
+                center_positions = valid_assembler_positions[:num_to_place_in_center].copy()
 
-                if num_surrounding > 0 and len(valid_positions) > 2:
-                    available = valid_positions[2:]
+                # place the remaining randomly
+                if num_surrounding > 0 and len(valid_assembler_positions) > num_to_place_in_center:
+                    available = valid_assembler_positions[num_to_place_in_center:].copy()
                     num_to_sample = min(num_surrounding, len(available))
                     sample_indices = self.config.rng.sample(range(len(available)), num_to_sample)
                     other_positions = available[sample_indices]
@@ -331,8 +339,24 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
 
                 # Remove used positions
                 used_set = set(map(tuple, all_positions))
-                mask = np.array([tuple(pos) not in used_set for pos in valid_positions])
-                valid_positions = valid_positions[mask]
+                mask = np.array([tuple(pos) not in used_set for pos in valid_assembler_positions])
+                if len(mask) == 0:
+                    continue
+                valid_assembler_positions = valid_assembler_positions[mask]
+
+            else:
+                # Place first 'count' positions
+                positions = valid_assembler_positions[:count]
+                for position in positions:
+                    grid[tuple(position)] = obj_name
+                valid_assembler_positions = valid_assembler_positions[count:]
+
+        num_agents_in_grid = (grid == "agent.agent").sum()
+        if num_agents_in_grid != len(agent_labels):
+            raise ValueError(
+                f"Number of agents in grid ({num_agents_in_grid}) does not match "
+                f"number of agents ({len(agent_labels)}) for map {uri}"
+            )
 
         return GameMap(grid=grid)
 

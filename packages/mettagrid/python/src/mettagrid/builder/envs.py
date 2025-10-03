@@ -257,9 +257,9 @@ def make_icl_assembler(
             ),
             agent=AgentConfig(
                 rewards=AgentRewards(
-                    stats={"chest.heart.amount": 1},
+                    stats={"chest.heart.amount": 4},
                     inventory_max={"heart": 15},
-                    # inventory={"heart": 1},
+                    inventory={"heart": 1, "carbon": 0.5, "oxygen": 0.5, "germanium": 0.5, "silicon": 0.5},
                 ),
                 default_resource_limit=3,
                 resource_limits={"heart": 30},

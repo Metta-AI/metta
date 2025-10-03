@@ -91,6 +91,7 @@ def make_object_use_ascii_env(
                 instance_border_width=3,
                 instance=MapGen.Config.with_ascii_uri(
                     f"packages/mettagrid/configs/maps/object_use/{ascii_map}.map",
+                    {o.map_char: o.name for o in objects.values()},
                     border_width=1,
                 ),
             ),

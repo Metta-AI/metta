@@ -11,6 +11,7 @@ from contextlib import contextmanager
 
 import pytest
 
+from mettagrid.config.mettagrid_config import GameConfig
 from mettagrid.renderer.miniscope import MiniscopeRenderer
 
 
@@ -34,8 +35,30 @@ class TestMiniscopeRenderer:
         return ["agent", "wall", "altar", "mine_red", "generator_red", "lasery", "marker", "block"]
 
     @pytest.fixture
-    def renderer(self, object_type_names):
-        return MiniscopeRenderer(object_type_names, map_height=10, map_width=10)
+    def game_config(self):
+        """Provide a minimal GameConfig for testing."""
+        from mettagrid.config.mettagrid_config import WallConfig
+
+        return GameConfig(
+            resource_names=[],
+            num_agents=1,
+            max_steps=100,
+            obs_width=7,
+            obs_height=7,
+            num_observation_tokens=50,
+            objects={
+                "altar": WallConfig(name="altar", type_id=2, map_char="_", render_symbol="🎯"),
+                "mine_red": WallConfig(name="mine_red", type_id=3, map_char="r", render_symbol="🔺"),
+                "generator_red": WallConfig(name="generator_red", type_id=4, map_char="g", render_symbol="🔋"),
+                "lasery": WallConfig(name="lasery", type_id=5, map_char="L", render_symbol="🟥"),
+                "marker": WallConfig(name="marker", type_id=6, map_char="m", render_symbol="🟠"),
+                "block": WallConfig(name="block", type_id=7, map_char="s", render_symbol="📦"),
+            },
+        )
+
+    @pytest.fixture
+    def renderer(self, object_type_names, game_config):
+        return MiniscopeRenderer(object_type_names, game_config, map_height=10, map_width=10)
 
     def test_initialization(self, renderer):
         """Test that MiniscopeRenderer initializes correctly."""
@@ -118,11 +141,11 @@ class TestMiniscopeRenderer:
         assert "🎯" in output  # altar (target)
         assert "⬜" in output  # empty spaces
 
-    def test_render_with_special_objects(self, object_type_names):
+    def test_render_with_special_objects(self, game_config):
         """Test rendering with the special objects from debug maps."""
         # Update object type names to include special types
         object_type_names = ["agent", "wall", "altar", "lasery", "marker", "block"]
-        renderer = MiniscopeRenderer(object_type_names, map_height=10, map_width=10)
+        renderer = MiniscopeRenderer(object_type_names, game_config, map_height=10, map_width=10)
 
         grid_objects = {
             0: {"type": 1, "r": 0, "c": 0},  # wall

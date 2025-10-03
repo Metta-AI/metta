@@ -1,23 +1,11 @@
 from abc import ABC, abstractmethod
-from typing import Annotated, Any, ClassVar, Generic, Type, TypeAlias, TypeVar
+from typing import Annotated, Any, ClassVar, Generic, Type, TypeVar
 
-import numpy as np
-import numpy.typing as npt
 from pydantic import SerializeAsAny, WrapValidator, model_serializer, model_validator
 
 from mettagrid.config.config import Config
+from mettagrid.mapgen.types import MapGrid
 from mettagrid.util.module import load_symbol
-
-# We store maps as 2D arrays of object names.
-# "empty" means an empty cell; "wall" means a wall, etc. See `mettagrid.util.char_encoder` for the full list.
-#
-# Properly shaped version, `np.ndarray[tuple[int, int], np.dtype[np.str_]]`,
-# would be better, but slices from numpy arrays are not typed properly, which makes it too annoying to use.
-
-
-MapGrid: TypeAlias = npt.NDArray[np.str_]
-
-map_grid_dtype = np.dtype("<U20")
 
 
 class GameMap:

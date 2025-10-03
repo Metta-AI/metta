@@ -55,15 +55,15 @@ curriculum_args = {
         "chest_positions": [["N"]],
         "num_chests": [2, 5, 8],
     },
-    # "test": {
-    #     "num_agents": [2],
-    #     "chain_lengths": [2],
-    #     "num_sinks": [0],
-    #     "chest_positions": [["N"]],
-    #     "num_chests": [1],
-    #     "room_sizes": ["medium"],
-    #     "positions": [["Any", "Any"]],
-    # }
+    "test": {
+        "num_agents": [2],
+        "chain_lengths": [2],
+        "num_sinks": [0],
+        "chest_positions": [["N"]],
+        "num_chests": [1],
+        "room_sizes": ["medium"],
+        "positions": [["Any", "Any"]],
+    },
 }
 
 
