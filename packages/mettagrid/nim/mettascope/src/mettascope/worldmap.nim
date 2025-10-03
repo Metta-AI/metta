@@ -708,7 +708,7 @@ proc fitFullMap*(panel: Panel) =
   panel.pos.y = rectH / 2.0f - cy * z
 
 proc drawWorldMap*(panel: Panel) =
-
+  ## Draw the world map.
   panel.beginPanAndZoom()
 
   useSelections(panel)
