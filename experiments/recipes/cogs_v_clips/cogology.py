@@ -864,9 +864,11 @@ class CogologyProgressionCallback(TrainerComponent):
 
         # 3. Evict 50% of task pool
         print("  → Evicting 50% of task pool...")
-        # TODO: Implement task pool eviction via curriculum
-        # if hasattr(self.context, "curriculum"):
-        #     self.context.curriculum.evict_proportion(0.5)
+        if hasattr(self.context, "curriculum"):
+            num_evicted = self.context.curriculum.evict_proportion(0.5)
+            print(f"     Evicted {num_evicted} tasks from pool")
+        else:
+            print("     Warning: No curriculum context available for eviction")
 
         # 4. Update task generator to new stage config
         print("  → Updating task generator...")

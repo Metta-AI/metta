@@ -364,6 +364,51 @@ class Curriculum(StatsLogger):
         self._tasks.pop(task_id)
         self._num_evicted += 1
 
+    def evict_proportion(self, proportion: float) -> int:
+        """Evict a proportion of tasks from the active pool.
+
+        Args:
+            proportion: Fraction of tasks to evict (0.0 to 1.0)
+
+        Returns:
+            Number of tasks evicted
+
+        Example:
+            curriculum.evict_proportion(0.5)  # Evict 50% of tasks
+        """
+        if not 0.0 <= proportion <= 1.0:
+            raise ValueError(f"Proportion must be between 0.0 and 1.0, got {proportion}")
+
+        num_to_evict = int(len(self._tasks) * proportion)
+        if num_to_evict == 0:
+            return 0
+
+        # Get task IDs to evict
+        task_ids = list(self._tasks.keys())
+
+        # If algorithm provides guidance, ask for recommendations
+        tasks_to_evict = []
+        if self._algorithm is not None:
+            for _ in range(num_to_evict):
+                remaining_ids = [tid for tid in task_ids if tid not in tasks_to_evict]
+                if not remaining_ids:
+                    break
+                recommended = self._algorithm.recommend_eviction(remaining_ids)
+                if recommended is not None:
+                    tasks_to_evict.append(recommended)
+                else:
+                    # Random selection if no recommendation
+                    tasks_to_evict.append(self._rng.choice(remaining_ids))
+        else:
+            # Random selection without algorithm
+            tasks_to_evict = self._rng.sample(task_ids, num_to_evict)
+
+        # Evict selected tasks
+        for task_id in tasks_to_evict:
+            self._evict_specific_task(task_id)
+
+        return len(tasks_to_evict)
+
     def _choose_task(self) -> CurriculumTask:
         """Choose a task from the population using algorithm guidance."""
         if self._algorithm is not None:
