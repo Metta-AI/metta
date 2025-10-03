@@ -8,9 +8,12 @@ from pathlib import Path
 from typing import IO, TYPE_CHECKING, Any, Callable, Optional
 
 import numpy as np
+from rich.console import Console
 
+from cogames.aws_storage import maybe_upload_checkpoint
 from cogames.env import make_hierarchical_env
 from cogames.policy import TrainablePolicy
+from cogames.policy.utils import resolve_policy_data_path
 from cogames.utils import initialize_or_load_policy
 from mettagrid import MettaGridConfig
 
@@ -42,6 +45,8 @@ def train(
     import pufferlib.vector
     from pufferlib import pufferl
     from pufferlib.pufferlib import set_buffers
+
+    console = Console()
 
     if env_cfg_supplier is None and env_cfg is None:
         raise ValueError("Either env_cfg or env_cfg_supplier must be provided")
@@ -126,7 +131,25 @@ def train(
         },
     )
 
-    policy = initialize_or_load_policy(policy_class_path, initial_weights_path, vecenv.driver_env, device)
+    resolved_initial_weights = initial_weights_path
+    if initial_weights_path is not None:
+        try:
+            resolved_initial_weights = resolve_policy_data_path(
+                initial_weights_path,
+                policy_class_path=policy_class_path,
+                game_name=game_name,
+                console=console,
+            )
+        except FileNotFoundError as exc:
+            console.print(f"[yellow]Initial weights not found ({exc}). Continuing with random initialization.[/yellow]")
+            resolved_initial_weights = None
+
+    policy = initialize_or_load_policy(
+        policy_class_path,
+        resolved_initial_weights,
+        vecenv.driver_env,
+        device,
+    )
     assert isinstance(policy, TrainablePolicy), (
         f"Policy class {policy_class_path} must implement TrainablePolicy interface"
     )
@@ -322,9 +345,6 @@ def train(
     if instrumentation_env is not None:
         instrumentation_env.close()
 
-    from rich.console import Console
-
-    console = Console()
     console.print()
     if training_diverged:
         console.print("=" * 80, style="bold red")
@@ -355,6 +375,13 @@ def train(
         final_checkpoint = checkpoints[-1]
         console.print()
         console.print(f"Final checkpoint: [cyan]{final_checkpoint}[/cyan]")
+
+        maybe_upload_checkpoint(
+            final_checkpoint=final_checkpoint,
+            game_name=game_name,
+            policy_class_path=policy_class_path,
+            console=console,
+        )
 
         policy_shorthand = {
             "cogames.policy.random.RandomPolicy": "random",

@@ -85,13 +85,19 @@ def play_cmd(
         None,
         "--policy-data",
         help="Path to policy weights file or directory",
-        callback=resolve_policy_data_path,
     ),
     interactive: bool = typer.Option(True, "--interactive", "-i", help="Run in interactive mode"),
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
     render: Literal["gui", "text"] = typer.Option("gui", "--render", "-r", help="Render mode"),
 ) -> None:
     resolved_game, env_cfg = utils.get_game_config(console, game_name)
+
+    resolved_policy_data = resolve_policy_data_path(
+        policy_data_path,
+        policy_class_path=policy_class_path,
+        game_name=resolved_game,
+        console=console,
+    )
 
     console.print(f"[cyan]Playing {resolved_game}[/cyan]")
     console.print(f"Max Steps: {steps}, Interactive: {interactive}, Render: {render}")
@@ -102,7 +108,7 @@ def play_cmd(
         console,
         env_cfg=env_cfg,
         policy_class_path=policy_class_path,
-        policy_data_path=policy_data_path,
+        policy_data_path=resolved_policy_data,
         game_name=resolved_game,
         max_steps=steps,
         seed=42,
@@ -210,13 +216,24 @@ def train_cmd(
         resolved_game, env_cfg = utils.get_game_config(console, game_name)
         representative_game = resolved_game
 
+    resolved_initial_weights = (
+        resolve_policy_data_path(
+            initial_weights_path,
+            policy_class_path=policy_class_path,
+            game_name=representative_game,
+            console=console,
+        )
+        if initial_weights_path
+        else None
+    )
+
     torch_device = utils.resolve_training_device(console, device)
 
     try:
         train_module.train(
             env_cfg=env_cfg,
             policy_class_path=policy_class_path,
-            initial_weights_path=initial_weights_path,
+            initial_weights_path=resolved_initial_weights,
             device=torch_device,
             num_steps=steps,
             checkpoints_path=Path(checkpoints_path),
@@ -265,9 +282,8 @@ def evaluate_cmd(
         console.print("[red]Error: No policies provided[/red]")
         raise typer.Exit(1)
 
-    policy_specs = [parse_policy_spec(spec) for spec in policies]
-
     resolved_game, env_cfg = utils.get_game_config(console, game_name)
+    policy_specs = [parse_policy_spec(spec, console=console, game_name=resolved_game) for spec in policies]
     console.print(f"[cyan]Evaluating {len(policy_specs)} policies on {resolved_game} over {episodes} episodes[/cyan]")
 
     from cogames import evaluate as evaluate_module
