@@ -15,8 +15,7 @@
 #include "objects/recipe.hpp"
 #include "objects/usable.hpp"
 
-// Forward declarations
-class Agent;
+class Clipper;
 
 class Assembler : public GridObject, public Usable {
 private:
@@ -103,11 +102,35 @@ public:
   // Recipe lookup table - 256 possible patterns (2^8)
   std::vector<std::shared_ptr<Recipe>> recipes;
 
+  // Unclip recipes - used when assembler is clipped
+  std::vector<std::shared_ptr<Recipe>> unclip_recipes;
+
+  // Clipped state
+  bool is_clipped;
+
+  // Clip immunity - if true, cannot be clipped
+  bool clip_immune;
+
+  // Start clipped - if true, starts in clipped state
+  bool start_clipped;
+
   // Current cooldown state
   unsigned int cooldown_end_timestep;
+  unsigned int cooldown_duration;  // Total duration of current cooldown
+
+  // Usage tracking
+  unsigned int uses_count;  // Current number of times used
+  unsigned int max_uses;    // Maximum number of uses (0 = unlimited)
+
+  // Exhaustion tracking
+  float exhaustion;           // Exhaustion rate (0 = no exhaustion)
+  float cooldown_multiplier;  // Current cooldown multiplier from exhaustion
 
   // Grid access for finding surrounding agents
   class Grid* grid;
+
+  // Clipper pointer, for when we become unclipped.
+  Clipper* clipper_ptr;
 
   // Pointer to current timestep from environment
   unsigned int* current_timestep_ptr;
@@ -117,14 +140,28 @@ public:
   ObservationType input_recipe_offset;
   ObservationType output_recipe_offset;
 
+  // Allow partial usage during cooldown
+  bool allow_partial_usage;
+
   Assembler(GridCoord r, GridCoord c, const AssemblerConfig& cfg)
       : recipes(cfg.recipes),
+        unclip_recipes(),
+        is_clipped(false),
+        clip_immune(cfg.clip_immune),
+        start_clipped(cfg.start_clipped),
         cooldown_end_timestep(0),
+        cooldown_duration(0),
+        uses_count(0),
+        max_uses(cfg.max_uses),
+        exhaustion(cfg.exhaustion),
+        cooldown_multiplier(1.0f),
         grid(nullptr),
         current_timestep_ptr(nullptr),
         recipe_details_obs(cfg.recipe_details_obs),
         input_recipe_offset(cfg.input_recipe_offset),
-        output_recipe_offset(cfg.output_recipe_offset) {
+        output_recipe_offset(cfg.output_recipe_offset),
+        allow_partial_usage(cfg.allow_partial_usage),
+        clipper_ptr(nullptr) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids);
   }
   virtual ~Assembler() = default;
@@ -145,6 +182,23 @@ public:
       return 0;
     }
     return cooldown_end_timestep - *current_timestep_ptr;
+  }
+
+  // Get the fraction of cooldown completed (0.0 = just started, 1.0 = completed)
+  float cooldown_progress() const {
+    // If no cooldown is active or no timestep pointer, return 1.0 (completed)
+    if (!current_timestep_ptr || cooldown_duration == 0 || cooldown_end_timestep <= *current_timestep_ptr) {
+      return 1.0f;
+    }
+
+    // Calculate how much time has elapsed since cooldown started
+    unsigned int cooldown_start = cooldown_end_timestep - cooldown_duration;
+    if (*current_timestep_ptr <= cooldown_start) {
+      return 0.0f;  // Cooldown just started
+    }
+
+    unsigned int elapsed = *current_timestep_ptr - cooldown_start;
+    return static_cast<float>(elapsed) / static_cast<float>(cooldown_duration);
   }
 
   // Helper function to convert surrounding agent positions to byte value
@@ -176,30 +230,96 @@ public:
   const Recipe* get_current_recipe() const {
     if (!grid) return nullptr;
     uint8_t pattern = get_agent_pattern_byte();
-    if (pattern >= recipes.size()) return nullptr;
-    return recipes[pattern].get();
+
+    // Use unclip recipes if clipped, normal recipes otherwise
+    const std::vector<std::shared_ptr<Recipe>>& active_recipes = is_clipped ? unclip_recipes : recipes;
+
+    if (pattern >= active_recipes.size()) return nullptr;
+    return active_recipes[pattern].get();
   }
 
-  // Implement pure virtual method from Usable
+  // Make this assembler clipped with the given unclip recipes
+  void become_clipped(const std::vector<std::shared_ptr<Recipe>>& unclip_recipes_vec, Clipper* clipper) {
+    is_clipped = true;
+    unclip_recipes = unclip_recipes_vec;
+    // It's a little odd that we store the clipper here, versus having global access to it. This is a
+    // path of least resistance, not a specific intention. But it does present questions around whether
+    // there could be more than one Clipper.
+    clipper_ptr = clipper;
+    // Reset cooldown. The assembler being on its normal cooldown shouldn't stop it from being unclipped.
+    cooldown_end_timestep = *current_timestep_ptr;
+    cooldown_duration = 0;
+  }
+
+  void become_unclipped();
+
+  // Scale recipe requirements based on cooldown progress (for partial usage)
+  const Recipe scale_recipe_for_partial_usage(const Recipe& original_recipe, float progress) const {
+    Recipe scaled_recipe;
+
+    // Scale input resources (multiply by progress and round up)
+    for (const auto& [resource, amount] : original_recipe.input_resources) {
+      InventoryQuantity scaled_amount = static_cast<InventoryQuantity>(std::ceil(amount * progress));
+      scaled_recipe.input_resources[resource] = scaled_amount;
+    }
+
+    // Scale output resources (multiply by progress and round down)
+    for (const auto& [resource, amount] : original_recipe.output_resources) {
+      InventoryQuantity scaled_amount = static_cast<InventoryQuantity>(std::floor(amount * progress));
+      scaled_recipe.output_resources[resource] = scaled_amount;
+    }
+
+    // Keep the same cooldown
+    scaled_recipe.cooldown = original_recipe.cooldown;
+
+    return scaled_recipe;
+  }
+
   virtual bool onUse(Agent& actor, ActionArg /*arg*/) override {
     if (!grid || !current_timestep_ptr) {
       return false;
     }
-    if (cooldown_remaining() > 0) {
+
+    if (max_uses > 0 && uses_count >= max_uses) {
       return false;
     }
-    const Recipe* recipe = get_current_recipe();
-    if (!recipe || (recipe->input_resources.empty() && recipe->output_resources.empty())) {
+
+    // Check if on cooldown and whether partial usage is allowed
+    float progress = cooldown_progress();
+    if (progress < 1.0f && !allow_partial_usage) {
+      return false;  // On cooldown and partial usage not allowed
+    }
+
+    const Recipe* original_recipe = get_current_recipe();
+    if (!original_recipe) {
       return false;
     }
+
+    Recipe recipe_to_use = *original_recipe;
+    if (progress < 1.0f && allow_partial_usage) {
+      recipe_to_use = scale_recipe_for_partial_usage(*original_recipe, progress);
+    }
+
     std::vector<Agent*> surrounding_agents = get_surrounding_agents();
-    if (!can_afford_recipe(*recipe, surrounding_agents)) {
+    if (!can_afford_recipe(recipe_to_use, surrounding_agents)) {
       return false;
     }
-    consume_resources_for_recipe(*recipe, surrounding_agents);
-    give_output_to_agent(*recipe, actor);
-    if (recipe->cooldown > 0) {
-      cooldown_end_timestep = *current_timestep_ptr + recipe->cooldown;
+    consume_resources_for_recipe(recipe_to_use, surrounding_agents);
+    give_output_to_agent(recipe_to_use, actor);
+
+    cooldown_duration = static_cast<unsigned int>(recipe_to_use.cooldown * cooldown_multiplier);
+    cooldown_end_timestep = *current_timestep_ptr + cooldown_duration;
+
+    // If we were clipped and successfully used an unclip recipe, become unclipped. Also, don't count this as a use.
+    if (is_clipped) {
+      become_unclipped();
+    } else {
+      uses_count++;
+
+      // Apply exhaustion (increase cooldown multiplier exponentially)
+      if (exhaustion > 0.0f) {
+        cooldown_multiplier *= (1.0f + exhaustion);
+      }
     }
     return true;
   }
@@ -211,6 +331,18 @@ public:
     unsigned int remaining = std::min(cooldown_remaining(), 255u);
     if (remaining > 0) {
       features.push_back({ObservationFeature::CooldownRemaining, static_cast<ObservationType>(remaining)});
+    }
+
+    // Add clipped status to observations if clipped
+    if (is_clipped) {
+      features.push_back({ObservationFeature::Clipped, static_cast<ObservationType>(1)});
+    }
+
+    // Add remaining uses to observations if max_uses is set
+    if (max_uses > 0) {
+      unsigned int remaining_uses = (uses_count < max_uses) ? (max_uses - uses_count) : 0;
+      remaining_uses = std::min(remaining_uses, 255u);  // Cap at 255 for observation
+      features.push_back({ObservationFeature::RemainingUses, static_cast<ObservationType>(remaining_uses)});
     }
 
     // Add recipe details if configured to do so
@@ -243,5 +375,18 @@ public:
     return features;
   }
 };
+
+#include "systems/clipper.hpp"
+
+inline void Assembler::become_unclipped() {
+  is_clipped = false;
+  unclip_recipes.clear();
+  if (clipper_ptr) {
+    // clipper_ptr might not be set if we're being unclipped as part of a test.
+    // Later, it might be because we started clipped.
+    clipper_ptr->on_unclip_assembler(*this);
+  }
+  clipper_ptr = nullptr;
+}
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_ASSEMBLER_HPP_

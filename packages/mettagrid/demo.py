@@ -17,8 +17,8 @@ def main():
     )
 
     mg_config.game.actions = ActionsConfig(
-        move=ActionConfig(enabled=True),
-        rotate=ActionConfig(enabled=True),
+        move=ActionConfig(),
+        rotate=ActionConfig(),
     )
 
     print("=== mg_config ===")

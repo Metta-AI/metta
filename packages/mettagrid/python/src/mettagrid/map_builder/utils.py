@@ -2,7 +2,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 import numpy as np
 
-from mettagrid.map_builder.map_builder import MapGrid, map_grid_dtype
+from mettagrid.mapgen.types import MapGrid, map_grid_dtype
 
 
 def create_grid(height: int, width: int, fill_value: str = "empty") -> MapGrid:
