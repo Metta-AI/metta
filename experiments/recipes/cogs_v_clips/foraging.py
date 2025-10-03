@@ -191,7 +191,7 @@ class ForagingTaskGenerator(TaskGenerator):
         )
 
     def _generate_task(
-        self, task_id: int, rng: random.Random, num_instances: Optional[int] = None
+        self, task_id: int, rng: random.Random
     ) -> MettaGridConfig:
         num_cogs = rng.choice(self.config.num_cogs)
         num_assemblers = rng.choice(self.config.num_assemblers)
@@ -209,7 +209,7 @@ class ForagingTaskGenerator(TaskGenerator):
 
         icl_env = self._make_env_cfg(
             num_agents=num_cogs,
-            num_instances=num_instances or 24 // num_cogs,
+            num_instances=24 // num_cogs,
             num_assemblers=num_assemblers,
             num_extractors=num_extractors,
             width=width,
