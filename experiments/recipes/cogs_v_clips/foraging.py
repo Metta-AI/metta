@@ -153,7 +153,7 @@ class ForagingTaskGenerator(TaskGenerator):
     ) -> MettaGridConfig:
         cfg = _BuildCfg()
 
-        self._make_extractors(num_extractors, cfg, recipe_position, rng)
+        self._make_extractors(num_extractors, cfg, rng)
 
         self._make_assemblers(num_assemblers, cfg, recipe_position, num_extractors, rng)
 
