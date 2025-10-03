@@ -88,7 +88,11 @@ public:
       this->cutoff_distance = 3.0f * this->length_scale;
     }
 
-    compute_adjacencies();
+    // This can be expensive, so only do it if the clipper is active. Note that having a Clipper with
+    // a zero clip rate is value, since we can still clip assemblers that start clipped.
+    if (clip_rate > 0.0f) {
+      compute_adjacencies();
+    }
 
     // Clip all starting clipped assemblers
     for (auto* assembler : starting_clipped_assemblers) {
