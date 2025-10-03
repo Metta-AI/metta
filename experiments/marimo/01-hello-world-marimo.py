@@ -104,7 +104,7 @@ def _():
     from mettagrid.config.mettagrid_config import (
         AgentRewards,
     )
-    from mettagrid.config import Config
+    from mettagrid.base_config import Config
     from mettagrid.test_support.actions import generate_valid_random_actions
     from metta.sim.simulation_config import SimulationConfig
     from metta.agent.utils import obs_to_td

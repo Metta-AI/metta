@@ -3,7 +3,7 @@ import os
 import socket
 from typing import TYPE_CHECKING, Any
 
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 if TYPE_CHECKING:
     from wandb.sdk.wandb_run import Run as WandbRun

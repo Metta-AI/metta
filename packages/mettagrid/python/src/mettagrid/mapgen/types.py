@@ -4,7 +4,7 @@ from typing import Literal, TypeAlias
 import numpy as np
 import numpy.typing as npt
 
-from mettagrid.config.config import Config
+from mettagrid.base_config import Config
 
 # We store maps as 2D arrays of object names.
 # "empty" means an empty cell; "wall" means a wall, etc.
