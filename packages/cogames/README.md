@@ -161,13 +161,13 @@ Evaluate one or more policies.
 cogames evaluate machina_1 random
 
 # Trained policy
-cogames evaluate machina_1 simple:./train_dir/model.pt
+cogames evaluate machina_1 simple:train_dir/model.pt
 
 # Latest checkpoint in directory
-cogames evaluate machina_1 simple:./train_dir/
+cogames evaluate machina_1 simple:train_dir/
 
-# Mixed population (1:2 ratio)
-cogames evaluate machina_1 simple:./model.pt:1 random::2
+# Mixed population of agents, 3/8 of which steered by your policy, the rest by a random-action policy
+cogames evaluate machina_1 simple:train_dir/model.pt:3 random::5
 ```
 
 **Options:**
