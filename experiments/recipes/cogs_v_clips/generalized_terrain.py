@@ -43,6 +43,10 @@ class GeneralizedTerrainTaskGenerator(TaskGenerator):
         super().__init__(config)
         self.config = config
 
+    def _overwrite_positions(self, object):
+        for i, recipe in enumerate(object.recipes):
+            object.recipes[i] = (["Any"], recipe[1])
+
     def configure_env_agent(self, env, rng):
         """Configure parameters for agent, such as reward"""
         env.game.inventory_regen_interval = rng.choice(self.config.regeneration_rate)
@@ -140,7 +144,8 @@ class GeneralizedTerrainTaskGenerator(TaskGenerator):
             "germanium_extractor",
             "silicon_extractor",
         ]:
-            self._overwrite_positions(env.game.objects[obj], "Any")
+            #for extractors and chargers, any agent can use
+            self._overwrite_positions(env.game.objects[obj])
 
         env.game.objects["chest"] = ChestConfig(
             type_id=17,
@@ -188,10 +193,6 @@ class GeneralizedTerrainTaskGenerator(TaskGenerator):
             )
         ]
         return assembler
-
-    def _overwrite_positions(self, object, positions):
-        for i, recipe in enumerate(object.recipes):
-            object.recipes[i] = (["Any"], recipe[1])
 
     def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
         env = self._make_env_cfg(rng)
