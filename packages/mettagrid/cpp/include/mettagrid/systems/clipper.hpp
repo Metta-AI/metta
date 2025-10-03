@@ -14,9 +14,17 @@
 class Clipper {
 public:
   std::vector<std::shared_ptr<Recipe>> unclipping_recipes;
+  // A map from assembler to its adjacent assemblers. This should be constant once computed.
+  std::map<Assembler*, std::vector<Assembler*>> adjacent_assemblers;
+  // A map of all assemblers to their current infection weight. This is the weight at which they'll be selected
+  // for clipping (if currently unclipped).
   std::map<Assembler*, float> assembler_infection_weight;
+  // A set of assemblers that are adjacent to the set of clipped assemblers. Any unclipped assembler with
+  // non-zero infection weight will be in this set.
+  std::set<Assembler*> border_assemblers;
+  // A set of all unclipped assemblers. Any assembler that is not in this set will be clipped.
   std::set<Assembler*> unclipped_assemblers;
-  std::map<Assembler*, vector<Assembler*>> adjacent_assemblers;
+
   float length_scale;
   float cutoff_distance;
   Grid& grid;
@@ -149,7 +157,9 @@ public:
     // Update infection weights only for adjacent assemblers
     for (auto* adjacent : adjacent_assemblers[&to_infect]) {
       assembler_infection_weight[adjacent] += infection_weight(to_infect, *adjacent);
+      border_assemblers.insert(adjacent);
     }
+    border_assemblers.erase(&to_infect);
     unclipped_assemblers.erase(&to_infect);
 
     // Randomly select one recipe from the list
@@ -169,35 +179,31 @@ public:
       assembler_infection_weight[adjacent] -= infection_weight(to_unclip, *adjacent);
     }
     unclipped_assemblers.insert(&to_unclip);
+    if (assembler_infection_weight[&to_unclip] > 0.0f) {
+      border_assemblers.insert(&to_unclip);
+    }
   }
 
   Assembler* pick_assembler_to_clip() {
     float total_weight = 0.0f;
-    for (auto& candidate_assembler : unclipped_assemblers) {
+    for (auto& candidate_assembler : border_assemblers) {
       total_weight += assembler_infection_weight.at(candidate_assembler);
     }
     float random_weight = std::generate_canonical<float, 10>(rng) * total_weight;
-    for (auto& candidate_assembler : unclipped_assemblers) {
+    for (auto& candidate_assembler : border_assemblers) {
       random_weight -= assembler_infection_weight.at(candidate_assembler);
       if (random_weight <= 0.0f) {
         return candidate_assembler;
       }
     }
-    return nullptr;
-  }
-
-  Assembler* pick_initial_assembler_to_clip() {
-    // Pick an assembler uniformly at random.
-    float total_weight = unclipped_assemblers.size();
-    float random_weight = std::generate_canonical<float, 10>(rng) * total_weight;
-    // Clearly we just want to get a random index and the pull that assembler, but we have a map, and we don't
-    // expect to have to do this too often.
-    for (auto& candidate_assembler : unclipped_assemblers) {
-      random_weight -= 1.0f;
-      if (random_weight <= 0.0f) {
-        return candidate_assembler;
-      }
+    // We failed to find an assembler to clip. That _should_ be because there are no border assemblers. But maybe
+    // it's a floating point error. In any case, pick a random assembler from the unclipped assemblers.
+    if (!unclipped_assemblers.empty()) {
+      auto it = unclipped_assemblers.begin();
+      std::advance(it, std::uniform_int_distribution<size_t>(0, unclipped_assemblers.size() - 1)(rng));
+      return *it;
     }
+
     return nullptr;
   }
 
