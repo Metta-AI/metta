@@ -60,7 +60,6 @@ def _base_game_config(num_agents: int) -> MettaGridConfig:
                 noop=ActionConfig(),
                 change_glyph=ChangeGlyphActionConfig(number_of_glyphs=len(glyphs.GLYPHS)),
             ),
-            resource_loss_prob=0.01,
             objects={
                 "wall": WallConfig(name="wall", type_id=1, map_char="#", render_symbol="⬛"),
                 "charger": charger(),
