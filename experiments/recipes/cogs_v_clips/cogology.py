@@ -24,7 +24,11 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Literal
 
-from cogames.cogs_vs_clips.scenarios import make_game, make_game_from_map, games
+from cogames.cogs_vs_clips.scenarios import (
+    _base_game_config,
+    games,
+    make_game_from_map,
+)
 from mettagrid.config.mettagrid_config import (
     AgentConfig,
     AgentRewards,
@@ -173,53 +177,30 @@ class CogologyTaskGenerator(TaskGenerator):
     ) -> MettaGridConfig:
         """Generate procedurally generated map with multi-room architecture.
 
-        Creates 24 isolated rooms (4x6 grid) with 1 agent per room.
+        Uses MapGen + RoomGrid to create isolated rooms with agents.
         Each room gets its own chest with unique chest_id for per-agent rewards.
         """
         # Determine room layout based on variant
-        # Variants A, G: 1 agent per room (24 rooms)
-        # Variants B, H: 2 agents per room (12 rooms)
-        # Variants C, I: 3 agents per room (8 rooms)
-        # Variants D, J: 4 agents per room (6 rooms)
         agents_per_room = self._get_agents_per_room(variant)
         num_rooms = self.stage.num_agents // agents_per_room
 
-        # Calculate grid dimensions (try to make roughly square)
-        # TODO: Use these for MapGen integration
-        # rows = int(num_rooms**0.5)
-        # cols = (num_rooms + rows - 1) // rows  # Ceiling division
-        # room_width = self.stage.map_size[0] // cols
-        # room_height = self.stage.map_size[1] // rows
+        # Create room template with agents
+        room_template = self._create_room_template(agents_per_room)
 
-        # Use MapGen with RoomGrid to create isolated rooms
-        # TODO: Fully integrate MapGen into task generation
-        # mapgen = MapGen.Config(
-        #     instance=InlineAscii.Config(
-        #         data="@"  # Single agent per instance
-        #     ),
-        #     width=room_width,
-        #     height=room_height,
-        #     instances=num_rooms,
-        #     num_agents=self.stage.num_agents,
-        #     border_width=2,
-        #     instance_border_width=5,  # Wide borders to isolate rooms
-        # ).create()
-        # level = mapgen.build()
-        # TODO: Convert level to MettaGridConfig
+        # Use MapGen to create the multi-room grid
+        from mettagrid.mapgen.mapgen import MapGen
+        from mettagrid.mapgen.scenes.inline_ascii import InlineAscii
 
-        # For now, use simple generation with per-chest stats
-        env = make_game(
-            num_cogs=self.stage.num_agents,
-            width=self.stage.map_size[0],
-            height=self.stage.map_size[1],
-            num_assemblers=self.stage.num_assemblers,
-            num_chests=num_rooms,  # 1 chest per room
-            num_chargers=self.stage.num_chargers,
-            num_carbon_extractors=self.stage.num_carbon_extractors,
-            num_oxygen_extractors=self.stage.num_oxygen_extractors,
-            num_germanium_extractors=self.stage.num_germanium_extractors,
-            num_silicon_extractors=self.stage.num_silicon_extractors,
-        )
+        mapgen = MapGen.Config(
+            instance=InlineAscii.Config(data=room_template),
+            num_agents=self.stage.num_agents,  # Total agents across all rooms
+            border_width=5,  # Outer border
+            instance_border_width=5,  # Wide borders between rooms for isolation
+        ).create()
+        level = mapgen.build()
+
+        # Convert to MettaGridConfig
+        env = self._create_env_from_map(level, num_rooms)
 
         # Set unique chest_id for each chest (room-based)
         self._configure_chest_ids(env, num_rooms)
@@ -232,6 +213,172 @@ class CogologyTaskGenerator(TaskGenerator):
         self._configure_recipe(env, variant)
 
         return env
+
+    def _create_room_template(self, agents_per_room: int) -> str:
+        """Create ASCII template for a single room with agents.
+
+        Args:
+            agents_per_room: Number of agents to place in the room
+
+        Returns:
+            ASCII string with agents marked as '@'
+        """
+        # Create a simple room with agents spread out
+        # For 1 agent: "@"
+        # For 2 agents: ".@.\n.@."
+        # For 3 agents: "@.@\n.@."
+        # For 4 agents: "@.@\n@.@"
+
+        if agents_per_room == 1:
+            return "@"
+        elif agents_per_room == 2:
+            return ".@.\n.@."
+        elif agents_per_room == 3:
+            return "@.@\n.@."
+        elif agents_per_room == 4:
+            return "@.@\n@.@"
+        else:
+            # Fallback: single agent
+            return "@"
+
+    def _create_env_from_map(self, level, num_rooms: int) -> MettaGridConfig:
+        """Create MettaGridConfig from MapGen level with random object placement.
+
+        Uses RandomMapBuilder-style placement: shuffles all objects and places them
+        randomly in empty spaces within each room.
+
+        Args:
+            level: GameMap from MapGen.build()
+            num_rooms: Number of rooms in the map
+
+        Returns:
+            MettaGridConfig with map_builder and randomized object placement
+        """
+        from mettagrid.map_builder.ascii import AsciiMapBuilder
+
+        # Create base config
+        cfg = _base_game_config(self.stage.num_agents)
+
+        # Convert object names back to ASCII characters
+        name_to_char = {
+            "wall": "#",
+            "empty": ".",
+            "agent.agent": "@",
+            "agent.prey": "p",
+            "agent.predator": "P",
+            "chest": "C",
+            "assembler": "Z",
+            "converter": "c",
+            "altar": "_",
+        }
+
+        # Convert grid to ASCII characters
+        char_grid = []
+        for row in level.grid:
+            char_row = [name_to_char.get(cell, ".") for cell in row]
+            char_grid.append(char_row)
+
+        # Randomize object placement within each room
+        self._randomize_object_placement(char_grid, num_rooms)
+
+        cfg.game.map_builder = AsciiMapBuilder.Config(map_data=char_grid)
+
+        return cfg
+
+    def _randomize_object_placement(self, char_grid: list[list[str]], num_rooms: int):
+        """Randomly place objects in empty spaces of the map.
+
+        Mimics RandomMapBuilder's approach: creates list of all objects,
+        shuffles them, and places randomly in available empty spaces.
+
+        Args:
+            char_grid: The character grid to modify
+            num_rooms: Number of rooms (for chest placement)
+        """
+        import random as stdlib_random
+
+        # Use task-specific random seed for varied placements
+        rng = stdlib_random.Random()
+
+        # Collect all empty positions
+        empty_positions = []
+        for y in range(len(char_grid)):
+            for x in range(len(char_grid[y])):
+                if char_grid[y][x] == ".":
+                    empty_positions.append((y, x))
+
+        # Calculate total objects to place
+        total_objects = (
+            num_rooms  # chests (1 per room)
+            + self.stage.num_assemblers
+            + self.stage.num_chargers
+            + self.stage.num_carbon_extractors
+            + self.stage.num_oxygen_extractors
+            + self.stage.num_germanium_extractors
+            + self.stage.num_silicon_extractors
+        )
+
+        # Ensure we don't try to place more objects than we have space
+        if total_objects > len(empty_positions):
+            # Scale down proportionally
+            scale = len(empty_positions) / total_objects
+            num_rooms = max(1, int(num_rooms * scale))
+            total_objects = min(total_objects, len(empty_positions))
+
+        # Create object list (similar to RandomMapBuilder)
+        objects = []
+        objects.extend(["C"] * num_rooms)  # Chests
+        objects.extend(["Z"] * self.stage.num_assemblers)  # Assemblers
+
+        # Add chargers if stage has them
+        if self.stage.num_chargers > 0:
+            # Use 'h' for charger (assuming it's in the char mapping)
+            objects.extend(
+                ["h"]
+                * min(self.stage.num_chargers, len(empty_positions) - len(objects))
+            )
+
+        # Add extractors
+        if self.stage.num_carbon_extractors > 0:
+            objects.extend(
+                ["c"]
+                * min(
+                    self.stage.num_carbon_extractors,
+                    len(empty_positions) - len(objects),
+                )
+            )
+        if self.stage.num_oxygen_extractors > 0:
+            objects.extend(
+                ["o"]
+                * min(
+                    self.stage.num_oxygen_extractors,
+                    len(empty_positions) - len(objects),
+                )
+            )
+        if self.stage.num_germanium_extractors > 0:
+            objects.extend(
+                ["g"]
+                * min(
+                    self.stage.num_germanium_extractors,
+                    len(empty_positions) - len(objects),
+                )
+            )
+        if self.stage.num_silicon_extractors > 0:
+            objects.extend(
+                ["s"]
+                * min(
+                    self.stage.num_silicon_extractors,
+                    len(empty_positions) - len(objects),
+                )
+            )
+
+        # Shuffle positions and place objects
+        rng.shuffle(empty_positions)
+
+        for i, obj_char in enumerate(objects):
+            if i < len(empty_positions):
+                y, x = empty_positions[i]
+                char_grid[y][x] = obj_char
 
     def _get_agents_per_room(self, variant: str) -> int:
         """Get number of agents per room based on variant."""
