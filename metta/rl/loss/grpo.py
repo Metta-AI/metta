@@ -179,65 +179,22 @@ class GRPO(Loss):
         pass
 
     def _compute_group_advantages(self, context: ComponentContext) -> Tensor:
-        """Compute group-based advantages relative to mean reward.
+        """Compute advantages as normalized rewards.
 
-        In GRPO, we compute advantages by comparing each trajectory's
-        discounted return against the mean return of a group of trajectories.
-        This eliminates the need for a value network.
+        GRPO simplification: use rewards directly as advantages after normalization.
+        This is simpler and more stable than computing returns.
+        The normalization provides the baseline effect without needing value estimates.
         """
-        cfg = self.loss_cfg
         with torch.no_grad():
-            # Compute discounted returns for all trajectories
-            returns = self._compute_returns(
-                self.replay.buffer["rewards"],
-                self.replay.buffer["dones"],
-                cfg.gamma,
-            )
+            rewards = self.replay.buffer["rewards"]
 
-            # Group trajectories and compute advantages relative to group mean
-            B = returns.shape[0]
-            group_size = min(cfg.group_size, B)
-
-            # Reshape to [num_groups, group_size, seq_len]
-            num_groups = B // group_size
-            if num_groups == 0:
-                # Fallback: if we don't have enough samples, use global mean
-                mean_return = returns.mean(dim=0, keepdim=True)
-                advantages = returns - mean_return
-            else:
-                # Trim to divisible by group_size
-                returns_grouped = returns[: num_groups * group_size].reshape(num_groups, group_size, -1)
-
-                # Compute group mean for each group
-                group_means = returns_grouped.mean(dim=1, keepdim=True)  # [num_groups, 1, seq_len]
-
-                # Advantages are relative to group mean
-                advantages_grouped = returns_grouped - group_means
-
-                # Flatten back to [B', seq_len]
-                advantages = advantages_grouped.reshape(num_groups * group_size, -1)
-
-                # Handle remaining samples with global mean
-                if B > num_groups * group_size:
-                    remaining = returns[num_groups * group_size :]
-                    remaining_mean = remaining.mean(dim=0, keepdim=True)
-                    remaining_adv = remaining - remaining_mean
-                    advantages = torch.cat([advantages, remaining_adv], dim=0)
+            # Normalize rewards: subtract mean and divide by std
+            # This centers rewards around 0 and provides stable gradients
+            mean_reward = rewards.mean()
+            std_reward = rewards.std()
+            advantages = (rewards - mean_reward) / (std_reward + 1e-8)
 
         return advantages
-
-    def _compute_returns(self, rewards: Tensor, dones: Tensor, gamma: float) -> Tensor:
-        """Compute discounted returns for each trajectory."""
-        B, T = rewards.shape
-        returns = torch.zeros_like(rewards)
-        running_return = torch.zeros(B, device=rewards.device)
-
-        # Compute returns backward through time
-        for t in reversed(range(T)):
-            running_return = rewards[:, t] + gamma * running_return * (1 - dones[:, t])
-            returns[:, t] = running_return
-
-        return returns
 
     def _process_minibatch_update(
         self,
