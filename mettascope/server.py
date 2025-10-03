@@ -171,7 +171,7 @@ def make_app(cfg: "PlayTool"):
         await send_message(type="replay", replay=replay)
 
         current_step = 0
-        action_message = None
+        user_actions = {}  # Dict mapping agent_id -> (action_id, action_param)
         actions = np.zeros((env.num_agents, 2))
         total_rewards = np.zeros(env.num_agents)
 
@@ -204,10 +204,12 @@ def make_app(cfg: "PlayTool"):
                 break
 
             if message["type"] == "action":
-                action_message = message
+                # Store user action persistently per agent
+                user_actions[message["agent_id"]] = (message["action_id"], message["action_param"])
 
             elif message["type"] == "advance":
-                action_message = None
+                # Don't clear user actions - they persist until changed
+                pass
 
             elif message["type"] == "clear_memory":
                 clear_memory(sim, message["what"], message["agent_id"])
@@ -232,10 +234,10 @@ def make_app(cfg: "PlayTool"):
                 await send_message(type="message", message="Step!")
 
                 actions = sim.generate_actions()
-                if action_message is not None:
-                    agent_id = action_message["agent_id"]
-                    actions[agent_id][0] = action_message["action_id"]
-                    actions[agent_id][1] = action_message["action_param"]
+                # Apply all user actions
+                for agent_id, (action_id, action_param) in user_actions.items():
+                    actions[agent_id][0] = action_id
+                    actions[agent_id][1] = action_param
                 sim.step_simulation(actions)
 
                 await send_replay_step()

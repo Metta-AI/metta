@@ -50,7 +50,6 @@ _LAZY_ATTRS: Dict[str, Tuple[str, str]] = {
     "get_action_nvec": ("mettagrid.types", "get_action_nvec"),
     # Supporting classes
     "GameMap": ("mettagrid.map_builder.map_builder", "GameMap"),
-    "ReplayWriter": ("mettagrid.util.replay_writer", "ReplayWriter"),
     "StatsWriter": ("mettagrid.util.stats_writer", "StatsWriter"),
 }
 
@@ -76,7 +75,6 @@ if TYPE_CHECKING:
         validate_action_space,
         validate_observation_space,
     )
-    from mettagrid.util.replay_writer import ReplayWriter
     from mettagrid.util.stats_writer import StatsWriter
 
     try:
@@ -111,7 +109,6 @@ __all__ = [
     "get_action_nvec",
     # Supporting classes
     "GameMap",
-    "ReplayWriter",
     "StatsWriter",
     # Optional visualization module
     "mettascope",

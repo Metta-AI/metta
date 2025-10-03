@@ -95,8 +95,8 @@ def play_cmd(
     ),
     interactive: bool = typer.Option(True, "--interactive", "-i", help="Run in interactive mode"),
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
-    render: Literal["gui", "text", "none"] = typer.Option(
-        "gui", "--render", "-r", help="Render mode: 'gui', 'text', or 'none' (no rendering)"
+    render: Literal["gui", "text", "miniscope", "none"] = typer.Option(
+        "gui", "--render", "-r", help="Render mode: 'gui', 'text'/'miniscope' (interactive terminal), or 'none'"
     ),
 ) -> None:
     resolved_game, env_cfg = utils.get_game_config(console, game_name)

@@ -8,6 +8,7 @@ emoji rendering, alignment, and functionality for MettaGrid environments.
 import io
 import sys
 from contextlib import contextmanager
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -58,8 +59,25 @@ class TestMiniscopeRenderer:
         )
 
     @pytest.fixture
-    def renderer(self, object_type_names, game_config):
-        return MiniscopeRenderer(object_type_names, game_config, map_height=10, map_width=10)
+    def mock_env(self, object_type_names, game_config):
+        """Create a mock environment for testing."""
+        env = MagicMock()
+        env.object_type_names = object_type_names
+        env.resource_names = game_config.resource_names
+        env.map_height = 10
+        env.map_width = 10
+        env.mg_config = MagicMock()
+        env.mg_config.game = game_config
+        return env
+
+    @pytest.fixture
+    def renderer(self, mock_env):
+        """Create a renderer and initialize it with the mock environment."""
+        renderer = MiniscopeRenderer()
+        # Suppress output during initialization
+        with suppress_stdout():
+            renderer.on_episode_start(mock_env)
+        return renderer
 
     def test_initialization(self, renderer):
         """Test that MiniscopeRenderer initializes correctly."""
@@ -146,7 +164,19 @@ class TestMiniscopeRenderer:
         """Test rendering with the special objects from debug maps."""
         # Update object type names to include special types
         object_type_names = ["agent", "wall", "altar", "lasery", "marker", "block"]
-        renderer = MiniscopeRenderer(object_type_names, game_config, map_height=10, map_width=10)
+
+        # Create mock env and renderer with special objects
+        env = MagicMock()
+        env.object_type_names = object_type_names
+        env.resource_names = game_config.resource_names
+        env.map_height = 10
+        env.map_width = 10
+        env.mg_config = MagicMock()
+        env.mg_config.game = game_config
+
+        renderer = MiniscopeRenderer()
+        with suppress_stdout():
+            renderer.on_episode_start(env)
 
         grid_objects = {
             0: {"type": 1, "r": 0, "c": 0},  # wall
