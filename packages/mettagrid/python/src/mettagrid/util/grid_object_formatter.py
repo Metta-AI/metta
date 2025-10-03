@@ -57,21 +57,6 @@ def format_converter_properties(grid_object: dict, update_object: dict) -> None:
 
 def format_assembler_properties(grid_object: dict, update_object: dict) -> None:
     # Assembler properties
-    if "cooldown_remaining" in grid_object and grid_object["cooldown_remaining"] != 0:
-        print("  cooldown_remaining:", grid_object["cooldown_remaining"])
-    if "cooldown_duration" in grid_object and grid_object["cooldown_duration"] != 0:
-        print("  cooldown_duration:", grid_object["cooldown_duration"])
-    if "is_clipped" in grid_object and grid_object["is_clipped"]:
-        print("  is_clipped:", grid_object["is_clipped"])
-    if "is_clip_immune" in grid_object and grid_object["is_clip_immune"]:
-        print("  clip_immune:", grid_object["is_clip_immune"])
-    if "uses_count" in grid_object and grid_object["uses_count"] != 0:
-        print("  uses_count:", grid_object["uses_count"])
-    if "max_uses" in grid_object and grid_object["max_uses"] != 0:
-        print("  max_uses:", grid_object["max_uses"])
-    if "allow_partial_usage" in grid_object:
-        print("  allow_partial_usage:", grid_object["allow_partial_usage"])
-
     update_object["cooldown_remaining"] = grid_object.get("cooldown_remaining", 0)
     update_object["cooldown_duration"] = grid_object.get("cooldown_duration", 0)
     update_object["is_clipped"] = grid_object.get("is_clipped", False)
