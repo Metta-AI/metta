@@ -116,10 +116,7 @@ proc updateObjectInfo*() =
     let key = $recipe.inputs & "->" & $recipe.outputs
     mergedRecipes[key] = recipe
 
-  echo "recipes count: ", selection.recipes.len
-  echo "merged recipes count: ", mergedRecipes.len
   for recipe in mergedRecipes.values:
-    echo "  ", recipe
     addRecipe(recipe)
 
   if mergedRecipes.len == 0 and
