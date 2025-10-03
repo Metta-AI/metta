@@ -15,14 +15,16 @@ from mettagrid.util.module import load_symbol
 def get_game_config(console: Console, game_arg: str) -> tuple[str, MettaGridConfig]:
     """Return a resolved game name and configuration for cli usage."""
 
-    mission: Optional[str] = None
-    if ":" in game_arg:
-        game_name, mission = game_arg.split(":")
+    requested_mission: Optional[str] = None
+    if "." in game_arg:
+        map_name, requested_mission = game_arg.split(".")
     else:
-        game_name = game_arg
+        map_name = game_arg
 
+    game_config, registered_map_name, mission_name = game_module.get_game(map_name, requested_mission)
     try:
-        return game_name, game_module.get_game(game_name, mission)
+        game_name = f"{registered_map_name}.{mission_name}" if registered_map_name and mission_name else map_name
+        return game_name, game_config
     except ValueError as e:
         console.print(f"[red]Error: {e}[/red]")
         raise typer.Exit(1) from e

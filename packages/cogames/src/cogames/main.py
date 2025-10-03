@@ -37,19 +37,24 @@ def default(ctx: typer.Context) -> None:
         print(ctx.get_help())
 
 
-@app.command("games", help="List all available games or describe a specific game")
+game_argument = typer.Argument(
+    None,
+    help="Name of the game. Can be in the format 'map_name' or 'map_name.custom_mission_name' or 'path/to/game.yaml'.",
+    callback=lambda ctx, value: game.require_game_argument(ctx, value, console),
+)
+
+
+@app.command(
+    "games", help="List all available maps and missions (that can be combined into a game), or describe a specific game"
+)
 def games_cmd(
-    game_name: str = typer.Argument(
-        None,
-        help="Name of the game to describe",
-        callback=lambda ctx, value: game.require_game_argument(ctx, value, console),
-    ),
+    game_name: str = game_argument,
 ) -> None:
     from cogames import utils
 
-    resolved_game, env_cfg = utils.get_game_config(console, game_name)
+    game_name, env_cfg = utils.get_game_config(console, game_name)
     try:
-        game.describe_game(resolved_game, env_cfg, console)
+        game.describe_game(game_name, env_cfg, console)
     except ValueError as e:
         console.print(f"[red]Error: {e}[/red]")
         raise typer.Exit(1) from e
@@ -57,11 +62,7 @@ def games_cmd(
 
 @app.command(name="play", no_args_is_help=True, help="Play a game")
 def play_cmd(
-    game_name: str = typer.Argument(
-        None,
-        help="Name of the game to play",
-        callback=lambda ctx, value: game.require_game_argument(ctx, value, console),
-    ),
+    game_name: str = game_argument,
     policy_class_path: str = typer.Option(
         "cogames.policy.random.RandomPolicy",
         "--policy",
@@ -80,9 +81,9 @@ def play_cmd(
 ) -> None:
     from cogames import utils
 
-    resolved_game, env_cfg = utils.get_game_config(console, game_name)
+    game_name, env_cfg = utils.get_game_config(console, game_name)
 
-    console.print(f"[cyan]Playing {resolved_game}[/cyan]")
+    console.print(f"[cyan]Playing {game_name}[/cyan]")
     console.print(f"Max Steps: {steps}, Interactive: {interactive}, Render: {render}")
 
     from cogames import play as play_module
@@ -101,11 +102,7 @@ def play_cmd(
 
 @app.command("make-game", help="Create a new game configuration")
 def make_scenario(
-    base_game: str = typer.Argument(
-        None,
-        help="Base game to use as template",
-        callback=lambda ctx, value: game.require_game_argument(ctx, value, console),
-    ),
+    base_game: str = game_argument,
     num_agents: int = typer.Option(2, "--agents", "-a", help="Number of agents", min=1),
     width: int = typer.Option(10, "--width", "-w", help="Map width", min=1),
     height: int = typer.Option(10, "--height", "-h", help="Map height", min=1),
@@ -134,11 +131,7 @@ def make_scenario(
 
 @app.command(name="train", help="Train a policy on a game")
 def train_cmd(
-    game_name: str = typer.Argument(
-        None,
-        help="Name of the game to train on",
-        callback=lambda ctx, value: game.require_game_argument(ctx, value, console),
-    ),
+    game_name: str = game_argument,
     policy_class_path: str = typer.Option(
         "cogames.policy.simple.SimplePolicy",
         "--policy",
@@ -168,7 +161,7 @@ def train_cmd(
     from cogames import train as train_module
     from cogames import utils
 
-    resolved_game, env_cfg = utils.get_game_config(console, game_name)
+    game_name, env_cfg = utils.get_game_config(console, game_name)
 
     torch_device = utils.resolve_training_device(console, device)
 
@@ -183,7 +176,7 @@ def train_cmd(
             seed=seed,
             batch_size=batch_size,
             minibatch_size=minibatch_size,
-            game_name=resolved_game,
+            game_name=game_name,
         )
 
     except ValueError as e:
@@ -200,11 +193,7 @@ def train_cmd(
 )
 @app.command("eval", hidden=True)
 def evaluate_cmd(
-    game_name: str = typer.Argument(
-        None,
-        help="Name of the game to evaluate",
-        callback=lambda ctx, value: game.require_game_argument(ctx, value, console),
-    ),
+    game_name: str = game_argument,
     policies: list[str] = typer.Argument(  # noqa: B008
         None,
         help=(

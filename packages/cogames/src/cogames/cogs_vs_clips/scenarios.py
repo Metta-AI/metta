@@ -105,7 +105,7 @@ def make_game_from_map(map_name: str, num_agents: int = 4) -> Callable[[str], Me
 
 
 class GameCatalogEntry(BaseModel):
-    name: str
+    map_name: str
 
     # Takes in a mission name and returns a game configuration
     generate: Callable[[str], MettaGridConfig]
@@ -116,10 +116,10 @@ class GameCatalogEntry(BaseModel):
 
 
 GAMES_CATALOG: list[GameCatalogEntry] = [
-    GameCatalogEntry(name="assembler_1_simple", generate=tutorial_assembler_complex(num_cogs=1)),
-    GameCatalogEntry(name="assembler_1_complex", generate=tutorial_assembler_simple(num_cogs=1)),
-    GameCatalogEntry(name="assembler_2_simple", generate=tutorial_assembler_simple(num_cogs=4)),
-    GameCatalogEntry(name="assembler_2_complex", generate=tutorial_assembler_complex(num_cogs=4)),
+    GameCatalogEntry(map_name="assembler_1_simple", generate=tutorial_assembler_complex(num_cogs=1)),
+    GameCatalogEntry(map_name="assembler_1_complex", generate=tutorial_assembler_simple(num_cogs=1)),
+    GameCatalogEntry(map_name="assembler_2_simple", generate=tutorial_assembler_simple(num_cogs=4)),
+    GameCatalogEntry(map_name="assembler_2_complex", generate=tutorial_assembler_complex(num_cogs=4)),
     # "extractor_1cog_1resource": tutorial_extractor(num_cogs=1),""
     # "extractor_1cog_4resource": tutorial_extractor(num_cogs=1),
     # "harvest_1": tutorial_harvest(num_cogs=1),
@@ -131,23 +131,25 @@ GAMES_CATALOG: list[GameCatalogEntry] = [
     # "chest_1": tutorial_chest(num_cogs=1),
     # "chest_4": tutorial_chest(num_cogs=4),
     # Biomes dungeon maps with stations
-    GameCatalogEntry(name="machina_1", generate=make_game_from_map("cave_base_50.map")),
-    GameCatalogEntry(name="machina_2", generate=make_game_from_map("machina_100_stations.map")),
-    GameCatalogEntry(name="machina_3", generate=make_game_from_map("machina_200_stations.map")),
-    GameCatalogEntry(name="machina_1_big", generate=make_game_from_map("canidate1_500_stations.map")),
-    GameCatalogEntry(name="machina_2_bigger", generate=make_game_from_map("canidate1_1000_stations.map")),
-    GameCatalogEntry(name="machina_3_big", generate=make_game_from_map("canidate2_500_stations.map")),
-    GameCatalogEntry(name="machina_4_bigger", generate=make_game_from_map("canidate2_1000_stations.map")),
-    GameCatalogEntry(name="machina_5_big", generate=make_game_from_map("canidate3_500_stations.map")),
-    GameCatalogEntry(name="machina_6_bigger", generate=make_game_from_map("canidate3_1000_stations.map")),
-    GameCatalogEntry(name="machina_7_big", generate=make_game_from_map("canidate4_500_stations.map")),
-    GameCatalogEntry(name="training_facility_1", generate=make_game_from_map("training_facility_open_1.map")),
-    GameCatalogEntry(name="training_facility_2", generate=make_game_from_map("training_facility_open_2.map")),
-    GameCatalogEntry(name="training_facility_3", generate=make_game_from_map("training_facility_open_3.map")),
-    GameCatalogEntry(name="training_facility_4", generate=make_game_from_map("training_facility_tight_4.map")),
-    GameCatalogEntry(name="training_facility_5", generate=make_game_from_map("training_facility_tight_5.map")),
+    GameCatalogEntry(map_name="machina_1", generate=make_game_from_map("cave_base_50.map")),
+    GameCatalogEntry(map_name="machina_2", generate=make_game_from_map("machina_100_stations.map")),
+    GameCatalogEntry(map_name="machina_3", generate=make_game_from_map("machina_200_stations.map")),
+    GameCatalogEntry(map_name="machina_1_big", generate=make_game_from_map("canidate1_500_stations.map")),
+    GameCatalogEntry(map_name="machina_2_bigger", generate=make_game_from_map("canidate1_1000_stations.map")),
+    GameCatalogEntry(map_name="machina_3_big", generate=make_game_from_map("canidate2_500_stations.map")),
+    GameCatalogEntry(map_name="machina_4_bigger", generate=make_game_from_map("canidate2_1000_stations.map")),
+    GameCatalogEntry(map_name="machina_5_big", generate=make_game_from_map("canidate3_500_stations.map")),
+    GameCatalogEntry(map_name="machina_6_bigger", generate=make_game_from_map("canidate3_1000_stations.map")),
+    GameCatalogEntry(map_name="machina_7_big", generate=make_game_from_map("canidate4_500_stations.map")),
+    GameCatalogEntry(map_name="training_facility_1", generate=make_game_from_map("training_facility_open_1.map")),
+    GameCatalogEntry(map_name="training_facility_2", generate=make_game_from_map("training_facility_open_2.map")),
+    GameCatalogEntry(map_name="training_facility_3", generate=make_game_from_map("training_facility_open_3.map")),
+    GameCatalogEntry(map_name="training_facility_4", generate=make_game_from_map("training_facility_tight_4.map")),
+    GameCatalogEntry(map_name="training_facility_5", generate=make_game_from_map("training_facility_tight_5.map")),
 ]
 
 
 def games(mission_name: Optional[str], *args: Any, **kwargs: Any) -> dict[str, MettaGridConfig]:
-    return {game.name: game.generate(mission_name or game.default_mission, *args, **kwargs) for game in GAMES_CATALOG}
+    return {
+        game.map_name: game.generate(mission_name or game.default_mission, *args, **kwargs) for game in GAMES_CATALOG
+    }

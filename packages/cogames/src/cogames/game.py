@@ -60,7 +60,7 @@ def load_game_config_from_python(path: Path) -> MettaGridConfig:
     return config
 
 
-def get_game(game_name: str, mission_name: Optional[str] = None) -> MettaGridConfig:
+def get_game(map_name: str, mission_name: Optional[str] = None) -> tuple[MettaGridConfig, Optional[str], Optional[str]]:
     """Get a specific game configuration by name or file path.
 
     Args:
@@ -73,35 +73,36 @@ def get_game(game_name: str, mission_name: Optional[str] = None) -> MettaGridCon
         ValueError: If game not found or file cannot be loaded
     """
     # Check if it's a file path
-    if any(game_name.endswith(ext) for ext in [".yaml", ".yml", ".json", ".py"]):
-        path = Path(game_name)
+    if any(map_name.endswith(ext) for ext in [".yaml", ".yml", ".json", ".py"]):
+        path = Path(map_name)
         if not path.exists():
-            raise ValueError(f"File not found: {game_name}")
+            raise ValueError(f"File not found: {map_name}")
         if not path.is_file():
-            raise ValueError(f"Not a file: {game_name}")
+            raise ValueError(f"Not a file: {map_name}")
 
         # Load config based on file extension
         if path.suffix == ".py":
-            return load_game_config_from_python(path)
+            return load_game_config_from_python(path), None, None
         elif path.suffix in [".yaml", ".yml", ".json"]:
-            return load_game_config(path)
+            return load_game_config(path), None, None
         else:
             raise ValueError(f"Unsupported file format: {path.suffix}")
 
     # Otherwise, treat it as a game name
-    all_games = {game_entry.name: game_entry for game_entry in GAMES_CATALOG}
-    if game_name in all_games:
-        entry = all_games[game_name]
+    games_by_map = {game_entry.map_name: game_entry for game_entry in GAMES_CATALOG}
+    if map_name in games_by_map:
+        entry = games_by_map[map_name]
     else:
         # Try partial match
-        matches = [name for name in all_games if game_name.lower() in name.lower()]
+        matches = [name for name in games_by_map if map_name.lower() in name.lower()]
         if len(matches) == 1:
-            entry = all_games[matches[0]]
+            entry = games_by_map[matches[0]]
         elif len(matches) > 1:
-            raise ValueError(f"Ambiguous game name '{game_name}'. Matches: {', '.join(matches)}")
+            raise ValueError(f"Ambiguous map name '{map_name}'. Matches: {', '.join(matches)}")
         else:
-            raise ValueError(f"Game '{game_name}' not found. Available games: {', '.join(all_games.keys())}")
-    return entry.generate(mission_name or entry.default_mission)
+            raise ValueError(f"Map '{map_name}' not found. Available maps: {', '.join(games_by_map.keys())}")
+    effective_mission = mission_name or entry.default_mission
+    return entry.generate(effective_mission), entry.map_name, effective_mission
 
 
 def list_games(console: Console) -> None:
@@ -114,8 +115,8 @@ def list_games(console: Console) -> None:
         Rich Table with game information
     """
 
-    table = Table(title="Available Games", show_header=True, header_style="bold magenta")
-    table.add_column("Game", style="cyan", no_wrap=True)
+    table = Table(title="Available Maps", show_header=True, header_style="bold magenta")
+    table.add_column("Map", style="cyan", no_wrap=True)
     table.add_column("Agents", style="yellow", justify="center")
     table.add_column("Map Size", style="green", justify="center")
     table.add_column("Default Mission", style="blue", justify="center")
@@ -131,7 +132,7 @@ def list_games(console: Console) -> None:
         else:
             map_size = "N/A"
 
-        table.add_row(game_entry.name, str(num_agents), map_size, game_entry.default_mission)
+        table.add_row(game_entry.map_name, str(num_agents), map_size, game_entry.default_mission)
     console.print(table)
 
     table = Table(title="Available Missions", show_header=True, header_style="bold magenta")
@@ -158,8 +159,6 @@ def describe_game(game_name: str, game_config: MettaGridConfig, console: Console
     console.print("[bold]Game Configuration:[/bold]")
     console.print(f"  • Number of agents: {game_config.game.num_agents}")
     console.print(f"  • Map size: {game_config.game.map_builder.width}x{game_config.game.map_builder.height}")  # type: ignore[attr-defined]
-    if hasattr(game_config.game.map_builder, "agents"):
-        console.print(f"  • Number of agents on map: {game_config.game.map_builder.agents}")  # type: ignore[attr-defined]
 
     # Display available actions
     console.print("\n[bold]Available Actions:[/bold]")
