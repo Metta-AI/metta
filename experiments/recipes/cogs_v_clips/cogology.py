@@ -217,33 +217,34 @@ class CogologyTaskGenerator(TaskGenerator):
         return env
 
     def _create_room_template(self, agents_per_room: int) -> str:
-        """Create ASCII template for a single room with agents.
+        """Create ASCII template for a single room with agents and chest.
 
         Args:
             agents_per_room: Number of agents to place in the room
 
         Returns:
-            ASCII string with agents marked as '@'
+            ASCII string with agents marked as '@' and chest as 'C'
         """
-        # Create 3x3 rooms for all configurations to ensure agents have space to move
+        # Create 3x3 rooms for all configurations with chest included
+        # This ensures each room has exactly one chest
         if agents_per_room == 1:
-            # 3x3 room with single agent in center
-            return "...\n.@.\n..."
+            # 3x3 room with single agent and chest
+            return "C..\n.@.\n..."
         elif agents_per_room == 2:
-            # 3x3 room with two agents
-            return "@..\n...\n..@"
+            # 3x3 room with two agents and chest
+            return "@.C\n...\n..@"
         elif agents_per_room == 3:
-            # 3x3 room with three agents
-            return "@.@\n...\n.@."
+            # 3x3 room with three agents and chest
+            return "@.@\n.C.\n.@."
         elif agents_per_room == 4:
-            # 3x3 room with four agents in corners
-            return "@.@\n...\n@.@"
+            # 3x3 room with four agents in corners and chest in center
+            return "@.@\n.C.\n@.@"
         elif agents_per_room == 6:
-            # 3x3 room with six agents
-            return "@.@\n@.@\n@.@"
+            # 3x3 room with six agents and chest
+            return "@.@\n@C@\n@.@"
         else:
-            # Fallback: 3x3 with agent in center
-            return "...\n.@.\n..."
+            # Fallback: 3x3 with agent and chest
+            return "C..\n.@.\n..."
 
     def _create_env_from_map(self, level, num_rooms: int) -> MettaGridConfig:
         """Create MettaGridConfig from MapGen level with random object placement.
@@ -311,10 +312,9 @@ class CogologyTaskGenerator(TaskGenerator):
                 if char_grid[y][x] == ".":
                     empty_positions.append((y, x))
 
-        # Calculate total objects to place
+        # Calculate total objects to place (chests are already in room template)
         total_objects = (
-            num_rooms  # chests (1 per room)
-            + self.stage.num_assemblers
+            self.stage.num_assemblers
             + self.stage.num_chargers
             + self.stage.num_carbon_extractors
             + self.stage.num_oxygen_extractors
@@ -325,13 +325,12 @@ class CogologyTaskGenerator(TaskGenerator):
         # Ensure we don't try to place more objects than we have space
         if total_objects > len(empty_positions):
             # Scale down proportionally
-            scale = len(empty_positions) / total_objects
-            num_rooms = max(1, int(num_rooms * scale))
+            len(empty_positions) / total_objects
             total_objects = min(total_objects, len(empty_positions))
 
         # Create object list (similar to RandomMapBuilder)
+        # Note: Chests are already in room templates, so we don't add them here
         objects = []
-        objects.extend(["C"] * num_rooms)  # Chests
         objects.extend(["Z"] * self.stage.num_assemblers)  # Assemblers
 
         # Add chargers if stage has them
@@ -503,11 +502,12 @@ class CogologyTaskGenerator(TaskGenerator):
                 )
             )
 
-            # Copy other settings from default agent config
+            # Copy initial inventory from default agent config and add stage-specific items
+            agent_config.initial_inventory = env.game.agent.initial_inventory.copy()
             if self.stage.initial_inventory_options:
-                agent_config.initial_inventory = rng.choice(
-                    self.stage.initial_inventory_options
-                )
+                # Merge stage-specific inventory (e.g., hearts) with base inventory (e.g., energy)
+                stage_inventory = rng.choice(self.stage.initial_inventory_options)
+                agent_config.initial_inventory.update(stage_inventory)
 
             env.game.agents.append(agent_config)
 
