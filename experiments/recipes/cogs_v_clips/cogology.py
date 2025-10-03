@@ -169,7 +169,15 @@ class CogologyTaskGenerator(TaskGenerator):
     def _generate_premade_map(self, rng: random.Random) -> MettaGridConfig:
         """Generate task from premade map."""
         map_name = rng.choice(self.stage.map_names)
-        return make_game_from_map(map_name, num_agents=self.stage.num_agents)
+        env = make_game_from_map(map_name, num_agents=self.stage.num_agents)
+
+        # Disable glyphs for early stages (1-2) to reduce action space
+        if self.stage.stage_id <= 2:
+            from mettagrid.config.mettagrid_config import ChangeGlyphActionConfig
+
+            env.game.actions.change_glyph = ChangeGlyphActionConfig(enabled=False)
+
+        return env
 
     def _generate_procedural_map(
         self, rng: random.Random, variant: str
@@ -213,6 +221,12 @@ class CogologyTaskGenerator(TaskGenerator):
 
         # Configure recipe based on variant
         self._configure_recipe(env, variant)
+
+        # Disable glyphs for early stages (1-2) to reduce action space
+        if self.stage.stage_id <= 3:
+            from mettagrid.config.mettagrid_config import ChangeGlyphActionConfig
+
+            env.game.actions.change_glyph = ChangeGlyphActionConfig(enabled=False)
 
         return env
 
@@ -949,7 +963,7 @@ def _create_stage_configs() -> list[CogologyStageConfig]:
             map_size=(10, 10),
             num_agents=24,
             num_assemblers=0,
-            num_chests=4,
+            num_chests=24,  # One chest per agent
             initial_inventory_options=[
                 {"heart": 3},
                 {"heart": 4},
