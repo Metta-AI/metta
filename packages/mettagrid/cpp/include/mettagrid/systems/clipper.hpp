@@ -68,6 +68,12 @@ public:
           (grid_size / std::sqrt(static_cast<float>(assembler_infection_weight.size()))) * std::sqrt(PERCOLATION_CONSTANT / (4.0f * std::numbers::pi_v<float>));
     }
     // else: use the provided positive length_scale value as-is
+
+    // Auto-calculate cutoff_distance if not provided (cutoff_distance <= 0)
+    // At 3*length_scale, exp(-3) ≈ 0.05, so weights beyond this are negligible
+    if (cutoff_distance <= 0.0f) {
+      this->cutoff_distance = 3.0f * this->length_scale;
+    }
   }
 
   float infection_weight(Assembler& from, Assembler& to) const {

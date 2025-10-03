@@ -236,18 +236,27 @@ class ClipperConfig(Config):
     based on distance from already-clipped buildings. The length_scale parameter
     controls the exponential decay: weight = exp(-distance / length_scale).
 
-    If length_scale is <= 0 (default -1.0), it will be automatically calculated
-    at runtime in C++ using percolation theory based on the actual grid size and
+    If length_scale is <= 0 (default 0.0), it will be automatically calculated
+    at runtime in C++ using percolation based on the actual grid size and
     number of buildings placed. Set length_scale > 0 to use a manual value instead.
+
+    If cutoff_distance is <= 0 (default 0.0), it will be automatically set to
+    3 * length_scale at runtime. At this distance, exp(-3) ≈ 0.05, making weights
+    negligible. Set cutoff_distance > 0 to use a manual cutoff.
     """
 
     unclipping_recipes: list[RecipeConfig] = Field(default_factory=list)
     length_scale: float = Field(
-        default=-1.0,
+        default=0.0,
         description="Controls spatial spread rate: weight = exp(-distance / length_scale). "
-        "If <= 0, automatically calculated using percolation theory at runtime.",
+        "If <= 0, automatically calculated using percolation at runtime.",
     )
-    cutoff_distance: float = Field(default=0.0, ge=0.0)
+    cutoff_distance: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Maximum distance for infection weight calculations. "
+        "If <= 0, automatically set to 3 * length_scale at runtime.",
+    )
     clip_rate: float = Field(default=0.0, ge=0.0, le=1.0)
 
 

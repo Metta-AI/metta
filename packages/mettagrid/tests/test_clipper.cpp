@@ -384,3 +384,41 @@ TEST_F(ClipperPercolationTest, NonSquareGrid) {
   // Expected: (60 / sqrt(25)) * sqrt(4.51 / (4*π)) ≈ 7.189
   EXPECT_NEAR(clipper_horizontal.length_scale, 7.189f, 0.01f);
 }
+
+// ================================================================================================
+// CUTOFF DISTANCE AUTO-CALCULATION TESTS
+// ================================================================================================
+
+// Test 8: Auto-calculate cutoff_distance = 3 * length_scale
+TEST_F(ClipperPercolationTest, AutoCutoffDistance) {
+  Grid grid(50, 50);
+  place_assemblers(grid, 25);
+
+  Clipper clipper(grid, {unclip_recipe}, -1.0f, 0.0f, 0.1f, rng);
+
+  // Expected cutoff: 3 * 5.991 ≈ 17.973
+  EXPECT_NEAR(clipper.cutoff_distance, 3.0f * clipper.length_scale, 0.001f);
+  EXPECT_NEAR(clipper.cutoff_distance, 17.973f, 0.03f);
+}
+
+// Test 9: Manual cutoff_distance is preserved
+TEST_F(ClipperPercolationTest, ManualCutoffDistance) {
+  Grid grid(50, 50);
+  place_assemblers(grid, 25);
+
+  Clipper clipper(grid, {unclip_recipe}, -1.0f, 20.0f, 0.1f, rng);
+
+  // Should keep the provided cutoff_distance
+  EXPECT_FLOAT_EQ(clipper.cutoff_distance, 20.0f);
+}
+
+// Test 10: Auto-cutoff with manual length_scale
+TEST_F(ClipperPercolationTest, AutoCutoffWithManualLength) {
+  Grid grid(50, 50);
+  place_assemblers(grid, 25);
+
+  Clipper clipper(grid, {unclip_recipe}, 5.0f, 0.0f, 0.1f, rng);
+
+  // Should auto-calculate cutoff as 3 * 5.0
+  EXPECT_FLOAT_EQ(clipper.cutoff_distance, 15.0f);
+}
