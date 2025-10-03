@@ -107,14 +107,14 @@ def low_oxygen_recipe() -> RecipeConfig:
 def standard_silicon_recipe() -> RecipeConfig:
     return RecipeConfig(
         input_resources={"energy": 25},
-        output_resources={"silicon": 25},
+        output_resources={"silicon": 1},
     )
 
 
 def low_silicon_recipe() -> RecipeConfig:
     return RecipeConfig(
         input_resources={"energy": 25},
-        output_resources={"silicon": 10},
+        output_resources={"silicon": 1},
     )
 
 

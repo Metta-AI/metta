@@ -80,11 +80,15 @@ def _base_game_config(num_agents: int) -> MettaGridConfig:
                         "oxygen.gained": 0.1,
                         "germanium.gained": 0.1,
                         "silicon.gained": 0.1,
-                        # Reward +5 when depositing a heart into any chest
-                        # Chest updates game stats tracker with key: chest.heart.deposited
-                        "chest.heart.deposited": 1,
+                        "heart.lost": 1,
                     },
-                    # No continuous inventory holding rewards by default here
+                    stats_max={
+                        # Cap each element gain reward at 0.2 total (2 gains × 0.1)
+                        "carbon.gained": 0.2,
+                        "oxygen.gained": 0.2,
+                        "germanium.gained": 0.2,
+                        "silicon.gained": 0.2,
+                    },
                     inventory={},
                 ),
                 initial_inventory={
