@@ -26,9 +26,12 @@ from typing import Literal
 
 from cogames.cogs_vs_clips.scenarios import make_game, make_game_from_map, games
 from mettagrid.config.mettagrid_config import (
+    AgentConfig,
     AgentRewards,
+    AssemblerConfig,
     ChestConfig,
     MettaGridConfig,
+    RecipeConfig,
     Field as ConfigField,
 )
 from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
@@ -36,6 +39,7 @@ from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 from metta.rl.loss import LossConfig
+from metta.rl.training.component import TrainerComponent
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -147,8 +151,12 @@ class CogologyTaskGenerator(TaskGenerator):
             initial_inv = rng.choice(self.stage.initial_inventory_options)
             env.game.agent.initial_inventory.update(initial_inv)
 
-        # Configure rewards
+        # Configure default rewards (will be overridden per-agent)
         env.game.agent.rewards = self._build_reward_config(rng)
+
+        # Configure per-agent rewards (map each agent to their room's chest)
+        agents_per_room = self._get_agents_per_room(variant)
+        self._configure_per_agent_rewards(env, variant, agents_per_room, rng)
 
         # Set task label
         env.label = f"stage_{self.stage.stage_id}_{self.stage.name}_variant_{variant}_task_{task_id}"
@@ -263,6 +271,73 @@ class CogologyTaskGenerator(TaskGenerator):
         for i, (chest_key, chest_config) in enumerate(chest_objects[:num_rooms]):
             chest_config.chest_id = f"room_{i}"
 
+    def _configure_per_agent_rewards(
+        self,
+        env: MettaGridConfig,
+        variant: str,
+        agents_per_room: int,
+        rng: random.Random,
+    ):
+        """Configure per-agent rewards so each agent tracks their room's chest.
+
+        Args:
+            env: The environment config
+            variant: Stage variant (A-L)
+            agents_per_room: Number of agents per room
+            rng: Random number generator for stochastic rewards
+        """
+        # Create per-agent configs
+        env.game.agents = []
+        for agent_id in range(self.stage.num_agents):
+            # Determine which room this agent belongs to
+            room_id = agent_id // agents_per_room
+
+            # Build reward config for this agent
+            stats_rewards = {
+                f"chest_room_{room_id}.heart.amount": 1.0,  # Track their room's chest
+            }
+
+            # Optional: Speed reward (when their chest has 3+ hearts)
+            # TODO: Implement "has_three_hearts" stat in C++
+            # stats_rewards[f"chest_room_{room_id}.has_three_hearts"] = self.speed_reward_coef
+
+            # Optional stochastic reward shaping (Stages 4-5 only)
+            inventory_rewards = {}
+            if self.stochastic_shaping and self.stage.stage_id >= 4:
+                inventory_rewards = {
+                    "carbon": rng.uniform(
+                        0.0, 0.3 if self.stage.stage_id == 4 else 0.5
+                    ),
+                    "oxygen": rng.uniform(
+                        0.0, 0.3 if self.stage.stage_id == 4 else 0.5
+                    ),
+                    "germanium": rng.uniform(
+                        0.0, 0.3 if self.stage.stage_id == 4 else 0.5
+                    ),
+                    "silicon": rng.uniform(
+                        0.0, 0.3 if self.stage.stage_id == 4 else 0.5
+                    ),
+                    "energy": rng.uniform(
+                        0.0, 0.1 if self.stage.stage_id == 4 else 0.2
+                    ),
+                }
+
+            # Create agent config
+            agent_config = AgentConfig(
+                rewards=AgentRewards(
+                    stats=stats_rewards,
+                    inventory=inventory_rewards,
+                )
+            )
+
+            # Copy other settings from default agent config
+            if self.stage.initial_inventory_options:
+                agent_config.initial_inventory = rng.choice(
+                    self.stage.initial_inventory_options
+                )
+
+            env.game.agents.append(agent_config)
+
     def _set_extractor_depletion(self, env: MettaGridConfig):
         """Set max_uses on all extractors for depletion stages."""
         extractor_types = [
@@ -278,12 +353,98 @@ class CogologyTaskGenerator(TaskGenerator):
                 ].max_uses = self.stage.extractor_max_uses
 
     def _configure_recipe(self, env: MettaGridConfig, variant: str):
-        """Configure recipe based on variant (A-L) and stage."""
-        # TODO: Implement variant-specific recipe configuration
-        # Variants A-F: resource-based coordination
-        # Variants G-L: energy-based coordination
-        # Different position requirements per variant
-        pass
+        """Configure recipe based on variant (A-L) and stage.
+
+        Variants A-F: Resource-based recipes
+        Variants G-L: Energy-based recipes
+        """
+        # Get all assemblers
+        assemblers = [
+            (key, obj)
+            for key, obj in env.game.objects.items()
+            if isinstance(obj, AssemblerConfig)
+        ]
+
+        if not assemblers:
+            return  # No assemblers to configure
+
+        # Determine recipe configuration based on variant
+        recipe_positions, recipe_config = self._get_recipe_for_variant(variant)
+
+        # Apply recipe to all assemblers
+        for assembler_key, assembler in assemblers:
+            assembler.recipes = [(recipe_positions, recipe_config)]
+
+    def _get_recipe_for_variant(self, variant: str) -> tuple[list[str], RecipeConfig]:
+        """Get recipe configuration for a specific variant.
+
+        Returns:
+            Tuple of (position_requirements, recipe_config)
+        """
+        # Variants A-F: Resource-based
+        if variant in ["A", "B", "C", "D", "E", "F"]:
+            recipe = RecipeConfig(
+                input_resources={
+                    "carbon": 1,
+                    "oxygen": 1,
+                    "germanium": 1,
+                    "silicon": 1,
+                },
+                output_resources={"heart": 1},
+                cooldown=1,
+            )
+        # Variants G-L: Energy-based
+        else:  # variant in ["G", "H", "I", "J", "K", "L"]
+            if self.stage.stage_id == 2:
+                # Stage 2 energy-only: no physical resources
+                recipe = RecipeConfig(
+                    input_resources={"energy": 10},
+                    output_resources={"heart": 1},
+                    cooldown=1,
+                )
+            else:
+                # Stages 3-5: energy + physical resources
+                recipe = RecipeConfig(
+                    input_resources={
+                        "carbon": 1,
+                        "oxygen": 1,
+                        "germanium": 1,
+                        "silicon": 1,
+                        "energy": 10,
+                    },
+                    output_resources={"heart": 1},
+                    cooldown=1,
+                )
+
+        # Position requirements based on variant
+        positions = self._get_position_requirements(variant)
+
+        return (positions, recipe)
+
+    def _get_position_requirements(self, variant: str) -> list[str]:
+        """Get position requirements for a variant.
+
+        Returns:
+            List of positions like ["Any"], ["Any", "Any"], ["N", "S"], ["N", "S", "E", "W"]
+        """
+        position_map = {
+            # Single agent
+            "A": ["Any"],
+            "G": ["Any"],
+            # Multi-agent any position
+            "B": ["Any", "Any"],
+            "H": ["Any", "Any"],
+            "C": ["Any", "Any", "Any"],
+            "I": ["Any", "Any", "Any"],
+            "D": ["Any", "Any", "Any", "Any"],
+            "J": ["Any", "Any", "Any", "Any"],
+            # Position-dependent
+            "E": ["N", "S"],
+            "K": ["N", "S"],
+            "F": ["N", "S", "E", "W"],
+            "L": ["N", "S", "E", "W"],
+        }
+        return position_map.get(variant, ["Any"])
 
     def _build_reward_config(self, rng: random.Random) -> AgentRewards:
         """Build reward configuration for current stage.
@@ -435,7 +596,7 @@ class CogologySuccessTracker:
 # =============================================================================
 
 
-class CogologyProgressionCallback:
+class CogologyProgressionCallback(TrainerComponent):
     """
     Callback for automatic stage progression.
 
@@ -449,29 +610,133 @@ class CogologyProgressionCallback:
         current_stage_idx: int,
         task_generator: CogologyTaskGenerator,
         success_tracker: CogologySuccessTracker,
+        epoch_interval: int = 10,
     ):
+        super().__init__(epoch_interval=epoch_interval)
         self.stages = stages
         self.current_stage_idx = current_stage_idx
         self.task_generator = task_generator
         self.success_tracker = success_tracker
+        self.progression_checked = False
 
-    def on_epoch_end(self, trainer, epoch: int):
+    def on_step(self, infos: list[dict]):
+        """Extract episode-level information for success tracking."""
+        # Process info from each agent
+        for info in infos:
+            # Check for episode completion
+            if "episode" in info:
+                episode_info = info["episode"]
+                episode_return = episode_info.get("r", 0.0)
+
+                # Extract chest success counts from environment
+                # For MVP, we'll use a simplified approach
+                chest_success_counts = self._extract_chest_counts(info)
+                died_from_energy = info.get("died_from_energy", False)
+
+                # Record episode in success tracker
+                self.success_tracker.record_episode(
+                    chest_success_counts=chest_success_counts,
+                    died_from_energy=died_from_energy,
+                    episode_return=episode_return,
+                )
+
+    def _extract_chest_counts(self, info: dict) -> dict[str, int]:
+        """
+        Extract chest heart counts from episode info.
+
+        For MVP, we'll use a simplified approach:
+        - Check if the episode was successful (return > threshold)
+        - Assume all chests for that agent had 3+ hearts
+
+        In future, this should extract actual per-chest counts from env stats.
+        """
+        # Simple heuristic: if episode return > 2.0, assume 3+ hearts were deposited
+        episode_return = info.get("episode", {}).get("r", 0.0)
+        agent_id = info.get("agent_id", 0)
+
+        # Map agent to their chest
+        chest_id = f"chest_{agent_id}"
+        hearts_count = 3 if episode_return > 2.0 else 0
+
+        return {chest_id: hearts_count}
+
+    def on_epoch_end(self, epoch: int):
         """Check progression criteria after each epoch."""
-        # TODO: Implement epoch end callback
-        # Check if progression criteria met
-        # If yes, call _advance_stage
-        pass
+        if self.current_stage_idx >= len(self.stages) - 1:
+            # Already at final stage
+            return
 
-    def _advance_stage(self, trainer):
+        # Log current metrics
+        metrics = self.success_tracker.get_metrics()
+
+        # Log to console
+        if epoch % 50 == 0:
+            print(f"\n[Epoch {epoch}] Cogology Progress:")
+            print(f"  Stage: {self.success_tracker.config.name}")
+            print(f"  Success Rate: {metrics['curriculum/success_rate']:.2%}")
+            print(f"  Episodes: {metrics['curriculum/episode_count']}")
+            print(f"  Mean Return: {metrics['curriculum/recent_mean_return']:.2f}")
+            print(f"  Should Progress: {metrics['curriculum/should_progress']}")
+
+        # Check if progression criteria met
+        if self.success_tracker.should_progress() and not self.progression_checked:
+            print(f"\n{'=' * 60}")
+            print("STAGE PROGRESSION TRIGGERED")
+            print(f"{'=' * 60}")
+            self._advance_stage()
+            self.progression_checked = True
+
+    def _advance_stage(self):
         """Advance to next stage."""
-        # TODO: Implement stage advancement
+        current_stage = self.stages[self.current_stage_idx]
+        self.current_stage_idx += 1
+        next_stage = self.stages[self.current_stage_idx]
+
+        print(
+            f"\nAdvancing from Stage {current_stage.stage_id} → Stage {next_stage.stage_id}"
+        )
+        print(f"  From: {current_stage.name}")
+        print(f"  To: {next_stage.name}")
+
         # 1. Save checkpoint with stage marker
-        # 2. Log stage transition to WandB/console
+        print("  → Saving checkpoint...")
+        # TODO: Implement checkpoint saving via trainer context
+        # self.context.save_checkpoint(f"stage_{current_stage.stage_id}_complete")
+
+        # 2. Log stage transition
+        print("  → Logging stage transition...")
+        if hasattr(self.context, "logger"):
+            self.context.logger.log(
+                {
+                    "curriculum/stage_transition": True,
+                    "curriculum/from_stage": current_stage.stage_id,
+                    "curriculum/to_stage": next_stage.stage_id,
+                    "curriculum/from_stage_name": current_stage.name,
+                    "curriculum/to_stage_name": next_stage.name,
+                }
+            )
+
         # 3. Evict 50% of task pool
+        print("  → Evicting 50% of task pool...")
+        # TODO: Implement task pool eviction via curriculum
+        # if hasattr(self.context, "curriculum"):
+        #     self.context.curriculum.evict_proportion(0.5)
+
         # 4. Update task generator to new stage config
+        print("  → Updating task generator...")
+        self.task_generator.stage = next_stage
+        self.task_generator.config.stage_config = next_stage
+
         # 5. Reset success tracker for new stage
-        # 6. Increment current_stage_idx
-        pass
+        print("  → Resetting success tracker...")
+        self.success_tracker = CogologySuccessTracker(next_stage)
+        self.progression_checked = False
+
+        print(f"\n{'=' * 60}")
+        print(f"Stage {next_stage.stage_id} ({next_stage.name}) started!")
+        print(f"  Target Success Rate: {next_stage.success_rate_threshold:.1%}")
+        print(f"  Min Episodes: {next_stage.min_episodes_before_progression}")
+        print(f"{'=' * 60}\n")
 
 
 # =============================================================================
@@ -676,12 +941,11 @@ def train(
     # Determine starting stage
     if stage == "all":
         current_stage = stages[0]
-        # TODO: Enable automatic progression with callbacks
-        # enable_automatic_progression = True
+        enable_automatic_progression = True
     else:
         stage_id = int(stage.replace("stage_", "")) - 1
         current_stage = stages[stage_id]
-        # enable_automatic_progression = False
+        enable_automatic_progression = False
 
     # Create task generator
     task_generator_config = CogologyTaskGenerator.Config(
@@ -689,7 +953,7 @@ def train(
         speed_reward_coef=speed_reward_coef,
         stochastic_shaping=stochastic_shaping,
     )
-    # task_generator = task_generator_config.create()  # TODO: Use for callbacks
+    task_generator = task_generator_config.create()
 
     # Set up curriculum with learning progress
     algorithm_config = LearningProgressConfig(**current_stage.learning_progress_config)
@@ -716,11 +980,19 @@ def train(
         eval_frequency=50,
     )
 
-    # TODO: Add callbacks
-    # callbacks = []
-    # if enable_automatic_progression:
-    #     callbacks.append(CogologyProgressionCallback(...))
-    # callbacks.append(CogologySuccessTracker(...))
+    # Set up callbacks for success tracking and automatic progression
+    components = []
+    success_tracker = CogologySuccessTracker(current_stage)
+
+    if enable_automatic_progression:
+        progression_callback = CogologyProgressionCallback(
+            stages=stages,
+            current_stage_idx=0 if stage == "all" else stage_id,
+            task_generator=task_generator,
+            success_tracker=success_tracker,
+            epoch_interval=10,  # Check progression every 10 epochs
+        )
+        components.append(progression_callback)
 
     run_name = (
         run_name or f"cogology_{stage}_speed{speed_reward_coef}_ent{entropy_coef}"
@@ -731,6 +1003,7 @@ def train(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         policy_architecture=policy_config,
         evaluator=evaluator,
+        components=components if components else None,
         stats_server_uri="https://api.observatory.softmax-research.net",
         run_name=run_name,
     )

@@ -216,6 +216,7 @@ class ChestConfig(GridObjectConfig):
     withdrawal_positions: list[FixedPosition] = Field(
         default_factory=list, description="Positions where agents can withdraw resources"
     )
+    chest_id: str = Field(default="", description="Unique identifier for per-chest stat tracking")
 
 
 class ClipperConfig(Config):
