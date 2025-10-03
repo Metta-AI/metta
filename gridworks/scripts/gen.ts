@@ -13,7 +13,7 @@ async function main() {
 
   chdir(mettagridDir);
 
-  const pythonCmd = `uv run python -c 'import json; from mettagrid.util.char_encoder import NAME_TO_CHAR; print(json.dumps(NAME_TO_CHAR))'`;
+  const pythonCmd = `uv run python -c 'import json; from mettagrid.mapgen.utils.ascii_grid import default_char_to_name; print(json.dumps(default_char_to_name()))'`;
 
   try {
     const output = execSync(pythonCmd, { encoding: "utf-8" });

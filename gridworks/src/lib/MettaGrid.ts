@@ -1,14 +1,14 @@
 import encoding from "./encoding.json" assert { type: "json" };
 
-const typedEncoding: Record<string, string[]> = encoding;
+const typedEncoding: Record<string, string> = encoding;
 
 const asciiToNameCache = new Map<string, string>();
 function asciiToName(ascii: string): string {
   if (asciiToNameCache.has(ascii)) {
     return asciiToNameCache.get(ascii)!;
   }
-  for (const [name, chars] of Object.entries(typedEncoding)) {
-    if (chars.includes(ascii)) {
+  for (const [name, char] of Object.entries(typedEncoding)) {
+    if (char === ascii) {
       asciiToNameCache.set(ascii, name);
       return name;
     }
@@ -20,7 +20,7 @@ function nameToAscii(name: string): string {
   if (!typedEncoding[name]) {
     throw new Error(`Invalid object name: '${name}'`);
   }
-  return typedEncoding[name][0]!;
+  return typedEncoding[name]!;
 }
 
 export type Cell = {

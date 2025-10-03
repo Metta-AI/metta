@@ -10,7 +10,7 @@ import { YamlContext } from "./YamlContext";
 const JsonSchemaInfo: FC<{
   schema: JsonSchema;
 }> = ({ schema }) => {
-  let typeStr = getSchemaTypeStr(schema);
+  const typeStr = getSchemaTypeStr(schema);
   return (
     <div>
       <span className="font-semibold">Type:</span> {typeStr}
@@ -24,7 +24,8 @@ const JsonSchemaInfo: FC<{
 };
 
 const YamlKeyTooltip: FC<{ node: ConfigNode }> = ({ node }) => {
-  const schema: JsonSchema | undefined = useNodeSchema(node);
+  const { schema } = useNodeSchema(node);
+  const { showDebugInfo } = use(YamlContext);
 
   return (
     <div className="max-w-[80ch] text-xs">
@@ -32,6 +33,7 @@ const YamlKeyTooltip: FC<{ node: ConfigNode }> = ({ node }) => {
       {schema ? (
         <div className="mt-2 border-t border-gray-200 pt-2">
           <JsonSchemaInfo schema={schema} />
+          {showDebugInfo && <pre>{JSON.stringify(schema, null, 2)}</pre>}
         </div>
       ) : null}
     </div>
@@ -55,6 +57,8 @@ export const YamlKey: FC<{
     </span>
   );
   return (
-    <Tooltip render={() => <YamlKeyTooltip node={node} />}>{result}</Tooltip>
+    <div className="flex">
+      <Tooltip render={() => <YamlKeyTooltip node={node} />}>{result}</Tooltip>
+    </div>
   );
 };

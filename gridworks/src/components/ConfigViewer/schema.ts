@@ -171,14 +171,24 @@ function parseKind(kind: string): JsonSchema {
   return { $ref: "#/$defs/" + kind };
 }
 
-export function useNodeSchema(node: ConfigNode): JsonSchema | undefined {
+type NodeSchemaLookupDebugInfo = {};
+
+type NodeSchemaResult = {
+  schema: JsonSchema | undefined;
+  debugInfo: NodeSchemaLookupDebugInfo;
+};
+
+export function useNodeSchema(node: ConfigNode): NodeSchemaResult {
+  const debugInfo: NodeSchemaLookupDebugInfo = {};
+
   const { kind } = use(YamlContext);
   if (!kind) {
-    return undefined;
+    return { schema: undefined, debugInfo };
   }
+
   const initialType = resolveType(parseKind(kind));
   if (!initialType) {
-    return undefined;
+    return { schema: undefined, debugInfo };
   }
   let currentType: JsonSchema = initialType;
 
@@ -198,31 +208,28 @@ export function useNodeSchema(node: ConfigNode): JsonSchema | undefined {
     return currentValue ?? null;
   };
 
-  for (const part of node.path) {
+  for (let i = 0; i < node.path.length; i++) {
+    const part = node.path[i];
     let nextType: JsonSchema | undefined;
 
-    console.log(part);
-    if (part === "map_builder" || part === "game")
-      console.log(part, currentType);
-
     if (!("type" in currentType)) {
-      return undefined;
+      return { schema: undefined, debugInfo };
     }
 
     if (part.match(/^\d+$/)) {
       if (currentType.type !== "array" || !currentType.items) {
-        return undefined;
+        return { schema: undefined, debugInfo };
       }
       nextType = currentType.items;
       if (!nextType) {
-        return undefined;
+        return { schema: undefined, debugInfo };
       }
       currentType = resolveType(nextType)!;
       continue;
     }
 
     if (currentType.type !== "object") {
-      return undefined;
+      return { schema: undefined, debugInfo };
     }
 
     if (
@@ -247,10 +254,32 @@ export function useNodeSchema(node: ConfigNode): JsonSchema | undefined {
     if (nextType) {
       currentType = resolveType(nextType)!;
     } else {
-      return undefined;
+      return { schema: undefined, debugInfo };
+    }
+
+    // Resolve polymorphic types
+    if (
+      "title" in currentType &&
+      currentType.title === "MapBuilderConfig[Any]"
+    ) {
+      // polymorphic type
+      const currentValue = getValueByPath(node.path.slice(0, i + 1));
+      if (
+        currentValue &&
+        typeof currentValue === "object" &&
+        "type" in currentValue
+      ) {
+        const typeModule = String(currentValue["type"]);
+        const type = typeModule.split(".").join("__") + "__Config";
+        if (type in mettaSchemas.$defs) {
+          currentType = resolveType({ $ref: "#/$defs/" + type })!;
+        } else {
+          console.warn("Unknown type", typeModule);
+        }
+      }
     }
   }
-  return currentType;
+  return { schema: currentType, debugInfo };
 }
 
 export function getSchemaTypeStr(property: JsonSchema): string {
