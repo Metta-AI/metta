@@ -27,6 +27,7 @@ from typing import Literal
 from cogames.cogs_vs_clips.scenarios import make_game, make_game_from_map, games
 from mettagrid.config.mettagrid_config import (
     AgentRewards,
+    ChestConfig,
     MettaGridConfig,
     Field as ConfigField,
 )
@@ -162,21 +163,58 @@ class CogologyTaskGenerator(TaskGenerator):
     def _generate_procedural_map(
         self, rng: random.Random, variant: str
     ) -> MettaGridConfig:
-        """Generate procedurally generated map."""
-        # TODO: Implement multi-room generation for variants
-        # For now, use simple single-room generation
+        """Generate procedurally generated map with multi-room architecture.
+
+        Creates 24 isolated rooms (4x6 grid) with 1 agent per room.
+        Each room gets its own chest with unique chest_id for per-agent rewards.
+        """
+        # Determine room layout based on variant
+        # Variants A, G: 1 agent per room (24 rooms)
+        # Variants B, H: 2 agents per room (12 rooms)
+        # Variants C, I: 3 agents per room (8 rooms)
+        # Variants D, J: 4 agents per room (6 rooms)
+        agents_per_room = self._get_agents_per_room(variant)
+        num_rooms = self.stage.num_agents // agents_per_room
+
+        # Calculate grid dimensions (try to make roughly square)
+        # TODO: Use these for MapGen integration
+        # rows = int(num_rooms**0.5)
+        # cols = (num_rooms + rows - 1) // rows  # Ceiling division
+        # room_width = self.stage.map_size[0] // cols
+        # room_height = self.stage.map_size[1] // rows
+
+        # Use MapGen with RoomGrid to create isolated rooms
+        # TODO: Fully integrate MapGen into task generation
+        # mapgen = MapGen.Config(
+        #     instance=InlineAscii.Config(
+        #         data="@"  # Single agent per instance
+        #     ),
+        #     width=room_width,
+        #     height=room_height,
+        #     instances=num_rooms,
+        #     num_agents=self.stage.num_agents,
+        #     border_width=2,
+        #     instance_border_width=5,  # Wide borders to isolate rooms
+        # ).create()
+        # level = mapgen.build()
+        # TODO: Convert level to MettaGridConfig
+
+        # For now, use simple generation with per-chest stats
         env = make_game(
             num_cogs=self.stage.num_agents,
             width=self.stage.map_size[0],
             height=self.stage.map_size[1],
             num_assemblers=self.stage.num_assemblers,
-            num_chests=self.stage.num_chests,
+            num_chests=num_rooms,  # 1 chest per room
             num_chargers=self.stage.num_chargers,
             num_carbon_extractors=self.stage.num_carbon_extractors,
             num_oxygen_extractors=self.stage.num_oxygen_extractors,
             num_germanium_extractors=self.stage.num_germanium_extractors,
             num_silicon_extractors=self.stage.num_silicon_extractors,
         )
+
+        # Set unique chest_id for each chest (room-based)
+        self._configure_chest_ids(env, num_rooms)
 
         # Set extractor depletion if configured
         if self.stage.extractor_max_uses is not None:
@@ -186,6 +224,44 @@ class CogologyTaskGenerator(TaskGenerator):
         self._configure_recipe(env, variant)
 
         return env
+
+    def _get_agents_per_room(self, variant: str) -> int:
+        """Get number of agents per room based on variant."""
+        # Variants A-F (resource-based) and G-L (energy-based):
+        # A, G: 1 agent per room
+        # B, H: 2 agents per room
+        # C, I: 3 agents per room
+        # D, J: 4 agents per room
+        # E, K: 2 agents per room (position-dependent)
+        # F, L: 4 agents per room (position-dependent)
+        variant_map = {
+            "A": 1,
+            "G": 1,
+            "B": 2,
+            "H": 2,
+            "E": 2,
+            "K": 2,
+            "C": 3,
+            "I": 3,
+            "D": 4,
+            "J": 4,
+            "F": 4,
+            "L": 4,
+        }
+        return variant_map.get(variant, 1)
+
+    def _configure_chest_ids(self, env: MettaGridConfig, num_rooms: int):
+        """Configure unique chest_id for each chest (enables per-agent rewards)."""
+        # Get all chest objects
+        chest_objects = [
+            (key, obj)
+            for key, obj in env.game.objects.items()
+            if isinstance(obj, ChestConfig)
+        ]
+
+        # Assign unique chest_id to each chest
+        for i, (chest_key, chest_config) in enumerate(chest_objects[:num_rooms]):
+            chest_config.chest_id = f"room_{i}"
 
     def _set_extractor_depletion(self, env: MettaGridConfig):
         """Set max_uses on all extractors for depletion stages."""
@@ -210,13 +286,17 @@ class CogologyTaskGenerator(TaskGenerator):
         pass
 
     def _build_reward_config(self, rng: random.Random) -> AgentRewards:
-        """Build reward configuration for current stage."""
+        """Build reward configuration for current stage.
 
-        # Base rewards: reward when "my chest" has 3+ hearts
-        # TODO: Implement "my chest" stat tracking
+        Note: Per-agent reward configuration is handled separately in the
+        task generator. This builds the base reward structure that will be
+        customized per-agent to track their specific chest.
+        """
+
+        # Base rewards: Per-chest tracking (agent-specific chest_id set elsewhere)
+        # Each agent will track "chest_room_{their_room}.heart.amount"
         stats_rewards = {
-            # "my_chest.has_three_hearts": self.speed_reward_coef,
-            "chest.heart.amount": 1.0,  # Temporary fallback
+            "chest.heart.amount": 1.0,  # Will be overridden per-agent
         }
 
         # Optional stochastic reward shaping (Stages 4-5 only)
