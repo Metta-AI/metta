@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Callable
 
 from pydantic import BaseModel, ConfigDict
 
@@ -147,9 +147,3 @@ GAMES_CATALOG: list[GameCatalogEntry] = [
     GameCatalogEntry(map_name="training_facility_4", generate=make_game_from_map("training_facility_tight_4.map")),
     GameCatalogEntry(map_name="training_facility_5", generate=make_game_from_map("training_facility_tight_5.map")),
 ]
-
-
-def games(mission_name: Optional[str], *args: Any, **kwargs: Any) -> dict[str, MettaGridConfig]:
-    return {
-        game.map_name: game.generate(mission_name or game.default_mission, *args, **kwargs) for game in GAMES_CATALOG
-    }

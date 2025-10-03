@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic import BaseModel
 
 from cogames.cogs_vs_clips.stations import (
@@ -41,10 +43,10 @@ class Mission(BaseModel):
     game: GameConfig
 
 
-def _default_mission(num_agents: int) -> Mission:
+def _default_mission(num_agents: Optional[int] = None) -> Mission:
     game = GameConfig(
         resource_names=resources,
-        num_agents=num_agents,
+        num_agents=num_agents or 4,
         actions=ActionsConfig(
             move=ActionConfig(consumed_resources={"energy": 2}),
             noop=ActionConfig(),
@@ -122,8 +124,8 @@ def _default_mission(num_agents: int) -> Mission:
     return Mission(name="default", description="Default mission", game=game)
 
 
-def energy_intensive(num_agents: int = 4) -> Mission:
-    mission = _default_mission(num_agents)
+def energy_intensive(num_agents: Optional[int] = None) -> Mission:
+    mission = _default_mission(num_agents or 4)
     mission.name = "energy_intensive"
     mission.description = "Energy intensive mission"
     mission.game.actions.move.consumed_resources = {"energy": 5}
@@ -138,7 +140,7 @@ def energy_intensive(num_agents: int = 4) -> Mission:
     return mission
 
 
-def get_all_missions(num_agents: int = 4) -> dict[str, Mission]:
+def get_all_missions(num_agents: Optional[int] = None) -> dict[str, Mission]:
     return {
         "default": _default_mission(num_agents),
         "energy_intensive": energy_intensive(num_agents),
