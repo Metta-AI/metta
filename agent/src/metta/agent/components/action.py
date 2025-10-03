@@ -10,7 +10,7 @@ from metta.rl.training import EnvironmentMetaData
 class ActionEmbeddingConfig(ComponentConfig):
     out_key: str
     name: str = "action_embedding"
-    num_embeddings: int = 100
+    num_embeddings: int = 192
     embedding_dim: int = 16
 
     def make_component(self, env=None):
