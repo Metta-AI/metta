@@ -1089,11 +1089,12 @@ def train(
     # Determine starting stage
     if stage == "all":
         current_stage = stages[0]
-        # enable_automatic_progression = True  # TODO: Re-enable when components integrated
+        stage_id = 0
+        enable_automatic_progression = True
     else:
         stage_id = int(stage.replace("stage_", "")) - 1
         current_stage = stages[stage_id]
-        # enable_automatic_progression = False  # TODO: Re-enable when components integrated
+        enable_automatic_progression = False
 
     # Create task generator
     task_generator_config = CogologyTaskGenerator.Config(
@@ -1101,7 +1102,7 @@ def train(
         speed_reward_coef=speed_reward_coef,
         stochastic_shaping=stochastic_shaping,
     )
-    # task_generator = task_generator_config.create()  # TODO: Use for callbacks
+    task_generator = task_generator_config.create()
 
     # Set up curriculum with learning progress
     algorithm_config = LearningProgressConfig(**current_stage.learning_progress_config)
@@ -1132,19 +1133,17 @@ def train(
     )
 
     # Set up callbacks for success tracking and automatic progression
-    # TODO: Components need to be integrated via trainer, not TrainTool
-    # components = []
-    # success_tracker = CogologySuccessTracker(current_stage)
-    #
-    # if enable_automatic_progression:
-    #     progression_callback = CogologyProgressionCallback(
-    #         stages=stages,
-    #         current_stage_idx=0 if stage == "all" else stage_id,
-    #         task_generator=task_generator,
-    #         success_tracker=success_tracker,
-    #         epoch_interval=10,
-    #     )
-    #     components.append(progression_callback)
+    progression_callbacks = []
+    if enable_automatic_progression:
+        success_tracker = CogologySuccessTracker(current_stage)
+        progression_callback = CogologyProgressionCallback(
+            stages=stages,
+            current_stage_idx=stage_id,
+            task_generator=task_generator,
+            success_tracker=success_tracker,
+            epoch_interval=10,  # Check for progression every 10 epochs
+        )
+        progression_callbacks.append(progression_callback)
 
     final_run_name = (
         run_name or f"cogology_{stage}_speed{speed_reward_coef}_ent{entropy_coef}"
@@ -1157,6 +1156,7 @@ def train(
         policy_architecture=policy_config,
         evaluator=evaluator,
         stats_server_uri="https://api.observatory.softmax-research.net",
+        training_components=progression_callbacks,
     )
 
 

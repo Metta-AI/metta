@@ -2,7 +2,7 @@ import contextlib
 import os
 import platform
 from datetime import timedelta
-from typing import Optional
+from typing import Any, Optional
 
 import torch
 from pydantic import Field, model_validator
@@ -73,6 +73,12 @@ class TrainTool(Tool):
     context_checkpointer: ContextCheckpointerConfig = Field(default_factory=ContextCheckpointerConfig)
     stats_reporter: StatsReporterConfig = Field(default_factory=StatsReporterConfig)
     wandb_aborter: WandbAborterConfig = Field(default_factory=WandbAborterConfig)
+
+    training_components: list[Any] = Field(
+        default_factory=list,
+        description="Additional trainer components to register (e.g., curriculum progression callbacks)",
+        exclude=True,  # Exclude from serialization to avoid JSON errors
+    )
 
     map_preview_uri: str | None = None
     disable_macbook_optimize: bool = False
@@ -277,6 +283,9 @@ class TrainTool(Tool):
                     is_master=True,
                 )
             )
+
+        # Add training components (e.g., curriculum progression callbacks)
+        components.extend(self.training_components)
 
         for component in components:
             if component is None:
