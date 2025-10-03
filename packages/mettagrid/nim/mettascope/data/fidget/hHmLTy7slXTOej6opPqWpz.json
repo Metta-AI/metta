@@ -36259,7 +36259,7 @@
                   }
                 ],
                 "blendMode": "PASS_THROUGH",
-                "clipsContent": true,
+                "clipsContent": false,
                 "background": [],
                 "fills": [],
                 "strokes": [],
@@ -36276,12 +36276,7 @@
                 "paddingRight": 10.0,
                 "itemSpacing": 10.0,
                 "layoutWrap": "NO_WRAP",
-                "fillGeometry": [
-                  {
-                    "path": "M0 0L184 0L184 50L0 50L0 0Z",
-                    "windingRule": "NONZERO"
-                  }
-                ],
+                "fillGeometry": [],
                 "strokeGeometry": [],
                 "absoluteBoundingBox": {
                   "x": 3272.0,
@@ -36573,7 +36568,7 @@
                           }
                         ],
                         "blendMode": "PASS_THROUGH",
-                        "clipsContent": true,
+                        "clipsContent": false,
                         "background": [
                           {
                             "blendMode": "NORMAL",
@@ -36673,7 +36668,7 @@
                       }
                     ],
                     "blendMode": "PASS_THROUGH",
-                    "clipsContent": true,
+                    "clipsContent": false,
                     "background": [],
                     "fills": [],
                     "strokes": [],
@@ -36694,12 +36689,7 @@
                     "paddingBottom": 4.0,
                     "itemSpacing": 8.0,
                     "layoutWrap": "NO_WRAP",
-                    "fillGeometry": [
-                      {
-                        "path": "M0 0L358 0L358 72L0 72L0 0Z",
-                        "windingRule": "NONZERO"
-                      }
-                    ],
+                    "fillGeometry": [],
                     "strokeGeometry": [],
                     "absoluteBoundingBox": {
                       "x": 3273.0,
@@ -36742,7 +36732,7 @@
                   }
                 ],
                 "blendMode": "PASS_THROUGH",
-                "clipsContent": true,
+                "clipsContent": false,
                 "background": [],
                 "fills": [],
                 "strokes": [],
@@ -36762,12 +36752,7 @@
                 "paddingBottom": 2.0,
                 "itemSpacing": 10.0,
                 "layoutWrap": "NO_WRAP",
-                "fillGeometry": [
-                  {
-                    "path": "M0 0L360 0L360 107L0 107L0 0Z",
-                    "windingRule": "NONZERO"
-                  }
-                ],
+                "fillGeometry": [],
                 "strokeGeometry": [],
                 "absoluteBoundingBox": {
                   "x": 3272.0,
@@ -37317,6 +37302,7 @@
                           {
                             "id": "2448:654",
                             "overriddenFields": [
+                              "clipsContent",
                               "height",
                               "name",
                               "width"
@@ -37393,7 +37379,7 @@
                           }
                         ],
                         "blendMode": "PASS_THROUGH",
-                        "clipsContent": true,
+                        "clipsContent": false,
                         "background": [],
                         "fills": [],
                         "strokes": [],
@@ -37405,12 +37391,7 @@
                           "b": 0.0,
                           "a": 0.0
                         },
-                        "fillGeometry": [
-                          {
-                            "path": "M0 0L20 0L20 20L0 20L0 0Z",
-                            "windingRule": "NONZERO"
-                          }
-                        ],
+                        "fillGeometry": [],
                         "strokeGeometry": [],
                         "absoluteBoundingBox": {
                           "x": 3322.0,
@@ -37923,7 +37904,7 @@
                   }
                 ],
                 "blendMode": "PASS_THROUGH",
-                "clipsContent": true,
+                "clipsContent": false,
                 "background": [],
                 "fills": [],
                 "strokes": [],
@@ -37943,12 +37924,7 @@
                 "paddingBottom": 2.0,
                 "itemSpacing": 10.0,
                 "layoutWrap": "NO_WRAP",
-                "fillGeometry": [
-                  {
-                    "path": "M0 0L360 0L360 107L0 107L0 0Z",
-                    "windingRule": "NONZERO"
-                  }
-                ],
+                "fillGeometry": [],
                 "strokeGeometry": [],
                 "absoluteBoundingBox": {
                   "x": 3272.0,
@@ -38011,6 +37987,7 @@
                           {
                             "id": "2448:660",
                             "overriddenFields": [
+                              "clipsContent",
                               "height",
                               "width"
                             ]
@@ -38154,7 +38131,7 @@
                           }
                         ],
                         "blendMode": "PASS_THROUGH",
-                        "clipsContent": true,
+                        "clipsContent": false,
                         "background": [],
                         "fills": [],
                         "strokes": [],
@@ -38166,12 +38143,7 @@
                           "b": 0.0,
                           "a": 0.0
                         },
-                        "fillGeometry": [
-                          {
-                            "path": "M0 0L20 0L20 20L0 20L0 0Z",
-                            "windingRule": "NONZERO"
-                          }
-                        ],
+                        "fillGeometry": [],
                         "strokeGeometry": [],
                         "absoluteBoundingBox": {
                           "x": 3285.0,
@@ -38408,7 +38380,7 @@
                   }
                 ],
                 "blendMode": "PASS_THROUGH",
-                "clipsContent": true,
+                "clipsContent": false,
                 "background": [],
                 "fills": [],
                 "strokes": [],
@@ -38427,12 +38399,7 @@
                 "paddingBottom": 2.0,
                 "itemSpacing": 10.0,
                 "layoutWrap": "NO_WRAP",
-                "fillGeometry": [
-                  {
-                    "path": "M0 0L124 0L124 46L0 46L0 0Z",
-                    "windingRule": "NONZERO"
-                  }
-                ],
+                "fillGeometry": [],
                 "strokeGeometry": [],
                 "absoluteBoundingBox": {
                   "x": 3272.0,
@@ -38475,7 +38442,7 @@
               }
             ],
             "blendMode": "PASS_THROUGH",
-            "clipsContent": true,
+            "clipsContent": false,
             "background": [],
             "fills": [],
             "strokes": [],
@@ -38495,12 +38462,7 @@
             "paddingBottom": 20.0,
             "itemSpacing": 10.0,
             "layoutWrap": "NO_WRAP",
-            "fillGeometry": [
-              {
-                "path": "M0 0L400 0L400 380L0 380L0 0Z",
-                "windingRule": "NONZERO"
-              }
-            ],
+            "fillGeometry": [],
             "strokeGeometry": [],
             "absoluteBoundingBox": {
               "x": 3252.0,
@@ -38562,6 +38524,7 @@
                       {
                         "id": "2467:523",
                         "overriddenFields": [
+                          "clipsContent",
                           "height",
                           "width"
                         ]
@@ -38705,7 +38668,7 @@
                       }
                     ],
                     "blendMode": "PASS_THROUGH",
-                    "clipsContent": true,
+                    "clipsContent": false,
                     "background": [],
                     "fills": [],
                     "strokes": [],
@@ -38717,12 +38680,7 @@
                       "b": 0.0,
                       "a": 0.0
                     },
-                    "fillGeometry": [
-                      {
-                        "path": "M0 0L20 0L20 20L0 20L0 0Z",
-                        "windingRule": "NONZERO"
-                      }
-                    ],
+                    "fillGeometry": [],
                     "strokeGeometry": [],
                     "absoluteBoundingBox": {
                       "x": 3742.0,
@@ -38851,7 +38809,7 @@
                   }
                 ],
                 "blendMode": "PASS_THROUGH",
-                "clipsContent": true,
+                "clipsContent": false,
                 "background": [
                   {
                     "blendMode": "NORMAL",
@@ -38959,7 +38917,7 @@
               }
             ],
             "blendMode": "PASS_THROUGH",
-            "clipsContent": true,
+            "clipsContent": false,
             "background": [],
             "fills": [],
             "strokes": [],
@@ -38980,12 +38938,7 @@
             "paddingBottom": 20.0,
             "itemSpacing": 10.0,
             "layoutWrap": "NO_WRAP",
-            "fillGeometry": [
-              {
-                "path": "M0 0L198 0L198 82L0 82L0 0Z",
-                "windingRule": "NONZERO"
-              }
-            ],
+            "fillGeometry": [],
             "strokeGeometry": [],
             "absoluteBoundingBox": {
               "x": 3710.0,
@@ -39070,6 +39023,7 @@
                           {
                             "id": "I2384:616;2380:1324",
                             "overriddenFields": [
+                              "clipsContent",
                               "fills",
                               "name"
                             ]
@@ -39086,6 +39040,7 @@
                               {
                                 "id": "I2384:616;2380:1324",
                                 "overriddenFields": [
+                                  "clipsContent",
                                   "fills",
                                   "name"
                                 ]
@@ -39299,7 +39254,7 @@
                               }
                             ],
                             "blendMode": "PASS_THROUGH",
-                            "clipsContent": true,
+                            "clipsContent": false,
                             "background": [],
                             "fills": [],
                             "strokes": [],
@@ -39311,12 +39266,7 @@
                               "b": 0.0,
                               "a": 0.0
                             },
-                            "fillGeometry": [
-                              {
-                                "path": "M0 0L32 0L32 32L0 32L0 0Z",
-                                "windingRule": "NONZERO"
-                              }
-                            ],
+                            "fillGeometry": [],
                             "strokeGeometry": [],
                             "absoluteBoundingBox": {
                               "x": 1809.0,
@@ -39482,6 +39432,7 @@
                           {
                             "id": "I2384:624;2380:1324",
                             "overriddenFields": [
+                              "clipsContent",
                               "fills",
                               "name"
                             ]
@@ -39498,6 +39449,7 @@
                               {
                                 "id": "I2384:624;2380:1324",
                                 "overriddenFields": [
+                                  "clipsContent",
                                   "fills",
                                   "name"
                                 ]
@@ -39579,7 +39531,7 @@
                               }
                             ],
                             "blendMode": "PASS_THROUGH",
-                            "clipsContent": true,
+                            "clipsContent": false,
                             "background": [],
                             "fills": [],
                             "strokes": [],
@@ -39591,12 +39543,7 @@
                               "b": 0.0,
                               "a": 0.0
                             },
-                            "fillGeometry": [
-                              {
-                                "path": "M0 0L32 0L32 32L0 32L0 0Z",
-                                "windingRule": "NONZERO"
-                              }
-                            ],
+                            "fillGeometry": [],
                             "strokeGeometry": [],
                             "absoluteBoundingBox": {
                               "x": 1850.0,
@@ -39762,6 +39709,7 @@
                           {
                             "id": "I2384:632;2380:1324",
                             "overriddenFields": [
+                              "clipsContent",
                               "fills",
                               "name"
                             ]
@@ -39778,6 +39726,7 @@
                               {
                                 "id": "I2384:632;2380:1324",
                                 "overriddenFields": [
+                                  "clipsContent",
                                   "fills",
                                   "name"
                                 ]
@@ -39852,7 +39801,7 @@
                               }
                             ],
                             "blendMode": "PASS_THROUGH",
-                            "clipsContent": true,
+                            "clipsContent": false,
                             "background": [],
                             "fills": [],
                             "strokes": [],
@@ -39864,12 +39813,7 @@
                               "b": 0.0,
                               "a": 0.0
                             },
-                            "fillGeometry": [
-                              {
-                                "path": "M0 0L32 0L32 32L0 32L0 0Z",
-                                "windingRule": "NONZERO"
-                              }
-                            ],
+                            "fillGeometry": [],
                             "strokeGeometry": [],
                             "absoluteBoundingBox": {
                               "x": 1891.0,
@@ -40035,6 +39979,7 @@
                           {
                             "id": "I2384:640;2380:1324",
                             "overriddenFields": [
+                              "clipsContent",
                               "fills",
                               "name"
                             ]
@@ -40051,6 +39996,7 @@
                               {
                                 "id": "I2384:640;2380:1324",
                                 "overriddenFields": [
+                                  "clipsContent",
                                   "fills",
                                   "name"
                                 ]
@@ -40130,7 +40076,7 @@
                               }
                             ],
                             "blendMode": "PASS_THROUGH",
-                            "clipsContent": true,
+                            "clipsContent": false,
                             "background": [],
                             "fills": [],
                             "strokes": [],
@@ -40142,12 +40088,7 @@
                               "b": 0.0,
                               "a": 0.0
                             },
-                            "fillGeometry": [
-                              {
-                                "path": "M0 0L32 0L32 32L0 32L0 0Z",
-                                "windingRule": "NONZERO"
-                              }
-                            ],
+                            "fillGeometry": [],
                             "strokeGeometry": [],
                             "absoluteBoundingBox": {
                               "x": 1932.0,
@@ -40313,6 +40254,7 @@
                           {
                             "id": "I2384:648;2380:1324",
                             "overriddenFields": [
+                              "clipsContent",
                               "fills",
                               "name"
                             ]
@@ -40329,6 +40271,7 @@
                               {
                                 "id": "I2384:648;2380:1324",
                                 "overriddenFields": [
+                                  "clipsContent",
                                   "fills",
                                   "name"
                                 ]
@@ -40543,7 +40486,7 @@
                               }
                             ],
                             "blendMode": "PASS_THROUGH",
-                            "clipsContent": true,
+                            "clipsContent": false,
                             "background": [],
                             "fills": [],
                             "strokes": [],
@@ -40555,12 +40498,7 @@
                               "b": 0.0,
                               "a": 0.0
                             },
-                            "fillGeometry": [
-                              {
-                                "path": "M0 0L32 0L32 32L0 32L0 0Z",
-                                "windingRule": "NONZERO"
-                              }
-                            ],
+                            "fillGeometry": [],
                             "strokeGeometry": [],
                             "absoluteBoundingBox": {
                               "x": 1973.0,
@@ -40771,6 +40709,7 @@
                           {
                             "id": "2364:345",
                             "overriddenFields": [
+                              "clipsContent",
                               "fills",
                               "name"
                             ]
@@ -40847,7 +40786,7 @@
                           }
                         ],
                         "blendMode": "PASS_THROUGH",
-                        "clipsContent": true,
+                        "clipsContent": false,
                         "background": [
                           {
                             "blendMode": "NORMAL",
@@ -40937,6 +40876,7 @@
                           {
                             "id": "2364:346",
                             "overriddenFields": [
+                              "clipsContent",
                               "fills",
                               "name"
                             ]
@@ -41133,7 +41073,7 @@
                           }
                         ],
                         "blendMode": "PASS_THROUGH",
-                        "clipsContent": true,
+                        "clipsContent": false,
                         "background": [
                           {
                             "blendMode": "NORMAL",
@@ -41223,6 +41163,7 @@
                           {
                             "id": "2364:347",
                             "overriddenFields": [
+                              "clipsContent",
                               "fills",
                               "name"
                             ]
@@ -41419,7 +41360,7 @@
                           }
                         ],
                         "blendMode": "PASS_THROUGH",
-                        "clipsContent": true,
+                        "clipsContent": false,
                         "background": [
                           {
                             "blendMode": "NORMAL",
@@ -41509,6 +41450,7 @@
                           {
                             "id": "2364:348",
                             "overriddenFields": [
+                              "clipsContent",
                               "fills",
                               "name"
                             ]
@@ -41705,7 +41647,7 @@
                           }
                         ],
                         "blendMode": "PASS_THROUGH",
-                        "clipsContent": true,
+                        "clipsContent": false,
                         "background": [
                           {
                             "blendMode": "NORMAL",
@@ -41795,6 +41737,7 @@
                           {
                             "id": "2364:349",
                             "overriddenFields": [
+                              "clipsContent",
                               "fills",
                               "name"
                             ]
@@ -41991,7 +41934,7 @@
                           }
                         ],
                         "blendMode": "PASS_THROUGH",
-                        "clipsContent": true,
+                        "clipsContent": false,
                         "background": [
                           {
                             "blendMode": "NORMAL",
@@ -42081,6 +42024,7 @@
                           {
                             "id": "2364:350",
                             "overriddenFields": [
+                              "clipsContent",
                               "fills",
                               "name"
                             ]
@@ -42155,7 +42099,7 @@
                           }
                         ],
                         "blendMode": "PASS_THROUGH",
-                        "clipsContent": true,
+                        "clipsContent": false,
                         "background": [
                           {
                             "blendMode": "NORMAL",
@@ -42322,6 +42266,12 @@
                             "overriddenFields": [
                               "name"
                             ]
+                          },
+                          {
+                            "id": "I2380:1354;2380:1324",
+                            "overriddenFields": [
+                              "clipsContent"
+                            ]
                           }
                         ],
                         "children": [
@@ -42331,7 +42281,14 @@
                             "type": "INSTANCE",
                             "scrollBehavior": "SCROLLS",
                             "componentId": "1:130",
-                            "overrides": [],
+                            "overrides": [
+                              {
+                                "id": "I2380:1354;2380:1324",
+                                "overriddenFields": [
+                                  "clipsContent"
+                                ]
+                              }
+                            ],
                             "children": [
                               {
                                 "id": "I2380:1354;2380:1324;1:78",
@@ -42660,7 +42617,7 @@
                               }
                             ],
                             "blendMode": "PASS_THROUGH",
-                            "clipsContent": true,
+                            "clipsContent": false,
                             "background": [],
                             "fills": [],
                             "strokes": [],
@@ -42672,12 +42629,7 @@
                               "b": 0.0,
                               "a": 0.0
                             },
-                            "fillGeometry": [
-                              {
-                                "path": "M0 0L32 0L32 32L0 32L0 0Z",
-                                "windingRule": "NONZERO"
-                              }
-                            ],
+                            "fillGeometry": [],
                             "strokeGeometry": [],
                             "absoluteBoundingBox": {
                               "x": 2763.0,
@@ -42911,6 +42863,7 @@
                           {
                             "id": "I2380:1362;2380:1324",
                             "overriddenFields": [
+                              "clipsContent",
                               "fills",
                               "name"
                             ]
@@ -42927,6 +42880,7 @@
                               {
                                 "id": "I2380:1362;2380:1324",
                                 "overriddenFields": [
+                                  "clipsContent",
                                   "fills",
                                   "name"
                                 ]
@@ -43193,7 +43147,7 @@
                               }
                             ],
                             "blendMode": "PASS_THROUGH",
-                            "clipsContent": true,
+                            "clipsContent": false,
                             "background": [],
                             "fills": [],
                             "strokes": [],
@@ -43205,12 +43159,7 @@
                               "b": 0.0,
                               "a": 0.0
                             },
-                            "fillGeometry": [
-                              {
-                                "path": "M0 0L32 0L32 32L0 32L0 0Z",
-                                "windingRule": "NONZERO"
-                              }
-                            ],
+                            "fillGeometry": [],
                             "strokeGeometry": [],
                             "absoluteBoundingBox": {
                               "x": 2810.0,
@@ -43376,6 +43325,7 @@
                           {
                             "id": "I2380:1370;2380:1324",
                             "overriddenFields": [
+                              "clipsContent",
                               "fills",
                               "name"
                             ]
@@ -43392,6 +43342,7 @@
                               {
                                 "id": "I2380:1370;2380:1324",
                                 "overriddenFields": [
+                                  "clipsContent",
                                   "fills",
                                   "name"
                                 ]
@@ -43965,7 +43916,7 @@
                               }
                             ],
                             "blendMode": "PASS_THROUGH",
-                            "clipsContent": true,
+                            "clipsContent": false,
                             "background": [],
                             "fills": [],
                             "strokes": [],
@@ -43977,12 +43928,7 @@
                               "b": 0.0,
                               "a": 0.0
                             },
-                            "fillGeometry": [
-                              {
-                                "path": "M0 0L32 0L32 32L0 32L0 0Z",
-                                "windingRule": "NONZERO"
-                              }
-                            ],
+                            "fillGeometry": [],
                             "strokeGeometry": [],
                             "absoluteBoundingBox": {
                               "x": 2851.0,
@@ -44148,6 +44094,7 @@
                           {
                             "id": "I2380:1378;2380:1324",
                             "overriddenFields": [
+                              "clipsContent",
                               "fills",
                               "name"
                             ]
@@ -44164,6 +44111,7 @@
                               {
                                 "id": "I2380:1378;2380:1324",
                                 "overriddenFields": [
+                                  "clipsContent",
                                   "fills",
                                   "name"
                                 ]
@@ -44496,7 +44444,7 @@
                               }
                             ],
                             "blendMode": "PASS_THROUGH",
-                            "clipsContent": true,
+                            "clipsContent": false,
                             "background": [],
                             "fills": [],
                             "strokes": [],
@@ -44508,12 +44456,7 @@
                               "b": 0.0,
                               "a": 0.0
                             },
-                            "fillGeometry": [
-                              {
-                                "path": "M0 0L32 0L32 32L0 32L0 0Z",
-                                "windingRule": "NONZERO"
-                              }
-                            ],
+                            "fillGeometry": [],
                             "strokeGeometry": [],
                             "absoluteBoundingBox": {
                               "x": 2892.0,
@@ -44679,6 +44622,7 @@
                           {
                             "id": "I2380:1386;2380:1324",
                             "overriddenFields": [
+                              "clipsContent",
                               "fills",
                               "name"
                             ]
@@ -44695,6 +44639,7 @@
                               {
                                 "id": "I2380:1386;2380:1324",
                                 "overriddenFields": [
+                                  "clipsContent",
                                   "fills",
                                   "name"
                                 ]
@@ -44766,7 +44711,7 @@
                               }
                             ],
                             "blendMode": "PASS_THROUGH",
-                            "clipsContent": true,
+                            "clipsContent": false,
                             "background": [],
                             "fills": [],
                             "strokes": [],
@@ -44778,12 +44723,7 @@
                               "b": 0.0,
                               "a": 0.0
                             },
-                            "fillGeometry": [
-                              {
-                                "path": "M0 0L32 0L32 32L0 32L0 0Z",
-                                "windingRule": "NONZERO"
-                              }
-                            ],
+                            "fillGeometry": [],
                             "strokeGeometry": [],
                             "absoluteBoundingBox": {
                               "x": 2933.0,
@@ -44980,7 +44920,7 @@
                   }
                 ],
                 "blendMode": "PASS_THROUGH",
-                "clipsContent": true,
+                "clipsContent": false,
                 "background": [
                   {
                     "blendMode": "NORMAL",
@@ -45151,7 +45091,7 @@
                       }
                     ],
                     "blendMode": "PASS_THROUGH",
-                    "clipsContent": true,
+                    "clipsContent": false,
                     "background": [
                       {
                         "blendMode": "NORMAL",
@@ -45460,391 +45400,6 @@
                 "scrollBehavior": "SCROLLS",
                 "children": [
                   {
-                    "id": "2364:372",
-                    "name": "bg",
-                    "type": "INSTANCE",
-                    "scrollBehavior": "SCROLLS",
-                    "componentId": "4:67",
-                    "overrides": [
-                      {
-                        "id": "2364:372",
-                        "overriddenFields": [
-                          "name"
-                        ]
-                      }
-                    ],
-                    "children": [
-                      {
-                        "id": "I2364:372;4:61",
-                        "name": "Frame 15",
-                        "type": "FRAME",
-                        "scrollBehavior": "SCROLLS",
-                        "children": [
-                          {
-                            "id": "I2364:372;4:62",
-                            "name": "Rectangle 58",
-                            "type": "RECTANGLE",
-                            "scrollBehavior": "SCROLLS",
-                            "rotation": 0.7853981633974483,
-                            "blendMode": "PASS_THROUGH",
-                            "fills": [
-                              {
-                                "blendMode": "NORMAL",
-                                "type": "SOLID",
-                                "color": {
-                                  "r": 0.8941176533699036,
-                                  "g": 0.26274511218070984,
-                                  "b": 0.22745098173618317,
-                                  "a": 1.0
-                                }
-                              }
-                            ],
-                            "fillGeometry": [
-                              {
-                                "path": "M0 0L22 0L22 291L0 291L0 0Z",
-                                "windingRule": "NONZERO"
-                              }
-                            ],
-                            "strokes": [],
-                            "strokeWeight": 1.0,
-                            "strokeAlign": "INSIDE",
-                            "strokeGeometry": [],
-                            "absoluteBoundingBox": {
-                              "x": 1673.5734829306602,
-                              "y": -27.0,
-                              "width": 221.32441872358322,
-                              "height": 221.32441872358322
-                            },
-                            "absoluteRenderBounds": {
-                              "x": 1787.0,
-                              "y": 0.0,
-                              "width": 107.89794921875,
-                              "height": 64.0
-                            },
-                            "constraints": {
-                              "vertical": "TOP",
-                              "horizontal": "LEFT"
-                            },
-                            "relativeTransform": [
-                              [
-                                0.7071067690849304,
-                                -0.7071067690849304,
-                                222.341552734375
-                              ],
-                              [
-                                0.7071067690849304,
-                                0.7071067690849304,
-                                -27.0
-                              ]
-                            ],
-                            "size": {
-                              "x": 22.0,
-                              "y": 291.0
-                            },
-                            "effects": [],
-                            "interactions": []
-                          },
-                          {
-                            "id": "I2364:372;4:63",
-                            "name": "Rectangle 59",
-                            "type": "RECTANGLE",
-                            "scrollBehavior": "SCROLLS",
-                            "rotation": 0.7853981633974483,
-                            "blendMode": "PASS_THROUGH",
-                            "fills": [
-                              {
-                                "blendMode": "NORMAL",
-                                "type": "SOLID",
-                                "color": {
-                                  "r": 0.886274516582489,
-                                  "g": 0.45490196347236633,
-                                  "b": 0.1764705926179886,
-                                  "a": 1.0
-                                }
-                              }
-                            ],
-                            "fillGeometry": [
-                              {
-                                "path": "M0 0L22 0L22 291L0 291L0 0Z",
-                                "windingRule": "NONZERO"
-                              }
-                            ],
-                            "strokes": [],
-                            "strokeWeight": 1.0,
-                            "strokeAlign": "INSIDE",
-                            "strokeGeometry": [],
-                            "absoluteBoundingBox": {
-                              "x": 1746.5737270712852,
-                              "y": -27.0,
-                              "width": 221.32441872358322,
-                              "height": 221.32441872358322
-                            },
-                            "absoluteRenderBounds": {
-                              "x": 1787.0,
-                              "y": 0.0,
-                              "width": 180.898193359375,
-                              "height": 64.0
-                            },
-                            "constraints": {
-                              "vertical": "TOP",
-                              "horizontal": "LEFT"
-                            },
-                            "relativeTransform": [
-                              [
-                                0.7071067690849304,
-                                -0.7071067690849304,
-                                295.341796875
-                              ],
-                              [
-                                0.7071067690849304,
-                                0.7071067690849304,
-                                -27.0
-                              ]
-                            ],
-                            "size": {
-                              "x": 22.0,
-                              "y": 291.0
-                            },
-                            "effects": [],
-                            "interactions": []
-                          },
-                          {
-                            "id": "I2364:372;4:64",
-                            "name": "Rectangle 60",
-                            "type": "RECTANGLE",
-                            "scrollBehavior": "SCROLLS",
-                            "rotation": 0.7853981633974483,
-                            "blendMode": "PASS_THROUGH",
-                            "fills": [
-                              {
-                                "blendMode": "NORMAL",
-                                "type": "SOLID",
-                                "color": {
-                                  "r": 0.9333333373069763,
-                                  "g": 0.7450980544090271,
-                                  "b": 0.1882352977991104,
-                                  "a": 1.0
-                                }
-                              }
-                            ],
-                            "fillGeometry": [
-                              {
-                                "path": "M0 0L22 0L22 291L0 291L0 0Z",
-                                "windingRule": "NONZERO"
-                              }
-                            ],
-                            "strokes": [],
-                            "strokeWeight": 1.0,
-                            "strokeAlign": "INSIDE",
-                            "strokeGeometry": [],
-                            "absoluteBoundingBox": {
-                              "x": 1819.5742153525352,
-                              "y": -27.0,
-                              "width": 221.32441872358322,
-                              "height": 221.32441872358322
-                            },
-                            "absoluteRenderBounds": {
-                              "x": 1819.57421875,
-                              "y": 0.0,
-                              "width": 221.324462890625,
-                              "height": 64.0
-                            },
-                            "constraints": {
-                              "vertical": "TOP",
-                              "horizontal": "LEFT"
-                            },
-                            "relativeTransform": [
-                              [
-                                0.7071067690849304,
-                                -0.7071067690849304,
-                                368.34228515625
-                              ],
-                              [
-                                0.7071067690849304,
-                                0.7071067690849304,
-                                -27.0
-                              ]
-                            ],
-                            "size": {
-                              "x": 22.0,
-                              "y": 291.0
-                            },
-                            "effects": [],
-                            "interactions": []
-                          },
-                          {
-                            "id": "I2364:372;4:65",
-                            "name": "Rectangle 61",
-                            "type": "RECTANGLE",
-                            "scrollBehavior": "SCROLLS",
-                            "rotation": 0.7853981633974483,
-                            "blendMode": "PASS_THROUGH",
-                            "fills": [
-                              {
-                                "blendMode": "NORMAL",
-                                "type": "SOLID",
-                                "color": {
-                                  "r": 0.5686274766921997,
-                                  "g": 0.29411765933036804,
-                                  "b": 0.6666666865348816,
-                                  "a": 1.0
-                                }
-                              }
-                            ],
-                            "fillGeometry": [
-                              {
-                                "path": "M0 0L22 0L22 291L0 291L0 0Z",
-                                "windingRule": "NONZERO"
-                              }
-                            ],
-                            "strokes": [],
-                            "strokeWeight": 1.0,
-                            "strokeAlign": "INSIDE",
-                            "strokeGeometry": [],
-                            "absoluteBoundingBox": {
-                              "x": 1892.5742153525352,
-                              "y": -27.0,
-                              "width": 221.32441872358322,
-                              "height": 221.32441872358322
-                            },
-                            "absoluteRenderBounds": {
-                              "x": 1892.57421875,
-                              "y": 0.0,
-                              "width": 221.324462890625,
-                              "height": 64.0
-                            },
-                            "constraints": {
-                              "vertical": "TOP",
-                              "horizontal": "LEFT"
-                            },
-                            "relativeTransform": [
-                              [
-                                0.7071067690849304,
-                                -0.7071067690849304,
-                                441.34228515625
-                              ],
-                              [
-                                0.7071067690849304,
-                                0.7071067690849304,
-                                -27.0
-                              ]
-                            ],
-                            "size": {
-                              "x": 22.0,
-                              "y": 291.0
-                            },
-                            "effects": [],
-                            "interactions": []
-                          }
-                        ],
-                        "blendMode": "PASS_THROUGH",
-                        "opacity": 0.30000001192092896,
-                        "clipsContent": false,
-                        "background": [],
-                        "fills": [],
-                        "strokes": [],
-                        "strokeWeight": 1.0,
-                        "strokeAlign": "INSIDE",
-                        "backgroundColor": {
-                          "r": 0.0,
-                          "g": 0.0,
-                          "b": 0.0,
-                          "a": 0.0
-                        },
-                        "fillGeometry": [],
-                        "strokeGeometry": [],
-                        "absoluteBoundingBox": {
-                          "x": 1657.0,
-                          "y": 0.0,
-                          "width": 496.0,
-                          "height": 176.0
-                        },
-                        "absoluteRenderBounds": {
-                          "x": 1787.0,
-                          "y": 0.0,
-                          "width": 327.0,
-                          "height": 64.0
-                        },
-                        "constraints": {
-                          "vertical": "TOP",
-                          "horizontal": "LEFT"
-                        },
-                        "relativeTransform": [
-                          [
-                            1.0,
-                            0.0,
-                            -130.0
-                          ],
-                          [
-                            0.0,
-                            1.0,
-                            0.0
-                          ]
-                        ],
-                        "size": {
-                          "x": 496.0,
-                          "y": 176.0
-                        },
-                        "effects": [],
-                        "interactions": []
-                      }
-                    ],
-                    "blendMode": "PASS_THROUGH",
-                    "clipsContent": true,
-                    "background": [],
-                    "fills": [],
-                    "strokes": [],
-                    "strokeWeight": 1.0,
-                    "strokeAlign": "INSIDE",
-                    "backgroundColor": {
-                      "r": 0.0,
-                      "g": 0.0,
-                      "b": 0.0,
-                      "a": 0.0
-                    },
-                    "fillGeometry": [
-                      {
-                        "path": "M0 0L327 0L327 64L0 64L0 0Z",
-                        "windingRule": "NONZERO"
-                      }
-                    ],
-                    "strokeGeometry": [],
-                    "absoluteBoundingBox": {
-                      "x": 1787.0,
-                      "y": 0.0,
-                      "width": 327.0,
-                      "height": 64.0
-                    },
-                    "absoluteRenderBounds": {
-                      "x": 1787.0,
-                      "y": 0.0,
-                      "width": 327.0,
-                      "height": 64.0
-                    },
-                    "constraints": {
-                      "vertical": "TOP",
-                      "horizontal": "LEFT"
-                    },
-                    "relativeTransform": [
-                      [
-                        1.0,
-                        0.0,
-                        0.0
-                      ],
-                      [
-                        0.0,
-                        1.0,
-                        0.0
-                      ]
-                    ],
-                    "size": {
-                      "x": 327.0,
-                      "y": 64.0
-                    },
-                    "effects": [],
-                    "interactions": []
-                  },
-                  {
                     "id": "2364:373",
                     "name": "GlobalTitle",
                     "type": "TEXT",
@@ -45938,6 +45493,7 @@
                       {
                         "id": "2364:374",
                         "overriddenFields": [
+                          "clipsContent",
                           "name"
                         ]
                       }
@@ -46247,7 +45803,7 @@
                       }
                     ],
                     "blendMode": "PASS_THROUGH",
-                    "clipsContent": true,
+                    "clipsContent": false,
                     "background": [],
                     "fills": [],
                     "strokes": [],
@@ -46259,12 +45815,7 @@
                       "b": 0.0,
                       "a": 0.0
                     },
-                    "fillGeometry": [
-                      {
-                        "path": "M0 0L64 0L64 64L0 64L0 0Z",
-                        "windingRule": "NONZERO"
-                      }
-                    ],
+                    "fillGeometry": [],
                     "strokeGeometry": [],
                     "absoluteBoundingBox": {
                       "x": 1787.0,
@@ -46317,6 +45868,7 @@
                           {
                             "id": "2364:376",
                             "overriddenFields": [
+                              "clipsContent",
                               "name"
                             ]
                           }
@@ -46713,7 +46265,7 @@
                           }
                         ],
                         "blendMode": "PASS_THROUGH",
-                        "clipsContent": true,
+                        "clipsContent": false,
                         "background": [],
                         "fills": [],
                         "strokes": [],
@@ -46725,12 +46277,7 @@
                           "b": 0.0,
                           "a": 0.0
                         },
-                        "fillGeometry": [
-                          {
-                            "path": "M0 0L32 0L32 32L0 32L0 0Z",
-                            "windingRule": "NONZERO"
-                          }
-                        ],
+                        "fillGeometry": [],
                         "strokeGeometry": [],
                         "absoluteBoundingBox": {
                           "x": 2941.0,
@@ -46769,7 +46316,7 @@
                       }
                     ],
                     "blendMode": "PASS_THROUGH",
-                    "clipsContent": true,
+                    "clipsContent": false,
                     "background": [
                       {
                         "blendMode": "NORMAL",
@@ -46861,6 +46408,7 @@
                           {
                             "id": "2364:378",
                             "overriddenFields": [
+                              "clipsContent",
                               "name"
                             ]
                           }
@@ -47058,7 +46606,7 @@
                           }
                         ],
                         "blendMode": "PASS_THROUGH",
-                        "clipsContent": true,
+                        "clipsContent": false,
                         "background": [],
                         "fills": [],
                         "strokes": [],
@@ -47070,12 +46618,7 @@
                           "b": 0.0,
                           "a": 0.0
                         },
-                        "fillGeometry": [
-                          {
-                            "path": "M0 0L32 0L32 32L0 32L0 0Z",
-                            "windingRule": "NONZERO"
-                          }
-                        ],
+                        "fillGeometry": [],
                         "strokeGeometry": [],
                         "absoluteBoundingBox": {
                           "x": 2898.0,
@@ -47114,7 +46657,7 @@
                       }
                     ],
                     "blendMode": "PASS_THROUGH",
-                    "clipsContent": true,
+                    "clipsContent": false,
                     "background": [
                       {
                         "blendMode": "NORMAL",
@@ -47192,7 +46735,7 @@
                   }
                 ],
                 "blendMode": "PASS_THROUGH",
-                "clipsContent": true,
+                "clipsContent": false,
                 "background": [
                   {
                     "blendMode": "NORMAL",
@@ -47242,7 +46785,7 @@
                 "absoluteRenderBounds": {
                   "x": 1787.0,
                   "y": 0.0,
-                  "width": 1200.0,
+                  "width": 1201.0,
                   "height": 64.0
                 },
                 "constraints": {
@@ -52268,7 +51811,7 @@
                               }
                             ],
                             "blendMode": "PASS_THROUGH",
-                            "clipsContent": true,
+                            "clipsContent": false,
                             "background": [],
                             "fills": [],
                             "strokes": [],
@@ -52280,12 +51823,7 @@
                               "b": 0.0,
                               "a": 0.0
                             },
-                            "fillGeometry": [
-                              {
-                                "path": "M0 0L20 0L20 20L0 20L0 0Z",
-                                "windingRule": "NONZERO"
-                              }
-                            ],
+                            "fillGeometry": [],
                             "strokeGeometry": [],
                             "absoluteBoundingBox": {
                               "x": 2017.0,
@@ -52875,7 +52413,7 @@
                               }
                             ],
                             "blendMode": "PASS_THROUGH",
-                            "clipsContent": true,
+                            "clipsContent": false,
                             "background": [],
                             "fills": [],
                             "strokes": [],
@@ -52887,12 +52425,7 @@
                               "b": 0.0,
                               "a": 0.0
                             },
-                            "fillGeometry": [
-                              {
-                                "path": "M0 0L20 0L20 20L0 20L0 0Z",
-                                "windingRule": "NONZERO"
-                              }
-                            ],
+                            "fillGeometry": [],
                             "strokeGeometry": [],
                             "absoluteBoundingBox": {
                               "x": 2113.0,
@@ -53482,7 +53015,7 @@
                               }
                             ],
                             "blendMode": "PASS_THROUGH",
-                            "clipsContent": true,
+                            "clipsContent": false,
                             "background": [],
                             "fills": [],
                             "strokes": [],
@@ -53494,12 +53027,7 @@
                               "b": 0.0,
                               "a": 0.0
                             },
-                            "fillGeometry": [
-                              {
-                                "path": "M0 0L20 0L20 20L0 20L0 0Z",
-                                "windingRule": "NONZERO"
-                              }
-                            ],
+                            "fillGeometry": [],
                             "strokeGeometry": [],
                             "absoluteBoundingBox": {
                               "x": 2209.0,
@@ -54078,7 +53606,7 @@
               }
             ],
             "blendMode": "PASS_THROUGH",
-            "clipsContent": true,
+            "clipsContent": false,
             "background": [
               {
                 "blendMode": "NORMAL",
@@ -54128,7 +53656,7 @@
             "absoluteRenderBounds": {
               "x": 1787.0,
               "y": 0.0,
-              "width": 1200.0,
+              "width": 1201.0,
               "height": 800.0
             },
             "constraints": {
@@ -82339,6 +81867,7 @@
                       {
                         "id": "2380:1324",
                         "overriddenFields": [
+                          "clipsContent",
                           "fills",
                           "name"
                         ]
@@ -82672,7 +82201,7 @@
                       }
                     ],
                     "blendMode": "PASS_THROUGH",
-                    "clipsContent": true,
+                    "clipsContent": false,
                     "background": [],
                     "fills": [],
                     "strokes": [],
@@ -82684,12 +82213,7 @@
                       "b": 0.0,
                       "a": 0.0
                     },
-                    "fillGeometry": [
-                      {
-                        "path": "M0 0L32 0L32 32L0 32L0 0Z",
-                        "windingRule": "NONZERO"
-                      }
-                    ],
+                    "fillGeometry": [],
                     "strokeGeometry": [],
                     "absoluteBoundingBox": {
                       "x": 2012.0,
@@ -82839,6 +82363,7 @@
                       {
                         "id": "2380:1334",
                         "overriddenFields": [
+                          "clipsContent",
                           "fills",
                           "name"
                         ]
@@ -83172,7 +82697,7 @@
                       }
                     ],
                     "blendMode": "PASS_THROUGH",
-                    "clipsContent": true,
+                    "clipsContent": false,
                     "background": [],
                     "fills": [],
                     "strokes": [],
@@ -83184,12 +82709,7 @@
                       "b": 0.0,
                       "a": 0.0
                     },
-                    "fillGeometry": [
-                      {
-                        "path": "M0 0L32 0L32 32L0 32L0 0Z",
-                        "windingRule": "NONZERO"
-                      }
-                    ],
+                    "fillGeometry": [],
                     "strokeGeometry": [],
                     "absoluteBoundingBox": {
                       "x": 2012.0,
@@ -83339,6 +82859,7 @@
                       {
                         "id": "2380:1416",
                         "overriddenFields": [
+                          "clipsContent",
                           "fills",
                           "name"
                         ]
@@ -83672,7 +83193,7 @@
                       }
                     ],
                     "blendMode": "PASS_THROUGH",
-                    "clipsContent": true,
+                    "clipsContent": false,
                     "background": [],
                     "fills": [],
                     "strokes": [],
@@ -83684,12 +83205,7 @@
                       "b": 0.0,
                       "a": 0.0
                     },
-                    "fillGeometry": [
-                      {
-                        "path": "M0 0L32 0L32 32L0 32L0 0Z",
-                        "windingRule": "NONZERO"
-                      }
-                    ],
+                    "fillGeometry": [],
                     "strokeGeometry": [],
                     "absoluteBoundingBox": {
                       "x": 2066.0,
@@ -83839,6 +83355,7 @@
                       {
                         "id": "2380:1348",
                         "overriddenFields": [
+                          "clipsContent",
                           "fills",
                           "name"
                         ]
@@ -84172,7 +83689,7 @@
                       }
                     ],
                     "blendMode": "PASS_THROUGH",
-                    "clipsContent": true,
+                    "clipsContent": false,
                     "background": [],
                     "fills": [],
                     "strokes": [],
@@ -84184,12 +83701,7 @@
                       "b": 0.0,
                       "a": 0.0
                     },
-                    "fillGeometry": [
-                      {
-                        "path": "M0 0L32 0L32 32L0 32L0 0Z",
-                        "windingRule": "NONZERO"
-                      }
-                    ],
+                    "fillGeometry": [],
                     "strokeGeometry": [],
                     "absoluteBoundingBox": {
                       "x": 2066.0,
@@ -84517,6 +84029,12 @@
                     "componentId": "2432:673",
                     "overrides": [
                       {
+                        "id": "2432:666",
+                        "overriddenFields": [
+                          "clipsContent"
+                        ]
+                      },
+                      {
                         "id": "I2432:666;2432:675",
                         "overriddenFields": [
                           "strokes"
@@ -84660,7 +84178,7 @@
                       }
                     ],
                     "blendMode": "PASS_THROUGH",
-                    "clipsContent": true,
+                    "clipsContent": false,
                     "background": [],
                     "fills": [],
                     "strokes": [],
@@ -84672,12 +84190,7 @@
                       "b": 0.0,
                       "a": 0.0
                     },
-                    "fillGeometry": [
-                      {
-                        "path": "M0 0L20 0L20 20L0 20L0 0Z",
-                        "windingRule": "NONZERO"
-                      }
-                    ],
+                    "fillGeometry": [],
                     "strokeGeometry": [],
                     "absoluteBoundingBox": {
                       "x": 1838.0,
@@ -85107,7 +84620,14 @@
                     "type": "INSTANCE",
                     "scrollBehavior": "SCROLLS",
                     "componentId": "2432:673",
-                    "overrides": [],
+                    "overrides": [
+                      {
+                        "id": "2432:670",
+                        "overriddenFields": [
+                          "clipsContent"
+                        ]
+                      }
+                    ],
                     "children": [
                       {
                         "id": "I2432:670;2432:674",
@@ -85245,7 +84765,7 @@
                       }
                     ],
                     "blendMode": "PASS_THROUGH",
-                    "clipsContent": true,
+                    "clipsContent": false,
                     "background": [],
                     "fills": [],
                     "strokes": [],
@@ -85257,12 +84777,7 @@
                       "b": 0.0,
                       "a": 0.0
                     },
-                    "fillGeometry": [
-                      {
-                        "path": "M0 0L20 0L20 20L0 20L0 0Z",
-                        "windingRule": "NONZERO"
-                      }
-                    ],
+                    "fillGeometry": [],
                     "strokeGeometry": [],
                     "absoluteBoundingBox": {
                       "x": 1838.0,
@@ -86573,9 +86088,9 @@
   "schemaVersion": 0,
   "styles": {},
   "name": "MetaScope V2 Rig",
-  "lastModified": "2025-10-02T22:05:47Z",
-  "thumbnailUrl": "https://s3-alpha.figma.com/thumbnails/1cb48a0d-142f-439a-a43f-12743c3eed7b?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAQ4GOSFWC6UK6QLJ2%2F20251002%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20251002T000000Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=fe3c45cd1e79d18bd5c8d21b6788ee5979260a32c72a31227b3f2cb0179cf848",
-  "version": "2270443124815105226",
+  "lastModified": "2025-10-03T20:41:37Z",
+  "thumbnailUrl": "https://s3-alpha.figma.com/thumbnails/bb3f66d0-f9a2-4888-9a7e-74b48fd961ac?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAQ4GOSFWC6UK6QLJ2%2F20251002%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20251002T000000Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=6f2d5aaff3ffb5808926501cf25ba6a95e898296f6a944cbcdb24c46b4deba0e",
+  "version": "2270797103716556269",
   "role": "owner",
   "editorType": "figma",
   "linkAccess": "inherit"
