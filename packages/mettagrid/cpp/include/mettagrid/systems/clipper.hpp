@@ -3,6 +3,7 @@
 
 #include <cmath>
 #include <memory>
+#include <numbers>
 #include <random>
 #include <vector>
 
@@ -45,6 +46,33 @@ public:
           unclipped_assemblers.insert(assembler);
         }
       }
+    }
+
+    // Auto-calculate length_scale based on percolation theory if length_scale <= 0
+    if (length_scale <= 0.0f && !assembler_infection_weight.empty()) {
+      // Get grid dimensions
+      GridCoord grid_width = grid.width;
+      GridCoord grid_height = grid.height;
+      float grid_size = static_cast<float>(std::max(grid_width, grid_height));
+
+      // Calculate percolation-based length scale
+      // The constant 4.51 is the critical percolation density λ_c for 2D continuum percolation,
+      // empirically determined through Monte Carlo simulations (not analytically derivable).
+      // Reference:
+      // https://en.wikipedia.org/wiki/Percolation_threshold#Thresholds_for_2D_continuum_models
+      // Note: Wikipedia provides a value of ~1.127 when defined in terms of radius,
+      // We use diameter basis which becomes 4.51
+
+      constexpr float PERCOLATION_CONSTANT = 4.51f;
+      this->length_scale =
+          (grid_size / std::sqrt(static_cast<float>(assembler_infection_weight.size()))) * std::sqrt(PERCOLATION_CONSTANT / (4.0f * std::numbers::pi_v<float>));
+    }
+    // else: use the provided positive length_scale value as-is
+
+    // Auto-calculate cutoff_distance if not provided (cutoff_distance <= 0)
+    // At 3*length_scale, exp(-3) ≈ 0.05, so weights beyond this are negligible
+    if (cutoff_distance <= 0.0f) {
+      this->cutoff_distance = 3.0f * this->length_scale;
     }
   }
 
