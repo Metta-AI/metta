@@ -20,6 +20,16 @@ class Chest : public GridObject, public Usable, public HasInventory {
 private:
   // a reference to the game stats tracker
   StatsTracker* stats_tracker;
+  // Unique identifier for per-chest stats (empty = global stats for backwards compatibility)
+  std::string chest_id;
+  
+  // Helper: Get stat name prefix based on chest_id
+  std::string stat_prefix() const {
+    if (chest_id.empty()) {
+      return "chest";  // Backwards compatible: empty chest_id uses global stats
+    }
+    return "chest_" + chest_id;
+  }
   // Get the relative position index of the agent from the chest
   // Returns bit index: NW=0, N=1, NE=2, W=3, E=4, SW=5, S=6, SE=7
   int get_agent_relative_position_index(const Agent& agent) const {
@@ -66,8 +76,8 @@ private:
     InventoryDelta deposited = update_inventory(resource_type, 1);
     if (deposited == 1) {
       agent.update_inventory(resource_type, -1);
-      stats_tracker->incr("chest." + stats_tracker->resource_name(resource_type) + ".deposited");
-      stats_tracker->incr("chest." + stats_tracker->resource_name(resource_type) + ".amount");
+      stats_tracker->incr(stat_prefix() + "." + stats_tracker->resource_name(resource_type) + ".deposited");
+      stats_tracker->incr(stat_prefix() + "." + stats_tracker->resource_name(resource_type) + ".amount");
       return true;
     }
     // Chest couldn't accept the resource, give it back to agent
@@ -84,8 +94,8 @@ private:
     InventoryDelta withdrawn = agent.update_inventory(resource_type, 1);
     if (withdrawn == 1) {
       update_inventory(resource_type, -1);
-      stats_tracker->incr("chest." + stats_tracker->resource_name(resource_type) + ".withdrawn");
-      stats_tracker->add("chest." + stats_tracker->resource_name(resource_type) + ".amount", -1);
+      stats_tracker->incr(stat_prefix() + "." + stats_tracker->resource_name(resource_type) + ".withdrawn");
+      stats_tracker->add(stat_prefix() + "." + stats_tracker->resource_name(resource_type) + ".amount", -1);
       return true;
     }
     // Agent couldn't accept the resource, give it back to chest
@@ -108,6 +118,7 @@ public:
         deposit_positions(cfg.deposit_positions),
         withdrawal_positions(cfg.withdrawal_positions),
         stats_tracker(stats_tracker),
+        chest_id(cfg.chest_id),
         grid(nullptr) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids);
   }
