@@ -347,6 +347,9 @@ jobs:
           model: ${{ env.CLAUDE_MODEL }}
           timeout_minutes: 45
           mcp_config: ${{ steps.mcp_config.outputs.config }}
+          # SECURITY NOTE:
+          # - The comment body is wrapped with `toJson` to prevent breaking YAML or JS.
+          # - Prompt injection is still possible, but only by trusted collaborators (gate checked above).
           direct_prompt: |
             CRITICAL FIRST STEP - BRANCH SWITCHING:
             Use this bash command IMMEDIATELY as your first tool call:
@@ -358,7 +361,7 @@ jobs:
             - Target branch for eventual PR: ${{ steps.branches.outputs.target_branch }}
             - Request from: ${{ steps.branches.outputs.context_info }}
 
-            YOUR TASK: "${{ github.event.comment.body }}"
+            YOUR TASK: "${{ toJson(github.event.comment.body) }}"
 
             WORKFLOW INSTRUCTIONS:
             1. Run `Bash(git checkout ${{ steps.branches.outputs.new_branch }})`
@@ -589,8 +592,8 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            // Safe: Node string handling, not a shell
-            const comment = "${{ github.event.comment.body }}".toLowerCase();
+            // Read from the event payload to avoid JS string-literal injection.
+            const comment = (context.payload.comment?.body || '').toLowerCase();
             const commentId = '${{ steps.context_info.outputs.comment_id }}';
             if (comment.includes('review') && commentId !== 'none') {
               await github.rest.issues.createComment({
