@@ -92,25 +92,28 @@ Extractors follow all the rules of the Station Interaction Protocol, and have a 
 - When an extractor is on cooldown, **partial usage** may be supported. In such cases, the station's inputs and outputs
   will be scaled by the fraction of its cooldown period that has elapsed, and its its original cooldown period remains
   in effect; it does not get refreshed.
-- Stations may become **depleted**, reducing their efficiency
-- Some stations support **limited uses**, after which interaction will have no effect.
+- Some stations only support a **maximum number of uses**, after which interaction will have no effect.
 - Stations configured with **exhaustion** grow slower over time: after each successful use their cooldown is multiplied
-  by `(1 + exhaustion)` Below are default settings for the known extractors, but remember that they can vary by
-  scenario.
+  by `(1 + exhaustion)`
 
 The exact behavior of each extractor may vary across missions. Here are some typical parameters we have discovered:
 
-| Extractor                          | Input cost | Output                                   | Cooldown                        | Max uses |
-| ---------------------------------- | ---------- | ---------------------------------------- | ------------------------------- | -------- |
-| Carbon Extractor (`C`)             |            | +4 carbon                                |                                 |          |
-| Oxygen Extractor (`O`)             |            | +100 oxygen                              | 200 turns (partial use allowed) |          |
-| Germanium Extractor (`G`)          |            | +2/+3/+4/+5 germanium for 1/2/3/4 agents |                                 | 2        |
-| Silicon Extractor (`S`)            | −25 energy | +25 silicon                              |                                 |          |
-| Solar Array (`+`)                  |            | +50 energy                               | 10 turns (partial use allowed)  |          |
-| Depleted Carbon Extractor (`c`)    |            | +1                                       |                                 | 100      |
-| Depleted Oxygen (`o`)              |            | +10 oxygen                               | 40 turns (partial use allowed)  | 10       |
-| Depleted Germanium Extractor (`g`) |            | +2/+3/+4/+5 germanium for 1/2/3/4 agents |                                 | 1        |
-| Depleted Silicon (`s`)             | -25        | +10 silicon                              |                                 | 10       |
+| Extractor                 | Input cost | Output                                   | Cooldown                        | Max uses |
+| ------------------------- | ---------- | ---------------------------------------- | ------------------------------- | -------- |
+| Carbon Extractor (`C`)    |            | +4 carbon                                |                                 |          |
+| Oxygen Extractor (`O`)    |            | +100 oxygen                              | 200 turns (partial use allowed) |          |
+| Germanium Extractor (`G`) |            | +2/+3/+4/+5 germanium for 1/2/3/4 agents |                                 | 2        |
+| Silicon Extractor (`S`)   | −25 energy | +25 silicon                              |                                 |          |
+| Solar Array (`+`)         |            | +50 energy                               | 10 turns (partial use allowed)  |          |
+
+Some extractors may not be in the best shape. Wear and tear has caused them to become less effective:
+
+| Extractor                          | Input cost | Output                                   | Cooldown                       | Max uses |
+| ---------------------------------- | ---------- | ---------------------------------------- | ------------------------------ | -------- |
+| Depleted Carbon Extractor (`c`)    |            | +1                                       |                                | 100      |
+| Depleted Oxygen (`o`)              |            | +10 oxygen                               | 40 turns (partial use allowed) | 10       |
+| Depleted Germanium Extractor (`g`) |            | +2/+3/+4/+5 germanium for 1/2/3/4 agents |                                | 1        |
+| Depleted Silicon (`s`)             | -25        | +10 silicon                              |                                | 10       |
 
 ### Station Type: Assembler
 
@@ -120,20 +123,18 @@ This is your primary objective facility! The Assembler converts raw resources in
 
 You must discover what each assembler is capable of. Assembler protocols change between missions!
 
-- Like extractors:
-  - The first Cog that MOVEs into the Assembler activates it
-  - Resources are consumed from the team (in the same way)
-  - Outputs (gear or hearts) go to the activator
-- Unlike extractors:
-  - The precise formation of you and your teammates around the terminals of the Assembler determines which Protocol will
-    be activated.
-  - Different protocols require different inputs and create different outputs
-  - Inputs and outputs can include HEART units or gear (scrambler, modulator, decoder, resonator), not just resources
-    and energy
-  - Some assemblers will require gear to activate but will not consume that gear as an input cost
-  - Assemblers do not have cooldowns and do not get depleted, but may have a maximum number of uses
-  - Specific protocols may have a maximum number of uses
-  - Protocol availability may change based on assembler status [[check: how does status change?]]
+Like with extractors, resources are consumed from among the team and outputs (gear or hearts) go to the activator. But
+determining how to use assemblers to accomplish your goals is no easy feat:
+
+- The precise formation of you and your teammates around the terminals of the Assembler determines which Protocol will
+  be activated.
+- Different protocols require different inputs and create different outputs
+- Inputs and outputs can include HEART units or gear (scrambler, modulator, decoder, resonator), not just resources and
+  energy
+- Some assemblers will require gear to activate but will not consume that gear as an input cost
+- Assemblers do not have cooldowns and do not get depleted, but may have a maximum number of uses
+- Specific protocols may have a maximum number of uses
+- Protocol availability may change based on assembler status [[check: how does status change?]]
 
 ### Station Type: Communal Chests
 
@@ -181,6 +182,8 @@ station suspends normal output until Cogs run the designated repair protocol.
 
 You need to be vigilant: every clipped station increases the odds that nearby stations will get infested too. Respond
 quickly to prevent a cascade.
+
+Thankfully some of our buildings are immune to infestation, but others may already be infested by the time you start.
 
 ---
 
