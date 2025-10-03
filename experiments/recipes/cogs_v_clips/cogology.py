@@ -42,6 +42,7 @@ from metta.agent.policies.vit_reset import ViTResetConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
+from metta.common.wandb.context import WandbConfig
 from metta.rl.loss import LossConfig
 from metta.rl.training.component import TrainerComponent
 from metta.rl.trainer_config import TrainerConfig
@@ -1201,6 +1202,11 @@ def train(
         policy_architecture=policy_config,
         evaluator=evaluator,
         stats_server_uri="https://api.observatory.softmax-research.net",
+        wandb=WandbConfig(
+            enabled=True,
+            project="metta",
+            entity="softmax-research",
+        ),
         training_components=progression_callbacks,
         group="cogology",
     )
@@ -1220,14 +1226,14 @@ def make_eval_suite() -> list[SimulationConfig]:
         "training_facility_6",
         "machina_1",
         "machina_2",
-        "machina_3",
+        # "machina_3",
         "machina_1_big",
-        "machina_2_bigger",
-        "machina_3_big",
-        "machina_4_bigger",
-        "machina_5_big",
-        "machina_6_bigger",
-        "machina_7_big",
+        # "machina_2_bigger",
+        # "machina_3_big",
+        # "machina_4_bigger",
+        # "machina_5_big",
+        # "machina_6_bigger",
+        # "machina_7_big",
     ]
 
     for map_key in eval_map_keys:
