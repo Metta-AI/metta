@@ -126,9 +126,7 @@ class GeneralizedTerrainTaskGenerator(TaskGenerator):
     def _make_env_cfg(self, rng: random.Random):
         num_cogs = rng.choice(self.config.num_cogs)
         position = rng.choice(self.config.positions)
-
         room_size = rng.choice(self.config.sizes)
-
         env, num_extractors = self.setup_map_builder(num_cogs, room_size, rng)
 
         self._make_assembler_recipes(
@@ -142,7 +140,7 @@ class GeneralizedTerrainTaskGenerator(TaskGenerator):
             "germanium_extractor",
             "silicon_extractor",
         ]:
-            self._overwrite_positions(env.game.objects[obj], position)
+            self._overwrite_positions(env.game.objects[obj], "Any")
 
         env.game.objects["chest"] = ChestConfig(
             type_id=17,
