@@ -48,7 +48,7 @@ def _base_game_config(num_agents: int) -> MettaGridConfig:
             actions=ActionsConfig(
                 move=ActionConfig(consumed_resources={"energy": 2}),
                 noop=ActionConfig(),
-                change_glyph=ChangeGlyphActionConfig(number_of_glyphs=len(glyphs.GLYPHS)),
+                # change_glyph=ChangeGlyphActionConfig(number_of_glyphs=len(glyphs.GLYPHS)),
             ),
             resource_loss_prob=0.01,
             objects={
