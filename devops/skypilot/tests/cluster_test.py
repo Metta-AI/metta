@@ -45,6 +45,12 @@ TEST_CONDITIONS = {
         description="Exit when command fails due to invalid parameters",
         ci=True,
     ),
+    "crash_on_launch": TestCondition(
+        name="Crash on Launch",
+        extra_args=["--crash"],  # will set TEST_CRASH=true
+        description="Simulate early crash on startup (e.g., OpenGL load failure)",
+        ci=False,
+    ),
 }
 
 # Base configuration

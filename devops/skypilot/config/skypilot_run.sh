@@ -19,10 +19,6 @@ TOTAL_NODES=${SKYPILOT_NUM_NODES:-1}
 
 DEBUG=${DEBUG:-0}
 
-EXIT_SUCCESS=0
-EXIT_FAILURE=1
-EXIT_NCCL_TEST_FAILURE=42
-
 echo "[CONFIG] Run Configuration:"
 echo "  - NODE_RANK: ${RANK}"
 echo "  - IS_MASTER: ${IS_MASTER}"
@@ -65,10 +61,6 @@ fi
 # Setup environment (all nodes)
 bash ./devops/skypilot/config/lifecycle/configure_environment.sh
 source "$METTA_ENV_FILE"
-
-export EXIT_SUCCESS=0
-export EXIT_FAILURE=1
-export EXIT_NCCL_TEST_FAILURE=42
 
 # Compute derived runtime values
 max_seconds=-1 # no max runtime
@@ -232,6 +224,11 @@ run_cmd() {
   echo "[INFO] Started process with PID: $CMD_PID, PGID: $CMD_PGID"
 
   start_monitors
+
+  if [[ "${TEST_CRASH:-false}" == "true" ]]; then
+    echo "[TEST] Crashing run_cmd (monitors should self-terminate on missing WRAPPER_PID)"
+    exit 0
+  fi
 
   wait "$CMD_PID"
   CMD_EXIT=$?
