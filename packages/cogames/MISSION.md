@@ -67,37 +67,40 @@ You will need to operate stations of many kinds. Below is an index of what stati
 
 ### Station Interaction Protocol
 
-- Position yourself adjacent to it, then MOVE toward it
-- Multi-Cog operations: Some facilities need teammates at specific **terminals** (the 8 positions surrounding the
-  facility)
-  - Station inputs are drawn from the cargos of the surrounding cogs in clockwise order, starting at the position
-    northwest of the station. The station will draw on each cog's cargo and/or battery in turn, exhausting the full
-    amount available, until its input costs are met. If there are insufficient resources among the surrounding cogs, the
-    station won't activate and won't consume inputs.
-  - Upon successful activation, station outputs are placed in the **activator**'s cargo. The activator is the first Cog
-    that MOVEs towards the station. Because you and your teammates' actions will execute in an unspecified order, you
-    may need to coordinate.
-- Stations may have **cooldown** periods after interaction. During a station's cooldown period, activation will by
-  default have no effect
-- Stations configured with **exhaustion** grow slower over time: after each successful use their cooldown is multiplied
-  by `(1 + exhaustion)`
+Different stations -- Extractors, Assemblers, and Chests -- will have different requirements, inputs, and outputs. But
+the way in which you will interact with them has some commonalities:
+
+- To attempt activating a station, position yourself adjacent to it, then MOVE toward it
+- Some facilities need teammates at multiple specific **terminals** (the 8 positions surrounding the facility)
+- Station inputs are drawn from the cargos of the surrounding cogs in clockwise order, starting at the position
+  northwest of the station. The station will draw on each cog's cargo and/or battery in turn, exhausting the full amount
+  available, until its input costs are met. If there are insufficient resources among the surrounding cogs, the station
+  won't activate and won't consume inputs.
+- Upon successful activation, station outputs are placed in the **activator**'s cargo. The activator is the first Cog
+  that MOVEs towards the station. Because you and your teammates' actions will execute in an unspecified order, you may
+  need to coordinate.
 
 ### Station Type: Extractor
 
 Resources are stockpiled by automated extractor stations. Extractors have finite storage capacity, and will
 automatically produce and store resources until they are full.
 
-Stations largely follow the rules of the Station Interaction Protocol. There are a few additional things to know:
+Extractors follow all the rules of the Station Interaction Protocol, and have a few additional behaviors:
 
+- Extractors may have **cooldown** periods after interaction. During a station's cooldown period, activation will by
+  default have no effect
 - When an extractor is on cooldown, **partial usage** may be supported. In such cases, the station's inputs and outputs
   will be scaled by the fraction of its cooldown period that has elapsed, and its its original cooldown period remains
   in effect; it does not get refreshed.
 - Stations may become **depleted**, reducing their efficiency
 - Some stations support **limited uses**, after which interaction will have no effect.
+- Stations configured with **exhaustion** grow slower over time: after each successful use their cooldown is multiplied
+  by `(1 + exhaustion)` Below are default settings for the known extractors, but remember that they can vary by
+  scenario.
 
-Below are default settings for the known extractors, but remember that they can vary by scenario.
+The exact behavior of each extractor may vary across missions. Here are some typical parameters we have discovered:
 
-| Station                            | Input cost | Output                                   | Cooldown                        | Max uses |
+| Extractor                          | Input cost | Output                                   | Cooldown                        | Max uses |
 | ---------------------------------- | ---------- | ---------------------------------------- | ------------------------------- | -------- |
 | Carbon Extractor (`C`)             |            | +4 carbon                                |                                 |          |
 | Oxygen Extractor (`O`)             |            | +100 oxygen                              | 200 turns (partial use allowed) |          |
@@ -128,18 +131,34 @@ You must discover what each assembler is capable of. Assembler protocols change 
   - Inputs and outputs can include HEART units or gear (scrambler, modulator, decoder, resonator), not just resources
     and energy
   - Some assemblers will require gear to activate but will not consume that gear as an input cost
-  - Assemblers do not have cooldowns or a maximum number of uses, and do not get depleted
+  - Assemblers do not have cooldowns and do not get depleted, but may have a maximum number of uses
+  - Specific protocols may have a maximum number of uses
   - Protocol availability may change based on assembler status [[check: how does status change?]]
 
-### Station Type: Chests
+### Station Type: Communal Chests
 
-Chests can store resources and HEARTs. Crucially, depositing HEARTs into the communal
+Chests can store resources and HEARTs. Crucially, depositing HEARTs into chests are how you will ultimately be judged
+for your service.
 
-**To Deposit**: Position yourself at specific terminals and move into the Chest **To Withdraw**: Position yourself at
-different terminals and move into the Chest
+Each chest has a specific resource type it handles.
 
-- Experiment to discover which positions trigger deposits vs withdrawals
-- Primary storage for completed HEARTS units
+To deposit from your cargo into a chest, position yourself at a terminal and MOVE into it. The same is true for
+withdrawing. The terminal you are in -- directly north, east, west, or south of the chest -- will determine which action
+you take.
+
+Be careful, as chests have max storage, and will destroy incoming deposits if full. Withdrawing is always safe: you will
+withdraw all you can, and any amount you cannot fit in your inventory will remain in the chest.
+
+Like with extractors, the exact parameters (max storage and initial amount) will vary across missions. Here are some
+typical parameters we have discovered:
+
+| Chest                 | Max storage | Initial amount |     |
+| --------------------- | ----------- | -------------- | --- |
+| Heart chest (`=`)     | 255         | 0              |     |
+| Carbon chest (`D`)    | 255         | 50             |     |
+| Oxygen chest (`P`)    | 255         | 50             |     |
+| Germanium chest (`H`) | 255         | 5              |     |
+| Silicon chest (`T`)   | 255         | 100            |     |
 
 ---
 
@@ -174,8 +193,8 @@ production.
 
 **Your mission is critical. The HEARTS you create today will ensure the continuation of Cog operations tomorrow.**
 
-Your individual achievement is irrelevant. Your team achievement, measured by the number of HEARTs in the communal heart
-chest, is all that matters.
+Your individual achievement is irrelevant. Your team achievement, measured by the number of HEARTs in communal heart
+chests, is all that matters.
 
 Your success depends on:
 
