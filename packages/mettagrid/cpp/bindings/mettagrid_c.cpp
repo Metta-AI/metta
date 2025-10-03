@@ -260,8 +260,8 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
     if (clipper_cfg.unclipping_recipes.empty()) {
       throw std::runtime_error("Clipper config provided but unclipping_recipes is empty");
     }
-    _clipper = std::make_unique<Clipper>(
-        *_grid, clipper_cfg.unclipping_recipes, clipper_cfg.length_scale, clipper_cfg.cutoff_distance, clipper_cfg.clip_rate, _rng);
+    _clipper = std::make_unique<Clipper>(*_grid, clipper_cfg.unclipping_recipes, clipper_cfg.length_scale,
+                                         clipper_cfg.cutoff_distance, clipper_cfg.clip_rate, _rng);
   }
 }
 
