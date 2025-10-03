@@ -1,7 +1,7 @@
 import numpy as np
 
+from mettagrid.mapgen.area import AreaQuery
 from mettagrid.mapgen.scenes.room_grid import RoomGrid
-from mettagrid.mapgen.types import AreaQuery
 from mettagrid.test_support.mapgen import assert_grid, render_scene
 
 
