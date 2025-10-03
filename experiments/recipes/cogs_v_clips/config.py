@@ -71,13 +71,14 @@ generalized_terrain_curriculum_args = {
 
 foraging_curriculum_args = {
     "all": {
-        "num_cogs": [2, 4, 8, 12, 24],
+        "num_cogs": [3, 4, 8, 12, 24],
         "num_assemblers": [1, 3, 5],
         "num_extractors": [0, 1, 4, 10],
         "room_size": ["small", "medium", "large"],
         "positions": num_agents_to_positions[1]
         + num_agents_to_positions[2]
-        + num_agents_to_positions[3],
+        + num_agents_to_positions[3]
+        + num_agents_to_positions[4],
         "num_chests": [0, 5, 8, 15],
     },
     "pairs": {
@@ -104,7 +105,7 @@ foraging_curriculum_args = {
         "positions": num_agents_to_positions[4],
         "num_chests": [0, 5, 8, 15],
     }
-},
+}
 
 
 obj_distribution_by_room_size = {
