@@ -192,7 +192,7 @@ def chest() -> ChestConfig:
         map_char="=",
         render_symbol="📦",
         resource_type="heart",
-        position_deltas=[("E", 1), ("W", -1)],
+        position_deltas=[("E", -1), ("W", -1), ("N", -1), ("S", -1)],
         max_inventory=-1,
     )
 
