@@ -97,20 +97,21 @@ type
     agentId*: int
     actionId*: int
     argument*: int
-  
+
   DestinationType* = enum
     Move # Move to a specific position.
     Bump # Bump an object at a specific position to interact with it.
-  
+
   Destination* = object
     pos*: IVec2
     destinationType*: DestinationType
     approachDir*: IVec2 ## Direction to approach from for Bump actions (e.g., ivec2(-1, 0) means approach from the left).
-  
+    repeat*: bool ## If true, this destination will be re-queued at the end when completed.
+
   PathActionType* = enum
     PathMove # Move to a position.
     PathBump # Bump at current position.
-  
+
   PathAction* = object
     actionType*: PathActionType
     pos*: IVec2 ## Target position for PathMove, or bump target for PathBump.
