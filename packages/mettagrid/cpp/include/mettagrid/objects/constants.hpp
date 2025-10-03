@@ -37,7 +37,9 @@ constexpr ObservationType TypeId = 0;
 constexpr ObservationType Group = 1;
 constexpr ObservationType Frozen = 2;
 constexpr ObservationType Orientation = 3;
-constexpr ObservationType Color_Deprecated = 4;
+// This used to be Color, but we removed it. We're leaving this here for backward compatibility, but may fill it
+// in with a more useful feature in the future.
+constexpr ObservationType ReservedForFutureUse = 4;
 constexpr ObservationType ConvertingOrCoolingDown = 5;
 constexpr ObservationType Swappable = 6;
 constexpr ObservationType EpisodeCompletionPct = 7;
@@ -62,7 +64,7 @@ inline const std::map<ObservationType, std::string>& GetFeatureNames() {
       {ObservationFeature::Group, "agent:group"},
       {ObservationFeature::Frozen, "agent:frozen"},
       {ObservationFeature::Orientation, "agent:orientation"},
-      {ObservationFeature::Color_Deprecated, "agent:color_deprecated"},
+      {ObservationFeature::ReservedForFutureUse, "agent:reserved_for_future_use"},
       {ObservationFeature::ConvertingOrCoolingDown, "converting"},
       {ObservationFeature::Swappable, "swappable"},
       {ObservationFeature::EpisodeCompletionPct, "episode_completion_pct"},
@@ -91,7 +93,7 @@ inline const std::map<ObservationType, float>& GetFeatureNormalizations() {
       {ObservationFeature::Group, 10.0},
       {ObservationFeature::Frozen, 1.0},
       {ObservationFeature::Orientation, 1.0},
-      {ObservationFeature::Color_Deprecated, 255.0},
+      {ObservationFeature::ReservedForFutureUse, 255.0},
       {ObservationFeature::ConvertingOrCoolingDown, 1.0},
       {ObservationFeature::Swappable, 1.0},
       {ObservationFeature::Glyph, 255.0},
