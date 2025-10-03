@@ -77,7 +77,7 @@ class ForagingTaskGenerator(TaskGenerator):
             width, height = minimum_area // 2, minimum_area // 2
         return width, height
 
-    def _make_extractors(self, num_extractors, cfg, position, rng: random.Random):
+    def _make_extractors(self, num_extractors, cfg, rng: random.Random):
         """Make generators that input nothing and output resources for the altar"""
 
         for _ in range(num_extractors):
@@ -88,7 +88,7 @@ class ForagingTaskGenerator(TaskGenerator):
             output_resources = {resource: rng.choice([1, 5, 10])}
             extractor.recipes = [
                 (
-                    position,
+                    ["Any"],
                     RecipeConfig(
                         input_resources=input_resources,
                         output_resources=output_resources,
@@ -231,7 +231,7 @@ class ForagingTaskGenerator(TaskGenerator):
         return self._generate_task(task_id, rng, num_instances)
 
 
-def train(curriculum_style: str = "multi_agent_pairs_uniform") -> TrainTool:
+def train(curriculum_style: str = "all") -> TrainTool:
     from experiments.evals.foraging import make_foraging_eval_suite
 
     task_generator_cfg = ForagingTaskGenerator.Config(
