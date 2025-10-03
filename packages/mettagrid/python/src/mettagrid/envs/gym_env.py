@@ -7,7 +7,7 @@ Supports both single-agent and multi-agent modes.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Literal, Optional, Tuple
 
 import numpy as np
 from gymnasium import Env as GymEnv
@@ -16,6 +16,7 @@ from typing_extensions import override
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.core import MettaGridCore
 from mettagrid.mettagrid_c import dtype_actions
+from mettagrid.renderer.renderer import NoRenderer, Renderer
 
 
 class MettaGridGymEnv(MettaGridCore, GymEnv):
@@ -35,14 +36,18 @@ class MettaGridGymEnv(MettaGridCore, GymEnv):
     def __init__(
         self,
         mg_config: MettaGridConfig,
-        render_mode: Optional[str] = None,
+        render_mode: Optional[
+            Literal["text", "unicode", "miniscope", "gui", "human", "replay", "none", "explicit"]
+        ] = None,
+        renderer: Optional[Renderer] = None,
     ):
         """
         Initialize Gymnasium environment.
 
         Args:
             mg_config: Environment configuration
-            render_mode: Rendering mode
+            render_mode: Rendering mode (same options as MettaGridEnv)
+            renderer: Optional explicit renderer to use (requires render_mode="explicit")
         """
         assert mg_config.game.num_agents == 1, "Gymnasium environments must be single-agent"
 
@@ -50,11 +55,37 @@ class MettaGridGymEnv(MettaGridCore, GymEnv):
         MettaGridCore.__init__(
             self,
             mg_config,
-            render_mode=render_mode,
         )
 
         # Initialize Gym environment
         GymEnv.__init__(self)
+
+        # Create or use renderer
+        if renderer is not None:
+            self._renderer: Renderer = renderer
+        else:
+            self._renderer: Renderer = self._create_renderer(render_mode)
+
+    def _create_renderer(self, render_mode: Optional[str]) -> Renderer:
+        """Create the appropriate renderer based on render_mode."""
+        if render_mode in ("text", "unicode", "miniscope"):
+            from mettagrid.renderer.miniscope import MiniscopeRenderer
+
+            # All text modes default to full interactive (can be disabled if needed)
+            return MiniscopeRenderer(enable_full_interactive=True)
+        elif render_mode in ("gui", "human"):
+            from mettagrid.renderer.mettascope import MettascopeRenderer
+
+            return MettascopeRenderer()
+        elif render_mode == "replay":
+            # Note: replay mode is not supported in GymEnv without explicit renderer
+            # Use an explicit ReplayLogRenderer via the renderer parameter instead
+            raise ValueError(
+                "render_mode='replay' requires passing an explicit ReplayLogRenderer "
+                "via the renderer parameter with replay_dir configured"
+            )
+        else:  # None or "none"
+            return NoRenderer()
 
     @override  # gymnasium.Env.reset
     def reset(

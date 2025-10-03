@@ -20,7 +20,6 @@ class StatsWriter(ABC):
     @abstractmethod
     def record_episode(
         self,
-        episode_id: str,
         attributes: Dict[str, str],
         agent_metrics: Dict[int, Dict[str, float]],
         agent_groups: Dict[int, int],
@@ -31,7 +30,6 @@ class StatsWriter(ABC):
         """Record episode statistics.
 
         Args:
-            episode_id: Unique identifier for the episode
             attributes: Episode attributes/metadata as key-value pairs
             agent_metrics: Per-agent metrics as {agent_id: {metric_name: value}}
             agent_groups: Agent group assignments as {agent_id: group_id}

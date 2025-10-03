@@ -21,7 +21,7 @@ from metta.common.util.heartbeat import record_heartbeat
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training.training_environment import EnvironmentMetaData
 from metta.rl.vecenv import make_vecenv
-from metta.sim.replay_writer import S3ReplayWriter
+from metta.sim.replay_log_renderer import ReplayLogRenderer
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.stats import DuckDBStatsWriter
@@ -67,7 +67,7 @@ class Simulation:
         sim_stats_dir.mkdir(parents=True, exist_ok=True)
         self._stats_dir = sim_stats_dir
         self._stats_writer = DuckDBStatsWriter(sim_stats_dir)
-        self._replay_writer = S3ReplayWriter(replay_dir)
+        self._replay_writer = ReplayLogRenderer(replay_dir)
         self._device = device
 
         self._full_name = f"{cfg.suite}/{cfg.name}"
