@@ -70,7 +70,7 @@ def _base_game_config(num_agents: int) -> MettaGridConfig:
                 resource_limits={
                     "heart": 20,
                     "energy": 100,
-                    ("carbon", "oxygen", "germanium", "silicon"): 3,
+                    ("carbon", "oxygen", "germanium", "silicon"): 20,
                     ("scrambler", "modulator", "decoder", "resonator"): 5,
                 },
                 rewards=AgentRewards(
@@ -85,9 +85,9 @@ def _base_game_config(num_agents: int) -> MettaGridConfig:
                     stats_max={
                         # Cap each element gain reward at 0.2 total (2 gains × 0.1)
                         "carbon.gained": 0.2,
-                        "oxygen.gained": 0.2,
-                        "germanium.gained": 0.2,
-                        "silicon.gained": 0.2,
+                        "oxygen.gained": 0.1,
+                        "germanium.gained": 0.1,
+                        "silicon.gained": 0.1,
                     },
                     inventory={},
                 ),
