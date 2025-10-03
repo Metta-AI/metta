@@ -63,14 +63,14 @@ TEST_CONDITION = TestCondition(
 BASE_ARGS = ["--no-spot", "--gpus=4", "--nodes", "1"]
 
 # Override config for long arena_basic test (for stable qualification)
-ARENA_BASIC_CONDITION = TestCondition(
+ARENA_BASIC_STAGING_CONDITION = TestCondition(
     name="Extended Arena Basic Run",
     extra_args=["trainer.total_timesteps=2000000000"],
     description="Extended run for release qualification (~2B timesteps on 4x4 GPUs cluster)",
     ci=False,
 )
 
-ARENA_BASIC_ARGS = ["--no-spot", "--gpus=4", "--nodes", "4"]  # 4 nodes, 4 GPUs each (16 total)
+ARENA_BASIC_STAGING_ARGS = ["--no-spot", "--gpus=4", "--nodes", "4"]  # 4 nodes, 4 GPUs each (16 total)
 
 
 class RecipeTestRunner(BaseTestRunner):
@@ -120,8 +120,8 @@ class RecipeTestRunner(BaseTestRunner):
 
             # Override for staging mode
             if args.staging and recipe_key == "arena_basic_easy_shaped":
-                test_condition = ARENA_BASIC_CONDITION
-                base_args = ARENA_BASIC_ARGS
+                test_condition = ARENA_BASIC_STAGING_CONDITION
+                base_args = ARENA_BASIC_STAGING_ARGS
 
             test_config = {
                 "recipe": recipe_key,
