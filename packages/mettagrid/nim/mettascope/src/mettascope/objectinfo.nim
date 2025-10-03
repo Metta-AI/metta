@@ -51,10 +51,6 @@ proc updateObjectInfo*() =
     addParam("Max Uses", $selection.maxUses)
   if selection.allowPartialUsage:
     addParam("Allow Partial Usage", $selection.allowPartialUsage)
-  # if selection.exhaustion.at > 0:
-  #   addParam("Exhaustion", $selection.exhaustion.at)
-  # if selection.cooldownMultiplier > 0:
-  #   addParam("Cooldown Multiplier", $selection.cooldownMultiplier.at)
 
   proc addResource(area: Node, itemAmount: ItemAmount) =
     let i = item.copy()

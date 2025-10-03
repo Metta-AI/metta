@@ -127,10 +127,6 @@ type
     usesCount*: int
     maxUses*: int
     allowPartialUsage*: bool
-    # exhaustion*: int
-    # cooldownMultiplier*: float
-    # currentRecipeId*: int
-    # recipes*: seq[RecipeInfo]
 
   RecipeInfo* = object
     patternIndex*: int
@@ -650,10 +646,6 @@ proc apply*(replay: Replay, step: int, objects: seq[ReplayEntity]) =
     entity.usesCount.add(obj.usesCount)
     entity.maxUses = obj.maxUses
     entity.allowPartialUsage = obj.allowPartialUsage
-    # entity.exhaustion = obj.exhaustion
-    # entity.cooldownMultiplier = obj.cooldownMultiplier
-    # entity.currentRecipeId = obj.currentRecipeId
-    #entity.recipes.add(obj.recipes)
 
   # Extend the max steps.
   replay.maxSteps = max(replay.maxSteps, step + 1)

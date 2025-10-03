@@ -61,43 +61,24 @@ def format_assembler_properties(grid_object: dict, update_object: dict) -> None:
         print("  cooldown_remaining:", grid_object["cooldown_remaining"])
     if "cooldown_duration" in grid_object and grid_object["cooldown_duration"] != 0:
         print("  cooldown_duration:", grid_object["cooldown_duration"])
-    if "is_clipped" in grid_object and grid_object["is_clipped"] != False:
+    if "is_clipped" in grid_object and grid_object["is_clipped"]:
         print("  is_clipped:", grid_object["is_clipped"])
-    if "clip_immune" in grid_object and grid_object["clip_immune"] != False:
-        print("  clip_immune:", grid_object["clip_immune"])
+    if "is_clip_immune" in grid_object and grid_object["is_clip_immune"]:
+        print("  clip_immune:", grid_object["is_clip_immune"])
     if "uses_count" in grid_object and grid_object["uses_count"] != 0:
         print("  uses_count:", grid_object["uses_count"])
     if "max_uses" in grid_object and grid_object["max_uses"] != 0:
         print("  max_uses:", grid_object["max_uses"])
     if "allow_partial_usage" in grid_object:
         print("  allow_partial_usage:", grid_object["allow_partial_usage"])
-    # if "exhaustion" in grid_object:
-    #     print("  exhaustion:", grid_object["exhaustion"])
-    # if "cooldown_multiplier" in grid_object:
-    #     print("  cooldown_multiplier:", grid_object["cooldown_multiplier"])
-    # if "current_recipe_id" in grid_object:
-    #     print("  current_recipe_id:", grid_object["current_recipe_id"])
-    # if "recipes" in grid_object:
-    #     print("  recipes:", grid_object["recipes"])
 
     update_object["cooldown_remaining"] = grid_object.get("cooldown_remaining", 0)
     update_object["cooldown_duration"] = grid_object.get("cooldown_duration", 0)
     update_object["is_clipped"] = grid_object.get("is_clipped", False)
-    update_object["is_clip_immune"] = grid_object.get("clip_immune", False)
+    update_object["is_clip_immune"] = grid_object.get("is_clip_immune", False)
     update_object["uses_count"] = grid_object.get("uses_count", 0)
     update_object["max_uses"] = grid_object.get("max_uses", 0)
     update_object["allow_partial_usage"] = grid_object.get("allow_partial_usage", False)
-    # update_object["exhaustion"] = grid_object.get("exhaustion", 0)
-    # update_object["cooldown_multiplier"] = grid_object.get("cooldown_multiplier", 0)
-    # update_object["current_recipe_id"] = grid_object.get("current_recipe_id", -1)
-    # update_object["recipes"] = []
-    # for recipe in grid_object.get("recipes", []):
-    #     update_recipe = {}
-    #     update_recipe["pattern_index"] = recipe["pattern_index"]
-    #     update_recipe["input_resources"] = recipe["input_resources"]
-    #     update_recipe["output_resources"] = recipe["output_resources"]
-    #     update_recipe["cooldown"] = recipe["cooldown"]
-    #     update_object["recipes"].append(update_recipe)
 
 
 def format_grid_object(
