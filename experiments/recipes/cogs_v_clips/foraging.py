@@ -1,6 +1,4 @@
 import random
-import subprocess
-import time
 from typing import Optional, Dict, Any
 from dataclasses import dataclass, field
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
@@ -64,9 +62,7 @@ class ForagingTaskGenerator(TaskGenerator):
 
     def _get_width_and_height(self, room_size: str, rng: random.Random):
         lo, hi = size_ranges[room_size]
-        width = rng.randint(lo, hi)
-        height = rng.randint(lo, hi)
-        return width, height
+        return rng.randint(lo, hi), rng.randint(lo, hi)
 
     def _set_width_and_height(self, room_size, num_agents, num_objects, rng):
         """Set the width and height of the environment to be at least the minimum area required for the number of agents, altars, and generators."""
@@ -79,25 +75,26 @@ class ForagingTaskGenerator(TaskGenerator):
 
     def _make_extractors(self, num_extractors, cfg, rng: random.Random):
         """Make generators that input nothing and output resources for the altar"""
-
         for _ in range(num_extractors):
             resource = rng.choice(list(self.extractors.keys()))
             self.used_resources.add(resource)
             extractor = self.extractors[resource]
-            input_resources = {}
-            output_resources = {resource: rng.choice([1, 5, 10])}
+            extractor_name = extractor.name
             extractor.recipes = [
                 (
                     ["Any"],
                     RecipeConfig(
-                        input_resources=input_resources,
-                        output_resources=output_resources,
+                        input_resources={},
+                        output_resources={resource: rng.choice([1, 5, 10])},
                         cooldown=1,
                     ),
                 )
             ]
-            cfg.game_objects[extractor.name] = extractor
-            cfg.map_builder_objects[extractor.name] = 1
+            cfg.game_objects[extractor_name] = extractor
+            if extractor_name not in cfg.map_builder_objects:
+                cfg.map_builder_objects[extractor.name] = 1
+            else:
+                cfg.map_builder_objects[extractor.name] += 1
 
     def _make_chests(self, num_chests, cfg):
         chest = chest_cfg()
@@ -295,6 +292,8 @@ def replay() -> ReplayTool:
 
 
 def experiment():
+    import subprocess
+    import time
     for curriculum_style in foraging_curriculum_args:
         subprocess.run(
             [

@@ -144,7 +144,7 @@ class GeneralizedTerrainTaskGenerator(TaskGenerator):
             "germanium_extractor",
             "silicon_extractor",
         ]:
-            #for extractors and chargers, any agent can use
+            # for extractors and chargers, any agent can use
             self._overwrite_positions(env.game.objects[obj])
 
         env.game.objects["chest"] = ChestConfig(

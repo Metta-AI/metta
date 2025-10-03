@@ -212,30 +212,10 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
         super().__init__(config)
 
     def carve_out_patches(self, grid, valid_positions, num_patches):
-        """
-        Carve out square 9x9 'empty' patches to create space.
-
-        Rules:
-        - Allowed to carve over walls/objects/empties.
-        - NOT allowed to carve over agents (cells equal to "agent.agent").
-        - Keeps patches fully inside bounds.
-        - Returns centers of patches actually carved.
-
-        Args:
-            grid: np.ndarray (H, W) of labels (object/str dtype).
-            valid_positions: unused (kept for API compatibility).
-            num_patches: number of patches to try to carve.
-
-        Returns:
-            grid: modified in-place (also returned for convenience)
-            centers: np.ndarray (M, 2) of int (y, x) centers, M <= num_patches
-        """
         PATCH = 9
         HALF = PATCH // 2  # = 4
         H, W = grid.shape
 
-        # Precompute where agents are; faster than re-checking strings each loop.
-        # TODO update this to be if it starts with "agent."
         agent_mask = grid == "agent.agent"
 
         centers = []
@@ -269,15 +249,7 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
 
         return grid, np.array(centers, dtype=int)
 
-    def build(self):
-        map_dir = self.setup()
-        if self.config.file is None:
-            uri = pick_random_file(map_dir, self.config.rng)
-        else:
-            uri = self.config.file
-
-        grid = np.load(f"{map_dir}/{uri}", allow_pickle=True)
-
+    def place_agents(self, grid):
         grid, valid_agent_positions, agent_labels = self.clean_grid(grid)
         if self.config.mass_in_center:
             valid_agent_positions = self.sort_by_distance_from_center(valid_agent_positions, grid.shape)
@@ -285,14 +257,16 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
         if len(valid_agent_positions) < num_agents:
             raise ValueError(
                 f"Not enough valid positions for {num_agents} agents "
-                f"(only {len(valid_agent_positions)} available) in map {uri}"
+                f"(only {len(valid_agent_positions)} available) in map"
             )
 
         for pos, label in zip(valid_agent_positions[:num_agents], agent_labels, strict=True):
             grid[tuple(pos)] = label
+        return grid, agent_labels
 
-        grid, valid_assembler_positions, _ = self.clean_grid(
-            grid, assemblers=True, mass_in_center=self.config.mass_in_center, clear_agents=False
+    def get_assembler_positions(self, grid):
+        valid_assembler_positions = self.get_valid_positions(
+            grid, assemblers=True, mass_in_center=self.config.mass_in_center
         )
 
         # Ensure we have enough valid positions for all objects
@@ -307,32 +281,30 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
         if len(valid_assembler_positions) < total_objects:
             print(
                 f"Not enough valid positions for {total_objects} objects "
-                f"(only {len(valid_assembler_positions)} available) in map {uri}"
+                f"(only {len(valid_assembler_positions)} available) in map"
             )
+        return valid_assembler_positions
 
-        # Place objects (ensuring they have empty neighbors since valid_positions came from assemblers=True)
-
+    def place_assemblers(self, grid, valid_assembler_positions):
         for obj_name, count in self.config.objects.items():
             if count <= 0 or len(valid_assembler_positions) == 0:
                 continue
-            if count > 1:
-                num_to_place_in_center = count // 2
+            elif count == 1:
+                grid[tuple(valid_assembler_positions[0])] = obj_name
+                valid_assembler_positions = valid_assembler_positions[1:]
+            else:
+                num_to_place_in_center = count // 2  # place half in center
                 num_surrounding = count - num_to_place_in_center
-
-                # Place half at center
                 center_positions = valid_assembler_positions[:num_to_place_in_center].copy()
 
                 # place the remaining randomly
                 if num_surrounding > 0 and len(valid_assembler_positions) > num_to_place_in_center:
                     available = valid_assembler_positions[num_to_place_in_center:].copy()
-                    num_to_sample = min(num_surrounding, len(available))
-                    sample_indices = self.config.rng.sample(range(len(available)), num_to_sample)
-                    other_positions = available[sample_indices]
-                    all_positions = np.vstack([center_positions, other_positions])
+                    sample_indices = self.config.rng.sample(range(len(available)), min(num_surrounding, len(available)))
+                    all_positions = np.vstack([center_positions, available[sample_indices]])
                 else:
                     all_positions = center_positions
 
-                # Place all objects of this type
                 for position in all_positions:
                     grid[tuple(position)] = obj_name
 
@@ -342,13 +314,22 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
                 if len(mask) == 0:
                     continue
                 valid_assembler_positions = valid_assembler_positions[mask]
+        return grid
 
-            else:
-                # Place first 'count' positions
-                positions = valid_assembler_positions[:count]
-                for position in positions:
-                    grid[tuple(position)] = obj_name
-                valid_assembler_positions = valid_assembler_positions[count:]
+    def build(self):
+        map_dir = self.setup()
+        if self.config.file is None:
+            uri = pick_random_file(map_dir, self.config.rng)
+        else:
+            uri = self.config.file
+
+        grid = np.load(f"{map_dir}/{uri}", allow_pickle=True)
+
+        grid, agent_labels = self.place_agents(grid)
+
+        valid_assembler_positions = self.get_assembler_positions(grid)
+
+        grid = self.place_assemblers(grid, valid_assembler_positions)
 
         num_agents_in_grid = (grid == "agent.agent").sum()
         if num_agents_in_grid != len(agent_labels):

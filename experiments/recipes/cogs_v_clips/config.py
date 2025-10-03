@@ -104,7 +104,7 @@ foraging_curriculum_args = {
         "room_size": ["small", "medium", "large"],
         "positions": num_agents_to_positions[4],
         "num_chests": [0, 5, 8, 15],
-    }
+    },
 }
 
 
