@@ -5,6 +5,7 @@ from typing import Any, NoReturn, Self, Union, get_args, get_origin
 from pydantic import BaseModel, ConfigDict, TypeAdapter
 
 
+# Please don't move this class to mettagrid.config, it creates circular imports.
 class Config(BaseModel):
     """
     Common extension of Pydantic's BaseModel that:

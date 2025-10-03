@@ -1,7 +1,7 @@
 from pydantic import Field
 
 from metta.common.tool import Tool
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 
 class NestedConfig(Config):

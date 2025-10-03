@@ -37,7 +37,7 @@ from metta.adaptive.utils import (
     create_training_job,
     generate_run_id,
 )
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
 
