@@ -137,7 +137,7 @@
       "type": "debugpy",
       "request": "launch",
       "module": "cogames.main",
-      "args": ["play", "machina_2"],
+      "args": ["play", "training_facility_1", "--steps=1000"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
