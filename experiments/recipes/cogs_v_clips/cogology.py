@@ -42,7 +42,6 @@ from metta.agent.policies.vit_reset import ViTResetConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
-from metta.common.wandb.context import WandbConfig
 from metta.rl.loss import LossConfig
 from metta.rl.training.component import TrainerComponent
 from metta.rl.trainer_config import TrainerConfig
@@ -226,27 +225,25 @@ class CogologyTaskGenerator(TaskGenerator):
         Returns:
             ASCII string with agents marked as '@'
         """
-        import random as stdlib_random
-
-        # 50% chance of small room (5x5) vs medium room (7x7)
-        use_small = stdlib_random.random() < 0.5
-
-        # Create a simple room with agents spread out
+        # Create 3x3 rooms for all configurations to ensure agents have space to move
         if agents_per_room == 1:
-            # Small: just agent, Medium: agent with padding
-            return "@" if use_small else ".@."
+            # 3x3 room with single agent in center
+            return "...\n.@.\n..."
         elif agents_per_room == 2:
-            # Small: tight spacing, Medium: more space
-            return "@\n@" if use_small else ".@.\n.@."
+            # 3x3 room with two agents
+            return "@..\n...\n..@"
         elif agents_per_room == 3:
-            # Small: 2x2 grid, Medium: spread out
-            return "@.@\n@" if use_small else "@.@\n.@."
+            # 3x3 room with three agents
+            return "@.@\n...\n.@."
         elif agents_per_room == 4:
-            # Small: 2x2 tight, Medium: 2x2 with space
-            return "@.@\n@.@" if use_small else "@...@\n.....\n@...@"
+            # 3x3 room with four agents in corners
+            return "@.@\n...\n@.@"
+        elif agents_per_room == 6:
+            # 3x3 room with six agents
+            return "@.@\n@.@\n@.@"
         else:
-            # Fallback: single agent
-            return "@"
+            # Fallback: 3x3 with agent in center
+            return "...\n.@.\n..."
 
     def _create_env_from_map(self, level, num_rooms: int) -> MettaGridConfig:
         """Create MettaGridConfig from MapGen level with random object placement.
@@ -1202,11 +1199,6 @@ def train(
         policy_architecture=policy_config,
         evaluator=evaluator,
         stats_server_uri="https://api.observatory.softmax-research.net",
-        wandb=WandbConfig(
-            enabled=True,
-            project="metta",
-            entity="softmax-research",
-        ),
         training_components=progression_callbacks,
         group="cogology",
     )
