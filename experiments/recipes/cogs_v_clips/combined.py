@@ -30,13 +30,13 @@ class CogsVClipsTaskGenerator(TaskGenerator):
         super().__init__(config)
 
         self.task_generators = {
-            "generalized_terrain": generalized_terrain.GeneralizedTerrainTaskGenerator(
+            "generalized_terrain": generalized_terrain.GeneralizedTerrainTaskGenerator(generalized_terrain.GeneralizedTerrainTaskGenerator.Config(
                 **generalized_terrain_curriculum_args[terrain_curriculum]
-            ),
+            )),
             "facilities": facilities.make_task_generator().create(),
-            "foraging": foraging.ForagingTaskGenerator(
+            "foraging": foraging.ForagingTaskGenerator(foraging.ForagingTaskGenerator.Config(
                 **foraging_curriculum_args[foraging_curriculum]
-            ),
+            )),
         }
 
     def _generate_task(

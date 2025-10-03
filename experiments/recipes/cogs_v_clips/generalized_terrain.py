@@ -193,6 +193,9 @@ class GeneralizedTerrainTaskGenerator(TaskGenerator):
 
         return env
 
+    def generate_task(self, task_id: int, rng: random.Random, num_instances: Optional[int] = None) -> MettaGridConfig:
+        return self._generate_task(task_id, rng)
+
 
 def make_mettagrid(task_generator) -> MettaGridConfig:
     return task_generator.get_task(random.randint(0, 1000000))
