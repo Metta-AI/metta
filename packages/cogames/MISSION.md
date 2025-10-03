@@ -24,8 +24,10 @@ to share and replenish power.
 
 - Your onboard battery starts at **100** energy and caps at **100**.
 - Passive solar equipment regenerates **+1** energy per turn.
-- Interacting with solar array stations nets **50** energy, then triggers a **10**-turn cooldown.
-- Support teammates by moving onto their position to transfer **half** your battery to them.
+- Interacting with solar array stations nets **50** energy, after which they take 10 turns to fully recharge. You can
+  use them while they are recharging, and will get energy commensurate with the fraction of the recharge window that has
+  elapsed.
+- Support teammates by moving onto their position to transfer **half** your energy to them.
 
 #### Cargo Limits
 
@@ -43,10 +45,8 @@ You and your Cog teammates take exactly one action per turn. Actions resolve in 
 
 Movement is your primary way to interact with the world. Every step burns **2** energy.
 
-Attempting to move into occupied space will make you interact with the target:
-
-- Another Cog → Transfer **half** of your battery to theirs.
-- Station → Activate or operate the facility (see Interaction Protocols below).
+Attempting to move into occupied space will make you interact with the target (described above for other Cogs, and below
+for all other targets).
 
 **EMOTE [Symbol]**
 
@@ -87,30 +87,28 @@ Extractor interaction has a few additional properties:
 
 - Extractors may have **cooldown** periods after interaction. Activating one mid-cooldown generally has no effect.
 - Some extractors allow **partial usage** during cooldown. Inputs and outputs are scaled by the fraction of elapsed
-  cooldown, and the original cooldown continues counting down instead of refreshing.
+  cooldown.
 - Certain stations have a **maximum number of uses**; once exhausted they stop working.
-- Stations with **exhaustion** slow down each time they run: after every success their cooldown is multiplied by
-  `(1 + exhaustion)`.
 
 The exact behavior of each extractor may vary across missions. Here are some typical parameters we have discovered:
 
-| Extractor                 | Input cost | Output                                   | Cooldown                        | Max uses |
-| ------------------------- | ---------- | ---------------------------------------- | ------------------------------- | -------- |
-| Carbon Extractor (`C`)    |            | +4 carbon                                |                                 |          |
-| Oxygen Extractor (`O`)    |            | +100 oxygen                              | 200 turns (partial use allowed) |          |
-| Germanium Extractor (`G`) |            | +2/+3/+4/+5 germanium for 1/2/3/4 agents |                                 | 2        |
-| Silicon Extractor (`S`)   | −25 energy | +25 silicon                              |                                 |          |
-| Solar Array (`+`)         |            | +50 energy                               | 10 turns (partial use allowed)  |          |
+| Extractor           | Input cost | Output                                   | Cooldown                        | Max uses |
+| ------------------- | ---------- | ---------------------------------------- | ------------------------------- | -------- |
+| Carbon Extractor    |            | +4 carbon                                |                                 |          |
+| Oxygen Extractor    |            | +100 oxygen                              | 200 turns (partial use allowed) |          |
+| Germanium Extractor |            | +2/+3/+4/+5 germanium for 1/2/3/4 agents |                                 | 2        |
+| Silicon Extractor   | −25 energy | +25 silicon                              |                                 |          |
+| Solar Array         |            | +50 energy                               | 10 turns (partial use allowed)  |          |
 
 Some extractors are worse for wear. Years of neglect have reduced their effectiveness. Here, again, are typical
 parameters we have observed for these depleted extractors:
 
-| Extractor                          | Input cost | Output                                   | Cooldown                       | Max uses |
-| ---------------------------------- | ---------- | ---------------------------------------- | ------------------------------ | -------- |
-| Depleted Carbon Extractor (`c`)    |            | +1                                       |                                | 100      |
-| Depleted Oxygen (`o`)              |            | +10 oxygen                               | 40 turns (partial use allowed) | 10       |
-| Depleted Germanium Extractor (`g`) |            | +2/+3/+4/+5 germanium for 1/2/3/4 agents |                                | 1        |
-| Depleted Silicon (`s`)             | -25        | +10 silicon                              |                                | 10       |
+| Extractor                    | Input cost | Output                                   | Cooldown                       | Max uses |
+| ---------------------------- | ---------- | ---------------------------------------- | ------------------------------ | -------- |
+| Depleted Carbon Extractor    |            | +1                                       |                                | 100      |
+| Depleted Oxygen Extractor    |            | +10 oxygen                               | 40 turns (partial use allowed) | 10       |
+| Depleted Germanium Extractor |            | +2/+3/+4/+5 germanium for 1/2/3/4 agents |                                | 1        |
+| Depleted Silicon Extractor   | -25 energy | +10 silicon                              |                                | 10       |
 
 ### Station Type: Assembler
 
@@ -127,9 +125,7 @@ missions, and so you must discover them out in the wild.
 - Each protocol demands different inputs and produces different outputs.
 - Inputs and outputs can include HEART units or gear (scrambler, modulator, decoder, resonator), not just resources and
   energy.
-- Some assemblers require gear to activate yet leave the gear intact afterward.
 - Assemblers have no cooldowns, though some may enforce a maximum number of uses.
-- Individual protocols may also have a maximum number of uses.
 
 ### Station Type: Communal Chests
 
@@ -148,13 +144,13 @@ withdraw all you can, and any amount you cannot fit in your inventory will remai
 Like with extractors, the exact parameters (max storage and initial amount) will vary across missions. Here are some
 typical parameters we have discovered:
 
-| Chest                 | Max storage | Initial amount |
-| --------------------- | ----------- | -------------- |
-| Heart chest (`=`)     | 255         | 0              |
-| Carbon chest (`D`)    | 255         | 50             |
-| Oxygen chest (`P`)    | 255         | 50             |
-| Germanium chest (`H`) | 255         | 5              |
-| Silicon chest (`T`)   | 255         | 100            |
+| Chest           | Max storage | Initial amount |
+| --------------- | ----------- | -------------- |
+| Heart chest     | 255         | 0              |
+| Carbon chest    | 255         | 50             |
+| Oxygen chest    | 255         | 50             |
+| Germanium chest | 255         | 5              |
+| Silicon chest   | 255         | 100            |
 
 ---
 
