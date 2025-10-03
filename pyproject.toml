@@ -16,6 +16,7 @@ dependencies = [
   "codebot",
   "cogames",
   "colorama>=0.4.6",
+  "cortex",
   "cpplint>=2.0.2",
   "ddtrace>=2.6.0",
   "duckdb>=1.3.0",
@@ -114,6 +115,7 @@ mapgen-scene = "tools.map.gen_scene:main"
 source = [
   "codebot",
   "cogames",
+  "cortex",
   "gitta",
   "metta",
   "mettagrid",
@@ -158,6 +160,7 @@ members = [
   "experiments",
   "packages/codebot",
   "packages/cogames",
+  "packages/cortex",
   "packages/gitta",
   "packages/mettagrid",
   "packages/pufferlib-core",
@@ -167,6 +170,7 @@ members = [
 [tool.uv.sources]
 codebot = { workspace = true }
 cogames = { workspace = true }
+cortex = { workspace = true }
 gitta = { workspace = true }
 metta-agent = { workspace = true }
 metta-app-backend = { workspace = true }

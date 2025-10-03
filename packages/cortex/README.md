@@ -210,20 +210,6 @@ python packages/cortex/evaluations/run.py --task majority --stack all   # runs a
 6) (Optional) Add tests
 - See `packages/cortex/tests/test_cortex_stack.py` for examples that check shapes, state handling, and resets.
 
-### Evaluate Quickly
-
-The `packages/cortex/evaluations/` folder contains a lightweight trainer for synthetic sequence tasks (delayed recall, majority, Dyck‑1).
-
-Common commands:
-- Single stack
-  - `python packages/cortex/evaluations/run.py --task delayed_recall --stack xlstm`
-- All registered stacks
-  - `python packages/cortex/evaluations/run.py --task majority --stack all`
-
-Flags
-- `--task {delayed_recall, majority, dyck}`
-- `--stack` is populated from `STACKS` in `packages/cortex/evaluations/stacks.py`
-- `--epochs`, `--batch-size`, `--lr`, `--seed`, `--log-level`
 
 ### Tips
 - Prefer batch‑first shapes `[B, T, H]` and pass state explicitly.
