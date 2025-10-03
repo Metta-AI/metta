@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iostream>
 #include <memory>
 #include <numbers>
 #include <random>
@@ -158,9 +159,12 @@ public:
   }
 
   void clip_assembler(Assembler& to_infect) {
+    assert(!to_infect.is_clipped);
     // Update infection weights only for adjacent assemblers
     for (auto* adjacent : adjacent_assemblers[&to_infect]) {
+      // Track this even for clipped assemblers, so we'll have an accurate number if they become unclipped.
       assembler_infection_weight[adjacent] += infection_weight(to_infect, *adjacent);
+      if (adjacent->is_clipped) continue;
       border_assemblers.insert(adjacent);
     }
     border_assemblers.erase(&to_infect);
@@ -214,7 +218,9 @@ public:
   void maybe_clip_new_assembler() {
     if (std::generate_canonical<float, 10>(rng) < clip_rate) {
       Assembler* assembler = pick_assembler_to_clip();
-      if (assembler) clip_assembler(*assembler);
+      if (assembler) {
+        clip_assembler(*assembler);
+      }
     }
   }
 };
