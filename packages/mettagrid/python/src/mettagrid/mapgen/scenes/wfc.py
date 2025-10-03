@@ -29,8 +29,7 @@ from typing import Literal
 
 import numpy as np
 
-from mettagrid.config.config import Config
-from mettagrid.mapgen.scene import Scene
+from mettagrid.mapgen.scene import Scene, SceneConfig
 from mettagrid.mapgen.utils.pattern import Symmetry, ascii_to_patterns_with_counts
 
 logger = logging.getLogger(__name__)
@@ -45,7 +44,7 @@ def opposite_direction(d: int) -> int:
     return (d + 2) % 4
 
 
-class WFCParams(Config):
+class WFCConfig(SceneConfig):
     pattern: str
     pattern_size: int = 3
     next_node_heuristic: NextNodeHeuristic = "entropy"
@@ -54,13 +53,13 @@ class WFCParams(Config):
     attempts: int = 1000
 
 
-class WFC(Scene[WFCParams]):
+class WFC(Scene[WFCConfig]):
     def post_init(self):
         patterns_with_counts = ascii_to_patterns_with_counts(
-            self.params.pattern,
-            self.params.pattern_size,
-            periodic=self.params.periodic_input,
-            symmetry=self.params.symmetry,
+            self.config.pattern,
+            self.config.pattern_size,
+            periodic=self.config.periodic_input,
+            symmetry=self.config.symmetry,
         )
 
         self._weights = np.array([p[1] for p in patterns_with_counts], dtype=np.float64)
@@ -72,8 +71,8 @@ class WFC(Scene[WFCParams]):
 
         self._starting_entropy = np.log(self._sum_of_weights) - self._sum_of_weight_log_weights / self._sum_of_weights
 
-        self._next_node_heuristic = self.params.next_node_heuristic
-        self._attempts = self.params.attempts
+        self._next_node_heuristic = self.config.next_node_heuristic
+        self._attempts = self.config.attempts
 
         self._fill_propagator()
 
@@ -166,7 +165,7 @@ class WFCRenderSession:
     def run(self):
         ok = False
         for i in range(self.scene._attempts):
-            logger.debug(f"Attempt {i + 1} of {self.scene._attempts}, pattern:\n{self.scene.params.pattern}")
+            logger.debug(f"Attempt {i + 1} of {self.scene._attempts}, pattern:\n{self.scene.config.pattern}")
             start_time = time.time()
             self.reset()
             ok = self.attempt_run()
@@ -184,7 +183,7 @@ class WFCRenderSession:
                 logger.debug(f"Attempt {i + 1} failed")
 
         if not ok:
-            raise Exception(f"Failed to generate map with pattern:\n{self.scene.params.pattern}")
+            raise Exception(f"Failed to generate map with pattern:\n{self.scene.config.pattern}")
 
         for y in range(self.height):
             for x in range(self.width):
@@ -196,8 +195,8 @@ class WFCRenderSession:
         # non-periodic
         self._pick_next_count += 1
         start = time.time()
-        used_width = self.width - self.scene.params.pattern_size + 1
-        used_height = self.height - self.scene.params.pattern_size + 1
+        used_width = self.width - self.scene.config.pattern_size + 1
+        used_height = self.height - self.scene.config.pattern_size + 1
 
         if self.scene._next_node_heuristic == "scanline":
             for i in range(self.observed, used_width * used_height):

@@ -4,8 +4,8 @@
 #include <string>
 
 #include "actions/action_handler.hpp"
-#include "objects/agent.hpp"
 #include "core/types.hpp"
+#include "objects/agent.hpp"
 
 class ChangeColor : public ActionHandler {
 public:
@@ -16,7 +16,7 @@ public:
   }
 
 protected:
-  bool _handle_action(Agent* actor, ActionArg arg) override {
+  bool _handle_action(Agent& actor, ActionArg arg) override {
     // Note: 'color' is uint8_t which naturally wraps at 256.
     // This could be interpreted as circular hue behavior (red -> orange -> ... -> violet -> red)
 
@@ -24,13 +24,13 @@ protected:
     const uint8_t step_size = static_cast<uint8_t>(255 / (max_arg() + 1));
 
     if (arg == 0) {  // Increment
-      actor->color = static_cast<uint8_t>(actor->color + 1);
+      actor.color = static_cast<uint8_t>(actor.color + 1);
     } else if (arg == 1) {  // Decrement
-      actor->color = static_cast<uint8_t>(actor->color - 1);
+      actor.color = static_cast<uint8_t>(actor.color - 1);
     } else if (arg == 2) {  // Large increment
-      actor->color = static_cast<uint8_t>(actor->color + step_size);
+      actor.color = static_cast<uint8_t>(actor.color + step_size);
     } else if (arg == 3) {  // Large decrement
-      actor->color = static_cast<uint8_t>(actor->color - step_size);
+      actor.color = static_cast<uint8_t>(actor.color - step_size);
     }
 
     return true;

@@ -1,14 +1,13 @@
-from mettagrid.config.config import Config
 from mettagrid.mapgen.random.float import FloatDistribution
-from mettagrid.mapgen.scene import ChildrenAction, Scene
+from mettagrid.mapgen.scene import ChildrenAction, Scene, SceneConfig
 from mettagrid.mapgen.scenes.random import Random
 
 
-class RandomObjectsParams(Config):
+class RandomObjectsConfig(SceneConfig):
     object_ranges: dict[str, FloatDistribution] = {}
 
 
-class RandomObjects(Scene[RandomObjectsParams]):
+class RandomObjects(Scene[RandomObjectsConfig]):
     """
     Fill the grid with random objects. Unlike Random, this scene takes the percentage ranges of objects,
     not the absolute count.
@@ -19,16 +18,15 @@ class RandomObjects(Scene[RandomObjectsParams]):
     def get_children(self) -> list[ChildrenAction]:
         size = self.height * self.width
         objects = {}
-        for obj_name, distribution in self.params.object_ranges.items():
+        for obj_name, distribution in self.config.object_ranges.items():
             percentage = distribution.sample(self.rng)
             objects[obj_name] = int(size * percentage)
 
         return [
             ChildrenAction(
-                scene=Random.factory(Random.Params(objects=objects)),
+                scene=Random.Config(objects=objects),
                 where="full",
             ),
-            *self.children_actions,
         ]
 
     def render(self):

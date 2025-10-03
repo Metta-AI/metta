@@ -10,7 +10,7 @@ In Cogs vs Clips, multiple "Cog" agents must cooperate to gather resources, oper
 to achieve objectives. The environment features:
 
 - **Multi-agent cooperation**: Agents must coordinate to efficiently use shared resources and stations
-- **Resource management**: Energy, materials (carbon, oxygen, geranium, silicon), and crafted components
+- **Resource management**: Energy, materials (carbon, oxygen, germanium, silicon), and crafted components
 - **Station-based interactions**: Different stations provide unique capabilities (extractors, assemblers, chargers,
   chests)
 - **Sparse rewards**: Agents receive rewards only upon successfully crafting target items (hearts)
@@ -21,9 +21,9 @@ to achieve objectives. The environment features:
 **Resources:**
 
 - `energy`: Consumed for movement and operating extractors
-- `carbon`, `oxygen`, `geranium`, `silicon`: Base materials extracted from stations
+- `carbon`, `oxygen`, `germanium`, `silicon`: Base materials extracted from stations
 - `heart`: The target objective item
-- `disruptor`, `modulator`, `resonator`, `scrabbler`: Advanced components
+- `decoder`, `modulator`, `resonator`, `scrambler`: Advanced components
 
 **Station Types:**
 
@@ -69,23 +69,42 @@ CoGames integrates with standard RL training frameworks. Currently supports:
 
 ```bash
 # Train a PPO agent on a single-agent scenario
-cogames train assembler_1_simple --algorithm ppo --steps 50000 --save ./my_policy.ckpt
-
-# Train with Weights & Biases logging
-cogames train assembler_2_complex --algorithm ppo --steps 100000 --wandb my-project
+cogames train machina_1 --steps 50000
 ```
 
 ### Evaluating Policies
 
+Run evaluation for one or more policies on a game. Takes a game name and one or more **policy specs**.
+
+**Policy spec format**
+
+```
+{policy_class_path}[:policy_data_path][:proportion]
+```
+
+- **policy_class_path**: required. Either a fully qualified path (`cogames.policy.lstm.LSTMPolicy`) or shorthand
+  (`simple`, `random`).
+- **policy_data_path**: optional. A file or directory. If a directory, the latest checkpoint is used.
+- **proportion**: optional, defaults to 1. Use when evaluating multiple policies to set the relative number of agents
+  using each policy.
+
+**Examples**
+
 ```bash
-# Evaluate a trained policy
-cogames evaluate assembler_1_simple ./my_policy.ckpt --episodes 100
+# Evaluate a random policy
+cogames evaluate machina_1 random
 
-# Evaluate with video recording
-cogames evaluate assembler_2_complex ./my_policy.ckpt --episodes 10 --render --video ./evaluation.mp4
+# Evaluate a trained policy from a checkpoint file
+cogames evaluate machina_1 simple:train_dir/my_policy.pt
 
-# Baseline comparison with random policy
-cogames evaluate assembler_1_simple random --episodes 100
+# Evaluate the latest checkpoint in a directory
+cogames evaluate machina_1 simple:train_dir/
+
+# Compare multiple trained policies
+cogames evaluate machina_1 simple:train_dir/my_policy1.pt simple:train_dir/my_policy2.pt
+
+# Evaluate a trained policy in games in which it directs 1/3 of the agents and the rest take random actions
+cogames evaluate machina_1 simple:train_dir/my_policy.pt:1 random::2
 ```
 
 ### Implementing Custom Policies
@@ -154,26 +173,6 @@ for step in range(1000):
         obs, info = env.reset()
 ```
 
-### Observation Space
-
-Observations are dictionaries containing:
-
-- `rgb`: RGB image of the agent's view (H×W×3)
-- `inventory`: Agent's current resources
-- `position`: Agent's (x, y) coordinates
-- `orientation`: Agent's facing direction
-- `glyph`: Agent's current communication symbol
-
-### Action Space
-
-Available actions:
-
-- `0`: No-op (do nothing)
-- `1-4`: Move (forward, backward, left, right)
-- `5-8`: Rotate (turn left/right)
-- `9-24`: Change glyph (for communication)
-- Additional actions may be available based on scenario
-
 ## 📊 Available Scenarios
 
 ### Tutorial Scenarios
@@ -202,7 +201,7 @@ config = make_game(
     num_chargers=1,                # Energy stations
     num_carbon_extractors=1,       # Material extractors
     num_oxygen_extractors=1,
-    num_geranium_extractors=1,
+    num_germanium_extractors=1,
     num_silicon_extractors=1,
     num_chests=2,                  # Storage chests
 )
@@ -261,10 +260,13 @@ uv run ./tools/run.py experiments.recipes.cogames.distributed_train \
 
 ```bash
 # Interactive mode for debugging
-cogames play assembler_1_simple --interactive --render
+cogames play machina_1 --interactive
 
-# Step-by-step execution
-cogames play machina_2 --steps 10 --render --interactive
+# Use the text renderer
+cogames play machina_1 --interactive --render text
+
+# Non-interactive step-by-step execution
+cogames play machina_2 --steps 10
 ```
 
 ## 📝 Citation

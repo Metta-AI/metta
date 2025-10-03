@@ -7,6 +7,7 @@
 #include "actions/get_output.hpp"
 #include "actions/noop.hpp"
 #include "actions/put_recipe_items.hpp"
+#include "actions/resource_mod.hpp"
 #include "config/mettagrid_config.hpp"
 #include "core/event.hpp"
 #include "core/grid.hpp"
@@ -102,7 +103,8 @@ protected:
 
 TEST_F(MettaGridCppTest, AgentRewards) {
   AgentConfig agent_cfg = create_test_agent_config();
-  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
+  auto resource_names = create_test_resource_names();
+  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg, &resource_names));
 
   // Test reward values
   EXPECT_FLOAT_EQ(agent->stat_rewards[std::string(TestItemStrings::ORE) + ".amount"], 0.125f);
@@ -121,10 +123,8 @@ TEST_F(MettaGridCppTest, AgentRewardsWithAdditionalStatsTracker) {
 
   AgentConfig agent_cfg(
       0, "agent", 1, "test_group", 100, 0.0f, create_test_inventory_config(), rewards, stats_reward_max);
-  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
-
   auto resource_names = create_test_resource_names();
-  agent->stats.set_resource_names(&resource_names);
+  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg, &resource_names));
 
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
@@ -133,7 +133,7 @@ TEST_F(MettaGridCppTest, AgentRewardsWithAdditionalStatsTracker) {
   agent->stats.set("heart.amount", 5.0f);  // Agent has 5 hearts
 
   // Create an additional stats tracker (e.g., from game or chest)
-  StatsTracker additional_stats;
+  StatsTracker additional_stats(&resource_names);
   additional_stats.set("chest.heart.amount", 10.0f);  // Additional 10 chest hearts
 
   // Compute rewards without additional tracker
@@ -158,10 +158,8 @@ TEST_F(MettaGridCppTest, AgentRewardsWithAdditionalStatsTracker) {
 
 TEST_F(MettaGridCppTest, AgentInventoryUpdate) {
   AgentConfig agent_cfg = create_test_agent_config();
-  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
-
   auto resource_names = create_test_resource_names();
-  agent->stats.set_resource_names(&resource_names);
+  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg, &resource_names));
 
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
@@ -209,9 +207,8 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_RewardCappingBehavior) {
 
   AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0.0f, inventory_config, rewards, stats_reward_max, 0.0f, {});
 
-  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
   auto resource_names = create_test_resource_names();
-  agent->stats.set_resource_names(&resource_names);
+  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg, &resource_names));
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
 
@@ -277,9 +274,8 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_MultipleItemCaps) {
 
   AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0.0f, inventory_config, rewards, stats_reward_max, 0.0f, {});
 
-  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
   auto resource_names = create_test_resource_names();
-  agent->stats.set_resource_names(&resource_names);
+  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg, &resource_names));
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
 
@@ -335,9 +331,8 @@ TEST_F(MettaGridCppTest, SharedInventoryLimits) {
 
   AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0.0f, inventory_config, rewards, stats_reward_max, 0.0f, {});
 
-  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
   auto resource_names = create_test_resource_names();
-  agent->stats.set_resource_names(&resource_names);
+  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg, &resource_names));
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
 
@@ -407,7 +402,8 @@ TEST_F(MettaGridCppTest, GridObjectManagement) {
 
   // Create and add an agent
   AgentConfig agent_cfg = create_test_agent_config();
-  Agent* agent = new Agent(2, 3, agent_cfg);
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(2, 3, agent_cfg, &resource_names);
 
   grid.add_object(agent);
 
@@ -436,11 +432,12 @@ TEST_F(MettaGridCppTest, AttackAction) {
   // Create attacker and target
   AgentConfig attacker_cfg = create_test_agent_config();
   attacker_cfg.group_name = "red";
-  Agent* attacker = new Agent(2, 0, attacker_cfg);
   AgentConfig target_cfg = create_test_agent_config();
   target_cfg.group_name = "blue";
   target_cfg.group_id = 2;
-  Agent* target = new Agent(0, 0, target_cfg);
+  auto resource_names = create_test_resource_names();
+  Agent* attacker = new Agent(2, 0, attacker_cfg, &resource_names);
+  Agent* target = new Agent(0, 0, target_cfg, &resource_names);
 
   float attacker_reward = 0.0f;
   float target_reward = 0.0f;
@@ -470,7 +467,7 @@ TEST_F(MettaGridCppTest, AttackAction) {
   attack.init(&grid, &rng);
 
   // Perform attack (arg 5 targets directly in front)
-  bool success = attack.handle_action(attacker->id, 5);
+  bool success = attack.handle_action(*attacker, 5);
   // Hitting a target with armor counts as success
   EXPECT_TRUE(success);
 
@@ -483,7 +480,7 @@ TEST_F(MettaGridCppTest, AttackAction) {
   EXPECT_EQ(target->inventory.amount(TestItems::HEART), 3);
 
   // Attack again, now that armor is gone
-  success = attack.handle_action(attacker->id, 5);
+  success = attack.handle_action(*attacker, 5);
   EXPECT_TRUE(success);
 
   // Verify target's inventory was stolen
@@ -500,7 +497,8 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
   AgentConfig agent_cfg = create_test_agent_config();
   agent_cfg.group_name = "red";
   agent_cfg.group_id = 1;
-  Agent* agent = new Agent(1, 0, agent_cfg);
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(1, 0, agent_cfg, &resource_names);
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
 
@@ -534,14 +532,14 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
   put.init(&grid, &rng);
 
   // Test putting matching items
-  bool success = put.handle_action(agent->id, 0);
+  bool success = put.handle_action(*agent, 0);
   EXPECT_TRUE(success);
   EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 0);      // Ore consumed
   EXPECT_EQ(agent->inventory.amount(TestItems::HEART), 1);    // Heart unchanged
   EXPECT_EQ(generator->inventory.amount(TestItems::ORE), 1);  // Ore added to generator
 
   // Test putting non-matching items
-  success = put.handle_action(agent->id, 0);
+  success = put.handle_action(*agent, 0);
   EXPECT_FALSE(success);                                        // Should fail since we only have heart left
   EXPECT_EQ(agent->inventory.amount(TestItems::HEART), 1);      // Heart unchanged
   EXPECT_EQ(generator->inventory.amount(TestItems::HEART), 0);  // No heart in generator
@@ -553,7 +551,8 @@ TEST_F(MettaGridCppTest, GetOutput) {
   AgentConfig agent_cfg = create_test_agent_config();
   agent_cfg.group_name = "red";
   agent_cfg.group_id = 1;
-  Agent* agent = new Agent(1, 0, agent_cfg);
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(1, 0, agent_cfg, &resource_names);
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
 
@@ -586,7 +585,7 @@ TEST_F(MettaGridCppTest, GetOutput) {
   get.init(&grid, &rng);
 
   // Test getting output
-  bool success = get.handle_action(agent->id, 0);
+  bool success = get.handle_action(*agent, 0);
   EXPECT_TRUE(success);
   EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 1);        // Still have ore
   EXPECT_EQ(agent->inventory.amount(TestItems::ARMOR), 1);      // Also have armor
@@ -599,7 +598,8 @@ TEST_F(MettaGridCppTest, ActionTracking) {
   Grid grid(10, 10);
 
   AgentConfig agent_cfg = create_test_agent_config();
-  Agent* agent = new Agent(5, 5, agent_cfg);
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(5, 5, agent_cfg, &resource_names);
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
   grid.add_object(agent);
@@ -610,7 +610,7 @@ TEST_F(MettaGridCppTest, ActionTracking) {
   noop.init(&grid, &rng);
 
   EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 0.0f);
-  noop.handle_action(agent->id, 0);  // count 1, max 1
+  noop.handle_action(*agent, 0);  // count 1, max 1
   EXPECT_EQ(agent->location.r, 5);
   EXPECT_EQ(agent->location.c, 5);
   EXPECT_EQ(agent->prev_location.r, 5);
@@ -619,29 +619,29 @@ TEST_F(MettaGridCppTest, ActionTracking) {
   EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 1.0f);
   agent->location.r = 6;
   agent->location.c = 6;
-  noop.handle_action(agent->id, 0);  // count 0, max 1
+  noop.handle_action(*agent, 0);  // count 0, max 1
   EXPECT_EQ(agent->location.r, 6);
   EXPECT_EQ(agent->location.c, 6);
   EXPECT_EQ(agent->prev_location.r, 6);
   EXPECT_EQ(agent->prev_location.c, 6);
   EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 1.0f);
-  noop.handle_action(agent->id, 0);  // count 1, max 1
+  noop.handle_action(*agent, 0);  // count 1, max 1
   EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 1.0f);
-  noop.handle_action(agent->id, 0);  // count 2, max 2
-  noop.handle_action(agent->id, 0);  // count 3, max 3
+  noop.handle_action(*agent, 0);  // count 2, max 2
+  noop.handle_action(*agent, 0);  // count 3, max 3
   EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 3.0f);
   agent->location.r = 7;
   agent->location.c = 7;
-  noop.handle_action(agent->id, 0);  // count 0, max 3
+  noop.handle_action(*agent, 0);  // count 0, max 3
   EXPECT_EQ(agent->location.r, 7);
   EXPECT_EQ(agent->location.c, 7);
   EXPECT_EQ(agent->prev_location.r, 7);
   EXPECT_EQ(agent->prev_location.c, 7);
-  noop.handle_action(agent->id, 0);  // count 1, max 3
-  noop.handle_action(agent->id, 0);  // count 2, max 3
+  noop.handle_action(*agent, 0);  // count 1, max 3
+  noop.handle_action(*agent, 0);  // count 2, max 3
   EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 3.0f);
-  noop.handle_action(agent->id, 0);  // count 3, max 3
-  noop.handle_action(agent->id, 0);  // count 4, max 4
+  noop.handle_action(*agent, 0);  // count 3, max 3
+  noop.handle_action(*agent, 0);  // count 4, max 4
   EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 4.0f);
 }
 
@@ -653,7 +653,8 @@ TEST_F(MettaGridCppTest, FractionalConsumptionProbability) {
   // Create agent with initial energy
   AgentConfig agent_cfg = create_test_agent_config();
   agent_cfg.initial_inventory[TestItems::ORE] = 10;
-  Agent* agent = new Agent(1, 1, agent_cfg);
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(1, 1, agent_cfg, &resource_names);
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
   grid.add_object(agent);
@@ -667,7 +668,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionProbability) {
 
   // Execute action multiple times
   for (int i = 0; i < 10; i++) {
-    noop.handle_action(agent->id, 0);
+    noop.handle_action(*agent, 0);
   }
 
   // With 0.5 probability, exactly 4 ore should be consumed (10 - 4 = 6 remaining)
@@ -677,12 +678,12 @@ TEST_F(MettaGridCppTest, FractionalConsumptionProbability) {
   // Test that action fails when inventory is empty
   AgentConfig poor_cfg = create_test_agent_config();
   // Don't set initial_inventory so the agent starts with nothing
-  Agent* poor_agent = new Agent(2, 1, poor_cfg);
+  Agent* poor_agent = new Agent(2, 1, poor_cfg, &resource_names);
   float poor_reward = 0.0f;
   poor_agent->init(&poor_reward);
   grid.add_object(poor_agent);
 
-  bool success = noop.handle_action(poor_agent->id, 0);
+  bool success = noop.handle_action(*poor_agent, 0);
   EXPECT_FALSE(success);  // Should fail due to insufficient resources
 }
 
@@ -692,7 +693,8 @@ TEST_F(MettaGridCppTest, FractionalConsumptionWithOverflow) {
   // Create agent with initial energy
   AgentConfig agent_cfg = create_test_agent_config();
   agent_cfg.initial_inventory[TestItems::ORE] = 5;
-  Agent* agent = new Agent(1, 1, agent_cfg);
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(1, 1, agent_cfg, &resource_names);
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
   grid.add_object(agent);
@@ -704,7 +706,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionWithOverflow) {
   std::mt19937 rng(42);
   noop.init(&grid, &rng);
 
-  bool success = noop.handle_action(agent->id, 0);
+  bool success = noop.handle_action(*agent, 0);
   EXPECT_TRUE(success);  // Should succeed as we have enough resources
 
   // With 1.5, should consume either 1 or 2 units
@@ -718,7 +720,8 @@ TEST_F(MettaGridCppTest, FractionalConsumptionRequiresCeiledInventory) {
   // Create agent with only 1 resource
   AgentConfig agent_cfg = create_test_agent_config();
   agent_cfg.initial_inventory[TestItems::ORE] = 1;
-  Agent* agent = new Agent(1, 1, agent_cfg);
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(1, 1, agent_cfg, &resource_names);
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
   grid.add_object(agent);
@@ -729,7 +732,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionRequiresCeiledInventory) {
   std::mt19937 rng(42);
   noop.init(&grid, &rng);
 
-  bool success = noop.handle_action(agent->id, 0);
+  bool success = noop.handle_action(*agent, 0);
   EXPECT_FALSE(success);  // Should fail as we only have 1 but need ceil(1.5) = 2
 
   // Verify inventory unchanged
@@ -750,7 +753,8 @@ TEST_F(MettaGridCppTest, FractionalConsumptionZero) {
   // Create agent with initial energy
   AgentConfig agent_cfg = create_test_agent_config();
   agent_cfg.initial_inventory[TestItems::ORE] = 10;
-  Agent* agent = new Agent(1, 1, agent_cfg);
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(1, 1, agent_cfg, &resource_names);
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
   grid.add_object(agent);
@@ -764,7 +768,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionZero) {
 
   // Execute action multiple times - should never consume
   for (int i = 0; i < 10; i++) {
-    bool success = noop.handle_action(agent->id, 0);
+    bool success = noop.handle_action(*agent, 0);
     EXPECT_TRUE(success);
   }
 
@@ -778,7 +782,8 @@ TEST_F(MettaGridCppTest, FractionalConsumptionInteger) {
   // Create agent with initial energy
   AgentConfig agent_cfg = create_test_agent_config();
   agent_cfg.initial_inventory[TestItems::ORE] = 10;
-  Agent* agent = new Agent(1, 1, agent_cfg);
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(1, 1, agent_cfg, &resource_names);
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
   grid.add_object(agent);
@@ -791,7 +796,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionInteger) {
 
   // Execute action 3 times - should always consume exactly 2
   for (int i = 0; i < 3; i++) {
-    bool success = noop.handle_action(agent->id, 0);
+    bool success = noop.handle_action(*agent, 0);
     EXPECT_TRUE(success);
   }
 
@@ -805,7 +810,8 @@ TEST_F(MettaGridCppTest, FractionalConsumptionSmallFraction) {
   // Create agent with initial energy
   AgentConfig agent_cfg = create_test_agent_config();
   agent_cfg.initial_inventory[TestItems::ORE] = 20;  // Enough for test
-  Agent* agent = new Agent(1, 1, agent_cfg);
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(1, 1, agent_cfg, &resource_names);
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
   grid.add_object(agent);
@@ -821,7 +827,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionSmallFraction) {
   int successful_actions = 0;
   for (int i = 0; i < 100; i++) {
     int before = agent->inventory.amount(TestItems::ORE);
-    bool success = noop.handle_action(agent->id, 0);
+    bool success = noop.handle_action(*agent, 0);
     if (success) {
       successful_actions++;
       int after = agent->inventory.amount(TestItems::ORE);
@@ -839,7 +845,8 @@ TEST_F(MettaGridCppTest, FractionalConsumptionLargeFraction) {
   // Create agent with initial energy
   AgentConfig agent_cfg = create_test_agent_config();
   agent_cfg.initial_inventory[TestItems::ORE] = 50;
-  Agent* agent = new Agent(1, 1, agent_cfg);
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(1, 1, agent_cfg, &resource_names);
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
   grid.add_object(agent);
@@ -855,7 +862,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionLargeFraction) {
   int successful_actions = 0;
   for (int i = 0; i < 100; i++) {
     int before = agent->inventory.amount(TestItems::ORE);
-    bool success = noop.handle_action(agent->id, 0);
+    bool success = noop.handle_action(*agent, 0);
     if (success) {
       successful_actions++;
     }
@@ -875,7 +882,8 @@ TEST_F(MettaGridCppTest, FractionalConsumptionMultipleResources) {
   agent_cfg.initial_inventory[TestItems::ORE] = 50;
   agent_cfg.initial_inventory[TestItems::LASER] = 50;
   agent_cfg.initial_inventory[TestItems::ARMOR] = 50;
-  Agent* agent = new Agent(1, 1, agent_cfg);
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(1, 1, agent_cfg, &resource_names);
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
   grid.add_object(agent);
@@ -889,7 +897,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionMultipleResources) {
 
   // Execute action multiple times
   for (int i = 0; i < 10; i++) {
-    bool success = noop.handle_action(agent->id, 0);
+    bool success = noop.handle_action(*agent, 0);
     EXPECT_TRUE(success);
   }
 
@@ -914,13 +922,15 @@ TEST_F(MettaGridCppTest, FractionalConsumptionAttackAction) {
   // Create attacker with lasers
   AgentConfig attacker_cfg = create_test_agent_config();
   attacker_cfg.group_name = "red";
-  Agent* attacker = new Agent(2, 0, attacker_cfg);
 
   // Create target
   AgentConfig target_cfg = create_test_agent_config();
   target_cfg.group_name = "blue";
   target_cfg.group_id = 2;
-  Agent* target = new Agent(0, 0, target_cfg);
+
+  auto resource_names = create_test_resource_names();
+  Agent* attacker = new Agent(2, 0, attacker_cfg, &resource_names);
+  Agent* target = new Agent(0, 0, target_cfg, &resource_names);
 
   float attacker_reward = 0.0f;
   float target_reward = 0.0f;
@@ -948,7 +958,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionAttackAction) {
   // Do 10 attacks
   for (int i = 0; i < 10; i++) {
     int before = attacker->inventory.amount(TestItems::LASER);
-    bool success = attack.handle_action(attacker->id, 5);  // Attack directly in front
+    bool success = attack.handle_action(*attacker, 5);  // Attack directly in front
     if (success) {
       successful_attacks++;
       int after = attacker->inventory.amount(TestItems::LASER);
@@ -966,7 +976,8 @@ TEST_F(MettaGridCppTest, FractionalConsumptionChangeGlyphAction) {
   // Create agent with resources
   AgentConfig agent_cfg = create_test_agent_config();
   agent_cfg.initial_inventory[TestItems::ORE] = 30;
-  Agent* agent = new Agent(1, 1, agent_cfg);
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(1, 1, agent_cfg, &resource_names);
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
   grid.add_object(agent);
@@ -981,7 +992,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionChangeGlyphAction) {
   int changes = 0;
   ObservationType initial_glyph = agent->glyph;
   while (agent->inventory.amount(TestItems::ORE) >= 2) {
-    bool success = change_glyph.handle_action(agent->id, (initial_glyph + 1) % 4);
+    bool success = change_glyph.handle_action(*agent, (initial_glyph + 1) % 4);
     if (!success) break;
     changes++;
     if (changes > 30) break;  // Safety limit
@@ -999,7 +1010,8 @@ TEST_F(MettaGridCppTest, FractionalConsumptionBoundaryValues) {
   // Create agent with exact boundary amount
   AgentConfig agent_cfg = create_test_agent_config();
   agent_cfg.initial_inventory[TestItems::ORE] = 1;
-  Agent* agent = new Agent(1, 1, agent_cfg);
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(1, 1, agent_cfg, &resource_names);
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
   grid.add_object(agent);
@@ -1011,11 +1023,11 @@ TEST_F(MettaGridCppTest, FractionalConsumptionBoundaryValues) {
   noop.init(&grid, &rng);
 
   // Should succeed once then likely fail
-  bool first_success = noop.handle_action(agent->id, 0);
+  bool first_success = noop.handle_action(*agent, 0);
   EXPECT_TRUE(first_success);
 
   // Very high chance we consumed the resource (99%)
-  bool second_success = noop.handle_action(agent->id, 0);
+  bool second_success = noop.handle_action(*agent, 0);
   // This will almost certainly fail (99% chance we're out of resources)
   if (agent->inventory.amount(TestItems::ORE) == 0) {
     EXPECT_FALSE(second_success);
@@ -1030,12 +1042,14 @@ TEST_F(MettaGridCppTest, FractionalConsumptionDeterministicWithSameSeed) {
   AgentConfig agent_cfg = create_test_agent_config();
   agent_cfg.initial_inventory[TestItems::ORE] = 100;
 
-  Agent* agent1 = new Agent(1, 1, agent_cfg);
+  auto resource_names1 = create_test_resource_names();
+  Agent* agent1 = new Agent(1, 1, agent_cfg, &resource_names1);
   float reward1 = 0.0f;
   agent1->init(&reward1);
   grid1.add_object(agent1);
 
-  Agent* agent2 = new Agent(1, 1, agent_cfg);
+  auto resource_names2 = create_test_resource_names();
+  Agent* agent2 = new Agent(1, 1, agent_cfg, &resource_names2);
   float reward2 = 0.0f;
   agent2->init(&reward2);
   grid2.add_object(agent2);
@@ -1052,8 +1066,8 @@ TEST_F(MettaGridCppTest, FractionalConsumptionDeterministicWithSameSeed) {
 
   // Execute same sequence on both
   for (int i = 0; i < 50; i++) {
-    noop1.handle_action(agent1->id, 0);
-    noop2.handle_action(agent2->id, 0);
+    noop1.handle_action(*agent1, 0);
+    noop2.handle_action(*agent2, 0);
   }
 
   // Should have identical results with same seed
@@ -1071,7 +1085,8 @@ TEST_F(MettaGridCppTest, EventManager) {
   EXPECT_NO_THROW(event_manager.process_events(1));
 }
 
-// Assembler Tests
+// ==================== Assembler Tests ====================
+
 TEST_F(MettaGridCppTest, AssemblerBasicObservationFeatures) {
   AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
   Assembler assembler(5, 5, config);
@@ -1224,8 +1239,9 @@ TEST_F(MettaGridCppTest, AssemblerGetAgentPatternByte) {
   uint8_t pattern = assembler->get_agent_pattern_byte();
 
   AgentConfig agent_cfg(1, "test_agent", 0, "test_group");
-  Agent* agent1 = new Agent(4, 5, agent_cfg);  // North of assembler
-  Agent* agent2 = new Agent(5, 6, agent_cfg);  // East of assembler
+  auto resource_names = create_test_resource_names();
+  Agent* agent1 = new Agent(4, 5, agent_cfg, &resource_names);  // North of assembler
+  Agent* agent2 = new Agent(5, 6, agent_cfg, &resource_names);  // East of assembler
 
   grid->add_object(agent1);
   grid->add_object(agent2);
@@ -1236,10 +1252,10 @@ TEST_F(MettaGridCppTest, AssemblerGetAgentPatternByte) {
   // Test 3: Pattern with agents in multiple positions
   // Move agent1 to NW (bit 0) and agent2 to SW (bit 5), add agent3 at SE (bit 7)
   // This should give us pattern = (1 << 0) | (1 << 5) | (1 << 7) = 1 | 32 | 128 = 161
-  grid->move_object(agent1->id, GridLocation(4, 4, GridLayer::AgentLayer));  // Move to NW
-  grid->move_object(agent2->id, GridLocation(6, 4, GridLayer::AgentLayer));  // Move to SW
+  grid->move_object(*agent1, GridLocation(4, 4, GridLayer::AgentLayer));  // Move to NW
+  grid->move_object(*agent2, GridLocation(6, 4, GridLayer::AgentLayer));  // Move to SW
 
-  Agent* agent3 = new Agent(6, 6, agent_cfg);  // SE of assembler
+  Agent* agent3 = new Agent(6, 6, agent_cfg, &resource_names);  // SE of assembler
   grid->add_object(agent3);                    // Add new agent
 
   pattern = assembler->get_agent_pattern_byte();
@@ -1278,7 +1294,8 @@ TEST_F(MettaGridCppTest, AssemblerGetCurrentRecipe) {
 
   // Add one agent at NW position (bit 0) - should get pattern 1 (recipe1)
   AgentConfig agent_cfg(1, "test_agent", 0, "test_group");
-  Agent* agent = new Agent(4, 4, agent_cfg);  // NW of assembler
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(4, 4, agent_cfg, &resource_names);  // NW of assembler
   grid.add_object(agent);
 
   current_recipe = assembler->get_current_recipe();
@@ -1358,9 +1375,10 @@ TEST_F(MettaGridCppTest, AssemblerConsumeResourcesAcrossAgents) {
                            "agent",   // type_name
                            0,         // group_id
                            "agent");  // group_name
-  Agent agent1(0, 0, agent_config);
-  Agent agent2(0, 0, agent_config);
-  Agent agent3(0, 0, agent_config);
+  auto resource_names = create_test_resource_names();
+  Agent agent1(0, 0, agent_config, &resource_names);
+  Agent agent2(0, 0, agent_config, &resource_names);
+  Agent agent3(0, 0, agent_config, &resource_names);
 
   agent1.update_inventory(TestItems::ORE, 3);
   agent2.update_inventory(TestItems::ORE, 4);
@@ -1395,4 +1413,419 @@ TEST_F(MettaGridCppTest, AssemblerConsumeResourcesAcrossAgents) {
   InventoryQuantity total_consumed =
       (initial_ore1 - final_ore1) + (initial_ore2 - final_ore2) + (initial_ore3 - final_ore3);
   EXPECT_EQ(total_consumed, 10) << "Should consume exactly 10 ore, consumed " << total_consumed;
+}
+
+TEST_F(MettaGridCppTest, AssemblerClippingAndUnclipping) {
+  // Create a simple grid
+  Grid grid(10, 10);
+  std::mt19937 rng(42);  // Fixed seed for reproducibility
+  unsigned int current_timestep = 0;
+
+  // Create an assembler with normal recipes
+  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+
+  // Create normal recipes (pattern 0: no agents needed)
+  auto normal_recipe = std::make_shared<Recipe>();
+  normal_recipe->input_resources[TestItems::ORE] = 2;
+  normal_recipe->output_resources[TestItems::LASER] = 1;
+  normal_recipe->cooldown = 0;
+
+  config.recipes.resize(256);
+  for (int i = 0; i < 256; i++) {
+    config.recipes[i] = normal_recipe;
+  }
+
+  Assembler assembler(5, 5, config);
+  assembler.set_grid(&grid);
+  assembler.set_current_timestep_ptr(&current_timestep);
+
+  // Create an agent to interact with the assembler
+  AgentConfig agent_cfg = create_test_agent_config();
+  agent_cfg.initial_inventory[TestItems::ORE] = 10;
+  agent_cfg.initial_inventory[TestItems::HEART] = 5;
+
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(4, 5, agent_cfg, &resource_names);
+  float agent_reward = 0.0f;
+  agent->reward = &agent_reward;
+  grid.add_object(agent);
+
+  // Test 1: Verify assembler is not clipped initially
+  EXPECT_FALSE(assembler.is_clipped) << "Assembler should not be clipped initially";
+
+  // Test 2: Verify normal recipe works when not clipped
+  bool success = assembler.onUse(*agent, 0);
+  EXPECT_TRUE(success) << "Should be able to use normal recipe when not clipped";
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 8) << "Should consume 2 ore";
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 1) << "Should produce 1 laser";
+
+  // Test 3: Create unclipping recipes and clip the assembler
+  auto unclip_recipe = std::make_shared<Recipe>();
+  unclip_recipe->input_resources[TestItems::HEART] = 1;
+  unclip_recipe->output_resources[TestItems::ORE] = 3;
+  unclip_recipe->cooldown = 0;
+
+  std::vector<std::shared_ptr<Recipe>> unclip_recipes(256, unclip_recipe);
+  assembler.become_clipped(unclip_recipes, nullptr);
+
+  EXPECT_TRUE(assembler.is_clipped) << "Assembler should be clipped after become_clipped()";
+  EXPECT_EQ(assembler.unclip_recipes.size(), 256) << "Should have unclip recipes set";
+
+  // Test 4: Verify clipped observation feature
+  auto features = assembler.obs_features();
+  bool found_clipped = false;
+  for (const auto& feature : features) {
+    if (feature.feature_id == ObservationFeature::Clipped) {
+      EXPECT_EQ(feature.value, 1) << "Clipped observation should be 1";
+      found_clipped = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(found_clipped) << "Should have Clipped observation feature when clipped";
+
+  // Test 5: Verify unclip recipe is used when clipped
+  success = assembler.onUse(*agent, 0);
+  EXPECT_TRUE(success) << "Should be able to use unclip recipe when clipped";
+  EXPECT_EQ(agent->inventory.amount(TestItems::HEART), 4) << "Should consume 1 heart for unclipping";
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 11) << "Should produce 3 ore from unclip recipe";
+
+  // Test 6: Verify assembler is automatically unclipped after successful use
+  EXPECT_FALSE(assembler.is_clipped) << "Assembler should be unclipped after successful use";
+  EXPECT_TRUE(assembler.unclip_recipes.empty()) << "Unclip recipes should be cleared";
+
+  // Test 7: Verify normal recipe works again after unclipping
+  success = assembler.onUse(*agent, 0);
+  EXPECT_TRUE(success) << "Should be able to use normal recipe after unclipping";
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 9) << "Should consume 2 ore (normal recipe)";
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 2) << "Should produce 1 more laser";
+
+  // Test 8: Verify no clipped observation after unclipping
+  features = assembler.obs_features();
+  found_clipped = false;
+  for (const auto& feature : features) {
+    if (feature.feature_id == ObservationFeature::Clipped) {
+      found_clipped = true;
+      break;
+    }
+  }
+  EXPECT_FALSE(found_clipped) << "Should not have Clipped observation feature when not clipped";
+}
+
+TEST_F(MettaGridCppTest, AssemblerMaxUses) {
+  // Create a simple grid
+  Grid grid(10, 10);
+  unsigned int current_timestep = 0;
+
+  // Create an assembler with max_uses set to 3
+  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  config.max_uses = 3;  // Limit to 3 uses
+
+  // Create simple recipe
+  auto recipe = std::make_shared<Recipe>();
+  recipe->input_resources[TestItems::ORE] = 1;
+  recipe->output_resources[TestItems::LASER] = 1;
+  recipe->cooldown = 0;
+
+  config.recipes.resize(256);
+  for (int i = 0; i < 256; i++) {
+    config.recipes[i] = recipe;
+  }
+
+  Assembler assembler(5, 5, config);
+  assembler.set_grid(&grid);
+  assembler.set_current_timestep_ptr(&current_timestep);
+
+  // Create an agent with plenty of resources
+  AgentConfig agent_cfg = create_test_agent_config();
+  agent_cfg.initial_inventory[TestItems::ORE] = 10;
+
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(4, 5, agent_cfg, &resource_names);
+  float agent_reward = 0.0f;
+  agent->reward = &agent_reward;
+  grid.add_object(agent);
+
+  // Test 1: Verify initial state
+  EXPECT_EQ(assembler.max_uses, 3) << "Max uses should be 3";
+  EXPECT_EQ(assembler.uses_count, 0) << "Uses count should be 0 initially";
+
+  // Test 2: Verify remaining uses in observations
+  auto features = assembler.obs_features();
+  bool found_remaining_uses = false;
+  for (const auto& feature : features) {
+    if (feature.feature_id == ObservationFeature::RemainingUses) {
+      EXPECT_EQ(feature.value, 3) << "Should show 3 remaining uses";
+      found_remaining_uses = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(found_remaining_uses) << "Should have RemainingUses observation when max_uses is set";
+
+  // Test 3: First use should succeed
+  bool success = assembler.onUse(*agent, 0);
+  EXPECT_TRUE(success) << "First use should succeed";
+  EXPECT_EQ(assembler.uses_count, 1) << "Uses count should be 1";
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 9) << "Should consume 1 ore";
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 1) << "Should produce 1 laser";
+
+  // Test 4: Check remaining uses after first use
+  features = assembler.obs_features();
+  for (const auto& feature : features) {
+    if (feature.feature_id == ObservationFeature::RemainingUses) {
+      EXPECT_EQ(feature.value, 2) << "Should show 2 remaining uses";
+      break;
+    }
+  }
+
+  // Test 5: Second use should succeed
+  success = assembler.onUse(*agent, 0);
+  EXPECT_TRUE(success) << "Second use should succeed";
+  EXPECT_EQ(assembler.uses_count, 2) << "Uses count should be 2";
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 2) << "Should have 2 lasers";
+
+  // Test 6: Third use should succeed
+  success = assembler.onUse(*agent, 0);
+  EXPECT_TRUE(success) << "Third use should succeed";
+  EXPECT_EQ(assembler.uses_count, 3) << "Uses count should be 3";
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 3) << "Should have 3 lasers";
+
+  // Test 7: Check remaining uses after max reached
+  features = assembler.obs_features();
+  for (const auto& feature : features) {
+    if (feature.feature_id == ObservationFeature::RemainingUses) {
+      EXPECT_EQ(feature.value, 0) << "Should show 0 remaining uses";
+      break;
+    }
+  }
+
+  // Test 8: Fourth use should fail (max uses reached)
+  success = assembler.onUse(*agent, 0);
+  EXPECT_FALSE(success) << "Fourth use should fail - max uses reached";
+  EXPECT_EQ(assembler.uses_count, 3) << "Uses count should still be 3";
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 7) << "Should still have 7 ore (no consumption)";
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 3) << "Should still have 3 lasers (no production)";
+}
+
+TEST_F(MettaGridCppTest, AssemblerExhaustion) {
+  // Create a simple grid
+  Grid grid(10, 10);
+  unsigned int current_timestep = 0;
+
+  // Create an assembler with exhaustion enabled
+  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  config.exhaustion = 0.5f;  // 50% exhaustion rate - multiplier grows by 1.5x each use
+
+  // Create recipe with cooldown
+  auto recipe = std::make_shared<Recipe>();
+  recipe->input_resources[TestItems::ORE] = 1;
+  recipe->output_resources[TestItems::LASER] = 1;
+  recipe->cooldown = 10;  // Base cooldown of 10 timesteps
+
+  config.recipes.resize(256);
+  for (int i = 0; i < 256; i++) {
+    config.recipes[i] = recipe;
+  }
+
+  Assembler assembler(5, 5, config);
+  assembler.set_grid(&grid);
+  assembler.set_current_timestep_ptr(&current_timestep);
+
+  // Create an agent with plenty of resources
+  AgentConfig agent_cfg = create_test_agent_config();
+  agent_cfg.initial_inventory[TestItems::ORE] = 10;
+
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(4, 5, agent_cfg, &resource_names);
+  float agent_reward = 0.0f;
+  agent->reward = &agent_reward;
+  grid.add_object(agent);
+
+  // Test 1: Verify initial state
+  EXPECT_EQ(assembler.exhaustion, 0.5f) << "Exhaustion rate should be 0.5";
+  EXPECT_EQ(assembler.cooldown_multiplier, 1.0f) << "Initial cooldown multiplier should be 1.0";
+
+  // Test 2: First use should have normal cooldown
+  bool success = assembler.onUse(*agent, 0);
+  EXPECT_TRUE(success) << "First use should succeed";
+  EXPECT_EQ(assembler.cooldown_end_timestep, 10) << "First cooldown should be 10 (base cooldown)";
+  EXPECT_EQ(assembler.cooldown_multiplier, 1.5f) << "Cooldown multiplier should be 1.5 after first use";
+
+  // Test 3: Wait for cooldown and use again
+  current_timestep = 10;
+  EXPECT_EQ(assembler.cooldown_remaining(), 0) << "Should have no cooldown at timestep 10";
+
+  success = assembler.onUse(*agent, 0);
+  EXPECT_TRUE(success) << "Second use should succeed";
+  // Second cooldown should be 10 * 1.5 = 15
+  EXPECT_EQ(assembler.cooldown_end_timestep, 25) << "Second cooldown should end at 25 (10 + 15)";
+  EXPECT_FLOAT_EQ(assembler.cooldown_multiplier, 2.25f) << "Cooldown multiplier should be 2.25 after second use";
+
+  // Test 4: Third use should have even longer cooldown
+  current_timestep = 25;
+  success = assembler.onUse(*agent, 0);
+  EXPECT_TRUE(success) << "Third use should succeed";
+  // Third cooldown should be 10 * 2.25 = 22.5, rounded to 22
+  EXPECT_EQ(assembler.cooldown_end_timestep, 47) << "Third cooldown should end at 47 (25 + 22)";
+  EXPECT_FLOAT_EQ(assembler.cooldown_multiplier, 3.375f) << "Cooldown multiplier should be 3.375 after third use";
+
+  // Test 5: Verify exhaustion grows exponentially
+  current_timestep = 47;
+  success = assembler.onUse(*agent, 0);
+  EXPECT_TRUE(success) << "Fourth use should succeed";
+  // Fourth cooldown should be 10 * 3.375 = 33.75, rounded to 33
+  EXPECT_EQ(assembler.cooldown_end_timestep, 80) << "Fourth cooldown should end at 80 (47 + 33)";
+  EXPECT_FLOAT_EQ(assembler.cooldown_multiplier, 5.0625f)
+      << "Cooldown multiplier should be 5.0625 after fourth use";
+}
+
+// ==================== ResourceMod Tests ====================
+
+TEST_F(MettaGridCppTest, ResourceModBasic) {
+  Grid grid(5, 5);
+  std::mt19937 rng(42);
+  auto resource_names = create_test_resource_names();
+
+  // Create actor at center
+  AgentConfig actor_cfg = create_test_agent_config();
+  actor_cfg.initial_inventory[TestItems::ORE] = 10;
+  Agent* actor = new Agent(2, 2, actor_cfg, &resource_names);
+  float actor_reward = 0.0f;
+  actor->init(&actor_reward);
+  grid.add_object(actor);
+
+  // Create target agent nearby
+  AgentConfig target_cfg = create_test_agent_config();
+  target_cfg.initial_inventory[TestItems::HEART] = 10;
+  Agent* target = new Agent(2, 3, target_cfg, &resource_names);
+  float target_reward = 0.0f;
+  target->init(&target_reward);
+  grid.add_object(target);
+
+  // Create resource mod action that adds hearts with 100% probability
+  ResourceModConfig modify_cfg({{TestItems::ORE, 1}},       // required_resources
+                               {{TestItems::ORE, 1.0f}},    // consumed_resources
+                               {{TestItems::HEART, 1.0f}},  // modifies - adds 1 heart
+                               1,                           // agent_radius
+                               0,                           // converter_radius
+                               false);                       // scales
+  ResourceMod modify(modify_cfg);
+  modify.init(&grid, &rng);
+
+  ActionArg arg = 0;  // Unused
+  bool success = modify.handle_action(*actor, arg);
+  EXPECT_TRUE(success);
+
+  // Check that target gained 1 heart
+  EXPECT_EQ(target->inventory.amount(TestItems::HEART), 11);
+  // Check that actor lost 1 ore
+  EXPECT_EQ(actor->inventory.amount(TestItems::ORE), 9);
+}
+
+TEST_F(MettaGridCppTest, ResourceModProbabilistic) {
+  Grid grid(5, 5);
+  std::mt19937 rng(42);
+  auto resource_names = create_test_resource_names();
+
+  // Create actor
+  AgentConfig actor_cfg = create_test_agent_config();
+  actor_cfg.initial_inventory[TestItems::ORE] = 200;
+  Agent* actor = new Agent(2, 2, actor_cfg, &resource_names);
+  float actor_reward = 0.0f;
+  actor->init(&actor_reward);
+  grid.add_object(actor);
+
+  // Create target
+  AgentConfig target_cfg = create_test_agent_config();
+  target_cfg.initial_inventory[TestItems::HEART] = 10;
+  Agent* target = new Agent(2, 3, target_cfg, &resource_names);
+  float target_reward = 0.0f;
+  target->init(&target_reward);
+  grid.add_object(target);
+
+  // Create action with fractional modifications (30% chance)
+  ResourceModConfig modify_cfg({{TestItems::ORE, 1}},       // required_resources must have ceil(0.5) = 1
+                               {{TestItems::ORE, 0.5f}},    // 50% chance to consume
+                               {{TestItems::HEART, 0.3f}},  // 30% chance to add 1 heart
+                               1,
+                               0,
+                               false);  // radius 1, no converters, no scaling
+  ResourceMod modify(modify_cfg);
+  modify.init(&grid, &rng);
+
+  // Execute multiple times to test probabilistic behavior
+  ActionArg arg = 0;  // Unused
+  int hearts_added = 0;
+  int ore_consumed = 0;
+
+  for (int i = 0; i < 100; i++) {
+    int ore_before = actor->inventory.amount(TestItems::ORE);
+    int hearts_before = target->inventory.amount(TestItems::HEART);
+
+    // Check if actor has required resources
+    if (ore_before < 1) {
+      // Actor is out of ore, can't continue test
+      break;
+    }
+
+    bool success = modify.handle_action(*actor, arg);
+    EXPECT_TRUE(success);
+
+    ore_consumed += (ore_before - actor->inventory.amount(TestItems::ORE));
+    hearts_added += (target->inventory.amount(TestItems::HEART) - hearts_before);
+  }
+
+  // With 30% probability for hearts and 50% for ore consumption
+  // Expect around 30 hearts added and 50 ore consumed
+  EXPECT_GE(hearts_added, 20);  // At least 20
+  EXPECT_LE(hearts_added, 40);  // At most 40
+  EXPECT_GE(ore_consumed, 40);  // At least 40
+  EXPECT_LE(ore_consumed, 60);  // At most 60
+}
+
+TEST_F(MettaGridCppTest, ResourceModConverter) {
+  Grid grid(5, 5);
+  std::mt19937 rng(42);
+  EventManager event_manager;
+  auto resource_names = create_test_resource_names();
+
+  // Create actor
+  AgentConfig actor_cfg = create_test_agent_config();
+  Agent* actor = new Agent(2, 2, actor_cfg, &resource_names);
+  float actor_reward = 0.0f;
+  actor->init(&actor_reward);
+  grid.add_object(actor);
+
+  // Create converter nearby
+  ConverterConfig converter_cfg(TestItems::CONVERTER,  // type_id
+                                "converter",           // type_name
+                                {},                    // input_resources
+                                {},                    // output_resources
+                                -1,                    // max_output
+                                -1,                    // max_conversions
+                                0,                     // conversion_ticks
+                                0,                     // cooldown
+                                0,                     // initial_items
+                                0,                     // color
+                                false);                 // recipe_details_obs
+  Converter* converter = new Converter(3, 2, converter_cfg);
+  grid.add_object(converter);
+  converter->set_event_manager(&event_manager);
+
+  // Create action that modifies converter resources
+  ResourceModConfig modify_cfg({},
+                               {},
+                               {{TestItems::ORE, 1.0f}},  // Add 1 ore to converter
+                               0,
+                               1,
+                               false);  // No agents, converters within radius 1
+  ResourceMod modify(modify_cfg);
+  modify.init(&grid, &rng);
+
+  // Target converter at (3, 2) from actor at (2, 2)
+  ActionArg arg = 0;  // Unused
+  bool success = modify.handle_action(*actor, arg);
+  EXPECT_TRUE(success);
+
+  // Check that converter gained 1 ore
+  EXPECT_EQ(converter->inventory.amount(TestItems::ORE), 1);
 }

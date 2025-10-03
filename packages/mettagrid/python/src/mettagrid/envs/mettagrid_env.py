@@ -239,7 +239,7 @@ class MettaGridEnv(MettaGridPufferBase):
                 agent_metrics[agent_idx][k] = float(v)
 
         # Get agent groups
-        grid_objects = self.grid_objects
+        grid_objects = self.grid_objects()
         agent_groups: Dict[int, int] = {
             v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type"] == 0
         }
