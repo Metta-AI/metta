@@ -125,7 +125,7 @@ def _default_mission(num_agents: Optional[int] = None) -> Mission:
 
 
 def energy_intensive(num_agents: Optional[int] = None) -> Mission:
-    mission = _default_mission(num_agents or 4)
+    mission = _default_mission(num_agents)
     mission.name = "energy_intensive"
     mission.description = "Energy intensive mission"
     mission.game.actions.move.consumed_resources = {"energy": 5}

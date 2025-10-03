@@ -146,4 +146,9 @@ GAMES_CATALOG: list[GameCatalogEntry] = [
     GameCatalogEntry(map_name="training_facility_3", generate=make_game_from_map("training_facility_open_3.map")),
     GameCatalogEntry(map_name="training_facility_4", generate=make_game_from_map("training_facility_tight_4.map")),
     GameCatalogEntry(map_name="training_facility_5", generate=make_game_from_map("training_facility_tight_5.map")),
+    GameCatalogEntry(
+        map_name="training_facility_1_onerous",
+        generate=make_game_from_map("training_facility_open_1.map"),
+        default_mission="energy_intensive",
+    ),
 ]
