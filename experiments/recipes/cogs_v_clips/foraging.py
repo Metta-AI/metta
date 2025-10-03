@@ -73,6 +73,11 @@ class ForagingTaskGenerator(TaskGenerator):
             width, height = minimum_area // 2, minimum_area // 2
         return width, height
 
+    def _calculate_max_steps(self, num_objects: int, width: int, height: int) -> int:
+        area = width * height
+        max_steps = max(150, area * num_objects * 2)
+        return min(max_steps, 1800)
+
     def _make_extractors(self, num_extractors, cfg, rng: random.Random):
         """Make generators that input nothing and output resources for the altar"""
         for _ in range(num_extractors):
@@ -103,11 +108,15 @@ class ForagingTaskGenerator(TaskGenerator):
         cfg.map_builder_objects["chest"] = num_chests
 
     def _make_assemblers(
-        self, num_assemblers, cfg, position, num_extractors, rng: random.Random
+        self,
+        num_assemblers,
+        cfg,
+        position,
+        num_extractors,
+        rng: random.Random,
+        max_input_resources=3,
     ):
         input_resources = {}
-        max_input_resources = 3
-
         if num_extractors > 0:
             input_resources.update(
                 {
@@ -181,11 +190,6 @@ class ForagingTaskGenerator(TaskGenerator):
             terrain=rng.choice(["sparse", "balanced", "dense", "no-terrain"]),
         )
 
-    def _calculate_max_steps(self, num_objects: int, width: int, height: int) -> int:
-        area = width * height
-        max_steps = max(150, area * num_objects * 2)
-        return min(max_steps, 1800)
-
     def _generate_task(
         self, task_id: int, rng: random.Random, num_instances: Optional[int] = None
     ) -> MettaGridConfig:
@@ -234,23 +238,19 @@ def train(curriculum_style: str = "all") -> TrainTool:
     task_generator_cfg = ForagingTaskGenerator.Config(
         **foraging_curriculum_args[curriculum_style]
     )
-    algorithm_config = LearningProgressConfig(
-        num_active_tasks=1000,
-    )
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
-    )
     curriculum = CurriculumConfig(
         task_generator=task_generator_cfg,
-        algorithm_config=algorithm_config,
+        algorithm_config=LearningProgressConfig(
+            num_active_tasks=1000,
+        ),
     )
 
-    policy_config = ViTResetConfig()
-
     return TrainTool(
-        trainer=trainer_cfg,
+        trainer=TrainerConfig(
+            losses=LossConfig(),
+        ),
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        policy_architecture=policy_config,
+        policy_architecture=ViTResetConfig(),
         evaluator=EvaluatorConfig(
             simulations=make_foraging_eval_suite(),
             evaluate_remote=False,
@@ -294,6 +294,7 @@ def replay() -> ReplayTool:
 def experiment():
     import subprocess
     import time
+
     for curriculum_style in foraging_curriculum_args:
         subprocess.run(
             [
