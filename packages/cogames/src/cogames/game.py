@@ -147,7 +147,7 @@ def list_games(console: Console) -> None:
     console.print()
     console.print("To specify a <[bold cyan]game[/bold cyan]>, you can:")
     console.print("  • Use the map name, e.g. 'machina_1'. Will use the default mission for that map.")
-    console.print("  • Use the map name and mission name, e.g. 'machina_1.energy_intensive'")
+    console.print("  • Use the map name and mission name, e.g. 'machina_1:energy_intensive'")
     console.print(
         f"  • Use a path to a game configuration file, e.g. 'path/to/game.yaml' "
         f"(supported extensions: {', '.join(_SUPPORTED_GAME_EXTENSIONS)})"
@@ -214,17 +214,12 @@ def save_game_config(config: MettaGridConfig, output_path: Path) -> None:
     Raises:
         ValueError: If file extension is not supported
     """
-    config_dict = config.model_dump()
-
-    # Convert tuples to lists for better serialization compatibility
-    config_dict = _convert_tuples_to_lists(config_dict)
-
     if output_path.suffix in [".yaml", ".yml"]:
         with open(output_path, "w") as f:
-            yaml.dump(config_dict, f, default_flow_style=False, sort_keys=False)
+            yaml.dump(config.model_dump(mode="yaml"), f, default_flow_style=False, sort_keys=False)
     elif output_path.suffix == ".json":
         with open(output_path, "w") as f:
-            json.dump(config_dict, f, indent=2)
+            json.dump(config.model_dump(mode="json"), f, indent=2)
     else:
         raise ValueError(
             f"Unsupported file format: {output_path.suffix}. Supported: {', '.join(_SUPPORTED_GAME_EXTENSIONS)}"
@@ -259,7 +254,7 @@ def require_game_argument(ctx: typer.Context, value: Optional[str], console: Con
     if value is not None:
         return value
 
-    console.print("[yellow]No game specified. Available games:[/yellow]")
     list_games(console)
     console.print(f"\n[dim]Usage: {ctx.command_path} <game>[/dim]")
+    console.print()
     raise typer.Exit(0)

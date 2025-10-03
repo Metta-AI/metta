@@ -16,14 +16,14 @@ def get_game_config(console: Console, game_arg: str) -> tuple[str, MettaGridConf
     """Return a resolved game name and configuration for cli usage."""
 
     requested_mission: Optional[str] = None
-    if "." in game_arg:
-        map_name, requested_mission = game_arg.split(".")
+    if ":" in game_arg:
+        map_name, requested_mission = game_arg.split(":")
     else:
         map_name = game_arg
 
     game_config, registered_map_name, mission_name = game_module.get_game(map_name, requested_mission)
     try:
-        game_name = f"{registered_map_name}.{mission_name}" if registered_map_name and mission_name else map_name
+        game_name = f"{registered_map_name}:{mission_name}" if registered_map_name and mission_name else map_name
         return game_name, game_config
     except ValueError as e:
         console.print(f"[red]Error: {e}[/red]")
