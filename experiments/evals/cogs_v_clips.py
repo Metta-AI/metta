@@ -86,11 +86,11 @@ def make_terrain_eval_env(
     sizes="small",
 ):
     from experiments.recipes.cogs_v_clips.generalized_terrain import (
-        CogsVsClippiesTaskGenerator,
+        GeneralizedTerrainTaskGenerator,
     )
 
-    task_generator = CogsVsClippiesTaskGenerator(
-        config=CogsVsClippiesTaskGenerator.Config(
+    task_generator = GeneralizedTerrainTaskGenerator(
+        config=GeneralizedTerrainTaskGenerator.Config(
             num_cogs=[num_cogs],
             positions=[positions],
             regeneration_rate=[regeneration_rate],

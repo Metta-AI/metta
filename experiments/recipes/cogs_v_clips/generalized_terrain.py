@@ -167,7 +167,7 @@ class GeneralizedTerrainTaskGenerator(TaskGenerator):
         assembler_position: list[Position],
     ):
         input_resources = {"energy": 3}
-        num_input_resources=0
+        num_input_resources = 0
         for resource, num_extractor in num_extractors.items():
             if (
                 num_extractor > 0
@@ -185,7 +185,6 @@ class GeneralizedTerrainTaskGenerator(TaskGenerator):
                     cooldown=1,
                 ),
             )
-
         ]
         return assembler
 
@@ -199,7 +198,7 @@ def make_mettagrid(task_generator) -> MettaGridConfig:
     return task_generator.get_task(random.randint(0, 1000000))
 
 
-def play(curriculum_style: str = "test") -> PlayTool:
+def play(curriculum_style: str = "multi_agent_pairs") -> PlayTool:
     task_generator = GeneralizedTerrainTaskGenerator(
         config=GeneralizedTerrainTaskGenerator.Config(
             **generalized_terrain_curriculum_args[curriculum_style]
