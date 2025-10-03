@@ -164,28 +164,23 @@ typical parameters we have discovered:
 
 ## THREAT ADVISORY: FRIENDLY PAPERCLIP COMPANY OUTBREAK
 
-**WARNING**: The Friendly Paperclip Company's automated paperclip production nanoswarm has been sighted infesting our
-outlying extractors. The Clips are actively attempting to infest our facilities and subvert them for optimal paperclip
-production.
+**WARNING**: The Friendly Paperclip Company's automated paperclip production nanoswarm has been sighted. The nanoswarm
+clips is too small to be visible, but don't let that fool you: station infestations are devastating. Once infested, a
+station suspends normal output until Cogs run the designated repair protocol.
 
-### Clip Response Actions
+### Clip Nanoswarm Response
 
-- **Identify**: Clipped facilities have altered appearance
-- **Prepare**: Reclaiming buildings from the Clips requires special tools, which can be produced at the Atomic
-  Assembler. Make sure you have what you need. Some clipped facilities may require more than one Cog and more than one
-  tool.
-- **Approach**: Move adjacent to the infested facility with your fellow Cogs and explore to find the reclamation
-  protocol
-- **Reclaim**: Move into the facility to attempt a reclamation protocols
+- **Identify**: Infested stations pulse a warning indicator and expose a `clipped` flag in station telemetry. Use these
+  cues to triage which stations need attention first.
+- **Prepare**: Infested stations do not support their typical functions, and will need to be repaired. Repair protocols,
+  like Assembler protocols, may require specific resources, gear, and team formation around the station's eight
+  terminals. The repair recipe will draw inputs from nearby Cogs in clockwise order, exactly like ordinary station
+  activation.
+- **Repair**: Move into the station to trigger the repair. A successful repair consumes the required inputs, immediately
+  restores normal protocols, and resets the station’s cooldown without increasing wear.
 
-- Act quickly: infestation levels may rise over time, requiring more difficult reclamation procedures, and the Clips
-  will drain more and more resources from infected facilities over time!
-
-### Infestation Patterns
-
-- Spreads primarily between nearby extractors
-- Infestation rate may accelerate over time or come in waves
-- Left unchecked, Clips will fully consume all resources from an extractor and its deposit, leaving only a husk
+You need to be vigilant: every clipped station increases the odds that nearby stations will get infested too. Respond
+quickly to prevent a cascade.
 
 ---
 
@@ -200,7 +195,7 @@ Your success depends on:
 
 - Efficient energy management
 - Strategic facility operations
-- Rapid Clip threat response
+- Rapid Clip Nanoswarm threat response
 - Continuous protocol discovery
 - Seamless team coordination
 
