@@ -406,7 +406,7 @@ proc drawPlannedPath*() =
     var currentPos = agent.location.at(step).xy
     
     for action in pathActions:
-      if not action.actionType == PathMove:
+      if action.actionType != PathMove:
         continue
       # Draw arrow from current position to target position.
       let
