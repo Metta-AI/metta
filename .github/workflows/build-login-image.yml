@@ -8,7 +8,7 @@ on:
   push:
     branches:
       - main
-      - 09-08-login_worker_on_eks
+      - pasha/add_login_service
     paths:
       - "login/**"
       - "devops/charts/login/**"
