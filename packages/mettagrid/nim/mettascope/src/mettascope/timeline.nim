@@ -68,9 +68,8 @@ proc playControls*() =
         # Requesting more steps from Python.
         requestPython = true
         stepFloat = replay.maxSteps.float32 - 1
-    # step = stepFloat.int
-    # step = step.clamp(0, replay.maxSteps - 1)
-    step = replay.maxSteps - 1
+    step = stepFloat.int
+    step = step.clamp(0, replay.maxSteps - 1)
 
   if window.buttonPressed[KeyLeftBracket]:
     step -= 1
