@@ -12,7 +12,8 @@ find "/UI/Main/GlobalFooter":
       step -= 1
       step = clamp(step, 0, replay.maxSteps - 1)
   find "**/Play":
-    onShow:
+    onDisplay:
+      # TODO: Switch to pause icon when paused.
       thisNode.setVariant("On", play)
     onClick:
       play = not play
