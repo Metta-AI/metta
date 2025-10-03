@@ -95,7 +95,6 @@ class CogologyStageConfig:
 
     # Success criteria
     success_rate_threshold: float = 0.90
-    max_energy_death_rate: float = 0.10
     returns_plateau_threshold: float = 0.05
     returns_plateau_window: int = 100
     min_episodes_before_progression: int = 1000
@@ -662,7 +661,7 @@ class CogologySuccessTracker:
     """
     Tracks success metrics and determines stage progression.
 
-    Monitors per-chest success rates, energy deaths, and returns plateau
+    Monitors per-chest success rates, average energy levels, and returns plateau
     to decide when agents are ready to advance to the next stage.
     """
 
@@ -671,7 +670,10 @@ class CogologySuccessTracker:
         self.episode_count = 0
         self.chests_with_success_count = 0
         self.total_chests_count = 0
-        self.energy_death_count = 0
+
+        # Energy tracking
+        self.energy_levels = deque(maxlen=100)  # Track last 100 episode energy levels
+        self.recent_mean_energy = 0.0
 
         # Returns tracking for plateau detection
         self.returns_history = deque(maxlen=stage_config.returns_plateau_window)
@@ -681,7 +683,7 @@ class CogologySuccessTracker:
     def record_episode(
         self,
         chest_success_counts: dict[str, int],
-        died_from_energy: bool,
+        final_energy: float,
         episode_return: float,
     ):
         """Record episode results."""
@@ -693,8 +695,13 @@ class CogologySuccessTracker:
             if hearts >= 3:
                 self.chests_with_success_count += 1
 
-        if died_from_energy:
-            self.energy_death_count += 1
+        # Track energy levels
+        self.energy_levels.append(final_energy)
+        self.recent_mean_energy = (
+            sum(self.energy_levels) / len(self.energy_levels)
+            if self.energy_levels
+            else 0.0
+        )
 
         self.returns_history.append(episode_return)
 
@@ -715,11 +722,9 @@ class CogologySuccessTracker:
         return self.chests_with_success_count / self.total_chests_count
 
     @property
-    def energy_death_rate(self) -> float:
-        """Fraction of episodes with energy deaths."""
-        if self.episode_count == 0:
-            return 0.0
-        return self.energy_death_count / self.episode_count
+    def mean_energy(self) -> float:
+        """Average energy level at end of episodes."""
+        return self.recent_mean_energy
 
     @property
     def returns_plateaued(self) -> bool:
@@ -742,7 +747,6 @@ class CogologySuccessTracker:
 
         criteria = [
             self.success_rate >= self.config.success_rate_threshold,
-            self.energy_death_rate <= self.config.max_energy_death_rate,
             self.returns_plateaued,
         ]
 
@@ -755,7 +759,7 @@ class CogologySuccessTracker:
             "curriculum/stage_name": self.config.name,
             "curriculum/episode_count": self.episode_count,
             "curriculum/success_rate": self.success_rate,
-            "curriculum/energy_death_rate": self.energy_death_rate,
+            "curriculum/mean_energy": self.mean_energy,
             "curriculum/recent_mean_return": self.recent_mean_return,
             "curriculum/returns_improvement": (
                 (self.recent_mean_return - self.previous_mean_return)
@@ -807,12 +811,14 @@ class CogologyProgressionCallback(TrainerComponent):
                 # Extract chest success counts from environment
                 # For MVP, we'll use a simplified approach
                 chest_success_counts = self._extract_chest_counts(info)
-                died_from_energy = info.get("died_from_energy", False)
+
+                # Get final energy level (default to 0 if not available)
+                final_energy = info.get("final_energy", 0.0)
 
                 # Record episode in success tracker
                 self.success_tracker.record_episode(
                     chest_success_counts=chest_success_counts,
-                    died_from_energy=died_from_energy,
+                    final_energy=final_energy,
                     episode_return=episode_return,
                 )
 
@@ -847,11 +853,21 @@ class CogologyProgressionCallback(TrainerComponent):
 
         # Log to console
         if epoch % 50 == 0:
+            # Get most recent episode return
+            latest_return = (
+                self.success_tracker.returns_history[-1]
+                if self.success_tracker.returns_history
+                else 0.0
+            )
+
             print(f"\n[Epoch {epoch}] Cogology Progress:")
             print(f"  Stage: {self.success_tracker.config.name}")
             print(f"  Success Rate: {metrics['curriculum/success_rate']:.2%}")
             print(f"  Episodes: {metrics['curriculum/episode_count']}")
-            print(f"  Mean Return: {metrics['curriculum/recent_mean_return']:.2f}")
+            print(
+                f"  Latest Return: {latest_return:.2f} | Mean Return: {metrics['curriculum/recent_mean_return']:.2f}"
+            )
+            print(f"  Mean Energy: {metrics['curriculum/mean_energy']:.1f}")
             print(f"  Should Progress: {metrics['curriculum/should_progress']}")
 
         # Check if progression criteria met
@@ -1001,7 +1017,6 @@ def _create_stage_configs() -> list[CogologyStageConfig]:
             initial_inventory_options=[{}],  # Empty
             variants=["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"],
             success_rate_threshold=0.85,
-            max_energy_death_rate=0.10,
         ),
         # Stage 5: Resource Depletion
         CogologyStageConfig(
@@ -1290,6 +1305,7 @@ def replay(
 
 
 def experiment(
+    base_name: str = "",
     use_automatic_progression: bool = True,
     stages: list[str] = ["stage_1", "stage_2", "stage_3"],
     speed_reward_coef_default: float = 0.01,
@@ -1301,6 +1317,7 @@ def experiment(
     Sweeps factors of 2 around default values.
 
     Args:
+        base_name: Optional identifier to add after 'cogology' in run name (e.g., '001')
         use_automatic_progression: If True, train with stage="all"
         stages: Which stages to train (only used if not automatic)
         speed_reward_coef_default: Default speed reward coefficient
@@ -1325,9 +1342,12 @@ def experiment(
 
     stage_to_run = "all" if use_automatic_progression else stages[0]
 
+    # Build base name component
+    base_name_part = f"_{base_name}" if base_name else ""
+
     for speed_coef in speed_reward_coefs:
         for ent_coef in entropy_coefs:
-            run_name = f"msb_cogology_{stage_to_run}_speed{speed_coef:.4f}_ent{ent_coef:.4f}_{timestamp}"
+            run_name = f"msb_cogology{base_name_part}_{stage_to_run}_speed{speed_coef:.4f}_ent{ent_coef:.4f}_{timestamp}"
 
             cmd = [
                 "./devops/skypilot/launch.py",

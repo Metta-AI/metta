@@ -13,39 +13,6 @@ else:
 logger = logging.getLogger(__name__)
 
 
-def _exclude_large_config_fields(config_dict: dict[str, Any]) -> dict[str, Any]:
-    """
-    Recursively exclude large fields from config to avoid WandB 15MB limit.
-
-    Excludes:
-    - map_builder: Large procedural generation configs (can be >15MB)
-
-    Args:
-        config_dict: Configuration dictionary
-
-    Returns:
-        Filtered config dictionary
-    """
-    if not isinstance(config_dict, dict):
-        return config_dict
-
-    filtered = {}
-    for key, value in config_dict.items():
-        # Skip map_builder fields entirely
-        if key == "map_builder":
-            continue
-
-        # Recursively filter nested dicts
-        if isinstance(value, dict):
-            filtered[key] = _exclude_large_config_fields(value)
-        elif isinstance(value, list):
-            filtered[key] = [_exclude_large_config_fields(item) if isinstance(item, dict) else item for item in value]
-        else:
-            filtered[key] = value
-
-    return filtered
-
-
 class WandbConfig(Config):
     enabled: bool
     project: str
@@ -141,15 +108,12 @@ class WandbContext:
             if self.run_config:
                 if isinstance(self.run_config, dict):
                     key = self.run_config_name or "extra_config_dict"
-                    # Filter large fields to avoid 15MB limit
-                    config = {key: _exclude_large_config_fields(self.run_config)}
+                    config = {key: self.run_config}
                 elif isinstance(self.run_config, Config):
                     # Assume it's a Config object with model_dump method
                     class_name = self.run_config.__class__.__name__
                     key = self.run_config_name or class_name or "extra_config_object"
-                    # Serialize then filter large fields to avoid 15MB limit
-                    config_dict = self.run_config.model_dump(mode="json")
-                    config = {key: _exclude_large_config_fields(config_dict)}
+                    config = {key: self.run_config.model_dump(mode="json")}
                 elif isinstance(self.run_config, str):
                     config = self.run_config
                 else:
