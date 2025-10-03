@@ -102,10 +102,10 @@ class CogologyStageConfig:
         default_factory=lambda: {
             "ema_timescale": 0.1,
             "exploration_bonus": 0.15,
-            "max_memory_tasks": 500,
-            "progress_smoothing": 0.15,
+            "progress_smoothing": 0.01,
             "num_active_tasks": 200,
             "rand_task_rate": 0.25,
+            "memory": 25,  # Number of samples to remember per task
         }
     )
 
@@ -941,11 +941,11 @@ def train(
     # Determine starting stage
     if stage == "all":
         current_stage = stages[0]
-        enable_automatic_progression = True
+        # enable_automatic_progression = True  # TODO: Re-enable when components integrated
     else:
         stage_id = int(stage.replace("stage_", "")) - 1
         current_stage = stages[stage_id]
-        enable_automatic_progression = False
+        # enable_automatic_progression = False  # TODO: Re-enable when components integrated
 
     # Create task generator
     task_generator_config = CogologyTaskGenerator.Config(
@@ -953,7 +953,7 @@ def train(
         speed_reward_coef=speed_reward_coef,
         stochastic_shaping=stochastic_shaping,
     )
-    task_generator = task_generator_config.create()
+    # task_generator = task_generator_config.create()  # TODO: Use for callbacks
 
     # Set up curriculum with learning progress
     algorithm_config = LearningProgressConfig(**current_stage.learning_progress_config)
@@ -963,9 +963,12 @@ def train(
     )
 
     # Configure trainer
+    from metta.rl.loss.ppo import PPOConfig
+    from metta.rl.trainer_config import OptimizerConfig
+
     trainer_cfg = TrainerConfig(
-        losses=LossConfig(entropy_coef=entropy_coef),
-        learning_rate=learning_rate,
+        losses=LossConfig(loss_configs={"ppo": PPOConfig(ent_coef=entropy_coef)}),
+        optimizer=OptimizerConfig(learning_rate=learning_rate),
         total_timesteps=10_000_000,
     )
 
@@ -977,35 +980,35 @@ def train(
         simulations=make_eval_suite(),
         evaluate_remote=True,
         evaluate_local=True,
-        eval_frequency=50,
+        epoch_interval=50,  # Evaluate every 50 epochs
     )
 
     # Set up callbacks for success tracking and automatic progression
-    components = []
-    success_tracker = CogologySuccessTracker(current_stage)
+    # TODO: Components need to be integrated via trainer, not TrainTool
+    # components = []
+    # success_tracker = CogologySuccessTracker(current_stage)
+    #
+    # if enable_automatic_progression:
+    #     progression_callback = CogologyProgressionCallback(
+    #         stages=stages,
+    #         current_stage_idx=0 if stage == "all" else stage_id,
+    #         task_generator=task_generator,
+    #         success_tracker=success_tracker,
+    #         epoch_interval=10,
+    #     )
+    #     components.append(progression_callback)
 
-    if enable_automatic_progression:
-        progression_callback = CogologyProgressionCallback(
-            stages=stages,
-            current_stage_idx=0 if stage == "all" else stage_id,
-            task_generator=task_generator,
-            success_tracker=success_tracker,
-            epoch_interval=10,  # Check progression every 10 epochs
-        )
-        components.append(progression_callback)
-
-    run_name = (
+    final_run_name = (
         run_name or f"cogology_{stage}_speed{speed_reward_coef}_ent{entropy_coef}"
     )
 
     return TrainTool(
+        run=final_run_name,
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         policy_architecture=policy_config,
         evaluator=evaluator,
-        components=components if components else None,
         stats_server_uri="https://api.observatory.softmax-research.net",
-        run_name=run_name,
     )
 
 
