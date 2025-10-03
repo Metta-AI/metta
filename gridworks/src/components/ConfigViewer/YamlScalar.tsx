@@ -20,6 +20,7 @@ export const YamlScalar: FC<{
     "mettagrid.map_builder",
     "metta.map",
     "metta.cogworks",
+    "experiments.recipes",
   ];
 
   const repoRoot = use(RepoRootContext);

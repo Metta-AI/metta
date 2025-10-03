@@ -222,6 +222,10 @@
           "default": null,
           "title": "Seed"
         },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
+        },
         "uri": {
           "title": "Uri",
           "type": "string"
@@ -410,6 +414,10 @@
           "default": null,
           "title": "Seed"
         },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
+        },
         "num_agents": {
           "default": 0,
           "title": "Num Agents",
@@ -562,6 +570,10 @@
           "default": null,
           "title": "Seed"
         },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
+        },
         "auto_config": {
           "$ref": "#/$defs/AutoConfig"
         }
@@ -595,6 +607,10 @@
           "default": null,
           "title": "Seed"
         },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
+        },
         "auto_config": {
           "$ref": "#/$defs/AutoConfig"
         }
@@ -627,6 +643,10 @@
           ],
           "default": null,
           "title": "Seed"
+        },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
         },
         "rooms": {
           "title": "Rooms",
@@ -681,6 +701,10 @@
           ],
           "default": null,
           "title": "Seed"
+        },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
         },
         "area_count": {
           "title": "Area Count",
@@ -779,6 +803,20 @@
         }
       },
       "title": "ChangeGlyphActionConfig",
+      "type": "object"
+    },
+    "CheckpointerConfig": {
+      "additionalProperties": false,
+      "description": "Configuration for policy checkpointing.",
+      "properties": {
+        "epoch_interval": {
+          "default": 30,
+          "minimum": 0,
+          "title": "Epoch Interval",
+          "type": "integer"
+        }
+      },
+      "title": "CheckpointerConfig",
       "type": "object"
     },
     "ChestConfig": {
@@ -989,6 +1027,39 @@
       "title": "ClipperConfig",
       "type": "object"
     },
+    "ComponentConfig": {
+      "additionalProperties": false,
+      "description": "Abstract base class for component configurations.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "ComponentConfig",
+      "type": "object"
+    },
+    "ContextCheckpointerConfig": {
+      "additionalProperties": false,
+      "description": "Configuration for trainer state checkpointing.",
+      "properties": {
+        "epoch_interval": {
+          "default": 50,
+          "title": "Epoch Interval",
+          "type": "integer"
+        },
+        "keep_last_n": {
+          "default": 5,
+          "title": "Keep Last N",
+          "type": "integer"
+        }
+      },
+      "title": "ContextCheckpointerConfig",
+      "type": "object"
+    },
     "ConvChainConfig": {
       "additionalProperties": false,
       "properties": {
@@ -1011,6 +1082,10 @@
           ],
           "default": null,
           "title": "Seed"
+        },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
         },
         "pattern": {
           "title": "Pattern",
@@ -1075,6 +1150,10 @@
           ],
           "default": null,
           "title": "Seed"
+        },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
         },
         "pattern": {
           "title": "Pattern",
@@ -1239,9 +1318,157 @@
           ],
           "default": null,
           "title": "Seed"
+        },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
         }
       },
       "title": "CopyGridConfig",
+      "type": "object"
+    },
+    "CurriculumConfig": {
+      "additionalProperties": false,
+      "description": "Base configuration for Curriculum.",
+      "properties": {
+        "task_generator": {
+          "$ref": "#/$defs/TaskGeneratorConfig_Any_",
+          "description": "TaskGenerator configuration"
+        },
+        "max_task_id": {
+          "default": 1000000,
+          "description": "Maximum task ID to generate",
+          "exclusiveMinimum": 0,
+          "title": "Max Task Id",
+          "type": "integer"
+        },
+        "num_active_tasks": {
+          "default": 10000,
+          "description": "Number of active tasks to maintain",
+          "exclusiveMinimum": 0,
+          "title": "Num Active Tasks",
+          "type": "integer"
+        },
+        "min_presentations_for_eviction": {
+          "default": 5,
+          "description": "Minimum task presentations before eviction",
+          "exclusiveMinimum": 0,
+          "title": "Min Presentations For Eviction",
+          "type": "integer"
+        },
+        "algorithm_config": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DiscreteRandomConfig"
+            },
+            {
+              "$ref": "#/$defs/LearningProgressConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Curriculum algorithm hyperparameters",
+          "title": "Algorithm Config"
+        }
+      },
+      "required": [
+        "task_generator"
+      ],
+      "title": "CurriculumConfig",
+      "type": "object"
+    },
+    "DiscreteRandomConfig": {
+      "additionalProperties": false,
+      "description": "Hyperparameters for DiscreteRandomCurriculum.",
+      "properties": {
+        "type": {
+          "default": "discrete_random",
+          "title": "Type",
+          "type": "string"
+        },
+        "initial_weights": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Initial Weights"
+        }
+      },
+      "title": "DiscreteRandomConfig",
+      "type": "object"
+    },
+    "EvaluatorConfig": {
+      "additionalProperties": false,
+      "description": "Configuration for evaluation.",
+      "properties": {
+        "epoch_interval": {
+          "default": 100,
+          "title": "Epoch Interval",
+          "type": "integer"
+        },
+        "evaluate_local": {
+          "default": true,
+          "title": "Evaluate Local",
+          "type": "boolean"
+        },
+        "evaluate_remote": {
+          "default": false,
+          "title": "Evaluate Remote",
+          "type": "boolean"
+        },
+        "num_training_tasks": {
+          "default": 2,
+          "title": "Num Training Tasks",
+          "type": "integer"
+        },
+        "simulations": {
+          "items": {
+            "$ref": "#/$defs/SimulationConfig"
+          },
+          "title": "Simulations",
+          "type": "array"
+        },
+        "replay_dir": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Replay Dir"
+        },
+        "skip_git_check": {
+          "default": false,
+          "title": "Skip Git Check",
+          "type": "boolean"
+        },
+        "git_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Git Hash"
+        }
+      },
+      "title": "EvaluatorConfig",
       "type": "object"
     },
     "GameConfig": {
@@ -1476,6 +1703,20 @@
       "title": "GlobalObsConfig",
       "type": "object"
     },
+    "GradientReporterConfig": {
+      "additionalProperties": false,
+      "description": "Configuration for gradient statistics computation.",
+      "properties": {
+        "epoch_interval": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Epoch Interval",
+          "type": "integer"
+        }
+      },
+      "title": "GradientReporterConfig",
+      "type": "object"
+    },
     "GridAltarsConfig": {
       "additionalProperties": false,
       "properties": {
@@ -1498,6 +1739,10 @@
           ],
           "default": null,
           "title": "Seed"
+        },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
         },
         "objects": {
           "additionalProperties": {
@@ -1556,6 +1801,33 @@
       "title": "GridAltarsConfig",
       "type": "object"
     },
+    "GridTransform": {
+      "enum": [
+        "identity",
+        "rot_90",
+        "rot_180",
+        "rot_270",
+        "flip_h",
+        "flip_v",
+        "transpose",
+        "transpose_alt"
+      ],
+      "title": "GridTransform",
+      "type": "string"
+    },
+    "HeartbeatConfig": {
+      "additionalProperties": false,
+      "description": "Configuration for heartbeat monitoring.",
+      "properties": {
+        "epoch_interval": {
+          "default": 1,
+          "title": "Epoch Interval",
+          "type": "integer"
+        }
+      },
+      "title": "HeartbeatConfig",
+      "type": "object"
+    },
     "HorizontalMirrorConfig": {
       "additionalProperties": false,
       "properties": {
@@ -1579,6 +1851,10 @@
           "default": null,
           "title": "Seed"
         },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
+        },
         "scene": {
           "$ref": "#/$defs/SceneConfig"
         }
@@ -1587,6 +1863,84 @@
         "scene"
       ],
       "title": "HorizontalMirrorConfig",
+      "type": "object"
+    },
+    "HyperparameterSchedulerConfig": {
+      "additionalProperties": false,
+      "description": "Scheduler settings applied during training.",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "schedule_type": {
+          "default": "exponential",
+          "title": "Schedule Type",
+          "type": "string"
+        },
+        "learning_rate_decay": {
+          "default": 1.0,
+          "title": "Learning Rate Decay",
+          "type": "number"
+        },
+        "ppo_clip_decay": {
+          "default": 1.0,
+          "title": "Ppo Clip Decay",
+          "type": "number"
+        },
+        "ppo_ent_coef_decay": {
+          "default": 1.0,
+          "title": "Ppo Ent Coef Decay",
+          "type": "number"
+        }
+      },
+      "title": "HyperparameterSchedulerConfig",
+      "type": "object"
+    },
+    "InitialPolicyConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "uri": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uri"
+        },
+        "type": {
+          "default": "top",
+          "enum": [
+            "top",
+            "latest",
+            "specific"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "range": {
+          "default": 1,
+          "exclusiveMinimum": 0,
+          "title": "Range",
+          "type": "integer"
+        },
+        "metric": {
+          "default": "epoch",
+          "title": "Metric",
+          "type": "string"
+        },
+        "filters": {
+          "additionalProperties": true,
+          "title": "Filters",
+          "type": "object"
+        }
+      },
+      "title": "InitialPolicyConfig",
       "type": "object"
     },
     "InlineAsciiConfig": {
@@ -1611,6 +1965,10 @@
           ],
           "default": null,
           "title": "Seed"
+        },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
         },
         "data": {
           "title": "Data",
@@ -1663,6 +2021,10 @@
           "default": null,
           "title": "Seed"
         },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
+        },
         "scene": {
           "$ref": "#/$defs/SceneConfig"
         }
@@ -1695,6 +2057,10 @@
           ],
           "default": null,
           "title": "Seed"
+        },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
         },
         "width": {
           "title": "Width",
@@ -1746,6 +2112,10 @@
           "default": null,
           "title": "Seed"
         },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
+        },
         "areas": {
           "items": {
             "$ref": "#/$defs/LayoutArea"
@@ -1758,6 +2128,101 @@
         "areas"
       ],
       "title": "LayoutConfig",
+      "type": "object"
+    },
+    "LearningProgressConfig": {
+      "additionalProperties": false,
+      "description": "Configuration for learning progress with bidirectional scoring as default.",
+      "properties": {
+        "type": {
+          "default": "learning_progress",
+          "title": "Type",
+          "type": "string"
+        },
+        "initial_weights": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Initial Weights"
+        },
+        "use_bidirectional": {
+          "default": true,
+          "title": "Use Bidirectional",
+          "type": "boolean"
+        },
+        "ema_timescale": {
+          "default": 0.001,
+          "title": "Ema Timescale",
+          "type": "number"
+        },
+        "exploration_bonus": {
+          "default": 0.1,
+          "title": "Exploration Bonus",
+          "type": "number"
+        },
+        "progress_smoothing": {
+          "default": 0.05,
+          "title": "Progress Smoothing",
+          "type": "number"
+        },
+        "num_active_tasks": {
+          "default": 16,
+          "title": "Num Active Tasks",
+          "type": "integer"
+        },
+        "rand_task_rate": {
+          "default": 0.25,
+          "title": "Rand Task Rate",
+          "type": "number"
+        },
+        "sample_threshold": {
+          "default": 10,
+          "title": "Sample Threshold",
+          "type": "integer"
+        },
+        "memory": {
+          "default": 25,
+          "title": "Memory",
+          "type": "integer"
+        },
+        "max_memory_tasks": {
+          "default": 1000,
+          "title": "Max Memory Tasks",
+          "type": "integer"
+        },
+        "max_slice_axes": {
+          "default": 3,
+          "title": "Max Slice Axes",
+          "type": "integer"
+        },
+        "enable_detailed_slice_logging": {
+          "default": false,
+          "title": "Enable Detailed Slice Logging",
+          "type": "boolean"
+        }
+      },
+      "title": "LearningProgressConfig",
+      "type": "object"
+    },
+    "LossConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "loss_configs": {
+          "additionalProperties": true,
+          "title": "Loss Configs",
+          "type": "object"
+        }
+      },
+      "title": "LossConfig",
       "type": "object"
     },
     "MakeConnectedConfig": {
@@ -1782,6 +2247,10 @@
           ],
           "default": null,
           "title": "Seed"
+        },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
         }
       },
       "title": "MakeConnectedConfig",
@@ -1815,6 +2284,10 @@
           ],
           "default": null,
           "title": "Seed"
+        },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
         },
         "algorithm": {
           "default": "kruskal",
@@ -1863,6 +2336,10 @@
           ],
           "default": null,
           "title": "Seed"
+        },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
         },
         "mean_distance": {
           "title": "Mean Distance",
@@ -1927,6 +2404,10 @@
           "default": null,
           "title": "Seed"
         },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
+        },
         "scene": {
           "$ref": "#/$defs/SceneConfig"
         },
@@ -1970,6 +2451,10 @@
           "default": null,
           "title": "Seed"
         },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
+        },
         "flip_x": {
           "default": false,
           "title": "Flip X",
@@ -2006,6 +2491,10 @@
           ],
           "default": null,
           "title": "Seed"
+        },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
         },
         "rows": {
           "title": "Rows",
@@ -2055,9 +2544,166 @@
           ],
           "default": null,
           "title": "Seed"
+        },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
         }
       },
       "title": "NopConfig",
+      "type": "object"
+    },
+    "OptimizerConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "default": "adam",
+          "enum": [
+            "adam",
+            "muon"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "learning_rate": {
+          "default": 0.001153637,
+          "exclusiveMinimum": 0,
+          "maximum": 1.0,
+          "title": "Learning Rate",
+          "type": "number"
+        },
+        "beta1": {
+          "default": 0.9,
+          "maximum": 1.0,
+          "minimum": 0,
+          "title": "Beta1",
+          "type": "number"
+        },
+        "beta2": {
+          "default": 0.999,
+          "maximum": 1.0,
+          "minimum": 0,
+          "title": "Beta2",
+          "type": "number"
+        },
+        "eps": {
+          "default": 3.186531e-07,
+          "exclusiveMinimum": 0,
+          "title": "Eps",
+          "type": "number"
+        },
+        "weight_decay": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Weight Decay",
+          "type": "number"
+        }
+      },
+      "title": "OptimizerConfig",
+      "type": "object"
+    },
+    "PlayTool": {
+      "additionalProperties": false,
+      "properties": {
+        "system": {
+          "$ref": "#/$defs/SystemConfig"
+        },
+        "wandb": {
+          "$ref": "#/$defs/WandbConfig",
+          "default": {
+            "enabled": true,
+            "project": "metta",
+            "entity": "metta-research",
+            "group": null,
+            "name": null,
+            "run_id": null,
+            "data_dir": null,
+            "job_type": null,
+            "tags": [],
+            "notes": ""
+          }
+        },
+        "sim": {
+          "$ref": "#/$defs/SimulationConfig"
+        },
+        "policy_uri": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Policy Uri"
+        },
+        "replay_dir": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Replay Dir"
+        },
+        "stats_dir": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stats Dir"
+        },
+        "open_browser_on_start": {
+          "default": true,
+          "title": "Open Browser On Start",
+          "type": "boolean"
+        },
+        "mettascope2": {
+          "default": false,
+          "title": "Mettascope2",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "sim"
+      ],
+      "title": "PlayTool",
+      "type": "object"
+    },
+    "PolicyArchitecture": {
+      "additionalProperties": false,
+      "description": "Policy architecture configuration.",
+      "properties": {
+        "class_path": {
+          "title": "Class Path",
+          "type": "string"
+        },
+        "components": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ComponentConfig"
+          },
+          "title": "Components",
+          "type": "array"
+        },
+        "action_probs_config": {
+          "$ref": "#/$defs/ComponentConfig"
+        }
+      },
+      "required": [
+        "class_path",
+        "action_probs_config"
+      ],
+      "title": "PolicyArchitecture",
       "type": "object"
     },
     "RadialMazeConfig": {
@@ -2082,6 +2728,10 @@
           ],
           "default": null,
           "title": "Seed"
+        },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
         },
         "arms": {
           "default": 4,
@@ -2134,6 +2784,10 @@
           ],
           "default": null,
           "title": "Seed"
+        },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
         },
         "objects": {
           "additionalProperties": {
@@ -2190,6 +2844,10 @@
           "default": null,
           "title": "Seed"
         },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
+        },
         "wfc": {
           "title": "Wfc",
           "type": "boolean"
@@ -2228,6 +2886,10 @@
           ],
           "default": null,
           "title": "Seed"
+        },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
         },
         "object_ranges": {
           "additionalProperties": {
@@ -2281,6 +2943,10 @@
           ],
           "default": null,
           "title": "Seed"
+        },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
         },
         "candidates": {
           "items": {
@@ -2337,6 +3003,10 @@
           ],
           "default": null,
           "title": "Seed"
+        },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
         },
         "candidates": {
           "items": {
@@ -2401,9 +3071,72 @@
           ],
           "default": null,
           "title": "Seed"
+        },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
         }
       },
       "title": "RemoveAgentsConfig",
+      "type": "object"
+    },
+    "ReplayTool": {
+      "additionalProperties": false,
+      "description": "Tool for generating and viewing replay files in MettaScope.\nCreates a simulation specifically to generate replay files and automatically\nopens them in a browser for visualization. This tool focuses on replay viewing\nand browser integration, unlike SimTool which focuses on policy evaluation.",
+      "properties": {
+        "system": {
+          "$ref": "#/$defs/SystemConfig"
+        },
+        "wandb": {
+          "$ref": "#/$defs/WandbConfig",
+          "default": {
+            "enabled": true,
+            "project": "metta",
+            "entity": "metta-research",
+            "group": null,
+            "name": null,
+            "run_id": null,
+            "data_dir": null,
+            "job_type": null,
+            "tags": [],
+            "notes": ""
+          }
+        },
+        "sim": {
+          "$ref": "#/$defs/SimulationConfig"
+        },
+        "policy_uri": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Policy Uri"
+        },
+        "replay_dir": {
+          "default": "./train_dir/replays",
+          "title": "Replay Dir",
+          "type": "string"
+        },
+        "stats_dir": {
+          "default": "./train_dir/stats",
+          "title": "Stats Dir",
+          "type": "string"
+        },
+        "open_browser_on_start": {
+          "default": true,
+          "title": "Open Browser On Start",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "sim"
+      ],
+      "title": "ReplayTool",
       "type": "object"
     },
     "ResourceModActionConfig": {
@@ -2481,6 +3214,10 @@
           ],
           "default": null,
           "title": "Seed"
+        },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
         },
         "rows": {
           "anyOf": [
@@ -2560,9 +3297,127 @@
           ],
           "default": null,
           "title": "Seed"
+        },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
         }
       },
       "title": "SceneConfig",
+      "type": "object"
+    },
+    "SimTool": {
+      "additionalProperties": false,
+      "description": "Tool for running policy evaluations on simulation suites.\n\nCan evaluate policies specified either by:\n- run: Training run name (automatically resolves to latest S3 checkpoint)\n- policy_uris: Explicit list of policy URIs (file://, s3://, etc.)\n\nUsage examples:\n    # Evaluate latest checkpoint from a training run\n    SimTool(simulations=my_sims, run=\"my_experiment_2024\")\n\n    # Evaluate specific policy URIs\n    SimTool(simulations=my_sims, policy_uris=[\"s3://bucket/path/policy:v10.pt\"])\n\n    # Can also be invoked with run parameter\n    tool.invoke({\"run\": \"my_experiment_2024\"})",
+      "properties": {
+        "system": {
+          "$ref": "#/$defs/SystemConfig"
+        },
+        "simulations": {
+          "items": {
+            "$ref": "#/$defs/SimulationConfig"
+          },
+          "title": "Simulations",
+          "type": "array"
+        },
+        "policy_uris": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Policy Uris"
+        },
+        "replay_dir": {
+          "default": "s3://softmax-public/replays/84498972-2199-4c87-8f96-d7c86470cd0e",
+          "title": "Replay Dir",
+          "type": "string"
+        },
+        "group": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Group"
+        },
+        "stats_dir": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stats Dir"
+        },
+        "stats_db_uri": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stats Db Uri"
+        },
+        "stats_server_uri": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stats Server Uri"
+        },
+        "register_missing_policies": {
+          "default": false,
+          "title": "Register Missing Policies",
+          "type": "boolean"
+        },
+        "eval_task_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Eval Task Id"
+        },
+        "push_metrics_to_wandb": {
+          "default": false,
+          "title": "Push Metrics To Wandb",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "simulations"
+      ],
+      "title": "SimTool",
       "type": "object"
     },
     "SimulationConfig": {
@@ -2665,6 +3520,10 @@
           "default": null,
           "title": "Seed"
         },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
+        },
         "objects": {
           "additionalProperties": {
             "type": "integer"
@@ -2722,6 +3581,693 @@
       "title": "SpiralConfig",
       "type": "object"
     },
+    "StatsReporterConfig": {
+      "additionalProperties": false,
+      "description": "Configuration for stats reporting.",
+      "properties": {
+        "report_to_wandb": {
+          "default": true,
+          "title": "Report To Wandb",
+          "type": "boolean"
+        },
+        "report_to_stats_client": {
+          "default": true,
+          "title": "Report To Stats Client",
+          "type": "boolean"
+        },
+        "report_to_console": {
+          "default": true,
+          "title": "Report To Console",
+          "type": "boolean"
+        },
+        "grad_mean_variance_interval": {
+          "default": 50,
+          "title": "Grad Mean Variance Interval",
+          "type": "integer"
+        },
+        "interval": {
+          "default": 1,
+          "title": "Interval",
+          "type": "integer"
+        },
+        "analyze_weights_interval": {
+          "default": 0,
+          "title": "Analyze Weights Interval",
+          "type": "integer"
+        }
+      },
+      "title": "StatsReporterConfig",
+      "type": "object"
+    },
+    "SystemConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "vectorization": {
+          "enum": [
+            "serial",
+            "multiprocessing"
+          ],
+          "title": "Vectorization",
+          "type": "string"
+        },
+        "seed": {
+          "title": "Seed",
+          "type": "integer"
+        },
+        "torch_deterministic": {
+          "default": true,
+          "title": "Torch Deterministic",
+          "type": "boolean"
+        },
+        "device": {
+          "title": "Device",
+          "type": "string"
+        },
+        "data_dir": {
+          "format": "path",
+          "title": "Data Dir",
+          "type": "string"
+        },
+        "remote_prefix": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Remote Prefix"
+        },
+        "local_only": {
+          "default": false,
+          "title": "Local Only",
+          "type": "boolean"
+        },
+        "nccl_timeout": {
+          "default": "PT10M",
+          "format": "duration",
+          "title": "Nccl Timeout",
+          "type": "string"
+        }
+      },
+      "title": "SystemConfig",
+      "type": "object"
+    },
+    "TaskGeneratorConfig_Any_": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Label for the task generator",
+          "title": "Label"
+        },
+        "overrides": {
+          "additionalProperties": true,
+          "description": "Overrides to apply as dict with dot-separated keys",
+          "title": "Overrides",
+          "type": "object"
+        }
+      },
+      "title": "TaskGeneratorConfig[Any]",
+      "type": "object"
+    },
+    "TorchProfilerConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "interval_epochs": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Interval Epochs",
+          "type": "integer"
+        },
+        "profile_dir": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Profile Dir"
+        }
+      },
+      "title": "TorchProfilerConfig",
+      "type": "object"
+    },
+    "TrainTool": {
+      "additionalProperties": false,
+      "properties": {
+        "system": {
+          "$ref": "#/$defs/SystemConfig"
+        },
+        "run": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run"
+        },
+        "trainer": {
+          "$ref": "#/$defs/TrainerConfig"
+        },
+        "training_env": {
+          "$ref": "#/$defs/TrainingEnvironmentConfig"
+        },
+        "policy_architecture": {
+          "$ref": "#/$defs/PolicyArchitecture"
+        },
+        "initial_policy_uri": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Initial Policy Uri"
+        },
+        "uploader": {
+          "$ref": "#/$defs/UploaderConfig"
+        },
+        "checkpointer": {
+          "$ref": "#/$defs/CheckpointerConfig"
+        },
+        "gradient_reporter": {
+          "$ref": "#/$defs/GradientReporterConfig"
+        },
+        "stats_server_uri": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "https://api.observatory.softmax-research.net",
+          "title": "Stats Server Uri"
+        },
+        "wandb": {
+          "$ref": "#/$defs/WandbConfig",
+          "default": {
+            "enabled": false,
+            "project": "unconfigured",
+            "entity": "unconfigured",
+            "group": null,
+            "name": null,
+            "run_id": null,
+            "data_dir": null,
+            "job_type": null,
+            "tags": [],
+            "notes": ""
+          }
+        },
+        "group": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Group"
+        },
+        "evaluator": {
+          "$ref": "#/$defs/EvaluatorConfig"
+        },
+        "torch_profiler": {
+          "$ref": "#/$defs/TorchProfilerConfig"
+        },
+        "context_checkpointer": {
+          "$ref": "#/$defs/ContextCheckpointerConfig"
+        },
+        "stats_reporter": {
+          "$ref": "#/$defs/StatsReporterConfig"
+        },
+        "wandb_aborter": {
+          "$ref": "#/$defs/WandbAborterConfig"
+        },
+        "map_preview_uri": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Map Preview Uri"
+        },
+        "disable_macbook_optimize": {
+          "default": false,
+          "title": "Disable Macbook Optimize",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "training_env"
+      ],
+      "title": "TrainTool",
+      "type": "object"
+    },
+    "TrainerConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "total_timesteps": {
+          "default": 50000000000,
+          "exclusiveMinimum": 0,
+          "title": "Total Timesteps",
+          "type": "integer"
+        },
+        "losses": {
+          "$ref": "#/$defs/LossConfig"
+        },
+        "optimizer": {
+          "$ref": "#/$defs/OptimizerConfig"
+        },
+        "require_contiguous_env_ids": {
+          "default": false,
+          "title": "Require Contiguous Env Ids",
+          "type": "boolean"
+        },
+        "verbose": {
+          "default": true,
+          "title": "Verbose",
+          "type": "boolean"
+        },
+        "batch_size": {
+          "default": 524288,
+          "exclusiveMinimum": 0,
+          "title": "Batch Size",
+          "type": "integer"
+        },
+        "minibatch_size": {
+          "default": 16384,
+          "exclusiveMinimum": 0,
+          "title": "Minibatch Size",
+          "type": "integer"
+        },
+        "bptt_horizon": {
+          "default": 64,
+          "exclusiveMinimum": 0,
+          "title": "Bptt Horizon",
+          "type": "integer"
+        },
+        "update_epochs": {
+          "default": 1,
+          "exclusiveMinimum": 0,
+          "title": "Update Epochs",
+          "type": "integer"
+        },
+        "scale_batches_by_world_size": {
+          "default": false,
+          "title": "Scale Batches By World Size",
+          "type": "boolean"
+        },
+        "compile": {
+          "default": false,
+          "title": "Compile",
+          "type": "boolean"
+        },
+        "compile_mode": {
+          "default": "reduce-overhead",
+          "enum": [
+            "default",
+            "reduce-overhead",
+            "max-autotune"
+          ],
+          "title": "Compile Mode",
+          "type": "string"
+        },
+        "hyperparameter_scheduler": {
+          "$ref": "#/$defs/HyperparameterSchedulerConfig"
+        },
+        "heartbeat": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HeartbeatConfig"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "initial_policy": {
+          "$ref": "#/$defs/InitialPolicyConfig"
+        },
+        "profiler": {
+          "$ref": "#/$defs/TorchProfilerConfig"
+        }
+      },
+      "title": "TrainerConfig",
+      "type": "object"
+    },
+    "TrainingEnvironmentConfig": {
+      "additionalProperties": false,
+      "description": "Configuration for training environment.",
+      "properties": {
+        "curriculum": {
+          "$ref": "#/$defs/CurriculumConfig",
+          "default": {
+            "task_generator": {
+              "env": {
+                "desync_episodes": true,
+                "game": {
+                  "actions": {
+                    "attack": {
+                      "consumed_resources": {
+                        "laser": 1.0
+                      },
+                      "defense_resources": {
+                        "armor": 1
+                      },
+                      "enabled": true,
+                      "required_resources": {}
+                    },
+                    "change_color": {
+                      "consumed_resources": {},
+                      "enabled": false,
+                      "required_resources": {}
+                    },
+                    "change_glyph": {
+                      "consumed_resources": {},
+                      "enabled": false,
+                      "number_of_glyphs": 0,
+                      "required_resources": {}
+                    },
+                    "get_items": {
+                      "consumed_resources": {},
+                      "enabled": true,
+                      "required_resources": {}
+                    },
+                    "move": {
+                      "consumed_resources": {},
+                      "enabled": true,
+                      "required_resources": {}
+                    },
+                    "noop": {
+                      "consumed_resources": {},
+                      "enabled": true,
+                      "required_resources": {}
+                    },
+                    "put_items": {
+                      "consumed_resources": {},
+                      "enabled": true,
+                      "required_resources": {}
+                    },
+                    "resource_mod": {
+                      "agent_radius": 0,
+                      "consumed_resources": {},
+                      "converter_radius": 0,
+                      "enabled": false,
+                      "modifies": {},
+                      "required_resources": {},
+                      "scales": false
+                    },
+                    "rotate": {
+                      "consumed_resources": {},
+                      "enabled": false,
+                      "required_resources": {}
+                    },
+                    "swap": {
+                      "consumed_resources": {},
+                      "enabled": false,
+                      "required_resources": {}
+                    }
+                  },
+                  "agent": {
+                    "action_failure_penalty": 0.0,
+                    "default_resource_limit": 50,
+                    "freeze_duration": 10,
+                    "initial_inventory": {},
+                    "inventory_regen_amounts": {},
+                    "resource_limits": {
+                      "heart": 255
+                    },
+                    "rewards": {
+                      "inventory": {
+                        "heart": 1.0
+                      },
+                      "inventory_max": {},
+                      "stats": {},
+                      "stats_max": {}
+                    },
+                    "shareable_resources": [],
+                    "soul_bound_resources": [],
+                    "tags": [],
+                    "team_id": 0
+                  },
+                  "agents": [],
+                  "allow_diagonals": false,
+                  "clipper": null,
+                  "episode_truncates": false,
+                  "global_obs": {
+                    "episode_completion_pct": true,
+                    "last_action": true,
+                    "last_reward": true,
+                    "visitation_counts": false
+                  },
+                  "inventory_regen_interval": 0,
+                  "map_builder": {
+                    "border_width": 6,
+                    "height": 25,
+                    "instance": {
+                      "agents": 6,
+                      "children": [],
+                      "objects": {
+                        "altar": 5,
+                        "armory": 1,
+                        "generator_red": 5,
+                        "lasery": 1,
+                        "mine_red": 10,
+                        "wall": 10
+                      },
+                      "seed": null,
+                      "too_many_is_ok": true,
+                      "transform": "identity",
+                      "type": "mettagrid.mapgen.scenes.random.Random"
+                    },
+                    "instance_border_width": 0,
+                    "instance_map": null,
+                    "instances": null,
+                    "num_agents": 24,
+                    "root": null,
+                    "seed": null,
+                    "type": "mettagrid.mapgen.mapgen.MapGen",
+                    "width": 25
+                  },
+                  "max_steps": 1000,
+                  "num_agents": 24,
+                  "num_observation_tokens": 200,
+                  "objects": {
+                    "altar": {
+                      "color": 0,
+                      "conversion_ticks": 1,
+                      "cooldown": 10,
+                      "initial_resource_count": 0,
+                      "input_resources": {
+                        "battery_red": 3
+                      },
+                      "map_char": "_",
+                      "max_conversions": -1,
+                      "max_output": 5,
+                      "name": "altar",
+                      "output_resources": {
+                        "heart": 1
+                      },
+                      "render_symbol": "\ud83c\udfaf",
+                      "tags": [],
+                      "type": "converter",
+                      "type_id": 8
+                    },
+                    "armory": {
+                      "color": 0,
+                      "conversion_ticks": 1,
+                      "cooldown": 10,
+                      "initial_resource_count": 0,
+                      "input_resources": {
+                        "ore_red": 3
+                      },
+                      "map_char": "o",
+                      "max_conversions": -1,
+                      "max_output": 5,
+                      "name": "armory",
+                      "output_resources": {
+                        "armor": 1
+                      },
+                      "render_symbol": "\ud83d\udd35",
+                      "tags": [],
+                      "type": "converter",
+                      "type_id": 16
+                    },
+                    "generator_red": {
+                      "color": 0,
+                      "conversion_ticks": 1,
+                      "cooldown": 25,
+                      "initial_resource_count": 0,
+                      "input_resources": {
+                        "ore_red": 1
+                      },
+                      "map_char": "n",
+                      "max_conversions": -1,
+                      "max_output": 5,
+                      "name": "generator_red",
+                      "output_resources": {
+                        "battery_red": 1
+                      },
+                      "render_symbol": "\ud83d\udd0b",
+                      "tags": [],
+                      "type": "converter",
+                      "type_id": 5
+                    },
+                    "lasery": {
+                      "color": 0,
+                      "conversion_ticks": 1,
+                      "cooldown": 10,
+                      "initial_resource_count": 0,
+                      "input_resources": {
+                        "battery_red": 1,
+                        "ore_red": 2
+                      },
+                      "map_char": "S",
+                      "max_conversions": -1,
+                      "max_output": 5,
+                      "name": "lasery",
+                      "output_resources": {
+                        "laser": 1
+                      },
+                      "render_symbol": "\ud83d\udfe5",
+                      "tags": [],
+                      "type": "converter",
+                      "type_id": 15
+                    },
+                    "mine_red": {
+                      "color": 0,
+                      "conversion_ticks": 1,
+                      "cooldown": 50,
+                      "initial_resource_count": 0,
+                      "input_resources": {},
+                      "map_char": "m",
+                      "max_conversions": -1,
+                      "max_output": 5,
+                      "name": "mine_red",
+                      "output_resources": {
+                        "ore_red": 1
+                      },
+                      "render_symbol": "\ud83d\udd3a",
+                      "tags": [],
+                      "type": "converter",
+                      "type_id": 2
+                    },
+                    "wall": {
+                      "map_char": "#",
+                      "name": "wall",
+                      "render_symbol": "\u2b1b",
+                      "swappable": false,
+                      "tags": [],
+                      "type": "wall",
+                      "type_id": 1
+                    }
+                  },
+                  "obs_height": 11,
+                  "obs_width": 11,
+                  "params": null,
+                  "recipe_details_obs": false,
+                  "resource_loss_prob": 0.0,
+                  "resource_names": [
+                    "ore_red",
+                    "ore_blue",
+                    "ore_green",
+                    "battery_red",
+                    "battery_blue",
+                    "battery_green",
+                    "heart",
+                    "armor",
+                    "laser",
+                    "blueprint"
+                  ],
+                  "reward_estimates": null,
+                  "track_movement_metrics": true
+                },
+                "label": "arena.combat"
+              },
+              "label": null,
+              "overrides": {},
+              "type": "metta.cogworks.curriculum.task_generator.SingleTaskGenerator"
+            },
+            "max_task_id": 1000000,
+            "num_active_tasks": 10000,
+            "min_presentations_for_eviction": 5,
+            "algorithm_config": null
+          }
+        },
+        "num_workers": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Num Workers",
+          "type": "integer"
+        },
+        "async_factor": {
+          "default": 2,
+          "minimum": 1,
+          "title": "Async Factor",
+          "type": "integer"
+        },
+        "auto_workers": {
+          "default": true,
+          "title": "Auto Workers",
+          "type": "boolean"
+        },
+        "forward_pass_minibatch_target_size": {
+          "default": 4096,
+          "exclusiveMinimum": 0,
+          "title": "Forward Pass Minibatch Target Size",
+          "type": "integer"
+        },
+        "zero_copy": {
+          "default": true,
+          "title": "Zero Copy",
+          "type": "boolean"
+        },
+        "vectorization": {
+          "enum": [
+            "serial",
+            "multiprocessing"
+          ],
+          "title": "Vectorization",
+          "type": "string"
+        },
+        "seed": {
+          "default": 0,
+          "title": "Seed",
+          "type": "integer"
+        }
+      },
+      "title": "TrainingEnvironmentConfig",
+      "type": "object"
+    },
     "TransplantSceneConfig": {
       "additionalProperties": false,
       "properties": {
@@ -2744,9 +4290,26 @@
           ],
           "default": null,
           "title": "Seed"
+        },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
         }
       },
       "title": "TransplantSceneConfig",
+      "type": "object"
+    },
+    "UploaderConfig": {
+      "additionalProperties": false,
+      "description": "Configuration for policy uploading.",
+      "properties": {
+        "epoch_interval": {
+          "default": 1000,
+          "title": "Epoch Interval",
+          "type": "integer"
+        }
+      },
+      "title": "UploaderConfig",
       "type": "object"
     },
     "VariedTerrainConfig": {
@@ -2771,6 +4334,10 @@
           ],
           "default": null,
           "title": "Seed"
+        },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
         },
         "objects": {
           "additionalProperties": {
@@ -2819,6 +4386,10 @@
           "default": null,
           "title": "Seed"
         },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
+        },
         "scene": {
           "$ref": "#/$defs/SceneConfig"
         }
@@ -2851,6 +4422,10 @@
           ],
           "default": null,
           "title": "Seed"
+        },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
         },
         "pattern": {
           "title": "Pattern",
@@ -2953,6 +4528,116 @@
       "title": "WallConfig",
       "type": "object"
     },
+    "WandbAborterConfig": {
+      "additionalProperties": false,
+      "description": "Configuration for wandb abort polling.",
+      "properties": {
+        "epoch_interval": {
+          "default": 5,
+          "title": "Epoch Interval",
+          "type": "integer"
+        }
+      },
+      "title": "WandbAborterConfig",
+      "type": "object"
+    },
+    "WandbConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "project": {
+          "title": "Project",
+          "type": "string"
+        },
+        "entity": {
+          "title": "Entity",
+          "type": "string"
+        },
+        "group": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Group"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run Id"
+        },
+        "data_dir": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Data Dir"
+        },
+        "job_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Job Type"
+        },
+        "tags": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "notes": {
+          "default": "",
+          "title": "Notes",
+          "type": "string"
+        }
+      },
+      "required": [
+        "enabled",
+        "project",
+        "entity"
+      ],
+      "title": "WandbConfig",
+      "type": "object"
+    },
     "X4MirrorConfig": {
       "additionalProperties": false,
       "properties": {
@@ -2975,6 +4660,10 @@
           ],
           "default": null,
           "title": "Seed"
+        },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
         },
         "scene": {
           "$ref": "#/$defs/SceneConfig"
@@ -3008,6 +4697,10 @@
           ],
           "default": null,
           "title": "Seed"
+        },
+        "transform": {
+          "$ref": "#/$defs/GridTransform",
+          "default": "identity"
         },
         "file": {
           "title": "File",
