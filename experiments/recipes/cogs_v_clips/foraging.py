@@ -153,23 +153,21 @@ class ForagingTaskGenerator(TaskGenerator):
     ) -> MettaGridConfig:
         cfg = _BuildCfg()
 
-        if num_extractors > 3 and num_assemblers > 6:
-            num_assemblers = 6
-
         self._make_extractors(num_extractors, cfg, recipe_position, rng)
 
         self._make_assemblers(num_assemblers, cfg, recipe_position, num_extractors, rng)
 
-        self._make_chests(num_chests, cfg)
-
-        if num_chests == 0:
+        if num_chests > 0:
+            # if using chests, then we get reward from hearts in chest
+            self._make_chests(num_chests, cfg)
+            inventory_rewards = {"heart": 0}
+            stat_rewards = {"chest.heart.amount": 5}
+            resource_limits = {"heart": 1}
+        else:
+            # otherwise, we get reward from heart in inventory
             inventory_rewards = {"heart": 1}
             stat_rewards = {}
             resource_limits = {"heart": 20}
-        else:
-            inventory_rewards = {"heart": 0}
-            stat_rewards = {"chest.heart.amount": 1}
-            resource_limits = {"heart": 1}
 
         return make_icl_assembler(
             num_agents=num_agents,

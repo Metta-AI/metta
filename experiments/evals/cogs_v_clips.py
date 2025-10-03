@@ -4,7 +4,7 @@ import random
 from experiments.evals.foraging import make_foraging_eval_suite
 from metta.sim.simulation_config import SimulationConfig
 
-# macina 1 and macina 2 + the others
+
 terrain_evals = {
     "12_agent_pairs_small_uniform": {
         "num_cogs": 12,
