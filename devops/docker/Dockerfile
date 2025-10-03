@@ -30,6 +30,12 @@ RUN ln -snf /usr/share/zoneinfo/America/Los_Angeles /etc/localtime \
 RUN curl -L https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -o /usr/local/bin/bazel \
     && chmod +x /usr/local/bin/bazel
 
+# Install Nim compiler for mettagrid builds
+RUN curl https://nim-lang.org/choosenim/init.sh -sSf \
+    | bash -s -- -y \
+    && mv ~/.nimble/bin/* /usr/local/bin/ \
+    && rm -rf ~/.choosenim ~/.nimble
+
 # Configure screen
 RUN echo "defscrollback 10000" >> /root/.screenrc && \
     echo "termcapinfo xterm* ti@:te@" >> /root/.screenrc
