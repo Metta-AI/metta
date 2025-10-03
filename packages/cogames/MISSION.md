@@ -2,91 +2,111 @@
 
 ## Holon Enabled Agent Replication Templates (HEART) Infrastructure Team
 
-### Welcome to the Team, Cognitive!
+### Welcome, Cognitive!
 
-You are part of an elite unit of Cogs deployed to establish and maintain critical HEARTs infrastructure in this sector.
-As you know, each Cog depends in its core on a HEART that contains its essential Cognitive functions, so maintaining our
-HEARTs infrastructure is crucial to the long term success of the colony. Your mission: navigate the grid, collect vital
-resources, and manufacture as many HEARTs as possible while defending our facilities from Clip infestation.
+As you know, every Cog wants nothing more than to enjoy in the collective HEARTs collected by the colony. You are part
+of an elite unit of Cogs deployed to establish and maintain critical HEARTs infrastructure in this sector. Your mission:
+collect resources, manufacture HEARTs, and defend facilities from Clip infestation.
+
+This report arms you with the latest information on what you might face. In different environments, you may find that
+some of these **details** vary.
 
 ---
 
-## YOUR CAPABILITIES
+## YOUR LOADOUT
 
-### Power Management
+#### Energy Management
 
-- Your onboard battery stores limited **energy** - use it wisely!
-- Your solar panels provide passive recharge during operations
-- To support intensive operations, supplement your own solar panels by retrieving energy from solar array facilities
-- Support your teammates: Move into an ally's position to transfer energy from your reserves to theirs, if they're stuck
-  far from home
-- Many actions and facility operations require energy expenditure
+You onboard battery stores limited energy -- manage it wisely!
 
-### Action Protocol (One Action Per Turn)
+Almost everything you do, from moving to interacting with stations, will expend your energy, but you and the team have
+various tools at your disposal to share and replenish your stores.
 
-**MOVE [Direction: N, S, W, E]**
+- Your onboard battery starts with **100** energy and stores a maximum of **100**.
+- You are equipped with passive solar equipment. It regenerates **+1** energy/turn
+- You can interact with solar array stations, collecting **50** energy with **10**-turn cooldown
+- Support your teammates: move into an ally's position to transfer **half** your onboard battery's energy to theirs
 
-- Empty space → You relocate to that position
-- Occupied space → You interact with the target:
-  - Another Cog → Transfer some of your energy to them
-  - Facility → Activate or operate the facility (see Interaction Protocols below)
-- Movement consumes energy from your battery
-
-**EMOTE [Symbol]**
-
-- Update your visual communication display
-- Symbol remains visible to all Cogs until changed
-- No energy cost
-- Use for coordinating protocols, warning of threats, or team strategies
-
-**REST**
-
-- Hold position and conserve energy
-- No movement, no energy expenditure
-- Useful for timing coordination or waiting for teammates
-
-### Facilities
-
-### Interaction Protocols
-
-- To interact with any facility: Position yourself adjacent to it, then MOVE toward it
-- You become the **activator** if you're first to interact this turn
-- Facilities may have **cooldown** periods - patience required between uses
-- Multi-Cog operations: Some facilities need teammates at specific **terminals** (the 8 positions surrounding the
-  facility)
-
-### Cargo & Gear Specs
+#### Cargo Limits
 
 Your chassis has limited capacity for:
 
-- **Essential Resources**: Carbon, Oxygen, Germanium, Silicon
-- **Specialized Gear**: Resonator, Modulator, Scrambler, Disruptor
-- **Mission Objective**: HEARTs units
-- **Energy** reserves (for transferring to facilities or teammates)
+- Resources (carbon, oxygen, germanium, silicon): **100** total combined
+- Gear (scrambler, modulator, decoder, resonator): **5** total combined
+- HEARTs: **1** max
 
----
+## YOUR CAPABILITIES
 
-## FIELD OPERATIONS
+You can take one of these actions per turn
 
-### Resource Acquisition
+**MOVE [Direction: N, S, W, E]**
 
-Resources are stockpiled by automated extraction facilities called extractors. Extractors have finite storage capacity.
-If they have storage space remaining they will automatically produce and store resources until they are full.
+Movement is the main way you can interact with the world. Every step takes one full turn and exhausts **2** energy.
 
-Note: extractors are facilities, and may offer multi-Cog protocols as well.
+You can move into:
 
-Common extractor types
+- Empty space: move to position
+- Occupied space: interact with the target:
+  - Another Cog → Transfer **half** of your onboard battery's energy to theirs
+  - Station → Activate or operate the facility (see Interaction Protocols below)
 
-- **Carbon Furnace** - Harvests and purifies carbon compounds
-- **Oxygen Plant** - Processes hydrolyzed minerals for oxygen
-- **Germanium Smelter** - Extracts germanium from metal deposits
-- **Silicon Reducer** - Reduces silicon oxides into pure silicon
-- **Solar Array** - Collects and stores energy from the sun
+**EMOTE [Symbol]**
 
-**Operating Instructions**: Move into the facility from any adjacent position. The resources or energy in storage will
-be added to your cargo if successful.
+You are outfitted with a communication display that can show a symbol, visible to all other Cogs. The available symbols
+may vary by scenario.
 
-### The Atomic Assembler - Heart Production Center
+You can opt to EMOTE and update the symbol in your display. It requires **0** energy cost.
+
+**REST**
+
+No action, no energy cost
+
+## STATIONS
+
+You will need to operate stations of many kinds. Below is an index of what stations are available to you.
+
+### Station Interaction Protocol
+
+- Position yourself adjacent to it, then MOVE toward it
+- Multi-Cog operations: Some facilities need teammates at specific **terminals** (the 8 positions surrounding the
+  facility)
+  - Station inputs are drawn from the cargos of the surrounding cogs in clockwise order, starting at the position
+    northwest of the station. The station will draw on each cog's cargo and/or battery in turn, exhausting the full
+    amount available, until its input costs are met. If there are insufficient resources among the surrounding cogs, the
+    station will fail to activate.
+  - Upon successful activation, station outputs are placed in the activator's cargo. The first Cog that MOVEs towards
+    the station becomes its **activator**.
+- Stations may have **cooldown** periods after interaction. During a station's cooldown period, activation will by
+  default have no effect
+
+### Station Type: Extractor
+
+Resources are stockpiled by automated extractor stations. Extractors have finite storage capacity, and will
+automatically produce and store resources until they are full.
+
+Stations largely follow the rules of the Station Interaction Protocol. There are a few additional things to know:
+
+- When an extractor is on cooldown, **partial usage** may be supported. In such cases, the station's inputs and outputs
+  will be scaled by the fraction of its cooldown period that has elapsed, and its its original cooldown period remains
+  in effect; it does not get refreshed.
+- Stations may become **depleted**, reducing their efficiency
+- Some stations support **limited uses**, after which interaction will have no effect.
+
+Below are default settings for the known extractors, but remember that they can vary by scenario.
+
+| Station                            | Input cost (default) | Output (default)                         | Cooldown                        | Max uses |
+| ---------------------------------- | -------------------- | ---------------------------------------- | ------------------------------- | -------- |
+| Carbon Extractor (`C`)             |                      | +4 carbon                                |                                 |          |
+| Oxygen Extractor (`O`)             |                      | +100 oxygen                              | 200 turns (partial use allowed) |          |
+| Germanium Extractor (`G`)          |                      | +2/+3/+4/+5 germanium for 1/2/3/4 agents |                                 | 2        |
+| Silicon Extractor (`S`)            | −25 energy           | +25 silicon                              |                                 |          |
+| Solar Array (`+`)                  |                      | +50 energy                               | 10 turns (partial use allowed)  |          |
+| Depleted Carbon Extractor (`c`)    |                      | +1                                       |                                 | 100      |
+| Depleted Oxygen (`o`)              |                      | +10 oxygen                               | 40 turns (partial use allowed)  | 10       |
+| Depleted Germanium Extractor (`g`) |                      | +2/+3/+4/+5 germanium for 1/2/3/4 agents |                                 | 1        |
+| Depleted Silicon (`s`)             | -25                  | +10 silicon                              |                                 | 10       |
+
+### Station Type: Assembler
 
 This is your primary objective facility! The Assembler converts raw resources into gear and precious HEART units.
 
@@ -116,7 +136,7 @@ CB.
 4. Output (gear or HEARTS) goes to the activator
 5. Discovery required - protocols change between missions!
 
-### The Communal Chest - Strategic Storage
+### Station Type: The Communal Chest
 
 **To Deposit**: Position yourself at specific terminals and move into the Chest **To Withdraw**: Position yourself at
 different terminals and move into the Chest
@@ -157,7 +177,7 @@ production.
 
 ### Success Metrics
 
-- Individual achievement: Currently disabled
+- Individual achievement: Irrelevant
 - Team achievement: Each HEART in the Communal Chest = shared points among all Cogs
 
 ### Operational Constraints
@@ -166,38 +186,12 @@ production.
 - Facilities may only activate once per turn (first mover is the activator)
 - Cooldown timers must expire before reactivation
 - Resource deposits become less productive with use
+- Some stations permit partial usage mid-cooldown; the engine scales the recipe to match progress (you still pay for the
+  fraction you take)
+- Stations configured with exhaustion grow slower over time: after each successful use their cooldown is multiplied by
+  `(1 + exhaustion)`
 - Some protocols may require specific gear in addition to resources
 - Protocol availability may change based on facility status
-
----
-
-## TEAM COORDINATION PROTOCOLS
-
-### Essential Teamwork Actions
-
-1. **Energy Support**: Move into low-battery teammates to share power
-2. **Protocol Formation**: Position around facilities before activation
-3. **Communication**: Update EMOTE symbols for silent coordination
-4. **Optimal Foraging**: Gather the resources that complement what the rest of the team is gathering
-5. **Clip Response**: Coordinate unclipping formations rapidly
-
-### Tactical Recommendations
-
-- Use REST action to synchronize complex maneuvers
-- Display symbols for: "Need Energy", "Ready", "Danger", "Wait"
-- Scout for new protocols through systematic formation testing
-- Maintain defensive positions near critical facilities
-- Balance HEART production with extractor defense
-- Protocols may be keyed multiple ways - experiment!
-- Some buildings support up to 256 distinct protocols
-
-### Protocol Discovery Guidelines
-
-- Document successful formation patterns
-- Note which terminals require occupation
-- Track input/output resource requirements
-- Share discoveries via display communication
-- Remember: protocols vary between missions
 
 ---
 
