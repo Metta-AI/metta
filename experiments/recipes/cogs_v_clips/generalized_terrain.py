@@ -29,8 +29,6 @@ from experiments.recipes.cogs_v_clips.config import (
 
 class GeneralizedTerrainTaskGenerator(TaskGenerator):
     class Config(TaskGeneratorConfig["GeneralizedTerrainTaskGenerator"]):
-        """Parameters that we vary over the curriculum"""
-
         num_cogs: list[int] = Field(default=[1])
         num_obj_distribution: list[int] = Field(default=[10])
         positions: list[list[Position]] = Field(default=[["Any"]])
@@ -77,8 +75,7 @@ class GeneralizedTerrainTaskGenerator(TaskGenerator):
 
         num_assemblers = rng.choice(num_obj_distribution)
         num_chargers = rng.choice(num_obj_distribution)
-        num_chests = rng.choice(num_obj_distribution)
-        num_chests = max(4, num_chests)
+        num_chests = max(4, rng.choice(num_obj_distribution))
 
         if rng.choice([True, False]):
             num_extractors = {
