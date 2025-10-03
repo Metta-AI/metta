@@ -369,7 +369,7 @@ proc drawClippedStatus*() =
   for obj in replay.objects:
     if obj.isClipped.at:
       bxy.drawImage(
-        "agents/clipped",
+        "agents/frozen",
         obj.location.at.xy.vec2,
         angle = 0,
         scale = 1/200
