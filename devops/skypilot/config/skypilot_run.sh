@@ -12,6 +12,9 @@ fi
 
 export WRAPPER_PID=$BASHPID
 
+export EXIT_SUCCESS=0
+export EXIT_NCCL_TEST_FAILURE=42
+
 # Determine node role using SkyPilot environment variables
 export RANK=${SKYPILOT_NODE_RANK:-0}
 export IS_MASTER=$([[ "$RANK" == "0" ]] && echo "true" || echo "false")

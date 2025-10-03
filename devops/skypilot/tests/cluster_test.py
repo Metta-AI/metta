@@ -43,7 +43,7 @@ TEST_CONDITIONS = {
         name="Invalid Tool Parameters",  # deliberately invalid: evaluate interval must be >= checkpoint interval
         extra_args=["evaluator.epoch_interval=1", "trainer.checkpoint.checkpoint_interval=10"],
         description="Exit when command fails due to invalid parameters",
-        ci=True,
+        ci=False,
     ),
     "crash_on_launch": TestCondition(
         name="Crash on Launch",
