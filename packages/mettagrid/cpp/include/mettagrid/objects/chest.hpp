@@ -76,7 +76,8 @@ private:
       InventoryDelta deposited = update_inventory(resource_type, transfer_amount);
       agent.update_inventory(resource_type, -transfer_amount);
       stats_tracker->add("chest." + stats_tracker->resource_name(resource_type) + ".deposited", transfer_amount);
-      stats_tracker->set("chest." + stats_tracker->resource_name(resource_type) + ".amount", inventory.amount(resource_type));
+      stats_tracker->set("chest." + stats_tracker->resource_name(resource_type) + ".amount",
+                         inventory.amount(resource_type));
 
       // If we couldn't transfer the full delta due to max_inventory, destroy the rest
       int destroyed = delta - transfer_amount;
@@ -98,7 +99,8 @@ private:
       if (withdrawn > 0) {
         update_inventory(resource_type, -withdrawn);
         stats_tracker->add("chest." + stats_tracker->resource_name(resource_type) + ".withdrawn", withdrawn);
-        stats_tracker->set("chest." + stats_tracker->resource_name(resource_type) + ".amount", inventory.amount(resource_type));
+        stats_tracker->set("chest." + stats_tracker->resource_name(resource_type) + ".amount",
+                           inventory.amount(resource_type));
         return true;
       }
       return false;
@@ -163,7 +165,6 @@ public:
     features.reserve(2 + this->inventory.get().size() + this->tag_ids.size());
 
     features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
-    features.push_back({ObservationFeature::Color, static_cast<ObservationType>(this->resource_type)});
 
     // Add current inventory (inv:resource)
     for (const auto& [item, amount] : this->inventory.get()) {

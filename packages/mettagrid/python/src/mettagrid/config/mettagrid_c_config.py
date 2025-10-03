@@ -267,7 +267,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 conversion_ticks=object_config.conversion_ticks,
                 cooldown=object_config.cooldown,
                 initial_resource_count=object_config.initial_resource_count,
-                color=object_config.color,
                 recipe_details_obs=game_config.recipe_details_obs,
                 tag_ids=tag_ids,
             )

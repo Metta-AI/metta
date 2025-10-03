@@ -103,7 +103,6 @@ class ActionsConfig(Config):
     get_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     attack: AttackActionConfig = Field(default_factory=lambda: AttackActionConfig(enabled=False))
     swap: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
-    change_color: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     change_glyph: ChangeGlyphActionConfig = Field(default_factory=lambda: ChangeGlyphActionConfig(enabled=False))
     resource_mod: ResourceModActionConfig = Field(default_factory=lambda: ResourceModActionConfig(enabled=False))
 
@@ -150,7 +149,6 @@ class ConverterConfig(GridObjectConfig):
     conversion_ticks: int = Field(ge=0, default=1)
     cooldown: int = Field(ge=0)
     initial_resource_count: int = Field(ge=0, default=0)
-    color: int = Field(default=0, ge=0, le=255)
 
 
 class RecipeConfig(Config):

@@ -514,7 +514,6 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
                                 1,                        // conversion_ticks
                                 10,                       // cooldown
                                 0,                        // initial_resource_count
-                                0,                        // color
                                 false);                   // recipe_details_obs
   EventManager event_manager;
   Converter* generator = new Converter(0, 0, generator_cfg);
@@ -568,7 +567,6 @@ TEST_F(MettaGridCppTest, GetOutput) {
                                 1,                        // conversion_ticks
                                 10,                       // cooldown
                                 1,                        // initial_items
-                                0,                        // color
                                 false);                   // recipe_details_obs
   EventManager event_manager;
   Converter* generator = new Converter(0, 0, generator_cfg);
@@ -1256,7 +1254,7 @@ TEST_F(MettaGridCppTest, AssemblerGetAgentPatternByte) {
   grid->move_object(*agent2, GridLocation(6, 4, GridLayer::AgentLayer));  // Move to SW
 
   Agent* agent3 = new Agent(6, 6, agent_cfg, &resource_names);  // SE of assembler
-  grid->add_object(agent3);                    // Add new agent
+  grid->add_object(agent3);                                     // Add new agent
 
   pattern = assembler->get_agent_pattern_byte();
   EXPECT_EQ(pattern, 161) << "Pattern with agents at NW, SW, and SE should be 161 (1 + 32 + 128)";
@@ -1674,8 +1672,7 @@ TEST_F(MettaGridCppTest, AssemblerExhaustion) {
   EXPECT_TRUE(success) << "Fourth use should succeed";
   // Fourth cooldown should be 10 * 3.375 = 33.75, rounded to 33
   EXPECT_EQ(assembler.cooldown_end_timestep, 80) << "Fourth cooldown should end at 80 (47 + 33)";
-  EXPECT_FLOAT_EQ(assembler.cooldown_multiplier, 5.0625f)
-      << "Cooldown multiplier should be 5.0625 after fourth use";
+  EXPECT_FLOAT_EQ(assembler.cooldown_multiplier, 5.0625f) << "Cooldown multiplier should be 5.0625 after fourth use";
 }
 
 // ==================== ResourceMod Tests ====================
@@ -1707,7 +1704,7 @@ TEST_F(MettaGridCppTest, ResourceModBasic) {
                                {{TestItems::HEART, 1.0f}},  // modifies - adds 1 heart
                                1,                           // agent_radius
                                0,                           // converter_radius
-                               false);                       // scales
+                               false);                      // scales
   ResourceMod modify(modify_cfg);
   modify.init(&grid, &rng);
 
@@ -1805,8 +1802,7 @@ TEST_F(MettaGridCppTest, ResourceModConverter) {
                                 0,                     // conversion_ticks
                                 0,                     // cooldown
                                 0,                     // initial_items
-                                0,                     // color
-                                false);                 // recipe_details_obs
+                                false);                // recipe_details_obs
   Converter* converter = new Converter(3, 2, converter_cfg);
   grid.add_object(converter);
   converter->set_event_manager(&event_manager);

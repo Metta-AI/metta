@@ -12,13 +12,12 @@
 
 #include "actions/action_handler.hpp"
 #include "actions/attack.hpp"
-#include "actions/change_color.hpp"
 #include "actions/change_glyph.hpp"
 #include "actions/get_output.hpp"
-#include "actions/resource_mod.hpp"
 #include "actions/move.hpp"
 #include "actions/noop.hpp"
 #include "actions/put_recipe_items.hpp"
+#include "actions/resource_mod.hpp"
 #include "actions/rotate.hpp"
 #include "actions/swap.hpp"
 #include "core/event.hpp"
@@ -107,8 +106,6 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
       _action_handlers.push_back(std::make_unique<ChangeGlyph>(*change_glyph_config));
     } else if (action_name == "swap") {
       _action_handlers.push_back(std::make_unique<Swap>(*action_config));
-    } else if (action_name == "change_color") {
-      _action_handlers.push_back(std::make_unique<ChangeColor>(*action_config));
     } else if (action_name == "resource_mod") {
       auto modify_config = std::static_pointer_cast<const ResourceModConfig>(action_config);
       _action_handlers.push_back(std::make_unique<ResourceMod>(*modify_config, action_name));
@@ -260,8 +257,12 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
     if (clipper_cfg.unclipping_recipes.empty()) {
       throw std::runtime_error("Clipper config provided but unclipping_recipes is empty");
     }
-    _clipper = std::make_unique<Clipper>(*_grid, clipper_cfg.unclipping_recipes, clipper_cfg.length_scale,
-                                         clipper_cfg.cutoff_distance, clipper_cfg.clip_rate, _rng);
+    _clipper = std::make_unique<Clipper>(*_grid,
+                                         clipper_cfg.unclipping_recipes,
+                                         clipper_cfg.length_scale,
+                                         clipper_cfg.cutoff_distance,
+                                         clipper_cfg.clip_rate,
+                                         _rng);
   }
 }
 
@@ -717,8 +718,8 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
 
     // Filter by bounding box if specified
     if (use_bounds) {
-      if (obj->location.r < min_row || obj->location.r >= max_row ||
-          obj->location.c < min_col || obj->location.c >= max_col) {
+      if (obj->location.r < min_row || obj->location.r >= max_row || obj->location.c < min_col ||
+          obj->location.c >= max_col) {
         continue;
       }
     }
@@ -760,7 +761,6 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
       obj_dict["is_frozen"] = !!agent->frozen;
       obj_dict["freeze_remaining"] = agent->frozen;
       obj_dict["freeze_duration"] = agent->freeze_duration;
-      obj_dict["color"] = agent->color;
       obj_dict["glyph"] = agent->glyph;
       obj_dict["agent_id"] = agent->agent_id;
       obj_dict["action_failure_penalty"] = agent->action_failure_penalty;
@@ -782,7 +782,6 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
       obj_dict["conversion_duration"] = converter->conversion_ticks;
       obj_dict["cooldown_duration"] = converter->cooldown;
       obj_dict["output_limit"] = converter->max_output;
-      obj_dict["color"] = converter->color;
       py::dict input_resources_dict;
       for (const auto& [resource, quantity] : converter->input_resources) {
         input_resources_dict[py::int_(resource)] = quantity;
@@ -829,7 +828,8 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
       }
 
       // Add all recipes information (only non-null recipes)
-      const std::vector<std::shared_ptr<Recipe>>& active_recipes = assembler->is_clipped ? assembler->unclip_recipes : assembler->recipes;
+      const std::vector<std::shared_ptr<Recipe>>& active_recipes =
+          assembler->is_clipped ? assembler->unclip_recipes : assembler->recipes;
       py::list recipes_list;
 
       for (size_t i = 0; i < active_recipes.size(); ++i) {
