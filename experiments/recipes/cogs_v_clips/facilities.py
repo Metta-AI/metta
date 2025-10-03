@@ -21,7 +21,7 @@ from metta.tools.train import TrainTool
 from mettagrid.config import MettaGridConfig
 from cogames.cogs_vs_clips.scenarios import make_game
 from mettagrid.mapgen.mapgen import MapGen
-from metta.agent.policies.vit import ViTDefaultConfig
+from metta.agent.policies.fast import FastConfig
 
 
 def make_mettagrid(
@@ -110,7 +110,8 @@ def train() -> TrainTool:
             simulations=make_cogs_v_clips_ascii_evals(),
         ),
         # policy_architecture=ViTResetConfig(),
-        policy_architecture=ViTDefaultConfig(),
+        # policy_architecture=ViTDefaultConfig(),
+        policy_architecture=FastConfig(),
     )
 
 
@@ -123,7 +124,8 @@ def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
 
 def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     eval_env = env or make_mettagrid()
-    policy_uri = "s3://softmax-public/policies/cogs_v_clips.level_1.eval_local.multi_agent_pairs_bases_vit_reset.2025-10-02/:latest"
+    # policy_uri = "s3://softmax-public/policies/cogs_v_clips.level_1.eval_local.multi_agent_pairs_bases_vit_reset.2025-10-02/:latest"
+    policy_uri = "s3://softmax-public/policies/av.is.a.cog.02/av.is.a.cog.02:v300.pt"
 
     return ReplayTool(
         policy_uri=policy_uri,
