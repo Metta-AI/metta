@@ -150,11 +150,7 @@ class GeneralizedTerrainTaskGenerator(TaskGenerator):
         env.game.objects["chest"] = ChestConfig(
             type_id=17,
             resource_type="heart",
-<<<<<<< HEAD
-            deposit_positions=["N"],
-=======
             position_deltas=[("N", 1), ("S", 1), ("E", 1), ("W", 1)],
->>>>>>> 7c6013b869 (update ascii)
         )
 
         self.configure_env_agent(env, rng)
@@ -172,15 +168,7 @@ class GeneralizedTerrainTaskGenerator(TaskGenerator):
     ):
         input_resources = {"energy": 3}
         for resource, num_extractor in num_extractors.items():
-<<<<<<< HEAD
             if num_extractor > 0 and rng.choice([True, False]):
-=======
-            if (
-                num_extractor > 0
-                and rng.choice([True, False])
-                and num_input_resources <= 2
-            ):
->>>>>>> 7c6013b869 (update ascii)
                 input_resources[resource] = 1
         assembler.recipes = [
             (

@@ -88,11 +88,6 @@ def make_task_generator(facility_env: Optional[MettaGridConfig] = None):
 
 def make_curriculum(
     facility_env: Optional[MettaGridConfig] = None,
-<<<<<<< HEAD
-    enable_detailed_slice_logging: bool = False,
-    algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
-=======
->>>>>>> ce000491da (format)
 ) -> CurriculumConfig:
     facility_tasks = make_task_generator(facility_env)
 
