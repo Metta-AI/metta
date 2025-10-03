@@ -199,6 +199,40 @@
       "title": "AreaWhere",
       "type": "object"
     },
+    "AsciiConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "uri": {
+          "title": "Uri",
+          "type": "string"
+        }
+      },
+      "required": [
+        "uri"
+      ],
+      "title": "AsciiConfig",
+      "type": "object"
+    },
     "AssemblerConfig": {
       "additionalProperties": false,
       "description": "Python assembler configuration.",
@@ -351,6 +385,361 @@
         }
       },
       "title": "AttackActionConfig",
+      "type": "object"
+    },
+    "AutoConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "num_agents": {
+          "default": 0,
+          "title": "Num Agents",
+          "type": "integer"
+        },
+        "layout": {
+          "$ref": "#/$defs/AutoConfigLayout"
+        },
+        "grid": {
+          "$ref": "#/$defs/AutoConfigGrid"
+        },
+        "bsp": {
+          "$ref": "#/$defs/AutoConfigBSP"
+        },
+        "room_symmetry": {
+          "$ref": "#/$defs/AutoConfigRoomSymmetry"
+        },
+        "content": {
+          "items": {
+            "$ref": "#/$defs/RandomSceneCandidate"
+          },
+          "title": "Content",
+          "type": "array"
+        },
+        "objects": {
+          "additionalProperties": {
+            "$ref": "#/$defs/BaseFloatDistribution"
+          },
+          "title": "Objects",
+          "type": "object"
+        },
+        "room_objects": {
+          "additionalProperties": {
+            "$ref": "#/$defs/BaseFloatDistribution"
+          },
+          "title": "Room Objects",
+          "type": "object"
+        }
+      },
+      "required": [
+        "layout",
+        "grid",
+        "bsp",
+        "room_symmetry",
+        "content",
+        "objects",
+        "room_objects"
+      ],
+      "title": "AutoConfig",
+      "type": "object"
+    },
+    "AutoConfigBSP": {
+      "additionalProperties": false,
+      "properties": {
+        "area_count": {
+          "$ref": "#/$defs/BaseIntDistribution"
+        }
+      },
+      "required": [
+        "area_count"
+      ],
+      "title": "AutoConfigBSP",
+      "type": "object"
+    },
+    "AutoConfigGrid": {
+      "additionalProperties": false,
+      "properties": {
+        "rows": {
+          "$ref": "#/$defs/BaseIntDistribution"
+        },
+        "columns": {
+          "$ref": "#/$defs/BaseIntDistribution"
+        }
+      },
+      "required": [
+        "rows",
+        "columns"
+      ],
+      "title": "AutoConfigGrid",
+      "type": "object"
+    },
+    "AutoConfigLayout": {
+      "additionalProperties": false,
+      "properties": {
+        "grid": {
+          "title": "Grid",
+          "type": "integer"
+        },
+        "bsp": {
+          "title": "Bsp",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "grid",
+        "bsp"
+      ],
+      "title": "AutoConfigLayout",
+      "type": "object"
+    },
+    "AutoConfigRoomSymmetry": {
+      "additionalProperties": false,
+      "properties": {
+        "none": {
+          "title": "None",
+          "type": "integer"
+        },
+        "horizontal": {
+          "title": "Horizontal",
+          "type": "integer"
+        },
+        "vertical": {
+          "title": "Vertical",
+          "type": "integer"
+        },
+        "x4": {
+          "title": "X4",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "none",
+        "horizontal",
+        "vertical",
+        "x4"
+      ],
+      "title": "AutoConfigRoomSymmetry",
+      "type": "object"
+    },
+    "AutoLayoutConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "auto_config": {
+          "$ref": "#/$defs/AutoConfig"
+        }
+      },
+      "required": [
+        "auto_config"
+      ],
+      "title": "AutoLayoutConfig",
+      "type": "object"
+    },
+    "AutoSymmetryConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "auto_config": {
+          "$ref": "#/$defs/AutoConfig"
+        }
+      },
+      "required": [
+        "auto_config"
+      ],
+      "title": "AutoSymmetryConfig",
+      "type": "object"
+    },
+    "BSPConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "rooms": {
+          "title": "Rooms",
+          "type": "integer"
+        },
+        "min_room_size": {
+          "title": "Min Room Size",
+          "type": "integer"
+        },
+        "min_room_size_ratio": {
+          "title": "Min Room Size Ratio",
+          "type": "number"
+        },
+        "max_room_size_ratio": {
+          "title": "Max Room Size Ratio",
+          "type": "number"
+        },
+        "skip_corridors": {
+          "default": false,
+          "title": "Skip Corridors",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "rooms",
+        "min_room_size",
+        "min_room_size_ratio",
+        "max_room_size_ratio"
+      ],
+      "title": "BSPConfig",
+      "type": "object"
+    },
+    "BSPLayoutConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "area_count": {
+          "title": "Area Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "area_count"
+      ],
+      "title": "BSPLayoutConfig",
+      "type": "object"
+    },
+    "BaseConvChainConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "pattern": {
+          "title": "Pattern",
+          "type": "string"
+        },
+        "pattern_size": {
+          "title": "Pattern Size",
+          "type": "integer"
+        },
+        "iterations": {
+          "title": "Iterations",
+          "type": "integer"
+        },
+        "temperature": {
+          "title": "Temperature",
+          "type": "number"
+        },
+        "periodic_input": {
+          "default": true,
+          "title": "Periodic Input",
+          "type": "boolean"
+        },
+        "symmetry": {
+          "default": "all",
+          "enum": [
+            "all",
+            "horizontal",
+            "none"
+          ],
+          "title": "Symmetry",
+          "type": "string"
+        }
+      },
+      "required": [
+        "pattern",
+        "pattern_size",
+        "iterations",
+        "temperature"
+      ],
+      "title": "BaseConvChainConfig",
+      "type": "object"
+    },
+    "BaseFloatDistribution": {
+      "properties": {},
+      "title": "BaseFloatDistribution",
       "type": "object"
     },
     "BaseIntDistribution": {
@@ -600,6 +989,134 @@
       "title": "ClipperConfig",
       "type": "object"
     },
+    "ConvChainConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "pattern": {
+          "title": "Pattern",
+          "type": "string"
+        },
+        "pattern_size": {
+          "title": "Pattern Size",
+          "type": "integer"
+        },
+        "iterations": {
+          "title": "Iterations",
+          "type": "integer"
+        },
+        "temperature": {
+          "title": "Temperature",
+          "type": "number"
+        },
+        "periodic_input": {
+          "default": true,
+          "title": "Periodic Input",
+          "type": "boolean"
+        },
+        "symmetry": {
+          "default": "all",
+          "enum": [
+            "all",
+            "horizontal",
+            "none"
+          ],
+          "title": "Symmetry",
+          "type": "string"
+        }
+      },
+      "required": [
+        "pattern",
+        "pattern_size",
+        "iterations",
+        "temperature"
+      ],
+      "title": "ConvChainConfig",
+      "type": "object"
+    },
+    "ConvChainSlowConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "pattern": {
+          "title": "Pattern",
+          "type": "string"
+        },
+        "pattern_size": {
+          "title": "Pattern Size",
+          "type": "integer"
+        },
+        "iterations": {
+          "title": "Iterations",
+          "type": "integer"
+        },
+        "temperature": {
+          "title": "Temperature",
+          "type": "number"
+        },
+        "periodic_input": {
+          "default": true,
+          "title": "Periodic Input",
+          "type": "boolean"
+        },
+        "symmetry": {
+          "default": "all",
+          "enum": [
+            "all",
+            "horizontal",
+            "none"
+          ],
+          "title": "Symmetry",
+          "type": "string"
+        }
+      },
+      "required": [
+        "pattern",
+        "pattern_size",
+        "iterations",
+        "temperature"
+      ],
+      "title": "ConvChainSlowConfig",
+      "type": "object"
+    },
     "ConverterConfig": {
       "additionalProperties": false,
       "description": "Python converter configuration.",
@@ -698,6 +1215,33 @@
         "cooldown"
       ],
       "title": "ConverterConfig",
+      "type": "object"
+    },
+    "CopyGridConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        }
+      },
+      "title": "CopyGridConfig",
       "type": "object"
     },
     "GameConfig": {
@@ -932,6 +1476,317 @@
       "title": "GlobalObsConfig",
       "type": "object"
     },
+    "GridAltarsConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "objects": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "default": {},
+          "title": "Objects",
+          "type": "object"
+        },
+        "agents": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            }
+          ],
+          "default": 0,
+          "title": "Agents"
+        },
+        "grid_rows": {
+          "default": 3,
+          "title": "Grid Rows",
+          "type": "integer"
+        },
+        "grid_cols": {
+          "default": 3,
+          "title": "Grid Cols",
+          "type": "integer"
+        },
+        "margin": {
+          "default": 5,
+          "title": "Margin",
+          "type": "integer"
+        },
+        "min_spacing": {
+          "default": 9,
+          "title": "Min Spacing",
+          "type": "integer"
+        },
+        "randomize_position": {
+          "default": 0,
+          "title": "Randomize Position",
+          "type": "integer"
+        },
+        "place_agent_center": {
+          "default": true,
+          "title": "Place Agent Center",
+          "type": "boolean"
+        }
+      },
+      "title": "GridAltarsConfig",
+      "type": "object"
+    },
+    "HorizontalMirrorConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "scene": {
+          "$ref": "#/$defs/SceneConfig"
+        }
+      },
+      "required": [
+        "scene"
+      ],
+      "title": "HorizontalMirrorConfig",
+      "type": "object"
+    },
+    "InlineAsciiConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "data": {
+          "title": "Data",
+          "type": "string"
+        },
+        "row": {
+          "default": 0,
+          "title": "Row",
+          "type": "integer"
+        },
+        "column": {
+          "default": 0,
+          "title": "Column",
+          "type": "integer"
+        },
+        "char_to_name": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Char To Name",
+          "type": "object"
+        }
+      },
+      "required": [
+        "data"
+      ],
+      "title": "InlineAsciiConfig",
+      "type": "object"
+    },
+    "InnerMirrorConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "scene": {
+          "$ref": "#/$defs/SceneConfig"
+        }
+      },
+      "required": [
+        "scene"
+      ],
+      "title": "InnerMirrorConfig",
+      "type": "object"
+    },
+    "LayoutArea": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "width": {
+          "title": "Width",
+          "type": "integer"
+        },
+        "height": {
+          "title": "Height",
+          "type": "integer"
+        },
+        "placement": {
+          "const": "center",
+          "default": "center",
+          "title": "Placement",
+          "type": "string"
+        },
+        "tag": {
+          "title": "Tag",
+          "type": "string"
+        }
+      },
+      "required": [
+        "width",
+        "height",
+        "tag"
+      ],
+      "title": "LayoutArea",
+      "type": "object"
+    },
+    "LayoutConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "areas": {
+          "items": {
+            "$ref": "#/$defs/LayoutArea"
+          },
+          "title": "Areas",
+          "type": "array"
+        }
+      },
+      "required": [
+        "areas"
+      ],
+      "title": "LayoutConfig",
+      "type": "object"
+    },
+    "MakeConnectedConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        }
+      },
+      "title": "MakeConnectedConfig",
+      "type": "object"
+    },
     "MapBuilderConfig_Any_": {
       "additionalProperties": false,
       "properties": {},
@@ -986,6 +1841,48 @@
       "title": "MazeConfig",
       "type": "object"
     },
+    "MeanDistanceConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "mean_distance": {
+          "title": "Mean Distance",
+          "type": "number"
+        },
+        "objects": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Objects",
+          "type": "object"
+        }
+      },
+      "required": [
+        "mean_distance",
+        "objects"
+      ],
+      "title": "MeanDistanceConfig",
+      "type": "object"
+    },
     "MettaGridConfig": {
       "additionalProperties": false,
       "description": "Environment configuration.",
@@ -1005,6 +1902,214 @@
         }
       },
       "title": "MettaGridConfig",
+      "type": "object"
+    },
+    "MirrorConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "scene": {
+          "$ref": "#/$defs/SceneConfig"
+        },
+        "symmetry": {
+          "default": "horizontal",
+          "enum": [
+            "horizontal",
+            "vertical",
+            "x4"
+          ],
+          "title": "Symmetry",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scene"
+      ],
+      "title": "MirrorConfig",
+      "type": "object"
+    },
+    "MirroredConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "flip_x": {
+          "default": false,
+          "title": "Flip X",
+          "type": "boolean"
+        },
+        "flip_y": {
+          "default": false,
+          "title": "Flip Y",
+          "type": "boolean"
+        }
+      },
+      "title": "MirroredConfig",
+      "type": "object"
+    },
+    "MultiLeftAndRightConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "rows": {
+          "title": "Rows",
+          "type": "integer"
+        },
+        "columns": {
+          "title": "Columns",
+          "type": "integer"
+        },
+        "altar_ratio": {
+          "title": "Altar Ratio",
+          "type": "number"
+        },
+        "total_altars": {
+          "title": "Total Altars",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "rows",
+        "columns",
+        "altar_ratio",
+        "total_altars"
+      ],
+      "title": "MultiLeftAndRightConfig",
+      "type": "object"
+    },
+    "NopConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        }
+      },
+      "title": "NopConfig",
+      "type": "object"
+    },
+    "RadialMazeConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "arms": {
+          "default": 4,
+          "maximum": 12,
+          "minimum": 4,
+          "title": "Arms",
+          "type": "integer"
+        },
+        "arm_width": {
+          "default": 4,
+          "minimum": 1,
+          "title": "Arm Width",
+          "type": "integer"
+        },
+        "arm_length": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Arm Length"
+        }
+      },
+      "title": "RadialMazeConfig",
       "type": "object"
     },
     "RandomConfig": {
@@ -1062,6 +2167,191 @@
       "title": "RandomConfig",
       "type": "object"
     },
+    "RandomDcssSceneConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "wfc": {
+          "title": "Wfc",
+          "type": "boolean"
+        },
+        "dcss": {
+          "title": "Dcss",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "wfc",
+        "dcss"
+      ],
+      "title": "RandomDcssSceneConfig",
+      "type": "object"
+    },
+    "RandomObjectsConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "object_ranges": {
+          "additionalProperties": {
+            "$ref": "#/$defs/BaseFloatDistribution"
+          },
+          "default": {},
+          "title": "Object Ranges",
+          "type": "object"
+        }
+      },
+      "title": "RandomObjectsConfig",
+      "type": "object"
+    },
+    "RandomSceneCandidate": {
+      "additionalProperties": false,
+      "properties": {
+        "scene": {
+          "$ref": "#/$defs/SceneConfig"
+        },
+        "weight": {
+          "default": 1,
+          "title": "Weight",
+          "type": "number"
+        }
+      },
+      "required": [
+        "scene"
+      ],
+      "title": "RandomSceneCandidate",
+      "type": "object"
+    },
+    "RandomSceneConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "candidates": {
+          "items": {
+            "$ref": "#/$defs/RandomSceneCandidate"
+          },
+          "title": "Candidates",
+          "type": "array"
+        }
+      },
+      "required": [
+        "candidates"
+      ],
+      "title": "RandomSceneConfig",
+      "type": "object"
+    },
+    "RandomYamlSceneCandidate": {
+      "additionalProperties": false,
+      "properties": {
+        "scene_file": {
+          "title": "Scene File",
+          "type": "string"
+        },
+        "weight": {
+          "default": 1,
+          "title": "Weight",
+          "type": "number"
+        }
+      },
+      "required": [
+        "scene_file"
+      ],
+      "title": "RandomYamlSceneCandidate",
+      "type": "object"
+    },
+    "RandomYamlSceneConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "candidates": {
+          "items": {
+            "$ref": "#/$defs/RandomYamlSceneCandidate"
+          },
+          "title": "Candidates",
+          "type": "array"
+        }
+      },
+      "required": [
+        "candidates"
+      ],
+      "title": "RandomYamlSceneConfig",
+      "type": "object"
+    },
     "RecipeConfig": {
       "additionalProperties": false,
       "properties": {
@@ -1087,6 +2377,33 @@
         }
       },
       "title": "RecipeConfig",
+      "type": "object"
+    },
+    "RemoveAgentsConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        }
+      },
+      "title": "RemoveAgentsConfig",
       "type": "object"
     },
     "ResourceModActionConfig": {
@@ -1140,6 +2457,85 @@
         }
       },
       "title": "ResourceModActionConfig",
+      "type": "object"
+    },
+    "RoomGridConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "rows": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rows"
+        },
+        "columns": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Columns"
+        },
+        "layout": {
+          "anyOf": [
+            {
+              "items": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Layout"
+        },
+        "border_width": {
+          "default": 5,
+          "title": "Border Width",
+          "type": "integer"
+        },
+        "border_object": {
+          "default": "wall",
+          "title": "Border Object",
+          "type": "string"
+        }
+      },
+      "title": "RoomGridConfig",
       "type": "object"
     },
     "SceneConfig": {
@@ -1246,6 +2642,262 @@
       "title": "SimulationConfig",
       "type": "object"
     },
+    "SpiralConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "objects": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "default": {},
+          "title": "Objects",
+          "type": "object"
+        },
+        "agents": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            }
+          ],
+          "default": 0,
+          "title": "Agents"
+        },
+        "spacing": {
+          "default": 15,
+          "title": "Spacing",
+          "type": "integer"
+        },
+        "start_radius": {
+          "default": 0,
+          "title": "Start Radius",
+          "type": "integer"
+        },
+        "radius_increment": {
+          "default": 2.5,
+          "title": "Radius Increment",
+          "type": "number"
+        },
+        "angle_increment": {
+          "default": 0.3,
+          "title": "Angle Increment",
+          "type": "number"
+        },
+        "randomize_position": {
+          "default": 2,
+          "title": "Randomize Position",
+          "type": "integer"
+        },
+        "place_at_center": {
+          "default": true,
+          "title": "Place At Center",
+          "type": "boolean"
+        }
+      },
+      "title": "SpiralConfig",
+      "type": "object"
+    },
+    "TransplantSceneConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        }
+      },
+      "title": "TransplantSceneConfig",
+      "type": "object"
+    },
+    "VariedTerrainConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "objects": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Objects",
+          "type": "object"
+        },
+        "agents": {
+          "default": 1,
+          "title": "Agents",
+          "type": "integer"
+        },
+        "style": {
+          "default": "balanced",
+          "title": "Style",
+          "type": "string"
+        }
+      },
+      "required": [
+        "objects"
+      ],
+      "title": "VariedTerrainConfig",
+      "type": "object"
+    },
+    "VerticalMirrorConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "scene": {
+          "$ref": "#/$defs/SceneConfig"
+        }
+      },
+      "required": [
+        "scene"
+      ],
+      "title": "VerticalMirrorConfig",
+      "type": "object"
+    },
+    "WFCConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "pattern": {
+          "title": "Pattern",
+          "type": "string"
+        },
+        "pattern_size": {
+          "default": 3,
+          "title": "Pattern Size",
+          "type": "integer"
+        },
+        "next_node_heuristic": {
+          "default": "entropy",
+          "enum": [
+            "scanline",
+            "mrv",
+            "entropy"
+          ],
+          "title": "Next Node Heuristic",
+          "type": "string"
+        },
+        "periodic_input": {
+          "default": true,
+          "title": "Periodic Input",
+          "type": "boolean"
+        },
+        "symmetry": {
+          "default": "all",
+          "enum": [
+            "all",
+            "horizontal",
+            "none"
+          ],
+          "title": "Symmetry",
+          "type": "string"
+        },
+        "attempts": {
+          "default": 1000,
+          "title": "Attempts",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "pattern"
+      ],
+      "title": "WFCConfig",
+      "type": "object"
+    },
     "WallConfig": {
       "additionalProperties": false,
       "description": "Python wall/block configuration.",
@@ -1301,11 +2953,105 @@
       "title": "WallConfig",
       "type": "object"
     },
+    "X4MirrorConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "scene": {
+          "$ref": "#/$defs/SceneConfig"
+        }
+      },
+      "required": [
+        "scene"
+      ],
+      "title": "X4MirrorConfig",
+      "type": "object"
+    },
+    "YamlSceneConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "file": {
+          "title": "File",
+          "type": "string"
+        }
+      },
+      "required": [
+        "file"
+      ],
+      "title": "YamlSceneConfig",
+      "type": "object"
+    },
     "mettagrid__base_config__Config": {
       "additionalProperties": false,
       "description": "Common extension of Pydantic's BaseModel that:\n- sets `extra=\"forbid\"` by default\n- adds `override` and `update` methods for overriding values based on `path.to.value` keys",
       "properties": {},
       "title": "mettagrid.base_config.Config",
+      "type": "object"
+    },
+    "mettagrid__map_builder__ascii__AsciiMapBuilder__Config": {
+      "additionalProperties": false,
+      "properties": {
+        "map_data": {
+          "items": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": "Map Data",
+          "type": "array"
+        },
+        "char_to_name_map": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Char To Name Map",
+          "type": "object"
+        }
+      },
+      "required": [
+        "map_data"
+      ],
+      "title": "mettagrid.map_builder.ascii.AsciiMapBuilder.Config",
       "type": "object"
     },
     "mettagrid__map_builder__random__RandomMapBuilder__Config": {
@@ -1445,6 +3191,7 @@
             }
           ],
           "default": null,
+          "description": "Inner grid width. Doesn't take outer border into account. If `instance` is a MapBuilder\n            config, this field must be None; otherwise, it must be set. If `instances` is set, this is the size used for\n            each instance.",
           "title": "Width"
         },
         "height": {
@@ -1458,6 +3205,7 @@
             }
           ],
           "default": null,
+          "description": "Inner grid width. Doesn't take outer border into account. If `instance` is a MapBuilder\n            config, this field must be None; otherwise, it must be set. If `instances` is set, this is the size used for\n            each instance.",
           "title": "Height"
         },
         "instances": {

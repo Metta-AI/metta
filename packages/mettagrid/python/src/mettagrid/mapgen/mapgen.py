@@ -93,11 +93,20 @@ class MapGen(MapBuilder):
             else:
                 raise ValueError(f"Invalid instance configuration: {v!r}")
 
-        # Inner grid size. Doesn't take outer border into account.
-        # If `instance` is a MapBuilder config, these fields must be None; otherwise, they must be set.
-        # If `instances` is set, this is the size used for each instance.
-        width: int | None = Field(default=None, ge=0)
-        height: int | None = Field(default=None, ge=0)
+        width: int | None = Field(
+            default=None,
+            ge=0,
+            description="""Inner grid width. Doesn't take outer border into account. If `instance` is a MapBuilder
+            config, this field must be None; otherwise, it must be set. If `instances` is set, this is the size used for
+            each instance.""",
+        )
+        height: int | None = Field(
+            default=None,
+            ge=0,
+            description="""Inner grid width. Doesn't take outer border into account. If `instance` is a MapBuilder
+            config, this field must be None; otherwise, it must be set. If `instances` is set, this is the size used for
+            each instance.""",
+        )
 
         ########## Multiple instances parameters ##########
 

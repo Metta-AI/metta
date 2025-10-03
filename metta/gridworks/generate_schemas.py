@@ -1,24 +1,35 @@
 #!/usr/bin/env -S uv run
+import importlib
 import json
+import pkgutil
 from copy import deepcopy
 
 from pydantic.json_schema import models_json_schema
 
+import mettagrid.mapgen.scenes
 from metta.sim.simulation_config import SimulationConfig
 from mettagrid.base_config import Config
 from mettagrid.builder.envs import MettaGridConfig, RandomMapBuilder
+from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.mapgen.mapgen import MapGen
 
 
 def all_scenes():
-    from mettagrid.mapgen.scenes.maze import Maze
-    from mettagrid.mapgen.scenes.random import Random
+    module_names = []
+    for _, name, ispkg in pkgutil.walk_packages(
+        mettagrid.mapgen.scenes.__path__,
+        mettagrid.mapgen.scenes.__name__ + ".",
+    ):
+        if not ispkg:
+            module_names.append(name)
 
-    # TODO - pkgutil.walk_packages
-    return [
-        Random.Config,
-        Maze.Config,
-    ]
+    # (Optional) Import them
+
+    for module_name in module_names:
+        module = importlib.import_module(module_name)
+        for name in dir(module):
+            if name.endswith("Config"):
+                yield getattr(module, name)
 
 
 def main():
@@ -31,6 +42,7 @@ def main():
                 SimulationConfig,
                 MapGen.Config,
                 RandomMapBuilder.Config,
+                AsciiMapBuilder.Config,
                 *all_scenes(),
             ]
         ],
