@@ -8,7 +8,6 @@ import numpy as np
 from rich.console import Console
 from typing_extensions import TYPE_CHECKING
 
-import mettagrid.mettascope as mettascope
 from cogames.cogs_vs_clips.glyphs import GLYPHS
 from cogames.utils import initialize_or_load_policy
 from mettagrid import MettaGridConfig, MettaGridEnv
@@ -120,6 +119,8 @@ def play(
         "mg_config": env.mg_config.model_dump(mode="json"),
         "objects": [],
     }
+    # Lazy import to avoid needing x11 dependencies during training
+    import mettagrid.mettascope as mettascope
 
     response = mettascope.init(replay=json.dumps(initial_replay))
     if response.should_close:
