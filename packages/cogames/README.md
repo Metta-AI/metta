@@ -3,13 +3,17 @@
 CoGames is a collection of multi-agent cooperative and competitive environments designed for reinforcement learning
 research.
 
-## The Game: Cogs vs Clips
+## The game: Cogs vs Clips
 
 Multiple "Cog" agents, controlled by user-provided policies, must cooperate to extract Hearts from the environment.
 Doing so requires gathering resources, operating machinery, and assembling components. Many steps will require
 interacting with a "station". Many such interactions will require multiple cogs working in tandem.
 
 Your Cogs' efforts may be thwarted by Clips: NPC agents that disable stations or otherwise impede progress.
+
+<p align="middle">
+<img src="assets/showoff.gif" alt="Example Cogs vs Clips video">
+<br>
 
 There are many game configurations available, with different map sizes, resource and station layouts, and game rules.
 Overall, Cogs vs Clips aims to present rich environments with:
