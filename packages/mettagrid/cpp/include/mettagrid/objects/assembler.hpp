@@ -309,6 +309,8 @@ public:
     Recipe recipe_to_use = *original_recipe;
     if (progress < 1.0f && allow_partial_usage) {
       recipe_to_use = scale_recipe_for_partial_usage(*original_recipe, progress);
+
+      // Prevent usage when partial usage would yield no output
       if (!recipe_has_positive_output(recipe_to_use)) {
         return false;
       }
