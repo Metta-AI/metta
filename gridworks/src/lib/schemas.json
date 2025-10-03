@@ -353,6 +353,11 @@
       "title": "AttackActionConfig",
       "type": "object"
     },
+    "BaseIntDistribution": {
+      "properties": {},
+      "title": "BaseIntDistribution",
+      "type": "object"
+    },
     "ChangeGlyphActionConfig": {
       "additionalProperties": false,
       "description": "Change glyph action configuration.",
@@ -933,6 +938,54 @@
       "title": "MapBuilderConfig[Any]",
       "type": "object"
     },
+    "MazeConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "algorithm": {
+          "default": "kruskal",
+          "enum": [
+            "kruskal",
+            "dfs"
+          ],
+          "title": "Algorithm",
+          "type": "string"
+        },
+        "room_size": {
+          "$ref": "#/$defs/BaseIntDistribution",
+          "default": {
+            "value": 1
+          }
+        },
+        "wall_size": {
+          "$ref": "#/$defs/BaseIntDistribution",
+          "default": {
+            "value": 1
+          }
+        }
+      },
+      "title": "MazeConfig",
+      "type": "object"
+    },
     "MettaGridConfig": {
       "additionalProperties": false,
       "description": "Environment configuration.",
@@ -952,6 +1005,61 @@
         }
       },
       "title": "MettaGridConfig",
+      "type": "object"
+    },
+    "RandomConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "objects": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "default": {},
+          "title": "Objects",
+          "type": "object"
+        },
+        "agents": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            }
+          ],
+          "default": 0,
+          "title": "Agents"
+        },
+        "too_many_is_ok": {
+          "default": true,
+          "title": "Too Many Is Ok",
+          "type": "boolean"
+        }
+      },
+      "title": "RandomConfig",
       "type": "object"
     },
     "RecipeConfig": {
@@ -1198,6 +1306,69 @@
       "description": "Common extension of Pydantic's BaseModel that:\n- sets `extra=\"forbid\"` by default\n- adds `override` and `update` methods for overriding values based on `path.to.value` keys",
       "properties": {},
       "title": "mettagrid.base_config.Config",
+      "type": "object"
+    },
+    "mettagrid__map_builder__random__RandomMapBuilder__Config": {
+      "additionalProperties": false,
+      "description": "Configuration for building a random map.",
+      "properties": {
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "width": {
+          "default": 10,
+          "title": "Width",
+          "type": "integer"
+        },
+        "height": {
+          "default": 10,
+          "title": "Height",
+          "type": "integer"
+        },
+        "objects": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "default": {},
+          "title": "Objects",
+          "type": "object"
+        },
+        "agents": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            }
+          ],
+          "default": 0,
+          "title": "Agents"
+        },
+        "border_width": {
+          "default": 0,
+          "title": "Border Width",
+          "type": "integer"
+        },
+        "border_object": {
+          "default": "wall",
+          "title": "Border Object",
+          "type": "string"
+        }
+      },
+      "title": "mettagrid.map_builder.random.RandomMapBuilder.Config",
       "type": "object"
     },
     "mettagrid__mapgen__mapgen__MapGen__Config": {

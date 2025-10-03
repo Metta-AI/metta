@@ -6,8 +6,19 @@ from pydantic.json_schema import models_json_schema
 
 from metta.sim.simulation_config import SimulationConfig
 from mettagrid.base_config import Config
-from mettagrid.builder.envs import MettaGridConfig
+from mettagrid.builder.envs import MettaGridConfig, RandomMapBuilder
 from mettagrid.mapgen.mapgen import MapGen
+
+
+def all_scenes():
+    from mettagrid.mapgen.scenes.maze import Maze
+    from mettagrid.mapgen.scenes.random import Random
+
+    # TODO - pkgutil.walk_packages
+    return [
+        Random.Config,
+        Maze.Config,
+    ]
 
 
 def main():
@@ -19,6 +30,8 @@ def main():
                 MettaGridConfig,
                 SimulationConfig,
                 MapGen.Config,
+                RandomMapBuilder.Config,
+                *all_scenes(),
             ]
         ],
         title="Gridworks Schemas",
