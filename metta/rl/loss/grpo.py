@@ -10,7 +10,7 @@ from torchrl.data import Composite, MultiCategorical, UnboundedContinuous
 from metta.agent.policy import Policy
 from metta.rl.loss import Loss
 from metta.rl.training import ComponentContext, TrainingEnvironment
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 
 class GRPOConfig(Config):
