@@ -11,9 +11,10 @@
 #include "objects/agent_config.hpp"
 #include "objects/constants.hpp"
 #include "objects/has_inventory.hpp"
+#include "objects/usable.hpp"
 #include "systems/stats_tracker.hpp"
 
-class Agent : public GridObject, public HasInventory {
+class Agent : public GridObject, public HasInventory, public Usable {
 public:
   ObservationType group;
   short frozen;
@@ -24,11 +25,12 @@ public:
   // however, this should not be relied on for correctness.
   std::map<std::string, RewardType> stat_rewards;
   std::map<std::string, RewardType> stat_reward_max;
-  std::map<InventoryItem, InventoryQuantity> resource_limits;
   float action_failure_penalty;
   std::string group_name;
   // We expect only a small number (single-digit) of soul-bound resources.
   std::vector<InventoryItem> soul_bound_resources;
+  // Resources that this agent will try to share when it uses another agent.
+  std::vector<InventoryItem> shareable_resources;
   ObservationType color;
   ObservationType glyph;
   // Despite being a GridObjectId, this is different from the `id` property.
@@ -43,27 +45,32 @@ public:
   GridLocation prev_location;
   std::string prev_action_name;
   unsigned int steps_without_motion;
+  // Inventory regeneration amounts (per-agent)
+  std::map<InventoryItem, InventoryQuantity> inventory_regen_amounts;
 
-  Agent(GridCoord r, GridCoord c, const AgentConfig& config)
-      : group(config.group_id),
+  Agent(GridCoord r, GridCoord c, const AgentConfig& config, const std::vector<std::string>* resource_names)
+      : GridObject(),
+        HasInventory(config.inventory_config),
+        group(config.group_id),
         frozen(0),
         freeze_duration(config.freeze_duration),
         orientation(Orientation::North),
         stat_rewards(config.stat_rewards),
         stat_reward_max(config.stat_reward_max),
-        resource_limits(config.resource_limits),
         action_failure_penalty(config.action_failure_penalty),
         group_name(config.group_name),
         soul_bound_resources(config.soul_bound_resources),
+        shareable_resources(config.shareable_resources),
         color(0),
         glyph(0),
         agent_id(0),
-        stats(),  // default constructor
+        stats(resource_names),
         current_stat_reward(0),
         reward(nullptr),
         prev_location(r, c, GridLayer::AgentLayer),
         prev_action_name(""),
-        steps_without_motion(0) {
+        steps_without_motion(0),
+        inventory_regen_amounts(config.inventory_regen_amounts) {
     populate_initial_inventory(config.initial_inventory);
     GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer), config.tag_ids);
   }
@@ -136,20 +143,6 @@ public:
   }
 
   InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta) {
-    // Apply resource limits if adding items
-    // xcxc move the limit check to Inventory
-    if (attempted_delta > 0) {
-      auto limit_it = this->resource_limits.find(item);
-      if (limit_it != this->resource_limits.end()) {
-        InventoryQuantity current_amount = this->inventory.amount(item);
-        InventoryQuantity limit = limit_it->second;
-        InventoryQuantity max_can_add = limit - current_amount;
-        if (max_can_add < attempted_delta) {
-          attempted_delta = max_can_add;
-        }
-      }
-    }
-
     const InventoryDelta delta = this->inventory.update(item, attempted_delta);
 
     if (delta != 0) {
@@ -158,32 +151,30 @@ public:
       } else if (delta < 0) {
         this->stats.add(this->stats.resource_name(item) + ".lost", -delta);
       }
-      InventoryQuantity current_amount = this->inventory.amount(item);
-      this->stats.set(this->stats.resource_name(item) + ".amount", current_amount);
+      this->stats.set(this->stats.resource_name(item) + ".amount", this->inventory.amount(item));
     }
 
     return delta;
   }
 
-  void compute_stat_rewards() {
+  void compute_stat_rewards(StatsTracker* game_stats_tracker = nullptr) {
     if (this->stat_rewards.empty()) {
       return;
     }
 
     float new_stat_reward = 0;
-    auto stat_dict = this->stats.to_dict();
 
     for (const auto& [stat_name, reward_per_unit] : this->stat_rewards) {
-      if (stat_dict.count(stat_name) > 0) {
-        float stat_value = stat_dict[stat_name];
-
-        float stats_reward = stat_value * reward_per_unit;
-        if (this->stat_reward_max.count(stat_name) > 0) {
-          stats_reward = std::min(stats_reward, this->stat_reward_max.at(stat_name));
-        }
-
-        new_stat_reward += stats_reward;
+      float stat_value = this->stats.get(stat_name);
+      if (game_stats_tracker) {
+        stat_value += game_stats_tracker->get(stat_name);
       }
+      float stats_reward = stat_value * reward_per_unit;
+      if (this->stat_reward_max.count(stat_name) > 0) {
+        stats_reward = std::min(stats_reward, this->stat_reward_max.at(stat_name));
+      }
+
+      new_stat_reward += stats_reward;
     }
 
     // Update the agent's reward with the difference
@@ -196,6 +187,23 @@ public:
 
   bool swappable() const override {
     return this->frozen;
+  }
+
+  // Implementation of Usable interface
+  bool onUse(Agent& actor, ActionArg arg) override {
+    // Share half of shareable resources from actor to this agent
+    for (InventoryItem resource : actor.shareable_resources) {
+      InventoryQuantity actor_amount = actor.inventory.amount(resource);
+      // Calculate half (rounded down)
+      InventoryQuantity share_attempted_amount = actor_amount / 2;
+      if (share_attempted_amount > 0) {
+        // The actor is trying to give us resources. We need to make sure we can take them.
+        InventoryDelta successful_share_amount = this->update_inventory(resource, share_attempted_amount);
+        actor.update_inventory(resource, -successful_share_amount);
+      }
+    }
+
+    return true;
   }
 
   std::vector<PartialObservationToken> obs_features() const override {

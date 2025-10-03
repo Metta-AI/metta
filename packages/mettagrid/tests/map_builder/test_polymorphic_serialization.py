@@ -86,7 +86,7 @@ class TestPolymorphicSerialization:
             temp_path = f.name
 
         try:
-            config = AsciiMapBuilder.Config.from_uri(temp_path)
+            config = AsciiMapBuilder.Config.from_uri(temp_path, {})
 
             # Test serialization
             serialized = config.model_dump()

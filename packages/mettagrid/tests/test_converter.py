@@ -6,68 +6,78 @@ their recipe inputs and outputs as separate features in their observations.
 """
 
 from mettagrid.config.mettagrid_c_config import from_mettagrid_config
+from mettagrid.config.mettagrid_config import (
+    ActionConfig,
+    ActionsConfig,
+    AgentConfig,
+    AgentRewards,
+    AttackActionConfig,
+    ChangeGlyphActionConfig,
+    ConverterConfig,
+    GameConfig,
+    WallConfig,
+)
 from mettagrid.mettagrid_c import MettaGrid, PackedCoordinate
 
 
 class TestConverterObservations:
     """Test converter observations with and without recipe_details_obs."""
 
-    def get_base_game_config(self):
+    def get_base_game_config(self, recipe_details_obs: bool = False) -> GameConfig:
         """Get base game configuration template."""
-        return {
-            "max_steps": 50,
-            "num_agents": 1,
-            "obs_width": 5,
-            "obs_height": 5,
-            "num_observation_tokens": 100,
-            "resource_names": ["ore_red", "ore_blue", "battery_red", "heart"],
-            "recipe_details_obs": False,  # Default to False
-            "actions": {
-                "noop": {"enabled": True},
-                "move": {"enabled": True},
-                "put_items": {"enabled": True},
-                "get_items": {"enabled": True},
-                "attack": {"enabled": False},
-                "swap": {"enabled": False},
-                "change_color": {"enabled": False},
-                "change_glyph": {"enabled": False, "number_of_glyphs": 0},
+        return GameConfig(
+            max_steps=50,
+            num_agents=1,
+            obs_width=5,
+            obs_height=5,
+            num_observation_tokens=100,
+            resource_names=["ore_red", "ore_blue", "battery_red", "heart"],
+            recipe_details_obs=recipe_details_obs,
+            actions=ActionsConfig(
+                noop=ActionConfig(enabled=True),
+                move=ActionConfig(enabled=True),
+                put_items=ActionConfig(enabled=True),
+                get_items=ActionConfig(enabled=True),
+                attack=AttackActionConfig(enabled=False),
+                swap=ActionConfig(enabled=False),
+                change_color=ActionConfig(enabled=False),
+                change_glyph=ChangeGlyphActionConfig(enabled=False, number_of_glyphs=0),
+            ),
+            objects={
+                "wall": WallConfig(type_id=1, swappable=False),
             },
-            "objects": {
-                "wall": {"type_id": 1, "swappable": False},
-            },
-            "agent": {
-                "default_resource_limit": 50,
-                "freeze_duration": 0,
-                "rewards": {"inventory": {"heart": 1.0}},
-            },
-        }
+            agent=AgentConfig(
+                default_resource_limit=50,
+                freeze_duration=0,
+                rewards=AgentRewards(inventory={"heart": 1.0}),
+            ),
+        )
 
     def create_converter_env(self, recipe_details_obs=False):
         """Create a test environment with converters."""
-        game_config = self.get_base_game_config()
-        game_config["recipe_details_obs"] = recipe_details_obs
+        game_config = self.get_base_game_config(recipe_details_obs=recipe_details_obs)
 
         # Add converter objects
-        game_config["objects"]["generator"] = {
-            "type_id": 2,
-            "input_resources": {"ore_red": 2, "ore_blue": 1},
-            "output_resources": {"battery_red": 1},
-            "max_output": -1,
-            "conversion_ticks": 5,
-            "cooldown": 10,
-            "initial_resource_count": 0,
-            "color": 1,
-        }
-        game_config["objects"]["altar"] = {
-            "type_id": 3,
-            "input_resources": {"battery_red": 3},
-            "output_resources": {"heart": 1},
-            "max_output": 10,
-            "conversion_ticks": 10,
-            "cooldown": 20,
-            "initial_resource_count": 0,
-            "color": 2,
-        }
+        game_config.objects["generator"] = ConverterConfig(
+            type_id=2,
+            input_resources={"ore_red": 2, "ore_blue": 1},
+            output_resources={"battery_red": 1},
+            max_output=-1,
+            conversion_ticks=5,
+            cooldown=10,
+            initial_resource_count=0,
+            color=1,
+        )
+        game_config.objects["altar"] = ConverterConfig(
+            type_id=3,
+            input_resources={"battery_red": 3},
+            output_resources={"heart": 1},
+            max_output=10,
+            conversion_ticks=10,
+            cooldown=20,
+            initial_resource_count=0,
+            color=2,
+        )
 
         # Create a simple map with agent and converters
         game_map = [

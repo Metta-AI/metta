@@ -24,6 +24,7 @@
 #include "core/types.hpp"
 #include "objects/assembler.hpp"
 #include "objects/chest.hpp"
+#include "systems/clipper.hpp"
 #include "systems/packed_coordinate.hpp"
 
 // Forward declarations of existing C++ classes
@@ -72,7 +73,11 @@ public:
                    const py::array_t<TruncationType, py::array::c_style>& truncations,
                    const py::array_t<RewardType, py::array::c_style>& rewards);
   void validate_buffers();
-  py::dict grid_objects();
+  py::dict grid_objects(int min_row = -1,
+                        int max_row = -1,
+                        int min_col = -1,
+                        int max_col = -1,
+                        const py::list& ignore_types = py::list());
   py::list action_names();
 
   GridCoord map_width();
@@ -160,6 +165,12 @@ private:
   // Movement tracking
   bool _track_movement_metrics;
   float _resource_loss_prob;
+
+  // Inventory regeneration
+  unsigned int _inventory_regen_interval;
+
+  // Global systems
+  std::unique_ptr<Clipper> _clipper;
 
   void init_action_handlers();
   void add_agent(Agent* agent);

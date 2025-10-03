@@ -5,7 +5,12 @@ from mettagrid.mapgen.utils.storable_map import StorableMap
 
 
 def simple_map():
-    return StorableMap.from_cfg(AsciiMapBuilder.Config(map_data=[[".", "#"], ["#", "."]]))
+    storable_map = StorableMap.from_cfg(
+        AsciiMapBuilder.Config(
+            map_data=[[".", "#"], ["#", "."]],
+        ),
+    )
+    return storable_map
 
 
 def test_save_and_load_local(tmp_path):

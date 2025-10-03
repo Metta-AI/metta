@@ -178,7 +178,7 @@ jobs:
         with:
           python-version: "3.11.7"
 
-      - name: Install uv
+      - name: Set up environment (minimal)
         uses: ./.github/actions/setup-environment
         with:
           install-mode: minimal

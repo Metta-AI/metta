@@ -69,15 +69,15 @@ def production_navigation_curriculum(navigation_env):
 
     dense_tasks = cc.bucketed(navigation_env)
     dense_tasks.add_bucket("game.agent.rewards.inventory.heart", [0.1, 0.5, 1.0])
-    dense_tasks.add_bucket("game.agent.rewards.inventory.heart_max", [1, 2])
+    dense_tasks.add_bucket("game.agent.rewards.inventory_max.heart", [1, 2])
 
     maps = ["terrain_maps_nohearts"]
     for size in ["large", "medium", "small"]:
         for terrain in ["balanced", "maze", "sparse", "dense", "cylinder-world"]:
             maps.append(f"varied_terrain/{terrain}_{size}")
 
-    dense_tasks.add_bucket("game.map_builder.instance_map.dir", maps)
-    dense_tasks.add_bucket("game.map_builder.instance_map.objects.altar", [Span(3, 50)])
+    dense_tasks.add_bucket("game.map_builder.instance.dir", maps)
+    dense_tasks.add_bucket("game.map_builder.instance.objects.altar", [Span(3, 50)])
 
     # Sparse tasks
     sparse_env = navigation_env.model_copy()

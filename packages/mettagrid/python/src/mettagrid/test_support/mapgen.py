@@ -4,8 +4,7 @@ import pytest
 from mettagrid.map_builder.utils import create_grid
 from mettagrid.mapgen.scene import Scene, SceneConfig
 from mettagrid.mapgen.types import Area, MapGrid
-from mettagrid.mapgen.utils.ascii_grid import add_pretty_border, char_grid_to_lines
-from mettagrid.mapgen.utils.storable_map import grid_to_lines
+from mettagrid.mapgen.utils.ascii_grid import add_pretty_border, char_grid_to_lines, default_char_to_name, grid_to_lines
 
 
 def render_scene(
@@ -19,8 +18,8 @@ def render_scene(
     return scene
 
 
-def assert_raw_grid(grid: MapGrid, ascii_grid: str):
-    grid_lines = grid_to_lines(grid)
+def assert_raw_grid(grid: MapGrid, ascii_grid: str, name_to_char: dict[str, str] | None = None):
+    grid_lines = grid_to_lines(grid, name_to_char)
     expected_lines, _, _ = char_grid_to_lines(ascii_grid)
 
     if grid_lines != expected_lines:
@@ -29,8 +28,24 @@ def assert_raw_grid(grid: MapGrid, ascii_grid: str):
         pytest.fail(f"Grid does not match expected:\nEXPECTED:\n{expected_grid}\n\nACTUAL:\n{actual_grid}")
 
 
-def assert_grid(scene: Scene, ascii_grid: str):
-    assert_raw_grid(scene.grid, ascii_grid)
+def assert_grid(scene: Scene, ascii_grid: str, char_to_name: dict[str, str] | None = None):
+    # Convert char_to_name to name_to_char for grid_to_lines
+    # Prioritize visible chars over whitespace for better test output
+    if char_to_name:
+        name_to_char: dict[str, str] = {}
+        # First pass: add all mappings
+        for char, name in char_to_name.items():
+            if name not in name_to_char:
+                name_to_char[name] = char
+        # Second pass: prefer visible characters over whitespace
+        for char, name in char_to_name.items():
+            if char not in (" ", "\t", "\n") and (
+                name_to_char.get(name) in (" ", "\t", "\n") or name_to_char[name] == char
+            ):
+                name_to_char[name] = char
+    else:
+        name_to_char = None
+    assert_raw_grid(scene.grid, ascii_grid, name_to_char)
 
 
 def is_connected(grid: MapGrid):
@@ -72,6 +87,10 @@ def is_connected(grid: MapGrid):
     return len(visited) == len(empty_cells)
 
 
-def assert_connected(grid: MapGrid):
+def assert_connected(grid: MapGrid, name_to_char: dict[str, str] | None = None):
+    if name_to_char is None:
+        # Get default and reverse it
+        name_to_char = {v: k for k, v in default_char_to_name().items()}
+
     if not is_connected(grid):
-        pytest.fail("Grid is not connected:\n" + "\n".join(grid_to_lines(grid, border=True)))
+        pytest.fail("Grid is not connected:\n" + "\n".join(grid_to_lines(grid, name_to_char, border=True)))
