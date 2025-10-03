@@ -24,14 +24,14 @@ terrain_evals = {
         "num_cogs": 12,
         "positions": ["Any", "Any"],
         "regeneration_rate": 2,
-        "sizes": "small",
+        "sizes": "medium",
         "use_base": False,
     },
     "12_agent_triplets_medium_uniform": {
         "num_cogs": 12,
         "positions": ["Any", "Any", "Any"],
         "regeneration_rate": 2,
-        "sizes": "small",
+        "sizes": "medium",
         "use_base": False,
     },
     "12_agent_pairs_small_bases": {
@@ -52,14 +52,14 @@ terrain_evals = {
         "num_cogs": 12,
         "positions": ["Any", "Any"],
         "regeneration_rate": 2,
-        "sizes": "small",
+        "sizes": "medium",
         "use_base": True,
     },
     "12_agent_triplets_medium_bases": {
         "num_cogs": 12,
         "positions": ["Any", "Any", "Any"],
         "regeneration_rate": 2,
-        "sizes": "small",
+        "sizes": "medium",
         "use_base": True,
     },
 }
