@@ -167,9 +167,15 @@ class GeneralizedTerrainTaskGenerator(TaskGenerator):
         assembler_position: list[Position],
     ):
         input_resources = {"energy": 3}
+        num_input_resources=0
         for resource, num_extractor in num_extractors.items():
-            if num_extractor > 0 and rng.choice([True, False]):
+            if (
+                num_extractor > 0
+                and rng.choice([True, False])
+                and num_input_resources <= 2
+            ):
                 input_resources[resource] = 1
+                num_input_resources += 1
         assembler.recipes = [
             (
                 assembler_position,
@@ -179,6 +185,7 @@ class GeneralizedTerrainTaskGenerator(TaskGenerator):
                     cooldown=1,
                 ),
             )
+
         ]
         return assembler
 
