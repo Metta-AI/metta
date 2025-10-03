@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from typing import Dict, Optional
 
+import typer
 import yaml
 from rich.console import Console
 from rich.table import Table
@@ -151,7 +152,7 @@ def resolve_game_name(game_arg: Optional[str]) -> Optional[str]:
     return None
 
 
-def list_games(console: Console) -> Table:
+def list_games(console: Console) -> None:
     """Create a table listing all available games.
 
     Args:
@@ -180,7 +181,7 @@ def list_games(console: Console) -> Table:
 
         table.add_row(game_name, str(num_agents), map_size)
 
-    return table
+    console.print(table)
 
 
 def describe_game(game_name: str, console: Console) -> None:
@@ -286,3 +287,13 @@ def load_game_config(path: Path) -> MettaGridConfig:
         raise ValueError(f"Unsupported file format: {path.suffix}. Use .yaml, .yml, or .json")
 
     return MettaGridConfig(**config_dict)
+
+
+def require_game_argument(ctx: typer.Context, value: Optional[str], console: Console) -> str:
+    if value is not None:
+        return value
+
+    console.print("[yellow]No game specified. Available games:[/yellow]")
+    list_games(console)
+    console.print(f"\n[dim]Usage: {ctx.command_path} <game>[/dim]")
+    raise typer.Exit(0)

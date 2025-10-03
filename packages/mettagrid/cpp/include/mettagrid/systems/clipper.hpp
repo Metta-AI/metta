@@ -3,6 +3,8 @@
 
 #include <cmath>
 #include <memory>
+#include <numbers>
+#include <random>
 #include <vector>
 
 #include "core/grid.hpp"
@@ -10,29 +12,67 @@
 
 class Clipper {
 public:
-  std::shared_ptr<Recipe> recipe;
+  std::vector<std::shared_ptr<Recipe>> unclipping_recipes;
   std::map<Assembler*, float> assembler_infection_weight;
   std::set<Assembler*> unclipped_assemblers;
   float length_scale;
   float cutoff_distance;
   Grid& grid;
   float clip_rate;
+  std::mt19937 rng;
 
-  Clipper(Grid& grid, std::shared_ptr<Recipe> recipe_ptr, float length_scale, float cutoff_distance, float clip_rate)
-      : recipe(std::move(recipe_ptr)),
+  Clipper(Grid& grid, std::vector<std::shared_ptr<Recipe>> recipe_ptrs, float length_scale, float cutoff_distance, float clip_rate, std::mt19937 rng_init)
+      : unclipping_recipes(std::move(recipe_ptrs)),
         length_scale(length_scale),
         cutoff_distance(cutoff_distance),
         grid(grid),
-        clip_rate(clip_rate) {
+        clip_rate(clip_rate),
+        rng(std::move(rng_init)) {
     for (size_t obj_id = 1; obj_id < grid.objects.size(); obj_id++) {
       auto* obj = grid.object(static_cast<GridObjectId>(obj_id));
       if (!obj) continue;
       if (auto* assembler = dynamic_cast<Assembler*>(obj)) {
         // Skip clip-immune assemblers
         if (assembler->clip_immune) continue;
+
         assembler_infection_weight[assembler] = 0.0f;
-        unclipped_assemblers.insert(assembler);
+
+        // Check if this assembler should start clipped
+        if (assembler->start_clipped) {
+          // Clip it immediately without adding to unclipped set
+          clip_assembler(*assembler);
+        } else {
+          // Add to unclipped assemblers set
+          unclipped_assemblers.insert(assembler);
+        }
       }
+    }
+
+    // Auto-calculate length_scale based on percolation theory if length_scale <= 0
+    if (length_scale <= 0.0f && !assembler_infection_weight.empty()) {
+      // Get grid dimensions
+      GridCoord grid_width = grid.width;
+      GridCoord grid_height = grid.height;
+      float grid_size = static_cast<float>(std::max(grid_width, grid_height));
+
+      // Calculate percolation-based length scale
+      // The constant 4.51 is the critical percolation density λ_c for 2D continuum percolation,
+      // empirically determined through Monte Carlo simulations (not analytically derivable).
+      // Reference:
+      // https://en.wikipedia.org/wiki/Percolation_threshold#Thresholds_for_2D_continuum_models
+      // Note: Wikipedia provides a value of ~1.127 when defined in terms of radius,
+      // We use diameter basis which becomes 4.51
+
+      constexpr float PERCOLATION_CONSTANT = 4.51f;
+      this->length_scale =
+          (grid_size / std::sqrt(static_cast<float>(assembler_infection_weight.size()))) * std::sqrt(PERCOLATION_CONSTANT / (4.0f * std::numbers::pi_v<float>));
+    }
+    // else: use the provided positive length_scale value as-is
+
+    // Auto-calculate cutoff_distance if not provided (cutoff_distance <= 0)
+    // At 3*length_scale, exp(-3) ≈ 0.05, so weights beyond this are negligible
+    if (cutoff_distance <= 0.0f) {
+      this->cutoff_distance = 3.0f * this->length_scale;
     }
   }
 
@@ -55,8 +95,15 @@ public:
       weight += infection_weight(to_infect, *other);
     }
     unclipped_assemblers.erase(&to_infect);
+
+    // Randomly select one recipe from the list
+    std::uniform_int_distribution<size_t> dist(0, unclipping_recipes.size() - 1);
+    size_t selected_idx = dist(rng);
+    std::shared_ptr<Recipe> selected_recipe = unclipping_recipes[selected_idx];
+
+    // Create a vector of 256 copies of the selected recipe
     std::vector<std::shared_ptr<Recipe>> unclip_recipes;
-    unclip_recipes.assign(256, recipe);
+    unclip_recipes.assign(256, selected_recipe);
     to_infect.become_clipped(unclip_recipes, this);
   }
 
@@ -68,7 +115,7 @@ public:
     unclipped_assemblers.insert(&to_unclip);
   }
 
-  Assembler* pick_assembler_to_clip(std::mt19937& rng) {
+  Assembler* pick_assembler_to_clip() {
     float total_weight = 0.0f;
     for (auto& candidate_assembler : unclipped_assemblers) {
       total_weight += assembler_infection_weight.at(candidate_assembler);
@@ -83,7 +130,7 @@ public:
     return nullptr;
   }
 
-  Assembler* pick_initial_assembler_to_clip(std::mt19937& rng) {
+  Assembler* pick_initial_assembler_to_clip() {
     // Pick an assembler uniformly at random.
     float total_weight = unclipped_assemblers.size();
     float random_weight = std::generate_canonical<float, 10>(rng) * total_weight;
@@ -98,9 +145,9 @@ public:
     return nullptr;
   }
 
-  void maybe_clip_new_assembler(std::mt19937& rng) {
+  void maybe_clip_new_assembler() {
     if (std::generate_canonical<float, 10>(rng) < clip_rate) {
-      Assembler* assembler = pick_assembler_to_clip(rng);
+      Assembler* assembler = pick_assembler_to_clip();
       if (assembler) clip_assembler(*assembler);
     }
   }

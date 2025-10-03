@@ -94,8 +94,7 @@ class TestMapGenInstances:
             instance=InlineAscii.Config(
                 data="""
                         .@.
-                        .@.
-                    """,
+                        .@.""",
             ),
             # 10 agents, 2 per instance, so 5 instances
             num_agents=10,

@@ -17,6 +17,7 @@ var
   dropHighlight: Node
   dragArea: Area
   objectInfoTemplate*: Node
+  envConfigTemplate*: Node
 
 proc updateMouse*(panel: Panel) =
   let box = Rect(
