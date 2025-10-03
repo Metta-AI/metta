@@ -4,7 +4,7 @@ import logging
 import math
 
 from metta.rl.training import TrainerComponent
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
 

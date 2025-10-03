@@ -54,6 +54,7 @@ proc render(currentStep: int, replayStep: string): RenderResponse =
         return
       mainLoop()
       if requestPython:
+        onRequestPython()
         for action in requestActions:
           result.actions.add(ActionRequest(
             agentId: action.agentId,

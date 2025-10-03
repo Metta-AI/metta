@@ -117,3 +117,42 @@ def germanium_recipe(num_agents: int) -> RecipeConfig:
     return RecipeConfig(
         output_resources={"germanium": amount},
     )
+
+
+# Equipment recipes - craft specialized gear from base resources
+
+
+def decoder_recipe() -> RecipeConfig:
+    """Decoder - crafted from germanium."""
+    return RecipeConfig(
+        input_resources={"germanium": 5},
+        output_resources={"decoder": 1},
+        cooldown=1,
+    )
+
+
+def modulator_recipe() -> RecipeConfig:
+    """Modulator - crafted from carbon."""
+    return RecipeConfig(
+        input_resources={"carbon": 50},
+        output_resources={"modulator": 1},
+        cooldown=1,
+    )
+
+
+def resonator_recipe() -> RecipeConfig:
+    """Resonator - crafted from silicon."""
+    return RecipeConfig(
+        input_resources={"silicon": 100},
+        output_resources={"resonator": 1},
+        cooldown=1,
+    )
+
+
+def scrambler_recipe() -> RecipeConfig:
+    """Scrambler - crafted from oxygen."""
+    return RecipeConfig(
+        input_resources={"oxygen": 50},
+        output_resources={"scrambler": 1},
+        cooldown=1,
+    )

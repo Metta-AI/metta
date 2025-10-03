@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from cogames.cogs_vs_clips.map_utils import DynamicAgentAsciiMapBuilder
+from cogames.cogs_vs_clips import glyphs
 from cogames.cogs_vs_clips.stations import (
     assembler,
     carbon_ex_dep,
@@ -11,6 +12,10 @@ from cogames.cogs_vs_clips.stations import (
     chest_germanium,
     chest_oxygen,
     chest_silicon,
+    clipped_carbon_extractor,
+    clipped_germanium_extractor,
+    clipped_oxygen_extractor,
+    clipped_silicon_extractor,
     germanium_ex_dep,
     germanium_extractor,
     oxygen_ex_dep,
@@ -25,6 +30,7 @@ from mettagrid.config.mettagrid_config import (
     AgentConfig,
     AgentRewards,
     ChangeGlyphActionConfig,
+    ClipperConfig,
     GameConfig,
     MettaGridConfig,
     RecipeConfig,
@@ -69,7 +75,7 @@ def _base_game_config(num_agents: int) -> MettaGridConfig:
             actions=ActionsConfig(
                 move=ActionConfig(consumed_resources={"energy": 2}),
                 noop=ActionConfig(),
-                change_glyph=ChangeGlyphActionConfig(number_of_glyphs=16),
+                change_glyph=ChangeGlyphActionConfig(number_of_glyphs=len(glyphs.GLYPHS)),
             ),
             objects={
                 "wall": WallConfig(name="wall", type_id=1, map_char="#", render_symbol="⬛"),
@@ -83,6 +89,10 @@ def _base_game_config(num_agents: int) -> MettaGridConfig:
                 "oxygen_ex_dep": oxygen_ex_dep(),
                 "carbon_ex_dep": carbon_ex_dep(),
                 "germanium_ex_dep": germanium_ex_dep(),
+                "clipped_carbon_extractor": clipped_carbon_extractor(),
+                "clipped_oxygen_extractor": clipped_oxygen_extractor(),
+                "clipped_germanium_extractor": clipped_germanium_extractor(),
+                "clipped_silicon_extractor": clipped_silicon_extractor(),
                 "chest": chest(),
                 "chest_carbon": chest_carbon(),
                 "chest_oxygen": chest_oxygen(),
@@ -110,6 +120,30 @@ def _base_game_config(num_agents: int) -> MettaGridConfig:
                 inventory_regen_amounts={"energy": 1},
             ),
             inventory_regen_interval=1,
+            # Enable clipper system to allow start_clipped assemblers to work
+            clipper=ClipperConfig(
+                unclipping_recipes=[
+                    RecipeConfig(
+                        input_resources={"decoder": 1},
+                        cooldown=1,
+                    ),
+                    RecipeConfig(
+                        input_resources={"modulator": 1},
+                        cooldown=1,
+                    ),
+                    RecipeConfig(
+                        input_resources={"scrambler": 1},
+                        cooldown=1,
+                    ),
+                    RecipeConfig(
+                        input_resources={"resonator": 1},
+                        cooldown=1,
+                    ),
+                ],
+                length_scale=10.0,
+                cutoff_distance=0.0,
+                clip_rate=0.0,  # Don't clip during gameplay, only use start_clipped
+            ),
         )
     )
 
@@ -242,6 +276,23 @@ def games() -> dict[str, MettaGridConfig]:
         # "forage_4": tutorial_forage(num_cogs=4),
         # "chest_1": tutorial_chest(num_cogs=1),
         # "chest_4": tutorial_chest(num_cogs=4),
+        # Biomes dungeon maps with stations
+        "machina_1": make_game_from_map("cave_base_50.map"),
+        "machina_2": make_game_from_map("machina_100_stations.map"),
+        "machina_3": make_game_from_map("machina_200_stations.map"),
+        "machina_1_big": make_game_from_map("canidate1_500_stations.map"),
+        "machina_2_bigger": make_game_from_map("canidate1_1000_stations.map"),
+        "machina_3_big": make_game_from_map("canidate2_500_stations.map"),
+        "machina_4_bigger": make_game_from_map("canidate2_1000_stations.map"),
+        "machina_5_big": make_game_from_map("canidate3_500_stations.map"),
+        "machina_6_bigger": make_game_from_map("canidate3_1000_stations.map"),
+        "machina_7_big": make_game_from_map("canidate4_500_stations.map"),
+        "training_facility_1": make_game_from_map("training_facility_open_1.map"),
+        "training_facility_2": make_game_from_map("training_facility_open_2.map"),
+        "training_facility_3": make_game_from_map("training_facility_open_3.map"),
+        "training_facility_4": make_game_from_map("training_facility_tight_4.map"),
+        "training_facility_5": make_game_from_map("training_facility_tight_5.map"),
+        "training_facility_6": make_game_from_map("training_facility_clipped.map"),
     }
 
     # Add map-based games from shared mapping

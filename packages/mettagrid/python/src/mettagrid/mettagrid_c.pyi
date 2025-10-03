@@ -101,7 +101,6 @@ class ConverterConfig(GridObjectConfig):
         conversion_ticks: int,
         cooldown: int,
         initial_resource_count: int = 0,
-        color: int = 0,
         recipe_details_obs: bool = False,
     ) -> None: ...
     type_id: int
@@ -113,7 +112,6 @@ class ConverterConfig(GridObjectConfig):
     conversion_ticks: int
     cooldown: int
     initial_resource_count: int
-    color: int
     recipe_details_obs: bool
 
 class ActionConfig:

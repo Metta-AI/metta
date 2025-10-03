@@ -29,10 +29,11 @@ PYTHON_TEST_FOLDERS = [
     "mettascope/tests",
     "agent/tests",
     "app_backend/tests",
-    "codebot/tests",
     "common/tests",
-    "packages/mettagrid/tests",
+    "packages/codebot/tests",
     "packages/cogames/tests",
+    "packages/gitta/tests",
+    "packages/mettagrid/tests",
 ]
 
 VERSION_PATTERN = re.compile(r"^(\d+\.\d+\.\d+(?:\.\d+)?)$")
