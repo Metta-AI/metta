@@ -9,6 +9,7 @@ from rich.console import Console
 from typing_extensions import TYPE_CHECKING
 
 import mettagrid.mettascope as mettascope
+from cogames.cogs_vs_clips.glyphs import GLYPHS
 from cogames.utils import initialize_or_load_policy
 from mettagrid import MettaGridConfig, MettaGridEnv
 from mettagrid.util.grid_object_formatter import format_grid_object
@@ -53,24 +54,48 @@ def play(
     if render == "text" and hasattr(env, "_renderer") and env._renderer:
 
         def get_actions_fn(
-            obs: np.ndarray, selected_agent: Optional[int], manual_action: Optional[int | tuple]
+            obs: np.ndarray,
+            selected_agent: Optional[int],
+            manual_action: Optional[int | tuple],
+            manual_agents: set[int],
         ) -> np.ndarray:
-            """Get actions for all agents, with optional manual override."""
+            """Get actions for all agents, with optional manual override.
+
+            Args:
+                obs: Observations for all agents
+                selected_agent: Currently selected agent (for manual control)
+                manual_action: Manual action to apply to selected agent
+                manual_agents: Set of agent IDs in manual mode (no policy actions)
+
+            Returns:
+                Actions array for all agents
+            """
             actions = np.zeros((env.num_agents, 2), dtype=np.int32)
+            noop_action_id = env.action_names.index("noop") if "noop" in env.action_names else 0
+
             for agent_id in range(env.num_agents):
                 if agent_id == selected_agent and manual_action is not None:
-                    # manual_action can be a tuple of (action_id, arg) or just a direction for move
+                    # Apply manual action to selected agent
                     if isinstance(manual_action, tuple):
                         actions[agent_id] = list(manual_action)
                     else:
                         # Get move action ID from environment
                         move_action_id = env.action_names.index("move") if "move" in env.action_names else 0
                         actions[agent_id] = [move_action_id, manual_action]
+                elif agent_id in manual_agents:
+                    # Agent is in manual mode but no action this step - use noop
+                    actions[agent_id] = [noop_action_id, 0]
                 else:
+                    # Use policy for this agent
                     actions[agent_id] = agent_policies[agent_id].step(obs[agent_id])
             return actions
 
-        result = env._renderer.interactive_loop(env, get_actions_fn, max_steps=max_steps)
+        # Get glyphs from environment config if available
+        glyphs = None
+        if env_cfg.game.actions.change_glyph.enabled:
+            glyphs = GLYPHS
+
+        result = env._renderer.interactive_loop(env, get_actions_fn, max_steps=max_steps, glyphs=glyphs)
         console.print("\n[bold green]Episode Complete![/bold green]")
         console.print(f"Steps: {result['steps']}")
         console.print(f"Total Rewards: {result['total_rewards']}")
