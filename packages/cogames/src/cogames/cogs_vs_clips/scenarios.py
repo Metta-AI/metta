@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from cogames.cogs_vs_clips import glyphs
 from cogames.cogs_vs_clips.stations import (
     assembler,
     carbon_ex_dep,
@@ -47,8 +48,9 @@ def _base_game_config(num_agents: int) -> MettaGridConfig:
             actions=ActionsConfig(
                 move=ActionConfig(consumed_resources={"energy": 2}),
                 noop=ActionConfig(),
-                change_glyph=ChangeGlyphActionConfig(number_of_glyphs=16),
+                change_glyph=ChangeGlyphActionConfig(number_of_glyphs=len(glyphs.GLYPHS)),
             ),
+            resource_loss_prob=0.01,
             objects={
                 "wall": WallConfig(name="wall", type_id=1, map_char="#", render_symbol="⬛"),
                 "charger": charger(),

@@ -134,8 +134,9 @@ markers = [
   "network: marks tests as requiring network access (deselect with '-m \"not network\"')",
 ]
 console_output_style = "progress"
-addopts = "-n auto --import-mode=importlib"
+addopts = "-n auto --import-mode=importlib --ignore-glob=**/bazel-*"
 pythonpath = [".", "packages/mettagrid/python/src"]
+norecursedirs = ["bazel-*", ".bazel_output"]
 
 [tool.uv]
 cache-keys = [

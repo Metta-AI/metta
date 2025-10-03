@@ -302,7 +302,6 @@ def test_resource_mod_converters():
                 conversion_ticks=1,
                 cooldown=5,
                 initial_resource_count=0,
-                color=1,
                 recipe_details_obs=False,
             ),
             "converter.green": CppConverterConfig(
@@ -315,7 +314,6 @@ def test_resource_mod_converters():
                 conversion_ticks=1,
                 cooldown=5,
                 initial_resource_count=0,
-                color=2,
                 recipe_details_obs=False,
             ),
             "converter.yellow": CppConverterConfig(
@@ -328,7 +326,6 @@ def test_resource_mod_converters():
                 conversion_ticks=1,
                 cooldown=5,
                 initial_resource_count=0,
-                color=3,
                 recipe_details_obs=False,
             ),
             "wall": CppWallConfig(type_id=1, type_name="wall", swappable=False),

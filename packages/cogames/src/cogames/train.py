@@ -6,9 +6,15 @@ import platform
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
+import psutil
+from rich.console import Console
+
+import pufferlib.vector
 from cogames.policy import TrainablePolicy
 from cogames.utils import initialize_or_load_policy
 from mettagrid import MettaGridConfig, MettaGridEnv
+from pufferlib import pufferl
+from pufferlib.pufferlib import set_buffers
 
 if TYPE_CHECKING:
     import torch
@@ -32,11 +38,6 @@ def train(
     vector_batch_size: Optional[int] = None,
     vector_num_workers: Optional[int] = None,
 ) -> None:
-    import pufferlib.pytorch  # noqa: F401 - ensure modules register with torch
-    import pufferlib.vector
-    from pufferlib import pufferl
-    from pufferlib.pufferlib import set_buffers
-
     def env_creator(cfg: MettaGridConfig, buf: Optional[Any] = None, seed: Optional[int] = None):
         env = MettaGridEnv(env_cfg=cfg)
         set_buffers(env, buf)
@@ -48,15 +49,20 @@ def train(
         # TODO(jsuarez): Fix multiprocessing backend
         backend = pufferlib.vector.Serial
 
-    desired_workers = vector_num_workers if vector_num_workers is not None else 8
+    # Get CPU cores for default value
     cpu_cores = None
     try:
-        import psutil
-
         cpu_cores = psutil.cpu_count(logical=False) or psutil.cpu_count(logical=True)
     except Exception:  # pragma: no cover - best effort fallback
         cpu_cores = None
 
+    # Default to CPU cores if not specified, otherwise fallback to 8
+    if vector_num_workers is None:
+        desired_workers = cpu_cores if cpu_cores is not None else 8
+    else:
+        desired_workers = vector_num_workers
+
+    # Cap at CPU cores if available
     if cpu_cores is not None:
         adjusted_workers = min(desired_workers, max(1, cpu_cores))
         if adjusted_workers < desired_workers:
@@ -236,7 +242,6 @@ def train(
     trainer.close()
 
     # Print checkpoint path and usage commands with colored output
-    from rich.console import Console
 
     console = Console()
 

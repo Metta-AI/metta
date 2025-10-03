@@ -10,7 +10,11 @@ from typing import Literal, Optional
 
 from packaging.version import Version
 
-from cogames import game
+from cogames import evaluate as evaluate_module
+from cogames import game, utils
+from cogames import play as play_module
+from cogames import train as train_module
+from cogames.cogs_vs_clips.scenarios import make_game
 from cogames.policy.utils import parse_policy_spec, resolve_policy_class_path, resolve_policy_data_path
 
 # Always add current directory to Python path
@@ -93,14 +97,10 @@ def play_cmd(
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
     render: Literal["gui", "text"] = typer.Option("gui", "--render", "-r", help="Render mode: 'gui' or 'text'"),
 ) -> None:
-    from cogames import utils
-
     resolved_game, env_cfg = utils.get_game_config(console, game_name)
 
     console.print(f"[cyan]Playing {resolved_game}[/cyan]")
     console.print(f"Max Steps: {steps}, Interactive: {interactive}, Render: {render}")
-
-    from cogames import play as play_module
 
     play_module.play(
         console,
@@ -122,8 +122,6 @@ def make_scenario(
     height: int = typer.Option(10, "--height", "-h", help="Map height", min=1),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (YAML or JSON)"),  # noqa: B008
 ) -> None:
-    from cogames import utils
-
     try:
         # If base_game specified, use it as template
         if base_game:
@@ -137,7 +135,6 @@ def make_scenario(
             console.print("[cyan]Creating new game from scratch[/cyan]")
 
         # Use cogs_vs_clips make_game for now
-        from cogames.cogs_vs_clips.scenarios import make_game
 
         # Create game with specified parameters
         new_config = make_game(
@@ -194,10 +191,13 @@ def train_cmd(
     seed: int = typer.Option(42, "--seed", help="Seed for training", min=0),
     batch_size: int = typer.Option(4096, "--batch-size", help="Batch size for training", min=1),
     minibatch_size: int = typer.Option(4096, "--minibatch-size", help="Minibatch size for training", min=1),
+    num_workers: Optional[int] = typer.Option(
+        None,
+        "--num-workers",
+        help="Number of worker processes (defaults to number of CPU cores)",
+        min=1,
+    ),
 ) -> None:
-    from cogames import train as train_module
-    from cogames import utils
-
     resolved_game, env_cfg = utils.get_game_config(console, game_name)
 
     torch_device = utils.resolve_training_device(console, device)
@@ -214,6 +214,7 @@ def train_cmd(
             batch_size=batch_size,
             minibatch_size=minibatch_size,
             game_name=resolved_game,
+            vector_num_workers=num_workers,
         )
 
     except ValueError as e:
@@ -255,10 +256,7 @@ def evaluate_cmd(
         raise typer.Exit(1)
     policy_specs = [parse_policy_spec(spec) for spec in policies]  # noqa: F821
 
-    from cogames import utils
-
     resolved_game, env_cfg = utils.get_game_config(console, game_name)
-    from cogames import evaluate as evaluate_module
 
     console.print(f"[cyan]Evaluating {len(policy_specs)} policies on {resolved_game} over {episodes} episodes[/cyan]")
 

@@ -1,3 +1,4 @@
+from mettagrid.map_builder.utils import create_grid
 from mettagrid.mapgen.types import MapGrid
 
 DEFAULT_CHAR_TO_NAME: dict[str, str] = {
@@ -73,7 +74,6 @@ def print_grid(grid: MapGrid, name_to_char: dict[str, str], border: bool = True)
 
 def lines_to_grid(lines: list[str], char_to_name: dict[str, str]) -> MapGrid:
     """Convert lines of text to a grid using the provided char-to-name mapping."""
-    from mettagrid.map_builder.utils import create_grid
 
     grid = create_grid(len(lines), len(lines[0]))
     for r, line in enumerate(lines):

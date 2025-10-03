@@ -1,7 +1,7 @@
 import pytest
 
+from mettagrid.mapgen.area import AreaQuery, AreaWhere
 from mettagrid.mapgen.scenes.layout import Layout, LayoutArea
-from mettagrid.mapgen.types import AreaQuery, AreaWhere
 from mettagrid.test_support.mapgen import render_scene
 
 # -----------------------------------------------------------------------------
