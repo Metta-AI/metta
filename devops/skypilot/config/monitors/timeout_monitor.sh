@@ -53,6 +53,11 @@ while true; do
     initiate_shutdown "max_runtime_reached"
     break
   fi
+
+  if ! kill -0 "$WRAPPER_PID" 2>/dev/null; then
+    echo "[INFO] Wrapper PID $WRAPPER_PID is no longer running, exiting heartbeat  monitor"
+    exit 0
+  fi
 done
 
 echo "[INFO] Timeout monitor exiting"
