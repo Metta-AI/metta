@@ -15,6 +15,8 @@ from cogames.cogs_vs_clips.missions import get_all_missions
 from cogames.cogs_vs_clips.scenarios import GAMES_CATALOG
 from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig
 
+_SUPPORTED_GAME_EXTENSIONS = [".yaml", ".yml", ".json", ".py"]
+
 
 def load_game_config_from_python(path: Path) -> MettaGridConfig:
     """Load a game configuration from a Python file.
@@ -142,6 +144,14 @@ def list_games(console: Console) -> None:
         table.add_row(mission_name, mission_config.description)
 
     console.print(table)
+    console.print()
+    console.print("To specify a <[bold cyan]game[/bold cyan]>, you can:")
+    console.print("  • Use the map name, e.g. 'machina_1'. Will use the default mission for that map.")
+    console.print("  • Use the map name and mission name, e.g. 'machina_1.energy_intensive'")
+    console.print(
+        f"  • Use a path to a game configuration file, e.g. 'path/to/game.yaml' "
+        f"(supported extensions: {', '.join(_SUPPORTED_GAME_EXTENSIONS)})"
+    )
 
 
 def describe_game(game_name: str, game_config: MettaGridConfig, console: Console) -> None:
@@ -216,7 +226,9 @@ def save_game_config(config: MettaGridConfig, output_path: Path) -> None:
         with open(output_path, "w") as f:
             json.dump(config_dict, f, indent=2)
     else:
-        raise ValueError(f"Unsupported file format: {output_path.suffix}. Use .yaml, .yml, or .json")
+        raise ValueError(
+            f"Unsupported file format: {output_path.suffix}. Supported: {', '.join(_SUPPORTED_GAME_EXTENSIONS)}"
+        )
 
 
 def load_game_config(path: Path) -> MettaGridConfig:
@@ -238,7 +250,7 @@ def load_game_config(path: Path) -> MettaGridConfig:
         with open(path, "r") as f:
             config_dict = json.load(f)
     else:
-        raise ValueError(f"Unsupported file format: {path.suffix}. Use .yaml, .yml, or .json")
+        raise ValueError(f"Unsupported file format: {path.suffix}. Supported: {', '.join(_SUPPORTED_GAME_EXTENSIONS)}")
 
     return MettaGridConfig(**config_dict)
 

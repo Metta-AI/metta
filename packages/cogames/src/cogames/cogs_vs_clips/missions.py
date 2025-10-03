@@ -44,7 +44,7 @@ class Mission(BaseModel):
 def _default_mission() -> Mission:
     game = GameConfig(
         resource_names=resources,
-        num_agents=num_agents,
+        num_agents=4,
         actions=ActionsConfig(
             move=ActionConfig(consumed_resources={"energy": 2}),
             noop=ActionConfig(),
