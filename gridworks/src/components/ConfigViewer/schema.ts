@@ -43,16 +43,18 @@ const objectJsonMetaSchema = z.object({
   get additionalProperties(): z.ZodUnion<
     readonly [
       TypedJsonMetaSchema,
-      typeof anyOfJsonMetaSchema,
       typeof refJsonMetaSchema,
+      typeof anyOfJsonMetaSchema,
+      typeof oneOfJsonMetaSchema,
       typeof anyJsonMetaSchema,
       z.ZodLiteral<false>,
     ]
   > {
     return z.union([
       typedJsonMetaSchema,
-      anyOfJsonMetaSchema,
       refJsonMetaSchema,
+      anyOfJsonMetaSchema,
+      oneOfJsonMetaSchema,
       anyJsonMetaSchema,
       z.literal(false),
     ]);
@@ -63,8 +65,9 @@ const objectJsonMetaSchema = z.object({
       z.ZodUnion<
         readonly [
           TypedJsonMetaSchema,
-          typeof anyOfJsonMetaSchema,
           typeof refJsonMetaSchema,
+          typeof anyOfJsonMetaSchema,
+          typeof oneOfJsonMetaSchema,
           typeof anyJsonMetaSchema,
         ]
       >
@@ -81,8 +84,9 @@ const arrayJsonMetaSchema = z.object({
     z.ZodUnion<
       readonly [
         TypedJsonMetaSchema,
-        typeof anyOfJsonMetaSchema,
         typeof refJsonMetaSchema,
+        typeof anyOfJsonMetaSchema,
+        typeof oneOfJsonMetaSchema,
         typeof anyJsonMetaSchema,
       ]
     >
@@ -126,6 +130,29 @@ const anyOfJsonMetaSchema = z.object({
   },
 });
 
+const oneOfJsonMetaSchema = z.object({
+  ...commonJsonMetaSchema,
+  get oneOf(): z.ZodArray<
+    z.ZodUnion<
+      [TypedJsonMetaSchema, typeof refJsonMetaSchema, typeof anyJsonMetaSchema]
+    >
+  > {
+    return z.array(
+      z.union([typedJsonMetaSchema, refJsonMetaSchema, anyJsonMetaSchema])
+    );
+  },
+  discriminator: z
+    .object({
+      get mapping(): z.ZodRecord<z.ZodString, z.ZodString> {
+        return z.record(z.string(), z.string());
+      },
+      propertyName: z.string(),
+    })
+    .optional(),
+});
+
+type OneOfJsonMetaSchema = z.infer<typeof oneOfJsonMetaSchema>;
+
 const refJsonMetaSchema = z.object({
   $ref: z.string(),
 });
@@ -134,8 +161,9 @@ const anyJsonMetaSchema = z.object(commonJsonMetaSchema);
 
 const jsonMetaSchema = z.union([
   typedJsonMetaSchema,
-  anyOfJsonMetaSchema,
   refJsonMetaSchema,
+  anyOfJsonMetaSchema,
+  oneOfJsonMetaSchema,
   anyJsonMetaSchema,
 ]);
 
@@ -177,6 +205,23 @@ type NodeSchemaResult = {
   schema: JsonSchema | undefined;
   debugInfo: NodeSchemaLookupDebugInfo;
 };
+
+function isPolymorphicType(currentType: JsonSchema): boolean {
+  // Heuristics when we know that Pydantic does custom `@field_validator` with polymorphic dispatch based on `type: module.path.ClassName`
+  if ("title" in currentType && currentType.title === "MapBuilderConfig[Any]") {
+    return true;
+  }
+
+  if (
+    "anyOf" in currentType &&
+    currentType.anyOf.some(
+      (c) => "$ref" in c && c["$ref"] === "#/$defs/MapBuilderConfig_Any_"
+    )
+  ) {
+    return true;
+  }
+  return false;
+}
 
 export function useNodeSchema(node: ConfigNode): NodeSchemaResult {
   const debugInfo: NodeSchemaLookupDebugInfo = {};
@@ -258,11 +303,35 @@ export function useNodeSchema(node: ConfigNode): NodeSchemaResult {
     }
 
     // Resolve polymorphic types
-    if (
-      "title" in currentType &&
-      currentType.title === "MapBuilderConfig[Any]"
-    ) {
-      // polymorphic type
+    if ("oneOf" in currentType) {
+      const oneOfType = currentType as OneOfJsonMetaSchema;
+      const discriminator = oneOfType.discriminator;
+      if (!discriminator) {
+        // can't interpret non-discriminated oneOf
+        return { schema: undefined, debugInfo };
+      }
+      const currentValue = getValueByPath(node.path.slice(0, i + 1));
+      if (
+        typeof currentValue === "object" &&
+        currentValue !== null &&
+        "type" in currentValue
+      ) {
+        const discriminatorValueStr = String(currentValue["type"]);
+        const mappedType = discriminator.mapping[discriminatorValueStr];
+        if (!mappedType) {
+          return { schema: undefined, debugInfo };
+        }
+        const discriminatedType = resolveType({ $ref: mappedType });
+        if (discriminatedType) {
+          currentType = discriminatedType;
+        } else {
+          console.warn(
+            "Unknown discriminated type, keeping original type",
+            discriminatorValueStr
+          );
+        }
+      }
+    } else if (isPolymorphicType(currentType)) {
       const currentValue = getValueByPath(node.path.slice(0, i + 1));
       if (
         currentValue &&
@@ -270,11 +339,22 @@ export function useNodeSchema(node: ConfigNode): NodeSchemaResult {
         "type" in currentValue
       ) {
         const typeModule = String(currentValue["type"]);
-        const type = typeModule.split(".").join("__") + "__Config";
-        if (type in mettaSchemas.$defs) {
-          currentType = resolveType({ $ref: "#/$defs/" + type })!;
-        } else {
-          console.warn("Unknown type", typeModule);
+        const typesToTry = [
+          // FQDN
+          typeModule.split(".").join("__") + "__Config",
+          // Short name - used by scenes
+          typeModule.split(".").pop()! + "Config",
+        ];
+        let found = false;
+        for (const type of typesToTry) {
+          if (type in mettaSchemas.$defs) {
+            currentType = resolveType({ $ref: "#/$defs/" + type })!;
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          console.warn("Unknown type - can't find definition", typeModule);
         }
       }
     }
@@ -301,6 +381,8 @@ export function getSchemaTypeStr(property: JsonSchema): string {
     return typeStr;
   } else if ("anyOf" in property) {
     return property.anyOf.map(getSchemaTypeStr).join(" | ");
+  } else if ("oneOf" in property) {
+    return property.oneOf.map(getSchemaTypeStr).join(" | ");
   } else if ("$ref" in property) {
     return property.$ref.split("/").pop()!;
   } else {
