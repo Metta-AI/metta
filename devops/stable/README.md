@@ -48,8 +48,8 @@ git push origin v<VERSION>-rc1
 #### 3.1 Cluster Tests
 
 ```bash
-devops/skypilot/tests/cluster_test launch
-devops/skypilot/tests/cluster_test check
+./devops/skypilot/tests/cluster_test.py launch
+./devops/skypilot/tests/cluster_test.py check
 ```
 
 - Verify all jobs run to completion in Skypilot logs.
@@ -58,8 +58,8 @@ devops/skypilot/tests/cluster_test check
 #### 3.2 Recipe Tests
 
 ```bash
-tests/experiments/recipes/recipe_test launch --staging
-tests/experiments/recipes/recipe_test check
+./tests/experiments/recipes/recipe_test.py launch --staging
+./tests/experiments/recipes/recipe_test.py check
 ```
 
 - Verify jobs run through to completion in Skypilot.
@@ -72,7 +72,7 @@ Important: the `--staging` argument extends the `arena_basic_easy_shaped` test t
 - Find the `experiments/recipes/arena_basic_easy_shaped` Job ID launched in the recipe tests:
 
 ```bash
-tests/experiments/recipes/recipe_test check
+./tests/experiments/recipes/recipe_test.py check
 ```
 
 - Verify data from the job appears correctly in W&B.
@@ -91,7 +91,7 @@ tests/experiments/recipes/recipe_test check
 - Find the `experiments/recipes/arena_basic_easy_shaped` Job ID launched in the recipe tests:
 
 ```bash
-tests/experiments/recipes/recipe_test check
+./tests/experiments/recipes/recipe_test.py check
 ```
 
 - Verify job appears in W&B.
