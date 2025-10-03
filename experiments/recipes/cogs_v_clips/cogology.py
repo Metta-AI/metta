@@ -129,7 +129,7 @@ class CogologyTaskGenerator(TaskGenerator):
     class Config(TaskGeneratorConfig["CogologyTaskGenerator"]):
         stage_config: CogologyStageConfig = ConfigField(...)
         speed_reward_coef: float = ConfigField(default=0.01)
-        stochastic_shaping: bool = ConfigField(default=False)
+        stochastic_shaping: bool = ConfigField(default=True)
 
     def __init__(self, config: "CogologyTaskGenerator.Config"):
         super().__init__(config)
@@ -430,9 +430,13 @@ class CogologyTaskGenerator(TaskGenerator):
             if isinstance(obj, ChestConfig)
         ]
 
-        # Assign unique chest_id to each chest
+        # Assign unique chest_id to each chest and configure deposit/withdrawal
         for i, (chest_key, chest_config) in enumerate(chest_objects[:num_rooms]):
             chest_config.chest_id = f"room_{i}"
+            # Allow deposits from any direction
+            chest_config.deposit_positions = ["N", "S", "E", "W"]
+            # Disable withdrawals (no removal allowed)
+            chest_config.withdrawal_positions = []
 
     def _configure_resource_limits(self, env: MettaGridConfig):
         """Configure resource limits based on stage requirements.
@@ -476,11 +480,12 @@ class CogologyTaskGenerator(TaskGenerator):
         env.game.agents = []
         for agent_id in range(self.stage.num_agents):
             # Determine which room this agent belongs to
-            room_id = agent_id // agents_per_room
+            agent_id // agents_per_room
 
             # Build reward config for this agent
             stats_rewards = {
-                f"chest_room_{room_id}.heart.amount": 1.0,  # Track their room's chest
+                # f"chest_room_{room_id}.heart.amount": 1.0,
+                "heart.lost": 1.0
             }
 
             # Optional: Speed reward (when their chest has 3+ hearts)
