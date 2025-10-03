@@ -91,8 +91,7 @@ Train a policy on a game.
 ### Custom Policy Architectures
 
 To get started, `cogames` supports some torch-nn-based policy architectures out of the box (such as SimplePolicy). To
-supply your own, you will want to extend `cogames.policy.Policy`, and supply a path to your class as the `--policy`
-argument in `cogames train`.
+supply your own, you will want to extend `cogames.policy.Policy`.
 
 ```python
 from cogames.policy import Policy
@@ -117,9 +116,12 @@ class MyPolicy(Policy):
         return policy
 ```
 
-The underlying MettagGrid environment follows the Gymnasium API:
+To train with using your class, supply a path to it with the `--policy`argument, e.g.
+`cogames train --policy path.to.MyPolicy`.
 
 #### Environment API
+
+The underlying environment follows the Gymnasium API:
 
 ```python
 from cogames import get_game
@@ -187,7 +189,7 @@ Create custom game configuration.
 - `--height H`: Map height (default: 10)
 - `--output PATH`: Save to file
 
-You will be able to provide your specified `--output` path as the `game` argument in any of the other
+You will be able to provide your specified `--output` path as the `game` argument to other `cogames` commmands.
 
 ### `cogames version`
 
