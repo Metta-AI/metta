@@ -7,7 +7,6 @@ from typing import Optional
 
 import metta.cogworks.curriculum as cc
 from metta.cogworks.curriculum.curriculum import (
-    CurriculumAlgorithmConfig,
     CurriculumConfig,
 )
 import random
@@ -22,20 +21,20 @@ from metta.tools.train import TrainTool
 from mettagrid.config import MettaGridConfig
 from cogames.cogs_vs_clips.scenarios import make_game
 from mettagrid.mapgen.mapgen import MapGen
-from metta.agent.policies.vit_reset import ViTResetConfig
+from metta.agent.policies.vit import ViTDefaultConfig
 
 
 def make_mettagrid(
-    num_cogs: int = 4,
-    width: int = 10,
+    num_cogs: int = 4,  # av 6 instances x num cogs = env.game.num_agents ?
+    width: int = 10,  # is this per instance or global?
     height: int = 10,
     num_assemblers: int = 1,
     num_chargers: int = 1,
-    num_carbon_extractors: int = 1,
-    num_oxygen_extractors: int = 1,
-    num_germanium_extractors: int = 1,
-    num_silicon_extractors: int = 1,
-    num_chests: int = 1,
+    num_carbon_extractors: int = 4,
+    num_oxygen_extractors: int = 4,
+    num_germanium_extractors: int = 4,
+    num_silicon_extractors: int = 4,
+    num_chests: int = 4,
     dir="packages/cogames/src/cogames/maps/",
 ) -> MettaGridConfig:
     env = make_game(
@@ -54,10 +53,10 @@ def make_mettagrid(
     map_file = random.choice(
         [
             "training_facility_open_1.map",
-            "training_facility_open_2.map",
-            "training_facility_open_3.map",
-            "training_facility_tight_4.map",
-            "training_facility_tight_5.map",
+            # "training_facility_open_2.map",
+            # "training_facility_open_3.map",
+            # "training_facility_tight_4.map",
+            # "training_facility_tight_5.map",
         ]
     )
     env.game.map_builder = MapGen.Config(
@@ -73,15 +72,16 @@ def make_task_generator(facility_env: Optional[MettaGridConfig] = None):
     facility_env = facility_env or make_mettagrid()
     facility_tasks = cc.bucketed(facility_env)
 
-    # Add buckets for whatever you want to bucket over, eg: rewards, recipes, regen amount
-    facility_tasks.add_bucket("game.agent.rewards.inventory.heart", [0, 1, 2])
-    # TODO The below gives an error, for some reason
-    # facility_tasks.add_bucket("game.agent.rewards.stats.chest.heart.amount", [3, 5, 10])
-    facility_tasks.add_bucket("game.agent.rewards.inventory.carbon", [0, 0.5, 1])
-    facility_tasks.add_bucket("game.agent.rewards.inventory.oxygen", [0, 0.5, 1])
-    facility_tasks.add_bucket("game.agent.rewards.inventory.germanium", [0, 0.5, 1])
-    facility_tasks.add_bucket("game.agent.rewards.inventory.silicon", [0, 0.5, 1])
-    facility_tasks.add_bucket("game.max_steps", [250, 500, 1000, 1500])
+    # av dumped this
+    # # Add buckets for whatever you want to bucket over, eg: rewards, recipes, regen amount
+    # facility_tasks.add_bucket("game.agent.rewards.inventory.heart", [0, 1, 2]) # av does this change reward amount?
+    # # TODO The below gives an error, for some reason
+    # # facility_tasks.add_bucket("game.agent.rewards.stats.chest.heart.amount", [3, 5, 10])
+    # facility_tasks.add_bucket("game.agent.rewards.inventory.carbon", [0, 0.5, 1]) # av does this change reward amount?
+    # facility_tasks.add_bucket("game.agent.rewards.inventory.oxygen", [0, 0.5, 1])
+    # facility_tasks.add_bucket("game.agent.rewards.inventory.germanium", [0, 0.5, 1])
+    # facility_tasks.add_bucket("game.agent.rewards.inventory.silicon", [0, 0.5, 1])
+    # facility_tasks.add_bucket("game.max_steps", [250, 500, 1000, 1500])
 
     return facility_tasks
 
@@ -109,7 +109,8 @@ def train() -> TrainTool:
         evaluator=EvaluatorConfig(
             simulations=make_cogs_v_clips_ascii_evals(),
         ),
-        policy_architecture=ViTResetConfig(),
+        # policy_architecture=ViTResetConfig(),
+        policy_architecture=ViTDefaultConfig(),
     )
 
 

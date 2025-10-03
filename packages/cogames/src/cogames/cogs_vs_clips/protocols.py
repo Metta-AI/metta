@@ -30,10 +30,18 @@ def protocol(
 
 def one_agent_heart_recipe() -> RecipeConfig:
     return RecipeConfig(
-        input_resources={"carbon": 20, "oxygen": 20, "germanium": 5, "silicon": 50, "energy": 20},
+        input_resources={"carbon": 1},
         output_resources={"heart": 1},
         cooldown=1,
     )
+
+
+# def one_agent_heart_recipe() -> RecipeConfig:
+#     return RecipeConfig(
+#         input_resources={"carbon": 20, "oxygen": 20, "germanium": 5, "silicon": 50, "energy": 20},
+#         output_resources={"heart": 1},
+#         cooldown=1,
+#     )
 
 
 def two_agent_heart_recipe() -> RecipeConfig:
@@ -70,7 +78,7 @@ def standard_charging_recipe() -> RecipeConfig:
 # Carbon takes time.
 def standard_carbon_recipe() -> RecipeConfig:
     return RecipeConfig(
-        output_resources={"carbon": 4},
+        output_resources={"carbon": 1},
     )
 
 
@@ -83,15 +91,15 @@ def low_carbon_recipe() -> RecipeConfig:
 # Oxygen refreshes somewhat slowly and takes space.
 def standard_oxygen_recipe() -> RecipeConfig:
     return RecipeConfig(
-        output_resources={"oxygen": 100},
-        cooldown=200,
+        output_resources={"oxygen": 1},
+        cooldown=1,
     )
 
 
 def low_oxygen_recipe() -> RecipeConfig:
     return RecipeConfig(
-        output_resources={"oxygen": 10},
-        cooldown=40,
+        output_resources={"oxygen": 1},
+        cooldown=1,
     )
 
 
@@ -113,9 +121,9 @@ def low_silicon_recipe() -> RecipeConfig:
 # Germanium is rare and exhausts / regenerates slowly.
 # Outputs are always low, and the different between high and low is the number of uses.
 def germanium_recipe(num_agents: int) -> RecipeConfig:
-    amount = 1 + 1 * (min(num_agents, 4))
+    # amount = 1 + 1 * (min(num_agents, 4))
     return RecipeConfig(
-        output_resources={"germanium": amount},
+        output_resources={"germanium": 1},
     )
 
 
