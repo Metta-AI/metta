@@ -1209,17 +1209,19 @@ def make_eval_suite() -> list[SimulationConfig]:
     game_configs = games()
     eval_sims = []
 
+    # Reduced eval suite to avoid 413 errors from large payload
     eval_map_keys = [
         "training_facility_1",
-        "training_facility_2",
-        "training_facility_3",
-        "training_facility_4",
-        "training_facility_5",
-        "training_facility_6",
         "machina_1",
-        "machina_2",
+        # Commented out to reduce payload size for remote evaluation
+        # "training_facility_2",
+        # "training_facility_3",
+        # "training_facility_4",
+        # "training_facility_5",
+        # "training_facility_6",
+        # "machina_2",
         # "machina_3",
-        "machina_1_big",
+        # "machina_1_big",
         # "machina_2_bigger",
         # "machina_3_big",
         # "machina_4_bigger",
