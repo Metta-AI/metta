@@ -21,7 +21,7 @@ Overall, Cogs vs Clips aims to present rich environments with:
 - **Partial observability**: Agents have limited visibility of the environment
 - **Required multi-agent cooperation**: Agents must coordinate to efficiently use shared resources and stations
 
-Cogs should refer to their (MISSION.md)[MISSION-NEW.md] for a thorough description of the game mechanics.
+Cogs should refer to their [MISSION.md](MISSION.md) for a thorough description of the game mechanics.
 
 ## Quick Start
 
