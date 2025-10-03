@@ -33,6 +33,7 @@ private:
         }
       }
     }
+
     return positions;
   }
 
