@@ -1,6 +1,7 @@
 import numpy as np
 
 from mettagrid.base_config import Config
+from mettagrid.mapgen.area import AreaWhere
 from mettagrid.mapgen.random.float import FloatDistribution
 from mettagrid.mapgen.random.int import IntDistribution
 from mettagrid.mapgen.scene import ChildrenAction, Scene, SceneConfig
@@ -11,7 +12,6 @@ from mettagrid.mapgen.scenes.random import Random
 from mettagrid.mapgen.scenes.random_objects import RandomObjects
 from mettagrid.mapgen.scenes.random_scene import RandomScene, RandomSceneCandidate
 from mettagrid.mapgen.scenes.room_grid import RoomGrid
-from mettagrid.mapgen.types import AreaWhere
 
 
 class AutoConfigLayout(Config):

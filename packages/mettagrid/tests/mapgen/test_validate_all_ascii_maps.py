@@ -11,7 +11,7 @@ from mettagrid.map_builder.random import RandomMapBuilder
 from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME
 
 
-def find_map_files(root_dir) -> list[str]:
+def find_map_files(root_dir) -> list[Path]:
     """
     Find all .map files.
 
@@ -19,7 +19,7 @@ def find_map_files(root_dir) -> list[str]:
         root_dir: Root directory to search from
 
     Returns:
-        Sorted list of relative paths for .map files
+        Sorted list of absolute paths for .map files
     """
     root_path = Path(root_dir).resolve()
 
@@ -28,9 +28,8 @@ def find_map_files(root_dir) -> list[str]:
         return []
 
     map_files = list(root_path.rglob("*.map"))
-    relative_paths = [str(path.relative_to(Path.cwd())) for path in map_files]
 
-    return sorted(relative_paths)
+    return sorted(map_files)
 
 
 def map_files():
@@ -83,7 +82,7 @@ class TestAsciiMap:
 
     @pytest.fixture
     def content(self, map_file):
-        with open(map_file, "r", encoding="utf-8") as f:
+        with open(str(map_file), "r", encoding="utf-8") as f:
             return f.read()
 
     @pytest.fixture(scope="class")

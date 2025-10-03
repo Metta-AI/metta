@@ -801,12 +801,15 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
       obj_dict["cooldown_duration"] = assembler->cooldown_duration;
       obj_dict["cooldown_progress"] = assembler->cooldown_progress();
       obj_dict["is_clipped"] = assembler->is_clipped;
-      obj_dict["clip_immune"] = assembler->clip_immune;
+      obj_dict["is_clip_immune"] = assembler->clip_immune;
       obj_dict["uses_count"] = assembler->uses_count;
       obj_dict["max_uses"] = assembler->max_uses;
       obj_dict["allow_partial_usage"] = assembler->allow_partial_usage;
       obj_dict["exhaustion"] = assembler->exhaustion;
       obj_dict["cooldown_multiplier"] = assembler->cooldown_multiplier;
+
+      // Add current recipe ID (pattern byte)
+      obj_dict["current_recipe_id"] = static_cast<int>(assembler->get_agent_pattern_byte());
 
       // Add current recipe information
       const Recipe* current_recipe = assembler->get_current_recipe();
@@ -825,25 +828,25 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
         obj_dict["current_recipe_cooldown"] = current_recipe->cooldown;
       }
 
-      // Add all recipes information
+      // Add all recipes information (only non-null recipes)
       const std::vector<std::shared_ptr<Recipe>>& active_recipes = assembler->is_clipped ? assembler->unclip_recipes : assembler->recipes;
       py::list recipes_list;
+
       for (size_t i = 0; i < active_recipes.size(); ++i) {
         if (active_recipes[i]) {
           py::dict recipe_dict;
-          recipe_dict["pattern_index"] = static_cast<int>(i);
 
           py::dict input_resources_dict;
           for (const auto& [resource, quantity] : active_recipes[i]->input_resources) {
             input_resources_dict[py::int_(resource)] = quantity;
           }
-          recipe_dict["input_resources"] = input_resources_dict;
+          recipe_dict["inputs"] = input_resources_dict;
 
           py::dict output_resources_dict;
           for (const auto& [resource, quantity] : active_recipes[i]->output_resources) {
             output_resources_dict[py::int_(resource)] = quantity;
           }
-          recipe_dict["output_resources"] = output_resources_dict;
+          recipe_dict["outputs"] = output_resources_dict;
           recipe_dict["cooldown"] = active_recipes[i]->cooldown;
 
           recipes_list.append(recipe_dict);
