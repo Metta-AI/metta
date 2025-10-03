@@ -1,14 +1,15 @@
 import numpy as np
+from pydantic import Field
 
 from mettagrid.mapgen.scene import Scene, SceneConfig
-from mettagrid.mapgen.utils.ascii_grid import char_grid_to_lines
-from mettagrid.util.char_encoder import char_to_grid_object
+from mettagrid.mapgen.utils.ascii_grid import char_grid_to_lines, default_char_to_name
 
 
 class InlineAsciiConfig(SceneConfig):
     data: str
     row: int = 0
     column: int = 0
+    char_to_name: dict[str, str] = Field(default_factory=default_char_to_name)
 
 
 class InlineAscii(Scene[InlineAsciiConfig]):
@@ -17,7 +18,9 @@ class InlineAscii(Scene[InlineAsciiConfig]):
 
         lines, _, _ = char_grid_to_lines(config.data)
         self.ascii_grid = np.array([list(line) for line in lines], dtype="U6")
-        self.ascii_grid = np.vectorize(char_to_grid_object)(self.ascii_grid)
+        # Convert characters to object names using the provided mapping
+        if config.char_to_name:
+            self.ascii_grid = np.vectorize(lambda char: config.char_to_name.get(char, char))(self.ascii_grid)
 
     def render(self):
         config = self.config

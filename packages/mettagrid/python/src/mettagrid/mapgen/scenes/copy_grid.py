@@ -1,7 +1,7 @@
 from pydantic import ConfigDict, Field
 
+from mettagrid.map_builder import MapGrid
 from mettagrid.mapgen.scene import Scene, SceneConfig
-from mettagrid.mapgen.types import MapGrid
 
 
 class CopyGridConfig(SceneConfig):

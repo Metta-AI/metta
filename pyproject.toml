@@ -3,7 +3,7 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["codebot", "cogweb", "devops", "experiments", "metta", "mettascope", "softmax"]
+packages = ["cogweb", "devops", "experiments", "metta", "mettascope"]
 py-modules = []
 
 [project]
@@ -76,6 +76,7 @@ license = "MIT"
 
 [dependency-groups]
 testing = [
+  "gcovr>=8.3",
   "pytest>=8.3.3",
   "pytest-benchmark>=5.1.0",
   "pytest-cov>=6.1.1",
@@ -86,7 +87,6 @@ testing = [
   "pyright>=1.1.401",
 ]
 lint = ["cpplint>=2.0.2", "ruff>=0.11.13"]
-coverage = ["gcovr>=8.3"]
 interactive = [
   "anywidget>=0.9.18",
   "ipykernel>=6.29.5",
@@ -109,7 +109,9 @@ mapgen-scene = "tools.map.gen_scene:main"
 
 [tool.coverage.run]
 source = [
+  "codebot",
   "cogames",
+  "gitta",
   "metta",
   "mettagrid",
   "metta.common",
@@ -148,11 +150,11 @@ default-groups = ["interactive", "dev"]
 members = [
   "agent",
   "app_backend",
-  "codebot",
   "common",
   "experiments",
-  "gitta",
+  "packages/codebot",
   "packages/cogames",
+  "packages/gitta",
   "packages/mettagrid",
   "packages/pufferlib-core",
   "softmax",

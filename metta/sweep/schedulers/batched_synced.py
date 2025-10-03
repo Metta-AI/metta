@@ -15,7 +15,7 @@ from pydantic import Field
 
 from metta.adaptive.models import JobDefinition, JobStatus, RunInfo
 from metta.adaptive.utils import create_eval_job, create_training_job, generate_run_id
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +49,8 @@ class SchedulerState:
     runs_in_training: set[str] = field(default_factory=set)
     runs_in_eval: set[str] = field(default_factory=set)
     runs_completed: set[str] = field(default_factory=set)
+    # Runs detected in IN_EVAL at startup that should be re-evaluated
+    runs_pending_force_eval: set[str] = field(default_factory=set)
 
     def model_dump(self) -> dict[str, Any]:
         """Serialize state to dictionary."""
@@ -56,6 +58,7 @@ class SchedulerState:
             "runs_in_training": list(self.runs_in_training),
             "runs_in_eval": list(self.runs_in_eval),
             "runs_completed": list(self.runs_completed),
+            "runs_pending_force_eval": list(self.runs_pending_force_eval),
         }
 
     @classmethod
@@ -65,6 +68,7 @@ class SchedulerState:
             runs_in_training=set(data.get("runs_in_training", [])),
             runs_in_eval=set(data.get("runs_in_eval", [])),
             runs_completed=set(data.get("runs_completed", [])),
+            runs_pending_force_eval=set(data.get("runs_pending_force_eval", [])),
         )
 
 
@@ -131,11 +135,12 @@ class BatchedSyncedOptimizingScheduler:
                         logger.info(f"[BatchedSyncedOptimizingScheduler] Found run {run_id} in training")
                     elif status == JobStatus.IN_EVAL:
                         if self.config.force_eval:
-                            # Don't track in runs_in_eval - this will cause re-dispatch
+                            # Do not mark as in_eval so we can re-dispatch an eval job
                             logger.info(
                                 f"[BatchedSyncedOptimizingScheduler] Found run {run_id} in evaluation - "
                                 "FORCING RE-EVALUATION due to force_eval=True"
                             )
+                            self.state.runs_pending_force_eval.add(run_id)
                             force_eval_count += 1
                         else:
                             self.state.runs_in_eval.add(run_id)
@@ -192,6 +197,33 @@ class BatchedSyncedOptimizingScheduler:
 
         # Update internal state from observed runs
         self._update_state_from_runs(runs)
+
+        # 0) Handle any runs pending forced re-evaluation first
+        if self.state.runs_pending_force_eval:
+            for run_id in list(self.state.runs_pending_force_eval):
+                # Only schedule if the run still exists
+                run = next((r for r in runs if r.run_id == run_id), None)
+                if run is None:
+                    # Drop if not visible in current run list
+                    self.state.runs_pending_force_eval.discard(run_id)
+                    continue
+
+                job = create_eval_job(
+                    run_id=run_id,
+                    experiment_id=self.config.experiment_id,
+                    recipe_module=self.config.recipe_module,
+                    eval_entrypoint=self.config.eval_entrypoint,
+                    stats_server_uri=self.config.stats_server_uri,
+                    eval_overrides=self.config.eval_overrides,
+                )
+                jobs.append(job)
+                # Mark as in eval to avoid duplicate dispatch
+                self.state.runs_in_eval.add(run_id)
+                self.state.runs_pending_force_eval.discard(run_id)
+                logger.info(f"[BatchedSyncedOptimizingScheduler] Scheduling forced re-evaluation for {run_id}")
+
+            if jobs:
+                return jobs
 
         # 1) Schedule evals for any runs with training done but no eval yet
         eval_candidates = [r for r in runs if r.status == JobStatus.TRAINING_DONE_NO_EVAL]

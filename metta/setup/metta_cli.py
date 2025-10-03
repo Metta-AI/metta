@@ -4,13 +4,14 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Literal, Optional
+from typing import TYPE_CHECKING, Annotated, Optional
 
 import typer
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
+import gitta as git
 from metta.common.util.fs import get_repo_root
 from metta.setup.components.base import SetupModuleStatus
 from metta.setup.local_commands import app as local_app
@@ -28,18 +29,14 @@ PYTHON_TEST_FOLDERS = [
     "mettascope/tests",
     "agent/tests",
     "app_backend/tests",
-    "codebot/tests",
     "common/tests",
-    "packages/mettagrid/tests",
+    "packages/codebot/tests",
     "packages/cogames/tests",
+    "packages/gitta/tests",
+    "packages/mettagrid/tests",
 ]
 
 VERSION_PATTERN = re.compile(r"^(\d+\.\d+\.\d+(?:\.\d+)?)$")
-PACKAGE_TAG_PREFIXES = {
-    "mettagrid": "mettagrid-v",
-    "cogames": "cogames-v",
-    "pufferlib-core": "pufferlib-core-v",
-}
 DEFAULT_INITIAL_VERSION = "0.0.0.1"
 
 
@@ -189,20 +186,6 @@ def _run_ruff(python_targets: list[str] | None, *, fix: bool) -> None:
             raise typer.Exit(e.returncode) from e
 
 
-def _run_git_command(args: list[str], *, capture_output: bool = True) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        ["git", *args],
-        cwd=cli.repo_root,
-        capture_output=capture_output,
-        text=True,
-        check=True,
-    )
-
-
-def _get_git_output(args: list[str]) -> str:
-    return _run_git_command(args).stdout.strip()
-
-
 def _bump_version(version: str) -> str:
     parts = version.split(".")
     bumped = parts[:-1] + [str(int(parts[-1]) + 1)]
@@ -216,8 +199,7 @@ def _validate_version_format(version: str) -> None:
 
 
 def _ensure_tag_unique(package: str, version: str) -> None:
-    prefix = PACKAGE_TAG_PREFIXES[package]
-    tag_name = f"{prefix}{version}"
+    tag_name = f"{package}-v{version}"
     result = subprocess.run(
         ["git", "rev-parse", "-q", "--verify", f"refs/tags/{tag_name}"],
         cwd=cli.repo_root,
@@ -290,6 +272,15 @@ def _get_selected_modules(components: list[str] | None = None) -> list["SetupMod
         for m in get_all_modules()
         if (components is not None and m.name in components) or (components is None and m.is_enabled())
     ]
+
+
+def _get_all_package_names() -> list[str]:
+    """Return all valid package names in <repo_root>/packages/ (dirs with __init__.py or setup.py)."""
+    repo_root = cli.repo_root
+    packages_dir = repo_root / "packages"
+    if not packages_dir.exists():
+        return []
+    return sorted(p.name for p in packages_dir.iterdir() if p.is_dir() and not p.name.startswith("."))
 
 
 @app.command(name="install", help="Install or update components")
@@ -519,34 +510,31 @@ def cmd_clean(verbose: Annotated[bool, typer.Option("--verbose", help="Verbose o
 
 @app.command(name="publish", help="Create and push a release tag for a package")
 def cmd_publish(
-    package: Annotated[
-        Literal["mettagrid", "cogames", "pufferlib-core"],
-        typer.Argument(help="Package to publish (for example 'mettagrid', 'cogames', or 'pufferlib-core')"),
-    ],
+    package: Annotated[str, typer.Argument(help="Package to publish")],
     version_override: Annotated[
         Optional[str],
         typer.Option("--version", "-v", help="Explicit version to tag (digits separated by dots)"),
     ] = None,
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Preview actions without tagging")] = False,
+    no_repo: Annotated[bool, typer.Option("--no-repo", help="Don't push the github repo")] = False,
     remote: Annotated[str, typer.Option("--remote", help="Git remote to push the tag to")] = "origin",
     force: Annotated[bool, typer.Option("--force", help="Bypass branch and clean checks")] = False,
 ):
     package = package.lower()
-    if package not in PACKAGE_TAG_PREFIXES:
-        error(f"Unsupported package '{package}'. Supported packages: {', '.join(sorted(PACKAGE_TAG_PREFIXES))}.")
+    if package not in _get_all_package_names():
+        error(f"Unsupported package '{package}'. Supported packages: {', '.join(sorted(_get_all_package_names()))}.")
         raise typer.Exit(1)
 
-    prefix = PACKAGE_TAG_PREFIXES[package]
-
+    prefix = f"{package}-v"
     try:
         info(f"Fetching tags from {remote}...")
-        _run_git_command(["fetch", remote, "--tags"], capture_output=False)
+        git.run_git("fetch", remote, "--tags", "--force")
     except subprocess.CalledProcessError as exc:
         error(f"Failed to fetch tags from {remote}: {exc}")
         raise typer.Exit(exc.returncode) from exc
 
     try:
-        status_output = _get_git_output(["status", "--porcelain"])
+        status_output = git.run_git("status", "--porcelain")
     except subprocess.CalledProcessError as exc:
         error(f"Failed to read git status: {exc}")
         raise typer.Exit(exc.returncode) from exc
@@ -556,8 +544,8 @@ def cmd_publish(
         raise typer.Exit(1)
 
     try:
-        current_branch = _get_git_output(["rev-parse", "--abbrev-ref", "HEAD"])
-        current_commit = _get_git_output(["rev-parse", "HEAD"])
+        current_branch = git.run_git("rev-parse", "--abbrev-ref", "HEAD")
+        current_commit = git.run_git("rev-parse", "HEAD")
     except subprocess.CalledProcessError as exc:
         error(f"Failed to determine git state: {exc}")
         raise typer.Exit(exc.returncode) from exc
@@ -567,7 +555,7 @@ def cmd_publish(
         raise typer.Exit(1)
 
     try:
-        tag_list_output = _get_git_output(["tag", "--list", f"{prefix}*", "--sort=-v:refname"])
+        tag_list_output = git.run_git("tag", "--list", f"{prefix}*", "--sort=-v:refname")
     except subprocess.CalledProcessError:
         tag_list_output = ""
 
@@ -612,13 +600,25 @@ def cmd_publish(
         return
 
     try:
-        _run_git_command(["tag", "-a", tag_name, "-m", f"Release {package} {target_version}"])
-        _run_git_command(["push", remote, tag_name], capture_output=False)
+        info(f"Tagging {package} {target_version}...")
+        git.run_git("tag", "-a", tag_name, "-m", f"Release {package} {target_version}")
+        git.run_git("push", remote, tag_name)
     except subprocess.CalledProcessError as exc:
-        error(f"Failed to publish: {exc}")
+        error(f"Failed to tag: {exc}.")
         raise typer.Exit(exc.returncode) from exc
 
     success(f"Published {tag_name} to {remote}.")
+
+    try:
+        if not no_repo:
+            info(f"Pushing {package} as child repo...")
+            subprocess.run([f"{cli.repo_root}/devops/git/push_child_repo.py", package, "-y"], check=True)
+    except subprocess.CalledProcessError as exc:
+        error(
+            f"Failed to publish: {exc}. {tag_name} was still published to {remote}."
+            + " Use --no-repo to skip pushing to github repo."
+        )
+        raise typer.Exit(exc.returncode) from exc
 
 
 @app.command(name="lint", help="Run linting and formatting")
@@ -633,14 +633,8 @@ def cmd_lint(
     if files is not None:
         python_targets, cpp_targets = _partition_supported_lint_files(files)
     elif staged:
-        result = subprocess.run(
-            ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
-            cwd=cli.repo_root,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        staged_files = [f for f in result.stdout.strip().split("\n") if f]
+        staged_output = git.run_git("diff", "--cached", "--name-only", "--diff-filter=ACM")
+        staged_files = [f for f in staged_output.strip().split("\n") if f]
         python_targets, cpp_targets = _partition_supported_lint_files(staged_files)
     else:
         python_targets = None

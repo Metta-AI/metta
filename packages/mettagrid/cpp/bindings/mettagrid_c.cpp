@@ -8,12 +8,14 @@
 #include <iostream>
 #include <numeric>
 #include <random>
+#include <unordered_set>
 
 #include "actions/action_handler.hpp"
 #include "actions/attack.hpp"
 #include "actions/change_color.hpp"
 #include "actions/change_glyph.hpp"
 #include "actions/get_output.hpp"
+#include "actions/resource_mod.hpp"
 #include "actions/move.hpp"
 #include "actions/noop.hpp"
 #include "actions/put_recipe_items.hpp"
@@ -26,6 +28,7 @@
 #include "objects/agent.hpp"
 #include "objects/assembler.hpp"
 #include "objects/assembler_config.hpp"
+#include "objects/chest.hpp"
 #include "objects/constants.hpp"
 #include "objects/converter.hpp"
 #include "objects/converter_config.hpp"
@@ -52,7 +55,6 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
       _num_observation_tokens(game_config.num_observation_tokens),
       _track_movement_metrics(game_config.track_movement_metrics),
       _resource_loss_prob(game_config.resource_loss_prob),
-      _inventory_regen_amounts(game_config.inventory_regen_amounts),
       _inventory_regen_interval(game_config.inventory_regen_interval) {
   _seed = seed;
   _rng = std::mt19937(seed);
@@ -107,6 +109,9 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
       _action_handlers.push_back(std::make_unique<Swap>(*action_config));
     } else if (action_name == "change_color") {
       _action_handlers.push_back(std::make_unique<ChangeColor>(*action_config));
+    } else if (action_name == "resource_mod") {
+      auto modify_config = std::static_pointer_cast<const ResourceModConfig>(action_config);
+      _action_handlers.push_back(std::make_unique<ResourceMod>(*modify_config, action_name));
     } else {
       throw std::runtime_error("Unknown action: " + action_name);
     }
@@ -252,11 +257,11 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   // Initialize global systems
   if (_game_config.clipper) {
     auto& clipper_cfg = *_game_config.clipper;
-    if (!clipper_cfg.recipe) {
-      throw std::runtime_error("Clipper config provided but recipe is null");
+    if (clipper_cfg.unclipping_recipes.empty()) {
+      throw std::runtime_error("Clipper config provided but unclipping_recipes is empty");
     }
-    _clipper = std::make_unique<Clipper>(
-        *_grid, clipper_cfg.recipe, clipper_cfg.length_scale, clipper_cfg.cutoff_distance, clipper_cfg.clip_rate);
+    _clipper = std::make_unique<Clipper>(*_grid, clipper_cfg.unclipping_recipes, clipper_cfg.length_scale,
+                                         clipper_cfg.cutoff_distance, clipper_cfg.clip_rate, _rng);
   }
 }
 
@@ -462,7 +467,7 @@ void MettaGrid::_step(Actions actions) {
       }
 
       // Tolerate invalid action arguments
-      if (arg > _max_action_args[action_idx]) {
+      if (arg < 0 || arg > _max_action_args[action_idx]) {
         _handle_invalid_action(agent_idx, "action.invalid_arg", action, arg);
         continue;
       }
@@ -497,18 +502,20 @@ void MettaGrid::_step(Actions actions) {
     }
   }
 
-  // Handle inventory regeneration
+  // Handle per-agent inventory regeneration (global interval check, per-agent amounts)
   if (_inventory_regen_interval > 0 && current_step % _inventory_regen_interval == 0) {
     for (auto* agent : _agents) {
-      for (const auto& [item, amount] : _inventory_regen_amounts) {
-        agent->update_inventory(item, amount);
+      if (!agent->inventory_regen_amounts.empty()) {
+        for (const auto& [item, amount] : agent->inventory_regen_amounts) {
+          agent->update_inventory(item, amount);
+        }
       }
     }
   }
 
   // Apply global systems
   if (_clipper) {
-    _clipper->maybe_clip_new_assembler(_rng);
+    _clipper->maybe_clip_new_assembler();
   }
 
   // Compute observations for next step
@@ -677,16 +684,50 @@ py::tuple MettaGrid::step(const py::array_t<ActionType, py::array::c_style> acti
   return py::make_tuple(_observations, _rewards, _terminals, _truncations, py::dict());
 }
 
-py::dict MettaGrid::grid_objects() {
+py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_col, const py::list& ignore_types) {
   py::dict objects;
+
+  // Determine if bounding box filtering is enabled
+  bool use_bounds = (min_row >= 0 && max_row >= 0 && min_col >= 0 && max_col >= 0);
+
+  // Convert ignore_types list (type names) to type IDs for O(1) integer comparison
+  std::unordered_set<TypeId> ignore_type_ids;
+  for (const auto& item : ignore_types) {
+    std::string type_name = item.cast<std::string>();
+    // Find the type_id for this type_name
+    for (size_t type_id = 0; type_id < object_type_names.size(); ++type_id) {
+      if (object_type_names[type_id] == type_name) {
+        ignore_type_ids.insert(static_cast<TypeId>(type_id));
+        break;
+      }
+    }
+  }
+  bool use_type_filter = !ignore_type_ids.empty();
 
   for (unsigned int obj_id = 1; obj_id < _grid->objects.size(); obj_id++) {
     auto obj = _grid->object(obj_id);
     if (!obj) continue;
 
+    // Filter by type_id if specified (fast integer comparison)
+    if (use_type_filter) {
+      if (ignore_type_ids.find(obj->type_id) != ignore_type_ids.end()) {
+        continue;
+      }
+    }
+
+    // Filter by bounding box if specified
+    if (use_bounds) {
+      if (obj->location.r < min_row || obj->location.r >= max_row ||
+          obj->location.c < min_col || obj->location.c >= max_col) {
+        continue;
+      }
+    }
+
     py::dict obj_dict;
     obj_dict["id"] = obj_id;
     obj_dict["type"] = obj->type_id;
+    obj_dict["type_id"] = obj->type_id;
+    obj_dict["type_name"] = object_type_names[obj->type_id];
     // Location here is defined as XYZ coordinates specifically to be used by MettaScope.
     // We define that for location: x is column, y is row, and z is layer.
     // Note: it might be different for matrix computations.
@@ -715,10 +756,17 @@ py::dict MettaGrid::grid_objects() {
     if (auto* agent = dynamic_cast<Agent*>(obj)) {
       obj_dict["orientation"] = static_cast<int>(agent->orientation);
       obj_dict["group_id"] = agent->group;
+      obj_dict["group_name"] = agent->group_name;
       obj_dict["is_frozen"] = !!agent->frozen;
       obj_dict["freeze_remaining"] = agent->frozen;
       obj_dict["freeze_duration"] = agent->freeze_duration;
       obj_dict["color"] = agent->color;
+      obj_dict["glyph"] = agent->glyph;
+      obj_dict["agent_id"] = agent->agent_id;
+      obj_dict["action_failure_penalty"] = agent->action_failure_penalty;
+      obj_dict["current_stat_reward"] = agent->current_stat_reward;
+      obj_dict["prev_action_name"] = agent->prev_action_name;
+      obj_dict["steps_without_motion"] = agent->steps_without_motion;
 
       // We made resource limits more complicated than this, and need to review how to expose them.
       // py::dict resource_limits_dict;
@@ -726,7 +774,6 @@ py::dict MettaGrid::grid_objects() {
       //   resource_limits_dict[py::int_(resource)] = quantity;
       // }
       // obj_dict["resource_limits"] = resource_limits_dict;
-      obj_dict["agent_id"] = agent->agent_id;
     }
 
     if (auto* converter = dynamic_cast<Converter*>(obj)) {
@@ -746,6 +793,79 @@ py::dict MettaGrid::grid_objects() {
         output_resources_dict[py::int_(resource)] = quantity;
       }
       obj_dict["output_resources"] = output_resources_dict;
+    }
+
+    // Add assembler-specific info
+    if (auto* assembler = dynamic_cast<Assembler*>(obj)) {
+      obj_dict["cooldown_remaining"] = assembler->cooldown_remaining();
+      obj_dict["cooldown_duration"] = assembler->cooldown_duration;
+      obj_dict["cooldown_progress"] = assembler->cooldown_progress();
+      obj_dict["is_clipped"] = assembler->is_clipped;
+      obj_dict["is_clip_immune"] = assembler->clip_immune;
+      obj_dict["uses_count"] = assembler->uses_count;
+      obj_dict["max_uses"] = assembler->max_uses;
+      obj_dict["allow_partial_usage"] = assembler->allow_partial_usage;
+      obj_dict["exhaustion"] = assembler->exhaustion;
+      obj_dict["cooldown_multiplier"] = assembler->cooldown_multiplier;
+
+      // Add current recipe ID (pattern byte)
+      obj_dict["current_recipe_id"] = static_cast<int>(assembler->get_agent_pattern_byte());
+
+      // Add current recipe information
+      const Recipe* current_recipe = assembler->get_current_recipe();
+      if (current_recipe) {
+        py::dict input_resources_dict;
+        for (const auto& [resource, quantity] : current_recipe->input_resources) {
+          input_resources_dict[py::int_(resource)] = quantity;
+        }
+        obj_dict["current_recipe_inputs"] = input_resources_dict;
+
+        py::dict output_resources_dict;
+        for (const auto& [resource, quantity] : current_recipe->output_resources) {
+          output_resources_dict[py::int_(resource)] = quantity;
+        }
+        obj_dict["current_recipe_outputs"] = output_resources_dict;
+        obj_dict["current_recipe_cooldown"] = current_recipe->cooldown;
+      }
+
+      // Add all recipes information (only non-null recipes)
+      const std::vector<std::shared_ptr<Recipe>>& active_recipes = assembler->is_clipped ? assembler->unclip_recipes : assembler->recipes;
+      py::list recipes_list;
+
+      for (size_t i = 0; i < active_recipes.size(); ++i) {
+        if (active_recipes[i]) {
+          py::dict recipe_dict;
+
+          py::dict input_resources_dict;
+          for (const auto& [resource, quantity] : active_recipes[i]->input_resources) {
+            input_resources_dict[py::int_(resource)] = quantity;
+          }
+          recipe_dict["inputs"] = input_resources_dict;
+
+          py::dict output_resources_dict;
+          for (const auto& [resource, quantity] : active_recipes[i]->output_resources) {
+            output_resources_dict[py::int_(resource)] = quantity;
+          }
+          recipe_dict["outputs"] = output_resources_dict;
+          recipe_dict["cooldown"] = active_recipes[i]->cooldown;
+
+          recipes_list.append(recipe_dict);
+        }
+      }
+      obj_dict["recipes"] = recipes_list;
+    }
+
+    // Add chest-specific info
+    if (auto* chest = dynamic_cast<Chest*>(obj)) {
+      obj_dict["resource_type"] = static_cast<int>(chest->resource_type);
+      obj_dict["max_inventory"] = chest->max_inventory;
+
+      // Convert position_deltas map to dict
+      py::dict position_deltas_dict;
+      for (const auto& [pos, delta] : chest->position_deltas) {
+        position_deltas_dict[py::int_(pos)] = delta;
+      }
+      obj_dict["position_deltas"] = position_deltas_dict;
     }
 
     objects[py::int_(obj_id)] = obj_dict;
@@ -896,7 +1016,13 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("terminals").noconvert(),
            py::arg("truncations").noconvert(),
            py::arg("rewards").noconvert())
-      .def("grid_objects", &MettaGrid::grid_objects)
+      .def("grid_objects",
+           &MettaGrid::grid_objects,
+           py::arg("min_row") = -1,
+           py::arg("max_row") = -1,
+           py::arg("min_col") = -1,
+           py::arg("max_col") = -1,
+           py::arg("ignore_types") = py::list())
       .def("action_names", &MettaGrid::action_names)
       .def_property_readonly("map_width", &MettaGrid::map_width)
       .def_property_readonly("map_height", &MettaGrid::map_height)
@@ -939,6 +1065,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
   bind_action_config(m);
   bind_attack_action_config(m);
   bind_change_glyph_action_config(m);
+  bind_resource_mod_config(m);
   bind_global_obs_config(m);
   bind_clipper_config(m);
   bind_game_config(m);

@@ -1,13 +1,103 @@
 from __future__ import annotations
 
-from typing import Any, ClassVar, Generic, TypeVar, get_args, get_origin
+from enum import StrEnum, auto
+from typing import Any, ClassVar, Final, Generic, TypeVar, get_args, get_origin
 
 import numpy as np
 from pydantic import model_serializer
 
-from mettagrid.config.config import Config
-from mettagrid.mapgen.types import Area, AreaQuery, MapGrid
+from mettagrid.base_config import Config
+from mettagrid.map_builder import MapGrid
+from mettagrid.mapgen.area import Area, AreaQuery
 from mettagrid.util.module import load_symbol
+
+
+class GridTransform(StrEnum):
+    IDENTITY = auto()
+    ROT_90 = auto()
+    ROT_180 = auto()
+    ROT_270 = auto()
+    FLIP_H = auto()
+    FLIP_V = auto()
+    TRANSPOSE = auto()
+    TRANSPOSE_ALT = auto()
+
+    @property
+    def transpose(self) -> bool:
+        return TRANSFORM_FLAGS[self][0]
+
+    @property
+    def flip_v(self) -> bool:
+        return TRANSFORM_FLAGS[self][1]
+
+    @property
+    def flip_h(self) -> bool:
+        return TRANSFORM_FLAGS[self][2]
+
+    def inverse(self):
+        if self == GridTransform.ROT_90:
+            return GridTransform.ROT_270
+        elif self == GridTransform.ROT_270:
+            return GridTransform.ROT_90
+        else:
+            return self
+
+    def apply(self, grid: MapGrid) -> MapGrid:
+        """
+        Apply this transformation to a numpy array.
+
+        All transformations are views, so editing them will edit the original grid.
+        """
+        if self == GridTransform.IDENTITY:
+            return grid
+        result = grid.T if self.transpose else grid
+        if self.flip_v:
+            result = np.flip(result, axis=0)
+        if self.flip_h:
+            result = np.flip(result, axis=1)
+        return result
+
+    def apply_to_coords(self, grid: MapGrid, x: int, y: int) -> tuple[int, int]:
+        """
+        Apply this transformation to a coordinate.
+        """
+        H, W = grid.shape
+
+        if self.transpose:
+            x, y = y, x
+            H, W = W, H  # Shape changes after transpose
+
+        if self.flip_v:
+            y = H - 1 - y
+        if self.flip_h:
+            x = W - 1 - x
+
+        return x, y
+
+    def compose(self, other: GridTransform):
+        """Return the transform equivalent to applying self then other."""
+        # Use a canonical test grid to determine composition
+        test_grid = np.array([[0, 1], [2, 3]])
+        composed_result = other.apply(self.apply(test_grid))
+
+        # Find which single transform produces the same result
+        for transform in GridTransform:
+            if np.array_equal(transform.apply(test_grid), composed_result):
+                return transform
+
+        raise RuntimeError("Composition not found")  # Should never happen
+
+
+TRANSFORM_FLAGS: Final[dict[GridTransform, tuple[bool, bool, bool]]] = {
+    GridTransform.IDENTITY: (False, False, False),
+    GridTransform.ROT_90: (True, False, True),
+    GridTransform.ROT_180: (False, True, True),
+    GridTransform.ROT_270: (True, True, False),
+    GridTransform.FLIP_H: (False, False, True),
+    GridTransform.FLIP_V: (False, True, False),
+    GridTransform.TRANSPOSE: (True, False, False),
+    GridTransform.TRANSPOSE_ALT: (True, True, True),
+}
 
 
 class SceneConfig(Config):
@@ -15,6 +105,9 @@ class SceneConfig(Config):
     _scene_cls: ClassVar[type[Scene]] | None = None
     children: list[ChildrenAction] = []
     seed: int | None = None
+
+    # Transform relative to the area that this scene config receives in `create`.
+    transform: GridTransform = GridTransform.IDENTITY
 
     @property
     def scene_cls(self) -> type[Scene]:
@@ -29,8 +122,12 @@ class SceneConfig(Config):
             raise ValueError(f"{self.__class__.__name__} is not bound to a scene class")
         return {"type": f"{self._scene_cls.__module__}.{self._scene_cls.__name__}", **data}
 
-    def create(self, area: Area, rng: np.random.Generator) -> Scene:
-        return self.scene_cls(area=area, config=self, rng=rng)
+    def create_root(self, area: Area, rng: np.random.Generator | None = None) -> Scene:
+        return self.scene_cls(area=area, config=self, rng=rng or np.random.default_rng())
+
+    def create_as_child(self, parent_scene: Scene, area: Area) -> Scene:
+        rng = parent_scene.rng.spawn(1)[0]
+        return self.scene_cls(area=area, config=self, rng=rng, parent_scene=parent_scene)
 
 
 def validate_any_scene_config(v: Any) -> SceneConfig:
@@ -84,6 +181,10 @@ class Scene(Generic[ConfigT]):
     _areas: list[Area]
     children: list[Scene]
 
+    # Full transform relative to the root grid.
+    # This can be different from `self.config.transform`, which is a local transform relative to the parent scene.
+    transform: GridTransform
+
     # { "lock_name": [area_id1, area_id2, ...] }
     _locks: dict[str, set[int]]
 
@@ -107,19 +208,21 @@ class Scene(Generic[ConfigT]):
         self,
         area: Area,
         rng: np.random.Generator,
-        config: ConfigT | None = None,
+        config: ConfigT,
+        parent_scene: Scene | None = None,
     ):
         # Validate config - they can come from untyped yaml or from weakly typed dicts in python code.
-        self.config = self.Config.model_validate(config or {})
+        self.config = self.Config.model_validate(config)
 
         self.children = []
 
         self.area = area
+        self.parent_scene = parent_scene
+        self.transform = (
+            parent_scene.transform.compose(self.config.transform) if parent_scene else self.config.transform
+        )
 
-        # shortcuts for common properties
-        self.grid = area.grid
-        self.height = self.grid.shape[0]
-        self.width = self.grid.shape[1]
+        self._update_shortcuts()
 
         self._areas = []
         self._locks = {}
@@ -127,6 +230,18 @@ class Scene(Generic[ConfigT]):
         self.rng = np.random.default_rng(self.config.seed or rng)
 
         self.post_init()
+
+    def _update_shortcuts(self):
+        # shortcuts for common properties
+
+        grid = self.area.grid
+        # Render on the inversed transformed grid, so the end result looks like the correct transformation from the
+        # point of view of the original grid
+        grid = self.transform.inverse().apply(grid)
+
+        self.grid = grid
+        self.height = grid.shape[0]
+        self.width = grid.shape[1]
 
     def post_init(self):
         """
@@ -180,19 +295,28 @@ class Scene(Generic[ConfigT]):
         for action in children_actions:
             areas = self.select_areas(action)
             for area in areas:
-                child_rng = self.rng.spawn(1)[0]
-                child_scene = action.scene.create(area, child_rng)
+                child_scene = action.scene.create_as_child(self, area)
                 self.children.append(child_scene)
                 child_scene.render_with_children()
 
     def make_area(self, x: int, y: int, width: int, height: int, tags: list[str] | None = None) -> Area:
-        area = Area(
-            x=x + self.area.x,
-            y=y + self.area.y,
-            width=width,
-            height=height,
-            grid=self.grid[y : y + height, x : x + width],
-            tags=tags or [],
+        inverse_transform = self.transform.inverse()
+        # Transform both corners, then find the bounds of the area in untransformed coordinates.
+        (orig_x1, orig_y1) = inverse_transform.apply_to_coords(self.grid, x, y)
+        (orig_x2, orig_y2) = inverse_transform.apply_to_coords(self.grid, x + width - 1, y + height - 1)
+        if orig_x1 > orig_x2:
+            orig_x1, orig_x2 = orig_x2, orig_x1
+        if orig_y1 > orig_y2:
+            orig_y1, orig_y2 = orig_y2, orig_y1
+        orig_width = orig_x2 - orig_x1 + 1
+        orig_height = orig_y2 - orig_y1 + 1
+
+        area = self.area.make_subarea(
+            x=orig_x1,
+            y=orig_y1,
+            width=orig_width,
+            height=orig_height,
+            tags=tags,
         )
         self._areas.append(area)
         return area
@@ -295,14 +419,14 @@ class Scene(Generic[ConfigT]):
             # This function is recursive, but we only want to copy the grid once, on top level of recursion.
             # Also, when we recurse into children, we don't need to update the scene's area, because it was already
             # updated when we transplant all `_areas`.
-            original_grid = self.grid
-            self.area.transplant_to_grid(grid, shift_x, shift_y)
-            self.area.grid[:] = original_grid
-            self.grid = self.area.grid
+            self.area.transplant_to_grid(grid, shift_x, shift_y, copy_grid=True)
+
+        # Scene's area could be modified by previous levels of recursion.
+        self._update_shortcuts()
 
         # transplant all sub-areas
         for sub_area in self._areas:
-            sub_area.transplant_to_grid(self.grid, shift_x, shift_y)
+            sub_area.transplant_to_grid(self.grid, shift_x, shift_y, copy_grid=False)
 
         # recurse into children scenes
         for child_scene in self.children:
