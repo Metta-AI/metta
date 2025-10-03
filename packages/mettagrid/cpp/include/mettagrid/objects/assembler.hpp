@@ -309,13 +309,13 @@ public:
     Recipe recipe_to_use = *original_recipe;
     if (progress < 1.0f && allow_partial_usage) {
       recipe_to_use = scale_recipe_for_partial_usage(*original_recipe, progress);
+      if (!recipe_has_positive_output(recipe_to_use)) {
+        return false;
+      }
     }
 
     std::vector<Agent*> surrounding_agents = get_surrounding_agents();
     if (!can_afford_recipe(recipe_to_use, surrounding_agents)) {
-      return false;
-    }
-    if (!recipe_has_positive_output(recipe_to_use)) {
       return false;
     }
     consume_resources_for_recipe(recipe_to_use, surrounding_agents);
