@@ -1213,12 +1213,11 @@ def make_eval_suite() -> list[SimulationConfig]:
     eval_map_keys = [
         "training_facility_1",
         "machina_1",
-        # Commented out to reduce payload size for remote evaluation
-        # "training_facility_2",
-        # "training_facility_3",
-        # "training_facility_4",
-        # "training_facility_5",
-        # "training_facility_6",
+        "training_facility_2",
+        "training_facility_3",
+        "training_facility_4",
+        "training_facility_5",
+        "training_facility_6",
         # "machina_2",
         # "machina_3",
         # "machina_1_big",
