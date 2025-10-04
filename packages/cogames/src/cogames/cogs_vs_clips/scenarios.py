@@ -68,9 +68,9 @@ def _base_game_config(num_agents: int) -> MettaGridConfig:
             },
             agent=AgentConfig(
                 resource_limits={
-                    "heart": 20,
+                    "heart": 1,
                     "energy": 100,
-                    ("carbon", "oxygen", "germanium", "silicon"): 20,
+                    ("carbon", "oxygen", "germanium", "silicon"): 1,
                     ("scrambler", "modulator", "decoder", "resonator"): 5,
                 },
                 rewards=AgentRewards(
@@ -80,6 +80,7 @@ def _base_game_config(num_agents: int) -> MettaGridConfig:
                         "oxygen.gained": 0.1,
                         "germanium.gained": 0.1,
                         "silicon.gained": 0.1,
+                        "heart.gained": 0.2,
                         "heart.lost": 1,
                     },
                     stats_max={
@@ -88,6 +89,7 @@ def _base_game_config(num_agents: int) -> MettaGridConfig:
                         "oxygen.gained": 0.1,
                         "germanium.gained": 0.1,
                         "silicon.gained": 0.1,
+                        "heart.gained": 0.2,
                     },
                     inventory={},
                 ),

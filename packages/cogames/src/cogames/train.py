@@ -178,7 +178,7 @@ def train(
         minibatch_size=amended_minibatch_size,
         batch_size=amended_batch_size,
         data_dir=str(checkpoints_path),
-        checkpoint_interval=200,
+        checkpoint_interval=40,  # was 200
         bptt_horizon=bptt_horizon,
         seed=seed,
         use_rnn=use_rnn,
