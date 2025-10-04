@@ -5,7 +5,6 @@ import httpx
 import yaml
 from pydantic import BaseModel
 
-from metta.app_backend.server import WhoAmIResponse
 from metta.common.util.collections import remove_none_values
 from metta.common.util.constants import PROD_STATS_SERVER_URI
 
@@ -69,6 +68,8 @@ class BaseAppBackendClient:
         return response_type.model_validate(response.json())
 
     async def _validate_authenticated(self) -> str:
+        from metta.app_backend.server import WhoAmIResponse
+
         auth_user = await self._make_request(WhoAmIResponse, "GET", "/whoami")
         if auth_user.user_email in ["unknown", None]:
             raise NotAuthenticatedError(f"Not authenticated. User: {auth_user.user_email}")

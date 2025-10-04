@@ -14,7 +14,7 @@ class TestMapGenSize:
         (width, height, border_width) = (10, 10, 2)
 
         mg = MapGen.Config(
-            root=Nop.factory(),
+            instance=Nop.Config(),
             width=width,
             height=height,
             border_width=border_width,
@@ -34,14 +34,14 @@ class TestMapGenSize:
 
     def test_dimensions_required(self):
         mg = MapGen.Config(
-            root=Nop.factory(),
+            instance=Nop.Config(),
         ).create()
         with pytest.raises(ValueError, match="width and height must be provided"):
             mg.build()
 
     def test_intrinsic_size(self):
         mg = MapGen.Config(
-            root=InlineAscii.factory(InlineAscii.Params(data="@")),
+            instance=InlineAscii.Config(data="@"),
             border_width=2,
         ).create()
         level = mg.build()
@@ -50,7 +50,7 @@ class TestMapGenSize:
 
     def test_intrinsic_size_with_explicit_dimensions(self):
         mg = MapGen.Config(
-            root=InlineAscii.factory(InlineAscii.Params(data="@")),
+            instance=InlineAscii.Config(data="@"),
             width=10,
             height=10,
             border_width=2,
@@ -71,7 +71,7 @@ class TestMapGenInstances:
     def test_instances(self, instances, instance_bw):
         width, height, border_width = 5, 3, 2
         mg = MapGen.Config(
-            root=InlineAscii.factory(InlineAscii.Params(data="@")),
+            instance=InlineAscii.Config(data="@"),
             width=width,
             height=height,
             border_width=border_width,
@@ -91,13 +91,10 @@ class TestMapGenInstances:
 
     def test_num_agents(self):
         mg = MapGen.Config(
-            root=InlineAscii.factory(
-                InlineAscii.Params(
-                    data="""
+            instance=InlineAscii.Config(
+                data="""
                         .@.
-                        .@.
-                    """,
-                ),
+                        .@.""",
             ),
             # 10 agents, 2 per instance, so 5 instances
             num_agents=10,

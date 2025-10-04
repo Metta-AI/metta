@@ -177,7 +177,7 @@ def make_app(cfg: "PlayTool"):
 
         async def send_replay_step():
             grid_objects = []
-            for i, grid_object in enumerate(env.grid_objects.values()):
+            for i, grid_object in enumerate(env.grid_objects().values()):
                 if len(grid_objects) <= i:
                     grid_objects.append({})
 

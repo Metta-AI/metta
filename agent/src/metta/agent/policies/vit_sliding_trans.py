@@ -8,7 +8,7 @@ from metta.agent.components.misc import MLPConfig
 from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
 from metta.agent.components.obs_shim import ObsShimTokensConfig
 from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourierConfig
-from metta.agent.components.sliding_transformer import SlidingTransformerConfig
+from metta.agent.policies.sliding_transformer import SlidingTransformerConfig
 from metta.agent.policy import PolicyArchitecture
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ class ViTSlidingTransConfig(PolicyArchitecture):
     _token_embed_dim = 8
     _fourier_freqs = 3
     _embed_dim = 16
-    _core_out_dim = 16
+    _core_out_dim = 32
     _memory_num_layers = 2
 
     components: List[ComponentConfig] = [
@@ -42,7 +42,11 @@ class ViTSlidingTransConfig(PolicyArchitecture):
             num_layers=2,
         ),
         SlidingTransformerConfig(
-            in_key="encoded_obs", out_key="core", output_dim=_core_out_dim, num_layers=_memory_num_layers
+            in_key="encoded_obs",
+            out_key="core",
+            hidden_size=_core_out_dim,
+            latent_size=_latent_dim,
+            num_layers=_memory_num_layers,
         ),
         MLPConfig(
             in_key="core",

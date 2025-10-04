@@ -113,7 +113,7 @@ const InnerSceneTreeViewer: FC<TreeProps> = ({ sceneTree, depth = 0 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const hasChildren = sceneTree.children.length > 0;
 
-  const colorClass = getSceneTypeColor(sceneTree.type);
+  const colorClass = getSceneTypeColor(sceneTree.config.type);
 
   return (
     <div className={clsx(depth > 0 && "mt-2 ml-4")}>
@@ -129,7 +129,7 @@ const InnerSceneTreeViewer: FC<TreeProps> = ({ sceneTree, depth = 0 }) => {
           <div className="min-w-0 flex-1">
             <div className="mb-1 flex items-center gap-2 overflow-hidden">
               <span className="truncate text-sm font-bold">
-                {sceneTree.type}
+                {sceneTree.config.type}
               </span>
               <div className="flex flex-shrink-0 items-center gap-1 rounded px-2 py-0.5 font-mono text-xs">
                 <span className="text-gray-600">
@@ -142,7 +142,7 @@ const InnerSceneTreeViewer: FC<TreeProps> = ({ sceneTree, depth = 0 }) => {
               </div>
             </div>
 
-            <ParamsViewer params={sceneTree.params} />
+            <ParamsViewer params={sceneTree.config} />
             <ChildrenViewer
               childrenScenes={sceneTree.children}
               isExpanded={isExpanded}

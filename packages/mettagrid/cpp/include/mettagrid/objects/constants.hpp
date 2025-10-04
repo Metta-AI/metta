@@ -37,7 +37,9 @@ constexpr ObservationType TypeId = 0;
 constexpr ObservationType Group = 1;
 constexpr ObservationType Frozen = 2;
 constexpr ObservationType Orientation = 3;
-constexpr ObservationType Color = 4;
+// This used to be Color, but we removed it. We're leaving this here for backward compatibility, but may fill it
+// in with a more useful feature in the future.
+constexpr ObservationType ReservedForFutureUse = 4;
 constexpr ObservationType ConvertingOrCoolingDown = 5;
 constexpr ObservationType Swappable = 6;
 constexpr ObservationType EpisodeCompletionPct = 7;
@@ -48,7 +50,9 @@ constexpr ObservationType Glyph = 11;
 constexpr ObservationType VisitationCounts = 12;
 constexpr ObservationType Tag = 13;
 constexpr ObservationType CooldownRemaining = 14;
-constexpr ObservationType ObservationFeatureCount = 15;
+constexpr ObservationType Clipped = 15;
+constexpr ObservationType RemainingUses = 16;
+constexpr ObservationType ObservationFeatureCount = 17;
 }  // namespace ObservationFeature
 
 const ObservationType InventoryFeatureOffset = ObservationFeature::ObservationFeatureCount;
@@ -60,7 +64,7 @@ inline const std::map<ObservationType, std::string>& GetFeatureNames() {
       {ObservationFeature::Group, "agent:group"},
       {ObservationFeature::Frozen, "agent:frozen"},
       {ObservationFeature::Orientation, "agent:orientation"},
-      {ObservationFeature::Color, "agent:color"},
+      {ObservationFeature::ReservedForFutureUse, "agent:reserved_for_future_use"},
       {ObservationFeature::ConvertingOrCoolingDown, "converting"},
       {ObservationFeature::Swappable, "swappable"},
       {ObservationFeature::EpisodeCompletionPct, "episode_completion_pct"},
@@ -70,14 +74,15 @@ inline const std::map<ObservationType, std::string>& GetFeatureNames() {
       {ObservationFeature::Glyph, "agent:glyph"},
       {ObservationFeature::VisitationCounts, "agent:visitation_counts"},
       {ObservationFeature::Tag, "tag"},
-      {ObservationFeature::CooldownRemaining, "cooldown_remaining"}};
+      {ObservationFeature::CooldownRemaining, "cooldown_remaining"},
+      {ObservationFeature::Clipped, "clipped"},
+      {ObservationFeature::RemainingUses, "remaining_uses"}};
   return feature_names;
 }
 
 // ##ObservationNormalization
 // These are approximate maximum values for each feature. Ideally they would be defined closer to their source,
 // but here we are. If you add / remove a feature, you should add / remove the corresponding normalization.
-// These should move to configuration "soon". E.g., by 2025-06-10.
 inline const std::map<ObservationType, float>& GetFeatureNormalizations() {
   static const std::map<ObservationType, float> feature_normalizations = {
       {ObservationFeature::LastAction, 10.0},
@@ -88,13 +93,15 @@ inline const std::map<ObservationType, float>& GetFeatureNormalizations() {
       {ObservationFeature::Group, 10.0},
       {ObservationFeature::Frozen, 1.0},
       {ObservationFeature::Orientation, 1.0},
-      {ObservationFeature::Color, 255.0},
+      {ObservationFeature::ReservedForFutureUse, 255.0},
       {ObservationFeature::ConvertingOrCoolingDown, 1.0},
       {ObservationFeature::Swappable, 1.0},
       {ObservationFeature::Glyph, 255.0},
       {ObservationFeature::VisitationCounts, 1000.0},
       {ObservationFeature::Tag, 10.0},
-      {ObservationFeature::CooldownRemaining, 255.0}};
+      {ObservationFeature::CooldownRemaining, 255.0},
+      {ObservationFeature::Clipped, 1.0},
+      {ObservationFeature::RemainingUses, 255.0}};
   return feature_normalizations;
 }
 

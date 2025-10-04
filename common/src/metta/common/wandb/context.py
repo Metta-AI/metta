@@ -1,18 +1,16 @@
 import logging
 import os
 import socket
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import wandb
-import wandb.sdk.wandb_run
-from wandb.errors import CommError
+from mettagrid.base_config import Config
 
-from mettagrid.config import Config
+if TYPE_CHECKING:
+    from wandb.sdk.wandb_run import Run as WandbRun
+else:
+    WandbRun = Any
 
 logger = logging.getLogger(__name__)
-
-# Alias type for easier usage (other modules can import this type)
-WandbRun = wandb.sdk.wandb_run.Run
 
 
 class WandbConfig(Config):
@@ -98,9 +96,12 @@ class WandbContext:
 
         logger.info(f"Initializing W&B run with timeout={self.timeout}s")
 
+        import wandb
+        from wandb.errors import CommError
+
         try:
             tags = list(self.wandb_config.tags)
-            tags.append("user:" + os.environ.get("METTA_USER", "unknown"))
+            tags.append("user:" + os.environ.get("METTA_USER", os.environ.get("USER", "unknown")))
 
             # Build config dict
             config = None
@@ -112,7 +113,7 @@ class WandbContext:
                     # Assume it's a Config object with model_dump method
                     class_name = self.run_config.__class__.__name__
                     key = self.run_config_name or class_name or "extra_config_object"
-                    config = {key: self.run_config.model_dump()}
+                    config = {key: self.run_config.model_dump(mode="json")}
                 elif isinstance(self.run_config, str):
                     config = self.run_config
                 else:
@@ -156,12 +157,12 @@ class WandbContext:
 
         except (TimeoutError, CommError) as e:
             error_type = "timeout" if isinstance(e, TimeoutError) else "communication"
-            logger.warning(f"W&B initialization failed due to {error_type} error: {str(e)}")
+            logger.error(f"W&B initialization failed due to {error_type} error: {str(e)}", exc_info=True)
             logger.info("Continuing without W&B logging")
             self.run = None
 
         except Exception as e:
-            logger.error(f"Unexpected error during W&B initialization: {str(e)}")
+            logger.error(f"Unexpected error during W&B initialization: {str(e)}", exc_info=True)
             logger.info("Continuing without W&B logging")
             self.run = None
 
@@ -170,6 +171,8 @@ class WandbContext:
     @staticmethod
     def cleanup_run(run: WandbRun | None):
         if run:
+            import wandb
+
             try:
                 wandb.finish()
             except Exception as e:

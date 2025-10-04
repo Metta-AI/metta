@@ -4,7 +4,7 @@ import os
 import re
 import sys
 import time
-from io import TextIOBase
+from io import StringIO, TextIOBase
 from pathlib import Path
 from typing import cast
 
@@ -340,8 +340,6 @@ def tail_job_log(job_id: str, lines: int = 100) -> str | None:
             return f"Error: Job {job_id} not found"
 
         # Use a StringIO to capture output
-        from io import StringIO
-
         output = StringIO()
 
         try:

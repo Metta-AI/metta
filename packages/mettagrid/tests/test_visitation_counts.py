@@ -31,9 +31,7 @@ def env_with_visitation():
             num_observation_tokens=100,
             resource_names=["wood", "stone"],
             actions=ActionsConfig(
-                noop=ActionConfig(enabled=False),
-                move=ActionConfig(enabled=True),  # Enable 8-way movement
-                get_items=ActionConfig(enabled=False),
+                move=ActionConfig(),  # Enable 8-way movement
             ),
             objects={"wall": WallConfig(type_id=1)},
             global_obs=GlobalObsConfig(
@@ -72,9 +70,7 @@ def env_without_visitation():
             num_observation_tokens=100,
             resource_names=["wood", "stone"],
             actions=ActionsConfig(
-                noop=ActionConfig(enabled=False),
-                move=ActionConfig(enabled=True),  # Enable 8-way movement
-                get_items=ActionConfig(enabled=False),
+                move=ActionConfig(),  # Enable 8-way movement
             ),
             objects={"wall": WallConfig(type_id=1)},
             global_obs=GlobalObsConfig(
@@ -113,9 +109,7 @@ def env_default():
             num_observation_tokens=100,
             resource_names=["wood", "stone"],
             actions=ActionsConfig(
-                noop=ActionConfig(enabled=False),
-                move=ActionConfig(enabled=True),  # Enable 8-way movement
-                get_items=ActionConfig(enabled=False),
+                move=ActionConfig(),  # Enable 8-way movement
             ),
             objects={"wall": WallConfig(type_id=1)},
             # No explicit visitation_counts setting - uses default (False)

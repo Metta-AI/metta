@@ -1,12 +1,32 @@
 import
-  boxy, chroma, fidget2/hybridrender,
-  common, panels
+  std/[json, os],
+  boxy, chroma, fidget2, jsony,
+  common, panels, replays
 
-proc drawEnvConfig*(panel: Panel) =
+var envConfig: Node
 
-  let box = IRect(x: 0, y: 0, w: panel.rect.w, h: panel.rect.h)
+find "/UI/EnvironmentInfo":
+  onLoad:
+    envConfig = find("/UI/EnvironmentInfo").copy()
+    envConfig.position = vec2(0, 0)
 
-  bxy.drawRect(
-    rect = box.rect,
-    color = color(0, 1, 0, 1.0)
-  )
+find "/UI/Main/**/EnvironmentInfo/OpenConfig":
+  onClick:
+    let text =
+      if replay.isNil or replay.mgConfig.isNil:
+        "No replay config found."
+      else:
+        replay.mgConfig.pretty
+    if not existsDir("tmp"):
+      createDir("tmp")
+    writeFile("tmp/mg_config.json", text)
+    when defined(windows):
+      discard execShellCmd("notepad tmp/mg_config.json")
+    elif defined(macosx):
+      discard execShellCmd("open -a TextEdit tmp/mg_config.json")
+    else:
+      discard execShellCmd("xdg-open tmp/mg_config.json")
+
+proc updateEnvConfig*() =
+  ## Updates the environment config panel to
+  environmentInfoPanel.node.addChild(envConfig)

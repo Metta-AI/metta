@@ -1,4 +1,4 @@
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 
 class AnalysisConfig(Config):

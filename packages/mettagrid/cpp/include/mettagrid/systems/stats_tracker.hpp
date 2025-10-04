@@ -21,23 +21,15 @@ private:
   // Test class needs access for testing
   friend class StatsTrackerTest;
 
-  // Use a static function to avoid global destructor
-  static const std::string& get_unknown_resource_name() {
-    static const std::string name = "[unknown -- StatsTracker resource names not initialized]";
-    return name;
-  }
-
 public:
-  StatsTracker() : _stats(), _resource_names(nullptr) {}
-
-  void set_resource_names(const std::vector<std::string>* resource_names) {
-    _resource_names = resource_names;
+  explicit StatsTracker(const std::vector<std::string>* resource_names)
+      : _stats(), _resource_names(resource_names) {
+    if (resource_names == nullptr) {
+      throw std::invalid_argument("resource_names cannot be null");
+    }
   }
 
   const std::string& resource_name(InventoryItem item) const {
-    if (_resource_names == nullptr) {
-      return get_unknown_resource_name();
-    }
     return (*_resource_names)[item];
   }
 
@@ -54,12 +46,16 @@ public:
     _stats[key] = value;
   }
 
-  float get(const std::string& key) {
-    return _stats[key];
+  float get(const std::string& key) const {
+    auto it = _stats.find(key);
+    if (it == _stats.end()) {
+      return 0.0f;
+    }
+    return it->second;
   }
 
   // Convert to map for Python API
-  std::map<std::string, float> to_dict() const {
+  const std::map<std::string, float>& to_dict() const {
     return _stats;
   }
 

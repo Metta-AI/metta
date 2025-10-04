@@ -46,7 +46,9 @@ python_files = ["test_*.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]
 # Exclude the generic Bazel C++ test runner script (not a pytest test)
+# Exclude Bazel symlink directories
 addopts = "--ignore=tests/run_test.py"
+norecursedirs = ["bazel-*", ".bazel_output", ".*"]
 
 [tool.uv]
 cache-keys = [
@@ -55,6 +57,9 @@ cache-keys = [
   { file = "cpp/BUILD.bazel" },
   { file = "MODULE.bazel" },
   { file = "cpp/**/*.{cpp,hpp}" },
+  { file = "nim/mettascope/src/**/*.{nim,nims}" },
+  { file = "nim/mettascope/bindings/bindings.nim" },
+  { file = "nim/mettascope/mettascope.nimble" },
 ]
 
 [tool.setuptools.packages.find]
@@ -62,7 +67,7 @@ where = ["python/src", "cpp/src"]
 include = ["mettagrid", "mettagrid.*"]
 
 [tool.setuptools.package-data]
-"mettagrid" = ["py.typed", "*.so", "*.pyi", "*.pyd", "*.dylib"]
+"mettagrid" = ["py.typed", "*.so", "*.pyi", "*.pyd", "*.dylib", "nim/mettascope/**/*"]
 
 [tool.uv.sources]
 metta-common = { workspace = true }

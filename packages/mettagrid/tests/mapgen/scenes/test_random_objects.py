@@ -5,9 +5,7 @@ from mettagrid.test_support.mapgen import render_scene
 
 def test_objects():
     scene = render_scene(
-        RandomObjects.factory(
-            RandomObjects.Params(object_ranges={"altar": FloatUniformDistribution(low=0.2, high=0.5)})
-        ),
+        RandomObjects.Config(object_ranges={"altar": FloatUniformDistribution(low=0.2, high=0.5)}),
         (10, 10),
     )
 
