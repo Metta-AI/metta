@@ -191,7 +191,7 @@ def create_eval_job(
         run_id=run_id,
         cmd=f"{recipe_module}.{eval_entrypoint}",
         type=JobTypes.LAUNCH_EVAL,
-        args={"policy_uri": f"{SOFTMAX_S3_POLICY_PREFIX}/{run_id}/{run_id}:latest"},
+        args={"policy_uri": f"{SOFTMAX_S3_POLICY_PREFIX}/{run_id}:latest"},
         overrides=overrides,
         metadata={},
     )
