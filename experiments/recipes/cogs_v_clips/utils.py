@@ -192,7 +192,6 @@ def make_assembler(inputs, outputs, positions):
 
 def make_extractor(resource, inputs, outputs, position):
     extractor = EXTRACTORS[resource]
-
     # we only want to output a single resource
     reduced_outputs = {}
     for output in outputs:

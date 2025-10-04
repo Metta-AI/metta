@@ -107,9 +107,9 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
                 )
                 input_resources = {} if i == 0 else {input_resource: 1}
                 extractor = make_extractor(
-                    resource=resource_chain[i],
+                    resource=output_resource,
                     inputs=input_resources,
-                    outputs=output_resource,
+                    outputs={output_resource: 1},
                     position=recipe_position,
                 )
                 self.add_to_game_cfg(extractor, cfg)
@@ -175,7 +175,9 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
         return icl_env
 
 
-def train(curriculum_style: str = "pairs", architecture: str = "lstm_reset") -> TrainTool:
+def train(
+    curriculum_style: str = "pairs", architecture: str = "lstm_reset"
+) -> TrainTool:
     from experiments.evals.cogs_v_clips.foraging import make_foraging_eval_suite
 
     task_generator_cfg = AssemblyLinesTaskGenerator.Config(
@@ -239,18 +241,20 @@ def experiment():
     import subprocess
     import time
 
-    for curriculum_style in assembly_lines_curriculum_args:
-        subprocess.run(
-            [
-                "./devops/skypilot/launch.py",
-                "experiments.recipes.cogs_v_clips.assembly_lines.train",
-                f"run=cogs_v_clips.assembly_lines.lstmresets.{curriculum_style}.{random.randint(0, 10000)}.{time.strftime('%Y-%m-%d')}",
-                f"curriculum_style={curriculum_style}",
-                "--gpus=4",
-                "--heartbeat-timeout=3600",
-                "--skip-git-check",
-            ]
-        )
+    for architecture in ["lstm_reset", "vit_reset"]:
+        for curriculum_style in assembly_lines_curriculum_args:
+            subprocess.run(
+                [
+                    "./devops/skypilot/launch.py",
+                    "experiments.recipes.cogs_v_clips.assembly_lines.train",
+                    f"architecture={architecture}",
+                    f"run=cogs_v_clips.assembly_lines.{architecture}.{curriculum_style}.{random.randint(0, 10000)}.{time.strftime('%Y-%m-%d')}",
+                    f"curriculum_style={curriculum_style}",
+                    "--gpus=4",
+                    "--heartbeat-timeout=3600",
+                    "--skip-git-check",
+                ]
+            )
         time.sleep(1)
 
 
