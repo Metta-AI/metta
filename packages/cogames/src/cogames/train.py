@@ -33,7 +33,6 @@ def train(
     batch_size: int,
     minibatch_size: int,
     game_name: Optional[str] = None,
-    *,
     vector_num_envs: Optional[int] = None,
     vector_batch_size: Optional[int] = None,
     vector_num_workers: Optional[int] = None,
@@ -72,10 +71,10 @@ def train(
         backend = pufferlib.vector.Serial
         num_workers = 1
 
-    num_envs = vector_num_envs if vector_num_envs is not None else 256
+    num_envs = vector_num_envs or 256
 
     envs_per_worker = max(1, num_envs // num_workers)
-    base_batch_size = vector_batch_size if vector_batch_size is not None else 128
+    base_batch_size = vector_batch_size or 128
     vector_batch_size = max(base_batch_size, envs_per_worker)
     remainder = vector_batch_size % envs_per_worker
     if remainder:
