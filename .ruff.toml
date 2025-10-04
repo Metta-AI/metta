@@ -16,6 +16,8 @@ exclude = [
   "dist",                    # Distribution builds
   "node_modules",            # Node.js packages
   "packages/pufferlib-core", # Exclude pufferlib-core from linting
+  "agent/src/metta/agent/components/mamba_ssm", # Vendored Mamba SSM kernels
+  "agent/src/mamba_ssm", # Shim package for vendored Mamba SSM
   "*.ipynb",                 # Exclude notebooks from linting
   ".nim_runtime",            # Nim runtime generated files
 ]
