@@ -1,86 +1,57 @@
-FROM pufferai/puffertank:3.0
-# FROM pytorch/pytorch:2.2.1-cuda12.1-cudnn8-devel
+FROM nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04 AS builder
 
-# Set the timezone and install packages in one layer, clean up apt cache
-RUN ln -snf /usr/share/zoneinfo/America/Los_Angeles /etc/localtime \
-    && echo America/Los_Angeles > /etc/timezone \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends \
-        ninja-build \
-        git \
-        sudo \
-        wget \
-        vim \
-        screen \
-        spirv-tools \
-        xdg-utils \
-        python3-opencv \
-        curl \
-        ffmpeg \
-        libx264-dev \
-        git-lfs \
-        tmux \
-        iproute2 \
-        netcat-openbsd \
-        iputils-ping \
-    && git lfs install \
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TORCH_CUDA_ARCH_LIST=7.5;8.0;8.6;8.9;9.0
+ENV READTHEDOCS=True
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    git \
+    ca-certificates \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Bazel for mettagrid build
 RUN curl -L https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -o /usr/local/bin/bazel \
     && chmod +x /usr/local/bin/bazel
 
-# Configure screen
-RUN echo "defscrollback 10000" >> /root/.screenrc && \
-    echo "termcapinfo xterm* ti@:te@" >> /root/.screenrc
-
-RUN touch /root/.no_auto_tmux
-COPY devops/mettabox/tmux.conf /root/.tmux.conf
-
-# Install uv
-COPY --from=ghcr.io/astral-sh/uv:0.7.2 /uv /uvx /bin/
-
+RUN mkdir -p /workspace/metta
 WORKDIR /workspace/metta
 
-# Install dependencies
+COPY --from=ghcr.io/astral-sh/uv:0.8.13 /uv /uvx /bin/
+
 COPY .python-version pyproject.toml uv.lock ./
+RUN uv python install
+
+# Install any missing system deps
+COPY devops/tools/install-system.sh /usr/local/bin/install-system.sh
+RUN chmod +x /usr/local/bin/install-system.sh
+RUN /usr/local/bin/install-system.sh
+
 COPY packages/mettagrid/pyproject.toml packages/mettagrid/
 COPY app_backend/pyproject.toml app_backend/
 COPY common/pyproject.toml common/
 COPY agent/pyproject.toml agent/
 COPY experiments/pyproject.toml experiments/
 
-ENV UV_LINK_MODE=copy
-ARG TARGETPLATFORM
-RUN --mount=type=cache,target=/root/.cache/uv,id=uv-cache/${TARGETPLATFORM} \
-    uv sync --no-install-workspace --frozen
+RUN uv sync --no-install-workspace --frozen
 
-# Install sources
 COPY . .
-
-# When building in CI, actions/checkout stores an auth token in .git/config that we need to remove
-RUN git config --remove-section http."https://github.com/" || true
-
-# Make sure the remote is configured for anonymous access
-RUN git remote remove origin && git remote add origin https://github.com/Metta-AI/metta.git
-
-# Doesn't do anything but guarantees that the remote is configured for anonymous access
-RUN git fetch
-
-RUN --mount=type=cache,target=/root/.cache/uv,id=uv-cache/${TARGETPLATFORM} \
-    uv sync --locked
 
 ENV PATH="/workspace/metta/.venv/bin:$PATH"
 ENV VIRTUAL_ENV="/workspace/metta/.venv"
 
-RUN sed -i '\#cd /puffertank/pufferlib#d' /root/.bashrc \
- && echo 'cd /workspace/metta' >> /root/.bashrc
+# When building in CI, actions/checkout stores an auth token in .git/config that we need to remove
+# Make sure the remote is configured for anonymous access
+RUN git config --remove-section http."https://github.com/" || true
+RUN git remote remove origin && git remote add origin https://github.com/Metta-AI/metta.git
+# Doesn't do anything but guarantees that the remote is configured for anonymous access
+RUN git fetch
 
-# Remove Puffertank's empty bash prompt
-RUN sed -i '/export PS1=\$..*$/d' /root/.bashrc \
- && echo 'export PS1="\u@\h:\w\$ "' >> /root/.bashrc
-
-RUN echo 'if [ -n "$VIRTUAL_ENV" ]; then deactivate 2>/dev/null || true; fi' >> /root/.bashrc && \
+RUN echo 'cd /workspace/metta' >> /root/.bashrc && \
     echo 'source /workspace/metta/.venv/bin/activate' >> /root/.bashrc
+
+RUN uv sync --locked
 
 ENTRYPOINT ["/bin/bash", "-c"]
