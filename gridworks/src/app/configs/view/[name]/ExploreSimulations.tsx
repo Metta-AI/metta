@@ -9,14 +9,14 @@ import { Config } from "@/lib/api";
 
 import { MapSection } from "./MapSection";
 
-export const ExploreSimulations: FC<{ cfg: Config }> = ({ cfg }) => {
-  const simulationsSchema = z.array(
-    z.object({
-      name: z.string(),
-      env: z.unknown(),
-    })
-  );
+const simulationsSchema = z.array(
+  z.object({
+    name: z.string(),
+    env: z.unknown(),
+  })
+);
 
+export const ExploreSimulations: FC<{ cfg: Config }> = ({ cfg }) => {
   const [selectedSimulation, setSelectedSimulation] = useState<string | null>(
     null
   );
