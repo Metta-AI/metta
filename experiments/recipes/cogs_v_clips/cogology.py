@@ -38,7 +38,7 @@ from mettagrid.config.mettagrid_config import (
     RecipeConfig,
     Field as ConfigField,
 )
-from metta.agent.policies.vit_reset import ViTResetConfig
+from metta.agent.policies.lstm_reset import LSTMResetConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
@@ -138,33 +138,115 @@ class CogologyTaskGenerator(TaskGenerator):
         self.stochastic_shaping = config.stochastic_shaping
 
     def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
-        """Generate a task for the current stage."""
+        """Generate a task for the current stage with retry logic for unsolvable tasks."""
+        import logging
 
-        # Select variant (if stage has variants)
-        variant = rng.choice(self.stage.variants) if self.stage.variants else "A"
+        logger = logging.getLogger(__name__)
 
-        # Generate map based on type
-        if self.stage.map_type == "premade":
-            env = self._generate_premade_map(rng)
-        else:
-            env = self._generate_procedural_map(rng, variant)
+        max_attempts = 100
+        for attempt in range(max_attempts):
+            # Select variant (if stage has variants)
+            variant = rng.choice(self.stage.variants) if self.stage.variants else "A"
 
-        # Set initial inventory
-        if self.stage.initial_inventory_options:
-            initial_inv = rng.choice(self.stage.initial_inventory_options)
-            env.game.agent.initial_inventory.update(initial_inv)
+            # Generate map based on type
+            if self.stage.map_type == "premade":
+                env = self._generate_premade_map(rng)
+            else:
+                env = self._generate_procedural_map(rng, variant)
 
-        # Configure default rewards (will be overridden per-agent)
-        env.game.agent.rewards = self._build_reward_config(rng)
+            # Set initial inventory
+            if self.stage.initial_inventory_options:
+                initial_inv = rng.choice(self.stage.initial_inventory_options)
+                env.game.agent.initial_inventory.update(initial_inv)
 
-        # Configure per-agent rewards (map each agent to their room's chest)
-        agents_per_room = self._get_agents_per_room(variant)
-        self._configure_per_agent_rewards(env, variant, agents_per_room, rng)
+            # Configure default rewards (will be overridden per-agent)
+            env.game.agent.rewards = self._build_reward_config(rng)
 
-        # Set task label
-        env.label = f"stage_{self.stage.stage_id}_{self.stage.name}_variant_{variant}_task_{task_id}"
+            # Configure per-agent rewards (map each agent to their room's chest)
+            agents_per_room = self._get_agents_per_room(variant)
+            self._configure_per_agent_rewards(env, variant, agents_per_room, rng)
 
-        return env
+            # Set task label (include room size for Stage 1, otherwise use variant)
+            if self.stage.stage_id == 1:
+                # Stage 1 variants encode room size (e.g., "5x5", "10x10")
+                env.label = f"stage_{self.stage.stage_id}_room_{variant}"
+            else:
+                env.label = (
+                    f"stage_{self.stage.stage_id}_{self.stage.name}_variant_{variant}"
+                )
+
+            # Validate task is solvable
+            try:
+                self._validate_task(env, variant, agents_per_room)
+                return env
+            except ValueError as e:
+                if attempt < max_attempts - 1:
+                    logger.debug(
+                        f"Task generation attempt {attempt + 1} failed: {e}. Retrying..."
+                    )
+                    continue
+                else:
+                    logger.warning(
+                        f"Failed to generate valid task after {max_attempts} attempts. "
+                        f"Last error: {e}. Using last generated task anyway."
+                    )
+                    return env
+
+    def _validate_task(self, env: MettaGridConfig, variant: str, agents_per_room: int):
+        """Validate that the generated task is solvable.
+
+        Checks:
+        1. Correct number of chests
+        2. Each room has a chest (no rooms without chests)
+        3. Correct number of per-agent configs
+        4. Each agent has hearts in their initial inventory (required to solve Stage 1)
+        """
+        num_agents = self.stage.num_agents
+        num_rooms = num_agents // agents_per_room
+
+        # Get all chests and their chest_ids
+        chests = [
+            obj for obj in env.game.objects.values() if isinstance(obj, ChestConfig)
+        ]
+        num_chests = len(chests)
+
+        # Verify we have the right number of chests
+        if num_chests < num_rooms:
+            raise ValueError(
+                f"Expected at least {num_rooms} chests, but found {num_chests}. "
+                f"Stage: {self.stage.name}, Variant: {variant}"
+            )
+
+        # Verify each room has a chest (check chest_id assignments)
+        chest_ids = {chest.chest_id for chest in chests if chest.chest_id}
+        expected_chest_ids = {f"room_{i}" for i in range(num_rooms)}
+        missing_rooms = expected_chest_ids - chest_ids
+
+        if missing_rooms:
+            raise ValueError(
+                f"Rooms without chests detected: {sorted(missing_rooms)}. "
+                f"Found chest_ids: {sorted(chest_ids)}. "
+                f"Expected: {sorted(expected_chest_ids)}. "
+                f"Stage: {self.stage.name}, Variant: {variant}"
+            )
+
+        # Verify per-agent configs exist
+        if not env.game.agents or len(env.game.agents) != num_agents:
+            raise ValueError(
+                f"Expected {num_agents} per-agent configs, "
+                f"but found {len(env.game.agents) if env.game.agents else 0}"
+            )
+
+        # Verify each agent has hearts (for Stage 1: Goal Delivery)
+        if self.stage.stage_id == 1:
+            for i, agent_config in enumerate(env.game.agents):
+                hearts = agent_config.initial_inventory.get("heart", 0)
+                if hearts == 0:
+                    raise ValueError(
+                        f"Agent {i} has no hearts in initial inventory. "
+                        f"Stage 1 requires agents to start with hearts. "
+                        f"Inventory: {agent_config.initial_inventory}"
+                    )
 
     def _generate_premade_map(self, rng: random.Random) -> MettaGridConfig:
         """Generate task from premade map."""
@@ -192,7 +274,7 @@ class CogologyTaskGenerator(TaskGenerator):
         num_rooms = self.stage.num_agents // agents_per_room
 
         # Create room template with agents
-        room_template = self._create_room_template(agents_per_room)
+        room_template = self._create_room_template(agents_per_room, variant, rng)
 
         # Use MapGen to create the multi-room grid
         from mettagrid.mapgen.mapgen import MapGen
@@ -228,17 +310,97 @@ class CogologyTaskGenerator(TaskGenerator):
 
             env.game.actions.change_glyph = ChangeGlyphActionConfig(enabled=False)
 
+        # Fix extractor and charger recipes
+        self._configure_extractors_and_chargers(env)
+
         return env
 
-    def _create_room_template(self, agents_per_room: int) -> str:
+    def _get_room_size_from_variant(self, variant: str) -> tuple[int, int] | None:
+        """Extract room size from variant name for Stage 1.
+
+        Args:
+            variant: Variant string (e.g., "5x5", "10x10", "15x15", "20x20")
+
+        Returns:
+            Tuple of (width, height) or None if not a room size variant
+        """
+        if self.stage.stage_id == 1 and "x" in variant:
+            try:
+                parts = variant.split("x")
+                if len(parts) == 2:
+                    width = int(parts[0])
+                    height = int(parts[1])
+                    return (width, height)
+            except ValueError:
+                pass
+        return None
+
+    def _create_room_template(
+        self, agents_per_room: int, variant: str = "A", rng: random.Random = None
+    ) -> str:
         """Create ASCII template for a single room with agents and chest.
 
         Args:
             agents_per_room: Number of agents to place in the room
+            variant: Stage variant (used for Stage 1 room size)
+            rng: Random number generator for randomizing positions
 
         Returns:
             ASCII string with agents marked as '@' and chest as 'C'
         """
+        # For Stage 1, use custom room size based on variant
+        room_size = self._get_room_size_from_variant(variant)
+        if room_size:
+            width, height = room_size
+            # Create room with randomized chest and agent positions
+
+            # Randomize chest position
+            if rng:
+                chest_x = rng.randint(0, width - 1)
+                chest_y = rng.randint(0, height - 1)
+            else:
+                chest_x = 0
+                chest_y = 0
+
+            # Randomize agent position
+            if rng:
+                agent_x = rng.randint(0, width - 1)
+                agent_y = rng.randint(0, height - 1)
+
+                # If agent spawns on chest, try to find a different position
+                max_attempts = 10
+                attempt = 0
+                while (
+                    agent_x == chest_x and agent_y == chest_y
+                ) and attempt < max_attempts:
+                    agent_x = rng.randint(0, width - 1)
+                    agent_y = rng.randint(0, height - 1)
+                    attempt += 1
+
+                # If still overlapping after max_attempts, just offset by 1
+                if agent_x == chest_x and agent_y == chest_y:
+                    agent_x = (agent_x + 1) % width
+            else:
+                # Fallback: center position
+                agent_x = width // 2
+                agent_y = height // 2
+
+            room = []
+            for y in range(height):
+                row = []
+                for x in range(width):
+                    # Place chest at randomized position
+                    if x == chest_x and y == chest_y:
+                        row.append("C")
+                    # Place agent at randomized position
+                    elif x == agent_x and y == agent_y:
+                        row.append("@")
+                    else:
+                        row.append(".")
+                room.append("".join(row))
+            return "\n".join(room)
+
+        # Original logic for other stages
         # Create 3x3 rooms for all configurations with chest included
         # This ensures each room has exactly one chest
         if agents_per_room == 1:
@@ -398,6 +560,10 @@ class CogologyTaskGenerator(TaskGenerator):
 
     def _get_agents_per_room(self, variant: str) -> int:
         """Get number of agents per room based on variant."""
+        # Stage 1: Room size variants (5x5, 10x10, etc.) always have 1 agent per room
+        if self.stage.stage_id == 1 and "x" in variant:
+            return 1
+
         # Variants A-F (resource-based) and G-L (energy-based):
         # A, G: 1 agent per room
         # B, H: 2 agents per room
@@ -483,9 +649,10 @@ class CogologyTaskGenerator(TaskGenerator):
             agent_id // agents_per_room
 
             # Build reward config for this agent
+            # Track the chest in their room - reward increases when hearts are deposited
+            # chest_id format is "room_{i}" from _configure_chest_ids
             stats_rewards = {
-                # f"chest_room_{room_id}.heart.amount": 1.0,
-                "heart.lost": 1.0
+                "heart.lost": 1.0,
             }
 
             # Optional: Speed reward (when their chest has 3+ hearts)
@@ -543,6 +710,33 @@ class CogologyTaskGenerator(TaskGenerator):
                 env.game.objects[
                     extractor_name
                 ].max_uses = self.stage.extractor_max_uses
+
+    def _configure_extractors_and_chargers(self, env: MettaGridConfig):
+        """Configure extractors to give 1 resource each and chargers to give 100 energy."""
+        # Fix carbon extractor: 4 → 1
+        if "carbon_extractor" in env.game.objects:
+            env.game.objects["carbon_extractor"].recipes[0][1].output_resources = {
+                "carbon": 1
+            }
+
+        # Fix oxygen extractor: 100 → 1
+        if "oxygen_extractor" in env.game.objects:
+            env.game.objects["oxygen_extractor"].recipes[0][1].output_resources = {
+                "oxygen": 1
+            }
+            env.game.objects["oxygen_extractor"].recipes[0][1].cooldown = 1
+
+        # Fix silicon extractor: 25 → 1
+        if "silicon_extractor" in env.game.objects:
+            env.game.objects["silicon_extractor"].recipes[0][1].output_resources = {
+                "silicon": 1
+            }
+
+        # Germanium is already correct at 1
+
+        # Fix charger: 50 → 100
+        if "charger" in env.game.objects:
+            env.game.objects["charger"].recipes[0][1].output_resources = {"energy": 100}
 
     def _configure_recipe(self, env: MettaGridConfig, variant: str):
         """Configure recipe based on variant (A-L) and stage.
@@ -965,7 +1159,7 @@ def _create_stage_configs() -> list[CogologyStageConfig]:
             name="goal_delivery",
             description="Learn to deposit 3+ hearts from inventory into your chest",
             map_type="generated",
-            map_size=(10, 10),
+            map_size=(100, 100),  # Large map to accommodate various room sizes
             num_agents=24,
             num_assemblers=0,
             num_chests=24,  # One chest per agent
@@ -974,8 +1168,8 @@ def _create_stage_configs() -> list[CogologyStageConfig]:
                 {"heart": 4},
                 {"heart": 5},
             ],
-            variants=[],  # No variants for Stage 1
-            success_rate_threshold=0.95,
+            variants=["5x5", "10x10", "15x15", "20x20"],  # Different room sizes
+            success_rate_threshold=0.60,  # > 50% success rate
         ),
         # Stage 2: Simple Assembly
         CogologyStageConfig(
@@ -993,7 +1187,7 @@ def _create_stage_configs() -> list[CogologyStageConfig]:
                 {"carbon": 5, "oxygen": 5, "germanium": 5, "silicon": 5},
             ],
             variants=["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"],
-            success_rate_threshold=0.90,
+            success_rate_threshold=0.60,
         ),
         # Stage 3: Single Resource Foraging
         CogologyStageConfig(
@@ -1013,7 +1207,7 @@ def _create_stage_configs() -> list[CogologyStageConfig]:
                 {"oxygen": 5, "germanium": 5, "silicon": 5},
             ],
             variants=["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"],
-            success_rate_threshold=0.85,
+            success_rate_threshold=0.60,
         ),
         # Stage 4: Multi-Resource Foraging (Abundant)
         CogologyStageConfig(
@@ -1033,7 +1227,7 @@ def _create_stage_configs() -> list[CogologyStageConfig]:
             extractor_max_uses=None,  # Infinite
             initial_inventory_options=[{}],  # Empty
             variants=["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"],
-            success_rate_threshold=0.85,
+            success_rate_threshold=0.60,
         ),
         # Stage 5: Resource Depletion
         CogologyStageConfig(
@@ -1053,7 +1247,7 @@ def _create_stage_configs() -> list[CogologyStageConfig]:
             extractor_max_uses=15,  # Depletable
             initial_inventory_options=[{}],
             variants=["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"],
-            success_rate_threshold=0.80,
+            success_rate_threshold=0.60,
         ),
         # Stage 6: Small Premade Maps
         CogologyStageConfig(
@@ -1063,7 +1257,7 @@ def _create_stage_configs() -> list[CogologyStageConfig]:
             map_type="premade",
             map_names=["training_facility_1", "training_facility_2"],
             num_agents=4,
-            success_rate_threshold=0.75,
+            success_rate_threshold=0.60,
         ),
         # Stage 7: Medium Premade Maps
         CogologyStageConfig(
@@ -1073,7 +1267,7 @@ def _create_stage_configs() -> list[CogologyStageConfig]:
             map_type="premade",
             map_names=["machina_1", "machina_2", "machina_3"],
             num_agents=4,
-            success_rate_threshold=0.70,
+            success_rate_threshold=0.60,
         ),
         # Stage 8: Large Premade Maps
         CogologyStageConfig(
@@ -1091,7 +1285,7 @@ def _create_stage_configs() -> list[CogologyStageConfig]:
                 "machina_7_big",
             ],
             num_agents=4,
-            success_rate_threshold=0.65,
+            success_rate_threshold=0.60,
         ),
         # Stage 9: Advanced Clipped Maps
         CogologyStageConfig(
@@ -1122,7 +1316,7 @@ def train(
     run_name: str | None = None,
 ) -> TrainTool:
     """
-    Train agents with automatic curriculum progression using ViT + LSTM reset policy.
+    Train agents with automatic curriculum progression using LSTM reset policy.
     
     Args:
         stage: "all" for automatic progression, or "stage_1" through "stage_9"
@@ -1180,11 +1374,11 @@ def train(
     trainer_cfg = TrainerConfig(
         losses=LossConfig(loss_configs={"ppo": PPOConfig(ent_coef=entropy_coef)}),
         optimizer=OptimizerConfig(learning_rate=learning_rate),
-        total_timesteps=100_000_000_000_000,
+        total_timesteps=10_000_000_000_000,  # 10M timesteps for curriculum training
     )
 
-    # Use ViT with LSTM reset policy
-    policy_config = ViTResetConfig()
+    # Use LSTM reset policy
+    policy_config = LSTMResetConfig()
 
     # Set up evaluator
     evaluator = EvaluatorConfig(
