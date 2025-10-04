@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = "==3.11.7"
 resolution-markers = [
     "sys_platform == 'linux'",
@@ -2197,6 +2197,7 @@ name = "metta-agent"
 version = "0.1.0"
 source = { editable = "agent" }
 dependencies = [
+    { name = "einops" },
     { name = "pufferlib-core" },
 ]
 
@@ -2211,7 +2212,10 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "pufferlib-core", editable = "packages/pufferlib-core" }]
+requires-dist = [
+    { name = "einops", specifier = ">=0.7.0" },
+    { name = "pufferlib-core", editable = "packages/pufferlib-core" },
+]
 
 [package.metadata.requires-dev]
 dev = [
