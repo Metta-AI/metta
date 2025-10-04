@@ -107,19 +107,19 @@ assembly_lines_curriculum_args = {
     },
     "pairs": {
         "num_cogs": [4],
-        "chain_length": [1, 2, 3, 4, 5],
+        "chain_length": [1, 2, 3, 4],
         "room_size": ["small"],
         "positions": [["Any"], ["Any", "Any"]],
     },
     "triplets": {
         "num_cogs": [4],
-        "chain_length": [1, 2, 3, 4, 5],
+        "chain_length": [1, 2, 3, 4],
         "room_size": ["small"],
         "positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
     },
     "quadruplets": {
         "num_cogs": [4],
-        "chain_length": [1, 2, 3, 4, 5],
+        "chain_length": [1, 2, 3, 4],
         "room_size": ["small"],
         "positions": [
             ["Any"],
@@ -138,7 +138,7 @@ obj_distribution_by_room_size = {
 
 size_ranges = {
     "tiny": (5, 10),  # 2 objects 2 agents max for assemblers
-    "small": (6, 13),  # 9 objects, 5 agents max
+    "small": (7, 13),  # 9 objects, 5 agents max
     "medium": (10, 15),
     "large": (30, 40),
     "xlarge": (40, 50),

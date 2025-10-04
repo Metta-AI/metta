@@ -265,7 +265,7 @@ def make_mettagrid(task_generator) -> MettaGridConfig:
     return task_generator.get_task(random.randint(0, 1000000))
 
 
-def play(curriculum_style: str = "easy") -> PlayTool:
+def play(curriculum_style: str = "quadruplets") -> PlayTool:
     task_generator = AssemblyLinesTaskGenerator(
         config=AssemblyLinesTaskGenerator.Config(
             **assembly_lines_curriculum_args[curriculum_style]
