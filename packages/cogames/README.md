@@ -80,7 +80,7 @@ Train a policy on a game.
 
 **Options:**
 
-- `--policy PATH`: Policy class (default: SimplePolicy)
+- `--policy PATH`: Policy class (default: LSTMPolicy)
 - `--initial-weights PATH`: Starting weights
 - `--checkpoints PATH`: Save location (default: ./train_dir)
 - `--steps N`: Training steps (default: 10000)
