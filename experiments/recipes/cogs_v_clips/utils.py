@@ -188,12 +188,17 @@ def make_assembler(inputs, outputs, positions):
 
 def make_extractor(resource, inputs, outputs, position):
     extractor = EXTRACTORS[resource]
+
+    # we only want to output a single resource
+    reduced_outputs = {}
+    for output in outputs:
+        reduced_outputs[output] = 1
     extractor.recipes = [
         (
             position,
             RecipeConfig(
                 input_resources=inputs,
-                output_resources=outputs,
+                output_resources=reduced_outputs,
                 cooldown=1,
             ),
         )
