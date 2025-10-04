@@ -31,13 +31,37 @@ FIXED_POSITIONS: list[Position] = ["NW", "N", "NE", "W", "E", "SW", "S", "SE"]
 FIXED_POSITION_TO_BITMASK = {pos: 1 << i for i, pos in enumerate(FIXED_POSITIONS)}
 
 
-def recursive_update(d, u):
-    for k, v in u.items():
-        if isinstance(v, dict):
-            d[k] = recursive_update(d.get(k, {}), v)
-        else:
-            d[k] = v
-    return d
+def clamp_uint8(value: int | float) -> int:
+    # Clamp numeric to uint8 range.
+    ivalue = int(value)
+    if ivalue < 0:
+        return 0
+    if ivalue > 255:
+        return 255
+    return ivalue
+
+
+def clamp_nonneg(value: int | float) -> int:
+    # Clamp numeric to be >= 0.
+    ivalue = int(value)
+    if ivalue < 0:
+        return 0
+    return ivalue
+
+
+def clamp_allow_neg_one(value: int | float) -> int:
+    # Clamp numeric to be >= -1, preserving -1 sentinel.
+    ivalue = int(value)
+    if ivalue < -1:
+        return -1
+    return ivalue
+
+
+def validate_fixed_positions(name: str, positions: list[Position]) -> None:
+    # Validate that a list of positions only contains allowed values.
+    invalid = [p for p in positions if p not in FIXED_POSITIONS]
+    if invalid:
+        raise ValueError(f"Invalid positions in {name}: {invalid}. Allowed: {FIXED_POSITIONS}")
 
 
 def expand_position_patterns(positions: Sequence[Position]) -> list[int]:
@@ -78,6 +102,161 @@ def expand_position_patterns(positions: Sequence[Position]) -> list[int]:
         if bin(i).count("1") == len(positions):
             result.append(i)
     return result
+
+
+def apply_property_modifier(obj_dict: dict, modifier: dict) -> None:
+    """Apply a property modifier to an object dictionary.
+
+    Args:
+        obj_dict: The object dictionary to modify
+        modifier: PropertyModifier dict with property_path, operation, value
+
+    Notes:
+        - Supports dotted attribute and dict paths (e.g. "rewards.stats.kills").
+        - List/tuple indexing in property_path is not supported. Modify entire
+          lists via `override` on the list field instead.
+    """
+    path_parts = modifier["property_path"].split(".")
+    operation = modifier["operation"]
+    value = modifier["value"]
+
+    # Navigate to the property, creating nested dicts as needed
+    current = obj_dict
+    for part in path_parts[:-1]:
+        if part not in current:
+            current[part] = {}
+        current = current[part]
+
+    final_key = path_parts[-1]
+
+    # Apply the operation
+    if operation == "override":
+        current[final_key] = value
+    elif operation == "add":
+        if final_key in current:
+            if isinstance(current[final_key], dict) and isinstance(value, dict):
+                for k, v in value.items():
+                    lhs = current[final_key].get(k, 0)
+                    rhs = v
+
+                    lhs_is_num = isinstance(lhs, (int, float))
+                    rhs_is_num = isinstance(rhs, (int, float))
+
+                    if not lhs_is_num or not rhs_is_num:
+                        raise ValueError(
+                            f"add requires numeric values at '{modifier['property_path']}.{k}', "
+                            f"got {type(lhs).__name__} and {type(rhs).__name__}"
+                        )
+                    current[final_key][k] = lhs + rhs
+            else:
+                lhs = current[final_key]
+                rhs = value
+                lhs_is_num = isinstance(lhs, (int, float))
+                rhs_is_num = isinstance(rhs, (int, float))
+                if not lhs_is_num or not rhs_is_num:
+                    raise ValueError(
+                        f"add requires numeric values at '{modifier['property_path']}', "
+                        f"got {type(lhs).__name__} and {type(rhs).__name__}"
+                    )
+                current[final_key] = lhs + rhs
+        else:
+            current[final_key] = value
+    elif operation == "multiply":
+        if final_key in current:
+            if isinstance(current[final_key], dict) and isinstance(value, dict):
+                for k, v in value.items():
+                    if k in current[final_key]:
+                        lhs = current[final_key][k]
+                        rhs = v
+                        lhs_is_num = isinstance(lhs, (int, float))
+                        rhs_is_num = isinstance(rhs, (int, float))
+                        if not lhs_is_num or not rhs_is_num:
+                            raise ValueError(
+                                f"multiply requires numeric values at '{modifier['property_path']}.{k}', "
+                                f"got {type(lhs).__name__} and {type(rhs).__name__}"
+                            )
+                        current[final_key][k] = lhs * rhs
+            else:
+                lhs = current[final_key]
+                rhs = value
+                lhs_is_num = isinstance(lhs, (int, float))
+                rhs_is_num = isinstance(rhs, (int, float))
+                if not lhs_is_num or not rhs_is_num:
+                    raise ValueError(
+                        f"multiply requires numeric values at '{modifier['property_path']}', "
+                        f"got {type(lhs).__name__} and {type(rhs).__name__}"
+                    )
+                current[final_key] = lhs * rhs
+        else:
+            # Treat missing properties as 0 for multiply operations.
+            # This allows tags to optionally boost properties that may not exist on all objects,
+            # without requiring every object to explicitly define default values.
+            # Example: a "damage_boost" tag can multiply damage across all objects, even those
+            # without a base damage property (they get 0 damage instead of erroring).
+            # Tradeoff: property name typos won't raise errors, but tests catch these in practice.
+            if isinstance(value, (int, float)):
+                current[final_key] = 0
+            elif isinstance(value, dict):
+                # For dicts, produce a zeroed map for the provided keys.
+                current[final_key] = {k: 0 for k in value.keys()}
+            else:
+                # Non-numeric types are ignored for multiply on missing targets.
+                pass
+    elif operation == "max":
+        if final_key in current:
+            if isinstance(current[final_key], dict) and isinstance(value, dict):
+                for k, v in value.items():
+                    lhs = current[final_key].get(k, 0)
+                    rhs = v
+                    lhs_is_num = isinstance(lhs, (int, float))
+                    rhs_is_num = isinstance(rhs, (int, float))
+                    if not lhs_is_num or not rhs_is_num:
+                        raise ValueError(
+                            f"max requires numeric values at '{modifier['property_path']}.{k}', "
+                            f"got {type(lhs).__name__} and {type(rhs).__name__}"
+                        )
+                    current[final_key][k] = max(lhs, rhs)
+            else:
+                lhs = current[final_key]
+                rhs = value
+                lhs_is_num = isinstance(lhs, (int, float))
+                rhs_is_num = isinstance(rhs, (int, float))
+                if not lhs_is_num or not rhs_is_num:
+                    raise ValueError(
+                        f"max requires numeric values at '{modifier['property_path']}', "
+                        f"got {type(lhs).__name__} and {type(rhs).__name__}"
+                    )
+                current[final_key] = max(lhs, rhs)
+        else:
+            current[final_key] = value
+    elif operation == "min":
+        if final_key in current:
+            if isinstance(current[final_key], dict) and isinstance(value, dict):
+                for k, v in value.items():
+                    if k in current[final_key]:
+                        lhs = current[final_key][k]
+                        rhs = v
+                        lhs_is_num = isinstance(lhs, (int, float))
+                        rhs_is_num = isinstance(rhs, (int, float))
+                        if not lhs_is_num or not rhs_is_num:
+                            raise ValueError(
+                                f"min requires numeric values at '{modifier['property_path']}.{k}', "
+                                f"got {type(lhs).__name__} and {type(rhs).__name__}"
+                            )
+                        current[final_key][k] = min(lhs, rhs)
+            else:
+                lhs = current[final_key]
+                rhs = value
+                lhs_is_num = isinstance(lhs, (int, float))
+                rhs_is_num = isinstance(rhs, (int, float))
+                if not lhs_is_num or not rhs_is_num:
+                    raise ValueError(
+                        f"min requires numeric values at '{modifier['property_path']}', "
+                        f"got {type(lhs).__name__} and {type(rhs).__name__}"
+                    )
+                current[final_key] = min(lhs, rhs)
+        else:
+            current[final_key] = value
 
 
 def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
@@ -156,6 +335,16 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                     f"Tags are currently applied per-team, not per-agent."
                 )
 
+        # Apply tag property modifications in order
+        for tag_name in first_agent.tags:
+            if tag_name in game_config.tag_definitions:
+                tag_def = game_config.tag_definitions[tag_name]
+                for modifier in tag_def.modifiers:
+                    apply_property_modifier(agent_props, modifier.model_dump())
+
+        # Compute team-specific default after tag modifications
+        team_default_resource_limit = agent_props.get("default_resource_limit", default_resource_limit)
+
         rewards_config = agent_props.get("rewards", {})
 
         # Process stats rewards
@@ -175,8 +364,18 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
         # Process potential initial inventory
         initial_inventory = {}
+        unknown_resources = []
         for k, v in agent_props["initial_inventory"].items():
-            initial_inventory[resource_name_to_id[k]] = v
+            if k in resource_name_to_id:
+                initial_inventory[resource_name_to_id[k]] = clamp_uint8(v)
+            else:
+                unknown_resources.append(k)
+
+        if unknown_resources:
+            raise ValueError(
+                f"Agent in team {team_id} has initial_inventory with unknown resources: {unknown_resources}. "
+                f"Valid resources are: {resource_names}"
+            )
 
         # Map team IDs to conventional group names
         team_names = {0: "red", 1: "blue", 2: "green", 3: "yellow", 4: "purple", 5: "orange"}
@@ -197,7 +396,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         # Convert inventory regeneration amounts from names to IDs
         inventory_regen_amounts = {}
         for resource_name, amount in agent_props.get("inventory_regen_amounts", {}).items():
-            inventory_regen_amounts[resource_name_to_id[resource_name]] = amount
+            inventory_regen_amounts[resource_name_to_id[resource_name]] = clamp_uint8(amount)
 
         # Build inventory config with support for grouped limits
         limits_list = []
@@ -207,27 +406,27 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         for key, limit_value in agent_props["resource_limits"].items():
             if isinstance(key, str):
                 # Single resource limit
-                limits_list.append([[resource_name_to_id[key]], limit_value])
+                limits_list.append([[resource_name_to_id[key]], clamp_uint8(limit_value)])
                 configured_resources.add(key)
             elif isinstance(key, tuple):
                 # Grouped resources with shared limit
                 resource_ids = [resource_name_to_id[name] for name in key]
                 if resource_ids:
-                    limits_list.append([resource_ids, limit_value])
+                    limits_list.append([resource_ids, clamp_uint8(limit_value)])
                     configured_resources.update(key)
 
         # Add default limits for unconfigured resources
         for resource_name in resource_names:
             if resource_name not in configured_resources:
-                limits_list.append([[resource_name_to_id[resource_name]], default_resource_limit])
+                limits_list.append([[resource_name_to_id[resource_name]], clamp_uint8(team_default_resource_limit)])
 
         inventory_config = CppInventoryConfig(limits=limits_list)
 
         agent_cpp_params = {
-            "freeze_duration": agent_props["freeze_duration"],
+            "freeze_duration": int(agent_props["freeze_duration"]),
             "group_id": team_id,
             "group_name": group_name,
-            "action_failure_penalty": agent_props["action_failure_penalty"],
+            "action_failure_penalty": float(agent_props["action_failure_penalty"]),
             "inventory_config": inventory_config,
             "stat_rewards": stat_rewards,
             "stat_reward_max": stat_reward_max,
@@ -257,16 +456,45 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             # Convert tag names to IDs
             tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
 
+            # Get converter properties as dict for modification
+            converter_props = object_config.model_dump()
+
+            # Apply tag property modifications in order
+            for tag_name in object_config.tags:
+                if tag_name in game_config.tag_definitions:
+                    tag_def = game_config.tag_definitions[tag_name]
+                    for modifier in tag_def.modifiers:
+                        apply_property_modifier(converter_props, modifier.model_dump())
+
+            # Validate unknown resources in converter maps before building C++ config
+            in_unknown = [k for k in converter_props["input_resources"].keys() if k not in resource_name_to_id]
+            out_unknown = [k for k in converter_props["output_resources"].keys() if k not in resource_name_to_id]
+            if in_unknown or out_unknown:
+                raise ValueError(
+                    f"Converter '{object_type}' has unknown resources. "
+                    f"input: {in_unknown}, output: {out_unknown}. "
+                    f"Valid resources are: {resource_names}"
+                )
+
+            # Create CppConverterConfig after tag modifications with clamped ranges
             cpp_converter_config = CppConverterConfig(
-                type_id=object_config.type_id,
+                type_id=clamp_uint8(converter_props["type_id"]),
                 type_name=object_type,
-                input_resources={resource_name_to_id[k]: v for k, v in object_config.input_resources.items()},
-                output_resources={resource_name_to_id[k]: v for k, v in object_config.output_resources.items()},
-                max_output=object_config.max_output,
-                max_conversions=object_config.max_conversions,
-                conversion_ticks=object_config.conversion_ticks,
-                cooldown=object_config.cooldown,
-                initial_resource_count=object_config.initial_resource_count,
+                input_resources={
+                    resource_name_to_id[k]: clamp_uint8(int(math.ceil(v)))
+                    for k, v in converter_props["input_resources"].items()
+                    if k in resource_name_to_id and v > 0
+                },
+                output_resources={
+                    resource_name_to_id[k]: clamp_uint8(int(math.ceil(v)))
+                    for k, v in converter_props["output_resources"].items()
+                    if k in resource_name_to_id and v > 0
+                },
+                max_output=clamp_allow_neg_one(converter_props["max_output"]),
+                max_conversions=clamp_allow_neg_one(converter_props["max_conversions"]),
+                conversion_ticks=clamp_nonneg(converter_props["conversion_ticks"]),
+                cooldown=clamp_nonneg(converter_props["cooldown"]),
+                initial_resource_count=clamp_nonneg(converter_props["initial_resource_count"]),
                 recipe_details_obs=game_config.recipe_details_obs,
                 tag_ids=tag_ids,
             )
@@ -275,27 +503,68 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             # Convert tag names to IDs
             tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
 
+            # Get wall properties as dict for modification
+            wall_props = object_config.model_dump()
+
+            # Apply tag property modifications in order
+            for tag_name in object_config.tags:
+                if tag_name in game_config.tag_definitions:
+                    tag_def = game_config.tag_definitions[tag_name]
+                    for modifier in tag_def.modifiers:
+                        apply_property_modifier(wall_props, modifier.model_dump())
+
             cpp_wall_config = CppWallConfig(
-                type_id=object_config.type_id,
+                type_id=clamp_uint8(wall_props["type_id"]),
                 type_name=object_type,
-                swappable=object_config.swappable,
+                swappable=bool(wall_props["swappable"]),
                 tag_ids=tag_ids,
             )
             objects_cpp_params[object_type] = cpp_wall_config
         elif isinstance(object_config, AssemblerConfig):
+            # Convert tag names to IDs
+            tag_ids = [tag_name_to_id[tag] for tag in object_config.tags if tag in tag_name_to_id]
+
+            # Get assembler properties as dict for modification
+            assembler_props = object_config.model_dump()
+
+            # Apply tag property modifications in order
+            for tag_name in object_config.tags:
+                if tag_name in game_config.tag_definitions:
+                    tag_def = game_config.tag_definitions[tag_name]
+                    for modifier in tag_def.modifiers:
+                        apply_property_modifier(assembler_props, modifier.model_dump())
+
             # Convert recipes with position patterns to C++ recipes
             # Create a mapping from byte patterns to recipes
             recipe_map = {}  # byte_pattern -> CppRecipe
 
-            for position_pattern, recipe_config in object_config.recipes:
+            for position_pattern, recipe_config in assembler_props["recipes"]:
                 # Expand position patterns to byte patterns
                 bit_patterns = expand_position_patterns(position_pattern)
 
+                # Validate unknown resources per recipe after tag modifications
+                in_unknown = [k for k in recipe_config["input_resources"].keys() if k not in resource_name_to_id]
+                out_unknown = [k for k in recipe_config["output_resources"].keys() if k not in resource_name_to_id]
+                if in_unknown or out_unknown:
+                    raise ValueError(
+                        f"Assembler '{object_type}' recipe has unknown resources. "
+                        f"input: {in_unknown}, output: {out_unknown}. "
+                        f"Valid resources are: {resource_names}"
+                    )
+
                 # Create C++ recipe
                 cpp_recipe = CppRecipe(
-                    input_resources={resource_name_to_id[k]: v for k, v in recipe_config.input_resources.items()},
-                    output_resources={resource_name_to_id[k]: v for k, v in recipe_config.output_resources.items()},
-                    cooldown=recipe_config.cooldown,
+                    input_resources={
+                        resource_name_to_id[k]: clamp_uint8(int(math.ceil(v)))
+                        for k, v in recipe_config["input_resources"].items()
+                        if k in resource_name_to_id and v > 0
+                    },
+                    output_resources={
+                        resource_name_to_id[k]: clamp_uint8(int(math.ceil(v)))
+                        for k, v in recipe_config["output_resources"].items()
+                        if k in resource_name_to_id and v > 0
+                    },
+                    cooldown=clamp_nonneg(recipe_config["cooldown"]),
                 )
 
                 # Map this recipe to all matching byte patterns
@@ -307,11 +576,10 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             for byte_pattern, recipe in recipe_map.items():
                 cpp_recipes[byte_pattern] = recipe
 
-            # Convert tag names to IDs
-            tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
-
             cpp_assembler_config = CppAssemblerConfig(
-                type_id=object_config.type_id, type_name=object_type, tag_ids=tag_ids
+                type_id=clamp_uint8(assembler_props["type_id"]),
+                type_name=object_type,
+                tag_ids=tag_ids,
             )
             cpp_assembler_config.recipes = cpp_recipes
             cpp_assembler_config.allow_partial_usage = object_config.allow_partial_usage
@@ -321,9 +589,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_assembler_config.start_clipped = object_config.start_clipped
             objects_cpp_params[object_type] = cpp_assembler_config
         elif isinstance(object_config, ChestConfig):
-            # Convert resource type name to ID
-            resource_type_id = resource_name_to_id.get(object_config.resource_type, 0)
-
             # Convert tag names to IDs
             tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
 
@@ -333,13 +598,32 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 position_index = FIXED_POSITIONS.index(pos)
                 position_deltas_map[position_index] = delta
 
+            # Get chest properties as dict for modification
+            chest_props = object_config.model_dump()
+
+            # Apply tag property modifications in order
+            for tag_name in object_config.tags:
+                if tag_name in game_config.tag_definitions:
+                    tag_def = game_config.tag_definitions[tag_name]
+                    for modifier in tag_def.modifiers:
+                        apply_property_modifier(chest_props, modifier.model_dump())
+
+            # Convert resource type name to ID AFTER modifications
+            chest_res_type = chest_props["resource_type"]
+            if chest_res_type not in resource_name_to_id:
+                raise ValueError(
+                    f"Chest '{object_type}' has unknown resource_type: {chest_res_type}. "
+                    f"Valid resources are: {resource_names}"
+                )
+            resource_type_id = resource_name_to_id[chest_res_type]
+
             cpp_chest_config = CppChestConfig(
-                type_id=object_config.type_id,
+                type_id=clamp_uint8(chest_props["type_id"]),
                 type_name=object_type,
                 resource_type=resource_type_id,
                 position_deltas=position_deltas_map,
-                initial_inventory=object_config.initial_inventory,
-                max_inventory=object_config.max_inventory,
+                initial_inventory=clamp_nonneg(chest_props["initial_inventory"]),
+                max_inventory=clamp_allow_neg_one(chest_props["max_inventory"]),
                 tag_ids=tag_ids,
             )
             objects_cpp_params[object_type] = cpp_chest_config
@@ -354,6 +638,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         del game_cpp_params["params"]
     if "map_builder" in game_cpp_params:
         del game_cpp_params["map_builder"]
+    if "tag_definitions" in game_cpp_params:
+        del game_cpp_params["tag_definitions"]
 
     # Convert global_obs configuration
     global_obs_config = game_config.global_obs
@@ -389,7 +675,9 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         if not required_source:
             required_source = {k: math.ceil(v) for k, v in action_config["consumed_resources"].items()}
 
-        required_resources = {resource_name_to_id[k]: int(math.ceil(v)) for k, v in required_source.items()}
+        required_resources = {
+            resource_name_to_id[k]: clamp_uint8(int(math.ceil(v))) for k, v in required_source.items()
+        }
 
         action_cpp_params = {
             "consumed_resources": consumed_resources,
@@ -398,7 +686,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
         if action_name == "attack":
             action_cpp_params["defense_resources"] = {
-                resource_name_to_id[k]: v for k, v in action_config["defense_resources"].items()
+                resource_name_to_id[k]: clamp_uint8(v) for k, v in action_config["defense_resources"].items()
             }
             actions_cpp_params[action_name] = CppAttackActionConfig(**action_cpp_params)
         elif action_name == "change_glyph":
@@ -406,7 +694,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             change_glyph_params = {
                 "required_resources": action_cpp_params.get("required_resources", {}),
                 "consumed_resources": action_cpp_params.get("consumed_resources", {}),
-                "number_of_glyphs": action_config["number_of_glyphs"],
+                "number_of_glyphs": clamp_uint8(action_config["number_of_glyphs"]),
             }
             actions_cpp_params[action_name] = CppChangeGlyphActionConfig(**change_glyph_params)
         elif action_name == "resource_mod":
@@ -455,8 +743,12 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         clipper_recipes = []
         for recipe_config in clipper.unclipping_recipes:
             cpp_recipe = CppRecipe(
-                input_resources={resource_name_to_id[k]: v for k, v in recipe_config.input_resources.items()},
-                output_resources={resource_name_to_id[k]: v for k, v in recipe_config.output_resources.items()},
+                input_resources={
+                    resource_name_to_id[k]: clamp_uint8(v) for k, v in recipe_config.input_resources.items()
+                },
+                output_resources={
+                    resource_name_to_id[k]: clamp_uint8(v) for k, v in recipe_config.output_resources.items()
+                },
                 cooldown=recipe_config.cooldown,
             )
             clipper_recipes.append(cpp_recipe)

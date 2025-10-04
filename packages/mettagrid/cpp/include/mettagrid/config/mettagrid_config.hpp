@@ -127,11 +127,11 @@ inline void bind_game_config(py::module& m) {
       .def_readwrite("num_observation_tokens", &GameConfig::num_observation_tokens)
       .def_readwrite("global_obs", &GameConfig::global_obs)
 
-      // We don't expose these since they're copied on read, and this means that mutations
-      // to the dictionaries don't impact the underlying cpp objects. This is confusing!
-      // This can be fixed, but until we do that, we're not exposing these.
+      // We don't expose these as readwrite since they're copied on read, and mutations
+      // to the dictionaries don't impact the underlying cpp objects. However, we expose
+      // objects as readonly so tests can verify tag modifications were applied correctly.
       // .def_readwrite("actions", &GameConfig::actions)
-      // .def_readwrite("objects", &GameConfig::objects);
+      .def_readonly("objects", &GameConfig::objects)
 
       .def_readwrite("resource_loss_prob", &GameConfig::resource_loss_prob)
       .def_readwrite("tag_id_map", &GameConfig::tag_id_map)
