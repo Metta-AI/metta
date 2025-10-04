@@ -98,8 +98,9 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
             assert num_extractors <= len(RESOURCES), (
                 "We do not currently support more than 4 extractors"
             )
-            resource_chain = rng.sample(RESOURCES, num_extractors)
+            resource_chain = ["nothing"] + rng.sample(RESOURCES, num_extractors)
             self.used_resources.update(resource_chain)
+
             for i in range(len(resource_chain) - 1):
                 input_resource, output_resource = (
                     resource_chain[i],
@@ -176,7 +177,7 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
 
 
 def train(
-    curriculum_style: str = "pairs", architecture: str = "lstm_reset"
+    curriculum_style: str = "pairs", architecture: str = "vit_reset"
 ) -> TrainTool:
     from experiments.evals.cogs_v_clips.foraging import make_foraging_eval_suite
 
@@ -241,20 +242,18 @@ def experiment():
     import subprocess
     import time
 
-    for architecture in ["lstm_reset", "vit_reset"]:
-        for curriculum_style in assembly_lines_curriculum_args:
-            subprocess.run(
-                [
-                    "./devops/skypilot/launch.py",
-                    "experiments.recipes.cogs_v_clips.assembly_lines.train",
-                    f"architecture={architecture}",
-                    f"run=cogs_v_clips.assembly_lines.{architecture}.{curriculum_style}.{random.randint(0, 10000)}.{time.strftime('%Y-%m-%d')}",
-                    f"curriculum_style={curriculum_style}",
-                    "--gpus=4",
-                    "--heartbeat-timeout=3600",
-                    "--skip-git-check",
-                ]
-            )
+    for curriculum_style in assembly_lines_curriculum_args:
+        subprocess.run(
+            [
+                "./devops/skypilot/launch.py",
+                "experiments.recipes.cogs_v_clips.assembly_lines.train",
+                f"run=cogs_v_clips.assembly_lines.easier.{curriculum_style}.{random.randint(0, 10000)}.{time.strftime('%Y-%m-%d')}",
+                f"curriculum_style={curriculum_style}",
+                "--gpus=4",
+                "--heartbeat-timeout=3600",
+                "--skip-git-check",
+            ]
+        )
         time.sleep(1)
 
 
@@ -262,7 +261,7 @@ def make_mettagrid(task_generator) -> MettaGridConfig:
     return task_generator.get_task(random.randint(0, 1000000))
 
 
-def play(curriculum_style: str = "pairs") -> PlayTool:
+def play(curriculum_style: str = "easy") -> PlayTool:
     task_generator = AssemblyLinesTaskGenerator(
         config=AssemblyLinesTaskGenerator.Config(
             **assembly_lines_curriculum_args[curriculum_style]

@@ -87,7 +87,7 @@ foraging_curriculum_args = {
         "num_cogs": [2, 4],
         "num_assemblers": [2, 4, 6, 8],
         "num_extractors": [0, 1, 4, 6, 8],
-        "room_size": ["small", "medium", "large"],
+        "room_size": ["small", "medium"],
         "positions": [["Any"], ["Any", "Any"]],
         "num_chests": [0, 5, 8],
     },
@@ -95,7 +95,7 @@ foraging_curriculum_args = {
         "num_cogs": [3, 6],
         "num_assemblers": [2, 4, 6, 8],
         "num_extractors": [0, 1, 4, 6, 8],
-        "room_size": ["small", "medium", "large"],
+        "room_size": ["small", "medium"],
         "positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
         "num_chests": [0, 5, 8],
     },
@@ -103,7 +103,7 @@ foraging_curriculum_args = {
         "num_cogs": [4],
         "num_assemblers": [2, 4, 6, 8],
         "num_extractors": [0, 1, 4, 6, 8],
-        "room_size": ["small", "medium", "large"],
+        "room_size": ["small", "medium"],
         "positions": [
             ["Any"],
             ["Any", "Any"],
@@ -117,7 +117,7 @@ foraging_curriculum_args = {
 assembly_lines_curriculum_args = {
     "easy": {
         "num_cogs": [2, 4],
-        "chain_length": [1, 2, 3],
+        "chain_length": [2, 3],
         "room_size": ["small"],
         "positions": [["Any"], ["Any", "Any"]],
     },
