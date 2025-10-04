@@ -6,8 +6,8 @@ from typing import Dict, List
 from pydantic import BaseModel
 
 from metta.sim.simulation_stats_db import SimulationStatsDB
-from mettagrid.config import Config
-from mettagrid.util.file import write_data
+from metta.utils.file import write_data
+from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
 

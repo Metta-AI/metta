@@ -45,54 +45,30 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
   std::shared_ptr<ChangeGlyphActionConfig> change_glyph_cfg = std::make_shared<ChangeGlyphActionConfig>(
       std::map<InventoryItem, InventoryQuantity>(), std::map<InventoryItem, InventoryProbability>(), 4);
 
-  std::map<std::string, std::shared_ptr<ActionConfig>> actions_cfg;
+  // GameConfig expects a vector of pairs for actions (ordered list)
+  std::vector<std::pair<std::string, std::shared_ptr<ActionConfig>>> actions_cfg;
 
-  actions_cfg["noop"] = action_cfg;
-  actions_cfg["move"] = action_cfg;
-  actions_cfg["rotate"] = action_cfg;
-  actions_cfg["attack"] = attack_cfg;
-  actions_cfg["swap"] = action_cfg;
-  actions_cfg["put_items"] = action_cfg;
-  actions_cfg["get_items"] = action_cfg;
-  actions_cfg["change_color"] = action_cfg;
-  actions_cfg["change_glyph"] = change_glyph_cfg;
+  actions_cfg.push_back({"noop", action_cfg});
+  actions_cfg.push_back({"move", action_cfg});
+  actions_cfg.push_back({"rotate", action_cfg});
+  actions_cfg.push_back({"attack", attack_cfg});
+  actions_cfg.push_back({"swap", action_cfg});
+  actions_cfg.push_back({"put_items", action_cfg});
+  actions_cfg.push_back({"get_items", action_cfg});
+  actions_cfg.push_back({"change_color", action_cfg});
+  actions_cfg.push_back({"change_glyph", change_glyph_cfg});
 
   std::map<std::string, std::shared_ptr<GridObjectConfig>> objects_cfg;
 
   objects_cfg["wall"] = std::make_shared<WallConfig>(1, "wall", false);
-  objects_cfg["agent.team1"] = std::make_shared<AgentConfig>(0,
-                                                             "agent",
-                                                             0,
-                                                             "team1",
-                                                             0,
-                                                             0.0f,
-                                                             std::map<InventoryItem, InventoryQuantity>(),
-                                                             std::map<InventoryItem, RewardType>(),
-                                                             std::map<InventoryItem, RewardType>(),
-                                                             std::map<std::string, RewardType>(),
-                                                             std::map<std::string, RewardType>(),
-                                                             0.0f,
-                                                             std::map<InventoryItem, InventoryQuantity>());
-  objects_cfg["agent.team2"] = std::make_shared<AgentConfig>(0,
-                                                             "agent",
-                                                             1,
-                                                             "team2",
-                                                             0,
-                                                             0.0f,
-                                                             std::map<InventoryItem, InventoryQuantity>(),
-                                                             std::map<InventoryItem, RewardType>(),
-                                                             std::map<InventoryItem, RewardType>(),
-                                                             std::map<std::string, RewardType>(),
-                                                             std::map<std::string, RewardType>(),
-                                                             0.0f,
-                                                             std::map<InventoryItem, InventoryQuantity>());
+  objects_cfg["agent.team1"] = std::make_shared<AgentConfig>(0, "agent", 0, "team1");
+  objects_cfg["agent.team2"] = std::make_shared<AgentConfig>(0, "agent", 1, "team2");
 
   // Create default global observation config
   GlobalObsConfig global_obs_config;
   global_obs_config.episode_completion_pct = true;
   global_obs_config.last_action = true;
   global_obs_config.last_reward = true;
-  global_obs_config.resource_rewards = true;
 
   return GameConfig(num_agents, 10000, false, 11, 11, resource_names, 100, global_obs_config, actions_cfg, objects_cfg);
 }

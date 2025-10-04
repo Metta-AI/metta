@@ -1,21 +1,19 @@
 import yaml
 
-from mettagrid.config.config import Config
-from mettagrid.mapgen.scene import ChildrenAction, Scene, SceneConfig
+from mettagrid.mapgen.scene import ChildrenAction, Scene, SceneConfig, validate_any_scene_config
 
 
-class YamlSceneParams(Config):
+class YamlSceneConfig(SceneConfig):
     file: str
 
 
-class YamlScene(Scene[YamlSceneParams]):
+class YamlScene(Scene[YamlSceneConfig]):
     def get_children(self) -> list[ChildrenAction]:
-        with open(self.params.file, "r") as fh:
+        with open(self.config.file, "r") as fh:
             cfg = yaml.safe_load(fh)
-            scene = SceneConfig.model_validate(cfg)
+            scene = validate_any_scene_config(cfg)
         return [
             ChildrenAction(scene=scene, where="full"),
-            *self.children_actions,
         ]
 
     def render(self):

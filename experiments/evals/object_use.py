@@ -5,7 +5,6 @@ from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
     AgentRewards,
-    BoxConfig,
     ConverterConfig,
     GameConfig,
     MettaGridConfig,
@@ -18,7 +17,7 @@ from mettagrid.mapgen.scenes.mean_distance import MeanDistance
 def make_object_use_env(
     name: str,
     max_steps: int,
-    objects: dict[str, ConverterConfig | WallConfig | BoxConfig],
+    objects: dict[str, ConverterConfig | WallConfig],
     map_objects: dict[str, int],
     rewards: dict[str, float],
     num_agents: int = 1,
@@ -46,15 +45,13 @@ def make_object_use_env(
                 instances=num_instances,
                 border_width=6,
                 instance_border_width=3,
-                instance_map=MapGen.Config(
+                instance=MapGen.Config(
                     width=11,
                     height=11,
                     border_width=3,
-                    root=MeanDistance.factory(
-                        params=MeanDistance.Params(
-                            mean_distance=6,
-                            objects=map_objects,
-                        )
+                    instance=MeanDistance.Config(
+                        mean_distance=6,
+                        objects=map_objects,
                     ),
                 ),
             ),
@@ -67,7 +64,7 @@ def make_object_use_ascii_env(
     name: str,
     ascii_map: str,
     max_steps: int,
-    objects: dict[str, ConverterConfig | WallConfig | BoxConfig],
+    objects: dict[str, ConverterConfig | WallConfig],
     rewards: dict[str, float],
     num_agents: int = 1,
     num_instances: int = 4,
@@ -81,7 +78,6 @@ def make_object_use_ascii_env(
             objects=objects,
             actions=ActionsConfig(
                 move=ActionConfig(),
-                rotate=ActionConfig(enabled=False),
                 get_items=ActionConfig(),
                 put_items=ActionConfig(),
             ),
@@ -93,8 +89,10 @@ def make_object_use_ascii_env(
                 instances=num_instances,
                 border_width=6,
                 instance_border_width=3,
-                instance_map=MapGen.Config.with_ascii_uri(
-                    f"mettagrid/configs/maps/object_use/{ascii_map}.map", border_width=1
+                instance=MapGen.Config.with_ascii_uri(
+                    f"packages/mettagrid/configs/maps/object_use/{ascii_map}.map",
+                    {o.map_char: o.name for o in objects.values()},
+                    border_width=1,
                 ),
             ),
         )
@@ -303,7 +301,7 @@ def make_swap_in_env() -> MettaGridConfig:
         },
         rewards={"heart": 1},
     )
-    env.game.actions.swap = ActionConfig(enabled=True)
+    env.game.actions.swap = ActionConfig()
     return env
 
 
@@ -324,7 +322,7 @@ def make_swap_out_env() -> MettaGridConfig:
         },
         rewards={"heart": 1},
     )
-    env.game.actions.swap = ActionConfig(enabled=True)
+    env.game.actions.swap = ActionConfig()
     return env
 
 
@@ -363,17 +361,39 @@ def make_full_sequence_env() -> MettaGridConfig:
 def make_object_use_eval_suite() -> list[SimulationConfig]:
     """Create the full object use evaluation suite."""
     return [
-        SimulationConfig(name="altar_use_free", env=make_altar_use_free_env()),
-        SimulationConfig(name="armory_use_free", env=make_armory_use_free_env()),
-        SimulationConfig(name="armory_use", env=make_armory_use_env()),
-        SimulationConfig(name="generator_use_free", env=make_generator_use_free_env()),
-        SimulationConfig(name="generator_use", env=make_generator_use_env()),
-        SimulationConfig(name="lasery_use_free", env=make_lasery_use_free_env()),
-        SimulationConfig(name="lasery_use", env=make_lasery_use_env()),
-        SimulationConfig(name="mine_use", env=make_mine_use_env()),
-        SimulationConfig(name="shoot_out", env=make_shoot_out_env()),
-        SimulationConfig(name="swap_in", env=make_swap_in_env()),
-        SimulationConfig(name="swap_out", env=make_swap_out_env()),
-        SimulationConfig(name="temple_use_free", env=make_temple_use_free_env()),
-        SimulationConfig(name="full_sequence", env=make_full_sequence_env()),
+        SimulationConfig(
+            suite="object_use", name="altar_use_free", env=make_altar_use_free_env()
+        ),
+        SimulationConfig(
+            suite="object_use", name="armory_use_free", env=make_armory_use_free_env()
+        ),
+        SimulationConfig(
+            suite="object_use", name="armory_use", env=make_armory_use_env()
+        ),
+        SimulationConfig(
+            suite="object_use",
+            name="generator_use_free",
+            env=make_generator_use_free_env(),
+        ),
+        SimulationConfig(
+            suite="object_use", name="generator_use", env=make_generator_use_env()
+        ),
+        SimulationConfig(
+            suite="object_use", name="lasery_use_free", env=make_lasery_use_free_env()
+        ),
+        SimulationConfig(
+            suite="object_use", name="lasery_use", env=make_lasery_use_env()
+        ),
+        SimulationConfig(suite="object_use", name="mine_use", env=make_mine_use_env()),
+        SimulationConfig(
+            suite="object_use", name="shoot_out", env=make_shoot_out_env()
+        ),
+        SimulationConfig(suite="object_use", name="swap_in", env=make_swap_in_env()),
+        SimulationConfig(suite="object_use", name="swap_out", env=make_swap_out_env()),
+        SimulationConfig(
+            suite="object_use", name="temple_use_free", env=make_temple_use_free_env()
+        ),
+        SimulationConfig(
+            suite="object_use", name="full_sequence", env=make_full_sequence_env()
+        ),
     ]

@@ -179,14 +179,15 @@ class TestTrainingRunsRoutes:
 
         episode_ids = []
         for policy, epoch, eval_name, metrics, attributes in all_episodes:
+            sim_suite, env_name = eval_name.split("/")
             policy_name = policy_names[policy.id]
             episode = stats_client.record_episode(
                 agent_policies={0: policy.id},
                 agent_metrics={0: metrics},
                 primary_policy_id=policy.id,
                 stats_epoch=epoch.id,
-                sim_name=eval_name,
-                env_label="test_env",
+                sim_suite=sim_suite,
+                env_name=env_name,
                 replay_url=f"https://replay.example.com/{policy_name}/{eval_name.replace('/', '_')}",
                 attributes=attributes,
             )
@@ -205,9 +206,13 @@ class TestTrainingRunsRoutes:
             "episode_ids": episode_ids,
         }
 
-    def test_get_training_runs_empty(self, test_client: TestClient, auth_headers: Dict[str, str]) -> None:
+    def test_get_training_runs_empty(
+        self,
+        isolated_test_client: TestClient,
+        auth_headers: Dict[str, str],
+    ) -> None:
         """Test getting training runs when none exist."""
-        response = test_client.get("/training-runs", headers=auth_headers)
+        response = isolated_test_client.get("/training-runs", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
         assert "training_runs" in data

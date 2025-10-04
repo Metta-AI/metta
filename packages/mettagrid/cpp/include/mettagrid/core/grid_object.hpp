@@ -1,10 +1,11 @@
 #ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_CORE_GRID_OBJECT_HPP_
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_CORE_GRID_OBJECT_HPP_
 
-#include <cstdint>
 #include <span>
 #include <string>
 #include <vector>
+
+#include <cstdint>
 
 #include "objects/constants.hpp"
 #include "core/types.hpp"
@@ -51,8 +52,10 @@ public:
 struct GridObjectConfig {
   TypeId type_id;
   std::string type_name;
+  std::vector<int> tag_ids;
 
-  GridObjectConfig(TypeId type_id, const std::string& type_name) : type_id(type_id), type_name(type_name) {}
+  GridObjectConfig(TypeId type_id, const std::string& type_name, const std::vector<int>& tag_ids)
+      : type_id(type_id), type_name(type_name), tag_ids(tag_ids) {}
 
   virtual ~GridObjectConfig() = default;
 };
@@ -63,13 +66,15 @@ public:
   GridLocation location{};
   TypeId type_id{};
   std::string type_name;
+  std::vector<int> tag_ids;
 
   virtual ~GridObject() = default;
 
-  void init(TypeId object_type_id, const std::string& object_type_name, const GridLocation& object_location) {
+  void init(TypeId object_type_id, const std::string& object_type_name, const GridLocation& object_location, const std::vector<int>& tags) {
     this->type_id = object_type_id;
     this->type_name = object_type_name;
     this->location = object_location;
+    this->tag_ids = tags;
   }
 
   virtual bool swappable() const {

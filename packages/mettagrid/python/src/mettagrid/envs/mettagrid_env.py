@@ -183,7 +183,6 @@ class MettaGridEnv(MettaGridPufferBase):
         # only plot label completions once we have a full moving average window, to prevent initial bias
         if len(self._label_completions["completed_tasks"]) >= 50:
             infos["label_completions"] = self._label_completions["completion_rates"]
-
         self.per_label_rewards[self.mg_config.label] = episode_rewards.mean()
         infos["per_label_rewards"] = self.per_label_rewards
 
@@ -240,7 +239,7 @@ class MettaGridEnv(MettaGridPufferBase):
                 agent_metrics[agent_idx][k] = float(v)
 
         # Get agent groups
-        grid_objects = self.grid_objects
+        grid_objects = self.grid_objects()
         agent_groups: Dict[int, int] = {
             v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type"] == 0
         }
@@ -302,3 +301,9 @@ class MettaGridEnv(MettaGridPufferBase):
     def emulated(self) -> bool:
         """Native envs do not use emulation (PufferLib compatibility)."""
         return False
+
+    def close(self) -> None:
+        """Close the environment."""
+        super().close()
+        if self._stats_writer:
+            self._stats_writer.close()

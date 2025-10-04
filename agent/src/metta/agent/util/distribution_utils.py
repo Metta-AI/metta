@@ -27,7 +27,6 @@ def sample_actions(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tenso
         full_log_probs: Full log-probability distribution over all actions,
                           shape [batch_size, num_actions]. Same as log-softmax of logits.
     """
-
     full_log_probs = F.log_softmax(action_logits, dim=-1)  # [batch_size, num_actions]
     action_probs = torch.exp(full_log_probs)  # [batch_size, num_actions]
 
@@ -66,7 +65,6 @@ def evaluate_actions(action_logits: Tensor, actions: Tensor) -> Tuple[Tensor, Te
         action_log_probs: Full log-probability distribution over all actions,
                           shape [batch_size, num_actions]. Same as log-softmax of logits.
     """
-
     action_log_probs = F.log_softmax(action_logits, dim=-1)  # [batch_size, num_actions]
     action_probs = torch.exp(action_log_probs)  # [batch_size, num_actions]
 

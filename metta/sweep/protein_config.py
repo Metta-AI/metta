@@ -4,7 +4,7 @@ from typing import Any, Dict, Literal
 
 from pydantic import Field
 
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 
 class ParameterConfig(Config):
@@ -27,11 +27,11 @@ class ProteinSettings(Config):
         default=10800, description="Maximum cost (in seconds) for a single suggestion - 3 hours for 1B timestep runs"
     )
     global_search_scale: float = Field(default=1.0, description="Scale factor for global search")
-    random_suggestions: int = Field(default=1024, description="Number of random suggestions to generate")
+    random_suggestions: int = Field(default=10, description="Number of random suggestions to generate")
     suggestions_per_pareto: int = Field(default=256, description="Number of suggestions per Pareto point")
 
     # Bayesian optimization specific settings
-    resample_frequency: int = Field(default=0, description="How often to resample failed suggestions")
+    resample_frequency: int = Field(default=0, description="How often to resample Pareto points")
     num_random_samples: int = Field(
         default=20, description="Number of random samples before using GP - reduced for longer runs"
     )

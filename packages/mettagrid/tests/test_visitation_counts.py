@@ -31,16 +31,13 @@ def env_with_visitation():
             num_observation_tokens=100,
             resource_names=["wood", "stone"],
             actions=ActionsConfig(
-                noop=ActionConfig(enabled=False),
-                move=ActionConfig(enabled=True),  # Enable 8-way movement
-                get_items=ActionConfig(enabled=False),
+                move=ActionConfig(),  # Enable 8-way movement
             ),
             objects={"wall": WallConfig(type_id=1)},
             global_obs=GlobalObsConfig(
                 episode_completion_pct=True,
                 last_action=True,
                 last_reward=True,
-                resource_rewards=False,
                 visitation_counts=True,  # Enable visitation counts
             ),
             map_builder=AsciiMapBuilder.Config(
@@ -73,16 +70,13 @@ def env_without_visitation():
             num_observation_tokens=100,
             resource_names=["wood", "stone"],
             actions=ActionsConfig(
-                noop=ActionConfig(enabled=False),
-                move=ActionConfig(enabled=True),  # Enable 8-way movement
-                get_items=ActionConfig(enabled=False),
+                move=ActionConfig(),  # Enable 8-way movement
             ),
             objects={"wall": WallConfig(type_id=1)},
             global_obs=GlobalObsConfig(
                 episode_completion_pct=True,
                 last_action=True,
                 last_reward=True,
-                resource_rewards=False,
                 visitation_counts=False,  # Disable visitation counts
             ),
             map_builder=AsciiMapBuilder.Config(
@@ -115,9 +109,7 @@ def env_default():
             num_observation_tokens=100,
             resource_names=["wood", "stone"],
             actions=ActionsConfig(
-                noop=ActionConfig(enabled=False),
-                move=ActionConfig(enabled=True),  # Enable 8-way movement
-                get_items=ActionConfig(enabled=False),
+                move=ActionConfig(),  # Enable 8-way movement
             ),
             objects={"wall": WallConfig(type_id=1)},
             # No explicit visitation_counts setting - uses default (False)

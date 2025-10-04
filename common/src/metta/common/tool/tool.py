@@ -3,7 +3,7 @@ from abc import abstractmethod
 from pydantic import Field
 
 from metta.rl.system_config import SystemConfig
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 
 class Tool(Config):
@@ -15,7 +15,7 @@ class Tool(Config):
     3) Make a function that returns an instance of your tool class.
     4) Run the tool with `./tools/run.py <path.to.tool.function>`.
 
-    The function can optionally take arguments, which will be passed to the tool when passed in `--args`."""
+    The function can optionally take arguments."""
 
     system: SystemConfig = Field(default_factory=SystemConfig)
 

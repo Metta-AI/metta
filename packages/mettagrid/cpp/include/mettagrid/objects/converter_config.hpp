@@ -21,9 +21,9 @@ struct ConverterConfig : public GridObjectConfig {
                   unsigned short conversion_ticks,
                   unsigned short cooldown,
                   InventoryQuantity initial_resource_count = 0,
-                  ObservationType color = 0,
-                  bool recipe_details_obs = false)
-      : GridObjectConfig(type_id, type_name),
+                  bool recipe_details_obs = false,
+                  const std::vector<int>& tag_ids = {})
+      : GridObjectConfig(type_id, type_name, tag_ids),
         input_resources(input_resources),
         output_resources(output_resources),
         max_output(max_output),
@@ -31,7 +31,6 @@ struct ConverterConfig : public GridObjectConfig {
         conversion_ticks(conversion_ticks),
         cooldown(cooldown),
         initial_resource_count(initial_resource_count),
-        color(color),
         recipe_details_obs(recipe_details_obs),
         input_recipe_offset(0),
         output_recipe_offset(0) {}
@@ -43,7 +42,6 @@ struct ConverterConfig : public GridObjectConfig {
   unsigned short conversion_ticks;
   unsigned short cooldown;
   InventoryQuantity initial_resource_count;
-  ObservationType color;
   bool recipe_details_obs;
   ObservationType input_recipe_offset;
   ObservationType output_recipe_offset;
@@ -62,8 +60,8 @@ inline void bind_converter_config(py::module& m) {
                     unsigned short,
                     unsigned short,
                     unsigned char,
-                    ObservationType,
-                    bool>(),
+                    bool,
+                    const std::vector<int>&>(),
            py::arg("type_id"),
            py::arg("type_name"),
            py::arg("input_resources"),
@@ -73,8 +71,8 @@ inline void bind_converter_config(py::module& m) {
            py::arg("conversion_ticks"),
            py::arg("cooldown"),
            py::arg("initial_resource_count") = 0,
-           py::arg("color") = 0,
-           py::arg("recipe_details_obs") = false)
+           py::arg("recipe_details_obs") = false,
+           py::arg("tag_ids") = std::vector<int>())
       .def_readwrite("type_id", &ConverterConfig::type_id)
       .def_readwrite("type_name", &ConverterConfig::type_name)
       .def_readwrite("input_resources", &ConverterConfig::input_resources)
@@ -84,8 +82,8 @@ inline void bind_converter_config(py::module& m) {
       .def_readwrite("conversion_ticks", &ConverterConfig::conversion_ticks)
       .def_readwrite("cooldown", &ConverterConfig::cooldown)
       .def_readwrite("initial_resource_count", &ConverterConfig::initial_resource_count)
-      .def_readwrite("color", &ConverterConfig::color)
-      .def_readwrite("recipe_details_obs", &ConverterConfig::recipe_details_obs);
+      .def_readwrite("recipe_details_obs", &ConverterConfig::recipe_details_obs)
+      .def_readwrite("tag_ids", &ConverterConfig::tag_ids);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_CONVERTER_CONFIG_HPP_

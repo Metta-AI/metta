@@ -122,7 +122,7 @@ Git Reference: 56e04aa725000f186ec1bb2de84b359b4f273947
 ------------------------------------------------------------
 Command: train
 Task Arguments:
-1. trainer.curriculum=env/mettagrid/curriculum/navigation
+1. training_env.curriculum=env/mettagrid/curriculum/navigation
 2. trainer.optimizer.learning_rate=0.001
 ============================================================
 Should we launch this task? (Y/n):

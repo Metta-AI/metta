@@ -25,7 +25,7 @@ import boto3
 from devops.observatory_login import CLIAuthenticator
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
 from metta.app_backend.routes.eval_task_routes import (
-    TaskResponse,
+    EvalTaskResponse,
     TaskStatus,
     TaskStatusUpdate,
     TaskUpdateRequest,
@@ -49,7 +49,7 @@ class TaskResult:
 
 class AbstractTaskExecutor(ABC):
     @abstractmethod
-    async def execute_task(self, task: TaskResponse) -> TaskResult:
+    async def execute_task(self, task: EvalTaskResponse) -> TaskResult:
         pass
 
 
@@ -152,28 +152,19 @@ class SimTaskExecutor(AbstractTaskExecutor):
     @trace("worker.execute_task")
     async def execute_task(
         self,
-        task: TaskResponse,
+        task: EvalTaskResponse,
     ) -> TaskResult:
         if not task.git_hash:
             raise RuntimeError(f"Git hash not found for task {task.id}")
 
         self._setup_versioned_checkout(task.git_hash)
 
-        policy_name = task.policy_name
-        if not policy_name:
-            raise RuntimeError(f"Policy name not found for task {task.id}")
-
         # Convert simulations list to a base64-encoded JSON string to avoid parsing issues
         simulations = task.attributes.get("simulations", [])
         simulations_json = json.dumps(simulations)
         simulations_base64 = base64.b64encode(simulations_json.encode()).decode()
 
-        policy_uri = task.attributes.get("policy_uri") or policy_name
-        normalized = CheckpointManager.normalize_uri(policy_uri)
-        if not normalized.startswith(("file://", "s3://", "mock://")):
-            raise RuntimeError(
-                f"Unsupported policy URI '{policy_uri}'. Expected an s3://, file://, or mock:// checkpoint path."
-            )
+        normalized = CheckpointManager.normalize_uri(task.policy_uri)
 
         cmd = [
             "uv",
@@ -186,7 +177,9 @@ class SimTaskExecutor(AbstractTaskExecutor):
             f"stats_server_uri={self._backend_url}",
             "push_metrics_to_wandb=true",
         ]
-        logger.info(f"Running command: {' '.join(cmd)}")
+        # exclude simulation_json_base64 from logging, since it's too large and undescriptive
+        logged_cmd = [arg for arg in cmd if not arg.startswith("simulations_json_base64")]
+        logger.info(f"Running command: {' '.join(logged_cmd)}")
 
         result = self._run_cmd_from_versioned_checkout(cmd)
 
@@ -257,7 +250,7 @@ class EvalTaskWorker:
                 claimed_tasks = await self._client.get_claimed_tasks(assignee=self._assignee)
 
                 if claimed_tasks.tasks:
-                    task: TaskResponse = min(claimed_tasks.tasks, key=lambda x: x.assigned_at or datetime.min)
+                    task: EvalTaskResponse = min(claimed_tasks.tasks, key=lambda x: x.assigned_at or datetime.min)
                     logger.info(f"Processing task {task.id}")
                     try:
                         task_result = await self._task_executor.execute_task(task)

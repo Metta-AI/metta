@@ -99,7 +99,12 @@ implementation.
    - Any known limitations or future work
    - Lessons learned (if applicable)
 2. **Verify success criteria** - Check off completed criteria in the plan
-3. **Clean up** - Ensure all code is properly tested and documented
+3. **Run CI checks** - ALWAYS run `metta ci` to verify all tests pass:
+   ```bash
+   metta ci
+   ```
+   Fix any test failures before marking the work complete.
+4. **Clean up** - Ensure all code is properly tested and documented
 
 ---
 
@@ -141,7 +146,7 @@ dynamics (like kinship and mate selection) on learning and cooperative behaviors
 ### Repository Structure
 
 - `metta/`: Core Python implementation for agents, maps, RL algorithms, simulation
-- `mettagrid/`: C++/Python grid environment implementation with Pybind11 bindings
+- `packages/mettagrid/`: C++/Python grid environment implementation with Pybind11 bindings
 - `mettascope/`: Interactive visualization and replay tools (TypeScript/web-based)
 - `observatory/`: React-based dashboard for viewing training runs and evaluations
 - `gridworks/`: Next.js web interface
@@ -199,15 +204,15 @@ All tools are now run through `./tools/run.py` with recipe functions:
 
 2. **Simulation/Evaluation**: Run evaluation suites on trained policies
 
-  ```bash
-  # Run evaluation
-  uv run ./tools/run.py experiments.recipes.arena.evaluate \
-    policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
+```bash
+# Run evaluation
+uv run ./tools/run.py experiments.recipes.arena.evaluate \
+  policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
 
-  # Using a remote S3 checkpoint
-  uv run ./tools/run.py experiments.recipes.arena.evaluate \
-    policy_uri=s3://my-bucket/checkpoints/my-training-run/my-training-run:v12.pt
-  ```
+# Using a remote S3 checkpoint
+uv run ./tools/run.py experiments.recipes.arena.evaluate \
+  policy_uri=s3://my-bucket/checkpoints/my-training-run/my-training-run:v12.pt
+```
 
 3. **Analysis**: Analyze evaluation results
 
@@ -217,16 +222,17 @@ All tools are now run through `./tools/run.py` with recipe functions:
 
 4. **Interactive Play**: Test policies interactively (browser-based)
 
-  ```bash
-  uv run ./tools/run.py experiments.recipes.arena.play \
-    policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
-  ```
+```bash
+uv run ./tools/run.py experiments.recipes.arena.play \
+  policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
+```
 
 5. **View Replays**: Watch recorded gameplay
-  ```bash
-  uv run ./tools/run.py experiments.recipes.arena.replay \
-    policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
-  ```
+
+```bash
+uv run ./tools/run.py experiments.recipes.arena.replay \
+  policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
+```
 
 #### Visualization Tools
 
@@ -244,6 +250,9 @@ See @.cursor/commands.md for quick test commands and examples.
 #### Code Quality
 
 ```bash
+# Run full CI (tests + linting) - ALWAYS run this to verify changes
+metta ci
+
 # Run all tests with coverage
 metta test --cov=mettagrid --cov-report=term-missing
 
@@ -260,6 +269,8 @@ uv run ./devops/tools/auto_ruff_fix.py path/to/file
 # Format shell scripts
 ./devops/tools/format_sh.sh
 ```
+
+**IMPORTANT**: Always run `metta ci` after making changes to verify that all tests pass. This is the standard way to check if your changes are working correctly.
 
 #### Building
 
@@ -345,6 +356,107 @@ recipe files:
    - On macOS: Use Activity Monitor or `sudo powermetrics --samplers gpu_power`
 3. Check environment step timing in vecenv
 4. Profile C++ code with Bazel debug builds
+
+---
+
+## Dependency Management
+
+### Renovate Automated Updates
+
+The project uses **Renovate** (not Dependabot) for automated dependency management. Renovate has better support for uv workspaces and provides more flexible configuration options.
+
+#### Configuration
+
+- **Configuration File**: `.github/renovate.json5`
+- **Schedule**: Weekends (to avoid disrupting weekday development)
+- **PR Limits**: 3 concurrent PRs to avoid overwhelming reviewers
+- **Auto-merge**: Enabled for patch updates of stable packages
+
+#### Package Grouping Strategy
+
+Renovate groups related packages together to reduce PR noise:
+
+- **pytest ecosystem**: `pytest`, `pytest-cov`, `pytest-xdist`, `pytest-benchmark`, etc.
+- **Scientific computing**: `numpy`, `scipy`, `pandas`, `matplotlib`, `torch`, etc.
+- **RL ecosystem**: `gymnasium`, `pettingzoo`, `shimmy`, `pufferlib`
+- **Web framework**: `fastapi`, `uvicorn`, `starlette`, `pydantic`
+- **Development tools**: `ruff`, `pyright`, `black`, `isort`
+- **Cloud services**: `boto3`, `botocore`, `google-api-python-client`
+- **Jupyter ecosystem**: `jupyter`, `jupyterlab`, `notebook`, `ipywidgets`
+
+#### Handling Dependency Updates
+
+1. **Automatic Updates**
+   - Patch updates for stable packages are auto-merged
+   - Minor updates create PRs for review
+   - Major updates require approval via dependency dashboard
+
+2. **Manual Updates**
+   ```bash
+   # Update specific packages
+   uv add package_name@latest
+   
+   # Update all dependencies to latest compatible versions
+   uv lock --upgrade
+   
+   # Update only patch/minor versions
+   uv lock --upgrade-package package_name
+   ```
+
+3. **Workspace Consistency**
+   - CI validates that all workspace packages have consistent dependency versions
+   - Renovate groups workspace package updates together
+   - Lock file maintenance runs weekly to keep `uv.lock` current
+
+#### Security and Vulnerability Management
+
+- **Vulnerability alerts**: Enabled with immediate scheduling
+- **Security updates**: Override normal scheduling for critical fixes
+- **Dependency dashboard**: Available in GitHub Issues for managing updates
+
+#### Troubleshooting Dependency Issues
+
+1. **Version Conflicts**
+   ```bash
+   # Check for conflicts
+   uv sync --frozen --check
+   
+   # Resolve conflicts by updating lock file
+   uv lock --upgrade
+   ```
+
+2. **Workspace Inconsistencies**
+   ```bash
+   # Validate all packages can be installed together
+   uv sync --all-packages
+   
+   # Run consistency check script
+   python devops/tools/check_dependency_consistency.py
+   ```
+
+3. **Lock File Issues**
+   ```bash
+   # Regenerate lock file from scratch
+   rm uv.lock && uv lock
+   
+   # Check if lock file is synchronized
+   uv lock --check
+   ```
+
+#### Best Practices
+
+- **Review grouped updates together**: When Renovate creates grouped PRs, review all changes as a unit
+- **Test after major updates**: Run full test suite after major dependency updates
+- **Monitor breaking changes**: Check changelogs for breaking changes in major updates
+- **Keep workspace synchronized**: Ensure all workspace packages use compatible versions
+
+#### CI Integration
+
+The `dependency-validation.yml` workflow automatically:
+- Validates `uv.lock` is synchronized with `pyproject.toml` files
+- Checks for dependency conflicts across the workspace
+- Generates dependency reports for visibility
+- Verifies all workspace packages can be imported successfully
 
 ---
 
@@ -445,7 +557,7 @@ See @.cursor/docs.md for testing examples and quick test commands.
   - `tests/sim/` - Simulation and evaluation
   - `tests/map/` - Map generation and scene loading
   - `tests/sweep/` - Hyperparameter sweep infrastructure
-  - `tests/mettagrid/` - Environment-specific tests
+  - `packages/mettagrid/tests` - Environment-specific tests
 
 ### Code Review Criteria
 

@@ -38,8 +38,18 @@ COPY library ./library
 
 WORKDIR /metta/library
 
-# necessary for prisma
-RUN apt-get update -y && apt-get install -y openssl
+# Install system dependencies for PDF processing and prisma
+RUN apt-get update -y && apt-get install -y \
+    openssl \
+    ghostscript \
+    graphicsmagick \
+    libcairo2-dev \
+    libpango1.0-dev \
+    libjpeg-dev \
+    libgif-dev \
+    librsvg2-dev \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN pnpm run db:generate
 RUN pnpm run build

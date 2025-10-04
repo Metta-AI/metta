@@ -5,9 +5,10 @@ import time
 from copy import deepcopy
 
 import numpy as np
-import pufferlib
 import torch
 from pyro.contrib import gp as gp
+
+from mettagrid.util.dict_utils import unroll_nested_dict
 
 logger = logging.getLogger(__name__)
 
@@ -151,7 +152,7 @@ def _params_from_puffer_sweep(sweep_config):
 class Hyperparameters:
     def __init__(self, config, verbose=True):
         self.spaces = _params_from_puffer_sweep(config)
-        self.flat_spaces = dict(pufferlib.unroll_nested_dict(self.spaces))
+        self.flat_spaces = dict(unroll_nested_dict(self.spaces))
         self.num = len(self.flat_spaces)
         self.metric = config["metric"]
         goal = config["goal"]
@@ -174,7 +175,7 @@ class Hyperparameters:
         return np.clip(samples, self.min_bounds, self.max_bounds)
 
     def from_dict(self, params):
-        flat_params = dict(pufferlib.unroll_nested_dict(params))
+        flat_params = dict(unroll_nested_dict(params))
         values = []
         for key, space in self.flat_spaces.items():
             assert key in flat_params, f"Missing hyperparameter {key}"
@@ -425,8 +426,16 @@ class Protein:
         # If GP training failed completely, fall back to random sampling
         if not gp_trained:
             logger.debug("GP training failed, falling back to random sampling")
-            suggestion = self.hyperparameters.sample(n=1)[0]
-            return self.hyperparameters.to_dict(suggestion, fill), {"fallback": "random"}
+            if n_suggestions == 1:
+                suggestion = self.hyperparameters.sample(n=1)[0]
+                return self.hyperparameters.to_dict(suggestion, fill), {"fallback": "random"}
+            else:
+                results = []
+                suggestions = self.hyperparameters.sample(n_suggestions, scale=self.global_search_scale)
+                for i in range(n_suggestions):
+                    suggestion_dict = self.hyperparameters.to_dict(suggestions[i], fill)
+                    results.append((suggestion_dict, {"fallback": "random"}))
+                return results
 
         # === Build candidate suggestions from oriented Pareto centers ===
         candidates, pareto_idxs = pareto_points_oriented(

@@ -7,6 +7,7 @@ import { FC, PropsWithChildren, Suspense } from "react";
 
 import { RepoRootProvider } from "@/components/RepoRootContext";
 import { getRepoRoot } from "@/lib/api";
+import { configsRoute, mapEditorRoute } from "@/lib/routes";
 
 import { TopMenuLink } from "./TopMenuLink";
 
@@ -31,9 +32,8 @@ const TopMenu: FC = () => {
       <Link href="/" className="font-bold">
         Gridworks
       </Link>
-      <TopMenuLink href="/mettagrid-cfgs">MettaGrid Configs</TopMenuLink>
-      <TopMenuLink href="/map-editor">Map Editor</TopMenuLink>
-      <TopMenuLink href="/stored-maps">Stored Maps (Experimental)</TopMenuLink>
+      <TopMenuLink href={configsRoute()}>Config Makers</TopMenuLink>
+      <TopMenuLink href={mapEditorRoute()}>Map Editor</TopMenuLink>
     </div>
   );
 };

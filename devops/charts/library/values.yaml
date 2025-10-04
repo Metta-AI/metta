@@ -14,11 +14,3 @@ frontend:
 worker:
   secret_name: softmax-library-worker-secrets
   replicas: 1
-
-redis:
-  persistence:
-    enabled: true
-    size: 5Gi
-    storageClass: ""
-    accessModes:
-      - ReadWriteOnce

@@ -1,4 +1,4 @@
-from mettagrid.config.config import Config
+from mettagrid.base_config import Config
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.scenes.ascii import Ascii
 
@@ -28,7 +28,7 @@ class MapGenAscii(MapGen):
       map_builder:
         _target_: mettagrid.mapgen.mapgen.MapGen
         border_width: 0
-        root:
+        instance:
           type: mettagrid.mapgen.scenes.ascii.Ascii
           params:
             uri: "path/to/my/map.map"
@@ -44,8 +44,8 @@ class MapGenAscii(MapGen):
         super().__init__(
             config=MapGen.Config(
                 border_width=ascii_params.border_width,
-                root=Ascii.factory(
-                    Ascii.Params(uri=ascii_params.uri),
+                instance=Ascii.Config(
+                    uri=ascii_params.uri,
                 ),
             ),
         )

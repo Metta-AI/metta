@@ -3,3 +3,5 @@
 /build-release
 /benchmark_output
 /Testing
+
+MODULE.bazel.lock

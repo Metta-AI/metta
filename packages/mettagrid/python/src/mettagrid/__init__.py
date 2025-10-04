@@ -13,29 +13,76 @@ For PufferLib integration, use PufferLib's MettaPuff wrapper directly.
 
 from __future__ import annotations
 
-from mettagrid.config.mettagrid_config import MettaGridConfig
+import importlib
+from typing import TYPE_CHECKING, Any, Dict, Tuple
 
-# Import environment classes
-from mettagrid.core import MettaGridCore
+# Map attribute names to (module, attribute) for lazy loading.
+_LAZY_ATTRS: Dict[str, Tuple[str, str]] = {
+    # Config
+    "MettaGridConfig": ("mettagrid.config.mettagrid_config", "MettaGridConfig"),
+    # Core classes
+    "MettaGridCore": ("mettagrid.core", "MettaGridCore"),
+    "MettaGridAction": ("mettagrid.core", "MettaGridAction"),
+    "MettaGridObservation": ("mettagrid.core", "MettaGridObservation"),
+    # Main environment (backward compatible)
+    "MettaGridEnv": ("mettagrid.envs.mettagrid_env", "MettaGridEnv"),
+    # Environment adapters
+    "MettaGridGymEnv": ("mettagrid.envs.gym_env", "MettaGridGymEnv"),
+    "MettaGridPettingZooEnv": (
+        "mettagrid.envs.pettingzoo_env",
+        "MettaGridPettingZooEnv",
+    ),
+    # Data types (from C++)
+    "dtype_actions": ("mettagrid.mettagrid_c", "dtype_actions"),
+    "dtype_observations": ("mettagrid.mettagrid_c", "dtype_observations"),
+    "dtype_rewards": ("mettagrid.mettagrid_c", "dtype_rewards"),
+    "dtype_terminals": ("mettagrid.mettagrid_c", "dtype_terminals"),
+    "dtype_truncations": ("mettagrid.mettagrid_c", "dtype_truncations"),
+    "dtype_masks": ("mettagrid.mettagrid_c", "dtype_masks"),
+    "dtype_success": ("mettagrid.mettagrid_c", "dtype_success"),
+    # Type definitions
+    "validate_observation_space": (
+        "mettagrid.types",
+        "validate_observation_space",
+    ),
+    "validate_action_space": ("mettagrid.types", "validate_action_space"),
+    "get_observation_shape": ("mettagrid.types", "get_observation_shape"),
+    "get_action_nvec": ("mettagrid.types", "get_action_nvec"),
+    # Supporting classes
+    "GameMap": ("mettagrid.map_builder.map_builder", "GameMap"),
+    "ReplayWriter": ("mettagrid.util.replay_writer", "ReplayWriter"),
+    "StatsWriter": ("mettagrid.util.stats_writer", "StatsWriter"),
+}
 
-# Import other commonly used classes
-from mettagrid.envs.gym_env import MettaGridGymEnv
-from mettagrid.envs.mettagrid_env import MettaGridEnv
-from mettagrid.envs.pettingzoo_env import MettaGridPettingZooEnv
-from mettagrid.map_builder.map_builder import GameMap
+if TYPE_CHECKING:
+    from mettagrid.config.mettagrid_config import MettaGridConfig
+    from mettagrid.core import MettaGridAction, MettaGridCore, MettaGridObservation
+    from mettagrid.envs.gym_env import MettaGridGymEnv
+    from mettagrid.envs.mettagrid_env import MettaGridEnv
+    from mettagrid.envs.pettingzoo_env import MettaGridPettingZooEnv
+    from mettagrid.map_builder.map_builder import GameMap
+    from mettagrid.mettagrid_c import (
+        dtype_actions,
+        dtype_masks,
+        dtype_observations,
+        dtype_rewards,
+        dtype_success,
+        dtype_terminals,
+        dtype_truncations,
+    )
+    from mettagrid.types import (
+        get_action_nvec,
+        get_observation_shape,
+        validate_action_space,
+        validate_observation_space,
+    )
+    from mettagrid.util.replay_writer import ReplayWriter
+    from mettagrid.util.stats_writer import StatsWriter
 
-# Import data types from C++ module (source of truth)
-from mettagrid.mettagrid_c import (
-    dtype_actions,
-    dtype_masks,
-    dtype_observations,
-    dtype_rewards,
-    dtype_success,
-    dtype_terminals,
-    dtype_truncations,
-)
-from mettagrid.util.replay_writer import ReplayWriter
-from mettagrid.util.stats_writer import StatsWriter
+    try:
+        from mettagrid import mettascope
+    except (ImportError, OSError):
+        mettascope = None
 
 __all__ = [
     # Config
@@ -47,7 +94,7 @@ __all__ = [
     # Environment adapters
     "MettaGridGymEnv",
     "MettaGridPettingZooEnv",
-    # Data types
+    # Data types (from C++)
     "dtype_actions",
     "dtype_observations",
     "dtype_rewards",
@@ -55,8 +102,45 @@ __all__ = [
     "dtype_truncations",
     "dtype_masks",
     "dtype_success",
+    # Type definitions
+    "MettaGridObservation",
+    "MettaGridAction",
+    "validate_observation_space",
+    "validate_action_space",
+    "get_observation_shape",
+    "get_action_nvec",
     # Supporting classes
     "GameMap",
     "ReplayWriter",
     "StatsWriter",
+    # Optional visualization module
+    "mettascope",
 ]
+
+
+def __getattr__(name: str) -> Any:  # pragma: no cover - thin import wrapper
+    """Dynamically import public attributes on first access."""
+
+    if name == "mettascope":
+        try:
+            module = importlib.import_module("mettagrid.mettascope")
+        except (ImportError, OSError):
+            module = None
+        globals()[name] = module
+        return module
+
+    try:
+        module_name, attribute_name = _LAZY_ATTRS[name]
+    except KeyError as exc:  # pragma: no cover - mirrors built-in behaviour
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from exc
+
+    module = importlib.import_module(module_name)
+    attr = getattr(module, attribute_name)
+    globals()[name] = attr
+    return attr
+
+
+def __dir__() -> list[str]:
+    """Expose lazy attributes in dir() results."""
+
+    return sorted({*__all__, *globals().keys()})

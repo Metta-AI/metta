@@ -14,7 +14,7 @@ def make_nav_eval_env(env: MettaGridConfig) -> MettaGridConfig:
 
 
 def replace_objects_with_altars(name: str) -> str:
-    ascii_map = f"mettagrid/configs/maps/navigation_sequence/{name}.map"
+    ascii_map = f"packages/mettagrid/configs/maps/navigation_sequence/{name}.map"
 
     with open(ascii_map, "r") as f:
         map_content = f.read()
@@ -39,7 +39,7 @@ def make_nav_ascii_env(
         instances=num_instances,
         border_width=border_width,
         instance_border_width=instance_border_width,
-        instance_map=MapGen.Config.with_ascii_map(ascii_map, border_width=border_width),
+        instance=MapGen.Config.with_ascii_map(ascii_map, border_width=border_width),
     )
 
     return make_nav_eval_env(env)
@@ -50,15 +50,13 @@ def make_emptyspace_sparse_env() -> MettaGridConfig:
     env.game.max_steps = 300
     env.game.map_builder = MapGen.Config(
         instances=4,
-        instance_map=MapGen.Config(
+        instance=MapGen.Config(
             width=60,
             height=60,
             border_width=3,
-            root=MeanDistance.factory(
-                params=MeanDistance.Params(
-                    mean_distance=30,
-                    objects={"altar": 3},
-                )
+            instance=MeanDistance.Config(
+                mean_distance=30,
+                objects={"altar": 3},
             ),
         ),
     )
@@ -68,7 +66,8 @@ def make_emptyspace_sparse_env() -> MettaGridConfig:
 def make_navigation_eval_suite() -> list[SimulationConfig]:
     evals = [
         SimulationConfig(
-            name=f"navigation/{eval['name']}",
+            suite="navigation",
+            name=eval["name"],
             env=make_nav_ascii_env(
                 name=eval["name"],
                 max_steps=eval["max_steps"],
@@ -77,5 +76,11 @@ def make_navigation_eval_suite() -> list[SimulationConfig]:
             ),
         )
         for eval in NAVIGATION_EVALS
-    ] + [SimulationConfig(name="emptyspace_sparse", env=make_emptyspace_sparse_env())]
+    ] + [
+        SimulationConfig(
+            suite="navigation",
+            name="emptyspace_sparse",
+            env=make_emptyspace_sparse_env(),
+        )
+    ]
     return evals

@@ -18,7 +18,6 @@ dtype_success: np.dtype
 class EpisodeStats(TypedDict):
     game: StatsDict
     agent: list[StatsDict]
-    converter: list[StatsDict]
 
 class PackedCoordinate:
     """Packed coordinate encoding utilities."""
@@ -63,12 +62,6 @@ class WallConfig(GridObjectConfig):
     type_name: str
     swappable: bool
 
-class BoxConfig(GridObjectConfig):
-    def __init__(self, type_id: int, type_name: str, returned_resources: dict[int, int]): ...
-    type_id: int
-    type_name: str
-    returned_resources: dict[int, int]
-
 class AgentConfig(GridObjectConfig):
     def __init__(
         self,
@@ -79,8 +72,6 @@ class AgentConfig(GridObjectConfig):
         freeze_duration: int = 0,
         action_failure_penalty: float = 0,
         resource_limits: dict[int, int] = {},
-        resource_rewards: dict[int, float] = {},
-        resource_reward_max: dict[int, float] = {},
         stat_rewards: dict[str, float] = {},
         stat_reward_max: dict[str, float] = {},
         group_reward_pct: float = 0,
@@ -93,8 +84,6 @@ class AgentConfig(GridObjectConfig):
     freeze_duration: int
     action_failure_penalty: float
     resource_limits: dict[int, int]
-    resource_rewards: dict[int, float]
-    resource_reward_max: dict[int, float]
     stat_rewards: dict[str, float]  # Added this
     stat_reward_max: dict[str, float]  # Added this
     group_reward_pct: float
@@ -112,7 +101,6 @@ class ConverterConfig(GridObjectConfig):
         conversion_ticks: int,
         cooldown: int,
         initial_resource_count: int = 0,
-        color: int = 0,
         recipe_details_obs: bool = False,
     ) -> None: ...
     type_id: int
@@ -124,7 +112,6 @@ class ConverterConfig(GridObjectConfig):
     conversion_ticks: int
     cooldown: int
     initial_resource_count: int
-    color: int
     recipe_details_obs: bool
 
 class ActionConfig:
@@ -135,6 +122,30 @@ class ActionConfig:
     ) -> None: ...
     required_resources: dict[int, int]
     consumed_resources: dict[int, float]
+
+class Recipe:
+    def __init__(
+        self,
+        input_resources: dict[int, int] = {},
+        output_resources: dict[int, int] = {},
+        cooldown: int = 0,
+    ) -> None: ...
+    input_resources: dict[int, int]
+    output_resources: dict[int, int]
+    cooldown: int
+
+class ClipperConfig:
+    def __init__(
+        self,
+        unclipping_recipes: list[Recipe],
+        length_scale: float,
+        cutoff_distance: float,
+        clip_rate: float,
+    ) -> None: ...
+    unclipping_recipes: list[Recipe]
+    length_scale: float
+    cutoff_distance: float
+    clip_rate: float
 
 class AttackActionConfig(ActionConfig):
     def __init__(
@@ -154,19 +165,32 @@ class ChangeGlyphActionConfig(ActionConfig):
     ) -> None: ...
     number_of_glyphs: int
 
+class ResourceModConfig(ActionConfig):
+    def __init__(
+        self,
+        required_resources: dict[int, int] = {},
+        consumed_resources: dict[int, float] = {},
+        modifies: dict[int, float] = {},
+        agent_radius: int = 0,
+        converter_radius: int = 0,
+        scales: bool = False,
+    ) -> None: ...
+    modifies: dict[int, float]
+    agent_radius: int
+    converter_radius: int
+    scales: bool
+
 class GlobalObsConfig:
     def __init__(
         self,
         episode_completion_pct: bool = True,
         last_action: bool = True,
         last_reward: bool = True,
-        resource_rewards: bool = False,
         visitation_counts: bool = False,
     ) -> None: ...
     episode_completion_pct: bool
     last_action: bool
     last_reward: bool
-    resource_rewards: bool
     visitation_counts: bool
 
 class GameConfig:
@@ -183,10 +207,14 @@ class GameConfig:
         actions: dict[str, ActionConfig],
         objects: dict[str, GridObjectConfig],
         resource_loss_prob: float = 0.0,
+        tag_id_map: dict[int, str] | None = None,
         track_movement_metrics: bool = False,
         recipe_details_obs: bool = False,
         allow_diagonals: bool = False,
         reward_estimates: Optional[dict[str, float]] = None,
+        inventory_regen_amounts: dict[int, int] | None = None,
+        inventory_regen_interval: int = 0,
+        clipper: Optional[ClipperConfig] = None,
     ) -> None: ...
     num_agents: int
     max_steps: int
@@ -202,6 +230,10 @@ class GameConfig:
     recipe_details_obs: bool
     allow_diagonals: bool
     reward_estimates: Optional[dict[str, float]]
+    tag_id_map: dict[int, str]
+    inventory_regen_amounts: dict[int, int]
+    inventory_regen_interval: int
+    clipper: Optional[ClipperConfig]
 
 class MettaGrid:
     obs_width: int
@@ -221,7 +253,14 @@ class MettaGrid:
     def set_buffers(
         self, observations: np.ndarray, terminals: np.ndarray, truncations: np.ndarray, rewards: np.ndarray
     ) -> None: ...
-    def grid_objects(self) -> dict[int, dict]: ...
+    def grid_objects(
+        self,
+        min_row: int = -1,
+        max_row: int = -1,
+        min_col: int = -1,
+        max_col: int = -1,
+        ignore_types: list[str] = [],
+    ) -> dict[int, dict]: ...
     def action_names(self) -> list[str]: ...
     def get_episode_rewards(self) -> np.ndarray: ...
     def get_episode_stats(self) -> EpisodeStats: ...
@@ -230,3 +269,4 @@ class MettaGrid:
     def object_type_names(self) -> list[str]: ...
     def resource_names(self) -> list[str]: ...
     def feature_spec(self) -> dict[str, dict[str, float | int]]: ...
+    def set_inventory(self, agent_id: int, inventory: dict[int, int]) -> None: ...

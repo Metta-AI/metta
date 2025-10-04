@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Source shared utilities
+source "$(dirname "$0")/monitor_utils.sh"
+
 # Required environment variables
 : "${WRAPPER_PID:?Missing WRAPPER_PID}"
 : "${HEARTBEAT_FILE:?Missing HEARTBEAT_FILE}"
@@ -25,13 +28,6 @@ echo "[INFO] Initial heartbeat written with start time: $START_TIME"
 LAST_HEARTBEAT_TIME=$(stat -c %Y "$HEARTBEAT_FILE" 2> /dev/null || stat -f %m "$HEARTBEAT_FILE" 2> /dev/null)
 HEARTBEAT_COUNT=0
 
-stop_cluster() {
-  local msg="$1"
-  echo "[ERROR] Heartbeat timeout! $msg"
-  echo "heartbeat_timeout" > "$TERMINATION_REASON_FILE"
-  kill -TERM "${WRAPPER_PID}" 2> /dev/null || true
-}
-
 while true; do
   if [ -s "$CLUSTER_STOP_FILE" ]; then
     echo "[INFO] Cluster stop detected, heartbeat monitor exiting"
@@ -55,7 +51,13 @@ while true; do
 
   # Check if timeout exceeded
   if [ $((CURRENT_TIME - LAST_HEARTBEAT_TIME)) -gt "$HEARTBEAT_TIMEOUT" ]; then
-    stop_cluster "No heartbeat for $HEARTBEAT_TIMEOUT seconds"
+    echo "[ERROR] Heartbeat timeout! No heartbeat for $HEARTBEAT_TIMEOUT seconds"
+    initiate_shutdown "heartbeat_timeout"
+    break
+  fi
+
+  if ! kill -0 "$WRAPPER_PID" 2>/dev/null; then
+    echo "[INFO] Wrapper PID $WRAPPER_PID is no longer running, exiting heartbeat monitor"
     break
   fi
 done

@@ -4,10 +4,12 @@
 #include <string>
 
 #include "actions/action_handler.hpp"
-#include "core/grid_object.hpp"
-#include "objects/agent.hpp"
 #include "actions/orientation.hpp"
+#include "core/grid_object.hpp"
 #include "core/types.hpp"
+#include "objects/agent.hpp"
+#include "objects/constants.hpp"
+#include "objects/usable.hpp"
 
 // Forward declaration
 struct GameConfig;
@@ -22,7 +24,7 @@ public:
   }
 
 protected:
-  bool _handle_action(Agent* actor, ActionArg arg) override {
+  bool _handle_action(Agent& actor, ActionArg arg) override {
     // Get the orientation from the action argument
     Orientation move_direction = static_cast<Orientation>(arg);
 
@@ -31,7 +33,7 @@ protected:
       return false;
     }
 
-    GridLocation current_location = actor->location;
+    GridLocation current_location = actor.location;
     GridLocation target_location = current_location;
 
     // Get movement deltas for the direction
@@ -49,28 +51,41 @@ protected:
     target_location.c = static_cast<GridCoord>(static_cast<int>(target_location.c) + dc);
 
     // Update orientation to face the movement direction (even if movement fails)
-    actor->orientation = move_direction;
+    actor.orientation = move_direction;
 
-    // Check if target location is valid and empty
-    if (!_is_valid_square(target_location)) {
+    if (!_grid->is_valid_location(target_location)) {
+      return false;
+    }
+
+    // `Move` is actually `MoveOrUse`, so we need to check if the target location is empty and if the object is usable.
+    // In the future, we may want to split 'Move' and 'MoveOrUse', if we want to allow agents to run into usable
+    // objects without using them.
+    if (!_grid->is_empty(target_location.r, target_location.c)) {
+      // Check the AgentLayer first for other agents
+      GridLocation agent_location = {target_location.r, target_location.c, GridLayer::AgentLayer};
+      GridObject* target_agent = _grid->object_at(agent_location);
+      if (target_agent) {
+        Usable* usable_agent = dynamic_cast<Usable*>(target_agent);
+        if (usable_agent) {
+          return usable_agent->onUse(actor, arg);
+        }
+      }
+
+      // Then check the ObjectLayer for other usable objects
+      GridLocation object_location = {target_location.r, target_location.c, GridLayer::ObjectLayer};
+      GridObject* target_object = _grid->object_at(object_location);
+      if (target_object) {
+        Usable* usable_object = dynamic_cast<Usable*>(target_object);
+        if (usable_object) {
+          return usable_object->onUse(actor, arg);
+        }
+      }
+
       return false;
     }
 
     // Move the agent
-    return _grid->move_object(actor->id, target_location);
-  }
-
-  bool _is_valid_square(GridLocation target_location) {
-    if (!_grid->is_valid_location(target_location)) {
-      return false;
-    }
-    if (!_grid->is_empty_at_layer(target_location.r, target_location.c, GridLayer::ObjectLayer)) {
-      return false;
-    }
-    if (!_grid->is_empty(target_location.r, target_location.c)) {
-      return false;
-    }
-    return true;
+    return _grid->move_object(actor, target_location);
   }
 
 private:

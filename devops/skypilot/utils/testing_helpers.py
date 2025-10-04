@@ -7,7 +7,6 @@ import json
 import re
 import subprocess
 import sys
-import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -20,6 +19,7 @@ from devops.skypilot.utils.job_helpers import (
     get_request_id_from_launch_output,
     tail_job_log,
 )
+from metta.common.util.retry import retry_function
 from metta.common.util.text_styles import bold, cyan, green, magenta, red, yellow
 
 
@@ -69,7 +69,11 @@ class SkyPilotTestLauncher:
         """Generate a descriptive run name with timestamp."""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         suffix = f"_{extra_suffix}" if extra_suffix else ""
-        return f"{self.base_name}_{test_name}{suffix}_{timestamp}"
+
+        # Replace slashes with underscores for Sky compatibility
+        safe_test_name = test_name.replace("/", "_")
+
+        return f"{self.base_name}_{safe_test_name}{suffix}_{timestamp}"
 
     def check_git_state(self) -> bool:
         """Check if git state is clean. Returns True if clean or check is skipped."""
@@ -90,6 +94,50 @@ class SkyPilotTestLauncher:
         print(f"{green('✅ Git state is clean')}")
         return True
 
+    def _execute_launch_command(self, cmd: list[str]) -> tuple[Optional[str], Optional[str], dict[str, Any]]:
+        """Execute the launch command and extract IDs. Returns (job_id, request_id, debug_info)."""
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        full_output = result.stdout + "\n" + result.stderr
+
+        # Extract request ID
+        request_id = get_request_id_from_launch_output(full_output)
+
+        if not request_id:
+            # Check for known error patterns
+            if "sky-jobs-controller" in full_output.lower() and "not up" in full_output.lower():
+                raise Exception("Jobs controller appears to be down")
+
+            # Include debug info in the exception
+            debug_info = {
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+                "return_code": result.returncode,
+            }
+            raise Exception(f"Failed to get request ID from launch output. Debug: {debug_info}")
+
+        print(f"  {green('✅ Launched successfully')} - Request ID: {yellow(request_id)}")
+
+        # Try to get job ID with retries using retry_function
+        def get_job_id_with_wait() -> str:
+            job_id = get_job_id_from_request_id(request_id, wait_seconds=2.0)
+            if not job_id:
+                raise Exception("Job ID not available yet")
+            return job_id
+
+        try:
+            job_id = retry_function(
+                get_job_id_with_wait,
+                max_retries=2,
+                initial_delay=2.0,
+            )
+            print(f"  {green('✅ Job ID retrieved:')} {yellow(job_id)}")
+        except Exception:
+            # Job ID not available yet, but launch was successful
+            job_id = None
+            print(f"  {cyan('ℹ️  Job ID not available yet (may need more time)')}")
+
+        return job_id, request_id, {}
+
     def launch_job(
         self,
         module: str,
@@ -98,8 +146,7 @@ class SkyPilotTestLauncher:
         extra_args: list[str],
         test_config: dict[str, Any],
         enable_ci_tests: bool = False,
-        max_retries: int = 3,
-        retry_delay: float = 2.0,
+        max_attempts: int = 3,
     ) -> LaunchedJob:
         """Launch a single job and track its status with retry logic."""
         # Build the command
@@ -124,108 +171,38 @@ class SkyPilotTestLauncher:
             print(f"    {cyan(f'{key}:')} {value}")
         print("  }")
 
-        # Try launching with retries
-        for attempt in range(max_retries):
-            try:
-                # Launch the job
-                result = subprocess.run(cmd, capture_output=True, text=True)
-                full_output = result.stdout + "\n" + result.stderr
+        try:
+            job_id, request_id, debug_info = retry_function(
+                lambda: self._execute_launch_command(cmd),
+                max_retries=max_attempts - 1,
+            )
 
-                # Extract request ID
-                request_id = get_request_id_from_launch_output(full_output)
+            job = LaunchedJob(
+                job_id=job_id,
+                request_id=request_id,
+                run_name=run_name,
+                test_config=test_config,
+                launch_time=datetime.now().isoformat(),
+                success=True,
+            )
+            self.launched_jobs.append(job)
+            return job
 
-                if request_id:
-                    print(f"  {green('✅ Launched successfully')} - Request ID: {yellow(request_id)}")
+        except Exception as e:
+            # All retries exhausted
+            print(f"  {red(f'❌ Failed to launch job after {max_attempts} attempts')}")
+            print(f"  {red('Final error:')} {str(e)}")
 
-                    # Try to get job ID with retries
-                    job_id = None
-                    for job_attempt in range(3):
-                        job_id = get_job_id_from_request_id(request_id, wait_seconds=2.0)
-                        if job_id:
-                            print(f"  {green('✅ Job ID retrieved:')} {yellow(job_id)}")
-                            break
-                        elif job_attempt < 2:
-                            print(f"  {cyan('⏳ Waiting for job ID...')} (attempt {job_attempt + 1}/3)")
-                            time.sleep(2.0)
-
-                    if not job_id:
-                        print(f"  {cyan('⚠️  Job ID not available yet (may need more time)')}")
-
-                    job = LaunchedJob(
-                        job_id=job_id,
-                        request_id=request_id,
-                        run_name=run_name,
-                        test_config=test_config,
-                        launch_time=datetime.now().isoformat(),
-                        success=True,
-                    )
-                    self.launched_jobs.append(job)
-                    return job
-                else:
-                    # No request ID found, but let's check if it might be a transient issue
-                    if attempt < max_retries - 1:
-                        print(
-                            f"  {yellow('⚠️  No request ID found in output, retrying...')} "
-                            f"(attempt {attempt + 1}/{max_retries})"
-                        )
-
-                        # Print some diagnostic info on failed attempts
-                        if result.returncode != 0:
-                            print(f"  {yellow('Return code:')} {result.returncode}")
-
-                        # Check for common error patterns
-                        if "sky-jobs-controller" in full_output.lower() and "not up" in full_output.lower():
-                            print(f"  {red('Error: Jobs controller appears to be down')}")
-                            # Don't retry if controller is down
-                            break
-
-                        # Wait before retry
-                        time.sleep(retry_delay)
-                        continue
-                    else:
-                        # Final attempt failed
-                        raise Exception("Failed to get request ID from launch output after all retries")
-
-            except Exception as e:
-                if attempt < max_retries - 1:
-                    print(f"  {yellow('⚠️  Launch failed, retrying...')} (attempt {attempt + 1}/{max_retries})")
-                    print(f"  {yellow('Error:')} {str(e)}")
-                    time.sleep(retry_delay)
-                    continue
-                else:
-                    # All retries exhausted
-                    print(f"  {red('❌ Failed to launch job after {max_retries} attempts')}")
-                    print(f"  {red('Final error:')} {str(e)}")
-
-                    # Save diagnostic information
-                    debug_info = {
-                        "last_stdout": result.stdout if "result" in locals() else "N/A",
-                        "last_stderr": result.stderr if "result" in locals() else "N/A",
-                        "return_code": result.returncode if "result" in locals() else "N/A",
-                    }
-
-                    job = LaunchedJob(
-                        job_id=None,
-                        request_id=None,
-                        run_name=run_name,
-                        test_config={**test_config, "debug_info": debug_info},
-                        launch_time=datetime.now().isoformat(),
-                        success=False,
-                    )
-                    self.failed_launches.append(job)
-                    return job
-
-        # Should not reach here, but just in case
-        job = LaunchedJob(
-            job_id=None,
-            request_id=None,
-            run_name=run_name,
-            test_config=test_config,
-            launch_time=datetime.now().isoformat(),
-            success=False,
-        )
-        self.failed_launches.append(job)
-        return job
+            job = LaunchedJob(
+                job_id=None,
+                request_id=None,
+                run_name=run_name,
+                test_config={**test_config, "error": str(e)},
+                launch_time=datetime.now().isoformat(),
+                success=False,
+            )
+            self.failed_launches.append(job)
+            return job
 
     def save_results(self, output_file: str = "skypilot_test_jobs.json") -> Path:
         """Save launch results to JSON file."""
@@ -818,7 +795,7 @@ class BaseTestRunner:
         self.test_type = test_type
 
     def create_parser(self) -> argparse.ArgumentParser:
-        """Create the argument parser with launch/check subcommands."""
+        """Create the argument parser with launch/check/kill subcommands."""
         parser = argparse.ArgumentParser(
             description=self.description,
             formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -860,6 +837,20 @@ Examples:
         check_parser.add_argument("-f", "--input-file", default=self.default_output_file, help="Input JSON file")
         check_parser.add_argument("-l", "--logs", action="store_true", help="Show detailed logs")
         check_parser.add_argument("-n", "--tail-lines", type=int, default=200, help="Log lines to tail")
+
+        # Kill subcommand
+        kill_parser = subparsers.add_parser(
+            "kill",
+            help="Kill all test jobs",
+            description=f"Kill all {self.test_type.lower()} jobs from a test run",
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+            epilog="""
+Examples:
+  %(prog)s                      # Kill all jobs from default file
+  %(prog)s -f custom.json       # Kill jobs from custom file
+        """,
+        )
+        kill_parser.add_argument("-f", "--input-file", default=self.default_output_file, help="Input JSON file")
 
         return parser
 
@@ -907,6 +898,105 @@ Examples:
         print(f"  • Use {cyan('check -n <lines>')} to change log lines to tail")
         print(f"  • Use {cyan('sky jobs logs <job_id>')} to view a single job's full log")
 
+    def kill_tests(self, args) -> None:
+        """Kill all jobs from a test run."""
+        # Load jobs data
+        input_path = Path(args.input_file)
+        if not input_path.exists():
+            print(red(f"Error: Input file '{input_path}' not found"))
+            print(f"Run '{self.prog_name} launch' first to create the job file")
+            sys.exit(1)
+
+        import json
+
+        with open(input_path, "r") as f:
+            jobs_data = json.load(f)
+
+        # Get launched jobs with valid job IDs
+        launched_jobs = jobs_data.get("launched_jobs", [])
+        job_ids = [job["job_id"] for job in launched_jobs if job.get("job_id")]
+
+        if not job_ids:
+            print(yellow("No jobs found to kill"))
+            return
+
+        # Show what will be killed
+        test_info = jobs_data.get("test_run_info", {})
+        print(bold(f"\n=== Kill {len(job_ids)} {self.test_type} Jobs ==="))
+        print(f"{cyan('Test run:')} {test_info.get('base_name', 'Unknown')}")
+        print(f"{cyan('Launch time:')} {test_info.get('launch_time', 'Unknown')}")
+        print(f"{cyan('Jobs to kill:')} {', '.join(job_ids)}")
+
+        # Kill each job
+        print(f"\n{cyan('Killing jobs...')}")
+        killed_count = 0
+        completed_count = 0
+        failed_kills = []
+
+        for i, job_id in enumerate(job_ids):
+            print(f"  [{i + 1}/{len(job_ids)}] Killing job {yellow(job_id)}...", end="", flush=True)
+
+            success, status = self._kill_job_with_retry(job_id)
+
+            if success:
+                if status == "Killed":
+                    killed_count += 1
+                    print(f" {red('✗')} {status}")
+                else:  # "Already completed" or "Not found"
+                    completed_count += 1
+                    print(f" {green('✓')} {status}")
+            else:
+                failed_kills.append((job_id, status))
+                print(f" {red('✗ Failed')}: {status}")
+
+        # Summary
+        print(f"\n{bold('=== Summary ===')}")
+        if killed_count > 0:
+            print(f"{yellow('Killed:')} {killed_count} jobs")
+        if completed_count > 0:
+            print(f"{green('Already completed:')} {completed_count} jobs")
+        if failed_kills:
+            print(f"{red('Failed:')} {len(failed_kills)} jobs")
+
+        # Exit with error if any kills failed
+        if failed_kills:
+            sys.exit(1)
+
+    def _kill_job_with_retry(self, job_id: str, max_attempts: int = 3) -> tuple[bool, str]:
+        """Kill a single job with retry logic. Returns (success, status_message)."""
+
+        def execute_kill():
+            cmd = ["sky", "jobs", "cancel", "-y", job_id]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+
+            # Check stderr first, regardless of return code
+            stdout_lower = result.stdout.lower()
+
+            # Check if already terminated
+            if "already in terminal state" in stdout_lower:
+                return True, "Already completed"
+
+            # Check if not found
+            if "not found" in stdout_lower:
+                return True, "Not found"
+
+            # If return code is 0, it was actually killed
+            if result.returncode == 0:
+                return True, "Killed"
+
+            # Otherwise it's an error
+            raise Exception(result.stdout.strip() or "Failed")
+
+        try:
+            success, status = retry_function(
+                execute_kill,
+                max_retries=max_attempts - 1,
+                initial_delay=1.0,
+            )
+            return success, status
+        except Exception as e:
+            return False, str(e)
+
     def run(self) -> None:
         """Main entry point for the test runner."""
         parser = self.create_parser()
@@ -916,6 +1006,8 @@ Examples:
             self.launch_tests(args)
         elif args.command == "check":
             self.check_tests(args)
+        elif args.command == "kill":
+            self.kill_tests(args)
 
     # Methods to be implemented by subclasses
     def get_launch_description(self) -> str:

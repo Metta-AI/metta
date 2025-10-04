@@ -2,11 +2,10 @@ import os
 import platform
 import subprocess
 
-from softmax.aws.secrets_manager import get_secretsmanager_secret
-
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
 from metta.setup.utils import error, info, success, warning
+from softmax.aws.secrets_manager import get_secretsmanager_secret
 
 
 @register_module

@@ -2,17 +2,17 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 
-from omegaconf import OmegaConf
+import yaml
 from typing_extensions import TypedDict
 
-from mettagrid.map_builder.map_builder import MapBuilderConfig
+from mettagrid.map_builder import MapBuilderConfig
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.types import MapGrid
-from mettagrid.mapgen.utils.ascii_grid import grid_to_lines, lines_to_grid
-from mettagrid.util import file as file_utils
+from mettagrid.mapgen.utils.ascii_grid import default_char_to_name, grid_to_lines, lines_to_grid
 
 logger = logging.getLogger(__name__)
 
@@ -39,16 +39,17 @@ class StorableMap:
     metadata: dict
     config: MapBuilderConfig  # config that was used to generate the map
     scene_tree: dict | None = None
+    char_to_name: dict[str, str] = field(default_factory=dict)
 
     def __str__(self) -> str:
-        frontmatter = OmegaConf.to_yaml(
+        frontmatter = yaml.safe_dump(
             {
                 "metadata": self.metadata,
                 "config": self.config.model_dump(),
                 "scene_tree": self.scene_tree,
             }
         )
-        content = frontmatter + "\n---\n" + "\n".join(grid_to_lines(self.grid)) + "\n"
+        content = frontmatter + "\n---\n" + "\n".join(grid_to_lines(self.grid, self.name_to_char)) + "\n"
         return content
 
     def width(self) -> int:
@@ -57,23 +58,31 @@ class StorableMap:
     def height(self) -> int:
         return self.grid.shape[0]
 
+    @property
+    def name_to_char(self) -> dict[str, str]:
+        return {name: char for char, name in self.char_to_name.items()}
+
     @staticmethod
-    def from_uri(uri: str) -> StorableMap:
+    def from_uri(uri: str, char_to_name: dict[str, str] | None = None) -> StorableMap:
         logger.info(f"Loading map from {uri}")
-        content = file_utils.read(uri).decode()
+        # Only supports local files
+        content = Path(uri).read_text()
 
         # TODO - validate content in a more principled way
         (frontmatter, content) = content.split("---\n", 1)
 
-        frontmatter = OmegaConf.create(frontmatter)
-        metadata = frontmatter.metadata
-        config = frontmatter.config
+        frontmatter = yaml.safe_load(frontmatter)
+        metadata = frontmatter["metadata"]
+        config = frontmatter["config"]
         lines = content.split("\n")
 
         # make sure we didn't add extra lines because of newlines in the content
         lines = [line for line in lines if line]
 
-        return StorableMap(lines_to_grid(lines), metadata=metadata, config=config)
+        char_to_name = char_to_name or default_char_to_name()
+        return StorableMap(
+            lines_to_grid(lines, char_to_name), metadata=metadata, config=config, char_to_name=char_to_name
+        )
 
     @staticmethod
     def from_cfg(cfg: MapBuilderConfig) -> StorableMap:
@@ -88,6 +97,11 @@ class StorableMap:
         if isinstance(map_builder, MapGen):
             scene_tree = map_builder.get_scene_tree()
 
+        # Extract char_to_name_map from config if available
+        char_to_name = {}
+        if hasattr(cfg, "char_to_name_map"):
+            char_to_name = cfg.char_to_name_map
+
         storable_map = StorableMap(
             grid=level.grid,
             metadata={
@@ -96,16 +110,21 @@ class StorableMap:
             },
             config=cfg,
             scene_tree=scene_tree,
+            char_to_name=char_to_name,
         )
         return storable_map
 
     def save(self, uri: str):
-        file_utils.write_data(uri, str(self), content_type="text/plain")
+        content = str(self)
+        # Only supports local files
+        path = Path(uri)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
         logger.info(f"Saved map to {uri}")
 
     # Useful in API responses
     def to_dict(self) -> StorableMapDict:
-        config_dict = OmegaConf.to_container(self.config, resolve=False)
+        config_dict = self.config.model_dump()
         assert isinstance(config_dict, dict)
         return {
             "frontmatter": {
@@ -113,5 +132,5 @@ class StorableMap:
                 "config": config_dict,
                 "scene_tree": self.scene_tree,
             },
-            "data": "\n".join(grid_to_lines(self.grid)),
+            "data": "\n".join(grid_to_lines(self.grid, self.name_to_char)),
         }

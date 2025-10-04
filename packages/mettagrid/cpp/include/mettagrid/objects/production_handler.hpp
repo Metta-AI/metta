@@ -19,7 +19,6 @@ public:
     }
 
     converter->finish_converting();
-    converter->stats.incr(converter->type_name + ".produced");
   }
 };
 
@@ -41,12 +40,7 @@ public:
       return;
     }
 
-    // Handle Assembler cooldown
-    Assembler* assembler = dynamic_cast<Assembler*>(obj);
-    if (assembler) {
-      assembler->finish_cooldown();
-      return;
-    }
+    // NB: Assemblers handle cooldown implicitly.
   }
 };
 

@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "core/types.hpp"
+#include "systems/clipper_config.hpp"
 
 // Forward declarations
 struct ActionConfig;
@@ -21,7 +22,6 @@ struct GlobalObsConfig {
   bool episode_completion_pct = true;
   bool last_action = true;
   bool last_reward = true;
-  bool resource_rewards = false;
   bool visitation_counts = false;
 };
 
@@ -34,15 +34,22 @@ struct GameConfig {
   std::vector<std::string> resource_names;
   unsigned int num_observation_tokens;
   GlobalObsConfig global_obs;
-  std::map<std::string, std::shared_ptr<ActionConfig>> actions;
+  std::vector<std::pair<std::string, std::shared_ptr<ActionConfig>>> actions;  // Ordered list of (name, config) pairs
   std::map<std::string, std::shared_ptr<GridObjectConfig>> objects;
   float resource_loss_prob = 0.0;
+  std::map<int, std::string> tag_id_map;
 
   // FEATURE FLAGS
   bool track_movement_metrics = false;
   bool recipe_details_obs = false;
   bool allow_diagonals = false;
   std::map<std::string, float> reward_estimates = {};
+
+  // Inventory regeneration interval (global check timing)
+  unsigned int inventory_regen_interval = 0;  // Interval in timesteps (0 = disabled)
+
+  // Global clipper settings
+  std::shared_ptr<ClipperConfig> clipper = nullptr;
 };
 
 namespace py = pybind11;
@@ -50,16 +57,14 @@ namespace py = pybind11;
 inline void bind_global_obs_config(py::module& m) {
   py::class_<GlobalObsConfig>(m, "GlobalObsConfig")
       .def(py::init<>())
-      .def(py::init<bool, bool, bool, bool, bool>(),
+      .def(py::init<bool, bool, bool, bool>(),
            py::arg("episode_completion_pct") = true,
            py::arg("last_action") = true,
            py::arg("last_reward") = true,
-           py::arg("resource_rewards") = false,
            py::arg("visitation_counts") = false)
       .def_readwrite("episode_completion_pct", &GlobalObsConfig::episode_completion_pct)
       .def_readwrite("last_action", &GlobalObsConfig::last_action)
       .def_readwrite("last_reward", &GlobalObsConfig::last_reward)
-      .def_readwrite("resource_rewards", &GlobalObsConfig::resource_rewards)
       .def_readwrite("visitation_counts", &GlobalObsConfig::visitation_counts);
 }
 
@@ -73,15 +78,22 @@ inline void bind_game_config(py::module& m) {
                     const std::vector<std::string>&,
                     unsigned int,
                     const GlobalObsConfig&,
-                    const std::map<std::string, std::shared_ptr<ActionConfig>>&,
+                    const std::vector<std::pair<std::string, std::shared_ptr<ActionConfig>>>&,
                     const std::map<std::string, std::shared_ptr<GridObjectConfig>>&,
                     float,
+                    const std::map<int, std::string>&,
 
                     // FEATURE FLAGS
                     bool,
                     bool,
                     bool,
-                    const std::map<std::string, float>&>(),
+                    const std::map<std::string, float>&,
+
+                    // Inventory regeneration
+                    unsigned int,
+
+                    // Clipper
+                    const std::shared_ptr<ClipperConfig>&>(),
            py::arg("num_agents"),
            py::arg("max_steps"),
            py::arg("episode_truncates"),
@@ -93,12 +105,19 @@ inline void bind_game_config(py::module& m) {
            py::arg("actions"),
            py::arg("objects"),
            py::arg("resource_loss_prob") = 0.0f,
+           py::arg("tag_id_map") = std::map<int, std::string>(),
 
            // FEATURE FLAGS
            py::arg("track_movement_metrics"),
            py::arg("recipe_details_obs") = false,
            py::arg("allow_diagonals") = false,
-           py::arg("reward_estimates") = std::map<std::string, float>())
+           py::arg("reward_estimates") = std::map<std::string, float>(),
+
+           // Inventory regeneration
+           py::arg("inventory_regen_interval") = 0,
+
+           // Clipper
+           py::arg("clipper") = std::shared_ptr<ClipperConfig>(nullptr))
       .def_readwrite("num_agents", &GameConfig::num_agents)
       .def_readwrite("max_steps", &GameConfig::max_steps)
       .def_readwrite("episode_truncates", &GameConfig::episode_truncates)
@@ -115,12 +134,19 @@ inline void bind_game_config(py::module& m) {
       // .def_readwrite("objects", &GameConfig::objects);
 
       .def_readwrite("resource_loss_prob", &GameConfig::resource_loss_prob)
+      .def_readwrite("tag_id_map", &GameConfig::tag_id_map)
 
       // FEATURE FLAGS
       .def_readwrite("track_movement_metrics", &GameConfig::track_movement_metrics)
       .def_readwrite("recipe_details_obs", &GameConfig::recipe_details_obs)
       .def_readwrite("allow_diagonals", &GameConfig::allow_diagonals)
-      .def_readwrite("reward_estimates", &GameConfig::reward_estimates);
+      .def_readwrite("reward_estimates", &GameConfig::reward_estimates)
+
+      // Inventory regeneration
+      .def_readwrite("inventory_regen_interval", &GameConfig::inventory_regen_interval)
+
+      // Clipper
+      .def_readwrite("clipper", &GameConfig::clipper);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_CONFIG_METTAGRID_CONFIG_HPP_

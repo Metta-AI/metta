@@ -14,14 +14,18 @@ def make_nav_sequence_ascii_env(
     border_width: int = 1,
     instance_border_width: int = 3,
 ) -> MettaGridConfig:
-    ascii_map = f"mettagrid/configs/maps/navigation_sequence/{name}.map"
+    ascii_map = f"packages/mettagrid/configs/maps/navigation_sequence/{name}.map"
     env = make_navigation_sequence(num_agents=num_agents * num_instances)
     env.game.max_steps = max_steps
     env.game.map_builder = MapGen.Config(
         instances=num_instances,
         border_width=border_width,
         instance_border_width=instance_border_width,
-        instance_map=MapGen.Config.with_ascii_uri(ascii_map, border_width=border_width),
+        instance=MapGen.Config.with_ascii_uri(
+            ascii_map,
+            {o.map_char: o.name for o in env.game.objects.values()},
+            border_width=border_width,
+        ),
     )
 
     # in evals, only complete the sequence once
@@ -33,7 +37,8 @@ def make_nav_sequence_ascii_env(
 def make_navigation_sequence_eval_suite() -> list[SimulationConfig]:
     evals = [
         SimulationConfig(
-            name=f"navigation_sequence/{eval['name']}",
+            suite="navigation_sequence",
+            name=eval["name"],
             env=make_nav_sequence_ascii_env(
                 name=eval["name"],
                 max_steps=eval["max_steps"],

@@ -27,6 +27,23 @@ import {
 import path from "path";
 import { execSync } from "child_process";
 
+// ===== SYSTEM DEPENDENCY CHECKS =====
+
+/**
+ * Check if a system command/tool is available
+ */
+function checkSystemDependency(command: string, name: string): void {
+  try {
+    execSync(`${command} --version`, { stdio: ["pipe", "pipe", "pipe"] });
+    console.log(`✅ ${name} is available`);
+  } catch (error: any) {
+    console.error(`❌ ${name} not found in system`);
+    console.error(`   Command '${command} --version' failed: ${error.message}`);
+    console.error(`   This may cause processing to fail silently`);
+    throw new Error(`${name} not available: ${error.message}`);
+  }
+}
+
 // ===== EXACT BATCH SCRIPT INTERFACES =====
 
 interface AdobeElement {
@@ -416,8 +433,18 @@ async function compressPdfWithGhostscript(pdfBuffer: Buffer): Promise<Buffer> {
   const tempInputFile = `temp-input-${uuidv4()}.pdf`;
   const tempOutputFile = `temp-output-${uuidv4()}.pdf`;
 
+  console.log(
+    `🗜️ Starting Ghostscript compression for ${pdfBuffer.length} byte PDF`
+  );
+
   try {
+    // Check if Ghostscript is available
+    checkSystemDependency("gs", "Ghostscript");
+
     // Write input PDF
+    console.log(
+      `📝 Writing ${pdfBuffer.length} bytes to temp file: ${tempInputFile}`
+    );
     writeFileSync(tempInputFile, pdfBuffer);
 
     // Ghostscript compression command optimized for Textract compatibility
@@ -445,19 +472,41 @@ async function compressPdfWithGhostscript(pdfBuffer: Buffer): Promise<Buffer> {
     console.log("🗜️ Running Ghostscript compression directly...");
     console.log(`📝 Command: ${gsCommand.join(" ")}`);
 
-    // Execute ghostscript directly
-    execSync(gsCommand.join(" "), {
-      stdio: ["pipe", "pipe", "pipe"], // Capture output
-      timeout: 60000, // 60 second timeout
-    });
+    // Execute ghostscript directly with better error handling
+    let gsOutput = "";
+    let gsError = "";
+    try {
+      gsOutput = execSync(gsCommand.join(" "), {
+        stdio: ["pipe", "pipe", "pipe"], // Capture output
+        timeout: 60000, // 60 second timeout
+        encoding: "utf8",
+      });
+    } catch (execError: any) {
+      gsError = execError.stderr || execError.message || "Unknown error";
+      console.error(`❌ Ghostscript execution failed: ${gsError}`);
+      console.error(`   Exit code: ${execError.status}`);
+      console.error(`   Signal: ${execError.signal}`);
+      throw new Error(`Ghostscript execution failed: ${gsError}`);
+    }
+
+    if (gsOutput) {
+      console.log(`📄 Ghostscript output: ${gsOutput}`);
+    }
 
     // Check if output file was created
     if (!existsSync(tempOutputFile)) {
+      console.error(
+        "❌ Ghostscript command completed but no output file created"
+      );
+      console.error(`   Expected output file: ${tempOutputFile}`);
       throw new Error("Ghostscript failed to create output file");
     }
 
     // Read compressed PDF
     const compressedBuffer = readFileSync(tempOutputFile);
+    console.log(
+      `📊 Compression results: ${pdfBuffer.length} bytes → ${compressedBuffer.length} bytes (${Math.round((compressedBuffer.length / pdfBuffer.length) * 100)}%)`
+    );
 
     // Validate compressed PDF before returning
     console.log("🔍 Validating compressed PDF...");
@@ -1813,16 +1862,22 @@ export async function extractPdfWithOpenAI(pdfBuffer: Buffer): Promise<{
 
     // Step 1: Anthropic analysis
     console.log("📝 Step 1: Getting key figures and summary from Anthropic...");
-    const summaryResult = await generateObject({
-      model: anthropic("claude-3-5-sonnet-20241022"),
-      schema: SummarySchema,
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: `Analyze this PDF and provide:
+    console.log(
+      `📋 PDF details for Anthropic: ${pdfBuffer.length} bytes, header: ${pdfHeader}`
+    );
+
+    let summaryResult: any;
+    try {
+      summaryResult = await generateObject({
+        model: anthropic("claude-3-5-sonnet-20241022"),
+        schema: SummarySchema,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: `Analyze this PDF and provide:
 
 1. **Title**: The paper's exact title
 2. **Short Explanation**: 2-3 sentences explaining what this paper is about and why it matters
@@ -1837,17 +1892,48 @@ CRITICAL:
 - If a figure has multiple sub-panels (like Figure 1a, 1b, 1c), you MUST specify the exact sub-panel (e.g., "Figure 1a") - never just "Figure 1"
 - You MUST include the page number for each figure
 - Look carefully at the paper to identify which specific sub-panel is most important and on which page it appears`,
-            },
-            {
-              type: "file",
-              data: pdfBuffer,
-              mediaType: "application/pdf",
-            },
-          ],
-        },
-      ],
-      maxRetries: 1,
-    });
+              },
+              {
+                type: "file",
+                data: pdfBuffer,
+                mediaType: "application/pdf",
+              },
+            ],
+          },
+        ],
+        maxRetries: 1,
+      });
+
+      console.log("✅ Anthropic API call successful");
+    } catch (anthropicError: any) {
+      console.error("❌ Anthropic API call failed with detailed context:");
+      console.error(`   PDF size: ${pdfBuffer.length} bytes`);
+      console.error(`   PDF header: ${pdfHeader}`);
+      console.error(`   Model: claude-3-5-sonnet-20241022`);
+      console.error(`   Error type: ${anthropicError.constructor.name}`);
+      console.error(`   Status code: ${anthropicError.status || "N/A"}`);
+      console.error(`   Error message: ${anthropicError.message}`);
+
+      if (anthropicError.headers) {
+        console.error(`   Response headers:`, anthropicError.headers);
+      }
+
+      if (anthropicError.status === 500) {
+        console.error(
+          "   ⚠️ Internal server error from Anthropic - this may indicate:"
+        );
+        console.error("      - Corrupted or malformed PDF content");
+        console.error(
+          "      - PDF preprocessing failure (compression/conversion)"
+        );
+        console.error(
+          "      - Content that triggers Anthropic's internal filters"
+        );
+        console.error("      - Temporary service issues on Anthropic's side");
+      }
+
+      throw anthropicError;
+    }
 
     console.log(
       `✅ Anthropic identified ${summaryResult.object.keyFigures?.length || 0} key figures`
@@ -1861,18 +1947,26 @@ CRITICAL:
       summaryResult.object.keyFigures.length > 0
     ) {
       // Always start with metadata-only figures from AI analysis
-      figuresWithImages = summaryResult.object.keyFigures.map((fig) => ({
-        caption: fig.caption,
-        pageNumber: fig.pageNumber || 1,
-        context: fig.explanation || fig.significance, // Fallback for backward compatibility
-        figureNumber: parseInt(fig.figureNumber.replace(/[^\d]/g, "")) || 0,
-        subpanel: fig.figureNumber.match(/[a-z]$/i)?.[0],
-        confidence: 0.8, // Higher confidence since these come from AI analysis
-        aiDetectedText: `${fig.significance} ${fig.explanation || ""}`.trim(),
-        // Preserve separate AI commentary fields
-        significance: fig.significance,
-        explanation: fig.explanation,
-      }));
+      figuresWithImages = summaryResult.object.keyFigures.map(
+        (fig: {
+          figureNumber: string;
+          caption: string;
+          significance: string;
+          explanation: string;
+          pageNumber: number;
+        }) => ({
+          caption: fig.caption,
+          pageNumber: fig.pageNumber || 1,
+          context: fig.explanation || fig.significance, // Fallback for backward compatibility
+          figureNumber: parseInt(fig.figureNumber.replace(/[^\d]/g, "")) || 0,
+          subpanel: fig.figureNumber.match(/[a-z]$/i)?.[0],
+          confidence: 0.8, // Higher confidence since these come from AI analysis
+          aiDetectedText: `${fig.significance} ${fig.explanation || ""}`.trim(),
+          // Preserve separate AI commentary fields
+          significance: fig.significance,
+          explanation: fig.explanation,
+        })
+      );
 
       console.log(
         `📊 Extracted ${figuresWithImages.length} figure insights from AI analysis`

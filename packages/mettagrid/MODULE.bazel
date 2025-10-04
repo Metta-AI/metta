@@ -12,9 +12,18 @@ bazel_dep(name = "rules_cc", version = "0.2.0")
 bazel_dep(name = "rules_python", version = "1.5.3")
 
 python = use_extension("@rules_python//python/extensions:python.bzl", "python")
+python.defaults(
+    python_version = "3.11",
+    python_version_env = "METTAGRID_BAZEL_PYTHON_VERSION",
+)
 python.toolchain(
     python_version = "3.11",
-    is_default = True,
+)
+python.toolchain(
+    python_version = "3.12",
+)
+python.toolchain(
+    python_version = "3.13",
 )
 
 # pybind11 for Python bindings
@@ -29,6 +38,10 @@ bazel_dep(name = "google_benchmark", version = "1.9.4")
 # Abseil (dependency of some Google libraries)
 bazel_dep(name = "abseil-cpp", version = "20250814.0")
 
-# Linting and formatting with rules_lint
-bazel_dep(name = "aspect_bazel_lib", version = "2.21.1")
-bazel_dep(name = "aspect_rules_lint", version = "1.6.0")
+# make compile_commands.json with: bazel run @hedron_compile_commands//:refresh_all
+bazel_dep(name = "hedron_compile_commands", version = "")
+git_override(
+    module_name = "hedron_compile_commands",
+    remote = "https://github.com/hedronvision/bazel-compile-commands-extractor.git",
+    commit = "abb61a688167623088f8768cc9264798df6a9d10",
+)

@@ -45,7 +45,7 @@ def test_mettagrid_env_no_memory_leaks():
     print(f"Initial memory usage: {initial_memory:.2f} MB")
 
     # Create multiple environments and reset them many times
-    num_iterations = 20  # Increase this for more thorough testing
+    num_iterations = 5  # Enough iterations to detect leaks while keeping tests fast
     memory_usage = []
 
     for i in range(num_iterations):

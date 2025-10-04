@@ -1,10 +1,7 @@
-import numpy as np
-
 from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
+from mettagrid.mapgen.area import Area
 from mettagrid.mapgen.scene import SceneConfig
 from mettagrid.mapgen.utils.storable_map import StorableMap
-
-from .types import Area
 
 
 # Note that this class can't be a scene, because the width and height come from the stored data.
@@ -29,7 +26,7 @@ class Load(MapBuilder):
         area = Area.root_area_from_grid(grid)
 
         if self.config.extra_root is not None:
-            root_scene = self.config.extra_root.create(area, np.random.default_rng())
+            root_scene = self.config.extra_root.create_root(area)
             root_scene.render_with_children()
 
         return GameMap(grid=grid)

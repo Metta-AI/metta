@@ -1,3 +1,4 @@
+external/
 resources
 
 # Environment and IDE
@@ -37,10 +38,9 @@ build-debug/
 build-coverage/
 
 # Bazel build artifacts
-bazel-bin
-bazel-out
-bazel-testlogs
-bazel-mettagrid
+**/bazel-*
+**/.bazel_output/
+**/bazel-mettagrid/*
 
 # Node.js / Frontend
 node_modules/
@@ -98,6 +98,7 @@ experiments/recipes/scratchpad/*.py
 !experiments/recipes/scratchpad/README.md
 !experiments/recipes/scratchpad/example.py
 !experiments/recipes/scratchpad/ci.py
+packages/cogames/experiments
 
 resources
 LUNARVIM_CHEATSHEET.md
@@ -116,8 +117,12 @@ recipe_test_jobs.json
 cluster_test_jobs.json
 
 # MetaScope
-mettascope2/dist/
-mettascope2/data/fidget/
-recipe_test_jobs.json
-cluster_test_jobs.json
+packages/mettagrid/nim/mettascope/dist/
+packages/mettagrid/nim/mettascope/bindings/generated/
+mettascope.out
+!packages/mettagrid/nim/mettascope/data/resources/
+tmp/
+packages/mettagrid/python/src/mettagrid/nim/mettascope/
 
+# Nim runtime
+.nim_runtime

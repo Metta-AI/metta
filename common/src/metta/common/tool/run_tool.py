@@ -11,17 +11,20 @@ import logging
 import os
 import signal
 import sys
+import tempfile
+import traceback
 import warnings
 from typing import Any
 
 from pydantic import BaseModel, TypeAdapter
+from rich.console import Console
 from typing_extensions import TypeVar
 
 from metta.common.tool import Tool
 from metta.common.util.log_config import init_logging
 from metta.common.util.text_styles import bold, cyan, green, red, yellow
 from metta.rl.system_config import seed_everything
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 from mettagrid.util.module import load_symbol
 
 logger = logging.getLogger(__name__)
@@ -33,10 +36,6 @@ logger = logging.getLogger(__name__)
 
 def init_mettagrid_system_environment() -> None:
     """Initialize environment variables for headless operation."""
-    # Set CUDA launch blocking for better error messages in development
-    # TODO (use env for prod/dev?)
-    os.environ.setdefault("CUDA_LAUNCH_BLOCKING", "1")
-
     os.environ.setdefault("GLFW_PLATFORM", "osmesa")  # Use OSMesa as the GLFW backend
     os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
     os.environ.setdefault("MPLBACKEND", "Agg")
@@ -68,6 +67,15 @@ def output_error(message: str) -> None:
         print(message, file=sys.stderr)
     else:
         logger.error(message.strip())
+
+
+def output_exception(message: str) -> None:
+    """Emit an error message along with a traceback when available."""
+    if sys.stdout.isatty():
+        output_error(message)
+        traceback.print_exc()
+    else:
+        logger.exception(message.strip())
 
 
 # --------------------------------------------------------------------------------------
@@ -189,6 +197,192 @@ def type_parse(value: Any, annotation: Any) -> Any:
     return adapter.validate_python(value)
 
 
+def get_pydantic_field_info(model_class: type[BaseModel], prefix: str = "") -> list[tuple[str, str, Any, bool]]:
+    """Recursively get field information from a Pydantic model.
+    Returns list of (path, type_str, default, required) tuples.
+    """
+    fields_info = []
+
+    for field_name, field in model_class.model_fields.items():
+        field_path = f"{prefix}.{field_name}" if prefix else field_name
+        annotation = field.annotation
+
+        # Get the origin type if it's a generic
+        origin = getattr(annotation, "__origin__", None)
+
+        # Handle Optional types
+        if origin is type(None):
+            actual_type = annotation
+        elif hasattr(annotation, "__args__"):
+            # For Optional[X], Union[X, None], etc.
+            args = getattr(annotation, "__args__", ())
+            non_none_types = [arg for arg in args if arg is not type(None)]
+            if non_none_types:
+                actual_type = non_none_types[0] if len(non_none_types) == 1 else annotation
+            else:
+                actual_type = annotation
+        else:
+            actual_type = annotation
+
+        # Check if it's a nested Pydantic model
+        try:
+            if inspect.isclass(actual_type) and issubclass(actual_type, BaseModel):
+                # Add the parent field first (before nested fields for better ordering)
+                type_name = actual_type.__name__
+                # Don't show the full default object representation for complex models
+                if field.default is not None and not callable(field.default):
+                    default_val = f"<{type_name} instance>"
+                else:
+                    default_val = field.default_factory if field.default_factory else None
+                is_required = field.is_required() if hasattr(field, "is_required") else (default_val is None)
+                fields_info.append((field_path, type_name, default_val, is_required))
+
+                # Then recursively get nested fields
+                nested_fields = get_pydantic_field_info(actual_type, field_path)
+                fields_info.extend(nested_fields)
+            else:
+                # Regular field
+                type_name = getattr(actual_type, "__name__", str(actual_type))
+                default_val = field.default if field.default is not None else field.default_factory
+                is_required = field.is_required() if hasattr(field, "is_required") else (default_val is None)
+                fields_info.append((field_path, type_name, default_val, is_required))
+        except (TypeError, AttributeError):
+            # For complex types that can't be inspected
+            type_name = str(annotation).replace("typing.", "")
+            default_val = field.default if field.default is not None else field.default_factory
+            is_required = field.is_required() if hasattr(field, "is_required") else (default_val is None)
+            fields_info.append((field_path, type_name, default_val, is_required))
+
+    return fields_info
+
+
+def list_tool_arguments(make_tool_cfg: Any, console: Console) -> None:
+    """List all available arguments for a tool."""
+    console.print("\n[bold cyan]Available Arguments[/bold cyan]\n")
+
+    if inspect.isclass(make_tool_cfg) and issubclass(make_tool_cfg, Tool):
+        console.print("[yellow]Tool Configuration Fields:[/yellow]\n")
+
+        fields_info = get_pydantic_field_info(make_tool_cfg)
+        grouped = {}
+        for path, type_str, default, required in sorted(fields_info):
+            top_level = path.split(".")[0]
+            if top_level not in grouped:
+                grouped[top_level] = []
+            grouped[top_level].append((path, type_str, default, required))
+
+        for top_level, fields in grouped.items():
+            for path, type_str, default, required in fields:
+                if path == top_level:
+                    console.print(f"  [bold]{path}[/bold]", end="")
+                else:
+                    depth = path.count(".")
+                    indent = "    " * depth
+                    field_name = path.split(".")[-1]
+                    console.print(f"{indent}{field_name}", end="")
+
+                console.print(f": [dim]{type_str}[/dim]", end="")
+                if not required and default is not None:
+                    if callable(default):
+                        console.print(" [green](default: <factory>)[/green]", end="")
+                    elif isinstance(default, BaseModel):
+                        console.print(f" [green](default: <{type(default).__name__}>)[/green]", end="")
+                    elif isinstance(default, str) and (default.startswith("<") and default.endswith(">")):
+                        pass
+                    elif isinstance(default, str) and len(str(default)) > 100:
+                        console.print(f" [green](default: {str(default)[:100]}...)[/green]", end="")
+                    else:
+                        console.print(f" [green](default: {default})[/green]", end="")
+                elif required:
+                    console.print(" [red](required)[/red]", end="")
+
+                console.print()
+
+            if top_level != list(grouped.keys())[-1]:
+                console.print()
+
+    else:
+        console.print("[yellow]Function Parameters:[/yellow]\n")
+
+        sig = inspect.signature(make_tool_cfg)
+        for name, param in sig.parameters.items():
+            console.print(f"  [bold]{name}[/bold]", end="")
+
+            if param.annotation is not inspect._empty:
+                ann_str = str(param.annotation).replace("typing.", "")
+                console.print(f": [dim]{ann_str}[/dim]", end="")
+            if param.default is not inspect._empty:
+                if isinstance(param.default, BaseModel):
+                    console.print(f" [green](default: {type(param.default).__name__})[/green]", end="")
+                elif callable(param.default):
+                    console.print(" [green](default: <function>)[/green]", end="")
+                else:
+                    console.print(f" [green](default: {param.default})[/green]", end="")
+            else:
+                console.print(" [red](required)[/red]", end="")
+
+            console.print()
+
+            if param.annotation is not inspect._empty:
+                try:
+                    if inspect.isclass(param.annotation) and issubclass(param.annotation, BaseModel):
+                        nested_fields = get_pydantic_field_info(param.annotation, name)
+                        if nested_fields:
+                            for path, type_str, default, required in sorted(nested_fields):
+                                depth = path.count(".")
+                                indent = "    " * (depth + 1)
+                                field_name = path.split(".")[-1]
+                                console.print(f"{indent}{field_name}: [dim]{type_str}[/dim]", end="")
+                                if not required and default is not None:
+                                    if callable(default):
+                                        console.print(" [green](default: <factory>)[/green]", end="")
+                                    else:
+                                        console.print(f" [green](default: {default})[/green]", end="")
+                                console.print()
+                except (TypeError, AttributeError):
+                    pass
+
+        console.print("\n[yellow]Returned Tool Fields:[/yellow]\n")
+
+        try:
+            with tempfile.TemporaryDirectory():
+                try:
+                    result = make_tool_cfg()
+                except TypeError:
+                    sig = inspect.signature(make_tool_cfg)
+                    kwargs = {}
+                    for name, param in sig.parameters.items():
+                        if param.default is inspect._empty:
+                            kwargs[name] = None
+                    try:
+                        result = make_tool_cfg(**kwargs)
+                    except Exception:
+                        console.print("  [dim]Unable to determine Tool fields (function requires runtime values)[/dim]")
+                        return
+
+                if isinstance(result, Tool):
+                    fields_info = get_pydantic_field_info(type(result))
+                    for path, type_str, default, required in sorted(fields_info):
+                        depth = path.count(".")
+                        indent = "    " * depth
+                        field_name = path.split(".")[-1] if "." in path else path
+                        console.print(f"{indent}{field_name}: [dim]{type_str}[/dim]", end="")
+                        if not required and default is not None:
+                            if callable(default):
+                                console.print(" [green](default: <factory>)[/green]", end="")
+                            else:
+                                console.print(f" [green](default: {default})[/green]", end="")
+                        console.print()
+        except Exception:
+            console.print("  [dim]Unable to determine Tool fields (function requires runtime values)[/dim]")
+
+    console.print("\n[dim]Use these arguments with key=value format, e.g.:[/dim]")
+    console.print(
+        f"[dim]  ./tools/run.py {make_tool_cfg.__module__}.{make_tool_cfg.__name__} "
+        f"run=test trainer.batch_size=1024[/dim]"
+    )
+
+
 # --------------------------------------------------------------------------------------
 # Main
 # --------------------------------------------------------------------------------------
@@ -198,6 +392,7 @@ def main():
     """Main entry point using argparse."""
     parser = argparse.ArgumentParser(
         description="Run a tool with automatic argument classification",
+        add_help=False,
         formatter_class=argparse.RawDescriptionHelpFormatter,
         allow_abbrev=True,
         epilog="""
@@ -220,14 +415,35 @@ constructor/function vs configuration overrides based on introspection.
     )
 
     parser.add_argument(
-        "make_tool_cfg_path", help="Path to the function or Tool class (e.g., experiments.recipes.arena.train)"
+        "make_tool_cfg_path",
+        nargs="?",
+        help="Path to the function or Tool class (e.g., experiments.recipes.arena.train)",
     )
     parser.add_argument("args", nargs="*", help="Arguments in key=value format")
     parser.add_argument("-v", "--verbose", action="store_true", help="Show detailed argument classification")
     parser.add_argument("--dry-run", action="store_true", help="Validate the args and exit")
+    parser.add_argument(
+        "-h", "--help", action="store_true", help="Show help and list all available arguments for the tool"
+    )
 
     # Parse known args; keep unknowns to validate separation between runner flags and tool args
     known_args, unknown_args = parser.parse_known_args()
+    console = Console()
+
+    # If help is requested without a tool path, show general help
+    if known_args.help and not known_args.make_tool_cfg_path:
+        console.print("[bold]Tool Runner[/bold]\n")
+        console.print("Usage: ./tools/run.py <tool_path> [arguments]\n")
+        console.print("  tool_path: Path to the function or Tool class (e.g., experiments.recipes.arena.train)")
+        console.print("  arguments: Arguments in key=value format\n")
+        console.print("Options:")
+        console.print("  -h, --help     Show help and list all available arguments for the tool")
+        console.print("  -v, --verbose  Show detailed argument classification")
+        console.print("  --dry-run      Validate the args and exit\n")
+        console.print("Examples:")
+        console.print("  ./tools/run.py experiments.recipes.arena.train -h")
+        console.print("  ./tools/run.py experiments.recipes.arena.train run=test trainer.batch_size=1024")
+        return 0
 
     # Initialize logging and environment
     init_logging()
@@ -265,8 +481,13 @@ constructor/function vs configuration overrides based on introspection.
     try:
         make_tool_cfg = load_symbol(known_args.make_tool_cfg_path)
     except Exception as e:
-        output_error(f"{red('Error loading')} {known_args.make_tool_cfg_path}: {e}")
+        output_exception(f"{red('Error loading')} {known_args.make_tool_cfg_path}: {e}")
         return 1
+
+    # If help flag is set, list arguments and exit
+    if known_args.help:
+        list_tool_arguments(make_tool_cfg, console)
+        return 0
 
     # ----------------------------------------------------------------------------------
     # Construct the Tool
@@ -362,10 +583,10 @@ constructor/function vs configuration overrides based on introspection.
                 f"\n{yellow('Hint:')} It looks like an unbound method was passed. "
                 "Pass the Tool subclass itself or a factory function that doesn't require 'self'/'cls'."
             )
-        output_error(f"{red('Error creating tool configuration:')} {e}{hint}")
+        output_exception(f"{red('Error creating tool configuration:')} {e}{hint}")
         return 1
     except Exception as e:
-        output_error(f"{red('Error creating tool configuration:')} {e}")
+        output_exception(f"{red('Error creating tool configuration:')} {e}")
         return 1
 
     if not isinstance(tool_cfg, Tool):
@@ -401,7 +622,7 @@ constructor/function vs configuration overrides based on introspection.
             try:
                 tool_cfg = tool_cfg.override(key, value)
             except Exception as e:
-                output_error(f"{red('Error applying override')} {key}={value}: {e}")
+                output_exception(f"{red('Error applying override')} {key}={value}: {e}")
                 return 1
 
     # ----------------------------------------------------------------------------------
@@ -431,7 +652,7 @@ constructor/function vs configuration overrides based on introspection.
     except KeyboardInterrupt:
         return 130  # Interrupted by Ctrl-C
     except Exception:
-        logger.exception("Tool invocation failed")
+        output_exception(red("Tool invocation failed"))
         return 1
 
     return result if result is not None else 0

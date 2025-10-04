@@ -1,23 +1,55 @@
+from typing import Any
+
 import einops
 import torch
 import torch.nn.functional as F
+from pydantic import Field
 from tensordict import TensorDict
 from torch import Tensor
 
-from metta.rl.loss.base_loss import BaseLoss
-from metta.rl.trainer_state import TrainerState
+from metta.agent.policy import Policy
+from metta.rl.loss import Loss
+from metta.rl.training import ComponentContext
+from mettagrid.base_config import Config
 
 
-class Dynamics(BaseLoss):
+class DynamicsConfig(Config):
+    returns_step_look_ahead: int = Field(default=1)
+    returns_pred_coef: float = Field(default=1.0, ge=0, le=1.0)
+    reward_pred_coef: float = Field(default=1.0, ge=0, le=1.0)
+
+    def create(
+        self,
+        policy: Policy,
+        trainer_cfg: Any,
+        vec_env: Any,
+        device: torch.device,
+        instance_name: str,
+        loss_config: Any,
+    ):
+        """Create Dynamics loss instance."""
+        return Dynamics(
+            policy,
+            trainer_cfg,
+            vec_env,
+            device,
+            instance_name=instance_name,
+            loss_cfg=loss_config,
+        )
+
+
+class Dynamics(Loss):
     """The dynamics term in the Muesli loss."""
 
-    # BaseLoss calls this method
-    def run_train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
-        # Tell the policy that we're starting a new minibatch so it can do things like reset its memory
+    # Loss calls this method
+    def run_train(
+        self,
+        shared_loss_data: TensorDict,
+        context: ComponentContext,
+        mb_idx: int,
+    ) -> tuple[Tensor, TensorDict, bool]:
         policy_td = shared_loss_data["policy_td"]
 
-        self.policy.policy.components["returns_pred"](policy_td)
-        self.policy.policy.components["reward_pred"](policy_td)
         returns_pred: Tensor = policy_td["returns_pred"].to(dtype=torch.float32)
         reward_pred: Tensor = policy_td["reward_pred"].to(dtype=torch.float32)
 
@@ -46,4 +78,4 @@ class Dynamics(BaseLoss):
         self.loss_tracker["dynamics_returns_loss"].append(float(returns_loss.item()))
         self.loss_tracker["dynamics_reward_loss"].append(float(reward_loss.item()))
 
-        return returns_loss + reward_loss, shared_loss_data
+        return returns_loss + reward_loss, shared_loss_data, False

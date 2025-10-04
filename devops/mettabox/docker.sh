@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # Default values - now using ECR
-registry="751442549699.dkr.ecr.us-east-1.amazonaws.com"  # ECR registry URL
-username=""        # Not used for ECR, kept for compatibility
-dockerfile=""      # Dockerfile to use
+registry="751442549699.dkr.ecr.us-east-1.amazonaws.com" # ECR registry URL
+username=""                                             # Not used for ECR, kept for compatibility
+dockerfile=""                                           # Dockerfile to use
 image="metta"
 tag="latest"
 name="metta"
@@ -97,7 +97,7 @@ while getopts n:i:t:r:d: flag; do
     n) name=${OPTARG} ;;
     i) image=${OPTARG} ;;
     t) tag=${OPTARG} ;;
-    r) registry=${OPTARG} ;;  # Changed from username to registry
+    r) registry=${OPTARG} ;; # Changed from username to registry
     d) dockerfile=${OPTARG} ;;
   esac
 done

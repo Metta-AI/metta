@@ -2,6 +2,23 @@ import { PdfReader } from "pdfreader";
 import { readFileSync, unlinkSync, writeFileSync } from "fs";
 import { v4 as uuidv4 } from "uuid";
 import { execSync } from "child_process";
+
+// ===== SYSTEM DEPENDENCY CHECKS =====
+
+/**
+ * Check if a system command/tool is available
+ */
+function checkSystemDependency(command: string, name: string): void {
+  try {
+    execSync(`${command} --version`, { stdio: ["pipe", "pipe", "pipe"] });
+    console.log(`✅ ${name} is available`);
+  } catch (error: any) {
+    console.error(`❌ ${name} not found in system`);
+    console.error(`   Command '${command} --version' failed: ${error.message}`);
+    console.error(`   This may cause processing to fail silently`);
+    throw new Error(`${name} not available: ${error.message}`);
+  }
+}
 import { generateObject } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { z } from "zod";
@@ -383,7 +400,13 @@ async function convertPdfToImages(
       `🔄 Converting PDF (${pdfBuffer.length} bytes) to images using GraphicsMagick...`
     );
 
+    // Check if GraphicsMagick is available
+    checkSystemDependency("/usr/bin/gm", "GraphicsMagick");
+
     // Write PDF buffer to temporary file
+    console.log(
+      `📝 Writing ${pdfBuffer.length} bytes to temp file: ${tempPdfPath}`
+    );
     writeFileSync(tempPdfPath, pdfBuffer);
 
     // Convert pages (limit to first 10 pages)
@@ -394,10 +417,30 @@ async function convertPdfToImages(
 
       try {
         // Use GraphicsMagick with proven settings: 400 DPI, 1800x2333, density before input
-        execSync(
-          `/usr/bin/gm convert -density 400 '${tempPdfPath}[${pageNum}]' -quality 95 -antialias -resize 1800x2333! -background white -flatten '${tempImagePath}'`,
-          { stdio: "pipe" }
-        );
+        const gmCommand = `/usr/bin/gm convert -density 400 '${tempPdfPath}[${pageNum}]' -quality 95 -antialias -resize 1800x2333! -background white -flatten '${tempImagePath}'`;
+
+        try {
+          execSync(gmCommand, {
+            stdio: ["pipe", "pipe", "pipe"],
+            encoding: "utf8",
+          });
+        } catch (gmError: any) {
+          console.error(
+            `❌ GraphicsMagick conversion failed for page ${pageNum}`
+          );
+          console.error(`   Command: ${gmCommand}`);
+          console.error(`   Error: ${gmError.message}`);
+          console.error(`   Exit code: ${gmError.status}`);
+          if (
+            gmError.message.includes("command not found") ||
+            gmError.message.includes("ENOENT")
+          ) {
+            console.error(
+              "   ⚠️ GraphicsMagick may not be installed in the system"
+            );
+          }
+          throw gmError;
+        }
 
         // Read the generated image
         const imageBuffer = readFileSync(tempImagePath);

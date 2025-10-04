@@ -460,10 +460,10 @@ This tool creates game maps using different generation algorithms including:
 
 ```bash
 # Generate and display a single map
-  ./packages/mettagrid/src/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/maze_9x9.yaml
+  ./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/maze_9x9.yaml
 
 # Save map to file
-./packages/mettagrid/src/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/wfc_dungeon.yaml --output-uri=./dungeon.yaml
+./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/wfc_dungeon.yaml --output-uri=./dungeon.yaml
 
 # Generate 100 maps to S3
 ./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/random.yaml --output-uri=s3://bucket/maps/ --count=100
@@ -765,7 +765,7 @@ GROUP BY policy_name, episode;
 
 ```bash
 # 1. Generate a new map
-./mettagrid/src/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/template.yaml \
+./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/template.yaml \
   --output-uri=./my_map.yaml "seed=42"
 
 # 2. View and iterate

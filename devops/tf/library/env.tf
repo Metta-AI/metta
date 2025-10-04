@@ -42,6 +42,7 @@ locals {
 
     REDIS_HOST     = aws_elasticache_replication_group.main.primary_endpoint_address
     REDIS_PASSWORD = random_password.redis_password.result
+    REDIS_TLS      = "true"
   }
 
   frontend_env_vars = {

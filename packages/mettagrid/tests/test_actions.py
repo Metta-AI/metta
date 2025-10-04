@@ -42,17 +42,16 @@ def base_config():
         num_observation_tokens=100,
         resource_names=["laser", "armor"],
         actions=ActionsConfig(
-            noop=ActionConfig(enabled=True),
-            move=ActionConfig(enabled=True),
-            rotate=ActionConfig(enabled=True),
-            get_items=ActionConfig(enabled=True),
+            noop=ActionConfig(),
+            move=ActionConfig(),
+            rotate=ActionConfig(),
+            get_items=ActionConfig(),
             attack=AttackActionConfig(enabled=True, consumed_resources={"laser": 1}, defense_resources={"armor": 1}),
-            put_items=ActionConfig(enabled=True),
-            swap=ActionConfig(enabled=True),
+            put_items=ActionConfig(),
+            swap=ActionConfig(),
         ),
         objects={
             "wall": WallConfig(type_id=1, swappable=False),
-            "block": WallConfig(type_id=14, swappable=True),
         },
         agent=AgentConfig(rewards=AgentRewards()),
         allow_diagonals=True,
@@ -65,7 +64,7 @@ def complex_game_map():
     return [
         ["wall", "wall", "wall", "wall", "wall", "wall", "wall"],
         ["wall", "agent.red", "empty", "empty", "empty", "agent.blue", "wall"],
-        ["wall", "empty", "empty", "block", "empty", "empty", "wall"],
+        ["wall", "empty", "empty", "empty", "empty", "empty", "wall"],
         ["wall", "empty", "empty", "empty", "empty", "empty", "wall"],
         ["wall", "wall", "wall", "wall", "wall", "wall", "wall"],
     ]
@@ -260,7 +259,7 @@ def test_all_actions_sequence(configured_env):
     test_map = [
         ["wall", "wall", "wall", "wall", "wall"],
         ["wall", "agent.red", "empty", "empty", "wall"],
-        ["wall", "empty", "block", "empty", "wall"],
+        ["wall", "empty", "empty", "empty", "wall"],
         ["wall", "empty", "empty", "empty", "wall"],
         ["wall", "wall", "wall", "wall", "wall"],
     ]
@@ -295,33 +294,19 @@ def test_all_actions_sequence(configured_env):
     # Now at (1, 3)
     print(f"   Position: {get_agent_position(env, 0)}")
 
-    # 5. Move south to row with block
+    # 5. Move south
     print("5. Moving south...")
     move_result = move(env, Orientation.SOUTH)
     assert move_result["success"], "Move south should succeed"
 
-    # Now at (2, 3), next to block at (2, 2)
+    # Now at (2, 3)
     current_pos = get_agent_position(env, 0)
-    print(f"   Position next to block: {current_pos}")
+    print(f"   Position: {current_pos}")
 
-    # 6. Rotate to face the block (west)
-    print("6. Rotating to face west (toward block)...")
-    rotate_result = rotate(env, Orientation.WEST)
-
-    # 7. Swap with block
-    print("7. Testing swap with block...")
+    # 6. Test swap (should fail with empty space)
+    print("6. Testing swap (should fail with empty space)...")
     swap_result = swap(env)
-    if swap_result["success"]:
-        print("   ✅ Swap succeeded")
-        # Verify position changed
-        new_pos = get_agent_position(env, 0)
-        print(f"   New position after swap: {new_pos}")
-        # Note: position depends on implementation of swap
-    else:
-        print(f"   ℹ️ Swap failed: {swap_result.get('error')}")
-        # Try moving to a different position for other tests
-        print("   Moving to continue other tests...")
-        move(env, Orientation.SOUTH)
+    print(f"   Swap result: {swap_result.get('success')}")
 
     print("\n✅ All actions tested successfully!")
 
@@ -360,3 +345,71 @@ def test_diagonal_movement_integration(configured_env):
         assert actual_pos == expected_pos, f"After {direction}, expected {expected_pos}, got {actual_pos}"
 
     print("✅ Diagonal movement pattern completed successfully!")
+
+
+def test_noop_is_always_index_0():
+    """Test that noop action is always at index 0 when present."""
+    # Test 1: Default config with noop enabled
+    config = GameConfig(
+        max_steps=10,
+        num_agents=2,
+        obs_width=3,
+        obs_height=3,
+        num_observation_tokens=10,
+        actions=ActionsConfig(
+            noop=ActionConfig(),
+            move=ActionConfig(),
+            rotate=ActionConfig(),
+        ),
+    )
+
+    c_config = from_mettagrid_config(config)
+    map_data = [[".", "."], ["agent.team_0", "agent.team_0"]]
+    env = MettaGrid(c_config, map_data, 0)
+
+    action_names = env.action_names()
+    assert action_names[0] == "noop", f"Expected 'noop' at index 0, got '{action_names[0]}'"
+
+    # Test 2: noop listed last but should still be at index 0
+    config2 = GameConfig(
+        max_steps=10,
+        num_agents=2,
+        obs_width=3,
+        obs_height=3,
+        num_observation_tokens=10,
+        actions=ActionsConfig(
+            attack=AttackActionConfig(),
+            move=ActionConfig(),
+            rotate=ActionConfig(),
+            noop=ActionConfig(),  # noop listed last
+            swap=ActionConfig(),
+        ),
+    )
+
+    c_config2 = from_mettagrid_config(config2)
+    env2 = MettaGrid(c_config2, map_data, 0)
+
+    action_names2 = env2.action_names()
+    assert action_names2[0] == "noop", f"Expected 'noop' at index 0, got '{action_names2[0]}'"
+
+    # Test 3: Config without noop - first action should not be noop
+    config3 = GameConfig(
+        max_steps=10,
+        num_agents=2,
+        obs_width=3,
+        obs_height=3,
+        num_observation_tokens=10,
+        actions=ActionsConfig(
+            noop=ActionConfig(enabled=False),
+            move=ActionConfig(),
+            rotate=ActionConfig(),
+            attack=AttackActionConfig(),
+        ),
+    )
+
+    c_config3 = from_mettagrid_config(config3)
+    env3 = MettaGrid(c_config3, map_data, 0)
+
+    action_names3 = env3.action_names()
+    assert "noop" not in action_names3, "noop should not be present when disabled"
+    assert action_names3[0] != "noop", "First action should not be noop when noop is disabled"

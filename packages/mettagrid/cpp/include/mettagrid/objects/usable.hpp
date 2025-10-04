@@ -9,14 +9,13 @@
 // Forward declaration
 class Agent;
 
-class Usable : public GridObject {
+class Usable {
 public:
   virtual ~Usable() = default;
 
-  virtual bool onUse(Agent* actor, ActionArg arg) = 0;
+  virtual bool onUse(Agent& actor, ActionArg arg) = 0;
 };
 
 #endif  // OBJECTS_USABLE_HPP_
-
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_USABLE_HPP_

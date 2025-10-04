@@ -101,7 +101,7 @@ env_dict["game"]["obs_height"] = 11  # type: ignore
 env_dict["game"]["map_builder"] = {
     "_target_": "mettagrid.mapgen.mapgen.MapGen",
     "border_width": 0,
-    "root": {
+    "instance": {
         "type": "mettagrid.mapgen.scenes.inline_ascii.InlineAscii",
         "params": {"data": hallway_map},
     },
@@ -307,7 +307,7 @@ repo_root = get_repo_root()
 train_cmd = [
     str(repo_root / "tools" / "train.py"),
     f"run={run_name}",
-    f"trainer.curriculum=tmp/{curriculum_name}",
+    f"training_env.curriculum=tmp/{curriculum_name}",
     "wandb=off",
     "device=cpu",
     "trainer.total_timesteps=10000",  # tiny demo run

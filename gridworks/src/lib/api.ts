@@ -1,11 +1,33 @@
 import * as z from "zod/v4";
 
 import { API_URL } from "../server/constants";
-import { MapIndex, MapMetadata } from "../server/types";
+
+const childrenActionSchema = z.object({
+  get scene() {
+    return sceneSchema;
+  },
+  where: z
+    .union([
+      z.literal("full"),
+      z.object({
+        tags: z.array(z.string()),
+      }),
+    ])
+    .nullable(),
+  limit: z.number().nullable(),
+  offset: z.number().nullable(),
+  lock: z.string().nullable(),
+  order_by: z.string().nullable(),
+});
+
+const sceneSchema = z.looseObject({
+  type: z.string(),
+  seed: z.number().nullable(),
+  children: z.array(childrenActionSchema),
+});
 
 const sceneTreeSchema = z.object({
-  type: z.string(),
-  params: z.record(z.string(), z.unknown()),
+  config: sceneSchema,
   area: z.object({
     x: z.number(),
     y: z.number(),
@@ -30,13 +52,6 @@ const storableMapSchema = z.object({
 
 export type StorableMap = z.infer<typeof storableMapSchema>;
 
-export async function getStoredMapDirs(): Promise<string[]> {
-  const response = await fetch(`${API_URL}/stored-maps/dirs`);
-  const data = await response.json();
-  const parsed = z.array(z.string()).parse(data.dirs);
-  return parsed;
-}
-
 async function fetchApi<T extends z.ZodTypeAny>(
   url: string,
   schema: T
@@ -51,93 +66,57 @@ async function fetchApi<T extends z.ZodTypeAny>(
   return schema.parse(data);
 }
 
-export async function findStoredMaps(
-  dir: string,
-  filters: { key: string; value: string }[] = []
-): Promise<MapMetadata[]> {
-  const searchParams = new URLSearchParams({
-    dir,
-    filter: filters
-      .map((f) => `${f.key}=${encodeURIComponent(f.value)}`)
-      .join(","),
-  });
-  const data = await fetchApi(
-    `${API_URL}/stored-maps/find-maps?${searchParams}`,
-    z.object({ maps: z.array(z.string()) })
-  );
-  return data.maps.map((url) => ({ url }));
-}
-
-export async function getStoredMap(url: string): Promise<StorableMap> {
-  return fetchApi(
-    `${API_URL}/stored-maps/get-map?url=${url}`,
-    storableMapSchema
-  );
-}
-
-export async function loadStoredMapIndex(dir: string): Promise<MapIndex> {
-  const mapIndexSchema = z.record(
-    z.string(),
-    z.record(z.string(), z.array(z.string()))
-  );
-  return await fetchApi(
-    `${API_URL}/stored-maps/get-index?dir=${encodeURIComponent(dir)}`,
-    mapIndexSchema
-  );
-}
-
-const mettagridCfgFileMetadataSchema = z.object({
+const configMakerSchema = z.object({
   absolute_path: z.string(),
   path: z.string(),
   kind: z.string(),
+  line: z.number(),
 });
 
-const mettagridCfgFileSchema = z.object({
-  metadata: mettagridCfgFileMetadataSchema,
-  cfg: z.unknown(),
+const viewConfigSchema = z.object({
+  maker: configMakerSchema,
+  config: z.object({
+    value: z
+      .record(z.string(), z.unknown())
+      .or(z.array(z.record(z.string(), z.unknown()))),
+    unset_fields: z.array(z.string()),
+  }),
 });
 
-export type MettagridCfgFile = z.infer<typeof mettagridCfgFileSchema>;
+export type Config = z.infer<typeof viewConfigSchema>;
 
-const mettagridCfgsMetadataSchema = z.object({
-  env: z.array(mettagridCfgFileMetadataSchema).optional(),
-  curriculum: z.array(mettagridCfgFileMetadataSchema).optional(),
-  map: z.array(mettagridCfgFileMetadataSchema).optional(),
-  unknown: z.array(mettagridCfgFileMetadataSchema).optional(),
-});
+const groupedConfigMakersSchema = z.record(
+  z.string(),
+  z.array(configMakerSchema).optional()
+);
 
-type MettagridCfgsMetadata = z.infer<typeof mettagridCfgsMetadataSchema>;
+type GroupedConfigMakers = z.infer<typeof groupedConfigMakersSchema>;
 
-export async function listMettagridCfgsMetadata(): Promise<MettagridCfgsMetadata> {
+export async function listConfigMakers(): Promise<GroupedConfigMakers> {
+  return await fetchApi(`${API_URL}/configs`, groupedConfigMakersSchema);
+}
+
+export async function getConfig(path: string): Promise<Config> {
   return await fetchApi(
-    `${API_URL}/mettagrid-cfgs`,
-    mettagridCfgsMetadataSchema
+    `${API_URL}/configs/get?path=${encodeURIComponent(path)}`,
+    viewConfigSchema
   );
 }
 
-export async function getMettagridCfgFile(
-  path: string
-): Promise<MettagridCfgFile> {
-  return await fetchApi(
-    `${API_URL}/mettagrid-cfgs/get?path=${encodeURIComponent(path)}`,
-    mettagridCfgFileSchema
-  );
-}
+export async function getConfigMap(
+  path: string,
+  name?: string
+): Promise<StorableMap> {
+  const queryParams = new URLSearchParams();
+  queryParams.set("path", path);
+  if (name) {
+    queryParams.set("name", name);
+  }
 
-export async function getMettagridCfgMap(path: string): Promise<StorableMap> {
   return await fetchApi(
-    `${API_URL}/mettagrid-cfgs/get-map?path=${encodeURIComponent(path)}`,
+    `${API_URL}/configs/get-map?${queryParams.toString()}`,
     storableMapSchema
   );
-}
-
-export async function indexDir(dir: string): Promise<void> {
-  const response = await fetch(
-    `${API_URL}/stored-maps/index-dir?dir=${encodeURIComponent(dir)}`,
-    { method: "POST" }
-  );
-  const data = await response.json();
-  return data;
 }
 
 export async function getRepoRoot(): Promise<string> {
