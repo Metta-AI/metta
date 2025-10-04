@@ -24,6 +24,8 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from cogames.cogs_vs_clips.scenarios import make_map_game, supports_dynamic_spawn
+
 logger = logging.getLogger("cogames.main")
 
 app = typer.Typer(
@@ -96,6 +98,9 @@ def play_cmd(
     interactive: bool = typer.Option(True, "--interactive", "-i", help="Run in interactive mode"),
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
     render: Literal["gui", "text"] = typer.Option("gui", "--render", "-r", help="Render mode: 'gui' or 'text'"),
+    num_cogs: Optional[int] = typer.Option(
+        None, "--num-cogs", help="Override number of agents (uses dynamic spawning)"
+    ),
 ) -> None:
     resolved_game, env_cfg = utils.get_game_config(console, game_name)
 
