@@ -108,7 +108,7 @@ class GeneralizedTerrainTaskGenerator(TaskGenerator):
         )
 
         map_builder = MapGen.Config(
-            instances=24 // num_cogs,
+            instances=1,
             border_width=1,
             instance_border_width=1,
             instance=CogsVClippiesFromNumpy.Config(
