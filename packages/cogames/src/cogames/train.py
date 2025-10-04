@@ -227,13 +227,13 @@ def train(
     env_name = "cogames.cogs_vs_clips"
 
     if use_rnn:
-        learning_rate = 0.0003
+        learning_rate = 0.0005
         bptt_horizon = 1
         optimizer = "adam"
         adam_eps = 1e-8
-        logger.info("Using RNN-specific hyperparameters: lr=0.0003, bptt=1, optimizer=adam")
+        logger.info("Using RNN-specific hyperparameters: lr=0.0005, bptt=1, optimizer=adam")
     else:
-        learning_rate = 0.015
+        learning_rate = 0.02
         bptt_horizon = 1
         optimizer = "muon"
         adam_eps = 1e-12
@@ -296,7 +296,7 @@ def train(
         gae_lambda=0.90,
         update_epochs=1,
         clip_coef=0.2,
-        vf_coef=2.0,
+        vf_coef=2.5,
         vf_clip_coef=0.2,
         max_grad_norm=1.5,
         ent_coef=0.001,
