@@ -2,6 +2,7 @@ from cogames.cogs_vs_clips.scenarios import make_game
 from mettagrid.mapgen.mapgen import MapGen
 import random
 from experiments.evals.cogs_v_clips.foraging import make_foraging_eval_suite
+from experiments.evals.cogs_v_clips.assembly_lines import make_assembly_lines_eval_suite
 from metta.sim.simulation_config import SimulationConfig
 
 
@@ -108,4 +109,5 @@ def make_cogs_v_clips_evals() -> list[SimulationConfig]:
         make_cogs_v_clips_ascii_evals()
         + make_cogs_v_clips_terrain_evals()
         + make_foraging_eval_suite()
+        + make_assembly_lines_eval_suite()
     )
