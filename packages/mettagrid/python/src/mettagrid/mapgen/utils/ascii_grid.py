@@ -23,6 +23,7 @@ DEFAULT_CHAR_TO_NAME: dict[str, str] = {
     "&": "assembler",
     "@": "agent.agent",
     "#": "wall",
+    "_": "altar",
     ".": "empty",
 }
 
