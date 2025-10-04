@@ -2,6 +2,7 @@ from typing import List, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
+from metta.agent.policies.vit import ViTGRPOConfig
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
@@ -84,6 +85,7 @@ def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
 ) -> TrainTool:
+    """Train with GRPO using a critic-free architecture."""
     curriculum = curriculum or make_curriculum(
         enable_detailed_slice_logging=enable_detailed_slice_logging
     )
@@ -91,6 +93,7 @@ def train(
     return TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=EvaluatorConfig(simulations=make_evals()),
+        policy_architecture=ViTGRPOConfig(),
     )
 
 
@@ -127,6 +130,7 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
     return TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=cc.env_curriculum(env_cfg)),
         evaluator=EvaluatorConfig(simulations=make_evals()),
+        policy_architecture=ViTGRPOConfig(),
     )
 
 

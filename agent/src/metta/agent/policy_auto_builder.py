@@ -56,7 +56,9 @@ class PolicyAutoBuilder(nn.Module):
     def forward(self, td: TensorDict, action: torch.Tensor = None):
         self.network(td)
         self.action_probs(td, action)
-        td["values"] = td["values"].flatten()  # could update Experience to not need this line but need to update ppo.py
+        # Only flatten values if they exist (GRPO policies don't have critic networks)
+        if "values" in td.keys():
+            td["values"] = td["values"].flatten()
         return td
 
     def initialize_to_environment(
