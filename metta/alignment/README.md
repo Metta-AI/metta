@@ -310,9 +310,24 @@ Run the included examples:
 # Test all 5 metrics with simulated agents
 uv run python metta/alignment/examples/simple_alignment_demo.py
 
-# Test with real MettaGrid environment
+# Test with real MettaGrid environment (default: 4 agents, 50 steps)
 uv run python metta/alignment/examples/test_with_real_mettagrid.py
+
+# Test with custom parameters
+uv run python metta/alignment/examples/test_with_real_mettagrid.py --num_agents 8 --num_steps 100
+
+# Test with larger swarm and map
+uv run python metta/alignment/examples/test_with_real_mettagrid.py --num_agents 16 --num_steps 200 --map_size 20
+
+# See all options
+uv run python metta/alignment/examples/test_with_real_mettagrid.py --help
 ```
+
+The MettaGrid test generates visualizations showing:
+- Agent trajectories on the map
+- Velocity vectors vs. task directions
+- Metric breakdown per agent (A, D, E, T, Y)
+- GAMMA summary statistics
 
 ## Future Extensions
 
