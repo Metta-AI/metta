@@ -2,8 +2,10 @@
 import clsx from "clsx";
 import { FC, use } from "react";
 
+import { JsonSchema } from "@/lib/api/schemas";
+
 import { Tooltip } from "../Tooltip";
-import { getSchemaTypeStr, JsonSchema, useNodeSchema } from "./schema";
+import { getSchemaTypeStr, useNodeSchema } from "./schema";
 import { ConfigNode } from "./utils";
 import { YamlContext } from "./YamlContext";
 

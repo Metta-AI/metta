@@ -14,8 +14,6 @@ export const YamlKeyValue: FC<{
 }> = ({ yamlKey, node }) => {
   const value = node.value[yamlKey];
 
-  const { kind } = use(YamlContext);
-
   const valueNode: ConfigNode = {
     value,
     path: [...node.path, yamlKey],

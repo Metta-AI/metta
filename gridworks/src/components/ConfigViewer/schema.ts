@@ -7,22 +7,25 @@ import { ConfigNode } from "./utils";
 import { YamlContext } from "./YamlContext";
 
 // Resolve { $ref: "#/$defs/..." } to the actual schema.
-function resolveType(type: JsonSchema): JsonSchema | undefined {
+function useResolveType(): (type: JsonSchema) => JsonSchema | undefined {
   const { schemas } = use(JsonSchemasContext);
 
-  if ("$ref" in type) {
-    const ref: string | undefined = type.$ref.split("/").pop()!;
-    if (!ref) {
-      console.warn("Unknown ref", type.$ref);
-      return undefined;
+  const resolveType = (type: JsonSchema): JsonSchema | undefined => {
+    if ("$ref" in type) {
+      const ref: string | undefined = type.$ref.split("/").pop()!;
+      if (!ref) {
+        console.warn("Unknown ref", type.$ref);
+        return undefined;
+      }
+      if (!(ref in schemas.$defs)) {
+        console.warn("Unknown ref", type.$ref);
+        return undefined;
+      }
+      return { ...schemas.$defs[ref], isTopLevelDef: true };
     }
-    if (!(ref in schemas.$defs)) {
-      console.warn("Unknown ref", type.$ref);
-      return undefined;
-    }
-    return { ...schemas.$defs[ref], isTopLevelDef: true };
-  }
-  return type;
+    return type;
+  };
+  return resolveType;
 }
 
 // Convert a top-level config kind string like "List[SimulationConfig]" to a JSON schema.
@@ -34,7 +37,7 @@ function parseKind(kind: string): JsonSchema {
   return { $ref: "#/$defs/" + kind };
 }
 
-type NodeSchemaLookupDebugInfo = {};
+type NodeSchemaLookupDebugInfo = Record<string, never>;
 
 type NodeSchemaResult = {
   schema: JsonSchema | undefined;
@@ -58,12 +61,34 @@ function isPolymorphicType(currentType: JsonSchema): boolean {
   return false;
 }
 
+function useGetValueByPath(): (path: string[]) => unknown {
+  const { topValue } = use(YamlContext);
+  const getValueByPath = (path: string[]): unknown => {
+    let currentValue: unknown = topValue;
+    for (const part of path) {
+      if (typeof currentValue !== "object" || currentValue === null) {
+        return null;
+      }
+      if (Array.isArray(currentValue) && part.match(/^\d+$/)) {
+        currentValue = currentValue[Number(part)];
+      } else {
+        currentValue = (currentValue as Record<string, unknown>)[part];
+      }
+    }
+    return currentValue ?? null;
+  };
+  return getValueByPath;
+}
+
 // Get the JSON schema for a given config value node.
 export function useNodeSchema(node: ConfigNode): NodeSchemaResult {
   const debugInfo: NodeSchemaLookupDebugInfo = {};
 
   const { kind } = use(YamlContext);
   const { schemas } = use(JsonSchemasContext);
+  const getValueByPath = useGetValueByPath();
+  const resolveType = useResolveType();
+
   if (!kind) {
     return { schema: undefined, debugInfo };
   }
@@ -73,22 +98,6 @@ export function useNodeSchema(node: ConfigNode): NodeSchemaResult {
     return { schema: undefined, debugInfo };
   }
   let currentType: JsonSchema = initialType;
-
-  const getValueByPath = (path: string[]): unknown => {
-    const { topValue } = use(YamlContext);
-    let currentValue: any = topValue;
-    for (const part of path) {
-      if (typeof currentValue !== "object" || currentValue === null) {
-        return null;
-      }
-      if (part.match(/^\d+$/)) {
-        currentValue = currentValue[Number(part)];
-      } else {
-        currentValue = currentValue[part];
-      }
-    }
-    return currentValue ?? null;
-  };
 
   for (let i = 0; i < node.path.length; i++) {
     const part = node.path[i];
