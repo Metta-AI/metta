@@ -39,7 +39,7 @@ from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.map_builder.random import RandomMapBuilder
 
 
-def _base_game_config(num_agents: int) -> MettaGridConfig:
+def _base_game_config(num_cogs: int, clipping_rate: float) -> MettaGridConfig:
     """Shared base configuration for all game types."""
 
     heart_gain_reward = 5.0
@@ -54,7 +54,7 @@ def _base_game_config(num_agents: int) -> MettaGridConfig:
     return MettaGridConfig(
         game=GameConfig(
             resource_names=resources,
-            num_agents=num_agents,
+            num_agents=num_cogs,
             actions=ActionsConfig(
                 move=ActionConfig(consumed_resources={"energy": 2}),
                 noop=ActionConfig(),
@@ -118,9 +118,7 @@ def _base_game_config(num_agents: int) -> MettaGridConfig:
                         cooldown=1,
                     ),
                 ],
-                length_scale=10.0,
-                cutoff_distance=0.0,
-                clip_rate=0.0,  # Don't clip during gameplay, only use start_clipped
+                clip_rate=clipping_rate,
             ),
         )
     )
@@ -137,8 +135,9 @@ def make_game(
     num_germanium_extractors: int = 0,
     num_silicon_extractors: int = 0,
     num_chests: int = 1,
+    clipping_rate: float = 0.0,
 ) -> MettaGridConfig:
-    cfg = _base_game_config(num_cogs)
+    cfg = _base_game_config(num_cogs, clipping_rate=clipping_rate)
     max_border = max(0, min(width, height) // 2 - 1)
     border_width = min(1, max_border)
 
@@ -189,11 +188,11 @@ def tutorial_assembler_complex(num_cogs: int = 1) -> MettaGridConfig:
     return cfg
 
 
-def make_game_from_map(map_name: str, num_agents: int = 4) -> MettaGridConfig:
+def make_game_from_map(map_name: str, num_cogs: int = 4, clipping_rate: float = 0.0) -> MettaGridConfig:
     """Create a game configuration from a map file."""
 
     # Build the full config first to get the objects
-    config = _base_game_config(num_agents)
+    config = _base_game_config(num_cogs, clipping_rate)
 
     maps_dir = Path(__file__).parent.parent / "maps"
     map_path = maps_dir / map_name
@@ -208,10 +207,6 @@ def make_game_from_map(map_name: str, num_agents: int = 4) -> MettaGridConfig:
 
 def games() -> dict[str, MettaGridConfig]:
     return {
-        "assembler_1_simple": tutorial_assembler_complex(num_cogs=1),
-        "assembler_1_complex": tutorial_assembler_simple(num_cogs=1),
-        "assembler_2_simple": tutorial_assembler_simple(num_cogs=4),
-        "assembler_2_complex": tutorial_assembler_complex(num_cogs=4),
         # "extractor_1cog_1resource": tutorial_extractor(num_cogs=1),""
         # "extractor_1cog_4resource": tutorial_extractor(num_cogs=1),
         # "harvest_1": tutorial_harvest(num_cogs=1),
@@ -222,7 +217,14 @@ def games() -> dict[str, MettaGridConfig]:
         # "forage_4": tutorial_forage(num_cogs=4),
         # "chest_1": tutorial_chest(num_cogs=1),
         # "chest_4": tutorial_chest(num_cogs=4),
+        "training_facility_1": make_game_from_map("training_facility_open_1.map"),
+        "training_facility_2": make_game_from_map("training_facility_open_2.map"),
+        "training_facility_3": make_game_from_map("training_facility_open_3.map"),
+        "training_facility_4": make_game_from_map("training_facility_tight_4.map"),
+        "training_facility_5": make_game_from_map("training_facility_tight_5.map"),
+        "training_facility_6": make_game_from_map("training_facility_clipped.map"),
         # Biomes dungeon maps with stations
+        "machina_1_clipped": make_game_from_map("cave_base_50.map", clipping_rate=0.02),
         "machina_1": make_game_from_map("cave_base_50.map"),
         "machina_2": make_game_from_map("machina_100_stations.map"),
         "machina_3": make_game_from_map("machina_200_stations.map"),
@@ -233,10 +235,4 @@ def games() -> dict[str, MettaGridConfig]:
         "machina_5_big": make_game_from_map("canidate3_500_stations.map"),
         "machina_6_bigger": make_game_from_map("canidate3_1000_stations.map"),
         "machina_7_big": make_game_from_map("canidate4_500_stations.map"),
-        "training_facility_1": make_game_from_map("training_facility_open_1.map"),
-        "training_facility_2": make_game_from_map("training_facility_open_2.map"),
-        "training_facility_3": make_game_from_map("training_facility_open_3.map"),
-        "training_facility_4": make_game_from_map("training_facility_tight_4.map"),
-        "training_facility_5": make_game_from_map("training_facility_tight_5.map"),
-        "training_facility_6": make_game_from_map("training_facility_clipped.map"),
     }

@@ -92,7 +92,9 @@ def play_cmd(
     ),
     interactive: bool = typer.Option(True, "--interactive", "-i", help="Run in interactive mode"),
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
-    render: Literal["gui", "text"] = typer.Option("gui", "--render", "-r", help="Render mode: 'gui' or 'text'"),
+    render: Literal["gui", "text", "none"] = typer.Option(
+        "gui", "--render", "-r", help="Render mode: 'gui', 'text', or 'none' (no rendering)"
+    ),
 ) -> None:
     resolved_game, env_cfg = utils.get_game_config(console, game_name)
 
@@ -182,7 +184,7 @@ def train_cmd(
         "--checkpoints",
         help="Path to save training data",
     ),
-    steps: int = typer.Option(10_0000_000_000, "--steps", "-s", help="Number of training steps", min=1),
+    steps: int = typer.Option(10_000_000_000, "--steps", "-s", help="Number of training steps", min=1),
     device: str = typer.Option(
         "auto",
         "--device",
@@ -195,6 +197,18 @@ def train_cmd(
         None,
         "--num-workers",
         help="Number of worker processes (defaults to number of CPU cores)",
+        min=1,
+    ),
+    parallel_envs: Optional[int] = typer.Option(
+        None,
+        "--parallel-envs",
+        help="Number of parallel environments",
+        min=1,
+    ),
+    vector_batch_size: Optional[int] = typer.Option(
+        None,
+        "--vector-batch-size",
+        help="Override vectorized environment batch size",
         min=1,
     ),
     logits_debug_path: Optional[Path] = typer.Option(  # noqa: B008
@@ -219,24 +233,13 @@ def train_cmd(
         resolved_game, env_cfg = utils.get_game_config(console, game_name)
         representative_game = resolved_game
 
-    resolved_initial_weights = (
-        resolve_policy_data_path(
-            initial_weights_path,
-            policy_class_path=policy_class_path,
-            game_name=representative_game,
-            console=console,
-        )
-        if initial_weights_path
-        else None
-    )
-
     torch_device = utils.resolve_training_device(console, device)
 
     try:
         train_module.train(
             env_cfg=env_cfg,
             policy_class_path=policy_class_path,
-            initial_weights_path=resolved_initial_weights,
+            initial_weights_path=initial_weights_path,
             device=torch_device,
             num_steps=steps,
             checkpoints_path=Path(checkpoints_path),
@@ -245,6 +248,8 @@ def train_cmd(
             minibatch_size=minibatch_size,
             game_name=representative_game,
             vector_num_workers=num_workers,
+            vector_num_envs=parallel_envs,
+            vector_batch_size=vector_batch_size,
             logits_debug_path=logits_debug_path,
             env_cfg_supplier=curriculum_callable,
         )
@@ -286,9 +291,9 @@ def evaluate_cmd(
     if not policies:
         console.print("[red]Error: No policies provided[/red]")
         raise typer.Exit(1)
+    policy_specs = [parse_policy_spec(spec) for spec in policies]
 
     resolved_game, env_cfg = utils.get_game_config(console, game_name)
-    policy_specs = [parse_policy_spec(spec, console=console, game_name=resolved_game) for spec in policies]
 
     console.print(f"[cyan]Evaluating {len(policy_specs)} policies on {resolved_game} over {episodes} episodes[/cyan]")
 

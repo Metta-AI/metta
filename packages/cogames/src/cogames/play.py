@@ -7,6 +7,7 @@ from typing import Literal, Optional
 import numpy as np
 from rich.console import Console
 
+import mettagrid.mettascope as mettascope
 from cogames.cogs_vs_clips.glyphs import GLYPHS
 from cogames.env import make_hierarchical_env
 from cogames.utils import initialize_or_load_policy
@@ -24,12 +25,21 @@ def play(
     game_name: Optional[str] = None,
     max_steps: Optional[int] = None,
     seed: int = 42,
-    render: Literal["gui", "text"] = "gui",
+    render: Literal["gui", "text", "none"] = "gui",
     verbose: bool = False,
 ) -> None:
     """Play a single game episode with a policy."""
 
-    render_mode = None if render == "gui" else "miniscope" if render == "text" else None
+    render_mode: Optional[str]
+    if render == "gui":
+        render_mode = None
+    elif render == "text":
+        render_mode = "miniscope"
+    elif render == "none":
+        render_mode = None
+    else:
+        raise ValueError(f"Unknown render mode '{render}'.")
+
     env = make_hierarchical_env(env_cfg, render_mode=render_mode)
 
     policy = initialize_or_load_policy(policy_class_path, policy_data_path, env)
@@ -85,6 +95,24 @@ def play(
         console.print(f"Total Rewards: {result['total_rewards']}")
         return
 
+    if render == "none":
+        obs, _ = env.reset(seed=seed)
+        total_rewards = np.zeros(env.num_agents)
+        step_count = 0
+        while max_steps is None or step_count < max_steps:
+            actions = np.stack([agent_policies[agent_id].step(obs[agent_id]) for agent_id in range(env.num_agents)])
+            obs, rewards, dones, truncated, _ = env.step(actions)
+            total_rewards += rewards
+            step_count += 1
+            if verbose:
+                console.print(f"Step {step_count}: Reward = {float(sum(rewards)):.2f}")
+            if all(dones) or all(truncated):
+                break
+        console.print("\n[bold green]Episode Complete![/bold green]")
+        console.print(f"Steps: {step_count}")
+        console.print(f"Total Rewards: {total_rewards.sum():.2f}")
+        return
+
     obs, _ = env.reset(seed=seed)
     step_count = 0
     num_agents = env_cfg.game.num_agents
@@ -102,8 +130,6 @@ def play(
         "mg_config": env.mg_config.model_dump(mode="json"),
         "objects": [],
     }
-    # Lazy import to avoid needing x11 dependencies during training
-    import mettagrid.mettascope as mettascope
 
     response = mettascope.init(replay=json.dumps(initial_replay))
     if response.should_close:
