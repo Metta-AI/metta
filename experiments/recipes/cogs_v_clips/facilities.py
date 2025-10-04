@@ -113,6 +113,7 @@ def train() -> TrainTool:
             simulations=make_cogs_v_clips_ascii_evals(),
             evaluate_local=False,
             evaluate_remote=True,
+            skip_git_check=True,
         ),
         policy_architecture=ViTResetConfig(),
     )
@@ -149,3 +150,6 @@ def experiment():
             "--skip-git-check",
         ]
     )
+
+if __name__ == "__main__":
+    experiment()
