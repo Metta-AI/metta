@@ -204,7 +204,8 @@ def describe_game(game_name: str, console: Console) -> None:
     console.print("[bold]Game Configuration:[/bold]")
     console.print(f"  • Number of agents: {game_config.game.num_agents}")
     console.print(f"  • Map size: {game_config.game.map_builder.width}x{game_config.game.map_builder.height}")
-    console.print(f"  • Number of agents on map: {game_config.game.map_builder.agents}")
+    if hasattr(game_config.game.map_builder, "agents"):
+        console.print(f"  • Number of agents on map: {game_config.game.map_builder.agents}")
 
     # Display available actions
     console.print("\n[bold]Available Actions:[/bold]")
