@@ -162,7 +162,7 @@ class ForagingTaskGenerator(TaskGenerator):
             height=height,
             resources=list(self.used_resources) + ["heart", "energy"],
             agent=agent,
-            terrain=rng.choice(["sparse", "balanced", "dense", "no-terrain"]),
+            terrain=rng.choice(["sparse", "balanced", "no-terrain"]),
         )
 
     def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:

@@ -115,7 +115,7 @@ class GeneralizedTerrainTaskGenerator(TaskGenerator):
                 agents=num_cogs,
                 objects=map_builder_objects,
                 remove_altars=True,
-                dir=f"varied_terrain/{rng.choice(['sparse', 'balanced', 'dense'])}_{room_size}",
+                dir=f"varied_terrain/{rng.choice(['sparse', 'balanced'])}_{room_size}",
                 mass_in_center=rng.choice(self.config.use_base),
                 rng=rng,
             ),
