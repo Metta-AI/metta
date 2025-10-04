@@ -50,17 +50,10 @@ def train(
         backend = pufferlib.vector.Serial
 
     # Get CPU cores for default value
-    cpu_cores = None
-    try:
-        cpu_cores = psutil.cpu_count(logical=False) or psutil.cpu_count(logical=True)
-    except Exception:  # pragma: no cover - best effort fallback
-        cpu_cores = None
+    cpu_cores = psutil.cpu_count(logical=False) or psutil.cpu_count(logical=True)
 
-    # Default to CPU cores if not specified, otherwise fallback to 8
-    if vector_num_workers is None:
-        desired_workers = cpu_cores if cpu_cores is not None else 8
-    else:
-        desired_workers = vector_num_workers
+    # Default to CPU cores if not specified, otherwise fallback to 4
+    desired_workers = vector_num_workers or cpu_cores or 4
 
     # Cap at CPU cores if available
     if cpu_cores is not None:

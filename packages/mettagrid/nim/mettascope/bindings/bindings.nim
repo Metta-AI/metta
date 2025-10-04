@@ -13,8 +13,17 @@ type
     shouldClose*: bool
     actions*: seq[ActionRequest]
 
+proc ctrlCHandler() {.noconv.} =
+  ## Handle ctrl-c signal to exit cleanly.
+  echo "\nNim DLL caught ctrl-c, exiting..."
+  if not window.isNil:
+    window.close()
+  quit(0)
+
+
 proc init(dataDir: string, replay: string): RenderResponse =
   try:
+    setControlCHook(ctrlCHandler)
     result = RenderResponse(shouldClose: false, actions: @[])
     #echo "Replay from python: ", replay
     echo "Data dir: ", dataDir
