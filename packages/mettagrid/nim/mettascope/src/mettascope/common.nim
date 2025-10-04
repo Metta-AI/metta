@@ -92,6 +92,9 @@ var
   ## Signals when we want to give control back to Python (DLL mode only).
   requestPython*: bool = false
 
+  # Command line arguments.
+  commandLineReplay*: string = ""
+
 type
   ActionRequest* = object
     agentId*: int
