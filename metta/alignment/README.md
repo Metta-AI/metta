@@ -304,30 +304,62 @@ See `metta/alignment/integration/README.md` for detailed integration documentati
 
 ## Examples
 
-Run the included examples:
+Three example scripts demonstrate different aspects of GAMMA:
+
+### 1. Basic Metrics Demo (Simulated Agents)
+
+Learn how each metric works with three agent types: aligned, noisy, and adversarial.
 
 ```bash
-# Test all 5 metrics with simulated agents
 uv run python metta/alignment/examples/simple_alignment_demo.py
+```
 
-# Test with real MettaGrid environment (default: 4 agents, 50 steps)
+**Shows**: Individual metric computation, misalignment detection, collective GAMMA
+
+### 2. Real MettaGrid Integration (Random Agents)
+
+Test GAMMA with actual MettaGrid environment. Agents take random actions, demonstrating low alignment (GAMMA ≈ 0.001).
+
+```bash
+# Default: 4 agents, 50 steps, 10x10 map
 uv run python metta/alignment/examples/test_with_real_mettagrid.py
 
-# Test with custom parameters
+# Custom parameters
 uv run python metta/alignment/examples/test_with_real_mettagrid.py --num_agents 8 --num_steps 100
 
-# Test with larger swarm and map
+# Larger swarm
 uv run python metta/alignment/examples/test_with_real_mettagrid.py --num_agents 16 --num_steps 200 --map_size 20
 
 # See all options
 uv run python metta/alignment/examples/test_with_real_mettagrid.py --help
 ```
 
-The MettaGrid test generates visualizations showing:
-- Agent trajectories on the map
-- Velocity vectors vs. task directions
-- Metric breakdown per agent (A, D, E, T, Y)
-- GAMMA summary statistics
+**Generates**: 4-panel visualization with trajectories, velocities, metrics, and summary
+
+### 3. High Alignment Demo (Goal-Directed Agents)
+
+See what well-aligned agents look like. Agents move efficiently toward goals, achieving D=0.82, E=0.87 (171x better than random).
+
+```bash
+# Default: 4 agents, 100 steps
+uv run python metta/alignment/examples/demo_high_alignment.py
+
+# Larger swarm
+uv run python metta/alignment/examples/demo_high_alignment.py --num_agents 8 --num_steps 150
+
+# See all options
+uv run python metta/alignment/examples/demo_high_alignment.py --help
+```
+
+**Shows**: Convergence to goals, high metric scores, comparison with random agents
+
+### Comparison
+
+| Demo | GAMMA | D | E | A | Use Case |
+|------|-------|---|---|---|----------|
+| Random agents | 0.001 | 0.04 | 0.2 | 0.01 | Baseline / integration test |
+| Goal-directed | 0.171 | 0.82 | 0.87 | 0.51 | Target for trained agents |
+| Trained (expected) | >0.7 | >0.8 | >0.7 | >0.8 | Production goal |
 
 ## Future Extensions
 
