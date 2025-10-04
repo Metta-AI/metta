@@ -146,8 +146,6 @@ class MapGen(MapBuilder):
         def with_ascii_map(cls, ascii_map: str, **kwargs) -> MapGen.Config:
             """Create a MapGenConfig with an ASCII map as instance."""
             lines = ascii_map.strip().splitlines()
-            print(f"loading from {ascii_map}")
-            print(f"lines: {lines}")
             kwargs["instance"] = AsciiMapBuilder.Config(map_data=[list(line) for line in lines])
             return cls(**kwargs)
 
