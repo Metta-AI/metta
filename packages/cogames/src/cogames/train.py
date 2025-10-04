@@ -11,6 +11,7 @@ import numpy as np
 import psutil
 from rich.console import Console
 
+import pufferlib.vector as pvector
 from cogames.aws_storage import maybe_upload_checkpoint
 from cogames.env import make_hierarchical_env
 from cogames.policy import TrainablePolicy
@@ -51,10 +52,10 @@ def train(
     if env_cfg_supplier is None and env_cfg is None:
         raise ValueError("Either env_cfg or env_cfg_supplier must be provided")
 
-    backend = pufferlib.vector.Multiprocessing
+    backend = pvector.Multiprocessing
     if platform.system() == "Darwin":
         multiprocessing.set_start_method("spawn", force=True)
-        backend = pufferlib.vector.Serial
+        backend = pvector.Serial
 
     cpu_cores = None
     try:
@@ -79,8 +80,8 @@ def train(
     else:
         num_workers = desired_workers
 
-    if backend is pufferlib.vector.Multiprocessing and device.type != "cuda":
-        backend = pufferlib.vector.Serial
+    if backend is pvector.Multiprocessing and device.type != "cuda":
+        backend = pvector.Serial
         num_workers = 1
 
     num_envs = vector_num_envs if vector_num_envs is not None else 256
@@ -125,7 +126,7 @@ def train(
         set_buffers(env, buf)
         return env
 
-    vecenv = pufferlib.vector.make(
+    vecenv = pvector.make(
         env_creator,
         num_envs=num_envs,
         num_workers=num_workers,

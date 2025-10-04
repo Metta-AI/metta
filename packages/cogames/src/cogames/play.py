@@ -7,7 +7,6 @@ from typing import Literal, Optional
 import numpy as np
 from rich.console import Console
 
-import mettagrid.mettascope as mettascope
 from cogames.cogs_vs_clips.glyphs import GLYPHS
 from cogames.env import make_hierarchical_env
 from cogames.utils import initialize_or_load_policy
@@ -103,6 +102,8 @@ def play(
         "mg_config": env.mg_config.model_dump(mode="json"),
         "objects": [],
     }
+    # Lazy import to avoid needing x11 dependencies during training
+    import mettagrid.mettascope as mettascope
 
     response = mettascope.init(replay=json.dumps(initial_replay))
     if response.should_close:
