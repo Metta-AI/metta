@@ -16,6 +16,7 @@ from cogames import play as play_module
 from cogames import train as train_module
 from cogames.cogs_vs_clips.scenarios import make_game
 from cogames.policy.utils import parse_policy_spec, resolve_policy_class_path, resolve_policy_data_path
+from mettagrid import MettaGridConfig
 
 # Always add current directory to Python path
 sys.path.insert(0, ".")
@@ -37,7 +38,6 @@ console = Console()
 def default(ctx: typer.Context) -> None:
     """Show help when no command is provided."""
     if ctx.invoked_subcommand is None:
-        # No command provided, show help
         print(ctx.get_help())
 
 
@@ -47,31 +47,29 @@ def games_cmd(
     save: Optional[Path] = typer.Option(None, "--save", "-s", help="Save game configuration to file (YAML or JSON)"),  # noqa: B008
 ) -> None:
     if game_name is None:
-        # List all games
         game.list_games(console)
-    else:
-        # Get the game configuration
-        try:
-            game_config = game.get_game(game_name)
-        except ValueError as e:
-            console.print(f"[red]Error: {e}[/red]")
-            raise typer.Exit(1) from e
+        return
 
-        # Save configuration if requested
-        if save:
-            try:
-                game.save_game_config(game_config, save)
-                console.print(f"[green]Game configuration saved to: {save}[/green]")
-            except ValueError as e:
-                console.print(f"[red]Error saving configuration: {e}[/red]")
-                raise typer.Exit(1) from e
-        else:
-            # Otherwise describe the game
-            try:
-                game.describe_game(game_name, console)
-            except ValueError as e:
-                console.print(f"[red]Error: {e}[/red]")
-                raise typer.Exit(1) from e
+    try:
+        game_config = game.get_game(game_name)
+    except ValueError as exc:  # pragma: no cover - user input
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(1) from exc
+
+    if save:
+        try:
+            game.save_game_config(game_config, save)
+        except ValueError as exc:  # pragma: no cover - user input
+            console.print(f"[red]Error saving configuration: {exc}[/red]")
+            raise typer.Exit(1) from exc
+        console.print(f"[green]Game configuration saved to: {save}[/green]")
+        return
+
+    try:
+        game.describe_game(game_name, console)
+    except ValueError as exc:  # pragma: no cover - user input
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(1) from exc
 
 
 @app.command(name="play", no_args_is_help=True, help="Play a game")
@@ -91,7 +89,6 @@ def play_cmd(
         None,
         "--policy-data",
         help="Path to policy weights file or directory",
-        callback=resolve_policy_data_path,
     ),
     interactive: bool = typer.Option(True, "--interactive", "-i", help="Run in interactive mode"),
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
@@ -101,6 +98,13 @@ def play_cmd(
 ) -> None:
     resolved_game, env_cfg = utils.get_game_config(console, game_name)
 
+    resolved_policy_data = resolve_policy_data_path(
+        policy_data_path,
+        policy_class_path=policy_class_path,
+        game_name=resolved_game,
+        console=console,
+    )
+
     console.print(f"[cyan]Playing {resolved_game}[/cyan]")
     console.print(f"Max Steps: {steps}, Interactive: {interactive}, Render: {render}")
 
@@ -108,11 +112,12 @@ def play_cmd(
         console,
         env_cfg=env_cfg,
         policy_class_path=policy_class_path,
-        policy_data_path=policy_data_path,
+        policy_data_path=resolved_policy_data,
+        game_name=resolved_game,
         max_steps=steps,
         seed=42,
         render=render,
-        verbose=interactive,  # Use interactive flag for verbose output
+        verbose=interactive,
     )
 
 
@@ -125,7 +130,6 @@ def make_scenario(
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (YAML or JSON)"),  # noqa: B008
 ) -> None:
     try:
-        # If base_game specified, use it as template
         if base_game:
             resolved_game, error = utils.resolve_game(base_game)
             if error:
@@ -136,16 +140,12 @@ def make_scenario(
         else:
             console.print("[cyan]Creating new game from scratch[/cyan]")
 
-        # Use cogs_vs_clips make_game for now
-
-        # Create game with specified parameters
         new_config = make_game(
             num_cogs=num_agents,
             num_assemblers=1,
             num_chests=1,
         )
 
-        # Update map dimensions
         new_config.game.map_builder.width = width  # type: ignore[attr-defined]
         new_config.game.map_builder.height = height  # type: ignore[attr-defined]
         new_config.game.num_agents = num_agents
@@ -156,9 +156,9 @@ def make_scenario(
         else:
             console.print("\n[yellow]To save this configuration, use the --output option.[/yellow]")
 
-    except Exception as e:
-        console.print(f"[red]Error: {e}[/red]")
-        raise typer.Exit(1) from e
+    except Exception as exc:  # pragma: no cover - user input
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(1) from exc
 
 
 @app.command(name="train", help="Train a policy on a game")
@@ -169,7 +169,7 @@ def train_cmd(
         callback=lambda ctx, value: game.require_game_argument(ctx, value, console),
     ),
     policy_class_path: str = typer.Option(
-        "cogames.policy.simple.SimplePolicy",
+        "cogames.policy.lstm.LSTMPolicy",
         "--policy",
         help="Path to policy class",
         callback=resolve_policy_class_path,
@@ -184,7 +184,7 @@ def train_cmd(
         "--checkpoints",
         help="Path to save training data",
     ),
-    steps: int = typer.Option(10_0000_000_000, "--steps", "-s", help="Number of training steps", min=1),
+    steps: int = typer.Option(10_000_000_000, "--steps", "-s", help="Number of training steps", min=1),
     device: str = typer.Option(
         "auto",
         "--device",
@@ -205,8 +205,33 @@ def train_cmd(
         help="Number of parallel environments",
         min=1,
     ),
+    vector_batch_size: Optional[int] = typer.Option(
+        None,
+        "--vector-batch-size",
+        help="Override vectorized environment batch size",
+        min=1,
+    ),
+    logits_debug_path: Optional[Path] = typer.Option(  # noqa: B008
+        None,
+        "--logits-debug",
+        help="Write per-update action logit statistics to this JSONL file",
+    ),
 ) -> None:
-    resolved_game, env_cfg = utils.get_game_config(console, game_name)
+    from cogames import curricula
+
+    rotation_aliases = {"training_rotation", "training_facility_rotation", "training_cycle"}
+
+    env_cfg: Optional[MettaGridConfig]
+    curriculum_callable = None
+    representative_game: str
+
+    if game_name in rotation_aliases:
+        curriculum_callable = curricula.training_rotation()
+        env_cfg = None
+        representative_game = "training_rotation"
+    else:
+        resolved_game, env_cfg = utils.get_game_config(console, game_name)
+        representative_game = resolved_game
 
     torch_device = utils.resolve_training_device(console, device)
 
@@ -221,15 +246,17 @@ def train_cmd(
             seed=seed,
             batch_size=batch_size,
             minibatch_size=minibatch_size,
-            game_name=resolved_game,
+            game_name=representative_game,
             vector_num_workers=num_workers,
             vector_num_envs=parallel_envs,
-            vector_batch_size=batch_size,
+            vector_batch_size=vector_batch_size,
+            logits_debug_path=logits_debug_path,
+            env_cfg_supplier=curriculum_callable,
         )
 
-    except ValueError as e:
-        console.print(f"[red]Error: {e}[/red]")
-        raise typer.Exit(1) from e
+    except ValueError as exc:  # pragma: no cover - user input
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(1) from exc
 
     console.print(f"[green]Training complete. Checkpoints saved to: {checkpoints_path}[/green]")
 
@@ -264,7 +291,7 @@ def evaluate_cmd(
     if not policies:
         console.print("[red]Error: No policies provided[/red]")
         raise typer.Exit(1)
-    policy_specs = [parse_policy_spec(spec) for spec in policies]  # noqa: F821
+    policy_specs = [parse_policy_spec(spec) for spec in policies]
 
     resolved_game, env_cfg = utils.get_game_config(console, game_name)
 

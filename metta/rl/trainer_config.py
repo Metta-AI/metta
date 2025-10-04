@@ -45,7 +45,7 @@ class TorchProfilerConfig(Config):
 
 
 class TrainerConfig(Config):
-    total_timesteps: int = Field(default=50_000_000_000, gt=0)
+    total_timesteps: int = Field(default=500_000_000_000, gt=0)
     losses: LossConfig = Field(default_factory=LossConfig)
     optimizer: OptimizerConfig = Field(default_factory=OptimizerConfig)
 

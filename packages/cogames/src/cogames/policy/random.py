@@ -1,6 +1,6 @@
 """Random policy implementation for CoGames."""
 
-from typing import Any, Optional
+from typing import Optional
 
 import numpy as np
 
@@ -9,44 +9,26 @@ from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation
 
 
 class RandomAgentPolicy(AgentPolicy):
-    """Per-agent random policy."""
+    """Per-agent random policy for hierarchical action spaces."""
 
-    def __init__(self, action_space):
+    def __init__(self, action_space) -> None:
         self._action_space = action_space
 
     def step(self, obs: MettaGridObservation) -> MettaGridAction:
-        """Get random action.
-
-        Args:
-            obs: The observation (unused for random policy)
-
-        Returns:
-            A random action sampled from the action space
-        """
+        """Get a random action sampled from the environment's action space."""
         sample = self._action_space.sample()
         return np.asarray(sample, dtype=np.int32)
 
+    def reset(self) -> None:  # pragma: no cover - nothing to reset
+        return None
+
 
 class RandomPolicy(Policy):
-    """Random policy that samples actions uniformly from the action space."""
+    """Creates independent per-agent random policies."""
 
-    def __init__(self, env: MettaGridEnv, device: Optional[Any] = None):
-        """Initialize random policy.
-
-        Args:
-            env: The environment to sample actions from
-            device: Device to use (ignored for random policy)
-        """
+    def __init__(self, env: MettaGridEnv, device: Optional[object] = None) -> None:
         self._env = env
         self._action_space = env.single_action_space
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
-        """Get an AgentPolicy instance for a specific agent.
-
-        Args:
-            agent_id: The ID of the agent
-
-        Returns:
-            A RandomAgentPolicy instance
-        """
         return RandomAgentPolicy(self._action_space)
