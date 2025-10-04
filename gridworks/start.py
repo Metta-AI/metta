@@ -32,6 +32,8 @@ def main():
         # some screen space is used by the label prefix
         env["COLUMNS"] = str(shutil.get_terminal_size().columns - 11)
 
+    subprocess.run(["pnpm", "gen"], cwd=gridworks_dir, env=env)
+
     # Start the frontend dev server in gridworks directory
     if args.dev:
         frontend_process = subprocess.Popen(
