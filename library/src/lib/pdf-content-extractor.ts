@@ -511,5 +511,7 @@ export async function extractPdfContentWithImages(
   */
 
   // If we reach here, Anthropic API key is not available
-  throw new Error("No Anthropic API key available and Adobe fallback is disabled");
+  throw new Error(
+    "No Anthropic API key available and Adobe fallback is disabled"
+  );
 }

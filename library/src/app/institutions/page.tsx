@@ -1,5 +1,8 @@
-import { loadInstitutions } from "@/posts/data/institutions-server";
-import { InstitutionsView } from "@/components/InstitutionsView";
+import {
+  loadUserInstitutions,
+  loadAllInstitutions,
+} from "@/posts/data/managed-institutions";
+import { UnifiedInstitutionsView } from "@/components/UnifiedInstitutionsView";
 import {
   OverlayStackProvider,
   OverlayStackRenderer,
@@ -8,15 +11,21 @@ import {
 /**
  * Institutions Page
  *
- * Displays a grid of all institutions in the system with their key information
- * including name, paper count, author count, and research areas.
+ * Displays unified institutions with both user management and paper data
+ * integrated into a single cohesive view.
  */
 export default async function InstitutionsPage() {
-  const institutions = await loadInstitutions();
+  const [userInstitutions, allInstitutions] = await Promise.all([
+    loadUserInstitutions(),
+    loadAllInstitutions(),
+  ]);
 
   return (
     <OverlayStackProvider>
-      <InstitutionsView institutions={institutions} />
+      <UnifiedInstitutionsView
+        userInstitutions={userInstitutions}
+        allInstitutions={allInstitutions}
+      />
       <OverlayStackRenderer />
     </OverlayStackProvider>
   );
