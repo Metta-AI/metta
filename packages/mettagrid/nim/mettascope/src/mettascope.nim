@@ -49,7 +49,7 @@ find "/UI/Main":
     of Historical:
       if commandLineReplay != "":
         if commandLineReplay.startsWith("http"):
-          echo "Loading build int replay while web is loading"
+          echo "Loading built-in replay while web is loading"
           common.replay = loadReplay(dataDir / "replays" / "pens.json.z")
           onReplayLoaded()
           echo "Loading replay from URL: ", commandLineReplay
