@@ -27,7 +27,6 @@ var
 
 proc onStepChanged*() =
   ## Called after the step changes so that UI is updated.
-  echo "step: ", step
   updateObjectInfo()
 
 proc onRequestPython*() =
@@ -107,6 +106,8 @@ proc onScrubberChange(localX, panelWidth: float32) =
     step = s
     stepFloat = step.float32
     previousStep = step
+    # Stop playing when scrubbing.
+    play = false
     onStepChanged()
 
 proc centerTracesOnStep(targetStep: int) =
@@ -236,8 +237,10 @@ proc drawTimeline*(panel: Panel) =
   if panel.hasMouse:
     if window.buttonPressed[MouseLeft]:
       let tr = trackRect(panel)
-      let inTrack = (localMouse.x >= tr.x and localMouse.x <= tr.x + tr.w and
-                     localMouse.y >= tr.y and localMouse.y <= tr.y + tr.h)
+      let inTrack = (
+        localMouse.x >= tr.x and localMouse.x <= tr.x + tr.w and
+        localMouse.y >= tr.y and localMouse.y <= tr.y + tr.h
+      )
       mouseCaptured = true
       mouseCapturedPanel = panel
       scrubberActive = inTrack
