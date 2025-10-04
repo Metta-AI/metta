@@ -1,7 +1,6 @@
 import random
 from typing import Optional
 
-from numpy import True_
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
@@ -13,14 +12,12 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-from mettagrid.mapgen.mapgen import MapGen
 
 from metta.agent.policies.vit_reset import ViTResetConfig
 from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
     Position,
 )
-from mettagrid.config.mettagrid_config import RecipeConfig
 from experiments.recipes.cogs_v_clips.utils import (
     foraging_curriculum_args,
     size_ranges,

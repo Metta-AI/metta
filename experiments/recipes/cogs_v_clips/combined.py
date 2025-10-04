@@ -1,5 +1,4 @@
 from experiments.recipes.cogs_v_clips import (
-    facilities,
     generalized_terrain,
     foraging,
     assembly_lines,
