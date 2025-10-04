@@ -39,102 +39,86 @@ num_agents_to_positions = {
 
 generalized_terrain_curriculum_args = {
     "multi_agent_pairs": {
-        "num_cogs": [2, 4],
+        "num_cogs": [4],
         "positions": [["Any"], ["Any", "Any"]],
         "regeneration_rate": [1, 2, 3],
         "sizes": ["small"],
         "use_base": [True, False],
     },
     "multi_agent_triplets": {
-        "num_cogs": [3, 6],
+        "num_cogs": [4],
         "positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
         "regeneration_rate": [1, 2, 3],
         "sizes": ["small"],
         "use_base": [True, False],
     },
-    "multi_agent_pairs_bases": {
-        "num_cogs": [2, 4],
-        "positions": [["Any"], ["Any", "Any"]],
-        "regeneration_rate": [1, 2, 3],
-        "sizes": ["small"],
-        "use_base": [True],
-    },
-    "multi_agent_triplets_bases": {
-        "num_cogs": [3, 6],
-        "positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
-        "regeneration_rate": [1, 2, 3],
-        "sizes": ["small"],
-        "use_base": [True],
-    },
-    "multi_agent_pairs_uniform": {
-        "num_cogs": [2, 4],
-        "positions": [["Any"], ["Any", "Any"]],
-        "regeneration_rate": [1, 2, 3],
-        "sizes": ["small"],
-        "use_base": [False],
-    },
-    "multi_agent_triplets_uniform": {
-        "num_cogs": [3, 6],
-        "positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
-        "regeneration_rate": [1, 2, 3],
-        "sizes": ["small"],
-        "use_base": [False],
-    },
-}
-
-foraging_curriculum_args = {
-    "pairs": {
-        "num_cogs": [2, 4],
-        "num_assemblers": [2, 4, 6, 8],
-        "num_extractors": [0, 1, 4, 6, 8],
-        "room_size": ["small", "medium"],
-        "positions": [["Any"], ["Any", "Any"]],
-        "num_chests": [0, 5, 8],
-    },
-    "triplets": {
-        "num_cogs": [3, 6],
-        "num_assemblers": [2, 4, 6, 8],
-        "num_extractors": [0, 1, 4, 6, 8],
-        "room_size": ["small", "medium"],
-        "positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
-        "num_chests": [0, 5, 8],
-    },
-    "quadruplets": {
+    "multi_agent_quadruplets": {
         "num_cogs": [4],
-        "num_assemblers": [2, 4, 6, 8],
-        "num_extractors": [0, 1, 4, 6, 8],
-        "room_size": ["small", "medium"],
         "positions": [
             ["Any"],
             ["Any", "Any"],
             ["Any", "Any", "Any"],
             ["Any", "Any", "Any", "Any"],
         ],
-        "num_chests": [0, 5, 8],
+        "regeneration_rate": [1, 2, 3],
+        "sizes": ["small"],
+        "use_base": [True, False],
+    },
+}
+
+foraging_curriculum_args = {
+    "pairs": {
+        "num_cogs": [4],
+        "num_assemblers": [2, 3, 4],
+        "num_extractors": [0, 1, 2, 3],
+        "room_size": ["medium"],
+        "positions": [["Any"], ["Any", "Any"]],
+        "num_chests": [0, 1, 2],
+    },
+    "triplets": {
+        "num_cogs": [4],
+        "num_assemblers": [2, 3, 4],
+        "num_extractors": [0, 1, 2, 3],
+        "room_size": ["medium"],
+        "positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
+        "num_chests": [0, 1, 2],
+    },
+    "quadruplets": {
+        "num_cogs": [4],
+        "num_assemblers": [2, 3, 4],
+        "num_extractors": [0, 1, 2, 3],
+        "room_size": ["medium"],
+        "positions": [
+            ["Any"],
+            ["Any", "Any"],
+            ["Any", "Any", "Any"],
+            ["Any", "Any", "Any", "Any"],
+        ],
+        "num_chests": [0, 1, 2],
     },
 }
 
 assembly_lines_curriculum_args = {
     "easy": {
-        "num_cogs": [2, 4],
+        "num_cogs": [4],
         "chain_length": [1, 2, 3],
         "room_size": ["small"],
-        "positions": [["Any"], ["Any", "Any"]],
+        "positions": [["Any", "Any"]],
     },
     "pairs": {
-        "num_cogs": [2, 4],
+        "num_cogs": [4],
         "chain_length": [1, 2, 3, 4, 5],
         "room_size": ["small"],
         "positions": [["Any"], ["Any", "Any"]],
     },
     "triplets": {
-        "num_cogs": [3, 6],
+        "num_cogs": [4],
         "chain_length": [1, 2, 3, 4, 5],
         "room_size": ["small"],
         "positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
     },
     "quadruplets": {
-        "num_cogs": [4, 8],
+        "num_cogs": [4],
         "chain_length": [1, 2, 3, 4, 5],
         "room_size": ["small"],
         "positions": [
@@ -154,8 +138,8 @@ obj_distribution_by_room_size = {
 
 size_ranges = {
     "tiny": (5, 10),  # 2 objects 2 agents max for assemblers
-    "small": (10, 20),  # 9 objects, 5 agents max
-    "medium": (20, 30),
+    "small": (6, 13),  # 9 objects, 5 agents max
+    "medium": (10, 15),
     "large": (30, 40),
     "xlarge": (40, 50),
 }
@@ -163,23 +147,24 @@ size_ranges = {
 RESOURCES = ["carbon", "silicon", "germanium", "oxygen"]
 
 EXTRACTORS = {
-    "carbon": carbon_extractor(),
-    "silicon": silicon_extractor(),
-    "germanium": germanium_extractor(),
-    "oxygen": oxygen_extractor(),
+    "carbon": carbon_extractor(max_uses=0),
+    "silicon": silicon_extractor(max_uses=0),
+    "germanium": germanium_extractor(max_uses=0),
+    "oxygen": oxygen_extractor(max_uses=0),
 }
 
 
 def make_assembler(inputs, outputs, positions):
     assembler = assembler_config()
     assembler.recipes = []
-    if positions == ["Any"]:
-        all_positions = [
-            ["Any"],
-            ["Any", "Any"],
-            ["Any", "Any", "Any"],
-            ["Any", "Any", "Any", "Any"],
-        ]
+    all_positions = [
+        ["Any"],
+        ["Any", "Any"],
+        ["Any", "Any", "Any"],
+        ["Any", "Any", "Any", "Any"],
+    ]
+    if positions in all_positions:
+        all_positions = all_positions[all_positions.index(positions) :]
     else:
         all_positions = [positions]
     for position in all_positions:
@@ -198,20 +183,32 @@ def make_assembler(inputs, outputs, positions):
 
 def make_extractor(resource, inputs, outputs, position):
     extractor = EXTRACTORS[resource]
-    # we only want to output a single resource
+
+    all_positions = [
+        ["Any"],
+        ["Any", "Any"],
+        ["Any", "Any", "Any"],
+        ["Any", "Any", "Any", "Any"],
+    ]
+    if position in all_positions:
+        all_positions = all_positions[all_positions.index(position) :]
+    else:
+        all_positions = [position]  # we only want to output a single resource
     reduced_outputs = {}
     for output in outputs:
         reduced_outputs[output] = 1
-    extractor.recipes = [
-        (
-            position,
-            RecipeConfig(
-                input_resources=inputs,
-                output_resources=reduced_outputs,
-                cooldown=1,
-            ),
+    for position in all_positions:
+        extractor.recipes.append(
+            (
+                position,
+                RecipeConfig(
+                    input_resources=inputs,
+                    output_resources=reduced_outputs,
+                    cooldown=1,
+                ),
+            )
         )
-    ]
+
     return extractor
 
 

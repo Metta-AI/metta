@@ -106,8 +106,6 @@ class ForagingTaskGenerator(TaskGenerator):
                 }
             )
 
-        print(f"Input resources: {input_resources}")
-
         assembler = make_assembler(input_resources, {"heart": 1}, position)
         cfg.game_objects["assembler"] = assembler
         cfg.map_builder_objects["assembler"] = num_assemblers
@@ -179,7 +177,7 @@ class ForagingTaskGenerator(TaskGenerator):
 
         icl_env = self._make_env_cfg(
             num_agents=num_cogs,
-            num_instances=24 // num_cogs,
+            num_instances=1,
             num_assemblers=num_assemblers,
             num_extractors=num_extractors,
             width=width,
@@ -194,16 +192,8 @@ class ForagingTaskGenerator(TaskGenerator):
 
         return icl_env
 
-    def generate_task(
-        self,
-        task_id: int,
-        rng: random.Random,
-        num_instances: Optional[int] = None,
-    ) -> MettaGridConfig:
-        return self._generate_task(task_id, rng)
 
-
-def train(curriculum_style: str = "all") -> TrainTool:
+def train(curriculum_style: str = "pairs") -> TrainTool:
     from experiments.evals.cogs_v_clips.foraging import make_foraging_eval_suite
 
     task_generator_cfg = ForagingTaskGenerator.Config(

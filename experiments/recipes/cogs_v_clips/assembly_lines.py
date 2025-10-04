@@ -60,6 +60,9 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
         minimum_area = num_agents + num_objects * 2
         if area < minimum_area:
             width, height = minimum_area // 2, minimum_area // 2
+            print(
+                f"Area {area} is less than minimum area {minimum_area}, setting to {width}x{height}"
+            )
         return width, height
 
     def _calculate_max_steps(self, chain_length: int, width: int, height: int) -> int:
@@ -99,7 +102,7 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
                 "We do not currently support more than 4 extractors"
             )
             resource_chain = ["nothing"] + rng.sample(RESOURCES, num_extractors)
-            self.used_resources.update(resource_chain)
+            self.used_resources.update(resource_chain[1:])
 
             for i in range(len(resource_chain) - 1):
                 input_resource, output_resource = (
@@ -130,7 +133,7 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
 
         inventory_rewards = {"heart": 0}
         stat_rewards = {"chest.heart.amount": 1}
-        resource_limits = {"heart": 1}
+        resource_limits = {}
         agent = make_agent(
             stat_rewards=stat_rewards,
             inventory_rewards=inventory_rewards,
@@ -138,7 +141,7 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
         )
         return make_icl_assembler(
             num_agents=num_agents,
-            num_instances=num_instances,
+            num_instances=1,
             max_steps=max_steps,
             game_objects=cfg.game_objects,
             map_builder_objects=cfg.map_builder_objects,
@@ -177,9 +180,11 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
 
 
 def train(
-    curriculum_style: str = "pairs", architecture: str = "vit_reset"
+    curriculum_style: str = "pairs", architecture: str = "lstm_reset"
 ) -> TrainTool:
-    from experiments.evals.cogs_v_clips.foraging import make_foraging_eval_suite
+    from experiments.evals.cogs_v_clips.assembly_lines import (
+        make_assembly_lines_eval_suite,
+    )
 
     task_generator_cfg = AssemblyLinesTaskGenerator.Config(
         **assembly_lines_curriculum_args[curriculum_style]
@@ -203,9 +208,8 @@ def train(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         policy_architecture=policy_architecture,
         evaluator=EvaluatorConfig(
-            simulations=make_foraging_eval_suite(),
-            evaluate_remote=False,
-            evaluate_local=True,
+            simulations=make_assembly_lines_eval_suite(),
+            skip_git_check=True,
         ),
         stats_server_uri="https://api.observatory.softmax-research.net",
     )

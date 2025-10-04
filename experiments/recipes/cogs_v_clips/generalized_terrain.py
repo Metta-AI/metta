@@ -155,7 +155,7 @@ class GeneralizedTerrainTaskGenerator(TaskGenerator):
 
         env = make_icl_assembler(
             num_agents=num_cogs,
-            num_instances=24 // num_cogs,
+            num_instances=1,
             max_steps=1000,
             game_objects=game_objects,
             map_builder_objects=cfg.map_builder_objects,
