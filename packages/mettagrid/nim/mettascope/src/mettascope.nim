@@ -159,8 +159,6 @@ find "/UI/Main":
       mouseCaptured = false
       mouseCapturedPanel = nil
 
-
-
 when isMainModule:
 
   # Check if the data directory exists.
