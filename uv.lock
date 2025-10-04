@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = "==3.11.7"
 resolution-markers = [
     "sys_platform == 'linux'",
@@ -1064,25 +1064,17 @@ wheels = [
 
 [[package]]
 name = "gitta"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "packages/gitta" }
 dependencies = [
+    { name = "anthropic" },
     { name = "httpx" },
 ]
 
-[package.dev-dependencies]
-dev = [
-    { name = "pytest" },
-    { name = "pytest-cov" },
-]
-
 [package.metadata]
-requires-dist = [{ name = "httpx", specifier = ">=0.24.0" }]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "pytest", specifier = ">=8.3.3" },
-    { name = "pytest-cov", specifier = ">=6.1.1" },
+requires-dist = [
+    { name = "anthropic", specifier = ">=0.18.0" },
+    { name = "httpx", specifier = ">=0.24.0" },
 ]
 
 [[package]]
