@@ -30,8 +30,8 @@ class CogsVClipsTaskGenerator(TaskGenerator):
         self,
         config: "TaskGeneratorConfig",
         terrain_curriculum="multi_agent_triplets",
-        foraging_curriculum="all",
-        assembly_lines_curriculum="all",
+        foraging_curriculum="triplets",
+        assembly_lines_curriculum="triplets",
     ):
         super().__init__(config)
 
