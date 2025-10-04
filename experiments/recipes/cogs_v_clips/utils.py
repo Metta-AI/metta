@@ -187,7 +187,6 @@ def make_assembler(inputs, outputs, positions):
                 ),
             )
         )
-    print(assembler.recipes)
     return assembler
 
 

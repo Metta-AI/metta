@@ -13,6 +13,7 @@ from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.agent.policies.vit_reset import ViTResetConfig
+from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
 from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
     Position,
@@ -174,7 +175,7 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
         return icl_env
 
 
-def train(curriculum_style: str = "all") -> TrainTool:
+def train(curriculum_style: str = "pairs", architecture: str = "lstm_reset") -> TrainTool:
     from experiments.evals.cogs_v_clips.foraging import make_foraging_eval_suite
 
     task_generator_cfg = AssemblyLinesTaskGenerator.Config(
@@ -187,12 +188,17 @@ def train(curriculum_style: str = "all") -> TrainTool:
         ),
     )
 
+    if architecture == "lstm_reset":
+        policy_architecture = FastLSTMResetConfig()
+    elif architecture == "vit_reset":
+        policy_architecture = ViTResetConfig()
+
     return TrainTool(
         trainer=TrainerConfig(
             losses=LossConfig(),
         ),
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        policy_architecture=ViTResetConfig(),
+        policy_architecture=policy_architecture,
         evaluator=EvaluatorConfig(
             simulations=make_foraging_eval_suite(),
             evaluate_remote=False,
@@ -238,7 +244,7 @@ def experiment():
             [
                 "./devops/skypilot/launch.py",
                 "experiments.recipes.cogs_v_clips.assembly_lines.train",
-                f"run=cogs_v_clips.assembly_lines{curriculum_style}.{random.randint(0, 10000)}.{time.strftime('%Y-%m-%d')}",
+                f"run=cogs_v_clips.assembly_lines.lstmresets.{curriculum_style}.{random.randint(0, 10000)}.{time.strftime('%Y-%m-%d')}",
                 f"curriculum_style={curriculum_style}",
                 "--gpus=4",
                 "--heartbeat-timeout=3600",
