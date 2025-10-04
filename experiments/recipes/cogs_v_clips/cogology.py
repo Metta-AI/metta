@@ -97,7 +97,7 @@ class CogologyStageConfig:
     success_rate_threshold: float = 0.90
     returns_plateau_threshold: float = 0.05
     returns_plateau_window: int = 100
-    min_episodes_before_progression: int = 1000
+    min_episodes_before_progression: int = 10  # Very low for rapid testing/progression
 
     # Learning progress config for within-stage sampling
     use_learning_progress: bool = True
@@ -166,14 +166,15 @@ class CogologyTaskGenerator(TaskGenerator):
             agents_per_room = self._get_agents_per_room(variant)
             self._configure_per_agent_rewards(env, variant, agents_per_room, rng)
 
-            # Set task label (include room size for Stage 1, otherwise use variant)
-            if self.stage.stage_id == 1:
-                # Stage 1 variants encode room size (e.g., "5x5", "10x10")
-                env.label = f"stage_{self.stage.stage_id}_room_{variant}"
-            else:
-                env.label = (
-                    f"stage_{self.stage.stage_id}_{self.stage.name}_variant_{variant}"
-                )
+            # Set task label (no task_id, use stage and variant/map info)
+            # Premade maps already have labels set in _generate_premade_map
+            if not hasattr(env, "label") or not env.label:
+                if self.stage.stage_id == 1:
+                    # Stage 1 variants encode room size (e.g., "5x5", "10x10")
+                    env.label = f"stage_{self.stage.stage_id}_room_{variant}"
+                else:
+                    # Other stages: include stage number and variant
+                    env.label = f"stage_{self.stage.stage_id}_variant_{variant}"
 
             # Validate task is solvable
             try:
@@ -195,14 +196,18 @@ class CogologyTaskGenerator(TaskGenerator):
     def _validate_task(self, env: MettaGridConfig, variant: str, agents_per_room: int):
         """Validate that the generated task is solvable.
 
-        Checks:
-        1. Correct number of chests
-        2. Each room has a chest (no rooms without chests)
-        3. Correct number of per-agent configs
-        4. Each agent has hearts in their initial inventory (required to solve Stage 1)
+        Checks vary by stage:
+        - All stages: correct number of chests, rooms have chests, per-agent configs
+        - Stage 1: agents have hearts
+        - Stage 2+: assemblers present, recipes configured
+        - Stage 3+: extractors present
+        - Stage 4+: chargers present
+        - Multi-agent variants: verify team composition
         """
         num_agents = self.stage.num_agents
         num_rooms = num_agents // agents_per_room
+
+        # === Common Validations for All Stages ===
 
         # Get all chests and their chest_ids
         chests = [
@@ -237,7 +242,9 @@ class CogologyTaskGenerator(TaskGenerator):
                 f"but found {len(env.game.agents) if env.game.agents else 0}"
             )
 
-        # Verify each agent has hearts (for Stage 1: Goal Delivery)
+        # === Stage-Specific Validations ===
+
+        # Stage 1: Goal Delivery - verify agents have hearts
         if self.stage.stage_id == 1:
             for i, agent_config in enumerate(env.game.agents):
                 hearts = agent_config.initial_inventory.get("heart", 0)
@@ -248,10 +255,102 @@ class CogologyTaskGenerator(TaskGenerator):
                         f"Inventory: {agent_config.initial_inventory}"
                     )
 
+        # Stage 2+: Verify assemblers and recipes
+        if self.stage.stage_id >= 2:
+            assemblers = [
+                obj
+                for obj in env.game.objects.values()
+                if isinstance(obj, AssemblerConfig)
+            ]
+
+            if len(assemblers) < self.stage.num_assemblers:
+                raise ValueError(
+                    f"Expected at least {self.stage.num_assemblers} assemblers, "
+                    f"but found {len(assemblers)}. Stage: {self.stage.name}"
+                )
+
+            # Verify assemblers have recipes configured
+            for i, assembler in enumerate(assemblers):
+                if not assembler.recipes or len(assembler.recipes) == 0:
+                    raise ValueError(
+                        f"Assembler {i} has no recipes configured. "
+                        f"Stage: {self.stage.name}"
+                    )
+
+        # Stage 2: Verify agents have crafting resources
+        if self.stage.stage_id == 2:
+            required_resources = {"carbon", "oxygen", "germanium", "silicon"}
+            for i, agent_config in enumerate(env.game.agents):
+                missing = required_resources - set(
+                    agent_config.initial_inventory.keys()
+                )
+                if missing:
+                    raise ValueError(
+                        f"Agent {i} missing required resources: {missing}. "
+                        f"Stage 2 requires agents to start with crafting resources. "
+                        f"Inventory: {agent_config.initial_inventory}"
+                    )
+
+        # Stage 3+: Verify extractors
+        if self.stage.stage_id >= 3:
+            total_extractors = sum(
+                [
+                    self.stage.num_carbon_extractors,
+                    self.stage.num_oxygen_extractors,
+                    self.stage.num_germanium_extractors,
+                    self.stage.num_silicon_extractors,
+                ]
+            )
+
+            if total_extractors > 0:
+                extractor_objects = [
+                    obj
+                    for obj in env.game.objects.values()
+                    if obj.name
+                    in [
+                        "carbon_extractor",
+                        "oxygen_extractor",
+                        "germanium_extractor",
+                        "silicon_extractor",
+                    ]
+                ]
+
+                if len(extractor_objects) < total_extractors:
+                    raise ValueError(
+                        f"Expected at least {total_extractors} extractors, "
+                        f"but found {len(extractor_objects)}. Stage: {self.stage.name}"
+                    )
+
+        # Stage 4+: Verify chargers
+        if self.stage.stage_id >= 4 and self.stage.num_chargers > 0:
+            chargers = [
+                obj for obj in env.game.objects.values() if obj.name == "charger"
+            ]
+
+            if len(chargers) < self.stage.num_chargers:
+                raise ValueError(
+                    f"Expected at least {self.stage.num_chargers} chargers, "
+                    f"but found {len(chargers)}. Stage: {self.stage.name}"
+                )
+
+        # Multi-agent variants: Verify team composition
+        if agents_per_room > 1:
+            # Verify rooms have the correct number of agents
+            # This is implicitly checked by num_rooms = num_agents // agents_per_room
+            # but we can add explicit validation if needed
+            if num_agents % agents_per_room != 0:
+                raise ValueError(
+                    f"Agent count {num_agents} not evenly divisible by "
+                    f"agents_per_room {agents_per_room}. Variant: {variant}"
+                )
+
     def _generate_premade_map(self, rng: random.Random) -> MettaGridConfig:
         """Generate task from premade map."""
         map_name = rng.choice(self.stage.map_names)
         env = make_game_from_map(map_name, num_agents=self.stage.num_agents)
+
+        # Set label with map name for premade stages
+        env.label = f"stage_{self.stage.stage_id}_map_{map_name}"
 
         # Disable glyphs for early stages (1-2) to reduce action space
         if self.stage.stage_id <= 2:
@@ -1043,13 +1142,14 @@ class CogologyProgressionCallback(TrainerComponent):
 
         In future, this should extract actual per-chest counts from env stats.
         """
-        # Simple heuristic: if episode return > 2.0, assume 3+ hearts were deposited
+        # With "heart.lost" reward: 3 hearts deposited = 3.0 return
+        # Consider success if return >= 2.5 (at least 3 hearts deposited)
         episode_return = info.get("episode", {}).get("r", 0.0)
         agent_id = info.get("agent_id", 0)
 
         # Map agent to their chest
         chest_id = f"chest_{agent_id}"
-        hearts_count = 3 if episode_return > 2.0 else 0
+        hearts_count = 3 if episode_return >= 2.5 else 0
 
         return {chest_id: hearts_count}
 
@@ -1063,7 +1163,7 @@ class CogologyProgressionCallback(TrainerComponent):
         metrics = self.success_tracker.get_metrics()
 
         # Log to console
-        if epoch % 50 == 0:
+        if epoch % 10 == 0:  # Log more frequently (every 10 epochs instead of 50)
             # Get most recent episode return
             latest_return = (
                 self.success_tracker.returns_history[-1]
@@ -1073,10 +1173,20 @@ class CogologyProgressionCallback(TrainerComponent):
 
             print(f"\n[Epoch {epoch}] Cogology Progress:")
             print(f"  Stage: {self.success_tracker.config.name}")
-            print(f"  Success Rate: {metrics['curriculum/success_rate']:.2%}")
-            print(f"  Episodes: {metrics['curriculum/episode_count']}")
+            print(
+                f"  Success Rate: {metrics['curriculum/success_rate']:.2%} (need {self.success_tracker.config.success_rate_threshold:.0%})"
+            )
+            print(
+                f"  Episodes: {metrics['curriculum/episode_count']} (need {self.success_tracker.config.min_episodes_before_progression})"
+            )
             print(
                 f"  Latest Return: {latest_return:.2f} | Mean Return: {metrics['curriculum/recent_mean_return']:.2f}"
+            )
+            print(
+                f"  Returns Improvement: {metrics['curriculum/returns_improvement']:.2%}"
+            )
+            print(
+                f"  Returns Plateaued: {self.success_tracker.returns_plateaued} (need True)"
             )
             print(f"  Mean Energy: {metrics['curriculum/mean_energy']:.1f}")
             print(f"  Should Progress: {metrics['curriculum/should_progress']}")
