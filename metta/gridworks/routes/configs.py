@@ -3,7 +3,7 @@ import logging
 from fastapi import APIRouter, HTTPException
 
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.gridworks.common import ErrorResult, dump_config_with_implicit_info
+from metta.gridworks.common import ErrorResult, config_with_extra_info
 from metta.gridworks.configs.registry import ConfigMaker, ConfigMakerKind, ConfigMakerRegistry
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
@@ -74,7 +74,7 @@ def make_configs_router() -> APIRouter:
         cfg = get_config_maker_or_404(path)
         return {
             "maker": cfg.to_dict(),
-            "config": dump_config_with_implicit_info(cfg.maker()),
+            "config": config_with_extra_info(cfg.maker()),
         }
 
     @router.get("/get-map")

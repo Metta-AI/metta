@@ -63,22 +63,22 @@ export const StorableMapViewer: FC<{
               label: "Metadata",
               content: <ConfigViewer value={map.frontmatter.metadata} />,
             },
-            {
-              id: "scene_tree",
-              label: "Scene Tree",
-              content: map.frontmatter.scene_tree ? (
-                <SceneTreeViewer
-                  sceneTree={map.frontmatter.scene_tree}
-                  onSceneSelect={(sceneTree) => {
-                    setSelectedSceneTree(sceneTree);
-                  }}
-                />
-              ) : (
-                <div className="pt-4 text-center text-gray-500">
-                  No scene tree
-                </div>
-              ),
-            },
+            ...(map.frontmatter.scene_tree
+              ? [
+                  {
+                    id: "scene_tree",
+                    label: "Scene Tree",
+                    content: (
+                      <SceneTreeViewer
+                        sceneTree={map.frontmatter.scene_tree}
+                        onSceneSelect={(sceneTree) => {
+                          setSelectedSceneTree(sceneTree);
+                        }}
+                      />
+                    ),
+                  },
+                ]
+              : []),
           ]}
           defaultTab="config"
         />
