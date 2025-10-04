@@ -8,9 +8,10 @@ from mettagrid.config.mettagrid_config import MettaGridConfig
 
 _DEFAULT_SEQUENCE: Deque[str] = deque(
     [
-        "assembler_2_simple",
-        "assembler_2_complex",
+        "training_facility_1",
+        "training_facility_2",
         "machina_1",
+        "machina_2",
     ]
 )
 _DEFAULT_AGENT_COUNT = game.get_game(_DEFAULT_SEQUENCE[0]).game.num_agents
@@ -20,7 +21,10 @@ _TRAINING_ROTATION_NAMES = (
     "training_facility_2",
     "training_facility_3",
     "training_facility_4",
+    "training_facility_5",
+    "training_facility_6",
     "machina_1",
+    "machina_2",
 )
 
 
