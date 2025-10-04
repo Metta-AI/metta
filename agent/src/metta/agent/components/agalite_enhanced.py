@@ -364,9 +364,9 @@ class AGaLiTeAttentionLayer(nn.Module):
 
         # Update memory (detach for efficiency)
         new_tick = tick + T
-        new_tilde_k = final_keys[-1]
-        new_tilde_v = final_values[-1]
-        new_s = final_s[-1]
+        new_tilde_k = final_keys[-1].detach()
+        new_tilde_v = final_values[-1].detach()
+        new_s = final_s[-1].detach()
 
         return output, (new_tilde_k, new_tilde_v, new_s, new_tick)
 

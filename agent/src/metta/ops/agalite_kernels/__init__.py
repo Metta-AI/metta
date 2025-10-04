@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import threading
 import warnings
 from pathlib import Path
 from typing import Optional, Tuple
@@ -10,45 +11,47 @@ from torch.utils import cpp_extension
 
 _EXTENSION = None
 _LOAD_ATTEMPTED = False
+_LOAD_LOCK = threading.Lock()
 
 
 def _load_extension() -> Optional[object]:
     global _EXTENSION, _LOAD_ATTEMPTED
-    if _EXTENSION is not None:
+    with _LOAD_LOCK:
+        if _EXTENSION is not None:
+            return _EXTENSION
+        if _LOAD_ATTEMPTED:
+            return None
+        _LOAD_ATTEMPTED = True
+
+        src_dir = Path(__file__).resolve().parent
+        sources = [str(src_dir / "agalite_kernels.cpp")]
+        extra_cflags = ["-O3", "-std=c++17"]
+        extra_cuda_cflags: Optional[list[str]] = None
+
+        cuda_home = cpp_extension.CUDA_HOME
+        if cuda_home and torch.cuda.is_available() and os.environ.get("METTA_FORCE_CPU_AGALITE_KERNEL", "0") != "1":
+            sources.append(str(src_dir / "agalite_kernels.cu"))
+            extra_cuda_cflags = ["-O3"]
+
+        try:
+            build_dir = src_dir / "_build"
+            build_dir.mkdir(parents=True, exist_ok=True)
+            _EXTENSION = cpp_extension.load(
+                name="agalite_kernels",
+                sources=sources,
+                extra_cflags=extra_cflags,
+                extra_cuda_cflags=extra_cuda_cflags,
+                build_directory=str(build_dir),
+                verbose=False,
+            )
+        except (OSError, RuntimeError) as exc:  # pragma: no cover - fallback path
+            warnings.warn(
+                f"Failed to build AGaLiTe fused kernels ({exc}). Falling back to TorchScript implementation.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            _EXTENSION = None
         return _EXTENSION
-    if _LOAD_ATTEMPTED:
-        return None
-    _LOAD_ATTEMPTED = True
-
-    src_dir = Path(__file__).resolve().parent
-    sources = [str(src_dir / "agalite_kernels.cpp")]
-    extra_cflags = ["-O3", "-std=c++17"]
-    extra_cuda_cflags: Optional[list[str]] = None
-
-    cuda_home = cpp_extension.CUDA_HOME
-    if cuda_home and torch.cuda.is_available() and os.environ.get("METTA_FORCE_CPU_AGALITE_KERNEL", "0") != "1":
-        sources.append(str(src_dir / "agalite_kernels.cu"))
-        extra_cuda_cflags = ["-O3"]
-
-    try:
-        build_dir = src_dir / "_build"
-        build_dir.mkdir(parents=True, exist_ok=True)
-        _EXTENSION = cpp_extension.load(
-            name="agalite_kernels",
-            sources=sources,
-            extra_cflags=extra_cflags,
-            extra_cuda_cflags=extra_cuda_cflags,
-            build_directory=str(build_dir),
-            verbose=False,
-        )
-    except (OSError, RuntimeError) as exc:  # pragma: no cover - fallback path
-        warnings.warn(
-            f"Failed to build AGaLiTe fused kernels ({exc}). Falling back to TorchScript implementation.",
-            RuntimeWarning,
-            stacklevel=2,
-        )
-        _EXTENSION = None
-    return _EXTENSION
 
 
 def _prepare_start_state(start_state: torch.Tensor, x: torch.Tensor) -> Tuple[torch.Tensor, Tuple[int, ...]]:
