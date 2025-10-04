@@ -76,6 +76,10 @@ ENV VIRTUAL_ENV="/workspace/metta/.venv"
 RUN sed -i '\#cd /puffertank/pufferlib#d' /root/.bashrc \
  && echo 'cd /workspace/metta' >> /root/.bashrc
 
+# Remove Puffertank's empty bash prompt
+RUN sed -i '/export PS1=\$..*$/d' /root/.bashrc \
+ && echo 'export PS1="\u@\h:\w\$ "' >> /root/.bashrc
+
 RUN echo 'if [ -n "$VIRTUAL_ENV" ]; then deactivate 2>/dev/null || true; fi' >> /root/.bashrc && \
     echo 'source /workspace/metta/.venv/bin/activate' >> /root/.bashrc
 
