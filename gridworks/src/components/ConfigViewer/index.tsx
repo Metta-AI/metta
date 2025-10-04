@@ -17,7 +17,7 @@ export const ConfigViewer: FC<{
   const [showDebugInfo, setShowDebugInfo] = useState(false);
 
   return (
-    <YamlContext.Provider
+    <YamlContext
       value={{
         isSelected,
         onSelectLine,
@@ -34,6 +34,6 @@ export const ConfigViewer: FC<{
           <Menu />
         </div>
       </div>
-    </YamlContext.Provider>
+    </YamlContext>
   );
 };

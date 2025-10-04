@@ -1,7 +1,7 @@
 "use client";
 import { FC, ReactNode, use } from "react";
 
-import { RepoRootContext } from "../RepoRootContext";
+import { RepoRootContext } from "../global-contexts/RepoRootContext";
 import { ConfigNode } from "./utils";
 
 export const YamlScalar: FC<{

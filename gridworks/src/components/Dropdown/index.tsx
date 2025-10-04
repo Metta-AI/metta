@@ -91,11 +91,11 @@ export const Dropdown: FC<Props> = ({ render, children }) => {
   );
 
   return (
-    <DropdownContext.Provider value={{ closeDropdown }}>
+    <DropdownContext value={{ closeDropdown }}>
       <div ref={refs.setReference} {...getReferenceProps()}>
         {children}
       </div>
       {isOpen ? renderTooltip() : null}
-    </DropdownContext.Provider>
+    </DropdownContext>
   );
 };

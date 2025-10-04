@@ -23,13 +23,6 @@ async function main() {
     console.error("Error generating encoding:", error);
     process.exit(1);
   }
-
-  // Generate Pydantic schemas
-  chdir(repoRootDir);
-  const output = execSync("uv run python metta/gridworks/generate_schemas.py", {
-    encoding: "utf-8",
-  });
-  writeFileSync(resolve(__dirname, `../src/lib/schemas.json`), output);
 }
 
 main();
