@@ -7,6 +7,7 @@ packages:
   - "library" # @softmax/library
   - "mettascope" # @softmax/mettascope
   - "observatory" # @softmax/observatory
+  - "login"
   - "experiments/notebooks/utils/scorecard_widget" # @softmax/scorecard_widget
   - "experiments/notebooks/utils/eval_finder_widget" # @softmax/eval_finder_widget
   - "experiments/notebooks/utils/policy_selector_widget" # @softmax/policy_selector_widget
