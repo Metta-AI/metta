@@ -115,6 +115,12 @@ foraging_curriculum_args = {
 }
 
 assembly_lines_curriculum_args = {
+    "easy": {
+        "num_cogs": [2, 4],
+        "chain_length": [1, 2, 3],
+        "room_size": ["small"],
+        "positions": [["Any"], ["Any", "Any"]],
+    },
     "pairs": {
         "num_cogs": [2, 4],
         "chain_length": [1, 2, 3, 4, 5],
