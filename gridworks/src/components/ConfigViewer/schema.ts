@@ -6,6 +6,7 @@ import { JsonSchemasContext } from "../global-contexts/JsonSchemasContext";
 import { ConfigNode } from "./utils";
 import { YamlContext } from "./YamlContext";
 
+// Resolve { $ref: "#/$defs/..." } to the actual schema.
 function resolveType(type: JsonSchema): JsonSchema | undefined {
   const { schemas } = use(JsonSchemasContext);
 
@@ -24,6 +25,7 @@ function resolveType(type: JsonSchema): JsonSchema | undefined {
   return type;
 }
 
+// Convert a top-level config kind string like "List[SimulationConfig]" to a JSON schema.
 function parseKind(kind: string): JsonSchema {
   const listMatch = kind.match(/^List\[(\w+)\]$/);
   if (listMatch) {
@@ -36,7 +38,7 @@ type NodeSchemaLookupDebugInfo = {};
 
 type NodeSchemaResult = {
   schema: JsonSchema | undefined;
-  debugInfo: NodeSchemaLookupDebugInfo;
+  debugInfo: NodeSchemaLookupDebugInfo; // could be used for debugging if needed, for example storing the full trace the useNodeSchema steps
 };
 
 function isPolymorphicType(currentType: JsonSchema): boolean {
@@ -56,6 +58,7 @@ function isPolymorphicType(currentType: JsonSchema): boolean {
   return false;
 }
 
+// Get the JSON schema for a given config value node.
 export function useNodeSchema(node: ConfigNode): NodeSchemaResult {
   const debugInfo: NodeSchemaLookupDebugInfo = {};
 
@@ -196,6 +199,7 @@ export function useNodeSchema(node: ConfigNode): NodeSchemaResult {
   return { schema: currentType, debugInfo };
 }
 
+// Pretty python-like type string for a JSON schema.
 export function getSchemaTypeStr(property: JsonSchema): string {
   if (
     "isTopLevelDef" in property &&
