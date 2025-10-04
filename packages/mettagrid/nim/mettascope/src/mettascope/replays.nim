@@ -194,7 +194,6 @@ proc expandSequenceV2(sequence: JsonNode, numSteps: int): JsonNode =
     expanded.add(v)
   return expanded
 
-
 proc getAttrV1(obj: JsonNode, attr: string, atStep: int, defaultValue: JsonNode): JsonNode =
   ## Gets an attribute from a grid object, respecting the current step.
   if not (attr in obj):
@@ -206,7 +205,6 @@ proc getAttrV1(obj: JsonNode, attr: string, atStep: int, defaultValue: JsonNode)
   if atStep >= 0 and atStep < prop.len:
     return prop[atStep]
   return defaultValue
-
 
 proc convertReplayV1ToV2(replayData: JsonNode): JsonNode =
   ## Converts a replay from version 1 to version 2.
