@@ -33,7 +33,6 @@ def train(
     batch_size: int,
     minibatch_size: int,
     game_name: Optional[str] = None,
-    *,
     vector_num_envs: Optional[int] = None,
     vector_batch_size: Optional[int] = None,
     vector_num_workers: Optional[int] = None,
@@ -50,17 +49,10 @@ def train(
         backend = pufferlib.vector.Serial
 
     # Get CPU cores for default value
-    cpu_cores = None
-    try:
-        cpu_cores = psutil.cpu_count(logical=False) or psutil.cpu_count(logical=True)
-    except Exception:  # pragma: no cover - best effort fallback
-        cpu_cores = None
+    cpu_cores = psutil.cpu_count(logical=False) or psutil.cpu_count(logical=True)
 
-    # Default to CPU cores if not specified, otherwise fallback to 8
-    if vector_num_workers is None:
-        desired_workers = cpu_cores if cpu_cores is not None else 8
-    else:
-        desired_workers = vector_num_workers
+    # Default to CPU cores if not specified, otherwise fallback to 4
+    desired_workers = vector_num_workers or cpu_cores or 4
 
     # Cap at CPU cores if available
     if cpu_cores is not None:
@@ -79,10 +71,10 @@ def train(
         backend = pufferlib.vector.Serial
         num_workers = 1
 
-    num_envs = vector_num_envs if vector_num_envs is not None else 256
+    num_envs = vector_num_envs or 256
 
     envs_per_worker = max(1, num_envs // num_workers)
-    base_batch_size = vector_batch_size if vector_batch_size is not None else 128
+    base_batch_size = vector_batch_size or 128
     vector_batch_size = max(base_batch_size, envs_per_worker)
     remainder = vector_batch_size % envs_per_worker
     if remainder:
