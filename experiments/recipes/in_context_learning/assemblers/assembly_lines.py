@@ -33,6 +33,9 @@ curriculum_args = {
         + num_agents_to_positions[3],
         "chest_positions": [["N"], ["N", "S"], ["N", "S", "E"]],
         "num_chests": [2, 5, 8],
+        # Special impossible task types (not combinatorial with above params)
+        "impossible_tasks": ["deterministic", "noisy"],
+        "impossible_task_probability": 0.01,  # 1% chance to sample an impossible task
     },
     "train_pairs": {
         "num_agents": [2, 6, 12],
@@ -73,6 +76,8 @@ def make_task_generator_cfg(
     map_dir: Optional[str] = None,
     num_chests: list[int] = [0],
     chest_positions: list[list[Position]] = [["N"]],
+    impossible_tasks: list[str] = [],
+    impossible_task_probability: float = 0.0,
 ):
     return AssemblyLinesTaskGenerator.Config(
         num_agents=num_agents,
@@ -83,12 +88,31 @@ def make_task_generator_cfg(
         map_dir=map_dir,
         num_chests=num_chests,
         chest_positions=chest_positions,
+        impossible_tasks=impossible_tasks,
+        impossible_task_probability=impossible_task_probability,
     )
 
 
 class AssemblyLinesTaskGenerator(ICLTaskGenerator):
-    def __init__(self, config: "ICLTaskGenerator.Config"):
+    """Task generator with support for impossible tasks for curriculum validation.
+
+    Impossible tasks are sampled separately from normal tasks, not combinatorially.
+    They serve as negative examples to validate curriculum learning behavior.
+    """
+
+    class Config(ICLTaskGenerator.Config):
+        """Configuration for assembly line task generator with impossible tasks."""
+
+        impossible_tasks: list[
+            str
+        ] = []  # List of impossible task types: "deterministic", "noisy"
+        impossible_task_probability: float = (
+            0.0  # Probability of sampling an impossible task
+        )
+
+    def __init__(self, config: "AssemblyLinesTaskGenerator.Config"):
         super().__init__(config)
+        self.config: AssemblyLinesTaskGenerator.Config = config
 
     def _make_resource_chain(
         self,
@@ -125,6 +149,81 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
                 output_resources={},
                 position=position,
                 cfg=cfg,
+                rng=rng,
+            )
+
+    def _make_impossible_deterministic_chain(
+        self,
+        resources: list[str],
+        avg_hop: float,
+        position: list[Position],
+        cfg: _BuildCfg,
+        rng: random.Random,
+    ):
+        """Create an impossible task that requires unobtainable resources.
+
+        This creates a chain that requires 'unobtainium' which doesn't exist,
+        ensuring the task always returns reward=0.
+        """
+        cooldown = avg_hop * (len(resources) + 2)
+        # Create a chain that requires unobtainable resource
+        resource_chain = ["unobtainium"] + list(resources) + ["heart"]
+        for i in range(len(resource_chain) - 1):
+            input_resource, output_resource = resource_chain[i], resource_chain[i + 1]
+            input_resources = {input_resource: 1}
+            self._add_assembler(
+                input_resources=input_resources,
+                output_resources={output_resource: 1},
+                position=position,
+                cfg=cfg,
+                cooldown=int(cooldown),
+                rng=rng,
+            )
+
+    def _make_impossible_noisy_chain(
+        self,
+        resources: list[str],
+        avg_hop: float,
+        position: list[Position],
+        cfg: _BuildCfg,
+        rng: random.Random,
+    ):
+        """Create an impossible task with inconsistent/broken rules.
+
+        This creates a chain with randomized cooldowns and broken recipes
+        that sometimes work, sometimes don't - providing noisy rewards but
+        no learnable pattern.
+        """
+        # Create chain with wildly varying cooldowns (unpredictable timing)
+        resource_chain = ["nothing"] + list(resources) + ["heart"]
+        for i in range(len(resource_chain) - 1):
+            input_resource, output_resource = resource_chain[i], resource_chain[i + 1]
+            input_resources = {} if input_resource == "nothing" else {input_resource: 1}
+
+            # Random cooldown makes timing unpredictable
+            random_cooldown = int(avg_hop * rng.uniform(0.5, 10.0))
+
+            self._add_assembler(
+                input_resources=input_resources,
+                output_resources={output_resource: 1},
+                position=position,
+                cfg=cfg,
+                cooldown=random_cooldown,
+                rng=rng,
+            )
+
+        # Add extra broken assemblers that conflict with the chain
+        for _ in range(rng.randint(2, 4)):
+            # Random broken recipes that sometimes consume resources without benefit
+            conflicting_resource = rng.choice(resources) if resources else "nothing"
+            self._add_assembler(
+                input_resources={conflicting_resource: 1}
+                if conflicting_resource != "nothing"
+                else {},
+                output_resources={},  # Produces nothing (resource sink)
+                position=position,
+                cfg=cfg,
+                cooldown=int(avg_hop * rng.uniform(1.0, 3.0)),
                 rng=rng,
             )
 
@@ -191,6 +290,27 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
         rng: random.Random,
         num_instances: Optional[int] = None,
     ) -> MettaGridConfig:
+        # First, check if we should generate an impossible task
+        if (
+            self.config.impossible_tasks
+            and rng.random() < self.config.impossible_task_probability
+        ):
+            impossible_type = rng.choice(self.config.impossible_tasks)
+            return self._generate_impossible_task(
+                task_id, rng, num_instances, impossible_type
+            )
+
+        # Otherwise, generate a normal assembly line task
+        return self._generate_normal_task(task_id, rng, num_instances)
+
+    def _generate_normal_task(
+        self,
+        task_id: int,
+        rng: random.Random,
+        num_instances: Optional[int] = None,
+    ) -> MettaGridConfig:
+        """Generate a normal (possible) assembly line task."""
+        # Use parent class _setup_task to get all parameters
         (
             num_agents,
             resources,
@@ -230,17 +350,191 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
         icl_env.label = f"{room_size}_{len(resources)}chain_{num_sinks}sinks_{terrain}"
         return icl_env
 
+    def _generate_impossible_task(
+        self,
+        task_id: int,
+        rng: random.Random,
+        num_instances: Optional[int] = None,
+        impossible_type: str = "deterministic",
+    ) -> MettaGridConfig:
+        """Generate an impossible task (deterministic or noisy).
+
+        These tasks are standalone and not combinatorial with normal task parameters.
+        """
+        # Sample basic parameters for the impossible task
+        num_agents = rng.choice(self.config.num_agents)
+
+        # Sample resources for the impossible task chain
+        num_resources = rng.choice(self.config.num_resources)
+        if num_resources == 0:
+            resources = []
+        else:
+            num_resources = max(1, min(num_resources, len(self.resource_types)))
+            resources = rng.sample(self.resource_types, num_resources)
+
+        num_sinks = rng.choice(self.config.num_converters)
+
+        # Use a random room size for dimensions
+        room_size = rng.choice(["small", "medium", "large"])
+        position = rng.choice(self.config.positions)
+        num_chests = rng.choice(self.config.num_chests)
+        chest_position = rng.choice(self.config.chest_positions)
+
+        # Get terrain and dimensions using the chosen room_size
+        original_room_sizes = self.config.room_sizes
+        try:
+            self.config.room_sizes = [room_size]
+            (
+                _,  # num_agents
+                _,  # resources
+                _,  # num_sinks
+                _,  # room_size
+                terrain,
+                width,
+                height,
+                max_steps,
+                _,  # position
+                _,  # chest_position
+                _,  # num_chests
+            ) = self._setup_task(rng)
+        finally:
+            self.config.room_sizes = original_room_sizes
+
+        # Generate the impossible task based on type
+        if impossible_type == "deterministic":
+            return self._generate_impossible_deterministic_task_internal(
+                num_agents,
+                resources,
+                num_sinks,
+                room_size,
+                terrain,
+                width,
+                height,
+                max_steps,
+                position,
+                chest_position,
+                num_chests,
+                num_instances or 24 // num_agents,
+                rng,
+            )
+        elif impossible_type == "noisy":
+            return self._generate_impossible_noisy_task_internal(
+                num_agents,
+                resources,
+                num_sinks,
+                room_size,
+                terrain,
+                width,
+                height,
+                max_steps,
+                position,
+                chest_position,
+                num_chests,
+                num_instances or 24 // num_agents,
+                rng,
+            )
+        else:
+            raise ValueError(f"Unknown impossible task type: {impossible_type}")
+
     def generate_task(
         self,
         task_id: int,
         rng: random.Random,
         num_instances: Optional[int] = None,
     ) -> MettaGridConfig:
+        """Generate a task. Handles both normal and impossible task variants."""
         return self._generate_task(task_id, rng, num_instances)
+
+    def _generate_impossible_deterministic_task_internal(
+        self,
+        num_agents: int,
+        resources: list[str],
+        num_sinks: int,
+        room_size: str,
+        terrain: str,
+        width: int,
+        height: int,
+        max_steps: int,
+        position: list[Position],
+        chest_position: list[Position],
+        num_chests: int,
+        num_instances: int,
+        rng: random.Random,
+    ) -> MettaGridConfig:
+        """Generate an impossible task that always returns reward=0."""
+        cfg = _BuildCfg()
+
+        # Create impossible chain requiring unobtainable resource
+        self._make_impossible_deterministic_chain(
+            resources, width + height / 2, position, cfg, rng
+        )
+        self._make_sinks(num_sinks, position, cfg, rng)
+        if num_chests > 0:
+            self._make_chests(num_chests, cfg, chest_position)
+
+        icl_env = make_icl_assembler(
+            num_agents=num_agents,
+            num_instances=num_instances,
+            max_steps=max_steps,
+            game_objects=cfg.game_objects,
+            map_builder_objects=cfg.map_builder_objects,
+            width=width,
+            height=height,
+            terrain=terrain,
+        )
+
+        # Add unobtainium to resource_names for impossible task
+        if "unobtainium" not in icl_env.game.resource_names:
+            icl_env.game.resource_names.append("unobtainium")
+
+        icl_env.label = "impossible_deterministic"
+        return icl_env
+
+    def _generate_impossible_noisy_task_internal(
+        self,
+        num_agents: int,
+        resources: list[str],
+        num_sinks: int,
+        room_size: str,
+        terrain: str,
+        width: int,
+        height: int,
+        max_steps: int,
+        position: list[Position],
+        chest_position: list[Position],
+        num_chests: int,
+        num_instances: int,
+        rng: random.Random,
+    ) -> MettaGridConfig:
+        """Generate an impossible task with noisy returns but no learnable pattern."""
+        cfg = _BuildCfg()
+
+        # Create noisy impossible chain with inconsistent rules
+        self._make_impossible_noisy_chain(
+            resources, width + height / 2, position, cfg, rng
+        )
+        self._make_sinks(num_sinks, position, cfg, rng)
+        if num_chests > 0:
+            self._make_chests(num_chests, cfg, chest_position)
+
+        icl_env = make_icl_assembler(
+            num_agents=num_agents,
+            num_instances=num_instances,
+            max_steps=max_steps,
+            game_objects=cfg.game_objects,
+            map_builder_objects=cfg.map_builder_objects,
+            width=width,
+            height=height,
+            terrain=terrain,
+        )
+
+        # Note: Noisy impossible tasks don't use unobtainium, but ensure resource_names are valid
+        icl_env.label = "impossible_noisy"
+        return icl_env
 
 
 def train(
-    curriculum_style: str = "multi_agent_easy",
+    curriculum_style: str = "train",
 ) -> TrainTool:
     task_generator_cfg = make_task_generator_cfg(
         **curriculum_args[curriculum_style], map_dir=None

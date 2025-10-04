@@ -128,3 +128,55 @@ class TestMetricsFormattingMain:
         assert result["mean_stats"]["reward"] == 2.0
         assert result["mean_stats"]["episode_length"] == 20
         assert result["mean_stats"]["single_value"] == 42
+
+    def test_process_training_stats_with_dict_values(self):
+        """Test that dictionary stats (like per_label_samples) are handled correctly."""
+        raw_stats = {
+            "reward": [1.0, 2.0, 3.0],
+            # Now reports per-epoch deltas instead of cumulative counts
+            "env_curriculum/per_label_samples_this_epoch": [
+                {"task_A": 100, "task_B": 50},  # Samples in this rollout window
+                {"task_A": 120, "task_B": 80},
+                {"task_A": 110, "task_B": 70},
+            ],
+            "env_curriculum/per_label_cumulative_samples": [
+                {"task_A": 1000, "task_B": 500},  # Cumulative total for reference
+                {"task_A": 1120, "task_B": 580},
+                {"task_A": 1230, "task_B": 650},
+            ],
+            "env_curriculum/per_label_lp_scores": [
+                {"task_A": 0.5, "task_B": 0.3},
+                {"task_A": 0.6, "task_B": 0.4},
+                {"task_A": 0.7, "task_B": 0.5},
+            ],
+        }
+
+        losses = MagicMock()
+        losses.stats.return_value = {}
+
+        experience = MagicMock()
+        experience.stats.return_value = {}
+
+        trainer_config = MagicMock()
+
+        result = rl_stats.process_training_stats(raw_stats, losses, experience, trainer_config)
+
+        # Check that per-epoch samples are summed (not averaged) into epoch_samples_per_label/
+        assert result["mean_stats"]["epoch_samples_per_label/task_A"] == 330  # Sum: 100 + 120 + 110
+        assert result["mean_stats"]["epoch_samples_per_label/task_B"] == 200  # Sum: 50 + 80 + 70
+
+        # Check that averaged per-epoch samples are in mean_samples_per_label/
+        assert abs(result["mean_stats"]["mean_samples_per_label/task_A"] - 110.0) < 0.01  # (100 + 120 + 110) / 3
+        assert abs(result["mean_stats"]["mean_samples_per_label/task_B"] - 66.666667) < 0.01  # (50 + 80 + 70) / 3
+
+        # Check that cumulative samples are logged separately
+        assert result["mean_stats"]["cumulative_samples_per_label/task_A"] == 1230
+        assert result["mean_stats"]["cumulative_samples_per_label/task_B"] == 650
+
+        # Check that LP scores are reorganized into epoch_lp_per_label/
+        assert abs(result["mean_stats"]["epoch_lp_per_label/task_A"] - 0.7) < 0.01
+        assert abs(result["mean_stats"]["epoch_lp_per_label/task_B"] - 0.5) < 0.01
+
+        # Check that averaged LP scores are in mean_lp_per_label/
+        assert abs(result["mean_stats"]["mean_lp_per_label/task_A"] - 0.6) < 0.01  # (0.5 + 0.6 + 0.7) / 3
+        assert abs(result["mean_stats"]["mean_lp_per_label/task_B"] - 0.4) < 0.01  # (0.3 + 0.4 + 0.5) / 3

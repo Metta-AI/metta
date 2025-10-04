@@ -31,9 +31,26 @@ def accumulate_rollout_stats(
     """Accumulate rollout statistics from info dictionaries."""
     infos = defaultdict(list)
 
+    # Keys that should be kept as dictionaries (not unrolled) for special processing
+    DICT_METRICS = {
+        "env_curriculum/per_label_samples_this_epoch",
+        "env_curriculum/per_label_cumulative_samples",
+        "env_curriculum/per_label_lp_scores",
+    }
+
     # Batch process info dictionaries
     for i in raw_infos:
+        # First, extract dict metrics that should not be unrolled
+        for key in DICT_METRICS:
+            if key in i and isinstance(i[key], dict):
+                infos[key].append(i[key])
+
+        # Then unroll the rest
         for k, v in unroll_nested_dict(i):
+            # Skip dict metrics that we already processed
+            if k in DICT_METRICS or any(k.startswith(f"{dm}/") for dm in DICT_METRICS):
+                continue
+
             # Detach any tensors before accumulating to prevent memory leaks
             if torch.is_tensor(v):
                 v = v.detach().cpu().item() if v.numel() == 1 else v.detach().cpu().numpy()
@@ -115,10 +132,50 @@ def process_training_stats(
     # Convert lists to means
     mean_stats = {}
     for k, v in raw_stats.items():
-        try:
-            mean_stats[k] = np.mean(v)
-        except (TypeError, ValueError):
-            mean_stats[k] = v
+        # Special handling for dictionary stats (e.g., per_label_completion_counts, per_label_lp_scores)
+        if isinstance(v, list) and len(v) > 0 and isinstance(v[0], dict):
+            # Keep the latest snapshot as the primary value
+            latest_snapshot = v[-1]
+
+            # Also compute per-key averages across the rollout
+            # Aggregate all dictionaries into per-key lists
+            aggregated = {}
+            for dict_snapshot in v:
+                for key, val in dict_snapshot.items():
+                    if key not in aggregated:
+                        aggregated[key] = []
+                    aggregated[key].append(val)
+
+            # Compute means for each key
+            averaged_dict = {key: np.mean(vals) for key, vals in aggregated.items()}
+
+            # Special reorganization for per_label metrics into their own sections
+            if "per_label_samples_this_epoch" in k:
+                # Sum the deltas across all stats updates in this epoch to get total completions
+                summed_dict = {key: np.sum(vals) for key, vals in aggregated.items()}
+                for label, total_count in summed_dict.items():
+                    mean_stats[f"epoch_samples_per_label/{label}"] = total_count
+                for label, avg_count in averaged_dict.items():
+                    mean_stats[f"mean_samples_per_label/{label}"] = avg_count
+            elif "per_label_cumulative_samples" in k:
+                # Log cumulative counts separately for reference
+                for label, count in latest_snapshot.items():
+                    mean_stats[f"cumulative_samples_per_label/{label}"] = count
+            elif "per_label_lp_scores" in k:
+                # Similarly organize LP scores
+                for label, score in latest_snapshot.items():
+                    mean_stats[f"epoch_lp_per_label/{label}"] = score
+                for label, avg_score in averaged_dict.items():
+                    mean_stats[f"mean_lp_per_label/{label}"] = avg_score
+            else:
+                # For other dict metrics, keep old behavior
+                mean_stats[k] = latest_snapshot
+                mean_stats[f"{k}.averaged"] = averaged_dict
+        else:
+            try:
+                mean_stats[k] = np.mean(v)
+            except (TypeError, ValueError):
+                mean_stats[k] = v
 
     # Get loss and experience statistics
     experience_stats = experience.stats() if hasattr(experience, "stats") else {}

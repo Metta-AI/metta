@@ -99,7 +99,9 @@ class CurriculumTestHelper:
         if curriculum_type == "basic":
             return CurriculumConfig(task_generator=base_config, **kwargs)
         elif curriculum_type == "with_algorithm":
-            algorithm = LearningProgressConfig(**kwargs.get("algorithm_params", {}))
+            algorithm_params = kwargs.get("algorithm_params", {})
+            algorithm_params.setdefault("use_shared_memory", False)  # Disable shared memory for tests
+            algorithm = LearningProgressConfig(**algorithm_params)
             return CurriculumConfig(task_generator=base_config, algorithm_config=algorithm, **kwargs)
         elif curriculum_type == "production":
             # Create production-like curriculum with buckets

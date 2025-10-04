@@ -254,3 +254,13 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         if actions.dtype != dtype_actions:
             actions = actions.astype(dtype_actions, copy=False)
         self._vecenv.send(actions)
+
+    def reset_epoch_counters(self) -> None:
+        """Reset per-epoch counters in curriculum environments.
+
+        This is called at the start of each training epoch to ensure
+        per-epoch metrics are correctly scoped to a single epoch.
+        """
+        # Call reset_epoch_counters on driver env if it exists
+        if hasattr(self._vecenv, "driver_env") and hasattr(self._vecenv.driver_env, "reset_epoch_counters"):
+            self._vecenv.driver_env.reset_epoch_counters()

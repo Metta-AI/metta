@@ -45,6 +45,20 @@ class CurriculumEnv(PufferEnv):
         self._cached_stats = {}
         self._stats_cache_valid = False
 
+        # Per-label metrics tracking
+        self._per_label_lp_scores = {}
+        self._per_label_completion_counts = {}  # Cumulative across all training
+        self._per_label_completion_counts_last_epoch = {}  # For computing deltas
+
+    def reset_epoch_counters(self) -> None:
+        """Reset per-epoch tracking at the start of a new epoch.
+
+        This ensures that per-epoch delta calculations start fresh for each epoch,
+        preventing completions from one epoch leaking into the next.
+        """
+        # Reset the baseline for delta calculations
+        self._per_label_completion_counts_last_epoch = self._per_label_completion_counts.copy()
+
     def _add_curriculum_stats_to_info(self, info_dict: dict) -> None:
         """Add curriculum statistics to info dictionary for logging.
 
@@ -60,6 +74,30 @@ class CurriculumEnv(PufferEnv):
             # Use pre-computed prefix for better performance
             for key, value in self._cached_stats.items():
                 info_dict[self._CURRICULUM_STAT_PREFIX + key] = value
+
+            # Add per-label learning progress metrics
+            if self._per_label_lp_scores:
+                info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_lp_scores"] = self._per_label_lp_scores.copy()
+
+            # Report per-epoch deltas (derivative) instead of cumulative counts
+            if self._per_label_completion_counts:
+                # Compute delta since last epoch
+                per_epoch_counts = {}
+                for label, cumulative_count in self._per_label_completion_counts.items():
+                    last_count = self._per_label_completion_counts_last_epoch.get(label, 0)
+                    per_epoch_counts[label] = cumulative_count - last_count
+
+                # Log the per-epoch deltas (this is what you want to visualize)
+                info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_samples_this_epoch"] = per_epoch_counts
+
+                # Also log cumulative for reference (optional, can be removed if not needed)
+                info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_cumulative_samples"] = (
+                    self._per_label_completion_counts.copy()
+                )
+
+                # Update last epoch counts for next delta computation
+                self._per_label_completion_counts_last_epoch = self._per_label_completion_counts.copy()
+
             self._stats_update_counter = 0
 
     def reset(self, *args, **kwargs):
@@ -94,8 +132,24 @@ class CurriculumEnv(PufferEnv):
         if terminals.all() or truncations.all():
             mean_reward = self._env.get_episode_rewards().mean()
             self._current_task.complete(mean_reward)
+
             # Update the curriculum algorithm with task performance for learning progress
             self._curriculum.update_task_performance(self._current_task._task_id, mean_reward)
+
+            # Track per-label learning progress scores
+            task_label = self._current_task.get_label()
+            if hasattr(self._curriculum, "_algorithm") and self._curriculum._algorithm is not None:
+                # Get LP score from algorithm if available
+                lp_score = self._curriculum._algorithm.get_learning_progress_score(self._current_task._task_id)
+                # Update per-label LP score (exponential moving average)
+                if task_label in self._per_label_lp_scores:
+                    self._per_label_lp_scores[task_label] = 0.9 * self._per_label_lp_scores[task_label] + 0.1 * lp_score
+                else:
+                    self._per_label_lp_scores[task_label] = lp_score
+
+                # Track completion counts per label
+                self._per_label_completion_counts[task_label] = self._per_label_completion_counts.get(task_label, 0) + 1
+
             self._current_task = self._curriculum.get_task()
             self._env.set_mg_config(self._current_task.get_env_cfg())
 
