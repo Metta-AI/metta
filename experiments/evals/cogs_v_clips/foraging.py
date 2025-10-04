@@ -8,7 +8,7 @@ def make_foraging_eval_suite() -> list[SimulationConfig]:
     return [
         SimulationConfig(
             name="two_agent_two_assembler_S_N",
-            suite="in_context_learning_foraging",
+            suite="foraging",
             env=make_env(
                 num_cogs=2,
                 num_assemblers=2,
@@ -19,7 +19,7 @@ def make_foraging_eval_suite() -> list[SimulationConfig]:
         ),
         SimulationConfig(
             name="12_agent_20_assemblers_N_S",
-            suite="in_context_learning_foraging",
+            suite="foraging",
             env=make_env(
                 num_cogs=12,
                 num_assemblers=20,
@@ -29,7 +29,7 @@ def make_foraging_eval_suite() -> list[SimulationConfig]:
             ),
         ),
         SimulationConfig(
-            suite="in_context_learning_foraging",
+            suite="foraging",
             name="3_agent_12_assemblers_any",
             env=make_env(
                 num_cogs=3,
@@ -40,7 +40,7 @@ def make_foraging_eval_suite() -> list[SimulationConfig]:
             ),
         ),
         SimulationConfig(
-            suite="in_context_learning_foraging",
+            suite="foraging",
             name="xlarge_three_agent_20_assemblers_NSE",
             env=make_env(
                 num_cogs=3,
@@ -51,7 +51,7 @@ def make_foraging_eval_suite() -> list[SimulationConfig]:
             ),
         ),
         SimulationConfig(
-            suite="in_context_learning_foraging",
+            suite="foraging",
             name="three_agent_1_assembler_1_extractor",
             env=make_env(
                 num_cogs=3,
@@ -62,7 +62,7 @@ def make_foraging_eval_suite() -> list[SimulationConfig]:
             ),
         ),
         SimulationConfig(
-            suite="in_context_learning_foraging",
+            suite="foraging",
             name="three_agent_5_assembler_5_extractor",
             env=make_env(
                 num_cogs=3,
@@ -73,7 +73,7 @@ def make_foraging_eval_suite() -> list[SimulationConfig]:
             ),
         ),
         SimulationConfig(
-            suite="in_context_learning_foraging",
+            suite="foraging",
             name="12_agent_5_assembler_5_extractor_NS",
             env=make_env(
                 num_cogs=12,

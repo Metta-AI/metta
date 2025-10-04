@@ -7,7 +7,6 @@ from typing import Optional
 
 import metta.cogworks.curriculum as cc
 from metta.cogworks.curriculum.curriculum import (
-    CurriculumAlgorithmConfig,
     CurriculumConfig,
 )
 import random
@@ -99,7 +98,9 @@ def make_curriculum(
 
 
 def train() -> TrainTool:
-    from experiments.evals.cogs_v_clips import make_cogs_v_clips_ascii_evals
+    from experiments.evals.cogs_v_clips.cogs_v_clips import (
+        make_cogs_v_clips_ascii_evals,
+    )
 
     return TrainTool(
         trainer=TrainerConfig(

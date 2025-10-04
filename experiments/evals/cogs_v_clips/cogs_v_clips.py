@@ -1,7 +1,7 @@
 from cogames.cogs_vs_clips.scenarios import make_game
 from mettagrid.mapgen.mapgen import MapGen
 import random
-from experiments.evals.foraging import make_foraging_eval_suite
+from experiments.evals.cogs_v_clips.foraging import make_foraging_eval_suite
 from metta.sim.simulation_config import SimulationConfig
 
 

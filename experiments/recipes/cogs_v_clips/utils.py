@@ -1,3 +1,13 @@
+from cogames.cogs_vs_clips.stations import assembler as assembler_config
+from cogames.cogs_vs_clips.stations import (
+    carbon_extractor,
+    oxygen_extractor,
+    germanium_extractor,
+    silicon_extractor,
+    chest as chest_cfg,
+)
+from mettagrid.config.mettagrid_config import RecipeConfig
+
 num_agents_to_positions = {
     1: [["N"], ["S"], ["E"], ["W"], ["Any"]],
     2: [
@@ -107,6 +117,35 @@ foraging_curriculum_args = {
     },
 }
 
+assembly_lines_curriculum_args = {
+    "pairs": {
+        "num_cogs": [4, 8, 12],
+        "chain_lengths": [1, 2, 3, 4, 5],
+        "room_size": ["small"],
+        "positions": num_agents_to_positions[2],
+    },
+    "triplets": {
+        "num_cogs": [4, 8, 12],
+        "chain_lengths": [1, 2, 3, 4, 5],
+        "room_size": ["small"],
+        "positions": num_agents_to_positions[3],
+    },
+    "quadruplets": {
+        "num_cogs": [4, 8, 12],
+        "chain_lengths": [1, 2, 3, 4, 5],
+        "room_size": ["small"],
+        "positions": num_agents_to_positions[4],
+    },
+    "all": {
+        "num_cogs": [4, 8, 12],
+        "chain_lengths": [1, 2, 3, 4, 5],
+        "room_size": ["small"],
+        "positions": num_agents_to_positions[4]
+        + num_agents_to_positions[3]
+        + num_agents_to_positions[2]
+        + num_agents_to_positions[1],
+    },
+}
 
 obj_distribution_by_room_size = {
     "small": [2, 4, 6],
@@ -121,3 +160,57 @@ size_ranges = {
     "large": (30, 40),
     "xlarge": (40, 50),
 }
+
+RESOURCES = ["carbon", "silicon", "germanium", "oxygen"]
+
+EXTRACTORS = {
+    "carbon": carbon_extractor(),
+    "silicon": silicon_extractor(),
+    "germanium": germanium_extractor(),
+    "oxygen": oxygen_extractor(),
+}
+
+
+def make_assembler(inputs, outputs, positions):
+    assembler = assembler_config()
+    assembler.recipes = [
+        (
+            positions,
+            RecipeConfig(
+                input_resources=inputs,
+                output_resources=outputs,
+                cooldown=1,
+            ),
+        )
+    ]
+    return assembler
+
+
+def make_extractor(resource, inputs, outputs, position):
+    extractor = EXTRACTORS[resource]
+    extractor.recipes = [
+        (
+            position,
+            RecipeConfig(
+                input_resources=inputs,
+                output_resources=outputs,
+                cooldown=1,
+            ),
+        )
+    ]
+    return extractor
+
+
+def make_chest(position_deltas):
+    chest = chest_cfg()
+    chest.position_deltas = position_deltas
+    return chest
+
+
+def add_extractor_to_game_cfg(extractor, game_cfg):
+    game_cfg.game_objects[extractor.name] = extractor
+    if extractor.name not in game_cfg.map_builder_objects:
+        game_cfg.map_builder_objects[extractor.name] = 1
+    else:
+        game_cfg.map_builder_objects[extractor.name] += 1
+    return game_cfg

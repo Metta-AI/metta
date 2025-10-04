@@ -1,5 +1,5 @@
 import random
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 from dataclasses import dataclass, field
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -12,13 +12,11 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-
 from metta.agent.policies.vit_reset import ViTResetConfig
 from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
     Position,
 )
-from mettagrid.config.mettagrid_config import RecipeConfig
 from experiments.recipes.cogs_v_clips.utils import (
     foraging_curriculum_args,
     size_ranges,
@@ -26,7 +24,6 @@ from experiments.recipes.cogs_v_clips.utils import (
     make_assembler,
     make_extractor,
     make_chest,
-    add_extractor_to_game_cfg,
 )
 
 
@@ -36,18 +33,16 @@ class _BuildCfg:
     map_builder_objects: Dict[str, int] = field(default_factory=dict)
 
 
-class ForagingTaskGenerator(TaskGenerator):
+class AssemblyLinesTaskGenerator(TaskGenerator):
     """Pure foraging, no energy or chargers"""
 
-    class Config(TaskGeneratorConfig["ForagingTaskGenerator"]):
+    class Config(TaskGeneratorConfig["AssemblyLinesTaskGenerator"]):
         num_cogs: list[int]
-        num_assemblers: list[int]
-        num_extractors: list[int]
-        num_chests: list[int]
+        chain_length: list[int]
         room_size: list[str]
         positions: list[list[Position]]
 
-    def __init__(self, config: "ForagingTaskGenerator.Config"):
+    def __init__(self, config: "AssemblyLinesTaskGenerator.Config"):
         super().__init__(config)
         self.config = config
         self.used_resources = set()
@@ -65,87 +60,74 @@ class ForagingTaskGenerator(TaskGenerator):
             width, height = minimum_area // 2, minimum_area // 2
         return width, height
 
-    def _calculate_max_steps(self, num_objects: int, width: int, height: int) -> int:
-        area = width * height
-        max_steps = max(150, area * num_objects * 2)
-        return min(max_steps, 1800)
+    def _calculate_max_steps(self, chain_length: int, width: int, height: int) -> int:
+        avg_hop = width + height / 2
 
-    def _make_extractors(self, num_extractors, cfg, rng: random.Random):
-        """Make generators that input nothing and output resources for the altar"""
-        for _ in range(num_extractors):
-            resource = rng.choice(RESOURCES)
-            self.used_resources.add(resource)
-            extractor = make_extractor(
-                resource,
-                inputs={},
-                outputs={resource: rng.choice([1, 5, 10])},
-                position=["Any"],
-            )
-            cfg = add_extractor_to_game_cfg(extractor, cfg)
+        steps_per_attempt = 4 * avg_hop
+        chain_completion_cost = steps_per_attempt * chain_length
+        target_completions = 5
 
-    def _make_chests(self, num_chests, cfg):
-        chest = make_chest(position_deltas=[("N", 1), ("S", 1), ("E", 1), ("W", 1)])
-        cfg.game_objects["chest"] = chest
-        cfg.map_builder_objects["chest"] = num_chests
+        return int(target_completions * chain_completion_cost)
 
-    def _make_assemblers(
-        self,
-        num_assemblers,
-        cfg,
-        position,
-        num_extractors,
-        rng: random.Random,
-        max_input_resources=3,
-    ):
-        input_resources = {}
-        if num_extractors > 0:
-            input_resources.update(
-                {
-                    resource: rng.choice([1, 3, 5])
-                    for resource in rng.sample(
-                        list(self.used_resources),
-                        rng.randint(
-                            1, min(len(self.used_resources), max_input_resources)
-                        ),
-                    )
-                }
-            )
-
-        assembler = make_assembler(input_resources, {"heart": 1}, position)
-        cfg.game_objects["assembler"] = assembler
-        cfg.map_builder_objects["assembler"] = num_assemblers
+    def add_to_game_cfg(self, object, cfg):
+        # add a single object to the game cfg
+        cfg.game_objects[object.name] = object
+        cfg.map_builder_objects[object.name] = 1
 
     def _make_env_cfg(
         self,
         num_agents,
         num_instances,
-        num_assemblers,
-        num_extractors,
+        chain_length,
         width,
         height,
         recipe_position,
-        num_chests,
         max_steps,
         rng: random.Random = random.Random(),
     ) -> MettaGridConfig:
         cfg = _BuildCfg()
 
-        self._make_extractors(num_extractors, cfg, rng)
-
-        self._make_assemblers(num_assemblers, cfg, recipe_position, num_extractors, rng)
-
-        if num_chests > 0:
-            # if using chests, then we get reward from hearts in chest
-            self._make_chests(num_chests, cfg)
-            inventory_rewards = {"heart": 0}
-            stat_rewards = {"chest.heart.amount": 5}
-            resource_limits = {"heart": 1}
+        if chain_length == 1:
+            # only one assembler and one sink
+            assembler_inputs = {}
+            assembler_outputs = {"heart": 1}
         else:
-            # otherwise, we get reward from heart in inventory
-            inventory_rewards = {"heart": 1}
-            stat_rewards = {}
-            resource_limits = {"heart": 20}
+            num_extractors = chain_length - 1
+            assert num_extractors <= len(RESOURCES), (
+                "We do not currently support more than 4 extractors"
+            )
+            resource_chain = rng.sample(RESOURCES, num_extractors)
+            self.used_resources.update(resource_chain)
+            for i in range(len(resource_chain) - 1):
+                input_resource, output_resource = (
+                    resource_chain[i],
+                    resource_chain[i + 1],
+                )
+                input_resources = {} if i == 0 else {input_resource: 1}
+                extractor = make_extractor(
+                    resource=resource_chain[i],
+                    inputs=input_resources,
+                    outputs=output_resource,
+                    position=recipe_position,
+                )
+                self.add_to_game_cfg(extractor, cfg)
 
+            # the assembler takes as input the last resource in the extractor chain
+            assembler_inputs = {resource_chain[-1]: 1}
+            assembler_outputs = {"heart": 1}
+
+        assembler = make_assembler(
+            inputs=assembler_inputs,
+            outputs=assembler_outputs,
+            positions=recipe_position,
+        )
+        self.add_to_game_cfg(assembler, cfg)
+        chest = make_chest(position_deltas=[("N", 1), ("S", 1), ("E", 1), ("W", 1)])
+        self.add_to_game_cfg(chest, cfg)
+
+        inventory_rewards = {"heart": 0}
+        stat_rewards = {"chest.heart.amount": 1}
+        resource_limits = {"heart": 1}
         return make_icl_assembler(
             num_agents=num_agents,
             num_instances=num_instances,
@@ -163,48 +145,34 @@ class ForagingTaskGenerator(TaskGenerator):
 
     def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
         num_cogs = rng.choice(self.config.num_cogs)
-        num_assemblers = rng.choice(self.config.num_assemblers)
-        num_extractors = rng.choice(self.config.num_extractors)
-        num_chests = rng.choice(self.config.num_chests)
+        chain_length = rng.choice(self.config.chain_length)
         room_size = rng.choice(self.config.room_size)
         recipe_position = rng.choice(self.config.positions)
 
-        num_objects = num_assemblers + num_extractors + num_chests
-
         width, height = self._set_width_and_height(
-            room_size, num_cogs, num_objects, rng
+            room_size, num_cogs, chain_length, rng
         )
-        max_steps = self._calculate_max_steps(num_objects, width, height)
+        max_steps = self._calculate_max_steps(chain_length, width, height)
 
         icl_env = self._make_env_cfg(
             num_agents=num_cogs,
             num_instances=24 // num_cogs,
-            num_assemblers=num_assemblers,
-            num_extractors=num_extractors,
+            chain_length=chain_length,
             width=width,
             height=height,
             recipe_position=recipe_position,
-            num_chests=num_chests,
             max_steps=max_steps,
             rng=rng,
         )
 
-        icl_env.label = f"{room_size}_{num_objects}_objects"
+        icl_env.label = f"{room_size}_{chain_length}_chain"
         return icl_env
-
-    def generate_task(
-        self,
-        task_id: int,
-        rng: random.Random,
-        num_instances: Optional[int] = None,
-    ) -> MettaGridConfig:
-        return self._generate_task(task_id, rng)
 
 
 def train(curriculum_style: str = "all") -> TrainTool:
     from experiments.evals.cogs_v_clips.foraging import make_foraging_eval_suite
 
-    task_generator_cfg = ForagingTaskGenerator.Config(
+    task_generator_cfg = AssemblyLinesTaskGenerator.Config(
         **foraging_curriculum_args[curriculum_style]
     )
     curriculum = CurriculumConfig(
@@ -232,19 +200,15 @@ def train(curriculum_style: str = "all") -> TrainTool:
 def make_env(
     num_cogs=1,
     position=["Any"],
-    num_assemblers=3,
-    num_chests=1,
-    num_extractors=1,
+    chain_length=3,
     sizes="small",
 ):
-    task_generator = ForagingTaskGenerator(
-        config=ForagingTaskGenerator.Config(
+    task_generator = AssemblyLinesTaskGenerator(
+        config=AssemblyLinesTaskGenerator.Config(
             num_cogs=[num_cogs],
             positions=[position],
             room_size=[sizes],
-            num_assemblers=[num_assemblers],
-            num_chests=[num_chests],
-            num_extractors=[num_extractors],
+            chain_length=[chain_length],
         )
     )
     return task_generator.get_task(random.randint(0, 1000000))
@@ -268,8 +232,8 @@ def experiment():
         subprocess.run(
             [
                 "./devops/skypilot/launch.py",
-                "experiments.recipes.cogs_v_clips.foraging.train",
-                f"run=cogs_v_clips.foraging_{curriculum_style}.{random.randint(0, 10000)}.{time.strftime('%Y-%m-%d')}",
+                "experiments.recipes.cogs_v_clips.assembly_lines.train",
+                f"run=cogs_v_clips.assembly_lines{curriculum_style}.{random.randint(0, 10000)}.{time.strftime('%Y-%m-%d')}",
                 f"curriculum_style={curriculum_style}",
                 "--gpus=4",
                 "--heartbeat-timeout=3600",
@@ -284,8 +248,8 @@ def make_mettagrid(task_generator) -> MettaGridConfig:
 
 
 def play(curriculum_style: str = "pairs") -> PlayTool:
-    task_generator = ForagingTaskGenerator(
-        config=ForagingTaskGenerator.Config(
+    task_generator = AssemblyLinesTaskGenerator(
+        config=AssemblyLinesTaskGenerator.Config(
             **foraging_curriculum_args[curriculum_style]
         )
     )

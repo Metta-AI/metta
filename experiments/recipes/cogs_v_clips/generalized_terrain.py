@@ -21,9 +21,11 @@ from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from mettagrid.mapgen.mapgen import MapGen
 from metta.map.terrain_from_numpy import CogsVClippiesFromNumpy
 from metta.tools.replay import ReplayTool
-from experiments.recipes.cogs_v_clips.config import (
+from experiments.recipes.cogs_v_clips.utils import (
     generalized_terrain_curriculum_args,
     obj_distribution_by_room_size,
+    make_assembler,
+    make_chest,
 )
 
 
@@ -103,8 +105,8 @@ class GeneralizedTerrainTaskGenerator(TaskGenerator):
         )
         map_builder = MapGen.Config(
             instances=24 // num_cogs,
-            border_width=6,
-            instance_border_width=3,
+            border_width=1,
+            instance_border_width=1,
             instance=CogsVClippiesFromNumpy.Config(
                 agents=num_cogs,
                 objects={
@@ -133,8 +135,8 @@ class GeneralizedTerrainTaskGenerator(TaskGenerator):
         room_size = rng.choice(self.config.sizes)
         env, num_extractors = self.setup_map_builder(num_cogs, room_size, rng)
 
-        self._make_assembler_recipes(
-            env.game.objects["assembler"], rng, num_extractors, position
+        env.game.objects["assembler"] = self._make_assembler_recipes(
+            rng, num_extractors, position
         )
 
         for obj in [
@@ -147,10 +149,8 @@ class GeneralizedTerrainTaskGenerator(TaskGenerator):
             # for extractors and chargers, any agent can use
             self._overwrite_positions(env.game.objects[obj])
 
-        env.game.objects["chest"] = ChestConfig(
-            type_id=17,
-            resource_type="heart",
-            position_deltas=[("N", 1), ("S", 1), ("E", 1), ("W", 1)],
+        env.game.objects["chest"] = make_chest(
+            position_deltas=[("N", 1), ("S", 1), ("E", 1), ("W", 1)]
         )
 
         self.configure_env_agent(env, rng)
@@ -161,7 +161,6 @@ class GeneralizedTerrainTaskGenerator(TaskGenerator):
 
     def _make_assembler_recipes(
         self,
-        assembler,
         rng: random.Random,
         num_extractors: dict[str, int],
         assembler_position: list[Position],
@@ -176,25 +175,13 @@ class GeneralizedTerrainTaskGenerator(TaskGenerator):
             ):
                 input_resources[resource] = 1
                 num_input_resources += 1
-        assembler.recipes = [
-            (
-                assembler_position,
-                RecipeConfig(
-                    input_resources=input_resources,
-                    output_resources={"heart": 1},
-                    cooldown=1,
-                ),
-            )
-        ]
+        assembler = make_assembler(input_resources, {"heart": 1}, assembler_position)
         return assembler
 
     def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
         env = self._make_env_cfg(rng)
 
         return env
-
-    def generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
-        return self._generate_task(task_id, rng)
 
 
 def make_mettagrid(task_generator) -> MettaGridConfig:
@@ -217,7 +204,7 @@ def play(curriculum_style: str = "multi_agent_pairs") -> PlayTool:
 def train(
     curriculum_style: str = "multi_agent_pairs_uniform", architecture="vit_reset"
 ) -> TrainTool:
-    from experiments.evals.cogs_v_clips import make_cogs_v_clips_evals
+    from experiments.evals.cogs_v_clips.cogs_v_clips import make_cogs_v_clips_evals
 
     task_generator_cfg = GeneralizedTerrainTaskGenerator.Config(
         **generalized_terrain_curriculum_args[curriculum_style]
