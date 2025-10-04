@@ -2,18 +2,13 @@ from mettagrid.map_builder.utils import create_grid
 from mettagrid.mapgen.types import MapGrid
 
 DEFAULT_CHAR_TO_NAME: dict[str, str] = {
-    "c": "converter",
-    "C": "chest",
     "Z": "assembler",
     "1": "agent.team_1",
     "2": "agent.team_2",
     "3": "agent.team_3",
     "4": "agent.team_4",
     "p": "agent.prey",
-    "P": "agent.predator",
     "+": "charger",
-    "#": "wall",
-    ".": "empty",
     "C": "carbon_extractor",
     "O": "oxygen_extractor",
     "G": "germanium_extractor",
