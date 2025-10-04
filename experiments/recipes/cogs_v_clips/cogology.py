@@ -38,7 +38,7 @@ from mettagrid.config.mettagrid_config import (
     RecipeConfig,
     Field as ConfigField,
 )
-from metta.agent.policies.lstm_reset import LSTMResetConfig
+from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
@@ -1378,7 +1378,7 @@ def train(
     )
 
     # Use LSTM reset policy
-    policy_config = LSTMResetConfig()
+    policy_config = FastLSTMResetConfig()
 
     # Set up evaluator
     evaluator = EvaluatorConfig(
