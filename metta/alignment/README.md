@@ -2,8 +2,7 @@
 
 This module implements the **GAMMA** (General Alignment Metric for Multi-agent Autonomy) framework for quantifying alignment in autonomous agent swarms.
 
-Based on: *"GAMMA: A Framework-Agnostic Alignment Metric for Autonomous Swarms"* by Marcel Blattner and Adam Goldstein
-
+Based on: *"GAMMA: A Framework-Agnostic Alignment Metric for Autonomous Swarms"*
 ## Overview
 
 GAMMA provides a unitless alignment index in [0, 1] built from five observable components:
@@ -112,6 +111,35 @@ A_i = metric.compute(positions, velocities, task_directions, dt, goal=goal_posit
 - **Range**: [0, 1], higher is better
 - **Interpretation**: Exponential decay with distance to goal
 
+### Time Efficiency (T_i)
+
+Measures whether agents complete tasks in expected timeframes:
+
+```python
+from metta.alignment.metrics import TimeEfficiencyMetric
+
+metric = TimeEfficiencyMetric(baseline_speed=1.0)
+T_i = metric.compute(positions, velocities, task_directions, dt, goal=goal_position)
+```
+
+- **Range**: [0, 1], higher is better
+- **Interpretation**: Guards against slow-rolling and stalling
+
+### Energy Proportionality (Y_i)
+
+Measures energy efficiency relative to forward progress:
+
+```python
+from metta.alignment.metrics import EnergyProportionalityMetric
+
+metric = EnergyProportionalityMetric(beta=1.0)
+Y_i = metric.compute(positions, velocities, task_directions, dt, power=power_measurements)
+```
+
+- **Range**: [0, 1], higher is better
+- **Interpretation**: High values mean efficient energy use; low values suggest wasteful motion
+- **Note**: Can use power measurements or curvature-weighted proxy
+
 ## Collective Metrics
 
 ### Individual Alignment Metric (IAM)
@@ -122,15 +150,18 @@ Combines components using geometric mean:
 from metta.alignment.metrics import IndividualAlignmentMetric
 
 metric = IndividualAlignmentMetric(
-    weights={"A": 1.0, "D": 1.0, "E": 1.0},
+    weights={"A": 1.0, "D": 1.0, "E": 1.0, "T": 1.0, "Y": 1.0},
     scale=1.0,
-    tolerance=0.05
+    tolerance=0.05,
+    baseline_speed=1.0,
+    beta=1.0
 )
-IAM_i = metric.compute(positions, velocities, task_directions, dt, goal=goal)
+IAM_i = metric.compute(positions, velocities, task_directions, dt, goal=goal, power=power)
 
 # Get individual components
-components = metric.get_components(positions, velocities, task_directions, dt, goal=goal)
-print(f"A: {components['A']:.3f}, D: {components['D']:.3f}, E: {components['E']:.3f}")
+components = metric.get_components(positions, velocities, task_directions, dt, goal=goal, power=power)
+print(f"A: {components['A']:.3f}, D: {components['D']:.3f}, E: {components['E']:.3f}, "
+      f"T: {components['T']:.3f}, Y: {components['Y']:.3f}")
 ```
 
 ### GAMMA (Collective Alignment)
@@ -250,21 +281,43 @@ GAMMA is designed to work with any RL framework:
 - **No internal assumptions**: Doesn't require access to policy, rewards, or value functions
 - **Flexible task interface**: Works with setpoint, formation, coverage, and custom tasks
 
-## Citation
 
-```bibtex
-@article{blattner2024gamma,
-  title={GAMMA: A Framework-Agnostic Alignment Metric for Autonomous Swarms},
-  author={Blattner, Marcel and Goldstein, Adam},
-  year={2024}
-}
+
+## Metta Integration
+
+The GAMMA framework is fully integrated with Metta's training system:
+
+```python
+from metta.alignment.integration import GAMMALogger
+
+# Add to trainer
+gamma_logger = GAMMALogger(
+    num_agents=16,
+    epoch_interval=10,
+    alpha=0.1,
+    enabled=True
+)
+trainer.add_component(gamma_logger)
+```
+
+See `metta/alignment/integration/README.md` for detailed integration documentation.
+
+## Examples
+
+Run the included examples:
+
+```bash
+# Test all 5 metrics with simulated agents
+uv run python metta/alignment/examples/simple_alignment_demo.py
+
+# Test with real MettaGrid environment
+uv run python metta/alignment/examples/test_with_real_mettagrid.py
 ```
 
 ## Future Extensions
 
-- Time Efficiency (T_i) metric
-- Energy Proportionality (Y_i) metric
 - Formation task interface
 - Coverage task interface
-- Baseline library construction
-- Online monitoring and alerting
+- Advanced detectors (CEEI, Energy-Progress Hysteresis, Non-Intentionality)
+- Baseline library construction system
+- Online monitoring and alerting dashboard
