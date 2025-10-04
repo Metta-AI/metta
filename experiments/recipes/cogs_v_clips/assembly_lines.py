@@ -18,12 +18,13 @@ from mettagrid.config.mettagrid_config import (
     Position,
 )
 from experiments.recipes.cogs_v_clips.utils import (
-    foraging_curriculum_args,
+    assembly_lines_curriculum_args,
     size_ranges,
     RESOURCES,
     make_assembler,
     make_extractor,
     make_chest,
+    make_agent,
 )
 
 
@@ -128,6 +129,11 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
         inventory_rewards = {"heart": 0}
         stat_rewards = {"chest.heart.amount": 1}
         resource_limits = {"heart": 1}
+        agent = make_agent(
+            stat_rewards=stat_rewards,
+            inventory_rewards=inventory_rewards,
+            resource_limits=resource_limits,
+        )
         return make_icl_assembler(
             num_agents=num_agents,
             num_instances=num_instances,
@@ -136,10 +142,9 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
             map_builder_objects=cfg.map_builder_objects,
             width=width,
             height=height,
-            resources=list(self.used_resources) + ["heart"],
-            inventory_rewards=inventory_rewards,
-            resource_limits=resource_limits,
-            stat_rewards=stat_rewards,
+            resources=list(self.used_resources) + ["heart", "energy"],
+            agent=agent,
+            inventory_regen_interval=0,
             terrain=rng.choice(["sparse", "balanced", "dense", "no-terrain"]),
         )
 
@@ -173,7 +178,7 @@ def train(curriculum_style: str = "all") -> TrainTool:
     from experiments.evals.cogs_v_clips.foraging import make_foraging_eval_suite
 
     task_generator_cfg = AssemblyLinesTaskGenerator.Config(
-        **foraging_curriculum_args[curriculum_style]
+        **assembly_lines_curriculum_args[curriculum_style]
     )
     curriculum = CurriculumConfig(
         task_generator=task_generator_cfg,
@@ -228,7 +233,7 @@ def experiment():
     import subprocess
     import time
 
-    for curriculum_style in foraging_curriculum_args:
+    for curriculum_style in assembly_lines_curriculum_args:
         subprocess.run(
             [
                 "./devops/skypilot/launch.py",
@@ -250,7 +255,7 @@ def make_mettagrid(task_generator) -> MettaGridConfig:
 def play(curriculum_style: str = "pairs") -> PlayTool:
     task_generator = AssemblyLinesTaskGenerator(
         config=AssemblyLinesTaskGenerator.Config(
-            **foraging_curriculum_args[curriculum_style]
+            **assembly_lines_curriculum_args[curriculum_style]
         )
     )
     return PlayTool(

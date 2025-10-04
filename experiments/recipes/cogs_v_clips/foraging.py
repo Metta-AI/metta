@@ -1,6 +1,7 @@
 import random
-from typing import Optional, Dict, Any
-from dataclasses import dataclass, field
+from typing import Optional
+
+from numpy import True_
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
@@ -12,6 +13,7 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from mettagrid.mapgen.mapgen import MapGen
 
 from metta.agent.policies.vit_reset import ViTResetConfig
 from mettagrid.config.mettagrid_config import (
@@ -27,13 +29,9 @@ from experiments.recipes.cogs_v_clips.utils import (
     make_extractor,
     make_chest,
     add_extractor_to_game_cfg,
+    BuildCfg,
+    make_agent,
 )
-
-
-@dataclass
-class _BuildCfg:
-    game_objects: Dict[str, Any] = field(default_factory=dict)
-    map_builder_objects: Dict[str, int] = field(default_factory=dict)
 
 
 class ForagingTaskGenerator(TaskGenerator):
@@ -78,7 +76,7 @@ class ForagingTaskGenerator(TaskGenerator):
             extractor = make_extractor(
                 resource,
                 inputs={},
-                outputs={resource: rng.choice([1, 5, 10])},
+                outputs={resource: 1},
                 position=["Any"],
             )
             cfg = add_extractor_to_game_cfg(extractor, cfg)
@@ -101,7 +99,7 @@ class ForagingTaskGenerator(TaskGenerator):
         if num_extractors > 0:
             input_resources.update(
                 {
-                    resource: rng.choice([1, 3, 5])
+                    resource: 1
                     for resource in rng.sample(
                         list(self.used_resources),
                         rng.randint(
@@ -110,6 +108,8 @@ class ForagingTaskGenerator(TaskGenerator):
                     )
                 }
             )
+
+        print(f"Input resources: {input_resources}")
 
         assembler = make_assembler(input_resources, {"heart": 1}, position)
         cfg.game_objects["assembler"] = assembler
@@ -128,7 +128,7 @@ class ForagingTaskGenerator(TaskGenerator):
         max_steps,
         rng: random.Random = random.Random(),
     ) -> MettaGridConfig:
-        cfg = _BuildCfg()
+        cfg = BuildCfg()
 
         self._make_extractors(num_extractors, cfg, rng)
 
@@ -138,13 +138,19 @@ class ForagingTaskGenerator(TaskGenerator):
             # if using chests, then we get reward from hearts in chest
             self._make_chests(num_chests, cfg)
             inventory_rewards = {"heart": 0}
-            stat_rewards = {"chest.heart.amount": 5}
+            stat_rewards = {"chest.heart.amount": 2}
             resource_limits = {"heart": 1}
         else:
             # otherwise, we get reward from heart in inventory
             inventory_rewards = {"heart": 1}
             stat_rewards = {}
             resource_limits = {"heart": 20}
+
+        agent = make_agent(
+            stat_rewards=stat_rewards,
+            inventory_rewards=inventory_rewards,
+            resource_limits=resource_limits,
+        )
 
         return make_icl_assembler(
             num_agents=num_agents,
@@ -154,10 +160,8 @@ class ForagingTaskGenerator(TaskGenerator):
             map_builder_objects=cfg.map_builder_objects,
             width=width,
             height=height,
-            resources=list(self.used_resources) + ["heart"],
-            inventory_rewards=inventory_rewards,
-            resource_limits=resource_limits,
-            stat_rewards=stat_rewards,
+            resources=list(self.used_resources) + ["heart", "energy"],
+            agent=agent,
             terrain=rng.choice(["sparse", "balanced", "dense", "no-terrain"]),
         )
 
@@ -190,6 +194,7 @@ class ForagingTaskGenerator(TaskGenerator):
         )
 
         icl_env.label = f"{room_size}_{num_objects}_objects"
+
         return icl_env
 
     def generate_task(

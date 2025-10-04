@@ -42,7 +42,7 @@ class CogsVClipsTaskGenerator(TaskGenerator):
                     **generalized_terrain_curriculum_args[terrain_curriculum]
                 )
             ),
-            "facilities": facilities.make_task_generator().create(),
+            # "facilities": facilities.make_task_generator().create(),
             "foraging": foraging.ForagingTaskGenerator(
                 foraging.ForagingTaskGenerator.Config(
                     **foraging_curriculum_args[foraging_curriculum]

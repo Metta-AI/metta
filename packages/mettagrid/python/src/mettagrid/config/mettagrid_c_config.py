@@ -344,7 +344,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             )
             objects_cpp_params[object_type] = cpp_chest_config
         else:
-            raise ValueError(f"Unknown object type: {object_type}")
+            raise ValueError(f"Unknown object type: {object_type}, with config: {object_config}")
 
     game_cpp_params = game_config.model_dump(exclude_none=True)
     del game_cpp_params["agent"]

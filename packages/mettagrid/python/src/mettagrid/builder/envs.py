@@ -227,15 +227,15 @@ def make_icl_assembler(
     max_steps,
     game_objects: dict,
     map_builder_objects: dict,
-    inventory_rewards,
-    stat_rewards,
+    agent,
     terrain,
     resources,
-    resource_limits,
+    inventory_regen_interval=0,
     width: int = 6,
     height: int = 6,
 ) -> MettaGridConfig:
     game_objects["wall"] = empty_converters.wall
+    consumed_resources = {"energy": 2.0} if inventory_regen_interval > 0 else {}
     cfg = MettaGridConfig(
         desync_episodes=False,
         game=GameConfig(
@@ -255,20 +255,14 @@ def make_icl_assembler(
                 ),
             ),
             actions=ActionsConfig(
-                move=ActionConfig(),
+                move=ActionConfig(consumed_resources=consumed_resources),
                 rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
                 get_items=ActionConfig(enabled=False),
                 put_items=ActionConfig(enabled=False),
                 noop=ActionConfig(enabled=True),
             ),
-            agent=AgentConfig(
-                rewards=AgentRewards(
-                    stats=stat_rewards,
-                    inventory=inventory_rewards,
-                ),
-                default_resource_limit=3,
-                resource_limits=resource_limits,
-            ),
+            agent=agent,
+            inventory_regen_interval=inventory_regen_interval,
         ),
     )
     return cfg

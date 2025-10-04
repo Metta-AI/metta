@@ -3,11 +3,8 @@ from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
     Field,
     Position,
-    ChestConfig,
-    RecipeConfig,
 )
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
-from cogames.cogs_vs_clips.scenarios import make_game
 from metta.tools.play import PlayTool
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.train import TrainTool
@@ -26,7 +23,12 @@ from experiments.recipes.cogs_v_clips.utils import (
     obj_distribution_by_room_size,
     make_assembler,
     make_chest,
+    BuildCfg,
+    make_extractor,
+    make_agent,
+    make_charger,
 )
+from mettagrid.builder.envs import make_icl_assembler
 
 
 class GeneralizedTerrainTaskGenerator(TaskGenerator):
@@ -37,30 +39,24 @@ class GeneralizedTerrainTaskGenerator(TaskGenerator):
         regeneration_rate: list[int] = Field(default=[5])
         sizes: list[str] = Field(default=["small"])
         use_base: list[bool] = Field(default=[True])
-        heart_reward: list[int] = Field(default=[0, 1, 2])
-        heart_in_chest_reward: list[int] = Field(default=[3, 5, 10])
-        resource_rewards: list[float] = Field(default=[0, 0.5, 1.0])
+        heart_reward: list[int] = Field(default=[0, 1])
+        heart_in_chest_reward: list[int] = Field(default=[1, 2, 3])
+        resource_rewards: list[float] = Field(default=[0, 0.01])
 
     def __init__(self, config: "GeneralizedTerrainTaskGenerator.Config"):
         super().__init__(config)
         self.config = config
 
-    def _overwrite_positions(self, object):
-        for i, recipe in enumerate(object.recipes):
-            object.recipes[i] = (["Any"], recipe[1])
-
-    def configure_env_agent(self, env, rng):
+    def configure_agent(self, rng):
         """Configure parameters for agent, such as reward"""
-        env.game.inventory_regen_interval = rng.choice(self.config.regeneration_rate)
-        env.game.agent.inventory_regen_amounts = {"energy": 1}
-        env.game.agent.shareable_resources = ["energy"]
-        env.game.agent.rewards.stats = {
+        inventory_regen_amounts = {"energy": 1}
+        shareable_resources = ["energy"]
+        stat_rewards = {
             "chest.heart.amount": rng.choice(self.config.heart_in_chest_reward)
         }
-
         heart_reward = rng.choice(self.config.heart_reward)
-
-        env.game.agent.rewards.inventory = {
+        initial_inventory = {"energy": 100}
+        inventory_rewards = {
             "heart": heart_reward,
             "carbon": rng.choice(self.config.resource_rewards),
             "oxygen": rng.choice(self.config.resource_rewards),
@@ -70,12 +66,18 @@ class GeneralizedTerrainTaskGenerator(TaskGenerator):
 
         # if there are no rewards for hearts, soemtimes initialize agents with hearts in inventory
         if heart_reward == 0:
-            env.game.agent.initial_inventory = {
-                "heart": rng.choice([0, 1, 2, 3]),
-                "energy": 100,
-            }
+            initial_inventory.update({"heart": rng.choice([0, 1])})
+        resource_limits = {"energy": 100}
+        return make_agent(
+            stat_rewards=stat_rewards,
+            inventory_rewards=inventory_rewards,
+            inventory_regen_amounts=inventory_regen_amounts,
+            initial_inventory=initial_inventory,
+            shareable_resources=shareable_resources,
+            resource_limits=resource_limits,
+        )
 
-    def setup_map_builder(self, num_cogs, room_size, rng):
+    def setup_map_builder(self, num_cogs, room_size, cfg, rng):
         """Make the mapbuilder, which takes terrain and populates with objects"""
         num_obj_distribution = obj_distribution_by_room_size[room_size]
 
@@ -93,67 +95,76 @@ class GeneralizedTerrainTaskGenerator(TaskGenerator):
         else:
             num_extractors = {"carbon": 0, "oxygen": 0, "germanium": 0, "silicon": 0}
 
-        env = make_game(
-            num_cogs=num_cogs,
-            num_assemblers=num_assemblers,
-            num_chargers=num_chargers,
-            num_carbon_extractors=num_extractors["carbon"],
-            num_oxygen_extractors=num_extractors["oxygen"],
-            num_germanium_extractors=num_extractors["germanium"],
-            num_silicon_extractors=num_extractors["silicon"],
-            num_chests=num_chests,
+        map_builder_objects = {
+            "assembler": num_assemblers,
+            "charger": num_chargers,
+            "chest": num_chests,
+        }
+        map_builder_objects.update(
+            {
+                f"{resource}_extractor": count
+                for resource, count in num_extractors.items()
+            }
         )
+
         map_builder = MapGen.Config(
             instances=24 // num_cogs,
             border_width=1,
             instance_border_width=1,
             instance=CogsVClippiesFromNumpy.Config(
                 agents=num_cogs,
-                objects={
-                    "assembler": num_assemblers,
-                    "charger": num_chargers,
-                    "carbon_extractor": num_extractors["carbon"],
-                    "oxygen_extractor": num_extractors["oxygen"],
-                    "germanium_extractor": num_extractors["germanium"],
-                    "silicon_extractor": num_extractors["silicon"],
-                    "chest": num_chests,
-                },
+                objects=map_builder_objects,
                 remove_altars=True,
                 dir=f"varied_terrain/{rng.choice(['sparse', 'balanced', 'dense'])}_{room_size}",
                 mass_in_center=rng.choice(self.config.use_base),
                 rng=rng,
             ),
         )
-        env.game.map_builder = map_builder
-        env.game.num_agents = 24
 
-        return env, num_extractors
+        return map_builder, num_extractors
 
     def _make_env_cfg(self, rng: random.Random):
+        cfg = BuildCfg()
+
         num_cogs = rng.choice(self.config.num_cogs)
         position = rng.choice(self.config.positions)
         room_size = rng.choice(self.config.sizes)
-        env, num_extractors = self.setup_map_builder(num_cogs, room_size, rng)
+        map_builder, num_extractors = self.setup_map_builder(
+            num_cogs, room_size, cfg, rng
+        )
 
-        env.game.objects["assembler"] = self._make_assembler_recipes(
+        game_objects = {}
+        game_objects["assembler"] = self._make_assembler_recipes(
             rng, num_extractors, position
         )
 
-        for obj in [
-            "charger",
-            "carbon_extractor",
-            "oxygen_extractor",
-            "germanium_extractor",
-            "silicon_extractor",
-        ]:
-            # for extractors and chargers, any agent can use
-            self._overwrite_positions(env.game.objects[obj])
+        for resource, count in num_extractors.items():
+            game_objects[f"{resource}_extractor"] = make_extractor(
+                resource, inputs={}, outputs={resource: count}, position=["Any"]
+            )
 
-        env.game.objects["chest"] = make_chest(
+        game_objects["chest"] = make_chest(
             position_deltas=[("N", 1), ("S", 1), ("E", 1), ("W", 1)]
         )
 
-        self.configure_env_agent(env, rng)
+        game_objects["charger"] = make_charger()
+
+        inventory_regen_interval = rng.choice(self.config.regeneration_rate)
+
+        agent = self.configure_agent(rng)
+
+        env = make_icl_assembler(
+            num_agents=num_cogs,
+            num_instances=24 // num_cogs,
+            max_steps=1000,
+            game_objects=game_objects,
+            map_builder_objects=cfg.map_builder_objects,
+            resources=list(num_extractors.keys()) + ["heart", "energy"],
+            inventory_regen_interval=inventory_regen_interval,
+            terrain=rng.choice(["sparse", "balanced", "dense", "no-terrain"]),
+            agent=agent,
+        )
+        env.game.map_builder = map_builder
 
         env.label = f"{env.game.num_agents}_cogs_{room_size}_{env.game.inventory_regen_interval}_regeneration_rate"
 
@@ -179,9 +190,7 @@ class GeneralizedTerrainTaskGenerator(TaskGenerator):
         return assembler
 
     def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
-        env = self._make_env_cfg(rng)
-
-        return env
+        return self._make_env_cfg(rng)
 
 
 def make_mettagrid(task_generator) -> MettaGridConfig:

@@ -19,7 +19,7 @@ from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
 from mettagrid.config import MettaGridConfig
-from cogames.cogs_vs_clips.scenarios import make_game
+from cogames.cogs_vs_clips.scenarios import make_game, make_game_from_map
 from mettagrid.mapgen.mapgen import MapGen
 from metta.agent.policies.vit_reset import ViTResetConfig
 
@@ -49,6 +49,7 @@ def make_mettagrid(
         num_silicon_extractors,
         num_chests,
     )
+
     num_instances = 6
     map_file = random.choice(
         [
@@ -59,6 +60,7 @@ def make_mettagrid(
             "training_facility_tight_5.map",
         ]
     )
+    env = make_game_from_map(map_file)
     env.game.map_builder = MapGen.Config(
         instances=num_instances,
         instance=MapGen.Config.with_ascii_uri(f"{dir}/{map_file}"),
@@ -73,13 +75,13 @@ def make_task_generator(facility_env: Optional[MettaGridConfig] = None):
     facility_tasks = cc.bucketed(facility_env)
 
     # Add buckets for whatever you want to bucket over, eg: rewards, recipes, regen amount
-    facility_tasks.add_bucket("game.agent.rewards.inventory.heart", [0, 1, 2])
+    facility_tasks.add_bucket("game.agent.rewards.inventory.heart", [0, 1])
     # TODO The below gives an error, for some reason
     # facility_tasks.add_bucket("game.agent.rewards.stats.chest.heart.amount", [3, 5, 10])
-    facility_tasks.add_bucket("game.agent.rewards.inventory.carbon", [0, 0.5, 1])
-    facility_tasks.add_bucket("game.agent.rewards.inventory.oxygen", [0, 0.5, 1])
-    facility_tasks.add_bucket("game.agent.rewards.inventory.germanium", [0, 0.5, 1])
-    facility_tasks.add_bucket("game.agent.rewards.inventory.silicon", [0, 0.5, 1])
+    facility_tasks.add_bucket("game.agent.rewards.inventory.carbon", [0, 0.5])
+    facility_tasks.add_bucket("game.agent.rewards.inventory.oxygen", [0, 0.5])
+    facility_tasks.add_bucket("game.agent.rewards.inventory.germanium", [0, 0.5])
+    facility_tasks.add_bucket("game.agent.rewards.inventory.silicon", [0, 0.5])
     facility_tasks.add_bucket("game.max_steps", [250, 500, 1000, 1500])
 
     return facility_tasks
