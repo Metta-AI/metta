@@ -2,15 +2,11 @@
 
 """We want triton==2.1.0 or triton==2.2.0 or triton==2.3.0 for this"""
 
-import math
 import torch
 import torch.nn.functional as F
-
 import triton
 import triton.language as tl
-
 from einops import rearrange, repeat
-
 from mamba_ssm.ops.triton.softplus import softplus
 
 
@@ -176,6 +172,29 @@ def selective_state_update(
     Return:
         out: (batch, dim) or (batch, nheads, dim)
     """
+    if not x.is_cuda:
+        indices: torch.Tensor | None = None
+        if state_batch_indices is not None:
+            indices = state_batch_indices.reshape(-1).to(dtype=torch.long, device=state.device)
+            gathered_state = state.index_select(0, indices)
+        else:
+            gathered_state = state
+        out = selective_state_update_ref(
+            gathered_state,
+            x,
+            dt,
+            A,
+            B,
+            C,
+            D=D,
+            z=z,
+            dt_bias=dt_bias,
+            dt_softplus=dt_softplus,
+        )
+        if indices is not None:
+            state.index_copy_(0, indices, gathered_state)
+        return out
+
     has_heads = state.dim() > 3
     if state.dim() == 3:
         state = state.unsqueeze(1)
@@ -215,7 +234,10 @@ def selective_state_update(
     if state_batch_indices is not None:
         assert state_batch_indices.shape == (batch,)
     out = torch.empty_like(x)
-    grid = lambda META: (triton.cdiv(dim, META["BLOCK_SIZE_M"]), batch, nheads)
+
+    def grid(meta):
+        return (triton.cdiv(dim, meta["BLOCK_SIZE_M"]), batch, nheads)
+
     z_strides = (z.stride(0), z.stride(1), z.stride(2)) if z is not None else (0, 0, 0)
     # We don't want autotune since it will overwrite the state
     # We instead tune by hand.
