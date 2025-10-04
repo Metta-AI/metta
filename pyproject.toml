@@ -60,6 +60,7 @@ dependencies = [
   "termcolor>=2.4.0",
   "tiktoken>=0.9.0",
   "torch>=2.7.1",
+  "transformers>=4.46.0",
   "torchrl>=0.8.1",
   "tqdm>=4.67.1",
   "typer>=0.16.0",
