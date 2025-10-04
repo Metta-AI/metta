@@ -119,8 +119,7 @@ def maybe_upload_checkpoint(
     unique_prefix = candidate_prefix
     while _prefix_exists(s3_client, bucket, unique_prefix):
         suffix += 1
-        unique_prefix = "/".join(part for part in key_parts[:-1] if part)
-        unique_prefix = f"{unique_prefix}/{timestamp}-{suffix}"
+        unique_prefix = f"{candidate_prefix}-{suffix}"
         if suffix > 20:
             logger.warning("Unable to determine a unique S3 prefix for %s", candidate_prefix)
             return None

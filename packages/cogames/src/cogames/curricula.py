@@ -27,7 +27,10 @@ _TRAINING_ROTATION_NAMES = (
 def alternating(sequence: Deque[str] | None = None) -> MettaGridConfig:
     """Return the next map in the rotation, excluding large dungeon boards."""
 
-    queue = sequence if sequence is not None else _DEFAULT_SEQUENCE
+    if sequence is not None:
+        queue = sequence.copy()
+    else:
+        queue = _DEFAULT_SEQUENCE
     if not queue:
         raise ValueError("Curriculum sequence must contain at least one game name")
 
