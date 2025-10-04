@@ -32,7 +32,7 @@ def one_agent_heart_recipe() -> RecipeConfig:
     return RecipeConfig(
         input_resources={"carbon": 1},
         output_resources={"heart": 1},
-        cooldown=1,
+        cooldown=0,
     )
 
 

@@ -126,7 +126,7 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     eval_env = env or make_mettagrid()
     # policy_uri = "s3://softmax-public/policies/cogs_v_clips.level_1.eval_local.multi_agent_pairs_bases_vit_reset.2025-10-02/:latest"
     # policy_uri = "s3://softmax-public/policies/av.is.a.cog.02/av.is.a.cog.02:v300.pt"
-    policy_uri = "s3://softmax-public/policies/av.is.a.cog.05/av.is.a.cog.05:v60.pt"
+    policy_uri = "s3://softmax-public/policies/av.is.a.cog.07/av.is.a.cog.07:v360.pt"
 
     return ReplayTool(
         policy_uri=policy_uri,

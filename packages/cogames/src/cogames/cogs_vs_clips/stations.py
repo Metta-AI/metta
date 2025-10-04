@@ -51,7 +51,8 @@ def oxygen_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         render_symbol="🔵",
         allow_partial_usage=True,  # can use it while its on cooldown
         max_uses=max_uses or 0,
-        recipes=protocols.protocol(protocols.standard_oxygen_recipe()),
+        # recipes=protocols.protocol(protocols.standard_oxygen_recipe()),
+        recipes=protocols.protocol(protocols.standard_carbon_recipe()),
     )
 
 
@@ -64,7 +65,8 @@ def germanium_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         render_symbol="🟣",
         max_uses=max_uses or 2,
         recipes=(
-            protocols.protocol(protocols.germanium_recipe(1), num_agents=1)
+            protocols.protocol(protocols.standard_carbon_recipe(), num_agents=1)
+            # protocols.protocol(protocols.germanium_recipe(1), num_agents=1)
             + protocols.protocol(protocols.germanium_recipe(2), num_agents=2)
             + protocols.protocol(protocols.germanium_recipe(3), num_agents=3)
             + protocols.protocol(protocols.germanium_recipe(4), min_agents=4)
@@ -80,7 +82,8 @@ def silicon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         map_char="S",
         render_symbol="🔷",
         max_uses=max_uses or 0,
-        recipes=protocols.protocol(protocols.standard_silicon_recipe()),
+        # recipes=protocols.protocol(protocols.standard_silicon_recipe()),
+        recipes=protocols.protocol(protocols.standard_carbon_recipe()),
     )
 
 
