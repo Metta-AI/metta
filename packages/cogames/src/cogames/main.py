@@ -95,7 +95,9 @@ def play_cmd(
     ),
     interactive: bool = typer.Option(True, "--interactive", "-i", help="Run in interactive mode"),
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
-    render: Literal["gui", "text"] = typer.Option("gui", "--render", "-r", help="Render mode: 'gui' or 'text'"),
+    render: Literal["gui", "text", "none"] = typer.Option(
+        "gui", "--render", "-r", help="Render mode: 'gui', 'text', or 'none' (no rendering)"
+    ),
 ) -> None:
     resolved_game, env_cfg = utils.get_game_config(console, game_name)
 
@@ -197,6 +199,12 @@ def train_cmd(
         help="Number of worker processes (defaults to number of CPU cores)",
         min=1,
     ),
+    parallel_envs: Optional[int] = typer.Option(
+        None,
+        "--parallel-envs",
+        help="Number of parallel environments",
+        min=1,
+    ),
 ) -> None:
     resolved_game, env_cfg = utils.get_game_config(console, game_name)
 
@@ -215,6 +223,8 @@ def train_cmd(
             minibatch_size=minibatch_size,
             game_name=resolved_game,
             vector_num_workers=num_workers,
+            vector_num_envs=parallel_envs,
+            vector_batch_size=batch_size,
         )
 
     except ValueError as e:
