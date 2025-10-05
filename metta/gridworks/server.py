@@ -8,6 +8,7 @@ from typing_extensions import TypedDict
 
 from metta.common.util.log_config import init_logging
 from metta.gridworks.routes.configs import make_configs_router
+from metta.gridworks.routes.schemas import make_schemas_router
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,7 @@ def make_app():
         }
 
     app.include_router(make_configs_router())
+    app.include_router(make_schemas_router())
 
     return app
 

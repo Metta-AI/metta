@@ -1,6 +1,6 @@
 import * as z from "zod/v4";
 
-import { API_URL } from "../server/constants";
+import { API_URL } from "../../server/constants";
 
 const childrenActionSchema = z.object({
   get scene() {
@@ -125,3 +125,5 @@ export async function getRepoRoot(): Promise<string> {
   const parsed = z.object({ repo_root: z.string() }).parse(data);
   return parsed.repo_root;
 }
+
+export { getJsonSchemas } from "./schemas";
