@@ -19,7 +19,6 @@ on:
 permissions:
   contents: write
   pull-requests: read
-  administration: read
 
 jobs:
   tag-if-bypassed:
@@ -66,4 +65,4 @@ jobs:
             echo "No bypass detected"
           fi
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.METTA_PROTECTION_BYPASS_TAG_PAT }}
