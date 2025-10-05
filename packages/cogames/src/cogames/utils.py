@@ -27,7 +27,7 @@ def get_mission_config(console: Console, mission_arg: str) -> tuple[str, MettaGr
             f"{registered_map_name}:{mission_name}" if registered_map_name and mission_name else map_name
         )
         return full_mission_name, config
-    except ValueError as e:
+    except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
         raise typer.Exit(1) from e
 

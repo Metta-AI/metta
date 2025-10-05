@@ -51,8 +51,12 @@ mission_argument = typer.Argument(
 @app.command("games", hidden=True)
 def games_cmd(
     mission_name: str = mission_argument,
+    format_: Literal[None, "yaml", "json"] = typer.Option(None, "--format"),
 ) -> None:
     mission_name, env_cfg = utils.get_mission_config(console, mission_name)
+    if format_:
+        console.print(env_cfg.model_dump(mode=format_))
+        return
     try:
         game.describe_mission(mission_name, env_cfg, console)
     except ValueError as e:
