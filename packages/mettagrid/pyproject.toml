@@ -1,11 +1,5 @@
 [build-system]
-requires = [
-  "setuptools>=61.0",
-  "wheel",
-  "numpy>=2",
-  "pybind11==2.10.4",
-  "setuptools_scm>=8",
-]
+requires = ["setuptools>=61.0", "wheel", "numpy>=2", "pybind11==2.10.4", "setuptools_scm>=8"]
 build-backend = "bazel_build"
 backend-path = ["."]
 
@@ -86,12 +80,4 @@ root = "../.."
 fallback_version = "0.0.0"
 
 [tool.setuptools_scm.scm.git]
-describe_command = [
-  "git",
-  "describe",
-  "--dirty",
-  "--tags",
-  "--long",
-  "--match",
-  "mettagrid-v*",
-]
+describe_command = ["git", "describe", "--dirty", "--tags", "--long", "--match", "mettagrid-v*"]
