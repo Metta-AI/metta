@@ -1,12 +1,8 @@
 from experiments.recipes.cogs_v_clips import (
-    generalized_terrain,
     foraging,
-    assembly_lines,
 )
 from experiments.recipes.cogs_v_clips.utils import (
-    generalized_terrain_curriculum_args,
     foraging_curriculum_args,
-    assembly_lines_curriculum_args,
 )
 import random
 from typing import Optional
@@ -35,24 +31,15 @@ class CogsVClipsTaskGenerator(TaskGenerator):
     ):
         super().__init__(config)
 
-        self.task_generators = {
-            "generalized_terrain": generalized_terrain.GeneralizedTerrainTaskGenerator(
-                generalized_terrain.GeneralizedTerrainTaskGenerator.Config(
-                    **generalized_terrain_curriculum_args[terrain_curriculum]
-                )
-            ),
-            # "facilities": facilities.make_task_generator().create(),
-            "foraging": foraging.ForagingTaskGenerator(
+        task_generators = {}
+
+        for curriculum in foraging_curriculum_args.keys():
+            task_generators[curriculum] = foraging.ForagingTaskGenerator(
                 foraging.ForagingTaskGenerator.Config(
-                    **foraging_curriculum_args[foraging_curriculum]
+                    **foraging_curriculum_args[curriculum]
                 )
-            ),
-            "assembly_lines": assembly_lines.AssemblyLinesTaskGenerator(
-                assembly_lines.AssemblyLinesTaskGenerator.Config(
-                    **assembly_lines_curriculum_args[assembly_lines_curriculum]
-                )
-            ),
-        }
+            )
+        self.task_generators = task_generators
 
     def _generate_task(
         self, task_id: int, rng: random.Random, num_instances: Optional[int] = None
