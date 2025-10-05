@@ -270,7 +270,8 @@ uv run ./devops/tools/auto_ruff_fix.py path/to/file
 ./devops/tools/format_sh.sh
 ```
 
-**IMPORTANT**: Always run `metta ci` after making changes to verify that all tests pass. This is the standard way to check if your changes are working correctly.
+**IMPORTANT**: Always run `metta ci` after making changes to verify that all tests pass. This is the standard way to
+check if your changes are working correctly.
 
 #### Building
 
@@ -363,7 +364,8 @@ recipe files:
 
 ### Renovate Automated Updates
 
-The project uses **Renovate** (not Dependabot) for automated dependency management. Renovate has better support for uv workspaces and provides more flexible configuration options.
+The project uses **Renovate** (not Dependabot) for automated dependency management. Renovate has better support for uv
+workspaces and provides more flexible configuration options.
 
 #### Configuration
 
@@ -392,13 +394,14 @@ Renovate groups related packages together to reduce PR noise:
    - Major updates require approval via dependency dashboard
 
 2. **Manual Updates**
+
    ```bash
    # Update specific packages
    uv add package_name@latest
-   
+
    # Update all dependencies to latest compatible versions
    uv lock --upgrade
-   
+
    # Update only patch/minor versions
    uv lock --upgrade-package package_name
    ```
@@ -417,28 +420,31 @@ Renovate groups related packages together to reduce PR noise:
 #### Troubleshooting Dependency Issues
 
 1. **Version Conflicts**
+
    ```bash
    # Check for conflicts
    uv sync --frozen --check
-   
+
    # Resolve conflicts by updating lock file
    uv lock --upgrade
    ```
 
 2. **Workspace Inconsistencies**
+
    ```bash
    # Validate all packages can be installed together
    uv sync --all-packages
-   
+
    # Run consistency check script
    python devops/tools/check_dependency_consistency.py
    ```
 
 3. **Lock File Issues**
+
    ```bash
    # Regenerate lock file from scratch
    rm uv.lock && uv lock
-   
+
    # Check if lock file is synchronized
    uv lock --check
    ```
@@ -453,6 +459,7 @@ Renovate groups related packages together to reduce PR noise:
 #### CI Integration
 
 The `dependency-validation.yml` workflow automatically:
+
 - Validates `uv.lock` is synchronized with `pyproject.toml` files
 - Checks for dependency conflicts across the workspace
 - Generates dependency reports for visibility
