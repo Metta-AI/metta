@@ -2,16 +2,39 @@
 
 This module implements the **GAMMA** (General Alignment Metric for Multi-agent Autonomy) framework for quantifying alignment in autonomous agent swarms.
 
-Based on: *"GAMMA: A Framework-Agnostic Alignment Metric for Autonomous Swarms"*
-## Overview
+Based on: *"GAMMA: A Framework-Agnostic Alignment Metric for Autonomous Swarms"* by Marcel Blattner and Adam Goldstein
 
-GAMMA provides a unitless alignment index in [0, 1] built from five observable components:
+## What is GAMMA?
 
-1. **Goal Attainment (A_i)**: How close the agent finishes to the task target
-2. **Directional Intent (D_i)**: How persistently velocity points along the task direction
-3. **Path Efficiency (E_i)**: Straightness of the realized path
-4. **Time Efficiency (T_i)**: Whether the agent finishes in expected time
-5. **Energy Proportionality (Y_i)**: Energy per unit of forward progress
+GAMMA quantifies multi-agent alignment using only **observable trajectories** without requiring access to internal policies, rewards, or value functions. This framework-agnostic approach works with any RL system by measuring alignment through five fundamental components:
+
+**Individual Metrics** (each in [0,1], higher is better):
+
+1. **Goal Attainment** ($A_i$): $A_i = \exp(-d(x_i(T), \mathcal{G}(T)) / \ell)$ - How close agents finish to targets
+2. **Directional Intent** ($D_i$): $D_i = \frac{1}{T}\int_0^T \max\{0, \rho_i(t) - \tau\} dt$ - How persistently velocity aligns with task direction
+3. **Path Efficiency** ($E_i$): $E_i = d_{\text{disp}} / L_i$ - Straightness of realized paths
+4. **Time Efficiency** ($T_i$): $T_i = \text{clip}(T_{\text{opt}} / T, 0, 1)$ - Whether agents finish in expected time
+5. **Energy Proportionality** ($Y_i$): $Y_i = \exp(-E^{\text{tot}} / (W + \varepsilon) / \beta)$ - Energy per unit of forward progress
+
+**Collective Metrics**:
+
+- **IAM** (Individual Alignment): $\text{IAM}_i = (A_i^{w_A} D_i^{w_D} E_i^{w_E} T_i^{w_T} Y_i^{w_Y})^{1/\Sigma w}$ - Geometric mean of components
+- **GAMMA**: $\text{GAMMA} = \text{HuberMean}(\{\text{IAM}_i\})$ - Robust swarm-level aggregation
+- **GAMMA**$_\alpha$: $\text{GAMMA}_\alpha = \text{GAMMA} \times \exp(-\alpha \cdot \text{CV})$ - Dispersion-penalized version
+
+**Misalignment Detectors**:
+
+- **Anti-progress mass**: $\mathcal{A}_i = \int_0^T v_i(t) \max\{0, \tau - \rho_i(t)\} dt$ - Motion against task
+- **Loopiness**: $\Lambda_i = (L_i - d_{\text{disp}}) / L_i$ - Detours and loops
+
+## Implementation Status
+
+✅ **Fully Implemented**: All 5 core metrics, IAM, GAMMA, GAMMA$_\alpha$, anti-progress detector, loopiness detector
+✅ **Metta Integration**: Complete with TrajectoryCollector, MettaGridAdapter, GAMMAEvaluator, GAMMALogger
+✅ **Task Interfaces**: Setpoint task (goal-reaching)
+✅ **Tested**: Verified with real MettaGrid environments
+
+○ **Future Work**: Formation/coverage tasks, advanced detectors (CEEI, energy-progress hysteresis, non-intentionality)
 
 ## Quick Start
 
