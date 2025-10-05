@@ -43,10 +43,6 @@ def _slugify(text: str) -> str:
     return collapsed.lower() or "run"
 
 
-def _policy_segment(policy_class_path: str) -> str:
-    return policy_class_path.rsplit(".", 1)[-1]
-
-
 def _base_segments(
     game_name: Optional[str],
     policy_class_path: str,
@@ -55,7 +51,7 @@ def _base_segments(
     segments: list[str] = []
     if game_name:
         segments.append(_slugify(game_name))
-    segments.append(_slugify(_policy_segment(policy_class_path)))
+    segments.append(_slugify(policy_class_path.rsplit(".", 1)[-1]))
     segments.append(_slugify(checkpoint_stem))
     return segments
 
@@ -64,7 +60,7 @@ def _prefix_exists(client: Any, bucket: str, prefix: str) -> bool:
     normalized = prefix.rstrip("/") + "/"
     try:
         response = client.list_objects_v2(Bucket=bucket, Prefix=normalized, MaxKeys=1)
-    except Exception:  # pragma: no cover - avoid failing upload on AWS issues
+    except Exception:  # pragma: no cover
         logger.exception("Unable to list objects for prefix %s", normalized)
         return False
     return response.get("KeyCount", 0) > 0
@@ -77,10 +73,7 @@ def maybe_upload_checkpoint(
     policy_class_path: str,
     console: Console,
 ) -> Optional[str]:
-    """Upload the checkpoint to Softmax S3 if AWS is configured.
-
-    Returns the remote URI when an upload occurs, otherwise None.
-    """
+    """Upload the checkpoint to Softmax S3 if AWS is configured."""
 
     decision = auto_policy_storage_decision()
     if decision.base_prefix is None:
@@ -146,10 +139,7 @@ def maybe_download_checkpoint(
     policy_class_path: str,
     console: Console,
 ) -> DownloadOutcome:
-    """Download the checkpoint from Softmax S3 if accessible and available.
-
-    Returns True if the file is downloaded locally, otherwise False.
-    """
+    """Download the checkpoint from Softmax S3 if accessible and available."""
 
     decision = auto_policy_storage_decision()
     if decision.base_prefix is None:
@@ -198,13 +188,12 @@ def maybe_download_checkpoint(
                         continue
                     if best is None:
                         best = obj
-                    else:
-                        if obj.get("LastModified") and best.get("LastModified"):
-                            if obj["LastModified"] > best["LastModified"]:
-                                best = obj
-                        elif key > best.get("Key", ""):
+                    elif obj.get("LastModified") and best.get("LastModified"):
+                        if obj["LastModified"] > best["LastModified"]:
                             best = obj
-        except Exception:  # pragma: no cover - avoid hard failures on listing issues
+                    elif key > best.get("Key", ""):
+                        best = obj
+        except Exception:  # pragma: no cover
             logger.exception("Unable to list checkpoints under prefix %s", prefix)
             return None
         return best

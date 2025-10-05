@@ -1,22 +1,14 @@
-"""Curriculum helpers for cycling through small CoGames boards."""
+"""Curriculum helpers for cycling through CoGames maps."""
+
+from __future__ import annotations
 
 from collections import deque
-from typing import Deque, Iterable
+from typing import Callable, Deque, Iterable
 
 from cogames import game
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
-_DEFAULT_SEQUENCE: Deque[str] = deque(
-    [
-        "training_facility_1",
-        "training_facility_2",
-        "machina_1",
-        "machina_2",
-    ]
-)
-_DEFAULT_AGENT_COUNT = game.get_game(_DEFAULT_SEQUENCE[0]).game.num_agents
-
-_TRAINING_ROTATION_NAMES = (
+_DEFAULT_ROTATION: tuple[str, ...] = (
     "training_facility_1",
     "training_facility_2",
     "training_facility_3",
@@ -27,14 +19,14 @@ _TRAINING_ROTATION_NAMES = (
     "machina_2",
 )
 
+_DEFAULT_SEQUENCE: Deque[str] = deque(_DEFAULT_ROTATION)
+_DEFAULT_AGENT_COUNT = game.get_game(_DEFAULT_SEQUENCE[0]).game.num_agents
+
 
 def alternating(sequence: Deque[str] | None = None) -> MettaGridConfig:
     """Return the next map in the rotation, excluding large dungeon boards."""
 
-    if sequence is not None:
-        queue = sequence.copy()
-    else:
-        queue = _DEFAULT_SEQUENCE
+    queue = sequence.copy() if sequence is not None else _DEFAULT_SEQUENCE.copy()
     if not queue:
         raise ValueError("Curriculum sequence must contain at least one game name")
 
@@ -48,10 +40,10 @@ def alternating(sequence: Deque[str] | None = None) -> MettaGridConfig:
     raise ValueError("Curriculum contains no maps with the expected agent count")
 
 
-def training_rotation(names: Iterable[str] | None = None):
-    """Create a supplier that cycles training facility boards and machina_1."""
+def training_rotation(names: Iterable[str] | None = None) -> Callable[[], MettaGridConfig]:
+    """Create a supplier that cycles the default training rotation."""
 
-    rotation = deque(tuple(names) if names is not None else _TRAINING_ROTATION_NAMES)
+    rotation = deque(tuple(names) if names is not None else _DEFAULT_ROTATION)
     if not rotation:
         raise ValueError("Rotation must contain at least one game name")
 
@@ -61,7 +53,3 @@ def training_rotation(names: Iterable[str] | None = None):
         return game.get_game(map_name).model_copy(deep=True)
 
     return _supplier
-
-
-# Backward compatibility: preserve the old name until downstream code migrates.
-training_facility_rotation = training_rotation
