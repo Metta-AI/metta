@@ -127,13 +127,12 @@ def list_missions(console: Console) -> None:
         return
 
     table = Table(title="Available Missions", show_header=True, header_style="bold magenta")
-    table.add_column("Map", style="cyan", no_wrap=True)
     table.add_column("Mission", style="cyan", no_wrap=True)
     table.add_column("Agents", style="yellow", justify="center")
     table.add_column("Map Size", style="green", justify="center")
 
     for user_map in USER_MAP_CATALOG:
-        for i, mission_name in enumerate(user_map.get_missions()):
+        for mission_name in user_map.get_missions():
             game_config = user_map.generate_env(mission_name)
             num_agents = game_config.game.num_agents
 
@@ -144,25 +143,15 @@ def list_missions(console: Console) -> None:
             else:
                 map_size = "N/A"
 
-            if i == 0:
-                table.add_row(user_map.name, mission_name, str(num_agents), map_size)
+            if mission_name == user_map.default_mission:
+                table.add_row(user_map.name, str(num_agents), map_size)
             else:
-                table.add_row("", mission_name, str(num_agents), map_size)
+                table.add_row(f"{user_map.name}[gray]:[/gray][cyan]{mission_name}[/cyan]", str(num_agents), map_size)
     console.print(table)
     console.print()
-    first_map = USER_MAP_CATALOG[0]
-    multi_mission_maps = [user_map for user_map in USER_MAP_CATALOG if len(user_map.get_missions()) > 1]
-    custom_mission_example = (
-        f"{multi_mission_maps[0].name}:{multi_mission_maps[0].get_missions()[1]}"
-        if multi_mission_maps
-        else f"{first_map.name}:{first_map.default_mission}"
-    )
     console.print("To specify a <[bold cyan]mission[/bold cyan]>, you can:")
-    console.print(f"  • Use the map name, e.g. '{first_map.name}'. Will use the default mission for that map.")
-    console.print(f"  • Use the map name and mission name, e.g. '{custom_mission_example}'")
-
-    # the interpolation gives green formatting
-    console.print(f"  • Use a path to a mission configuration file, e.g. '{'path/to/mission.yaml'}'")
+    console.print("  • Use a mission name from above")
+    console.print("  • Use a path to a mission configuration file, e.g. path/to/mission.yaml")
 
 
 def describe_mission(mission_name: str, game_config: MettaGridConfig, console: Console) -> None:

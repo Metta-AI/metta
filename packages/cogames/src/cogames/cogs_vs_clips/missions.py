@@ -240,21 +240,24 @@ class SiteUserMap(UserMap):
         name: str,
         site: str,
         mission_names: list[str] | None = None,
-        mission_args: dict[str, Any] | None = None,
+        mission_args: dict[str, dict[str, Any]] | None = None,
     ) -> None:
         self.name = name
         self._site = site
-        self._mission_names = mission_names
-        self._mission_args = mission_args
+        self._mission_names = mission_names or ["default"]
+        self._mission_args = mission_args or dict(default={})
 
     def get_missions(self) -> list[str]:
-        return self._mission_names or ["default"]
+        return self._mission_names
 
     def _generate_env(self, mission_name: str) -> MettaGridConfig:
-        all_missions = get_standard_missions(**(self._mission_args or {}))
-        if mission_name not in all_missions:
+        args = self._mission_args.get(mission_name, {})
+        base_mission = args.get("base_mission", self.default_mission)
+        mission_args = args.get("map_builder_args", {})
+        all_missions = get_standard_missions(**(mission_args or {}))
+        if base_mission not in all_missions:
             raise ValueError(f"Mission {mission_name} not found")
-        game = all_missions[mission_name]
+        game = all_missions[base_mission]
         game.map_builder = get_map_builder_for_site(self._site)
         return MettaGridConfig(game=game)
 
@@ -280,15 +283,26 @@ class RandomUserMap(UserMap):
 
 USER_MAP_CATALOG: tuple[UserMap, ...] = (
     SiteUserMap(
-        name="training_facility_1", site="training_facility_open_1.map", mission_names=["default", "energy_intensive"]
+        name="training_facility_1",
+        site="training_facility_open_1.map",
+        mission_names=["default", "energy_intensive"],
+        mission_args={
+            "energy_intensive": dict(base_mission="energy_intensive"),
+        },
     ),
     SiteUserMap(name="training_facility_2", site="training_facility_open_2.map"),
     SiteUserMap(name="training_facility_3", site="training_facility_open_3.map"),
     SiteUserMap(name="training_facility_4", site="training_facility_tight_4.map"),
     SiteUserMap(name="training_facility_5", site="training_facility_tight_5.map"),
     SiteUserMap(name="training_facility_6", site="training_facility_clipped.map"),
-    SiteUserMap(name="machina_1", site="cave_base_50.map"),
-    SiteUserMap(name="machina_1_clipped", site="cave_base_50.map", mission_args=dict(clip_rate=0.02)),
+    SiteUserMap(
+        name="machina_1",
+        site="cave_base_50.map",
+        mission_names=["default", "clipped"],
+        mission_args={
+            "clipped": dict(base_mission="default", map_builder_args=dict(clip_rate=0.02)),
+        },
+    ),
     SiteUserMap(name="machina_2", site="machina_100_stations.map"),
     SiteUserMap(name="machina_3", site="machina_200_stations.map"),
     SiteUserMap(name="machina_1_big", site="canidate1_500_stations.map"),
