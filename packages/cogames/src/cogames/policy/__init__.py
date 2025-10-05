@@ -10,7 +10,6 @@ from cogames.policy.policy import (
 )
 from cogames.policy.random import RandomPolicy
 from cogames.policy.simple import SimplePolicy
-from cogames.policy.token import TokenPolicy
 
 __all__ = [
     "AgentPolicy",
@@ -21,5 +20,4 @@ __all__ = [
     "LSTMPolicy",
     "RandomPolicy",
     "SimplePolicy",
-    "TokenPolicy",
 ]
