@@ -218,6 +218,8 @@ def train_cmd(
 
     rotation_aliases = {"training_rotation", "training_facility_rotation", "training_cycle"}
     rotation_easy_aliases = {"training_rotation_easy"}
+    rotation_shaped_aliases = {"training_rotation_shaped"}
+    rotation_easy_shaped_aliases = {"training_rotation_easy_shaped"}
 
     env_cfg = None
     curriculum_callable = None
@@ -231,6 +233,14 @@ def train_cmd(
         curriculum_callable = curricula.training_rotation_easy()
         env_cfg = None
         representative_game = "training_rotation_easy"
+    elif game_name in rotation_shaped_aliases:
+        curriculum_callable = curricula.training_rotation_shaped()
+        env_cfg = None
+        representative_game = "training_rotation_shaped"
+    elif game_name in rotation_easy_shaped_aliases:
+        curriculum_callable = curricula.training_rotation_easy_shaped()
+        env_cfg = None
+        representative_game = "training_rotation_easy_shaped"
     else:
         resolved_game, env_cfg = utils.get_game_config(console, game_name)
         representative_game = resolved_game

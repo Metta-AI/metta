@@ -58,6 +58,27 @@ def _add_easy_heart_recipe(cfg: MettaGridConfig) -> None:
     assembler_cfg.recipes.insert(0, (["Any"], energy_only_recipe))
 
 
+def _add_shaped_rewards(cfg: MettaGridConfig) -> None:
+    agent_cfg = cfg.game.agent
+    stats = dict(agent_cfg.rewards.stats or {})
+
+    stats.setdefault("heart.gained", 5.0)
+    stats.setdefault("heart.put", 7.5)
+    stats.setdefault("chest.heart.amount", 1 / cfg.game.num_agents)
+
+    stats.update(
+        {
+            "carbon.gained": 0.25,
+            "oxygen.gained": 0.2,
+            "germanium.gained": 0.5,
+            "silicon.gained": 0.1,
+            "energy.gained": 0.05,
+        }
+    )
+
+    agent_cfg.rewards.stats = stats
+
+
 def _base_game_config(num_cogs: int, clipping_rate: float) -> MettaGridConfig:
     """Shared base configuration for all game types."""
 
@@ -235,6 +256,27 @@ def make_easy_heart_game_from_map(
     return cfg
 
 
+def make_shaped_game_from_map(
+    map_name: str,
+    num_cogs: int = 4,
+    clipping_rate: float = 0.0,
+) -> MettaGridConfig:
+    cfg = make_game_from_map(map_name, num_cogs=num_cogs, clipping_rate=clipping_rate)
+    _add_shaped_rewards(cfg)
+    return cfg
+
+
+def make_easy_shaped_game_from_map(
+    map_name: str,
+    num_cogs: int = 4,
+    clipping_rate: float = 0.0,
+) -> MettaGridConfig:
+    cfg = make_game_from_map(map_name, num_cogs=num_cogs, clipping_rate=clipping_rate)
+    _add_easy_heart_recipe(cfg)
+    _add_shaped_rewards(cfg)
+    return cfg
+
+
 def games() -> dict[str, MettaGridConfig]:
     return {
         # "extractor_1cog_1resource": tutorial_extractor(num_cogs=1),""
@@ -273,4 +315,20 @@ def games() -> dict[str, MettaGridConfig]:
         "training_facility_6_easy": make_easy_heart_game_from_map("training_facility_clipped.map", clipping_rate=0.02),
         "machina_1_easy": make_easy_heart_game_from_map("cave_base_50.map"),
         "machina_2_easy": make_easy_heart_game_from_map("machina_100_stations.map"),
+        "training_facility_1_shaped": make_shaped_game_from_map("training_facility_open_1.map"),
+        "training_facility_2_shaped": make_shaped_game_from_map("training_facility_open_2.map"),
+        "training_facility_3_shaped": make_shaped_game_from_map("training_facility_open_3.map"),
+        "training_facility_4_shaped": make_shaped_game_from_map("training_facility_tight_4.map"),
+        "training_facility_5_shaped": make_shaped_game_from_map("training_facility_tight_5.map"),
+        "training_facility_6_shaped": make_shaped_game_from_map("training_facility_clipped.map", clipping_rate=0.02),
+        "machina_1_shaped": make_shaped_game_from_map("cave_base_50.map"),
+        "machina_2_shaped": make_shaped_game_from_map("machina_100_stations.map"),
+        "training_facility_1_easy_shaped": make_easy_shaped_game_from_map("training_facility_open_1.map"),
+        "training_facility_2_easy_shaped": make_easy_shaped_game_from_map("training_facility_open_2.map"),
+        "training_facility_3_easy_shaped": make_easy_shaped_game_from_map("training_facility_open_3.map"),
+        "training_facility_4_easy_shaped": make_easy_shaped_game_from_map("training_facility_tight_4.map"),
+        "training_facility_5_easy_shaped": make_easy_shaped_game_from_map("training_facility_tight_5.map"),
+        "training_facility_6_easy_shaped": make_easy_shaped_game_from_map("training_facility_clipped.map", clipping_rate=0.02),
+        "machina_1_easy_shaped": make_easy_shaped_game_from_map("cave_base_50.map"),
+        "machina_2_easy_shaped": make_easy_shaped_game_from_map("machina_100_stations.map"),
     }
