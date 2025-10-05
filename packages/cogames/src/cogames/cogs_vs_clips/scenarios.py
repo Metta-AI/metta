@@ -61,7 +61,7 @@ def add_shaped_rewards(cfg: MettaGridConfig) -> None:
     stats = dict(agent_cfg.rewards.stats or {})
 
     stats["heart.gained"] = 1.0
-    stats["heart.put"] = 0.0
+    stats["heart.put"] = 7.5
     stats["chest.heart.amount"] = 1 / cfg.game.num_agents
 
     shaped_reward = 0.25
