@@ -19,7 +19,7 @@ def test_games_list_command():
     # Check that the output contains expected content
     output = result.stdout
     assert "Available Games" in output
-    assert "assembler_1_simple" in output
+    assert "training_facility_1" in output
     assert "Agents" in output
     assert "Map Size" in output
 
@@ -27,7 +27,7 @@ def test_games_list_command():
 def test_games_describe_command():
     """Test that 'cogames games <game_name>' describes a specific game."""
     result = subprocess.run(
-        ["uv", "run", "cogames", "games", "assembler_1_simple"],
+        ["uv", "run", "cogames", "games", "training_facility_1"],
         cwd=Path(__file__).parent.parent,
         capture_output=True,
         text=True,
@@ -38,7 +38,7 @@ def test_games_describe_command():
 
     # Check that the output contains expected game details
     output = result.stdout
-    assert "assembler_1_simple" in output
+    assert "training_facility_1" in output
     assert "Game Configuration:" in output
     assert "Number of agents:" in output
     assert "Available Actions:" in output

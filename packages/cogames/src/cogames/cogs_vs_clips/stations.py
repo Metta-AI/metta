@@ -255,6 +255,7 @@ def assembler() -> AssemblerConfig:
         type_id=8,
         map_char="&",
         render_symbol="🔄",
+        clip_immune=True,
         recipes=[
             # Single agent heart recipes (cardinal directions)
             (["N"], protocols.one_agent_heart_recipe()),

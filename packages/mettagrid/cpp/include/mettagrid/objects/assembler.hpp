@@ -33,6 +33,7 @@ private:
         }
       }
     }
+
     return positions;
   }
 
@@ -81,6 +82,16 @@ private:
     for (const auto& [item, amount] : recipe.output_resources) {
       agent.update_inventory(item, static_cast<InventoryDelta>(amount));
     }
+  }
+
+  // Returns true if the recipe yields any positive output amount (legacy name retained for compatibility)
+  bool recipe_has_positive_output(const Recipe& recipe) const {
+    for (const auto& [item, amount] : recipe.output_resources) {
+      if (amount > 0) {
+        return true;
+      }
+    }
+    return false;
   }
 
 public:
@@ -298,6 +309,14 @@ public:
     Recipe recipe_to_use = *original_recipe;
     if (progress < 1.0f && allow_partial_usage) {
       recipe_to_use = scale_recipe_for_partial_usage(*original_recipe, progress);
+
+      // Prevent usage that would yield no outputs (and would only serve to burn inputs and increment uses_count)
+      // Do not prevent usage if:
+      // - the unscaled recipe does not have outputs
+      // - usage would unclip the assembler; the unscaled unclipping recipe may happen to include outputs
+      if (!recipe_has_positive_output(recipe_to_use) && recipe_has_positive_output(*original_recipe) && !is_clipped) {
+        return false;
+      }
     }
 
     std::vector<Agent*> surrounding_agents = get_surrounding_agents();

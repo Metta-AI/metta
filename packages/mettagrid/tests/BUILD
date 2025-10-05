@@ -6,8 +6,7 @@ COPTS = [
     "-std=c++20",
     "-fvisibility=hidden",
     "-DNPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION",
-    "-O3",
-    "-DNDEBUG",
+    "-fsanitize=address",
 ]
 
 # C++ test binaries that link with Python
@@ -15,6 +14,7 @@ cc_binary(
     name="test_stats_tracker_bin",
     srcs=["test_stats_tracker.cpp"],
     copts=COPTS + ["-Icpp/include/mettagrid", "-Itests"],
+    linkopts=["-fsanitize=address"],
     linkstatic=False,
     deps=[
         "//:mettagrid_lib",
@@ -27,6 +27,7 @@ cc_binary(
     name="test_grid_object_bin",
     srcs=["test_grid_object.cpp"],
     copts=COPTS + ["-Icpp/include/mettagrid", "-Itests"],
+    linkopts=["-fsanitize=address"],
     linkstatic=False,
     deps=[
         "//:mettagrid_lib",
@@ -47,6 +48,7 @@ cc_binary(
     name="test_mettagrid_bin",
     srcs=["test_mettagrid.cpp"] + [":mettagrid_sources"],
     copts=COPTS + ["-Icpp/include/mettagrid", "-Icpp", "-Itests"],
+    linkopts=["-fsanitize=address"],
     linkstatic=False,
     deps=[
         "//:mettagrid_lib",  # For pybind11 headers
@@ -59,6 +61,7 @@ cc_binary(
     name="test_observations_bin",
     srcs=["test_observations.cpp"],
     copts=COPTS + ["-Icpp/include/mettagrid", "-Itests"],
+    linkopts=["-fsanitize=address"],
     linkstatic=False,
     deps=[
         "//:mettagrid_lib",
@@ -71,6 +74,7 @@ cc_binary(
     name="test_clipper_bin",
     srcs=["test_clipper.cpp"],
     copts=COPTS + ["-Icpp/include/mettagrid", "-Itests"],
+    linkopts=["-fsanitize=address"],
     linkstatic=False,
     deps=[
         "//:mettagrid_lib",
@@ -125,7 +129,7 @@ py_test(
     size="small",
 )
 
-# Test suite that r n  all tests
+# Test suite that runs all tests
 test_suite(
     name="tests_all",
     tests=[
