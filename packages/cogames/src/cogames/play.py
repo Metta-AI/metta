@@ -7,11 +7,9 @@ from typing import Literal, Optional
 import numpy as np
 from rich.console import Console
 
-import mettagrid.mettascope as mettascope
 from cogames.cogs_vs_clips.glyphs import GLYPHS
-from cogames.env import make_hierarchical_env
 from cogames.utils import initialize_or_load_policy
-from mettagrid import MettaGridConfig
+from mettagrid import MettaGridConfig, MettaGridEnv
 from mettagrid.util.grid_object_formatter import format_grid_object
 
 logger = logging.getLogger("cogames.play")
@@ -40,7 +38,7 @@ def play(
     else:
         raise ValueError(f"Unknown render mode '{render}'.")
 
-    env = make_hierarchical_env(env_cfg, render_mode=render_mode)
+    env = MettaGridEnv(env_cfg=env_cfg, render_mode=render_mode)
 
     policy = initialize_or_load_policy(policy_class_path, policy_data_path, env)
     agent_policies = [policy.agent_policy(agent_id) for agent_id in range(env.num_agents)]
@@ -57,30 +55,25 @@ def play(
             manual_agents: set[int],
         ) -> np.ndarray:
             actions = np.zeros((env.num_agents, action_dim), dtype=np.int32)
-            for agent in range(env.num_agents):
-                actions[agent] = agent_policies[agent].step(obs[agent])
-
-            for agent in manual_agents:
-                if agent != selected_agent and 0 <= agent < env.num_agents:
-                    override = actions[agent]
+            for agent_id in range(env.num_agents):
+                if agent_id == selected_agent and manual_action is not None:
+                    override = actions[agent_id]
                     override[1:] = 0
-                    override[0] = noop_action_id
-                    actions[agent] = override
-
-            if selected_agent is not None and manual_action is not None:
-                override = actions[selected_agent]
-                override[1:] = 0
-                if isinstance(manual_action, tuple):
-                    verb_idx, arg = manual_action
+                    if isinstance(manual_action, tuple):
+                        verb_idx, arg = manual_action
+                    else:
+                        verb_idx = move_action_id
+                        arg = manual_action
+                    override[0] = int(verb_idx)
+                    arg_slot = 1 + verb_idx
+                    if arg_slot < override.size:
+                        override[arg_slot] = int(arg)
+                    actions[agent_id] = override
+                elif agent_id in manual_agents:
+                    actions[agent_id, 0] = noop_action_id
+                    actions[agent_id, 1:] = 0
                 else:
-                    verb_idx = move_action_id
-                    arg = manual_action
-                override[0] = int(verb_idx)
-                arg_slot = 1 + verb_idx
-                if 0 <= arg_slot < override.size:
-                    override[arg_slot] = int(arg)
-                actions[selected_agent] = override
-
+                    actions[agent_id] = agent_policies[agent_id].step(obs[agent_id])
             return actions
 
         glyphs = None
@@ -113,10 +106,11 @@ def play(
         console.print(f"Total Rewards: {total_rewards.sum():.2f}")
         return
 
+    # GUI mode: use mettascope
     obs, _ = env.reset(seed=seed)
     step_count = 0
     num_agents = env_cfg.game.num_agents
-    hierarchical_actions = np.zeros((env.num_agents, action_dim), dtype=np.int32)
+    actions = np.zeros((env.num_agents, action_dim), dtype=np.int32)
     total_rewards = np.zeros(env.num_agents)
 
     initial_replay = {
@@ -131,25 +125,26 @@ def play(
         "objects": [],
     }
 
+    import mettagrid.mettascope as mettascope  # Lazy import to avoid display deps in training
+
     response = mettascope.init(replay=json.dumps(initial_replay))
     if response.should_close:
         return
 
     def generate_replay_step() -> str:
-        base_actions = env.project_actions(hierarchical_actions)
         grid_objects = []
         for grid_object in env.grid_objects().values():
             if "agent_id" in grid_object:
                 agent_id = grid_object["agent_id"]
                 total_rewards[agent_id] += env.rewards[agent_id]
             grid_objects.append(
-                format_grid_object(grid_object, base_actions, env.action_success, env.rewards, total_rewards)
+                format_grid_object(grid_object, actions, env.action_success, env.rewards, total_rewards)
             )
         return json.dumps({"step": step_count, "objects": grid_objects})
 
     while max_steps is None or step_count < max_steps:
         for agent_id in range(num_agents):
-            hierarchical_actions[agent_id] = agent_policies[agent_id].step(obs[agent_id])
+            actions[agent_id] = agent_policies[agent_id].step(obs[agent_id])
 
         replay_step = generate_replay_step()
         response = mettascope.render(step_count, replay_step)
@@ -163,22 +158,16 @@ def play(
                 if 0 <= agent_idx < env.num_agents:
                     verb = int(manual.action_id)
                     arg = int(manual.argument)
-                    hierarchical_actions[agent_idx, 1:] = 0
-                    hierarchical_actions[agent_idx, 0] = verb
-                    arg_slot = 1 + verb
-                    if arg_slot < hierarchical_actions.shape[1]:
-                        hierarchical_actions[agent_idx, arg_slot] = arg
-        elif getattr(response, "action", None):  # Back-compat for single-action responses
+                    actions[agent_idx, 0] = verb
+                    actions[agent_idx, 1] = arg
+        elif getattr(response, "action", None):
             agent_idx = int(response.action_agent_id)
             verb = int(response.action_action_id)
             arg = int(response.action_argument)
-            hierarchical_actions[agent_idx, 1:] = 0
-            hierarchical_actions[agent_idx, 0] = verb
-            arg_slot = 1 + verb
-            if arg_slot < hierarchical_actions.shape[1]:
-                hierarchical_actions[agent_idx, arg_slot] = arg
+            actions[agent_idx, 0] = verb
+            actions[agent_idx, 1] = arg
 
-        obs, rewards, dones, truncated, _ = env.step(hierarchical_actions)
+        obs, rewards, dones, truncated, _ = env.step(actions)
         total_rewards += rewards
         step_count += 1
 

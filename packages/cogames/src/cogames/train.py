@@ -13,11 +13,10 @@ from rich.console import Console
 
 import pufferlib.vector as pvector
 from cogames.aws_storage import maybe_upload_checkpoint
-from cogames.env import make_hierarchical_env
 from cogames.policy import TrainablePolicy
 from cogames.policy.utils import resolve_policy_data_path
 from cogames.utils import initialize_or_load_policy
-from mettagrid import MettaGridConfig
+from mettagrid import MettaGridConfig, MettaGridEnv
 from pufferlib import pufferl
 from pufferlib.pufferlib import set_buffers
 
@@ -121,7 +120,7 @@ def train(
         seed: Optional[int] = None,
     ):
         target_cfg = cfg if cfg is not None else _next_cfg()
-        env = make_hierarchical_env(target_cfg, buf=buf)
+        env = MettaGridEnv(env_cfg=target_cfg, render_mode=None)
         set_buffers(env, buf)
         return env
 
@@ -169,7 +168,7 @@ def train(
 
         logits_debug_path.parent.mkdir(parents=True, exist_ok=True)
         debug_file = logits_debug_path.open("w", encoding="utf-8")
-        instrumentation_env = make_hierarchical_env(base_cfg.model_copy(deep=True))
+        instrumentation_env = MettaGridEnv(env_cfg=base_cfg.model_copy(deep=True))
         action_dim = int(instrumentation_env.single_action_space.nvec.size)
         instrumentation_actions = np.zeros((instrumentation_env.num_agents, action_dim), dtype=np.int32)
 
