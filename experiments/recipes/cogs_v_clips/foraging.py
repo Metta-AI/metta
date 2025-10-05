@@ -36,12 +36,12 @@ class ForagingTaskGenerator(TaskGenerator):
     class Config(TaskGeneratorConfig["ForagingTaskGenerator"]):
         num_cogs: list[int]
         num_assemblers: list[int]
-        num_extractors: list[int]
-        num_extractor_types: list[int]
         num_chests: list[int]
         size: list[int]
         assembler_positions: list[list[Position]]
-        extractor_positions: list[list[Position]] = [["Any"]]
+        num_extractors: Optional[list[int]] = [0]
+        num_extractor_types: Optional[list[int]] = [0]
+        extractor_positions: Optional[list[list[Position]]] = [["Any"]]
 
     def __init__(self, config: "ForagingTaskGenerator.Config"):
         super().__init__(config)
@@ -117,7 +117,9 @@ class ForagingTaskGenerator(TaskGenerator):
         if num_extractors > 0:
             input_resources.update({resource: 1 for resource in self.used_resources})
 
-        assembler = make_assembler(input_resources, {"heart": 1}, position, cooldown=10)
+        cooldown = num_assemblers*3
+
+        assembler = make_assembler(input_resources, {"heart": 1}, position, cooldown=cooldown)
         cfg.game_objects["assembler"] = assembler
         cfg.map_builder_objects["assembler"] = num_assemblers
 
