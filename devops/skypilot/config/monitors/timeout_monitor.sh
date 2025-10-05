@@ -54,7 +54,7 @@ while true; do
     break
   fi
 
-  if ! kill -0 "$WRAPPER_PID" 2>/dev/null; then
+  if ! kill -0 "$WRAPPER_PID" 2> /dev/null; then
     echo "[INFO] Wrapper PID $WRAPPER_PID is no longer running, exiting timeout monitor"
     break
   fi
