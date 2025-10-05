@@ -96,6 +96,25 @@ class LSTMPolicyNet(torch.nn.Module):
         state_is_dict = isinstance(state, dict)
         state_has_keys = state_is_dict and "lstm_h" in state and "lstm_c" in state
 
+        num_layers = self._rnn.num_layers
+
+        def _normalize(component: Optional[torch.Tensor]) -> Optional[torch.Tensor]:
+            if component is None:
+                return None
+            if component.dim() == 1:
+                component = component.unsqueeze(0).unsqueeze(0)
+            elif component.dim() == 2:
+                component = component.unsqueeze(0)
+            if component.dim() != 3:
+                raise RuntimeError(f"Unexpected LSTM state shape {component.shape}")
+            if component.size(0) == 1 and num_layers > 1:
+                component = component.expand(num_layers, -1, -1).clone()
+            if component.size(0) != num_layers:
+                raise RuntimeError(
+                    f"Expected LSTM state with {num_layers} layers, got {component.size(0)}"
+                )
+            return component
+
         if state is not None:
             if state_has_keys:
                 # PufferLib passes state as dict with "lstm_h" and "lstm_c" keys
@@ -108,25 +127,21 @@ class LSTMPolicyNet(torch.nn.Module):
                         # Transpose from (batch, layers, hidden) to (layers, batch, hidden)
                         h = h.transpose(0, 1)
                         c = c.transpose(0, 1)
-                    elif h.dim() == 2:
-                        # (batch, hidden) -> (1, batch, hidden)
-                        h = h.unsqueeze(0)
-                        c = c.unsqueeze(0)
-                    elif h.dim() == 1:
-                        # (hidden,) -> (1, 1, hidden)
-                        h = h.unsqueeze(0).unsqueeze(0)
-                        c = c.unsqueeze(0).unsqueeze(0)
+                    h = _normalize(h)
+                    c = _normalize(c)
                     rnn_state = (h, c)
             elif not state_is_dict:
                 # Tuple state for inference mode - assume correct shape
                 h, c = state
-                if h.dim() == 2:
-                    h = h.unsqueeze(0)
-                    c = c.unsqueeze(0)
-                elif h.dim() == 1:
-                    h = h.unsqueeze(0).unsqueeze(0)
-                    c = c.unsqueeze(0).unsqueeze(0)
+                h = _normalize(h)
+                c = _normalize(c)
                 rnn_state = (h, c)
+
+        if rnn_state is not None:
+            h, c = rnn_state
+            h = _normalize(h)
+            c = _normalize(c)
+            rnn_state = (h, c)
 
         hidden, new_state = self._rnn(hidden, rnn_state)
 
@@ -138,13 +153,8 @@ class LSTMPolicyNet(torch.nn.Module):
                 h = h.transpose(0, 1)
                 c = c.transpose(0, 1)
             elif h.dim() == 2:
-                # (batch, hidden) -> (batch, layers=1, hidden)
                 h = h.unsqueeze(1)
                 c = c.unsqueeze(1)
-            elif h.dim() == 1:
-                # (hidden,) -> (batch=1, layers=1, hidden)
-                h = h.unsqueeze(0).unsqueeze(1)
-                c = c.unsqueeze(0).unsqueeze(1)
             state["lstm_h"], state["lstm_c"] = h, c
 
         hidden = rearrange(hidden, "b t h -> (b t) h")
