@@ -27,7 +27,6 @@ def _make_rotation_supplier(
     easy: bool = False,
     shaped: bool = False,
 ) -> Callable[[], MettaGridConfig]:
-
     rotation = deque(tuple(names) if names is not None else _BASE_ROTATION)
     if not rotation:
         raise ValueError("Rotation must contain at least one game name")
@@ -44,16 +43,6 @@ def _make_rotation_supplier(
 
     return _supplier
 
-_EASY_ROTATION: tuple[str, ...] = (
-    "training_facility_1_easy",
-    "training_facility_2_easy",
-    "training_facility_3_easy",
-    "training_facility_4_easy",
-    "training_facility_5_easy",
-    "training_facility_6_easy",
-    "machina_1_easy",
-    "machina_2_easy",
-)
 
 def training_rotation(names: Iterable[str] | None = None) -> Callable[[], MettaGridConfig]:
     """Cycle the default training maps."""
@@ -77,18 +66,3 @@ def training_rotation_easy_shaped(names: Iterable[str] | None = None) -> Callabl
     """Cycle the training maps with both easy heart crafting and shaped rewards."""
 
     return _make_rotation_supplier(names, easy=True, shaped=True)
-
-
-def training_rotation_easy(names: Iterable[str] | None = None) -> Callable[[], MettaGridConfig]:
-    """Create a supplier that cycles the easy-heart training rotation."""
-
-    rotation = deque(tuple(names) if names is not None else _EASY_ROTATION)
-    if not rotation:
-        raise ValueError("Rotation must contain at least one game name")
-
-    def _supplier() -> MettaGridConfig:
-        map_name = rotation[0]
-        rotation.rotate(-1)
-        return game.get_game(map_name).model_copy(deep=True)
-
-    return _supplier
