@@ -66,17 +66,28 @@ class ForagingTaskGenerator(TaskGenerator):
         max_steps = max(150, area * num_objects * 2)
         return min(max_steps, 1800)
 
-    def _make_extractors(self, num_extractors, num_extractor_types, cfg, extractor_position, rng: random.Random):
+    def _make_extractors(
+        self,
+        num_extractors,
+        num_extractor_types,
+        cfg,
+        extractor_position,
+        rng: random.Random,
+    ):
         """Make generators that input nothing and output resources for the altar"""
         resource_types = rng.sample(RESOURCES, num_extractor_types)
 
         # need to make sure there will be exactly num extractors
-        extractor_counts = {r: num_extractors // num_extractor_types for r in resource_types}
+        extractor_counts = {
+            r: num_extractors // num_extractor_types for r in resource_types
+        }
         remaining = num_extractors - sum(list(extractor_counts.values()))
         if remaining > 0:
             extractor_counts[resource_types[0]] += remaining
 
-        print(f"Making {num_extractors} extractors with {num_extractor_types} types and counts: {extractor_counts}")
+        print(
+            f"Making {num_extractors} extractors with {num_extractor_types} types and counts: {extractor_counts}"
+        )
 
         for resource, count in extractor_counts.items():
             if count > 0:
@@ -104,14 +115,7 @@ class ForagingTaskGenerator(TaskGenerator):
     ):
         input_resources = {}
         if num_extractors > 0:
-            input_resources.update(
-                {
-                    resource: 1
-                    for resource in self.used_resources
-                }
-            )
-
-        print(f"Making {num_assemblers} assemblers with {num_extractors} extractors and inputs: {input_resources}")
+            input_resources.update({resource: 1 for resource in self.used_resources})
 
         assembler = make_assembler(input_resources, {"heart": 1}, position, cooldown=10)
         cfg.game_objects["assembler"] = assembler
@@ -133,7 +137,13 @@ class ForagingTaskGenerator(TaskGenerator):
     ) -> MettaGridConfig:
         cfg = BuildCfg()
 
-        self._make_extractors(num_extractors, num_extractor_types, cfg, extractor_position, rng,)
+        self._make_extractors(
+            num_extractors,
+            num_extractor_types,
+            cfg,
+            extractor_position,
+            rng,
+        )
 
         self._make_assemblers(num_assemblers, cfg, assembler_position, num_extractors)
 
@@ -141,7 +151,7 @@ class ForagingTaskGenerator(TaskGenerator):
             # if using chests, then we get reward from hearts in chest
             self._make_chests(num_chests, cfg)
             inventory_rewards = {"heart": 0}
-            stat_rewards = {"chest.heart.amount": 2}
+            stat_rewards = {"chest.heart.amount": 1}
             resource_limits = {"heart": 1}
         else:
             # otherwise, we get reward from heart in inventory
@@ -156,17 +166,31 @@ class ForagingTaskGenerator(TaskGenerator):
         )
 
         if num_chests == 0:
-            perimeter_object_names = ["assembler"] + [f"{resource}_extractor" for resource in ["carbon", "oxygen", "germanium", "silicon"]]
+            perimeter_object_names = ["assembler"] + [
+                f"{resource}_extractor"
+                for resource in ["carbon", "oxygen", "germanium", "silicon"]
+            ]
             center_object_names = []
         elif num_chests <= 4:
-            perimeter_object_names = ["assembler"] + [f"{resource}_extractor" for resource in ["carbon", "oxygen", "germanium", "silicon"]]
+            perimeter_object_names = ["assembler"] + [
+                f"{resource}_extractor"
+                for resource in ["carbon", "oxygen", "germanium", "silicon"]
+            ]
             center_object_names = ["chest"]
         else:
             perimeter_object_names = list(cfg.map_builder_objects.keys())
             center_object_names = []
 
-        perimeter_objects = {name: object for name, object in cfg.map_builder_objects.items() if name in perimeter_object_names }
-        center_objects = {name: object for name, object in cfg.map_builder_objects.items() if name in center_object_names}
+        perimeter_objects = {
+            name: object
+            for name, object in cfg.map_builder_objects.items()
+            if name in perimeter_object_names
+        }
+        center_objects = {
+            name: object
+            for name, object in cfg.map_builder_objects.items()
+            if name in center_object_names
+        }
 
         return make_icl_assembler(
             num_agents=num_agents,
@@ -178,7 +202,7 @@ class ForagingTaskGenerator(TaskGenerator):
             resources=list(self.used_resources) + ["heart", "energy"],
             agent=agent,
             size=size,
-            random_scatter=True
+            random_scatter=True,
         )
 
     def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
@@ -193,7 +217,7 @@ class ForagingTaskGenerator(TaskGenerator):
         num_extractor_types = rng.choice(self.config.num_extractor_types)
 
         # max_steps = self._calculate_max_steps(num_objects, size)
-        #TODO think abotu this
+        # TODO think abotu this
         max_steps = 500
 
         icl_env = self._make_env_cfg(
@@ -318,9 +342,7 @@ def play(curriculum_style: str = "pairs") -> PlayTool:
     # env = make_env(num_cogs=4, num_assemblers=10, num_extractors=10, num_extractor_types=2, num_chests=4, size=20, position=["N", "S"])
 
     return PlayTool(
-        sim=SimulationConfig(
-            env=env, suite="cogs_vs_clippies", name="play"
-        )
+        sim=SimulationConfig(env=env, suite="cogs_vs_clippies", name="play")
     )
 
 

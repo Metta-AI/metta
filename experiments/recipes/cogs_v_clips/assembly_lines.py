@@ -140,8 +140,16 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
             resource_limits=resource_limits,
         )
 
-        perimeter_objects = {name: object for name, object in cfg.map_builder_objects.items() if "extractor" in name}
-        center_objects = {name: object for name, object in cfg.map_builder_objects.items() if "extractor" not in name}
+        perimeter_objects = {
+            name: object
+            for name, object in cfg.map_builder_objects.items()
+            if "extractor" in name
+        }
+        center_objects = {
+            name: object
+            for name, object in cfg.map_builder_objects.items()
+            if "extractor" not in name
+        }
         return make_icl_assembler(
             num_agents=num_agents,
             num_instances=1,
@@ -274,9 +282,7 @@ def play(curriculum_style: str = "quadruplets") -> PlayTool:
     # )
     env = make_env(num_cogs=2, chain_length=3, position=["N", "S"])
     return PlayTool(
-        sim=SimulationConfig(
-            env=env, suite="cogs_vs_clippies", name="play"
-        )
+        sim=SimulationConfig(env=env, suite="cogs_vs_clippies", name="play")
     )
     # return PlayTool(
     #     sim=SimulationConfig(

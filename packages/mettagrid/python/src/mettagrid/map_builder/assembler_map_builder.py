@@ -294,9 +294,5 @@ class AssemblerMapBuilder(MapBuilder):
         if isinstance(self._config.agents, int):
             return ["agent.agent"] * self._config.agents
         elif isinstance(self._config.agents, dict):
-            return [
-                f"agent.{name}"
-                for name, count in self._config.agents.items()
-                for _ in range(count)
-            ]
+            return [f"agent.{name}" for name, count in self._config.agents.items() for _ in range(count)]
         return []
