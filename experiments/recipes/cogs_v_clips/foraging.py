@@ -248,7 +248,7 @@ def make_env(
     task_generator = ForagingTaskGenerator(
         config=ForagingTaskGenerator.Config(
             num_cogs=[num_cogs],
-            positions=[position],
+            position=[position],
             size=[size],
             num_assemblers=[num_assemblers],
             num_chests=[num_chests],
