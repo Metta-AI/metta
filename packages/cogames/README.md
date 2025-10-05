@@ -46,7 +46,7 @@ cogames train training_facility_1 --policy simple
 cogames play training_facility_1 --interactive --policy simple --policy-data ./train_dir/policy_2.pt
 
 # Evaluate your policy
-cogames evaluate training_facility_1 box:./train_dir/policy_2.pt
+cogames evaluate training_facility_1 simple:./train_dir/policy_2.pt
 ```
 
 ## Commands
@@ -161,13 +161,13 @@ Evaluate one or more policies.
 cogames evaluate machina_1 random
 
 # Trained policy
-cogames evaluate machina_1 box:train_dir/model.pt
+cogames evaluate machina_1 simple:train_dir/model.pt
 
 # Latest checkpoint in directory
-cogames evaluate machina_1 box:train_dir/
+cogames evaluate machina_1 simple:train_dir/
 
 # Mixed population of agents, 3/8 of which steered by your policy, the rest by a random-action policy
-cogames evaluate machina_1 box:train_dir/model.pt:3 random::5
+cogames evaluate machina_1 simple:train_dir/model.pt:3 random::5
 ```
 
 **Options:**
