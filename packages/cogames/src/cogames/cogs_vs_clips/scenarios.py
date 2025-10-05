@@ -1,20 +1,11 @@
 from pathlib import Path
 
-from cogames.cogs_vs_clips import glyphs
 from cogames.cogs_vs_clips.stations import (
     assembler,
     carbon_ex_dep,
     carbon_extractor,
     charger,
     chest,
-    chest_carbon,
-    chest_germanium,
-    chest_oxygen,
-    chest_silicon,
-    clipped_carbon_extractor,
-    clipped_germanium_extractor,
-    clipped_oxygen_extractor,
-    clipped_silicon_extractor,
     germanium_ex_dep,
     germanium_extractor,
     oxygen_ex_dep,
@@ -46,10 +37,12 @@ def _base_game_config(num_cogs: int, clipping_rate: float) -> MettaGridConfig:
             resource_names=resources,
             num_agents=num_cogs,
             actions=ActionsConfig(
-                move=ActionConfig(consumed_resources={"energy": 2}),
-                noop=ActionConfig(),
-                change_glyph=ChangeGlyphActionConfig(number_of_glyphs=len(glyphs.GLYPHS)),
+                # move=ActionConfig(consumed_resources={"energy": 2}),
+                move=ActionConfig(),
+                # noop=ActionConfig(),
+                change_glyph=ChangeGlyphActionConfig(number_of_glyphs=2),
             ),
+            resource_loss_prob=0.0,
             objects={
                 "wall": WallConfig(name="wall", type_id=1, map_char="#", render_symbol="⬛"),
                 "charger": charger(),
@@ -62,29 +55,43 @@ def _base_game_config(num_cogs: int, clipping_rate: float) -> MettaGridConfig:
                 "oxygen_ex_dep": oxygen_ex_dep(),
                 "carbon_ex_dep": carbon_ex_dep(),
                 "germanium_ex_dep": germanium_ex_dep(),
-                "clipped_carbon_extractor": clipped_carbon_extractor(),
-                "clipped_oxygen_extractor": clipped_oxygen_extractor(),
-                "clipped_germanium_extractor": clipped_germanium_extractor(),
-                "clipped_silicon_extractor": clipped_silicon_extractor(),
+                # "clipped_carbon_extractor": clipped_carbon_extractor(),
+                # "clipped_oxygen_extractor": clipped_oxygen_extractor(),
+                # "clipped_germanium_extractor": clipped_germanium_extractor(),
+                # "clipped_silicon_extractor": clipped_silicon_extractor(),
                 "chest": chest(),
-                "chest_carbon": chest_carbon(),
-                "chest_oxygen": chest_oxygen(),
-                "chest_germanium": chest_germanium(),
-                "chest_silicon": chest_silicon(),
+                # "chest_carbon": chest_carbon(),
+                # "chest_oxygen": chest_oxygen(),
+                # "chest_germanium": chest_germanium(),
+                # "chest_silicon": chest_silicon(),
                 "assembler": assembler(),
             },
             agent=AgentConfig(
                 resource_limits={
                     "heart": 1,
                     "energy": 100,
-                    ("carbon", "oxygen", "germanium", "silicon"): 100,
+                    ("carbon", "oxygen", "germanium", "silicon"): 1,
                     ("scrambler", "modulator", "decoder", "resonator"): 5,
                 },
                 rewards=AgentRewards(
-                    stats={"chest.heart.amount": 1 / num_cogs},
-                    # inventory={
-                    #     "heart": 1,
-                    # },
+                    # Reward +1 for gaining each element (per gain event via *.gained stats)
+                    stats={
+                        "carbon.gained": 0.1,
+                        "oxygen.gained": 0.1,
+                        "germanium.gained": 0.1,
+                        "silicon.gained": 0.1,
+                        "heart.gained": 0.2,
+                        "heart.lost": 1,
+                    },
+                    stats_max={
+                        # Cap each element gain reward at 0.2 total (2 gains × 0.1)
+                        "carbon.gained": 0.2,
+                        "oxygen.gained": 0.1,
+                        "germanium.gained": 0.1,
+                        "silicon.gained": 0.1,
+                        "heart.gained": 0.2,
+                    },
+                    inventory={},
                 ),
                 initial_inventory={
                     "energy": 100,
@@ -157,7 +164,7 @@ def tutorial_assembler_simple(num_cogs: int = 1) -> MettaGridConfig:
     cfg = make_game(num_cogs=num_cogs, num_assemblers=1)
     cfg.game.objects["assembler"] = assembler()
     cfg.game.objects["assembler"].recipes = [
-        (["Any"], RecipeConfig(input_resources={"battery_red": 3}, output_resources={"heart": 1}, cooldown=10))
+        (["Any"], RecipeConfig(input_resources={"battery_red": 3}, output_resources={"heart": 1}, cooldown=1))
     ]
     return cfg
 
@@ -174,7 +181,7 @@ def tutorial_assembler_complex(num_cogs: int = 1) -> MettaGridConfig:
     )
     cfg.game.objects["assembler"] = assembler()
     cfg.game.objects["assembler"].recipes = [
-        (["Any"], RecipeConfig(input_resources={"battery_red": 3}, output_resources={"heart": 1}, cooldown=10))
+        (["Any"], RecipeConfig(input_resources={"battery_red": 3}, output_resources={"heart": 1}, cooldown=1))
     ]
     return cfg
 
