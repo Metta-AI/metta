@@ -142,7 +142,7 @@ def test_with_real_mettagrid(num_agents: int = 4, num_steps: int = 50, map_size:
 
             # Debug: print first step info
             if step == 0:
-                print(f"\n  Debug info:")
+                print("\n  Debug info:")
                 print(f"    Positions shape: {positions.shape}")
                 print(f"    Task dirs shape: {task_dirs.shape}")
                 print(f"    Sample position: {positions[0]}")
