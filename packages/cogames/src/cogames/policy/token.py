@@ -9,10 +9,10 @@ import pufferlib.pytorch
 from cogames.policy.policy import AgentPolicy, TrainablePolicy
 from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation
 
-logger = logging.getLogger("cogames.policies.basic_policy")
+logger = logging.getLogger("cogames.policies.token_policy")
 
 
-class BasicPolicyNet(torch.nn.Module):
+class TokenPolicyNet(torch.nn.Module):
     """Token-aware per-step encoder inspired by Metta's basic baseline."""
 
     def __init__(self, env: MettaGridEnv):
@@ -114,10 +114,10 @@ class BasicPolicyNet(torch.nn.Module):
         return self.forward_eval(observations, state)
 
 
-class BasicAgentPolicyImpl(AgentPolicy):
+class TokenAgentPolicyImpl(AgentPolicy):
     """Per-agent policy utilising the shared token encoder network."""
 
-    def __init__(self, net: BasicPolicyNet, device: torch.device, action_nvec: tuple[int, ...]):
+    def __init__(self, net: TokenPolicyNet, device: torch.device, action_nvec: tuple[int, ...]):
         self._net = net
         self._device = device
         self._action_nvec = action_nvec
@@ -137,12 +137,12 @@ class BasicAgentPolicyImpl(AgentPolicy):
             return np.array(actions, dtype=np.int32)
 
 
-class BasicPolicy(TrainablePolicy):
-    """Feed-forward token encoder baseline derived from Metta's basic policy."""
+class TokenPolicy(TrainablePolicy):
+    """Feed-forward token encoder baseline derived from Metta's token-based basic policy."""
 
     def __init__(self, env: MettaGridEnv, device: torch.device):
         super().__init__()
-        self._net = BasicPolicyNet(env).to(device)
+        self._net = TokenPolicyNet(env).to(device)
         self._device = device
         self._action_nvec = tuple(env.single_action_space.nvec)
 
@@ -150,7 +150,7 @@ class BasicPolicy(TrainablePolicy):
         return self._net
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
-        return BasicAgentPolicyImpl(self._net, self._device, self._action_nvec)
+        return TokenAgentPolicyImpl(self._net, self._device, self._action_nvec)
 
     def load_policy_data(self, checkpoint_path: str) -> None:
         state_dict = torch.load(checkpoint_path, map_location=self._device)
