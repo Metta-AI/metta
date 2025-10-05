@@ -215,8 +215,6 @@ class TrainTool(Tool):
         if heartbeat_cfg is not None:
             components.append(Heartbeat(epoch_interval=heartbeat_cfg.epoch_interval))
 
-        # Hyperparameter scheduler removed; rely on loss-local schedules instead
-
         stats_component: TrainerComponent | None = None
 
         if distributed_helper.is_master():
