@@ -5,14 +5,25 @@ on:
     types: [closed]
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to check"
+        required: true
+        type: number
+      merge_sha:
+        description: "Merge commit SHA to tag"
+        required: true
+        type: string
 
 permissions:
   contents: write
   pull-requests: read
+  administration: read
 
 jobs:
   tag-if-bypassed:
-    if: github.event.pull_request.merged == true
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -22,8 +33,16 @@ jobs:
 
       - name: Check if protections were bypassed
         run: |
-          PR_NUMBER=${{ github.event.pull_request.number }}
-          MERGE_SHA=${{ github.event.pull_request.merge_commit_sha }}
+          # Use manual inputs or PR event data
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            PR_NUMBER=${{ inputs.pr_number }}
+            MERGE_SHA=${{ inputs.merge_sha }}
+          else
+            PR_NUMBER=${{ github.event.pull_request.number }}
+            MERGE_SHA=${{ github.event.pull_request.merge_commit_sha }}
+          fi
+
+          echo "Checking PR #$PR_NUMBER (SHA: $MERGE_SHA)"
 
           # Check reviews
           REQUIRED_REVIEWS=$(gh api repos/${{ github.repository }}/branches/main/protection --jq '.required_pull_request_reviews.required_approving_review_count // 0')
@@ -33,6 +52,9 @@ jobs:
           REQUIRED_CHECKS=$(gh api repos/${{ github.repository }}/branches/main/protection --jq '.required_status_checks.contexts // [] | length')
           PASSED_CHECKS=$(gh pr view $PR_NUMBER --json statusCheckRollup --jq '[.statusCheckRollup[] | select(.conclusion == "SUCCESS")] | length')
 
+          echo "Required reviews: $REQUIRED_REVIEWS, Actual: $ACTUAL_REVIEWS"
+          echo "Required checks: $REQUIRED_CHECKS, Passed: $PASSED_CHECKS"
+
           # Tag if bypassed
           if [ "$ACTUAL_REVIEWS" -lt "$REQUIRED_REVIEWS" ] || [ "$PASSED_CHECKS" -lt "$REQUIRED_CHECKS" ]; then
             TIMESTAMP=$(date +%s)
@@ -40,6 +62,8 @@ jobs:
             git tag -a "$TAG_NAME" $MERGE_SHA -m "Protection bypassed on PR #$PR_NUMBER"
             git push origin "$TAG_NAME"
             echo "Tagged: Protection bypass detected"
+          else
+            echo "No bypass detected"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
