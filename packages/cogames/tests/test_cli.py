@@ -7,10 +7,10 @@ from pathlib import Path
 cogames_root = Path(__file__).parent.parent
 
 
-def test_games_list_command():
-    """Test that 'cogames games' lists all available games."""
+def test_missions_list_command():
+    """Test that 'cogames missions' lists all available missions."""
     result = subprocess.run(
-        ["uv", "run", "cogames", "games"],
+        ["uv", "run", "cogames", "missions"],
         cwd=cogames_root,
         capture_output=True,
         text=True,
@@ -26,10 +26,10 @@ def test_games_list_command():
     assert "Map Size" in output
 
 
-def test_games_describe_command():
-    """Test that 'cogames games <game_name>' describes a specific game."""
+def test_missions_describe_command():
+    """Test that 'cogames missions <mission_name>' describes a specific mission."""
     result = subprocess.run(
-        ["uv", "run", "cogames", "games", "training_facility_1"],
+        ["uv", "run", "cogames", "missions", "training_facility_1"],
         cwd=cogames_root,
         capture_output=True,
         text=True,
@@ -41,26 +41,26 @@ def test_games_describe_command():
     # Check that the output contains expected game details
     output = result.stdout
     assert "training_facility_1" in output
-    assert "Game Configuration:" in output
+    assert "Mission Configuration:" in output
     assert "Number of agents:" in output
     assert "Available Actions:" in output
 
 
-def test_games_nonexistent_game():
+def test_missions_nonexistent_mission():
     """Test that describing a nonexistent game returns an error."""
     result = subprocess.run(
-        ["uv", "run", "cogames", "games", "nonexistent_game"],
+        ["uv", "run", "cogames", "missions", "nonexistent_mission"],
         cwd=cogames_root,
         capture_output=True,
         text=True,
         timeout=30,
     )
 
-    assert result.returncode == 1, "Command should fail for nonexistent game"
+    assert result.returncode == 1, "Command should fail for nonexistent mission"
     assert "Error:" in result.stdout or "Error:" in result.stderr
 
 
-def test_games_help_command():
+def test_missions_help_command():
     """Test that 'cogames --help' shows help text."""
     result = subprocess.run(
         ["uv", "run", "cogames", "--help"],
