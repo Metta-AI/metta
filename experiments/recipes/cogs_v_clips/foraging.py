@@ -40,7 +40,7 @@ class ForagingTaskGenerator(TaskGenerator):
         num_extractor_types: list[int]
         num_chests: list[int]
         size: list[int]
-        position: list[list[Position]]
+        positions: list[list[Position]]
 
     def __init__(self, config: "ForagingTaskGenerator.Config"):
         super().__init__(config)
@@ -182,7 +182,7 @@ class ForagingTaskGenerator(TaskGenerator):
         num_extractors = rng.choice(self.config.num_extractors)
         num_chests = rng.choice(self.config.num_chests)
         size = rng.choice(self.config.size)
-        assembler_position = rng.choice(self.config.position)
+        assembler_position = rng.choice(self.config.positions)
         num_objects = num_assemblers + num_extractors + num_chests
         num_extractor_types = rng.choice(self.config.num_extractor_types)
 
@@ -293,20 +293,22 @@ def make_mettagrid(task_generator) -> MettaGridConfig:
 
 
 def play(curriculum_style: str = "pairs") -> PlayTool:
-    # task_generator = ForagingTaskGenerator(
-    #     config=ForagingTaskGenerator.Config(
-    #         **foraging_curriculum_args[curriculum_style]
-    #     )
-    # )
+    task_generator = ForagingTaskGenerator(
+        config=ForagingTaskGenerator.Config(
+            **foraging_curriculum_args[curriculum_style]
+        )
+    )
 
-    #single chest in middle
-    env = make_env(num_cogs=4, num_assemblers=10, num_extractors=0, num_chests=1, size=20, position=["N", "S"])
+    env = make_mettagrid(task_generator)
 
-    #assemblers and chests around
-    env = make_env(num_cogs=4, num_assemblers=10, num_extractors=0, num_chests=4, size=20, position=["N", "S"])
+    # #single chest in middle
+    # env = make_env(num_cogs=4, num_assemblers=10, num_extractors=0, num_chests=1, size=20, position=["N", "S"])
 
-    #with extractors
-    env = make_env(num_cogs=4, num_assemblers=10, num_extractors=10, num_extractor_types=2, num_chests=4, size=20, position=["N", "S"])
+    # #assemblers and chests around
+    # env = make_env(num_cogs=4, num_assemblers=10, num_extractors=0, num_chests=4, size=20, position=["N", "S"])
+
+    # #with extractors
+    # env = make_env(num_cogs=4, num_assemblers=10, num_extractors=10, num_extractor_types=2, num_chests=4, size=20, position=["N", "S"])
 
     return PlayTool(
         sim=SimulationConfig(
