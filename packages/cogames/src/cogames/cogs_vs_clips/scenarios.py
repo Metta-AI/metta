@@ -125,35 +125,43 @@ def _base_game_config(num_cogs: int, clipping_rate: float) -> MettaGridConfig:
 
 def make_game(
     num_cogs: int = 4,
-    width: int = 10,
-    height: int = 10,
+    width: int = 6,
+    height: int = 6,
     num_assemblers: int = 1,
-    num_chargers: int = 0,
+    num_chargers: int = 1,
     num_carbon_extractors: int = 0,
     num_oxygen_extractors: int = 0,
     num_germanium_extractors: int = 0,
     num_silicon_extractors: int = 0,
-    num_chests: int = 0,
+    num_chests: int = 1,
     clipping_rate: float = 0.0,
 ) -> MettaGridConfig:
-    cfg = _base_game_config(num_cogs, clipping_rate)
+    cfg = _base_game_config(num_cogs, clipping_rate=clipping_rate)
+    max_border = max(0, min(width, height) // 2 - 1)
+    border_width = min(1, max_border)
+
+    object_counts = {
+        "assembler": num_assemblers,
+        "chest": num_chests,
+        "charger": num_chargers,
+        "carbon_extractor": num_carbon_extractors,
+        "oxygen_extractor": num_oxygen_extractors,
+        "germanium_extractor": num_germanium_extractors,
+        "silicon_extractor": num_silicon_extractors,
+    }
+
+    filtered_objects = {name: count for name, count in object_counts.items() if count > 0}
+
     map_builder = RandomMapBuilder.Config(
         width=width,
         height=height,
         agents=num_cogs,
-        border_width=5,
-        objects={
-            "assembler": num_assemblers,
-            "charger": num_chargers,
-            "carbon_extractor": num_carbon_extractors,
-            "oxygen_extractor": num_oxygen_extractors,
-            "germanium_extractor": num_germanium_extractors,
-            "silicon_extractor": num_silicon_extractors,
-            "chest": num_chests,
-        },
+        border_width=border_width,
+        objects=filtered_objects,
         seed=42,
     )
     cfg.game.map_builder = map_builder
+    cfg.game.max_steps *= 20
     return cfg
 
 
