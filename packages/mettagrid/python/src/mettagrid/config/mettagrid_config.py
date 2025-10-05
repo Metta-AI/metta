@@ -161,6 +161,7 @@ class AssemblerConfig(GridObjectConfig):
     """Python assembler configuration."""
 
     type: Literal["assembler"] = Field(default="assembler")
+    default_recipe: Optional[RecipeConfig] = Field(default=None)
     recipes: list[tuple[list[Position], RecipeConfig]] = Field(default_factory=list)
     allow_partial_usage: bool = Field(
         default=False,
