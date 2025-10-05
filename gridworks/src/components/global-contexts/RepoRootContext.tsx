@@ -7,7 +7,5 @@ export const RepoRootProvider: FC<PropsWithChildren<{ root: string }>> = ({
   children,
   root,
 }) => {
-  return (
-    <RepoRootContext.Provider value={root}>{children}</RepoRootContext.Provider>
-  );
+  return <RepoRootContext value={root}>{children}</RepoRootContext>;
 };

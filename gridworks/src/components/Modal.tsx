@@ -108,14 +108,14 @@ export const Modal: ModalType = ({ children, onClose }) => {
   }, [onClose]);
 
   const modal = (
-    <ModalContext.Provider value={{ onClose }}>
+    <ModalContext value={{ onClose }}>
       <div>
         <div className="fixed inset-0 z-40 flex items-center justify-center">
           <Overlay />
           <ModalWindow>{children}</ModalWindow>
         </div>
       </div>
-    </ModalContext.Provider>
+    </ModalContext>
   );
 
   return createPortal(modal, el);
