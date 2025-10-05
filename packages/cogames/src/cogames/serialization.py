@@ -14,6 +14,8 @@ from cogames.policy import TrainablePolicy
 from mettagrid import MettaGridEnv
 from mettagrid.util.module import load_symbol
 
+LOGGER = logging.getLogger(__name__)
+
 METADATA_NAME = "policy.json"
 WEIGHTS_NAME = "policy.pt"
 
@@ -88,6 +90,3 @@ def load_policy(artifact: PolicyArtifact, env: MettaGridEnv, device: torch.devic
             artifact.policy_class,
         )
     return policy
-
-
-LOGGER = logging.getLogger(__name__)
