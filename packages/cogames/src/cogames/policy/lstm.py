@@ -19,21 +19,36 @@ class LSTMPolicyNet(torch.nn.Module):
         super().__init__()
         # Public: Required by PufferLib for RNN state management
         self.hidden_size = 128
-
-        self._net = torch.nn.Sequential(
+        self._encoder = torch.nn.Sequential(
             pufferlib.pytorch.layer_init(
-                torch.nn.Linear(np.prod(env.single_observation_space.shape), self.hidden_size)
+                torch.nn.Linear(np.prod(env.single_observation_space.shape), 256)
             ),
             torch.nn.ReLU(),
-            pufferlib.pytorch.layer_init(torch.nn.Linear(self.hidden_size, self.hidden_size)),
+            pufferlib.pytorch.layer_init(torch.nn.Linear(256, self.hidden_size)),
+            torch.nn.ReLU(),
         )
 
-        self._rnn = torch.nn.LSTM(self.hidden_size, self.hidden_size, batch_first=True)
+        self._rnn = torch.nn.LSTM(
+            input_size=self.hidden_size,
+            hidden_size=self.hidden_size,
+            num_layers=2,
+            batch_first=True,
+        )
 
         self._action_nvec = tuple(env.single_action_space.nvec)
+        action_dim = sum(self._action_nvec)
 
-        self._action_head = torch.nn.Linear(self.hidden_size, sum(self._action_nvec))
-        self._value_head = torch.nn.Linear(self.hidden_size, 1)
+        self._actor_head = torch.nn.Sequential(
+            pufferlib.pytorch.layer_init(torch.nn.Linear(self.hidden_size, 512)),
+            torch.nn.ReLU(),
+            pufferlib.pytorch.layer_init(torch.nn.Linear(512, action_dim)),
+        )
+
+        self._value_head = torch.nn.Sequential(
+            pufferlib.pytorch.layer_init(torch.nn.Linear(self.hidden_size, 1024), std=np.sqrt(2)),
+            torch.nn.Tanh(),
+            pufferlib.pytorch.layer_init(torch.nn.Linear(1024, 1)),
+        )
 
     def forward_eval(
         self,
@@ -47,7 +62,7 @@ class LSTMPolicyNet(torch.nn.Module):
         orig_shape = observations.shape
 
         # Figure out expected flattened obs size from self._net input size
-        expected_obs_size = self._net[0].in_features  # First linear layer input size
+        expected_obs_size = self._encoder[0].in_features  # First linear layer input size
 
         # Check if we have temporal dimension
         # With bptt_horizon>1, we get (segments, bptt_horizon, *obs_shape)
@@ -73,7 +88,7 @@ class LSTMPolicyNet(torch.nn.Module):
         if observations.max() > 1.0:
             observations = observations / 255.0
 
-        hidden = self._net(observations)
+        hidden = self._encoder(observations)
         hidden = rearrange(hidden, "(b t) h -> b t h", t=bptt_horizon, b=segments)
 
         # Handle state being passed as either a dict (from PufferLib) or tuple (from our API)
@@ -133,7 +148,7 @@ class LSTMPolicyNet(torch.nn.Module):
             state["lstm_h"], state["lstm_c"] = h, c
 
         hidden = rearrange(hidden, "b t h -> (b t) h")
-        logits = self._action_head(hidden)
+        logits = self._actor_head(hidden)
         logits = logits.split(self._action_nvec, dim=1)
 
         values = self._value_head(hidden)
