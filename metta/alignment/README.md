@@ -2,8 +2,6 @@
 
 This module implements the **GAMMA** (General Alignment Metric for Multi-agent Autonomy) framework for quantifying alignment in autonomous agent swarms.
 
-Based on: *"GAMMA: A Framework-Agnostic Alignment Metric for Autonomous Swarms"*
-## Overview
 
 GAMMA provides a unitless alignment index in [0, 1] built from five observable components:
 
