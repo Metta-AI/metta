@@ -83,7 +83,7 @@ def _default_mission(num_cogs: int = 4, clip_rate: float = 0.0) -> GameConfig:
                 ("scrambler", "modulator", "decoder", "resonator"): 5,
             },
             rewards=AgentRewards(
-                stats={"chest.heart.amount": 1},
+                stats={"chest.heart.amount": 1 / num_cogs},
                 # inventory={
                 #     "heart": 1,
                 # },
