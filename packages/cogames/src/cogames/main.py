@@ -16,7 +16,6 @@ from cogames import play as play_module
 from cogames import train as train_module
 from cogames.cogs_vs_clips.scenarios import make_game
 from cogames.policy.utils import parse_policy_spec, resolve_policy_class_path, resolve_policy_data_path
-from mettagrid import MettaGridConfig
 
 # Always add current directory to Python path
 sys.path.insert(0, ".")
@@ -38,6 +37,7 @@ console = Console()
 def default(ctx: typer.Context) -> None:
     """Show help when no command is provided."""
     if ctx.invoked_subcommand is None:
+        # No command provided, show help
         print(ctx.get_help())
 
 
@@ -47,29 +47,31 @@ def games_cmd(
     save: Optional[Path] = typer.Option(None, "--save", "-s", help="Save game configuration to file (YAML or JSON)"),  # noqa: B008
 ) -> None:
     if game_name is None:
+        # List all games
         game.list_games(console)
-        return
-
-    try:
-        game_config = game.get_game(game_name)
-    except ValueError as exc:  # pragma: no cover - user input
-        console.print(f"[red]Error: {exc}[/red]")
-        raise typer.Exit(1) from exc
-
-    if save:
+    else:
+        # Get the game configuration
         try:
-            game.save_game_config(game_config, save)
+            game_config = game.get_game(game_name)
         except ValueError as exc:  # pragma: no cover - user input
-            console.print(f"[red]Error saving configuration: {exc}[/red]")
+            console.print(f"[red]Error: {exc}[/red]")
             raise typer.Exit(1) from exc
-        console.print(f"[green]Game configuration saved to: {save}[/green]")
-        return
 
-    try:
-        game.describe_game(game_name, console)
-    except ValueError as exc:  # pragma: no cover - user input
-        console.print(f"[red]Error: {exc}[/red]")
-        raise typer.Exit(1) from exc
+        # Save configuration if requested
+        if save:
+            try:
+                game.save_game_config(game_config, save)
+                console.print(f"[green]Game configuration saved to: {save}[/green]")
+            except ValueError as exc:  # pragma: no cover - user input
+                console.print(f"[red]Error saving configuration: {exc}[/red]")
+                raise typer.Exit(1) from exc
+        else:
+            # Otherwise describe the game
+            try:
+                game.describe_game(game_name, console)
+            except ValueError as exc:  # pragma: no cover - user input
+                console.print(f"[red]Error: {exc}[/red]")
+                raise typer.Exit(1) from exc
 
 
 @app.command(name="play", no_args_is_help=True, help="Play a game")
@@ -221,7 +223,7 @@ def train_cmd(
 
     rotation_aliases = {"training_rotation", "training_facility_rotation", "training_cycle"}
 
-    env_cfg: Optional[MettaGridConfig]
+    env_cfg = None
     curriculum_callable = None
     representative_game: str
 
@@ -291,9 +293,10 @@ def evaluate_cmd(
     if not policies:
         console.print("[red]Error: No policies provided[/red]")
         raise typer.Exit(1)
-    policy_specs = [parse_policy_spec(spec) for spec in policies]
 
     resolved_game, env_cfg = utils.get_game_config(console, game_name)
+
+    policy_specs = [parse_policy_spec(spec, console=console, game_name=resolved_game) for spec in policies]
 
     console.print(f"[cyan]Evaluating {len(policy_specs)} policies on {resolved_game} over {episodes} episodes[/cyan]")
 
