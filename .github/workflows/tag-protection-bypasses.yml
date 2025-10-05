@@ -22,7 +22,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: main
-          fetch-depth: 1 # Shallow clone - faster
+          fetch-depth: 1
 
       - name: Configure Git
         run: |
