@@ -1,4 +1,4 @@
-from mettagrid.config.config import Config
+from mettagrid.base_config import Config
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.scenes.ascii import Ascii
 

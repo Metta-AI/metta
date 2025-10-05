@@ -31,7 +31,6 @@ public:
   std::vector<InventoryItem> soul_bound_resources;
   // Resources that this agent will try to share when it uses another agent.
   std::vector<InventoryItem> shareable_resources;
-  ObservationType color;
   ObservationType glyph;
   // Despite being a GridObjectId, this is different from the `id` property.
   // This is the index into MettaGrid._agents (std::vector<Agent*>)
@@ -61,7 +60,6 @@ public:
         group_name(config.group_name),
         soul_bound_resources(config.soul_bound_resources),
         shareable_resources(config.shareable_resources),
-        color(0),
         glyph(0),
         agent_id(0),
         stats(resource_names),
@@ -216,7 +214,6 @@ public:
     features.push_back({ObservationFeature::Group, static_cast<ObservationType>(group)});
     features.push_back({ObservationFeature::Frozen, static_cast<ObservationType>(frozen != 0 ? 1 : 0)});
     features.push_back({ObservationFeature::Orientation, static_cast<ObservationType>(orientation)});
-    features.push_back({ObservationFeature::Color, static_cast<ObservationType>(color)});
     if (glyph != 0) features.push_back({ObservationFeature::Glyph, static_cast<ObservationType>(glyph)});
 
     for (const auto& [item, amount] : this->inventory.get()) {

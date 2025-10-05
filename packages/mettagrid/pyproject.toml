@@ -1,11 +1,5 @@
 [build-system]
-requires = [
-  "setuptools>=61.0",
-  "wheel",
-  "numpy>=2",
-  "pybind11==2.10.4",
-  "setuptools_scm>=8",
-]
+requires = ["setuptools>=61.0", "wheel", "numpy>=2", "pybind11==2.10.4", "setuptools_scm>=8"]
 build-backend = "bazel_build"
 backend-path = ["."]
 
@@ -46,7 +40,9 @@ python_files = ["test_*.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]
 # Exclude the generic Bazel C++ test runner script (not a pytest test)
+# Exclude Bazel symlink directories
 addopts = "--ignore=tests/run_test.py"
+norecursedirs = ["bazel-*", ".bazel_output", ".*"]
 
 [tool.uv]
 cache-keys = [
@@ -84,12 +80,4 @@ root = "../.."
 fallback_version = "0.0.0"
 
 [tool.setuptools_scm.scm.git]
-describe_command = [
-  "git",
-  "describe",
-  "--dirty",
-  "--tags",
-  "--long",
-  "--match",
-  "mettagrid-v*",
-]
+describe_command = ["git", "describe", "--dirty", "--tags", "--long", "--match", "mettagrid-v*"]

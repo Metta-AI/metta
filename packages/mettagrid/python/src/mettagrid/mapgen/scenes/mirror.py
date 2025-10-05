@@ -2,8 +2,8 @@ from typing import Literal
 
 from pydantic import ConfigDict, Field
 
+from mettagrid.mapgen.area import AreaWhere
 from mettagrid.mapgen.scene import ChildrenAction, Scene, SceneConfig
-from mettagrid.mapgen.types import AreaWhere
 
 Symmetry = Literal["horizontal", "vertical", "x4"]
 

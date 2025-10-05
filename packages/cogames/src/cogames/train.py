@@ -6,9 +6,15 @@ import platform
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
+import psutil
+from rich.console import Console
+
+import pufferlib.vector
 from cogames.policy import TrainablePolicy
+from cogames.utils import initialize_or_load_policy
 from mettagrid import MettaGridConfig, MettaGridEnv
-from mettagrid.util.module import load_symbol
+from pufferlib import pufferl
+from pufferlib.pufferlib import set_buffers
 
 if TYPE_CHECKING:
     import torch
@@ -27,16 +33,10 @@ def train(
     batch_size: int,
     minibatch_size: int,
     game_name: Optional[str] = None,
-    *,
     vector_num_envs: Optional[int] = None,
     vector_batch_size: Optional[int] = None,
     vector_num_workers: Optional[int] = None,
 ) -> None:
-    import pufferlib.pytorch  # noqa: F401 - ensure modules register with torch
-    import pufferlib.vector
-    from pufferlib import pufferl
-    from pufferlib.pufferlib import set_buffers
-
     def env_creator(cfg: MettaGridConfig, buf: Optional[Any] = None, seed: Optional[int] = None):
         env = MettaGridEnv(env_cfg=cfg)
         set_buffers(env, buf)
@@ -48,15 +48,13 @@ def train(
         # TODO(jsuarez): Fix multiprocessing backend
         backend = pufferlib.vector.Serial
 
-    desired_workers = vector_num_workers if vector_num_workers is not None else 8
-    cpu_cores = None
-    try:
-        import psutil
+    # Get CPU cores for default value
+    cpu_cores = psutil.cpu_count(logical=False) or psutil.cpu_count(logical=True)
 
-        cpu_cores = psutil.cpu_count(logical=False) or psutil.cpu_count(logical=True)
-    except Exception:  # pragma: no cover - best effort fallback
-        cpu_cores = None
+    # Default to CPU cores if not specified, otherwise fallback to 4
+    desired_workers = vector_num_workers or cpu_cores or 4
 
+    # Cap at CPU cores if available
     if cpu_cores is not None:
         adjusted_workers = min(desired_workers, max(1, cpu_cores))
         if adjusted_workers < desired_workers:
@@ -73,10 +71,10 @@ def train(
         backend = pufferlib.vector.Serial
         num_workers = 1
 
-    num_envs = vector_num_envs if vector_num_envs is not None else 256
+    num_envs = vector_num_envs or 256
 
     envs_per_worker = max(1, num_envs // num_workers)
-    base_batch_size = vector_batch_size if vector_batch_size is not None else 128
+    base_batch_size = vector_batch_size or 128
     vector_batch_size = max(base_batch_size, envs_per_worker)
     remainder = vector_batch_size % envs_per_worker
     if remainder:
@@ -101,18 +99,11 @@ def train(
         },
     )
 
-    # Load the TrainablePolicy class using the new API
-    policy_class = load_symbol(policy_class_path)
-    policy = policy_class(vecenv.driver_env, device)
-
+    policy = initialize_or_load_policy(policy_class_path, initial_weights_path, vecenv.driver_env, device)
     # Ensure it implements the TrainablePolicy interface
     assert isinstance(policy, TrainablePolicy), (
         f"Policy class {policy_class_path} must implement TrainablePolicy interface"
     )
-
-    # Load initial weights if provided
-    if initial_weights_path:
-        policy.load_policy_data(initial_weights_path)
 
     # Detect if policy uses RNN (e.g., LSTM)
     use_rnn = "lstm" in policy_class_path.lower() or "rnn" in policy_class_path.lower()
@@ -243,7 +234,6 @@ def train(
     trainer.close()
 
     # Print checkpoint path and usage commands with colored output
-    from rich.console import Console
 
     console = Console()
 

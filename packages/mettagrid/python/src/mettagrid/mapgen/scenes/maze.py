@@ -3,9 +3,9 @@ from typing import Literal, TypeAlias, Union
 
 import numpy as np
 
+from mettagrid.map_builder import MapGrid
 from mettagrid.mapgen.random.int import IntConstantDistribution, IntDistribution
 from mettagrid.mapgen.scene import Scene, SceneConfig
-from mettagrid.mapgen.types import MapGrid
 
 Anchor = Union[
     Literal["top-left"],

@@ -40,8 +40,6 @@ class PufferPolicy(Policy):
 
         self.active_action_names = []
         self.num_active_actions = 100  # Default
-        self.action_index_tensor = None
-        self.cum_action_max_params = None
 
         self.out_width = env_metadata.obs_width
         self.out_height = env_metadata.obs_height

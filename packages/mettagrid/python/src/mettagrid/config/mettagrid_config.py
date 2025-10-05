@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from functools import lru_cache
-from typing import TYPE_CHECKING, Annotated, Any, Literal, Optional, Union
+from typing import Annotated, Any, Literal, Optional, Union
 
 from pydantic import (
     ConfigDict,
@@ -9,33 +8,13 @@ from pydantic import (
     Field,
     SerializeAsAny,
     Tag,
-    TypeAdapter,
-    field_validator,
     model_validator,
 )
 
-from mettagrid.config.config import Config
-
-if TYPE_CHECKING:
-    from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
-else:
-    # Pydantic needs a value for this else we will get a PydanticUndefinedAnnotation error
-    # We have a field-validator to check that the value is a valid AnyMapBuilderConfig
-    AnyMapBuilderConfig = Any
-
-
-def _default_map_builder_config() -> "AnyMapBuilderConfig":
-    from mettagrid.map_builder.random import RandomMapBuilder
-
-    return RandomMapBuilder.Config(agents=24)
-
-
-@lru_cache(maxsize=1)
-def _map_builder_adapter() -> TypeAdapter["AnyMapBuilderConfig"]:
-    from mettagrid.map_builder.map_builder import AnyMapBuilderConfig as _AnyMapBuilderConfig
-
-    return TypeAdapter(_AnyMapBuilderConfig)
-
+from mettagrid.base_config import Config
+from mettagrid.map_builder.ascii import AsciiMapBuilder
+from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
+from mettagrid.map_builder.random import RandomMapBuilder
 
 # ===== Python Configuration Models =====
 
@@ -101,6 +80,15 @@ class ChangeGlyphActionConfig(ActionConfig):
     number_of_glyphs: int = Field(default=0, ge=0, le=255)
 
 
+class ResourceModActionConfig(ActionConfig):
+    """Resource mod action configuration."""
+
+    modifies: dict[str, float] = Field(default_factory=dict)
+    agent_radius: int = Field(default=0, ge=0, le=255)
+    converter_radius: int = Field(default=0, ge=0, le=255)
+    scales: bool = Field(default=False)
+
+
 class ActionsConfig(Config):
     """
     Actions configuration.
@@ -115,8 +103,8 @@ class ActionsConfig(Config):
     get_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     attack: AttackActionConfig = Field(default_factory=lambda: AttackActionConfig(enabled=False))
     swap: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
-    change_color: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     change_glyph: ChangeGlyphActionConfig = Field(default_factory=lambda: ChangeGlyphActionConfig(enabled=False))
+    resource_mod: ResourceModActionConfig = Field(default_factory=lambda: ResourceModActionConfig(enabled=False))
 
 
 class GlobalObsConfig(Config):
@@ -161,7 +149,6 @@ class ConverterConfig(GridObjectConfig):
     conversion_ticks: int = Field(ge=0, default=1)
     cooldown: int = Field(ge=0)
     initial_resource_count: int = Field(ge=0, default=0)
-    color: int = Field(default=0, ge=0, le=255)
 
 
 class RecipeConfig(Config):
@@ -193,6 +180,9 @@ class AssemblerConfig(GridObjectConfig):
     clip_immune: bool = Field(
         default=False, description="If true, this assembler cannot be clipped by the Clipper system"
     )
+    start_clipped: bool = Field(
+        default=False, description="If true, this assembler starts in a clipped state at the beginning of the game"
+    )
 
 
 class ChestConfig(GridObjectConfig):
@@ -200,20 +190,50 @@ class ChestConfig(GridObjectConfig):
 
     type: Literal["chest"] = Field(default="chest")
     resource_type: str = Field(description="Resource type that this chest can store")
-    deposit_positions: list[FixedPosition] = Field(
-        default_factory=list, description="Positions where agents can deposit resources"
+    position_deltas: list[tuple[FixedPosition, int]] = Field(
+        default_factory=list,
+        description=(
+            "List of (position, delta) tuples. "
+            "Positive delta = deposit, negative = withdraw (e.g., (E, 1) deposits 1, (N, -5) withdraws 5)"
+        ),
     )
-    withdrawal_positions: list[FixedPosition] = Field(
-        default_factory=list, description="Positions where agents can withdraw resources"
+    initial_inventory: int = Field(default=0, ge=0, description="Initial amount of resource_type in the chest")
+    max_inventory: int = Field(
+        default=255,
+        ge=-1,
+        description="Maximum inventory (resources are destroyed when depositing beyond this, -1 = unlimited)",
     )
 
 
 class ClipperConfig(Config):
-    """Global clipper that probabilistically clips assemblers each tick."""
+    """
+    Global clipper that probabilistically clips assemblers each tick.
+
+    The clipper system uses a spatial diffusion process where clipping spreads
+    based on distance from already-clipped buildings. The length_scale parameter
+    controls the exponential decay: weight = exp(-distance / length_scale).
+
+    If length_scale is <= 0 (default 0.0), it will be automatically calculated
+    at runtime in C++ using percolation based on the actual grid size and
+    number of buildings placed. Set length_scale > 0 to use a manual value instead.
+
+    If cutoff_distance is <= 0 (default 0.0), it will be automatically set to
+    3 * length_scale at runtime. At this distance, exp(-3) ≈ 0.05, making weights
+    negligible. Set cutoff_distance > 0 to use a manual cutoff.
+    """
 
     unclipping_recipes: list[RecipeConfig] = Field(default_factory=list)
-    length_scale: float = Field(default=1.0, ge=0.0)
-    cutoff_distance: float = Field(default=0.0, ge=0.0)
+    length_scale: float = Field(
+        default=0.0,
+        description="Controls spatial spread rate: weight = exp(-distance / length_scale). "
+        "If <= 0, automatically calculated using percolation at runtime.",
+    )
+    cutoff_distance: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Maximum distance for infection weight calculations. "
+        "If <= 0, automatically set to 3 * length_scale at runtime.",
+    )
     clip_rate: float = Field(default=0.0, ge=0.0, le=1.0)
 
 
@@ -278,16 +298,7 @@ class GameConfig(Config):
     clipper: Optional[ClipperConfig] = Field(default=None, description="Global clipper configuration")
 
     # Map builder configuration - accepts any MapBuilder config
-    map_builder: "AnyMapBuilderConfig" = Field(default_factory=_default_map_builder_config)
-
-    @field_validator("map_builder", mode="before")
-    @classmethod
-    def _coerce_map_builder(cls, value: Any) -> Any:
-        if value is None:
-            return value
-
-        adapter = _map_builder_adapter()
-        return adapter.validate_python(value)
+    map_builder: AnyMapBuilderConfig = RandomMapBuilder.Config(agents=24)
 
     # Feature Flags
     track_movement_metrics: bool = Field(
@@ -313,8 +324,6 @@ class MettaGridConfig(Config):
         return self
 
     def with_ascii_map(self, map_data: list[list[str]]) -> "MettaGridConfig":
-        from mettagrid.map_builder.ascii import AsciiMapBuilder
-
         self.game.map_builder = AsciiMapBuilder.Config(
             map_data=map_data,
             char_to_name_map={o.map_char: o.name for o in self.game.objects.values()},
@@ -326,8 +335,6 @@ class MettaGridConfig(Config):
         num_agents: int, width: int = 10, height: int = 10, border_width: int = 1, with_walls: bool = False
     ) -> "MettaGridConfig":
         """Create an empty room environment configuration."""
-        from mettagrid.map_builder.random import RandomMapBuilder
-
         map_builder = RandomMapBuilder.Config(agents=num_agents, width=width, height=height, border_width=border_width)
         actions = ActionsConfig(
             move=ActionConfig(),

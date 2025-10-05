@@ -3,7 +3,7 @@ from typing import Annotated, Any, ClassVar, Generic, Type, TypeVar
 
 from pydantic import SerializeAsAny, WrapValidator, model_serializer, model_validator
 
-from mettagrid.config.config import Config
+from mettagrid.base_config import Config
 from mettagrid.mapgen.types import MapGrid
 from mettagrid.util.module import load_symbol
 

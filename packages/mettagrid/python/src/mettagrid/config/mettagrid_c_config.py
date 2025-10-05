@@ -23,6 +23,7 @@ from mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
 from mettagrid.mettagrid_c import Recipe as CppRecipe
+from mettagrid.mettagrid_c import ResourceModConfig as CppResourceModConfig
 from mettagrid.mettagrid_c import WallConfig as CppWallConfig
 
 # Note that these are left to right, top to bottom.
@@ -266,7 +267,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 conversion_ticks=object_config.conversion_ticks,
                 cooldown=object_config.cooldown,
                 initial_resource_count=object_config.initial_resource_count,
-                color=object_config.color,
                 recipe_details_obs=game_config.recipe_details_obs,
                 tag_ids=tag_ids,
             )
@@ -318,6 +318,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_assembler_config.max_uses = object_config.max_uses
             cpp_assembler_config.exhaustion = object_config.exhaustion
             cpp_assembler_config.clip_immune = object_config.clip_immune
+            cpp_assembler_config.start_clipped = object_config.start_clipped
             objects_cpp_params[object_type] = cpp_assembler_config
         elif isinstance(object_config, ChestConfig):
             # Convert resource type name to ID
@@ -326,12 +327,19 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             # Convert tag names to IDs
             tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
 
+            # Convert position_deltas from (FixedPosition, delta) to (position_index, delta)
+            position_deltas_map = {}
+            for pos, delta in object_config.position_deltas:
+                position_index = FIXED_POSITIONS.index(pos)
+                position_deltas_map[position_index] = delta
+
             cpp_chest_config = CppChestConfig(
                 type_id=object_config.type_id,
                 type_name=object_type,
                 resource_type=resource_type_id,
-                deposit_positions=set(FIXED_POSITIONS.index(pos) for pos in object_config.deposit_positions),
-                withdrawal_positions=set(FIXED_POSITIONS.index(pos) for pos in object_config.withdrawal_positions),
+                position_deltas=position_deltas_map,
+                initial_inventory=object_config.initial_inventory,
+                max_inventory=object_config.max_inventory,
                 tag_ids=tag_ids,
             )
             objects_cpp_params[object_type] = cpp_chest_config
@@ -401,6 +409,23 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 "number_of_glyphs": action_config["number_of_glyphs"],
             }
             actions_cpp_params[action_name] = CppChangeGlyphActionConfig(**change_glyph_params)
+        elif action_name == "resource_mod":
+            # Extract the specific parameters needed for ResourceModConfig
+            modifies_dict = action_config.get("modifies", {})
+            unknown_modifies = set(modifies_dict.keys()) - set(resource_name_to_id.keys())
+            if unknown_modifies:
+                unknown_list = sorted(unknown_modifies)
+                raise ValueError(f"Unknown resource names in modifies for action '{action_name}': {unknown_list}")
+
+            resource_mod_params = {
+                "required_resources": action_cpp_params.get("required_resources", {}),
+                "consumed_resources": action_cpp_params.get("consumed_resources", {}),
+                "modifies": {resource_name_to_id[k]: float(v) for k, v in modifies_dict.items()},
+                "agent_radius": action_config.get("agent_radius", 0),
+                "converter_radius": action_config.get("converter_radius", 0),
+                "scales": action_config.get("scales", False),
+            }
+            actions_cpp_params[action_name] = CppResourceModConfig(**resource_mod_params)
         else:
             actions_cpp_params[action_name] = CppActionConfig(**action_cpp_params)
 
