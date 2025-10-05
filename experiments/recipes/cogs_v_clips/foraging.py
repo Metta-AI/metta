@@ -113,7 +113,7 @@ class ForagingTaskGenerator(TaskGenerator):
         if num_extractors > 0:
             input_resources.update({resource: 1 for resource in self.used_resources})
 
-        cooldown = num_assemblers * 3
+        cooldown = num_assemblers * 8
 
         assembler = make_assembler(
             input_resources, {"heart": 1}, position, cooldown=cooldown
