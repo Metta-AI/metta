@@ -40,7 +40,8 @@ class ForagingTaskGenerator(TaskGenerator):
         num_extractor_types: list[int]
         num_chests: list[int]
         size: list[int]
-        positions: list[list[Position]]
+        assembler_positions: list[list[Position]]
+        extractor_positions: list[list[Position]] = [["Any"]]
 
     def __init__(self, config: "ForagingTaskGenerator.Config"):
         super().__init__(config)
@@ -65,7 +66,7 @@ class ForagingTaskGenerator(TaskGenerator):
         max_steps = max(150, area * num_objects * 2)
         return min(max_steps, 1800)
 
-    def _make_extractors(self, num_extractors, num_extractor_types, cfg, rng: random.Random):
+    def _make_extractors(self, num_extractors, num_extractor_types, cfg, extractor_position, rng: random.Random):
         """Make generators that input nothing and output resources for the altar"""
         resource_types = rng.sample(RESOURCES, num_extractor_types)
 
@@ -75,16 +76,19 @@ class ForagingTaskGenerator(TaskGenerator):
         if remaining > 0:
             extractor_counts[resource_types[0]] += remaining
 
+        print(f"Making {num_extractors} extractors with {num_extractor_types} types and counts: {extractor_counts}")
+
         for resource, count in extractor_counts.items():
-            self.used_resources.add(resource)
-            extractor = make_extractor(
-                resource,
-                inputs={},
-                outputs={resource: 1},
-                position=["Any"],
-            )
-            cfg.game_objects[extractor.name] = extractor
-            cfg.map_builder_objects[extractor.name] = count
+            if count > 0:
+                self.used_resources.add(resource)
+                extractor = make_extractor(
+                    resource,
+                    inputs={},
+                    outputs={resource: 1},
+                    position=extractor_position,
+                )
+                cfg.game_objects[extractor.name] = extractor
+                cfg.map_builder_objects[extractor.name] = count
 
     def _make_chests(self, num_chests, cfg):
         chest = make_chest(position_deltas=[("N", 1), ("S", 1), ("E", 1), ("W", 1)])
@@ -97,8 +101,6 @@ class ForagingTaskGenerator(TaskGenerator):
         cfg,
         position,
         num_extractors,
-        rng: random.Random,
-        max_input_resources=3,
     ):
         input_resources = {}
         if num_extractors > 0:
@@ -108,6 +110,8 @@ class ForagingTaskGenerator(TaskGenerator):
                     for resource in self.used_resources
                 }
             )
+
+        print(f"Making {num_assemblers} assemblers with {num_extractors} extractors and inputs: {input_resources}")
 
         assembler = make_assembler(input_resources, {"heart": 1}, position, cooldown=10)
         cfg.game_objects["assembler"] = assembler
@@ -122,15 +126,16 @@ class ForagingTaskGenerator(TaskGenerator):
         num_extractor_types,
         size,
         assembler_position,
+        extractor_position,
         num_chests,
         max_steps,
         rng: random.Random = random.Random(),
     ) -> MettaGridConfig:
         cfg = BuildCfg()
 
-        self._make_extractors(num_extractors, num_extractor_types, cfg, rng)
+        self._make_extractors(num_extractors, num_extractor_types, cfg, extractor_position, rng,)
 
-        self._make_assemblers(num_assemblers, cfg, assembler_position, num_extractors, rng)
+        self._make_assemblers(num_assemblers, cfg, assembler_position, num_extractors)
 
         if num_chests > 0:
             # if using chests, then we get reward from hearts in chest
@@ -182,7 +187,8 @@ class ForagingTaskGenerator(TaskGenerator):
         num_extractors = rng.choice(self.config.num_extractors)
         num_chests = rng.choice(self.config.num_chests)
         size = rng.choice(self.config.size)
-        assembler_position = rng.choice(self.config.positions)
+        assembler_position = rng.choice(self.config.assembler_positions)
+        extractor_position = rng.choice(self.config.extractor_positions)
         num_objects = num_assemblers + num_extractors + num_chests
         num_extractor_types = rng.choice(self.config.num_extractor_types)
 
@@ -198,6 +204,7 @@ class ForagingTaskGenerator(TaskGenerator):
             num_extractor_types=num_extractor_types,
             size=size,
             assembler_position=assembler_position,
+            extractor_position=extractor_position,
             num_chests=num_chests,
             max_steps=max_steps,
             rng=rng,
