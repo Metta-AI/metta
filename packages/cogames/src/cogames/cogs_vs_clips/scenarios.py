@@ -161,7 +161,7 @@ def tutorial_assembler_simple(num_cogs: int = 1) -> MettaGridConfig:
     cfg = make_game(num_cogs=num_cogs, num_assemblers=1)
     cfg.game.objects["assembler"] = assembler()
     cfg.game.objects["assembler"].recipes = [
-        (["Any"], RecipeConfig(input_resources={"battery_red": 3}, output_resources={"heart": 1}, cooldown=10))
+        (["Any"], RecipeConfig(input_resources={"energy": 1}, output_resources={"heart": 1}, cooldown=1))
     ]
     return cfg
 
@@ -178,7 +178,7 @@ def tutorial_assembler_complex(num_cogs: int = 1) -> MettaGridConfig:
     )
     cfg.game.objects["assembler"] = assembler()
     cfg.game.objects["assembler"].recipes = [
-        (["Any"], RecipeConfig(input_resources={"battery_red": 3}, output_resources={"heart": 1}, cooldown=10))
+        (["Any"], RecipeConfig(input_resources={"energy": 1}, output_resources={"heart": 1}, cooldown=1))
     ]
     return cfg
 
