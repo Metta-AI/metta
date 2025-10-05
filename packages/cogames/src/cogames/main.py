@@ -217,6 +217,7 @@ def train_cmd(
     from cogames import curricula
 
     rotation_aliases = {"training_rotation", "training_facility_rotation", "training_cycle"}
+    rotation_easy_aliases = {"training_rotation_easy"}
 
     env_cfg = None
     curriculum_callable = None
@@ -226,6 +227,10 @@ def train_cmd(
         curriculum_callable = curricula.training_rotation()
         env_cfg = None
         representative_game = "training_rotation"
+    elif game_name in rotation_easy_aliases:
+        curriculum_callable = curricula.training_rotation_easy()
+        env_cfg = None
+        representative_game = "training_rotation_easy"
     else:
         resolved_game, env_cfg = utils.get_game_config(console, game_name)
         representative_game = resolved_game
