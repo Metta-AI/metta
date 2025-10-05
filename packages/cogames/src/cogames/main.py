@@ -171,7 +171,7 @@ def train_cmd(
         callback=lambda ctx, value: game.require_game_argument(ctx, value, console),
     ),
     policy_class_path: str = typer.Option(
-        "cogames.policy.lstm.LSTMPolicy",
+        "cogames.policy.simple.SimplePolicy",
         "--policy",
         help="Path to policy class",
         callback=resolve_policy_class_path,
