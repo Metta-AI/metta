@@ -49,7 +49,9 @@ class HierarchicalActionMettaGridEnv(MettaGridEnv):
 
         expected_dims = self._hierarchical_action_space.nvec.size
         if actions.shape[1] != expected_dims:
-            raise ValueError(f"Expected actions with {expected_dims} dimensions, got shape {actions.shape}.")
+            raise ValueError(
+                f"Expected actions with {expected_dims} dimensions, got shape {actions.shape}."
+            )
 
         num_agents = actions.shape[0]
         verb_indices = actions[:, 0].astype(np.int64, copy=True)

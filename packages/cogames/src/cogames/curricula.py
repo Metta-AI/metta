@@ -45,24 +45,28 @@ def _make_rotation_supplier(
 
 
 def training_rotation(names: Iterable[str] | None = None) -> Callable[[], MettaGridConfig]:
-    """Cycle the default training maps."""
+    """Cycle the default training rotation."""
 
     return _make_rotation_supplier(names, easy=False, shaped=False)
 
 
 def training_rotation_easy(names: Iterable[str] | None = None) -> Callable[[], MettaGridConfig]:
-    """Cycle the training maps with easy heart crafting enabled."""
+    """Cycle the rotation with easy heart crafting enabled."""
 
     return _make_rotation_supplier(names, easy=True, shaped=False)
 
 
 def training_rotation_shaped(names: Iterable[str] | None = None) -> Callable[[], MettaGridConfig]:
-    """Cycle the training maps with shaped intermediate rewards."""
+    """Cycle the rotation with shaped intermediate rewards."""
 
     return _make_rotation_supplier(names, easy=False, shaped=True)
 
 
 def training_rotation_easy_shaped(names: Iterable[str] | None = None) -> Callable[[], MettaGridConfig]:
-    """Cycle the training maps with both easy heart crafting and shaped rewards."""
+    """Cycle the rotation with both easy hearts and shaped rewards."""
 
     return _make_rotation_supplier(names, easy=True, shaped=True)
+
+
+# Backward compatibility alias
+training_facility_rotation = training_rotation
