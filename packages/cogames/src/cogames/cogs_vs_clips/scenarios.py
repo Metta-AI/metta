@@ -140,28 +140,27 @@ def make_game(
     max_border = max(0, min(width, height) // 2 - 1)
     border_width = min(1, max_border)
 
-    object_counts = {
-        "assembler": num_assemblers,
-        "chest": num_chests,
-        "charger": num_chargers,
-        "carbon_extractor": num_carbon_extractors,
-        "oxygen_extractor": num_oxygen_extractors,
-        "germanium_extractor": num_germanium_extractors,
-        "silicon_extractor": num_silicon_extractors,
-    }
-
-    filtered_objects = {name: count for name, count in object_counts.items() if count > 0}
-
     map_builder = RandomMapBuilder.Config(
         width=width,
         height=height,
         agents=num_cogs,
         border_width=border_width,
-        objects=filtered_objects,
+        objects={
+            name: count
+            for name, count in {
+                "assembler": num_assemblers,
+                "chest": num_chests,
+                "charger": num_chargers,
+                "carbon_extractor": num_carbon_extractors,
+                "oxygen_extractor": num_oxygen_extractors,
+                "germanium_extractor": num_germanium_extractors,
+                "silicon_extractor": num_silicon_extractors,
+            }.items()
+            if count > 0
+        },
         seed=42,
     )
     cfg.game.map_builder = map_builder
-    cfg.game.max_steps *= 20
     return cfg
 
 
