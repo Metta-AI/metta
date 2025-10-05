@@ -278,6 +278,13 @@ class TrainTool(Tool):
                 )
             )
 
+        custom_components = self.get_custom_components(
+            checkpoint_manager=checkpoint_manager,
+            wandb_run=wandb_run,
+        )
+
+        components.extend(custom_components)
+
         for component in components:
             if component is None:
                 continue
@@ -285,6 +292,13 @@ class TrainTool(Tool):
 
         if wandb_run is not None and distributed_helper.is_master():
             trainer.register(WandbLogger(wandb_run))
+
+    def get_custom_components(
+        self,
+        checkpoint_manager: CheckpointManager,
+        wandb_run,
+    ) -> list[TrainerComponent]:
+        return []
 
     def _log_run_configuration(
         self,
