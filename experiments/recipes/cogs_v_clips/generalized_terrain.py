@@ -158,10 +158,10 @@ class GeneralizedTerrainTaskGenerator(TaskGenerator):
             num_instances=1,
             max_steps=1000,
             game_objects=game_objects,
-            map_builder_objects=cfg.map_builder_objects,
+            perimeter_objects=num_extractors,
+            center_objects={},
             resources=list(num_extractors.keys()) + ["heart", "energy"],
             inventory_regen_interval=inventory_regen_interval,
-            terrain=rng.choice(["sparse", "balanced", "dense", "no-terrain"]),
             agent=agent,
         )
         env.game.map_builder = map_builder

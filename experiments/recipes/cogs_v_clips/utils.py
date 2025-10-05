@@ -11,6 +11,207 @@ from cogames.cogs_vs_clips.stations import (
 )
 from mettagrid.config.mettagrid_config import RecipeConfig, AgentConfig, AgentRewards
 
+
+#FORAGING CONFIGS
+# 1) perimeter and center objects are all assemblers, inputs nothing, outputs heart, no chest. PAIRS, TRIPLETS, QUADRUPLETS, AND COMBINED
+# 2) assemblers with chests. case 1: scattered chests, equal to the number of altars. case 2: center chest
+
+
+foraging_curriculum_args = {
+    "assembly_lines_chests_pairs": {
+        "num_cogs": [4],
+        "num_assemblers": [1],
+        "num_extractors": [0, 1, 2, 3, 4],
+        "num_extractor_types": [1, 2, 3, 4],
+        "num_chests": [1],
+        "size": [4],
+        "positions": [["Any", "Any"]],
+    },
+    "assembly_lines_chests_triplets": {
+        "num_cogs": [4],
+        "num_assemblers": [1],
+        "num_extractors": [0, 1, 2, 3, 4],
+        "num_extractor_types": [1, 2, 3, 4],
+        "num_chests": [1],
+        "size": [4],
+        "positions": [["Any", "Any","Any"]],
+    },
+    "assembly_lines_chests_quadruplets": {
+        "num_cogs": [4],
+        "num_assemblers": [1],
+        "num_extractors": [0, 1, 2, 3, 4],
+        "num_extractor_types": [1, 2, 3, 4],
+        "num_chests": [1],
+        "size": [4],
+        "positions": [["Any", "Any","Any", "Any"]],
+    },
+    "assembly_lines_chests_combined": {
+        "num_cogs": [4],
+        "num_assemblers": [1],
+        "num_extractors": [0, 1, 2, 3, 4],
+        "num_extractor_types": [1, 2, 3, 4],
+        "num_chests": [1],
+        "size": [4],
+        "positions": [["Any", "Any"]],
+    },
+    "assembly_lines_no_chests_pairs": {
+        "num_cogs": [4],
+        "num_assemblers": [1],
+        "num_extractors": [0, 1, 2, 3, 4],
+        "num_extractor_types": [1, 2, 3, 4],
+        "num_chests": [0],
+        "size": [4],
+        "positions": [["Any", "Any"]],
+    },
+    "assembly_lines_no_chests_triplets": {
+        "num_cogs": [4],
+        "num_assemblers": [1],
+        "num_extractors": [0, 1, 2, 3, 4],
+        "num_extractor_types": [1, 2, 3, 4],
+        "num_chests": [0],
+        "size": [4],
+        "positions": [["Any", "Any","Any"]],
+    },
+    "assembly_lines_no_chests_quadruplets": {
+        "num_cogs": [4],
+        "num_assemblers": [1],
+        "num_extractors": [0, 1, 2, 3, 4],
+        "num_extractor_types": [1, 2, 3, 4],
+        "num_chests": [0],
+        "size": [4],
+        "positions": [["Any", "Any","Any", "Any"]],
+    },
+    "assembly_lines_no_chests_combined": {
+        "num_cogs": [4],
+        "num_assemblers": [1],
+        "num_extractors": [0, 1, 2, 3, 4],
+        "num_extractor_types": [1, 2, 3, 4],
+        "num_chests": [0],
+        "size": [4],
+        "positions": [["Any", "Any"]],
+    },
+    "no_chests_pairs": {
+                "num_cogs": [4],
+                 "num_assemblers": [5,10,20],
+                 "num_chests": [0],
+                 "size": [8],
+                 "position": [["Any", "Any"]],
+                 },
+    "no_chests_triplets": {"num_cogs": [4],
+                 "num_assemblers": [5,10,20],
+                 "num_chests": [0],
+                 "size": [8],
+                 "position": [["Any", "Any","Any"]],
+                 },
+    "no_chests_quadruplets": {"num_cogs": [4],
+                 "num_assemblers": [5,10,20],
+                 "num_chests": [0],
+                 "size": [8],
+                 "position": [["Any", "Any","Any", "Any"]],
+                 },
+    "no_chests_combined": {"num_cogs": [4],
+                 "num_assemblers": [5,10,20],
+                 "num_chests": [0],
+                 "size": [8],
+                 "position": [["Any","Any"],["Any", "Any","Any"],["Any", "Any","Any","Any"]],
+                 },
+    "center_chests_pairs": {
+                "num_cogs": [4],
+                 "num_assemblers": [5,10,20],
+                 "num_chests": [1, 4, 10],
+                 "size": [8],
+                 "position": [["Any", "Any"]],
+                 },
+    "center_chests_triplets": {"num_cogs": [4],
+                 "num_assemblers": [5,10,20],
+                 "num_chests": [1, 4, 10],
+                 "size": [8],
+                 "position": [["Any", "Any","Any"]],
+                 },
+    "center_chests_quadruplets": {"num_cogs": [4],
+                 "num_assemblers": [5,10,20],
+                 "num_chests": [1, 4, 10],
+                 "size": [8],
+                 "position": [["Any", "Any","Any", "Any"]],
+                 },
+    "center_chests_combined": {"num_cogs": [4],
+                 "num_assemblers": [5,10,20],
+                 "num_chests": [1, 4, 10],
+                 "size": [8],
+                 "position": [["Any","Any"],["Any", "Any","Any"],["Any", "Any","Any","Any"]],
+                 },
+
+    #EXTRACTORS
+    "extractor_pairs": {
+                "num_cogs": [4],
+                 "num_assemblers": [4,8,12],
+                 "num_chests": [0],
+                 "num_extractors": [0, 4, 8, 12],
+                 "num_extractor_types": [1, 2, 3, 4],
+                 "size": [8],
+                 "position": [["Any", "Any"]],
+                 },
+    "extractor_triplets": {"num_cogs": [4],
+                 "num_assemblers": [4,8,12],
+                "num_chests": [0],
+                 "num_extractors": [0, 4, 8, 12, 16],
+                 "num_extractor_types": [1, 2, 3, 4],
+                 "size": [8],
+                 "position": [["Any", "Any","Any"]],
+                 },
+    "extractor_quadruplets": {"num_cogs": [4],
+                 "num_assemblers": [4,8,12],
+                 "num_chests": [0],
+                 "num_extractors": [0, 4, 8, 12, 16],
+                 "num_extractor_types": [1, 2, 3, 4],
+                 "size": [8],
+                 "position": [["Any", "Any","Any", "Any"]],
+                 },
+    "extractor_combined": {"num_cogs": [4],
+                 "num_assemblers": [4,8,12],
+                 "num_chests": [0, 1, 4],
+                 "num_extractors": [0, 4, 8, 12, 16],
+                 "num_extractor_types": [1, 2, 3, 4],
+                 "size": [8],
+                 "position": [["Any","Any"],["Any", "Any","Any"],["Any", "Any","Any","Any"]],
+                 },
+
+    "extractor_chests_pairs": {
+                "num_cogs": [4],
+                 "num_assemblers": [4,8,12],
+                 "num_chests": [0, 1, 4],
+                 "num_extractors": [0, 4, 8, 12],
+                 "num_extractor_types": [1, 2, 3, 4],
+                 "size": [8],
+                 "position": [["Any", "Any"]],
+                 },
+    "extractor_chests_triplets": {"num_cogs": [4],
+                 "num_assemblers": [4,8,12],
+                 "num_chests": [0, 1, 4],
+                 "num_extractors": [0, 4, 8, 12, 16],
+                 "num_extractor_types": [1, 2, 3, 4],
+                 "size": [8],
+                 "position": [["Any", "Any","Any"]],
+                 },
+    "extractor_chests_quadruplets": {"num_cogs": [4],
+                 "num_assemblers": [4,8,12],
+                 "num_chests": [0, 1, 4],
+                 "num_extractors": [0, 4, 8, 12, 16],
+                 "num_extractor_types": [1, 2, 3, 4],
+                 "size": [8],
+                 "position": [["Any", "Any","Any", "Any"]],
+                 },
+    "extractor_chests_combined": {"num_cogs": [4],
+                 "num_assemblers": [4,8,12],
+                 "num_chests": [0, 1, 4],
+                 "num_extractors": [0, 4, 8, 12, 16],
+                 "num_extractor_types": [1, 2, 3, 4],
+                 "size": [8],
+                 "position": [["Any","Any"],["Any", "Any","Any"],["Any", "Any","Any","Any"]],
+                 },
+}
+
+
 num_agents_to_positions = {
     1: [["N"], ["S"], ["E"], ["W"], ["Any"]],
     2: [
@@ -37,99 +238,6 @@ num_agents_to_positions = {
     ],
 }
 
-generalized_terrain_curriculum_args = {
-    "multi_agent_pairs": {
-        "num_cogs": [4],
-        "positions": [["Any"], ["Any", "Any"]],
-        "regeneration_rate": [1, 2, 3],
-        "sizes": ["small"],
-        "use_base": [True, False],
-    },
-    "multi_agent_triplets": {
-        "num_cogs": [4],
-        "positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
-        "regeneration_rate": [1, 2, 3],
-        "sizes": ["small"],
-        "use_base": [True, False],
-    },
-    "multi_agent_quadruplets": {
-        "num_cogs": [4],
-        "positions": [
-            ["Any"],
-            ["Any", "Any"],
-            ["Any", "Any", "Any"],
-            ["Any", "Any", "Any", "Any"],
-        ],
-        "regeneration_rate": [1, 2, 3],
-        "sizes": ["small"],
-        "use_base": [True, False],
-    },
-}
-
-foraging_curriculum_args = {
-    "pairs": {
-        "num_cogs": [4],
-        "num_assemblers": [2, 3, 4],
-        "num_extractors": [0, 1, 2, 3],
-        "room_size": ["medium"],
-        "positions": [["Any"], ["Any", "Any"]],
-        "num_chests": [0, 1, 2],
-    },
-    "triplets": {
-        "num_cogs": [4],
-        "num_assemblers": [2, 3, 4],
-        "num_extractors": [0, 1, 2, 3],
-        "room_size": ["medium"],
-        "positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
-        "num_chests": [0, 1, 2],
-    },
-    "quadruplets": {
-        "num_cogs": [4],
-        "num_assemblers": [2, 3, 4],
-        "num_extractors": [0, 1, 2, 3],
-        "room_size": ["medium"],
-        "positions": [
-            ["Any"],
-            ["Any", "Any"],
-            ["Any", "Any", "Any"],
-            ["Any", "Any", "Any", "Any"],
-        ],
-        "num_chests": [0, 1, 2],
-    },
-}
-
-assembly_lines_curriculum_args = {
-    "easy": {
-        "num_cogs": [4],
-        "chain_length": [1, 2, 3],
-        "room_size": ["small"],
-        "positions": [["Any", "Any"]],
-    },
-    "pairs": {
-        "num_cogs": [4],
-        "chain_length": [1, 2, 3, 4],
-        "room_size": ["small"],
-        "positions": [["Any"], ["Any", "Any"]],
-    },
-    "triplets": {
-        "num_cogs": [4],
-        "chain_length": [1, 2, 3, 4],
-        "room_size": ["small"],
-        "positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
-    },
-    "quadruplets": {
-        "num_cogs": [4],
-        "chain_length": [1, 2, 3, 4],
-        "room_size": ["small"],
-        "positions": [
-            ["Any"],
-            ["Any", "Any"],
-            ["Any", "Any", "Any"],
-            ["Any", "Any", "Any", "Any"],
-        ],
-    },
-}
-
 obj_distribution_by_room_size = {
     "small": [2, 4, 6],
     "medium": [5, 8, 10],
@@ -154,60 +262,39 @@ EXTRACTORS = {
 }
 
 
-def make_assembler(inputs, outputs, positions):
+def make_assembler(inputs, outputs, positions, cooldown=1):
     assembler = assembler_config()
     assembler.recipes = []
-    all_positions = [
-        ["Any"],
-        ["Any", "Any"],
-        ["Any", "Any", "Any"],
-        ["Any", "Any", "Any", "Any"],
-    ]
-    if positions in all_positions:
-        all_positions = all_positions[all_positions.index(positions) :]
-    else:
-        all_positions = [positions]
-    for position in all_positions:
-        assembler.recipes.append(
-            (
-                position,
-                RecipeConfig(
-                    input_resources=inputs,
-                    output_resources=outputs,
-                    cooldown=1,
-                ),
-            )
+    assembler.recipes.append(
+        (
+            positions,
+            RecipeConfig(
+                input_resources=inputs,
+                output_resources=outputs,
+                cooldown=cooldown,
+            ),
         )
+    )
     return assembler
 
 
 def make_extractor(resource, inputs, outputs, position):
     extractor = EXTRACTORS[resource]
 
-    all_positions = [
-        ["Any"],
-        ["Any", "Any"],
-        ["Any", "Any", "Any"],
-        ["Any", "Any", "Any", "Any"],
-    ]
-    if position in all_positions:
-        all_positions = all_positions[all_positions.index(position) :]
-    else:
-        all_positions = [position]  # we only want to output a single resource
     reduced_outputs = {}
     for output in outputs:
         reduced_outputs[output] = 1
-    for position in all_positions:
-        extractor.recipes.append(
-            (
-                position,
-                RecipeConfig(
-                    input_resources=inputs,
-                    output_resources=reduced_outputs,
-                    cooldown=1,
-                ),
-            )
+    extractor.recipes = []
+    extractor.recipes.append(
+        (
+            position,
+            RecipeConfig(
+                input_resources=inputs,
+                output_resources=reduced_outputs,
+                cooldown=1,
+            ),
         )
+    )
 
     return extractor
 
@@ -239,14 +326,6 @@ def make_agent(
     )
     return agent
 
-
-def add_extractor_to_game_cfg(extractor, game_cfg):
-    game_cfg.game_objects[extractor.name] = extractor
-    if extractor.name not in game_cfg.map_builder_objects:
-        game_cfg.map_builder_objects[extractor.name] = 1
-    else:
-        game_cfg.map_builder_objects[extractor.name] += 1
-    return game_cfg
 
 
 def make_charger():

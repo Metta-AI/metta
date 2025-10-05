@@ -170,69 +170,18 @@ def make_navigation_sequence(num_agents: int) -> MettaGridConfig:
     return cfg
 
 
-def make_in_context_chains(
-    num_agents: int,
-    max_steps,
-    game_objects: dict,
-    map_builder_objects: dict,
-    width: int = 6,
-    height: int = 6,
-    terrain: str = "no-terrain",
-    chain_length: int = 2,
-    num_sinks: int = 0,
-    dir: Optional[str] = None,
-) -> MettaGridConfig:
-    game_objects["wall"] = empty_converters.wall
-    cfg = MettaGridConfig(
-        desync_episodes=False,
-        game=GameConfig(
-            max_steps=max_steps,
-            num_agents=num_agents,
-            objects=game_objects,
-            map_builder=MapGen.Config(
-                instances=num_agents,
-                instance=PerimeterInContextMapBuilder.Config(
-                    agents=1,
-                    width=width,
-                    height=height,
-                    objects=map_builder_objects,
-                    density=terrain,
-                    chain_length=chain_length,
-                    num_sinks=num_sinks,
-                    dir=dir,
-                ),
-            ),
-            actions=ActionsConfig(
-                move=ActionConfig(),
-                get_items=ActionConfig(),
-                put_items=ActionConfig(),
-            ),
-            agent=AgentConfig(
-                rewards=AgentRewards(
-                    inventory={
-                        "heart": 1,
-                    },
-                ),
-                default_resource_limit=1,
-                resource_limits={"heart": 15},
-            ),
-        ),
-    )
-    return cfg
-
-
 def make_icl_assembler(
     num_agents: int,
     num_instances: int,
     max_steps,
     game_objects: dict,
-    map_builder_objects: dict,
+    perimeter_objects: dict,
+    center_objects: dict,
     agent,
-    terrain,
     resources,
+    size=10,
+    random_scatter=False,
     inventory_regen_interval=0,
-    width: int = 6,
-    height: int = 6,
 ) -> MettaGridConfig:
     game_objects["wall"] = empty_converters.wall
     consumed_resources = {"energy": 2.0} if inventory_regen_interval > 0 else {}
@@ -248,10 +197,10 @@ def make_icl_assembler(
                 instances=num_instances,
                 instance=AssemblerMapBuilder.Config(
                     agents=num_agents,
-                    width=width,
-                    height=height,
-                    objects=map_builder_objects,
-                    terrain=terrain,
+                    perimeter_objects=perimeter_objects,
+                    center_objects=center_objects,
+                    size=size,
+                    random_scatter=random_scatter,
                 ),
             ),
             actions=ActionsConfig(

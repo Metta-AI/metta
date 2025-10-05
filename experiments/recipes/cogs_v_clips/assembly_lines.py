@@ -139,18 +139,19 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
             inventory_rewards=inventory_rewards,
             resource_limits=resource_limits,
         )
+
+        perimeter_objects = {name: object for name, object in cfg.map_builder_objects.items() if "extractor" in name}
+        center_objects = {name: object for name, object in cfg.map_builder_objects.items() if "extractor" not in name}
         return make_icl_assembler(
             num_agents=num_agents,
             num_instances=1,
             max_steps=max_steps,
             game_objects=cfg.game_objects,
-            map_builder_objects=cfg.map_builder_objects,
-            width=width,
-            height=height,
+            perimeter_objects=perimeter_objects,
+            center_objects=center_objects,
             resources=list(self.used_resources) + ["heart", "energy"],
             agent=agent,
             inventory_regen_interval=0,
-            terrain=rng.choice(["sparse", "no-terrain"]),
         )
 
     def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
@@ -266,16 +267,22 @@ def make_mettagrid(task_generator) -> MettaGridConfig:
 
 
 def play(curriculum_style: str = "quadruplets") -> PlayTool:
-    task_generator = AssemblyLinesTaskGenerator(
-        config=AssemblyLinesTaskGenerator.Config(
-            **assembly_lines_curriculum_args[curriculum_style]
-        )
-    )
+    # task_generator = AssemblyLinesTaskGenerator(
+    #     config=AssemblyLinesTaskGenerator.Config(
+    #         **assembly_lines_curriculum_args[curriculum_style]
+    #     )
+    # )
+    env = make_env(num_cogs=2, chain_length=3, position=["N", "S"])
     return PlayTool(
         sim=SimulationConfig(
-            env=make_mettagrid(task_generator), suite="cogs_vs_clippies", name="play"
+            env=env, suite="cogs_vs_clippies", name="play"
         )
     )
+    # return PlayTool(
+    #     sim=SimulationConfig(
+    #         env=make_mettagrid(task_generator), suite="cogs_vs_clippies", name="play"
+    #     )
+    # )
 
 
 if __name__ == "__main__":

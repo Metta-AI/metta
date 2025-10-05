@@ -9,262 +9,294 @@ from mettagrid.map_builder.utils import draw_border
 class AssemblerMapBuilder(MapBuilder):
     class Config(MapBuilderConfig["AssemblerMapBuilder"]):
         seed: Optional[int] = None
-        width: int = 10
-        height: int = 10
-        objects: dict[str, int] = {}
-        agents: int | dict[str, int] = 0
-        border_width: int = 0
+        perimeter_objects: dict[str, int] = {}
+        center_objects: dict[str, int] = {}
+        agents: int | dict[str, int] = 4
+        border_width: int = 1
         border_object: str = "wall"
-        terrain: str = "no-terrain"  # "", "sparse", "balanced", "dense"
+        size: int = 7
+        random_scatter: bool = False
 
     def __init__(self, config: Config):
         self._config = config
         self._rng = np.random.default_rng(self._config.seed)
-        self._shape_cache: dict[tuple[str, int], np.ndarray] = {}
 
     def build(self) -> GameMap:
-        """Build a complete game map with terrain, objects, and agents."""
+        """Build a map that guarantees all objects are placed."""
         if self._config.seed is not None:
             self._rng = np.random.default_rng(self._config.seed)
 
-        grid = self._create_base_grid()
-        self._add_terrain(grid)
-        self._add_objects(grid)
-        self._add_agents(grid)
+        perimeter_list = self._create_object_list(self._config.perimeter_objects)
+        center_list = self._create_object_list(self._config.center_objects)
+        agent_list = self._create_agent_list()
+
+        # Calculate size based on mode
+        if self._config.random_scatter:
+            size = self._calculate_size_with_scatter(len(perimeter_list), len(center_list))
+        else:
+            size = self._calculate_size_structured(len(perimeter_list), len(center_list))
+
+        grid = np.full((size, size), "empty", dtype="<U50")
+        draw_border(grid, self._config.border_width, self._config.border_object)
+
+        # Place center objects first (always centered)
+        if center_list:
+            center_positions = self._get_centered_object_positions(grid, len(center_list))
+            self._place_objects(grid, center_list, center_positions)
+
+        # Place perimeter objects (either on perimeter or scattered)
+        if perimeter_list:
+            if self._config.random_scatter:
+                # Get already occupied positions to avoid
+                occupied = self._get_occupied_positions(grid)
+                self._scatter_objects(grid, perimeter_list, occupied)
+            else:
+                perimeter_positions = self._get_perimeter_positions(grid, len(perimeter_list))
+                self._place_objects(grid, perimeter_list, perimeter_positions)
+
+        # Place agents in remaining empty space
+        if agent_list:
+            self._place_agents(grid, agent_list)
 
         return GameMap(grid)
 
-    # ========== Grid Setup ==========
+    def _calculate_size_structured(self, num_perimeter: int, num_center: int) -> int:
+        """Calculate size for structured placement."""
+        import math
 
-    def _create_base_grid(self) -> np.ndarray:
-        """Create empty grid with border."""
-        grid = np.full((self._config.height, self._config.width), "empty", dtype="<U50")
+        bw = self._config.border_width
 
-        if self._config.border_width > 0:
-            draw_border(grid, self._config.border_width, self._config.border_object)
+        if num_perimeter == 0 and num_center == 0:
+            # Just agents, minimal room
+            num_agents = self._get_num_agents()
+            min_dim = math.ceil(math.sqrt(num_agents))
+            return 2 * (bw + 1) + min_dim
 
-        return grid
+        # Calculate space needed for center objects
+        if num_center > 0:
+            objects_per_side = math.ceil(math.sqrt(num_center))
+            center_dim = 2 * (objects_per_side - 1) + 1
+        else:
+            center_dim = 0
 
-    # ========== Terrain Placement ==========
+        # Calculate space needed for perimeter
+        if num_perimeter > 0:
+            # Perimeter needs at least 3 cells per object along the perimeter
+            perimeter_inner_dim = math.ceil((num_perimeter * 3 + 4) / 4)
+        else:
+            perimeter_inner_dim = 0
 
-    def _add_terrain(self, grid: np.ndarray) -> None:
-        """Add terrain obstacles to the grid."""
-        inner_bounds = self._get_inner_bounds(grid)
-        if inner_bounds is None:
-            return
+        # Choose the larger requirement, with extra space if both exist
+        if num_perimeter > 0 and num_center > 0:
+            inner_dim = max(perimeter_inner_dim, center_dim + 4)
+        else:
+            inner_dim = max(perimeter_inner_dim, center_dim)
 
-        num_obstacles = self._calculate_num_obstacles(inner_bounds)
+        return 2 * (bw + 1) + inner_dim
 
-        for _ in range(num_obstacles):
-            self._try_place_obstacle(grid, inner_bounds)
+    def _calculate_size_with_scatter(self, num_perimeter: int, num_center: int) -> int:
+        """Calculate size when perimeter objects will be scattered."""
+        import math
 
-    def _calculate_num_obstacles(self, bounds: tuple[int, int, int, int]) -> int:
-        """Calculate number of obstacles based on terrain density setting."""
-        top, bottom, left, right = bounds
-        inner_area = (bottom - top + 1) * (right - left + 1)
+        bw = self._config.border_width
 
-        terrain = self._config.terrain or "no-terrain"
-        density_map = {
-            "sparse": inner_area // 40,
-            "balanced": inner_area // 22,
-            "dense": inner_area // 14,
-        }
+        # Calculate space for center objects (same as structured)
+        if num_center > 0:
+            objects_per_side = math.ceil(math.sqrt(num_center))
+            center_dim = 2 * (objects_per_side - 1) + 1
+        else:
+            center_dim = 0
 
-        return max(density_map.get(terrain, 0), 0 if terrain == "no-terrain" else 1)
+        # Calculate total objects that need spacing
+        total_objects = num_perimeter + num_center
 
-    def _try_place_obstacle(self, grid: np.ndarray, bounds: tuple[int, int, int, int], max_tries: int = 200) -> bool:
-        """Attempt to place a single obstacle on the grid."""
-        top, bottom, left, right = bounds
-        shape = self._choose_random_obstacle()
-        sh, sw = shape.shape
+        if total_objects == 0:
+            # Just agents
+            num_agents = self._get_num_agents()
+            min_dim = math.ceil(math.sqrt(num_agents))
+            return 2 * (bw + 1) + min_dim
 
-        i_min, i_max = top, bottom - sh + 1
-        j_min, j_max = left, right - sw + 1
+        # Need enough space for all objects with 2-cell spacing
+        # Approximate by arranging in a grid
+        total_per_side = math.ceil(math.sqrt(total_objects))
+        scatter_dim = 2 * total_per_side + 1
 
-        if i_max < i_min or j_max < j_min:
-            return False
+        # Take the max of center requirements and total scatter requirements
+        inner_dim = max(center_dim, scatter_dim)
 
-        for _ in range(max_tries):
-            i = self._rng.integers(i_min, i_max + 1)
-            j = self._rng.integers(j_min, j_max + 1)
+        return max(self._config.size, 2 * (bw + 1) + inner_dim)
 
-            region = grid[i : i + sh, j : j + sw]
+    def _get_perimeter_positions(self, grid: np.ndarray, count: int) -> list[tuple[int, int]]:
+        """Get evenly spaced positions on perimeter."""
+        bw = self._config.border_width
+        h, w = grid.shape
 
-            if np.all(region == "empty"):
-                wall_mask = shape == "wall"
-                if wall_mask.any():
-                    region[wall_mask] = "wall"
-                    return True
+        offset = bw + 1
+        top, left = offset, offset
+        bottom, right = h - offset - 1, w - offset - 1
 
-        return False
+        # Collect all perimeter positions
+        all_positions = []
+        for col in range(left, right + 1):
+            all_positions.append((top, col))
+        for row in range(top + 1, bottom + 1):
+            all_positions.append((row, right))
+        for col in range(right - 1, left - 1, -1):
+            all_positions.append((bottom, col))
+        for row in range(bottom - 1, top, -1):
+            all_positions.append((row, left))
 
-    def _choose_random_obstacle(self) -> np.ndarray:
-        """Randomly select an obstacle shape."""
-        kinds = ["block", "square", "L", "cross"]
-        probs = [0.40, 0.30, 0.20, 0.10]
-        kind = self._rng.choice(kinds, p=probs)
-        return self._get_shape(kind, size=2)
+        # Space them out evenly
+        positions = []
+        if count > 0 and len(all_positions) > 0:
+            step = max(1, len(all_positions) // count)
+            for i in range(0, min(count * step, len(all_positions)), step):
+                positions.append(all_positions[i])
 
-    # ========== Object Placement ==========
+        return positions[:count]
 
-    def _add_objects(self, grid: np.ndarray) -> None:
-        """Place all objects on the grid with empty boundaries around each."""
-        object_list = self._create_object_list()
-        if not object_list:
-            return
+    def _get_centered_object_positions(self, grid: np.ndarray, count: int) -> list[tuple[int, int]]:
+        """Get most centered positions for center objects with 2-cell spacing."""
+        import math
 
-        valid_positions = self._collect_valid_positions(grid)
-        if len(valid_positions) == 0:
-            return
+        h, w = grid.shape
+        center_h = h // 2
+        center_w = w // 2
 
-        self._rng.shuffle(valid_positions)
+        positions = []
 
-        object_mask = np.zeros(grid.shape, dtype=bool)
+        if count == 1:
+            # Single object at exact center
+            positions.append((center_h, center_w))
+        elif count == 2:
+            # Two objects: place them horizontally centered
+            positions.append((center_h, center_w - 1))
+            positions.append((center_h, center_w + 1))
+        elif count == 3:
+            # Three objects: horizontal line with center
+            positions.append((center_h, center_w - 2))
+            positions.append((center_h, center_w))
+            positions.append((center_h, center_w + 2))
+        elif count == 4:
+            # Four objects: 2x2 grid
+            positions.append((center_h - 1, center_w - 1))
+            positions.append((center_h - 1, center_w + 1))
+            positions.append((center_h + 1, center_w - 1))
+            positions.append((center_h + 1, center_w + 1))
+        else:
+            # Larger counts: use grid arrangement
+            objects_per_side = math.ceil(math.sqrt(count))
+            grid_span = 2 * (objects_per_side - 1)
+            start_row = center_h - grid_span // 2
+            start_col = center_w - grid_span // 2
 
-        for obj_symbol in object_list:
-            placed = False
-            for row, col in valid_positions:
-                if self._can_place_object(grid, object_mask, row, col):
-                    grid[row, col] = obj_symbol
-                    object_mask[row - 1 : row + 2, col - 1 : col + 2] = True
-                    placed = True
-                    break
+            idx = 0
+            for i in range(objects_per_side):
+                for j in range(objects_per_side):
+                    if idx >= count:
+                        break
+                    row = start_row + i * 2
+                    col = start_col + j * 2
+                    positions.append((row, col))
+                    idx += 1
 
-            if not placed:
-                break
+        return positions
 
-    def _collect_valid_positions(self, grid: np.ndarray) -> list[tuple[int, int]]:
-        """Collect all positions where objects could potentially be placed."""
-        bounds = self._get_object_bounds(grid)
-        if bounds is None:
-            return []
+    def _get_occupied_positions(self, grid: np.ndarray) -> list[tuple[int, int]]:
+        """Get all non-empty positions in the grid."""
+        positions = []
+        h, w = grid.shape
+        for i in range(h):
+            for j in range(w):
+                if grid[i, j] != "empty":
+                    positions.append((i, j))
+        return positions
 
-        top, bottom, left, right = bounds
-        walls = grid == "wall"
-        forbidden = self._dilate_bool(walls, radius=1)
+    def _scatter_objects(self, grid: np.ndarray, objects: list[str], avoid_positions: list[tuple[int, int]]) -> None:
+        """Scatter objects randomly with spacing constraints."""
+        bw = self._config.border_width
+        h, w = grid.shape
+        margin = bw + 1
 
-        valid_positions = []
-        for i in range(top, bottom + 1):
-            for j in range(left, right + 1):
-                neighborhood = slice(i - 1, i + 2), slice(j - 1, j + 2)
-                grid_neighborhood = grid[neighborhood]
-                forbidden_neighborhood = forbidden[neighborhood]
+        # Shuffle for random placement order
+        shuffled_objects = objects.copy()
+        self._rng.shuffle(shuffled_objects)
 
-                if np.all(grid_neighborhood == "empty") and not np.any(forbidden_neighborhood):
-                    valid_positions.append((i, j))
+        placed_positions = avoid_positions.copy()
 
-        return valid_positions
+        for obj in shuffled_objects:
+            # Find all valid positions
+            valid_positions = []
 
-    def _can_place_object(self, grid: np.ndarray, object_mask: np.ndarray, i: int, j: int) -> bool:
-        """Check if an object can be placed at position (i, j)."""
-        neighborhood = slice(i - 1, i + 2), slice(j - 1, j + 2)
-        return grid[i, j] == "empty" and np.all(grid[neighborhood] == "empty") and not np.any(object_mask[neighborhood])
+            for i in range(margin, h - margin):
+                for j in range(margin, w - margin):
+                    if grid[i, j] != "empty":
+                        continue
 
-    def _create_object_list(self) -> list[str]:
-        """Flatten object dictionary into a list of object symbols."""
-        return [name for name, count in self._config.objects.items() if count > 0 for _ in range(count)]
+                    # Check spacing from all occupied positions
+                    valid = True
+                    for placed_row, placed_col in placed_positions:
+                        # Need at least 2 cells distance
+                        if abs(i - placed_row) <= 1 and abs(j - placed_col) <= 1:
+                            valid = False
+                            break
 
-    # ========== Agent Placement ==========
+                    if valid:
+                        valid_positions.append((i, j))
 
-    def _add_agents(self, grid: np.ndarray) -> None:
-        """Place agents on empty cells."""
-        agent_list = self._create_agent_list()
-        if not agent_list:
-            return
+            if valid_positions:
+                # Randomly select from valid positions
+                idx = self._rng.choice(len(valid_positions))
+                row, col = valid_positions[idx]
+                grid[row, col] = obj
+                placed_positions.append((row, col))
 
-        empty_positions = np.argwhere(grid == "empty")
-        if len(empty_positions) == 0:
-            return
+    def _place_agents(self, grid: np.ndarray, agent_list: list[str]) -> None:
+        """Place agents in any empty space."""
+        bw = self._config.border_width
+        h, w = grid.shape
+        margin = bw + 1
+
+        empty_positions = []
+        for i in range(margin, h - margin):
+            for j in range(margin, w - margin):
+                if grid[i, j] == "empty":
+                    empty_positions.append((i, j))
 
         self._rng.shuffle(empty_positions)
 
-        num_to_place = min(len(agent_list), len(empty_positions))
-        for i in range(num_to_place):
-            row, col = empty_positions[i]
-            grid[row, col] = agent_list[i]
+        for agent, (row, col) in zip(agent_list, empty_positions):
+            grid[row, col] = agent
+
+    def _place_objects(self, grid: np.ndarray, objects: list[str], positions: list[tuple[int, int]]) -> None:
+        """Place objects at specified positions."""
+        for obj, (row, col) in zip(objects, positions):
+            grid[row, col] = obj
+
+    def _get_num_agents(self) -> int:
+        """Get total number of agents."""
+        if isinstance(self._config.agents, int):
+            return self._config.agents
+        elif isinstance(self._config.agents, dict):
+            return sum(self._config.agents.values())
+        return 0
+
+    def _create_object_list(self, objects: dict[str, int]) -> list[str]:
+        """Create list from object dict."""
+        result = []
+        for name, count in objects.items():
+            if count > 0:
+                result.extend([name] * count)
+        return result
 
     def _create_agent_list(self) -> list[str]:
-        """Create list of agent symbols from config."""
+        """Create list of agent symbols."""
         if isinstance(self._config.agents, int):
             return ["agent.agent"] * self._config.agents
         elif isinstance(self._config.agents, dict):
-            return [f"agent.{name}" for name, count in self._config.agents.items() for _ in range(count)]
-        else:
-            raise ValueError(f"Invalid agents configuration: {self._config.agents}")
-
-    # ========== Shape Generation ==========
-
-    def _get_shape(self, kind: str, size: int) -> np.ndarray:
-        """Get or create a shape with caching."""
-        key = (kind, size)
-        if key not in self._shape_cache:
-            self._shape_cache[key] = self._create_shape(kind, size)
-        return self._shape_cache[key]
-
-    def _create_shape(self, kind: str, size: int) -> np.ndarray:
-        """Create a shape array based on kind and size."""
-        if kind == "square":
-            return np.full((size, size), "wall", dtype="<U50")
-        elif kind == "cross":
-            s = size * 2 - 1
-            out = np.full((s, s), "empty", dtype="<U50")
-            mid = size - 1
-            out[mid, :] = "wall"
-            out[:, mid] = "wall"
-            return out
-        elif kind == "L":
-            out = np.full((size, size), "empty", dtype="<U50")
-            out[:, 0] = "wall"
-            out[size - 1, :] = "wall"
-            return out
-        else:  # "block" or default
-            return np.array([["wall"]], dtype="<U50")
-
-    # ========== Utility Functions ==========
-
-    def _get_inner_bounds(self, grid: np.ndarray) -> Optional[tuple[int, int, int, int]]:
-        """Get bounds of the inner area (excluding border)."""
-        bw = self._config.border_width
-        h, w = grid.shape
-
-        top, left = bw, bw
-        bottom, right = h - bw - 1, w - bw - 1
-
-        if bottom < top or right < left:
-            return None
-
-        return top, bottom, left, right
-
-    def _get_object_bounds(self, grid: np.ndarray) -> Optional[tuple[int, int, int, int]]:
-        """Get bounds for object placement (with margin for 3x3 neighborhood)."""
-        bw = self._config.border_width
-        h, w = grid.shape
-
-        top, left = bw + 1, bw + 1
-        bottom, right = h - bw - 2, w - bw - 2
-
-        if bottom < top or right < left:
-            return None
-
-        return top, bottom, left, right
-
-    @staticmethod
-    def _dilate_bool(mask: np.ndarray, radius: int = 1) -> np.ndarray:
-        """Fast Chebyshev dilation using boolean shifts."""
-        h, w = mask.shape
-        out = np.zeros_like(mask, dtype=bool)
-
-        for di in range(-radius, radius + 1):
-            for dj in range(-radius, radius + 1):
-                si0 = max(0, -di)
-                ti0 = max(0, di)
-                ih = h - abs(di)
-
-                sj0 = max(0, -dj)
-                tj0 = max(0, dj)
-                jw = w - abs(dj)
-
-                if ih > 0 and jw > 0:
-                    out[ti0 : ti0 + ih, tj0 : tj0 + jw] |= mask[si0 : si0 + ih, sj0 : sj0 + jw]
-
-        return out
+            return [
+                f"agent.{name}"
+                for name, count in self._config.agents.items()
+                for _ in range(count)
+            ]
+        return []
