@@ -3,7 +3,7 @@ from typing import Any, ClassVar, Literal, Optional
 from pydantic import ConfigDict, Field, model_validator
 
 from metta.rl.loss import LossConfig
-from metta.rl.training import HeartbeatConfig, HyperparameterSchedulerConfig
+from metta.rl.training import HeartbeatConfig
 from mettagrid.base_config import Config
 
 
@@ -61,7 +61,6 @@ class TrainerConfig(Config):
     compile: bool = False
     compile_mode: Literal["default", "reduce-overhead", "max-autotune"] = "reduce-overhead"
 
-    hyperparameter_scheduler: HyperparameterSchedulerConfig = Field(default_factory=HyperparameterSchedulerConfig)
     heartbeat: Optional[HeartbeatConfig] = Field(default_factory=HeartbeatConfig)
 
     initial_policy: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)

@@ -11,6 +11,7 @@ from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.loss import Loss
 from metta.rl.training import ComponentContext, TrainingEnvironment
+from metta.rl.loss.scheduler import HyperSchedule
 from metta.utils.batch import calculate_prioritized_sampling_params
 from mettagrid.base_config import Config
 
@@ -29,7 +30,22 @@ class VTraceConfig(Config):
 
 
 class PPOConfig(Config):
-    schedule: None = None  # TODO: Implement this
+    # Default: cosine-anneal entropy coefficient to reduce exploration over time
+    schedule: list[HyperSchedule] = Field(
+        default_factory=lambda: [
+            HyperSchedule(
+                attr_path="ent_coef",
+                style="cosine",
+                start_value=0.02,
+                end_value=0.001,
+                start_agent_step=0,
+                end_agent_step=100_000_000,
+            )
+        ]
+    )
+
+    # schedule: list[HyperSchedule] = Field(default_factory=list)
+    
     # PPO hyperparameters
     # Clip coefficient (0.1-0.3 typical; Schulman et al. 2017)
     clip_coef: float = Field(default=0.264407, gt=0, le=1.0)
@@ -64,6 +80,10 @@ class PPOConfig(Config):
     prioritized_experience_replay: PrioritizedExperienceReplayConfig = Field(
         default_factory=PrioritizedExperienceReplayConfig
     )
+
+    def update_hypers(self, context: ComponentContext) -> None:
+        for sched in self.schedule:
+            sched.apply(obj=self, epoch=context.epoch, agent_step=context.agent_step)
 
     def create(
         self,
@@ -205,6 +225,7 @@ class PPO(Loss):
             var_y = y_true.var()
             ev = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
             self.loss_tracker["explained_variance"].append(float(ev))
+        super().on_train_phase_end(context)
 
     def _on_first_mb(self, context: ComponentContext) -> tuple[Tensor, float]:
         # reset importance sampling ratio

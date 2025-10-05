@@ -10,11 +10,31 @@ from torchrl.data import Composite
 
 from metta.agent.policy import Policy
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
+from metta.rl.loss.scheduler import PhaseRunSchedule
 
 
 @dataclass(slots=True)
 class Loss:
-    """Base class coordinating rollout and training behaviour for concrete losses."""
+    """Base class coordinating rollout and training behaviour for concrete losses.
+
+    Args:
+        policy (Policy): The policy being trained/evaluated by this loss.
+        trainer_cfg (Any): Trainer configuration object (total timesteps, batch sizes, etc.).
+        env (TrainingEnvironment): Vectorized training environment wrapper.
+        device (torch.device): Device to place tensors and compute on.
+        instance_name (str): Name used to identify this loss instance in logs/state.
+        loss_cfg (Any): Concrete loss configuration. Can define:
+            - schedule (list[HyperSchedule], optional): Hyperparameter annealing rules.
+            - rollout_sched (PhaseRunSchedule | None): Controls if rollout runs.
+            - train_sched (PhaseRunSchedule | None): Controls if train runs.
+
+    Optional attributes initialized at runtime:
+        policy_experience_spec (Composite | None): Spec for experience fields required by the policy.
+        replay (Experience | None): Attached replay buffer, when relevant.
+        loss_tracker (dict[str, list[float]] | None): Aggregated per-epoch metrics.
+        _zero_tensor (Tensor | None): Pre-allocated zero scalar on device for cheap returns.
+        _context (ComponentContext | None): Shared trainer context, attached externally.
+    """
 
     policy: Policy
     trainer_cfg: Any
@@ -29,14 +49,8 @@ class Loss:
     _zero_tensor: Tensor | None = None
     _context: ComponentContext | None = None
 
-    rollout_start_epoch: int = 0
-    rollout_end_epoch: float = float("inf")
-    train_start_epoch: int = 0
-    train_end_epoch: float = float("inf")
-    rollout_cycle_length: int | None = None
-    rollout_active_in_cycle: list[int] | None = None
-    train_cycle_length: int | None = None
-    train_active_in_cycle: list[int] | None = None
+    _rollout_sched: PhaseRunSchedule | None = None
+    _train_sched: PhaseRunSchedule | None = None
     _state_attrs: set[str] = field(default_factory=set, init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -76,7 +90,7 @@ class Loss:
     def rollout(self, td: TensorDict, context: ComponentContext | None = None) -> None:
         """Rollout step executed while experience buffer requests more data."""
         ctx = self._ensure_context(context)
-        if not self._should_run("rollout", ctx.epoch):
+        if not self._should_run("rollout", ctx):
             return
         if ctx.training_env_id is None:
             raise RuntimeError("ComponentContext.training_env_id must be set before calling Loss.rollout")
@@ -94,7 +108,7 @@ class Loss:
     ) -> tuple[Tensor, TensorDict, bool]:
         """Training step executed while scheduler allows it."""
         ctx = self._ensure_context(context)
-        if not self._should_run("train", ctx.epoch):
+        if not self._should_run("train", ctx):
             return self._zero(), shared_loss_data, False
         return self.run_train(shared_loss_data, ctx, mb_idx)
 
@@ -113,45 +127,46 @@ class Loss:
 
     def on_train_phase_end(self, context: ComponentContext | None = None) -> None:
         """Hook executed after the training phase completes."""
-        self._ensure_context(context)
+        ctx = self._ensure_context(context)
+
+        # Apply configured schedules via a unified "update(obj, ctx)" API.
+        # Prefer a single `schedules` list on the loss config; fall back to
+        # legacy `metric_schedules` and `schedule` lists if needed.
+        schedules = getattr(self.loss_cfg, "schedules", None)
+        if not isinstance(schedules, (list, tuple)):
+            schedules = []
+            for attr_name in ("metric_schedules", "schedule"):
+                items = getattr(self.loss_cfg, attr_name, None)
+                if isinstance(items, (list, tuple)):
+                    schedules.extend(items)
+
+        for sched in schedules:
+            update_fn = getattr(sched, "update", None)
+            if callable(update_fn):
+                update_fn(self.loss_cfg, ctx)
+
+        # Finally, allow custom user-defined updater to override
+        update_fn = getattr(self.loss_cfg, "update_hypers", None)
+        if callable(update_fn):
+            update_fn(ctx)
 
     def save_loss_states(self, context: ComponentContext | None = None) -> None:
         """Save loss states at the end of training (optional)."""
         self._ensure_context(context)
 
     # Scheduling helpers
-    def _should_run(self, phase: str, epoch: int) -> bool:
-        start = getattr(self, f"{phase}_start_epoch")
-        end = getattr(self, f"{phase}_end_epoch")
-        if not (start <= epoch < end):
-            return False
-
-        cycle_length = getattr(self, f"{phase}_cycle_length")
-        active = getattr(self, f"{phase}_active_in_cycle") or []
-        if not cycle_length or not active:
+    def _should_run(self, phase: str, context: ComponentContext) -> bool:
+        sched = self._rollout_sched if phase == "rollout" else self._train_sched
+        if sched is None:
             return True
-
-        # Epoch is 0-indexed; schedule uses 1-indexed values
-        epoch_in_cycle = (epoch % cycle_length) + 1
-        return epoch_in_cycle in active
+        return sched.is_active(epoch=context.epoch, agent_step=context.agent_step)
 
     # End scheduling helpers
 
     def _configure_schedule(self) -> None:
-        """Helper for initializing variables used in scheduling logic."""
-        schedule_cfg = {}  # TODO: support self.loss_cfg.schedule when available
-
-        rollout_cfg = schedule_cfg.get("rollout") or {}
-        self.rollout_start_epoch = rollout_cfg.get("begin_at_epoch", 0)
-        self.rollout_end_epoch = rollout_cfg.get("end_at_epoch", float("inf"))
-        self.rollout_cycle_length = rollout_cfg.get("cycle_length")
-        self.rollout_active_in_cycle = rollout_cfg.get("active_in_cycle")
-
-        train_cfg = schedule_cfg.get("train") or {}
-        self.train_start_epoch = train_cfg.get("begin_at_epoch", 0)
-        self.train_end_epoch = train_cfg.get("end_at_epoch", float("inf"))
-        self.train_cycle_length = train_cfg.get("cycle_length")
-        self.train_active_in_cycle = train_cfg.get("active_in_cycle")
+        """Initialize per-phase run schedule from loss configuration if provided."""
+        self._rollout_sched = getattr(self.loss_cfg, "rollout_sched", None)
+        self._train_sched = getattr(self.loss_cfg, "train_sched", None)
 
     # Utility helpers
 

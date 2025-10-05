@@ -12,11 +12,34 @@ from metta.rl.loss import Loss
 from metta.rl.training import ComponentContext
 from metta.rl.utils import ensure_sequence_metadata
 from mettagrid.base_config import Config
+from metta.rl.loss.scheduler import HyperSchedule, PhaseRunSchedule
 
 
 class EMAConfig(Config):
     decay: float = Field(default=0.995, ge=0, le=1.0)
     loss_coef: float = Field(default=1.0, ge=0, le=1.0)
+    schedule: list[HyperSchedule] = Field(
+        default_factory=lambda: [
+            HyperSchedule(
+                attr_path="decay",
+                style="linear",
+                start_value=0.5,
+                end_value=0.995,
+                start_agent_step=0,
+                end_agent_step=20_000_000,
+            )
+        ]
+    )
+
+    # Per-phase run scheduling for EMA: train for first 100 epochs
+    rollout_sched: PhaseRunSchedule | None = None
+    train_sched: PhaseRunSchedule | None = Field(
+        default_factory=lambda: PhaseRunSchedule(begin_at_epoch=0, end_at_epoch=100)
+    )
+
+    def update_hypers(self, context: ComponentContext) -> None:
+        for sched in self.schedule:
+            sched.apply(obj=self, epoch=context.epoch, agent_step=context.agent_step)
 
     def create(
         self,
