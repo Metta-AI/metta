@@ -310,7 +310,16 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                     )
 
             # Create a vector of 256 Recipe pointers (indexed by byte pattern)
-            cpp_recipes = [None] * 256
+            # cpp_recipes = [object_config.default_recipe] * 256
+            default_cpp_recipe = None
+            if object_config.default_recipe is not None:
+                recipe_config = object_config.default_recipe
+                default_cpp_recipe = CppRecipe(
+                    input_resources={resource_name_to_id[k]: v for k, v in recipe_config.input_resources.items()},
+                    output_resources={resource_name_to_id[k]: v for k, v in recipe_config.output_resources.items()},
+                    cooldown=recipe_config.cooldown,
+                )
+            cpp_recipes = [default_cpp_recipe] * 256
             for byte_pattern, recipe in recipe_map.items():
                 cpp_recipes[byte_pattern] = recipe
 
