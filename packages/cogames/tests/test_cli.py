@@ -79,8 +79,8 @@ def test_games_help_command():
     assert "train" in output
 
 
-def test_make_game_command():
-    """Test that 'cogames make-game' creates a new game configuration."""
+def test_make_mission_command():
+    """Test that 'cogames make-mission' creates a new mission configuration."""
     with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
         tmp_path = Path(f.name)
 
@@ -91,8 +91,8 @@ def test_make_game_command():
                 "uv",
                 "run",
                 "cogames",
-                "make-game",
-                "assembler_1_simple",
+                "make-mission",
+                "training_facility_1",
                 "--width",
                 "100",
                 "--output",
@@ -103,17 +103,17 @@ def test_make_game_command():
             text=True,
             timeout=30,
         )
-        assert result.returncode == 0, f"make-game failed: {result.stderr}"
+        assert result.returncode == 0, f"make-mission failed: {result.stderr}"
 
         # Run games command with the generated file
         result = subprocess.run(
-            ["uv", "run", "cogames", "games", str(tmp_path)],
+            ["uv", "run", "cogames", "missions", str(tmp_path)],
             cwd=cogames_root,
             capture_output=True,
             text=True,
             timeout=30,
         )
-        assert result.returncode == 0, f"games failed: {result.stderr}"
+        assert result.returncode == 0, f"missions failed: {result.stderr}"
 
         assert tmp_path.exists()
     finally:
