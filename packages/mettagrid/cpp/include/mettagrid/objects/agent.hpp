@@ -46,7 +46,7 @@ public:
   unsigned int steps_without_motion;
   // Inventory regeneration amounts (per-agent)
   std::map<InventoryItem, InventoryQuantity> inventory_regen_amounts;
-  int* my_pointer;
+  RewardType* my_pointer;
 
   Agent(GridCoord r, GridCoord c, const AgentConfig& config, const std::vector<std::string>* resource_names)
       : GridObject(),
@@ -75,6 +75,7 @@ public:
   }
 
   void init(RewardType* reward_ptr) {
+    reward_ptr = my_pointer;
     this->reward = reward_ptr;
   }
 
