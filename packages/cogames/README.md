@@ -90,7 +90,7 @@ Train a policy on a game.
 
 ### Custom Policy Architectures
 
-To get started, `cogames` supports some torch-nn-based policy architectures out of the box (such as SimplePolicy or TokenPolicy). To
+To get started, `cogames` supports some torch-nn-based policy architectures out of the box (such as SimplePolicy). To
 supply your own, you will want to extend `cogames.policy.Policy`.
 
 ```python
