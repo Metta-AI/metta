@@ -9,10 +9,10 @@ import pufferlib.pytorch
 from cogames.policy.policy import AgentPolicy, TrainablePolicy
 from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation
 
-logger = logging.getLogger("cogames.policies.token_policy")
+logger = logging.getLogger("cogames.policies.basic_policy")
 
 
-class TokenPolicyNet(torch.nn.Module):
+class BasicPolicyNet(torch.nn.Module):
     """Token-aware per-step encoder inspired by Metta's basic baseline."""
 
     def __init__(self, env: MettaGridEnv):
@@ -21,7 +21,8 @@ class TokenPolicyNet(torch.nn.Module):
         self.hidden_size = 192
 
         feature_norms = getattr(env, "feature_normalizations", {})
-        num_feature_embeddings = 256
+        max_feature_id = max((int(feature_id) for feature_id in feature_norms.keys()), default=-1)
+        num_feature_embeddings = max(256, max_feature_id + 1)
         feature_scale = torch.ones(num_feature_embeddings, dtype=torch.float32)
         for feature_id, norm in feature_norms.items():
             index = int(feature_id)
@@ -113,10 +114,10 @@ class TokenPolicyNet(torch.nn.Module):
         return self.forward_eval(observations, state)
 
 
-class TokenAgentPolicyImpl(AgentPolicy):
+class BasicAgentPolicyImpl(AgentPolicy):
     """Per-agent policy utilising the shared token encoder network."""
 
-    def __init__(self, net: TokenPolicyNet, device: torch.device, action_nvec: tuple[int, ...]):
+    def __init__(self, net: BasicPolicyNet, device: torch.device, action_nvec: tuple[int, ...]):
         self._net = net
         self._device = device
         self._action_nvec = action_nvec
@@ -136,12 +137,12 @@ class TokenAgentPolicyImpl(AgentPolicy):
             return np.array(actions, dtype=np.int32)
 
 
-class TokenPolicy(TrainablePolicy):
+class BasicPolicy(TrainablePolicy):
     """Feed-forward token encoder baseline derived from Metta's basic policy."""
 
     def __init__(self, env: MettaGridEnv, device: torch.device):
         super().__init__()
-        self._net = TokenPolicyNet(env).to(device)
+        self._net = BasicPolicyNet(env).to(device)
         self._device = device
         self._action_nvec = tuple(env.single_action_space.nvec)
 
@@ -149,7 +150,7 @@ class TokenPolicy(TrainablePolicy):
         return self._net
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
-        return TokenAgentPolicyImpl(self._net, self._device, self._action_nvec)
+        return BasicAgentPolicyImpl(self._net, self._device, self._action_nvec)
 
     def load_policy_data(self, checkpoint_path: str) -> None:
         state_dict = torch.load(checkpoint_path, map_location=self._device)
