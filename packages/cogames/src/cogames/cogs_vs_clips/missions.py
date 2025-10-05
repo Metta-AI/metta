@@ -312,4 +312,5 @@ USER_MAP_CATALOG: tuple[UserMap, ...] = (
     SiteUserMap(name="machina_5_big", site="canidate3_500_stations.map"),
     SiteUserMap(name="machina_6_bigger", site="canidate3_1000_stations.map"),
     SiteUserMap(name="machina_7_big", site="canidate4_500_stations.map"),
+    RandomUserMap(name="random", map_builder_args=dict(num_cogs=2)),
 )

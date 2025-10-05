@@ -92,7 +92,7 @@ def test_make_mission_command():
                 "run",
                 "cogames",
                 "make-mission",
-                "training_facility_1",
+                "random",
                 "--width",
                 "100",
                 "--output",
