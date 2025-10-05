@@ -44,7 +44,7 @@ def _base_game_config(num_cogs: int, clipping_rate: float) -> MettaGridConfig:
 
     heart_gain_reward = 5.0
     heart_deposit_reward = 7.5
-    chest_reward = 1 / num_cogs
+    chest_reward = 2.5
     stats_rewards: dict[str, float] = {
         "heart.gained": heart_gain_reward,
         "heart.put": heart_deposit_reward,
@@ -161,6 +161,7 @@ def make_game(
         seed=42,
     )
     cfg.game.map_builder = map_builder
+    cfg.game.max_steps *= 20
     return cfg
 
 
@@ -202,6 +203,7 @@ def make_game_from_map(map_name: str, num_cogs: int = 4, clipping_rate: float = 
         str(map_path), {o.map_char: o.name for o in config.game.objects.values()}
     )
     config.game.map_builder = map_builder
+    config.game.max_steps *= 20
 
     return config
 
