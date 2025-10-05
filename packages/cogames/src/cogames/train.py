@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any, Callable, Optional
 import psutil
 from rich.console import Console
 
-from cogames.aws_storage import maybe_upload_checkpoint
 from cogames.env import make_hierarchical_env
 from cogames.policy import TrainablePolicy
 from cogames.policy.utils import resolve_policy_data_path
@@ -298,13 +297,6 @@ def train(
         final_checkpoint = checkpoints[-1]
         console.print()
         console.print(f"Final checkpoint: [cyan]{final_checkpoint}[/cyan]")
-
-        maybe_upload_checkpoint(
-            final_checkpoint=final_checkpoint,
-            game_name=game_name,
-            policy_class_path=policy_class_path,
-            console=console,
-        )
 
         policy_shorthand = {
             "cogames.policy.random.RandomPolicy": "random",
