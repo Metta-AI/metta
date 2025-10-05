@@ -312,8 +312,6 @@ class PuffeRL:
             profile("eval_misc", epoch)
             for i in info:
                 for k, v in pufferlib.unroll_nested_dict(i):
-                    if not (isinstance(k, str) and k.startswith("agents/")):
-                        continue
                     if isinstance(v, np.ndarray):
                         v = v.tolist()
                     elif isinstance(v, (list, tuple)):
@@ -657,6 +655,8 @@ class PuffeRL:
             self.last_stats = self.stats
 
         for metric, value in (self.stats or self.last_stats).items():
+            if not (metric.startswith("agent/") or "heart" in metric):
+                continue
             try:  # Discard non-numeric values
                 int(value)
             except:
