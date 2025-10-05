@@ -337,9 +337,11 @@ def make_assembler(inputs, outputs, positions, cooldown=1):
         (
             positions,
             RecipeConfig(
-                input_resources=inputs,
-                output_resources=outputs,
-                cooldown=cooldown,
+                **{
+                    "input_resources": inputs,
+                    "output_resources": outputs,
+                    "cooldown": cooldown,
+                }
             ),
         )
     )
@@ -358,9 +360,11 @@ def make_extractor(resource, inputs, outputs, position):
         (
             position,
             RecipeConfig(
-                input_resources=inputs,
-                output_resources=reduced_outputs,
-                cooldown=1,
+                **{
+                    "input_resources": inputs,
+                    "output_resources": reduced_outputs,
+                    "cooldown": 1,
+                }
             ),
         )
     )
