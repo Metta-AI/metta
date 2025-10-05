@@ -44,16 +44,31 @@ def add_easy_heart_recipe(cfg: MettaGridConfig) -> None:
     if assembler_cfg is None:
         return
 
-    input_options = ({"energy": 1},)
+    input_options = (
+        {"carbon": 1},
+        {"oxygen": 1},
+        {"germanium": 1},
+        {"silicon": 1},
+        {"energy": 1},
+    )
 
     for _, recipe in assembler_cfg.recipes:
         if recipe.output_resources.get("heart") and recipe.input_resources in input_options:
-            return
+            break
+    else:
+        for inputs in reversed(input_options):
+            assembler_cfg.recipes.insert(
+                0,
+                (["Any"], RecipeConfig(input_resources=inputs, output_resources={"heart": 1}, cooldown=1)),
+            )
 
-    assembler_cfg.recipes.insert(
-        0,
-        (["Any"], RecipeConfig(input_resources={"energy": 1}, output_resources={"heart": 1}, cooldown=1)),
-    )
+    agent_cfg = cfg.game.agent
+    original_initial = dict(agent_cfg.initial_inventory or {})
+    initial_inventory = dict(original_initial)
+    for resource in ("carbon", "oxygen", "germanium", "silicon"):
+        initial_inventory.setdefault(resource, 1)
+    initial_inventory.setdefault("energy", original_initial.get("energy", 100))
+    agent_cfg.initial_inventory = initial_inventory
 
 
 def add_shaped_rewards(cfg: MettaGridConfig) -> None:
