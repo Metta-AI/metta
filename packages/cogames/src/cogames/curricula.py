@@ -6,7 +6,7 @@ from collections import deque
 from typing import Callable, Iterable
 
 from cogames import game
-from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.config.mettagrid_config import MettaGridConfig, RecipeConfig
 
 _DEFAULT_ROTATION: tuple[str, ...] = (
     "training_facility_1",
@@ -26,9 +26,31 @@ def training_rotation(names: Iterable[str] | None = None) -> Callable[[], MettaG
     if not rotation:
         raise ValueError("Rotation must contain at least one game name")
 
+    def _ensure_simple_heart_recipe(cfg: MettaGridConfig) -> None:
+        assembler_cfg = cfg.game.objects.get("assembler")
+        if assembler_cfg is None:
+            return
+
+        # Check whether an energy-only heart recipe already exists
+        for _, recipe in assembler_cfg.recipes:
+            if recipe.output_resources.get("heart"):
+                inputs = recipe.input_resources or {}
+                if set(inputs.keys()) == {"energy"} and inputs.get("energy", 0) <= 1:
+                    return
+                break
+
+        heart_recipe = RecipeConfig(
+            input_resources={"energy": 1},
+            output_resources={"heart": 1},
+            cooldown=1,
+        )
+        assembler_cfg.recipes.insert(0, (["Any"], heart_recipe))
+
     def _supplier() -> MettaGridConfig:
         map_name = rotation[0]
         rotation.rotate(-1)
-        return game.get_game(map_name).model_copy(deep=True)
+        cfg = game.get_game(map_name).model_copy(deep=True)
+        _ensure_simple_heart_recipe(cfg)
+        return cfg
 
     return _supplier
