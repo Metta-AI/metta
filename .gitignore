@@ -126,3 +126,6 @@ packages/mettagrid/python/src/mettagrid/nim/mettascope/
 
 # Nim runtime
 .nim_runtime
+
+.terraform*
+terraform.tfstate

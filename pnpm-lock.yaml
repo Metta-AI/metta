@@ -393,6 +393,79 @@ importers:
         specifier: ^5
         version: 5.9.3
 
+  login:
+    dependencies:
+      '@prisma/client':
+        specifier: ^6.12.0
+        version: 6.14.0(prisma@6.14.0(typescript@5.9.2))(typescript@5.9.2)
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      dotenv:
+        specifier: ^17.2.0
+        version: 17.2.1
+      lucide-react:
+        specifier: ^0.540.0
+        version: 0.540.0(react@19.1.1)
+      next:
+        specifier: 15.3.1
+        version: 15.3.1(@opentelemetry/api@1.9.0)(@playwright/test@1.54.1)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+      next-auth:
+        specifier: 5.0.0-beta.29
+        version: 5.0.0-beta.29(next@15.3.1(@opentelemetry/api@1.9.0)(@playwright/test@1.54.1)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react@19.1.1)
+      next-safe-action:
+        specifier: ^8.0.8
+        version: 8.0.8(next@15.3.1(@opentelemetry/api@1.9.0)(@playwright/test@1.54.1)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+      prettier:
+        specifier: ^3.6.2
+        version: 3.6.2
+      prettier-plugin-tailwindcss:
+        specifier: ^0.6.14
+        version: 0.6.14(prettier@3.6.2)
+      prisma:
+        specifier: ^6.12.0
+        version: 6.14.0(typescript@5.9.2)
+      react:
+        specifier: ^19.0.0
+        version: 19.1.1
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.1.1(react@19.1.1)
+      zod:
+        specifier: ^3.25.76
+        version: 3.25.76
+      zod-form-data:
+        specifier: ^3.0.0
+        version: 3.0.0(zod@3.25.76)
+    devDependencies:
+      '@auth/core':
+        specifier: ^0.40.0
+        version: 0.40.0
+      '@auth/prisma-adapter':
+        specifier: ^2.10.0
+        version: 2.10.0(@prisma/client@6.14.0(prisma@6.14.0(typescript@5.9.2))(typescript@5.9.2))
+      '@tailwindcss/postcss':
+        specifier: ^4
+        version: 4.1.11
+      '@types/node':
+        specifier: ^20
+        version: 20.19.9
+      '@types/react':
+        specifier: ^19
+        version: 19.1.10
+      '@types/react-dom':
+        specifier: ^19
+        version: 19.1.7(@types/react@19.1.10)
+      tailwindcss:
+        specifier: ^4
+        version: 4.1.11
+      tsx:
+        specifier: ^4.19.3
+        version: 4.20.3
+      typescript:
+        specifier: ^5
+        version: 5.9.2
+
   mettascope:
     devDependencies:
       '@eslint/css':
