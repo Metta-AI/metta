@@ -44,23 +44,16 @@ def add_easy_heart_recipe(cfg: MettaGridConfig) -> None:
     if assembler_cfg is None:
         return
 
-    input_options = (
-        {"carbon": 1},
-        {"oxygen": 1},
-        {"germanium": 1},
-        {"silicon": 1},
-        {"energy": 1},
-    )
+    input_options = ({"energy": 1},)
 
     for _, recipe in assembler_cfg.recipes:
         if recipe.output_resources.get("heart") and recipe.input_resources in input_options:
             return
 
-    for inputs in input_options:
-        assembler_cfg.recipes.insert(
-            0,
-            (["Any"], RecipeConfig(input_resources=inputs, output_resources={"heart": 1}, cooldown=1)),
-        )
+    assembler_cfg.recipes.insert(
+        0,
+        (["Any"], RecipeConfig(input_resources={"energy": 1}, output_resources={"heart": 1}, cooldown=1)),
+    )
 
 
 def add_shaped_rewards(cfg: MettaGridConfig) -> None:
