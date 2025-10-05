@@ -213,11 +213,6 @@ def train_cmd(
         help="Override vectorized environment batch size",
         min=1,
     ),
-    logits_debug_path: Optional[Path] = typer.Option(  # noqa: B008
-        None,
-        "--logits-debug",
-        help="Write per-update action logit statistics to this JSONL file",
-    ),
 ) -> None:
     from cogames import curricula
 
@@ -252,7 +247,6 @@ def train_cmd(
             vector_num_workers=num_workers,
             vector_num_envs=parallel_envs,
             vector_batch_size=vector_batch_size,
-            logits_debug_path=logits_debug_path,
             env_cfg_supplier=curriculum_callable,
         )
 

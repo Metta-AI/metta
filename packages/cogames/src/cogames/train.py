@@ -1,23 +1,22 @@
 from __future__ import annotations
 
-import json
 import logging
 import multiprocessing
 import platform
 from pathlib import Path
-from typing import IO, TYPE_CHECKING, Any, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional
 
-import numpy as np
 import psutil
 from rich.console import Console
 
-import pufferlib.vector as pvector
 from cogames.aws_storage import maybe_upload_checkpoint
+from cogames.env import make_hierarchical_env
 from cogames.policy import TrainablePolicy
 from cogames.policy.utils import resolve_policy_data_path
 from cogames.utils import initialize_or_load_policy
-from mettagrid import MettaGridConfig, MettaGridEnv
+from mettagrid import MettaGridConfig
 from pufferlib import pufferl
+from pufferlib import vector as pvector
 from pufferlib.pufferlib import set_buffers
 
 if TYPE_CHECKING:
@@ -40,14 +39,13 @@ def train(
     vector_num_envs: Optional[int] = None,
     vector_batch_size: Optional[int] = None,
     vector_num_workers: Optional[int] = None,
-    logits_debug_path: Optional[Path] = None,
     env_cfg_supplier: Optional[Callable[[], MettaGridConfig]] = None,
 ) -> None:
     import pufferlib.pytorch  # noqa: F401 - ensure modules register with torch
 
     console = Console()
 
-    if env_cfg_supplier is None and env_cfg is None:
+    if env_cfg is None and env_cfg_supplier is None:
         raise ValueError("Either env_cfg or env_cfg_supplier must be provided")
 
     backend = pvector.Multiprocessing
@@ -61,11 +59,7 @@ def train(
     except Exception:  # pragma: no cover - best effort fallback
         cpu_cores = None
 
-    if vector_num_workers is None:
-        desired_workers = cpu_cores if cpu_cores is not None else 8
-    else:
-        desired_workers = vector_num_workers
-
+    desired_workers = vector_num_workers or cpu_cores or 4
     if cpu_cores is not None:
         adjusted_workers = min(desired_workers, max(1, cpu_cores))
         if adjusted_workers < desired_workers:
@@ -99,28 +93,24 @@ def train(
         envs_per_worker,
     )
 
-    pending_cfg: list[MettaGridConfig] = []
-
-    def _next_cfg() -> MettaGridConfig:
-        if pending_cfg:
-            return pending_cfg.pop().model_copy(deep=True)
+    def _clone_cfg() -> MettaGridConfig:
         if env_cfg_supplier is not None:
-            cfg = env_cfg_supplier()
-            if not isinstance(cfg, MettaGridConfig):
+            supplied = env_cfg_supplier()
+            if not isinstance(supplied, MettaGridConfig):
                 raise TypeError("env_cfg_supplier must return a MettaGridConfig")
-            return cfg.model_copy(deep=True)
+            return supplied.model_copy(deep=True)
         assert env_cfg is not None
         return env_cfg.model_copy(deep=True)
 
-    base_cfg = _next_cfg()
+    base_cfg = _clone_cfg()
 
     def env_creator(
         cfg: Optional[MettaGridConfig] = None,
         buf: Optional[Any] = None,
         seed: Optional[int] = None,
     ):
-        target_cfg = cfg if cfg is not None else _next_cfg()
-        env = MettaGridEnv(env_cfg=target_cfg, render_mode=None)
+        target_cfg = cfg.model_copy(deep=True) if cfg is not None else _clone_cfg()
+        env = make_hierarchical_env(target_cfg)
         set_buffers(env, buf)
         return env
 
@@ -130,9 +120,7 @@ def train(
         num_workers=num_workers,
         batch_size=vector_batch_size,
         backend=backend,
-        env_kwargs={
-            "cfg": base_cfg.model_copy(deep=True),
-        },
+        env_kwargs={"cfg": base_cfg},
     )
 
     resolved_initial_weights = initial_weights_path
@@ -158,65 +146,6 @@ def train(
         f"Policy class {policy_class_path} must implement TrainablePolicy interface"
     )
 
-    debug_file: Optional[IO[str]] = None
-    instrumentation_env = None
-    instrumentation_actions: Optional[np.ndarray] = None
-    instrumentation_rollout_steps = 4
-
-    if logits_debug_path is not None:
-        import torch
-
-        logits_debug_path.parent.mkdir(parents=True, exist_ok=True)
-        debug_file = logits_debug_path.open("w", encoding="utf-8")
-        instrumentation_env = MettaGridEnv(env_cfg=base_cfg.model_copy(deep=True))
-        action_dim = int(instrumentation_env.single_action_space.nvec.size)
-        instrumentation_actions = np.zeros((instrumentation_env.num_agents, action_dim), dtype=np.int32)
-
-        def _write_logit_snapshot(global_step: int) -> None:
-            if debug_file is None or instrumentation_env is None or instrumentation_actions is None:
-                return
-
-            obs, _ = instrumentation_env.reset(seed=seed + int(global_step))
-            entry: dict[str, object] = {"global_step": int(global_step), "steps": []}
-            for rollout_step in range(instrumentation_rollout_steps):
-                obs_tensor = torch.tensor(obs, dtype=torch.uint8, device=device)
-                network = policy.network()
-                network.eval()
-                with torch.no_grad():
-                    logits_raw, _ = network.forward_eval(obs_tensor)
-
-                logits_cpu = [tensor.detach().to("cpu") for tensor in logits_raw]
-                step_dims = []
-                for dim_index, logits in enumerate(logits_cpu):
-                    stats = {
-                        "dim": int(dim_index),
-                        "logit_mean": float(logits.mean().item()),
-                        "logit_std": float(logits.std(unbiased=False).item()),
-                    }
-                    dist = torch.distributions.Categorical(logits=logits)
-                    stats["mean_entropy"] = float(dist.entropy().mean().item())
-                    stats["mean_top_prob"] = float(dist.probs.max(dim=1).values.mean().item())
-                    step_dims.append(stats)
-
-                entry["steps"].append({"rollout_step": rollout_step, "dims": step_dims})
-
-                for agent_id in range(instrumentation_env.num_agents):
-                    for dim_index, logits in enumerate(logits_cpu):
-                        dist = torch.distributions.Categorical(logits=logits[agent_id])
-                        instrumentation_actions[agent_id, dim_index] = int(dist.sample().item())
-
-                obs, _, done, truncated, _ = instrumentation_env.step(instrumentation_actions)
-                if all(done) or all(truncated):
-                    break
-
-            debug_file.write(json.dumps(entry) + "\n")
-            debug_file.flush()
-
-    else:
-
-        def _write_logit_snapshot(global_step: int) -> None:  # type: ignore[unused-ignore]
-            return
-
     use_rnn = getattr(policy, "is_recurrent", lambda: False)()
     if not use_rnn:
         lowered = policy_class_path.lower()
@@ -226,13 +155,13 @@ def train(
     env_name = "cogames.cogs_vs_clips"
 
     if use_rnn:
-        learning_rate = 0.0005
+        learning_rate = 0.0003
         bptt_horizon = 1
         optimizer = "adam"
         adam_eps = 1e-8
-        logger.info("Using RNN-specific hyperparameters: lr=0.0005, bptt=1, optimizer=adam")
+        logger.info("Using RNN-specific hyperparameters: lr=0.0003, bptt=1, optimizer=adam")
     else:
-        learning_rate = 0.02
+        learning_rate = 0.015
         bptt_horizon = 1
         optimizer = "muon"
         adam_eps = 1e-12
@@ -295,7 +224,7 @@ def train(
         gae_lambda=0.90,
         update_epochs=1,
         clip_coef=0.2,
-        vf_coef=2.5,
+        vf_coef=2.0,
         vf_clip_coef=0.2,
         max_grad_norm=1.5,
         ent_coef=0.001,
@@ -314,8 +243,6 @@ def train(
 
     training_diverged = False
 
-    _write_logit_snapshot(0)
-
     while trainer.global_step < num_steps:
         trainer.evaluate()
         trainer.train()
@@ -330,9 +257,6 @@ def train(
                 logger.error("NaN/Inf detected in parameter: %s", name)
                 has_nan = True
 
-        if logits_debug_path is not None:
-            _write_logit_snapshot(trainer.global_step)
-
         if has_nan:
             logger.error(
                 "Training diverged at step %s! Stopping early to prevent saving corrupted checkpoint.",
@@ -343,11 +267,6 @@ def train(
 
     trainer.print_dashboard()
     trainer.close()
-
-    if debug_file is not None:
-        debug_file.close()
-    if instrumentation_env is not None:
-        instrumentation_env.close()
 
     console.print()
     if training_diverged:
