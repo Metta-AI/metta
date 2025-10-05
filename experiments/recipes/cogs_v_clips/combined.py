@@ -14,7 +14,7 @@ from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.rl.loss import LossConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from experiments.evals.cogs_v_clips.cogs_v_clips import make_cogs_v_clips_evals
+from experiments.evals.cogs_v_clips.foraging import make_foraging_eval_suite
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 
 
@@ -67,7 +67,7 @@ def train() -> TrainTool:
         ),
         policy_architecture=policy_config,
         evaluator=EvaluatorConfig(
-            simulations=make_cogs_v_clips_evals(),
+            simulations=make_foraging_eval_suite(),
             evaluate_local=False,
             evaluate_remote=True,
         ),
