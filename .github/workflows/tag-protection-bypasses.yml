@@ -1,0 +1,45 @@
+name: Tag Protection Bypasses
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  tag-if-bypassed:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Check if protections were bypassed
+        run: |
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          MERGE_SHA=${{ github.event.pull_request.merge_commit_sha }}
+
+          # Check reviews
+          REQUIRED_REVIEWS=$(gh api repos/${{ github.repository }}/branches/main/protection --jq '.required_pull_request_reviews.required_approving_review_count // 0')
+          ACTUAL_REVIEWS=$(gh pr view $PR_NUMBER --json reviews --jq '[.reviews[] | select(.state == "APPROVED")] | length')
+
+          # Check status checks
+          REQUIRED_CHECKS=$(gh api repos/${{ github.repository }}/branches/main/protection --jq '.required_status_checks.contexts // [] | length')
+          PASSED_CHECKS=$(gh pr view $PR_NUMBER --json statusCheckRollup --jq '[.statusCheckRollup[] | select(.conclusion == "SUCCESS")] | length')
+
+          # Tag if bypassed
+          if [ "$ACTUAL_REVIEWS" -lt "$REQUIRED_REVIEWS" ] || [ "$PASSED_CHECKS" -lt "$REQUIRED_CHECKS" ]; then
+            TIMESTAMP=$(date +%s)
+            TAG_NAME="forced-${TIMESTAMP}"
+            git tag -a "$TAG_NAME" $MERGE_SHA -m "Protection bypassed on PR #$PR_NUMBER"
+            git push origin "$TAG_NAME"
+            echo "Tagged: Protection bypass detected"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
