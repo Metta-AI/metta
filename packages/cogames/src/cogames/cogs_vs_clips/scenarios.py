@@ -39,6 +39,25 @@ from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.map_builder.random import RandomMapBuilder
 
 
+def _add_easy_heart_recipe(cfg: MettaGridConfig) -> None:
+    assembler_cfg = cfg.game.objects.get("assembler")
+    if assembler_cfg is None:
+        return
+
+    energy_only_recipe = RecipeConfig(
+        input_resources={"energy": 1},
+        output_resources={"heart": 1},
+        cooldown=1,
+    )
+
+    # Avoid duplicating if it already exists
+    for _, recipe in assembler_cfg.recipes:
+        if recipe.output_resources.get("heart") and recipe.input_resources == {"energy": 1}:
+            return
+
+    assembler_cfg.recipes.insert(0, (["Any"], energy_only_recipe))
+
+
 def _base_game_config(num_cogs: int, clipping_rate: float) -> MettaGridConfig:
     """Shared base configuration for all game types."""
 
@@ -206,6 +225,16 @@ def make_game_from_map(map_name: str, num_cogs: int = 4, clipping_rate: float = 
     return config
 
 
+def make_easy_heart_game_from_map(
+    map_name: str,
+    num_cogs: int = 4,
+    clipping_rate: float = 0.0,
+) -> MettaGridConfig:
+    cfg = make_game_from_map(map_name, num_cogs=num_cogs, clipping_rate=clipping_rate)
+    _add_easy_heart_recipe(cfg)
+    return cfg
+
+
 def games() -> dict[str, MettaGridConfig]:
     return {
         # "extractor_1cog_1resource": tutorial_extractor(num_cogs=1),""
@@ -236,4 +265,12 @@ def games() -> dict[str, MettaGridConfig]:
         "machina_5_big": make_game_from_map("canidate3_500_stations.map"),
         "machina_6_bigger": make_game_from_map("canidate3_1000_stations.map"),
         "machina_7_big": make_game_from_map("canidate4_500_stations.map"),
+        "training_facility_1_easy": make_easy_heart_game_from_map("training_facility_open_1.map"),
+        "training_facility_2_easy": make_easy_heart_game_from_map("training_facility_open_2.map"),
+        "training_facility_3_easy": make_easy_heart_game_from_map("training_facility_open_3.map"),
+        "training_facility_4_easy": make_easy_heart_game_from_map("training_facility_tight_4.map"),
+        "training_facility_5_easy": make_easy_heart_game_from_map("training_facility_tight_5.map"),
+        "training_facility_6_easy": make_easy_heart_game_from_map("training_facility_clipped.map", clipping_rate=0.02),
+        "machina_1_easy": make_easy_heart_game_from_map("cave_base_50.map"),
+        "machina_2_easy": make_easy_heart_game_from_map("machina_100_stations.map"),
     }
