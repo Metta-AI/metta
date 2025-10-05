@@ -1,4 +1,3 @@
-import ast
 import contextlib
 import json
 import logging
@@ -8,48 +7,9 @@ import queue
 import subprocess
 import threading
 import time
-from typing import IO, Any
+from typing import IO
 
 logger = logging.getLogger(__name__)
-
-
-class _StaticLSPClient:
-    """Fallback client that infers hover information via the AST."""
-
-    def shutdown(self) -> None:
-        return None
-
-    def _function_defs(self, file_path: pathlib.Path) -> dict[int, ast.AST]:
-        source = file_path.read_text(encoding="utf-8")
-        tree = ast.parse(source)
-        defs: dict[int, ast.AST] = {}
-        for node in tree.body:
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                defs[node.lineno - 1] = node
-        return defs
-
-    def _hover_from_node(self, node: ast.AST | None) -> dict[str, Any]:
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.returns is not None:
-            return_annotation = ast.unparse(node.returns)
-            hover_value = f"() -> {return_annotation}"
-        else:
-            hover_value = "() -> Unknown"
-        return {"contents": {"value": hover_value}}
-
-    def get_hover_bulk(
-        self,
-        file_path: pathlib.Path,
-        positions: list[tuple[int, int]],
-    ) -> list[dict[str, Any]]:
-        defs = self._function_defs(file_path)
-        return [self._hover_from_node(defs.get(line)) for line, _ in positions]
-
-    def get_hover(self, file_path: pathlib.Path, line: int, column: int) -> dict[str, Any]:
-        return self.get_hover_bulk(file_path, [(line, column)])[0]
-
-    def get_file_symbols(self, file_path: pathlib.Path) -> None:
-        logger.debug("Static LSP fallback does not provide file symbols for %s", file_path)
-        return None
 
 
 class LSPClient:
@@ -60,40 +20,22 @@ class LSPClient:
     documentation, etc.).
     """
 
-    def __init__(self) -> None:
-        self.id = 0
-        self.unprocessed_responses: dict[int, dict[str, Any]] = {}
-        self.server: subprocess.Popen[bytes] | None = None
-        self.queue: queue.Queue[dict[str, Any]] | None = None
-        self.queue_thread: threading.Thread | None = None
-        self._fallback_client: _StaticLSPClient | None = None
-
-        try:
-            self._start_pyright_server()
-        except (FileNotFoundError, TimeoutError, OSError) as exc:
-            logger.warning(
-                "Unable to start pyright-langserver; falling back to static analysis. Error: %s",
-                exc,
-            )
-            self._teardown_server()
-            self._fallback_client = _StaticLSPClient()
-
-    def _start_pyright_server(self) -> None:
+    def __init__(self):
         root = pathlib.Path(".").resolve()
+
+        self.id = 0
+        self.unprocessed_responses: dict[int, dict] = {}
 
         self.server = subprocess.Popen(
             ["pyright-langserver", "--stdio"],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,  # avoid blocking if server writes a lot to stderr
             text=False,
             bufsize=0,
         )
 
-        if not self.server.stdout or not self.server.stdin:
-            raise RuntimeError("Pyright language server streams are not available")
-
-        def read_messages(reader: IO[bytes], out_q: queue.Queue[dict[str, Any]]) -> None:
+        def read_messages(reader: IO[bytes], out_q: queue.Queue[dict]):
             # background reader: pushes decoded JSON-RPC messages into a queue
             while True:
                 # read headers
@@ -114,12 +56,12 @@ class LSPClient:
 
                 msg = json.loads(body.decode("utf-8"))
                 if not isinstance(msg, dict):
-                    logger.warning("Invalid message: %s", msg)
+                    logger.warning(f"Invalid message: {msg}")
 
                 out_q.put(msg)
 
         # Start background reader
-        self.queue = queue.Queue[dict[str, Any]]()
+        self.queue = queue.Queue[dict]()
         self.queue_thread = threading.Thread(target=read_messages, args=(self.server.stdout, self.queue), daemon=True)
         self.queue_thread.start()
 
@@ -133,7 +75,7 @@ class LSPClient:
                 "params": {
                     "processId": os.getpid(),
                     "rootUri": root.as_uri(),
-                    "capabilities": {},
+                    "capabilities": {},  # minimal is fine; expand if you need features
                     "workspaceFolders": [{"uri": root.as_uri(), "name": root.name}],
                     "clientInfo": {"name": "gridworks-pyright-client", "version": "0.1"},
                 },
@@ -145,56 +87,29 @@ class LSPClient:
 
         self.send({"jsonrpc": "2.0", "method": "initialized", "params": {}})
 
-    def _teardown_server(self) -> None:
-        if self.server and self.server.poll() is None:
-            with contextlib.suppress(Exception):
-                self.server.terminate()
-        self.server = None
-        self.queue = None
-        self.queue_thread = None
-
-    def shutdown(self) -> None:
-        if self._fallback_client is not None:
-            self._fallback_client.shutdown()
-            return
-
-        if not self.server:
-            return
-
+    def shutdown(self):
         shutdown_id = self.next_id()
         self.send({"jsonrpc": "2.0", "id": shutdown_id, "method": "shutdown", "params": None})
         self.recv_id(shutdown_id)
 
         self.send({"jsonrpc": "2.0", "method": "exit"})
-        self._teardown_server()
 
     def next_id(self) -> int:
-        if self._fallback_client is not None:
-            raise RuntimeError("next_id is not supported in static LSP fallback mode")
         self.id += 1
         return self.id
 
-    def send(self, msg: dict[str, Any]) -> None:
-        if self._fallback_client is not None:
-            raise RuntimeError("send is not supported in static LSP fallback mode")
-        if not self.server or not self.server.stdin:
-            raise RuntimeError("Pyright language server is not running")
+    def send(self, msg: dict):
         data = json.dumps(msg).encode("utf-8")
+        assert self.server.stdin
         self.server.stdin.write(f"Content-Length: {len(data)}\r\n\r\n".encode("ascii") + data)
         self.server.stdin.flush()
 
-    def send_with_id(self, msg: dict[str, Any]) -> int:
-        if self._fallback_client is not None:
-            raise RuntimeError("send_with_id is not supported in static LSP fallback mode")
+    def send_with_id(self, msg: dict):
         msg["id"] = self.next_id()
         self.send(msg)
         return msg["id"]
 
-    def recv_ids(self, wanted_ids: list[int], timeout: float = 30.0) -> dict[int, dict[str, Any]]:
-        if self._fallback_client is not None:
-            raise RuntimeError("recv_ids is not supported in static LSP fallback mode")
-        if not self.queue:
-            raise RuntimeError("Pyright language server is not running")
+    def recv_ids(self, wanted_ids: list[int], timeout=30.0) -> dict[int, dict]:
         """Drain queue until we see all the wanted ids."""
         deadline = time.time() + timeout
         responses: dict[int, dict] = {}
@@ -207,7 +122,7 @@ class LSPClient:
                 remaining_ids.remove(wanted_id)
 
         while remaining_ids:
-            remaining = max(0.0, deadline - time.time())
+            remaining = max(0, deadline - time.time())
             if remaining == 0:
                 raise TimeoutError(f"Timed out waiting for responses: {remaining_ids}")
             try:
@@ -231,15 +146,11 @@ class LSPClient:
 
         return responses
 
-    def recv_id(self, wanted_id: int, timeout: float = 10.0) -> dict[str, Any]:
-        if self._fallback_client is not None:
-            raise RuntimeError("recv_id is not supported in static LSP fallback mode")
+    def recv_id(self, wanted_id: int, timeout=10.0) -> dict:
         return self.recv_ids([wanted_id], timeout)[wanted_id]
 
     @contextlib.contextmanager
     def with_file(self, file_path: pathlib.Path):
-        if self._fallback_client is not None:
-            raise RuntimeError("with_file is not supported in static LSP fallback mode")
         uri = file_path.resolve().as_uri()
         text = file_path.read_text(encoding="utf-8")
         self.send(
@@ -265,9 +176,7 @@ class LSPClient:
             },
         )
 
-    def get_file_symbols(self, file_path: pathlib.Path) -> Any:
-        if self._fallback_client is not None:
-            return self._fallback_client.get_file_symbols(file_path)
+    def get_file_symbols(self, file_path: pathlib.Path):
         with self.with_file(file_path) as uri:
             req_id = self.next_id()
             self.send(
@@ -281,9 +190,7 @@ class LSPClient:
             resp = self.recv_id(req_id)
             return resp.get("result")
 
-    def get_hover(self, file_path: pathlib.Path, line: int, column: int) -> Any:
-        if self._fallback_client is not None:
-            return self._fallback_client.get_hover(file_path, line, column)
+    def get_hover(self, file_path: pathlib.Path, line: int, column: int):
         with self.with_file(file_path) as uri:
             req_id = self.next_id()
             self.send(
@@ -297,9 +204,7 @@ class LSPClient:
             resp = self.recv_id(req_id)
             return resp.get("result")
 
-    def get_hover_bulk(self, file_path: pathlib.Path, positions: list[tuple[int, int]]) -> list[Any]:
-        if self._fallback_client is not None:
-            return self._fallback_client.get_hover_bulk(file_path, positions)
+    def get_hover_bulk(self, file_path: pathlib.Path, positions: list[tuple[int, int]]):
         with self.with_file(file_path) as uri:
             req_ids: list[int] = []
             for line, column in positions:
