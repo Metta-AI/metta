@@ -81,7 +81,7 @@ def _base_game_config(num_cogs: int, clipping_rate: float) -> MettaGridConfig:
                     ("scrambler", "modulator", "decoder", "resonator"): 5,
                 },
                 rewards=AgentRewards(
-                    stats={"chest.heart.amount": 1},
+                    stats={"chest.heart.amount": 1 / num_cogs},
                     # inventory={
                     #     "heart": 1,
                     # },
