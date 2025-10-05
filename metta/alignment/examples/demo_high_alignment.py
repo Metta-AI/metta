@@ -149,8 +149,10 @@ def visualize_results(trajectories, goals, results):
     ax1.add_patch(plt.Circle(goals[0], 0.5, fill=False, edgecolor="orange", linestyle="--", linewidth=2, alpha=0.5))
 
     colors = plt.cm.rainbow(np.linspace(0, 1, len(trajectories)))
-    for i, (traj, color) in enumerate(zip(trajectories, colors, strict=False)):
+
+    for i, (traj, color) in enumerate(zip(trajectories, colors)):
         pos = traj["positions"]
+
         ax1.plot(pos[:, 0], pos[:, 1], "-", color=color, linewidth=2.5, alpha=0.8)
         ax1.scatter(pos[0, 0], pos[0, 1], s=150, color=color, marker="o", edgecolor="black", linewidth=2, zorder=5)
         ax1.scatter(pos[-1, 0], pos[-1, 1], s=150, color=color, marker="s", edgecolor="black", linewidth=2, zorder=5)
