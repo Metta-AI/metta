@@ -2,6 +2,13 @@ name: Migrate Login DB
 
 on:
   workflow_dispatch: {}
+  push:
+    branches:
+      - main
+      - pasha/add_login_service
+    paths:
+      - "login/prisma/**"
+      - ".github/workflows/login-migrate-db.yml"
 
 jobs:
   migrate:
