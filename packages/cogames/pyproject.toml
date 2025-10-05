@@ -39,15 +39,7 @@ root = "../.."
 fallback_version = "0.0.0"
 
 [tool.setuptools_scm.scm.git]
-describe_command = [
-  "git",
-  "describe",
-  "--dirty",
-  "--tags",
-  "--long",
-  "--match",
-  "cogames-v*",
-]
+describe_command = ["git", "describe", "--dirty", "--tags", "--long", "--match", "cogames-v*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
