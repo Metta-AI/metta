@@ -75,9 +75,9 @@ def add_shaped_rewards(cfg: MettaGridConfig) -> None:
     agent_cfg = cfg.game.agent
     stats = dict(agent_cfg.rewards.stats or {})
 
-    stats["heart.gained"] = 1.0
+    stats["heart.gained"] = 5.0
     stats["heart.put"] = 7.5
-    stats["chest.heart.amount"] = 1 / cfg.game.num_agents
+    stats["chest.heart.amount"] = 2.5
 
     shaped_reward = 0.25
     stats.update(
@@ -215,6 +215,7 @@ def make_game(
         seed=42,
     )
     cfg.game.map_builder = map_builder
+    cfg.game.max_steps *= 20
     return cfg
 
 
@@ -256,6 +257,7 @@ def make_game_from_map(map_name: str, num_cogs: int = 4, clipping_rate: float = 
         str(map_path), {o.map_char: o.name for o in config.game.objects.values()}
     )
     config.game.map_builder = map_builder
+    config.game.max_steps *= 20
 
     return config
 
