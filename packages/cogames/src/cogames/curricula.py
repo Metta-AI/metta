@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import deque
-from typing import Callable, Deque, Iterable
+from typing import Callable, Iterable
 
 from cogames import game
 from mettagrid.config.mettagrid_config import MettaGridConfig
@@ -18,27 +18,6 @@ _DEFAULT_ROTATION: tuple[str, ...] = (
     "machina_1",
     "machina_2",
 )
-
-_DEFAULT_SEQUENCE: Deque[str] = deque(_DEFAULT_ROTATION)
-_DEFAULT_AGENT_COUNT = game.get_game(_DEFAULT_SEQUENCE[0]).game.num_agents
-
-
-def alternating(sequence: Deque[str] | None = None) -> MettaGridConfig:
-    """Return the next map in the rotation, excluding large dungeon boards."""
-
-    queue = sequence.copy() if sequence is not None else _DEFAULT_SEQUENCE.copy()
-    if not queue:
-        raise ValueError("Curriculum sequence must contain at least one game name")
-
-    for _ in range(len(queue)):
-        map_name = queue[0]
-        queue.rotate(-1)
-        cfg = game.get_game(map_name)
-        if cfg.game.num_agents == _DEFAULT_AGENT_COUNT:
-            return cfg
-
-    raise ValueError("Curriculum contains no maps with the expected agent count")
-
 
 def training_rotation(names: Iterable[str] | None = None) -> Callable[[], MettaGridConfig]:
     """Create a supplier that cycles the default training rotation."""
