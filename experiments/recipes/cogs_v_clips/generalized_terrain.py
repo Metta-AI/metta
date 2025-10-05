@@ -19,7 +19,6 @@ from mettagrid.mapgen.mapgen import MapGen
 from metta.map.terrain_from_numpy import CogsVClippiesFromNumpy
 from metta.tools.replay import ReplayTool
 from experiments.recipes.cogs_v_clips.utils import (
-    generalized_terrain_curriculum_args,
     obj_distribution_by_room_size,
     make_assembler,
     make_chest,
@@ -27,6 +26,7 @@ from experiments.recipes.cogs_v_clips.utils import (
     make_extractor,
     make_agent,
     make_charger,
+    generalized_terrain_curriculum_args,
 )
 from mettagrid.builder.envs import make_icl_assembler
 
@@ -197,7 +197,7 @@ def make_mettagrid(task_generator) -> MettaGridConfig:
     return task_generator.get_task(random.randint(0, 1000000))
 
 
-def play(curriculum_style: str = "multi_agent_pairs") -> PlayTool:
+def play(curriculum_style: str = "test") -> PlayTool:
     task_generator = GeneralizedTerrainTaskGenerator(
         config=GeneralizedTerrainTaskGenerator.Config(
             **generalized_terrain_curriculum_args[curriculum_style]

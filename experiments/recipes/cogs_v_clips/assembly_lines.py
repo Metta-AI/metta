@@ -19,13 +19,13 @@ from mettagrid.config.mettagrid_config import (
     Position,
 )
 from experiments.recipes.cogs_v_clips.utils import (
-    assembly_lines_curriculum_args,
     size_ranges,
     RESOURCES,
     make_assembler,
     make_extractor,
     make_chest,
     make_agent,
+    assembly_lines_curriculum_args,
 )
 
 
@@ -274,21 +274,11 @@ def make_mettagrid(task_generator) -> MettaGridConfig:
     return task_generator.get_task(random.randint(0, 1000000))
 
 
-def play(curriculum_style: str = "quadruplets") -> PlayTool:
-    # task_generator = AssemblyLinesTaskGenerator(
-    #     config=AssemblyLinesTaskGenerator.Config(
-    #         **assembly_lines_curriculum_args[curriculum_style]
-    #     )
-    # )
-    env = make_env(num_cogs=2, chain_length=3, position=["N", "S"])
+def play() -> PlayTool:
+    env = make_env(num_cogs=4, chain_length=3, position=["N", "S"])
     return PlayTool(
         sim=SimulationConfig(env=env, suite="cogs_vs_clippies", name="play")
     )
-    # return PlayTool(
-    #     sim=SimulationConfig(
-    #         env=make_mettagrid(task_generator), suite="cogs_vs_clippies", name="play"
-    #     )
-    # )
 
 
 if __name__ == "__main__":

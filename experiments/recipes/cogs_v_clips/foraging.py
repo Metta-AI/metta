@@ -1,5 +1,4 @@
 import random
-from typing import Optional
 
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -39,9 +38,9 @@ class ForagingTaskGenerator(TaskGenerator):
         num_chests: list[int]
         size: list[int]
         assembler_positions: list[list[Position]]
-        num_extractors: Optional[list[int]] = [0]
-        num_extractor_types: Optional[list[int]] = [0]
-        extractor_positions: Optional[list[list[Position]]] = [["Any"]]
+        num_extractors: list[int] = [0]
+        num_extractor_types: list[int] = [0]
+        extractor_positions: list[list[Position]] = [["Any"]]
 
     def __init__(self, config: "ForagingTaskGenerator.Config"):
         super().__init__(config)
@@ -61,10 +60,11 @@ class ForagingTaskGenerator(TaskGenerator):
             width, height = minimum_area // 2, minimum_area // 2
         return width, height
 
-    def _calculate_max_steps(self, num_objects: int, width: int, height: int) -> int:
-        area = width * height
+    def _calculate_max_steps(self, num_objects: int, size: int) -> int:
+        area = size * size
         max_steps = max(150, area * num_objects * 2)
-        return min(max_steps, 1800)
+        max_steps = min(max_steps, 1800)
+        return min(max_steps, 1000)
 
     def _make_extractors(
         self,
@@ -84,10 +84,6 @@ class ForagingTaskGenerator(TaskGenerator):
         remaining = num_extractors - sum(list(extractor_counts.values()))
         if remaining > 0:
             extractor_counts[resource_types[0]] += remaining
-
-        print(
-            f"Making {num_extractors} extractors with {num_extractor_types} types and counts: {extractor_counts}"
-        )
 
         for resource, count in extractor_counts.items():
             if count > 0:
@@ -117,9 +113,11 @@ class ForagingTaskGenerator(TaskGenerator):
         if num_extractors > 0:
             input_resources.update({resource: 1 for resource in self.used_resources})
 
-        cooldown = num_assemblers*3
+        cooldown = num_assemblers * 3
 
-        assembler = make_assembler(input_resources, {"heart": 1}, position, cooldown=cooldown)
+        assembler = make_assembler(
+            input_resources, {"heart": 1}, position, cooldown=cooldown
+        )
         cfg.game_objects["assembler"] = assembler
         cfg.map_builder_objects["assembler"] = num_assemblers
 
@@ -218,9 +216,7 @@ class ForagingTaskGenerator(TaskGenerator):
         num_objects = num_assemblers + num_extractors + num_chests
         num_extractor_types = rng.choice(self.config.num_extractor_types)
 
-        # max_steps = self._calculate_max_steps(num_objects, size)
-        # TODO think abotu this
-        max_steps = 500
+        max_steps = self._calculate_max_steps(num_objects, size)
 
         icl_env = self._make_env_cfg(
             num_agents=num_cogs,
@@ -241,7 +237,7 @@ class ForagingTaskGenerator(TaskGenerator):
         return icl_env
 
 
-def train(curriculum_style: str = "pairs") -> TrainTool:
+def train(curriculum_style: str = "assembly_lines_chests_pairs") -> TrainTool:
     from experiments.evals.cogs_v_clips.foraging import make_foraging_eval_suite
 
     task_generator_cfg = ForagingTaskGenerator.Config(
@@ -271,7 +267,8 @@ def train(curriculum_style: str = "pairs") -> TrainTool:
 
 def make_env(
     num_cogs=1,
-    position=["Any"],
+    assembler_position=["Any"],
+    extractor_position=["Any"],
     num_assemblers=3,
     num_chests=1,
     num_extractors=1,
@@ -281,7 +278,8 @@ def make_env(
     task_generator = ForagingTaskGenerator(
         config=ForagingTaskGenerator.Config(
             num_cogs=[num_cogs],
-            position=[position],
+            assembler_positions=[assembler_position],
+            extractor_positions=[extractor_position],
             size=[size],
             num_assemblers=[num_assemblers],
             num_chests=[num_chests],

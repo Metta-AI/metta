@@ -3,84 +3,135 @@ from experiments.recipes.cogs_v_clips.foraging import (
 )
 from metta.sim.simulation_config import SimulationConfig
 
+evals = {
+    "assembler_chest_pair": {
+        "num_cogs": 4,
+        "num_assemblers": 2,
+        "num_extractors": 0,
+        "num_chests": 1,
+        "size": 10,
+        "assembler_position": ["Any", "Any"],
+        "extractor_position": ["Any", "Any"],
+    },
+    "assembler_chest_triplet": {
+        "num_cogs": 4,
+        "num_assemblers": 2,
+        "num_extractors": 0,
+        "num_chests": 1,
+        "size": 10,
+        "assembler_position": ["Any", "Any", "Any"],
+        "extractor_position": ["Any", "Any", "Any"],
+    },
+    "assembler_chest_quadruplet": {
+        "num_cogs": 4,
+        "num_assemblers": 3,
+        "num_extractors": 0,
+        "num_chests": 1,
+        "size": 10,
+        "assembler_position": ["Any", "Any", "Any", "Any"],
+        "extractor_position": ["Any", "Any", "Any", "Any"],
+    },
+    "extractor_assembler_pair": {
+        "num_cogs": 4,
+        "num_assemblers": 1,
+        "num_extractors": 2,
+        "num_extractor_types": 2,
+        "num_chests": 0,
+        "size": 10,
+        "assembler_position": ["Any", "Any"],
+    },
+    "extractor_assembler_triplet": {
+        "num_cogs": 4,
+        "num_assemblers": 2,
+        "num_extractors": 3,
+        "num_extractor_types": 3,
+        "num_chests": 0,
+        "size": 10,
+        "assembler_position": ["Any", "Any", "Any"],
+    },
+    "extractor_assembler_quadruplet": {
+        "num_cogs": 4,
+        "num_assemblers": 1,
+        "num_extractors": 4,
+        "num_extractor_types": 4,
+        "num_chests": 0,
+        "size": 10,
+        "assembler_position": ["Any", "Any", "Any", "Any"],
+    },
+    "extractor_assembler_chest_pair": {
+        "num_cogs": 4,
+        "num_assemblers": 1,
+        "num_extractors": 2,
+        "num_extractor_types": 2,
+        "num_chests": 1,
+        "size": 10,
+        "assembler_position": ["Any", "Any", "Any"],
+    },
+    "extractor_assembler_chest_triplet": {
+        "num_cogs": 4,
+        "num_assemblers": 1,
+        "num_extractors": 3,
+        "num_extractor_types": 3,
+        "num_chests": 1,
+        "size": 10,
+        "assembler_position": ["Any", "Any", "Any"],
+    },
+    "extractor_assembler_chest_quadruplet": {
+        "num_cogs": 4,
+        "num_assemblers": 1,
+        "num_extractors": 4,
+        "num_extractor_types": 4,
+        "num_chests": 1,
+        "size": 10,
+        "assembler_position": ["Any", "Any", "Any", "Any"],
+    },
+    "assembler_foraging_pairs": {
+        "num_cogs": 4,
+        "num_assemblers": 10,
+        "num_chests": 0,
+        "size": 14,
+        "assembler_position": ["Any", "Any"],
+    },
+    "assembler_foraging_triplets": {
+        "num_cogs": 4,
+        "num_assemblers": 10,
+        "num_chests": 0,
+        "size": 14,
+        "assembler_position": ["Any", "Any", "Any"],
+    },
+    "assembler_foraging_quadruplets": {
+        "num_cogs": 4,
+        "num_assemblers": 10,
+        "num_chests": 0,
+        "size": 14,
+        "assembler_position": ["Any", "Any", "Any", "Any"],
+    },
+    "assembler_foraging_chests_pairs": {
+        "num_cogs": 4,
+        "num_assemblers": 10,
+        "num_chests": 4,
+        "size": 12,
+        "assembler_position": ["Any", "Any"],
+    },
+    "assembler_foraging_chests_triplets": {
+        "num_cogs": 4,
+        "num_assemblers": 10,
+        "num_chests": 4,
+        "size": 12,
+        "assembler_position": ["Any", "Any", "Any"],
+    },
+    "assembler_foraging_chests_quadruplets": {
+        "num_cogs": 4,
+        "num_assemblers": 10,
+        "num_chests": 4,
+        "size": 12,
+        "assembler_position": ["Any", "Any", "Any", "Any"],
+    },
+}
+
 
 def make_foraging_eval_suite() -> list[SimulationConfig]:
     return [
-        SimulationConfig(
-            name="two_agent_two_assembler_S_N",
-            suite="foraging",
-            env=make_env(
-                num_cogs=2,
-                num_assemblers=2,
-                num_extractors=0,
-                sizes="small",
-                position=["S", "N"],
-            ),
-        ),
-        SimulationConfig(
-            name="12_agent_20_assemblers_N_S",
-            suite="foraging",
-            env=make_env(
-                num_cogs=12,
-                num_assemblers=20,
-                num_extractors=0,
-                sizes="xlarge",
-                position=["N", "S"],
-            ),
-        ),
-        SimulationConfig(
-            suite="foraging",
-            name="3_agent_12_assemblers_any",
-            env=make_env(
-                num_cogs=3,
-                num_assemblers=12,
-                sizes="large",
-                num_extractors=0,
-                position=["Any", "Any", "Any"],
-            ),
-        ),
-        SimulationConfig(
-            suite="foraging",
-            name="xlarge_three_agent_20_assemblers_NSE",
-            env=make_env(
-                num_cogs=3,
-                num_assemblers=20,
-                sizes="xlarge",
-                num_extractors=0,
-                position=["N", "S", "E"],
-            ),
-        ),
-        SimulationConfig(
-            suite="foraging",
-            name="three_agent_1_assembler_1_extractor",
-            env=make_env(
-                num_cogs=3,
-                num_assemblers=1,
-                sizes="large",
-                num_extractors=1,
-                position=["N", "S", "E"],
-            ),
-        ),
-        SimulationConfig(
-            suite="foraging",
-            name="three_agent_5_assembler_5_extractor",
-            env=make_env(
-                num_cogs=3,
-                num_assemblers=5,
-                sizes="large",
-                num_extractors=5,
-                position=["N", "S", "E"],
-            ),
-        ),
-        SimulationConfig(
-            suite="foraging",
-            name="12_agent_5_assembler_5_extractor_NS",
-            env=make_env(
-                num_cogs=12,
-                num_assemblers=5,
-                sizes="xlarge",
-                num_extractors=5,
-                position=["N", "S"],
-            ),
-        ),
+        SimulationConfig(name=n, suite="foraging", env=make_env(**args))
+        for n, args in evals.items()
     ]

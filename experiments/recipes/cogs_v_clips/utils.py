@@ -118,28 +118,28 @@ foraging_curriculum_args = {
         "num_cogs": [4],
         "num_assemblers": [5, 10, 20],
         "num_chests": [0],
-        "size": [8],
+        "size": [10],
         "assembler_positions": [["Any", "Any"]],
     },
     "no_chests_triplets": {
         "num_cogs": [4],
         "num_assemblers": [5, 10, 20],
         "num_chests": [0],
-        "size": [8],
+        "size": [10],
         "assembler_positions": [["Any", "Any", "Any"]],
     },
     "no_chests_quadruplets": {
         "num_cogs": [4],
         "num_assemblers": [5, 10, 20],
         "num_chests": [0],
-        "size": [8],
+        "size": [10],
         "assembler_positions": [["Any", "Any", "Any", "Any"]],
     },
     "no_chests_combined": {
         "num_cogs": [4],
         "num_assemblers": [5, 10, 20],
         "num_chests": [0],
-        "size": [8],
+        "size": [10],
         "assembler_positions": [
             ["Any", "Any"],
             ["Any", "Any", "Any"],
@@ -150,28 +150,28 @@ foraging_curriculum_args = {
         "num_cogs": [4],
         "num_assemblers": [5, 10, 20],
         "num_chests": [1, 4, 10],
-        "size": [8],
+        "size": [10],
         "assembler_positions": [["Any", "Any"]],
     },
     "center_chests_triplets": {
         "num_cogs": [4],
         "num_assemblers": [5, 10, 20],
         "num_chests": [1, 4, 10],
-        "size": [8],
+        "size": [10],
         "assembler_positions": [["Any", "Any", "Any"]],
     },
     "center_chests_quadruplets": {
         "num_cogs": [4],
         "num_assemblers": [5, 10, 20],
         "num_chests": [1, 4, 10],
-        "size": [8],
+        "size": [10],
         "assembler_positions": [["Any", "Any", "Any", "Any"]],
     },
     "center_chests_combined": {
         "num_cogs": [4],
         "num_assemblers": [5, 10, 20],
         "num_chests": [1, 4, 10],
-        "size": [8],
+        "size": [10],
         "assembler_positions": [
             ["Any", "Any"],
             ["Any", "Any", "Any"],
@@ -185,7 +185,7 @@ foraging_curriculum_args = {
         "num_chests": [0],
         "num_extractors": [0, 4, 8, 12],
         "num_extractor_types": [1, 2, 3, 4],
-        "size": [8],
+        "size": [15],
         "assembler_positions": [["Any", "Any"]],
     },
     "extractor_triplets": {
@@ -194,7 +194,7 @@ foraging_curriculum_args = {
         "num_chests": [0],
         "num_extractors": [0, 4, 8, 12, 16],
         "num_extractor_types": [1, 2, 3, 4],
-        "size": [8],
+        "size": [15],
         "assembler_positions": [["Any", "Any", "Any"]],
     },
     "extractor_quadruplets": {
@@ -203,7 +203,7 @@ foraging_curriculum_args = {
         "num_chests": [0],
         "num_extractors": [0, 4, 8, 12, 16],
         "num_extractor_types": [1, 2, 3, 4],
-        "size": [8],
+        "size": [15],
         "assembler_positions": [["Any", "Any", "Any", "Any"]],
     },
     "extractor_combined": {
@@ -212,7 +212,7 @@ foraging_curriculum_args = {
         "num_chests": [0, 1, 4],
         "num_extractors": [0, 4, 8, 12, 16],
         "num_extractor_types": [1, 2, 3, 4],
-        "size": [8],
+        "size": [15],
         "assembler_positions": [
             ["Any", "Any"],
             ["Any", "Any", "Any"],
@@ -261,6 +261,24 @@ foraging_curriculum_args = {
     },
 }
 
+generalized_terrain_curriculum_args = {
+    "test": {
+        "num_cogs": [4],
+        "positions": [["N", "S"]],
+        "regeneration_rate": [2],
+        "use_base": [True],
+        "sizes": ["small"],
+    }
+}
+
+assembly_lines_curriculum_args = {
+    "test": {
+        "num_cogs": [4],
+        "chain_length": [1],
+        "room_size": ["small"],
+        "positions": [["N", "S"]],
+    }
+}
 
 num_agents_to_positions = {
     1: [["N"], ["S"], ["E"], ["W"], ["Any"]],
@@ -335,6 +353,7 @@ def make_extractor(resource, inputs, outputs, position):
     for output in outputs:
         reduced_outputs[output] = 1
     extractor.recipes = []
+
     extractor.recipes.append(
         (
             position,
