@@ -11,8 +11,7 @@ from metta.rl.utils import ensure_sequence_metadata
 
 def _build_env_metadata():
     action_names = ["move", "attack"]
-    max_action_args = [0, 2]  # move has no parameter, attack supports 3 arguments
-    flattened_action_names = ["move", "attack_0", "attack_1", "attack_2"]
+    flattened_action_names = ["move_0", "attack_0", "attack_1", "attack_2"]
     flattened_action_map = [(0, 0), (1, 0), (1, 1), (1, 2)]
     feature_normalizations = {0: 1.0}
 
@@ -24,10 +23,7 @@ def _build_env_metadata():
         obs_width=11,
         obs_height=11,
         obs_features=obs_features,
-        action_names=action_names,
-        max_action_args=max_action_args,
-        flattened_action_names=flattened_action_names,
-        flattened_action_map=flattened_action_map,
+        action_names=flattened_action_names,
         num_agents=1,
         observation_space=None,
         action_space=gym.spaces.Discrete(len(flattened_action_names)),

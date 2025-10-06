@@ -114,7 +114,6 @@ class ActionProbs(nn.Module):
     def __init__(self, config: ActionProbsConfig):
         super().__init__()
         self.config = config
-        self.register_buffer("action_index_tensor", torch.zeros((0, 2), dtype=torch.int32), persistent=False)
         self.num_actions = 0
 
     def initialize_to_environment(
@@ -122,8 +121,7 @@ class ActionProbs(nn.Module):
         env: Any,
         device,
     ) -> None:
-        self.action_index_tensor = torch.tensor(env.flattened_action_map, device=device, dtype=torch.int32)
-        self.num_actions = int(self.action_index_tensor.shape[0])
+        self.num_actions = int(env.action_space.n)
 
     def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
         if action is None:
@@ -179,4 +177,4 @@ class ActionProbs(nn.Module):
 
     @property
     def action_count(self) -> int:
-        return int(self.action_index_tensor.shape[0])
+        return self.num_actions

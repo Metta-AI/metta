@@ -39,7 +39,7 @@ class PufferPolicy(Policy):
         self.action_space = env_metadata.action_space
 
         self.active_action_names = []
-        self.num_active_actions = len(env_metadata.flattened_action_names)
+        self.num_active_actions = len(env_metadata.action_names)
 
         self.out_width = env_metadata.obs_width
         self.out_height = env_metadata.obs_height
@@ -82,7 +82,7 @@ class PufferPolicy(Policy):
         max_vec = max_vec[None, :, None, None]
         self.policy.register_buffer("max_vec", max_vec)
 
-        self.total_actions = len(env_metadata.flattened_action_names)
+        self.total_actions = len(env_metadata.action_names)
         self.policy.actor = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, self.total_actions), std=0.01)
         self.policy.value = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, 1), std=1)
 

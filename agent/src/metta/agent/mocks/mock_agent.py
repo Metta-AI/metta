@@ -109,8 +109,6 @@ class MockAgent(Policy):
 
         # Action configuration
         self.action_names = list(env.action_names)
-        self.action_max_params = list(env.max_action_args)
-        self.flattened_action_names = list(env.flattened_action_names)
 
         features: Mapping[str, object] = env.obs_features
         feature_map = {}

@@ -907,8 +907,8 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
 
 py::list MettaGrid::action_names() {
   py::list names;
-  for (const auto& handler : _action_handlers) {
-    names.append(handler->action_name());
+  for (const auto& name : _flattened_action_names) {
+    names.append(py::str(name));
   }
   return names;
 }
@@ -1006,30 +1006,6 @@ py::list MettaGrid::action_success_py() {
   return py::cast(_action_success);
 }
 
-py::list MettaGrid::max_action_args() {
-  return py::cast(_max_action_args);
-}
-
-py::list MettaGrid::flattened_action_names() {
-  py::list names;
-  for (const auto& name : _flattened_action_names) {
-    names.append(py::str(name));
-  }
-  return names;
-}
-
-py::array_t<ActionType, py::array::c_style> MettaGrid::flattened_action_map() {
-  std::vector<ssize_t> shape = {static_cast<ssize_t>(_flattened_actions.size()), static_cast<ssize_t>(2)};
-  auto result = py::array_t<ActionType, py::array::c_style>(shape);
-  auto view = result.mutable_unchecked<2>();
-  for (size_t idx = 0; idx < _flattened_actions.size(); ++idx) {
-    const auto& mapping = _flattened_actions[idx];
-    view(idx, 0) = mapping.first;
-    view(idx, 1) = mapping.second;
-  }
-  return result;
-}
-
 py::list MettaGrid::object_type_names_py() {
   return py::cast(object_type_names);
 }
@@ -1081,9 +1057,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_property_readonly("action_space", &MettaGrid::action_space)
       .def_property_readonly("observation_space", &MettaGrid::observation_space)
       .def("action_success", &MettaGrid::action_success_py)
-      .def("max_action_args", &MettaGrid::max_action_args)
-      .def("flattened_action_names", &MettaGrid::flattened_action_names)
-      .def("flattened_action_map", &MettaGrid::flattened_action_map)
       .def("object_type_names", &MettaGrid::object_type_names_py)
       .def("feature_spec", &MettaGrid::feature_spec)
       .def_readonly("obs_width", &MettaGrid::obs_width)

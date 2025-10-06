@@ -280,20 +280,6 @@ class MettaGridCore:
         return self.__c_env_instance.action_names()
 
     @property
-    def max_action_args(self) -> List[int]:
-        action_args_array = self.__c_env_instance.max_action_args()
-        return [int(x) for x in action_args_array]
-
-    @property
-    def flattened_action_names(self) -> List[str]:
-        return [str(name) for name in self.__c_env_instance.flattened_action_names()]
-
-    @property
-    def flattened_action_map(self) -> List[Tuple[int, int]]:
-        mapping = np.asarray(self.__c_env_instance.flattened_action_map(), dtype=np.int32)
-        return [(int(row[0]), int(row[1])) for row in mapping]
-
-    @property
     def object_type_names(self) -> List[str]:
         return self.__c_env_instance.object_type_names()
 

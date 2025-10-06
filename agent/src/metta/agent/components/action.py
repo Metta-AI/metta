@@ -55,7 +55,7 @@ class ActionEmbedding(nn.Module):
         env: EnvironmentMetaData,
         device: torch.device,
     ) -> None:
-        action_names = list(env.flattened_action_names)
+        action_names = list(env.action_names)
 
         for action_name in action_names:
             if action_name not in self._reserved_action_embeds:

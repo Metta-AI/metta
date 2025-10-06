@@ -92,9 +92,6 @@ public:
   py::object action_space();
   py::object observation_space();
   py::list action_success_py();
-  py::list max_action_args();
-  py::list flattened_action_names();
-  py::array_t<ActionType, py::array::c_style> flattened_action_map();
   py::list object_type_names_py();
   py::list resource_names_py();
 

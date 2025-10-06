@@ -63,9 +63,6 @@ class EnvironmentMetaData:
     obs_height: int
     obs_features: dict[str, ObsFeature]
     action_names: List[str]
-    max_action_args: List[int]
-    flattened_action_names: List[str]
-    flattened_action_map: List[tuple[int, int]]
     num_agents: int
     observation_space: Any
     action_space: Any
@@ -179,9 +176,6 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
             obs_height=self._vecenv.driver_env.obs_height,
             obs_features=self._vecenv.driver_env.observation_features,
             action_names=self._vecenv.driver_env.action_names,
-            max_action_args=self._vecenv.driver_env.max_action_args,
-            flattened_action_names=self._vecenv.driver_env.flattened_action_names,
-            flattened_action_map=self._vecenv.driver_env.flattened_action_map,
             num_agents=self._num_agents,
             observation_space=self._vecenv.driver_env.observation_space,
             action_space=self._vecenv.driver_env.action_space,
