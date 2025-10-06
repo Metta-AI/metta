@@ -69,8 +69,8 @@ def _apply_smollm_defaults(tool: TrainTool) -> TrainTool:
         trainer_updates["batch_size"] = 2048
     if tool.trainer.minibatch_size > 256:
         trainer_updates["minibatch_size"] = 256
-    if tool.trainer.bptt_horizon > 16:
-        trainer_updates["bptt_horizon"] = 16
+    if tool.trainer.bptt_horizon > 4:
+        trainer_updates["bptt_horizon"] = 4
     if tool.trainer.compile:
         trainer_updates["compile"] = False
     if trainer_updates:
