@@ -98,6 +98,16 @@ output "ses_dkim_tokens" {
   value       = aws_ses_domain_dkim.library.dkim_tokens
 }
 
+# Convert AWS secret access key to SES SMTP password format
+# SES requires a special password derived from the IAM secret using AWS SigV4
+data "external" "ses_smtp_password" {
+  program = [
+    "python3",
+    "${path.module}/scripts/convert_ses_password.py",
+    aws_iam_access_key.ses_smtp.secret
+  ]
+}
+
 # Local values for constructing SES connection details
 locals {
   ses_smtp_endpoint = "email-smtp.${var.region}.amazonaws.com"
@@ -105,6 +115,6 @@ locals {
 
   # SES SMTP credentials from IAM access key
   ses_smtp_username = aws_iam_access_key.ses_smtp.id
-  # The secret is the raw AWS secret access key, which works directly with SES SMTP
-  ses_smtp_password = aws_iam_access_key.ses_smtp.secret
+  # SES SMTP password converted from AWS secret using SigV4 algorithm
+  ses_smtp_password = data.external.ses_smtp_password.result.password
 }
