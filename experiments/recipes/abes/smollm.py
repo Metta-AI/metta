@@ -42,7 +42,7 @@ def train(
     model_name: Optional[str] = None,
     attn_implementation: Optional[str] = None,
     max_sequence_length: int = 16,
-    torch_dtype: Literal["auto", "float32", "float16", "bfloat16"] = "float16",
+    torch_dtype: Literal["auto", "float32", "float16", "bfloat16"] = "float32",
     policy_architecture: Optional[PolicyArchitecture] = None,
 ):
     if policy_architecture is None:
