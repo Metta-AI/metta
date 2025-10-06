@@ -15,6 +15,7 @@ from cogames import game, utils
 from cogames import play as play_module
 from cogames import train as train_module
 from cogames.policy.utils import parse_policy_spec, resolve_policy_class_path, resolve_policy_data_path
+from mettagrid import MettaGridEnv
 
 # Always add current directory to Python path
 sys.path.insert(0, ".")
@@ -118,6 +119,9 @@ def make_mission(
         env_cfg.game.map_builder.width = width  # type: ignore[attr-defined]
         env_cfg.game.map_builder.height = height  # type: ignore[attr-defined]
         env_cfg.game.num_agents = num_agents
+
+        # Validate the environment configuration
+        _ = MettaGridEnv(env_cfg)
 
         if output:
             game.save_mission_config(env_cfg, output)

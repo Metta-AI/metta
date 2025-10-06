@@ -184,8 +184,8 @@ def get_map_builder_for_site(site: str) -> MapBuilderConfig[AsciiMapBuilder]:
 
 def get_random_map_builder(
     num_cogs: int = 4,
-    width: int = 10,
-    height: int = 10,
+    width: int = 100,
+    height: int = 100,
     num_assemblers: int = 1,
     num_chargers: int = 0,
     num_carbon_extractors: int = 0,
@@ -252,10 +252,9 @@ class RandomUserMap(UserMap):
 
     def _generate_env(self, mission_name: str) -> MettaGridConfig:
         args = self._mission_args.get(mission_name, {})
-        base_mission = args.get("base_mission", self.default_mission)
-        mission_args = args.get("map_builder_args", {})
-        game = get_mission_generator(base_mission)(**mission_args)
-        game.map_builder = get_random_map_builder(**mission_args)
+        base_mission = args.pop("base_mission", self.default_mission)
+        game = get_mission_generator(base_mission)(**args)
+        game.map_builder = get_random_map_builder(**args)
         return MettaGridConfig(game=game)
 
 
@@ -276,9 +275,8 @@ class SiteUserMap(UserMap):
 
     def _generate_env(self, mission_name: str) -> MettaGridConfig:
         args = self._mission_args.get(mission_name, {})
-        base_mission = args.get("base_mission", self.default_mission)
-        mission_args = args.get("map_builder_args", {})
-        game = get_mission_generator(base_mission)(**mission_args)
+        base_mission = args.pop("base_mission", self.default_mission)
+        game = get_mission_generator(base_mission)(**args)
         game.map_builder = get_map_builder_for_site(self._site)
         return MettaGridConfig(game=game)
 
@@ -345,5 +343,12 @@ USER_MAP_CATALOG: tuple[UserMap, ...] = (
     SiteUserMap(name="machina_5_big", site="canidate3_500_stations.map"),
     SiteUserMap(name="machina_6_bigger", site="canidate3_1000_stations.map"),
     SiteUserMap(name="machina_7_big", site="canidate4_500_stations.map"),
-    RandomUserMap(name="random"),
+    RandomUserMap(
+        name="random",
+        mission_args=dict(
+            default=dict(num_cogs=2),
+            medium=dict(width=200, height=200, num_cogs=4),
+            large=dict(width=500, height=500, num_cogs=10),
+        ),
+    ),
 )
