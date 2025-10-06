@@ -83,7 +83,7 @@ class SmolLLMBackbone(nn.Module):
         if tokens.dim() == 4:
             tokens = tokens.view(-1, tokens.shape[-2], tokens.shape[-1])
 
-        tokens = self._compress_tokens(tokens)
+        tokens, attention_mask = self._compress_tokens(tokens)
 
         projector_dtype = next(self.token_projector.parameters()).dtype
         tokens = tokens.to(dtype=projector_dtype)
@@ -91,11 +91,14 @@ class SmolLLMBackbone(nn.Module):
 
         llm_dtype = next(self.llm.parameters()).dtype
         embeddings = embeddings.to(dtype=llm_dtype)
+        attention_mask = attention_mask.to(device=embeddings.device)
 
         outputs = self.llm(
             inputs_embeds=embeddings,
+            attention_mask=attention_mask,
             output_hidden_states=True,
             return_dict=True,
+            use_cache=False,
         )
         final_hidden = outputs.hidden_states[-1]
         pooled = final_hidden.mean(dim=1)
@@ -158,26 +161,28 @@ class SmolLLMBackbone(nn.Module):
             return None
         return mapping[self.config.torch_dtype]
 
-    def _compress_tokens(self, tokens: torch.Tensor) -> torch.Tensor:
-        if tokens.shape[1] <= self.max_sequence_length:
-            return tokens
+    def _compress_tokens(self, tokens: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """Trim tokens to max sequence length and build an attention mask."""
 
         device = tokens.device
-        dtype = tokens.dtype
-        batch_size, _, channels = tokens.shape
-        compressed = torch.full(
-            (batch_size, self.max_sequence_length, channels),
-            fill_value=255,
-            device=device,
-            dtype=dtype,
-        )
-
         valid_mask = tokens[..., 0] != 255
-        for batch_idx in range(batch_size):
-            valid_indices = valid_mask[batch_idx].nonzero(as_tuple=False).flatten()
-            if valid_indices.numel() == 0:
-                continue
-            take = valid_indices[: self.max_sequence_length]
-            compressed[batch_idx, : take.numel()] = tokens[batch_idx, take]
 
-        return compressed
+        if tokens.shape[1] <= self.max_sequence_length:
+            return tokens, valid_mask
+
+        batch_size, _, channels = tokens.shape
+        lengths = valid_mask.sum(dim=1)
+        lengths = torch.clamp(lengths, max=self.max_sequence_length)
+
+        gather_idx = torch.arange(self.max_sequence_length, device=device).expand(batch_size, -1)
+        last_valid = torch.clamp(lengths - 1, min=0)
+        gather_idx = torch.minimum(gather_idx, last_valid.unsqueeze(1)).to(torch.int64)
+
+        gather_idx_expanded = gather_idx.unsqueeze(-1).expand(-1, -1, channels)
+        gathered = torch.gather(tokens, 1, gather_idx_expanded)
+
+        keep_mask = torch.arange(self.max_sequence_length, device=device).expand(batch_size, -1) < lengths.unsqueeze(1)
+        fill = torch.full_like(gathered, 255)
+        compressed = torch.where(keep_mask.unsqueeze(-1), gathered, fill)
+
+        return compressed, keep_mask

@@ -21,7 +21,7 @@ class DummyModel(torch.nn.Module):
         self.proj = torch.nn.Linear(hidden_size, hidden_size)
         self.proj.to(dtype=dtype)
 
-    def forward(self, inputs_embeds, output_hidden_states, return_dict):
+    def forward(self, inputs_embeds, output_hidden_states, return_dict, attention_mask=None, use_cache=None):
         hidden = self.proj(inputs_embeds)
         return DummyOutput((inputs_embeds, hidden))
 
@@ -82,3 +82,30 @@ def test_smollm_config_builds_components():
 
     assert components[0].out_key == "tokens"
     assert components[1].logits_key == config.logits_key
+
+
+def test_compress_tokens_vectorized(monkeypatch):
+    monkeypatch.setattr(
+        "metta.agent.components.smollm.AutoModelForCausalLM",
+        SimpleNamespace(from_pretrained=_fake_from_pretrained()),
+    )
+
+    env = _make_env([1, 1])
+    config = SmolLLMBackboneConfig(in_key="tokens", max_sequence_length=4)
+    backbone = SmolLLMBackbone(env, config)
+
+    tokens = torch.full((2, 6, 3), fill_value=255, dtype=torch.uint8)
+    tokens[0, :3] = 1
+    tokens[1, :2] = 1
+    compressed, mask = backbone._compress_tokens(tokens)
+
+    assert compressed.shape == (2, 4, 3)
+    assert mask.shape == (2, 4)
+    assert mask.dtype == torch.bool
+    expected_mask = torch.tensor([[True, True, True, False], [True, True, False, False]], dtype=torch.bool)
+    assert torch.equal(mask, expected_mask)
+    # Compressed tokens should keep leading valid entries and pad rest with 255
+    assert torch.all(compressed[0, :3] != 255)
+    assert torch.all(compressed[0, 3:] == 255)
+    assert torch.all(compressed[1, :2] != 255)
+    assert torch.all(compressed[1, 2:] == 255)
