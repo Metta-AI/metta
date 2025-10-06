@@ -65,10 +65,10 @@ def _apply_smollm_defaults(tool: TrainTool) -> TrainTool:
     """Clamp heavy training defaults to keep SmolLLM within memory limits."""
 
     trainer_updates = {}
-    if tool.trainer.batch_size > 10240:
-        trainer_updates["batch_size"] = 10240
-    if tool.trainer.minibatch_size > 1280:
-        trainer_updates["minibatch_size"] = 1280
+    if tool.trainer.batch_size < 32768:
+        trainer_updates["batch_size"] = 32768
+    if tool.trainer.minibatch_size < 4096:
+        trainer_updates["minibatch_size"] = 4096
     if tool.trainer.bptt_horizon > 16:
         trainer_updates["bptt_horizon"] = 16
     if tool.trainer.compile:
