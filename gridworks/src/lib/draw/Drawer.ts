@@ -1,4 +1,4 @@
-import { MettaGrid } from "../MettaGrid";
+import { MettaGrid, MettaObject } from "../MettaGrid";
 import { loadMettaTileSets, TILE_NAMES } from "./mettaTileSets";
 import { TileSetCollection } from "./TileSetCollection";
 
@@ -73,20 +73,15 @@ export class Drawer {
     return new Drawer(tileSets);
   }
 
-  drawObject(
-    name: string,
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    size: number
-  ) {
-    const layers = objectDrawers[name];
+  // Assumes that `ctx` is scaled such that the image is 1x1
+  drawObject(ctx: CanvasRenderingContext2D, object: MettaObject) {
+    const layers = objectDrawers[object.name];
     if (!layers) {
-      throw new Error(`No drawer for object ${name}`);
+      throw new Error(`No drawer for object ${object.name}`);
     }
     for (const layer of layers) {
       const bitmap = this.tileSets.bitmap(layer.tile, layer.modulate);
-      ctx.drawImage(bitmap, x, y, size, size);
+      ctx.drawImage(bitmap, object.c, object.r, 1, 1);
     }
   }
 
@@ -114,7 +109,7 @@ export class Drawer {
         ctx.fillStyle = "#c0bcb8";
         ctx.fillRect(object.c, object.r, 1, 1);
       }
-      this.drawObject(object.name, ctx, object.c, object.r, 1);
+      this.drawObject(ctx, object);
     }
 
     // Draw grid lines

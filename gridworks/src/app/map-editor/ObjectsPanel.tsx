@@ -3,6 +3,7 @@ import { FC, useEffect, useRef } from "react";
 
 import { useDrawer } from "@/components/MapViewer/hooks";
 import { Drawer, objectNames } from "@/lib/draw/Drawer";
+import { MettaObject } from "@/lib/MettaGrid";
 
 const SelectableButton: FC<{
   children: React.ReactNode;
@@ -47,7 +48,9 @@ const ObjectIcon: FC<{
     canvas.width = scaledSize;
     canvas.height = scaledSize;
 
-    drawer.drawObject(name, ctx, 0, 0, scaledSize);
+    ctx.scale(scaledSize, scaledSize);
+
+    drawer.drawObject(ctx, MettaObject.fromObjectName(0, 0, name)!);
   }, [name, drawer]);
 
   if (name === "empty") {
