@@ -5,11 +5,7 @@ from __future__ import annotations
 from typing import Callable, Dict
 
 from experiments.recipes import arena_basic_easy_shaped as base
-from metta.agent.policies.agalite import (
-    AGaLiTeConfig,
-    AGaLiTeImprovedConfig,
-    AGaLiTeLargeConfig,
-)
+from metta.agent.policies.agalite import AGaLiTeConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.rl.trainer_config import OptimizerConfig
 from metta.tools.train import TrainTool
@@ -25,9 +21,6 @@ sweep_async_progressive = base.sweep_async_progressive
 
 _POLICY_PRESETS: Dict[str, Callable[[], PolicyArchitecture]] = {
     "agalite": AGaLiTeConfig,
-    "agalite_large": AGaLiTeLargeConfig,
-    # Backwards-compatible alias for older configuration name.
-    "agalite_improved": AGaLiTeImprovedConfig,
 }
 
 
