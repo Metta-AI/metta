@@ -33,7 +33,6 @@ def format_agent_properties(
     update_object["vision_size"] = 11  # TODO: Waiting for env to support this
     agent_action = np.asarray(actions[agent_id]).reshape(-1)
     update_object["action_id"] = int(agent_action[0])
-    update_object["action_param"] = 0
     update_object["action_success"] = bool(env_action_success[agent_id])
     update_object["current_reward"] = rewards[agent_id].item()
     update_object["total_reward"] = total_rewards[agent_id].item()

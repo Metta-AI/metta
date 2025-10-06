@@ -172,7 +172,7 @@ def make_app(cfg: "PlayTool"):
 
         current_step = 0
         action_message = None
-        actions = np.zeros((env.num_agents, 2))
+        actions = np.zeros(env.num_agents, dtype=int)
         total_rewards = np.zeros(env.num_agents)
 
         async def send_replay_step():
@@ -232,9 +232,15 @@ def make_app(cfg: "PlayTool"):
                 await send_message(type="message", message="Step!")
 
                 actions = sim.generate_actions()
+                if actions.ndim == 2 and actions.shape[1] == 2:
+                    actions = actions[:, 0]
                 if action_message is not None:
                     agent_id = action_message["agent_id"]
-                    actions[agent_id] = action_message["action_id"]
+                    manual_action = action_message.get("action_id")
+                    if isinstance(manual_action, (list, tuple, np.ndarray)):
+                        actions[agent_id] = manual_action[0]
+                    else:
+                        actions[agent_id] = manual_action
                 sim.step_simulation(actions)
 
                 await send_replay_step()
