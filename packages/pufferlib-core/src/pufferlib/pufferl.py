@@ -112,6 +112,10 @@ class PuffeRL:
         layout_max_args = getattr(policy, "action_layout_max_args", None)
         self._action_adapter = _ActionAdapter(layout_max_args) if layout_max_args is not None else None
 
+        batch_size = config["batch_size"]
+        horizon = config["bptt_horizon"]
+        segments = batch_size // horizon
+        device = config["device"]
         if self._action_adapter is not None:
             self.actions = torch.zeros(
                 segments,
@@ -136,14 +140,11 @@ class PuffeRL:
         elif config["bptt_horizon"] == "auto":
             config["bptt_horizon"] = config["batch_size"] // total_agents
 
-        batch_size = config["batch_size"]
-        horizon = config["bptt_horizon"]
-        segments = batch_size // horizon
         self.segments = segments
         if total_agents > segments:
             raise pufferlib.APIUsageError(f"Total agents {total_agents} <= segments {segments}")
 
-        device = config["device"]
+
         self.observations = torch.zeros(
             segments,
             horizon,
