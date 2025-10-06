@@ -7,7 +7,6 @@ type
   ActionRequest* = object
     agentId*: int
     actionId*: int
-    argument*: int
 
   RenderResponse* = ref object
     shouldClose*: bool
@@ -67,8 +66,7 @@ proc render(currentStep: int, replayStep: string): RenderResponse =
         for action in requestActions:
           result.actions.add(ActionRequest(
             agentId: action.agentId,
-            actionId: action.actionId,
-            argument: action.argument
+            actionId: action.actionId
           ))
         requestActions.setLen(0)
         return

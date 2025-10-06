@@ -147,10 +147,8 @@ Here are the keys supported for both agents and objects:
 Agent specific keys:
 
 - `agent_id` - Usually a constant. The id of the agent.
-- `action_id` - The action of the agent that references the `action_names` array.
-- `action_parameter` - Single value for the action. If `action_names[action_id] == "rotate"` and
-  `action_parameter == 3`, this means move to the right. The implementation does not need to know this as it can be
-  inferred from the rotation and x, y positions.
+- `action_id` - The discrete action of the agent. Each entry references `action_names`, which already encodes
+  orientation or mode (for example `move_north`, `move_south`, `attack_0`, …), so no secondary parameter is required.
 - `action_success` - Boolean value that indicates if the action was successful.
 - `total_reward` - The total reward of the agent.
 - `current_reward` - The reward of the agent for the current step.

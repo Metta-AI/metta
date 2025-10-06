@@ -85,7 +85,7 @@ def evaluate(
     # Run episodes
     progress_label = "Evaluating episodes"
     rng = np.random.default_rng(seed)
-    noop = np.zeros(env.action_space.shape[0], dtype=env.action_space.dtype)
+    noop = np.array(0, dtype=env.action_space.dtype)
     with typer.progressbar(range(episodes), label=progress_label) as progress:
         for episode_idx in progress:
             obs, _ = env.reset(seed=seed + episode_idx)
@@ -100,7 +100,7 @@ def evaluate(
             done = np.zeros(env.num_agents, dtype=bool)
             truncated = np.zeros(env.num_agents, dtype=bool)
             while not done.all() and not truncated.all():
-                actions = np.zeros((env.num_agents, env.action_space.shape[0]), dtype=env.action_space.dtype)
+                actions = np.zeros(env.num_agents, dtype=env.action_space.dtype)
                 for i in range(env.num_agents):
                     start_time = time.time()
                     action, _ = agent_policies[i].step(obs[i])
@@ -108,7 +108,7 @@ def evaluate(
                     if (end_time - start_time) > action_timeout_ms / 1000:
                         per_policy_timeouts[assignments[i]] += 1
                         action = noop
-                    actions[i] = action
+                    actions[i] = np.asarray(action).astype(env.action_space.dtype).item()
                 obs, rewards, done, truncated, _ = env.step(actions)
 
             per_episode_rewards.append(np.array(env.get_episode_rewards(), dtype=float))

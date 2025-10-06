@@ -69,25 +69,37 @@ def play(
             Returns:
                 Actions array for all agents
             """
-            actions = np.zeros((env.num_agents, 2), dtype=np.int32)
-            noop_action_id = env.action_names.index("noop") if "noop" in env.action_names else 0
+            action_lookup = {name: idx for idx, name in enumerate(env.action_names)}
+            noop_action_id = action_lookup.get("noop", 0)
+            direction_names = {
+                0: "move_north",
+                1: "move_south",
+                2: "move_west",
+                3: "move_east",
+                4: "move_northwest",
+                5: "move_northeast",
+                6: "move_southwest",
+                7: "move_southeast",
+            }
+
+            actions = np.full(env.num_agents, noop_action_id, dtype=np.int32)
 
             for agent_id in range(env.num_agents):
                 if agent_id == selected_agent and manual_action is not None:
                     # Apply manual action to selected agent
                     if isinstance(manual_action, tuple):
-                        actions[agent_id] = list(manual_action)
+                        actions[agent_id] = int(manual_action[0])
                     else:
-                        # Get move action ID from environment
-                        move_candidates = [idx for idx, name in enumerate(env.action_names) if name.startswith("move")]
-                        move_action_id = move_candidates[0] if move_candidates else 0
-                        actions[agent_id] = [move_action_id, manual_action]
+                        move_name = direction_names.get(int(manual_action))
+                        if move_name and move_name in action_lookup:
+                            actions[agent_id] = action_lookup[move_name]
                 elif agent_id in manual_agents:
                     # Agent is in manual mode but no action this step - use noop
-                    actions[agent_id] = [noop_action_id, 0]
+                    actions[agent_id] = noop_action_id
                 else:
                     # Use policy for this agent
-                    actions[agent_id] = agent_policies[agent_id].step(obs[agent_id])
+                    policy_action = agent_policies[agent_id].step(obs[agent_id])
+                    actions[agent_id] = int(policy_action)
             return actions
 
         # Get glyphs from environment config if available
@@ -106,12 +118,12 @@ def play(
         obs, _ = env.reset(seed=seed)
         step_count = 0
         total_rewards = np.zeros(env.num_agents)
-        actions = np.zeros((env.num_agents, 2), dtype=np.int32)
+        actions = np.zeros(env.num_agents, dtype=np.int32)
 
         while max_steps is None or step_count < max_steps:
             # Get actions from policies
             for agent_id in range(env.num_agents):
-                actions[agent_id] = agent_policies[agent_id].step(obs[agent_id])
+                actions[agent_id] = int(agent_policies[agent_id].step(obs[agent_id]))
 
             # Step the environment
             obs, rewards, dones, truncated, _ = env.step(actions)
@@ -139,7 +151,7 @@ def play(
     obs, _ = env.reset(seed=seed)
     step_count = 0
     num_agents = env_cfg.game.num_agents
-    actions = np.zeros((env.num_agents, 2), dtype=np.int32)
+    actions = np.zeros(env.num_agents, dtype=np.int32)
     total_rewards = np.zeros(env.num_agents)
 
     # Initialize GUI replay
@@ -177,7 +189,7 @@ def play(
     while max_steps is None or step_count < max_steps:
         # Get actions from policies
         for agent_id in range(num_agents):
-            actions[agent_id] = agent_policies[agent_id].step(obs[agent_id])
+            actions[agent_id] = int(agent_policies[agent_id].step(obs[agent_id]))
 
         # Render and get user input
         replay_step = generate_replay_step()
@@ -185,8 +197,7 @@ def play(
         if response.should_close:
             break
         for action in response.actions:
-            actions[action.agent_id, 0] = action.action_id
-            actions[action.agent_id, 1] = action.argument
+            actions[action.agent_id] = action.action_id
 
         obs, rewards, dones, truncated, info = env.step(actions)
 

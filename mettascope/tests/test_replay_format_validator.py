@@ -325,7 +325,6 @@ def _validate_agent_fields(obj: dict[str, Any], obj_name: str, replay_data: dict
         "is_agent",
         "vision_size",
         "action_id",
-        "action_param",
         "action_success",
         "current_reward",
         "total_reward",
@@ -353,7 +352,6 @@ def _validate_agent_fields(obj: dict[str, Any], obj_name: str, replay_data: dict
 
     # Validate dynamic agent fields (always time series).
     _validate_time_series(obj["action_id"], f"{obj_name}.action_id", int)
-    _validate_time_series(obj["action_param"], f"{obj_name}.action_param", int)
     _validate_time_series(obj["action_success"], f"{obj_name}.action_success", bool)
     _validate_time_series(obj["current_reward"], f"{obj_name}.current_reward", (int, float))
     _validate_time_series(obj["total_reward"], f"{obj_name}.total_reward", (int, float))
@@ -439,7 +437,6 @@ def _make_valid_replay(file_name: str = "sample.json.z") -> dict[str, Any]:
                 # Time series fields (some single values, some arrays for testing)
                 "location": [[0, [5, 5, 0]], [1, [6, 5, 0]], [2, [7, 5, 0]]],
                 "action_id": 0,
-                "action_param": 0,
                 "action_success": True,
                 "current_reward": 0.0,
                 "total_reward": 0.0,
@@ -462,7 +459,6 @@ def _make_valid_replay(file_name: str = "sample.json.z") -> dict[str, Any]:
                 # Time series fields (mix of single values and arrays for testing)
                 "location": [[0, [3, 3, 0]], [5, [4, 3, 0]]],
                 "action_id": [[0, 1], [10, 0]],
-                "action_param": 0,
                 "action_success": [[0, False], [10, True]],
                 "current_reward": 1.5,
                 "total_reward": [[0, 0.0], [10, 1.5]],

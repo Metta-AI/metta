@@ -248,12 +248,10 @@ function drawActions() {
 
     // Do agent actions.
     if (gridObject.actionId.isSequence()) {
-      // Draw the action.
       const actionId = gridObject.actionId.get()
-      const actionParam = gridObject.actionParameter.get()
       const actionSuccess = gridObject.actionSuccess.get()
       if (actionSuccess && actionId != null) {
-        const action_name = state.replay.actionNames[actionId]
+        const actionName = state.replay.actionNames[actionId]
         const orientation = gridObject.orientation.get()
         let rotation = 0
         if (orientation === 0) {
@@ -265,16 +263,20 @@ function drawActions() {
         } else if (orientation === 3) {
           rotation = 0 // East
         }
-        if (action_name === 'attack' && actionParam >= 1 && actionParam <= 9) {
-          ctx.drawSprite(
-            `actions/attack${actionParam}.png`,
-            x * Common.TILE_SIZE,
-            y * Common.TILE_SIZE,
-            [1, 1, 1, 1],
-            1,
-            rotation
-          )
-        } else if (action_name === 'attack_nearest') {
+
+        if (actionName?.startsWith('attack_')) {
+          const variant = Number.parseInt(actionName.split('_')[1] ?? '', 10)
+          if (!Number.isNaN(variant)) {
+            ctx.drawSprite(
+              `actions/attack${variant + 1}.png`,
+              x * Common.TILE_SIZE,
+              y * Common.TILE_SIZE,
+              [1, 1, 1, 1],
+              1,
+              rotation
+            )
+          }
+        } else if (actionName === 'attack_nearest') {
           ctx.drawSprite(
             'actions/attack_nearest.png',
             x * Common.TILE_SIZE,
@@ -283,7 +285,7 @@ function drawActions() {
             1,
             rotation
           )
-        } else if (action_name === 'put_items') {
+        } else if (actionName === 'put_items') {
           ctx.drawSprite(
             'actions/put_recipe_items.png',
             x * Common.TILE_SIZE,
@@ -292,7 +294,7 @@ function drawActions() {
             1,
             rotation
           )
-        } else if (action_name === 'get_items') {
+        } else if (actionName === 'get_items') {
           ctx.drawSprite(
             'actions/get_output.png',
             x * Common.TILE_SIZE,
@@ -301,7 +303,7 @@ function drawActions() {
             1,
             rotation
           )
-        } else if (action_name === 'swap') {
+        } else if (actionName === 'swap') {
           ctx.drawSprite('actions/swap.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE, [1, 1, 1, 1], 1, rotation)
         }
       }
@@ -545,14 +547,13 @@ function drawThoughtBubbles() {
     // We need to find a key action in the future.
     // A key action is a successful action that is not a no-op, rotate, or move.
     // It must not be more than 20 steps in the future.
-    let keyAction = null
-    let keyActionStep = null
+    let keyActionId: number | null = null
+    let keyActionStep: number | null = null
     let actionHasTarget = false
     const actionStepEnd = Math.min(state.replay.maxSteps, state.step + 20)
     for (let actionStep = state.step; actionStep < actionStepEnd; actionStep++) {
       const actionId = state.selectedGridObject.actionId.get(actionStep)
-      const actionParam = state.selectedGridObject.actionParameter.get(actionStep)
-      if (actionId == null || actionParam == null) {
+      if (actionId == null) {
         continue
       }
       const actionSuccess = state.selectedGridObject.actionSuccess.get(actionStep)
@@ -561,21 +562,20 @@ function drawThoughtBubbles() {
       }
       const actionName = state.replay.actionNames[actionId]
       if (
+        actionName === undefined ||
         actionName === 'noop' ||
-        actionName === 'rotate' ||
-        actionName === 'move' ||
-        actionName === 'move_cardinal' ||
-        actionName === 'move_8way'
+        actionName.startsWith('move') ||
+        actionName.startsWith('rotate')
       ) {
         continue
       }
-      keyAction = [actionId, actionParam]
+      keyActionId = actionId
       keyActionStep = actionStep
-      actionHasTarget = !(actionName === 'attack' || actionName === 'attack_nearest')
+      actionHasTarget = !(actionName.startsWith('attack_') || actionName === 'attack_nearest')
       break
     }
 
-    if (keyAction != null && keyActionStep != null) {
+    if (keyActionId != null && keyActionStep != null) {
       const location = state.selectedGridObject.location.get()
       const x = (location[0] + 0.5) * Common.TILE_SIZE
       const y = (location[1] - 0.5) * Common.TILE_SIZE
@@ -603,7 +603,7 @@ function drawThoughtBubbles() {
         ctx.drawSprite('actions/thoughts.png', x, y)
       }
       // Draw the action icon.
-      const iconName = `actions/icons/${state.replay.actionNames[keyAction[0]]}.png`
+      const iconName = `actions/icons/${state.replay.actionNames[keyActionId]}.png`
       if (ctx.hasImage(iconName)) {
         ctx.drawSprite(iconName, x, y, [1, 1, 1, 1], 1 / 4, 0)
       } else {
@@ -815,7 +815,10 @@ function drawAttackMode() {
       if (gridMousePos != null && targetX === gridMousePos.x() && targetY === gridMousePos.y()) {
         // Check if we are clicking this specific tile.
         console.info('Attack mode clicked on:', targetX, targetY)
-        sendAction('attack', attackIndex)
+        const attackKey = `attack_${attackIndex - 1}`
+        if (state.replay.actionNames.includes(attackKey)) {
+          sendAction(attackKey)
+        }
       }
     }
   }

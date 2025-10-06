@@ -1,4 +1,4 @@
-import std/[json],
+import std/[json, strutils],
   boxy, fidget2/[hybridrender],
   zippy, vmath, jsony
 
@@ -21,7 +21,6 @@ type
 
     # Agent specific keys.
     actionId*: seq[int]
-    actionParameter*: seq[int]
     actionSuccess*: seq[bool]
     currentReward*: seq[float]
     totalReward*: seq[float]
@@ -80,12 +79,6 @@ type
     drawnAgentActionMask*: uint64
     mgConfig*: JsonNode
 
-    noopActionId*: int
-    moveActionId*: int
-    putItemsActionId*: int
-    getItemsActionId*: int
-    attackActionId*: int
-    changeGlyphActionId*: int
 
   ReplayEntity* = ref object
     ## Replay entity does not have time series and only has the current step value.
@@ -101,7 +94,6 @@ type
 
     # Agent specific keys.
     actionId*: int
-    actionParameter*: int
     actionSuccess*: bool
     currentReward*: float
     totalReward*: float
@@ -177,7 +169,7 @@ proc expand[T](data: JsonNode, numSteps: int, defaultValue: T): seq[T] =
     return @[data.to(T)]
 
 let drawnAgentActionNames =
-  ["attack", "attack_nearest", "put_items", "get_items", "swap"]
+  ["attack_nearest", "put_items", "get_items", "swap"]
 
 proc expandSequenceV2(sequence: JsonNode, numSteps: int): JsonNode =
   ## Expand an array of [step, value] pairs into an array of values per step.
@@ -205,189 +197,6 @@ proc getAttrV1(obj: JsonNode, attr: string, atStep: int, defaultValue: JsonNode)
   if atStep >= 0 and atStep < prop.len:
     return prop[atStep]
   return defaultValue
-
-proc convertReplayV1ToV2(replayData: JsonNode): JsonNode =
-  ## Converts a replay from version 1 to version 2.
-  echo "Converting replay from version 1 to version 2..."
-  var data = newJObject()
-  data["version"] = newJInt(2)
-
-  # action_names (with renames)
-  var actionNames = newJArray()
-  for nameNode in replayData["action_names"]:
-    var name = nameNode.getStr
-    if name == "put_recipe_items":
-      name = "put_items"
-    elif name == "get_output":
-      name = "get_items"
-    actionNames.add(newJString(name))
-  data["action_names"] = actionNames
-
-  # item_names
-  if ("inventory_items" in replayData) and replayData["inventory_items"].len > 0:
-    data["item_names"] = replayData["inventory_items"]
-  else:
-    var items = newJArray()
-    for s in [
-      "ore.red", "ore.blue", "ore.green", "battery", "heart", "armor", "laser", "blueprint"
-    ]:
-      items.add(newJString(s))
-    data["item_names"] = items
-
-  data["type_names"] = replayData["object_types"]
-  data["num_agents"] = replayData["num_agents"]
-  data["max_steps"] = replayData["max_steps"]
-
-  let maxSteps = replayData["max_steps"].getInt
-
-  # Helpers
-  proc pair(a, b: JsonNode): JsonNode = (result = newJArray(); result.add(a); result.add(b))
-
-  var objects = newJArray()
-  var maxX = 0
-  var maxY = 0
-  for gridObject in replayData["grid_objects"]:
-    # Expand position and layer series if present.
-    if "c" in gridObject:
-      gridObject["c"] = expandSequenceV2(gridObject["c"], maxSteps)
-    if "r" in gridObject:
-      gridObject["r"] = expandSequenceV2(gridObject["r"], maxSteps)
-    if "layer" in gridObject:
-      gridObject["layer"] = expandSequenceV2(gridObject["layer"], maxSteps)
-
-    var location = newJArray()
-    for step in 0 ..< maxSteps:
-      let xNode = getAttrV1(gridObject, "c", step, newJInt(0))
-      let yNode = getAttrV1(gridObject, "r", step, newJInt(0))
-      let zNode = getAttrV1(gridObject, "layer", step, newJInt(0))
-      let x = if xNode.kind == JInt: xNode.getInt else: 0
-      let y = if yNode.kind == JInt: yNode.getInt else: 0
-      let z = if zNode.kind == JInt: zNode.getInt else: 0
-      var triple = newJArray()
-      triple.add(newJInt(x))
-      triple.add(newJInt(y))
-      triple.add(newJInt(z))
-      location.add(pair(newJInt(step), triple))
-      if x > maxX: maxX = x
-      if y > maxY: maxY = y
-
-    # Inventory per step.
-    var inventory = newJArray()
-    let itemNames = data["item_names"]
-    for i in 0 ..< itemNames.len:
-      let inventoryName = itemNames[i].getStr
-      let invKey = "inv:" & inventoryName
-      let agentInvKey = "agent:inv:" & inventoryName
-      if invKey in gridObject:
-        gridObject[invKey] = expandSequenceV2(gridObject[invKey], maxSteps)
-      elif agentInvKey in gridObject:
-        gridObject[invKey] = expandSequenceV2(gridObject[agentInvKey], maxSteps)
-
-    for step in 0 ..< maxSteps:
-      var inventoryList = newJArray()
-      for i in 0 ..< itemNames.len:
-        let inventoryName = itemNames[i].getStr
-        let invKey = "inv:" & inventoryName
-        let amountNode = getAttrV1(gridObject, invKey, step, newJInt(0))
-        var amt = 0
-        if amountNode.kind == JInt:
-          amt = amountNode.getInt
-        if amt != 0:
-          var pairNode = newJArray()
-          pairNode.add(newJInt(i))
-          pairNode.add(newJInt(amt))
-          inventoryList.add(pairNode)
-      inventory.add(pair(newJInt(step), inventoryList))
-
-    # Build v2 object.
-    var obj = newJObject()
-    obj["id"] = gridObject["id"]
-    obj["type_id"] = gridObject["type"]
-    obj["location"] = location
-    obj["inventory"] = inventory
-    # Ensure orientation exists; default to 0 if missing.
-    if "orientation" in gridObject:
-      obj["orientation"] = gridObject["orientation"]
-    else:
-      obj["orientation"] = newJInt(0)
-
-    # Default inventory_max to 0 for v1 (required by Nim loader).
-    obj["inventory_max"] = newJInt(0)
-
-    # Agent-specific fields.
-    if "agent_id" in gridObject:
-      obj["agent_id"] = gridObject["agent_id"]
-
-      # is_frozen can be a series or a single value; coerce to bools.
-      if "agent:frozen" in gridObject:
-        let frozen = gridObject["agent:frozen"]
-        if frozen.kind == JArray:
-          var fr = newJArray()
-          for p in frozen:
-            var b = false
-            if p[1].kind == JBool:
-              b = p[1].getBool
-            elif p[1].kind == JInt:
-              b = p[1].getInt != 0
-            fr.add(pair(p[0], newJBool(b)))
-          obj["is_frozen"] = fr
-        else:
-          var b = if frozen.kind == JBool: frozen.getBool else: (if frozen.kind == JInt: frozen.getInt != 0 else: false)
-          obj["is_frozen"] = newJBool(b)
-
-      # color: prefer agent color; ensure presence for loader.
-      if "agent:color" in gridObject:
-        obj["color"] = gridObject["agent:color"]
-      elif "color" in gridObject:
-        obj["color"] = gridObject["color"]
-      else:
-        obj["color"] = newJInt(0)
-
-      if "action_success" in gridObject:
-        obj["action_success"] = gridObject["action_success"]
-      obj["group_id"] = gridObject["agent:group"]
-      if "agent:orientation" in gridObject:
-        obj["orientation"] = gridObject["agent:orientation"]
-      if "hp" in gridObject:
-        obj["hp"] = gridObject["hp"]
-      if "reward" in gridObject:
-        obj["current_reward"] = gridObject["reward"]
-      if "total_reward" in gridObject:
-        obj["total_reward"] = gridObject["total_reward"]
-
-      # Action id/param per step from combined action.
-      if "action" in gridObject:
-        gridObject["action"] = expandSequenceV2(gridObject["action"], maxSteps)
-      var actionId = newJArray()
-      var actionParam = newJArray()
-      for step in 0 ..< maxSteps:
-        let action = getAttrV1(gridObject, "action", step, newJNull())
-        if action.kind == JArray and action.len >= 2:
-          actionId.add(pair(newJInt(step), action[0]))
-          actionParam.add(pair(newJInt(step), action[1]))
-      obj["action_id"] = actionId
-      obj["action_param"] = actionParam
-
-    else:
-      # Non-agent: ensure color exists for loader.
-      if "color" in gridObject:
-        obj["color"] = gridObject["color"]
-      else:
-        obj["color"] = newJInt(0)
-
-    objects.add(obj)
-
-  data["objects"] = objects
-  var mapSize = newJArray()
-  mapSize.add(newJInt(maxX + 1))
-  mapSize.add(newJInt(maxY + 1))
-  data["map_size"] = mapSize
-
-  var mg = newJObject()
-  mg["label"] = newJString("Unlabeled Replay")
-  data["mg_config"] = mg
-
-  return data
 
 proc computeGainMap(replay: Replay) =
   ## Compute gain/loss for agents.
@@ -430,13 +239,12 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
   ## Load a replay from a string.
   var jsonObj = fromJson(jsonData)
 
-  if jsonObj["version"].getInt == 1:
-    jsonObj = convertReplayV1ToV2(jsonObj)
-
-  doAssert jsonObj["version"].getInt == 2
+  let version = jsonObj["version"].getInt
+  if version != 2:
+    raise newException(ValueError, "Unsupported replay version: " & $version)
 
   let replay = Replay(
-    version: jsonObj["version"].getInt,
+    version: version,
     actionNames: jsonObj["action_names"].to(seq[string]),
     itemNames: jsonObj["item_names"].to(seq[string]),
     typeNames: jsonObj["type_names"].to(seq[string]),
@@ -483,7 +291,10 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
     let idx = replay.actionNames.find(actionName)
     if idx != -1:
       replay.drawnAgentActionMask = replay.drawnAgentActionMask or (1'u64 shl idx)
-  replay.attackActionId = replay.actionNames.find("attack")
+
+  for idx, name in replay.actionNames.pairs():
+    if startsWith(name, "attack_"):
+      replay.drawnAgentActionMask = replay.drawnAgentActionMask or (1'u64 shl idx)
 
   if "file_name" in jsonObj:
     replay.fileName = jsonObj["file_name"].getStr
@@ -525,7 +336,6 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
       entity.groupId = obj["group_id"].getInt
       entity.isFrozen = expand[bool](obj["is_frozen"], replay.maxSteps, false)
       entity.actionId = expand[int](obj["action_id"], replay.maxSteps, 0)
-      entity.actionParameter = expand[int](obj["action_param"], replay.maxSteps, 0)
       entity.actionSuccess = expand[bool](obj["action_success"],
           replay.maxSteps, false)
       entity.currentReward = expand[float](obj["current_reward"],
@@ -581,13 +391,6 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
   # compute gain maps for static replays.
   computeGainMap(replay)
 
-  replay.noopActionId = replay.actionNames.find("noop")
-  replay.moveActionId = replay.actionNames.find("move")
-  replay.putItemsActionId = replay.actionNames.find("put_items")
-  replay.getItemsActionId = replay.actionNames.find("get_items")
-  replay.attackActionId = replay.actionNames.find("attack")
-  replay.changeGlyphActionId = replay.actionNames.find("change_glyph")
-
   return replay
 
 proc loadReplay*(data: string, fileName: string): Replay =
@@ -622,7 +425,6 @@ proc apply*(replay: Replay, step: int, objects: seq[ReplayEntity]) =
     entity.inventoryMax = obj.inventoryMax
     entity.color.add(obj.color)
     entity.actionId.add(obj.actionId)
-    entity.actionParameter.add(obj.actionParameter)
     entity.actionSuccess.add(obj.actionSuccess)
     entity.currentReward.add(obj.currentReward)
     entity.totalReward.add(obj.totalReward)

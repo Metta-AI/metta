@@ -310,7 +310,6 @@ export function updateAvailableColumns() {
     'agentId',
     'totalReward',
     'actionId',
-    'actionParameter',
     'actionSuccess',
     'currentReward',
     'orientation',

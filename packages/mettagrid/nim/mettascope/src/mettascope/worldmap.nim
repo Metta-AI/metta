@@ -329,15 +329,33 @@ proc drawActions*() =
       if (replay.drawnAgentActionMask and (1'u64 shl actionId)) != 0 and
           obj.actionSuccess.at and
           actionId >= 0 and actionId < replay.actionImages.len:
-        bxy.drawImage(
-          if actionId != replay.attackActionId:
-            replay.actionImages[actionId]
-          else:
-            let attackParam = obj.actionParameter.at
-            if attackParam >= 1 and attackParam <= 9:
-              replay.actionAttackImages[attackParam - 1]
+        let actionName = replay.actionNames[actionId]
+        let sprite =
+          if startsWith(actionName, "attack_"):
+            let parts = actionName.split('_')
+            if parts.len == 2:
+              try:
+                let variant = parseInt(parts[1])
+                if variant >= 0 and variant < replay.actionAttackImages.len:
+                  replay.actionAttackImages[variant]
+                else:
+                  continue
+              except ValueError:
+                continue
             else:
-              continue,
+              continue
+          elif actionName == "attack_nearest":
+            "actions/attack_nearest"
+          elif actionName == "put_items":
+            "actions/put_recipe_items"
+          elif actionName == "get_items":
+            "actions/get_output"
+          elif actionName == "swap":
+            "actions/swap"
+          else:
+            replay.actionImages[actionId]
+        bxy.drawImage(
+          sprite,
           obj.location.at.xy.vec2,
           angle = case obj.orientation.at:
           of 0: PI / 2 # North
@@ -534,7 +552,6 @@ proc drawThoughtBubbles*() =
     return
 
   var keyAction = -1
-  var keyParam = -1
   var keyStep = -1
   var actionHasTarget = false
   let actionStepEnd = min(step + 20, replay.maxSteps)
@@ -545,26 +562,20 @@ proc drawThoughtBubbles*() =
     let actionId = selection.actionId.at(actionStep)
     if actionId == -1:
       continue
-    let actionParam = selection.actionParameter.at(actionStep)
-    if actionParam == -1:
-      continue
     let actionSuccess = selection.actionSuccess.at(actionStep)
     if not actionSuccess:
       continue
     let actionName = replay.actionNames[actionId]
     if actionName == "noop" or
-    actionName == "rotate" or
-    actionName == "move" or
-    actionName == "move_cardinal" or
-    actionName == "move_8way":
+       startsWith(actionName, "move") or
+       startsWith(actionName, "rotate"):
       continue
     keyAction = actionId
-    keyParam = actionParam
     keyStep = actionStep
-    actionHasTarget = not (actionName == "attack" or actionName == "attack_nearest")
+    actionHasTarget = not (startsWith(actionName, "attack_") or actionName == "attack_nearest")
     break
 
-  if keyAction != -1 and keyParam != -1:
+  if keyAction != -1 and keyStep != -1:
     let loc = selection.location.at(step).xy.vec2
     if actionHasTarget and keyStep != step:
       # Draw an arrow on a circle around the target, pointing at it.

@@ -234,11 +234,18 @@ def attack(env: MettaGrid, target_arg: int = 0, agent_idx: int = 0) -> dict[str,
 
     action_names = env.action_names()
 
-    if "attack" not in action_names:
+    attack_variants = [name for name in action_names if name.startswith("attack_")]
+    if not attack_variants:
         result["error"] = "Attack action not available"
         return result
 
-    attack_idx = action_names.index("attack")
+    clamped_arg = max(0, min(target_arg, len(attack_variants) - 1))
+    attack_name = f"attack_{clamped_arg}"
+    if attack_name not in action_names:
+        result["error"] = f"Attack variant {attack_name} not available"
+        return result
+
+    attack_idx = action_names.index(attack_name)
 
     # Get initial state for comparison
     objects_before = env.grid_objects()
@@ -251,8 +258,10 @@ def attack(env: MettaGrid, target_arg: int = 0, agent_idx: int = 0) -> dict[str,
             break
 
     # Perform attack
-    attack_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
-    attack_action[agent_idx] = [attack_idx, target_arg]
+    result["target_arg"] = clamped_arg
+
+    attack_action = np.zeros((env.num_agents,), dtype=dtype_actions)
+    attack_action[agent_idx] = attack_idx
     env.step(attack_action)
 
     result["success"] = bool(env.action_success()[agent_idx])
@@ -344,8 +353,8 @@ def swap(env: MettaGrid, agent_idx: int = 0) -> dict[str, Any]:
     result["position_before"] = get_agent_position(env, agent_idx)
 
     # Perform swap
-    swap_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
-    swap_action[agent_idx] = [swap_idx, 0]  # Swap argument is typically ignored
+    swap_action = np.zeros((env.num_agents,), dtype=dtype_actions)
+    swap_action[agent_idx] = swap_idx
     env.step(swap_action)
 
     result["success"] = bool(env.action_success()[agent_idx])

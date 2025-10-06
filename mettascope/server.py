@@ -231,16 +231,10 @@ def make_app(cfg: "PlayTool"):
             if current_step < sim._vecenv.driver_env.max_steps:
                 await send_message(type="message", message="Step!")
 
-                actions = sim.generate_actions()
-                if actions.ndim == 2 and actions.shape[1] == 2:
-                    actions = actions[:, 0]
+                actions = np.asarray(sim.generate_actions(), dtype=np.int64)
                 if action_message is not None:
                     agent_id = action_message["agent_id"]
-                    manual_action = action_message.get("action_id")
-                    if isinstance(manual_action, (list, tuple, np.ndarray)):
-                        actions[agent_id] = manual_action[0]
-                    else:
-                        actions[agent_id] = manual_action
+                    actions[agent_id] = action_message["action_id"]
                 sim.step_simulation(actions)
 
                 await send_replay_step()

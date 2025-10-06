@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import numpy.typing as npt
@@ -207,10 +207,12 @@ class MettaGridCore:
 
         return obs, infos
 
-    def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
+    def step(
+        self, actions: np.ndarray | int | Sequence[int]
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
         """Execute one timestep of the environment dynamics with the given actions."""
-        # Execute step in core environment
-        return self.__c_env_instance.step(actions)
+        actions_array = np.asarray(actions, dtype=np.int32).reshape(self.num_agents)
+        return self.__c_env_instance.step(actions_array)
 
     def render(self) -> Optional[str]:
         """Render the environment."""

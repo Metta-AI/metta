@@ -143,12 +143,12 @@ class TestActionValidation:
         # Action should fail
         assert not env.action_success()[0], "Invalid action type should fail"
 
-    def test_invalid_action_argument(self, basic_config, simple_map):
-        """Test that invalid action arguments are handled properly."""
+    def test_invalid_action_index(self, basic_config, simple_map):
+        """Test that invalid action indices are handled properly."""
         env = MettaGrid(from_mettagrid_config(basic_config), simple_map, 42)
         env.reset()
 
-        # Use an out-of-range flattened index to simulate invalid argument
+        # Use an out-of-range flattened index to simulate invalid input
         invalid_action = np.array([env.action_space.n + 1], dtype=dtype_actions)
         env.step(invalid_action)
 

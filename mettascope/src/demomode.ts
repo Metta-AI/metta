@@ -91,16 +91,16 @@ export function doDemoMode() {
         let actionFound = false
         for (let j = 0; j < 10; j++) {
           const actionId = agent.actionId.get(state.step + j)
-          const actionParam = agent.actionParameter.get(state.step + j)
-          if (actionId == null || actionParam == null) {
+          if (actionId == null) {
             continue
           }
           const actionName = state.replay.actionNames[actionId]
           const actionSuccess = agent.actionSuccess.get(state.step + j)
           if (
+            actionName !== undefined &&
             actionName !== 'noop' &&
-            actionName !== 'rotate' &&
-            actionName !== 'move' &&
+            !actionName.startsWith('rotate') &&
+            !actionName.startsWith('move') &&
             actionName !== 'change_color' &&
             actionName !== 'change_shape' &&
             actionSuccess
