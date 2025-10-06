@@ -242,12 +242,19 @@ class AGaLiTeAttentionLayer(nn.Module):
         self.kernel = kernel
         self.feature_dim = self.kernel.feature_dim(self.head_dim, self.eta)
 
-        combined_out_dim = head_num * (5 * head_dim + 3 * eta)
-        self.combined_proj = nn.Linear(input_dim, combined_out_dim, bias=False)
-        self._split_sizes = (
-            [head_dim] * 5
-            + [eta] * 3
-        )  # q, k, v, beta, gamma, p1, p2, p3 per head
+        # All projections (same as GaLiTe but with r-dimensional expansion)
+        self.q_proj = nn.Linear(input_dim, head_num * head_dim, bias=False)
+        self.k_proj = nn.Linear(input_dim, head_num * head_dim, bias=False)
+        self.v_proj = nn.Linear(input_dim, head_num * head_dim, bias=False)
+
+        # Gating parameters
+        self.beta_proj = nn.Linear(input_dim, head_num * head_dim, bias=False)
+        self.gamma_proj = nn.Linear(input_dim, head_num * head_dim, bias=False)
+
+        # Feature map parameters
+        self.p1_proj = nn.Linear(input_dim, head_num * eta, bias=False)
+        self.p2_proj = nn.Linear(input_dim, head_num * eta, bias=False)
+        self.p3_proj = nn.Linear(input_dim, head_num * eta, bias=False)
 
         # Output projection
         self.out_proj = nn.Linear(head_num * head_dim, input_dim)
@@ -263,7 +270,17 @@ class AGaLiTeAttentionLayer(nn.Module):
 
     def _init_weights(self):
         """Initialize weights with proper scaling."""
-        nn.init.orthogonal_(self.combined_proj.weight, gain=math.sqrt(2))
+        for module in [
+            self.q_proj,
+            self.k_proj,
+            self.v_proj,
+            self.beta_proj,
+            self.gamma_proj,
+            self.p1_proj,
+            self.p2_proj,
+            self.p3_proj,
+        ]:
+            nn.init.orthogonal_(module.weight, gain=math.sqrt(2))
 
         nn.init.orthogonal_(self.out_proj.weight, gain=1.0)
         nn.init.constant_(self.out_proj.bias, 0)
@@ -282,31 +299,30 @@ class AGaLiTeAttentionLayer(nn.Module):
 
         tilde_k_prev, tilde_v_prev, s_prev, tick = memory
 
-        combined = self.combined_proj(inputs)
-        combined = combined.view(T, B, self.head_num, -1)
-        split_chunks = torch.split(combined, self._split_sizes, dim=-1)
-        q_chunk, k_chunk, v_chunk, beta_chunk, gamma_chunk, p1_chunk, p2_chunk, p3_chunk = split_chunks
+        # Project to attention components
+        queries = self.q_proj(inputs).view(T, B, self.head_num, self.head_dim)
+        keys = self.k_proj(inputs).view(T, B, self.head_num, self.head_dim)
+        values = self.v_proj(inputs).view(T, B, self.head_num, self.head_dim)
 
-        queries = q_chunk
-        keys = k_chunk
-        values = v_chunk
+        # Gating parameters
+        beta = torch.sigmoid(self.beta_proj(inputs).view(T, B, self.head_num, self.head_dim))
+        gamma = torch.sigmoid(self.gamma_proj(inputs).view(T, B, self.head_num, self.head_dim))
 
-        beta = torch.sigmoid(beta_chunk)
-        gamma = torch.sigmoid(gamma_chunk)
-
-        p1 = p1_chunk
-        p2 = p2_chunk
-        p3 = p3_chunk
+        # Feature map parameters
+        p1 = self.p1_proj(inputs).view(T, B, self.head_num, self.eta)
+        p2 = self.p2_proj(inputs).view(T, B, self.head_num, self.eta)
+        p3 = self.p3_proj(inputs).view(T, B, self.head_num, self.eta)
 
         phi_q = self.kernel.feature_map(queries, p2, self.eta).reshape(T, B, self.head_num, self.feature_dim)
         psi_k = self.kernel.feature_map(keys, p1, self.eta).reshape(T, B, self.head_num, self.feature_dim)
         gamma_feat = self.kernel.gamma_map(gamma, p3, self.eta).reshape(T, B, self.head_num, self.feature_dim)
 
         # Update tick and compute oscillatory terms
-        cos_step, sin_step = self._cached_trig(T, device, tick.dtype)
+        cos_step, sin_step = self._cached_trig(T, device, inputs.dtype)
         tick = tick.to(dtype=cos_step.dtype, device=device)
-        cos_tick = torch.cos(tick.view(1, B, 1) * self.omegas.view(1, 1, -1))
-        sin_tick = torch.sin(tick.view(1, B, 1) * self.omegas.view(1, 1, -1))
+        omegas = self.omegas.to(device=cos_step.device, dtype=cos_step.dtype)
+        cos_tick = torch.cos(tick.view(1, B, 1) * omegas.view(1, 1, -1))
+        sin_tick = torch.sin(tick.view(1, B, 1) * omegas.view(1, 1, -1))
         cos_terms = cos_tick * cos_step.view(T, 1, self.r) - sin_tick * sin_step.view(T, 1, self.r)
 
         # Apply gating and expand with oscillatory terms
