@@ -3,6 +3,7 @@
 #include <ATen/ops/zeros.h>
 #include <torch/extension.h>
 #include <type_traits>
+#include <vector>
 
 namespace {
 
@@ -108,7 +109,7 @@ std::vector<torch::Tensor> discounted_sum_backward(const torch::Tensor& grad_out
 }  // namespace cpu
 
 #ifdef WITH_CUDA
-namespace cuda {
+namespace agalite_cuda {
   torch::Tensor discounted_sum_forward(torch::Tensor start_state,
                                        torch::Tensor x,
                                        torch::Tensor discounts);
@@ -116,7 +117,7 @@ namespace cuda {
                                                      const torch::Tensor& discounts,
                                                      const torch::Tensor& output,
                                                      const torch::Tensor& start_state);
-}  // namespace cuda
+}  // namespace agalite_cuda
 #endif
 
 torch::Tensor discounted_sum_forward(torch::Tensor start_state,
@@ -125,7 +126,7 @@ torch::Tensor discounted_sum_forward(torch::Tensor start_state,
   check_inputs(start_state, x, discounts);
   if (start_state.is_cuda()) {
 #ifdef WITH_CUDA
-    return cuda::discounted_sum_forward(start_state, x, discounts);
+    return agalite_cuda::discounted_sum_forward(start_state, x, discounts);
 #else
     TORCH_CHECK(false, "AGaLiTe kernels built without CUDA support");
 #endif
@@ -140,7 +141,7 @@ std::vector<torch::Tensor> discounted_sum_backward(const torch::Tensor& grad_out
   check_inputs(start_state, grad_out, discounts);
   if (grad_out.is_cuda()) {
 #ifdef WITH_CUDA
-    return cuda::discounted_sum_backward(grad_out, discounts, output, start_state);
+    return agalite_cuda::discounted_sum_backward(grad_out, discounts, output, start_state);
 #else
     TORCH_CHECK(false, "AGaLiTe kernels built without CUDA support");
 #endif

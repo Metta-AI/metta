@@ -7,7 +7,6 @@ from typing import Callable, Dict
 from experiments.recipes import arena_basic_easy_shaped as base
 from metta.agent.policies.agalite import AGaLiTeConfig, AGaLiTeImprovedConfig
 from metta.agent.policy import PolicyArchitecture
-from metta.rl.trainer_config import TorchProfilerConfig
 from metta.tools.train import TrainTool
 
 make_mettagrid = base.make_mettagrid
@@ -59,10 +58,8 @@ def train(
     tool.trainer.minibatch_size = 4096
     tool.training_env.forward_pass_minibatch_target_size = 1024
 
-    tool.torch_profiler = TorchProfilerConfig(
-        interval_epochs=1,
-        profile_dir="${run_dir}/torch_traces",
-    )
+    tool.torch_profiler.interval_epochs = 1
+    tool.torch_profiler.profile_dir = "${run_dir}/torch_traces"
 
     return tool
 

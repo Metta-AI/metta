@@ -1,7 +1,8 @@
 #include <torch/extension.h>
 #include <type_traits>
+#include <vector>
 
-namespace cuda {
+namespace agalite_cuda {
 
 namespace {
 
@@ -115,7 +116,12 @@ std::vector<torch::Tensor> discounted_sum_backward(const torch::Tensor& grad_out
             N);
       });
 
-  return {grad_start, grad_x, grad_discounts};
+  std::vector<torch::Tensor> grads;
+  grads.reserve(3);
+  grads.push_back(grad_start);
+  grads.push_back(grad_x);
+  grads.push_back(grad_discounts);
+  return grads;
 }
 
-}  // namespace cuda
+}  // namespace agalite_cuda
