@@ -245,30 +245,29 @@ class Simulation:
                 )
 
         with torch.no_grad():
-            policy_actions = self._get_actions_for_agents(self._policy_idxs.cpu(), self._policy)
+            policy_actions = self._get_actions_for_agents(self._policy_idxs.cpu(), self._policy).to(torch.long)
 
             npc_actions = None
             if self._npc_policy is not None and len(self._npc_idxs):
-                npc_actions = self._get_actions_for_agents(self._npc_idxs, self._npc_policy)
+                npc_actions = self._get_actions_for_agents(self._npc_idxs, self._npc_policy).to(torch.long)
 
-        actions = policy_actions
         if self._npc_agents_per_env:
             policy_actions = rearrange(
                 policy_actions,
-                "(envs policy_agents) act -> envs policy_agents act",
+                "(envs policy_agents) -> envs policy_agents",
                 envs=self._num_envs,
                 policy_agents=self._policy_agents_per_env,
             )
             npc_actions = rearrange(
                 npc_actions,
-                "(envs npc_agents) act -> envs npc_agents act",
+                "(envs npc_agents) -> envs npc_agents",
                 envs=self._num_envs,
                 npc_agents=self._npc_agents_per_env,
             )
-            # Concatenate along agents dimension
             actions = torch.cat([policy_actions, npc_actions], dim=1)
-            # Flatten back to (total_agents, action_dim)
-            actions = rearrange(actions, "envs agents act -> (envs agents) act")
+            actions = rearrange(actions, "envs agents -> (envs agents)")
+        else:
+            actions = policy_actions
 
         actions_np = actions.cpu().numpy().astype(dtype_actions)
         return actions_np
