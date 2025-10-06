@@ -14,6 +14,10 @@ from typing import List, Optional, Sequence
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
 from metta.agent.policy import PolicyArchitecture
+from metta.agent.policies.fast import FastConfig
+from metta.agent.policies.transformer import TransformerPolicyConfig
+from metta.agent.policies.vit import ViTDefaultConfig
+from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -24,22 +28,32 @@ from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from mettagrid.config import ConverterConfig
 
+ARCHITECTURES = {
+    "vit": ViTDefaultConfig(),
+    "vit_sliding": ViTSlidingTransConfig(),
+    "transformer": TransformerPolicyConfig(),
+    "fast": FastConfig(),
+}
 
 class PolicyArchitectureType(StrEnum):
-    SIMPLE = auto()
+    VIT = auto()
+    VIT_SLIDING = auto()
     TRANSFORMER = auto()
-    XLSTM = auto()
+    FAST = auto()
 
 
 def make_architecture_config(arch: str) -> Optional[PolicyArchitecture]:
-    if arch == PolicyArchitectureType.SIMPLE.value:
-        return None
+    if arch == PolicyArchitectureType.VIT.value:
+        return ViTDefaulConfig()
+
+    elif arch == PolicyArchitectureType.VIT_SLIDING.value:
+        return ViTSlidingTransConfig()
 
     elif arch == PolicyArchitectureType.TRANSFORMER.value:
-        return None
+        return TransformerPolicyConfig()
 
-    elif arch == PolicyArchitectureType.XLSTM.value:
-        return None
+    elif arch == PolicyArchitectureType.FAST.value:
+        return FastConfig()
 
 
 def make_mettagrid(num_agents: int = 12) -> MettaGridConfig:
