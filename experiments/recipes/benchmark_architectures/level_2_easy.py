@@ -21,7 +21,7 @@ from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
-
+from .level_1_basic import ARCHITECTURES
 
 def make_mettagrid(num_agents: int = 16) -> MettaGridConfig:
     """Create an easy arena environment with moderate reward shaping."""
@@ -65,22 +65,22 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
         SimulationConfig(suite="benchmark_arch", name="level_2_easy", env=basic_env),
     ]
 
-
 def train(
     curriculum: Optional[CurriculumConfig] = None,
-    policy_architecture: Optional[PolicyArchitecture] = None,
+    arch_type: str = "fast",  # (vit | vit_sliding | transformer | fast)
 ) -> TrainTool:
     """Train on Level 2 - Easy difficulty."""
     if curriculum is None:
         env = make_mettagrid()
         curriculum = cc.env_curriculum(env)
 
+    architecture_config = ARCHITECTURES[arch_type]
+
     return TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=EvaluatorConfig(simulations=make_evals()),
-        policy_architecture=policy_architecture,
+        policy_architecture=architecture_config,
     )
-
 
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     """Interactive play tool."""

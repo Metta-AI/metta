@@ -89,7 +89,7 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
 
 def train(
     curriculum: Optional[CurriculumConfig] = None,
-    arch_type: str = "fast",  # (SIMPLE | TRANSFORMER | XLSTM)
+    arch_type: str = "fast",  # (vit | vit_sliding | transformer | fast)
 ) -> TrainTool:
     """Train on Level 1 - Basic difficulty."""
     if curriculum is None:

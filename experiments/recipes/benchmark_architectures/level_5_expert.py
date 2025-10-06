@@ -26,6 +26,7 @@ from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
+from .level_1_basic import ARCHITECTURES
 
 
 def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
@@ -97,17 +98,17 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
 def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
-    policy_architecture: Optional[PolicyArchitecture] = None,
+    arch_type: str = "fast",
 ) -> TrainTool:
     """Train on Level 5 - Expert difficulty."""
     curriculum = curriculum or make_curriculum(
         enable_detailed_slice_logging=enable_detailed_slice_logging
     )
-
+    architecture_config = ARCHITECTURES[arch_type]
     return TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=EvaluatorConfig(simulations=make_evals()),
-        policy_architecture=policy_architecture,
+        policy_architecture=architecture_config,
     )
 
 

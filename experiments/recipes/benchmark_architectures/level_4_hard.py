@@ -22,7 +22,7 @@ from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
-
+from .level_1_basic import ARCHITECTURES
 
 def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
     """Create a hard difficulty arena with sparse rewards."""
@@ -72,17 +72,19 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
 
 def train(
     curriculum: Optional[CurriculumConfig] = None,
-    policy_architecture: Optional[PolicyArchitecture] = None,
+    arch_type: str = "fast",  # (vit | vit_sliding | transformer | fast)
 ) -> TrainTool:
-    """Train on Level 4 - Hard difficulty."""
+    """Train on Level 4: Hard difficulty."""
     if curriculum is None:
         env = make_mettagrid()
         curriculum = cc.env_curriculum(env)
 
+    architecture_config = ARCHITECTURES[arch_type]
+
     return TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=EvaluatorConfig(simulations=make_evals()),
-        policy_architecture=policy_architecture,
+        policy_architecture=architecture_config,
     )
 
 
