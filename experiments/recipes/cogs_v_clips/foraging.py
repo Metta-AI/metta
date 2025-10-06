@@ -113,7 +113,7 @@ class ForagingTaskGenerator(TaskGenerator):
         if num_extractors > 0:
             input_resources.update({resource: 1 for resource in self.used_resources})
 
-        cooldown = num_assemblers * 8
+        cooldown = num_assemblers * 3
 
         assembler = make_assembler(
             input_resources, {"heart": 1}, position, cooldown=cooldown
@@ -213,6 +213,9 @@ class ForagingTaskGenerator(TaskGenerator):
         size = rng.choice(self.config.size)
         assembler_position = rng.choice(self.config.assembler_positions)
         extractor_position = rng.choice(self.config.extractor_positions)
+        if extractor_position != ["Any"]:
+            # for now in situations where we have extractor positions, they should be the same as assembler positions
+            extractor_position = assembler_position
         num_objects = num_assemblers + num_extractors + num_chests
         num_extractor_types = rng.choice(self.config.num_extractor_types)
 
@@ -323,7 +326,7 @@ def make_mettagrid(task_generator) -> MettaGridConfig:
     return task_generator.get_task(random.randint(0, 1000000))
 
 
-def play(curriculum_style: str = "pairs") -> PlayTool:
+def play(curriculum_style: str = "assembly_lines_chests_pairs") -> PlayTool:
     task_generator = ForagingTaskGenerator(
         config=ForagingTaskGenerator.Config(
             **foraging_curriculum_args[curriculum_style]
@@ -338,8 +341,17 @@ def play(curriculum_style: str = "pairs") -> PlayTool:
     # #assemblers and chests around
     # env = make_env(num_cogs=4, num_assemblers=10, num_extractors=0, num_chests=4, size=20, position=["N", "S"])
 
-    # #with extractors
-    # env = make_env(num_cogs=4, num_assemblers=10, num_extractors=10, num_extractor_types=2, num_chests=4, size=20, position=["N", "S"])
+    # with extractors
+    # env = make_env(
+    #     num_cogs=4,
+    #     num_assemblers=10,
+    #     num_extractors=10,
+    #     num_extractor_types=2,
+    #     num_chests=4,
+    #     size=20,
+    #     assembler_position=["N", "S"],
+    #     extractor_position=["Any"],
+    # )
 
     return PlayTool(
         sim=SimulationConfig(env=env, suite="cogs_vs_clippies", name="play")
