@@ -101,9 +101,9 @@ def test_compress_tokens_vectorized(monkeypatch):
 
     assert compressed.shape == (2, 3, 3)
     assert mask.shape == (2, 3)
-    expected_mask = torch.tensor([[1.0, 1.0, 1.0], [1.0, 1.0, 0.0]], dtype=torch.float32)
-    torch.testing.assert_close(mask, expected_mask)
-    # Compressed tokens should keep leading valid entries and zero-pad the rest
-    assert torch.all(compressed[0, :3] != 0)
-    assert torch.all(compressed[1, :2] != 0)
-    assert torch.all(compressed[1, 2:] == 0)
+    expected_mask = torch.tensor([[True, True, True], [True, True, False]])
+    assert torch.equal(mask, expected_mask)
+    # Compressed tokens should keep leading valid entries and pad rest with 255
+    assert torch.all(compressed[0, :3] != 255)
+    assert torch.all(compressed[1, :2] != 255)
+    assert torch.all(compressed[1, 2:] == 255)

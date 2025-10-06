@@ -91,7 +91,7 @@ class SmolLLMBackbone(nn.Module):
 
         llm_dtype = next(self.llm.parameters()).dtype
         embeddings = embeddings.to(dtype=llm_dtype)
-        attention_mask = attention_mask.to(device=embeddings.device, dtype=llm_dtype)
+        attention_mask = attention_mask.to(device=embeddings.device)
 
         outputs = self.llm(
             inputs_embeds=embeddings,
@@ -170,9 +170,12 @@ class SmolLLMBackbone(nn.Module):
         if self.max_sequence_length is not None:
             lengths = torch.clamp(lengths, max=self.max_sequence_length)
 
-        max_len = int(lengths.max().item()) if lengths.numel() else 0
-        if max_len == 0:
-            max_len = min(self.max_sequence_length or tokens.shape[1], tokens.shape[1])
+        if lengths.numel() == 0:
+            return tokens[:, :0], valid_mask[:, :0]
+
+        max_len = int(torch.maximum(lengths.max(), torch.tensor(1, device=device)))
+        if self.max_sequence_length is not None:
+            max_len = min(max_len, self.max_sequence_length)
 
         gather_idx = torch.arange(max_len, device=device).expand(tokens.shape[0], -1)
         last_valid = torch.clamp(lengths - 1, min=0)
@@ -182,6 +185,7 @@ class SmolLLMBackbone(nn.Module):
         gathered = torch.gather(tokens, 1, gather_idx_expanded)
 
         keep_mask = torch.arange(max_len, device=device).expand(tokens.shape[0], -1) < lengths.unsqueeze(1)
-        compressed = torch.where(keep_mask.unsqueeze(-1), gathered, torch.zeros_like(gathered))
+        fill = torch.full_like(gathered, 255)
+        compressed = torch.where(keep_mask.unsqueeze(-1), gathered, fill)
 
-        return compressed.to(dtype=torch.float32), keep_mask.to(dtype=torch.float32)
+        return compressed, keep_mask
