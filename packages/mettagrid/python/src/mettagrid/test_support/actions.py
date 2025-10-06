@@ -394,3 +394,14 @@ def get_agent_orientation(env: MettaGrid, agent_idx: int = 0) -> int:
         if "agent_id" in obj_data and obj_data.get("agent_id") == agent_idx:
             return obj_data["agent:orientation"]
     raise ValueError(f"Agent {agent_idx} not found in grid objects")
+def action_index(env, base: str, orientation: Orientation | None = None) -> int:
+    """Return the flattened action index for a given action name."""
+    target = base if orientation is None else f"{base}_{orientation.name.lower()}"
+    names_getter = getattr(env, "action_names", None)
+    if callable(names_getter):
+        names = names_getter()
+    else:
+        names = names_getter
+    if target not in names:
+        raise AssertionError(f"Action {target} not available; available actions: {names}")
+    return names.index(target)

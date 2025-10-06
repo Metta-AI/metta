@@ -3,6 +3,8 @@ import numpy as np
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.core import MettaGridCore
 from mettagrid.mettagrid_c import dtype_actions
+from mettagrid.test_support.actions import action_index
+from mettagrid.test_support.orientation import Orientation
 
 
 class TestAgentResourceSharing:
@@ -59,7 +61,7 @@ class TestAgentResourceSharing:
         # Have agent 0 move onto agent 1 to trigger onUse
         # Agent 0 is at position (1,1), Agent 1 is at position (1,2)
         # So agent 0 needs to move to the right (East)
-        move_idx = action_index(env, "move_east")
+        move_idx = action_index(env, "move", Orientation.EAST)
         noop_idx = action_index(env, "noop")
         actions = np.array([move_idx, noop_idx], dtype=dtype_actions)
 
@@ -101,10 +103,3 @@ class TestAgentResourceSharing:
         assert agent1_after["inventory"][food_idx] == 6, (
             f"Agent 1 should still have 6 food (not shareable). Has {agent1_after['inventory'][food_idx]}"
         )
-
-
-def action_index(env, name: str) -> int:
-    names = env.action_names
-    if name not in names:
-        raise ValueError(f"Action {name} not found in {names}")
-    return names.index(name)
