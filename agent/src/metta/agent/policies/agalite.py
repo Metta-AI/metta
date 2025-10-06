@@ -31,6 +31,8 @@ def _build_components(
     fourier_freqs: int = 4,
     num_latents: int = 16,
     critic_hidden: List[int] | None = None,
+    actor_hidden_dim: int | None = None,
+    reset_on_terminate: bool = True,
 ) -> List[ComponentConfig]:
     kernel_cfg = kernel or AGaLiTeKernelConfig()
     eta_value = eta
@@ -39,6 +41,8 @@ def _build_components(
 
     feat_dim = attr_embed_dim + (4 * fourier_freqs) + 1
     critic_hidden_features = critic_hidden or [1024]
+    actor_hidden = actor_hidden_dim or hidden_size
+    actor_out_key = "actor_features"
 
     return [
         ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=max_tokens),
@@ -70,6 +74,7 @@ def _build_components(
             mode=mode,
             dropout=dropout,
             kernel=kernel_cfg,
+            reset_on_terminate=reset_on_terminate,
         ),
         MLPConfig(
             in_key="core",
@@ -81,11 +86,21 @@ def _build_components(
             nonlinearity="ReLU",
             output_nonlinearity=None,
         ),
+        MLPConfig(
+            in_key="core",
+            out_key=actor_out_key,
+            name="actor_mlp",
+            in_features=hidden_size,
+            hidden_features=[],
+            out_features=actor_hidden,
+            nonlinearity="ReLU",
+            output_nonlinearity="ReLU",
+        ),
         ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=embedding_dim),
         ActorQueryConfig(
-            in_key="core",
+            in_key=actor_out_key,
             out_key="actor_query",
-            hidden_size=hidden_size,
+            hidden_size=actor_hidden,
             embed_dim=embedding_dim,
         ),
         ActorKeyConfig(
@@ -93,6 +108,7 @@ def _build_components(
             embedding_key="action_embedding",
             out_key="logits",
             embed_dim=embedding_dim,
+            hidden_size=actor_hidden,
         ),
     ]
 
@@ -118,6 +134,8 @@ class AGaLiTeConfig(PolicyArchitecture):
             attr_embed_dim=8,
             fourier_freqs=3,
             num_latents=12,
+            critic_hidden=[512],
+            actor_hidden_dim=32,
         )
     )
 
@@ -135,21 +153,23 @@ class AGaLiTePaperConfig(PolicyArchitecture):
 
     components: List[ComponentConfig] = Field(
         default_factory=lambda: _build_components(
-            hidden_size=256,
-            embedding_dim=128,
+            hidden_size=128,
+            embedding_dim=16,
             n_layers=4,
             n_heads=4,
-            feedforward_size=1024,
-            eta=4,
+            feedforward_size=512,
+            eta=8,
             r=1,
             mode="agalite",
-            dropout=0.0,
+            dropout=0.05,
             kernel=AGaLiTeKernelConfig(name="eluplus1", nu=4),
             max_tokens=64,
-            attr_embed_dim=16,
+            attr_embed_dim=12,
             fourier_freqs=4,
-            num_latents=32,
-            critic_hidden=[128],
+            num_latents=16,
+            critic_hidden=[512],
+            actor_hidden_dim=256,
+            reset_on_terminate=False,
         )
     )
 
