@@ -3,14 +3,14 @@ name: Dependency Validation
 on:
   pull_request:
     paths:
-      - '**/pyproject.toml'
-      - 'uv.lock'
-      - '.github/workflows/dependency-validation.yml'
+      - "**/pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/dependency-validation.yml"
   push:
     branches: [main]
     paths:
-      - '**/pyproject.toml'
-      - 'uv.lock'
+      - "**/pyproject.toml"
+      - "uv.lock"
 
 jobs:
   validate-dependencies:
