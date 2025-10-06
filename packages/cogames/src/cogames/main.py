@@ -205,11 +205,11 @@ def train_cmd(
 
 
 @app.command(
-    name="evaluate",
+    name="eval",
     no_args_is_help=True,
     help="Evaluate one or more policies on a mission",
 )
-@app.command("eval", hidden=True)
+@app.command("evaluate", hidden=True)
 def evaluate_cmd(
     mission_name: str = mission_argument,
     policies: list[str] = typer.Argument(  # noqa: B008
