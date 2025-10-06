@@ -4,12 +4,12 @@ import subprocess
 
 import pytest
 
-from cogames.game import get_all_games
+from cogames.game import get_all_missions
 
 
-@pytest.mark.parametrize("game_name", get_all_games())
+@pytest.mark.parametrize("mission_name", get_all_missions())
 @pytest.mark.timeout(60)
-def test_game_eval(game_name):
+def test_mission_eval(mission_name):
     """Test that 'cogames eval' works for small games with random policy."""
     result = subprocess.run(
         [
@@ -17,7 +17,7 @@ def test_game_eval(game_name):
             "run",
             "cogames",
             "eval",
-            game_name,
+            mission_name,
             "cogames.policy.random.RandomPolicy",
             "--episodes",
             "1",
@@ -28,6 +28,6 @@ def test_game_eval(game_name):
     )
 
     if result.returncode != 0:
-        pytest.fail(f"Eval failed for game {game_name}: {result.stderr}")
+        pytest.fail(f"Eval failed for mission {mission_name}: {result.stderr}")
 
     assert "Episode 1" in result.stdout or "episode" in result.stdout.lower()
