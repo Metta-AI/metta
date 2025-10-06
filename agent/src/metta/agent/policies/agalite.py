@@ -97,20 +97,21 @@ def _build_components(
 
 class AGaLiTeConfig(PolicyArchitecture):
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
+    learning_rate_hint: float = 7.5e-4
 
     # Parameter budget tuned to match Transformer GTrXL/TRXL cores (~14k params).
     components: List[ComponentConfig] = Field(
         default_factory=lambda: _build_components(
-            hidden_size=24,
+            hidden_size=32,
             embedding_dim=16,
             n_layers=1,
             n_heads=2,
-            feedforward_size=48,
+            feedforward_size=128,
             eta=2,
-            r=4,
+            r=2,
             mode="agalite",
             dropout=0.05,
-            kernel=AGaLiTeKernelConfig(name="relu", nu=2),
+            kernel=AGaLiTeKernelConfig(name="eluplus1", nu=2),
             max_tokens=48,
             attr_embed_dim=8,
             fourier_freqs=3,
@@ -120,9 +121,13 @@ class AGaLiTeConfig(PolicyArchitecture):
 
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
 
+    def policy_defaults(self) -> dict[str, object]:
+        return {"learning_rate_hint": self.learning_rate_hint}
 
-class AGaLiTeImprovedConfig(PolicyArchitecture):
+
+class AGaLiTeLargeConfig(PolicyArchitecture):
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
+    learning_rate_hint: float = 8e-4
 
     # Parameter budget tuned to match Transformer TRXL_NVIDIA core (~61k params).
     components: List[ComponentConfig] = Field(
@@ -145,3 +150,12 @@ class AGaLiTeImprovedConfig(PolicyArchitecture):
     )
 
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
+
+    def policy_defaults(self) -> dict[str, object]:
+        return {"learning_rate_hint": self.learning_rate_hint}
+
+
+AGaLiTeImprovedConfig = AGaLiTeLargeConfig
+
+
+__all__ = ["AGaLiTeConfig", "AGaLiTeLargeConfig", "AGaLiTeImprovedConfig"]

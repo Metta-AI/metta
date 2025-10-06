@@ -5,8 +5,13 @@ from __future__ import annotations
 from typing import Callable, Dict
 
 from experiments.recipes import arena_basic_easy_shaped as base
-from metta.agent.policies.agalite import AGaLiTeConfig, AGaLiTeImprovedConfig
+from metta.agent.policies.agalite import (
+    AGaLiTeConfig,
+    AGaLiTeImprovedConfig,
+    AGaLiTeLargeConfig,
+)
 from metta.agent.policy import PolicyArchitecture
+from metta.rl.trainer_config import OptimizerConfig
 from metta.tools.train import TrainTool
 
 make_mettagrid = base.make_mettagrid
@@ -20,6 +25,8 @@ sweep_async_progressive = base.sweep_async_progressive
 
 _POLICY_PRESETS: Dict[str, Callable[[], PolicyArchitecture]] = {
     "agalite": AGaLiTeConfig,
+    "agalite_large": AGaLiTeLargeConfig,
+    # Backwards-compatible alias for older configuration name.
     "agalite_improved": AGaLiTeImprovedConfig,
 }
 
@@ -43,7 +50,7 @@ def train(
         if agent is not None:
             policy_architecture = _policy_from_name(agent)
         else:
-            policy_architecture = AGaLiTeImprovedConfig()
+            policy_architecture = AGaLiTeConfig()
 
     tool = base.train(
         curriculum=curriculum,
@@ -51,12 +58,11 @@ def train(
         policy_architecture=policy_architecture,
     )
 
+    hint = getattr(policy_architecture, "learning_rate_hint", None)
     optimizer = tool.trainer.optimizer
-    optimizer.learning_rate = 8e-4
-
-    tool.trainer.batch_size = 131072
-    tool.trainer.minibatch_size = 4096
-    tool.training_env.forward_pass_minibatch_target_size = 1024
+    default_lr = OptimizerConfig.model_fields["learning_rate"].default
+    if hint is not None and optimizer.learning_rate == default_lr:
+        optimizer.learning_rate = hint
 
     return tool
 
