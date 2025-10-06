@@ -79,9 +79,7 @@ def play(
                         actions[agent_id] = list(manual_action)
                     else:
                         # Get move action ID from environment
-                        move_candidates = [
-                            idx for idx, name in enumerate(env.action_names) if name.startswith("move")
-                        ]
+                        move_candidates = [idx for idx, name in enumerate(env.action_names) if name.startswith("move")]
                         move_action_id = move_candidates[0] if move_candidates else 0
                         actions[agent_id] = [move_action_id, manual_action]
                 elif agent_id in manual_agents:

@@ -147,6 +147,7 @@ class TestActionValidation:
         # Action should fail
         assert not env.action_success()[0], "Invalid action argument should fail"
 
+
 class TestResourceRequirements:
     """Tests for action resource requirements."""
 
@@ -236,11 +237,7 @@ class TestResourceRequirements:
 
         # Move east (direction 2)
         move_action_idx = next(
-            (
-                idx
-                for idx, name in enumerate(env.action_names())
-                if name.startswith("move") and name.endswith("_2")
-            ),
+            (idx for idx, name in enumerate(env.action_names()) if name.startswith("move") and name.endswith("_2")),
             None,
         )
         assert move_action_idx is not None, "Expected move action with suffix _2"

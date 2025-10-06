@@ -101,6 +101,8 @@ class TestAgentResourceSharing:
         assert agent1_after["inventory"][food_idx] == 6, (
             f"Agent 1 should still have 6 food (not shareable). Has {agent1_after['inventory'][food_idx]}"
         )
+
+
 def action_index(env, verb: str, arg: int | None = None) -> int:
     target = verb if arg in (None, 0) else f"{verb}_{arg}"
     names = env.action_names
