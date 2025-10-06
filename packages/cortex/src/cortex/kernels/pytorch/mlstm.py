@@ -177,7 +177,7 @@ def mlstm_chunkwise_simple(
         # Integer prefix sums along time within chunk
         reset_int = reset_main.to(dtype=torch.int64)
         prefix_inclusive = torch.cumsum(reset_int, dim=-1)  # (#resets up to and including t)
-        prefix_exclusive = prefix_inclusive - reset_int  # (#resets strictly before t)
+        prefix_inclusive - reset_int  # (#resets strictly before t)
 
         # Mask: for output at time t, inter-chunk contributions vanish if any reset occurred in [0..t]
         no_reset_prefix = prefix_inclusive.eq(0)  # (B, NH, NS, CS) bool

@@ -140,7 +140,8 @@ def mlstm_chunkwise__parallel_bw_dK_kernel(
                 # matKbar_val = matK_val * vecAbar_val[:, None]
 
                 # load matDeltaC_trans (transposed) (siz_b_DHHV, siz_b_DHQK)
-                # (idx_b_NC + 1) since matDeltaC_states contains all state delta errors also for the initial state (i.e. NC+1)
+                # (idx_b_NC + 1) since matDeltaC_states contains all state delta errors
+                # also for the initial state (i.e. NC+1)
                 # and in this kernel we take only the last NC states (we do not consider the initial state delta error)
                 matDeltaC_trans_ptr = tl.make_block_ptr(
                     base=matDeltaC_states + idx_b_BNH * str_matCstate_B_NH + (idx_b_NC + 1) * DHQK * DHHV,

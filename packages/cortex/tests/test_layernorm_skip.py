@@ -20,7 +20,7 @@ def test_preup_block_has_layernorm():
     assert hasattr(block, "norm")
     assert isinstance(block.norm, nn.LayerNorm)
     assert block.norm.normalized_shape[0] == d_hidden
-    assert block.norm.elementwise_affine == True
+    assert block.norm.elementwise_affine
     assert block.norm.bias is None
 
 

@@ -194,10 +194,10 @@ def _lstm_forward_kernel(
         order=(0, 1),
     )
 
-    R_i = tl.load(ptr_R_i).to(tl.float32)
-    R_f = tl.load(ptr_R_f).to(tl.float32)
-    R_z = tl.load(ptr_R_z).to(tl.float32)
-    R_o = tl.load(ptr_R_o).to(tl.float32)
+    tl.load(ptr_R_i).to(tl.float32)
+    tl.load(ptr_R_f).to(tl.float32)
+    tl.load(ptr_R_z).to(tl.float32)
+    tl.load(ptr_R_o).to(tl.float32)
     ptr_R_i = tl.make_block_ptr(
         base=base_R + 0 * DH * DH,
         shape=(DH, DH),
@@ -231,10 +231,10 @@ def _lstm_forward_kernel(
         order=(0, 1),
     )
 
-    R_i = tl.load(ptr_R_i).to(tl.float32)
-    R_f = tl.load(ptr_R_f).to(tl.float32)
-    R_z = tl.load(ptr_R_z).to(tl.float32)
-    R_o = tl.load(ptr_R_o).to(tl.float32)
+    tl.load(ptr_R_i).to(tl.float32)
+    tl.load(ptr_R_f).to(tl.float32)
+    tl.load(ptr_R_z).to(tl.float32)
+    tl.load(ptr_R_o).to(tl.float32)
     ptr_R_i = tl.make_block_ptr(
         base=base_R + 0 * DH * DH,
         shape=(DH, DH),
@@ -268,10 +268,10 @@ def _lstm_forward_kernel(
         order=(0, 1),
     )
 
-    R_i = tl.load(ptr_R_i).to(tl.float32)
-    R_f = tl.load(ptr_R_f).to(tl.float32)
-    R_z = tl.load(ptr_R_z).to(tl.float32)
-    R_o = tl.load(ptr_R_o).to(tl.float32)
+    tl.load(ptr_R_i).to(tl.float32)
+    tl.load(ptr_R_f).to(tl.float32)
+    tl.load(ptr_R_z).to(tl.float32)
+    tl.load(ptr_R_o).to(tl.float32)
     R_i_base = base_R + 0 * DH * DH
     R_f_base = base_R + 1 * DH * DH
     R_z_base = base_R + 2 * DH * DH

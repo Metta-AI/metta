@@ -5,11 +5,10 @@ import os
 
 import torch
 import triton
-
-from ..triton import mlstm_chunkwise__parallel_bw_dQ_kernel
-from ..triton.kernel_param_heuristics import get_head_dim_block_size
-from ..utils import torch2triton_dtype
-from ..utils.kernels import is_power_of_2
+from cortex.kernels.triton.mlstm.triton import mlstm_chunkwise__parallel_bw_dQ_kernel
+from cortex.kernels.triton.mlstm.triton.kernel_param_heuristics import get_head_dim_block_size
+from cortex.kernels.triton.mlstm.utils import torch2triton_dtype
+from cortex.kernels.triton.mlstm.utils.kernels import is_power_of_2
 
 
 def mlstm_chunkwise__parallel_bw_dQ(
