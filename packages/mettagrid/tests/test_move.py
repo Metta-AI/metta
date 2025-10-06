@@ -144,7 +144,6 @@ def test_8way_movement_all_directions():
     )
     env = MettaGridCore(cfg)
     env.reset()
-
     objects = env.grid_objects()
     agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)  # type_id 0 is agent
     initial_pos = (objects[agent_id]["r"], objects[agent_id]["c"])
@@ -203,6 +202,7 @@ def test_8way_movement_obstacles():
             ),
         )
     )
+    cfg.game.allow_diagonals = True
     env = MettaGridCore(cfg)
     env.reset()
 

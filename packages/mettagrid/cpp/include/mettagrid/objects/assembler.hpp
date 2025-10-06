@@ -286,7 +286,7 @@ public:
     return scaled_recipe;
   }
 
-  virtual bool onUse(Agent& actor, ActionArg /*arg*/) override {
+  virtual bool onUse(Agent& actor) override {
     if (!grid || !current_timestep_ptr) {
       return false;
     }

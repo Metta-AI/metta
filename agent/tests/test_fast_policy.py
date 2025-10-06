@@ -10,7 +10,7 @@ from metta.rl.utils import ensure_sequence_metadata
 
 
 def _build_env_metadata():
-    action_names = ["move_0", "attack_0", "attack_1", "attack_2"]
+    action_names = ["move_north", "attack_0", "attack_1", "attack_2"]
     feature_normalizations = {0: 1.0}
 
     obs_features = {

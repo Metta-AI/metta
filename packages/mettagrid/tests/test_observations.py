@@ -16,6 +16,7 @@ from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.map_builder.utils import create_grid
 from mettagrid.mettagrid_c import PackedCoordinate, dtype_actions
 from mettagrid.test_support import ObservationHelper, Orientation, TokenTypes
+from mettagrid.test_support.actions import action_index
 
 NUM_OBS_TOKENS = 50
 
@@ -308,7 +309,7 @@ class TestGlobalTokens:
 
         # Take a noop action
         noop_idx = env.action_names.index("noop")
-        actions = np.full((num_agents, 2), [noop_idx, 0], dtype=dtype_actions)
+        actions = np.full(num_agents, noop_idx, dtype=dtype_actions)
         obs, _, _, _, _ = env.step(actions)
 
         # Check episode completion updated (1/10 = 10%)
@@ -331,8 +332,8 @@ class TestGlobalTokens:
         assert last_arg == 0, f"Expected last action arg 0, got {last_arg}"
 
         # Take a move action
-        move_idx = env.action_names.index("move")
-        actions = np.full((num_agents, 2), [move_idx, 1], dtype=dtype_actions)
+        move_idx = action_index(env, "move", Orientation.SOUTH)
+        actions = np.full(num_agents, move_idx, dtype=dtype_actions)
         obs, _, _, _, _ = env.step(actions)
 
         # Check updates
@@ -348,7 +349,7 @@ class TestGlobalTokens:
         last_arg = helper.find_token_values(
             obs[0], location=(global_x, global_y), feature_id=last_action_arg_feature_id
         )
-        assert last_arg == 1
+        assert last_arg == 0
 
     def test_glyph_signaling(self):
         """Test that agents can signal using glyphs and observe each other's glyphs."""
@@ -410,14 +411,17 @@ class TestGlobalTokens:
         )
 
         # Test changing glyphs
-        change_glyph_idx = env.action_names.index("change_glyph")
-        noop_idx = env.action_names.index("noop")
+        def glyph_action(value: int) -> int:
+            name = f"change_glyph_{value}"
+            if name not in env.action_names:
+                raise AssertionError(f"Missing expected action {name}")
+            return env.action_names.index(name)
 
         # Test 1: Agent 0 changes to glyph 3, Agent 1 stays at 0
         actions = np.array(
             [
-                [change_glyph_idx, 3],  # Agent 0 changes to glyph 3
-                [change_glyph_idx, 5],  # Agent 1 changes to glyph 5
+                glyph_action(3),
+                glyph_action(5),
             ],
             dtype=dtype_actions,
         )
@@ -434,30 +438,15 @@ class TestGlobalTokens:
         assert agent1_self_glyph == 5, f"Agent 1 should have glyph 5, got {agent1_self_glyph}"
 
         # Test 2: Invalid glyph values (should be no-op)
-        actions = np.array(
-            [
-                [change_glyph_idx, 123],  # Agent 0 tries invalid glyph
-                [noop_idx, 0],  # Agent 1 does nothing
-            ],
-            dtype=dtype_actions,
-        )
-
-        obs, _, _, _, _ = env.step(actions)
-
-        agent0_glyph = helper.find_token_values(obs[0], location=(1, 1), feature_id=glyph_feature_id)
-        agent1_glyph = helper.find_token_values(obs[1], location=(1, 1), feature_id=glyph_feature_id)
-
-        # Glyphs should remain unchanged
-        assert agent0_glyph == 3, f"Agent 0 glyph should stay 3, got {agent0_glyph}"
-        assert agent1_glyph == 5, f"Agent 1 glyph should stay 5, got {agent1_glyph}"
+        assert "change_glyph_123" not in env.action_names, "Invalid glyph action should not exist"
 
         # Test 3: Changing back to glyph 0 removes the token
 
         # Change back to glyph 0
         actions = np.array(
             [
-                [change_glyph_idx, 0],
-                [change_glyph_idx, 0],
+                glyph_action(0),
+                glyph_action(0),
             ],
             dtype=dtype_actions,
         )
@@ -529,7 +518,7 @@ class TestEdgeObservations:
         obs, _ = env.reset()
 
         # Get action indices
-        move_idx = env.action_names.index("move")
+        move_east = action_index(env, "move", Orientation.EAST)
 
         # Verify initial position - agent should be at center of observation
         agent_tokens = helper.find_tokens(obs[0], location=(3, 3))
@@ -547,7 +536,7 @@ class TestEdgeObservations:
 
         # Move right (East) 3 steps
         for step in range(3):
-            actions = np.array([[move_idx, Orientation.EAST.value]], dtype=dtype_actions)  # 3 = East
+            actions = np.array([move_east], dtype=dtype_actions)
             obs, _, _, _, _ = env.step(actions)
 
             # Calculate agent position after this step
@@ -586,7 +575,7 @@ class TestEdgeObservations:
 
         # Continue moving right until altar leaves view
         for step in range(3, 9):
-            actions = np.array([[move_idx, Orientation.EAST.value]], dtype=dtype_actions)  # 3 = East
+            actions = np.array([move_east], dtype=dtype_actions)
             obs, _, _, _, _ = env.step(actions)
 
             agent_col = 2 + step + 1
@@ -612,12 +601,13 @@ class TestEdgeObservations:
         # Now walk to bottom-right corner
         # Move right to x=13
         for _ in range(5):
-            actions = np.array([[move_idx, Orientation.EAST.value]], dtype=dtype_actions)  # 3 = East
+            actions = np.array([move_east], dtype=dtype_actions)
             obs, _, _, _, _ = env.step(actions)
 
         # Move down to y=8 using move (direction 4 = South)
+        move_south = action_index(env, "move", Orientation.SOUTH)
         for _ in range(6):
-            actions = np.array([[move_idx, Orientation.SOUTH.value]], dtype=dtype_actions)  # 1 = South
+            actions = np.array([move_south], dtype=dtype_actions)
             obs, _, _, _, _ = env.step(actions)
 
         # Verify agent is still at center of observation

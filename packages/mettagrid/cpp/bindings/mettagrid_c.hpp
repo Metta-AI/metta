@@ -133,12 +133,6 @@ private:
 
   Actions _actions;
   ActionHandlers _action_handlers;
-  struct FlatActionEntry {
-    size_t handler_index;
-    ActionArg arg;
-    std::string name;
-  };
-  std::vector<FlatActionEntry> _flat_actions;
   size_t _num_action_handlers;
   unsigned char _max_action_priority;
   std::vector<std::string> _action_names;
@@ -184,12 +178,11 @@ private:
                             ObservationCoord obs_width,
                             ObservationCoord obs_height,
                             size_t agent_idx,
-                            ActionType action,
-                            ActionArg action_arg);
+                            ActionType action);
   void _compute_observations(py::array_t<ActionType, py::array::c_style> actions);
   void _step(py::array_t<ActionType, py::array::c_style> actions);
 
-  void _handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type, ActionArg arg);
+  void _handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type);
   AgentConfig _create_agent_config(const py::dict& agent_group_cfg_py);
   ConverterConfig _create_converter_config(const py::dict& converter_cfg_py);
   WallConfig _create_wall_config(const py::dict& wall_cfg_py);

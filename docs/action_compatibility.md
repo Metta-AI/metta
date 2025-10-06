@@ -210,7 +210,7 @@ action_space = MultiDiscrete([5, 2])  # 5 action types, max arg 1
 
 # After (BREAKING)
 action_space = Discrete(len(env.action_names()))
-# env.action_names() -> ["move_0", "attack_0", "attack_1", ...]
+# env.action_names() -> ["move_north", "move_south", "attack_0", "attack_1", ...]
 ```
 
 **Impact**: Actor heads emit a single logit vector. Use `env.action_names()` to interpret sampled indices. **Detection**: Runtime shape errors in policy

@@ -423,7 +423,7 @@ def _make_valid_replay(file_name: str = "sample.json.z") -> dict[str, Any]:
         "map_size": [10, 10],
         "file_name": "test replay file format",
         "type_names": ["agent", "resource"],
-        "action_names": ["move", "collect"],
+        "action_names": ["move_north", "collect"],
         "item_names": ["wood", "stone"],
         "group_names": ["group1", "group2"],
         "reward_sharing_matrix": [[1, 0], [0, 1]],

@@ -118,7 +118,7 @@ def rotate(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> dict
     try:
         action_names = env.action_names()
 
-    rotate_action_name = f"rotate_{orientation.name.lower()}"
+        rotate_action_name = f"rotate_{orientation.name.lower()}"
         if rotate_action_name not in action_names:
             result["error"] = f"{rotate_action_name} action not available"
             return result
@@ -367,8 +367,8 @@ def get_current_observation(env: MettaGrid, agent_idx: int):
         action_names = env.action_names()
         if "noop" in action_names:
             noop_idx = action_names.index("noop")
-            noop_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
-            noop_action[agent_idx] = [noop_idx, 0]
+            noop_action = np.zeros((env.num_agents,), dtype=dtype_actions)
+            noop_action[agent_idx] = noop_idx
             obs, _, _, _, _ = env.step(noop_action)
             return obs.copy()
         else:
@@ -394,6 +394,8 @@ def get_agent_orientation(env: MettaGrid, agent_idx: int = 0) -> int:
         if "agent_id" in obj_data and obj_data.get("agent_id") == agent_idx:
             return obj_data["agent:orientation"]
     raise ValueError(f"Agent {agent_idx} not found in grid objects")
+
+
 def action_index(env, base: str, orientation: Orientation | None = None) -> int:
     """Return the flattened action index for a given action name."""
     target = base if orientation is None else f"{base}_{orientation.name.lower()}"

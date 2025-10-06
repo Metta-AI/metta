@@ -51,7 +51,7 @@ everywhere so we store `type_id`, `action_id`, `items`, `group_id` as numbers. T
 {
   ...
   "type_names": ["agent", "wall", "altar", ... ],
-  "action_names": ["noop", "move", "rotate", ... ],
+  "action_names": ["noop", "move_north", "move_south", ... ],
   "item_names": ["hearts", "coconuts", ... ],
   "group_names": ["group1", "group2", ... ],
   ...

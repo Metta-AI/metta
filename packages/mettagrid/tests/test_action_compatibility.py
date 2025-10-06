@@ -13,7 +13,8 @@ from mettagrid.config.mettagrid_config import (
     WallConfig,
 )
 from mettagrid.mettagrid_c import MettaGrid, dtype_actions
-from mettagrid.test_support.actions import get_agent_position, get_current_observation
+from mettagrid.test_support.actions import action_index, get_agent_position, get_current_observation
+from mettagrid.test_support.orientation import Orientation
 
 
 def create_basic_config() -> GameConfig:
@@ -107,7 +108,14 @@ class TestActionOrdering:
         assert action_names1 == action_names2, "Action order should be deterministic"
 
         # Verify the expected order (noop is always first when enabled)
-        assert action_names1 == ["noop", "move", "rotate"]
+        orientation_labels = ["north", "south", "west", "east"]
+        if basic_config.allow_diagonals:
+            orientation_labels.extend(["northwest", "northeast", "southwest", "southeast"])
+
+        expected = ["noop"]
+        expected.extend([f"move_{label}" for label in orientation_labels])
+        expected.extend([f"rotate_{label}" for label in orientation_labels])
+        assert action_names1 == expected
 
     def test_action_indices_consistency(self, basic_config, simple_map):
         """Test that action indices remain consistent."""
@@ -235,12 +243,8 @@ class TestResourceRequirements:
         # Get agent position
         agent_pos = get_agent_position(env, 0)
 
-        # Move east (direction 2)
-        move_action_idx = next(
-            (idx for idx, name in enumerate(env.action_names()) if name.startswith("move") and name.endswith("_2")),
-            None,
-        )
-        assert move_action_idx is not None, "Expected move action with suffix _2"
+        # Move east
+        move_action_idx = action_index(env, "move", Orientation.EAST)
         move_action = np.array([move_action_idx], dtype=dtype_actions)
 
         obs_after, _rewards, _dones, _truncs, _infos = env.step(move_action)
@@ -284,7 +288,7 @@ class TestActionSpace:
 
         assert isinstance(action_space, spaces.Discrete), "Action space should be Discrete"
 
-        action_names = env.action_names
+        action_names = env.action_names()
         assert action_space.n == len(action_names)
         assert len(set(action_names)) == len(action_names)
 
@@ -315,7 +319,7 @@ class TestActionSpace:
 
         # The action space should be Discrete for each agent's action
         assert isinstance(action_space, spaces.Discrete)
-        action_names = env.action_names
+        action_names = env.action_names()
         assert action_space.n == len(action_names)
         assert len(set(action_names)) == len(action_names)
 
@@ -361,12 +365,20 @@ class TestSpecialActions:
         env = MettaGrid(from_mettagrid_config(config), simple_map, 42)
         action_names = env.action_names()
 
-        # Attack should be present
-        assert "attack" in action_names
+        # Attack variants should be present
+        attack_actions = [name for name in action_names if name.startswith("attack_")]
+        assert len(attack_actions) == 9, f"Expected 9 attack variants, found {attack_actions}"
 
-        # Check the expected order (noop is first when enabled, attack comes last)
-        expected_actions = ["noop", "move", "rotate", "attack"]
-        assert action_names == expected_actions
+        orientations = ["north", "south", "west", "east"]
+        if basic_config.allow_diagonals:
+            orientations.extend(["northwest", "northeast", "southwest", "southeast"])
+
+        expected = ["noop"]
+        expected.extend([f"move_{name}" for name in orientations])
+        expected.extend([f"rotate_{name}" for name in orientations])
+        expected.extend([f"attack_{i}" for i in range(9)])
+
+        assert action_names == expected
 
     def test_swap_action_registration(self, basic_config, simple_map):
         """Test that swap action is properly registered when enabled."""
