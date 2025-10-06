@@ -15,7 +15,7 @@ Your Cogs' efforts may be thwarted by Clips: NPC agents that disable stations or
 <img src="assets/showoff.gif" alt="Example Cogs vs Clips video">
 <br>
 
-There are many game configurations available, with different map sizes, resource and station layouts, and game rules.
+There are many mission configurations available, with different map sizes, resource and station layouts, and game rules.
 Overall, Cogs vs Clips aims to present rich environments with:
 
 - **Resource management**: Energy, materials (carbon, oxygen, germanium, silicon), and crafted components
@@ -33,8 +33,8 @@ Cogs should refer to their [MISSION.md](MISSION.md) for a thorough description o
 # Install
 uv pip install cogames
 
-# List games
-cogames games
+# List missions
+cogames missions
 
 # Play an episode of the machina_1 game
 cogames play training_facility_1 --interactive
@@ -43,25 +43,23 @@ cogames play training_facility_1 --interactive
 cogames train training_facility_1 --policy simple
 
 # Watch or play along side your trained policy
-cogames play training_facility_1 --interactive --policy simple --policy-data ./train_dir/policy_2.pt
+cogames play training_facility_1 --interactive --policy simple --policy-data ./train_dir/policy.pt
 
 # Evaluate your policy
-cogames evaluate training_facility_1 simple:./train_dir/policy_2.pt
+cogames evaluate training_facility_1 simple:./train_dir/policy.pt
 ```
 
 ## Commands
 
-### `cogames games [game]`
+### `cogames missions [mission_name]`
 
-List all games or describe a specific game.
+Lists all missions and their high-level specs.
 
-**Options:**
+If a `mission_name` is provided, it describe a specific mission in detail.
 
-- `--save PATH`: Save game config to YAML/JSON file
+### `cogames play [mission]`
 
-### `cogames play [game]`
-
-Play an episode of the specified game. Cogs' actions are determined by the provided policy.
+Play an episode of the specified mission. Cogs' actions are determined by the provided policy.
 
 **Options:**
 
@@ -74,9 +72,9 @@ Play an episode of the specified game. Cogs' actions are determined by the provi
 `cogames play` supports a gui-based and text-based game renderer, both of which support many features to inspect agents
 and manually play alongside them.
 
-### `cogames train [game]`
+### `cogames train [mission]`
 
-Train a policy on a game.
+Train a policy on a mission.
 
 **Options:**
 
@@ -117,18 +115,18 @@ class MyPolicy(Policy):
 ```
 
 To train with using your class, supply a path to it with the `--policy`argument, e.g.
-`cogames train --policy path.to.MyPolicy`.
+`cogames train training_facility_1 --policy path.to.MyPolicy`.
 
 #### Environment API
 
 The underlying environment follows the Gymnasium API:
 
 ```python
-from cogames import get_game
+from cogames.game import get_mission
 from mettagrid.envs import MettaGridEnv
 
-# Load a game configuration
-config = get_game("assembler_2_complex")
+# Load a mission configuration
+config, _, __ = game_module.get_mission("assembler_2_complex", "default")
 
 # Create environment
 env = MettaGridEnv(env_cfg=config)
@@ -178,9 +176,9 @@ cogames evaluate machina_1 simple:train_dir/model.pt:3 random::5
 When multiple policies are provided, `cogames evaluate` fixes the number of agents each policy will control, but
 randomizes their assignments each episode.
 
-### `cogames make-game [base_game]`
+### `cogames make-mission [base_mission]`
 
-Create custom game configuration.
+Create custom mission configuration.
 
 **Options:**
 
@@ -189,7 +187,7 @@ Create custom game configuration.
 - `--height H`: Map height (default: 10)
 - `--output PATH`: Save to file
 
-You will be able to provide your specified `--output` path as the `game` argument to other `cogames` commmands.
+You will be able to provide your specified `--output` path as the `mission` argument to other `cogames` commmands.
 
 ### `cogames version`
 

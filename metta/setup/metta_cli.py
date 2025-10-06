@@ -591,9 +591,17 @@ def cmd_publish(
         warning("Force mode enabled: branch and clean checks were bypassed.")
     info("")
 
+    publish_mettagrid_after = False
+
     if dry_run:
         success("Dry run: no tag created. Run without --dry-run to proceed.")
         return
+
+    if package == "cogames":
+        publish_mettagrid_after = typer.confirm(
+            "Cogames depends on mettagrid. Publish mettagrid after this tag?",
+            default=True,
+        )
 
     if not typer.confirm("Create and push this tag?", default=True):
         info("Publishing aborted.")
@@ -619,6 +627,18 @@ def cmd_publish(
             + " Use --no-repo to skip pushing to github repo."
         )
         raise typer.Exit(exc.returncode) from exc
+
+    if publish_mettagrid_after:
+        info("")
+        info("Starting mettagrid publish flow...")
+        cmd_publish(
+            package="mettagrid",
+            version_override=None,
+            dry_run=False,
+            no_repo=no_repo,
+            remote=remote,
+            force=force,
+        )
 
 
 @app.command(name="lint", help="Run linting and formatting")
