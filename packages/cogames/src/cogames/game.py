@@ -66,7 +66,7 @@ def get_all_missions() -> list[str]:
     return [
         f"{user_map.name}:{mission}" if mission != user_map.default_mission else user_map.name
         for user_map in USER_MAP_CATALOG
-        for mission in user_map.get_missions()
+        for mission in user_map.available_missions
     ]
 
 
@@ -132,7 +132,7 @@ def list_missions(console: Console) -> None:
     table.add_column("Map Size", style="green", justify="center")
 
     for user_map in USER_MAP_CATALOG:
-        for mission_name in user_map.get_missions():
+        for mission_name in user_map.available_missions:
             game_config = user_map.generate_env(mission_name)
             num_agents = game_config.game.num_agents
 

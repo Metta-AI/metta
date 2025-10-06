@@ -43,7 +43,7 @@ from mettagrid.map_builder.map_builder import MapBuilderConfig
 from mettagrid.map_builder.random import RandomMapBuilder
 
 
-def _default_mission(num_cogs: int = 4, clip_rate: float = 0.0) -> GameConfig:
+def _default_mission(*, num_cogs: int = 4, clip_rate: float = 0.0, **kwargs: dict[str, Any]) -> GameConfig:
     game = GameConfig(
         resource_names=resources,
         num_agents=num_cogs,
@@ -122,8 +122,8 @@ def _default_mission(num_cogs: int = 4, clip_rate: float = 0.0) -> GameConfig:
     return game
 
 
-def energy_intensive(**mission_args: dict[str, Any]) -> GameConfig:
-    game = _default_mission(**mission_args)  # type: ignore
+def energy_intensive(**kwargs: dict[str, Any]) -> GameConfig:
+    game = _default_mission(**kwargs)  # type: ignore
     game.actions.move.consumed_resources = {"energy": 5}
     game.agent.resource_limits.update(
         {
@@ -136,7 +136,7 @@ def energy_intensive(**mission_args: dict[str, Any]) -> GameConfig:
     return game
 
 
-def get_mission(mission: str) -> Callable[..., GameConfig]:
+def get_mission_generator(mission: str = "default") -> Callable[..., GameConfig]:
     index = {
         "default": _default_mission,
         "energy_intensive": energy_intensive,
@@ -193,6 +193,7 @@ def get_random_map_builder(
     num_germanium_extractors: int = 0,
     num_silicon_extractors: int = 0,
     num_chests: int = 0,
+    **kwargs: dict[str, Any],
 ) -> MapBuilderConfig[RandomMapBuilder]:
     return RandomMapBuilder.Config(
         width=width,
@@ -217,24 +218,45 @@ class UserMap(ABC):
 
     @property
     def default_mission(self) -> str:
-        available_missions = self.get_missions()
-        if not available_missions:
+        if not self.available_missions:
             raise ValueError(f"Map {self.name} has no missions")
-        return available_missions[0]
+        return self.available_missions[0]
 
     def generate_env(self, mission_name: str) -> MettaGridConfig:
-        available_missions = self.get_missions()
-        if mission_name not in available_missions:
+        if mission_name not in self.available_missions:
             raise ValueError(f"Mission {mission_name} not found")
         return self._generate_env(mission_name)
 
+    @property
     @abstractmethod
-    def get_missions(self) -> list[str]:
+    def available_missions(self) -> list[str]:
         pass
 
     @abstractmethod
     def _generate_env(self, mission_name: str) -> MettaGridConfig:
         pass
+
+
+class RandomUserMap(UserMap):
+    def __init__(
+        self,
+        name: str,
+        mission_args: dict[str, dict[str, Any]] | None = None,
+    ) -> None:
+        self.name = name
+        self._mission_args = mission_args or dict(default={})
+
+    @property
+    def available_missions(self) -> list[str]:
+        return list(self._mission_args.keys())
+
+    def _generate_env(self, mission_name: str) -> MettaGridConfig:
+        args = self._mission_args.get(mission_name, {})
+        base_mission = args.get("base_mission", self.default_mission)
+        mission_args = args.get("map_builder_args", {})
+        game = get_mission_generator(base_mission)(**mission_args)
+        game.map_builder = get_random_map_builder(**mission_args)
+        return MettaGridConfig(game=game)
 
 
 class SiteUserMap(UserMap):
@@ -242,22 +264,21 @@ class SiteUserMap(UserMap):
         self,
         name: str,
         site: str,
-        mission_names: list[str] | None = None,
         mission_args: dict[str, dict[str, Any]] | None = None,
     ) -> None:
         self.name = name
         self._site = site
-        self._mission_names = mission_names or ["default"]
         self._mission_args = mission_args or dict(default={})
 
-    def get_missions(self) -> list[str]:
-        return self._mission_names
+    @property
+    def available_missions(self) -> list[str]:
+        return list(self._mission_args.keys())
 
     def _generate_env(self, mission_name: str) -> MettaGridConfig:
         args = self._mission_args.get(mission_name, {})
         base_mission = args.get("base_mission", self.default_mission)
         mission_args = args.get("map_builder_args", {})
-        game = get_mission(base_mission)(**mission_args)
+        game = get_mission_generator(base_mission)(**mission_args)
         game.map_builder = get_map_builder_for_site(self._site)
         return MettaGridConfig(game=game)
 
@@ -275,47 +296,30 @@ def make_game(
     num_chests: int = 0,
     clip_rate: float = 0.0,
 ) -> MettaGridConfig:
-    game = get_mission("default")(
-        num_cogs=num_cogs,
-        clip_rate=clip_rate,
+    mission_args = dict(
+        default=dict(
+            num_cogs=num_cogs,
+            width=width,
+            height=height,
+            num_assemblers=num_assemblers,
+            num_chargers=num_chargers,
+            num_carbon_extractors=num_carbon_extractors,
+            num_oxygen_extractors=num_oxygen_extractors,
+            num_germanium_extractors=num_germanium_extractors,
+            num_silicon_extractors=num_silicon_extractors,
+            num_chests=num_chests,
+            clip_rate=clip_rate,
+        )
     )
-    game.map_builder = get_random_map_builder(
-        num_cogs=num_cogs,
-        width=width,
-        height=height,
-        num_assemblers=num_assemblers,
-        num_chargers=num_chargers,
-        num_carbon_extractors=num_carbon_extractors,
-        num_oxygen_extractors=num_oxygen_extractors,
-        num_germanium_extractors=num_germanium_extractors,
-        num_silicon_extractors=num_silicon_extractors,
-        num_chests=num_chests,
-    )
-    return MettaGridConfig(game=game)
-
-
-class RandomUserMap(UserMap):
-    def __init__(self, name: str, map_builder_args: dict[str, int]) -> None:
-        self.name = name
-        self._random_map_builder_overrides = map_builder_args
-
-    def get_missions(self) -> list[str]:
-        return ["default"]
-
-    def _generate_env(self, mission_name: str) -> MettaGridConfig:
-        game = get_mission(mission_name)()
-        game.map_builder = get_random_map_builder(**self._random_map_builder_overrides)
-        if "num_cogs" in self._random_map_builder_overrides:
-            game.num_agents = self._random_map_builder_overrides["num_cogs"]
-        return MettaGridConfig(game=game)
+    return RandomUserMap(name="random", mission_args=mission_args).generate_env("default")
 
 
 USER_MAP_CATALOG: tuple[UserMap, ...] = (
     SiteUserMap(
         name="training_facility_1",
         site="training_facility_open_1.map",
-        mission_names=["default", "energy_intensive"],
         mission_args={
+            "default": dict(),
             "energy_intensive": dict(base_mission="energy_intensive"),
         },
     ),
@@ -327,9 +331,9 @@ USER_MAP_CATALOG: tuple[UserMap, ...] = (
     SiteUserMap(
         name="machina_1",
         site="cave_base_50.map",
-        mission_names=["default", "clipped"],
         mission_args={
-            "clipped": dict(base_mission="default", map_builder_args=dict(clip_rate=0.02)),
+            "default": dict(),
+            "clipped": dict(map_builder_args=dict(clip_rate=0.02)),
         },
     ),
     SiteUserMap(name="machina_2", site="machina_100_stations.map"),
@@ -341,5 +345,5 @@ USER_MAP_CATALOG: tuple[UserMap, ...] = (
     SiteUserMap(name="machina_5_big", site="canidate3_500_stations.map"),
     SiteUserMap(name="machina_6_bigger", site="canidate3_1000_stations.map"),
     SiteUserMap(name="machina_7_big", site="canidate4_500_stations.map"),
-    RandomUserMap(name="random", map_builder_args=dict(num_cogs=2)),
+    RandomUserMap(name="random", mission_args=dict(default=dict(num_cogs=2))),
 )
