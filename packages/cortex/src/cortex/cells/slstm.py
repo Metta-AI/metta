@@ -288,9 +288,8 @@ class sLSTMCell(MemoryCell):
         m0 = m_prev.view(B, NH, DH)
         states0 = torch.stack((y0, c0, n0, m0), dim=0)
 
-        # Dispatch to appropriate kernel
-        # Use Triton on CUDA when not in step mode and head_dim is power of 2
-        allow_triton = not is_step and ((self.head_dim & (self.head_dim - 1)) == 0)
+
+        allow_triton =  ((self.head_dim & (self.head_dim - 1)) == 0)
         logging.debug(f"head_dim: {self.head_dim}, allow_triton: {allow_triton}, is_step: {is_step}")
         backend_fn = select_backend(
             triton_fn=slstm_sequence_triton,
