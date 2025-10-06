@@ -490,7 +490,7 @@ def sweep(
         protein_config=lp_protein_config,
         recipe_module="experiments.recipes.in_context_learning.ordered_chains",
         train_entrypoint="train",
-        eval_entrypoint="eval",
+        eval_entrypoint="evaluate",
         train_overrides={
             "trainer.total_timesteps": total_timesteps,
         },

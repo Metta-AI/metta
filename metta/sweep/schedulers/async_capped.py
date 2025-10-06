@@ -48,7 +48,7 @@ class AsyncCappedSchedulerConfig(Config):
     max_trials: int = 10
     recipe_module: str = "experiments.recipes.arena"
     train_entrypoint: str = "train"
-    eval_entrypoint: str = "eval"
+    eval_entrypoint: str = "evaluate"
     train_overrides: dict[str, Any] = Field(default_factory=dict)
     eval_overrides: dict[str, Any] = Field(default_factory=dict)
     stats_server_uri: str | None = None

@@ -119,7 +119,7 @@ class SweepTool(Tool):
     batch_size: int = 4  # Number of suggestions per batch
     recipe_module: str = "experiments.recipes.arena"
     train_entrypoint: str = "train"
-    eval_entrypoint: str = "eval"
+    eval_entrypoint: str = "evaluate"
 
     # Scheduler selection and async-specific settings
     scheduler_type: SweepSchedulerType = SweepSchedulerType.BATCHED_SYNCED
