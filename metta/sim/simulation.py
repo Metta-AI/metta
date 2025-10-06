@@ -126,7 +126,7 @@ class Simulation:
             action_names=metta_grid_env.action_names,
             num_agents=metta_grid_env.num_agents,
             observation_space=metta_grid_env.observation_space,
-            action_space=metta_grid_env.action_space,
+            action_space=metta_grid_env.single_action_space,
             feature_normalizations=metta_grid_env.feature_normalizations,
         )
 
