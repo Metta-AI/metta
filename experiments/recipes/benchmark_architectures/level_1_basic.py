@@ -35,27 +35,6 @@ ARCHITECTURES = {
     "fast": FastConfig(),
 }
 
-class PolicyArchitectureType(StrEnum):
-    VIT = auto()
-    VIT_SLIDING = auto()
-    TRANSFORMER = auto()
-    FAST = auto()
-
-
-def make_architecture_config(arch: str) -> Optional[PolicyArchitecture]:
-    if arch == PolicyArchitectureType.VIT.value:
-        return ViTDefaulConfig()
-
-    elif arch == PolicyArchitectureType.VIT_SLIDING.value:
-        return ViTSlidingTransConfig()
-
-    elif arch == PolicyArchitectureType.TRANSFORMER.value:
-        return TransformerPolicyConfig()
-
-    elif arch == PolicyArchitectureType.FAST.value:
-        return FastConfig()
-
-
 def make_mettagrid(num_agents: int = 12) -> MettaGridConfig:
     """Create a basic arena environment with maximum reward shaping."""
     arena_env = eb.make_arena(num_agents=num_agents, combat=False)
@@ -110,14 +89,14 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
 
 def train(
     curriculum: Optional[CurriculumConfig] = None,
-    arch_type: str = "SIMPLE",  # (SIMPLE | TRANSFORMER | XLSTM)
+    arch_type: str = "fast",  # (SIMPLE | TRANSFORMER | XLSTM)
 ) -> TrainTool:
     """Train on Level 1 - Basic difficulty."""
     if curriculum is None:
         env = make_mettagrid()
         curriculum = cc.env_curriculum(env)
 
-    architecture_config = make_architecture_config(arch_type)
+    architecture_config = ARCHITECTURES[arch_type]
 
     return TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),

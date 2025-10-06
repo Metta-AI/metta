@@ -26,7 +26,7 @@ from metta.adaptive.models import JobDefinition, JobStatus, RunInfo
 from metta.adaptive.protocols import Dispatcher, ExperimentScheduler
 from metta.adaptive.stores.wandb import WandbStore
 from metta.adaptive.utils import create_eval_job, create_training_job
-from .level_1_basic import PolicyArchitectureType
+from .level_1_basic import ARCHITECTURES
 
 
 @dataclass
@@ -46,7 +46,7 @@ class BenchmarkArchSchedulerConfig:
 
     # Architecture to iterate over:
     architecture_types: list[str] = field(
-        default_factory=lambda: [e.value for e in PolicyArchitectureType]
+        default_factory=lambda: [str(k) for k in ARCHITECTURES.keys()]
     )
     # One or more seeds per level
     seeds_per_level: int = 1
