@@ -5,7 +5,9 @@ from __future__ import annotations
 import logging
 from typing import Literal, Optional
 
+import einops
 import torch
+import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
@@ -33,11 +35,16 @@ class SmolLLMBackboneConfig(ComponentConfig):
     values_key: str = "values"
     hidden_key: Optional[str] = None
 
-    model_name: str = "HuggingFaceTB/SmolLM2-135M"
+    model_name: str = "HuggingFaceTB/SmolLM2-42M"
     max_sequence_length: int = 32
     freeze_llm: bool = True
     torch_dtype: Literal["auto", "float32", "float16", "bfloat16"] = "auto"
     attn_implementation: Optional[str] = "flash_attention_2"
+    num_latents: int = 16
+    perceiver_heads: int = 4
+    perceiver_layers: int = 2
+    coord_vocab_size: int = 256
+    feature_vocab_size: int = 256
 
     def make_component(self, env: EnvironmentMetaData):
         return SmolLLMBackbone(env, self)
@@ -62,13 +69,47 @@ class SmolLLMBackbone(nn.Module):
         self._load_model()
 
         self.hidden_size = self.llm.config.hidden_size
-        self.token_projector = nn.Sequential(
-            nn.Linear(3, self.hidden_size),
-            nn.LayerNorm(self.hidden_size),
-            nn.ReLU(),
-            nn.Linear(self.hidden_size, self.hidden_size),
+        self.coord_embed = nn.Embedding(self.config.coord_vocab_size, self.hidden_size)
+        self.feature_embed = nn.Embedding(self.config.feature_vocab_size, self.hidden_size)
+        self.value_embed = nn.Sequential(
+            nn.Linear(1, self.hidden_size),
+            nn.Tanh(),
         )
-        self._initialize_projector()
+
+        self.token_norm = nn.LayerNorm(self.hidden_size)
+        self.k_proj = nn.Linear(self.hidden_size, self.hidden_size, bias=False)
+        self.v_proj = nn.Linear(self.hidden_size, self.hidden_size, bias=False)
+
+        self.num_latents = self.config.num_latents
+        self.num_heads = self.config.perceiver_heads
+        self.num_layers = self.config.perceiver_layers
+
+        if self.hidden_size % self.num_heads != 0:
+            raise ValueError("hidden_size must be divisible by perceiver_heads")
+
+        self.latents = nn.Parameter(torch.randn(1, self.num_latents, self.hidden_size))
+        nn.init.trunc_normal_(self.latents, std=0.02)
+
+        self.perceiver_layers = nn.ModuleList(
+            [
+                nn.ModuleDict(
+                    {
+                        "latent_norm": nn.LayerNorm(self.hidden_size),
+                        "q_proj": nn.Linear(self.hidden_size, self.hidden_size, bias=False),
+                        "attn_out_proj": nn.Linear(self.hidden_size, self.hidden_size),
+                        "mlp_norm": nn.LayerNorm(self.hidden_size),
+                        "mlp": nn.Sequential(
+                            nn.Linear(self.hidden_size, self.hidden_size * 4),
+                            nn.GELU(),
+                            nn.Linear(self.hidden_size * 4, self.hidden_size),
+                        ),
+                    }
+                )
+                for _ in range(self.num_layers)
+            ]
+        )
+
+        self.final_norm = nn.LayerNorm(self.hidden_size)
 
         self.max_action_args = list(env.max_action_args)
         self.total_actions = sum(arg + 1 for arg in self.max_action_args)
@@ -83,18 +124,16 @@ class SmolLLMBackbone(nn.Module):
         if tokens.dim() == 4:
             tokens = tokens.view(-1, tokens.shape[-2], tokens.shape[-1])
 
-        tokens, attention_mask = self._compress_tokens(tokens)
-
-        projector_dtype = next(self.token_projector.parameters()).dtype
-        tokens = tokens.to(dtype=projector_dtype)
-        embeddings = self.token_projector(tokens)
+        tokens, mask = self._compress_tokens(tokens)
+        token_features = self._embed_tokens(tokens, mask)
+        latents = self._encode_latents(token_features, mask)
 
         llm_dtype = next(self.llm.parameters()).dtype
-        embeddings = embeddings.to(dtype=llm_dtype)
-        attention_mask = attention_mask.to(device=embeddings.device)
+        latents = latents.to(dtype=llm_dtype)
+        attention_mask = torch.ones(latents.shape[:2], dtype=torch.long, device=latents.device)
 
         outputs = self.llm(
-            inputs_embeds=embeddings,
+            inputs_embeds=latents,
             attention_mask=attention_mask,
             output_hidden_states=True,
             return_dict=True,
@@ -118,7 +157,15 @@ class SmolLLMBackbone(nn.Module):
         self.to(device)
 
         llm_dtype = next(self.llm.parameters()).dtype
-        self.token_projector = self.token_projector.to(device=device, dtype=llm_dtype)
+        self.coord_embed = self.coord_embed.to(device=device, dtype=llm_dtype)
+        self.feature_embed = self.feature_embed.to(device=device, dtype=llm_dtype)
+        self.value_embed = self.value_embed.to(device=device, dtype=llm_dtype)
+        self.token_norm = self.token_norm.to(device=device, dtype=llm_dtype)
+        self.k_proj = self.k_proj.to(device=device, dtype=llm_dtype)
+        self.v_proj = self.v_proj.to(device=device, dtype=llm_dtype)
+        self.latents = nn.Parameter(self.latents.to(device=device, dtype=llm_dtype), requires_grad=self.latents.requires_grad)
+        self.perceiver_layers = self.perceiver_layers.to(device=device, dtype=llm_dtype)
+        self.final_norm = self.final_norm.to(device=device, dtype=llm_dtype)
         self.actor_head = self.actor_head.to(device=device, dtype=llm_dtype)
         self.value_head = self.value_head.to(device=device, dtype=llm_dtype)
 
@@ -145,11 +192,6 @@ class SmolLLMBackbone(nn.Module):
         if self.config.freeze_llm:
             for param in self.llm.parameters():
                 param.requires_grad = False
-
-    def _initialize_projector(self) -> None:
-        for module in self.token_projector.modules():
-            if isinstance(module, nn.Linear):
-                pufferlib.pytorch.layer_init(module, std=1.0)
 
     def _resolve_dtype(self) -> Optional[torch.dtype]:
         mapping = {
@@ -189,3 +231,57 @@ class SmolLLMBackbone(nn.Module):
         compressed = torch.where(keep_mask.unsqueeze(-1), gathered, fill)
 
         return compressed, keep_mask
+
+    def _embed_tokens(self, tokens: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        coords = tokens[..., 0].long()
+        features = tokens[..., 1].long()
+        values = tokens[..., 2].float().unsqueeze(-1)
+
+        valid_mask = mask
+        coords = torch.where(valid_mask, coords, torch.zeros_like(coords))
+        features = torch.where(valid_mask, features, torch.zeros_like(features))
+        values = torch.where(valid_mask.unsqueeze(-1), values, torch.zeros_like(values))
+
+        coords = torch.clamp(coords, max=self.config.coord_vocab_size - 1)
+        features = torch.clamp(features, max=self.config.feature_vocab_size - 1)
+
+        coord_emb = self.coord_embed(coords)
+        feat_emb = self.feature_embed(features)
+        value_emb = self.value_embed(values)
+
+        token_features = coord_emb + feat_emb + value_emb
+        token_features = torch.where(valid_mask.unsqueeze(-1), token_features, torch.zeros_like(token_features))
+        return token_features
+
+    def _encode_latents(self, token_features: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        if token_features.numel() == 0:
+            latents = self.latents.expand(token_features.shape[0], -1, -1)
+            return latents
+
+        tokens_norm = self.token_norm(token_features)
+        k = self.k_proj(tokens_norm)
+        v = self.v_proj(tokens_norm)
+
+        k = einops.rearrange(k, "b m (h d) -> b h m d", h=self.num_heads)
+        v = einops.rearrange(v, "b m (h d) -> b h m d", h=self.num_heads)
+
+        attn_bias = None
+        if not mask.all():
+            mask_value = torch.finfo(k.dtype).min
+            attn_bias = (~mask).unsqueeze(1).unsqueeze(2).to(k.dtype) * mask_value
+
+        latents = self.latents.expand(token_features.shape[0], -1, -1)
+
+        for layer in self.perceiver_layers:
+            residual = latents
+            q = layer["q_proj"](layer["latent_norm"](latents))
+            q = einops.rearrange(q, "b n (h d) -> b h n d", h=self.num_heads)
+
+            attn_output = F.scaled_dot_product_attention(q, k, v, attn_mask=attn_bias)
+            attn_output = einops.rearrange(attn_output, "b h n d -> b n (h d)")
+            latents = residual + layer["attn_out_proj"](attn_output)
+
+            latents = latents + layer["mlp"](layer["mlp_norm"](latents))
+
+        latents = self.final_norm(latents)
+        return latents
