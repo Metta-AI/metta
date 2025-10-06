@@ -24,7 +24,7 @@ Actions in Metta consist of two components:
 
 ```
 1. Action Type Validation: 0 <= action_type < num_action_handlers
-2. Action Argument Validation: 0 <= action_arg <= max_action_args[action_type]
+2. Action Validation: ensure sampled indices are within `env.action_space.n`
 3. Agent State Validation: Check if agent is frozen
 4. Resource Validation: Check required/consumed resources
 5. Action Execution: Attempt the action

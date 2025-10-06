@@ -114,10 +114,10 @@ class TestActionOrdering:
         env = MettaGrid(from_mettagrid_config(basic_config), simple_map, 42)
         action_names = env.action_names()
 
-        # Verify indices (noop is first when enabled)
-        assert action_names.index("noop") == 0
-        assert action_names.index("move") == 1
-        assert action_names.index("rotate") == 2
+        # Verify ordering (noop first, followed by move and rotate variants)
+        assert action_names[0] == "noop"
+        assert action_names[1].startswith("move")
+        assert any(name.startswith("rotate") for name in action_names)
 
 
 class TestActionValidation:

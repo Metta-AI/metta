@@ -15,7 +15,6 @@ from metta.rl.utils import ensure_sequence_metadata
 
 
 def _build_env_metadata():
-    action_names = ["move", "attack"]
     flattened_action_names = ["move_0", "attack_0", "attack_1", "attack_2"]
     feature_normalizations = {0: 1.0}
 
@@ -79,8 +78,7 @@ def test_transformer_policy_initialization_sets_action_metadata():
 
     policy.initialize_to_environment(env_metadata, torch.device("cpu"))
 
-    assert policy.action_probs.action_index_tensor is not None
-    assert policy.action_probs.action_index_tensor.shape == (4, 2)
+    assert policy.action_probs.num_actions == len(env_metadata.action_names)
 
 
 def test_padding_tokens_do_not_zero_valid_entries():

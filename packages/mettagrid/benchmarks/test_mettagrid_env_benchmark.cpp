@@ -111,35 +111,16 @@ py::list CreateDefaultMap(size_t num_agents_per_team = 2) {
 
 // Utility function to generate valid random actions
 py::array_t<int> GenerateValidRandomActions(MettaGrid* env, size_t num_agents, std::mt19937* gen) {
-  // Get the maximum argument values for each action type
-  py::list max_args = env->max_action_args();
-  size_t num_actions = py::len(env->action_names());
+  size_t num_actions = env->action_space().attr("n").cast<size_t>();
 
-  // Create actions array
-  std::vector<py::ssize_t> shape = {static_cast<py::ssize_t>(num_agents), 2};
+  std::vector<py::ssize_t> shape = {static_cast<py::ssize_t>(num_agents)};
   py::array_t<int> actions(shape);
   auto actions_ptr = static_cast<int*>(actions.request().ptr);
 
-  // Initialize distributions
   std::uniform_int_distribution<> action_dist(0, static_cast<int>(num_actions) - 1);
 
   for (size_t i = 0; i < num_agents; ++i) {
-    // Choose random action type
-    int action_type = action_dist(*gen);
-
-    // Get max allowed argument for this action type
-    int max_arg = py::cast<int>(max_args[static_cast<size_t>(action_type)]);
-
-    // Choose random valid argument (0 to max_arg inclusive)
-    int action_arg = 0;
-    if (max_arg > 0) {
-      std::uniform_int_distribution<> arg_dist(0, max_arg);
-      action_arg = arg_dist(*gen);
-    }
-
-    // Set the action values
-    actions_ptr[i * 2] = action_type;
-    actions_ptr[i * 2 + 1] = action_arg;
+    actions_ptr[i] = action_dist(*gen);
   }
 
   return actions;

@@ -291,7 +291,7 @@ void MettaGrid::init_action_handlers() {
     const auto& base_name = handler->action_name();
     for (ActionArg arg = 0; arg <= max_arg; ++arg) {
       _flattened_actions.emplace_back(static_cast<ActionType>(i), arg);
-      if (max_arg == 0) {
+      if (arg == 0) {
         _flattened_action_names.emplace_back(base_name);
       } else {
         _flattened_action_names.emplace_back(base_name + "_" + std::to_string(static_cast<int>(arg)));

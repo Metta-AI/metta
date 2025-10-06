@@ -59,9 +59,9 @@ class TestAgentResourceSharing:
         # Have agent 0 move onto agent 1 to trigger onUse
         # Agent 0 is at position (1,1), Agent 1 is at position (1,2)
         # So agent 0 needs to move to the right (East)
-        move_idx = env.action_names.index("move")
-        noop_idx = env.action_names.index("noop")
-        actions = np.array([[move_idx, 3], [noop_idx, 0]], dtype=dtype_actions)
+        move_idx = action_index(env, "move", 3)
+        noop_idx = action_index(env, "noop")
+        actions = np.array([move_idx, noop_idx], dtype=dtype_actions)
 
         obs, rewards, terminals, truncations, info = env.step(actions)
 
@@ -101,3 +101,9 @@ class TestAgentResourceSharing:
         assert agent1_after["inventory"][food_idx] == 6, (
             f"Agent 1 should still have 6 food (not shareable). Has {agent1_after['inventory'][food_idx]}"
         )
+def action_index(env, verb: str, arg: int | None = None) -> int:
+    target = verb if arg in (None, 0) else f"{verb}_{arg}"
+    names = env.action_names
+    if target not in names:
+        raise ValueError(f"Action {target} not found in {names}")
+    return names.index(target)

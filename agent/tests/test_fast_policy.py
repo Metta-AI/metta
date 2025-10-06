@@ -10,9 +10,7 @@ from metta.rl.utils import ensure_sequence_metadata
 
 
 def _build_env_metadata():
-    action_names = ["move", "attack"]
     flattened_action_names = ["move_0", "attack_0", "attack_1", "attack_2"]
-    flattened_action_map = [(0, 0), (1, 0), (1, 1), (1, 2)]
     feature_normalizations = {0: 1.0}
 
     obs_features = {
@@ -54,8 +52,7 @@ def test_fast_policy_initialize_sets_action_metadata():
 
     # Initialization returns a list containing the observation shim log (may be None)
     assert isinstance(logs, list)
-    assert policy.action_probs.action_index_tensor is not None
-    assert policy.action_probs.action_index_tensor.shape == (4, 2)
+    assert policy.action_probs.num_actions == len(env_metadata.action_names)
 
 
 def test_fast_policy_forward_produces_actions_and_values():
