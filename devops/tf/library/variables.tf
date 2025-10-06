@@ -57,3 +57,15 @@ variable "frontend_secret_name" {
   # must match the library helm chart
   default = "softmax-library-frontend-secrets"
 }
+
+variable "ses_from_name" {
+  type        = string
+  description = "Display name for SES email notifications"
+  default     = "Softmax Library"
+}
+
+variable "enable_ses_event_tracking" {
+  type        = bool
+  description = "Enable CloudWatch event tracking for SES (bounces, complaints, etc.)"
+  default     = false
+}

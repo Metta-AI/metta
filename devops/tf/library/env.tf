@@ -43,6 +43,15 @@ locals {
     REDIS_HOST     = aws_elasticache_replication_group.main.primary_endpoint_address
     REDIS_PASSWORD = random_password.redis_password.result
     REDIS_TLS      = "true"
+
+    # AWS SES Configuration for Email Notifications
+    SES_SMTP_HOST     = local.ses_smtp_endpoint
+    SES_SMTP_PORT     = "587"
+    SES_SMTP_USERNAME = local.ses_smtp_username
+    SES_SMTP_PASSWORD = local.ses_smtp_password
+    SES_FROM_EMAIL    = local.ses_from_email
+    SES_FROM_NAME     = "Softmax Library"
+    SES_REGION        = var.region
   }
 
   frontend_env_vars = {

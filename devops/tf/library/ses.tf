@@ -1,0 +1,110 @@
+# AWS SES Configuration for Email Notifications
+# This module sets up AWS Simple Email Service for sending email notifications
+# for user mentions, comments, and replies in the library application.
+
+# Email identity for sending notifications
+# Note: This requires DNS verification before emails can be sent
+resource "aws_ses_email_identity" "library_notifications" {
+  email = "noreply@${var.domain}"
+}
+
+# Domain identity for better deliverability and DKIM signing
+resource "aws_ses_domain_identity" "library" {
+  domain = var.domain
+}
+
+# DKIM signing for improved email authentication
+resource "aws_ses_domain_dkim" "library" {
+  domain = aws_ses_domain_identity.library.domain
+}
+
+# IAM user dedicated to SES SMTP access
+resource "aws_iam_user" "ses_smtp" {
+  name = "softmax-library-ses-smtp"
+  path = "/system/"
+
+  tags = {
+    Purpose     = "SES SMTP access for library notifications"
+    Application = "softmax-library"
+  }
+}
+
+# Policy allowing the IAM user to send emails via SES
+resource "aws_iam_user_policy" "ses_smtp" {
+  name = "ses-smtp-access"
+  user = aws_iam_user.ses_smtp.name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ses:SendEmail",
+          "ses:SendRawEmail"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "ses:FromAddress" = "noreply@${var.domain}"
+          }
+        }
+      }
+    ]
+  })
+}
+
+# Generate access key for SMTP authentication
+# The secret will be automatically converted to SMTP password format
+resource "aws_iam_access_key" "ses_smtp" {
+  user = aws_iam_user.ses_smtp.name
+}
+
+# Configuration set for tracking email metrics and events
+resource "aws_ses_configuration_set" "library" {
+  name = "softmax-library-notifications"
+
+  delivery_options {
+    tls_policy = "Require"
+  }
+
+  reputation_metrics_enabled = true
+}
+
+# Event destination for tracking bounces and complaints (optional)
+# Uncomment and configure if you want to track email delivery events
+# resource "aws_ses_event_destination" "cloudwatch" {
+#   name                   = "cloudwatch-metrics"
+#   configuration_set_name = aws_ses_configuration_set.library.name
+#   enabled                = true
+#   matching_types         = ["send", "reject", "bounce", "complaint", "delivery"]
+#
+#   cloudwatch_destination {
+#     default_value  = "default"
+#     dimension_name = "ses:configuration-set"
+#     value_source   = "emailHeader"
+#   }
+# }
+
+# Output the DNS records needed for domain verification
+# These must be added to your DNS provider
+output "ses_verification_token" {
+  description = "TXT record value for domain verification"
+  value       = aws_ses_domain_identity.library.verification_token
+}
+
+output "ses_dkim_tokens" {
+  description = "CNAME records for DKIM signing"
+  value       = aws_ses_domain_dkim.library.dkim_tokens
+}
+
+# Local values for constructing SES connection details
+locals {
+  ses_smtp_endpoint = "email-smtp.${var.region}.amazonaws.com"
+  ses_from_email    = "noreply@${var.domain}"
+
+  # SES SMTP credentials from IAM access key
+  ses_smtp_username = aws_iam_access_key.ses_smtp.id
+  # The secret is the raw AWS secret access key, which works directly with SES SMTP
+  ses_smtp_password = aws_iam_access_key.ses_smtp.secret
+}
