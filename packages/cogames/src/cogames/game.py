@@ -194,16 +194,6 @@ def describe_mission(mission_name: str, game_config: MettaGridConfig, console: C
         console.print(f"  • Resource limits: {game_config.game.agent.resource_limits}")
 
 
-def _convert_tuples_to_lists(obj):
-    """Recursively convert tuples to lists in a nested data structure."""
-    if isinstance(obj, dict):
-        return {k: _convert_tuples_to_lists(v) for k, v in obj.items()}
-    elif isinstance(obj, (list, tuple)):
-        return [_convert_tuples_to_lists(item) for item in obj]
-    else:
-        return obj
-
-
 def save_mission_config(config: MettaGridConfig, output_path: Path) -> None:
     """Save a mission configuration to file.
 
