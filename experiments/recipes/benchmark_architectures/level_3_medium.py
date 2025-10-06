@@ -90,7 +90,9 @@ def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     """Interactive play tool."""
     eval_env = env or make_mettagrid()
     return PlayTool(
-        sim=SimulationConfig(suite="benchmark_arch", env=eval_env, name="level_3_medium")
+        sim=SimulationConfig(
+            suite="benchmark_arch", env=eval_env, name="level_3_medium"
+        )
     )
 
 

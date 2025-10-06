@@ -8,6 +8,7 @@ This recipe provides the most guidance through:
 - Smaller map size for faster learning
 """
 
+from enum import StrEnum, auto
 from typing import List, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
@@ -22,6 +23,23 @@ from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from mettagrid.config import ConverterConfig
+
+
+class PolicyArchitectureType(StrEnum):
+    SIMPLE = auto()
+    TRANSFORMER = auto()
+    XLSTM = auto()
+
+
+def make_architecture_config(arch: str) -> Optional[PolicyArchitecture]:
+    if arch == PolicyArchitectureType.SIMPLE.value:
+        return None
+
+    elif arch == PolicyArchitectureType.TRANSFORMER.value:
+        return None
+
+    elif arch == PolicyArchitectureType.XLSTM.value:
+        return None
 
 
 def make_mettagrid(num_agents: int = 12) -> MettaGridConfig:
@@ -78,17 +96,19 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
 
 def train(
     curriculum: Optional[CurriculumConfig] = None,
-    policy_architecture: Optional[PolicyArchitecture] = None,
+    arch_type: str = "SIMPLE",  # (SIMPLE | TRANSFORMER | XLSTM)
 ) -> TrainTool:
     """Train on Level 1 - Basic difficulty."""
     if curriculum is None:
         env = make_mettagrid()
         curriculum = cc.env_curriculum(env)
 
+    architecture_config = make_architecture_config(arch_type)
+
     return TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=EvaluatorConfig(simulations=make_evals()),
-        policy_architecture=policy_architecture,
+        policy_architecture=architecture_config,
     )
 
 
