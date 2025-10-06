@@ -157,8 +157,7 @@ model Paper {
   id                     String                 @id @default(cuid())
   title                  String
   abstract               String?
-  institutions           String[]
-  tags                   String[]
+  tags                   String[]               @default([])
   link                   String?
   source                 String?
   externalId             String?
@@ -168,13 +167,18 @@ model Paper {
   updatedAt              DateTime               @default(now()) @updatedAt
   llmAbstract            Json?
   llmAbstractGeneratedAt DateTime?
-  institutionIds         String[]               @default([])
+  abstractSummary        String?
+  doi                    String?
+  arxivUrl               String?
+  citationCount          Int                    @default(0)
+  viewCount              Int                    @default(0)
   paperAuthors           PaperAuthor[]
   paperInstitutions      PaperInstitution[]
   posts                  Post[]
   userPaperInteractions  UserPaperInteraction[]
 
   @@map("paper")
+  @@index([citationCount])
 }
 
 model PaperAuthor {

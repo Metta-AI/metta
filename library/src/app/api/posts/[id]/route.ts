@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db/prisma";
+
+import loadPost from "@/posts/data/post";
 
 export async function GET(
   request: NextRequest,
@@ -8,29 +9,12 @@ export async function GET(
   try {
     const { id } = await params;
 
-    const post = await prisma.post.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        title: true,
-        content: true,
-        createdAt: true,
-        author: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            image: true,
-          },
-        },
-      },
-    });
-
-    if (!post) {
+    try {
+      const post = await loadPost(id);
+      return NextResponse.json(post);
+    } catch (error) {
       return NextResponse.json({ error: "Post not found" }, { status: 404 });
     }
-
-    return NextResponse.json(post);
   } catch (error) {
     console.error("Error fetching post:", error);
     return NextResponse.json(

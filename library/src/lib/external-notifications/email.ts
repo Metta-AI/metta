@@ -34,7 +34,7 @@ export class EmailNotificationService {
   private fromAddress: string;
   private fromName: string;
   private baseUrl: string;
-  private useAWSsES: boolean;
+  private useAWSsES = false;
   private isEnabled: boolean;
 
   constructor() {

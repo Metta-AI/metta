@@ -1,15 +1,22 @@
 import * as dotenv from "dotenv";
-dotenv.config({ path: ".env.local", quiet: true }); // ← load variables first
+dotenv.config({ path: ".env.local", quiet: true });
 
 import { PrismaClient } from "@prisma/client";
 
-// Create a singleton Prisma client instance
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
-};
-
-export const db = globalForPrisma.prisma ?? new PrismaClient();
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = db;
+declare global {
+  // eslint-disable-next-line no-var
+  var prisma: PrismaClient | undefined;
 }
+
+let prismaClient: PrismaClient;
+
+if (process.env.NODE_ENV === "production") {
+  prismaClient = new PrismaClient();
+} else {
+  if (!globalThis.prisma) {
+    globalThis.prisma = new PrismaClient();
+  }
+  prismaClient = globalThis.prisma;
+}
+
+export const db = prismaClient;

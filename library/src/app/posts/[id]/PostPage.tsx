@@ -1,9 +1,9 @@
 "use client";
 
-import { FC, useEffect, useRef, useState } from "react";
+import { FC, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { InfiniteScroll } from "@/components/InfiniteScroll";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { useMathJax } from "@/components/MathJaxProvider";
 import { usePaginator } from "@/lib/hooks/usePaginator";
 import { Paginated } from "@/lib/paginated";
@@ -200,6 +200,34 @@ export const PostPage: FC<{
     }
   }, [postId]);
 
+  const feedScrollRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: page.items.length + (page.loadNext ? 1 : 0),
+    getScrollElement: () => feedScrollRef.current,
+    estimateSize: () => 360,
+    overscan: 6,
+  });
+
+  const virtualItems = rowVirtualizer.getVirtualItems();
+
+  useEffect(() => {
+    if (!page.loadNext || page.loading) return;
+    const lastItem = virtualItems[virtualItems.length - 1];
+    if (!lastItem) return;
+    if (lastItem.index >= page.items.length) {
+      page.loadNext(10);
+    }
+  }, [page.loadNext, page.loading, page.items.length, virtualItems]);
+
+  const measureElement = useCallback(
+    (node: HTMLElement | null) => {
+      if (node) {
+        rowVirtualizer.measureElement(node);
+      }
+    },
+    [rowVirtualizer]
+  );
+
   return (
     <div className="flex h-[calc(97vh-53px)] w-full flex-col md:flex-row">
       {/* Mobile: Paper details on top (when selected) */}
@@ -214,6 +242,7 @@ export const PostPage: FC<{
 
       {/* Main feed area */}
       <div
+        ref={feedScrollRef}
         className={`flex-1 overflow-y-auto ${
           selectedPostForPaper?.paper ? "md:w-[45%] md:flex-none" : ""
         }`}
@@ -222,44 +251,76 @@ export const PostPage: FC<{
         <NewPostForm />
 
         {/* Feed with Infinite Scroll */}
-        <div ref={feedRef} className="mx-4 mt-6 max-w-2xl md:mr-4 md:ml-6">
+        <div className="mx-4 mt-6 max-w-2xl md:mr-4 md:ml-6">
           {page.items.length > 0 ? (
-            <InfiniteScroll
-              loadNext={page.loadNext!}
-              hasMore={!!page.loadNext}
-              loading={page.loading}
+            <div
+              style={{
+                height: rowVirtualizer.getTotalSize(),
+                position: "relative",
+                width: "100%",
+              }}
             >
-              <div className="flex flex-col gap-4">
-                {page.items.map((post) => {
-                  const isTargetPost = post.id === postId;
+              {virtualItems.map((virtualRow) => {
+                const isLoaderRow = virtualRow.index >= page.items.length;
+                const post = page.items[virtualRow.index];
+                const isTargetPost = post?.id === postId;
+
+                const style = {
+                  position: "absolute" as const,
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  transform: `translateY(${virtualRow.start}px)`,
+                };
+
+                if (isLoaderRow) {
                   return (
                     <div
-                      key={post.id}
-                      ref={isTargetPost ? targetPostRef : undefined}
-                      className={
-                        isTargetPost
-                          ? "ring-opacity-50 rounded-lg ring-2 ring-blue-500"
-                          : ""
-                      }
+                      key={virtualRow.key}
+                      ref={measureElement}
+                      style={style}
                     >
-                      <FeedPost
-                        post={post}
-                        onPaperClick={handlePaperClick}
-                        onUserClick={handleUserClick}
-                        currentUser={currentUser}
-                        isCommentsExpanded={expandedPostId === post.id}
-                        onCommentToggle={() => handleCommentToggle(post.id)}
-                        onPostSelect={() => handlePostSelect(post)}
-                        isSelected={selectedPostForPaper?.id === post.id}
-                        highlightedCommentId={
-                          isTargetPost ? highlightedCommentId : null
-                        }
-                      />
+                      {page.loading ? (
+                        <div className="flex items-center justify-center gap-2 py-6 text-gray-500">
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" />
+                          <span>Loading more posts...</span>
+                        </div>
+                      ) : null}
                     </div>
                   );
-                })}
-              </div>
-            </InfiniteScroll>
+                }
+
+                const isSelected = selectedPostForPaper?.id === post.id;
+
+                return (
+                  <div
+                    key={virtualRow.key}
+                    ref={(node) => {
+                      measureElement(node);
+                      if (isTargetPost) {
+                        targetPostRef.current = node as HTMLDivElement | null;
+                      }
+                    }}
+                    style={style}
+                    className="pb-4"
+                  >
+                    <FeedPost
+                      post={post}
+                      onPaperClick={handlePaperClick}
+                      onUserClick={handleUserClick}
+                      currentUser={currentUser}
+                      isCommentsExpanded={expandedPostId === post.id}
+                      onCommentToggle={() => handleCommentToggle(post.id)}
+                      onPostSelect={() => handlePostSelect(post)}
+                      isSelected={isSelected}
+                      highlightedCommentId={
+                        isTargetPost ? highlightedCommentId : null
+                      }
+                    />
+                  </div>
+                );
+              })}
+            </div>
           ) : (
             <div className="rounded-lg border border-gray-200 bg-white p-8 text-center">
               <div className="mb-4 text-gray-400">

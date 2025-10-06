@@ -39,7 +39,7 @@ export type FeedPostDTO = {
       orcid?: string | null;
       institution?: string | null;
     }[];
-    institutions: string[] | null;
+    institutions: string[];
     tags: string[] | null;
     link: string | null;
     source: string | null;
@@ -125,7 +125,9 @@ export function toFeedPostDTO(
               orcid: pa.author.orcid,
               institution: pa.author.institution,
             })) || [],
-          institutions: paper.institutions,
+          institutions:
+            paper.paperInstitutions?.map((pi: any) => pi.institution.name) ||
+            [],
           tags: paper.tags,
           link: paper.link,
           source: paper.source,
@@ -182,7 +184,6 @@ export async function loadFeedPosts({
           id: true,
           title: true,
           abstract: true,
-          institutions: true,
           tags: true,
           link: true,
           source: true,
@@ -191,6 +192,16 @@ export async function loadFeedPosts({
           updatedAt: true,
           llmAbstract: true,
           llmAbstractGeneratedAt: true,
+          paperInstitutions: {
+            select: {
+              institution: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
           paperAuthors: {
             include: {
               author: {

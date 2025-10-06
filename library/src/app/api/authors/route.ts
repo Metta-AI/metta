@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+
 import { loadAuthors } from "@/posts/data/authors-server";
 
 /**

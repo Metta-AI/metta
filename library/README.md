@@ -25,9 +25,68 @@ A social feed and knowledge repository for AI research papers, built with Next.j
    Create a `.env.local` file with the following content:
 
    ```
-   DATABASE_URL=postgres://localhost/metta_library
+   # Core application settings
+   DATABASE_URL=postgresql://localhost/metta_library
    DEV_MODE=true
+   NEXTAUTH_SECRET=your-generated-secret
+   NEXTAUTH_URL=http://localhost:3001
+   ALLOWED_EMAIL_DOMAINS=stem.ai,softmax.com
+
+   # Discord integration (optional)
+   DISCORD_CLIENT_ID=your-discord-client-id
+   DISCORD_CLIENT_SECRET=your-discord-client-secret
+   DISCORD_REDIRECT_URI=http://localhost:3001/api/auth/callback/discord
+   NEXT_PUBLIC_DISCORD_CLIENT_ID=your-discord-client-id
+
+   # Google OAuth (optional, overrides DEV_MODE fake email provider)
+   GOOGLE_CLIENT_ID=your-google-client-id
+   GOOGLE_CLIENT_SECRET=your-google-client-secret
+
+   # Email notifications (optional)
+   ENABLE_EMAIL_NOTIFICATIONS=true
+   EMAIL_FROM_ADDRESS=notifications@yourapp.com
+   EMAIL_FROM_NAME=Library Notifications
+
+   # AWS SES configuration (optional)
+   AWS_SES_ACCESS_KEY_ID=your-aws-ses-access-key
+   AWS_SES_SECRET_ACCESS_KEY=your-aws-ses-secret
+   AWS_SES_REGION=us-east-1
+
+   # SMTP fallback configuration (optional if SES not used)
+   SMTP_HOST=smtp.sendgrid.net
+   SMTP_PORT=587
+   SMTP_USER=apikey
+   SMTP_PASSWORD=your-smtp-password
+
+   # Redis / BullMQ job queue
+   REDIS_HOST=localhost
+   REDIS_PORT=6379
+   REDIS_PASSWORD=
+   REDIS_TLS=false
+
+   # AWS miscellaneous (optional for PDF processing)
+   AWS_REGION=us-east-1
+   AWS_PROFILE=softmax
+   AWS_S3_BUCKET=metta-pdf-processing
+
+   # LLM integrations (optional)
+   ANTHROPIC_API_KEY=your-anthropic-key
+
+   # Adobe PDF Services (optional)
+   ADOBE_CLIENT_ID=your-adobe-client-id
+   ADOBE_CLIENT_SECRET=your-adobe-client-secret
+
+   # Asana integration (optional)
+   ASANA_API_KEY=
+   ASANA_TOKEN=
+   ASANA_PAPERS_PROJECT_ID=
+   ASANA_WORKSPACE_ID=
+   ASANA_PAPER_LINK_FIELD_ID=
+   ASANA_ARXIV_ID_FIELD_ID=
+   ASANA_ABSTRACT_FIELD_ID=
    ```
+
+   > Only populate the sections relevant to the features you plan to exercise locally. Leave optional values blank to disable the corresponding integration.
 
 3. **Generate authentication secret**:
 
@@ -35,7 +94,7 @@ A social feed and knowledge repository for AI research papers, built with Next.j
    pnpm auth secret
    ```
 
-   This will populate your `.env.local` file with a random `AUTH_SECRET`.
+   This will populate your `.env.local` file with a random `NEXTAUTH_SECRET`.
 
 4. **Set up the database**:
 
@@ -43,8 +102,8 @@ A social feed and knowledge repository for AI research papers, built with Next.j
    # Generate Prisma client
    pnpm prisma generate
 
-   # Run database migrations (if any)
-   pnpm prisma db push
+   # Create a development migration baseline
+   pnpm prisma migrate dev --name init
    ```
 
 ### Running
@@ -127,7 +186,7 @@ The application implements cursor-based pagination for efficient data loading:
 - `pnpm format` - Format code with Prettier
 - `pnpm prisma studio` - Open Prisma Studio for database management
 - `pnpm prisma generate` - Generate Prisma client
-- `pnpm prisma db push` - Push schema changes to database
+- `pnpm prisma migrate dev` - Create & apply schema migrations locally
 - `pnpm fetch-arxiv` - Fetch arXiv paper metadata as JSON
 - `pnpm test-arxiv` - Test the arXiv fetcher module
 

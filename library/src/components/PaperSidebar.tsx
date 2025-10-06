@@ -8,7 +8,8 @@ import { LLMAbstract } from "@/lib/llm-abstract-generator-clean";
 import { useOverlayNavigation } from "@/components/OverlayStack";
 import { StarWidgetQuery } from "@/components/StarWidgetQuery";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { AuthorDTO, loadAuthorClient } from "@/posts/data/authors-client";
 
 interface PaperSidebarProps {
@@ -70,32 +71,6 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper, onClose }) => {
 
       if (fullAuthor) {
         openAuthor(fullAuthor);
-      } else {
-        // Fallback: create a minimal author object if all loading attempts fail
-        const fallbackAuthor: AuthorDTO = {
-          id: authorId,
-          name: authorName,
-          username: null,
-          email: null,
-          avatar: null,
-          institution: null,
-          department: null,
-          title: null,
-          expertise: [],
-          hIndex: null,
-          totalCitations: null,
-          claimed: false,
-          isFollowing: false,
-          recentActivity: null,
-          orcid: null,
-          googleScholarId: null,
-          arxivId: null,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          paperCount: 0,
-          recentPapers: [],
-        };
-        openAuthor(fallbackAuthor);
       }
     } catch (error) {
       console.error("Error loading author:", error);
@@ -104,8 +79,6 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper, onClose }) => {
 
   // Handle clicking on an institution
   const handleInstitutionClick = (institutionName: string) => {
-    // For now, we'll open with just the name and empty arrays
-    // The institution overlay will load the full institution data
     openInstitution(institutionName, [], []);
   };
 
@@ -194,8 +167,8 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper, onClose }) => {
             <div className="flex items-center gap-2 pl-2">
               {(paper.source === "arxiv" && paper.externalId) || paper.link ? (
                 <Button
-                  size="small"
-                  theme="default"
+                  size="sm"
+                  variant="default"
                   onClick={() => {
                     const pdfUrl =
                       paper.source === "arxiv" && paper.externalId
@@ -267,7 +240,7 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper, onClose }) => {
                   >
                     <Badge
                       variant="secondary"
-                      className="rounded-md transition-colors hover:bg-neutral-200"
+                      className="rounded-md text-[11px] transition-colors hover:bg-neutral-200"
                     >
                       {author.name}
                     </Badge>
@@ -292,7 +265,7 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper, onClose }) => {
                   >
                     <Badge
                       variant="secondary"
-                      className="rounded-md transition-colors hover:bg-neutral-200"
+                      className="rounded-md text-[11px] transition-colors hover:bg-neutral-200"
                     >
                       {institution}
                     </Badge>

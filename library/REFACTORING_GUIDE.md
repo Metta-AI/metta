@@ -998,6 +998,7 @@ generateCRUD("institution", {
    - Use role-based rendering
 
 5. ✅ Install and add TanStack Virtual
+
    ```bash
    pnpm add @tanstack/react-virtual
    ```

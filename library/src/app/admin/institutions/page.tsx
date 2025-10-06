@@ -1,5 +1,5 @@
 import { getAdminSessionOrRedirect } from "@/lib/adminAuth";
-import { AdminInstitutionsView } from "@/components/AdminInstitutionsView";
+import { AdminInstitutionsDashboard } from "@/components/AdminInstitutionsDashboard";
 
 /**
  * Admin Institutions Page
@@ -23,7 +23,7 @@ export default async function AdminInstitutionsPage() {
           </p>
         </div>
 
-        <AdminInstitutionsView />
+        <AdminInstitutionsDashboard initialInstitutions={[]} />
       </div>
     </div>
   );

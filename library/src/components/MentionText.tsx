@@ -2,7 +2,8 @@
 
 import React from "react";
 import { User, Users } from "lucide-react";
-import { parseMentions, replaceMentionsInText } from "@/lib/mentions";
+import type { ParsedMention } from "@/lib/mentions";
+import { parseMentions } from "@/lib/mentions";
 
 interface MentionTextProps {
   text: string;
@@ -53,14 +54,7 @@ export const MentionText: React.FC<MentionTextProps> = ({
 };
 
 interface MentionSpanProps {
-  mention: {
-    type: "user" | "group-relative" | "group-absolute";
-    raw: string;
-    value: string;
-    domain?: string;
-    groupName?: string;
-    username?: string;
-  };
+  mention: ParsedMention;
 }
 
 const MentionSpan: React.FC<MentionSpanProps> = ({ mention }) => {
@@ -70,6 +64,9 @@ const MentionSpan: React.FC<MentionSpanProps> = ({ mention }) => {
         return <User className="h-3 w-3" />;
       case "group-relative":
       case "group-absolute":
+      case "group-institution":
+        return <Users className="h-3 w-3" />;
+      case "institution":
         return <Users className="h-3 w-3" />;
       default:
         return null;
@@ -84,6 +81,10 @@ const MentionSpan: React.FC<MentionSpanProps> = ({ mention }) => {
         return "text-green-600 bg-green-50 border-green-200 hover:bg-green-100";
       case "group-absolute":
         return "text-purple-600 bg-purple-50 border-purple-200 hover:bg-purple-100";
+      case "group-institution":
+        return "text-indigo-600 bg-indigo-50 border-indigo-200 hover:bg-indigo-100";
+      case "institution":
+        return "text-amber-600 bg-amber-50 border-amber-200 hover:bg-amber-100";
       default:
         return "text-gray-600 bg-gray-50 border-gray-200";
     }
@@ -97,6 +98,10 @@ const MentionSpan: React.FC<MentionSpanProps> = ({ mention }) => {
         return `Group mention: ${mention.groupName} (in your institution)`;
       case "group-absolute":
         return `Group mention: ${mention.groupName} (in ${mention.domain})`;
+      case "group-institution":
+        return `Group mention: ${mention.groupName} (in ${mention.institutionName})`;
+      case "institution":
+        return `Institution mention: ${mention.institutionName}`;
       default:
         return "Mention";
     }

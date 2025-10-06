@@ -14,7 +14,8 @@ import { deletePostAction } from "@/posts/actions/deletePostAction";
 import { toggleQueueAction } from "@/posts/actions/toggleQueueAction";
 import { SilentArxivRefresh } from "@/components/SilentArxivRefresh";
 import { InPostComments } from "@/components/InPostComments";
-import { ChevronRight, MessageSquare, ExternalLink, Quote } from "lucide-react";
+import { getUserInitials } from "@/lib/utils/user";
+import { MessageSquare, ExternalLink, Quote } from "lucide-react";
 
 /**
  * FeedPost Component
@@ -37,8 +38,6 @@ export const FeedPost: FC<{
   } | null;
   isCommentsExpanded: boolean;
   onCommentToggle: () => void;
-  onPostSelect?: () => void;
-  isSelected?: boolean;
   highlightedCommentId?: string | null;
 }> = ({
   post,
@@ -47,8 +46,6 @@ export const FeedPost: FC<{
   currentUser,
   isCommentsExpanded,
   onCommentToggle,
-  onPostSelect,
-  isSelected,
   highlightedCommentId,
 }) => {
   const router = useRouter();
@@ -142,22 +139,6 @@ export const FeedPost: FC<{
 
     // Navigate to home page where the new post form will pick up the draft
     router.push("/?quote=" + post.id);
-  };
-
-  // Generate user initials for avatar
-  const getUserInitials = (name: string | null, email: string | null) => {
-    if (name) {
-      return name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2);
-    }
-    if (email) {
-      return email.charAt(0).toUpperCase();
-    }
-    return "?";
   };
 
   // Format relative time
@@ -259,10 +240,6 @@ export const FeedPost: FC<{
 
     // Navigate to post page instead of expanding in-place
     router.push(`/posts/${post.id}`);
-  };
-
-  const handleOpenFullView = () => {
-    onPostSelect?.();
   };
 
   const handleDelete = () => {
@@ -399,15 +376,13 @@ export const FeedPost: FC<{
               </button>
             )}
 
-            {/* Comment button - hidden on hover, rightmost when visible */}
+            {/* Comment button */}
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 handlePostClick(e);
               }}
-              className={`rounded-full p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-blue-500 ${
-                !isSelected ? "group-hover:hidden" : ""
-              }`}
+              className="rounded-full p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-blue-500"
               title={`${commentCount} comments`}
             >
               <div className="flex items-center gap-1">
@@ -415,20 +390,6 @@ export const FeedPost: FC<{
                 <span className="text-[11px] tabular-nums">{commentCount}</span>
               </div>
             </button>
-
-            {/* Open button - shown on hover to replace comment button (hidden when selected) */}
-            {!isSelected && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleOpenFullView();
-                }}
-                className="hidden cursor-pointer items-center gap-1 rounded-full border bg-white/80 px-2 py-1 text-[11px] text-neutral-700 backdrop-blur transition-colors group-hover:flex hover:bg-white"
-                title="Open post"
-              >
-                Open <ChevronRight className="h-3 w-3" />
-              </button>
-            )}
           </div>
         </div>
 
@@ -630,15 +591,13 @@ export const FeedPost: FC<{
             </button>
           )}
 
-          {/* Comment button - hidden on hover, rightmost when visible */}
+          {/* Comment button */}
           <button
             onClick={(e) => {
               e.stopPropagation();
               handlePostClick(e);
             }}
-            className={`rounded-full p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-blue-500 ${
-              !isSelected ? "group-hover:hidden" : ""
-            }`}
+            className="rounded-full p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-blue-500"
             title={`${commentCount} comments`}
           >
             <div className="flex items-center gap-1">
@@ -646,20 +605,6 @@ export const FeedPost: FC<{
               <span className="text-[11px] tabular-nums">{commentCount}</span>
             </div>
           </button>
-
-          {/* Open button - shown on hover to replace comment button (hidden when selected) */}
-          {!isSelected && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleOpenFullView();
-              }}
-              className="hidden cursor-pointer items-center gap-1 rounded-full border bg-white/80 px-2 py-1 text-[11px] text-neutral-700 backdrop-blur transition-colors group-hover:flex hover:bg-white"
-              title="Open post"
-            >
-              Open <ChevronRight className="h-3 w-3" />
-            </button>
-          )}
         </div>
       </div>
 

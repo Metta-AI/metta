@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 
 import { auth, isSignedIn } from "@/lib/auth";
 import { discordBot } from "@/lib/external-notifications/discord-bot";
+import type { NotificationWithDetails } from "@/lib/external-notifications/email";
 import { prisma } from "@/lib/db/prisma";
 
 // Schema for test Discord message request
@@ -82,7 +83,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Create a mock notification for testing
-      const mockNotification = {
+      const mockNotification: NotificationWithDetails = {
         id: "test-discord-notification",
         userId: session.user.id,
         type: "SYSTEM" as const,
@@ -101,8 +102,8 @@ export async function POST(request: NextRequest) {
         actor: null,
         user: {
           id: session.user.id,
-          name: session.user.name,
-          email: session.user.email,
+          name: session.user.name ?? null,
+          email: session.user.email ?? null,
         },
         post: null,
         comment: null,
@@ -129,7 +130,7 @@ export async function POST(request: NextRequest) {
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Invalid request data", details: error.errors },
+        { error: "Invalid request data", details: error.issues },
         { status: 400 }
       );
     }
