@@ -46,8 +46,10 @@ def validate_and_normalize_policy_uri(policy_uri: str) -> str | None:
     """Validate that a policy URI is accessible and return normalized URI with metadata."""
     try:
         normalized_uri = CheckpointManager.normalize_uri(policy_uri)
-        agent = CheckpointManager.load_from_uri(normalized_uri, device="cpu")
-        del agent
+        artifact = CheckpointManager.load_artifact_from_uri(normalized_uri)
+        if artifact.state_dict is None:
+            raise ValueError("Policy artifact did not contain model weights")
+        del artifact
         return normalized_uri
     except Exception as e:
         warning(f"Skipping invalid or inaccessible policy {policy_uri}: {e}")
@@ -172,8 +174,8 @@ def main():
         dest="policies",
         help="""Direct policy checkpoint URI. Can be specified multiple times for multiple policies.
         Supported formats:
-        - file://path/to/run/checkpoints/run_name:v10.pt
-        - s3://bucket/path/run/checkpoints/run_name:v10.pt
+        - file://path/to/run/checkpoints/run_name:v10.mpt
+        - s3://bucket/path/run/checkpoints/run_name:v10.mpt
         - ./path/to/run/checkpoints (directory; latest checkpoint auto-detected)""",
         required=True,
     )

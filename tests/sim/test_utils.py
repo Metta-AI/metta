@@ -11,7 +11,7 @@ def test_get_or_create_policy_ids_uses_epoch_in_policy_name():
     expected_id = uuid.uuid4()
     stats_client.create_policy.return_value = SimpleNamespace(id=expected_id)
 
-    uri = "s3://bucket/example_run/checkpoints/example_run:v5.pt"
+    uri = "s3://bucket/example_run/checkpoints/example_run:v5.mpt"
     mapping = get_or_create_policy_ids(stats_client, [(uri, None)])
 
     stats_client.create_policy.assert_called_once()
