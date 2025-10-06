@@ -2,18 +2,17 @@
 #  This software may be used and distributed according to the terms of the NXAI Community License Agreement.
 
 # Maximilian Beck
-"""This file contains the kernel that combines the recurrent and parallel part of the forward pass of the mLSTM chunkwise formulation.
-It should allow arbitrary large chunk sizes and head dimensions.
+"""This file contains the kernel that combines the recurrent and parallel part of the forward pass
+of the mLSTM chunkwise formulation. It should allow arbitrary large chunk sizes and head dimensions.
 """
 
 import torch
-
-from ..triton.chunkwise_kernel_param_heuristics import (
+from cortex.kernels.triton.mlstm.torch.fw_parallel import mlstm_chunkwise__parallel_fw_Hintra
+from cortex.kernels.triton.mlstm.torch.fw_recurrent import mlstm_chunkwise__recurrent_fw_C
+from cortex.kernels.triton.mlstm.triton.chunkwise_kernel_param_heuristics import (
     get_xl_chunk_kernel_params,
 )
-from ..utils import contiguous_noctx
-from .fw_parallel import mlstm_chunkwise__parallel_fw_Hintra
-from .fw_recurrent import mlstm_chunkwise__recurrent_fw_C
+from cortex.kernels.triton.mlstm.utils import contiguous_noctx
 
 
 @contiguous_noctx
@@ -51,13 +50,11 @@ def mlstm_chunkwise_fw(
     | (
         tuple[torch.Tensor, torch.Tensor, torch.Tensor]
     ),  # last_states (matC_states (B, NH, DHQK, DHHV), vecN_states (B, NH, DHQK), scaMinter_states (B, NH))
-    None
-    | (
-        tuple[torch.Tensor, torch.Tensor, torch.Tensor]
-    ),  # all_states (matC_states (B, NH, (NC+1) * DHQK, DHHV), vecN_states (B, NH, (NC+1) * DHQK), scaMinter_states (B, NH, (NC+1)))
+    None | (tuple[torch.Tensor, torch.Tensor, torch.Tensor]),  # all_states (matC_states (B, NH, (NC+1) * DHQK, DHHV),
+    # vecN_states (B, NH, (NC+1) * DHQK), scaMinter_states (B, NH, (NC+1)))
 ]:
     B, NH, S, DHQK = matQ.shape
-    DHHV = matV.shape[-1]
+    matV.shape[-1]
 
     if qk_scale is None:
         qk_scale = DHQK**-0.5

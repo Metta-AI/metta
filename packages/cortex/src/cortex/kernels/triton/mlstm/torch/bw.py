@@ -2,16 +2,16 @@
 #  This software may be used and distributed according to the terms of the NXAI Community License Agreement.
 
 # Maximilian Beck
-"""This file contains the kernel that combines the recurrent and parallel part of the forward pass of the mLSTM chunkwise formulation.
-It should allow arbitrary large chunk sizes and head dimensions.
+"""This file contains the kernel that combines the recurrent and parallel part of the forward pass
+of the mLSTM chunkwise formulation. It should allow arbitrary large chunk sizes and head dimensions.
 """
 
 import torch
-
-from ..triton.chunkwise_kernel_param_heuristics import (
+from cortex.kernels.triton.mlstm.triton.chunkwise_kernel_param_heuristics import (
     get_xl_chunk_kernel_params,
 )
-from ..utils import contiguous_noctx
+from cortex.kernels.triton.mlstm.utils import contiguous_noctx
+
 from .bw_parallel_dK import mlstm_chunkwise__parallel_bw_dK
 from .bw_parallel_dQ import mlstm_chunkwise__parallel_bw_dQ
 from .bw_parallel_dV import mlstm_chunkwise__parallel_bw_dV
@@ -59,7 +59,7 @@ def mlstm_chunkwise_bw(
     reset_mask: torch.Tensor | None = None,  # (B, S) boolean
 ):
     B, NH, S, DHQK = matQ.shape
-    DHHV = matV.shape[-1]
+    matV.shape[-1]
 
     if qk_scale is None:
         qk_scale = DHQK**-0.5
@@ -109,7 +109,6 @@ def mlstm_chunkwise_bw(
     #! recurrent backward: compute the deltaC (& deltaN) gradients
     # matDeltaC_states (B, NH, (NC+1) * DHQK, DHHV)
     # Build last-segment mask for recurrent backward if resets provided
-    vecLastSegMask_inter = None
     if reset_mask is not None:
         Bm, NHm, Sm = matQ.shape[0], matQ.shape[1], matQ.shape[2]
         reset_full = reset_mask.unsqueeze(1).expand(Bm, NHm, Sm).to(dtype=torch.int32)
@@ -118,7 +117,7 @@ def mlstm_chunkwise_bw(
         seg_inter = reset_full.view(Bm, NHm, NC_inter, L_inter)
         prefix_inclusive = torch.cumsum(seg_inter, dim=-1)
         last_prefix = prefix_inclusive[..., -1:].expand_as(prefix_inclusive)
-        vecLastSegMask_inter = prefix_inclusive.eq(last_prefix).to(matQ.dtype)
+        prefix_inclusive.eq(last_prefix).to(matQ.dtype)
 
     matDeltaC_states = mlstm_chunkwise__recurrent_bw_dC(
         matQ=matQ,  # (B, NH, S, DHQK)

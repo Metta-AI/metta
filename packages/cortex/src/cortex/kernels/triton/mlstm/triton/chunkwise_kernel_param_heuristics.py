@@ -5,7 +5,7 @@
 import logging
 from dataclasses import dataclass
 
-from ..utils.kernels import is_power_of_2
+from cortex.kernels.triton.mlstm.utils.kernels import is_power_of_2
 
 LOGGER = logging.getLogger(__name__)
 
@@ -95,10 +95,9 @@ def select_heuristic_xl_chunk_kernel_params(
 
         if target_chunk_size < DEFAULT_CHUNK_BLOCK_SIZE:
             LOGGER.warning(
-                (
-                    f"Target chunk size {target_chunk_size} is smaller than the default block size {DEFAULT_CHUNK_BLOCK_SIZE}.",
-                    " Setting the all block sizes to target_chunk_size.",
-                )
+                f"Target chunk size {target_chunk_size} is smaller than the default "
+                f"block size {DEFAULT_CHUNK_BLOCK_SIZE}. Setting the all block sizes "
+                f"to target_chunk_size."
             )
             chunk_size_inter = min(default_chunk_size_inter, target_chunk_size)
             chunk_size_intra = target_chunk_size
