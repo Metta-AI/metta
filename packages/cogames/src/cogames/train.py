@@ -3,7 +3,10 @@ from __future__ import annotations
 import logging
 import multiprocessing
 import platform
+import signal
+from collections.abc import Callable
 from pathlib import Path
+from types import FrameType, TracebackType
 from typing import TYPE_CHECKING, Any, Optional
 
 import psutil
@@ -11,6 +14,7 @@ from rich.console import Console
 
 import pufferlib.vector
 from cogames.policy import TrainablePolicy
+from cogames.policy.utils import get_policy_class_shorthand
 from cogames.utils import initialize_or_load_policy
 from mettagrid import MettaGridConfig, MettaGridEnv
 from pufferlib import pufferl
@@ -20,6 +24,8 @@ if TYPE_CHECKING:
     import torch
 
 logger = logging.getLogger("cogames.pufferlib")
+
+SignalHandler = Callable[[int, FrameType | None], Any] | int | signal.Handlers | None
 
 
 def train(
@@ -162,7 +168,7 @@ def train(
             num_steps,
             effective_timesteps,
         )
-
+    checkpoint_interval = 200
     train_args = dict(
         env=env_name,
         device=device.type,
@@ -170,7 +176,7 @@ def train(
         minibatch_size=amended_minibatch_size,
         batch_size=amended_batch_size,
         data_dir=str(checkpoints_path),
-        checkpoint_interval=200,
+        checkpoint_interval=checkpoint_interval,
         bptt_horizon=bptt_horizon,
         seed=seed,
         use_rnn=use_rnn,
@@ -207,97 +213,145 @@ def train(
     # Track if training diverged
     training_diverged = False
 
-    while trainer.global_step < num_steps:
-        trainer.evaluate()
-        trainer.train()
+    with _SigintHandler():
+        try:
+            while trainer.global_step < num_steps:
+                trainer.evaluate()
+                trainer.train()
+                # Check for NaN in network parameters after each training step
+                network = policy.network()
+                has_nan = False
+                for name, param in network.named_parameters():
+                    if param.grad is not None and not param.grad.isfinite().all():
+                        logger.error(f"NaN/Inf detected in gradients for parameter: {name}")
+                        has_nan = True
+                    if not param.isfinite().all():
+                        logger.error(f"NaN/Inf detected in parameter: {name}")
+                        has_nan = True
 
-        # Check for NaN in network parameters after each training step
-        network = policy.network()
-        has_nan = False
-        for name, param in network.named_parameters():
-            if param.grad is not None and not param.grad.isfinite().all():
-                logger.error(f"NaN/Inf detected in gradients for parameter: {name}")
-                has_nan = True
-            if not param.isfinite().all():
-                logger.error(f"NaN/Inf detected in parameter: {name}")
-                has_nan = True
-
-        if has_nan:
-            logger.error(
-                f"Training diverged at step {trainer.global_step}! "
-                "Stopping early to prevent saving corrupted checkpoint."
+                if has_nan:
+                    logger.error(
+                        f"Training diverged at step {trainer.global_step}! "
+                        "Stopping early to prevent saving corrupted checkpoint."
+                    )
+                    training_diverged = True
+                    break
+        except KeyboardInterrupt:
+            logger.warning(
+                "KeyboardInterrupt received at step %s; stopping training gracefully.",
+                trainer.global_step,
             )
-            training_diverged = True
-            break
+        trainer.print_dashboard()
+        trainer.close()
 
-    trainer.print_dashboard()
-    trainer.close()
+        # Print checkpoint path and usage commands with colored output
+        console = Console()
 
-    # Print checkpoint path and usage commands with colored output
-
-    console = Console()
-
-    console.print()
-    if training_diverged:
-        console.print("=" * 80, style="bold red")
-        console.print("Training diverged (NaN detected)! Stopped early.", style="bold red")
-        console.print(f"Checkpoints saved to: [cyan]{checkpoints_path}[/cyan]", style="bold red")
-        console.print("=" * 80, style="bold red")
         console.print()
-        console.print("[yellow]Warning: The latest checkpoint may contain NaN values.[/yellow]")
-        console.print("[yellow]Try using an earlier checkpoint or retraining with lower learning rate.[/yellow]")
-    else:
+        if training_diverged:
+            console.print("=" * 80, style="bold red")
+            console.print("Training diverged (NaN detected)! Stopped early.", style="bold red")
+            console.print(f"Checkpoints saved to: [cyan]{checkpoints_path}[/cyan]", style="bold red")
+            console.print("=" * 80, style="bold red")
+            console.print()
+            console.print("[yellow]Warning: The latest checkpoint may contain NaN values.[/yellow]")
+            console.print("[yellow]Try using an earlier checkpoint or retraining with lower learning rate.[/yellow]")
+        elif trainer.epoch >= checkpoint_interval:
+            console.print("=" * 80, style="bold green")
+            console.print("Training complete")
+            console.print(
+                f"Checkpoints saved to: [cyan]{checkpoints_path}[/cyan]",
+                style="bold green",
+            )
+            console.print("=" * 80, style="bold green")
+
+        # Try to find the final checkpoint
+        # PufferLib saves checkpoints in data_dir/env_name/
+        checkpoint_dir = checkpoints_path / env_name
+        checkpoints = []
+
+        if checkpoint_dir.exists():
+            checkpoints = sorted(checkpoint_dir.glob("*.pt"))
+
+        # Fallback: also check directly in checkpoints_path
+        if not checkpoints and checkpoints_path.exists():
+            checkpoints = sorted(checkpoints_path.glob("*.pt"))
+
+        if checkpoints and not training_diverged:
+            final_checkpoint = checkpoints[-1]
+            console.print()
+            console.print(f"Final checkpoint: [cyan]{final_checkpoint}[/cyan]")
+            if trainer.epoch < checkpoint_interval:
+                console.print(
+                    "This checkpoint has initialized weights but does not reflect training. \n"
+                    "Training was cut off before the first meaningful checkpoint would have been saved"
+                    f" (epoch {checkpoint_interval}).",
+                    style="yellow",
+                )
+
+            # Show shorthand version if available
+            policy_shorthand = get_policy_class_shorthand(policy_class_path)
+
+            # Build the command with game name if provided
+            game_arg = f" {game_name}" if game_name else ""
+            policy_arg = policy_shorthand if policy_shorthand else policy_class_path
+
+            console.print()
+            console.print("To play with this policy:", style="bold")
+            console.print(
+                f"  [yellow]cogames play{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
+            )
+            console.print("To evaluate this policy:", style="bold")
+            console.print(
+                f"  [yellow]cogames eval{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
+            )
+        elif checkpoints and training_diverged:
+            console.print()
+            console.print(f"[yellow]Found {len(checkpoints)} checkpoint(s). The most recent may be corrupted.[/yellow]")
+            console.print("[yellow]Try using an earlier checkpoint or retraining.[/yellow]")
+        else:
+            console.print()
+            console.print(f"[yellow]No checkpoint files found. Check {checkpoints_path} for saved models.[/yellow]")
+
         console.print("=" * 80, style="bold green")
-        console.print(
-            f"Training complete. Checkpoints saved to: [cyan]{checkpoints_path}[/cyan]",
-            style="bold green",
-        )
-        console.print("=" * 80, style="bold green")
-
-    # Try to find the final checkpoint
-    # PufferLib saves checkpoints in data_dir/env_name/
-    checkpoint_dir = checkpoints_path / env_name
-    checkpoints = []
-
-    if checkpoint_dir.exists():
-        checkpoints = sorted(checkpoint_dir.glob("*.pt"))
-
-    # Fallback: also check directly in checkpoints_path
-    if not checkpoints and checkpoints_path.exists():
-        checkpoints = sorted(checkpoints_path.glob("*.pt"))
-
-    if checkpoints and not training_diverged:
-        final_checkpoint = checkpoints[-1]
         console.print()
-        console.print(f"Final checkpoint: [cyan]{final_checkpoint}[/cyan]")
 
-        # Show shorthand version if available
-        policy_shorthand = {
-            "cogames.policy.random.RandomPolicy": "random",
-            "cogames.policy.simple.SimplePolicy": "simple",
-            "cogames.policy.lstm.LSTMPolicy": "lstm",
-        }.get(policy_class_path)
 
-        # Build the command with game name if provided
-        game_arg = f" {game_name}" if game_name else ""
-        policy_arg = policy_shorthand if policy_shorthand else policy_class_path
+class _SigintHandler:
+    def __init__(self) -> None:
+        self._previous_handler: SignalHandler = None
+        self._have_rebound_handler = False
+        self.sigint_count = 0
 
-        console.print()
-        console.print("To play with this policy:", style="bold")
-        console.print(
-            f"  [yellow]cogames play{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
-        )
-        console.print("To evaluate this policy:", style="bold")
-        console.print(
-            f"  [yellow]cogames eval{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
-        )
-    elif checkpoints and training_diverged:
-        console.print()
-        console.print(f"[yellow]Found {len(checkpoints)} checkpoint(s). The most recent may be corrupted.[/yellow]")
-        console.print("[yellow]Try using an earlier checkpoint or retraining.[/yellow]")
-    else:
-        console.print()
-        console.print(f"[yellow]No checkpoint files found. Check {checkpoints_path} for saved models.[/yellow]")
+    def __enter__(self) -> "_SigintHandler":
+        self._previous_handler = signal.getsignal(signal.SIGINT)
+        signal.signal(signal.SIGINT, self.handle)
+        return self
 
-    console.print("=" * 80, style="bold green")
-    console.print()
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        if not self._have_rebound_handler:
+            self._rebind_and_call_old_handler()
+
+    def _rebind_and_call_old_handler(self) -> None:
+        handler = self._previous_handler
+        signal.signal(signal.SIGINT, handler)
+        self._have_rebound_handler = True
+        if self.sigint_count > 0:
+            if handler == signal.SIG_IGN:
+                pass
+            elif handler == signal.SIG_DFL:
+                signal.default_int_handler(signal.SIGINT, None)
+            elif callable(handler):
+                handler(signal.SIGINT, None)
+
+    def handle(self, sig: int, frame: FrameType | None) -> None:
+        self.sigint_count += 1
+        if self.sigint_count > 1:
+            self._rebind_and_call_old_handler()
+        else:
+            signal.default_int_handler(signal.SIGINT, None)
