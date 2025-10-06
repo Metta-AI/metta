@@ -1,6 +1,6 @@
 from typing import List, Optional, Sequence
 
-from experiments.sweeps.protein_configs import PPO_CORE, make_custom_protein_config
+from experiments.sweeps.protein_configs import PPO_CORE, VIT_POLICY_BASE, make_custom_protein_config
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
 from metta.agent.policies.vit import ViTDefaultConfig
@@ -115,6 +115,9 @@ def train(
         losses=LossConfig(),
     )
 
+    # Coerce CLI-provided dict into a proper ViTDefaultConfig instance so Pydantic validates.
+    if isinstance(policy_architecture, dict):  # type: ignore[unreachable]
+        policy_architecture = ViTDefaultConfig(**policy_architecture)  # type: ignore[arg-type]
     if policy_architecture is None:
         policy_architecture = ViTDefaultConfig()
 
@@ -189,11 +192,11 @@ def evaluate_in_sweep(
     )
 
 
-def sweep_async_progressive(
+def sweep_async_progressive_vit(
     min_timesteps: int,
     max_timesteps: int,
     initial_timesteps: int,
-    max_concurrent_evals: int = 1,
+    max_concurrent_evals: int = 6,
     liar_strategy: str = "best",
 ) -> SweepTool:
     """Async-capped sweep that also sweeps over total timesteps.
@@ -209,18 +212,16 @@ def sweep_async_progressive(
         SweepTool configured for async-capped scheduling and progressive timesteps.
     """
 
-    protein_cfg = make_custom_protein_config(
-        PPO_CORE,
-        {
+    protein_cfg = make_custom_protein_config(base_config=VIT_POLICY_BASE,
+        parameters={
             "trainer.total_timesteps": ParameterConfig(
                 min=min_timesteps,
                 max=max_timesteps,
-                distribution="int_uniform",
                 mean=initial_timesteps,
-                scale="auto",
+                distribution="int_uniform",
+                scale="auto"
             )
-        },
-    )
+        })
 
     return SweepTool(
         # Protein with swept timesteps
