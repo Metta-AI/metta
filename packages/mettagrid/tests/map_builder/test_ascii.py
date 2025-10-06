@@ -200,3 +200,34 @@ class TestAsciiMapBuilder:
             assert np.array_equal(game_map.grid, expected)
         finally:
             os.unlink(temp_file)
+
+    def test_embedded_legend(self):
+        ascii_content = """###
+#@.
+###
+
+map legend:
+# = wall
+@ = agent.agent
+. = empty"""
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False, encoding="utf-8") as f:
+            f.write(ascii_content)
+            temp_file = f.name
+
+        try:
+            config = AsciiMapBuilder.Config.from_uri(temp_file)
+            assert config.char_to_name_map["#"] == "wall"
+            assert config.char_to_name_map["@"] == "agent.agent"
+
+            builder = AsciiMapBuilder(config)
+            game_map = builder.build()
+
+            expected = np.array(
+                [["wall", "wall", "wall"], ["wall", "agent.agent", "empty"], ["wall", "wall", "wall"]],
+                dtype=map_grid_dtype,
+            )
+
+            assert np.array_equal(game_map.grid, expected)
+        finally:
+            os.unlink(temp_file)

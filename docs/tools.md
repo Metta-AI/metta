@@ -526,6 +526,10 @@ This tool creates game maps using different generation algorithms including:
 
 **Purpose**: Normalize ASCII map characters to ensure consistency across different encodings.
 
+Each ASCII map now ends with a legend block: after a blank line, add `map legend:`
+followed by lines like `@ = agent.agent`. The normalizer keeps this footer intact and
+ensures character entries stay in place.
+
 **Usage**:
 
 ```bash
@@ -540,7 +544,7 @@ This tool creates game maps using different generation algorithms including:
 
 - Unicode normalization
 - Character substitution rules
-- Preserves map structure
+- Preserves map structure and embedded legends
 
 ### map/normalize_scene_patterns.py
 

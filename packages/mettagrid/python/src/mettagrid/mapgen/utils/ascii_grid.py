@@ -1,5 +1,106 @@
+from __future__ import annotations
+
+from typing import Iterable
+
 from mettagrid.map_builder.utils import create_grid
 from mettagrid.mapgen.types import MapGrid
+
+
+LEGEND_PREFIX = "#:"
+LEGEND_HEADER = "map legend:"
+
+
+def _strip_trailing_blank_lines(lines: list[str]) -> list[str]:
+    while lines and not lines[-1].strip():
+        lines.pop()
+    return lines
+
+
+def split_ascii_map_sections(text: str) -> tuple[list[str], list[str]]:
+    """Split ASCII map content into legend lines and grid lines.
+
+    Supports both the new "map legend:" footer format and the legacy prefix format.
+    Returns ``(legend_lines, map_lines)``.
+    """
+
+    lines = [line.rstrip("\r") for line in text.splitlines()]
+
+    for idx, line in enumerate(lines):
+        if line.strip().lower() == LEGEND_HEADER:
+            map_lines = _strip_trailing_blank_lines(lines[:idx])
+            legend_lines = lines[idx + 1 :]
+            return legend_lines, map_lines
+
+    legend_lines: list[str] = []
+    map_lines: list[str] = []
+    in_legend = True
+    for line in lines:
+        if in_legend and line.startswith(LEGEND_PREFIX):
+            legend_lines.append(line)
+            continue
+        in_legend = False
+        map_lines.append(line)
+
+    map_lines = _strip_trailing_blank_lines(map_lines)
+    return legend_lines, map_lines
+
+
+def _parse_single_char_token(token: str, line: str) -> str:
+    token = token.strip()
+    if token.startswith("'") and token.endswith("'") and len(token) >= 3:
+        token = token[1:-1]
+    if token.startswith("\"") and token.endswith("\"") and len(token) >= 3:
+        token = token[1:-1]
+    if len(token) != 1:
+        raise ValueError(f"Legend token must be a single character: {line!r}")
+    return token
+
+
+def parse_legend_lines(lines: Iterable[str]) -> dict[str, str]:
+    """Parse ``char -> name`` pairs from legend lines.
+
+    Accepts both the new ``token = name`` entries that follow a ``map legend:``
+    header and the legacy ``#: token: name`` format.
+    """
+
+    legend: dict[str, str] = {}
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+
+        if stripped.startswith(LEGEND_PREFIX):  # legacy format
+            payload = stripped[len(LEGEND_PREFIX) :].strip()
+            if not payload:
+                continue
+            token, _, name = payload.partition(":")
+            if not _:
+                raise ValueError(f"Legend line is missing ':' separator: {line!r}")
+            token = _parse_single_char_token(token, line)
+            name = name.strip()
+            if not name:
+                raise ValueError(f"Legend line has empty name: {line!r}")
+            legend[token] = name
+            continue
+
+        token = _parse_single_char_token(stripped[0], line)
+        remainder = stripped[1:].lstrip()
+        if not remainder or remainder[0] not in "=:":
+            raise ValueError(f"Legend line must contain '=' or ':': {line!r}")
+
+        name = remainder[1:].strip()
+        if not name:
+            raise ValueError(f"Legend line has empty name: {line!r}")
+
+        legend[token] = name
+
+    return legend
+
+
+def build_legend_lines(legend: dict[str, str]) -> list[str]:
+    """Render legend mapping back to the ``token = name`` format."""
+
+    return [f"{token} = {name}" for token, name in legend.items()]
 
 DEFAULT_CHAR_TO_NAME: dict[str, str] = {
     "#": "wall",

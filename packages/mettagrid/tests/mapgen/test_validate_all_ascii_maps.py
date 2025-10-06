@@ -8,7 +8,11 @@ import numpy as np
 import pytest
 
 from mettagrid.map_builder.random import RandomMapBuilder
-from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME
+from mettagrid.mapgen.utils.ascii_grid import (
+    DEFAULT_CHAR_TO_NAME,
+    parse_legend_lines,
+    split_ascii_map_sections,
+)
 
 
 def find_map_files(root_dir) -> list[Path]:
@@ -119,14 +123,20 @@ class TestAsciiMap:
 
     def test_uses_known_symbols(self, content, map_file, char_to_name):
         """Verify that the map only use symbols defined in config mapping."""
-        all_chars = set(content)
-        unknown_chars = all_chars - set(char_to_name.keys()) - {"\t", "\r", "\n"}
+        legend_lines, body_lines = split_ascii_map_sections(content)
+        legend_map = parse_legend_lines(legend_lines)
+        effective_char_to_name = char_to_name | legend_map
+
+        all_chars = set("".join(body_lines))
+        unknown_chars = all_chars - set(effective_char_to_name.keys())
 
         assert not unknown_chars, f"Map {map_file} contains unknown symbols: {unknown_chars}"
 
     def test_has_consistent_line_lengths(self, content, map_file):
         """Verify all maps have consistent line lengths within each file."""
-        lines = content.strip().splitlines()
+        legend_lines, body_lines = split_ascii_map_sections(content)
+        _ = parse_legend_lines(legend_lines)
+        lines = [line for line in body_lines if line]
 
         line_lengths = [len(line) for line in lines]
         if len(set(line_lengths)) > 1:
@@ -135,7 +145,10 @@ class TestAsciiMap:
 
     def test_loads_as_numpy_array(self, content, map_file, char_to_name):
         """Verify that the map can be loaded as NumPy array (critical for runtime)."""
-        lines = content.strip().splitlines()
+        legend_lines, body_lines = split_ascii_map_sections(content)
+        legend_map = parse_legend_lines(legend_lines)
+        char_to_name = char_to_name | legend_map
+        lines = body_lines
 
         level_array = np.array([list(line) for line in lines], dtype="U6")
         _mapped_array = np.vectorize(char_to_name.get)(level_array)

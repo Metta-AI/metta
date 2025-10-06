@@ -2,7 +2,11 @@ import numpy as np
 from pydantic import Field, model_validator
 
 from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
-from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME
+from mettagrid.mapgen.utils.ascii_grid import (
+    DEFAULT_CHAR_TO_NAME,
+    parse_legend_lines,
+    split_ascii_map_sections,
+)
 
 
 class AsciiMapBuilder(MapBuilder):
@@ -31,10 +35,16 @@ class AsciiMapBuilder(MapBuilder):
         def from_uri(cls, uri: str, char_to_name_map: dict[str, str] | None = None) -> "AsciiMapBuilder.Config":
             with open(uri, "r", encoding="utf-8") as f:
                 ascii_map = f.read()
-            lines = ascii_map.strip().splitlines()
+
+            legend_lines, body_lines = split_ascii_map_sections(ascii_map)
+            legend_map = parse_legend_lines(legend_lines)
+
+            if not body_lines:
+                raise ValueError(f"ASCII map at {uri!r} is empty")
+
             return cls(
-                map_data=[list(line) for line in lines],
-                char_to_name_map=char_to_name_map or {},
+                map_data=[list(line) for line in body_lines],
+                char_to_name_map=(char_to_name_map or {}) | legend_map,
             )
 
     def __init__(self, config: Config):
