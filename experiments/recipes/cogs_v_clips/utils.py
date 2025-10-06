@@ -88,6 +88,7 @@ foraging_curriculum_args = {
         + num_agents_to_positions[3]
         + num_agents_to_positions[4],
         "extractor_positions": [
+            num_agents_to_positions[1] +
             num_agents_to_positions[2]
             + num_agents_to_positions[3]
             + num_agents_to_positions[4],
@@ -127,7 +128,7 @@ foraging_curriculum_args = {
         "num_extractors": [0, 4, 8],
         "num_extractor_types": [1, 2, 3],
         "size": [15, 20, 30],
-        "assembler_positions": num_agents_to_positions[2]
+        "assembler_positions": num_agents_to_positions[1] + num_agents_to_positions[2]
         + num_agents_to_positions[3]
         + num_agents_to_positions[4],
     },
