@@ -135,20 +135,20 @@ class AGaLiTePaperConfig(PolicyArchitecture):
 
     components: List[ComponentConfig] = Field(
         default_factory=lambda: _build_components(
-            hidden_size=128,
+            hidden_size=256,
             embedding_dim=128,
             n_layers=4,
             n_heads=4,
-            feedforward_size=512,
-            eta=8,
+            feedforward_size=1024,
+            eta=4,
             r=1,
             mode="agalite",
-            dropout=0.05,
+            dropout=0.0,
             kernel=AGaLiTeKernelConfig(name="eluplus1", nu=4),
             max_tokens=64,
-            attr_embed_dim=12,
+            attr_embed_dim=16,
             fourier_freqs=4,
-            num_latents=16,
+            num_latents=32,
             critic_hidden=[128],
         )
     )
