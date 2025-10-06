@@ -7,7 +7,7 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal, Optional, cast
 
 import typer
 import yaml
@@ -20,7 +20,11 @@ from cogames import game, utils
 from cogames import play as play_module
 from cogames import train as train_module
 from cogames.policy.policy import PolicySpec
-from cogames.policy.utils import parse_policy_spec, resolve_policy_class_path, resolve_policy_data_path
+from cogames.policy.utils import (
+    ParsedPolicies,
+    parse_multiple_policy_arguments,
+    parse_policy_argument,
+)
 from mettagrid import MettaGridEnv
 
 # Always add current directory to Python path
@@ -31,6 +35,7 @@ logger = logging.getLogger("cogames.main")
 app = typer.Typer(
     help="CoGames - Multi-agent cooperative and competitive games",
     context_settings={"help_option_names": ["-h", "--help"]},
+    rich_markup_mode="rich",
 )
 console = Console()
 
@@ -47,6 +52,27 @@ mission_argument = typer.Argument(
     None,
     help="Name of the mission. Can be in the format 'map_name' or 'map_name:mission' or 'path/to/mission.yaml'.",
     callback=lambda ctx, value: game.require_mission_argument(ctx, value, console),
+)
+policy_help = (
+    "[blue]CLASS[/blue] can be a shorthand (e.g. 'simple', 'random', 'lstm') or a fully qualified class path. \n\n"
+    "[cyan]DATA[/cyan] is an optional checkpoint path. \n\n"
+    "[light_slate_grey]PROPORTION[/light_slate_grey] is an optional positive float specifying the population share."
+)
+multiple_policies_argument = typer.Argument(
+    None,
+    help=(
+        "Your target policies, specified with repeated --policy "
+        "[blue]CLASS[/blue][cyan]:DATA[/cyan][light_slate_grey]:PROPORTION[/light_slate_grey] values.\n\n" + policy_help
+    ),
+    callback=lambda ctx, value: parse_multiple_policy_arguments(value, console),
+)
+single_policy_argument = typer.Argument(
+    None,
+    help=(
+        "Your target policy, specified as "
+        "[blue]CLASS[/blue][cyan]:DATA[/cyan][light_slate_grey]:PROPORTION[/light_slate_grey].\n\n" + policy_help
+    ),
+    callback=lambda ctx, value: parse_policy_argument(value, console),
 )
 
 
@@ -97,49 +123,27 @@ def games_cmd(
 @app.command(name="play", no_args_is_help=True, help="Play a game")
 def play_cmd(
     mission_name: str = mission_argument,
-    policy_class_path: str = typer.Option(
-        "cogames.policy.random.RandomPolicy",
-        "--policy",
-        help="Path to policy class",
-        callback=resolve_policy_class_path,
-    ),
-    policy_data_path: Optional[str] = typer.Option(
-        None,
-        "--policy-data",
-        help="Path to policy weights file or directory",
-    ),
+    policy: Optional[str] = single_policy_argument,
     interactive: bool = typer.Option(True, "--interactive", "-i", help="Run in interactive mode"),
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
     render: Literal["gui", "text", "none"] = typer.Option(
         "gui", "--render", "-r", help="Render mode: 'gui', 'text', or 'none' (no rendering)"
     ),
 ) -> None:
-    resolved_mission, env_cfg = utils.get_mission_config(console, mission_name)
-
-    try:
-        resolved_policy_data = resolve_policy_data_path(
-            policy_data_path,
-            policy_class_path=policy_class_path,
-            game_name=resolved_mission,
-            console=console,
-        )
-    except FileNotFoundError as exc:  # pragma: no cover - user input
-        console.print(f"[red]Error: {exc}[/red]")
-        raise typer.Exit(1) from exc
-
-    console.print(f"[cyan]Playing {resolved_mission}[/cyan]")
+    policy_spec = cast(PolicySpec, policy)  # single_policy_argument callback handles parsing
+    mission_name, env_cfg = utils.get_mission_config(console, mission_name)
+    console.print(f"[cyan]Playing {mission_name}[/cyan]")
     console.print(f"Max Steps: {steps}, Interactive: {interactive}, Render: {render}")
 
     play_module.play(
         console,
         env_cfg=env_cfg,
-        policy_class_path=policy_class_path,
-        policy_data_path=resolved_policy_data,
-        game_name=resolved_mission,
+        policy_spec=policy_spec,
         max_steps=steps,
         seed=42,
         render=render,
         verbose=interactive,
+        game_name=mission_name,
     )
 
 
@@ -177,17 +181,7 @@ def make_mission(
 @app.command(name="train", help="Train a policy on a mission")
 def train_cmd(
     mission_name: str = mission_argument,
-    policy_class_path: str = typer.Option(
-        "cogames.policy.simple.SimplePolicy",
-        "--policy",
-        help="Path to policy class",
-        callback=resolve_policy_class_path,
-    ),
-    initial_weights_path: Optional[str] = typer.Option(
-        None,
-        "--initial-weights",
-        help="Path to initial policy weights .pt file",
-    ),
+    policy: str = single_policy_argument,
     checkpoints_path: str = typer.Option(
         "./train_dir",
         "--checkpoints",
@@ -222,14 +216,14 @@ def train_cmd(
     ),
 ) -> None:
     resolved_mission, env_cfg = utils.get_mission_config(console, mission_name)
-
+    policy_spec = cast(PolicySpec, policy)  # single_policy_argument callback handles parsing
     torch_device = utils.resolve_training_device(console, device)
 
     try:
         train_module.train(
             env_cfg=env_cfg,
-            policy_class_path=policy_class_path,
-            initial_weights_path=initial_weights_path,
+            policy_class_path=policy_spec.policy_class_path,
+            initial_weights_path=policy_spec.policy_data_path,
             device=torch_device,
             num_steps=steps,
             checkpoints_path=Path(checkpoints_path),
@@ -257,24 +251,7 @@ def train_cmd(
 @app.command("evaluate", hidden=True)
 def evaluate_cmd(
     mission_name: str = mission_argument,
-    policies: list[str] = typer.Argument(  # noqa: B008
-        None,
-        help=(
-            "List of policies in the form '{policy_class_path}[:policy_data_path][:proportion]'. "
-            "Provide multiple options for mixed populations."
-        ),
-    ),
-    policy_class_path: str = typer.Option(
-        None,
-        "--policy",
-        help="Path to policy class. Only provide this if you did not supply a list of policies",
-        callback=lambda p: None if p is None else resolve_policy_class_path(p),
-    ),
-    policy_data_path: Optional[str] = typer.Option(
-        None,
-        "--policy-data",
-        help="Path to policy weights file or directory. Only provide this if you did not supply a list of policies",
-    ),
+    policies: list[str] = multiple_policies_argument,
     episodes: int = typer.Option(10, "--episodes", "-e", help="Number of evaluation episodes", min=1),
     action_timeout_ms: int = typer.Option(
         250,
@@ -283,35 +260,9 @@ def evaluate_cmd(
         min=1,
     ),
 ) -> None:
-    if not policies and not policy_class_path:
-        console.print("[red]Error: No policies provided[/red]")
-        raise typer.Exit(1)
-    if policies and (policy_class_path or policy_data_path):
-        console.print("[red]Provide --policies or (--policy and --policy-data), not both.[/red]")
-        raise typer.Exit(1)
-    resolved_game, env_cfg = utils.get_mission_config(console, mission_name)
+    policy_specs = cast(ParsedPolicies, policies)  # multiple_policies_argument callback handles parsing
 
-    try:
-        if policies:
-            policy_specs = [parse_policy_spec(spec, console=console, game_name=resolved_game) for spec in policies]
-        else:
-            policy_specs = [
-                PolicySpec(
-                    policy_class_path=policy_class_path,
-                    policy_data_path=resolve_policy_data_path(
-                        policy_data_path,
-                        policy_class_path=policy_class_path,
-                        game_name=resolved_game,
-                        console=console,
-                    ),
-                )
-            ]
-    except ValueError as exc:  # pragma: no cover - user input
-        console.print(f"[red]Error: {exc}[/red]")
-        raise typer.Exit(1) from exc
-    except FileNotFoundError as exc:  # pragma: no cover - user input
-        console.print(f"[red]Error: {exc}[/red]")
-        raise typer.Exit(1) from exc
+    resolved_game, env_cfg = utils.get_mission_config(console, mission_name)
 
     console.print(f"[cyan]Evaluating {len(policy_specs)} policies on {resolved_game} over {episodes} episodes[/cyan]")
 

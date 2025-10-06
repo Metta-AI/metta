@@ -9,6 +9,7 @@ from rich.console import Console
 from typing_extensions import TYPE_CHECKING
 
 from cogames.cogs_vs_clips.glyphs import GLYPHS
+from cogames.policy.policy import PolicySpec
 from cogames.utils import initialize_or_load_policy
 from mettagrid import MettaGridConfig, MettaGridEnv
 from mettagrid.util.grid_object_formatter import format_grid_object
@@ -23,9 +24,8 @@ logger = logging.getLogger("cogames.play")
 def play(
     console: Console,
     env_cfg: "MettaGridConfig",
-    policy_class_path: str,
-    policy_data_path: Optional[str] = None,
-    game_name: Optional[str] = None,
+    policy_spec: PolicySpec,
+    game_name: str,
     max_steps: Optional[int] = None,
     seed: int = 42,
     render: Literal["gui", "text", "none"] = "gui",
@@ -50,7 +50,7 @@ def play(
         logger.debug("Starting play session", extra={"game_name": game_name})
     env = MettaGridEnv(env_cfg=env_cfg, render_mode=render_mode)
 
-    policy = initialize_or_load_policy(policy_class_path, policy_data_path, env)
+    policy = initialize_or_load_policy(policy_spec.policy_class_path, policy_spec.policy_data_path, env)
     agent_policies = [policy.agent_policy(agent_id) for agent_id in range(env.num_agents)]
 
     # For text mode, use the interactive loop in miniscope

@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Dict, Optional, Tuple, Union
 
 import torch
+import typer
+from rich.console import Console
 
 from cogames.aws_storage import DownloadOutcome, maybe_download_checkpoint
 from cogames.policy.policy import PolicySpec
@@ -86,7 +88,32 @@ def resolve_policy_data_path(
     raise FileNotFoundError(f"Checkpoint path not found: {path}")
 
 
-def parse_policy_spec(
+RawPolicyValues = Optional[Sequence[str]]
+ParsedPolicies = list[PolicySpec]
+
+
+def parse_multiple_policy_arguments(
+    policies: RawPolicyValues, console: Console, game_name: Optional[str] = None
+) -> list[PolicySpec]:
+    if not policies:
+        console.print("[red]Error: Provide at least one --policy CLASS[:DATA][:PROPORTION].[/red]")
+        raise typer.Exit(1)
+    return [parse_policy_argument(spec, console) for spec in policies]
+
+
+def parse_policy_argument(spec: Optional[str], console: Console, game_name: Optional[str] = None) -> PolicySpec:
+    if spec is None:
+        console.print("[red]Error: Provide a --policy CLASS[:DATA][:PROPORTION].[/red]")
+        raise typer.Exit(1)
+    else:
+        try:
+            return _parse_policy_spec(spec, console, game_name)
+        except ValueError as e:
+            console.print(f"[red]Error parsing policy: {e}.[/red]")
+            raise typer.Exit(1) from e
+
+
+def _parse_policy_spec(
     spec: str,
     *,
     console: Optional["Console"] = None,

@@ -46,7 +46,7 @@ cogames train training_facility_1 --policy simple
 cogames play training_facility_1 --policy simple --policy-data ./train_dir/policy.pt --interactive
 
 # Evaluate your policy
-cogames evaluate training_facility_1 --policy simple --policy-data ./train_dir/policy.pt
+cogames eval training_facility_1 --policy simple:./train_dir/policy.pt
 ```
 
 ## Commands
@@ -146,24 +146,24 @@ for step in range(1000):
         obs, info = env.reset()
 ```
 
-### `cogames eval [game] [policies...]`
+### `cogames eval [mission]`
 
 Evaluate one or more policies.
 
-To specify policies to evaluate, you can either provide `--policy` and `--policy-data` arguments as seen in other `cogames` commands, or can provide a list of policy specs:
-**Policy spec format:** `{class_path}[:data_path][:proportion]`
+Pass `--policy CLASS[:DATA][:PROPORTION]` (or `-p CLASS[:DATA][:PROPORTION]`) once per population you want to evaluate. Repeat the option for mixed populations.
+
+- `CLASS`: Policy shorthand (`simple`, `random`, `lstm`, ...) or fully qualified class path like `cogames.policy.random.RandomPolicy`.
+- `DATA`: Optional path to a weights file or directory. When omitted, defaults to the policy's built-in weights.
+- `PROPORTION`: Optional positive float specifying the relative share of agents that use this policy (default: 1.0).
 
 **Examples:**
 
 ```bash
-# Trained policy
-cogames eval machina_1 --policy simple --policy-data train_dir/model.pt
+# Evaluate a single trained policy checkpoint
+cogames eval machina_1 --policy simple:train_dir/model.pt
 
-# Or, equivalently
-cogames eval machina_1 simple:train_dir/model.pt
-
-# Mixed population of agents, 3/8 of which steered by your policy, the rest by a random-action policy
-cogames eval machina_1 simple:train_dir/model.pt:3 random::5
+# Mix two policies: 3 parts your policy, 5 parts random policy
+cogames eval machina_1 --policy simple:train_dir/model.pt:3 --policy random::5
 ```
 
 **Options:**
