@@ -22,6 +22,8 @@ DEFAULT_CHAR_TO_NAME = {
 
 LEGEND_PREFIX = "#:"
 LEGEND_HEADER = "map legend:"
+MAP_KEY = "map_data"
+LEGEND_KEY = "char_to_name_map"
 DEFAULT_DIRECTORIES = (
     Path("packages/mettagrid/configs/maps"),
     Path("packages/cogames/src/cogames/maps"),
@@ -97,7 +99,7 @@ def ordered_chars(map_lines: list[str]) -> list[str]:
 def make_yaml(map_lines: list[str], legend: dict[str, str]) -> str:
     map_block = "\n".join(f"  {line}" for line in map_lines)
     legend_block = "\n".join(f'  "{token}": {name}' for token, name in legend.items())
-    return f"map: |-\n{map_block}\nlegend:\n{legend_block}\n"
+    return f"{MAP_KEY}: |-\n{map_block}\n{LEGEND_KEY}:\n{legend_block}\n"
 
 
 def convert_map(path: Path, dry_run: bool) -> bool:

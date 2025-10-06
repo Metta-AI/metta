@@ -5,9 +5,8 @@ import yaml
 from mettagrid.map_builder.utils import create_grid
 from mettagrid.mapgen.types import MapGrid
 
-
-MAP_KEY = "map"
-LEGEND_KEY = "legend"
+MAP_KEY = "map_data"
+LEGEND_KEY = "char_to_name_map"
 
 
 def _validate_token(token: str) -> str:
@@ -77,6 +76,7 @@ def parse_ascii_map(text: str) -> tuple[list[str], dict[str, str]]:
 
     legend_map = _legend_from_yaml(legend_value)
     return map_lines, legend_map
+
 
 DEFAULT_CHAR_TO_NAME: dict[str, str] = {
     "#": "wall",

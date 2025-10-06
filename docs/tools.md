@@ -540,7 +540,7 @@ This tool creates game maps using different generation algorithms including:
 
 - Unicode normalization
 - Character substitution rules
-- Outputs valid YAML with `map: |-` blocks and `legend:` mappings
+- Outputs valid YAML with `map_data: |-` blocks and `char_to_name_map:` mappings
 
 ### map/normalize_scene_patterns.py
 

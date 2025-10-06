@@ -42,10 +42,13 @@ class StorableMap:
     char_to_name: dict[str, str] = field(default_factory=dict)
 
     def __str__(self) -> str:
+        config_dict = self.config.model_dump()
+        _stringify_map_data(config_dict)
+
         frontmatter = yaml.safe_dump(
             {
                 "metadata": self.metadata,
-                "config": self.config.model_dump(),
+                "config": config_dict,
                 "scene_tree": self.scene_tree,
             }
         )
@@ -125,6 +128,7 @@ class StorableMap:
     # Useful in API responses
     def to_dict(self) -> StorableMapDict:
         config_dict = self.config.model_dump()
+        _stringify_map_data(config_dict)
         assert isinstance(config_dict, dict)
         return {
             "frontmatter": {
@@ -134,3 +138,15 @@ class StorableMap:
             },
             "data": "\n".join(grid_to_lines(self.grid, self.name_to_char)),
         }
+
+
+def _stringify_map_data(data: dict) -> None:
+    for key, value in list(data.items()):
+        if key == "map_data" and isinstance(value, list) and value and isinstance(value[0], list):
+            data[key] = ["".join(row) for row in value]
+        elif isinstance(value, dict):
+            _stringify_map_data(value)
+        elif isinstance(value, list):
+            for item in value:
+                if isinstance(item, dict):
+                    _stringify_map_data(item)
