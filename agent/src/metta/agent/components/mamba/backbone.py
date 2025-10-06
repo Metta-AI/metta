@@ -229,9 +229,11 @@ class MambaBackboneComponent(nn.Module):
         hidden_states = self.norm_f(self.dropout(hidden_states))
         return hidden_states
 
-    def _positional_encoding_for_index(self, position: int, dim: int, device: torch.device) -> torch.Tensor:
-        pos_tensor = torch.tensor([position], device=device, dtype=torch.long)
-        return _sinusoidal_positional_encoding(pos_tensor, dim).unsqueeze(0)
+    def _positional_encoding_for_range(self, start: int, length: int, dim: int, device: torch.device) -> torch.Tensor:
+        if length <= 0:
+            return torch.empty((0, dim), device=device, dtype=TORCH_DTYPE)
+        positions = torch.arange(start, start + length, device=device, dtype=torch.long)
+        return _sinusoidal_positional_encoding(positions, dim)
 
     def _pool_output(self, output: torch.Tensor, tt: int) -> torch.Tensor:
         if self.pool == "cls":
@@ -281,22 +283,27 @@ class MambaBackboneComponent(nn.Module):
                 state = self._ensure_env_state(env_id, device, tokens.dtype, S)
                 step_tokens = tokens[idx, 0]
 
-                hidden_stack = []
-                for token_idx in range(S):
-                    position = state.position
-                    state.inference_params.seqlen_offset = position
-                    token = step_tokens[token_idx].unsqueeze(0).unsqueeze(0)
-                    token = token + self._positional_encoding_for_index(position, token.size(-1), device)
-                    hidden = self._run_layers_step(token, inference_params=state.inference_params)
-                    hidden_stack.append(hidden.squeeze(0))
-                    state.position += 1
-                    state.inference_params.seqlen_offset = state.position
-                    state.inference_params.max_seqlen = max(state.inference_params.max_seqlen, state.position)
+                start_position = state.position
+                pos_enc = self._positional_encoding_for_range(start_position, S, step_tokens.size(-1), device)
+                tokens_with_pos = step_tokens + pos_enc
 
-                hidden_tensor = torch.stack([h.squeeze(0) for h in hidden_stack], dim=0).unsqueeze(0)
+                hidden_stack = []
+                position = start_position
+                for token in torch.unbind(tokens_with_pos, dim=0):
+                    state.inference_params.seqlen_offset = position
+                    hidden = self._run_layers_step(
+                        token.unsqueeze(0).unsqueeze(0), inference_params=state.inference_params
+                    )
+                    hidden_stack.append(hidden.squeeze(0))
+                    position += 1
+                    state.position = position
+                    state.inference_params.seqlen_offset = position
+                    state.inference_params.max_seqlen = max(state.inference_params.max_seqlen, position)
+
+                hidden_tensor = torch.stack(hidden_stack, dim=0).unsqueeze(0)
                 pooled = self._pool_output(hidden_tensor, tt=1)
                 outputs.append(pooled.squeeze(0))
-                positions.append(torch.tensor(state.position - 1, device=device, dtype=torch.long))
+                positions.append(torch.tensor(position - 1, device=device, dtype=torch.long))
 
                 if resets[idx]:
                     self._reset_env_state(env_id)
@@ -327,22 +334,26 @@ class MambaBackboneComponent(nn.Module):
         truncateds = td.get("truncateds", torch.zeros(batch * tt, device=device))
         resets = torch.logical_or(dones.bool(), truncateds.bool()).reshape(batch, tt)
 
-        for idx in range(batch):
-            env_id = int(env_ids[idx].item())
-            state = self._ensure_env_state(env_id, device, tokens.dtype, S)
-            for step in range(tt):
-                step_tokens = tokens[idx, step]
-                for token_idx in range(S):
-                    position = state.position
-                    state.inference_params.seqlen_offset = position
-                    token = step_tokens[token_idx].unsqueeze(0).unsqueeze(0)
-                    token = token + self._positional_encoding_for_index(position, token.size(-1), device)
-                    self._run_layers_step(token, inference_params=state.inference_params)
-                    state.position += 1
-                    state.inference_params.seqlen_offset = state.position
-                    state.inference_params.max_seqlen = max(state.inference_params.max_seqlen, state.position)
-                if resets[idx, step]:
-                    self._reset_env_state(env_id)
+        with torch.no_grad():
+            for idx in range(batch):
+                env_id = int(env_ids[idx].item())
+                state = self._ensure_env_state(env_id, device, tokens.dtype, S)
+                position = state.position
+                for step in range(tt):
+                    step_tokens = tokens[idx, step]
+                    pos_enc = self._positional_encoding_for_range(position, S, step_tokens.size(-1), device)
+                    tokens_with_pos = step_tokens + pos_enc
+                    for token in torch.unbind(tokens_with_pos, dim=0):
+                        state.inference_params.seqlen_offset = position
+                        self._run_layers_step(token.unsqueeze(0).unsqueeze(0), inference_params=state.inference_params)
+                        position += 1
+                        state.position = position
+                        state.inference_params.seqlen_offset = position
+                        state.inference_params.max_seqlen = max(state.inference_params.max_seqlen, position)
+                    if resets[idx, step]:
+                        self._reset_env_state(env_id)
+                        state = self._ensure_env_state(env_id, device, tokens.dtype, S)
+                        position = state.position
 
         return td
 
