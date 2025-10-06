@@ -25,9 +25,12 @@ def write_temp_map(content: str) -> str:
 
 class TestAsciiMapBuilderConfig:
     def test_create(self):
-        yaml_content = make_yaml_map([
-            "#@#",
-        ], {"#": "wall", "@": "agent.agent"})
+        yaml_content = make_yaml_map(
+            [
+                "#@#",
+            ],
+            {"#": "wall", "@": "agent.agent"},
+        )
 
         temp_file = write_temp_map(yaml_content)
         try:
@@ -49,11 +52,14 @@ class TestAsciiMapBuilder:
     }
 
     def test_build_simple_map(self):
-        yaml_content = make_yaml_map([
-            "###",
-            "#.@",
-            "###",
-        ], self.BASE_LEGEND)
+        yaml_content = make_yaml_map(
+            [
+                "###",
+                "#.@",
+                "###",
+            ],
+            self.BASE_LEGEND,
+        )
 
         temp_file = write_temp_map(yaml_content)
         try:
@@ -103,9 +109,12 @@ class TestAsciiMapBuilder:
             os.unlink(temp_file)
 
     def test_build_single_line_map(self):
-        yaml_content = make_yaml_map([
-            "#@#",
-        ], self.BASE_LEGEND)
+        yaml_content = make_yaml_map(
+            [
+                "#@#",
+            ],
+            self.BASE_LEGEND,
+        )
 
         temp_file = write_temp_map(yaml_content)
         try:
@@ -119,9 +128,12 @@ class TestAsciiMapBuilder:
             os.unlink(temp_file)
 
     def test_build_empty_map(self):
-        yaml_content = make_yaml_map([
-            ".",
-        ], {".": "empty"})
+        yaml_content = make_yaml_map(
+            [
+                ".",
+            ],
+            {".": "empty"},
+        )
 
         temp_file = write_temp_map(yaml_content)
         try:
@@ -140,11 +152,14 @@ class TestAsciiMapBuilder:
             AsciiMapBuilder(config)
 
     def test_with_spaces_raises_error(self):
-        yaml_content = make_yaml_map([
-            "###",
-            "# @",
-            "###",
-        ], self.BASE_LEGEND)
+        yaml_content = make_yaml_map(
+            [
+                "###",
+                "# @",
+                "###",
+            ],
+            self.BASE_LEGEND,
+        )
 
         temp_file = write_temp_map(yaml_content)
         try:
@@ -155,11 +170,14 @@ class TestAsciiMapBuilder:
             os.unlink(temp_file)
 
     def test_irregular_shaped_map(self):
-        yaml_content = make_yaml_map([
-            "###",
-            "#@",
-            "#._#",
-        ], self.BASE_LEGEND)
+        yaml_content = make_yaml_map(
+            [
+                "###",
+                "#@",
+                "#._#",
+            ],
+            self.BASE_LEGEND,
+        )
 
         temp_file = write_temp_map(yaml_content)
         try:
@@ -169,9 +187,12 @@ class TestAsciiMapBuilder:
             os.unlink(temp_file)
 
     def test_legend_with_whitespace_value(self):
-        yaml_content = make_yaml_map([
-            "#@#",
-        ], {"#": "wall", "@": "invalid value"})
+        yaml_content = make_yaml_map(
+            [
+                "#@#",
+            ],
+            {"#": "wall", "@": "invalid value"},
+        )
 
         temp_file = write_temp_map(yaml_content)
         try:
@@ -181,11 +202,14 @@ class TestAsciiMapBuilder:
             os.unlink(temp_file)
 
     def test_utf8_encoding(self):
-        yaml_content = make_yaml_map([
-            "###",
-            "#@.",
-            "###",
-        ], self.BASE_LEGEND)
+        yaml_content = make_yaml_map(
+            [
+                "###",
+                "#@.",
+                "###",
+            ],
+            self.BASE_LEGEND,
+        )
 
         temp_file = write_temp_map(yaml_content)
         try:
