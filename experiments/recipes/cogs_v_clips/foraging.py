@@ -11,8 +11,9 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-
+from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
 from metta.agent.policies.vit_reset import ViTResetConfig
+
 from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
     Position,
@@ -240,7 +241,10 @@ class ForagingTaskGenerator(TaskGenerator):
         return icl_env
 
 
-def train(curriculum_style: str = "assembly_lines_chests_pairs") -> TrainTool:
+def train(
+    curriculum_style: str = "assembly_lines_chests_pairs",
+    architecture: str = "lstm_reset",
+) -> TrainTool:
     from experiments.evals.cogs_v_clips.foraging import make_foraging_eval_suite
 
     task_generator_cfg = ForagingTaskGenerator.Config(
@@ -253,12 +257,17 @@ def train(curriculum_style: str = "assembly_lines_chests_pairs") -> TrainTool:
         ),
     )
 
+    if architecture == "lstm_reset":
+        policy_architecture = FastLSTMResetConfig()
+    elif architecture == "vit_reset":
+        policy_architecture = ViTResetConfig()
+
     return TrainTool(
         trainer=TrainerConfig(
             losses=LossConfig(),
         ),
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        policy_architecture=ViTResetConfig(),
+        policy_architecture=policy_architecture,
         evaluator=EvaluatorConfig(
             simulations=make_foraging_eval_suite(),
             evaluate_remote=False,
@@ -307,19 +316,21 @@ def experiment():
     import subprocess
     import time
 
-    for curriculum_style in foraging_curriculum_args:
-        subprocess.run(
-            [
-                "./devops/skypilot/launch.py",
-                "experiments.recipes.cogs_v_clips.foraging.train",
-                f"run=cogs_v_clips.foraging_{curriculum_style}.{random.randint(0, 10000)}.{time.strftime('%Y-%m-%d')}",
-                f"curriculum_style={curriculum_style}",
-                "--gpus=4",
-                "--heartbeat-timeout=3600",
-                "--skip-git-check",
-            ]
-        )
-        time.sleep(1)
+    for architecture in ["lstm_reset", "vit_reset"]:
+        for curriculum_style in foraging_curriculum_args:
+            subprocess.run(
+                [
+                    "./devops/skypilot/launch.py",
+                    "experiments.recipes.cogs_v_clips.foraging.train",
+                    f"run=cogs_v_clips.foraging_{curriculum_style}.{random.randint(0, 10000)}.{time.strftime('%Y-%m-%d')}",
+                    f"curriculum_style={curriculum_style}",
+                    f"architecture={architecture}",
+                    "--gpus=4",
+                    "--heartbeat-timeout=3600",
+                    "--skip-git-check",
+                ]
+            )
+            time.sleep(1)
 
 
 def make_mettagrid(task_generator) -> MettaGridConfig:
