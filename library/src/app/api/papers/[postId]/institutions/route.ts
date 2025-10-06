@@ -20,13 +20,19 @@ export async function GET(
       where: { id: postId },
       select: {
         paper: {
-          select: { institutions: true },
+          select: {
+            paperInstitutions: {
+              select: {
+                id: true,
+              },
+            },
+          },
         },
       },
     });
 
     const hasInstitutions =
-      post?.paper?.institutions && post.paper.institutions.length > 0;
+      post?.paper?.paperInstitutions && post.paper.paperInstitutions.length > 0;
 
     return NextResponse.json({ hasInstitutions });
   } catch (error) {

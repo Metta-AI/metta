@@ -1,5 +1,12 @@
-import { PdfContent } from "./pdf-content-extractor";
 import { extractPdfWithOpenAI } from "./openai-pdf-extractor";
+
+/**
+ * Minimal PDF content structure (for backward compatibility)
+ */
+interface PdfContent {
+  abstract?: string;
+  pageCount?: number;
+}
 
 /**
  * Structure for LLM-generated enhanced abstracts
@@ -35,7 +42,7 @@ export interface EnhancedFigure {
  */
 export async function generateLLMAbstract(
   paperTitle: string,
-  pdfContent: PdfContent,
+  pdfContent?: PdfContent,
   pdfUrl?: string,
   homepageUrl?: string,
   pdfBuffer?: Buffer
@@ -48,7 +55,6 @@ export async function generateLLMAbstract(
         paperTitle
       );
       return await generateEnhancedAbstractWithOpenAI(
-        pdfContent,
         pdfUrl,
         homepageUrl,
         pdfBuffer
@@ -66,8 +72,8 @@ export async function generateLLMAbstract(
   return {
     title: paperTitle,
     shortExplanation: "Enhanced abstract generation not available.",
-    summary: pdfContent.abstract || "No summary available.",
-    pageCount: pdfContent.pageCount || 0,
+    summary: pdfContent?.abstract || "No summary available.",
+    pageCount: pdfContent?.pageCount || 0,
     figuresWithImages: [],
     pdfUrl,
     homepageUrl,
@@ -80,7 +86,6 @@ export async function generateLLMAbstract(
  * Generate enhanced abstract using our new OpenAI + Adobe extraction
  */
 async function generateEnhancedAbstractWithOpenAI(
-  pdfContent: PdfContent,
   pdfUrl?: string,
   homepageUrl?: string,
   pdfBuffer?: Buffer
@@ -145,7 +150,7 @@ async function generateEnhancedAbstractWithOpenAI(
 export async function updateLLMAbstractIfNeeded(
   existingAbstract: LLMAbstract,
   paperTitle: string,
-  pdfContent: PdfContent,
+  pdfContent?: PdfContent,
   pdfUrl?: string,
   homepageUrl?: string,
   pdfBuffer?: Buffer

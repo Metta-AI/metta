@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+
 import { loadInstitution } from "@/posts/data/institutions-server";
 
 export async function GET(

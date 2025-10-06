@@ -4,6 +4,7 @@ import { FC, useState } from "react";
 
 import { AuthorDTO } from "@/posts/data/authors-client";
 import { StarWidgetQuery } from "./StarWidgetQuery";
+import { formatDate, formatRelativeDate } from "@/lib/utils/date";
 
 interface AuthorProfileProps {
   author: AuthorDTO;
@@ -35,45 +36,6 @@ export const AuthorProfile: FC<AuthorProfileProps> = ({
       .join("")
       .toUpperCase()
       .slice(0, 2);
-  };
-
-  const formatDate = (date: Date | string) => {
-    // Convert string to Date if needed
-    const dateObj = typeof date === "string" ? new Date(date) : date;
-
-    // Check if the date is valid
-    if (isNaN(dateObj.getTime())) {
-      return "Invalid date";
-    }
-
-    return new Intl.DateTimeFormat("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    }).format(dateObj);
-  };
-
-  const formatRelativeDate = (date: Date | string | null) => {
-    if (!date) return "Unknown";
-
-    // Convert string to Date if needed
-    const dateObj = typeof date === "string" ? new Date(date) : date;
-
-    // Check if the date is valid
-    if (isNaN(dateObj.getTime())) {
-      return "Unknown";
-    }
-
-    const now = new Date();
-    const diffInDays = Math.floor(
-      (now.getTime() - dateObj.getTime()) / (1000 * 60 * 60 * 24)
-    );
-
-    if (diffInDays === 0) return "Today";
-    if (diffInDays === 1) return "Yesterday";
-    if (diffInDays < 7) return `${diffInDays} days ago`;
-    if (diffInDays < 30) return `${Math.floor(diffInDays / 7)} weeks ago`;
-    return `${Math.floor(diffInDays / 30)} months ago`;
   };
 
   const toggleFollow = () => {

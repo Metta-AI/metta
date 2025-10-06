@@ -16,11 +16,6 @@ const TagSuggestionSchema = z.object({
     .describe("Brief explanation of why these tags were selected"),
 });
 
-export interface TagSuggestionResult {
-  suggestedTags: string[];
-  reasoning: string;
-}
-
 /**
  * Service for automatically tagging papers using OpenAI vision
  */
@@ -340,28 +335,5 @@ IMPORTANT: Only return tags that appear EXACTLY in the vocabulary list above.`,
       return true;
 
     return false;
-  }
-
-  /**
-   * Auto-tag multiple papers in batch
-   */
-  static async autoTagPapers(
-    paperIds: string[]
-  ): Promise<Map<string, string[] | null>> {
-    const results = new Map<string, string[] | null>();
-
-    console.log(`🏷️ Auto-tagging ${paperIds.length} papers...`);
-
-    for (const paperId of paperIds) {
-      const tags = await this.autoTagPaper(paperId);
-      results.set(paperId, tags);
-
-      // Small delay to avoid rate limits
-      if (paperIds.length > 1) {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-      }
-    }
-
-    return results;
   }
 }
