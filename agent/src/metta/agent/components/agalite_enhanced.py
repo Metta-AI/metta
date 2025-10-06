@@ -6,7 +6,7 @@ following the paper specification more closely while preserving batch optimizati
 """
 
 import math
-from typing import Literal, Optional, Tuple
+from typing import Dict, Literal, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -242,19 +242,12 @@ class AGaLiTeAttentionLayer(nn.Module):
         self.kernel = kernel
         self.feature_dim = self.kernel.feature_dim(self.head_dim, self.eta)
 
-        # All projections (same as GaLiTe but with r-dimensional expansion)
-        self.q_proj = nn.Linear(input_dim, head_num * head_dim, bias=False)
-        self.k_proj = nn.Linear(input_dim, head_num * head_dim, bias=False)
-        self.v_proj = nn.Linear(input_dim, head_num * head_dim, bias=False)
-
-        # Gating parameters
-        self.beta_proj = nn.Linear(input_dim, head_num * head_dim, bias=False)
-        self.gamma_proj = nn.Linear(input_dim, head_num * head_dim, bias=False)
-
-        # Feature map parameters
-        self.p1_proj = nn.Linear(input_dim, head_num * eta, bias=False)
-        self.p2_proj = nn.Linear(input_dim, head_num * eta, bias=False)
-        self.p3_proj = nn.Linear(input_dim, head_num * eta, bias=False)
+        combined_out_dim = head_num * (5 * head_dim + 3 * eta)
+        self.combined_proj = nn.Linear(input_dim, combined_out_dim, bias=False)
+        self._split_sizes = (
+            [head_dim] * 5
+            + [eta] * 3
+        )  # q, k, v, beta, gamma, p1, p2, p3 per head
 
         # Output projection
         self.out_proj = nn.Linear(head_num * head_dim, input_dim)
@@ -263,22 +256,14 @@ class AGaLiTeAttentionLayer(nn.Module):
         # Pre-compute oscillatory frequencies (ω ∈ [-π, π])
         omegas = torch.linspace(-math.pi, math.pi, r)
         self.register_buffer("omegas", omegas)
+        self._cos_cache: Dict[Tuple[int, torch.device, torch.dtype], torch.Tensor] = {}
+        self._sin_cache: Dict[Tuple[int, torch.device, torch.dtype], torch.Tensor] = {}
 
         self._init_weights()
 
     def _init_weights(self):
         """Initialize weights with proper scaling."""
-        for module in [
-            self.q_proj,
-            self.k_proj,
-            self.v_proj,
-            self.beta_proj,
-            self.gamma_proj,
-            self.p1_proj,
-            self.p2_proj,
-            self.p3_proj,
-        ]:
-            nn.init.orthogonal_(module.weight, gain=math.sqrt(2))
+        nn.init.orthogonal_(self.combined_proj.weight, gain=math.sqrt(2))
 
         nn.init.orthogonal_(self.out_proj.weight, gain=1.0)
         nn.init.constant_(self.out_proj.bias, 0)
@@ -297,31 +282,32 @@ class AGaLiTeAttentionLayer(nn.Module):
 
         tilde_k_prev, tilde_v_prev, s_prev, tick = memory
 
-        # Project to attention components
-        queries = self.q_proj(inputs).view(T, B, self.head_num, self.head_dim)
-        keys = self.k_proj(inputs).view(T, B, self.head_num, self.head_dim)
-        values = self.v_proj(inputs).view(T, B, self.head_num, self.head_dim)
+        combined = self.combined_proj(inputs)
+        combined = combined.view(T, B, self.head_num, -1)
+        split_chunks = torch.split(combined, self._split_sizes, dim=-1)
+        q_chunk, k_chunk, v_chunk, beta_chunk, gamma_chunk, p1_chunk, p2_chunk, p3_chunk = split_chunks
 
-        # Gating parameters
-        beta = torch.sigmoid(self.beta_proj(inputs).view(T, B, self.head_num, self.head_dim))
-        gamma = torch.sigmoid(self.gamma_proj(inputs).view(T, B, self.head_num, self.head_dim))
+        queries = q_chunk
+        keys = k_chunk
+        values = v_chunk
 
-        # Feature map parameters
-        p1 = self.p1_proj(inputs).view(T, B, self.head_num, self.eta)
-        p2 = self.p2_proj(inputs).view(T, B, self.head_num, self.eta)
-        p3 = self.p3_proj(inputs).view(T, B, self.head_num, self.eta)
+        beta = torch.sigmoid(beta_chunk)
+        gamma = torch.sigmoid(gamma_chunk)
+
+        p1 = p1_chunk
+        p2 = p2_chunk
+        p3 = p3_chunk
 
         phi_q = self.kernel.feature_map(queries, p2, self.eta).reshape(T, B, self.head_num, self.feature_dim)
         psi_k = self.kernel.feature_map(keys, p1, self.eta).reshape(T, B, self.head_num, self.feature_dim)
         gamma_feat = self.kernel.gamma_map(gamma, p3, self.eta).reshape(T, B, self.head_num, self.feature_dim)
 
         # Update tick and compute oscillatory terms
-        tick_base = tick.view(1, B)
-        tick_inc = torch.arange(1, T + 1, device=device, dtype=tick.dtype).view(T, 1)
-        ticks = tick_inc + tick_base  # (T, B)
-
-        # Compute oscillatory components: cos(ω · t)
-        cos_terms = torch.cos(ticks.unsqueeze(-1) * self.omegas.view(1, 1, -1))  # (T, B, r)
+        cos_step, sin_step = self._cached_trig(T, device, tick.dtype)
+        tick = tick.to(dtype=cos_step.dtype, device=device)
+        cos_tick = torch.cos(tick.view(1, B, 1) * self.omegas.view(1, 1, -1))
+        sin_tick = torch.sin(tick.view(1, B, 1) * self.omegas.view(1, 1, -1))
+        cos_terms = cos_tick * cos_step.view(T, 1, self.r) - sin_tick * sin_step.view(T, 1, self.r)
 
         # Apply gating and expand with oscillatory terms
         gated_values = values * beta  # (T, B, head_num, head_dim)
@@ -369,6 +355,19 @@ class AGaLiTeAttentionLayer(nn.Module):
         new_s = final_s[-1].detach()
 
         return output, (new_tilde_k, new_tilde_v, new_s, new_tick)
+
+    def _cached_trig(
+        self, timesteps: int, device: torch.device, dtype: torch.dtype
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        key = (timesteps, device, dtype)
+        if key not in self._cos_cache:
+            steps = torch.arange(1, timesteps + 1, device=device, dtype=dtype)
+            angles = steps.unsqueeze(-1) * self.omegas.to(device=device, dtype=dtype)
+            cos_vals = torch.cos(angles)
+            sin_vals = torch.sin(angles)
+            self._cos_cache[key] = cos_vals
+            self._sin_cache[key] = sin_vals
+        return self._cos_cache[key], self._sin_cache[key]
 
     @staticmethod
     def initialize_memory(
