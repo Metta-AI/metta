@@ -43,10 +43,10 @@ cogames play training_facility_1 --interactive
 cogames train training_facility_1 --policy simple
 
 # Watch or play along side your trained policy
-cogames play training_facility_1 --interactive --policy simple --policy-data ./train_dir/policy.pt
+cogames play training_facility_1 --policy simple --policy-data ./train_dir/policy.pt --interactive
 
 # Evaluate your policy
-cogames evaluate training_facility_1 simple:./train_dir/policy.pt
+cogames evaluate training_facility_1 --policy simple --policy-data ./train_dir/policy.pt
 ```
 
 ## Commands
@@ -146,26 +146,24 @@ for step in range(1000):
         obs, info = env.reset()
 ```
 
-### `cogames evaluate [game] [policies...]`
+### `cogames eval [game] [policies...]`
 
 Evaluate one or more policies.
 
+To specify policies to evaluate, you can either provide `--policy` and `--policy-data` arguments as seen in other `cogames` commands, or can provide a list of policy specs:
 **Policy spec format:** `{class_path}[:data_path][:proportion]`
 
 **Examples:**
 
 ```bash
-# Single policy
-cogames evaluate machina_1 random
-
 # Trained policy
-cogames evaluate machina_1 simple:train_dir/model.pt
+cogames eval machina_1 --policy simple --policy-data train_dir/model.pt
 
-# Latest checkpoint in directory
-cogames evaluate machina_1 simple:train_dir/
+# Or, equivalently
+cogames eval machina_1 simple:train_dir/model.pt
 
 # Mixed population of agents, 3/8 of which steered by your policy, the rest by a random-action policy
-cogames evaluate machina_1 simple:train_dir/model.pt:3 random::5
+cogames eval machina_1 simple:train_dir/model.pt:3 random::5
 ```
 
 **Options:**
@@ -173,7 +171,7 @@ cogames evaluate machina_1 simple:train_dir/model.pt:3 random::5
 - `--episodes N`: Number of episodes (default: 10)
 - `--action-timeout-ms N`: Timeout per action (default: 250ms)
 
-When multiple policies are provided, `cogames evaluate` fixes the number of agents each policy will control, but
+When multiple policies are provided, `cogames eval` fixes the number of agents each policy will control, but
 randomizes their assignments each episode.
 
 ### `cogames make-mission [base_mission]`
