@@ -5,7 +5,6 @@ import {
 } from "../../scripts/fetch-arxiv-paper";
 import { extractInstitutionsFromPdf } from "./pdf-institution-extractor";
 import { PaperAbstractService } from "./paper-abstract-service";
-import { AutoTaggingService } from "./auto-tagging-service";
 
 /**
  * Normalizes author name for consistent storage
@@ -85,98 +84,7 @@ export function detectArxivUrl(content: string): string | null {
 }
 
 /**
- * Auto-imports a paper from arXiv (fast, without institutions)
- *
- * @param arxivUrl - The arXiv URL to import
- * @returns The paper ID if successfully imported/found, or null if failed
- */
-export async function autoImportArxivPaperSync(
-  arxivUrl: string
-): Promise<string | null> {
-  try {
-    console.log(`🔍 Auto-importing arXiv paper (sync): ${arxivUrl}`);
-
-    // Extract arXiv ID from URL
-    const arxivId = extractArxivId(arxivUrl);
-
-    // Check if paper already exists in database
-    const existingPaper = await prisma.paper.findFirst({
-      where: {
-        OR: [{ externalId: arxivId }, { link: arxivUrl }],
-      },
-    });
-
-    if (existingPaper) {
-      console.log(`✅ Paper already exists: ${existingPaper.title}`);
-
-      // Check if existing paper needs LLM abstract generation
-      if (!existingPaper.llmAbstract) {
-        console.log(
-          `🤖 Queuing LLM abstract generation for existing paper: ${existingPaper.id}`
-        );
-        PaperAbstractService.generateAbstractForPaper(existingPaper.id).catch(
-          (error) => {
-            console.error(
-              `❌ Failed to generate LLM abstract for existing paper ${existingPaper.id}:`,
-              error
-            );
-          }
-        );
-      }
-
-      return existingPaper.id;
-    }
-
-    // Fetch paper data from arXiv API
-    console.log(`📡 Fetching paper data from arXiv API...`);
-    const paperData = await fetchArxivPaper(arxivId);
-
-    // Create paper record in database WITHOUT institutions (fast)
-    const paper = await prisma.paper.create({
-      data: {
-        title: paperData.title,
-        abstract: paperData.abstract,
-        link: paperData.arxivUrl,
-        source: "arxiv",
-        externalId: paperData.id,
-        tags: [], // No longer importing arXiv categories as tags
-        institutions: [], // Empty for now - will be filled by background process
-      },
-    });
-
-    // Create authors and link them to the paper
-    console.log(`👥 Processing ${paperData.authors.length} authors...`);
-    for (const authorName of paperData.authors) {
-      const author = await getOrCreateAuthor(authorName);
-      await linkAuthorToPaper(author.id, paper.id);
-    }
-
-    console.log(`✅ Successfully imported paper (sync): ${paper.title}`);
-
-    // Generate LLM abstract in the background (don't wait for it to complete)
-    console.log(`🤖 Queuing LLM abstract generation for paper: ${paper.id}`);
-    PaperAbstractService.generateAbstractForPaper(paper.id).catch((error) => {
-      console.error(
-        `❌ Failed to generate LLM abstract for paper ${paper.id}:`,
-        error
-      );
-    });
-
-    // Auto-tag the paper in the background (don't wait for it to complete)
-    console.log(`🏷️ Queuing auto-tagging for paper: ${paper.id}`);
-    AutoTaggingService.autoTagPaper(paper.id).catch((error) => {
-      console.error(`❌ Failed to auto-tag paper ${paper.id}:`, error);
-    });
-
-    return paper.id;
-  } catch (error) {
-    console.error(`❌ Failed to auto-import arXiv paper (sync):`, error);
-    return null;
-  }
-}
-
-/**
- * Auto-imports a paper from arXiv (full version with institutions)
+ * Auto-imports a paper from arXiv
  *
  * @param arxivUrl - The arXiv URL to import
  * @returns The paper ID if successfully imported/found, or null if failed
@@ -225,46 +133,6 @@ export async function autoImportArxivPaper(
     console.log(`📡 Fetching paper data from arXiv API...`);
     const paperData = await fetchArxivPaper(arxivId);
 
-    // Fetch PDF and extract institutions
-    let institutions: string[] = [];
-    try {
-      console.log(`📄 Fetching PDF for institution extraction...`);
-      const pdfUrl = paperData.pdfUrl;
-      const pdfResponse = await fetch(pdfUrl);
-
-      if (pdfResponse.ok) {
-        const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
-        console.log(`🔍 Extracting institutions from PDF...`);
-        institutions = await extractInstitutionsFromPdf(
-          pdfBuffer,
-          paperData.authors
-        );
-
-        // Filter out obvious noise and keep only reasonable institutions
-        institutions = institutions.filter((inst) => {
-          const cleaned = inst.trim();
-          return (
-            cleaned.length > 4 &&
-            cleaned.length < 60 &&
-            !cleaned.includes("al.,") &&
-            !cleaned.includes("limited") &&
-            !cleaned.includes("et") &&
-            /university|institute|college|tech|corp|inc|lab|center|centre/i.test(
-              cleaned
-            )
-          );
-        });
-
-        console.log(
-          `🏛️ Found ${institutions.length} institutions: ${institutions.join(", ")}`
-        );
-      } else {
-        console.log(`⚠️ Could not fetch PDF for institution extraction`);
-      }
-    } catch (error) {
-      console.error(`❌ Error extracting institutions:`, error);
-    }
-
     // Create paper record in database
     const paper = await prisma.paper.create({
       data: {
@@ -274,7 +142,6 @@ export async function autoImportArxivPaper(
         source: "arxiv",
         externalId: paperData.id,
         tags: [], // No longer importing arXiv categories as tags
-        institutions: institutions, // Institutions extracted from PDF
       },
     });
 
@@ -348,14 +215,12 @@ export async function enhanceArxivPaperWithInstitutions(
 
     const authorNames = paper.paperAuthors.map((pa) => pa.author.name);
 
-    // Extract arXiv ID and fetch PDF
-    const arxivId = extractArxivId(arxivUrl);
-    const paperData = await fetchArxivPaper(arxivId);
+    // Construct PDF URL directly from stored arXiv ID (no API call needed)
+    const pdfUrl = `https://arxiv.org/pdf/${paper.externalId}.pdf`;
 
     let institutions: string[] = [];
     try {
-      console.log(`📄 Fetching PDF for institution extraction...`);
-      const pdfUrl = paperData.pdfUrl;
+      console.log(`📄 Fetching PDF for institution extraction from: ${pdfUrl}`);
       const pdfResponse = await fetch(pdfUrl);
 
       if (pdfResponse.ok) {
@@ -388,15 +253,46 @@ export async function enhanceArxivPaperWithInstitutions(
       console.error(`❌ Error extracting institutions:`, error);
     }
 
-    // Update paper with institutions
-    await prisma.paper.update({
-      where: { id: paperId },
-      data: {
-        institutions: institutions,
-      },
-    });
+    // Create Institution entities and link to paper
+    for (const institutionName of institutions) {
+      try {
+        // Find or create Institution entity
+        const institution = await prisma.institution.upsert({
+          where: { name: institutionName },
+          create: {
+            name: institutionName,
+            type: "UNIVERSITY", // Default type, can be updated manually later
+          },
+          update: {}, // No updates needed if it exists
+        });
 
-    console.log(`✅ Enhanced paper ${paperId} with institutions`);
+        // Create PaperInstitution join record (if not already exists)
+        await prisma.paperInstitution.upsert({
+          where: {
+            paperId_institutionId: {
+              paperId: paperId,
+              institutionId: institution.id,
+            },
+          },
+          create: {
+            paperId: paperId,
+            institutionId: institution.id,
+          },
+          update: {}, // No updates needed if link already exists
+        });
+
+        console.log(`  ✅ Linked institution: ${institutionName}`);
+      } catch (error) {
+        console.error(
+          `  ❌ Failed to link institution ${institutionName}:`,
+          error
+        );
+      }
+    }
+
+    console.log(
+      `✅ Enhanced paper ${paperId} with ${institutions.length} institutions`
+    );
   } catch (error) {
     console.error(`❌ Failed to enhance paper with institutions:`, error);
   }
@@ -423,8 +319,10 @@ export async function processArxivAutoImport(
 /**
  * Async version that enhances paper with institutions in the background
  *
+ * Uses database data to avoid redundant API calls and downloads.
+ *
  * @param paperId - The paper ID to enhance with institutions
- * @param arxivUrl - The arXiv URL for PDF fetching
+ * @param arxivUrl - The arXiv URL (for compatibility, not used - PDF URL constructed from DB)
  */
 export async function processArxivInstitutionsAsync(
   paperId: string,

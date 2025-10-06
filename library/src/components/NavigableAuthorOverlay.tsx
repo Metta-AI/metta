@@ -4,6 +4,7 @@ import React from "react";
 import { AuthorDTO } from "@/posts/data/authors-client";
 import { AuthorProfile } from "./AuthorProfile";
 import { useOverlayNavigation } from "./OverlayStack";
+import { BaseOverlay } from "@/components/overlays/BaseOverlay";
 
 interface NavigableAuthorOverlayProps {
   author: AuthorDTO;
@@ -51,10 +52,19 @@ export default function NavigableAuthorOverlay({
   };
 
   return (
-    <AuthorProfile
-      author={author}
+    <BaseOverlay
+      open
       onClose={onClose}
-      onInstitutionClick={handleInstitutionClick}
-    />
+      title={author.name}
+      size="lg"
+      contentClassName="p-0"
+      dismissible
+    >
+      <AuthorProfile
+        author={author}
+        onClose={onClose}
+        onInstitutionClick={handleInstitutionClick}
+      />
+    </BaseOverlay>
   );
 }
