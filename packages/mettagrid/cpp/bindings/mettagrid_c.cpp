@@ -271,8 +271,6 @@ MettaGrid::~MettaGrid() = default;
 void MettaGrid::init_action_handlers() {
   _num_action_handlers = _action_handlers.size();
   _max_action_priority = 0;
-  _max_action_arg = 0;
-  _max_action_args.resize(_action_handlers.size());
   _action_lookup.clear();
   _action_names.clear();
 
@@ -282,20 +280,10 @@ void MettaGrid::init_action_handlers() {
     if (handler->priority > _max_action_priority) {
       _max_action_priority = handler->priority;
     }
-    _max_action_args[i] = handler->max_arg();
-    if (_max_action_args[i] > _max_action_arg) {
-      _max_action_arg = _max_action_args[i];
-    }
-
-    auto max_arg = static_cast<ActionArg>(_max_action_args[i]);
-    const auto& base_name = handler->action_name();
+    auto max_arg = static_cast<ActionArg>(handler->max_arg());
     for (ActionArg arg = 0; arg <= max_arg; ++arg) {
       _action_lookup.emplace_back(static_cast<ActionType>(i), arg);
-      if (arg == 0) {
-        _action_names.emplace_back(base_name);
-      } else {
-        _action_names.emplace_back(base_name + "_" + std::to_string(static_cast<int>(arg)));
-      }
+      _action_names.emplace_back(handler->action_label(arg));
     }
   }
 }

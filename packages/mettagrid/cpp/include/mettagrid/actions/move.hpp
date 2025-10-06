@@ -23,6 +23,14 @@ public:
     return _game_config->allow_diagonals ? 7 : 3;  // 8 directions if diagonals, 4 otherwise
   }
 
+  std::string action_label(ActionArg arg) const override {
+    Orientation move_direction = static_cast<Orientation>(arg);
+    if (!isValidOrientation(move_direction, _game_config->allow_diagonals)) {
+      return ActionHandler::action_label(arg);
+    }
+    return std::string("move_") + OrientationFullNames[static_cast<int>(move_direction)];
+  }
+
 protected:
   bool _handle_action(Agent& actor, ActionArg arg) override {
     // Get the orientation from the action argument

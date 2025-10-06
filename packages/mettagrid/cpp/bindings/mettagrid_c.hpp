@@ -134,8 +134,6 @@ private:
   Actions _actions;
   ActionHandlers _action_handlers;
   size_t _num_action_handlers;
-  std::vector<unsigned char> _max_action_args;
-  unsigned char _max_action_arg;
   unsigned char _max_action_priority;
   std::vector<std::pair<ActionType, ActionArg>> _action_lookup;
   std::vector<std::string> _action_names;

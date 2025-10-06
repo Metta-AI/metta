@@ -62,7 +62,8 @@ def move(env: MettaGrid, direction: Orientation, agent_idx: int = 0) -> dict[str
     result = {"success": False, "error": None}
     action_names = env.action_names()
 
-    move_action_name = f"move_{movement_idx}"
+    movement_idx = direction.value
+    move_action_name = "move" if movement_idx == 0 else f"move_{movement_idx}"
     if move_action_name not in action_names:
         result["error"] = f"{move_action_name} not available"
         return result
@@ -118,7 +119,7 @@ def rotate(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> dict
     try:
         action_names = env.action_names()
 
-        rotate_action_name = f"rotate_{orientation.value}"
+        rotate_action_name = "rotate" if orientation.value == 0 else f"rotate_{orientation.value}"
         if rotate_action_name not in action_names:
             result["error"] = f"{rotate_action_name} action not available"
             return result

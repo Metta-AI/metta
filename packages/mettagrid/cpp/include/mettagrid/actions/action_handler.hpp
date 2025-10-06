@@ -140,6 +140,13 @@ public:
     return 0;
   }
 
+  virtual std::string action_label(ActionArg arg) const {
+    if (max_arg() == 0) {
+      return _action_name;
+    }
+    return _action_name + "_" + std::to_string(static_cast<int>(arg));
+  }
+
   std::string action_name() const {
     return _action_name;
   }

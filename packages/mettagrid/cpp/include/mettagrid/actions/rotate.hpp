@@ -19,6 +19,14 @@ public:
     return _game_config->allow_diagonals ? 7 : 3;  // 0-7 for 8 directions, 0-3 for 4 directions
   }
 
+  std::string action_label(ActionArg arg) const override {
+    Orientation orientation = static_cast<Orientation>(arg);
+    if (!_game_config->allow_diagonals && isDiagonal(orientation)) {
+      return ActionHandler::action_label(arg);
+    }
+    return std::string("rotate_") + OrientationFullNames[static_cast<int>(orientation)];
+  }
+
 protected:
   bool _handle_action(Agent& actor, ActionArg arg) override {
     // Validate the orientation argument
