@@ -1,2 +1,1 @@
 """Cortex recipe package."""
-

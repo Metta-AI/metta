@@ -2,7 +2,6 @@
 #  This software may be used and distributed according to the terms of the NXAI Community License Agreement.
 
 import torch
-
 import triton
 
 from ..triton import mlstm_chunkwise__recurrent_fw_C_kernel

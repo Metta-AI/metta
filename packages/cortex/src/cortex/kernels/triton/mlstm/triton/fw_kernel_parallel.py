@@ -6,9 +6,8 @@
 It is adapted such that it allows for arbitrary large chunk sizes AND head dimensions.
 """
 
-import triton.language as tl
-
 import triton
+import triton.language as tl
 
 
 @triton.jit

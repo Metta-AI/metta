@@ -2,8 +2,8 @@
 #  This software may be used and distributed according to the terms of the NXAI Community License Agreement.
 
 import os
-import torch
 
+import torch
 import triton
 
 from ..triton import mlstm_chunkwise__parallel_bw_dV_kernel
@@ -66,6 +66,7 @@ def mlstm_chunkwise__parallel_bw_dV(
     # Secondary buffers (LKV x LQ) appear transiently; budget for both by using (DHHV + LQ_small).
     smem_soft_limit = int(os.environ.get("CORTEX_TRITON_SMEM_SOFT_LIMIT", str(96 * 1024)))
     bytes_per = 4
+
     # Choose a small, power-of-two LQ that divides LKV and reduces temporary sizes
     def pow2_le(x: int) -> int:
         p = 1

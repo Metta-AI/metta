@@ -6,7 +6,6 @@
 It should allow arbitrary large chunk sizes and head dimensions.
 """
 
-
 import torch
 
 from ..triton.chunkwise_kernel_param_heuristics import (
