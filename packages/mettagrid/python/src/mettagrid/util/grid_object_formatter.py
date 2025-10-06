@@ -55,6 +55,25 @@ def format_converter_properties(grid_object: dict, update_object: dict) -> None:
     update_object["cooldown_duration"] = grid_object.get("cooldown_duration", 0)
 
 
+def format_assembler_properties(grid_object: dict, update_object: dict) -> None:
+    # Assembler properties
+    update_object["cooldown_remaining"] = grid_object.get("cooldown_remaining", 0)
+    update_object["cooldown_duration"] = grid_object.get("cooldown_duration", 0)
+    update_object["is_clipped"] = grid_object.get("is_clipped", False)
+    update_object["is_clip_immune"] = grid_object.get("is_clip_immune", False)
+    update_object["uses_count"] = grid_object.get("uses_count", 0)
+    update_object["max_uses"] = grid_object.get("max_uses", 0)
+    update_object["allow_partial_usage"] = grid_object.get("allow_partial_usage", False)
+
+    update_object["recipes"] = []
+    for recipe in grid_object.get("recipes", []):
+        update_recipe = {}
+        update_recipe["inputs"] = list(recipe.get("inputs", {}).items())
+        update_recipe["outputs"] = list(recipe.get("outputs", {}).items())
+        update_recipe["cooldown"] = recipe["cooldown"]
+        update_object["recipes"].append(update_recipe)
+
+
 def format_grid_object(
     grid_object: dict,
     actions: np.ndarray,
@@ -91,5 +110,8 @@ def format_grid_object(
 
     elif "input_resources" in grid_object:
         format_converter_properties(grid_object, update_object)
+
+    elif "recipes" in grid_object:
+        format_assembler_properties(grid_object, update_object)
 
     return update_object

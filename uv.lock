@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = "==3.11.7"
 resolution-markers = [
     "sys_platform == 'linux'",
@@ -528,7 +528,7 @@ wheels = [
 [[package]]
 name = "codebot"
 version = "0.1.0"
-source = { editable = "codebot" }
+source = { editable = "packages/codebot" }
 dependencies = [
     { name = "gitta" },
     { name = "tiktoken" },
@@ -537,18 +537,19 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "gitta", editable = "gitta" },
+    { name = "gitta", editable = "packages/gitta" },
     { name = "tiktoken", specifier = ">=0.9.0" },
     { name = "typer", specifier = ">=0.9.0" },
 ]
 
 [[package]]
 name = "cogames"
-version = "0.3.5"
 source = { editable = "packages/cogames" }
 dependencies = [
     { name = "einops" },
+    { name = "heavyball" },
     { name = "mettagrid" },
+    { name = "packaging" },
     { name = "pufferlib-core" },
     { name = "pydantic" },
     { name = "pyyaml" },
@@ -560,7 +561,9 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "einops", specifier = ">=0.8.0" },
+    { name = "heavyball", specifier = ">=2.0.0" },
     { name = "mettagrid", editable = "packages/mettagrid" },
+    { name = "packaging", specifier = ">=24.0.0" },
     { name = "pufferlib-core", editable = "packages/pufferlib-core" },
     { name = "pydantic", specifier = ">=2.11.5" },
     { name = "pyyaml", specifier = ">=6.0.2" },
@@ -1062,7 +1065,7 @@ wheels = [
 [[package]]
 name = "gitta"
 version = "0.1.0"
-source = { editable = "gitta" }
+source = { editable = "packages/gitta" }
 dependencies = [
     { name = "httpx" },
 ]
@@ -2092,7 +2095,7 @@ requires-dist = [
     { name = "anywidget", specifier = ">=0.9.18" },
     { name = "bidict", specifier = ">=0.23.1" },
     { name = "boto3", specifier = ">=1.38.32" },
-    { name = "codebot", editable = "codebot" },
+    { name = "codebot", editable = "packages/codebot" },
     { name = "cogames", editable = "packages/cogames" },
     { name = "colorama", specifier = ">=0.4.6" },
     { name = "cpplint", specifier = ">=2.0.2" },
@@ -2253,7 +2256,7 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.38.32" },
     { name = "ddtrace", specifier = ">=2.6.0" },
     { name = "fastapi", specifier = ">=0.115.5" },
-    { name = "gitta", editable = "gitta" },
+    { name = "gitta", editable = "packages/gitta" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "metta-common", editable = "common" },
     { name = "psycopg", extras = ["binary", "pool"], specifier = ">=3.2.9" },
@@ -3185,7 +3188,6 @@ wheels = [
 
 [[package]]
 name = "pufferlib-core"
-version = "3.0.10"
 source = { editable = "packages/pufferlib-core" }
 dependencies = [
     { name = "gymnasium" },

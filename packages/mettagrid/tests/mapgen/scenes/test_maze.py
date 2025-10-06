@@ -8,12 +8,10 @@ from mettagrid.test_support.mapgen import assert_connected, render_scene
 @pytest.mark.parametrize("algorithm", ["kruskal", "dfs"])
 def test_basic(algorithm):
     scene = render_scene(
-        Maze.factory(
-            Maze.Params(
-                algorithm=algorithm,
-                room_size=IntUniformDistribution(low=1, high=1),
-                wall_size=IntUniformDistribution(low=1, high=1),
-            )
+        Maze.Config(
+            algorithm=algorithm,
+            room_size=IntUniformDistribution(low=1, high=1),
+            wall_size=IntUniformDistribution(low=1, high=1),
         ),
         (9, 9),
     )
@@ -28,12 +26,10 @@ def test_basic(algorithm):
 @pytest.mark.parametrize("algorithm", ["kruskal", "dfs"])
 def test_uniform_distribution(algorithm):
     scene = render_scene(
-        Maze.factory(
-            Maze.Params(
-                algorithm=algorithm,
-                room_size=IntUniformDistribution(low=1, high=2),
-                wall_size=IntUniformDistribution(low=1, high=2),
-            )
+        Maze.Config(
+            algorithm=algorithm,
+            room_size=IntUniformDistribution(low=1, high=2),
+            wall_size=IntUniformDistribution(low=1, high=2),
         ),
         (15, 15),
     )

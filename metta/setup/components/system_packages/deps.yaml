@@ -105,8 +105,7 @@ packages:
   nim:
     brew:
       name: nim
-    apt:
-      name: nim
+    # Linux installs Nim via choosenim (see metta/setup/components/system.py)
 
   # Homebrew packages with custom taps
   graphite:

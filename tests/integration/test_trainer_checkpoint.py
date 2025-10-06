@@ -165,8 +165,8 @@ class TestTrainerCheckpointIntegration:
         assert trainer_state["epoch"] > 0
         assert isinstance(trainer_state.get("optimizer_state"), dict)
 
-        policy_uris = checkpoint_manager.select_checkpoints()
-        assert policy_uris, "No policy checkpoints found"
+        policy_uri = checkpoint_manager.get_latest_checkpoint()
+        assert policy_uri, "No policy checkpoints found"
 
     def test_policy_loading_from_checkpoint(self) -> None:
         run_name = "test_policy_loading"
@@ -185,11 +185,11 @@ class TestTrainerCheckpointIntegration:
         trainer_state = checkpoint_manager.load_trainer_state()
         assert trainer_state is not None
 
-        policy_uris = checkpoint_manager.select_checkpoints()
-        assert policy_uris, "Expected at least one policy checkpoint"
+        policy_uri = checkpoint_manager.get_latest_checkpoint()
+        assert policy_uri, "Expected at least one policy checkpoint"
 
         # Load the latest policy to ensure it is valid
-        policy = CheckpointManager.load_from_uri(policy_uris[0])
+        policy = checkpoint_manager.load_from_uri(policy_uri)
         assert policy is not None
         assert hasattr(policy, "state_dict"), "Loaded policy should be a torch.nn.Module"
 

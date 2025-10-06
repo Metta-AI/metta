@@ -29,9 +29,7 @@ def create_basic_config() -> GameConfig:
             freeze_duration=0,
             resource_limits={"ore": 10, "wood": 10},
         ),
-        actions=ActionsConfig(
-            move=ActionConfig(enabled=True), noop=ActionConfig(enabled=True), rotate=ActionConfig(enabled=True)
-        ),
+        actions=ActionsConfig(move=ActionConfig(), noop=ActionConfig(), rotate=ActionConfig()),
         objects={"wall": WallConfig(type_id=1, swappable=False)},
         allow_diagonals=True,
     )
@@ -97,9 +95,7 @@ class TestActionOrdering:
             obs_height=basic_config.obs_height,
             num_observation_tokens=basic_config.num_observation_tokens,
             agent=basic_config.agent,
-            actions=ActionsConfig(
-                rotate=ActionConfig(enabled=True), noop=ActionConfig(enabled=True), move=ActionConfig(enabled=True)
-            ),
+            actions=ActionsConfig(rotate=ActionConfig(), noop=ActionConfig(), move=ActionConfig()),
             objects=basic_config.objects,
             allow_diagonals=basic_config.allow_diagonals,
         )
@@ -110,20 +106,18 @@ class TestActionOrdering:
         # Action order should remain the same despite different config order
         assert action_names1 == action_names2, "Action order should be deterministic"
 
-        # Verify the expected order (noop is always first when enabled, put_items is now enabled by default)
-        assert action_names1 == ["noop", "move", "rotate", "put_items", "get_items"]
+        # Verify the expected order (noop is always first when enabled)
+        assert action_names1 == ["noop", "move", "rotate"]
 
     def test_action_indices_consistency(self, basic_config, simple_map):
         """Test that action indices remain consistent."""
         env = MettaGrid(from_mettagrid_config(basic_config), simple_map, 42)
         action_names = env.action_names()
 
-        # Verify indices (noop is first when enabled, put_items is now enabled by default)
+        # Verify indices (noop is first when enabled)
         assert action_names.index("noop") == 0
         assert action_names.index("move") == 1
         assert action_names.index("rotate") == 2
-        assert action_names.index("put_items") == 3
-        assert action_names.index("get_items") == 4
 
 
 class TestActionValidation:
@@ -191,8 +185,8 @@ class TestResourceRequirements:
             agent=basic_config.agent,
             actions=ActionsConfig(
                 move=ActionConfig(enabled=True, required_resources={"ore": 1}),
-                noop=ActionConfig(enabled=True),
-                rotate=ActionConfig(enabled=True),
+                noop=ActionConfig(),
+                rotate=ActionConfig(),
             ),
             objects=basic_config.objects,
             allow_diagonals=basic_config.allow_diagonals,
@@ -224,8 +218,8 @@ class TestResourceRequirements:
             ),
             actions=ActionsConfig(
                 move=ActionConfig(enabled=True, consumed_resources={"ore": 1}),
-                noop=ActionConfig(enabled=True),
-                rotate=ActionConfig(enabled=True),
+                noop=ActionConfig(),
+                rotate=ActionConfig(),
             ),
             objects=basic_config.objects,
             allow_diagonals=basic_config.allow_diagonals,
@@ -379,9 +373,9 @@ class TestSpecialActions:
                 attack=AttackActionConfig(
                     enabled=True, required_resources={}, consumed_resources={}, defense_resources={}
                 ),
-                move=ActionConfig(enabled=True),
-                noop=ActionConfig(enabled=True),
-                rotate=ActionConfig(enabled=True),
+                move=ActionConfig(),
+                noop=ActionConfig(),
+                rotate=ActionConfig(),
             ),
             objects=basic_config.objects,
             allow_diagonals=basic_config.allow_diagonals,
@@ -393,8 +387,8 @@ class TestSpecialActions:
         # Attack should be present
         assert "attack" in action_names
 
-        # Check the expected order (noop is first when enabled, attack comes after noop)
-        expected_actions = ["noop", "move", "rotate", "put_items", "get_items", "attack"]
+        # Check the expected order (noop is first when enabled, attack comes last)
+        expected_actions = ["noop", "move", "rotate", "attack"]
         assert action_names == expected_actions
 
     def test_swap_action_registration(self, basic_config, simple_map):
@@ -408,10 +402,10 @@ class TestSpecialActions:
             num_observation_tokens=basic_config.num_observation_tokens,
             agent=basic_config.agent,
             actions=ActionsConfig(
-                swap=ActionConfig(enabled=True),
-                move=ActionConfig(enabled=True),
-                noop=ActionConfig(enabled=True),
-                rotate=ActionConfig(enabled=True),
+                swap=ActionConfig(),
+                move=ActionConfig(),
+                noop=ActionConfig(),
+                rotate=ActionConfig(),
             ),
             objects=basic_config.objects,
             allow_diagonals=basic_config.allow_diagonals,

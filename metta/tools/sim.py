@@ -76,6 +76,7 @@ class SimTool(Tool):
             logger.info("Could not determine run name, skipping wandb logging")
             return
 
+        # Resume the existing training run without overriding its group
         wandb = auto_wandb_config(run_name)
         if self.group:
             wandb.group = self.group
@@ -104,8 +105,23 @@ class SimTool(Tool):
                     return
 
                 rl_stats.process_policy_evaluator_stats(policy_uri, eval_results, wandb_run, epoch, agent_step, False)
+            except IndexError:
+                # No rows returned; log with fallback step/epoch
+                logger.info(
+                    "No epoch metadata for %s in stats DB; logging eval metrics to WandB with default step/epoch=0",
+                    policy_uri,
+                )
+                try:
+                    rl_stats.process_policy_evaluator_stats(policy_uri, eval_results, wandb_run, 0, 0, False)
+                except Exception as e:
+                    logger.error("Fallback WandB logging failed: %s", e)
             except Exception as e:
                 logger.error(f"Error logging evaluation results to wandb: {e}")
+                # Best-effort fallback logging with default indices
+                try:
+                    rl_stats.process_policy_evaluator_stats(policy_uri, eval_results, wandb_run, 0, 0, False)
+                except Exception as e2:
+                    logger.error("Fallback WandB logging failed: %s", e2)
 
     def invoke(self, args: dict[str, str]) -> int | None:
         if self.policy_uris is None:
@@ -144,11 +160,11 @@ class SimTool(Tool):
                 metadata = CheckpointManager.get_policy_metadata(normalized_uri)
                 del agent
             except Exception as e:
-                logger.warning(f"Failed to load policy from {policy_uri}: {e}")
+                logger.warning(f"Failed to load policy from {normalized_uri}: {e}")
                 continue
 
-            eval_run_name = _determine_run_name(policy_uri)
-            results = {"policy_uri": policy_uri, "checkpoints": []}
+            eval_run_name = _determine_run_name(normalized_uri)
+            results = {"policy_uri": normalized_uri, "checkpoints": []}
 
             eval_results = evaluate_policy(
                 checkpoint_uri=normalized_uri,

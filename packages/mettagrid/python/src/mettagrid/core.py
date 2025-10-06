@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import numpy as np
+import numpy.typing as npt
 from gymnasium import spaces
 
 from mettagrid.config.mettagrid_c_config import from_mettagrid_config
@@ -39,11 +40,30 @@ if TYPE_CHECKING:
 logger = logging.getLogger("MettaGridCore")
 
 
+# MettaGrid Type Definitions
+# Observations are token-based: shape (num_tokens, 3) where each token is [PackedCoordinate, key, value]
+# - PackedCoordinate: uint8 packed (x, y) coordinate
+# - key: uint8 feature key
+# - value: uint8 feature value
+MettaGridObservation = npt.NDArray[np.uint8]  # Shape: (num_tokens, 3)
+
+# Actions are MultiDiscrete: shape (num_action_dims,) where each dimension is an action choice
+MettaGridAction = npt.NDArray[np.int32]  # Shape: (num_action_dims,)
+
+
 @dataclass
 class ObsFeature:
     id: int
     normalization: float
     name: str
+
+
+@dataclass
+class BoundingBox:
+    min_row: int
+    max_row: int
+    min_col: int
+    max_col: int
 
 
 class MettaGridCore:
@@ -70,6 +90,7 @@ class MettaGridCore:
         self._render_mode = render_mode
         self._renderer = None
         self._current_seed: int = 0
+
         self._map_builder = self.__mg_config.game.map_builder.create()
 
         # Set by PufferBase
@@ -107,11 +128,7 @@ class MettaGridCore:
         self._renderer = None
         self._renderer_class = None
         self._renderer_native = False
-        if self._render_mode == "human":
-            from mettagrid.renderer.nethack import NethackRenderer
-
-            self._renderer_class = NethackRenderer
-        elif self._render_mode == "miniscope":
+        if self._render_mode in ("human", "miniscope"):
             from mettagrid.renderer.miniscope import MiniscopeRenderer
 
             self._renderer_class = MiniscopeRenderer
@@ -122,8 +139,8 @@ class MettaGridCore:
         # Validate number of agents
         level_agents = np.count_nonzero(np.char.startswith(game_map.grid, "agent"))
         assert self.__mg_config.game.num_agents == level_agents, (
-            f"Number of agents {self.__mg_config.game.num_agents} "
-            f"does not match number  of agents in map {level_agents}"
+            f"Number of agents {self.__mg_config.game.num_agents} does not match number of agents in map {level_agents}"
+            f". This may be because your map, after removing border width, is too small to fit the number of agents."
         )
         game_config_dict = self.__mg_config.game.model_dump()
 
@@ -139,6 +156,9 @@ class MettaGridCore:
         c_env = MettaGridCpp(c_cfg, game_map.grid.tolist(), self._current_seed)
         self._update_core_buffers()
 
+        # Validate that C++ environment conforms to expected types
+        self._validate_c_env_types(c_env)
+
         # Initialize renderer if needed
         if (
             self._render_mode is not None
@@ -149,10 +169,26 @@ class MettaGridCore:
             if self._renderer_native:
                 self._renderer = self._renderer_class()
             else:
-                self._renderer = self._renderer_class(c_env.object_type_names())
+                self._renderer = self._renderer_class(
+                    c_env.object_type_names(), self.__mg_config.game, c_env.map_height, c_env.map_width
+                )
 
         self.__c_env_instance = c_env
         return c_env
+
+    def _validate_c_env_types(self, c_env: MettaGridCpp) -> None:
+        """Validate that the C++ environment conforms to expected MettaGrid types."""
+        from mettagrid.types import validate_action_space, validate_observation_space
+
+        try:
+            validate_observation_space(c_env.observation_space)
+        except TypeError as e:
+            raise TypeError(f"C++ environment observation space does not conform to MettaGrid types: {e}") from e
+
+        try:
+            validate_action_space(c_env.action_space)
+        except TypeError as e:
+            raise TypeError(f"C++ environment action space does not conform to MettaGrid types: {e}") from e
 
     def _update_core_buffers(self) -> None:
         if hasattr(self, "observations") and self.observations is not None:
@@ -291,10 +327,23 @@ class MettaGridCore:
 
         return features
 
-    @property
-    def grid_objects(self) -> Dict[int, Dict[str, Any]]:
-        """Get grid objects information."""
-        return self.__c_env_instance.grid_objects()
+    def grid_objects(
+        self, bbox: Optional[BoundingBox] = None, ignore_types: Optional[List[str]] = None
+    ) -> Dict[int, Dict[str, Any]]:
+        """Get grid objects information, optionally filtered by bounding box and type.
+
+        Args:
+            bbox: Bounding box, None for no limit
+            ignore_types: List of type names to exclude from results (e.g., ["wall"])
+
+        Returns:
+            Dictionary mapping object IDs to object dictionaries
+        """
+        if bbox is None:
+            bbox = BoundingBox(min_row=-1, max_row=-1, min_col=-1, max_col=-1)
+
+        ignore_list = ignore_types if ignore_types is not None else []
+        return self.__c_env_instance.grid_objects(bbox.min_row, bbox.max_row, bbox.min_col, bbox.max_col, ignore_list)
 
     def set_inventory(self, agent_id: int, inventory: Dict[str, int]) -> None:
         """Set an agent's inventory by resource name.

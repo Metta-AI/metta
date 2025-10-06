@@ -19,7 +19,7 @@ from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from metta.common.util.log_config import init_logging
 from metta.common.wandb.context import WandbConfig, WandbContext
 from metta.common.wandb.utils import log_to_wandb_summary
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 _EPOCH: Final = datetime.timezone.utc
 _FMT: Final = "%Y-%m-%d-%H-%M-%S-%f"

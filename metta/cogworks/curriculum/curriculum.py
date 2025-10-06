@@ -15,7 +15,7 @@ from pydantic import ConfigDict, Field
 
 from metta.cogworks.curriculum.stats import SliceAnalyzer, StatsLogger
 from metta.cogworks.curriculum.task_generator import AnyTaskGeneratorConfig, SingleTaskGenerator
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
 logger = logging.getLogger(__name__)
