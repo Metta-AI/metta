@@ -273,8 +273,8 @@ void MettaGrid::init_action_handlers() {
   _max_action_priority = 0;
   _max_action_arg = 0;
   _max_action_args.resize(_action_handlers.size());
-  _flattened_actions.clear();
-  _flattened_action_names.clear();
+  _action_lookup.clear();
+  _action_names.clear();
 
   for (size_t i = 0; i < _action_handlers.size(); i++) {
     auto& handler = _action_handlers[i];
@@ -290,11 +290,11 @@ void MettaGrid::init_action_handlers() {
     auto max_arg = static_cast<ActionArg>(_max_action_args[i]);
     const auto& base_name = handler->action_name();
     for (ActionArg arg = 0; arg <= max_arg; ++arg) {
-      _flattened_actions.emplace_back(static_cast<ActionType>(i), arg);
+      _action_lookup.emplace_back(static_cast<ActionType>(i), arg);
       if (arg == 0) {
-        _flattened_action_names.emplace_back(base_name);
+        _action_names.emplace_back(base_name);
       } else {
-        _flattened_action_names.emplace_back(base_name + "_" + std::to_string(static_cast<int>(arg)));
+        _action_names.emplace_back(base_name + "_" + std::to_string(static_cast<int>(arg)));
       }
     }
   }
@@ -427,8 +427,8 @@ void MettaGrid::_compute_observations(const py::array_t<ActionType, py::array::c
     ActionArg action_arg = 0;
 
     auto flat_index = actions_view(idx);
-    if (flat_index >= 0 && static_cast<size_t>(flat_index) < _flattened_actions.size()) {
-      const auto& mapping = _flattened_actions[static_cast<size_t>(flat_index)];
+    if (flat_index >= 0 && static_cast<size_t>(flat_index) < _action_lookup.size()) {
+      const auto& mapping = _action_lookup[static_cast<size_t>(flat_index)];
       action_type = mapping.first;
       action_arg = mapping.second;
     }
@@ -478,12 +478,12 @@ void MettaGrid::_step(Actions actions) {
     for (const auto& agent_idx : agent_indices) {
       auto flat_index = actions_view(agent_idx);
 
-      if (flat_index < 0 || static_cast<size_t>(flat_index) >= _flattened_actions.size()) {
+      if (flat_index < 0 || static_cast<size_t>(flat_index) >= _action_lookup.size()) {
         _handle_invalid_action(agent_idx, "action.invalid_flat", static_cast<ActionType>(flat_index), 0);
         continue;
       }
 
-      const auto& mapping = _flattened_actions[static_cast<size_t>(flat_index)];
+      const auto& mapping = _action_lookup[static_cast<size_t>(flat_index)];
       ActionType action = mapping.first;
       ActionArg arg = mapping.second;
 
@@ -907,7 +907,7 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
 
 py::list MettaGrid::action_names() {
   py::list names;
-  for (const auto& name : _flattened_action_names) {
+  for (const auto& name : _action_names) {
     names.append(py::str(name));
   }
   return names;
@@ -978,7 +978,7 @@ py::object MettaGrid::action_space() {
   auto gym = py::module_::import("gymnasium");
   auto spaces = gym.attr("spaces");
 
-  size_t flattened = _flattened_actions.size();
+  size_t flattened = _action_lookup.size();
   return spaces.attr("Discrete")(py::int_(flattened));
 }
 
