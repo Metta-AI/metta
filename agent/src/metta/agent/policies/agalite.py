@@ -30,6 +30,7 @@ def _build_components(
     attr_embed_dim: int = 12,
     fourier_freqs: int = 4,
     num_latents: int = 16,
+    critic_hidden: List[int] | None = None,
 ) -> List[ComponentConfig]:
     kernel_cfg = kernel or AGaLiTeKernelConfig()
     eta_value = eta
@@ -37,6 +38,7 @@ def _build_components(
         eta_value = max(kernel_cfg.nu, 1)
 
     feat_dim = attr_embed_dim + (4 * fourier_freqs) + 1
+    critic_hidden_features = critic_hidden or [1024]
 
     return [
         ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=max_tokens),
@@ -74,7 +76,7 @@ def _build_components(
             out_key="values",
             name="critic",
             in_features=hidden_size,
-            hidden_features=[1024],
+            hidden_features=critic_hidden_features,
             out_features=1,
             nonlinearity="ReLU",
             output_nonlinearity=None,
@@ -155,7 +157,39 @@ class AGaLiTeLargeConfig(PolicyArchitecture):
         return {"learning_rate_hint": self.learning_rate_hint}
 
 
+class AGaLiTePaperConfig(PolicyArchitecture):
+    """AGaLiTe configuration aligned with the published architecture."""
+
+    class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
+    learning_rate_hint: float = 1e-3
+
+    components: List[ComponentConfig] = Field(
+        default_factory=lambda: _build_components(
+            hidden_size=128,
+            embedding_dim=128,
+            n_layers=4,
+            n_heads=4,
+            feedforward_size=512,
+            eta=8,
+            r=1,
+            mode="agalite",
+            dropout=0.05,
+            kernel=AGaLiTeKernelConfig(name="eluplus1", nu=4),
+            max_tokens=64,
+            attr_embed_dim=12,
+            fourier_freqs=4,
+            num_latents=16,
+            critic_hidden=[128],
+        )
+    )
+
+    action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
+
+    def policy_defaults(self) -> dict[str, object]:
+        return {"learning_rate_hint": self.learning_rate_hint}
+
+
 AGaLiTeImprovedConfig = AGaLiTeLargeConfig
 
 
-__all__ = ["AGaLiTeConfig", "AGaLiTeLargeConfig", "AGaLiTeImprovedConfig"]
+__all__ = ["AGaLiTeConfig", "AGaLiTeLargeConfig", "AGaLiTeImprovedConfig", "AGaLiTePaperConfig"]
