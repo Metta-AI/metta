@@ -102,7 +102,7 @@ class BenchmarkArchScheduler(ExperimentScheduler):
                                 experiment_id=self.experiment_id,
                                 recipe_module=module,
                                 train_entrypoint=self.config.train_entrypoint,
-                                stats_server_uri=PROD_STATS_SERVER_URI
+                                stats_server_uri=PROD_STATS_SERVER_URI,
                                 train_overrides={
                                     "trainer.total_timesteps": self.config.total_timesteps,
                                     "arch_type": arch_type,
@@ -147,7 +147,7 @@ def make_adaptive_controller(  # noqa: PLR0913
     scheduler_config: BenchmarkArchSchedulerConfig | None = None,
     dispatcher: Dispatcher | None = None,
     use_skypilot: bool = False,
-    max_parallel: int = 1,
+    max_parallel: int = 20,
     monitoring_interval: int = 60,
     resume: bool = False,
 ) -> AdaptiveController:
