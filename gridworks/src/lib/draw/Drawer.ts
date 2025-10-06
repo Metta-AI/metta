@@ -1,4 +1,4 @@
-import { MettaGrid, MettaObject } from "../MettaGrid";
+import { Cell, MettaGrid, MettaObject } from "../MettaGrid";
 import { loadMettaTileSets, TILE_NAMES } from "./mettaTileSets";
 import { TileSetCollection } from "./TileSetCollection";
 
@@ -85,6 +85,27 @@ export class Drawer {
     }
   }
 
+  drawWalls(ctx: CanvasRenderingContext2D, walls: Cell[]) {
+    // let tile = 0;
+    // if (hasWall(0, 1)) tile = tile | WALL_S;
+    // if (hasWall(1, 0)) tile = tile | WALL_E;
+    // if (hasWall(0, -1)) tile = tile | WALL_N;
+    // if (hasWall(-1, 0)) tile = tile | WALL_W;
+    // let fill = false;
+    // if ((tile & (WALL_S | WALL_E)) === (WALL_S | WALL_E) && hasWall(1, 1)) {
+    //   fill = true;
+    // }
+    // if (tile & (WALL_N | WALL_W) && hasWall(-1, -1) && hasWall(-1, 1) && hasWall(1, -1)) {
+    //         if (tile and WallNW.uint16) == WallNW.uint16 and
+    //             hasWall(- 1, - 1) and
+    //             hasWall(- 1, 1) and
+    //             hasWall(1, - 1):
+    //           continue
+    //       bxy.drawImage(wallSprites[tile], vec2(x.float32, y.float32), angle = 0, scale = 1/200)
+    // for fillPos in wallFills:
+    //   bxy.drawImage("objects/wall.fill", fillPos.vec2 + vec2(0.5, 0.3), angle = 0, scale = 1/200)
+  }
+
   drawGrid(ctx: CanvasRenderingContext2D, grid: MettaGrid) {
     // Only draw the visible region of the grid - helps performance on big maps when zoomed in
     const { minX, minY, maxX, maxY } = visibleRegion(ctx, grid);
@@ -93,7 +114,9 @@ export class Drawer {
     ctx.fillStyle = BACKGROUND_COLOR;
     ctx.fillRect(minX, minY, maxX - minX, maxY - minY);
 
-    // Draw the map
+    // Sort objects into walls and other objects
+    const objects: MettaObject[] = [];
+    const walls: Cell[] = [];
     for (const object of grid.objects) {
       if (
         object.c < minX ||
@@ -104,11 +127,14 @@ export class Drawer {
         continue;
       }
       if (object.name === "wall") {
-        // in mettascope, walls have many different types depending on the surrounding terrain.
-        // until we support that, we just draw a single wall type, and highlight it with color.
-        ctx.fillStyle = "#c0bcb8";
-        ctx.fillRect(object.c, object.r, 1, 1);
+        walls.push({ c: object.c, r: object.r });
+      } else {
+        objects.push(object);
       }
+    }
+
+    this.drawWalls(ctx, walls);
+    for (const object of objects) {
       this.drawObject(ctx, object);
     }
 
