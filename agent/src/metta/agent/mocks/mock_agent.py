@@ -61,7 +61,7 @@ class MockAgent(Policy):
 
         This is a minimal implementation that satisfies the simulation's requirements:
         - Takes a TensorDict with "env_obs"
-        - Adds "actions" key with shape [num_agents, 2] for [action_type, action_param]
+        - Adds "actions" key with shape [num_agents] representing discrete action ids
         - Returns the modified TensorDict
 
         Args:

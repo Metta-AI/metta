@@ -496,18 +496,28 @@ function convertReplayV1ToV2(replayData: any) {
       object.current_reward = gridObject['reward']
       object.total_reward = gridObject['total_reward']
 
-      const action_id = []
-      const action_param = []
-      gridObject['action'] = expandSequenceV2(gridObject['action'], replayData.max_steps)
-      for (let step = 0; step < replayData.max_steps; step++) {
-        const action = getAttrV1(gridObject, 'action', step)
-        if (action != null) {
-          action_id.push([step, action[0]])
-          action_param.push([step, action[1]])
+      let actionId = gridObject['action_id']
+      let actionParam = gridObject['action_param']
+
+      if (gridObject['action'] != null) {
+        gridObject['action'] = expandSequenceV2(gridObject['action'], replayData.max_steps)
+        const convertedId = []
+        const convertedParam = []
+        for (let step = 0; step < replayData.max_steps; step++) {
+          const action = getAttrV1(gridObject, 'action', step)
+          if (action != null) {
+            convertedId.push([step, action[0]])
+            convertedParam.push([step, action[1]])
+          }
         }
+        actionId = convertedId
+        actionParam = convertedParam
       }
-      object.action_id = action_id
-      object.action_param = action_param
+
+      if (!actionId) actionId = []
+      if (!actionParam) actionParam = []
+      object.action_id = actionId
+      object.action_param = actionParam
     }
     data.objects.push(object)
   }

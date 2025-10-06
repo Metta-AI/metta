@@ -93,7 +93,7 @@ class TestNewEnvironmentHierarchy:
         assert obs is not None
 
         # Test step
-        action = np.array([0, 0], dtype=np.int32)
+        action = np.array(0, dtype=np.int32)
         obs, reward, terminated, truncated, info = env.step(action)
 
         assert obs is not None
@@ -180,7 +180,7 @@ class TestNewEnvironmentHierarchy:
         assert len(observations) > 0
 
         # Test step
-        actions = {agent: np.array([0, 0], dtype=np.int32) for agent in env.agents}
+        actions = {agent: np.array(0, dtype=np.int32) for agent in env.agents}
         observations, rewards, terminations, truncations, infos = env.step(actions)
 
         assert isinstance(observations, dict)
