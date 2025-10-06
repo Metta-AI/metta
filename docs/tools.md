@@ -524,7 +524,7 @@ This tool creates game maps using different generation algorithms including:
 
 ### map/normalize_ascii_map.py
 
-**Purpose**: Normalize ASCII map characters to ensure consistency across different encodings.
+**Purpose**: Normalize YAML-based ASCII maps to ensure consistency across different encodings.
 
 **Usage**:
 
@@ -540,7 +540,7 @@ This tool creates game maps using different generation algorithms including:
 
 - Unicode normalization
 - Character substitution rules
-- Preserves map structure
+- Outputs valid YAML with `map: |-` blocks and `legend:` mappings
 
 ### map/normalize_scene_patterns.py
 

@@ -1,5 +1,82 @@
+from __future__ import annotations
+
+import yaml
+
 from mettagrid.map_builder.utils import create_grid
 from mettagrid.mapgen.types import MapGrid
+
+
+MAP_KEY = "map"
+LEGEND_KEY = "legend"
+
+
+def _validate_token(token: str) -> str:
+    token = token.strip().strip("'\"")
+    if len(token) != 1 or any(ch.isspace() for ch in token):
+        raise ValueError(f"Legend token must be a single non-whitespace character: {token!r}")
+    return token
+
+
+def _validate_value(value: str) -> str:
+    value = value.strip()
+    if not value or any(ch.isspace() for ch in value):
+        raise ValueError(f"Legend values must be non-empty and contain no whitespace: {value!r}")
+    return value
+
+
+def _map_lines_from_yaml(value: str | list[str]) -> list[str]:
+    if isinstance(value, str):
+        lines = value.splitlines()
+    elif isinstance(value, list):
+        lines = []
+        for item in value:
+            if not isinstance(item, str):
+                raise ValueError("All map entries must be strings")
+            lines.append(item)
+    else:
+        raise ValueError("'map' must be a string or list of strings")
+
+    if not lines:
+        raise ValueError("Map must contain at least one line")
+
+    width = len(lines[0])
+    if any(len(line) != width for line in lines):
+        raise ValueError("All lines in the map must have the same length")
+
+    return lines
+
+
+def _legend_from_yaml(value: dict[str, str]) -> dict[str, str]:
+    legend: dict[str, str] = {}
+    for token_raw, name_raw in value.items():
+        if not isinstance(token_raw, str) or not isinstance(name_raw, str):
+            raise ValueError("Legend keys and values must be strings")
+        token = _validate_token(token_raw)
+        legend[token] = _validate_value(name_raw)
+    return legend
+
+
+def parse_ascii_map(text: str) -> tuple[list[str], dict[str, str]]:
+    """Parse map content from YAML."""
+
+    try:
+        data = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        raise ValueError("Map file must be valid YAML") from exc
+
+    if not isinstance(data, dict):
+        raise ValueError("Map file must be a YAML mapping with 'map' and 'legend'")
+
+    if MAP_KEY not in data or LEGEND_KEY not in data:
+        raise ValueError("Map YAML must include both 'map' and 'legend'")
+
+    map_lines = _map_lines_from_yaml(data[MAP_KEY])
+    legend_value = data[LEGEND_KEY]
+    if not isinstance(legend_value, dict):
+        raise ValueError("'legend' must be a mapping")
+
+    legend_map = _legend_from_yaml(legend_value)
+    return map_lines, legend_map
 
 DEFAULT_CHAR_TO_NAME: dict[str, str] = {
     "#": "wall",

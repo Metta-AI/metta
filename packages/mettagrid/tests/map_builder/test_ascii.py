@@ -9,14 +9,27 @@ from mettagrid.map_builder.map_builder import GameMap
 from mettagrid.mapgen.types import map_grid_dtype
 
 
+def make_yaml_map(map_lines: list[str], legend: dict[str, str]) -> str:
+    legend_block = "\n".join(f'  "{token}": {name}' for token, name in legend.items())
+    map_block = "\n".join(f"  {line}" for line in map_lines)
+    return f"map: |-\n{map_block}\nlegend:\n{legend_block}\n"
+
+
+def write_temp_map(content: str) -> str:
+    temp = tempfile.NamedTemporaryFile(mode="w", suffix=".map", delete=False, encoding="utf-8")
+    temp.write(content)
+    temp.flush()
+    temp.close()
+    return temp.name
+
+
 class TestAsciiMapBuilderConfig:
     def test_create(self):
-        # Create a temporary file for this test
-        ascii_content = "#@#"
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-            f.write(ascii_content)
-            temp_file = f.name
+        yaml_content = make_yaml_map([
+            "#@#",
+        ], {"#": "wall", "@": "agent.agent"})
 
+        temp_file = write_temp_map(yaml_content)
         try:
             config = AsciiMapBuilder.Config.from_uri(temp_file)
             builder = config.create()
@@ -26,16 +39,23 @@ class TestAsciiMapBuilderConfig:
 
 
 class TestAsciiMapBuilder:
+    BASE_LEGEND = {
+        "#": "wall",
+        "@": "agent.agent",
+        ".": "empty",
+        "_": "altar",
+        "p": "agent.prey",
+        "P": "agent.predator",
+    }
+
     def test_build_simple_map(self):
-        # Create a temporary ASCII map file
-        ascii_content = """###
-#.@
-###"""
+        yaml_content = make_yaml_map([
+            "###",
+            "#.@",
+            "###",
+        ], self.BASE_LEGEND)
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-            f.write(ascii_content)
-            temp_file = f.name
-
+        temp_file = write_temp_map(yaml_content)
         try:
             config = AsciiMapBuilder.Config.from_uri(temp_file)
             builder = config.create()
@@ -52,16 +72,17 @@ class TestAsciiMapBuilder:
             os.unlink(temp_file)
 
     def test_build_complex_map(self):
-        # Test with more complex characters
-        ascii_content = """#####
-#@._#
-#p.P#
-#####"""
+        yaml_content = make_yaml_map(
+            [
+                "#####",
+                "#@._#",
+                "#p.P#",
+                "#####",
+            ],
+            self.BASE_LEGEND,
+        )
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-            f.write(ascii_content)
-            temp_file = f.name
-
+        temp_file = write_temp_map(yaml_content)
         try:
             config = AsciiMapBuilder.Config.from_uri(temp_file)
             builder = AsciiMapBuilder(config)
@@ -82,12 +103,11 @@ class TestAsciiMapBuilder:
             os.unlink(temp_file)
 
     def test_build_single_line_map(self):
-        ascii_content = "#@#"
+        yaml_content = make_yaml_map([
+            "#@#",
+        ], self.BASE_LEGEND)
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-            f.write(ascii_content)
-            temp_file = f.name
-
+        temp_file = write_temp_map(yaml_content)
         try:
             config = AsciiMapBuilder.Config.from_uri(temp_file)
             builder = AsciiMapBuilder(config)
@@ -99,12 +119,11 @@ class TestAsciiMapBuilder:
             os.unlink(temp_file)
 
     def test_build_empty_map(self):
-        ascii_content = "."
+        yaml_content = make_yaml_map([
+            ".",
+        ], {".": "empty"})
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-            f.write(ascii_content)
-            temp_file = f.name
-
+        temp_file = write_temp_map(yaml_content)
         try:
             config = AsciiMapBuilder.Config.from_uri(temp_file)
             builder = AsciiMapBuilder(config)
@@ -120,40 +139,14 @@ class TestAsciiMapBuilder:
             config = AsciiMapBuilder.Config.from_uri("nonexistent_file.txt")
             AsciiMapBuilder(config)
 
-    def test_with_basic_chars(self):
-        # Test basic character mappings
-        ascii_content = """###
-#@.
-###"""
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-            f.write(ascii_content)
-            temp_file = f.name
-
-        try:
-            config = AsciiMapBuilder.Config.from_uri(temp_file)
-            builder = AsciiMapBuilder(config)
-            game_map = builder.build()
-
-            expected = np.array(
-                [["wall", "wall", "wall"], ["wall", "agent.agent", "empty"], ["wall", "wall", "wall"]],
-                dtype=map_grid_dtype,
-            )
-
-            assert np.array_equal(game_map.grid, expected)
-        finally:
-            os.unlink(temp_file)
-
     def test_with_spaces_raises_error(self):
-        # Test that spaces now raise an error (no longer supported as empty)
-        ascii_content = """###
-# @
-###"""
+        yaml_content = make_yaml_map([
+            "###",
+            "# @",
+            "###",
+        ], self.BASE_LEGEND)
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-            f.write(ascii_content)
-            temp_file = f.name
-
+        temp_file = write_temp_map(yaml_content)
         try:
             config = AsciiMapBuilder.Config.from_uri(temp_file)
             with pytest.raises(ValueError, match="Unknown character: ' '"):
@@ -162,31 +155,39 @@ class TestAsciiMapBuilder:
             os.unlink(temp_file)
 
     def test_irregular_shaped_map(self):
-        # Test map with lines of different lengths should raise AssertionError
-        ascii_content = """###
-#@
-#._#
-###"""
+        yaml_content = make_yaml_map([
+            "###",
+            "#@",
+            "#._#",
+        ], self.BASE_LEGEND)
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-            f.write(ascii_content)
-            temp_file = f.name
-
+        temp_file = write_temp_map(yaml_content)
         try:
-            config = AsciiMapBuilder.Config.from_uri(temp_file)
-            with pytest.raises(AssertionError, match="All lines in ASCII map must have the same length"):
-                AsciiMapBuilder(config)
+            with pytest.raises(ValueError, match="All lines in the map must have the same length"):
+                AsciiMapBuilder.Config.from_uri(temp_file)
+        finally:
+            os.unlink(temp_file)
+
+    def test_legend_with_whitespace_value(self):
+        yaml_content = make_yaml_map([
+            "#@#",
+        ], {"#": "wall", "@": "invalid value"})
+
+        temp_file = write_temp_map(yaml_content)
+        try:
+            with pytest.raises(ValueError, match="Legend values must be non-empty and contain no whitespace"):
+                AsciiMapBuilder.Config.from_uri(temp_file)
         finally:
             os.unlink(temp_file)
 
     def test_utf8_encoding(self):
-        # Test that UTF-8 encoding works correctly
-        ascii_content = "###\n#@.\n###"
+        yaml_content = make_yaml_map([
+            "###",
+            "#@.",
+            "###",
+        ], self.BASE_LEGEND)
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False, encoding="utf-8") as f:
-            f.write(ascii_content)
-            temp_file = f.name
-
+        temp_file = write_temp_map(yaml_content)
         try:
             config = AsciiMapBuilder.Config.from_uri(temp_file)
             builder = AsciiMapBuilder(config)

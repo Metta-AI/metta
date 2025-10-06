@@ -14,6 +14,7 @@ from mettagrid.mapgen.scene import ChildrenAction, Scene, SceneConfig, load_symb
 from mettagrid.mapgen.scenes.copy_grid import CopyGrid
 from mettagrid.mapgen.scenes.room_grid import RoomGrid
 from mettagrid.mapgen.scenes.transplant_scene import TransplantScene
+from mettagrid.mapgen.utils.ascii_grid import parse_ascii_map
 
 
 class MapGen(MapBuilder):
@@ -160,8 +161,11 @@ class MapGen(MapBuilder):
         @classmethod
         def with_ascii_map(cls, ascii_map: str, **kwargs) -> MapGen.Config:
             """Create a MapGenConfig with an ASCII map as instance."""
-            lines = ascii_map.strip().splitlines()
-            kwargs["instance"] = AsciiMapBuilder.Config(map_data=[list(line) for line in lines])
+            map_lines, legend_map = parse_ascii_map(ascii_map)
+            kwargs["instance"] = AsciiMapBuilder.Config(
+                map_data=[list(line) for line in map_lines],
+                char_to_name_map=legend_map,
+            )
             return cls(**kwargs)
 
     def __init__(self, config: Config):

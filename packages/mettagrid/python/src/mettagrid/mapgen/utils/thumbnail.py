@@ -13,6 +13,8 @@ import tempfile
 import numpy as np
 import pixie
 
+from mettagrid.mapgen.utils.ascii_grid import parse_ascii_map
+
 # Faithful extraction from gen_thumb.py
 obs_radius = 5
 
@@ -124,40 +126,29 @@ def read_replay_map(input, step):
 
 
 def read_ascii_map(input):
-    """
-    Faithfully extracted from gen_thumb.py.
-    TODO: Simplify ASCII map parsing - many character mappings appear unused
-    """
-    width = input.find(b"\n")
-    if width <= 1:
-        raise ValueError("Failed to detect the ascii map width.")
+    """Parse YAML/legacy ASCII maps for thumbnail generation."""
 
-    input_len = len(input)
-    newline_width = 2 if chr(input[width - 1]) == "\r" else 1
-    trailing_newline = 0 if chr(input[input_len - 1]) == "\n" else newline_width
+    text = input.decode("utf-8") if isinstance(input, (bytes, bytearray)) else str(input)
+    map_lines, _legend_map = parse_ascii_map(text)
 
-    width1 = width + newline_width
-    height_f = (input_len + trailing_newline) / width1
-    height = int(height_f)
-    if height != height_f:  # All rows are complete when height_f is *.0
-        raise ValueError("Failed to detect the ascii map height.")
+    height = len(map_lines)
+    width = len(map_lines[0])
 
     nodes = [0] * (width * height)
     num_nodes = 0
     num_agents = 0
-    for y in range(height):
-        offset = y * width1
-        for x in range(width):
+    for y, line in enumerate(map_lines):
+        for x, char in enumerate(line):
             type_id = 0
             agent_id = 0
-            match chr(input[offset + x]):
+            match char:
                 case "@" | "A" | "1" | "2" | "3" | "4" | "p" | "P":
                     type_id = 0
                     agent_id = num_agents
                     num_agents += 1
-                case "#" | "W" | "s":  # TODO unsure about s
+                case "#" | "W" | "s":
                     type_id = 1
-                case "m" | "R" | "G" | "B":  # TODO split colors?
+                case "m" | "R" | "G" | "B":
                     type_id = 2
                 case "_" | "a":
                     type_id = 2
@@ -175,8 +166,8 @@ def read_ascii_map(input):
                     type_id = 2
                 case "." | " ":
                     continue
-                case c:
-                    print("Unknown tile code:", c)
+                case other:
+                    print("Unknown tile code:", other)
                     continue
             nodes[num_nodes] = y | (x << 16) | (type_id << 32) | (agent_id << 48)
             num_nodes += 1
