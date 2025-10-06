@@ -18,7 +18,34 @@ def test_mission_eval(mission_name):
             "cogames",
             "eval",
             mission_name,
-            "cogames.policy.random.RandomPolicy",
+            "cogames.policy.random.RandomPolicy::2",
+            "cogames.policy.random.RandomPolicy::5",
+            "--episodes",
+            "1",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+
+    if result.returncode != 0:
+        pytest.fail(f"Eval failed for mission {mission_name}: {result.stderr}")
+
+    assert "Episode 1" in result.stdout or "episode" in result.stdout.lower()
+
+
+@pytest.mark.timeout(60)
+def test_alternate_eval_format(mission_name):
+    """Test that 'cogames eval' works for small games with random policy with alternate cli format."""
+    result = subprocess.run(
+        [
+            "uv",
+            "run",
+            "cogames",
+            "eval",
+            mission_name,
+            "--policy",
+            "random",
             "--episodes",
             "1",
         ],
