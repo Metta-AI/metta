@@ -44,7 +44,7 @@ def default(ctx: typer.Context) -> None:
 
 mission_argument = typer.Argument(
     None,
-    help="Name of the mission. Can be in the format 'map_name' or 'map_name.custom_mission' or 'path/to/mission.yaml'.",
+    help="Name of the mission. Can be in the format 'map_name' or 'map_name:mission' or 'path/to/mission.yaml'.",
     callback=lambda ctx, value: game.require_mission_argument(ctx, value, console),
 )
 
