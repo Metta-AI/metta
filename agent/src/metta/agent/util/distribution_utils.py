@@ -27,18 +27,28 @@ def sample_actions(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tenso
         full_log_probs: Full log-probability distribution over all actions,
                           shape [batch_size, num_actions]. Same as log-softmax of logits.
     """
-    full_log_probs = F.log_softmax(action_logits, dim=-1)  # [batch_size, num_actions]
-    action_probs = torch.exp(full_log_probs)  # [batch_size, num_actions]
+    # Compute probabilities in a numerically stable way and sanitize invalid entries
+    action_probs = torch.softmax(action_logits, dim=-1)  # [batch_size, num_actions]
+    action_probs = torch.nan_to_num(action_probs, nan=0.0, posinf=0.0, neginf=0.0)
 
-    # Sample actions from categorical distribution (replacement=True is implicit when num_samples=1)
+    needs_fix = torch.logical_or(~torch.isfinite(action_probs), action_probs < 0)
+    if needs_fix.any():
+        action_probs = torch.clamp(action_probs, min=0.0)
+
+    prob_sums = action_probs.sum(dim=-1, keepdim=True)
+    zero_sum_mask = prob_sums <= 0
+    if zero_sum_mask.any():
+        fallback = torch.full_like(action_probs, 1.0 / action_probs.shape[-1])
+        action_probs = torch.where(zero_sum_mask, fallback, action_probs)
+        prob_sums = action_probs.sum(dim=-1, keepdim=True)
+
+    action_probs = action_probs / prob_sums
+    full_log_probs = torch.log(action_probs.clamp_min(1e-12))
+
     actions = torch.multinomial(action_probs, num_samples=1).view(-1)  # [batch_size]
-
-    # Extract log-probabilities for sampled actions using advanced indexing
     batch_indices = torch.arange(actions.shape[0], device=actions.device)
-    act_log_prob = full_log_probs[batch_indices, actions]  # [batch_size]
-
-    # Compute policy entropy: H(π) = -∑π(a|s)log π(a|s)
-    entropy = -torch.sum(action_probs * full_log_probs, dim=-1)  # [batch_size]
+    act_log_prob = full_log_probs[batch_indices, actions]
+    entropy = -torch.sum(action_probs * full_log_probs, dim=-1)
 
     return actions, act_log_prob, entropy, full_log_probs
 
