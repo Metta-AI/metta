@@ -30,6 +30,8 @@ export async function GET(request: NextRequest) {
             id: true,
             role: true,
             joinedAt: true,
+            department: true,
+            title: true,
             user: {
               select: {
                 id: true,

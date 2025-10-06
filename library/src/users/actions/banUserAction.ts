@@ -39,7 +39,10 @@ export const banUserAction = actionClient
     }
 
     // Prevent admins from banning themselves
-    if (targetUser.id === session.user.id) {
+    if (!session.user || targetUser.id === session.user.id) {
+      if (!session.user) {
+        throw new ActionError("Session unavailable");
+      }
       throw new ActionError("You cannot ban yourself");
     }
 

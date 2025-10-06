@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod/v4";
 
 import { auth, isSignedIn } from "@/lib/auth";
-import { emailService } from "@/lib/external-notifications/email";
+import {
+  emailService,
+  type NotificationWithDetails,
+} from "@/lib/external-notifications/email";
 
 // Schema for test email request
 const testEmailSchema = z.object({
@@ -76,7 +79,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Create a mock notification for testing
-      const mockNotification = {
+      const mockNotification: NotificationWithDetails = {
         id: "test-notification",
         userId: session.user.id,
         type: "SYSTEM" as const,
@@ -94,7 +97,7 @@ export async function POST(request: NextRequest) {
         actor: null,
         user: {
           id: session.user.id,
-          name: session.user.name,
+          name: session.user.name ?? null,
           email: recipientEmail,
         },
         post: null,
@@ -118,7 +121,7 @@ export async function POST(request: NextRequest) {
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Invalid request data", details: error.errors },
+        { error: "Invalid request data", details: error.issues },
         { status: 400 }
       );
     }

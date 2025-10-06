@@ -68,9 +68,6 @@ async function resolveSingleMention(
     case "group-institution":
       return resolveInstitutionGroupMention(mention);
 
-    case "group-direct":
-      return resolveDirectGroupMention(mention, currentUserId);
-
     default:
       return null;
   }
@@ -342,55 +339,4 @@ async function resolveInstitutionGroupMention(
   };
 }
 
-/**
- * Resolve @groupname mentions (direct group mentions for groups the user is a member of)
- */
-async function resolveDirectGroupMention(
-  mention: ParsedMention,
-  currentUserId: string
-): Promise<ResolvedMention | null> {
-  if (!mention.username) return null; // Direct groups use the username field
-
-  // Find groups with this name where the user is a member
-  const groups = await prisma.group.findMany({
-    where: {
-      name: mention.username,
-      userGroups: {
-        some: {
-          userId: currentUserId,
-          isActive: true,
-        },
-      },
-    },
-    include: {
-      userGroups: {
-        where: { isActive: true },
-        include: { user: { select: { id: true } } },
-      },
-      institution: {
-        select: { name: true },
-      },
-    },
-  });
-
-  if (groups.length === 0) return null;
-
-  // Get all unique user IDs from all matching groups
-  const userIds = new Set<string>();
-  let institutionName = "";
-
-  for (const group of groups) {
-    institutionName = group.institution.name;
-    for (const userGroup of group.userGroups) {
-      userIds.add(userGroup.user.id);
-    }
-  }
-
-  return {
-    type: "group",
-    originalMention: mention.raw,
-    userIds: Array.from(userIds),
-    groupName: mention.username,
-    institutionName,
-  };
-}
+// No direct group mention handler; all supported mention types are covered above.

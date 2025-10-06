@@ -2,7 +2,7 @@ import {
   loadUserInstitutions,
   loadAllInstitutions,
 } from "@/posts/data/managed-institutions";
-import { UnifiedInstitutionsView } from "@/components/UnifiedInstitutionsView";
+import { InstitutionsDirectory } from "@/components/InstitutionsDirectory";
 import {
   OverlayStackProvider,
   OverlayStackRenderer,
@@ -22,9 +22,9 @@ export default async function InstitutionsPage() {
 
   return (
     <OverlayStackProvider>
-      <UnifiedInstitutionsView
-        userInstitutions={userInstitutions}
-        allInstitutions={allInstitutions}
+      <InstitutionsDirectory
+        directory={allInstitutions}
+        memberships={userInstitutions}
       />
       <OverlayStackRenderer />
     </OverlayStackProvider>

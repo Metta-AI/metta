@@ -1,8 +1,8 @@
 "use client";
 
-import { FC, useEffect, useRef, useState } from "react";
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 
-import { InfiniteScroll } from "@/components/InfiniteScroll";
 import { useMathJax } from "@/components/MathJaxProvider";
 import { usePaginator } from "@/lib/hooks/usePaginator";
 import { Paginated } from "@/lib/paginated";
@@ -16,7 +16,6 @@ import { useOverlayNavigation } from "@/components/OverlayStack";
 import { useStarMutation } from "@/hooks/useStarMutation";
 import { toggleQueueAction } from "@/posts/actions/toggleQueueAction";
 import UserCard from "@/components/UserCard";
-import { PaperSidebar } from "@/components/PaperSidebar";
 
 import { FeedPost } from "./FeedPost";
 import { NewPostForm } from "./NewPostForm";
@@ -56,10 +55,6 @@ export const FeedPostsPage: FC<{
   // User card state
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
-  // Selected post for paper sidebar (still used for paper overlay)
-  const [selectedPostForPaper, setSelectedPostForPaper] =
-    useState<FeedPostDTO | null>(null);
-
   // Handle paper click using overlay navigation
   const handlePaperClick = (paperId: string) => {
     const paper = papersData.papers.find((p) => p.id === paperId);
@@ -87,16 +82,6 @@ export const FeedPostsPage: FC<{
     setSelectedUser(null);
   };
 
-  // Handle post selection for paper sidebar (used for paper overlay only)
-  const handlePostSelect = (post: FeedPostDTO) => {
-    setSelectedPostForPaper(post);
-  };
-
-  // Handle paper sidebar close
-  const handlePaperSidebarClose = () => {
-    setSelectedPostForPaper(null);
-  };
-
   // Handle toggle star
   const handleToggleStar = (paperId: string) => {
     starMutation.mutate(paperId);
@@ -115,71 +100,119 @@ export const FeedPostsPage: FC<{
     }
   };
 
-  // MathJax rendering effect - single debounced call
+  const feedScrollRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: page.items.length + (page.loadNext ? 1 : 0),
+    getScrollElement: () => feedScrollRef.current,
+    estimateSize: () => 360,
+    overscan: 6,
+  });
+
+  const virtualItems = rowVirtualizer.getVirtualItems();
+
   useEffect(() => {
-    if (mathJaxLoaded && feedRef.current) {
+    if (!page.loadNext || page.loading) return;
+    const lastItem = virtualItems[virtualItems.length - 1];
+    if (!lastItem) return;
+    if (lastItem.index >= page.items.length) {
+      page.loadNext(10);
+    }
+  }, [page.loadNext, page.loading, page.items.length, virtualItems]);
+
+  useEffect(() => {
+    if (mathJaxLoaded && feedScrollRef.current) {
       const renderMathContent = async () => {
         try {
-          await renderMath(feedRef.current!);
+          await renderMath(feedScrollRef.current!);
         } catch (error) {
           console.error("MathJax rendering failed for feed:", error);
         }
       };
-
-      // Single delayed call to avoid race conditions
       const timeoutId = setTimeout(renderMathContent, 200);
-
       return () => {
         clearTimeout(timeoutId);
       };
     }
-  }, [mathJaxLoaded, page.items, renderMath]); // Re-render when posts change
+  }, [mathJaxLoaded, page.items, renderMath]);
+
+  const renderLoader = useMemo(
+    () => (
+      <div className="flex items-center justify-center gap-2 py-6 text-gray-500">
+        <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" />
+        <span>Loading more posts...</span>
+      </div>
+    ),
+    []
+  );
+
+  const measureElement = useCallback(
+    (node: HTMLElement | null) => {
+      if (node) {
+        rowVirtualizer.measureElement(node);
+      }
+    },
+    [rowVirtualizer]
+  );
 
   return (
     <div className="flex h-auto w-full flex-col md:flex-row">
-      {/* Mobile: Paper details on top (when selected) */}
-      {selectedPostForPaper?.paper && (
-        <div className="h-1/2 border-b border-gray-300 pt-14 md:hidden">
-          <PaperSidebar
-            paper={selectedPostForPaper.paper}
-            onClose={handlePaperSidebarClose}
-          />
-        </div>
-      )}
-
       {/* Main feed area */}
       <div
-        className={`h-full flex-1 overflow-y-auto ${
-          selectedPostForPaper?.paper ? "md:w-[45%] md:flex-none" : ""
-        }`}
+        ref={feedScrollRef}
+        className="h-full flex-1 overflow-y-auto"
       >
         {/* Post Composition */}
         <NewPostForm />
-        {/* Feed with Infinite Scroll */}
-        <div ref={feedRef} className="mx-4 mt-6 max-w-2xl md:mr-4 md:ml-6">
+        {/* Feed (virtualized) */}
+        <div className="mx-4 mt-6 max-w-2xl md:mr-4 md:ml-6">
           {page.items.length > 0 ? (
-            <InfiniteScroll
-              loadNext={page.loadNext!}
-              hasMore={!!page.loadNext}
-              loading={page.loading}
+            <div
+              style={{
+                height: rowVirtualizer.getTotalSize(),
+                width: "100%",
+                position: "relative",
+              }}
             >
-              <div className="flex flex-col gap-4">
-                {page.items.map((post) => (
-                  <FeedPost
-                    key={post.id}
-                    post={post}
-                    onPaperClick={handlePaperClick}
-                    onUserClick={handleUserClick}
-                    currentUser={currentUser}
-                    isCommentsExpanded={false}
-                    onCommentToggle={() => {}} // No longer used - posts navigate to dedicated pages
-                    onPostSelect={() => handlePostSelect(post)}
-                    isSelected={selectedPostForPaper?.id === post.id}
-                    highlightedCommentId={null}
-                  />
-                ))}
-              </div>
-            </InfiniteScroll>
+              {virtualItems.map((virtualRow) => {
+                const isLoaderRow = virtualRow.index >= page.items.length;
+                const post = page.items[virtualRow.index];
+
+                const style = {
+                  position: "absolute" as const,
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  transform: `translateY(${virtualRow.start}px)`,
+                  paddingBottom: "1rem",
+                };
+
+                if (isLoaderRow) {
+                  return (
+                    <div
+                      key={virtualRow.key}
+                      ref={measureElement}
+                      style={style}
+                    >
+                      {page.loading ? renderLoader : null}
+                    </div>
+                  );
+                }
+
+                return (
+                  <div key={virtualRow.key} ref={measureElement} style={style}>
+                    <FeedPost
+                      post={post}
+                      onPaperClick={handlePaperClick}
+                      onUserClick={handleUserClick}
+                      currentUser={currentUser}
+                      isCommentsExpanded={false}
+                      onCommentToggle={() => {}}
+                      highlightedCommentId={null}
+                    />
+                  </div>
+                );
+              })}
+            </div>
           ) : (
             <div className="rounded-lg border border-gray-200 bg-white p-8 text-center">
               <div className="mb-4 text-gray-400">
@@ -206,6 +239,7 @@ export const FeedPostsPage: FC<{
             </div>
           )}
         </div>
+
         {/* User Card */}
         {selectedUser && (
           <UserCard
@@ -217,16 +251,6 @@ export const FeedPostsPage: FC<{
           />
         )}
       </div>
-
-      {/* Desktop: Paper sidebar on right */}
-      {selectedPostForPaper?.paper && (
-        <div className="hidden md:flex md:h-screen md:flex-shrink-0">
-          <PaperSidebar
-            paper={selectedPostForPaper.paper}
-            onClose={handlePaperSidebarClose}
-          />
-        </div>
-      )}
     </div>
   );
 };
