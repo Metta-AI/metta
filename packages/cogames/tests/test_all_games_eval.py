@@ -34,6 +34,7 @@ def test_mission_eval(mission_name):
     assert "Episode 1" in result.stdout or "episode" in result.stdout.lower()
 
 
+@pytest.mark.parametrize("mission_name", [get_all_missions()[0]])
 @pytest.mark.timeout(60)
 def test_alternate_eval_format(mission_name):
     """Test that 'cogames eval' works for small games with random policy with alternate cli format."""
