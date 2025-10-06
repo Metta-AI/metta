@@ -24,7 +24,8 @@ def temp_checkpoint_dir():
 @pytest.fixture
 def test_env_config():
     """Get a small test game configuration."""
-    return game.get_game("machina_1")
+    config, _, _ = game.get_mission("machina_1")
+    return config
 
 
 @pytest.mark.timeout(120)  # 2 minute timeout
