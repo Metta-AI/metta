@@ -155,3 +155,8 @@ releases:
     chart: ./library
     version: 0.1.0
     namespace: library
+
+  - name: login
+    chart: ./login
+    version: 0.1.0
+    namespace: login

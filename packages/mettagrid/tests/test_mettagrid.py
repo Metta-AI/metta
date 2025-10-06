@@ -82,13 +82,13 @@ class TestBasicFunctionality:
     def test_environment_state_consistency(self, basic_env: MettaGrid):
         """Test that environment state remains consistent across operations."""
         obs1, _ = basic_env.reset()
-        initial_objects = basic_env.grid_objects
+        initial_objects = basic_env.grid_objects()
 
         noop_idx = basic_env.action_names.index("noop")
         actions = np.full((basic_env.num_agents, 2), [noop_idx, 0], dtype=dtype_actions)
 
         obs2, _, _, _, _ = basic_env.step(actions)
-        post_step_objects = basic_env.grid_objects
+        post_step_objects = basic_env.grid_objects()
 
         # Object count should remain unchanged
         assert len(initial_objects) == len(post_step_objects)

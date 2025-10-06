@@ -9,7 +9,7 @@ from tensordict import TensorDict
 from metta.agent.policy import Policy
 from metta.rl.loss import Loss
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -98,9 +98,21 @@ class CoreTrainingLoop:
             td = buffer_step[training_env_id].clone()
             target_device = td.device
             td["env_obs"] = o.to(device=target_device, non_blocking=True)
+
             td["rewards"] = r.to(device=target_device, non_blocking=True)
-            td["dones"] = d.to(device=target_device, dtype=torch.float32, non_blocking=True)
-            td["truncateds"] = t.to(device=target_device, dtype=torch.float32, non_blocking=True)
+
+            # CRITICAL FIX for MPS: Convert dtype BEFORE moving to device, and use blocking transfer
+            # MPS has two bugs:
+            # 1. bool->float32 conversion during .to(device=mps, dtype=float32) produces NaN
+            # 2. non_blocking=True causes race conditions with uninitialized data
+            # Solution: Convert dtype on CPU first, then use blocking transfer to MPS
+            if target_device.type == "mps":
+                td["dones"] = d.to(dtype=torch.float32).to(device=target_device, non_blocking=False)
+                td["truncateds"] = t.to(dtype=torch.float32).to(device=target_device, non_blocking=False)
+            else:
+                # On CUDA/CPU, combined conversion is safe and faster
+                td["dones"] = d.to(device=target_device, dtype=torch.float32, non_blocking=True)
+                td["truncateds"] = t.to(device=target_device, dtype=torch.float32, non_blocking=True)
             td["training_env_ids"] = self._gather_env_indices(training_env_id, td.device).unsqueeze(1)
             self.add_last_action_to_td(td, env)
 
