@@ -10,8 +10,8 @@ from torchrl.data import Composite, MultiCategorical, UnboundedContinuous
 from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.loss import Loss
-from metta.rl.training import ComponentContext, TrainingEnvironment
 from metta.rl.loss.scheduler import HyperSchedule
+from metta.rl.training import ComponentContext, TrainingEnvironment
 from metta.utils.batch import calculate_prioritized_sampling_params
 from mettagrid.base_config import Config
 
@@ -31,21 +31,21 @@ class VTraceConfig(Config):
 
 class PPOConfig(Config):
     # Default: cosine-anneal entropy coefficient to reduce exploration over time
-    schedule: list[HyperSchedule] = Field(
-        default_factory=lambda: [
-            HyperSchedule(
-                attr_path="ent_coef",
-                style="cosine",
-                start_value=0.02,
-                end_value=0.001,
-                start_agent_step=0,
-                end_agent_step=100_000_000,
-            )
-        ]
-    )
+    # schedule: list[HyperSchedule] = Field(
+    #     default_factory=lambda: [
+    #         HyperSchedule(
+    #             attr_path="ent_coef",
+    #             style="cosine",
+    #             start_value=0.02,
+    #             end_value=0.001,
+    #             start_agent_step=0,
+    #             end_agent_step=100_000_000,
+    #         )
+    #     ]
+    # )
 
-    # schedule: list[HyperSchedule] = Field(default_factory=list)
-    
+    schedule: list[HyperSchedule] = Field(default_factory=list)
+
     # PPO hyperparameters
     # Clip coefficient (0.1-0.3 typical; Schulman et al. 2017)
     clip_coef: float = Field(default=0.264407, gt=0, le=1.0)
