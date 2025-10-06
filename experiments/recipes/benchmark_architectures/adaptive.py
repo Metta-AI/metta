@@ -17,7 +17,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass, field
 
-
+from experiments.recipes.benchmark_architectures.level_1_basic import ARCHITECTURES
 from metta.adaptive.adaptive_config import AdaptiveConfig
 from metta.adaptive.adaptive_controller import AdaptiveController
 from metta.adaptive.dispatcher.local import LocalDispatcher
@@ -26,7 +26,8 @@ from metta.adaptive.models import JobDefinition, JobStatus, RunInfo
 from metta.adaptive.protocols import Dispatcher, ExperimentScheduler
 from metta.adaptive.stores.wandb import WandbStore
 from metta.adaptive.utils import create_eval_job, create_training_job
-from experiments.recipes.benchmark_architectures.level_1_basic import ARCHITECTURES
+from metta.common.util.constants import PROD_STATS_SERVER_URI
+
 
 
 @dataclass
@@ -101,6 +102,7 @@ class BenchmarkArchScheduler(ExperimentScheduler):
                                 experiment_id=self.experiment_id,
                                 recipe_module=module,
                                 train_entrypoint=self.config.train_entrypoint,
+                                stats_server_uri=PROD_STATS_SERVER_URI
                                 train_overrides={
                                     "trainer.total_timesteps": self.config.total_timesteps,
                                     "arch_type": arch_type,
@@ -114,6 +116,7 @@ class BenchmarkArchScheduler(ExperimentScheduler):
                                 run_id=run_id,
                                 experiment_id=self.experiment_id,
                                 recipe_module=module,
+                                stats_server_uri=PROD_STATS_SERVER_URI,
                                 eval_entrypoint=self.config.eval_entrypoint,
                             ),
                         )
