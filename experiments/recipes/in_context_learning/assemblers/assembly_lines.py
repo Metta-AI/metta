@@ -4,9 +4,9 @@ import subprocess
 import time
 from typing import Optional
 
+from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.eval import EvalTool
 from metta.tools.train import TrainTool
 from mettagrid.builder.envs import make_icl_assembler
 from mettagrid.config.mettagrid_config import (
@@ -285,7 +285,7 @@ def replay(
     return replay_icl(task_generator, default_policy_uri)
 
 
-def eval():
+def evaluate():
     from experiments.evals.in_context_learning.assemblers.assembly_lines import (
         make_assembly_line_eval_suite,
     )
@@ -297,15 +297,11 @@ def eval():
         policy_uris.append(policy_uri)
 
     simulations = make_assembly_line_eval_suite()
-    return EvalTool(
+    return EvaluateTool(
         simulations=simulations,
         policy_uris=policy_uris,
         stats_server_uri="https://api.observatory.softmax-research.net",
     )
-
-
-# Backward compatibility alias
-evaluate = eval
 
 
 def experiment():

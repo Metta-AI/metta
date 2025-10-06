@@ -35,13 +35,13 @@ uv run ./tools/run.py train arena run=cursor_$TEST_ID trainer.total_timesteps=10
 
 ```bash
 # Run evaluations on the checkpoint from step 1
-uv run ./tools/run.py eval arena policy_uri=file://./train_dir/test_$TEST_ID/checkpoints
+uv run ./tools/run.py evaluate arena policy_uri=file://./train_dir/test_$TEST_ID/checkpoints
 
 # Run navigation evaluations
-uv run ./tools/run.py eval navigation policy_uri=file://./train_dir/test_$TEST_ID/checkpoints
+uv run ./tools/run.py evaluate navigation policy_uri=file://./train_dir/test_$TEST_ID/checkpoints
 
 # Using wandb artifact
-uv run ./tools/run.py eval arena policy_uri=wandb://run/test_$TEST_ID
+uv run ./tools/run.py evaluate arena policy_uri=wandb://run/test_$TEST_ID
 ```
 
 ### 3. Analyze results
@@ -61,7 +61,7 @@ uv run ./tools/run.py analyze navigation eval_db_uri=./train_dir/eval_$TEST_ID/s
 ```bash
 export TEST_ID=$(date +%Y%m%d_%H%M%S) && echo "Test ID: $TEST_ID" && uv run ./tools/run.py train arena run=test_$TEST_ID trainer.total_timesteps=10000
 # After training completes or you Ctrl+C:
-uv run ./tools/run.py eval arena policy_uri=file://./train_dir/test_$TEST_ID/checkpoints
+uv run ./tools/run.py evaluate arena policy_uri=file://./train_dir/test_$TEST_ID/checkpoints
 uv run ./tools/run.py analyze arena eval_db_uri=./train_dir/eval_$TEST_ID/stats.db
 ```
 
@@ -70,7 +70,7 @@ uv run ./tools/run.py analyze arena eval_db_uri=./train_dir/eval_$TEST_ID/stats.
 ```bash
 export TEST_ID=$(date +%Y%m%d_%H%M%S) && echo "Test ID: $TEST_ID"
 uv run ./tools/run.py train arena run=cursor_$TEST_ID trainer.total_timesteps=100000
-uv run ./tools/run.py eval arena policy_uri=file://./train_dir/cursor_$TEST_ID/checkpoints
+uv run ./tools/run.py evaluate arena policy_uri=file://./train_dir/cursor_$TEST_ID/checkpoints
 uv run ./tools/run.py analyze arena eval_db_uri=./train_dir/eval_$TEST_ID/stats.db
 ```
 
@@ -85,7 +85,7 @@ echo "Running full integration test with ID: $TEST_ID"
 uv run ./tools/run.py train arena run=test_$TEST_ID trainer.total_timesteps=100000
 
 # 2. Run evaluations (~30 seconds)
-uv run ./tools/run.py eval arena policy_uri=file://./train_dir/test_$TEST_ID/checkpoints
+uv run ./tools/run.py evaluate arena policy_uri=file://./train_dir/test_$TEST_ID/checkpoints
 
 # 3. Analyze results
 uv run ./tools/run.py analyze arena eval_db_uri=./train_dir/eval_$TEST_ID/stats.db
@@ -121,7 +121,7 @@ uv run ./tools/run.py play navigation policy_uri=file://./train_dir/test_$TEST_I
 
 ```bash
 # Add a policy to the navigation evals database
-uv run ./tools/run.py eval navigation policy_uri=POLICY_URI
+uv run ./tools/run.py evaluate navigation policy_uri=POLICY_URI
 
 # Analyze results with scorecard
 uv run ./tools/run.py analyze navigation eval_db_uri=./path/to/eval/stats.db
@@ -132,12 +132,12 @@ uv run ./tools/run.py analyze navigation eval_db_uri=./path/to/eval/stats.db
 The system supports two-token syntax for conciseness:
 
 - **Training**: `train arena` or `train navigation`
-- **Evaluation**: `eval arena` or `eval navigation`
+- **Evaluation**: `evaluate arena` or `evaluate navigation`
 - **Analysis**: `analyze arena` or `analyze navigation`
 - **Interactive**: `play arena` or `play navigation`
 - **Replay**: `replay arena` for viewing recorded gameplay
 
-Alternative dot-notation also works: `arena.train`, `navigation.eval`, etc.
+Alternative dot-notation also works: `arena.train`, `navigation.evaluate`, etc.
 
 ### Discovering Available Tools
 
@@ -148,5 +148,5 @@ uv run ./tools/run.py navigation --list
 
 # List all recipes that provide a specific tool
 uv run ./tools/run.py train --list          # Shows all recipes with train
-uv run ./tools/run.py eval --list           # Shows all recipes with eval
+uv run ./tools/run.py evaluate --list           # Shows all recipes with eval
 ```

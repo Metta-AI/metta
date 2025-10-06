@@ -7,6 +7,8 @@ allowing Python to import recipes from those directories.
 
 from pathlib import Path
 
+from metta.common.util.fs import cd_repo_root
+
 
 def ensure_recipe_packages(base_dir: Path = Path("experiments/recipes")) -> list[Path]:
     """Create __init__.py files in subdirectories missing them.
@@ -40,11 +42,7 @@ def ensure_recipe_packages(base_dir: Path = Path("experiments/recipes")) -> list
 if __name__ == "__main__":
     import sys
 
-    # Change to repo root if running from tools dir
-    if Path.cwd().name == "tools":
-        import os
-
-        os.chdir("../..")
+    cd_repo_root()
 
     created = ensure_recipe_packages()
 

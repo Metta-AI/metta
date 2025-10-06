@@ -196,11 +196,11 @@ See `common/src/metta/common/tool/README.md` for the runner and two‑token usag
 # Train
 uv run ./tools/run.py train arena run=my_experiment
 
-# Eval locally (single policy)
-uv run ./tools/run.py eval arena \
+# Evaluate locally (single policy)
+uv run ./tools/run.py evaluate arena \
   policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
 
-# Eval remotely (dispatch to server)
+# Evaluate remotely (dispatch to server)
 uv run ./tools/run.py eval_remote arena \
   policy_uri=s3://my-bucket/checkpoints/run/run:v10.pt
 
@@ -215,7 +215,7 @@ uv run ./tools/run.py replay arena policy_uri=...
 uv run ./tools/run.py arena --list
 
 # Dry run (resolve only; does not construct or run the tool)
-uv run ./tools/run.py eval arena --dry-run
+uv run ./tools/run.py evaluate arena --dry-run
 ```
 
 #### Visualization Tools

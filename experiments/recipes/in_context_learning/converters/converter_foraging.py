@@ -6,9 +6,9 @@ from typing import List, Optional, Sequence
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.eval import EvalTool
 from metta.tools.train import TrainTool
 from mettagrid.builder.envs import make_in_context_chains
 
@@ -216,24 +216,20 @@ def replay(
     return replay_icl(task_generator, policy_uri)
 
 
-def eval(
+def evaluate(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
-) -> EvalTool:
+) -> EvaluateTool:
     # Local import to avoid circular import at module load time
     from experiments.evals.in_context_learning.converters.converter_foraging import (
         make_unordered_chain_eval_suite,
     )
 
     simulations = simulations or make_unordered_chain_eval_suite()
-    return EvalTool(
+    return EvaluateTool(
         simulations=simulations,
         policy_uris=[policy_uri],
         stats_server_uri="https://api.observatory.softmax-research.net",
     )
-
-
-# Backward compatibility alias
-evaluate = eval
 
 
 def experiment():

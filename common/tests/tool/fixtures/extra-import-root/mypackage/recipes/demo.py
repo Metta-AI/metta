@@ -1,5 +1,5 @@
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.eval import EvalTool
+from metta.tools.eval import EvaluateTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from mettagrid.builder.envs import make_arena
@@ -15,9 +15,9 @@ def simulations() -> list[SimulationConfig]:
     return [SimulationConfig(suite="demo", name="basic", env=env)]
 
 
-def evaluate() -> EvalTool:
+def evaluate() -> EvaluateTool:
     """Explicit evaluate tool for testing."""
-    return EvalTool(simulations=simulations())
+    return EvaluateTool(simulations=simulations())
 
 
 def train_shaped() -> TrainTool:

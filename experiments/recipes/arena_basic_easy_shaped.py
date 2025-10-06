@@ -1,6 +1,5 @@
 from typing import Optional, Sequence
 
-from experiments.sweeps.protein_configs import PPO_CORE, make_custom_protein_config
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
 from metta.agent.policies.vit import ViTDefaultConfig
@@ -15,13 +14,15 @@ from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.protein_config import ParameterConfig
-from metta.tools.eval import EvalTool
+from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.sweep import SweepTool, SweepSchedulerType
+from metta.tools.sweep import SweepSchedulerType, SweepTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from mettagrid.config import ConverterConfig
+
+from experiments.sweeps.protein_configs import PPO_CORE, make_custom_protein_config
 
 
 def mettagrid(num_agents: int = 24) -> MettaGridConfig:
@@ -127,13 +128,9 @@ def train(
     )
 
 
-def eval(policy_uris: Optional[Sequence[str]] = None) -> EvalTool:
+def evaluate(policy_uris: Optional[Sequence[str]] = None) -> EvaluateTool:
     """Evaluate policies on arena simulations."""
-    return EvalTool(simulations=simulations(), policy_uris=policy_uris or [])
-
-
-# Backward compatibility alias
-evaluate = eval
+    return EvaluateTool(simulations=simulations(), policy_uris=policy_uris or [])
 
 
 def play(policy_uri: Optional[str] = None) -> PlayTool:
@@ -148,7 +145,7 @@ def replay(policy_uri: Optional[str] = None) -> ReplayTool:
 
 def evaluate_in_sweep(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
-) -> EvalTool:
+) -> EvaluateTool:
     """Evaluation function optimized for sweep runs.
 
     Uses 10 episodes per simulation with a 4-minute time limit to get
@@ -179,7 +176,7 @@ def evaluate_in_sweep(
             ),
         ]
 
-    return EvalTool(
+    return EvaluateTool(
         simulations=simulations,
         policy_uris=[policy_uri],
     )

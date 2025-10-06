@@ -16,7 +16,7 @@ from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.eval import EvalTool
+from metta.tools.eval import EvaluateTool
 from metta.tools.train import TrainTool
 from mettagrid.builder import building
 from mettagrid.config import AssemblerConfig, MettaGridConfig
@@ -162,14 +162,10 @@ def train_shaped(rewards: bool = True, assemblers: bool = True) -> TrainTool:
     )
 
 
-def eval(
+def evaluate(
     policy_uris: str | Sequence[str] | None = None,
-) -> EvalTool:
-    return EvalTool(
+) -> EvaluateTool:
+    return EvaluateTool(
         simulations=simulations(),
         policy_uris=policy_uris,
     )
-
-
-# Backward compatibility alias
-evaluate = eval

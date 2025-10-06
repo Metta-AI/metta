@@ -13,7 +13,7 @@ from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.eval import EvalTool
+from metta.tools.eval import EvaluateTool
 from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.map_builder.random import RandomMapBuilder
@@ -112,14 +112,10 @@ def train(
     )
 
 
-def eval(
+def evaluate(
     policy_uris: str | Sequence[str] | None = None,
-) -> EvalTool:
-    return EvalTool(
+) -> EvaluateTool:
+    return EvaluateTool(
         simulations=simulations(),
         policy_uris=policy_uris,
     )
-
-
-# Backward compatibility alias
-evaluate = eval

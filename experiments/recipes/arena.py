@@ -9,7 +9,9 @@ from metta.cogworks.curriculum.curriculum import (
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.eval import EvalTool
+from metta.tools.eval import EvaluateTool
+from metta.tools.play import PlayTool
+from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from mettagrid.config import ConverterConfig
@@ -127,14 +129,18 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
     )
 
 
-def eval(
+def evaluate(
     policy_uris: str | Sequence[str] | None = None,
-) -> EvalTool:
-    return EvalTool(
+) -> EvaluateTool:
+    return EvaluateTool(
         simulations=simulations(),
         policy_uris=policy_uris,
     )
 
 
-# Backward compatibility alias
-evaluate = eval
+def replay(policy_uri: Optional[str] = None) -> ReplayTool:
+    return ReplayTool(sim=simulations()[0], policy_uri=policy_uri)
+
+
+def play(policy_uri: Optional[str] = None) -> PlayTool:
+    return PlayTool(sim=simulations()[0], policy_uri=policy_uri)

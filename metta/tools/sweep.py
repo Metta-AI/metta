@@ -5,7 +5,7 @@ import os
 import uuid
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, ClassVar, Optional
+from typing import Any, Optional
 
 from cogweb.cogweb_client import CogwebClient
 from metta.adaptive import AdaptiveConfig, AdaptiveController
@@ -88,7 +88,6 @@ class SweepSchedulerType(StrEnum):
 
 
 class SweepTool(Tool):
-    tool_name: ClassVar[str] = "sweep"
     """Tool for Bayesian hyperparameter optimization using adaptive experiments.
 
     This tool is specialized for hyperparameter tuning using Bayesian optimization.

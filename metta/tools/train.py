@@ -2,7 +2,7 @@ import contextlib
 import os
 import platform
 from datetime import timedelta
-from typing import ClassVar, Optional
+from typing import Optional
 
 import torch
 from pydantic import Field, model_validator
@@ -55,7 +55,6 @@ logger = getRankAwareLogger(__name__)
 
 
 class TrainTool(Tool):
-    tool_name: ClassVar[str] = "train"
     run: Optional[str] = None
 
     trainer: TrainerConfig = Field(default_factory=TrainerConfig)

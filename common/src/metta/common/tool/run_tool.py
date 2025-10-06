@@ -21,14 +21,13 @@ from rich.console import Console
 from typing_extensions import TypeVar
 
 from metta.common.tool import Tool
-from metta.common.tool.recipe_registry import get_recipe_registry
-from metta.common.tool.tool_path import resolve_and_load_tool
-from metta.common.tool.tool_registry import get_tool_registry
+from metta.common.tool.recipe_registry import recipe_registry
+from metta.common.tool.tool_path import resolve_and_load_tool_maker
+from metta.common.tool.tool_registry import tool_registry
 from metta.common.util.log_config import init_logging
 from metta.common.util.text_styles import bold, cyan, green, red, yellow
 from metta.rl.system_config import seed_everything
 from mettagrid.base_config import Config
-from mettagrid.util.module import load_symbol
 
 logger = logging.getLogger(__name__)
 
@@ -394,7 +393,6 @@ def list_all_recipes(console: Console) -> None:
     """List all available recipes and their tools."""
     console.print("\n[bold cyan]Available Recipes:[/bold cyan]\n")
 
-    recipe_registry = get_recipe_registry()
     recipes = recipe_registry.get_all()
 
     if not recipes:
@@ -402,30 +400,29 @@ def list_all_recipes(console: Console) -> None:
         return
 
     for recipe in sorted(recipes, key=lambda r: r.module_name):
-        tool_names = recipe.get_all_tool_names()
+        maker_names = recipe.get_all_tool_maker_names()
 
-        if tool_names:
+        if maker_names:
             console.print(f"[bold]{recipe.short_name}[/bold]")
-            for tool_name in sorted(tool_names):
-                console.print(f"  └─ {tool_name}")
+            for maker_name in sorted(maker_names):
+                console.print(f"  └─ {maker_name}")
             console.print()
 
 
 def list_module_tools(module_path: str, console: Console) -> bool:
     """List all tools available in a module. Returns True if successful."""
     # Try to load recipe (handles both short and full paths)
-    recipe_registry = get_recipe_registry()
     recipe = recipe_registry.get(module_path)
 
     if not recipe:
         return False
 
-    tool_names = recipe.get_all_tool_names()
+    maker_names = recipe.get_all_tool_maker_names()
 
     # Display results
     console.print(f"\n[bold]Available tools in {recipe.module_name}:[/bold]\n")
-    for name in sorted(tool_names):
-        console.print(f"  {recipe.short_name}.{name}")
+    for maker_name in sorted(maker_names):
+        console.print(f"  {recipe.short_name}.{maker_name}")
     return True
 
 
@@ -443,18 +440,16 @@ def main():
         allow_abbrev=True,
         epilog="""
 Examples:
-  %(prog)s arena.train run=test_123                      # Shorthand (recommended)
-  %(prog)s experiments.recipes.arena.train run=test_123  # Full path (still works)
+  %(prog)s arena.train run=test_123                      # Run a tool
   %(prog)s train arena run=test_123                      # Two-token syntax
-  %(prog)s arena.play \
-    policy_uri=file://./train_dir/my_run/checkpoints/my_run:v12.pt --verbose
-  %(prog)s arena.train optim='{"lr":1e-3,"beta1":0.9}'
+  %(prog)s arena --list                                  # List tools in a recipe
+  %(prog)s evaluate --list                               # List all recipes supporting 'evaluate'
 
 Common tools:
   train           - Train a new policy
+  evaluate        - Run evaluation suite
   play            - Interactive browser-based gameplay
   replay          - View recorded gameplay
-  evaluate        - Run evaluation suite
   evaluate_remote - Remote evaluation
 
 Advanced:
@@ -522,13 +517,13 @@ constructor/function vs configuration overrides based on introspection.
     tool_path = known_args.tool_path
     raw_positional_args: list[str] = list(known_args.args or [])
 
+    # If no tool_path provided, show help
+    if not tool_path:
+        parser.print_help()
+        return 0
+
     # Handle --list early
     if known_args.list:
-        # If no tool_path provided, list all recipes
-        if not tool_path:
-            list_all_recipes(console)
-            return 0
-
         # Check for two-token form first (e.g., 'train arena --list' should list arena tools)
         if raw_positional_args and ("=" not in raw_positional_args[0]) and (not raw_positional_args[0].startswith("-")):
             # This looks like 'train arena --list' → list tools in arena, not all train implementations
@@ -537,21 +532,18 @@ constructor/function vs configuration overrides based on introspection.
                 return 0
 
         # Check if it's a bare tool name (like 'train', 'evaluate')
-        registry = get_tool_registry()
-
         # If it's a known tool type, list all recipes that support it
-        if tool_path in registry.get_all_tools():
+        if tool_path in tool_registry.name_to_tool:
             console.print(f"\n[bold]Recipes supporting '{tool_path}':[/bold]\n")
-            recipe_registry = get_recipe_registry()
             recipes = recipe_registry.get_all()
             found_any = False
 
             for recipe in sorted(recipes, key=lambda r: r.module_name):
-                functions = recipe.get_functions_for_tool(tool_path)
-                if functions:
-                    # Show all function names that provide this tool
-                    for func_name, _ in functions:
-                        console.print(f"  {recipe.short_name}.{func_name}")
+                makers = recipe.get_makers_for_tool(tool_path)
+                if makers:
+                    # Show all tool maker names that provide this tool
+                    for maker_name, _ in makers:
+                        console.print(f"  {recipe.short_name}.{maker_name}")
                     found_any = True
 
             if not found_any:
@@ -570,13 +562,13 @@ constructor/function vs configuration overrides based on introspection.
     if raw_positional_args and ("=" not in raw_positional_args[0]) and (not raw_positional_args[0].startswith("-")):
         # Try 'train arena' → 'arena.train'
         two_part_path = f"{raw_positional_args[0]}.{tool_path}"
-        tool_maker = resolve_and_load_tool(two_part_path)
+        tool_maker = resolve_and_load_tool_maker(two_part_path)
         if tool_maker:
             args_consumed = 1
 
     # If two-part didn't work, try single form
     if not tool_maker:
-        tool_maker = resolve_and_load_tool(tool_path)
+        tool_maker = resolve_and_load_tool_maker(tool_path)
 
     # Rebuild the arg list to parse (skip consumed args)
     all_args = raw_positional_args[args_consumed:] + unknown_args
@@ -619,7 +611,7 @@ constructor/function vs configuration overrides based on introspection.
             tool_cfg = tool_maker.model_validate(nested_cli)
             remaining_args = {}  # all dotted/top-level consumed by model validation
         else:
-            # Factory function that returns a Tool
+            # Tool maker function that returns a Tool instance
             sig = inspect.signature(tool_maker)
             func_kwargs: dict[str, Any] = {}
             consumed_keys: set[str] = set()

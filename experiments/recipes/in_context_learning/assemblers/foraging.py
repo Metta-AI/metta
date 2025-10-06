@@ -6,10 +6,10 @@ from typing import Optional, Sequence
 
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.tools.eval import EvaluateTool
 from metta.tools.eval_remote import EvalRemoteTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.eval import EvalTool
 from metta.tools.train import TrainTool
 from mettagrid.builder.envs import make_icl_assembler
 from mettagrid.config.mettagrid_config import (
@@ -328,7 +328,7 @@ def train(
     return train_icl(task_generator_cfg, make_foraging_eval_suite, lp_params)
 
 
-def eval(simulations: Optional[Sequence[SimulationConfig]] = None) -> EvalTool:
+def evaluate(simulations: Optional[Sequence[SimulationConfig]] = None) -> EvaluateTool:
     # Local import to avoid circular import at module load time
     from experiments.evals.in_context_learning.assemblers.foraging import (
         make_foraging_eval_suite,
@@ -343,15 +343,11 @@ def eval(simulations: Optional[Sequence[SimulationConfig]] = None) -> EvalTool:
     print(f"Policy uris:{policy_uris}")
 
     simulations = simulations or make_foraging_eval_suite()
-    return EvalTool(
+    return EvaluateTool(
         simulations=simulations,
         policy_uris=policy_uris,
         stats_server_uri="https://api.observatory.softmax-research.net",
     )
-
-
-# Backward compatibility alias
-evaluate = eval
 
 
 def play_eval() -> PlayTool:

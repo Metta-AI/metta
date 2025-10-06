@@ -13,7 +13,7 @@ from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.eval import EvalTool
+from metta.tools.eval import EvaluateTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from mettagrid.config import ConverterConfig
@@ -142,26 +142,22 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     return ReplayTool(sim=SimulationConfig(suite="arena", env=eval_env, name="eval"))
 
 
-def eval(
+def evaluate(
     policy_uri: str | None = None,
     simulations: Optional[Sequence[SimulationConfig]] = None,
-) -> EvalTool:
+) -> EvaluateTool:
     simulations = simulations or make_evals()
     policy_uris = [policy_uri] if policy_uri is not None else None
 
-    return EvalTool(
+    return EvaluateTool(
         simulations=simulations,
         policy_uris=policy_uris,
     )
 
 
-# Backward compatibility alias
-evaluate = eval
-
-
 def evaluate_in_sweep(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
-) -> EvalTool:
+) -> EvaluateTool:
     """Evaluation function optimized for sweep runs.
 
     Uses 10 episodes per simulation with a 4-minute time limit to get
@@ -192,7 +188,7 @@ def evaluate_in_sweep(
             ),
         ]
 
-    return EvalTool(
+    return EvaluateTool(
         simulations=simulations,
         policy_uris=[policy_uri],
     )

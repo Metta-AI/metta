@@ -7,7 +7,7 @@ from typing import Optional, Sequence
 
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.protein_config import ParameterConfig
-from metta.tools.eval import EvalTool
+from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sweep import SweepTool
@@ -325,9 +325,9 @@ def replay(
     return replay_icl(task_generator, policy_uri)
 
 
-def eval(
+def evaluate(
     simulations: Optional[Sequence[SimulationConfig]] = None,
-) -> EvalTool:
+) -> EvaluateTool:
     # Local import to avoid circular import at module load time
     from experiments.evals.in_context_learning.converters.converter_chains import (
         make_converter_chain_eval_suite,
@@ -350,15 +350,11 @@ def eval(
         policy_uris.append(
             f"s3://softmax-public/policies/icl_resource_chain_{curriculum_style}.2.2025-09-24/:latest"
         )
-    return EvalTool(
+    return EvaluateTool(
         simulations=simulations,
         policy_uris=policy_uris,
         stats_server_uri="https://api.observatory.softmax-research.net",
     )
-
-
-# Backward compatibility alias
-evaluate = eval
 
 
 def experiment():

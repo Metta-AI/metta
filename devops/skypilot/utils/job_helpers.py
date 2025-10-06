@@ -14,10 +14,8 @@ from sky.server.common import RequestId, get_server_url
 
 import gitta as git
 from metta.app_backend.clients.base_client import get_machine_token
-from metta.common.tool.discover import generate_candidate_paths
 from metta.common.util.git_repo import REPO_SLUG
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
-from mettagrid.util.module import load_symbol
 
 
 def get_devops_skypilot_dir() -> Path:
@@ -67,46 +65,6 @@ def check_git_state(commit_hash: str) -> str | None:
         return "\n".join(error_lines)
 
     return None
-
-
-def validate_module_path(module_path: str) -> bool:
-    """
-    Validate a module path points to a callable function.
-
-    Uses generate_candidate_paths with its default metta-specific settings,
-    which automatically handles shorthand names like 'arena.train'.
-    """
-    try:
-        last_error: Exception | None = None
-        for cand in generate_candidate_paths(module_path):
-            if cand.count(".") < 1:
-                continue
-
-            # Try to load the symbol using centralized logic
-            try:
-                func = load_symbol(cand)
-            except (ImportError, ModuleNotFoundError, AttributeError, ValueError) as e:
-                last_error = e
-                continue
-
-            # Check that it's callable
-            if not callable(func):
-                last_error = TypeError(f"'{cand}' exists but is not callable")
-                continue
-
-            # Success
-            return True
-
-        # If we get here, all candidates failed
-        if last_error:
-            print(red(f"❌ Failed to validate module path '{module_path}': {last_error}"))
-        else:
-            print(red(f"❌ Invalid module path: '{module_path}'"))
-        return False
-
-    except Exception as e:
-        print(red(f"❌ Error validating module path '{module_path}': {e}"))
-        return False
 
 
 def display_job_summary(

@@ -12,7 +12,7 @@ uv run ./tools/run.py arena --list
 
 # List all recipes that provide a specific tool (e.g., train, eval)
 uv run ./tools/run.py train --list
-uv run ./tools/run.py eval --list
+uv run ./tools/run.py evaluate --list
 ```
 
 ### Quick 30-second test
@@ -27,7 +27,7 @@ uv run ./tools/run.py train arena run=test_$TEST_ID
 uv run ./tools/run.py train arena run=test_$TEST_ID trainer.total_timesteps=100000
 
 # 2. Run evaluations
-uv run ./tools/run.py eval arena policy_uri=file://./train_dir/test_$TEST_ID/checkpoints
+uv run ./tools/run.py evaluate arena policy_uri=file://./train_dir/test_$TEST_ID/checkpoints
 
 # 3. Analyze results
 uv run ./tools/run.py analyze arena eval_db_uri=./train_dir/eval_$TEST_ID/stats.db
@@ -43,14 +43,14 @@ The system supports different training and evaluation environments:
 
   ```bash
   uv run ./tools/run.py train arena run=my_experiment
-  uv run ./tools/run.py eval arena policy_uri=file://./train_dir/my_run/checkpoints
+  uv run ./tools/run.py evaluate arena policy_uri=file://./train_dir/my_run/checkpoints
   ```
 
 - **Navigation Recipe**: Single-agent navigation tasks
 
   ```bash
   uv run ./tools/run.py train navigation run=my_experiment
-  uv run ./tools/run.py eval navigation policy_uri=file://./train_dir/my_run/checkpoints
+  uv run ./tools/run.py evaluate navigation policy_uri=file://./train_dir/my_run/checkpoints
   ```
 
 - **Interactive Testing**: Browser-based interactive testing (Note: may not work well in Claude Code)

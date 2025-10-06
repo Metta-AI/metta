@@ -181,7 +181,7 @@ builds its configuration, and runs it.
 **Common tasks**:
 
 - **Train**: `./tools/run.py train arena run=my_experiment`
-- **Eval**: `./tools/run.py eval arena policy_uri=file://./train_dir/my_run/checkpoints`
+- **Evaluate**: `./tools/run.py evaluate arena policy_uris=file://./train_dir/my_run/checkpoints`
 - **Play** (browser): `./tools/run.py play arena policy_uri=file://./train_dir/my_run/checkpoints`
 - **Replay**: `./tools/run.py replay arena policy_uri=file://./train_dir/my_run/checkpoints`
 
@@ -201,8 +201,8 @@ Examples:
 ./tools/run.py train arena run=local.alice.1 \
   system.device=cpu wandb.enabled=false trainer.total_timesteps=100000
 
-# Eval a specific policy URI
-./tools/run.py eval arena policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
+# Evaluate a specific policy URI
+./tools/run.py evaluate arena policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
 
 # Use --verbose to see how arguments are classified
 ./tools/run.py train arena run=test --verbose
@@ -216,15 +216,15 @@ Recipes define explicit tool functions that return Tool instances:
 def train() -> TrainTool:
     return TrainTool(...)
 
-def eval() -> EvalTool:
-    return EvalTool(simulations=[...])
+def evaluate() -> EvaluateTool:
+    return EvaluateTool(simulations=[...])
 ```
 
 Recipes can optionally define helper functions like `mettagrid()` or `simulations()` to avoid duplication when multiple tools need the same configuration.
 
 Examples:
   - `./tools/run.py train arena`
-  - `./tools/run.py eval arena policy_uris=mock://test`
+  - `./tools/run.py evaluate arena policy_uris=mock://test`
 
 Shorthands are supported:
 
@@ -244,7 +244,7 @@ its `invoke()` method.
 
 What you write:
 
-- A function that returns a Tool, for example `TrainTool`, `EvalTool`, `PlayTool`, or `ReplayTool`.
+- A function that returns a Tool, for example `TrainTool`, `EvaluateTool`, `PlayTool`, or `ReplayTool`.
 - Place it anywhere importable (for personal use, `experiments/user/<your_file>.py` is convenient).
 - The function name becomes part of the task name you run.
 
@@ -342,16 +342,16 @@ Now you can run training with your personal WandB config:
 
 #### Evaluate a policy
 
-Eval a policy against the arena eval suite:
+Evaluate a policy against the arena evaluation suite:
 
 ```
-./tools/run.py eval arena policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
+./tools/run.py evaluate arena policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
 ```
 
-Eval on the navigation eval suite (provide the policy URI):
+Evaluate on the navigation evaluation suite (provide the policy URI):
 
 ```
-./tools/run.py eval navigation policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
+./tools/run.py evaluate navigation policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
 ```
 
 ### Specifying your agent architecture
@@ -406,7 +406,7 @@ pyright metta  # optional, some stubs are missing
 | Train (navigation)      | `./tools/run.py train navigation run=my_experiment`                                                            |
 | Play (browser)          | `./tools/run.py play arena`                                                                                    |
 | Replay (policy)         | `./tools/run.py replay arena policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`         |
-| Eval (arena)            | `./tools/run.py eval arena policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`           |
-| Eval (navigation suite) | `./tools/run.py eval navigation policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`     |
+| Evaluate (arena)            | `./tools/run.py evaluate arena policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`           |
+| Evaluate (navigation suite) | `./tools/run.py evaluate navigation policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`     |
 
 Running these commands mirrors our CI configuration and helps keep the codebase consistent.

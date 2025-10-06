@@ -14,7 +14,7 @@ from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.task_generator import SingleTaskGenerator
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.eval import EvalTool
+from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from mettagrid import MettaGridEnv, dtype_observations
@@ -147,12 +147,12 @@ class TestBasicPolicyEnvironment:
             simulation._vecenv.close()  # type: ignore[attr-defined]
 
     def test_eval_tool_config_with_policy_uri(self):
-        """Test that EvalTool accepts policy URIs."""
+        """Test that EvaluateTool accepts policy URIs."""
 
         env_config = eb.make_arena(num_agents=4)
         sim_config = SimulationConfig(suite="test", name="test_arena", env=env_config)
 
-        eval_tool = EvalTool(simulations=[sim_config], policy_uris=["mock://test_policy"], stats_db_uri=None)
+        eval_tool = EvaluateTool(simulations=[sim_config], policy_uris=["mock://test_policy"], stats_db_uri=None)
 
         assert eval_tool.simulations[0].name == "test_arena"
         assert eval_tool.policy_uris == ["mock://test_policy"]

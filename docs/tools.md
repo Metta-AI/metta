@@ -33,7 +33,7 @@ The main entry point is `./tools/run.py` which uses the recipe system for all ma
 
 ```bash
 ./tools/run.py train arena run=my_experiment # Training
-./tools/run.py eval arena policy_uri=s3://my-bucket/checkpoints/my_experiment/my_experiment:v20.pt # Evaluation
+./tools/run.py evaluate arena policy_uri=s3://my-bucket/checkpoints/my_experiment/my_experiment:v20.pt # Evaluation
 ./tools/run.py play arena policy_uri=s3://my-bucket/checkpoints/my_experiment/my_experiment:v20.pt # Interactive play
 ```
 
@@ -45,8 +45,8 @@ Recipe modules define explicit tool functions that return Tool instances:
 def train() -> TrainTool:
     return TrainTool(...)
 
-def eval() -> EvalTool:
-    return EvalTool(simulations=[...])
+def eval() -> EvaluateTool:
+    return EvaluateTool(simulations=[...])
 ```
 
 Recipes can optionally define helper functions like `mettagrid()` or `simulations()` to avoid duplication when multiple tools need the same configuration.
@@ -55,7 +55,7 @@ Examples:
 
 ```bash
 # Non-remote evaluation
-./tools/run.py eval arena policy_uris=mock://policy
+./tools/run.py evaluate arena policy_uris=mock://policy
 
 # Remote evaluation
 ./tools/run.py eval_remote arena policy_uri=s3://bucket/run:v10.pt
@@ -66,10 +66,10 @@ Shorthands:
 - Omit prefix: `arena.train` == `experiments.recipes.arena.train`
 - Two-token sugar: `train arena` == `arena.train`
 
-Note: The evaluation tool class is `EvalTool` (renamed from `EvalTool`). If importing directly, use:
+Note: The evaluation tool class is `EvaluateTool` (renamed from `EvaluateTool`). If importing directly, use:
 
 ```python
-from metta.tools.eval import EvalTool
+from metta.tools.eval import EvaluateTool
 ```
 
 ## Training Tools
@@ -238,17 +238,17 @@ programmatic processing
 **Usage**:
 
 ```bash
-# Eval a single policy
-./tools/run.py eval navigation policy_uri=s3://my-bucket/checkpoints/experiment_001/experiment_001:v12.pt
+# Evaluate a single policy
+./tools/run.py evaluate navigation policy_uri=s3://my-bucket/checkpoints/experiment_001/experiment_001:v12.pt
 
-# Eval with arena recipe
-./tools/run.py eval arena policy_uri=s3://my-bucket/checkpoints/experiment_001/experiment_001:v12.pt
+# Evaluate with arena recipe
+./tools/run.py evaluate arena policy_uri=s3://my-bucket/checkpoints/experiment_001/experiment_001:v12.pt
 
-# Eval with specific policy from file
-./tools/run.py eval arena policy_uri=file://./train_dir/my_run/checkpoints/my_run:v12.pt
+# Evaluate with specific policy from file
+./tools/run.py evaluate arena policy_uri=file://./train_dir/my_run/checkpoints/my_run:v12.pt
 
-# Eval using a remote checkpoint stored on S3
-./tools/run.py eval navigation policy_uri=s3://team-checkpoints/project/my_run/checkpoints/my_run:v0.pt
+# Evaluate using a remote checkpoint stored on S3
+./tools/run.py evaluate navigation policy_uri=s3://team-checkpoints/project/my_run/checkpoints/my_run:v0.pt
 ```
 
 **Key Features**:
@@ -770,7 +770,7 @@ GROUP BY policy_name, episode;
 ./tools/run.py train navigation run=nav_experiment_001
 
 # 2. Eval the trained policy
-./tools/run.py eval navigation policy_uri=s3://my-bucket/checkpoints/nav_experiment_001/nav_experiment_001:v8.pt
+./tools/run.py evaluate navigation policy_uri=s3://my-bucket/checkpoints/nav_experiment_001/nav_experiment_001:v8.pt
 
 # 3. Analyze results
 ./tools/run.py analyze navigation eval_db_uri=./train_dir/eval_nav_experiment_001/stats.db

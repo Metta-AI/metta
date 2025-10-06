@@ -16,7 +16,7 @@ from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.eval import EvalTool
+from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
@@ -160,13 +160,9 @@ def train(
     )
 
 
-def eval(policy_uris: Optional[list[str]] = None) -> EvalTool:
+def evaluate(policy_uris: Optional[list[str]] = None) -> EvaluateTool:
     """Evaluate policies on navigation sequence tasks."""
-    return EvalTool(simulations=simulations(), policy_uris=policy_uris or [])
-
-
-# Backward compatibility alias
-evaluate = eval
+    return EvaluateTool(simulations=simulations(), policy_uris=policy_uris or [])
 
 
 def play(policy_uri: Optional[str] = None) -> PlayTool:

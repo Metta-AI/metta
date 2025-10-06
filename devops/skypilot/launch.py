@@ -16,8 +16,8 @@ from devops.skypilot.utils.job_helpers import (
     display_job_summary,
     launch_task,
     set_task_secrets,
-    validate_module_path,
 )
+from metta.common.tool.tool_path import validate_module_path
 from metta.common.util.cli import get_user_confirmation
 from metta.common.util.fs import cd_repo_root
 from metta.common.util.text_styles import red

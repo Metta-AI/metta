@@ -12,7 +12,7 @@ from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
-from metta.tools.eval import EvalTool
+from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
@@ -52,10 +52,10 @@ class TestNewPolicySystem:
         assert sim.full_name == "sim_suite/test"
 
     def test_eval_tool_with_policy_uris(self):
-        """Test EvalTool with policy URIs."""
+        """Test EvaluateTool with policy URIs."""
         env_config = eb.make_arena(num_agents=4)
         sim_config = SimulationConfig(suite="test", name="test_arena", env=env_config)
-        eval_tool = EvalTool(
+        eval_tool = EvaluateTool(
             simulations=[sim_config],
             policy_uris=["mock://test_policy"],
             stats_db_uri=None,
@@ -108,7 +108,7 @@ class TestNewPolicySystem:
         tools = [
             ReplayTool(sim=sim_config, policy_uri=None),
             PlayTool(sim=sim_config, policy_uri=None),
-            EvalTool(simulations=[sim_config], policy_uris=None),
+            EvaluateTool(simulations=[sim_config], policy_uris=None),
         ]
 
         for tool in tools:
@@ -125,7 +125,7 @@ class TestNewPolicySystem:
 
         # Build a simple eval tool around the same env
         sim_cfg = SimulationConfig(suite="arena", name="eval", env=env_cfg)
-        eval_tool = EvalTool(simulations=[sim_cfg], policy_uris=["mock://test_policy"])
+        eval_tool = EvaluateTool(simulations=[sim_cfg], policy_uris=["mock://test_policy"])
         assert hasattr(eval_tool, "simulations")
 
         # Replay tool constructed from same sim

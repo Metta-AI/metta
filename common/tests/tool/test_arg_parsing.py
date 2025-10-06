@@ -19,7 +19,6 @@ class NestedConfig(Config):
 
 
 class SimpleTestTool(Tool):
-    tool_name = "simple_test"
     value: str = "default"
     nested: NestedConfig = Field(default_factory=NestedConfig)
 

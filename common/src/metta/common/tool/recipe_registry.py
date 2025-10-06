@@ -9,16 +9,19 @@ from metta.common.tool.recipe import Recipe
 
 
 class RecipeRegistry:
-    """Singleton registry for discovered recipes."""
+    """Singleton registry for discovered recipes.
+
+    Access recipes via `.path_to_recipe` attribute.
+    """
 
     _instance: RecipeRegistry | None = None
-    _recipes: dict[str, Recipe]  # module_name -> Recipe
+    path_to_recipe: dict[str, Recipe]  # module_path -> Recipe
     _discovered: bool = False
 
     def __new__(cls) -> RecipeRegistry:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls._instance._recipes = {}
+            cls._instance.path_to_recipe = {}
             cls._instance._discovered = False
         return cls._instance
 
@@ -33,23 +36,23 @@ class RecipeRegistry:
         self._ensure_discovered()
 
         # Try exact match first
-        if module_path in self._recipes:
-            return self._recipes[module_path]
+        if module_path in self.path_to_recipe:
+            return self.path_to_recipe[module_path]
 
         # Try with prefix if it's a short name
         if not module_path.startswith("experiments.recipes."):
             full_path = f"experiments.recipes.{module_path}"
-            if full_path in self._recipes:
-                return self._recipes[full_path]
+            if full_path in self.path_to_recipe:
+                return self.path_to_recipe[full_path]
 
         # Try to load directly as a fallback for recipes outside experiments.recipes
         # This supports test fixtures and external recipe packages
         recipe = Recipe.load(module_path)
         if recipe:
-            # Check if it has tools (valid recipe)
-            if recipe.get_explicit_tools():
+            # Check if it has tool makers (valid recipe)
+            if recipe.get_explicit_tool_makers():
                 # Cache it for future lookups
-                self._recipes[module_path] = recipe
+                self.path_to_recipe[module_path] = recipe
                 return recipe
 
         return None
@@ -61,7 +64,7 @@ class RecipeRegistry:
     def get_all(self) -> list[Recipe]:
         """Get all discovered recipes."""
         self._ensure_discovered()
-        return list(self._recipes.values())
+        return list(self.path_to_recipe.values())
 
     def discover_all(self, base_package: str = "experiments.recipes") -> None:
         """Discover all recipe modules under a base package and add to registry.
@@ -91,19 +94,15 @@ class RecipeRegistry:
             if not ispkg:
                 recipe = Recipe.load(modname)
                 if recipe:
-                    # Only include if it has tools
-                    if recipe.get_explicit_tools():
-                        self._recipes[modname] = recipe
+                    # Only include if it has tool makers
+                    if recipe.get_explicit_tool_makers():
+                        self.path_to_recipe[modname] = recipe
 
     def clear(self) -> None:
         """Clear the registry (mainly for testing)."""
-        self._recipes.clear()
+        self.path_to_recipe.clear()
         self._discovered = False
 
 
-_recipe_registry = RecipeRegistry()
-
-
-def get_recipe_registry() -> RecipeRegistry:
-    """Get the global RecipeRegistry singleton instance."""
-    return _recipe_registry
+# Global singleton - access directly
+recipe_registry = RecipeRegistry()

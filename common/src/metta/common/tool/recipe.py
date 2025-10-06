@@ -1,29 +1,47 @@
 """Recipe abstraction for tool discovery.
 
-A Recipe represents a module that defines tools via functions that return Tool instances.
+A Recipe represents a module that defines tool makers - functions that return tool instances.
 """
 
 from __future__ import annotations
 
 import importlib
 from types import ModuleType
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
-from typing_extensions import get_type_hints
+from typing_extensions import TypeIs, get_type_hints
 
 from metta.common.tool import Tool
 
+ToolMaker = Callable[..., Tool]
+
+
+def is_tool_maker(obj: Any) -> TypeIs[ToolMaker]:
+    """Type guard to check if an object is a tool maker function.
+
+    A tool maker is a callable that returns a Tool instance.
+    """
+    if not callable(obj) or isinstance(obj, type):
+        return False
+
+    try:
+        hints = get_type_hints(obj)
+        return_type = hints.get("return")
+        return return_type is not None and isinstance(return_type, type) and issubclass(return_type, Tool)
+    except Exception:
+        return False
+
 
 class Recipe:
-    """Represents a recipe module that can provide tools."""
+    """Represents a recipe module that can provide tool makers."""
 
     def __init__(self, module: ModuleType):
         self.module = module
         self.module_name = module.__name__
-        # Build tool map on initialization: function_name -> tool_maker
-        self._name_to_tool: dict[str, Callable[[], Tool]] = {}
-        # Also build reverse map: tool_name -> list of (function_name, tool_maker)
-        self._tool_name_to_functions: dict[str, list[tuple[str, Callable[[], Tool]]]] = {}
+        # Build tool maker map on initialization: maker_name -> tool_maker
+        self._maker_name_to_tool_maker: dict[str, ToolMaker] = {}
+        # Also build reverse map: tool_type -> list of (maker_name, tool_maker)
+        self._tool_type_to_makers: dict[str, list[tuple[str, ToolMaker]]] = {}
         self._build_tool_maps()
 
     @property
@@ -31,24 +49,24 @@ class Recipe:
         return self.module_name.replace("experiments.recipes.", "")
 
     def _build_tool_maps(self) -> None:
-        """Build function_name->tool and tool_name->functions maps."""
-        # Get explicit tools
-        explicit_tools = self.get_explicit_tools()
+        """Build maker_name->tool_maker and tool_class_name->makers maps."""
+        # Get explicit tool makers
+        explicit_makers = self.get_explicit_tool_makers()
 
-        # Build both maps from explicit tools
-        for func_name, func in explicit_tools.items():
-            # Add to name->tool map
-            self._name_to_tool[func_name] = func
+        # Build both maps from explicit tool makers
+        for maker_name, maker_func in explicit_makers.items():
+            # Add to maker_name->tool_maker map
+            self._maker_name_to_tool_maker[maker_name] = maker_func
 
-            # Determine which tool class this function returns
+            # Determine which tool type this maker returns
             try:
-                hints = get_type_hints(func)
+                hints = get_type_hints(maker_func)
                 return_type = hints.get("return")
                 if return_type and isinstance(return_type, type) and issubclass(return_type, Tool):
-                    tool_name = return_type.tool_name
-                    if tool_name not in self._tool_name_to_functions:
-                        self._tool_name_to_functions[tool_name] = []
-                    self._tool_name_to_functions[tool_name].append((func_name, func))
+                    tool_type = return_type.tool_type_name()
+                    if tool_type not in self._tool_type_to_makers:
+                        self._tool_type_to_makers[tool_type] = []
+                    self._tool_type_to_makers[tool_type].append((maker_name, maker_func))
             except Exception:
                 pass
 
@@ -61,56 +79,54 @@ class Recipe:
         except ImportError:
             return None
 
-    def get_explicit_tools(self) -> dict[str, Callable[[], Tool]]:
-        """Returns only tools explicitly defined in this recipe."""
-        tools: dict[str, Callable[[], Tool]] = {}
+    def get_explicit_tool_makers(self) -> dict[str, ToolMaker]:
+        """Returns only tool makers explicitly defined in this recipe."""
+        makers: dict[str, ToolMaker] = {}
 
         for name in dir(self.module):
             if name.startswith("_"):
                 continue
 
             attr = getattr(self.module, name)
-            if not callable(attr) or isinstance(attr, type):
-                continue
+            if is_tool_maker(attr):
+                makers[name] = attr
 
-            try:
-                hints = get_type_hints(attr)
-                return_type = hints.get("return")
-                if return_type and isinstance(return_type, type) and issubclass(return_type, Tool):
-                    tools[name] = attr  # type: ignore
-            except Exception:
-                pass
+        return makers
 
-        return tools
+    def get_all_tool_maker_names(self) -> set[str]:
+        """Get all tool maker names available from this recipe."""
+        return set(self._maker_name_to_tool_maker.keys())
 
-    def get_all_tool_names(self) -> set[str]:
-        """Get all tool function names available from this recipe."""
-        return set(self._name_to_tool.keys())
-
-    def get_tool(self, name: str) -> Callable[[], Tool] | None:
-        """Get a tool by function name or tool name.
+    def get_tool_maker(self, name: str) -> ToolMaker | None:
+        """Get a tool maker by maker name or tool type.
 
         Args:
-            name: Either a function name (e.g., 'replay_null', 'train_shaped')
-                  or a tool name (e.g., 'evaluate', 'train')
+            name: Either a maker name (e.g., 'replay_null', 'train_shaped')
+                  or a tool type (e.g., 'evaluate', 'train')
 
         Returns:
-            Tool maker function, or None if not found
+            Tool maker, or None if not found
         """
-        # Try direct function name lookup first
-        if name in self._name_to_tool:
-            return self._name_to_tool[name]
+        # Try direct maker name lookup first
+        if name in self._maker_name_to_tool_maker:
+            return self._maker_name_to_tool_maker[name]
 
-        # Try tool name lookup (returns first matching function)
-        functions = self._tool_name_to_functions.get(name, [])
-        if functions:
-            return functions[0][1]
+        # Try tool type lookup (returns first matching maker)
+        makers = self._tool_type_to_makers.get(name, [])
+        if makers:
+            return makers[0][1]
 
         return None
 
-    def get_functions_for_tool(self, tool_name: str) -> list[tuple[str, Callable[[], Tool]]]:
-        """Get all functions that return the given tool type.
+    def get_makers_for_tool(self, tool_type: str) -> list[tuple[str, ToolMaker]]:
+        """Get all tool makers that return the given tool type.
 
-        Useful for listing all implementations of a tool (e.g., 'train', 'train_shaped').
+        Useful for listing all implementations of a tool type (e.g., 'train', 'train_shaped').
+
+        Args:
+            tool_type: Tool type identifier (e.g., 'train', 'evaluate')
+
+        Returns:
+            List of (maker_name, tool_maker) tuples
         """
-        return self._tool_name_to_functions.get(tool_name, [])
+        return self._tool_type_to_makers.get(tool_type, [])
