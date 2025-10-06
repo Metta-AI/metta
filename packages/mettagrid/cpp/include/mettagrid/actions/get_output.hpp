@@ -19,7 +19,7 @@ public:
   }
 
 protected:
-  bool _handle_action(Agent& actor) override {
+  bool _handle_action(Agent& actor, ActionArg /*arg*/) override {
     GridLocation target_loc = _grid->relative_location(actor.location, static_cast<Orientation>(actor.orientation));
     target_loc.layer = GridLayer::ObjectLayer;
     // get_output only works on Converters, since only Converters have an output.

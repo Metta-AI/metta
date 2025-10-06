@@ -18,7 +18,7 @@ public:
   }
 
 protected:
-  bool _handle_action(Agent& actor) override {
+  bool _handle_action(Agent& actor, ActionArg /*arg*/) override {
     // target the square we are facing
     GridLocation target_loc = _grid->relative_location(actor.location, actor.orientation);
 

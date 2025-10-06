@@ -21,14 +21,25 @@ struct ChangeGlyphActionConfig : public ActionConfig {
 
 class ChangeGlyph : public ActionHandler {
 public:
-  ChangeGlyph(const ChangeGlyphActionConfig& cfg, ObservationType glyph_index, const std::string& name)
-      : ActionHandler(cfg, name), _glyph_index(glyph_index) {}
+  explicit ChangeGlyph(const ChangeGlyphActionConfig& cfg)
+      : ActionHandler(cfg, "change_glyph"), _number_of_glyphs(cfg.number_of_glyphs) {}
+
+  unsigned char max_arg() const override {
+    return _number_of_glyphs > 0 ? static_cast<unsigned char>(_number_of_glyphs - 1) : 0;
+  }
+
+  std::string action_label(ActionArg arg) const override {
+    if (arg == 0) {
+      return _action_name;
+    }
+    return _action_name + "_" + std::to_string(static_cast<int>(arg));
+  }
 
 protected:
-  ObservationType _glyph_index;
+  ObservationType _number_of_glyphs;
 
-  bool _handle_action(Agent& actor) override {
-    actor.glyph = _glyph_index;
+  bool _handle_action(Agent& actor, ActionArg arg) override {
+    actor.glyph = static_cast<ObservationType>(arg);
     return true;
   }
 };

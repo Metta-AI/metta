@@ -12,23 +12,39 @@
 
 class Rotate : public ActionHandler {
 public:
-  Rotate(const ActionConfig& cfg, const GameConfig* game_config, Orientation orientation, const std::string& name)
-      : ActionHandler(cfg, name), _game_config(game_config), _orientation(orientation) {}
+  explicit Rotate(const ActionConfig& cfg, const GameConfig* game_config)
+      : ActionHandler(cfg, "rotate"), _game_config(game_config) {}
+
+  unsigned char max_arg() const override {
+    return _game_config->allow_diagonals ? 7 : 3;  // 0-7 for 8 directions, 0-3 for 4 directions
+  }
+
+  std::string action_label(ActionArg arg) const override {
+    Orientation orientation = static_cast<Orientation>(arg);
+    if (!_game_config->allow_diagonals && isDiagonal(orientation)) {
+      return ActionHandler::action_label(arg);
+    }
+    if (arg == 0) {
+      return _action_name;
+    }
+    return std::string("rotate_") + OrientationFullNames[static_cast<int>(orientation)];
+  }
 
 protected:
-  bool _handle_action(Agent& actor) override {
-    if (!_game_config->allow_diagonals && isDiagonal(_orientation)) {
+  bool _handle_action(Agent& actor, ActionArg arg) override {
+    Orientation orientation = static_cast<Orientation>(arg);
+    if (!_game_config->allow_diagonals && isDiagonal(orientation)) {
       return false;
     }
 
-    actor.orientation = _orientation;
+    actor.orientation = orientation;
 
     // Track which orientation the agent rotated to (only if tracking enabled)
     if (_game_config->track_movement_metrics) {
-      actor.stats.add(std::string("movement.rotation.to_") + OrientationNames[static_cast<int>(_orientation)], 1);
+      actor.stats.add(std::string("movement.rotation.to_") + OrientationNames[static_cast<int>(orientation)], 1);
 
       // Check if last action was also a rotation for sequential tracking
-      if (actor.prev_action_name == _action_name) {
+      if (actor.prev_action_name.rfind(_action_name, 0) == 0) {
         actor.stats.add("movement.sequential_rotations", 1);
       }
     }
@@ -38,7 +54,6 @@ protected:
 
 private:
   const GameConfig* _game_config;
-  Orientation _orientation;
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_ROTATE_HPP_

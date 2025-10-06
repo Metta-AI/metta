@@ -63,7 +63,7 @@ public:
   }
 
 protected:
-  bool _handle_action(Agent& actor) override {
+  bool _handle_action(Agent& actor, ActionArg /*arg*/) override {
     // Center AoE on actor's position
     int center_row = static_cast<int>(actor.location.r);
     int center_col = static_cast<int>(actor.location.c);
