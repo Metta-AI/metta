@@ -63,8 +63,8 @@ class ForagingTaskGenerator(TaskGenerator):
 
     def _calculate_max_steps(self, num_objects: int, size: int) -> int:
         area = size * size
-        max_steps = max(150, area * num_objects * 2)
-        max_steps = min(max_steps, 1800)
+        max_steps = max(150, area * num_objects * 3)
+        max_steps = min(max_steps, 1500)
         return min(max_steps, 1000)
 
     def _make_extractors(
