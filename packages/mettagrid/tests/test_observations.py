@@ -240,7 +240,6 @@ class TestGlobalTokens:
         obs, _ = basic_env.reset()
         episode_completion_pct_feature_id = basic_env.c_env.feature_spec()["episode_completion_pct"]["id"]
         last_action_feature_id = basic_env.c_env.feature_spec()["last_action"]["id"]
-        last_action_arg_feature_id = basic_env.c_env.feature_spec()["last_action_arg"]["id"]
         last_reward_feature_id = basic_env.c_env.feature_spec()["last_reward"]["id"]
         helper = ObservationHelper()
 
@@ -253,9 +252,6 @@ class TestGlobalTokens:
             obs[0], location=(global_x, global_y), feature_id=episode_completion_pct_feature_id
         ) == [0]
         assert helper.find_token_values(obs[0], location=(global_x, global_y), feature_id=last_action_feature_id) == [0]
-        assert helper.find_token_values(
-            obs[0], location=(global_x, global_y), feature_id=last_action_arg_feature_id
-        ) == [0]
         assert helper.find_token_values(obs[0], location=(global_x, global_y), feature_id=last_reward_feature_id) == [0]
 
     def test_global_tokens_update(self):
@@ -298,7 +294,6 @@ class TestGlobalTokens:
         env = MettaGridCore(cfg)
         episode_completion_pct_feature_id = env.c_env.feature_spec()["episode_completion_pct"]["id"]
         last_action_feature_id = env.c_env.feature_spec()["last_action"]["id"]
-        last_action_arg_feature_id = env.c_env.feature_spec()["last_action_arg"]["id"]
         obs, _ = env.reset()
         num_agents = env.num_agents
         helper = ObservationHelper()
@@ -325,12 +320,6 @@ class TestGlobalTokens:
         last_action = helper.find_token_values(obs[0], location=(global_x, global_y), feature_id=last_action_feature_id)
         assert last_action == noop_idx, f"Expected last action {noop_idx}, got {last_action}"
 
-        # Check last action arg
-        last_arg = helper.find_token_values(
-            obs[0], location=(global_x, global_y), feature_id=last_action_arg_feature_id
-        )
-        assert last_arg == 0, f"Expected last action arg 0, got {last_arg}"
-
         # Take a move action
         move_idx = action_index(env, "move", Orientation.SOUTH)
         actions = np.full(num_agents, move_idx, dtype=dtype_actions)
@@ -345,11 +334,6 @@ class TestGlobalTokens:
 
         last_action = helper.find_token_values(obs[0], location=(global_x, global_y), feature_id=last_action_feature_id)
         assert last_action == move_idx
-
-        last_arg = helper.find_token_values(
-            obs[0], location=(global_x, global_y), feature_id=last_action_arg_feature_id
-        )
-        assert last_arg == 0
 
     def test_glyph_signaling(self):
         """Test that agents can signal using glyphs and observe each other's glyphs."""

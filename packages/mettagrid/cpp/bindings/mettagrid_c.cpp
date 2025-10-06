@@ -361,7 +361,6 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
 
   if (_global_obs_config.last_action) {
     global_tokens.push_back({ObservationFeature::LastAction, static_cast<ObservationType>(action)});
-    global_tokens.push_back({ObservationFeature::LastActionArg, static_cast<ObservationType>(0)});
   }
 
   if (_global_obs_config.last_reward) {
