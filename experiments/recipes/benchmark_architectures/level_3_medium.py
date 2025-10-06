@@ -22,7 +22,7 @@ from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
-from .level_1_basic import ARCHITECTURES
+from experiments.recipes.benchmark_architectures.level_1_basic import ARCHITECTURES
 
 def make_mettagrid(num_agents: int = 20) -> MettaGridConfig:
     """Create a medium difficulty arena with combat enabled."""

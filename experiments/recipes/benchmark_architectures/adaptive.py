@@ -26,7 +26,7 @@ from metta.adaptive.models import JobDefinition, JobStatus, RunInfo
 from metta.adaptive.protocols import Dispatcher, ExperimentScheduler
 from metta.adaptive.stores.wandb import WandbStore
 from metta.adaptive.utils import create_eval_job, create_training_job
-from .level_1_basic import ARCHITECTURES
+from experiments.recipes.benchmark_architectures.level_1_basic import ARCHITECTURES
 
 
 @dataclass
@@ -103,7 +103,7 @@ class BenchmarkArchScheduler(ExperimentScheduler):
                                 train_entrypoint=self.config.train_entrypoint,
                                 train_overrides={
                                     "trainer.total_timesteps": self.config.total_timesteps,
-                                    "architecture_type": arch_type,
+                                    "arch_type": arch_type,
                                 },
                             ),
                         )
@@ -180,22 +180,9 @@ def make_adaptive_controller(  # noqa: PLR0913
     )
 
 
-def main() -> int:
-    """CLI entrypoint."""
-    parser = argparse.ArgumentParser()
-    parser.add_argument("experiment_id")
-    parser.add_argument("--timesteps", type=int, default=50_000)
-    parser.add_argument("--local", action="store_true", default=False)
-    a = parser.parse_args()
+def run(experiment_id: str, local: bool = False,timesteps: int = 50_000):
     make_adaptive_controller(
-        experiment_id=a.experiment_id,
-        scheduler_config=BenchmarkArchSchedulerConfig(total_timesteps=a.timesteps),
-        use_skypilot=not a.local,
+        experiment_id=experiment_id,
+        scheduler_config=BenchmarkArchSchedulerConfig(total_timesteps=timesteps),
+        use_skypilot=not local,
     ).run()
-    return 0
-
-
-if __name__ == "__main__":  # pragma: no cover - manual execution
-    import sys as _sys
-
-    _sys.exit(main())
