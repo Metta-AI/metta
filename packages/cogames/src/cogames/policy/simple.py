@@ -7,6 +7,7 @@ import torch.nn as nn
 
 import pufferlib.pytorch
 from cogames.policy.policy import AgentPolicy, TrainablePolicy
+from cogames.policy.utils import ActionLayout
 from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation
 
 logger = logging.getLogger("cogames.policies.simple_policy")
@@ -25,40 +26,44 @@ class SimplePolicyNet(torch.nn.Module):
             pufferlib.pytorch.layer_init(torch.nn.Linear(self.hidden_size, self.hidden_size)),
         )
 
-        self.action_nvec = tuple(env.single_action_space.nvec)
+        self._layout = ActionLayout.from_env(env)
 
-        self.action_head = torch.nn.Linear(self.hidden_size, sum(self.action_nvec))
+        self.action_head = torch.nn.Linear(self.hidden_size, self._layout.total_actions)
         self.value_head = torch.nn.Linear(self.hidden_size, 1)
 
     def forward_eval(
         self,
         observations: torch.Tensor,
         state: Optional[Dict[str, torch.Tensor]] = None,
-    ) -> tuple[list[torch.Tensor], torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         batch_size = observations.shape[0]
         obs_flat = observations.view(batch_size, -1).float() / 255.0
         hidden = self.net(obs_flat)
         logits = self.action_head(hidden)
-        logits_split = logits.split(self.action_nvec, dim=1)
+
+        if state is not None and "action" in state and state["action"] is not None:
+            action_tensor = torch.as_tensor(state["action"], device=logits.device)
+            flat = self._layout.encode_torch(action_tensor.view(-1, 2)).view(action_tensor.shape[:-1])
+            state["action"] = flat.to(state["action"].device, dtype=state["action"].dtype)
 
         values = self.value_head(hidden)
-        return list(logits_split), values
+        return logits, values
 
     def forward(
         self,
         observations: torch.Tensor,
         state: Optional[Dict[str, torch.Tensor]] = None,
-    ) -> tuple[list[torch.Tensor], torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         return self.forward_eval(observations, state)
 
 
 class SimpleAgentPolicyImpl(AgentPolicy):
     """Per-agent policy wrapper sharing the feed-forward network."""
 
-    def __init__(self, net: SimplePolicyNet, device: torch.device, action_nvec: tuple[int, ...]) -> None:
+    def __init__(self, net: SimplePolicyNet, device: torch.device, layout: ActionLayout) -> None:
         self._net = net
         self._device = device
-        self._action_nvec = action_nvec
+        self._layout = layout
 
     def step(self, obs: MettaGridObservation) -> MettaGridAction:
         obs_tensor = torch.tensor(obs, device=self._device).unsqueeze(0).float()
@@ -66,13 +71,11 @@ class SimpleAgentPolicyImpl(AgentPolicy):
         with torch.no_grad():
             self._net.eval()
             logits, _ = self._net.forward_eval(obs_tensor)
+            dist = torch.distributions.Categorical(logits=logits)
+            flat_idx = dist.sample().cpu().numpy().astype(np.int64)
 
-            actions: list[int] = []
-            for logit in logits:
-                dist = torch.distributions.Categorical(logits=logit)
-                actions.append(dist.sample().item())
-
-            return np.array(actions, dtype=np.int32)
+        pair = self._layout.decode_numpy(flat_idx).astype(np.int32)
+        return pair[0] if pair.ndim > 1 else pair
 
 
 class SimplePolicy(TrainablePolicy):
@@ -82,13 +85,13 @@ class SimplePolicy(TrainablePolicy):
         super().__init__()
         self._net = SimplePolicyNet(env).to(device)
         self._device = device
-        self.action_nvec = tuple(env.single_action_space.nvec)
+        self._layout = self._net._layout
 
     def network(self) -> nn.Module:
         return self._net
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
-        return SimpleAgentPolicyImpl(self._net, self._device, self.action_nvec)
+        return SimpleAgentPolicyImpl(self._net, self._device, self._layout)
 
     def load_policy_data(self, checkpoint_path: str) -> None:
         state_dict = torch.load(checkpoint_path, map_location=self._device)

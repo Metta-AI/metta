@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -8,7 +8,7 @@ from einops import rearrange
 
 import pufferlib.pytorch
 from cogames.policy.policy import AgentPolicy, StatefulAgentPolicy, TrainablePolicy
-from cogames.policy.utils import LSTMState, LSTMStateDict
+from cogames.policy.utils import ActionLayout, LSTMState, LSTMStateDict
 from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation
 
 logger = logging.getLogger("cogames.policies.lstm_policy")
@@ -30,16 +30,16 @@ class LSTMPolicyNet(torch.nn.Module):
 
         self._rnn = torch.nn.LSTM(self.hidden_size, self.hidden_size, batch_first=True)
 
-        self._action_nvec = tuple(env.single_action_space.nvec)
+        self._layout = ActionLayout.from_env(env)
 
-        self._action_head = torch.nn.Linear(self.hidden_size, sum(self._action_nvec))
+        self._action_head = torch.nn.Linear(self.hidden_size, self._layout.total_actions)
         self._value_head = torch.nn.Linear(self.hidden_size, 1)
 
     def forward_eval(
         self,
         observations: torch.Tensor,
         state: Optional[Union[LSTMState, Tuple[torch.Tensor, torch.Tensor], Dict[str, torch.Tensor]]] = None,
-    ) -> Tuple[List[torch.Tensor], torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         # Handle different input shapes:
         # - bptt_horizon=1: (batch_size, *obs_shape) e.g. (128, 7, 7, 3)
         # - bptt_horizon>1: (segments, bptt_horizon, *obs_shape) e.g. (128, 2, 7, 7, 3)
@@ -113,28 +113,22 @@ class LSTMPolicyNet(torch.nn.Module):
                     c = c.unsqueeze(0).unsqueeze(0)
                 rnn_state = (h, c)
 
+        layers = self._rnn.num_layers * (2 if self._rnn.bidirectional else 1)
+        dict_state = state if isinstance(state, dict) else None
+        canonical_state = LSTMState.from_any(state, layers)
+        rnn_state = canonical_state.to_tuple() if canonical_state is not None else None
+
         hidden, new_state = self._rnn(hidden, rnn_state)
 
-        # If state was passed as a dict with LSTM keys, update it in-place with new state
-        if state_has_keys:
-            h, c = new_state
-            # Transpose back to PufferLib format: (layers, batch, hidden) -> (batch, layers, hidden)
-            if h.dim() == 3:
-                h = h.transpose(0, 1)
-                c = c.transpose(0, 1)
-            elif h.dim() == 2:
-                # (batch, hidden) -> (batch, layers=1, hidden)
-                h = h.unsqueeze(1)
-                c = c.unsqueeze(1)
-            elif h.dim() == 1:
-                # (hidden,) -> (batch=1, layers=1, hidden)
-                h = h.unsqueeze(0).unsqueeze(1)
-                c = c.unsqueeze(0).unsqueeze(1)
-            state["lstm_h"], state["lstm_c"] = h, c
+        if dict_state is not None:
+            LSTMState(new_state[0], new_state[1]).write_dict(dict_state)
+            if "action" in dict_state and dict_state["action"] is not None:
+                action_tensor = torch.as_tensor(dict_state["action"], device=hidden.device)
+                flat = self._layout.encode_torch(action_tensor.view(-1, 2)).view(action_tensor.shape[:-1])
+                dict_state["action"] = flat.to(dict_state["action"].device, dtype=dict_state["action"].dtype)
 
         hidden = rearrange(hidden, "b t h -> (b t) h")
         logits = self._action_head(hidden)
-        logits = logits.split(self._action_nvec, dim=1)
 
         values = self._value_head(hidden)
         return logits, values
@@ -144,17 +138,17 @@ class LSTMPolicyNet(torch.nn.Module):
         self,
         observations: torch.Tensor,
         state: Optional[Union[Tuple[torch.Tensor, torch.Tensor], Dict[str, torch.Tensor]]] = None,
-    ) -> Tuple[List[torch.Tensor], torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         return self.forward_eval(observations, state)
 
 
 class LSTMAgentPolicy(StatefulAgentPolicy[LSTMState]):
     """Per-agent policy that uses the shared LSTM network."""
 
-    def __init__(self, net: LSTMPolicyNet, device: torch.device, action_nvec: tuple):
+    def __init__(self, net: LSTMPolicyNet, device: torch.device, layout: ActionLayout):
         self._net = net
         self._device = device
-        self._action_nvec = action_nvec
+        self._layout = layout
 
     def agent_state(self) -> Optional[LSTMState]:
         """Get initial state for a new agent.
@@ -191,16 +185,16 @@ class LSTMAgentPolicy(StatefulAgentPolicy[LSTMState]):
 
             logits, _ = self._net.forward_eval(obs_tensor, state_dict)
 
-            # Debug: check logits
-            if any(torch.isnan(logit).any() for logit in logits):
+            if torch.isnan(logits).any():
                 logger.error(
-                    f"NaN in logits! obs shape: {obs_tensor.shape}, obs min/max: {obs_tensor.min()}/{obs_tensor.max()}"
+                    "NaN in logits! obs shape: %s, obs min/max: %s/%s",
+                    obs_tensor.shape,
+                    float(obs_tensor.min()),
+                    float(obs_tensor.max()),
                 )
-                logger.error(f"Logits: {[logit for logit in logits]}")
-                # Check network parameters
                 for name, param in self._net.named_parameters():
                     if torch.isnan(param).any():
-                        logger.error(f"NaN in parameter {name}")
+                        logger.error("NaN in parameter %s", name)
 
             # Extract the new state from the dict
             new_state: Optional[LSTMState] = None
@@ -210,13 +204,10 @@ class LSTMAgentPolicy(StatefulAgentPolicy[LSTMState]):
                 layers = self._net._rnn.num_layers * (2 if self._net._rnn.bidirectional else 1)
                 new_state = LSTMState.from_tuple(tuple_state, layers)
 
-            # Sample action from the logits
-            actions: list[int] = []
-            for logit in logits:
-                dist = torch.distributions.Categorical(logits=logit)
-                actions.append(dist.sample().item())
-
-            return np.array(actions, dtype=np.int32), new_state.detach() if new_state is not None else None
+            dist = torch.distributions.Categorical(logits=logits)
+            flat_idx = dist.sample().cpu().numpy().astype(np.int64)
+        pair = self._layout.decode_numpy(flat_idx).astype(np.int32)
+        return (pair[0] if pair.ndim > 1 else pair, new_state.detach() if new_state is not None else None)
 
 
 class LSTMPolicy(TrainablePolicy):
@@ -226,8 +217,8 @@ class LSTMPolicy(TrainablePolicy):
         super().__init__()
         self._net = LSTMPolicyNet(env).to(device)
         self._device = device
-        self._action_nvec = tuple(env.single_action_space.nvec)
-        self._agent_policy = LSTMAgentPolicy(self._net, device, self._action_nvec)
+        self._layout = self._net._layout
+        self._agent_policy = LSTMAgentPolicy(self._net, device, self._layout)
 
     def network(self) -> nn.Module:
         return self._net

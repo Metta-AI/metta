@@ -4,16 +4,17 @@ import logging
 import multiprocessing
 import platform
 from pathlib import Path
+from types import MethodType
 from typing import TYPE_CHECKING, Any, Callable, Optional
 
+import numpy as np
 import psutil
 from rich.console import Console
 
-from cogames.env import make_hierarchical_env
 from cogames.policy import TrainablePolicy
-from cogames.policy.utils import resolve_policy_data_path
+from cogames.policy.utils import ActionLayout, resolve_policy_data_path
 from cogames.utils import initialize_or_load_policy
-from mettagrid import MettaGridConfig
+from mettagrid import MettaGridConfig, MettaGridEnv
 from pufferlib import pufferl
 from pufferlib import vector as pvector
 from pufferlib.pufferlib import set_buffers
@@ -109,18 +110,35 @@ def train(
         seed: Optional[int] = None,
     ):
         target_cfg = cfg.model_copy(deep=True) if cfg is not None else _clone_cfg()
-        env = make_hierarchical_env(env_cfg=target_cfg, buf=buf)
+        env = MettaGridEnv(env_cfg=target_cfg, is_training=True)
         set_buffers(env, buf)
         return env
+
+    make_kwargs: dict[str, Any] = {"num_workers": num_workers}
+    if vector_batch_size is not None and backend is not pvector.Serial:
+        make_kwargs["batch_size"] = vector_batch_size
 
     vecenv = pvector.make(
         env_creator,
         num_envs=num_envs,
-        num_workers=num_workers,
-        batch_size=vector_batch_size,
         backend=backend,
         env_kwargs={"cfg": base_cfg},
+        **make_kwargs,
     )
+
+    layout = ActionLayout.from_env(vecenv.driver_env)
+    original_send = vecenv.send
+
+    def _send_with_projection(self, actions):
+        arr = np.asarray(actions)
+        if arr.ndim == 0 or arr.ndim == 1 or (arr.ndim > 1 and arr.shape[-1] != 2):
+            decoded = layout.decode_numpy(arr)
+            if decoded.ndim == 1:
+                decoded = decoded.reshape(1, 2)
+            arr = decoded.astype(np.int32, copy=False)
+        return original_send(arr)
+
+    vecenv.send = MethodType(_send_with_projection, vecenv)
 
     resolved_initial_weights = initial_weights_path
     if initial_weights_path is not None:
