@@ -68,9 +68,9 @@ class PRAnalyzer:
 
     def categorize_pr(self, pr_data: dict) -> str:
         """Enhanced PR categorization based on labels, title, and content."""
-        title = pr_data.get("title", "").lower()
+        title = (pr_data.get("title") or "").lower()
         labels = [label.lower() for label in pr_data.get("labels", [])]
-        body = pr_data.get("body", "").lower()
+        body = (pr_data.get("body") or "").lower()
 
         # Check labels first (most reliable)
         label_mapping = {
@@ -113,8 +113,8 @@ class PRAnalyzer:
 
     def estimate_impact_level(self, pr_data: dict) -> str:
         """Estimate the impact level based on changes and content."""
-        diff = pr_data.get("diff", "")
-        title = pr_data.get("title", "").lower()
+        diff = pr_data.get("diff") or ""
+        title = (pr_data.get("title") or "").lower()
         labels = [label.lower() for label in pr_data.get("labels", [])]
 
         lines_added = pr_data.get("additions", 0)
@@ -186,8 +186,8 @@ class PRAnalyzer:
         """Create analysis prompt based on the mode (newsletter or author_report)."""
 
         # Common header for both modes
-        diff = pr_data.get("diff", "")
-        description = pr_data.get("body", "No description provided")
+        diff = pr_data.get("diff") or ""
+        description = pr_data.get("body") or "No description provided"
 
         # Extract file information
         file_changes = re.findall(r"^diff --git a/(.+?) b/(.+?)$", diff, re.MULTILINE)
@@ -379,6 +379,12 @@ class PRAnalyzer:
         """Analyze a single PR and return structured summary data."""
         pr_number = pr_data["number"]
         logging.info(f"Analyzing PR #{pr_number}: {pr_data['title']}")
+
+        # sanitize pr_data
+        pr_data["title"] = pr_data.get("title") or "Untitled"
+        pr_data["author"] = pr_data.get("author") or "Unknown"
+        pr_data["merged_at"] = pr_data.get("merged_at") or ""
+        pr_data["html_url"] = pr_data.get("html_url") or ""
 
         # Create analysis prompt
         prompt = self.create_analysis_prompt(pr_data)

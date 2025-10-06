@@ -8,10 +8,10 @@ import numpy as np
 import pytest
 
 from mettagrid.map_builder.random import RandomMapBuilder
-from mettagrid.util.char_encoder import CHAR_TO_NAME
+from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME
 
 
-def find_map_files(root_dir) -> list[str]:
+def find_map_files(root_dir) -> list[Path]:
     """
     Find all .map files.
 
@@ -19,7 +19,7 @@ def find_map_files(root_dir) -> list[str]:
         root_dir: Root directory to search from
 
     Returns:
-        Sorted list of relative paths for .map files
+        Sorted list of absolute paths for .map files
     """
     root_path = Path(root_dir).resolve()
 
@@ -28,9 +28,8 @@ def find_map_files(root_dir) -> list[str]:
         return []
 
     map_files = list(root_path.rglob("*.map"))
-    relative_paths = [str(path.relative_to(Path.cwd())) for path in map_files]
 
-    return sorted(relative_paths)
+    return sorted(map_files)
 
 
 def map_files():
@@ -83,13 +82,45 @@ class TestAsciiMap:
 
     @pytest.fixture
     def content(self, map_file):
-        with open(map_file, "r", encoding="utf-8") as f:
+        with open(str(map_file), "r", encoding="utf-8") as f:
             return f.read()
 
-    def test_uses_known_symbols(self, content, map_file):
-        """Verify that the map only use symbols defined in SYMBOLS mapping."""
+    @pytest.fixture(scope="class")
+    def char_to_name(self):
+        """Build char_to_name mapping that includes all map characters."""
+        from mettagrid.config.mettagrid_config import (
+            AssemblerConfig,
+            ChestConfig,
+            ConverterConfig,
+            WallConfig,
+        )
+
+        # Create a comprehensive mapping that includes all object types used in maps
+        objects = {
+            "wall": WallConfig(name="wall", type_id=1, map_char="#", render_symbol="⬛"),
+            "converter": ConverterConfig(name="converter", type_id=2, map_char="c", render_symbol="🔄", cooldown=0),
+            "assembler": AssemblerConfig(name="assembler", type_id=3, map_char="m", render_symbol="🏭"),
+            "chest": ChestConfig(
+                name="chest",
+                type_id=4,
+                map_char="n",
+                render_symbol="📦",
+                resource_type="ore_red",
+            ),
+            # Common navigation map characters
+            "floor": WallConfig(name="floor", type_id=5, map_char="_", render_symbol="░"),
+            # Object use map characters
+            "swappable_wall": WallConfig(
+                name="swappable_wall", type_id=6, map_char="s", render_symbol="▒", swappable=True
+            ),
+            "special": WallConfig(name="special", type_id=7, map_char="S", render_symbol="✦"),
+        }
+        return DEFAULT_CHAR_TO_NAME | {o.map_char: o.name for o in objects.values()}
+
+    def test_uses_known_symbols(self, content, map_file, char_to_name):
+        """Verify that the map only use symbols defined in config mapping."""
         all_chars = set(content)
-        unknown_chars = all_chars - set(CHAR_TO_NAME.keys()) - {"\t", "\r", "\n"}
+        unknown_chars = all_chars - set(char_to_name.keys()) - {"\t", "\r", "\n"}
 
         assert not unknown_chars, f"Map {map_file} contains unknown symbols: {unknown_chars}"
 
@@ -102,12 +133,12 @@ class TestAsciiMap:
             min_len, max_len = min(line_lengths), max(line_lengths)
             pytest.fail(f"Map has inconsistent line lengths {min_len}-{max_len}")
 
-    def test_loads_as_numpy_array(self, content, map_file):
+    def test_loads_as_numpy_array(self, content, map_file, char_to_name):
         """Verify that the map can be loaded as NumPy array (critical for runtime)."""
         lines = content.strip().splitlines()
 
         level_array = np.array([list(line) for line in lines], dtype="U6")
-        _mapped_array = np.vectorize(CHAR_TO_NAME.get)(level_array)
+        _mapped_array = np.vectorize(char_to_name.get)(level_array)
 
         # Basic structure validation
         assert level_array.ndim == 2, "Should be 2D array"

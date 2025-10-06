@@ -21,7 +21,7 @@ from metta.agent.components.obs_shim import (
     ObsShimTokensConfig,
 )
 from metta.rl.training import EnvironmentMetaData
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 from mettagrid.util.module import load_symbol
 
 

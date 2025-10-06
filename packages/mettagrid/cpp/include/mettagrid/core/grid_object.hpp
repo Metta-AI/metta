@@ -1,10 +1,11 @@
 #ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_CORE_GRID_OBJECT_HPP_
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_CORE_GRID_OBJECT_HPP_
 
-#include <cstdint>
 #include <span>
 #include <string>
 #include <vector>
+
+#include <cstdint>
 
 #include "objects/constants.hpp"
 #include "core/types.hpp"

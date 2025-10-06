@@ -15,8 +15,8 @@ from torch import Tensor
 from metta.cogworks.curriculum import Curriculum, CurriculumConfig, env_curriculum
 from metta.rl.vecenv import make_vecenv
 from metta.utils.batch import calculate_batch_sizes
+from mettagrid.base_config import Config
 from mettagrid.builder.envs import make_arena
-from mettagrid.config import Config
 from mettagrid.core import ObsFeature
 from mettagrid.mettagrid_c import dtype_actions
 

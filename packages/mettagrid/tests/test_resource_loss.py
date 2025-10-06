@@ -27,7 +27,7 @@ class TestResourceLoss:
         obs, info = env.reset()
 
         # Get the agent's inventory through grid_objects
-        grid_objects = env.grid_objects
+        grid_objects = env.grid_objects()
         agent_obj = None
         for _obj_id, obj in grid_objects.items():
             if "agent_id" in obj:  # This is an agent
@@ -48,7 +48,7 @@ class TestResourceLoss:
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         # After one step with resource_loss_prob=1.0, all items should be lost
-        grid_objects_after = env.grid_objects
+        grid_objects_after = env.grid_objects()
         agent_obj_after = None
         for _obj_id, obj in grid_objects_after.items():
             if "agent_id" in obj:  # This is an agent
@@ -82,7 +82,7 @@ class TestResourceLoss:
         obs, info = env.reset()
 
         # Get the agent's inventory through grid_objects
-        grid_objects = env.grid_objects
+        grid_objects = env.grid_objects()
         agent_obj = None
         for _obj_id, obj in grid_objects.items():
             if "agent_id" in obj:  # This is an agent
@@ -105,7 +105,7 @@ class TestResourceLoss:
             obs, rewards, terminals, truncations, info = env.step(actions)
 
         # After multiple steps with resource_loss_prob=0.0, items should remain
-        grid_objects_after = env.grid_objects
+        grid_objects_after = env.grid_objects()
         agent_obj_after = None
         for _obj_id, obj in grid_objects_after.items():
             if "agent_id" in obj:  # This is an agent
@@ -140,7 +140,7 @@ class TestResourceLoss:
         obs, info = env.reset()
 
         # Get the agent's inventory through grid_objects
-        grid_objects = env.grid_objects
+        grid_objects = env.grid_objects()
         agent_obj = None
         for _obj_id, obj in grid_objects.items():
             if "agent_id" in obj:  # This is an agent
@@ -164,7 +164,7 @@ class TestResourceLoss:
             obs, rewards, terminals, truncations, info = env.step(actions)
 
             # Get current inventory
-            grid_objects_current = env.grid_objects
+            grid_objects_current = env.grid_objects()
             agent_obj_current = None
             for _obj_id, obj in grid_objects_current.items():
                 if "agent_id" in obj:  # This is an agent
