@@ -69,7 +69,9 @@ class AGaLiTeTransformer(nn.Module):
         )
 
         # Per-environment memory cache used during rollout.
-        self._env_memory: Dict[int, Dict[str, Tuple[torch.Tensor, ...]]] = {}
+        self._env_memory: Dict[str, Tuple[torch.Tensor, ...]] = {}
+        self._env_capacity: int = 0
+        self._memory_device: torch.device | None = None
         self._pending_segment_records: List[SegmentMemoryRecord] = []
 
     # ------------------------------------------------------------------
@@ -122,13 +124,19 @@ class AGaLiTeTransformer(nn.Module):
         return td
 
     def initialize_to_environment(self, env, device: torch.device):
-        del env
-        del device
         self.reset_memory()
+        num_envs = getattr(env, "num_envs", None)
+        if num_envs is None:
+            num_envs = getattr(env, "num_agents", 0)
+        self._memory_device = device
+        if isinstance(num_envs, int) and num_envs > 0:
+            self._ensure_capacity(num_envs, device)
         return None
 
     def reset_memory(self):
         self._env_memory.clear()
+        self._env_capacity = 0
+        self._memory_device = None
         self._pending_segment_records = []
 
     def get_agent_experience_spec(self) -> Composite:
@@ -173,37 +181,66 @@ class AGaLiTeTransformer(nn.Module):
         terminations = torch.clamp(dones + truncateds, 0.0, 1.0)
         return terminations
 
+    def _ensure_capacity(self, required: int, device: torch.device) -> None:
+        if self._memory_device is None:
+            self._memory_device = device
+        if device != self._memory_device:
+            device = self._memory_device
+        if self._env_capacity >= required:
+            return
+
+        new_capacity = max(required, max(1, self._env_capacity * 2))
+        initialized = self._core.initialize_memory(new_capacity, device)
+
+        if not self._env_memory:
+            self._env_memory = {
+                key: tuple(tensor.detach() for tensor in tensors)
+                for key, tensors in initialized.items()
+            }
+        else:
+            for layer_key, tensors in initialized.items():
+                stored = self._env_memory[layer_key]
+                updated: List[torch.Tensor] = []
+                for idx, new_tensor in enumerate(tensors):
+                    existing = stored[idx]
+                    pad = new_tensor.clone().detach()
+                    pad[: existing.shape[0]] = existing.to(device)
+                    updated.append(pad)
+                self._env_memory[layer_key] = tuple(updated)
+
+        self._env_capacity = new_capacity
+
     def _gather_memory(self, env_ids: torch.Tensor, device: torch.device):
-        aggregated: Dict[str, List[List[torch.Tensor]]] = {}
+        if env_ids.numel() == 0:
+            return {}
 
-        for env_id in env_ids.tolist():
-            env_memory = self._ensure_env_memory(int(env_id), device)
-            for layer_key, tensors in env_memory.items():
-                stacked_lists = aggregated.setdefault(layer_key, [list() for _ in range(len(tensors))])
-                for idx, tensor in enumerate(tensors):
-                    stacked_lists[idx].append(tensor.to(device))
+        max_env = int(env_ids.max().item()) + 1
+        self._ensure_capacity(max_env, device)
 
+        indices = env_ids.to(device=self._memory_device, dtype=torch.long)
         batch_memory = {
-            layer_key: tuple(torch.cat(tensors, dim=0) for tensors in tensor_groups)
-            for layer_key, tensor_groups in aggregated.items()
+            layer_key: tuple(tensor.index_select(0, indices).to(device) for tensor in tensors)
+            for layer_key, tensors in self._env_memory.items()
         }
-
         return batch_memory
 
     def _store_memory(self, env_ids: torch.Tensor, memory):
-        for batch_idx, env_id in enumerate(env_ids.tolist()):
-            env_memory = {
-                layer_key: tuple(tensor[batch_idx : batch_idx + 1].detach() for tensor in tensors)
-                for layer_key, tensors in memory.items()
-            }
-            self._env_memory[int(env_id)] = env_memory
+        if env_ids.numel() == 0:
+            return
 
-    def _ensure_env_memory(self, env_id: int, device: torch.device):
-        if env_id not in self._env_memory:
-            initial_memory = self._core.initialize_memory(1, device)
-            env_memory = {key: tuple(tensor.detach() for tensor in tensors) for key, tensors in initial_memory.items()}
-            self._env_memory[env_id] = env_memory
-        return self._env_memory[env_id]
+        device = self._memory_device or env_ids.device
+        max_env = int(env_ids.max().item()) + 1
+        self._ensure_capacity(max_env, device)
+
+        indices = env_ids.to(device=self._memory_device, dtype=torch.long)
+        for layer_key, tensors in memory.items():
+            stored = list(self._env_memory[layer_key])
+            for idx, tensor in enumerate(tensors):
+                target = stored[idx]
+                source = tensor.detach().to(target.device)
+                target.index_copy_(0, indices, source)
+                stored[idx] = target
+            self._env_memory[layer_key] = tuple(stored)
 
     def _extract_segment_metadata(
         self, td: TensorDict, batch: int, device: torch.device

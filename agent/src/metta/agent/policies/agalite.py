@@ -53,7 +53,7 @@ def _build_components(
             latent_dim=hidden_size,
             num_latents=num_latents,
             num_heads=n_heads,
-            num_layers=2,
+            num_layers=1,
             pool="mean",
         ),
         AGaLiTeTransformerConfig(
