@@ -93,7 +93,4 @@
     "build": true,
     "dist": true,
   },
-  "python.testing.pytestArgs": ["."],
-  "python.testing.unittestEnabled": false,
-  "python.testing.pytestEnabled": true,
 }
