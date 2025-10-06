@@ -101,7 +101,7 @@ def clipped_oxygen_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         render_symbol="🔵",
         max_uses=max_uses or 0,
         start_clipped=True,
-        default_recipe=protocols.standard_carbon_recipe(),
+        default_recipe=protocols.standard_oxygen_recipe(),
     )
 
 
