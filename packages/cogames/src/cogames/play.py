@@ -25,6 +25,7 @@ def play(
     seed: int = 42,
     render: Literal["gui", "text", "none"] = "gui",
     verbose: bool = False,
+    **_: object,
 ) -> None:
     """Play a single game episode with a policy."""
 
