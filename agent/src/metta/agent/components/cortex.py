@@ -78,10 +78,10 @@ class CortexTD(nn.Module):
         return self.core(td)
 
     def get_agent_experience_spec(self) -> Composite:
-        # Advertise minimal keys (env_id) for replay; hidden state is not stored.
+        # Advertise minimal keys (training_env_ids) for replay; hidden state is not stored.
         spec_dict: Dict[str, UnboundedDiscrete] = {}
         for key, shape in self.core.experience_keys().items():
-            dtype = torch.long if key == "env_id" else torch.float32
+            dtype = torch.long if key == "training_env_ids" else torch.float32
             spec_dict[key] = UnboundedDiscrete(shape=torch.Size(shape), dtype=dtype)
         return Composite(spec_dict)
 

@@ -95,13 +95,25 @@ class MettaTDAdapter(nn.Module):
         else:
             self._out_proj = nn.Linear(int(self.d_hidden), int(self.out_features))
 
-        # Per-env caches: env_id -> TensorDict(batch=[1])
-        self._rollout_cache: Dict[int, TensorDict] = {}
-        self._train_cache: Dict[int, TensorDict] = {}
+        # Dense per-leaf caches: LeafPath -> Tensor[N_slots, *leaf_shape]
+        # These enable vectorized gather/scatter via index_select / index_copy_.
+        self._leaf_shapes: Dict[LeafPath, Tuple[int, ...]] = self._discover_leaf_shapes()
+        self._rollout_store: Dict[LeafPath, torch.Tensor] = {}
+        self._train_store: Dict[LeafPath, torch.Tensor] = {}
+        self._store_dtype: torch.dtype = torch.bfloat16
+
+        # Compact id→slot mappings (contiguous slots 0..N-1)
+        self._rollout_id2slot: Dict[int, int] = {}
+        self._rollout_next_slot: int = 0
+        self._train_id2slot: Dict[int, int] = {}
 
         # Phase state machine flags
         self._in_training: bool = False
         self._snapshot_done: bool = False
+
+        # Persistent rollout batched state (for TT==1 fast path)
+        self._rollout_current_state: Optional[TensorDict] = None
+        self._rollout_current_env_ids: Optional[torch.Tensor] = None  # Long[Br]
 
     def _discover_state_entries(self) -> List[Tuple[FlatKey, LeafPath]]:
         template = self.stack.init_state(batch=1, device=torch.device("cpu"), dtype=torch.float32)
@@ -122,10 +134,38 @@ class MettaTDAdapter(nn.Module):
                     entries.append((fkey, (block_key, cell_key, leaf_key)))
         return entries
 
+    def _discover_leaf_shapes(self) -> Dict[LeafPath, Tuple[int, ...]]:
+        template = self.stack.init_state(batch=1, device=torch.device("cpu"), dtype=torch.float32)
+        shapes: Dict[LeafPath, Tuple[int, ...]] = {}
+        for block_key in template.keys():
+            block_state = template.get(block_key)
+            if not isinstance(block_state, TensorDict):
+                continue
+            for cell_key in block_state.keys():
+                cell_state = block_state.get(cell_key)
+                if not isinstance(cell_state, TensorDict):
+                    continue
+                for leaf_key in cell_state.keys():
+                    tensor = cell_state.get(leaf_key)
+                    if isinstance(tensor, torch.Tensor):
+                        shapes[(block_key, cell_key, leaf_key)] = tuple(tensor.shape[1:])
+        return shapes
+
     # ----------------------------- Public API -----------------------------
     @torch._dynamo.disable
     def forward(self, td: TensorDict) -> TensorDict:
+        # Backward-compatible lazy init (handles old checkpoints)
+        if not hasattr(self, "_store_dtype"):
+            self._store_dtype = torch.bfloat16
+        if not hasattr(self, "_rollout_id2slot"):
+            self._rollout_id2slot = {}
+        if not hasattr(self, "_rollout_next_slot"):
+            self._rollout_next_slot = 0
+        if not hasattr(self, "_train_id2slot"):
+            self._train_id2slot = {}
+
         x = td[self.in_key]
+
         if "bptt" not in td.keys():
             raise KeyError("TensorDict is missing required 'bptt' metadata")
         TT = int(td["bptt"][0].item())
@@ -142,13 +182,14 @@ class MettaTDAdapter(nn.Module):
         device = x.device
         dtype = x.dtype
 
+        # No debug/timing; only raise on errors.
+
         # Env IDs for per-env cache
-        training_env_ids = td.get("training_env_ids", None)
-        if training_env_ids is not None:
-            env_ids = training_env_ids.reshape(-1)[:B]
-        else:
-            env_ids = torch.arange(B, device=device)
-        env_id_list = [int(env_ids[i].item()) for i in range(B)]
+        if "training_env_ids" not in td.keys():
+            raise KeyError("TensorDict is missing required 'training_env_ids' key")
+
+        env_ids = td["training_env_ids"].squeeze(-1).reshape(-1)[:B]
+        env_ids_long = env_ids.to(device=device, dtype=torch.long)
 
         # Resets
         resets = _as_reset_mask(td.get("dones", None), td.get("truncateds", None), B=B, TT=TT, device=device)
@@ -157,127 +198,329 @@ class MettaTDAdapter(nn.Module):
         if TT > 1:
             self._in_training = True
             self._snapshot_done = False
+            # If this is the first training and train_store is empty, snapshot now
+            # (after first rollout has completed and populated rollout_store)
+            if not self._train_store:
+                self._flush_rollout_current_to_store()
+                self._snapshot_train_store()
+            # Free persistent rollout batch during training
+            self._rollout_current_state = None
+            self._rollout_current_env_ids = None
         # Take snapshot at first rollout call after training
         if TT == 1 and self._in_training and not self._snapshot_done:
-            self._snapshot_train_cache()
+            # Flush any live rollout state to the dense store, then snapshot
+            self._flush_rollout_current_to_store()
+            self._snapshot_train_store()
             self._in_training = False
             self._snapshot_done = True
-        # Seed train_cache on first ever rollout if empty
-        if TT == 1 and not self._train_cache:
-            self._snapshot_train_cache()
+            # Free the persistent rollout batch after snapshot
+            self._rollout_current_state = None
+            self._rollout_current_env_ids = None
 
         if TT == 1:
             # ----------------------------- Rollout path -----------------------------
-            state_prev = self._gather_state_batch(
-                env_id_list, cache=self._rollout_cache, B=B, device=device, dtype=dtype
-            )
-            if resets is not None:
-                state_prev = self.stack.reset_state(state_prev, resets)
-
-            # Expose env_id for replay (so training can index train_cache)
-            td.set("env_id", env_ids.detach())
+            # Maintain persistent batched state for current env slice
+            state_prev = self._ensure_rollout_current_state(env_ids_long, B=B, device=device, dtype=dtype)
 
             # Step
             x_step = x.view(B, -1)
             y, state_next = self.stack.step(x_step, state_prev, resets=resets)
-            self._scatter_state_batch(state_next, env_id_list, cache=self._rollout_cache)
-
+            # Update persistent rollout state in-place; no per-step scatter
+            self._rollout_current_state = state_next
             y = self._out_proj(y)
             td.set(self.out_key, y.reshape(B * TT, -1))
             return td
-
-        # ------------------------------ Training path ------------------------------
-        # Use env_id from replay to select initial states from frozen train_cache
-        if "env_id" in td.keys():
-            env_ids_train = td.get("env_id").to(device=device)
-            env_ids_train = env_ids_train.view(B, TT)[:, 0]
-            env_id_list_train = [int(env_ids_train[i].item()) for i in range(B)]
         else:
-            # Fallback to local 0..B-1 indexing (not ideal, but keeps training running)
-            env_id_list_train = list(range(B))
-        state0 = self._gather_state_batch(env_id_list_train, cache=self._train_cache, B=B, device=device, dtype=dtype)
+            # ------------------------------ Training path ------------------------------
+            # Use training_env_ids from replay to select initial states from frozen train_cache
+            env_ids_train = td["training_env_ids"].squeeze(-1).to(device=device)
+            env_ids_train = env_ids_train.view(B, TT)[:, 0]
+            env_ids_train_long = env_ids_train.to(dtype=torch.long)
 
-        x_seq = rearrange(x, "(b t) h -> b t h", b=B, t=TT)
-        y_seq, _ = self.stack(x_seq, state0, resets=resets)
-        y_seq = self._out_proj(y_seq)
-        td.set(self.out_key, rearrange(y_seq, "b t h -> (b t) h"))
-        return td
+            # Map env ids to compact slot ids (unknown → -1) and gather by slots
+            train_slots = self._map_ids_to_slots(env_ids_train_long, self._train_id2slot, create_missing=False)
+            state0 = self._gather_state_by_slots(train_slots, store=self._train_store, B=B, device=device, dtype=dtype)
+
+            x_seq = rearrange(x, "(b t) h -> b t h", b=B, t=TT)
+            y_seq, _ = self.stack(x_seq, state0, resets=resets)
+            y_seq = self._out_proj(y_seq)
+            td.set(self.out_key, rearrange(y_seq, "b t h -> (b t) h"))
+            return td
 
     def reset_memory(self) -> None:
         # No-op by design; trainer hooks call reset_memory() at rollout/train starts.
         # Per-step resets are handled inside forward via masks, and caches persist.
         return
 
-    def get_memory(self) -> Dict[str, Dict[int, TensorDict]]:
-        return {"rollout": self._rollout_cache, "train": self._train_cache}
+    def get_memory(self) -> Dict[str, Dict[str, Dict[str, torch.Tensor]]]:
+        """Serialize dense stores for checkpointing.
 
-    def set_memory(self, memory: Dict[str, Dict[int, TensorDict]]) -> None:
-        self._rollout_cache = dict(memory.get("rollout", {}))
-        self._train_cache = dict(memory.get("train", {}))
+        Returns a nested mapping with per-leaf tensors; current live rollout
+        batch is not serialized (it will be re-gathered on next call).
+        """
+
+        def pack(store: Dict[LeafPath, torch.Tensor]) -> Dict[str, torch.Tensor]:
+            packed: Dict[str, torch.Tensor] = {}
+            for (b_key, c_key, leaf_key), t in store.items():
+                packed[f"{b_key}|{c_key}|{leaf_key}"] = t
+            return packed
+
+        return {
+            "rollout_store": {"data": pack(self._rollout_store)},
+            "train_store": {"data": pack(self._train_store)},
+        }
+
+    def set_memory(self, memory) -> None:  # type: ignore[override]
+        """Restore dense stores if provided; raises on malformed input.
+
+        Accepts the structure emitted by ``get_memory``. If the provided
+        object does not match the expected schema, a RuntimeError is raised.
+        """
+        try:
+
+            def unpack(blob: Dict[str, torch.Tensor]) -> Dict[LeafPath, torch.Tensor]:
+                store: Dict[LeafPath, torch.Tensor] = {}
+                for k, t in blob.items():
+                    b_key, c_key, leaf_key = k.split("|")
+                    store[(b_key, c_key, leaf_key)] = t
+                return store
+
+            rollout_blob = memory.get("rollout_store", {}).get("data", {})
+            train_blob = memory.get("train_store", {}).get("data", {})
+            if rollout_blob or train_blob:
+                self._rollout_store = unpack(rollout_blob)
+                self._train_store = unpack(train_blob)
+                # Ensure dtype policy is respected after restore
+                # (actual dtype will be enforced on first gather/scatter)
+                if not hasattr(self, "_store_dtype"):
+                    self._store_dtype = torch.bfloat16
+            else:
+                raise RuntimeError("MettaTDAdapter.set_memory: missing 'rollout_store'/'train_store' data blobs")
+        except Exception as e:
+            raise RuntimeError(f"MettaTDAdapter.set_memory: malformed memory structure: {e}") from e
 
     def experience_keys(self) -> Dict[FlatKey, torch.Size]:
         """Replay keys required by the adapter.
 
-        We only need `env_id` so the frozen training cache can be indexed
+        We only need `training_env_ids` so the frozen training cache can be indexed
         deterministically; hidden states are not stored per timestep.
         """
 
-        return {"env_id": torch.Size([])}
+        return {"training_env_ids": torch.Size([1])}
 
     # --------------------------- Internal helpers ---------------------------
-    def _gather_state_batch(
+    # --------------------------- Dense store helpers ---------------------------
+    def _ensure_store_capacity(
         self,
-        env_ids: List[int],
+        store: Dict[LeafPath, torch.Tensor],
+        min_slots: int,
         *,
-        cache: Dict[int, TensorDict],
+        device: torch.device,
+        dtype: torch.dtype,
+    ) -> None:
+        cur_cap = 0
+        if store:
+            any_leaf = next(iter(store.values()))
+            cur_cap = int(any_leaf.shape[0])
+            ok = all(t.device == device and t.dtype == dtype and t.shape[0] >= min_slots for t in store.values())
+            if ok and cur_cap >= min_slots:
+                return
+        new_cap = max(min_slots, max(1, cur_cap * 2))
+        # Expand or create per-leaf storage
+        for leaf_path, leaf_shape in self._leaf_shapes.items():
+            if leaf_path not in store:
+                store[leaf_path] = torch.zeros((new_cap, *leaf_shape), device=device, dtype=dtype)
+            else:
+                old = store[leaf_path]
+                if old.shape[0] < new_cap or old.device != device or old.dtype != dtype:
+                    new = torch.zeros((new_cap, *leaf_shape), device=device, dtype=dtype)
+                    new[: old.shape[0]].copy_(old.to(device=device, dtype=dtype))
+                    store[leaf_path] = new
+        # capacity tracked per-store via leaf shapes
+
+    def _gather_state_by_slots(
+        self,
+        slot_ids: torch.Tensor,
+        *,
+        store: Dict[LeafPath, torch.Tensor],
         B: int,
         device: torch.device,
         dtype: torch.dtype,
     ) -> TensorDict:
+        # Pick an appropriate storage dtype for this device (bf16 if supported, else f32)
+        if device.type == "cuda":
+            bf16_ok = getattr(torch.cuda, "is_bf16_supported", lambda: False)()
+            self._store_dtype = torch.bfloat16 if bf16_ok else torch.float32
+        else:
+            # CPU supports bf16 tensors; keep bf16 for memory unless caller prefers otherwise
+            self._store_dtype = torch.bfloat16
+
+        # Ensure capacity for any large slot id; sanitize negatives if any (-1)
+        if slot_ids.numel() == 0:
+            return self.stack.init_state(batch=B, device=device, dtype=dtype)
+
+        if slot_ids.dim() != 1:
+            slot_ids = slot_ids.reshape(-1)
+        valid_mask = slot_ids >= 0
+        slot_ids_clamped = slot_ids.clamp_min(0)
+        max_slot = int(slot_ids_clamped.max().item()) + 1 if slot_ids_clamped.numel() > 0 else 0
+        self._ensure_store_capacity(store, max_slot, device=device, dtype=self._store_dtype)
+
         batch_state = self.stack.init_state(batch=B, device=device, dtype=dtype)
-        for i, env_id in enumerate(env_ids):
-            env_state = cache.get(env_id)
-            if env_state is None:
-                env_state = self.stack.init_state(batch=1, device=device, dtype=dtype)
-            # Copy leaves into batch_state at row i
-            for _fkey, (bkey, ckey, lkey) in self._flat_entries:
-                leaf_src = env_state.get(bkey).get(ckey).get(lkey)  # [1, ...]
-                leaf_dst = batch_state.get(bkey).get(ckey).get(lkey)  # [B, ...]
-                leaf_dst[i].copy_(leaf_src[0])
+        for _fkey, (bkey, ckey, lkey) in self._flat_entries:
+            src = store[(bkey, ckey, lkey)]  # [N, ...]
+            cap = int(src.shape[0])
+            if max_slot > cap:
+                raise RuntimeError(
+                    f"[MettaTDAdapter] slot out of bounds: need<{max_slot} got cap={cap} for leaf {(bkey, ckey, lkey)}"
+                )
+            gathered = src.index_select(0, slot_ids_clamped)  # [B, ...] (bf16)
+            if not bool(valid_mask.all()):
+                gathered[~valid_mask] = 0
+            gathered = gathered.to(dtype=dtype)
+            # Assign into nested TD
+            block_td = batch_state.get(bkey)
+            cell_td = block_td.get(ckey)
+            cell_td.set(lkey, gathered)
         return batch_state
 
-    def _scatter_state_batch(self, state: TensorDict, env_ids: List[int], *, cache: Dict[int, TensorDict]) -> None:
-        B = len(env_ids)
-        for i in range(B):
-            env_id = env_ids[i]
-            # Build a per-env state TD with batch=[1]
-            env_td = TensorDict({}, batch_size=[1], device=state.device)
-            for _fkey, (bkey, ckey, lkey) in self._flat_entries:
-                leaf_src = state.get(bkey).get(ckey).get(lkey)  # [B, ...]
-                leaf_one = leaf_src[i].unsqueeze(0)  # [1, ...]
-                # Create nested structure lazily
-                if bkey not in env_td.keys():
-                    env_td[bkey] = TensorDict({}, batch_size=[1], device=state.device)
-                if ckey not in env_td[bkey].keys():
-                    env_td[bkey][ckey] = TensorDict({}, batch_size=[1], device=state.device)
-                env_td[bkey][ckey][lkey] = leaf_one.detach()
-            cache[env_id] = env_td
+    def _scatter_state_by_slots(
+        self, state: TensorDict, slot_ids: torch.Tensor, *, store: Dict[LeafPath, torch.Tensor]
+    ) -> None:
+        B = int(slot_ids.numel())
+        if B == 0:
+            return
+        # Set store dtype for this device
+        leaf_device = None
+        for _fk, (b_key, c_key, leaf_key) in self._flat_entries:
+            t = state.get(b_key).get(c_key).get(leaf_key)
+            if isinstance(t, torch.Tensor):
+                leaf_device = t.device
+                break
+        if leaf_device is None:
+            leaf_device = state.device if hasattr(state, "device") else torch.device("cpu")
+        if leaf_device.type == "cuda":
+            bf16_ok = getattr(torch.cuda, "is_bf16_supported", lambda: False)()
+            self._store_dtype = torch.bfloat16 if bf16_ok else torch.float32
+        else:
+            self._store_dtype = torch.bfloat16
+        if slot_ids.dim() != 1:
+            slot_ids = slot_ids.reshape(-1)
+        # Ensure capacity (derive device/dtype from leaves to avoid TensorDict.device mismatches)
+        max_slot = int(slot_ids.max().item()) + 1
+        # Determine device from first available leaf tensor
+        leaf_device = None
+        for _fk, (b_key, c_key, leaf_key) in self._flat_entries:
+            t = state.get(b_key).get(c_key).get(leaf_key)
+            if isinstance(t, torch.Tensor):
+                leaf_device = t.device
+                break
+        if leaf_device is None:
+            leaf_device = state.device if hasattr(state, "device") else torch.device("cpu")
 
-    def _snapshot_train_cache(self) -> None:
-        # Deep clone rollout cache into train cache (detach tensors)
-        new_cache: Dict[int, TensorDict] = {}
-        for env_id, td in self._rollout_cache.items():
-            env_td = TensorDict({}, batch_size=td.batch_size, device=td.device)
-            for _fkey, (bkey, ckey, lkey) in self._flat_entries:
-                leaf = td.get(bkey).get(ckey).get(lkey)
-                # Lazily build nested structure
-                if bkey not in env_td.keys():
-                    env_td[bkey] = TensorDict({}, batch_size=td.batch_size, device=td.device)
-                if ckey not in env_td[bkey].keys():
-                    env_td[bkey][ckey] = TensorDict({}, batch_size=td.batch_size, device=td.device)
-                env_td[bkey][ckey][lkey] = leaf.clone().detach()
-            new_cache[env_id] = env_td
-        self._train_cache = new_cache
+        self._ensure_store_capacity(store, max_slot, device=leaf_device, dtype=self._store_dtype)
+        for _fkey, (bkey, ckey, lkey) in self._flat_entries:
+            src = state.get(bkey).get(ckey).get(lkey)  # [B, ...]
+            dest = store[(bkey, ckey, lkey)]
+            dest.index_copy_(0, slot_ids, src.to(dtype=dest.dtype).detach())
+
+    def _snapshot_train_store(self) -> None:
+        # Build a compact snapshot of rollout_store (only assigned slots) for training
+        if not self._rollout_id2slot:
+            # Nothing assigned yet; create an empty train store
+            self._train_store = {leaf: tensor.clone().detach() for leaf, tensor in self._rollout_store.items()}
+            self._train_id2slot = {}
+            return
+        items = sorted(self._rollout_id2slot.items(), key=lambda kv: kv[1])  # sort by rollout slot
+        env_ids_sorted = [eid for eid, _ in items]
+        old_slots = [slot for _, slot in items]
+        new_slots = list(range(len(old_slots)))
+        self._train_id2slot = {eid: ns for eid, ns in zip(env_ids_sorted, new_slots, strict=False)}
+        # Reindex per-leaf tensors to compact [M, ...]
+        self._train_store = {}
+        for leaf_path, src in self._rollout_store.items():
+            device = src.device
+            dtype = src.dtype
+            index = torch.tensor(old_slots, device=device, dtype=torch.long)
+            compact = src.index_select(0, index)
+            self._train_store[leaf_path] = compact.clone().detach().to(dtype=dtype)
+
+    def _infer_dtype(self, state: TensorDict) -> torch.dtype:
+        # Infer a reasonable dtype from first leaf
+        for _fkey, (bkey, ckey, lkey) in self._flat_entries:
+            t = state.get(bkey).get(ckey).get(lkey)
+            if isinstance(t, torch.Tensor):
+                return t.dtype
+        return torch.float32
+
+    def _infer_device(self, state: TensorDict) -> torch.device:
+        # Prefer a leaf device; fallback to TensorDict.device
+        for _fkey, (bkey, ckey, lkey) in self._flat_entries:
+            t = state.get(bkey).get(ckey).get(lkey)
+            if isinstance(t, torch.Tensor):
+                return t.device
+        return state.device if hasattr(state, "device") else torch.device("cpu")
+
+    def _flush_rollout_current_to_store(self) -> None:
+        # If we have a live rollout batched state, scatter it into the rollout store
+        if self._rollout_current_state is not None and self._rollout_current_env_ids is not None:
+            slots = self._map_ids_to_slots(self._rollout_current_env_ids, self._rollout_id2slot, create_missing=True)
+            self._scatter_state_by_slots(self._rollout_current_state, slots, store=self._rollout_store)
+            # Do not clear current state; it can remain valid until env slice changes
+
+    def _ensure_rollout_current_state(
+        self,
+        env_ids_long: torch.Tensor,
+        *,
+        B: int,
+        device: torch.device,
+        dtype: torch.dtype,
+    ) -> TensorDict:
+        # If current env slice matches, reuse live state
+        if (
+            self._rollout_current_state is not None
+            and self._rollout_current_env_ids is not None
+            and self._rollout_current_env_ids.numel() == env_ids_long.numel()
+            and torch.equal(self._rollout_current_env_ids, env_ids_long)
+        ):
+            return self._rollout_current_state
+
+        # Slice changed: flush previous live state to store, gather new batch
+        self._flush_rollout_current_to_store()
+        slots = self._map_ids_to_slots(env_ids_long, self._rollout_id2slot, create_missing=False)
+        state_prev = self._gather_state_by_slots(slots, store=self._rollout_store, B=B, device=device, dtype=dtype)
+        self._rollout_current_state = state_prev
+        self._rollout_current_env_ids = env_ids_long.detach().clone()
+        return state_prev
+
+    def _map_ids_to_slots(
+        self,
+        ids_long: torch.Tensor,
+        mapping: Dict[int, int],
+        *,
+        create_missing: bool,
+    ) -> torch.Tensor:
+        ids_list = ids_long.detach().view(-1).tolist()
+        out: List[int] = []
+        if create_missing:
+            if mapping is self._rollout_id2slot:
+                next_slot = self._rollout_next_slot
+            else:
+                next_slot = (max(mapping.values()) + 1) if mapping else 0
+            for eid in ids_list:
+                e = int(eid)
+                slot = mapping.get(e)
+                if slot is None:
+                    slot = next_slot
+                    mapping[e] = slot
+                    next_slot += 1
+                out.append(slot)
+            if mapping is self._rollout_id2slot:
+                self._rollout_next_slot = next_slot
+        else:
+            for eid in ids_list:
+                out.append(mapping.get(int(eid), -1))
+        return torch.tensor(out, device=ids_long.device, dtype=torch.long)
 
     def _flat_key(self, block_key: str, cell_key: str, leaf_key: str) -> FlatKey:
         return f"{self.key_prefix}__{block_key}__{cell_key}__{leaf_key}"
