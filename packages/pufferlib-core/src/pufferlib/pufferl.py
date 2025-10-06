@@ -57,6 +57,38 @@ signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 ADVANTAGE_CUDA = shutil.which("nvcc") is not None
 
 
+class _ActionAdapter:
+    """Utility to convert between flattened indices and (verb, arg) pairs."""
+
+    def __init__(self, max_args):
+        array = np.asarray(max_args, dtype=np.int64)
+        self.max_args = array
+        counts = array + 1
+        self.counts = counts
+        self.starts = np.concatenate(([0], np.cumsum(counts[:-1])))
+
+    def encode_torch(self, pair: torch.Tensor) -> torch.Tensor:
+        if pair.numel() == 0:
+            return torch.empty(pair.shape[:-1], device=pair.device, dtype=torch.long)
+        starts = torch.as_tensor(self.starts, device=pair.device, dtype=torch.long)
+        max_args = torch.as_tensor(self.max_args, device=pair.device, dtype=torch.long)
+        verbs = pair[..., 0].long()
+        args = torch.minimum(pair[..., 1].long(), max_args[verbs])
+        return starts[verbs] + args
+
+    def decode_torch(self, flat: torch.Tensor) -> torch.Tensor:
+        if flat.numel() == 0:
+            return torch.empty(flat.shape + (2,), device=flat.device, dtype=torch.long)
+        starts = torch.as_tensor(self.starts, device=flat.device, dtype=torch.long)
+        counts = torch.as_tensor(self.counts, device=flat.device, dtype=torch.long)
+        boundaries = torch.cumsum(counts, dim=0)[:-1]
+        verbs = torch.bucketize(flat.long(), boundaries, right=False)
+        args = flat.long() - starts[verbs]
+        max_args = torch.as_tensor(self.max_args, device=flat.device, dtype=torch.long)
+        args = torch.minimum(args, max_args[verbs])
+        return torch.stack([verbs, args], dim=-1)
+
+
 class PuffeRL:
     def __init__(self, config, vecenv, policy, logger=None):
         # Backend perf optimization
@@ -76,6 +108,9 @@ class PuffeRL:
         atn_space = vecenv.single_action_space
         total_agents = vecenv.num_agents
         self.total_agents = total_agents
+
+        layout_max_args = getattr(policy, "action_layout_max_args", None)
+        self._action_adapter = _ActionAdapter(layout_max_args) if layout_max_args is not None else None
 
         # Experience
         if config["batch_size"] == "auto" and config["bptt_horizon"] == "auto":
@@ -288,7 +323,11 @@ class PuffeRL:
                 else:
                     self.observations[batch_rows, l] = o_device
 
-                self.actions[batch_rows, l] = action
+                if self._action_adapter is not None:
+                    decoded_actions = self._action_adapter.decode_torch(action.reshape(-1).to(device)).view(*action.shape, 2)
+                else:
+                    decoded_actions = action
+                self.actions[batch_rows, l] = decoded_actions.to(self.actions.dtype)
                 self.logprobs[batch_rows, l] = logprob
                 self.rewards[batch_rows, l] = r
                 self.terminals[batch_rows, l] = d.float()
@@ -305,9 +344,9 @@ class PuffeRL:
                     self.free_idx += num_full
                     self.full_rows += num_full
 
-                action = action.cpu().numpy()
+                action_out = decoded_actions.cpu().numpy()
                 if isinstance(logits, torch.distributions.Normal):
-                    action = np.clip(action, self.vecenv.action_space.low, self.vecenv.action_space.high)
+                    action_out = np.clip(action_out, self.vecenv.action_space.low, self.vecenv.action_space.high)
 
             profile("eval_misc", epoch)
             for i in info:
@@ -320,7 +359,7 @@ class PuffeRL:
                         self.stats[k].append(v)
 
             profile("env", epoch)
-            self.vecenv.send(action)
+            self.vecenv.send(action_out)
 
         profile("eval_misc", epoch)
         self.free_idx = self.total_agents
@@ -371,6 +410,12 @@ class PuffeRL:
             mb_prio = (self.segments * prio_probs[idx, None]) ** -anneal_beta
             mb_obs = self.observations[idx]
             mb_actions = self.actions[idx]
+            if self._action_adapter is not None:
+                flat_mb_actions = self._action_adapter.encode_torch(mb_actions.reshape(-1, 2)).view(mb_actions.shape[:-1])
+                state_action = flat_mb_actions
+            else:
+                flat_mb_actions = mb_actions
+                state_action = mb_actions
             mb_logprobs = self.logprobs[idx]
             mb_rewards = self.rewards[idx]
             mb_terminals = self.terminals[idx]
@@ -385,7 +430,7 @@ class PuffeRL:
                 mb_obs = mb_obs.reshape(-1, *self.vecenv.single_observation_space.shape)
 
             state = dict(
-                action=mb_actions,
+                action=state_action,
                 lstm_h=None,
                 lstm_c=None,
             )
@@ -393,7 +438,7 @@ class PuffeRL:
             # TODO: Currently only returning traj shaped value as a hack
             logits, newvalue = self.policy(mb_obs, state)
             # TODO: Redundant actions?
-            actions, newlogprob, entropy = pufferlib.pytorch.sample_logits(logits, action=mb_actions)
+            actions, newlogprob, entropy = pufferlib.pytorch.sample_logits(logits, action=state_action)
 
             profile("train_misc", epoch)
             newlogprob = newlogprob.reshape(mb_logprobs.shape)
@@ -442,6 +487,12 @@ class PuffeRL:
 
             # This breaks vloss clipping?
             self.values[idx] = newvalue.detach().float()
+
+            if self._action_adapter is not None:
+                decoded_mb_actions = self._action_adapter.decode_torch(actions.reshape(-1).to(device)).view(*actions.shape, 2)
+            else:
+                decoded_mb_actions = actions
+            self.actions[idx] = decoded_mb_actions.to(self.actions.dtype)
 
             # Logging
             profile("train_misc", epoch)

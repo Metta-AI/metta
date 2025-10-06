@@ -30,6 +30,7 @@ class RandomPolicy(Policy):
     def __init__(self, env: MettaGridEnv, device: Optional[object] = None) -> None:
         self._env = env
         self._layout = ActionLayout.from_env(env)
+        self.action_layout_max_args = self._layout.max_args
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         return RandomAgentPolicy(self._layout)

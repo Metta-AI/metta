@@ -86,6 +86,7 @@ class SimplePolicy(TrainablePolicy):
         self._net = SimplePolicyNet(env).to(device)
         self._device = device
         self._layout = self._net._layout
+        self.action_layout_max_args = self._layout.max_args
 
     def network(self) -> nn.Module:
         return self._net

@@ -218,6 +218,7 @@ class LSTMPolicy(TrainablePolicy):
         self._net = LSTMPolicyNet(env).to(device)
         self._device = device
         self._layout = self._net._layout
+        self.action_layout_max_args = self._layout.max_args
         self._agent_policy = LSTMAgentPolicy(self._net, device, self._layout)
 
     def network(self) -> nn.Module:
