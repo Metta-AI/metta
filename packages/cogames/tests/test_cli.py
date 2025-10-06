@@ -95,6 +95,8 @@ def test_make_mission_command():
                 "random",
                 "--width",
                 "100",
+                "--height",
+                "100",
                 "--output",
                 str(tmp_path),
             ],
