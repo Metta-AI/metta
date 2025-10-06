@@ -47,8 +47,8 @@ logger = logging.getLogger("MettaGridCore")
 # - value: uint8 feature value
 MettaGridObservation = npt.NDArray[np.uint8]  # Shape: (num_tokens, 3)
 
-# Actions are MultiDiscrete: shape (num_action_dims,) where each dimension is an action choice
-MettaGridAction = npt.NDArray[np.int32]  # Shape: (num_action_dims,)
+# Actions are Discrete: single integer index representing verb_argument combinations
+MettaGridAction = npt.NDArray[np.int32]  # Shape: ()
 
 
 @dataclass
@@ -271,7 +271,7 @@ class MettaGridCore:
         return self.__c_env_instance.observation_space
 
     @property
-    def _action_space(self) -> spaces.MultiDiscrete:
+    def _action_space(self) -> spaces.Discrete:
         """Internal action space - use single_action_space for PufferEnv compatibility."""
         return self.__c_env_instance.action_space
 
@@ -283,6 +283,15 @@ class MettaGridCore:
     def max_action_args(self) -> List[int]:
         action_args_array = self.__c_env_instance.max_action_args()
         return [int(x) for x in action_args_array]
+
+    @property
+    def flattened_action_names(self) -> List[str]:
+        return [str(name) for name in self.__c_env_instance.flattened_action_names()]
+
+    @property
+    def flattened_action_map(self) -> List[Tuple[int, int]]:
+        mapping = np.asarray(self.__c_env_instance.flattened_action_map(), dtype=np.int32)
+        return [(int(row[0]), int(row[1])) for row in mapping]
 
     @property
     def object_type_names(self) -> List[str]:

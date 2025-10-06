@@ -12,6 +12,8 @@ from metta.rl.utils import ensure_sequence_metadata
 def _build_env_metadata():
     action_names = ["move", "attack"]
     max_action_args = [0, 2]  # move has no parameter, attack supports 3 arguments
+    flattened_action_names = ["move", "attack_0", "attack_1", "attack_2"]
+    flattened_action_map = [(0, 0), (1, 0), (1, 1), (1, 2)]
     feature_normalizations = {0: 1.0}
 
     obs_features = {
@@ -24,9 +26,11 @@ def _build_env_metadata():
         obs_features=obs_features,
         action_names=action_names,
         max_action_args=max_action_args,
+        flattened_action_names=flattened_action_names,
+        flattened_action_map=flattened_action_map,
         num_agents=1,
         observation_space=None,
-        action_space=gym.spaces.MultiDiscrete([len(action_names), max(max_action_args) + 1]),
+        action_space=gym.spaces.Discrete(len(flattened_action_names)),
         feature_normalizations=feature_normalizations,
     )
 
@@ -55,8 +59,7 @@ def test_fast_policy_initialize_sets_action_metadata():
     # Initialization returns a list containing the observation shim log (may be None)
     assert isinstance(logs, list)
     assert policy.action_probs.action_index_tensor is not None
-    assert policy.action_probs.cum_action_max_params is not None
-    assert policy.action_probs.action_index_tensor.shape[1] == 2  # (action_type, action_param)
+    assert policy.action_probs.action_index_tensor.shape == (4, 2)
 
 
 def test_fast_policy_forward_produces_actions_and_values():
@@ -71,6 +74,6 @@ def test_fast_policy_forward_produces_actions_and_values():
 
     assert "actions" in output_td
     assert "values" in output_td
-    assert output_td["actions"].shape == (1, 2)
+    assert output_td["actions"].shape == (1,)
     assert output_td["values"].shape == (1,)
     assert output_td["full_log_probs"].shape[0] == 1

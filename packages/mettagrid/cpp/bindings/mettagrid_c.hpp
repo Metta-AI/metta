@@ -17,6 +17,7 @@
 #include <memory>
 #include <random>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "config/mettagrid_config.hpp"
@@ -92,6 +93,8 @@ public:
   py::object observation_space();
   py::list action_success_py();
   py::list max_action_args();
+  py::list flattened_action_names();
+  py::array_t<ActionType, py::array::c_style> flattened_action_map();
   py::list object_type_names_py();
   py::list resource_names_py();
 
@@ -137,6 +140,8 @@ private:
   std::vector<unsigned char> _max_action_args;
   unsigned char _max_action_arg;
   unsigned char _max_action_priority;
+  std::vector<std::pair<ActionType, ActionArg>> _flattened_actions;
+  std::vector<std::string> _flattened_action_names;
 
   std::unique_ptr<ObservationEncoder> _obs_encoder;
   std::unique_ptr<StatsTracker> _stats;

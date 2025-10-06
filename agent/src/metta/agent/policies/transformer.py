@@ -286,8 +286,8 @@ class TransformerPolicy(Policy):
 
     def _infer_action_dim(self) -> int:
         space = self.action_space
-        if hasattr(space, "nvec"):
-            return int(len(space.nvec))
+        if hasattr(space, "n"):
+            return 1
         if hasattr(space, "shape") and space.shape:
             return int(space.shape[0])
         return 1
@@ -328,8 +328,8 @@ class TransformerPolicy(Policy):
         else:
             actions = td.get("actions", None)
             if actions is not None:
-                actions = actions.view(batch_size, tt, -1).to(device=device, dtype=action_dtype)
-                prev_actions = self._get_zero_buffer((batch_size, tt, actions.size(-1)), device, action_dtype)
+                actions = actions.view(batch_size, tt, 1).to(device=device, dtype=action_dtype)
+                prev_actions = self._get_zero_buffer((batch_size, tt, 1), device, action_dtype)
                 if tt > 1:
                     prev_actions[:, 1:] = actions[:, :-1]
                 last_actions = prev_actions.view(total, -1)

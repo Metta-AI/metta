@@ -39,7 +39,7 @@ class PufferPolicy(Policy):
         self.action_space = env_metadata.action_space
 
         self.active_action_names = []
-        self.num_active_actions = 100  # Default
+        self.num_active_actions = len(env_metadata.flattened_action_names)
 
         self.out_width = env_metadata.obs_width
         self.out_height = env_metadata.obs_height
@@ -82,10 +82,8 @@ class PufferPolicy(Policy):
         max_vec = max_vec[None, :, None, None]
         self.policy.register_buffer("max_vec", max_vec)
 
-        action_nvec = [5, 9]  # Match checkpoint exactly: actor.0 (5 actions), actor.1 (9 actions)
-        self.policy.actor = nn.ModuleList(
-            [pufferlib.pytorch.layer_init(nn.Linear(hidden_size, n), std=0.01) for n in action_nvec]
-        )
+        self.total_actions = len(env_metadata.flattened_action_names)
+        self.policy.actor = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, self.total_actions), std=0.01)
         self.policy.value = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, 1), std=1)
 
         self.lstm = nn.LSTM(input_size=512, hidden_size=512, num_layers=1)
@@ -157,7 +155,7 @@ class PufferPolicy(Policy):
         return result
 
     def decode_actions(self, hidden):
-        logits = [dec(hidden) for dec in self.policy.actor]
+        logits = self.policy.actor(hidden)
         value = self.policy.value(hidden)
         return logits, value
 
@@ -185,12 +183,9 @@ class PufferPolicy(Policy):
 
         # [1, B, 512] -> [B, 512]
         core_features = lstm_output.squeeze(0)
-        # returns separate logits per action type
         logits, value = self.decode_actions(core_features)
 
-        # For ActionProbs compatibility, we need to flatten logits into single tensor
-        # This matches how ActionEmbedding creates action names like "move_0", "attack_0", "attack_1", etc.
-        td["logits"] = torch.cat(logits, dim=-1)
+        td["logits"] = logits
         td["values"] = value.flatten()
         self.action_probs(td, action)
 

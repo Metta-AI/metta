@@ -125,6 +125,8 @@ class Simulation:
             obs_features=metta_grid_env.observation_features,
             action_names=metta_grid_env.action_names,
             max_action_args=metta_grid_env.max_action_args,
+            flattened_action_names=metta_grid_env.flattened_action_names,
+            flattened_action_map=metta_grid_env.flattened_action_map,
             num_agents=metta_grid_env.num_agents,
             observation_space=metta_grid_env.observation_space,
             action_space=metta_grid_env.action_space,

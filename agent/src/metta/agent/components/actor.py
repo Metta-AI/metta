@@ -114,22 +114,16 @@ class ActionProbs(nn.Module):
     def __init__(self, config: ActionProbsConfig):
         super().__init__()
         self.config = config
+        self.register_buffer("action_index_tensor", torch.zeros((0, 2), dtype=torch.int32), persistent=False)
+        self.num_actions = 0
 
     def initialize_to_environment(
         self,
         env: Any,
         device,
     ) -> None:
-        action_max_params = list(env.max_action_args)
-        self.cum_action_max_params = torch.cumsum(
-            torch.tensor([0] + action_max_params, device=device, dtype=torch.long), dim=0
-        )
-
-        self.action_index_tensor = torch.tensor(
-            [[idx, j] for idx, max_param in enumerate(action_max_params) for j in range(max_param + 1)],
-            device=device,
-            dtype=torch.int32,
-        )
+        self.action_index_tensor = torch.tensor(env.flattened_action_map, device=device, dtype=torch.int32)
+        self.num_actions = int(self.action_index_tensor.shape[0])
 
     def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
         if action is None:
@@ -142,9 +136,7 @@ class ActionProbs(nn.Module):
         """Forward pass for inference mode with action sampling."""
         action_logit_index, selected_log_probs, _, full_log_probs = sample_actions(logits)
 
-        action = self._convert_logit_index_to_action(action_logit_index)
-
-        td["actions"] = action.to(dtype=torch.int32)
+        td["actions"] = action_logit_index.to(dtype=torch.int32)
         td["act_log_prob"] = selected_log_probs
         td["full_log_probs"] = full_log_probs
 
@@ -155,14 +147,20 @@ class ActionProbs(nn.Module):
         # CRITICAL: ComponentPolicy expects the action to be flattened already during training
         # The TD should be reshaped to match the flattened batch dimension
         logits = td[self.config.in_key]
-        if action.dim() == 3:  # (B, T, A) -> (BT, A)
-            batch_size_orig, time_steps, A = action.shape
-            action = action.view(batch_size_orig * time_steps, A)
+        if action.dim() == 3:
+            batch_size_orig, time_steps, _ = action.shape
+            action = action.view(batch_size_orig * time_steps, -1)
             # Also flatten the TD to match
             if td.batch_dims > 1:
                 td = td.reshape(td.batch_size.numel())
 
-        action_logit_index = self._convert_action_to_logit_index(action)
+        if action.dim() == 2 and action.size(1) == 1:
+            action = action.view(-1)
+
+        if action.dim() != 1:
+            raise ValueError(f"Expected flattened action indices, got shape {tuple(action.shape)}")
+
+        action_logit_index = action.to(dtype=torch.long)
         selected_log_probs, entropy, action_log_probs = evaluate_actions(logits, action_logit_index)
 
         # Store in flattened TD (will be reshaped by caller if needed)
@@ -179,13 +177,6 @@ class ActionProbs(nn.Module):
 
         return td
 
-    def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
-        """Convert (action_type, action_param) pairs to discrete indices."""
-        action_type_numbers = flattened_action[:, 0].long()
-        action_params = flattened_action[:, 1].long()
-        cumulative_sum = self.cum_action_max_params[action_type_numbers]
-        return cumulative_sum + action_type_numbers + action_params
-
-    def _convert_logit_index_to_action(self, logit_indices: torch.Tensor) -> torch.Tensor:
-        """Convert discrete logit indices back to (action_type, action_param) pairs."""
-        return self.action_index_tensor[logit_indices]
+    @property
+    def action_count(self) -> int:
+        return int(self.action_index_tensor.shape[0])

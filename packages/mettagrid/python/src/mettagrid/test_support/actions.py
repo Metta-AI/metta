@@ -28,47 +28,48 @@ def generate_valid_random_actions(
         seed: Optional random seed for deterministic action generation
 
     Returns:
-        NumPy array of valid actions with shape (num_agents, 2)
+        NumPy array of valid actions with shape (num_agents,)
     """
     # Set the random seed if provided (for deterministic behavior)
     if seed is not None:
         np.random.seed(seed)
 
-    # Get the action space parameters
-    # For MultiDiscrete, shape[0] gives the number of dimensions (should be 2: action_type and action_arg)
-    # and nvec[0] gives the number of possible values for the first dimension (action types)
-    action_space = env.single_action_space
-    num_actions = action_space.nvec[0]  # Number of action types
+    flattened_map = np.asarray(env.flattened_action_map, dtype=np.int32)
+    flattened_by_type: dict[int, dict[int, int]] = {}
+    for idx, (act_type, act_arg) in enumerate(flattened_map):
+        flattened_by_type.setdefault(int(act_type), {})[int(act_arg)] = int(idx)
 
-    # Get the maximum argument values for each action type
+    num_action_types = len(flattened_by_type)
     max_args = env.max_action_args
 
-    # Initialize actions array with correct dtype
-    actions = np.zeros((num_agents, 2), dtype=dtype_actions)
+    actions = np.zeros((num_agents,), dtype=dtype_actions)
 
     for i in range(num_agents):
         # Determine action type
         if force_action_type is None:
-            # Random action type if not forced
-            act_type = np.random.randint(0, num_actions)
+            act_type = np.random.randint(0, num_action_types) if num_action_types > 0 else 0
         else:
-            # Use forced action type (ensure it's valid)
-            act_type = min(force_action_type, num_actions - 1) if num_actions > 0 else 0
+            act_type = min(force_action_type, num_action_types - 1) if num_action_types > 0 else 0
 
         # Get maximum allowed argument for this action type
         max_allowed = max_args[act_type] if act_type < len(max_args) else 0
 
         # Determine action argument
         if force_action_arg is None:
-            # Random valid argument if not forced
             act_arg = np.random.randint(0, max_allowed + 1) if max_allowed >= 0 else 0
         else:
-            # Use forced argument (clamped to valid range)
             act_arg = min(force_action_arg, max_allowed)
 
-        # Set the action values
-        actions[i, 0] = act_type
-        actions[i, 1] = act_arg
+        action_idx = flattened_by_type.get(act_type, {}).get(act_arg)
+        if action_idx is None:
+            # Fallback to first available arg for this type
+            type_entries = flattened_by_type.get(act_type, {})
+            if not type_entries:
+                action_idx = 0
+            else:
+                action_idx = next(iter(type_entries.values()))
+
+        actions[i] = action_idx
 
     return actions
 
@@ -100,9 +101,16 @@ def move(env: MettaGrid, direction: Orientation, agent_idx: int = 0) -> dict[str
     # Orientation values map directly to movement indices
     movement_idx = direction.value
 
-    # Use direct 8-way movement
-    move_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
-    move_action[agent_idx] = [move_idx, movement_idx]
+    mapping = np.asarray(env.flattened_action_map, dtype=np.int32)
+    matches = np.where((mapping[:, 0] == move_idx) & (mapping[:, 1] == movement_idx))[0]
+    if matches.size == 0:
+        result["error"] = "move action mapping not found"
+        return result
+
+    move_action_index = int(matches[0])
+
+    move_action = np.zeros((env.num_agents,), dtype=dtype_actions)
+    move_action[agent_idx] = move_action_index
 
     env.step(move_action)
 

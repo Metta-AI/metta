@@ -17,6 +17,8 @@ from metta.rl.utils import ensure_sequence_metadata
 def _build_env_metadata():
     action_names = ["move", "attack"]
     max_action_args = [0, 2]
+    flattened_action_names = ["move", "attack_0", "attack_1", "attack_2"]
+    flattened_action_map = [(0, 0), (1, 0), (1, 1), (1, 2)]
     feature_normalizations = {0: 1.0}
 
     obs_features = {
@@ -29,9 +31,11 @@ def _build_env_metadata():
         obs_features=obs_features,
         action_names=action_names,
         max_action_args=max_action_args,
+        flattened_action_names=flattened_action_names,
+        flattened_action_map=flattened_action_map,
         num_agents=1,
         observation_space=None,
-        action_space=gym.spaces.MultiDiscrete([len(action_names), max(max_action_args) + 1]),
+        action_space=gym.spaces.Discrete(len(flattened_action_names)),
         feature_normalizations=feature_normalizations,
     )
 
@@ -69,7 +73,7 @@ def test_transformer_config_creates_policy(config_factory, expected_backbone):
 
     assert "actions" in output_td
     assert "values" in output_td
-    assert output_td["actions"].shape == (1, 2)
+    assert output_td["actions"].shape == (1,)
     assert output_td["values"].shape == (1,)
     assert output_td["full_log_probs"].shape[0] == 1
 
@@ -81,7 +85,7 @@ def test_transformer_policy_initialization_sets_action_metadata():
     policy.initialize_to_environment(env_metadata, torch.device("cpu"))
 
     assert policy.action_probs.action_index_tensor is not None
-    assert policy.action_probs.cum_action_max_params is not None
+    assert policy.action_probs.action_index_tensor.shape == (4, 2)
 
 
 def test_padding_tokens_do_not_zero_valid_entries():

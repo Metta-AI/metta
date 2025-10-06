@@ -63,7 +63,10 @@ class TestBasicFunctionality:
         assert "move" in action_names
 
         noop_idx = action_names.index("noop")
-        actions = np.full((basic_env.num_agents, 2), [noop_idx, 0], dtype=dtype_actions)
+        mapping = np.asarray(basic_env.flattened_action_map, dtype=np.int32)
+        noop_indices = np.where((mapping[:, 0] == noop_idx) & (mapping[:, 1] == 0))[0]
+        assert noop_indices.size > 0, "Expected noop action in flattened map"
+        actions = np.full(basic_env.num_agents, noop_indices[0], dtype=dtype_actions)
 
         obs, rewards, terminals, truncations, info = basic_env.step(actions)
 
@@ -85,7 +88,10 @@ class TestBasicFunctionality:
         initial_objects = basic_env.grid_objects()
 
         noop_idx = basic_env.action_names.index("noop")
-        actions = np.full((basic_env.num_agents, 2), [noop_idx, 0], dtype=dtype_actions)
+        mapping = np.asarray(basic_env.flattened_action_map, dtype=np.int32)
+        noop_indices = np.where((mapping[:, 0] == noop_idx) & (mapping[:, 1] == 0))[0]
+        assert noop_indices.size > 0, "Expected noop action in flattened map"
+        actions = np.full(basic_env.num_agents, noop_indices[0], dtype=dtype_actions)
 
         obs2, _, _, _, _ = basic_env.step(actions)
         post_step_objects = basic_env.grid_objects()

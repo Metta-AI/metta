@@ -128,8 +128,8 @@ class TestActionValidation:
         env = MettaGrid(from_mettagrid_config(basic_config), simple_map, 42)
         env.reset()
 
-        # Try invalid action type
-        invalid_action = np.array([[99, 0]], dtype=dtype_actions)
+        # Try invalid flattened index
+        invalid_action = np.array([env.action_space.n + 99], dtype=dtype_actions)
         env.step(invalid_action)
 
         # Action should fail
@@ -140,12 +140,8 @@ class TestActionValidation:
         env = MettaGrid(from_mettagrid_config(basic_config), simple_map, 42)
         env.reset()
 
-        move_idx = env.action_names().index("move")
-        max_args = env.max_action_args()
-
-        # Try argument exceeding max_arg
-        invalid_arg = max_args[move_idx] + 10
-        invalid_action = np.array([[move_idx, invalid_arg]], dtype=dtype_actions)
+        # Use an out-of-range flattened index to simulate invalid argument
+        invalid_action = np.array([env.action_space.n + 1], dtype=dtype_actions)
         env.step(invalid_action)
 
         # Action should fail
@@ -196,7 +192,10 @@ class TestResourceRequirements:
         env.reset()
 
         move_idx = env.action_names().index("move")
-        move_action = np.array([[move_idx, 0]], dtype=dtype_actions)
+        mapping = np.asarray(env.flattened_action_map(), dtype=np.int32)
+        move_indices = np.where((mapping[:, 0] == move_idx) & (mapping[:, 1] == 0))[0]
+        assert move_indices.size > 0, "Expected move action in flattened map"
+        move_action = np.array([move_indices[0]], dtype=dtype_actions)
 
         # Agent starts with no resources, so move should fail
         env.step(move_action)
@@ -254,7 +253,10 @@ class TestResourceRequirements:
 
         # Move east (direction 2)
         move_idx = env.action_names().index("move")
-        move_action = np.array([[move_idx, 2]], dtype=dtype_actions)
+        mapping = np.asarray(env.flattened_action_map(), dtype=np.int32)
+        move_indices = np.where((mapping[:, 0] == move_idx) & (mapping[:, 1] == 2))[0]
+        assert move_indices.size > 0, "Expected move action with argument 2 in flattened map"
+        move_action = np.array([move_indices[0]], dtype=dtype_actions)
 
         obs_after, _rewards, _dones, _truncs, _infos = env.step(move_action)
         action_success = env.action_success()[0]
@@ -292,19 +294,21 @@ class TestActionSpace:
 
         action_space = env.action_space
 
-        # Should be MultiDiscrete with 2 dimensions
-        assert hasattr(action_space, "nvec"), "Action space should be MultiDiscrete"
-        assert len(action_space.nvec) == 2, "Action space should have 2 dimensions"
+        # Should be Discrete with one dimension
+        from gymnasium import spaces
 
-        num_actions = action_space.nvec[0]
-        max_arg_plus_one = action_space.nvec[1]
+        assert isinstance(action_space, spaces.Discrete), "Action space should be Discrete"
 
-        # Should match our configuration
-        assert num_actions == len(env.action_names())
+        flattened_names = env.flattened_action_names()
+        assert action_space.n == len(flattened_names)
 
-        # Max arg is the maximum across all actions
+        mapping = np.asarray(env.flattened_action_map(), dtype=np.int32)
+        assert mapping.shape[0] == action_space.n
+
+        # Ensure every action_type respects max_action_args
         max_args = env.max_action_args()
-        assert max_arg_plus_one == max(max_args) + 1
+        for action_type, action_arg in mapping:
+            assert action_arg <= max_args[action_type]
 
     def test_single_action_space(self, basic_config, multi_agent_map):
         """Test action space for multi-agent environment."""
@@ -329,25 +333,29 @@ class TestActionSpace:
         action_space = env.action_space
         assert action_space is not None
 
-        # The action space should be MultiDiscrete for each agent's action
-        assert hasattr(action_space, "nvec"), "Action space should be MultiDiscrete"
-        assert len(action_space.nvec) == 2, "Action space should have 2 dimensions (action_type, action_arg)"
+        from gymnasium import spaces
 
-        # First dimension is number of action types
-        num_actions = action_space.nvec[0]
-        assert num_actions == len(env.action_names())
+        # The action space should be Discrete for each agent's action
+        assert isinstance(action_space, spaces.Discrete)
+        flattened_names = env.flattened_action_names()
+        assert action_space.n == len(flattened_names)
 
-        # Second dimension is max action argument + 1
-        max_arg_plus_one = action_space.nvec[1]
+        mapping = np.asarray(env.flattened_action_map(), dtype=np.int32)
+        assert mapping.shape[0] == action_space.n
+
         max_args = env.max_action_args()
-        assert max_arg_plus_one == max(max_args) + 1
+        for action_type, action_arg in mapping:
+            assert action_arg <= max_args[action_type]
 
         # When stepping, we need to provide actions for all agents
         env.reset()
 
-        # Create actions for all 3 agents (noop for each)
+        # Create actions for all 3 agents (noop flattened index)
         noop_idx = env.action_names().index("noop")
-        actions = np.array([[noop_idx, 0]] * 3, dtype=dtype_actions)
+        mapping_matches = np.where((mapping[:, 0] == noop_idx) & (mapping[:, 1] == 0))[0]
+        assert mapping_matches.size > 0, "Expected noop with arg 0 in flattened map"
+        noop_flat = int(mapping_matches[0])
+        actions = np.full(env.num_agents, noop_flat, dtype=dtype_actions)
 
         # This should work without error
         env.step(actions)

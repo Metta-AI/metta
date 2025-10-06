@@ -198,9 +198,9 @@ _action_handlers.push_back(std::make_unique<AttackNearest>(...));
 
 **Impact**: Attack takes up two action indices
 
-### 10. Action Space Dimension Changes
+### 10. Action Space Flattening
 
-**Description**: Changes to MultiDiscrete action space shape.
+**Description**: The action space is now a single `gymnasium.spaces.Discrete` where each index encodes a verb/argument pair.
 
 **Example**:
 
@@ -209,10 +209,12 @@ _action_handlers.push_back(std::make_unique<AttackNearest>(...));
 action_space = MultiDiscrete([5, 2])  # 5 action types, max arg 1
 
 # After (BREAKING)
-action_space = MultiDiscrete([7, 4])  # 7 action types, max arg 3
+action_space = Discrete(len(env.flattened_action_names))
+# env.flattened_action_names -> ["move", "attack_0", "attack_1", ...]
 ```
 
-**Impact**: Neural network output dimensions mismatch **Detection**: Runtime shape errors in policy
+**Impact**: Actor heads must emit `n` logits instead of `(verb, arg)` slices. Use
+`env.flattened_action_names`/`env.flattened_action_map` to interpret sampled indices. **Detection**: Runtime shape errors in policy
 
 ## Compatibility Matrix
 

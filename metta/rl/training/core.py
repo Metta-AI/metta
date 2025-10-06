@@ -124,7 +124,14 @@ class CoreTrainingLoop:
                 loss.rollout(td, context)
 
             assert "actions" in td, "No loss performed inference - at least one loss must generate actions"
-            self.last_action[training_env_id] = td["actions"].detach()
+            actions_tensor = td["actions"].detach()
+            if actions_tensor.dim() == 1:
+                actions_tensor = actions_tensor.unsqueeze(-1)
+            elif actions_tensor.dim() == 2 and actions_tensor.size(-1) == 1:
+                pass
+            else:
+                raise ValueError(f"Unsupported action tensor shape {tuple(actions_tensor.shape)}")
+            self.last_action[training_env_id] = actions_tensor
 
             # Ship actions to the environment
             env.send_actions(td["actions"].cpu().numpy())
@@ -282,5 +289,5 @@ class CoreTrainingLoop:
         if self.last_action is None or len(self.last_action) < env_ids.max() + 1:
             act_space = env.single_action_space
             act_dtype = torch.int32 if np.issubdtype(act_space.dtype, np.integer) else torch.float32
-            self.last_action = torch.zeros(env_ids.max() + 1, len(act_space.nvec), dtype=act_dtype, device=td.device)
+            self.last_action = torch.zeros(env_ids.max() + 1, 1, dtype=act_dtype, device=td.device)
         td["last_actions"] = self.last_action[env_ids].detach()

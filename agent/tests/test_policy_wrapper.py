@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import numpy as np
 import torch
 from torch import nn
 
@@ -25,9 +26,11 @@ def _make_env_metadata() -> EnvironmentMetaData:
         obs_features={},
         action_names=["noop"],
         max_action_args=[0],
+        flattened_action_names=["noop"],
+        flattened_action_map=[(0, 0)],
         num_agents=1,
         observation_space=SimpleNamespace(),
-        action_space=SimpleNamespace(),
+        action_space=SimpleNamespace(n=1, dtype=np.int32),
         feature_normalizations={0: 1.0},
     )
 

@@ -328,7 +328,7 @@ def test_pettingzoo_action_observation_spaces():
 
         # In our implementation, all agents have the same spaces
         assert obs_space.shape == reference_obs_space.shape
-        assert action_space.nvec.tolist() == reference_action_space.nvec.tolist()
+        assert action_space.n == reference_action_space.n
 
         # Test that spaces can generate valid samples
         obs_sample = obs_space.sample()
