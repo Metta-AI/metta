@@ -265,12 +265,12 @@ class AssemblerMapBuilder(MapBuilder):
 
         self._rng.shuffle(empty_positions)
 
-        for agent, (row, col) in zip(agent_list, empty_positions):
+        for agent, (row, col) in zip(agent_list, empty_positions, strict=False):
             grid[row, col] = agent
 
     def _place_objects(self, grid: np.ndarray, objects: list[str], positions: list[tuple[int, int]]) -> None:
         """Place objects at specified positions."""
-        for obj, (row, col) in zip(objects, positions):
+        for obj, (row, col) in zip(objects, positions, strict=False):
             grid[row, col] = obj
 
     def _get_num_agents(self) -> int:
