@@ -9,14 +9,21 @@ from torch import Tensor
 
 from metta.agent.policy import Policy
 from metta.rl.loss import Loss
+from metta.rl.loss.scheduler import HyperSchedule
 from metta.rl.training import ComponentContext
 from mettagrid.base_config import Config
 
 
 class DynamicsConfig(Config):
+    schedule: list[HyperSchedule] = Field(default_factory=list)
+
     returns_step_look_ahead: int = Field(default=1)
     returns_pred_coef: float = Field(default=1.0, ge=0, le=1.0)
     reward_pred_coef: float = Field(default=1.0, ge=0, le=1.0)
+
+    def update_hypers(self, context: ComponentContext) -> None:
+        for sched in self.schedule:
+            sched.apply(obj=self, epoch=context.epoch, agent_step=context.agent_step)
 
     def create(
         self,
