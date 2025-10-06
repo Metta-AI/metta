@@ -12,7 +12,6 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { SectionHeading } from "@/components/ui/section-heading";
 
 import type {
   PaperWithUserContext,
@@ -175,47 +174,60 @@ export function PapersView({
   const hasFilters = searchQuery.trim().length > 0 || showOnlyStarred;
 
   return (
-    <section className="space-y-4">
-      <SectionHeading
-        title="Papers"
-        description={`Showing ${filteredCount} of ${totalCount} papers`}
-        actions={
-          hasFilters ? (
-            <Button variant="outline" size="sm" onClick={handleClearFilters}>
-              Clear filters
-            </Button>
-          ) : null
-        }
-      />
-
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div className="w-full md:max-w-md">
-          <Label htmlFor="papers-search">Search</Label>
-          <Input
-            id="papers-search"
-            placeholder="Search title, tags, or authors"
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            className="mt-1"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <Checkbox
-            id="papers-starred-only"
-            checked={showOnlyStarred}
-            onCheckedChange={(checked) => setShowOnlyStarred(Boolean(checked))}
-          />
-          <Label htmlFor="papers-starred-only" className="text-sm">
-            Show starred only
-          </Label>
+    <div className="flex h-full w-full flex-col">
+      {/* Header Section */}
+      <div className="border-b border-gray-200 bg-white px-4 py-4 md:px-6 md:py-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-semibold text-gray-900">Papers</h1>
+          <span className="text-sm text-gray-500">
+            Showing {filteredCount} of {totalCount} papers
+          </span>
         </div>
       </div>
 
-      <PapersTable
-        papers={tableRows}
-        onRowClick={handleRowClick}
-        onTagClick={handleTagClick}
-      />
-    </section>
+      {/* Content Area */}
+      <div className="flex-1 overflow-y-auto px-4 py-6 md:px-6">
+        <div className="mx-auto w-full max-w-7xl space-y-6">
+          {/* Search Bar */}
+          <div className="w-full">
+            <Label htmlFor="papers-search">Search</Label>
+            <Input
+              id="papers-search"
+              placeholder="Search title, tags, or authors"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              className="mt-1"
+            />
+          </div>
+
+          {/* Filter Controls */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="papers-starred-only"
+                checked={showOnlyStarred}
+                onCheckedChange={(checked) =>
+                  setShowOnlyStarred(Boolean(checked))
+                }
+              />
+              <Label htmlFor="papers-starred-only" className="text-sm">
+                Show starred only
+              </Label>
+            </div>
+            {hasFilters && (
+              <Button variant="outline" size="sm" onClick={handleClearFilters}>
+                Clear filters
+              </Button>
+            )}
+          </div>
+
+          <PapersTable
+            papers={tableRows}
+            onRowClick={handleRowClick}
+            onTagClick={handleTagClick}
+          />
+        </div>
+      </div>
+    </div>
   );
 }

@@ -17,7 +17,7 @@ export default async function AdminLayout({
   await getAdminSessionOrRedirect();
 
   return (
-    <div className="flex h-screen flex-col bg-gray-50">
+    <div className="flex h-screen w-full flex-col bg-gray-50">
       {/* Sticky Admin Header */}
       <div className="sticky top-0 z-30">
         <div className="border-b border-red-200 bg-red-50 p-2 text-center">
