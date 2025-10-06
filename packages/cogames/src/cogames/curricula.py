@@ -39,6 +39,8 @@ def _make_rotation_supplier(
             scenarios.add_easy_heart_recipe(cfg)
         if shaped:
             scenarios.add_shaped_rewards(cfg)
+        if easy or shaped:
+            scenarios.extend_max_steps(cfg)
         return cfg
 
     return _supplier

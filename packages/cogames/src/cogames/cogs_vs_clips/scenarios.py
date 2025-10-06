@@ -40,11 +40,13 @@ from mettagrid.map_builder.random import RandomMapBuilder
 
 
 def add_easy_heart_recipe(cfg: MettaGridConfig) -> None:
+    """Insert a simple energy-to-heart recipe for the assembler."""
+
     assembler_cfg = cfg.game.objects.get("assembler")
     if assembler_cfg is None:
         return
 
-    for positions, recipe in assembler_cfg.recipes:
+    for _, recipe in assembler_cfg.recipes:
         if recipe.output_resources.get("heart") and recipe.input_resources == {"energy": 1}:
             return
 
@@ -57,6 +59,8 @@ def add_easy_heart_recipe(cfg: MettaGridConfig) -> None:
 
 
 def add_shaped_rewards(cfg: MettaGridConfig) -> None:
+    """Augment agent rewards with additional heart-centric shaped rewards."""
+
     agent_cfg = cfg.game.agent
     stats = dict(agent_cfg.rewards.stats or {})
 
@@ -78,17 +82,18 @@ def add_shaped_rewards(cfg: MettaGridConfig) -> None:
     agent_cfg.rewards.stats = stats
 
 
+def extend_max_steps(cfg: MettaGridConfig, multiplier: float = 20.0) -> None:
+    """Scale the episode length to support longer training runs."""
+
+    current = cfg.game.max_steps
+    if current is None:
+        return
+    cfg.game.max_steps = int(current * multiplier)
+
+
 def _base_game_config(num_cogs: int, clipping_rate: float) -> MettaGridConfig:
     """Shared base configuration for all game types."""
 
-    heart_gain_reward = 5.0
-    heart_deposit_reward = 7.5
-    chest_reward = 2.5
-    stats_rewards: dict[str, float] = {
-        "heart.gained": heart_gain_reward,
-        "heart.put": heart_deposit_reward,
-        "chest.heart.amount": chest_reward,
-    }
     return MettaGridConfig(
         game=GameConfig(
             resource_names=resources,
@@ -128,7 +133,12 @@ def _base_game_config(num_cogs: int, clipping_rate: float) -> MettaGridConfig:
                     ("carbon", "oxygen", "germanium", "silicon"): 100,
                     ("scrambler", "modulator", "decoder", "resonator"): 5,
                 },
-                rewards=AgentRewards(stats=stats_rewards),
+                rewards=AgentRewards(
+                    stats={"chest.heart.amount": 1 / num_cogs},
+                    # inventory={
+                    #     "heart": 1,
+                    # },
+                ),
                 initial_inventory={
                     "energy": 100,
                 },
@@ -164,43 +174,35 @@ def _base_game_config(num_cogs: int, clipping_rate: float) -> MettaGridConfig:
 
 def make_game(
     num_cogs: int = 4,
-    width: int = 6,
-    height: int = 6,
+    width: int = 10,
+    height: int = 10,
     num_assemblers: int = 1,
-    num_chargers: int = 1,
+    num_chargers: int = 0,
     num_carbon_extractors: int = 0,
     num_oxygen_extractors: int = 0,
     num_germanium_extractors: int = 0,
     num_silicon_extractors: int = 0,
-    num_chests: int = 1,
+    num_chests: int = 0,
     clipping_rate: float = 0.0,
 ) -> MettaGridConfig:
-    cfg = _base_game_config(num_cogs, clipping_rate=clipping_rate)
-    max_border = max(0, min(width, height) // 2 - 1)
-    border_width = min(1, max_border)
-
+    cfg = _base_game_config(num_cogs, clipping_rate)
     map_builder = RandomMapBuilder.Config(
         width=width,
         height=height,
         agents=num_cogs,
-        border_width=border_width,
+        border_width=5,
         objects={
-            name: count
-            for name, count in {
-                "assembler": num_assemblers,
-                "chest": num_chests,
-                "charger": num_chargers,
-                "carbon_extractor": num_carbon_extractors,
-                "oxygen_extractor": num_oxygen_extractors,
-                "germanium_extractor": num_germanium_extractors,
-                "silicon_extractor": num_silicon_extractors,
-            }.items()
-            if count > 0
+            "assembler": num_assemblers,
+            "charger": num_chargers,
+            "carbon_extractor": num_carbon_extractors,
+            "oxygen_extractor": num_oxygen_extractors,
+            "germanium_extractor": num_germanium_extractors,
+            "silicon_extractor": num_silicon_extractors,
+            "chest": num_chests,
         },
         seed=42,
     )
     cfg.game.map_builder = map_builder
-    cfg.game.max_steps *= 20
     return cfg
 
 
@@ -208,7 +210,7 @@ def tutorial_assembler_simple(num_cogs: int = 1) -> MettaGridConfig:
     cfg = make_game(num_cogs=num_cogs, num_assemblers=1)
     cfg.game.objects["assembler"] = assembler()
     cfg.game.objects["assembler"].recipes = [
-        (["Any"], RecipeConfig(input_resources={"energy": 1}, output_resources={"heart": 1}, cooldown=1))
+        (["Any"], RecipeConfig(input_resources={"battery_red": 3}, output_resources={"heart": 1}, cooldown=10))
     ]
     return cfg
 
@@ -225,7 +227,7 @@ def tutorial_assembler_complex(num_cogs: int = 1) -> MettaGridConfig:
     )
     cfg.game.objects["assembler"] = assembler()
     cfg.game.objects["assembler"].recipes = [
-        (["Any"], RecipeConfig(input_resources={"energy": 1}, output_resources={"heart": 1}, cooldown=1))
+        (["Any"], RecipeConfig(input_resources={"battery_red": 3}, output_resources={"heart": 1}, cooldown=10))
     ]
     return cfg
 
@@ -242,7 +244,6 @@ def make_game_from_map(map_name: str, num_cogs: int = 4, clipping_rate: float = 
         str(map_path), {o.map_char: o.name for o in config.game.objects.values()}
     )
     config.game.map_builder = map_builder
-    config.game.max_steps *= 20
 
     return config
 
