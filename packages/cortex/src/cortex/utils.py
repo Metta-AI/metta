@@ -4,17 +4,26 @@ from __future__ import annotations
 
 import logging
 from typing import Callable
+import os
 
 import torch
 
 logger = logging.getLogger(__name__)
 
-# Check if Triton is available and CUDA is available
-try:
-    import triton  # noqa: F401
+# Check if Triton is available and CUDA is available, with an escape hatch
+# to force-disable via environment variable (useful for first-run JIT delays
+# or troubleshooting kernels).
+_disable_triton_env = os.getenv("CORTEX_DISABLE_TRITON") or os.getenv("CORTEX_FORCE_PYTORCH")
+_disable_triton = str(_disable_triton_env).lower() in {"1", "true", "yes"}
 
-    TRITON_AVAILABLE = torch.cuda.is_available()
-except ImportError:
+if not _disable_triton:
+    try:
+        import triton  # noqa: F401
+
+        TRITON_AVAILABLE = torch.cuda.is_available()
+    except ImportError:
+        TRITON_AVAILABLE = False
+else:
     TRITON_AVAILABLE = False
 
 

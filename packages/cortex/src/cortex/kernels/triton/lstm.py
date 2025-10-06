@@ -13,12 +13,11 @@ from dataclasses import dataclass
 
 import torch
 import torch.nn as nn
+import triton
 import triton.language as tl
 from einops import rearrange
 from torch import Tensor
 from torch.amp import custom_bwd, custom_fwd
-
-import triton
 from triton import OutOfResources
 
 # -----------------------------------------------------------------------------

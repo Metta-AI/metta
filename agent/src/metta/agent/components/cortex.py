@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 from cortex.adapters.metta import MettaTDAdapter
 from cortex.stacks import CortexStack
+from pydantic import ConfigDict
 from tensordict import TensorDict
 from torchrl.data import Composite, UnboundedDiscrete
 
@@ -18,6 +19,8 @@ class CortexTDConfig(ComponentConfig):
     This component wraps `cortex.adapters.metta.MettaTDAdapter` so it can be
     composed by `PolicyAutoBuilder` like any other Metta component.
     """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     in_key: str
     out_key: str

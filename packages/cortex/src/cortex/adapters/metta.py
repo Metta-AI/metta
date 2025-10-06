@@ -16,7 +16,6 @@ This avoids clearing memory on trainer hooks and keeps repeated samples (PER)
 consistent without extra metadata.
 """
 
-from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 import torch
@@ -52,29 +51,59 @@ def _as_reset_mask(
         return resets_bool.reshape(-1)[:B] if TT == 1 else resets_bool.reshape(B, TT)
 
 
-@dataclass
-class MettaTDAdapter:
+class MettaTDAdapter(nn.Module):
     """Stateful adapter integrating a CortexStack with Metta TensorDicts.
+
+    This is an ``nn.Module`` so its parameters (the wrapped ``CortexStack`` and the
+    optional projection) are registered and optimized as part of the policy.
 
     Args:
         stack: CortexStack instance.
-        in_key: Input tensor key in TensorDict (expects [B*TT, H]).
-        out_key: Output tensor key to write ([B*TT, H_out]).
+        in_key: Input tensor key in TensorDict (expects ``[B*TT, H]``).
+        out_key: Output tensor key to write (``[B*TT, H_out]``).
         d_hidden: External hidden size of the stack (for validation and proj).
-        out_features: Optional output projection size; if None or == d_hidden,
-            no projection is applied.
+        out_features: Optional output projection size; if ``None`` or equal to
+          ``d_hidden``, no projection is applied.
         key_prefix: Prefix for flat state keys written to TensorDict for replay.
     """
 
-    stack: CortexStack
-    in_key: str
-    out_key: str
-    d_hidden: int
-    out_features: Optional[int] = None
-    key_prefix: str = "cortex_state"
+    def __init__(
+        self,
+        *,
+        stack: CortexStack,
+        in_key: str,
+        out_key: str,
+        d_hidden: int,
+        out_features: Optional[int] = None,
+        key_prefix: str = "cortex_state",
+    ) -> None:
+        super().__init__()
+        # Constructor args
+        self.stack: CortexStack = stack
+        self.in_key: str = in_key
+        self.out_key: str = out_key
+        self.d_hidden: int = int(d_hidden)
+        self.out_features: Optional[int] = out_features
+        self.key_prefix: str = key_prefix
 
-    def __post_init__(self) -> None:
         # Discover state schema for per-env caches
+        self._flat_entries: List[Tuple[FlatKey, LeafPath]] = self._discover_state_entries()
+
+        # Output projection (optional)
+        if self.out_features is None or int(self.out_features) == int(self.d_hidden):
+            self._out_proj = nn.Identity()
+        else:
+            self._out_proj = nn.Linear(int(self.d_hidden), int(self.out_features))
+
+        # Per-env caches: env_id -> TensorDict(batch=[1])
+        self._rollout_cache: Dict[int, TensorDict] = {}
+        self._train_cache: Dict[int, TensorDict] = {}
+
+        # Phase state machine flags
+        self._in_training: bool = False
+        self._snapshot_done: bool = False
+
+    def _discover_state_entries(self) -> List[Tuple[FlatKey, LeafPath]]:
         template = self.stack.init_state(batch=1, device=torch.device("cpu"), dtype=torch.float32)
         entries: List[Tuple[FlatKey, LeafPath]] = []
         for block_key in template.keys():
@@ -91,22 +120,7 @@ class MettaTDAdapter:
                         continue
                     fkey = self._flat_key(block_key, cell_key, leaf_key)
                     entries.append((fkey, (block_key, cell_key, leaf_key)))
-        self._flat_entries = entries
-
-        # Output projection (optional)
-        self._out_proj: nn.Module
-        if self.out_features is None or int(self.out_features) == int(self.d_hidden):
-            self._out_proj = nn.Identity()
-        else:
-            self._out_proj = nn.Linear(int(self.d_hidden), int(self.out_features))
-
-        # Per-env caches: env_id -> TensorDict(batch=[1])
-        self._rollout_cache: Dict[int, TensorDict] = {}
-        self._train_cache: Dict[int, TensorDict] = {}
-
-        # Phase state machine flags
-        self._in_training: bool = False
-        self._snapshot_done: bool = False
+        return entries
 
     # ----------------------------- Public API -----------------------------
     @torch._dynamo.disable

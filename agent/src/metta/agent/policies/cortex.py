@@ -1,9 +1,10 @@
 from typing import List
 
+from cortex.stacks.xlstm import build_xlstm_stack
+
 from metta.agent.components.action import ActionEmbeddingConfig
 from metta.agent.components.actor import ActionProbsConfig, ActorKeyConfig, ActorQueryConfig
 from metta.agent.components.cortex import CortexTDConfig
-from cortex.stacks.xlstm import build_xlstm_stack
 from metta.agent.components.misc import MLPConfig
 from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
 from metta.agent.components.obs_shim import ObsShimTokensConfig
@@ -54,9 +55,9 @@ class CortexBaseConfig(PolicyArchitecture):
             out_features=_core_out,
             stack=build_xlstm_stack(
                 d_hidden=_latent_dim,
-                num_blocks=3,
-                mlstm_num_heads=4,
-                slstm_num_heads=4,
+                num_blocks=2,
+                mlstm_num_heads=2,
+                slstm_num_heads=2,
                 mlstm_proj_factor=2.0,
                 slstm_proj_factor=1.5,
                 mlstm_chunk_size=128,

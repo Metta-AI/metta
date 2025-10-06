@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Optional, Tuple
 
 import torch
+import logging
 import torch.nn as nn
 from tensordict import TensorDict
 
@@ -290,7 +291,7 @@ class sLSTMCell(MemoryCell):
         # Dispatch to appropriate kernel
         # Use Triton on CUDA when not in step mode and head_dim is power of 2
         allow_triton = not is_step and ((self.head_dim & (self.head_dim - 1)) == 0)
-
+        logging.debug(f"head_dim: {self.head_dim}, allow_triton: {allow_triton}, is_step: {is_step}")
         backend_fn = select_backend(
             triton_fn=slstm_sequence_triton,
             pytorch_fn=slstm_sequence_pytorch,
