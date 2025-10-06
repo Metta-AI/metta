@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from cogames.cogs_vs_clips import glyphs
 from cogames.cogs_vs_clips.stations import (
@@ -136,11 +136,14 @@ def energy_intensive(**mission_args: dict[str, Any]) -> GameConfig:
     return game
 
 
-def get_standard_missions(**mission_args: dict[str, Any]) -> dict[str, GameConfig]:
-    return {
-        "default": _default_mission(**mission_args),  # type: ignore
-        "energy_intensive": energy_intensive(**mission_args),
+def get_mission(mission: str) -> Callable[..., GameConfig]:
+    index = {
+        "default": _default_mission,
+        "energy_intensive": energy_intensive,
     }
+    if mission not in index:
+        raise ValueError(f"Mission {mission} not found")
+    return index[mission]
 
 
 def _get_default_map_objects() -> dict[str, AnyGridObjectConfig]:
@@ -254,12 +257,41 @@ class SiteUserMap(UserMap):
         args = self._mission_args.get(mission_name, {})
         base_mission = args.get("base_mission", self.default_mission)
         mission_args = args.get("map_builder_args", {})
-        all_missions = get_standard_missions(**(mission_args or {}))
-        if base_mission not in all_missions:
-            raise ValueError(f"Mission {mission_name} not found")
-        game = all_missions[base_mission]
+        game = get_mission(base_mission)(**mission_args)
         game.map_builder = get_map_builder_for_site(self._site)
         return MettaGridConfig(game=game)
+
+
+def make_game(
+    num_cogs: int = 4,
+    width: int = 10,
+    height: int = 10,
+    num_assemblers: int = 1,
+    num_chargers: int = 0,
+    num_carbon_extractors: int = 0,
+    num_oxygen_extractors: int = 0,
+    num_germanium_extractors: int = 0,
+    num_silicon_extractors: int = 0,
+    num_chests: int = 0,
+    clip_rate: float = 0.0,
+) -> MettaGridConfig:
+    game = get_mission("default")(
+        num_cogs=num_cogs,
+        clip_rate=clip_rate,
+    )
+    game.map_builder = get_random_map_builder(
+        num_cogs=num_cogs,
+        width=width,
+        height=height,
+        num_assemblers=num_assemblers,
+        num_chargers=num_chargers,
+        num_carbon_extractors=num_carbon_extractors,
+        num_oxygen_extractors=num_oxygen_extractors,
+        num_germanium_extractors=num_germanium_extractors,
+        num_silicon_extractors=num_silicon_extractors,
+        num_chests=num_chests,
+    )
+    return MettaGridConfig(game=game)
 
 
 class RandomUserMap(UserMap):
@@ -271,10 +303,7 @@ class RandomUserMap(UserMap):
         return ["default"]
 
     def _generate_env(self, mission_name: str) -> MettaGridConfig:
-        all_missions = get_standard_missions()
-        if mission_name not in all_missions:
-            raise ValueError(f"Mission {mission_name} not found")
-        game = all_missions[mission_name]
+        game = get_mission(mission_name)()
         game.map_builder = get_random_map_builder(**self._random_map_builder_overrides)
         if "num_cogs" in self._random_map_builder_overrides:
             game.num_agents = self._random_map_builder_overrides["num_cogs"]
