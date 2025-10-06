@@ -151,8 +151,6 @@ class ConfigMakerRegistry:
                 assert hover_result is not None
 
                 return_type = hover_value_to_return_type(hover_result["contents"]["value"])
-                if "scenarios" in str(file_path):
-                    logger.warning(return_type)
 
                 validated_return_type = check_return_type(return_type)
                 if not validated_return_type:
