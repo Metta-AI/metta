@@ -9,6 +9,7 @@ from experiments.recipes import arena_basic_easy_shaped as base
 from metta.agent.policies.smollm import SmolLLMConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
+from metta.tools.train import TrainTool
 
 make_mettagrid = base.make_mettagrid
 make_curriculum = base.make_curriculum
@@ -51,11 +52,43 @@ def train(
             config_kwargs["model_name"] = model_name
         policy_architecture = SmolLLMConfig(**config_kwargs)
 
-    return base.train(
+    tool = base.train(
         curriculum=curriculum,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
         policy_architecture=policy_architecture,
     )
+
+    return _apply_smollm_defaults(tool)
+
+
+def _apply_smollm_defaults(tool: TrainTool) -> TrainTool:
+    """Clamp heavy training defaults to keep SmolLLM within memory limits."""
+
+    trainer_updates = {}
+    if tool.trainer.batch_size > 2048:
+        trainer_updates["batch_size"] = 2048
+    if tool.trainer.minibatch_size > 256:
+        trainer_updates["minibatch_size"] = 256
+    if tool.trainer.bptt_horizon > 16:
+        trainer_updates["bptt_horizon"] = 16
+    if tool.trainer.compile:
+        trainer_updates["compile"] = False
+    if trainer_updates:
+        tool.trainer = tool.trainer.model_copy(update=trainer_updates)
+
+    env_updates = {}
+    if tool.training_env.forward_pass_minibatch_target_size > 512:
+        env_updates["forward_pass_minibatch_target_size"] = 512
+    if tool.training_env.async_factor > 1:
+        env_updates["async_factor"] = 1
+    if tool.training_env.auto_workers:
+        env_updates["auto_workers"] = False
+    if tool.training_env.num_workers > 1:
+        env_updates["num_workers"] = 1
+    if env_updates:
+        tool.training_env = tool.training_env.model_copy(update=env_updates)
+
+    return tool
 
 
 __all__ = [
