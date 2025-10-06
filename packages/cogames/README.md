@@ -40,31 +40,40 @@ cogames missions
 cogames play training_facility_1 --interactive
 
 # Train a policy in a simple, single-agent game
-cogames train training_facility_1 --policy simple
+cogames train training_facility_1 simple
 
 # Watch or play along side your trained policy
-cogames play training_facility_1 --policy simple --policy-data ./train_dir/policy.pt --interactive
+cogames play training_facility_1 simple:train_dir/policy.pt --interactive
 
 # Evaluate your policy
-cogames evaluate training_facility_1 --policy simple --policy-data ./train_dir/policy.pt
+cogames eval training_facility_1 simple:./train_dir/policy.pt
 ```
 
 ## Commands
 
-### `cogames missions [mission_name]`
+Most commands are of the form `cogames <command> [MISSION] [POLICY] [OPTIONS]`
+
+To specify a `MISSION`, you can:
+- Use a mission name from the default registry emitted by `cogames missions`, e.g. `training_facility_1`
+- Use a path to a mission configuration file, e.g. path/to/mission.yaml"
+
+To specify a `POLICY`, provide an argument with up to three parts `CLASS[:DATA][:PROPORTION]`:
+- `CLASS`: Policy shorthand (`simple`, `random`, `lstm`, ...) or fully qualified class path like `cogames.policy.random.RandomPolicy`.
+- `DATA`: Optional path to a weights file or directory. When omitted, defaults to the policy's built-in weights.
+- `PROPORTION`: Optional positive float specifying the relative share of agents that use this policy (default: 1.0).
+
+### `cogames missions [MISSION]`
 
 Lists all missions and their high-level specs.
 
-If a `mission_name` is provided, it describe a specific mission in detail.
+If a mission is provided, it describe a specific mission in detail.
 
-### `cogames play [mission]`
+### `cogames play [MISSION] [POLICY]`
 
 Play an episode of the specified mission. Cogs' actions are determined by the provided policy.
 
 **Options:**
 
-- `--policy PATH`: Policy class (default: random)
-- `--policy-data PATH`: Path to weights file/dir
 - `--steps N`: Number of steps (default: 1000)
 - `--render MODE`: 'gui' or 'text' (default: gui)
 - `--interactive`: Interactive mode (default: true)
@@ -72,15 +81,11 @@ Play an episode of the specified mission. Cogs' actions are determined by the pr
 `cogames play` supports a gui-based and text-based game renderer, both of which support many features to inspect agents
 and manually play alongside them.
 
-### `cogames train [mission]`
+### `cogames train [MISSION] [POLICY]`
 
 Train a policy on a mission.
 
 **Options:**
-
-- `--policy PATH`: Policy class (default: SimplePolicy)
-- `--initial-weights PATH`: Starting weights
-- `--checkpoints PATH`: Save location (default: ./train_dir)
 - `--steps N`: Training steps (default: 10000)
 - `--device STR`: 'auto', 'cpu', or 'cuda' (default: auto)
 - `--batch-size N`: Batch size (default: 4096)
@@ -101,7 +106,7 @@ To get started, `cogames` supports some torch-nn-based policy architectures out 
 supply your own, you will want to extend `cogames.policy.Policy`.
 
 ```python
-from cogames.policy import Policy
+from cogames.policy.interfaces import Policy
 
 class MyPolicy(Policy):
     def __init__(self, observation_space, action_space):
@@ -155,23 +160,17 @@ for step in range(1000):
         obs, info = env.reset()
 ```
 
-### `cogames eval [game] [policies...]`
+### `cogames eval [MISSION] [POLICIES...]`
 
-Evaluate one or more policies.
-
-To specify policies to evaluate, you can either provide `--policy` and `--policy-data` arguments as seen in other `cogames` commands, or can provide a list of policy specs:
-**Policy spec format:** `{class_path}[:data_path][:proportion]`
+Evaluate one or more policies. Note that here, you can provide a list of `POLICY` arguments if you want to run evaluations on mixed-policy populations.
 
 **Examples:**
 
 ```bash
-# Trained policy
-cogames eval machina_1 --policy simple --policy-data train_dir/model.pt
-
-# Or, equivalently
+# Evaluate a single trained policy checkpoint
 cogames eval machina_1 simple:train_dir/model.pt
 
-# Mixed population of agents, 3/8 of which steered by your policy, the rest by a random-action policy
+# Mix two policies: 3 parts your policy, 5 parts random policy
 cogames eval machina_1 simple:train_dir/model.pt:3 random::5
 ```
 
@@ -183,9 +182,9 @@ cogames eval machina_1 simple:train_dir/model.pt:3 random::5
 When multiple policies are provided, `cogames eval` fixes the number of agents each policy will control, but
 randomizes their assignments each episode.
 
-### `cogames make-mission [base_mission]`
+### `cogames make-mission [BASE_MISSION]`
 
-Create custom mission configuration.
+Create custom mission configuration. In this case, the mission provided is the template mission to which you'll apply modifications.
 
 **Options:**
 
@@ -194,7 +193,7 @@ Create custom mission configuration.
 - `--height H`: Map height (default: 10)
 - `--output PATH`: Save to file
 
-You will be able to provide your specified `--output` path as the `mission` argument to other `cogames` commmands.
+You will be able to provide your specified `--output` path as the `MISSION` argument to other `cogames` commmands.
 
 ### `cogames version`
 

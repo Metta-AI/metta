@@ -10,10 +10,14 @@ import psutil
 from rich.console import Console
 
 from cogames.aws_storage import maybe_upload_checkpoint
-from cogames.policy import TrainablePolicy
+from cogames.policy.interfaces import TrainablePolicy
 from cogames.policy.signal_handler import DeferSigintContextManager
-from cogames.policy.utils import get_policy_class_shorthand, resolve_policy_data_path
-from cogames.utils import initialize_or_load_policy
+from cogames.policy.utils import (
+    find_policy_checkpoints,
+    get_policy_class_shorthand,
+    initialize_or_load_policy,
+    resolve_policy_data_path,
+)
 from mettagrid import MettaGridConfig, MettaGridEnv
 from pufferlib import pufferl
 from pufferlib import vector as pvector
@@ -296,17 +300,7 @@ def train(
             )
             console.print("=" * 80, style="bold green")
 
-        # Try to find the final checkpoint
-        # PufferLib saves checkpoints in data_dir/env_name/
-        checkpoint_dir = checkpoints_path / env_name
-        checkpoints = []
-
-        if checkpoint_dir.exists():
-            checkpoints = sorted(checkpoint_dir.glob("*.pt"))
-
-        # Fallback: also check directly in checkpoints_path
-        if not checkpoints and checkpoints_path.exists():
-            checkpoints = sorted(checkpoints_path.glob("*.pt"))
+        checkpoints = find_policy_checkpoints(checkpoints_path, env_name)
 
         if checkpoints and not training_diverged:
             final_checkpoint = checkpoints[-1]

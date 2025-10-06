@@ -4,7 +4,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-cogames_root = Path(__file__).parent.parent
+from cogames.utils import cogames_root
 
 
 def test_missions_list_command():
