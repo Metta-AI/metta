@@ -178,7 +178,7 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
             action_names=self._vecenv.driver_env.action_names,
             num_agents=self._num_agents,
             observation_space=self._vecenv.driver_env.observation_space,
-            action_space=self._vecenv.driver_env.action_space,
+            action_space=self._vecenv.driver_env.single_action_space,
             feature_normalizations=self._vecenv.driver_env.feature_normalizations,
         )
 
@@ -216,7 +216,8 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
 
     @property
     def single_action_space(self) -> Any:
-        return self._vecenv.single_action_space
+        # Use the underlying driver environment's action space, which remains single-agent Discrete
+        return self._vecenv.driver_env.single_action_space
 
     @property
     def single_observation_space(self) -> Any:

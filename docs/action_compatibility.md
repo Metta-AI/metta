@@ -206,7 +206,8 @@ _action_handlers.push_back(std::make_unique<AttackNearest>(...));
 
 ```python
 # Before
-action_space = MultiDiscrete([5, 2])  # 5 action types, max arg 1
+# Atomic single-discrete action space
+action_space = Discrete(len(env.action_names()))
 
 # After (BREAKING)
 action_space = Discrete(len(env.action_names()))
