@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db/prisma";
+
+import { db } from "@/lib/db";
 
 export async function GET(
   request: NextRequest,
@@ -16,12 +17,11 @@ export async function GET(
     }
 
     // Get the paper data for this post
-    const post = await prisma.post.findUnique({
+    const post = await db.post.findUnique({
       where: { id: postId },
       select: {
         paper: {
           select: {
-            institutions: true,
             title: true,
             abstract: true,
             tags: true,
@@ -31,6 +31,16 @@ export async function GET(
             stars: true,
             createdAt: true,
             updatedAt: true,
+            paperInstitutions: {
+              select: {
+                institution: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -43,9 +53,16 @@ export async function GET(
       );
     }
 
+    const institutions = post.paper.paperInstitutions.map(
+      (pi) => pi.institution.name
+    );
+
     return NextResponse.json({
-      institutions: post.paper.institutions,
-      paper: post.paper,
+      institutions,
+      paper: {
+        ...post.paper,
+        institutions,
+      },
     });
   } catch (error) {
     console.error("Error fetching paper data:", error);

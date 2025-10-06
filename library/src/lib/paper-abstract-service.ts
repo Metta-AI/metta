@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/db/prisma";
-import { extractPdfContentWithImages } from "./pdf-content-extractor";
 import {
   generateLLMAbstract,
   updateLLMAbstractIfNeeded,
@@ -163,7 +162,7 @@ export class PaperAbstractService {
       const homepageUrl = this.getHomepageUrl(paper);
       const llmAbstract = await generateLLMAbstract(
         paper.title,
-        {} as any, // Empty pdfContent since we're going direct to enhanced extraction
+        undefined, // pdfContent is optional, we use pdfBuffer for enhanced extraction
         paper.link,
         homepageUrl,
         pdfBuffer
@@ -179,48 +178,6 @@ export class PaperAbstractService {
         `❌ Error generating new abstract for paper ${paper.id}:`,
         error
       );
-      return null;
-    }
-  }
-
-  /**
-   * Fetch PDF and extract content
-   */
-  private static async fetchAndExtractPdf(pdfUrl: string): Promise<any> {
-    try {
-      console.log(`📄 Fetching PDF from: ${pdfUrl}`);
-
-      // Handle arXiv URLs - convert to PDF URL if needed
-      const finalPdfUrl = this.normalizePdfUrl(pdfUrl);
-
-      const response = await fetch(finalPdfUrl, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (compatible; paper-abstract-service/1.0)",
-        },
-      });
-
-      if (!response.ok) {
-        console.error(
-          `❌ Failed to fetch PDF: ${response.status} ${response.statusText}`
-        );
-        return null;
-      }
-
-      const pdfBuffer = Buffer.from(await response.arrayBuffer());
-      console.log(`📄 Successfully fetched PDF (${pdfBuffer.length} bytes)`);
-
-      // Extract content from PDF (including images)
-      const pdfContent = await extractPdfContentWithImages(pdfBuffer);
-      console.log(
-        `📄 Extracted PDF content: ${pdfContent.pageCount} pages, ${pdfContent.figuresWithImages.length} figures with images`
-      );
-
-      // Attach the PDF buffer for reuse in enhanced abstract generation
-      (pdfContent as any)._pdfBuffer = pdfBuffer;
-
-      return pdfContent;
-    } catch (error) {
-      console.error(`❌ Error fetching/extracting PDF:`, error);
       return null;
     }
   }

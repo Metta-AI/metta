@@ -17,6 +17,7 @@ import { GroupManagementModal } from "./GroupManagementModal";
 import { GroupDTO } from "@/posts/data/groups";
 import { useAction } from "next-safe-action/hooks";
 import { joinGroupAction } from "@/groups/actions/joinGroupAction";
+import { formatDate } from "@/lib/utils/date";
 
 interface GroupsViewProps {
   userGroups: GroupDTO[];
@@ -141,23 +142,6 @@ export const GroupsView: FC<GroupsViewProps> = ({
       setSortBy(key);
       setSortDirection(key === "name" ? "asc" : "desc");
     }
-  };
-
-  const formatDate = (date: Date | string | null) => {
-    if (!date) return "Unknown";
-    const dateObj = typeof date === "string" ? new Date(date) : date;
-    if (isNaN(dateObj.getTime())) return "Unknown";
-
-    const now = new Date();
-    const diffInDays = Math.floor(
-      (now.getTime() - dateObj.getTime()) / (1000 * 60 * 60 * 24)
-    );
-
-    if (diffInDays === 0) return "Today";
-    if (diffInDays === 1) return "Yesterday";
-    if (diffInDays < 7) return `${diffInDays} days ago`;
-    if (diffInDays < 30) return `${Math.floor(diffInDays / 7)} weeks ago`;
-    return `${Math.floor(diffInDays / 30)} months ago`;
   };
 
   const sortOptions = [
