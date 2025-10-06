@@ -12,13 +12,13 @@ import { MapSection } from "./MapSection";
 const namedMettaGridConfigsSchema = z.record(z.string(), z.unknown());
 
 export const ExploreNamedMettaGridConfigs: FC<{ cfg: Config }> = ({ cfg }) => {
-  const [selectedConfig, setSelectedConfig] = useState<string | null>(null);
+  const [selectedName, setSelectedName] = useState<string | null>(null);
 
-  const selectedSimulationConfig = useMemo(() => {
-    return selectedConfig
-      ? namedMettaGridConfigsSchema.parse(cfg.config.value)[selectedConfig]
+  const selectedConfig = useMemo(() => {
+    return selectedName
+      ? namedMettaGridConfigsSchema.parse(cfg.config.value)[selectedName]
       : null;
-  }, [cfg.config.value, selectedConfig]);
+  }, [cfg.config.value, selectedName]);
 
   const namedMettaGridConfigs = namedMettaGridConfigsSchema.parse(
     cfg.config.value
@@ -27,16 +27,16 @@ export const ExploreNamedMettaGridConfigs: FC<{ cfg: Config }> = ({ cfg }) => {
   return (
     <div className="flex gap-8">
       <div>
-        <h2 className="mb-2 ml-4 font-semibold">Simulations</h2>
+        <h2 className="mb-2 ml-4 font-semibold">Configs</h2>
         <div className="flex flex-col">
           {Object.keys(namedMettaGridConfigs).map((name) => (
             <div
               key={name}
               className={clsx(
                 "cursor-pointer rounded-md px-4 py-1 text-sm",
-                selectedConfig === name ? "bg-blue-200" : "hover:bg-blue-100"
+                name === selectedName ? "bg-blue-200" : "hover:bg-blue-100"
               )}
-              onClick={() => setSelectedConfig(name)}
+              onClick={() => setSelectedName(name)}
             >
               {name}
             </div>
@@ -44,7 +44,7 @@ export const ExploreNamedMettaGridConfigs: FC<{ cfg: Config }> = ({ cfg }) => {
         </div>
       </div>
       <div className="flex-1">
-        {selectedConfig && selectedSimulationConfig ? (
+        {selectedName && selectedConfig ? (
           <Tabs
             topPadding
             tabs={[
@@ -53,9 +53,9 @@ export const ExploreNamedMettaGridConfigs: FC<{ cfg: Config }> = ({ cfg }) => {
                 label: "Map",
                 content: (
                   <MapSection
-                    key={selectedConfig}
+                    key={selectedName}
                     cfg={cfg}
-                    name={selectedConfig!}
+                    name={selectedName!}
                   />
                 ),
               },
@@ -64,8 +64,9 @@ export const ExploreNamedMettaGridConfigs: FC<{ cfg: Config }> = ({ cfg }) => {
                 label: "Config",
                 content: (
                   <ConfigViewer
-                    key={selectedConfig}
-                    value={selectedSimulationConfig}
+                    key={selectedName}
+                    value={selectedConfig}
+                    kind="MettaGridConfig"
                   />
                 ),
               },
