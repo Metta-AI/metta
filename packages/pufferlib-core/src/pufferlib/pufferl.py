@@ -112,6 +112,22 @@ class PuffeRL:
         layout_max_args = getattr(policy, "action_layout_max_args", None)
         self._action_adapter = _ActionAdapter(layout_max_args) if layout_max_args is not None else None
 
+        if self._action_adapter is not None:
+            self.actions = torch.zeros(
+                segments,
+                horizon,
+                device=device,
+                dtype=torch.long,
+            )
+        else:
+            self.actions = torch.zeros(
+                segments,
+                horizon,
+                *atn_space.shape,
+                device=device,
+                dtype=pufferlib.pytorch.numpy_to_torch_dtype_dict[atn_space.dtype],
+            )
+
         # Experience
         if config["batch_size"] == "auto" and config["bptt_horizon"] == "auto":
             raise pufferlib.APIUsageError("Must specify batch_size or bptt_horizon")
@@ -135,13 +151,6 @@ class PuffeRL:
             dtype=pufferlib.pytorch.numpy_to_torch_dtype_dict[obs_space.dtype],
             pin_memory=device == "cuda" and config["cpu_offload"],
             device="cpu" if config["cpu_offload"] else device,
-        )
-        self.actions = torch.zeros(
-            segments,
-            horizon,
-            *atn_space.shape,
-            device=device,
-            dtype=pufferlib.pytorch.numpy_to_torch_dtype_dict[atn_space.dtype],
         )
         self.values = torch.zeros(segments, horizon, device=device)
         self.logprobs = torch.zeros(segments, horizon, device=device)
@@ -325,9 +334,10 @@ class PuffeRL:
 
                 if self._action_adapter is not None:
                     decoded_actions = self._action_adapter.decode_torch(action.reshape(-1).to(device)).view(*action.shape, 2)
+                    self.actions[batch_rows, l] = action.to(self.actions.dtype)
                 else:
                     decoded_actions = action
-                self.actions[batch_rows, l] = decoded_actions.to(self.actions.dtype)
+                    self.actions[batch_rows, l] = decoded_actions
                 self.logprobs[batch_rows, l] = logprob
                 self.rewards[batch_rows, l] = r
                 self.terminals[batch_rows, l] = d.float()
@@ -409,7 +419,10 @@ class PuffeRL:
             idx = torch.multinomial(prio_probs, self.minibatch_segments)
             mb_prio = (self.segments * prio_probs[idx, None]) ** -anneal_beta
             mb_obs = self.observations[idx]
-            mb_actions = self.actions[idx]
+            if self._action_adapter is not None:
+                state_action = self.actions[idx]
+            else:
+                state_action = self.actions[idx]
             if self._action_adapter is not None:
                 flat_mb_actions = self._action_adapter.encode_torch(mb_actions.reshape(-1, 2)).view(mb_actions.shape[:-1])
                 state_action = flat_mb_actions
@@ -489,10 +502,9 @@ class PuffeRL:
             self.values[idx] = newvalue.detach().float()
 
             if self._action_adapter is not None:
-                decoded_mb_actions = self._action_adapter.decode_torch(actions.reshape(-1).to(device)).view(*actions.shape, 2)
+                self.actions[idx] = actions.to(self.actions.dtype)
             else:
-                decoded_mb_actions = actions
-            self.actions[idx] = decoded_mb_actions.to(self.actions.dtype)
+                self.actions[idx] = actions.to(self.actions.dtype)
 
             # Logging
             profile("train_misc", epoch)
