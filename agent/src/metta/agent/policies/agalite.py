@@ -127,36 +127,6 @@ class AGaLiTeConfig(PolicyArchitecture):
         return {"learning_rate_hint": self.learning_rate_hint}
 
 
-class AGaLiTeLargeConfig(PolicyArchitecture):
-    class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
-    learning_rate_hint: float = 8e-4
-
-    # Parameter budget tuned to match Transformer TRXL_NVIDIA core (~61k params).
-    components: List[ComponentConfig] = Field(
-        default_factory=lambda: _build_components(
-            hidden_size=32,
-            embedding_dim=16,
-            n_layers=2,
-            n_heads=4,
-            feedforward_size=160,
-            eta=2,
-            r=4,
-            mode="agalite",
-            dropout=0.05,
-            kernel=AGaLiTeKernelConfig(name="eluplus1", nu=2),
-            max_tokens=48,
-            attr_embed_dim=8,
-            fourier_freqs=3,
-            num_latents=12,
-        )
-    )
-
-    action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
-
-    def policy_defaults(self) -> dict[str, object]:
-        return {"learning_rate_hint": self.learning_rate_hint}
-
-
 class AGaLiTePaperConfig(PolicyArchitecture):
     """AGaLiTe configuration aligned with the published architecture."""
 
@@ -189,7 +159,4 @@ class AGaLiTePaperConfig(PolicyArchitecture):
         return {"learning_rate_hint": self.learning_rate_hint}
 
 
-AGaLiTeImprovedConfig = AGaLiTeLargeConfig
-
-
-__all__ = ["AGaLiTeConfig", "AGaLiTeLargeConfig", "AGaLiTeImprovedConfig", "AGaLiTePaperConfig"]
+__all__ = ["AGaLiTeConfig", "AGaLiTePaperConfig"]
