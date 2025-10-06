@@ -59,7 +59,7 @@ class TestAgentResourceSharing:
         # Have agent 0 move onto agent 1 to trigger onUse
         # Agent 0 is at position (1,1), Agent 1 is at position (1,2)
         # So agent 0 needs to move to the right (East)
-        move_idx = action_index(env, "move", 3)
+        move_idx = action_index(env, "move_east")
         noop_idx = action_index(env, "noop")
         actions = np.array([move_idx, noop_idx], dtype=dtype_actions)
 
@@ -103,9 +103,8 @@ class TestAgentResourceSharing:
         )
 
 
-def action_index(env, verb: str, arg: int | None = None) -> int:
-    target = verb if arg in (None, 0) else f"{verb}_{arg}"
+def action_index(env, name: str) -> int:
     names = env.action_names
-    if target not in names:
-        raise ValueError(f"Action {target} not found in {names}")
-    return names.index(target)
+    if name not in names:
+        raise ValueError(f"Action {name} not found in {names}")
+    return names.index(name)

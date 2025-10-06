@@ -47,7 +47,7 @@ logger = logging.getLogger("MettaGridCore")
 # - value: uint8 feature value
 MettaGridObservation = npt.NDArray[np.uint8]  # Shape: (num_tokens, 3)
 
-# Actions are Discrete: single integer index representing verb_argument combinations
+# Actions are Discrete: single integer index representing unique action choices
 MettaGridAction = npt.NDArray[np.int32]  # Shape: ()
 
 

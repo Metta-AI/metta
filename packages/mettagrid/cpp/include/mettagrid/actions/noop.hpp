@@ -16,7 +16,7 @@ public:
   }
 
 protected:
-  bool _handle_action(Agent& /*actor*/, ActionArg /*arg*/) override {
+  bool _handle_action(Agent& /*actor*/) override {
     return true;
   }
 };

@@ -30,22 +30,23 @@ struct AttackActionConfig : public ActionConfig {
 
 class Attack : public ActionHandler {
 public:
-  explicit Attack(const AttackActionConfig& cfg,
-                  const GameConfig* game_config,
-                  const std::string& action_name = "attack")
-      : ActionHandler(cfg, action_name), _defense_resources(cfg.defense_resources), _game_config(game_config) {
+  Attack(const AttackActionConfig& cfg,
+         const GameConfig* game_config,
+         unsigned char target_slot,
+         const std::string& name)
+      : ActionHandler(cfg, name),
+        _defense_resources(cfg.defense_resources),
+        _game_config(game_config),
+        _target_slot(target_slot) {
     priority = 1;
-  }
-
-  unsigned char max_arg() const override {
-    return 8;
   }
 
 protected:
   std::map<InventoryItem, InventoryQuantity> _defense_resources;
   const GameConfig* _game_config;
+  unsigned char _target_slot;
 
-  bool _handle_action(Agent& actor, ActionArg arg) override {
+  bool _handle_action(Agent& actor) override {
     Agent* last_agent = nullptr;
     short num_skipped = 0;
 
@@ -67,7 +68,7 @@ protected:
           Agent* target_agent = static_cast<Agent*>(_grid->object_at(target_loc));
           if (target_agent) {
             last_agent = target_agent;
-            if (num_skipped == arg) {
+            if (num_skipped == _target_slot) {
               return _handle_target(actor, *target_agent);
             }
             num_skipped++;
@@ -105,7 +106,7 @@ protected:
         Agent* target_agent = static_cast<Agent*>(_grid->object_at(target_loc));
         if (target_agent) {
           last_agent = target_agent;
-          if (num_skipped == arg) {
+          if (num_skipped == _target_slot) {
             return _handle_target(actor, *target_agent);
           }
           num_skipped++;

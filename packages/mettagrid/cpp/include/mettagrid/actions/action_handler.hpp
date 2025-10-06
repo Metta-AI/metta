@@ -78,7 +78,7 @@ public:
     _rng = rng;
   }
 
-  bool handle_action(Agent& actor, ActionArg arg) {
+  bool handle_action(Agent& actor) {
     // Handle frozen status
     if (actor.frozen != 0) {
       actor.stats.incr("status.frozen.ticks");
@@ -98,7 +98,7 @@ public:
     }
 
     // Execute the action
-    bool success = has_needed_resources && _handle_action(actor, arg);
+    bool success = has_needed_resources && _handle_action(actor);
 
     // The intention here is to provide a metric that reports when an agent has stayed in one location for a long
     // period, perhaps spinning in circles. We think this could be a good indicator that a policy has collapsed.
@@ -136,23 +136,12 @@ public:
     return success;
   }
 
-  virtual unsigned char max_arg() const {
-    return 0;
-  }
-
-  virtual std::string action_label(ActionArg arg) const {
-    if (max_arg() == 0) {
-      return _action_name;
-    }
-    return _action_name + "_" + std::to_string(static_cast<int>(arg));
-  }
-
   std::string action_name() const {
     return _action_name;
   }
 
 protected:
-  virtual bool _handle_action(Agent& actor, ActionArg arg) = 0;
+  virtual bool _handle_action(Agent& actor) = 0;
 
   InventoryDelta compute_probabilistic_delta(InventoryProbability amount) const {
     if (_rng == nullptr) {

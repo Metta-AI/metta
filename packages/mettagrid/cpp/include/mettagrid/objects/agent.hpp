@@ -188,7 +188,7 @@ public:
   }
 
   // Implementation of Usable interface
-  bool onUse(Agent& actor, ActionArg arg) override {
+  bool onUse(Agent& actor) override {
     // Share half of shareable resources from actor to this agent
     for (InventoryItem resource : actor.shareable_resources) {
       InventoryQuantity actor_amount = actor.inventory.amount(resource);

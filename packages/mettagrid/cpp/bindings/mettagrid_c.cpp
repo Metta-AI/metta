@@ -95,15 +95,45 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
     } else if (action_name == "noop") {
       _action_handlers.push_back(std::make_unique<Noop>(*action_config));
     } else if (action_name == "move") {
-      _action_handlers.push_back(std::make_unique<Move>(*action_config, &_game_config));
+      size_t orientation_count = getOrientationCount(_game_config.allow_diagonals);
+      for (size_t idx = 0; idx < orientation_count; ++idx) {
+        auto orientation = static_cast<Orientation>(idx);
+        if (!_game_config.allow_diagonals && isDiagonal(orientation)) {
+          continue;
+        }
+        std::string variant_name = std::string("move_") + OrientationFullNames[idx];
+        _action_handlers.push_back(
+            std::make_unique<Move>(*action_config, &_game_config, orientation, variant_name));
+      }
     } else if (action_name == "rotate") {
-      _action_handlers.push_back(std::make_unique<Rotate>(*action_config, &_game_config));
+      size_t orientation_count = getOrientationCount(_game_config.allow_diagonals);
+      for (size_t idx = 0; idx < orientation_count; ++idx) {
+        auto orientation = static_cast<Orientation>(idx);
+        if (!_game_config.allow_diagonals && isDiagonal(orientation)) {
+          continue;
+        }
+        std::string variant_name = std::string("rotate_") + OrientationFullNames[idx];
+        _action_handlers.push_back(
+            std::make_unique<Rotate>(*action_config, &_game_config, orientation, variant_name));
+      }
     } else if (action_name == "attack") {
       auto attack_config = std::static_pointer_cast<const AttackActionConfig>(action_config);
-      _action_handlers.push_back(std::make_unique<Attack>(*attack_config, &_game_config));
+      for (unsigned char slot = 0; slot <= 8; ++slot) {
+        std::string variant_name = std::string("attack_") + std::to_string(static_cast<int>(slot));
+        _action_handlers.push_back(
+            std::make_unique<Attack>(*attack_config, &_game_config, slot, variant_name));
+      }
     } else if (action_name == "change_glyph") {
       auto change_glyph_config = std::static_pointer_cast<const ChangeGlyphActionConfig>(action_config);
-      _action_handlers.push_back(std::make_unique<ChangeGlyph>(*change_glyph_config));
+      ObservationType glyph_count = change_glyph_config->number_of_glyphs;
+      ObservationType variant_count = glyph_count > 0 ? glyph_count : 1;
+      for (ObservationType glyph_index = 0; glyph_index < variant_count; ++glyph_index) {
+        std::string variant_name = glyph_index == 0 ? std::string("change_glyph")
+                                                    : std::string("change_glyph_") +
+                                                          std::to_string(static_cast<int>(glyph_index));
+        _action_handlers.push_back(
+            std::make_unique<ChangeGlyph>(*change_glyph_config, glyph_index, variant_name));
+      }
     } else if (action_name == "swap") {
       _action_handlers.push_back(std::make_unique<Swap>(*action_config));
     } else if (action_name == "resource_mod") {
@@ -271,7 +301,6 @@ MettaGrid::~MettaGrid() = default;
 void MettaGrid::init_action_handlers() {
   _num_action_handlers = _action_handlers.size();
   _max_action_priority = 0;
-  _action_lookup.clear();
   _action_names.clear();
 
   for (size_t i = 0; i < _action_handlers.size(); i++) {
@@ -280,11 +309,7 @@ void MettaGrid::init_action_handlers() {
     if (handler->priority > _max_action_priority) {
       _max_action_priority = handler->priority;
     }
-    auto max_arg = static_cast<ActionArg>(handler->max_arg());
-    for (ActionArg arg = 0; arg <= max_arg; ++arg) {
-      _action_lookup.emplace_back(static_cast<ActionType>(i), arg);
-      _action_names.emplace_back(handler->action_label(arg));
-    }
+    _action_names.emplace_back(handler->action_name());
   }
 }
 
@@ -298,8 +323,7 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
                                      ObservationCoord observable_width,
                                      ObservationCoord observable_height,
                                      size_t agent_idx,
-                                     ActionType action,
-                                     ActionArg action_arg) {
+                                     ActionType action) {
   // Calculate observation boundaries
   ObservationCoord obs_width_radius = observable_width >> 1;
   ObservationCoord obs_height_radius = observable_height >> 1;
@@ -339,7 +363,6 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
 
   if (_global_obs_config.last_action) {
     global_tokens.push_back({ObservationFeature::LastAction, static_cast<ObservationType>(action)});
-    global_tokens.push_back({ObservationFeature::LastActionArg, static_cast<ObservationType>(action_arg)});
   }
 
   if (_global_obs_config.last_reward) {
@@ -411,25 +434,20 @@ void MettaGrid::_compute_observations(const py::array_t<ActionType, py::array::c
   for (size_t idx = 0; idx < _agents.size(); idx++) {
     auto& agent = _agents[idx];
 
-    ActionType action_type = 0;
-    ActionArg action_arg = 0;
-
     auto flat_index = actions_view(idx);
-    if (flat_index >= 0 && static_cast<size_t>(flat_index) < _action_lookup.size()) {
-      const auto& mapping = _action_lookup[static_cast<size_t>(flat_index)];
-      action_type = mapping.first;
-      action_arg = mapping.second;
+    ActionType action_type = 0;
+    if (flat_index >= 0 && static_cast<size_t>(flat_index) < _action_handlers.size()) {
+      action_type = static_cast<ActionType>(flat_index);
     }
 
-    _compute_observation(
-        agent->location.r, agent->location.c, obs_width, obs_height, idx, action_type, action_arg);
+    _compute_observation(agent->location.r, agent->location.c, obs_width, obs_height, idx, action_type);
   }
 }
 
-void MettaGrid::_handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type, ActionArg arg) {
+void MettaGrid::_handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type) {
   auto& agent = _agents[agent_idx];
   agent->stats.incr(stat);
-  agent->stats.incr(stat + "." + std::to_string(type) + "." + std::to_string(arg));
+  agent->stats.incr(stat + "." + std::to_string(type));
   _action_success[agent_idx] = false;
   *agent->reward -= agent->action_failure_penalty;
 }
@@ -466,36 +484,20 @@ void MettaGrid::_step(Actions actions) {
     for (const auto& agent_idx : agent_indices) {
       auto flat_index = actions_view(agent_idx);
 
-      if (flat_index < 0 || static_cast<size_t>(flat_index) >= _action_lookup.size()) {
-        _handle_invalid_action(agent_idx, "action.invalid_flat", static_cast<ActionType>(flat_index), 0);
+      if (flat_index < 0 || static_cast<size_t>(flat_index) >= _action_handlers.size()) {
+        _handle_invalid_action(agent_idx, "action.invalid_index", static_cast<ActionType>(flat_index));
         continue;
       }
 
-      const auto& mapping = _action_lookup[static_cast<size_t>(flat_index)];
-      ActionType action = mapping.first;
-      ActionArg arg = mapping.second;
-
-      if (action < 0 || static_cast<size_t>(action) >= _num_action_handlers) {
-        _handle_invalid_action(agent_idx, "action.invalid_type", action, arg);
-        continue;
-      }
-      size_t action_idx = static_cast<size_t>(action);
+      size_t action_idx = static_cast<size_t>(flat_index);
 
       auto& handler = _action_handlers[action_idx];
       if (handler->priority != current_priority) {
         continue;
       }
 
-      // Tolerate invalid action arguments
-      if (arg < 0 || arg > _max_action_args[action_idx]) {
-        _handle_invalid_action(agent_idx, "action.invalid_arg", action, arg);
-        continue;
-      }
-
       auto* agent = _agents[agent_idx];
-      // handle_action expects a GridObjectId, rather than an agent_id, because of where it does its lookup
-      // note that handle_action will assign a penalty for attempting invalid actions as a side effect
-      _action_success[agent_idx] = handler->handle_action(*agent, arg);
+      _action_success[agent_idx] = handler->handle_action(*agent);
     }
   }
 
@@ -966,7 +968,7 @@ py::object MettaGrid::action_space() {
   auto gym = py::module_::import("gymnasium");
   auto spaces = gym.attr("spaces");
 
-  size_t flattened = _action_lookup.size();
+  size_t flattened = _action_handlers.size();
   return spaces.attr("Discrete")(py::int_(flattened));
 }
 

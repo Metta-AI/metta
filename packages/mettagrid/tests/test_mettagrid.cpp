@@ -1708,8 +1708,7 @@ TEST_F(MettaGridCppTest, ResourceModBasic) {
   ResourceMod modify(modify_cfg);
   modify.init(&grid, &rng);
 
-  ActionArg arg = 0;  // Unused
-  bool success = modify.handle_action(*actor, arg);
+  bool success = modify.handle_action(*actor);
   EXPECT_TRUE(success);
 
   // Check that target gained 1 heart
@@ -1750,7 +1749,6 @@ TEST_F(MettaGridCppTest, ResourceModProbabilistic) {
   modify.init(&grid, &rng);
 
   // Execute multiple times to test probabilistic behavior
-  ActionArg arg = 0;  // Unused
   int hearts_added = 0;
   int ore_consumed = 0;
 
@@ -1764,7 +1762,7 @@ TEST_F(MettaGridCppTest, ResourceModProbabilistic) {
       break;
     }
 
-    bool success = modify.handle_action(*actor, arg);
+    bool success = modify.handle_action(*actor);
     EXPECT_TRUE(success);
 
     ore_consumed += (ore_before - actor->inventory.amount(TestItems::ORE));
@@ -1818,8 +1816,7 @@ TEST_F(MettaGridCppTest, ResourceModConverter) {
   modify.init(&grid, &rng);
 
   // Target converter at (3, 2) from actor at (2, 2)
-  ActionArg arg = 0;  // Unused
-  bool success = modify.handle_action(*actor, arg);
+  bool success = modify.handle_action(*actor);
   EXPECT_TRUE(success);
 
   // Check that converter gained 1 ore

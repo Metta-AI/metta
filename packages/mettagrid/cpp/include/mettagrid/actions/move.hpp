@@ -14,30 +14,16 @@
 // Forward declaration
 struct GameConfig;
 
+
 class Move : public ActionHandler {
 public:
-  explicit Move(const ActionConfig& cfg, const GameConfig* game_config)
-      : ActionHandler(cfg, "move"), _game_config(game_config) {}
-
-  unsigned char max_arg() const override {
-    return _game_config->allow_diagonals ? 7 : 3;  // 8 directions if diagonals, 4 otherwise
-  }
-
-  std::string action_label(ActionArg arg) const override {
-    Orientation move_direction = static_cast<Orientation>(arg);
-    if (!isValidOrientation(move_direction, _game_config->allow_diagonals)) {
-      return ActionHandler::action_label(arg);
-    }
-    return std::string("move_") + OrientationFullNames[static_cast<int>(move_direction)];
-  }
+  Move(const ActionConfig& cfg, const GameConfig* game_config, Orientation orientation, const std::string& name)
+      : ActionHandler(cfg, name), _game_config(game_config), _orientation(orientation) {}
 
 protected:
-  bool _handle_action(Agent& actor, ActionArg arg) override {
-    // Get the orientation from the action argument
-    Orientation move_direction = static_cast<Orientation>(arg);
-
+  bool _handle_action(Agent& actor) override {
     // Validate the direction based on diagonal support
-    if (!isValidOrientation(move_direction, _game_config->allow_diagonals)) {
+    if (!isValidOrientation(_orientation, _game_config->allow_diagonals)) {
       return false;
     }
 
@@ -46,7 +32,7 @@ protected:
 
     // Get movement deltas for the direction
     int dc, dr;
-    getOrientationDelta(move_direction, dc, dr);
+    getOrientationDelta(_orientation, dc, dr);
 
     // Note: We currently expect all maps to have wall boundaries at the perimeter, so agents should not
     // be able to reach the edge coordinates (row/column 0 or max). If this changes someday and an agent
@@ -59,7 +45,7 @@ protected:
     target_location.c = static_cast<GridCoord>(static_cast<int>(target_location.c) + dc);
 
     // Update orientation to face the movement direction (even if movement fails)
-    actor.orientation = move_direction;
+    actor.orientation = _orientation;
 
     if (!_grid->is_valid_location(target_location)) {
       return false;
@@ -75,7 +61,7 @@ protected:
       if (target_agent) {
         Usable* usable_agent = dynamic_cast<Usable*>(target_agent);
         if (usable_agent) {
-          return usable_agent->onUse(actor, arg);
+          return usable_agent->onUse(actor);
         }
       }
 
@@ -85,7 +71,7 @@ protected:
       if (target_object) {
         Usable* usable_object = dynamic_cast<Usable*>(target_object);
         if (usable_object) {
-          return usable_object->onUse(actor, arg);
+          return usable_object->onUse(actor);
         }
       }
 
@@ -98,6 +84,7 @@ protected:
 
 private:
   const GameConfig* _game_config;
+  Orientation _orientation;
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_MOVE_HPP_
