@@ -3,7 +3,6 @@ import
   boxy, chroma, fidget2, jsony,
   common, panels, replays
 
-
 var envConfig: Node
 
 find "/UI/EnvironmentInfo":
@@ -11,7 +10,7 @@ find "/UI/EnvironmentInfo":
     envConfig = find("/UI/EnvironmentInfo").copy()
     envConfig.position = vec2(0, 0)
 
-find "/UI/Main/**/OpenConfig":
+find "/UI/Main/**/EnvironmentInfo/OpenConfig":
   onClick:
     let text =
       if replay.isNil or replay.mgConfig.isNil:

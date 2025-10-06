@@ -233,11 +233,11 @@ version_ge() {
     local current_segment="${current_parts[i]:-0}"
     local required_segment="${required_parts[i]:-0}"
 
-    if (( current_segment > required_segment )); then
+    if ((current_segment > required_segment)); then
       return 0
     fi
 
-    if (( current_segment < required_segment )); then
+    if ((current_segment < required_segment)); then
       return 1
     fi
   done
@@ -251,7 +251,7 @@ get_nim_version() {
   fi
 
   local version_line
-  if ! version_line=$(nim --version 2>/dev/null | head -n1); then
+  if ! version_line=$(nim --version 2> /dev/null | head -n1); then
     return 1
   fi
 
@@ -274,7 +274,7 @@ ensure_linux_nim_version() {
 
   local current_version=""
   if check_cmd nim; then
-    current_version=$(get_nim_version 2>/dev/null || echo "")
+    current_version=$(get_nim_version 2> /dev/null || echo "")
   fi
 
   if [ -n "$current_version" ] && version_ge "$current_version" "$required_version" && check_cmd nimble; then
@@ -293,7 +293,7 @@ ensure_linux_nim_version() {
   fi
 
   ensure_paths
-  current_version=$(get_nim_version 2>/dev/null || echo "")
+  current_version=$(get_nim_version 2> /dev/null || echo "")
 
   if [ -n "$current_version" ] && version_ge "$current_version" "$required_version" && check_cmd nimble; then
     echo "Nim $current_version with nimble found."

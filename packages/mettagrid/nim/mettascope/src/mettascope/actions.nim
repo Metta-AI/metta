@@ -36,74 +36,64 @@ proc processActions*() =
   ## Process pathfinding and send actions for the current step while in play mode.
   if not (play or requestPython):
     return
-  
+
   var agentIds: seq[int] = @[]
   for agentId in agentPaths.keys:
     agentIds.add(agentId)
-  
+
   for agentId in agentIds:
-    if not agentPaths.hasKey(agentId) and not (agentDestinations.hasKey(agentId) and agentDestinations[agentId].len > 0):
-      continue
-    
-    let agent = getAgentById(agentId)
-    let currentPos = agent.location.at(step).xy
-    
-    if agentDestinations.hasKey(agentId) and agentDestinations[agentId].len > 0:
-      let dest = agentDestinations[agentId][0]
-      
-      # Check if we've reached a Move destination and remove it.
-      if dest.destinationType == Move and dest.pos == currentPos:
-        agentDestinations[agentId].delete(0)
-        if agentDestinations[agentId].len == 0:
-          agentPaths.del(agentId)
-          continue
-        else:
-          recomputePath(agentId, currentPos)
-      
-      # If this is a Bump destination and we are at the approach position, bump it once.
-      if dest.destinationType == Bump:
-        let approachPos = ivec2(dest.pos.x + dest.approachDir.x, dest.pos.y + dest.approachDir.y)
-        if currentPos == approachPos:
-          # TODO: Chests have special behavior.
-          #   You must deposit on the right side and take out on the left side.
-          #   This is not implemented yet.
-          let dx = dest.pos.x - currentPos.x
-          let dy = dest.pos.y - currentPos.y
-          let targetOrientation = getOrientationFromDelta(dx.int, dy.int)
-          sendAction(agentId, replay.moveActionId, targetOrientation.int)
-          # After bumping, the current destination is fulfilled.
-          agentDestinations[agentId].delete(0)
-          agentPaths.del(agentId)
-          # If there's another destination, pathfind to it.
-          if agentDestinations[agentId].len > 0:
-            recomputePath(agentId, currentPos)
-          continue
-    
     if not agentPaths.hasKey(agentId):
       continue
-    let path = agentPaths[agentId]
-    
-    if path.len > 0:
-      # If we are still on the expected path, continue moving.
-      # Otherwise, assume something is blocking the path and recompute.
-      if path[0] == currentPos:
-        if path.len > 1:
-          let nextPos = path[1]
-          let dx = nextPos.x - currentPos.x
-          let dy = nextPos.y - currentPos.y
-          let orientation = getOrientationFromDelta(dx.int, dy.int)
-          sendAction(agentId, replay.moveActionId, orientation.int)
-          agentPaths[agentId].delete(0)
-        else:
+
+    let agent = getAgentById(agentId)
+    let currentPos = agent.location.at(step).xy
+    let pathActions = agentPaths[agentId]
+
+    if pathActions.len == 0:
+      agentPaths.del(agentId)
+      continue
+
+    let nextAction = pathActions[0]
+
+    case nextAction.actionType
+    of PathMove:
+      # Execute movement action.
+      let dx = nextAction.pos.x - currentPos.x
+      let dy = nextAction.pos.y - currentPos.y
+      let orientation = getOrientationFromDelta(dx.int, dy.int)
+      sendAction(agentId, replay.moveActionId, orientation.int)
+      # Remove this action from the queue.
+      agentPaths[agentId].delete(0)
+      # Check if we completed a destination.
+      if agentDestinations.hasKey(agentId) and agentDestinations[agentId].len > 0:
+        let dest = agentDestinations[agentId][0]
+        if dest.destinationType == Move and nextAction.pos == dest.pos:
+          # Completed this Move destination.
+          agentDestinations[agentId].delete(0)
+          if dest.repeat:
+            # Re-queue this destination at the end.
+            agentDestinations[agentId].add(dest)
+            recomputePath(agentId, nextAction.pos)
+    of PathBump:
+      # Execute bump action.
+      let targetOrientation = getOrientationFromDelta(nextAction.bumpDir.x.int, nextAction.bumpDir.y.int)
+      sendAction(agentId, replay.moveActionId, targetOrientation.int)
+      # Remove this action from the queue.
+      agentPaths[agentId].delete(0)
+      # Remove the corresponding destination.
+      if agentDestinations.hasKey(agentId) and agentDestinations[agentId].len > 0:
+        let dest = agentDestinations[agentId][0]
+        agentDestinations[agentId].delete(0)
+        if dest.repeat:
+          # Re-queue this destination at the end.
+          agentDestinations[agentId].add(dest)
           recomputePath(agentId, currentPos)
-      else:
-        recomputePath(agentId, currentPos)
 
 proc agentControls*() =
   ## Manual controls with WASD for selected agent.
   if selection != nil and selection.isAgent:
     let agent = selection
-    
+
     # Move
     if window.buttonPressed[KeyW] or window.buttonPressed[KeyUp]:
       sendAction(agent.agentId, replay.moveActionId, N.int)
