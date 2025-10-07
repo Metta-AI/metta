@@ -8,7 +8,7 @@ import torch.nn as nn
 from tensordict import TensorDict
 from tensordict.nn import TensorDictSequential
 from torch.nn.parameter import UninitializedParameter
-from torchrl.data import Composite, UnboundedDiscrete
+from torchrl.data import Composite
 
 from mettagrid.base_config import Config
 
@@ -21,13 +21,7 @@ def log_on_master(*args, **argv):
 
 
 class PolicyAutoBuilder(nn.Module):
-    """Generic policy builder for use with configs.
-
-    Requirements of your configs:
-        - Must have an 'obs_shaper' attribute and it should have an instantiate method that takes an env.
-        - Must have an 'instantiate' method that uses itself as the config to instantiate the layer.
-        - Must be in the order the network is to be executed.
-    """
+    """Generic policy builder for use with configs."""
 
     def __init__(self, env, config: Config = None):
         super().__init__()
@@ -38,15 +32,10 @@ class PolicyAutoBuilder(nn.Module):
             name = component_config.name
             self.components[name] = component_config.make_component(env)
 
-        # finish with a special layer for action probs becaues its forward needs old actions to be passed in
-        # we could replace this by adding old_actions to the td
         self.action_probs = self.config.action_probs_config.make_component()
-
         self.network = TensorDictSequential(self.components, inplace=True)
         self._sdpa_context = ExitStack()
 
-        # PyTorch's nn.Module no longer exposes count_params(); defer to manual
-        # aggregation to avoid AttributeError during policy construction.
         self._total_params = sum(
             param.numel()
             for param in self.parameters()
@@ -54,9 +43,9 @@ class PolicyAutoBuilder(nn.Module):
         )
 
     def forward(self, td: TensorDict, action: torch.Tensor = None):
-        self.network(td)
-        self.action_probs(td, action)
-        td["values"] = td["values"].flatten()  # could update Experience to not need this line but need to update ppo.py
+        td = self.network(td)
+        td = self.action_probs(td, action)
+        td["values"] = td["values"].flatten()
         return td
 
     def initialize_to_environment(
@@ -128,7 +117,6 @@ class PolicyAutoBuilder(nn.Module):
 
     def __getstate__(self) -> dict[str, Any]:
         state = self.__dict__.copy()
-        # ExitStack captures contextmanager generators that cannot be pickled.
         state["_sdpa_context"] = None
         return state
 
@@ -159,10 +147,7 @@ class PolicyAutoBuilder(nn.Module):
         return self._total_params
 
     def get_agent_experience_spec(self) -> Composite:
-        spec = Composite(
-            env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
-        )
-
+        spec = Composite()
         for layer in self.components.values():
             if hasattr(layer, "get_agent_experience_spec"):
                 spec.update(layer.get_agent_experience_spec())

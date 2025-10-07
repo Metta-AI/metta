@@ -18,7 +18,7 @@ class MambaSlidingConfig(PolicyArchitecture):
     _token_embed_dim = 8
     _fourier_freqs = 3
     _embed_dim = 16
-    _core_out_dim = 256
+    _core_out_dim = 128
 
     components: List[ComponentConfig] = [
         ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=48),

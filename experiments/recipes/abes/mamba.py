@@ -22,32 +22,7 @@ DEFAULT_LEARNING_RATE = 8e-4
 DEFAULT_BATCH_SIZE = 131_072
 DEFAULT_MINIBATCH_SIZE = 4_096
 DEFAULT_FORWARD_PASS_MINIBATCH_TARGET_SIZE = 1_024
-
-
-def _set_ssm_layer(policy_architecture: PolicyArchitecture, layer: str) -> PolicyArchitecture:
-    for component in policy_architecture.components:
-        if isinstance(component, MambaBackboneConfig):
-            next_cfg = dict(component.ssm_cfg) if component.ssm_cfg else {}
-            next_cfg["layer"] = layer
-            component.ssm_cfg = next_cfg
-    return policy_architecture
-
-
-def _apply_overrides(
-    tool: TrainTool,
-    *,
-    learning_rate: float,
-    batch_size: int,
-    minibatch_size: int,
-    forward_pass_minibatch_target_size: int,
-) -> None:
-    trainer = tool.trainer
-    trainer.optimizer.learning_rate = learning_rate
-    trainer.batch_size = batch_size
-    trainer.minibatch_size = minibatch_size
-
-    tool.training_env.forward_pass_minibatch_target_size = forward_pass_minibatch_target_size
-    tool.torch_profiler = TorchProfilerConfig(interval_epochs=0)
+DEFAULT_SSM_LAYER = "Mamba1"
 
 
 def train(
@@ -55,15 +30,19 @@ def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
     policy_architecture: PolicyArchitecture | None = None,
-    ssm_layer: str = "Mamba1",
+    ssm_layer: str = DEFAULT_SSM_LAYER,
     learning_rate: float = DEFAULT_LEARNING_RATE,
     batch_size: int = DEFAULT_BATCH_SIZE,
     minibatch_size: int = DEFAULT_MINIBATCH_SIZE,
     forward_pass_minibatch_target_size: int = DEFAULT_FORWARD_PASS_MINIBATCH_TARGET_SIZE,
 ) -> TrainTool:
     policy = policy_architecture or MambaSlidingConfig()
-    if ssm_layer:
-        policy = _set_ssm_layer(policy, ssm_layer)
+
+    for component in policy.components:
+        if isinstance(component, MambaBackboneConfig):
+            ssm_cfg = dict(component.ssm_cfg) if component.ssm_cfg else {}
+            ssm_cfg["layer"] = ssm_layer
+            component.ssm_cfg = ssm_cfg
 
     tool = base_train(
         curriculum=curriculum,
@@ -71,13 +50,12 @@ def train(
         policy_architecture=policy,
     )
 
-    _apply_overrides(
-        tool,
-        learning_rate=learning_rate,
-        batch_size=batch_size,
-        minibatch_size=minibatch_size,
-        forward_pass_minibatch_target_size=forward_pass_minibatch_target_size,
-    )
+    trainer = tool.trainer
+    trainer.optimizer.learning_rate = learning_rate
+    trainer.batch_size = batch_size
+    trainer.minibatch_size = minibatch_size
+    tool.training_env.forward_pass_minibatch_target_size = forward_pass_minibatch_target_size
+    tool.torch_profiler = TorchProfilerConfig(interval_epochs=0)
 
     return tool
 
