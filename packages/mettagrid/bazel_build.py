@@ -23,7 +23,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 METTASCOPE_DIR = PROJECT_ROOT / "nim" / "mettascope"
 PYTHON_PACKAGE_DIR = PROJECT_ROOT / "python" / "src" / "mettagrid"
 METTASCOPE_PACKAGE_DIR = PYTHON_PACKAGE_DIR / "nim" / "mettascope"
-REPO_ROOT = PROJECT_ROOT.resolve().parents[1]
+_PROJECT_PARENTS = PROJECT_ROOT.resolve().parents
+REPO_ROOT = _PROJECT_PARENTS[1] if len(_PROJECT_PARENTS) > 1 else _PROJECT_PARENTS[0]
 
 
 def _inject_safe_directory(env: dict[str, str], directory: Path) -> None:
@@ -207,6 +208,7 @@ def _run_mettascope_build() -> None:
     # Run the build script
     nim_env = os.environ.copy()
     _inject_safe_directory(nim_env, REPO_ROOT)
+    _inject_safe_directory(nim_env, METTASCOPE_DIR)
     for cmd in ["update", "install", "bindings"]:
         result = subprocess.run(
             ["nimble", cmd, "-y"],
