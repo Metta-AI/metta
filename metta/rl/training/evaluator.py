@@ -270,6 +270,14 @@ class Evaluator(TrainerComponent):
             attributes={"source": "evaluation", "agent_step": self.context.agent_step},
         )
 
+        # For ScheduleFree optimizers, switch to eval mode before evaluation
+        from metta.rl.training.optimizer import is_schedulefree_optimizer
+
+        optimizer = getattr(self.context, "optimizer", None)
+        is_schedulefree = optimizer is not None and is_schedulefree_optimizer(optimizer)
+        if is_schedulefree:
+            optimizer.eval()
+
         scores = self.evaluate(
             policy_uri=policy_uri,
             curriculum=curriculum,
@@ -277,6 +285,10 @@ class Evaluator(TrainerComponent):
             agent_step=self.context.agent_step,
             stats_epoch_id=stats_epoch_id,
         )
+
+        # Restore train mode after evaluation for ScheduleFree optimizers
+        if is_schedulefree:
+            optimizer.train()
 
         stats_reporter = getattr(self.context, "stats_reporter", None)
         if stats_reporter:
