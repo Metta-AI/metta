@@ -64,16 +64,23 @@ class AGaLiTeKernelConfig(Config):
         return mapped.reshape(*base.shape[:-1], base.shape[-1] * eta)
 
     def gamma_map(self, gamma: torch.Tensor, proj: torch.Tensor, eta: int) -> torch.Tensor:
-        """Kernel-specific map used for gamma gating."""
+        """Kernel-specific map used for gamma gating.
+
+        Gamma gating acts as the discount factor inside the recurrent attention
+        state update. To keep those discounts well-behaved we ensure they stay
+        within ``[0, 1]`` by applying a sigmoid activation to **both** the base
+        activations and the auxiliary projection. This mirrors the behaviour of
+        the original AGaLiTe implementation and prevents negative or exploding
+        discounts that would otherwise destabilize training.
+        """
 
         if self.name == "dpfp":
             return torch.sigmoid(self._dpfp(gamma))
 
-        proj_act = self.project_activation()
         mapped = torch.einsum(
             "...d,...e->...de",
             torch.sigmoid(gamma),
-            proj_act(proj),
+            torch.sigmoid(proj),
         )
         return mapped.reshape(*gamma.shape[:-1], gamma.shape[-1] * eta)
 
