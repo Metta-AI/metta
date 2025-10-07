@@ -23,7 +23,7 @@ LEGEND = {
 }
 
 
-def simple_map():
+def test_simple_map():
     storable_map = StorableMap.from_cfg(
         validate_any_map_builder(
             {
@@ -53,3 +53,5 @@ def test_save_and_load_local(tmp_path):
     loaded = StorableMap.from_uri(str(path), char_to_name=m.char_to_name)
     assert np.array_equal(loaded.grid, m.grid)
     assert loaded.char_to_name == m.char_to_name
+    assert storable_map.width() == 2
+    assert storable_map.height() == 2

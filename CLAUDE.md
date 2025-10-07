@@ -188,50 +188,34 @@ metta install core                   # Reinstall core dependencies only
 
 ### Key Entry Points
 
-#### Training and Evaluation Pipeline
+See `common/src/metta/common/tool/README.md` for the runner and two‑token usage.
 
-All tools are now run through `./tools/run.py` with recipe functions:
-
-1. **Training**: Use recipe functions for different training configurations
-
-   ```bash
-   # Training with arena recipe
-   uv run ./tools/run.py experiments.recipes.arena.train run=my_experiment
-
-   # Training with navigation recipe
-   uv run ./tools/run.py experiments.recipes.navigation.train run=my_experiment
-   ```
-
-2. **Simulation/Evaluation**: Run evaluation suites on trained policies
+#### Common Workflows
 
 ```bash
-# Run evaluation
-uv run ./tools/run.py experiments.recipes.arena.evaluate \
+# Train
+uv run ./tools/run.py train arena run=my_experiment
+
+# Evaluate locally (single policy)
+uv run ./tools/run.py evaluate arena \
   policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
 
-# Using a remote S3 checkpoint
-uv run ./tools/run.py experiments.recipes.arena.evaluate \
-  policy_uri=s3://my-bucket/checkpoints/my-training-run/my-training-run:v12.pt
-```
+# Evaluate remotely (dispatch to server)
+uv run ./tools/run.py eval_remote arena \
+  policy_uri=s3://my-bucket/checkpoints/run/run:v10.pt
 
-3. **Analysis**: Analyze evaluation results
+# Analyze evaluation results
+uv run ./tools/run.py analyze arena eval_db_uri=./train_dir/eval/stats.db
 
-   ```bash
-   uv run ./tools/run.py experiments.recipes.arena.analyze eval_db_uri=./train_dir/eval/stats.db
-   ```
+# Interactive play / Replay
+uv run ./tools/run.py play arena policy_uri=...
+uv run ./tools/run.py replay arena policy_uri=...
 
-4. **Interactive Play**: Test policies interactively (browser-based)
+# List explicit tools for a recipe module (recommended)
+uv run ./tools/run.py arena --list
 
-```bash
-uv run ./tools/run.py experiments.recipes.arena.play \
-  policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
-```
-
-5. **View Replays**: Watch recorded gameplay
-
-```bash
-uv run ./tools/run.py experiments.recipes.arena.replay \
-  policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
+# Dry run (resolve only; does not construct or run the tool)
+uv run ./tools/run.py evaluate arena --dry-run
 ```
 
 #### Visualization Tools
@@ -293,39 +277,6 @@ The project uses OmegaConf for configuration, with config files organized in `co
 - `user/`: User-specific configurations
 - `wandb/`: Weights & Biases settings
 
-#### Running Training and Tools
-
-All tools are now run through `./tools/run.py` with recipe functions:
-
-```bash
-# Training with arena recipe
-uv run ./tools/run.py experiments.recipes.arena.train run=my_experiment
-
-# Training with navigation recipe
-uv run ./tools/run.py experiments.recipes.navigation.train run=my_experiment
-
-# Play/test a trained policy (interactive browser)
-uv run ./tools/run.py experiments.recipes.arena.play \
-  policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
-
-# Run evaluation
-uv run ./tools/run.py experiments.recipes.arena.evaluate \
-  policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
-
-# View replays
-uv run ./tools/run.py experiments.recipes.arena.replay \
-  policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
-```
-
-#### Configuration System
-
-The project now uses Pydantic-based configuration instead of Hydra/YAML. Configurations are built programmatically in
-recipe files:
-
-- Recipes define training setups, environments, and evaluation suites
-- Each recipe function returns a Tool configuration object
-- Override parameters can be passed via command line arguments to the recipe functions
-
 ### Development Workflows
 
 #### Adding a New Evaluation Task
@@ -346,7 +297,7 @@ recipe files:
 
 1. Use smaller batch sizes for debugging
 2. Check wandb logs for metrics anomalies
-3. Use `./tools/run.py experiments.recipes.arena.play` for interactive debugging (Note: Less useful in Claude Code due
+3. Use `./tools/run.py arena.play` for interactive debugging (Note: Less useful in Claude Code due
    to interactive nature)
 
 #### Performance Profiling

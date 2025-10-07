@@ -97,10 +97,6 @@ class TrainTool(Tool):
         if self.run is None:
             self.run = auto_run_name(prefix="local")
 
-        group_override = args.get("group")
-        if group_override:
-            self.group = group_override
-
         if self.wandb == WandbConfig.Unconfigured():
             self.wandb = auto_wandb_config(self.run)
 
