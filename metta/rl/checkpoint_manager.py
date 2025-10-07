@@ -315,7 +315,8 @@ class CheckpointManager:
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
 
         # For ScheduleFree optimizers, ensure we save in eval mode
-        if is_schedulefree_optimizer(optimizer):
+        is_schedulefree = is_schedulefree_optimizer(optimizer)
+        if is_schedulefree:
             optimizer.eval()
 
         state = {"optimizer": optimizer.state_dict(), "epoch": epoch, "agent_step": agent_step}
@@ -326,6 +327,10 @@ class CheckpointManager:
         if loss_states is not None:
             state["loss_states"] = loss_states
         torch.save(state, trainer_file)
+
+        # Restore train mode after saving for ScheduleFree optimizers
+        if is_schedulefree:
+            optimizer.train()
 
     def get_latest_checkpoint(self) -> str | None:
         local_max_checkpoint = _latest_checkpoint(f"file://{self.checkpoint_dir}")
