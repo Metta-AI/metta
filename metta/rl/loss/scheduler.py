@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Callable, Literal, Optional
 
 import numpy as np
-
 
 AnnealStyle = Literal["linear", "cosine", "sawtooth"]
 
@@ -20,8 +20,6 @@ def linear(progress: float, start: float, end: float) -> float:
 
 def cosine(progress: float, start: float, end: float) -> float:
     # Half cosine from start to end
-    import math
-
     t = _clamp01(progress)
     cos_t = (1 - math.cos(math.pi * t)) * 0.5
     return start + (end - start) * cos_t
@@ -100,10 +98,10 @@ def _set_attr_path(obj: object, path: str, value: float) -> None:
     setattr(target, parts[-1], value)
 
 
-
 # -----------------------------------------------------------------------------
 # Metric-driven scheduling based on environment stats accumulated during rollout
 # -----------------------------------------------------------------------------
+
 
 @dataclass(slots=True)
 class MetricSchedule:
@@ -190,6 +188,7 @@ class MetricSchedule:
 # Single schedule type used by configs as rollout_sched/train_sched
 # -----------------------------------------------------------------------------
 
+
 @dataclass(slots=True)
 class PhaseRunSchedule:
     """Schedule for a single phase (e.g., rollout or train). You can supply absolute windows by epoch or agent step
@@ -247,4 +246,3 @@ class PhaseRunSchedule:
                 return False
 
         return True
-
