@@ -85,32 +85,18 @@ resource "aws_ses_event_destination" "cloudwatch" {
   }
 }
 
-# Import existing Route53 hosted zone for the domain
-# This zone was created by external-dns, but we're taking ownership of it
-# while allowing external-dns to continue managing A/CNAME records for the app
-import {
-  to = aws_route53_zone.library
-  id = "Z03090461BEBKPEGZIZ63"
-}
-
-resource "aws_route53_zone" "library" {
-  name = var.domain
-
-  # Prevent accidental deletion of the zone
-  lifecycle {
-    prevent_destroy = true
-  }
-
-  tags = {
-    ManagedBy   = "terraform-library"
-    Purpose     = "Library domain with external-dns and SES records"
-    Application = "softmax-library"
-  }
+# Reference existing Route53 hosted zone for the domain
+# This zone is managed by external-dns from the EKS cluster
+# We use a data source to avoid state conflicts and allow external-dns to continue
+# managing the zone and its A/CNAME records for the library application
+data "aws_route53_zone" "library" {
+  name         = var.domain
+  private_zone = false
 }
 
 # Route53 record for SES domain verification
 resource "aws_route53_record" "ses_verification" {
-  zone_id = aws_route53_zone.library.zone_id
+  zone_id = data.aws_route53_zone.library.zone_id
   name    = "_amazonses.${var.domain}"
   type    = "TXT"
   ttl     = 600
@@ -120,7 +106,7 @@ resource "aws_route53_record" "ses_verification" {
 # Route53 records for DKIM signing (3 records)
 resource "aws_route53_record" "ses_dkim" {
   count   = 3
-  zone_id = aws_route53_zone.library.zone_id
+  zone_id = data.aws_route53_zone.library.zone_id
   name    = "${aws_ses_domain_dkim.library.dkim_tokens[count.index]}._domainkey.${var.domain}"
   type    = "CNAME"
   ttl     = 600
