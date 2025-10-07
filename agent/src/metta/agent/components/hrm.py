@@ -233,9 +233,11 @@ class HRMReasoning(nn.Module):
         z_h = self.H_level(z_h, z_l)
 
         # Q-head for halting decision (use first token)
-        # Note: Q-head is trained but not used for halting in this simplified version
-        # Full ACT implementation would use q_logits for dynamic halting
-        _ = self.q_head(z_h[:, 0])  # (batch, 2) - forward for training
+        q_logits = self.q_head(z_h[:, 0])  # (batch, 2)
+
+        # Store Q-logits in tensordict for ACT loss computation
+        td["q_halt_logits"] = q_logits[:, 0]  # (batch,)
+        td["q_continue_logits"] = q_logits[:, 1]  # (batch,)
 
         # Store hidden states (squeeze seq dim and detach)
         self.carry["z_l"][training_env_ids] = z_l.squeeze(1).detach()
