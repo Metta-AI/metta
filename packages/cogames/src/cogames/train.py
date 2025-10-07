@@ -92,7 +92,7 @@ def train(
         env_batch_size += envs_per_worker - remainder
 
     if backend is pvector.Serial:
-        vector_batch_size = num_envs
+        env_batch_size = num_envs
 
     logger.debug(
         "Vec env config: num_envs=%s, num_workers=%s, batch_size=%s (envs/worker=%s)",
