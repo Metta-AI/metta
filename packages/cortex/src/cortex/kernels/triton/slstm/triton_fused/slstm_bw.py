@@ -207,7 +207,7 @@ def _backward_sequence_kernel(
             block_shape=(siz_B, DH),
             order=(0, 1),
         )
-        matG_z = tl.load(matG_z_ptr)  # (siz_B, DH)
+        matG_z = tl.load(matG_z_ptr, boundary_check=(0, 1))  # (siz_B, DH)
 
         matG_o_ptr = tl.make_block_ptr(
             base=gates_all + idx_b_NH * str_matGatesAll_NH + idx_t * str_matGatesAll_T + 3 * B * DH,
@@ -217,7 +217,7 @@ def _backward_sequence_kernel(
             block_shape=(siz_B, DH),
             order=(0, 1),
         )
-        matG_o = tl.load(matG_o_ptr)  # (siz_B, DH)
+        matG_o = tl.load(matG_o_ptr, boundary_check=(0, 1))  # (siz_B, DH)
 
         ## load the c_t, n_t, m_t states for the current time step idx_t from idx_t+1
         # (states_all contains the initial states at idx_t=0)
@@ -229,7 +229,7 @@ def _backward_sequence_kernel(
             block_shape=(siz_B, DH),
             order=(0, 1),
         )
-        matC_t = tl.load(matC_t_ptr)  # (siz_B, DH)
+        matC_t = tl.load(matC_t_ptr, boundary_check=(0, 1))  # (siz_B, DH)
 
         matN_t_ptr = tl.make_block_ptr(
             base=states_all + idx_b_NH * str_matStatesAll_NH + (idx_t + 1) * str_matStatesAll_T + 2 * B * DH,
@@ -239,7 +239,7 @@ def _backward_sequence_kernel(
             block_shape=(siz_B, DH),
             order=(0, 1),
         )
-        matN_t = tl.load(matN_t_ptr)  # (siz_B, DH)
+        matN_t = tl.load(matN_t_ptr, boundary_check=(0, 1))  # (siz_B, DH)
 
         matM_t_ptr = tl.make_block_ptr(
             base=states_all + idx_b_NH * str_matStatesAll_NH + (idx_t + 1) * str_matStatesAll_T + 3 * B * DH,
@@ -249,7 +249,7 @@ def _backward_sequence_kernel(
             block_shape=(siz_B, DH),
             order=(0, 1),
         )
-        matM_t = tl.load(matM_t_ptr).to(tl.float32)  # (siz_B, DH)
+        matM_t = tl.load(matM_t_ptr, boundary_check=(0, 1)).to(tl.float32)  # (siz_B, DH)
 
         ## load the h_t-1, c_t-1, n_t-1, m_t-1 states for the previous time step idx_t-1 from idx_t
         matH_tminus1_ptr = tl.make_block_ptr(
@@ -260,7 +260,7 @@ def _backward_sequence_kernel(
             block_shape=(siz_B, DH),
             order=(0, 1),
         )
-        matH_tminus1 = tl.load(matH_tminus1_ptr)  # (siz_B, DH)
+        matH_tminus1 = tl.load(matH_tminus1_ptr, boundary_check=(0, 1))  # (siz_B, DH)
 
         matC_tminus1_ptr = tl.make_block_ptr(
             base=states_all + idx_b_NH * str_matStatesAll_NH + (idx_t) * str_matStatesAll_T + 1 * B * DH,
@@ -270,7 +270,7 @@ def _backward_sequence_kernel(
             block_shape=(siz_B, DH),
             order=(0, 1),
         )
-        matC_tminus1 = tl.load(matC_tminus1_ptr)  # (siz_B, DH)
+        matC_tminus1 = tl.load(matC_tminus1_ptr, boundary_check=(0, 1))  # (siz_B, DH)
 
         matN_tminus1_ptr = tl.make_block_ptr(
             base=states_all + idx_b_NH * str_matStatesAll_NH + (idx_t) * str_matStatesAll_T + 2 * B * DH,
@@ -280,7 +280,7 @@ def _backward_sequence_kernel(
             block_shape=(siz_B, DH),
             order=(0, 1),
         )
-        matN_tminus1 = tl.load(matN_tminus1_ptr)  # (siz_B, DH)
+        matN_tminus1 = tl.load(matN_tminus1_ptr, boundary_check=(0, 1))  # (siz_B, DH)
 
         matM_tminus1_ptr = tl.make_block_ptr(
             base=states_all + idx_b_NH * str_matStatesAll_NH + (idx_t) * str_matStatesAll_T + 3 * B * DH,
@@ -290,7 +290,7 @@ def _backward_sequence_kernel(
             block_shape=(siz_B, DH),
             order=(0, 1),
         )
-        matM_tminus1 = tl.load(matM_tminus1_ptr).to(tl.float32)  # (siz_B, DH)
+        matM_tminus1 = tl.load(matM_tminus1_ptr, boundary_check=(0, 1)).to(tl.float32)  # (siz_B, DH)
 
         ## load delta errors (delta_h_t, delta_c_t, delta_n_t) from outside for timestep idx_t
         matDeltaHtrans_out_t_ptr = tl.make_block_ptr(
@@ -304,7 +304,7 @@ def _backward_sequence_kernel(
             block_shape=(siz_B, DH),
             order=(0, 1),
         )
-        matDeltaHtrans_out_t = tl.load(matDeltaHtrans_out_t_ptr)  # (siz_B, DH)
+        matDeltaHtrans_out_t = tl.load(matDeltaHtrans_out_t_ptr, boundary_check=(0, 1))  # (siz_B, DH)
 
         matDeltaCtrans_out_t_ptr = tl.make_block_ptr(
             base=delta_states_all_outside
@@ -317,7 +317,7 @@ def _backward_sequence_kernel(
             block_shape=(siz_B, DH),
             order=(0, 1),
         )
-        matDeltaCtrans_out_t = tl.load(matDeltaCtrans_out_t_ptr)  # (siz_B, DH)
+        matDeltaCtrans_out_t = tl.load(matDeltaCtrans_out_t_ptr, boundary_check=(0, 1))  # (siz_B, DH)
 
         matDeltaNtrans_out_t_ptr = tl.make_block_ptr(
             base=delta_states_all_outside
@@ -330,7 +330,7 @@ def _backward_sequence_kernel(
             block_shape=(siz_B, DH),
             order=(0, 1),
         )
-        matDeltaNtrans_out_t = tl.load(matDeltaNtrans_out_t_ptr)  # (siz_B, DH)
+        matDeltaNtrans_out_t = tl.load(matDeltaNtrans_out_t_ptr, boundary_check=(0, 1))  # (siz_B, DH)
 
         ## compute the backward pointwise operations
         matDeltaH_t = matDeltaHtrans_out_t + matDeltaH_tplus1  # (siz_B, DH)
@@ -386,7 +386,7 @@ def _backward_sequence_kernel(
             block_shape=(siz_B, DH),
             order=(0, 1),
         )
-        tl.store(matDeltaGI_ptr, matDeltaGI.to(DTYPE))
+        tl.store(matDeltaGI_ptr, matDeltaGI.to(DTYPE), boundary_check=(0, 1))
 
         matDeltaGF_ptr = tl.make_block_ptr(
             base=delta_Wx + idx_b_NH * str_matDeltaWx_NH + idx_t * str_matDeltaWx_T + 1 * B * DH,
@@ -396,7 +396,7 @@ def _backward_sequence_kernel(
             block_shape=(siz_B, DH),
             order=(0, 1),
         )
-        tl.store(matDeltaGF_ptr, matDeltaGF.to(DTYPE))
+        tl.store(matDeltaGF_ptr, matDeltaGF.to(DTYPE), boundary_check=(0, 1))
 
         matDeltaGZ_ptr = tl.make_block_ptr(
             base=delta_Wx + idx_b_NH * str_matDeltaWx_NH + idx_t * str_matDeltaWx_T + 2 * B * DH,
@@ -406,7 +406,7 @@ def _backward_sequence_kernel(
             block_shape=(siz_B, DH),
             order=(0, 1),
         )
-        tl.store(matDeltaGZ_ptr, matDeltaGZ.to(DTYPE))
+        tl.store(matDeltaGZ_ptr, matDeltaGZ.to(DTYPE), boundary_check=(0, 1))
 
         matDeltaGO_ptr = tl.make_block_ptr(
             base=delta_Wx + idx_b_NH * str_matDeltaWx_NH + idx_t * str_matDeltaWx_T + 3 * B * DH,
@@ -416,7 +416,7 @@ def _backward_sequence_kernel(
             block_shape=(siz_B, DH),
             order=(0, 1),
         )
-        tl.store(matDeltaGO_ptr, matDeltaGO.to(DTYPE))
+        tl.store(matDeltaGO_ptr, matDeltaGO.to(DTYPE), boundary_check=(0, 1))
 
         ## next iteration
         matDeltaH_tplus1 = matDeltaH_tminus1  # (siz_B, DH)
@@ -432,7 +432,7 @@ def _backward_sequence_kernel(
         block_shape=(siz_B, DH),
         order=(0, 1),
     )
-    tl.store(matDeltaHtrans_initial_ptr, matDeltaH_tplus1.to(DTYPE))
+    tl.store(matDeltaHtrans_initial_ptr, matDeltaH_tplus1.to(DTYPE), boundary_check=(0, 1))
 
     matDeltaCtrans_initial_ptr = tl.make_block_ptr(
         base=delta_states_initial + idx_b_NH * NS * B * DH + 1 * B * DH,
@@ -442,7 +442,7 @@ def _backward_sequence_kernel(
         block_shape=(siz_B, DH),
         order=(0, 1),
     )
-    tl.store(matDeltaCtrans_initial_ptr, matDeltaC_tplus1.to(DTYPE))
+    tl.store(matDeltaCtrans_initial_ptr, matDeltaC_tplus1.to(DTYPE), boundary_check=(0, 1))
 
     matDeltaNtrans_initial_ptr = tl.make_block_ptr(
         base=delta_states_initial + idx_b_NH * NS * B * DH + 2 * B * DH,
@@ -452,7 +452,7 @@ def _backward_sequence_kernel(
         block_shape=(siz_B, DH),
         order=(0, 1),
     )
-    tl.store(matDeltaNtrans_initial_ptr, matDeltaN_tplus1.to(DTYPE))
+    tl.store(matDeltaNtrans_initial_ptr, matDeltaN_tplus1.to(DTYPE), boundary_check=(0, 1))
 
     # set the initial m state gradient to zero
     matDeltaMtrans_initial_ptr = tl.make_block_ptr(
@@ -463,7 +463,7 @@ def _backward_sequence_kernel(
         block_shape=(siz_B, DH),
         order=(0, 1),
     )
-    tl.store(matDeltaMtrans_initial_ptr, tl.zeros((siz_B, DH), dtype=DTYPE))
+    tl.store(matDeltaMtrans_initial_ptr, tl.zeros((siz_B, DH), dtype=DTYPE), boundary_check=(0, 1))
 
     ## store the delta errors to the recurrent weights
     matDeltaR_i_ptr = tl.make_block_ptr(

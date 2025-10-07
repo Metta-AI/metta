@@ -41,7 +41,8 @@ def _slstm_pointwise(
     cnew = fgate * c + igate * torch.tanh(zraw)
     nnew = fgate * n + igate
     # Add epsilon to prevent division by zero when n≈0 and igate≈0
-    eps = 1e-8
+    # Use 1e-6 for better numerical stability over long training runs
+    eps = 1e-6
     ynew = ogate * cnew / (nnew + eps)
 
     return (
