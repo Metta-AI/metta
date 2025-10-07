@@ -22,7 +22,7 @@ ConfigMakerKind = Literal[
     "TrainTool",
     "PlayTool",
     "ReplayTool",
-    "SimTool",
+    "EvaluateTool",
     "CurriculumConfig",
 ]
 

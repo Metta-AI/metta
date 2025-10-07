@@ -2,12 +2,13 @@ from experiments.recipes import arena
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
+from metta.sim.simulation_config import SimulationConfig
 
 # CI-friendly runtime: tiny steps and small batches.
 
 
 def train() -> TrainTool:
-    cfg = arena.train(curriculum=arena.make_curriculum(arena.make_mettagrid()))
+    cfg = arena.train(curriculum=arena.make_curriculum(arena.mettagrid()))
 
     cfg.wandb.enabled = False
     cfg.system.vectorization = "serial"
@@ -26,9 +27,9 @@ def train() -> TrainTool:
 
 
 def replay() -> ReplayTool:
-    env = arena.make_mettagrid()
+    env = arena.mettagrid()
     env.game.max_steps = 100
-    cfg = arena.replay(env)
+    cfg = ReplayTool(sim=SimulationConfig(suite="arena", name="eval", env=env))
     cfg.wandb.enabled = False
     cfg.system.vectorization = "serial"
     cfg.open_browser_on_start = False
@@ -43,9 +44,9 @@ def replay_null() -> ReplayTool:
 
 
 def play() -> PlayTool:
-    env = arena.make_mettagrid()
+    env = arena.mettagrid()
     env.game.max_steps = 100
-    cfg = arena.play(env)
+    cfg = PlayTool(sim=SimulationConfig(suite="arena", name="eval", env=env))
     cfg.wandb.enabled = False
     cfg.system.vectorization = "serial"
     cfg.open_browser_on_start = False
