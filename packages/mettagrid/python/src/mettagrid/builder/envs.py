@@ -1,4 +1,3 @@
-
 import mettagrid.mapgen.scenes.random
 
 # Local import moved to factory usage to avoid forbidden cross-package dependency at import time
