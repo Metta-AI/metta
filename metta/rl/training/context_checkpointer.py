@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 class ContextCheckpointerConfig(Config):
     """Configuration for trainer state checkpointing."""
 
-    epoch_interval: int = 50
-    """How often to save trainer state checkpoints (in epochs)."""
+    epoch_interval: int = 30
+    """Baseline frequency for trainer state checkpoints (in epochs)."""
 
     keep_last_n: int = 5
     """Number of trainer checkpoints to retain locally."""
@@ -36,6 +36,7 @@ class ContextCheckpointer(TrainerComponent):
         self._config = config
         self._checkpoint_manager = checkpoint_manager
         self._distributed = distributed_helper
+        self._last_synced_policy_epoch: Optional[int] = None
 
     # ------------------------------------------------------------------
     # Lifecycle helpers
@@ -45,6 +46,7 @@ class ContextCheckpointer(TrainerComponent):
         target_path = self._checkpoint_manager.checkpoint_dir
         target_path.mkdir(parents=True, exist_ok=True)
         logger.debug("Trainer checkpoints will be written to %s", target_path)
+        self._last_synced_policy_epoch = context.latest_saved_policy_epoch
 
     # ------------------------------------------------------------------
     # Public API used by Trainer
@@ -76,6 +78,7 @@ class ContextCheckpointer(TrainerComponent):
         context.agent_step = payload["agent_step"]
         context.epoch = restored_epoch
         context.latest_saved_policy_epoch = restored_epoch
+        self._last_synced_policy_epoch = context.latest_saved_policy_epoch
 
         optimizer_state = payload.get("optimizer_state")
         context.state.optimizer_state = optimizer_state
@@ -84,6 +87,9 @@ class ContextCheckpointer(TrainerComponent):
                 context.optimizer.load_state_dict(optimizer_state)
             except ValueError as exc:  # pragma: no cover - mismatch rare but we log it
                 logger.warning("Failed to load optimizer state from checkpoint: %s", exc)
+            finally:
+                # Drop reference to the restored state to avoid retaining GPU buffers
+                context.state.optimizer_state = None
 
         stopwatch_state = payload.get("stopwatch_state")
         context.state.stopwatch_state = stopwatch_state
@@ -116,6 +122,7 @@ class ContextCheckpointer(TrainerComponent):
                     loss.load_state_dict(stored, strict=False)
                 except Exception as exc:  # pragma: no cover - defensive
                     logger.warning("Failed to restore loss state for %s: %s", name, exc)
+        context.state.loss_states = {}
 
         context.timing_baseline = {
             "agent_step": context.agent_step,
@@ -129,7 +136,12 @@ class ContextCheckpointer(TrainerComponent):
         if not self._distributed.should_checkpoint():
             return
 
-        if epoch % self._config.epoch_interval != 0:
+        policy_epoch = self.context.latest_saved_policy_epoch
+        if policy_epoch is not None and policy_epoch != self._last_synced_policy_epoch:
+            self._save_state(force=True)
+            return
+
+        if self._config.epoch_interval and epoch % self._config.epoch_interval != 0:
             return
 
         self._save_state()
@@ -182,3 +194,9 @@ class ContextCheckpointer(TrainerComponent):
             curriculum_state=context.state.curriculum_state,
             loss_states=context.state.loss_states,
         )
+
+        self._last_synced_policy_epoch = self.context.latest_saved_policy_epoch
+
+        # Release references so we do not pin large GPU tensors between checkpoints
+        context.state.optimizer_state = None
+        context.state.loss_states = {}
