@@ -4,7 +4,6 @@ Tests for Gymnasium integration with MettaGrid.
 This module tests the MettaGridGymEnv with Gymnasium's standard environment interface.
 """
 
-
 from mettagrid.config.mettagrid_config import ActionConfig, ActionsConfig, GameConfig, MettaGridConfig, WallConfig
 from mettagrid.envs.gym_env import MettaGridGymEnv
 from mettagrid.map_builder.ascii import AsciiMapBuilder
