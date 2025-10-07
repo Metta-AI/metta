@@ -5,21 +5,21 @@ from __future__ import annotations
 import importlib.util
 from typing import Optional
 
-from experiments.recipes import arena_basic_easy_shaped as base
+from experiments.recipes.arena_basic_easy_shaped import (
+    evaluate,
+    evaluate_in_sweep,
+    make_curriculum,
+    mettagrid,
+    play,
+    replay,
+    simulations,
+    sweep_async_progressive,
+    train as base_train,
+)
 from metta.agent.policies.smollm import SmolLLMConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.tools.train import TrainTool
-
-make_mettagrid = base.make_mettagrid
-make_curriculum = base.make_curriculum
-make_evals = base.make_evals
-play = base.play
-replay = base.replay
-evaluate = base.evaluate
-evaluate_in_sweep = base.evaluate_in_sweep
-sweep_async_progressive = base.sweep_async_progressive
-
 
 _FLASH_ATTENTION_AVAILABLE = importlib.util.find_spec("flash_attn") is not None
 
@@ -52,7 +52,7 @@ def train(
             config_kwargs["model_name"] = model_name
         policy_architecture = SmolLLMConfig(**config_kwargs)
 
-    tool = base.train(
+    tool = base_train(
         curriculum=curriculum,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
         policy_architecture=policy_architecture,
@@ -92,9 +92,9 @@ def _apply_smollm_defaults(tool: TrainTool) -> TrainTool:
 
 
 __all__ = [
-    "make_mettagrid",
+    "mettagrid",
     "make_curriculum",
-    "make_evals",
+    "simulations",
     "play",
     "replay",
     "evaluate",
