@@ -187,7 +187,7 @@ def _backward_sequence_kernel(
             block_shape=(siz_B, DH),
             order=(0, 1),
         )
-        matG_ibar = tl.load(matG_i_ptr).to(tl.float32)  # (siz_B, DH)
+        matG_ibar = tl.load(matG_i_ptr, boundary_check=(0, 1)).to(tl.float32)  # (siz_B, DH)
 
         matG_f_ptr = tl.make_block_ptr(
             base=gates_all + idx_b_NH * str_matGatesAll_NH + idx_t * str_matGatesAll_T + 1 * B * DH,
@@ -197,7 +197,7 @@ def _backward_sequence_kernel(
             block_shape=(siz_B, DH),
             order=(0, 1),
         )
-        matG_fbar = tl.load(matG_f_ptr).to(tl.float32)  # (siz_B, DH)
+        matG_fbar = tl.load(matG_f_ptr, boundary_check=(0, 1)).to(tl.float32)  # (siz_B, DH)
 
         matG_z_ptr = tl.make_block_ptr(
             base=gates_all + idx_b_NH * str_matGatesAll_NH + idx_t * str_matGatesAll_T + 2 * B * DH,
@@ -337,9 +337,15 @@ def _backward_sequence_kernel(
         matDeltaC_t = matDeltaCtrans_out_t + matDeltaC_tplus1  # (siz_B, DH)
         matDeltaN_t = matDeltaNtrans_out_t + matDeltaN_tplus1  # (siz_B, DH)
 
-        # slstm pointwise backward
-        matDeltaC_t = matDeltaC_t + matDeltaH_t * (matG_o / matN_t)  # (siz_B, DH)
-        matDeltaN_t = matDeltaN_t - matDeltaH_t * (matG_o * matC_t / (matN_t * matN_t))  # (siz_B, DH)
+        # slstm pointwise backward (numerically stabilized)
+        # Compute in float32 to avoid overflow/underflow in divisions
+        EPS = 1e-6
+        m_go = matG_o.to(tl.float32)
+        m_ct = matC_t.to(tl.float32)
+        m_nt = matN_t.to(tl.float32)
+        m_dh = matDeltaH_t.to(tl.float32)
+        matDeltaC_t = matDeltaC_t.to(tl.float32) + m_dh * (m_go / (m_nt + EPS))  # (siz_B, DH)
+        matDeltaN_t = matDeltaN_t.to(tl.float32) - m_dh * (m_go * m_ct / ((m_nt + EPS) * (m_nt + EPS)))  # (siz_B, DH)
 
         matG_i = tl.exp(matG_ibar - matM_t)  # (siz_B, DH)
         matG_logfplusm = matM_tminus1 + tl.log(tl.sigmoid(matG_fbar))  # (siz_B, DH)
@@ -349,7 +355,7 @@ def _backward_sequence_kernel(
         matDeltaGI = (matDeltaC_t * matG_z + matDeltaN_t) * matG_i
         matDeltaGF = (matDeltaC_t * matC_tminus1 + matDeltaN_t * matN_tminus1) * matG_f * tl.sigmoid(-matG_fbar)
         matDeltaGZ = matDeltaC_t * matG_i * (1 - matG_z * matG_z)
-        matDeltaGO = matDeltaH_t * (matC_t / matN_t) * (1 - matG_o) * matG_o
+        matDeltaGO = m_dh * (m_ct / (m_nt + EPS)) * (1 - m_go) * m_go
 
         # compute the delta errors to previous states
         matDeltaC_tminus1 = matDeltaC_t * matG_f

@@ -33,6 +33,8 @@ class CortexTDConfig(ComponentConfig):
     stack: CortexStack
 
     key_prefix: str = "cortex_state"
+    # Cache storage dtype for MettaTDAdapter: 'fp32' (default) or 'bf16'
+    store_dtype: str = "fp32"
 
     def make_component(self, env: Any = None) -> nn.Module:
         return CortexTD(config=self)
@@ -71,6 +73,7 @@ class CortexTD(nn.Module):
             d_hidden=int(config.d_hidden),
             out_features=config.out_features,
             key_prefix=config.key_prefix,
+            store_dtype=self.config.store_dtype,
         )
 
     @torch._dynamo.disable
