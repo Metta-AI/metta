@@ -141,31 +141,6 @@ class HRMReasoning(nn.Module):
     def forward(self, td: TensorDict) -> TensorDict:
         x = td[self.config.in_key]
 
-        # Handle different input shapes:
-        # - (B, D): Already pooled by upstream component, skip transformer
-        # - (B, N, D): Sequence input, apply transformer
-        # - (B, H, W, D): Spatial input, flatten and apply transformer
-
-        if self.carry is not None:
-            self.z_l = self.carry["z_l"]
-            self.z_h = self.carry["z_h"]
-        else:
-            self.z_l = torch.zeros(x.shape[0], self.config.embed_dim)
-            self.z_h = torch.zeros(x.shape[0], self.config.embed_dim)
-
-        halt = False
-
-        for _ in range(self.config.Mmax):
-            with torch.no_grad():
-                for i in range(self.config.H_cycles * self.config.L_cycles - 1):  # Most timesteps no_grad
-                    z_l = self.L_level(z_l, z_h + x)
-                    if (i + 1) % self.config.L_cycles == 0:
-                        z_h = self.H_level(z_h, z_l)
-
-            # Final 1-step with gradients (for approx gradient)
-            z_l = self.L_level(z_l, z_h + x)
-            z_h = self.H_level(z_h, z_l)
-
         if x.ndim == 2:
             # Already pooled, use directly
             reasoning_output = x
@@ -191,10 +166,46 @@ class HRMReasoning(nn.Module):
                 # Apply RMS norm
                 x = self._rms_norm(x)
 
-            # Use CLS token approach: take first latent as summary
-            reasoning_output = x[:, 0, :]  # (batch_size, embed_dim)
+        # Handle different input shapes:
+        # - (B, D): Already pooled by upstream component, skip transformer
+        # - (B, N, D): Sequence input, apply transformer
+        # - (B, H, W, D): Spatial input, flatten and apply transformer
 
-        td[self.config.out_key] = reasoning_output
+        # Main ACT loop (for inference; training adds deep supervision)
+
+        if self.carry is not None:
+            self.z_l = self.carry["z_l"]
+            self.z_h = self.carry["z_h"]
+        else:
+            self.z_l = torch.zeros(x.shape[0], self.config.embed_dim)
+            self.z_h = torch.zeros(x.shape[0], self.config.embed_dim)
+
+        halt = False
+        segments = 0
+        while True:
+            with torch.no_grad():
+                for i in range(self.config.H_cycles * self.config.L_cycles - 1):  # Most timesteps no_grad
+                    z_l = self.L_level(z_l, z_h + x)
+                    if (i + 1) % self.config.L_cycles == 0:
+                        z_h = self.H_level(z_h, z_l)
+
+            # Final 1-step with gradients (for approx gradient)
+            z_l = self.L_level(z_l, z_h + x)
+            z_h = self.H_level(z_h, z_l)
+
+            # Q-head: sigmoid on linear projection of z_h (two values: halt, continue)
+            q_logits = self.q_head(z_h)  # Shape: [2]
+            q_values = torch.sigmoid(q_logits)  # Q̂_halt, Q̂_continue
+
+            # Halting decision (with Mmin/Mmax)
+            if segments >= self.config.Mmax or (
+                q_values[0] > q_values[1] and segments >= self.config.Mmin
+            ):  # halt=0, continue=1
+                break  # Use y_hat as final prediction
+
+            segments += 1
+
+        td[self.config.out_key] = z_h
         return td
 
 
