@@ -125,6 +125,7 @@ class HRMPolicyConfig(PolicyArchitecture):
             embed_dim=_embed_dim,
             num_layers=4,
             num_heads=8,
+            ffn_expansion=4.0,
         ),
         # Actor and Critic using ViT-style components
         MLPConfig(
@@ -198,7 +199,7 @@ class HRMCompactConfig(PolicyArchitecture):
             embed_dim=_embed_dim,
             num_layers=2,
             num_heads=4,
-            ffn_multiplier=3,
+            ffn_expansion=3.0,
         ),
         # Actor and Critic using ViT-style components
         MLPConfig(
@@ -345,7 +346,7 @@ class HRMTinyConfig(PolicyArchitecture):
             embed_dim=_embed_dim,
             num_layers=1,
             num_heads=2,
-            ffn_multiplier=2,
+            ffn_expansion=2.0,
         ),
         # Actor and Critic using ViT-style components
         MLPConfig(
