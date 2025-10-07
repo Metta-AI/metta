@@ -12,7 +12,7 @@ from metta.rl.advantage import compute_advantage, normalize_advantage_distribute
 from metta.rl.loss import Loss
 from metta.rl.training import ComponentContext, TrainingEnvironment
 from metta.utils.batch import calculate_prioritized_sampling_params
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 
 class PrioritizedExperienceReplayConfig(Config):
@@ -93,6 +93,7 @@ class PPO(Loss):
         "anneal_beta",
         "burn_in_steps",
         "burn_in_steps_iter",
+        "last_action",
     )
 
     def __init__(
@@ -111,6 +112,7 @@ class PPO(Loss):
         if hasattr(self.policy, "burn_in_steps"):
             self.burn_in_steps = self.policy.burn_in_steps
         self.burn_in_steps_iter = 0
+        self.last_action = None
         self.register_state_attr("anneal_beta", "burn_in_steps_iter")
 
     def get_experience_spec(self) -> Composite:

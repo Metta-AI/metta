@@ -1,15 +1,15 @@
-import { loadMettaTileSets } from "./mettaTileSets";
+import { loadMettaTileSets, TILE_NAMES } from "./mettaTileSets";
 import { TileSetCollection } from "./TileSetCollection";
 
 // based on mettascope's colorFromId
-const colorFromId = (agentId: number) => {
+function colorFromId(agentId: number) {
   const n = agentId + Math.PI + Math.E + Math.SQRT2;
   return {
     r: (n * Math.PI) % 1.0,
     g: (n * Math.E) % 1.0,
     b: (n * Math.SQRT2) % 1.0,
   };
-};
+}
 
 type ObjectLayer = {
   tile: string;
@@ -20,38 +20,9 @@ type ObjectDrawer = ObjectLayer[];
 
 const objectDrawers: Record<string, ObjectDrawer> = {
   empty: [],
-  wall: [{ tile: "wall" }],
-  block: [{ tile: "block" }],
-  altar: [{ tile: "altar" }],
-  armory: [{ tile: "armory" }],
-  factory: [{ tile: "factory" }],
-  lab: [{ tile: "lab" }],
-  lasery: [{ tile: "lasery" }],
-  temple: [{ tile: "temple" }],
-  mine_red: [
-    { tile: "mine" },
-    { tile: "mine.color", modulate: { r: 1, g: 0, b: 0 } },
-  ],
-  mine_blue: [
-    { tile: "mine" },
-    { tile: "mine.color", modulate: { r: 0, g: 0, b: 1 } },
-  ],
-  mine_green: [
-    { tile: "mine" },
-    { tile: "mine.color", modulate: { r: 0, g: 1, b: 0 } },
-  ],
-  generator_red: [
-    { tile: "generator" },
-    { tile: "generator.color", modulate: { r: 1, g: 0, b: 0 } },
-  ],
-  generator_blue: [
-    { tile: "generator" },
-    { tile: "generator.color", modulate: { r: 0, g: 0, b: 1 } },
-  ],
-  generator_green: [
-    { tile: "generator" },
-    { tile: "generator.color", modulate: { r: 0, g: 1, b: 0 } },
-  ],
+  ...Object.fromEntries(
+    TILE_NAMES.map((tile) => [tile, [{ tile }] as ObjectDrawer])
+  ),
   "agent.agent": [{ tile: "agent" }],
   "agent.team_1": [{ tile: "agent", modulate: colorFromId(0) }],
   "agent.team_2": [{ tile: "agent", modulate: colorFromId(1) }],

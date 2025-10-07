@@ -44,13 +44,13 @@ def test_set_inventory_sets_and_clears(env_with_resources: MettaGridCore):
     # Resolve resource name -> id
     name_to_id = {name: idx for idx, name in enumerate(env.resource_names)}
 
-    agent_id = _find_agent_id(env.grid_objects)
+    agent_id = _find_agent_id(env.grid_objects())
 
     # 1) Set initial inventory: red=3, blue=2
     inv1 = {name_to_id["red"]: 3, name_to_id["blue"]: 2}
     env.core_env.set_inventory(agent_id, inv1)
 
-    objs_after_first = env.grid_objects
+    objs_after_first = env.grid_objects()
     # Find agent inventory dict (id -> qty)
     agent_inventory_1 = None
     for obj in objs_after_first.values():
@@ -66,7 +66,7 @@ def test_set_inventory_sets_and_clears(env_with_resources: MettaGridCore):
     inv2 = {name_to_id["red"]: 1}
     env.core_env.set_inventory(agent_id, inv2)
 
-    objs_after_second = env.grid_objects
+    objs_after_second = env.grid_objects()
     agent_inventory_2 = None
     for obj in objs_after_second.values():
         if obj.get("agent_id") == agent_id:

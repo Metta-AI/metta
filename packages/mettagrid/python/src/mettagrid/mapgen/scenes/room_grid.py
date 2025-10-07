@@ -1,10 +1,9 @@
 from typing import Optional
 
-from mettagrid.config.config import Config
-from mettagrid.mapgen.scene import Scene
+from mettagrid.mapgen.scene import Scene, SceneConfig
 
 
-class RoomGridParams(Config):
+class RoomGridConfig(SceneConfig):
     rows: Optional[int] = None
     columns: Optional[int] = None
     layout: Optional[list[list[str]]] = None
@@ -16,7 +15,7 @@ class RoomGridParams(Config):
     border_object: str = "wall"
 
 
-class RoomGrid(Scene[RoomGridParams]):
+class RoomGrid(Scene[RoomGridConfig]):
     """
     Tile the scene with a grid of equally sized isolated rooms.
 
@@ -41,37 +40,37 @@ class RoomGrid(Scene[RoomGridParams]):
     """
 
     def post_init(self):
-        params = self.params
+        config = self.config
 
-        if params.layout is None:
-            assert params.rows is not None and params.columns is not None, (
+        if config.layout is None:
+            assert config.rows is not None and config.columns is not None, (
                 "Either layout or rows and columns must be provided"
             )
-            self._rows = params.rows
-            self._columns = params.columns
+            self._rows = config.rows
+            self._columns = config.columns
         else:
-            for row in params.layout:
-                assert len(row) == len(params.layout[0]), "All rows must have the same number of columns"
-            self._rows = len(params.layout)
-            self._columns = len(params.layout[0])
+            for row in config.layout:
+                assert len(row) == len(config.layout[0]), "All rows must have the same number of columns"
+            self._rows = len(config.layout)
+            self._columns = len(config.layout[0])
 
     def _tags(self, row: int, col: int) -> list[str]:
-        if self.params.layout is not None:
-            return [self.params.layout[row][col]]
+        if self.config.layout is not None:
+            return [self.config.layout[row][col]]
         else:
             return ["room", f"room_{row}_{col}"]
 
     def render(self):
-        params = self.params
-        room_width = (self.width - params.border_width * (self._columns - 1)) // self._columns
-        room_height = (self.height - params.border_width * (self._rows - 1)) // self._rows
+        config = self.config
+        room_width = (self.width - config.border_width * (self._columns - 1)) // self._columns
+        room_height = (self.height - config.border_width * (self._rows - 1)) // self._rows
 
         # fill entire grid with walls
-        self.grid[:] = params.border_object
+        self.grid[:] = config.border_object
 
         for row in range(self._rows):
             for col in range(self._columns):
-                x = col * (room_width + params.border_width)
-                y = row * (room_height + params.border_width)
+                x = col * (room_width + config.border_width)
+                y = row * (room_height + config.border_width)
                 self.grid[y : y + room_height, x : x + room_width] = "empty"
                 self.make_area(x, y, room_width, room_height, tags=self._tags(row, col))

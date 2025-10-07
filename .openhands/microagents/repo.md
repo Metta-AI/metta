@@ -49,21 +49,20 @@ Note: The project requires Python 3.11.7 specifically, as specified in the pypro
 To train a model:
 
 ```bash
-./tools/run.py experiments.recipes.arena.train run=my_experiment wandb.enabled=false
+./tools/run.py train arena run=my_experiment wandb.enabled=false
 ```
 
 Parameters:
 
 - `run`: Names your experiment and controls where checkpoints are saved under `train_dir/<run>`
-- `+user=<n>`: Loads defaults from `configs/user/<n>.yaml`
-- `wandb=off`: Disables Weights & Biases logging if you don't have access
+- `wandb.enabled=false`: Disables Weights & Biases logging if you don't have access
 
 ### Visualizing a Model
 
 To run the interactive simulation:
 
 ```bash
-./tools/run.py experiments.recipes.arena.play run=my_experiment wandb.enabled=false
+./tools/run.py play arena run=my_experiment wandb.enabled=false
 ```
 
 This launches a human-controlled session using the same configuration flags as training. It's useful for quickly testing
@@ -72,8 +71,8 @@ maps or policies on your local hardware.
 To run the terminal simulation:
 
 ```bash
-./tools/run.py experiments.recipes.arena.play run=demo_obstacles \
-renderer_job.environment.root.params.uri="configs/env/mettagrid/maps/debug/simple_obstacles.map"
+./tools/run.py play arena run=demo_obstacles \
+renderer_job.environment.instance.params.uri="configs/env/mettagrid/maps/debug/simple_obstacles.map"
 ```
 
 ### Evaluating a Model
@@ -85,8 +84,7 @@ For post-training evaluation to compare different policies:
 1. Add your policy to the existing navigation evals DB:
 
 ```bash
-./tools/run.py \
-    experiments.recipes.navigation.eval \
+./tools/run.py evaluate navigation \
     policy_uris=wandb://run/YOUR_POLICY_URI \
     stats_db_uri=wandb://stats/navigation_db \
     system.device=cpu

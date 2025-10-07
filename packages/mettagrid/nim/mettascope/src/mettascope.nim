@@ -1,32 +1,24 @@
-import std/[random, os, times, strformat, strutils, parseopt, json],
-  boxy, opengl, windy, windy/http, chroma, vmath, fidget2, fidget2/hybridrender,
-  mettascope/[replays, common, panels, utils, footer, timeline,
-  worldmap, minimap, agenttable, agenttraces, envconfig]
+import std/[os, strutils, parseopt, json],
+  boxy, windy, windy/http, vmath, fidget2, fidget2/hybridrender,
+  mettascope/[replays, common, panels, utils, timeline,
+  worldmap, minimap, agenttraces, footer, objectinfo, envconfig]
 
-var replay = ""
+proc updateReplayHeader() =
+  ## Set the global header's display name for the current session.
+  var display = "Mettascope"
 
-# TODO: Remove with dynamic panels.
-var topArea: Area
-var bottomArea: Area
-
-proc updateReplayHeader(replayPath: string) =
-  ## Set the global header's display name for the current replay.
-  if common.replay.isNil:
-    return
-  var display = ""
-  if common.replay.mgConfig != nil and common.replay.mgConfig.contains("label"):
-    let node = common.replay.mgConfig["label"]
-    if node.kind == JString:
-      display = node.getStr
-  if display.len == 0 and common.replay.fileName.len > 0:
-    display = common.replay.fileName
-  if display.len == 0 and replayPath.len > 0:
-    display = extractFilename(replayPath)
-  if display.len == 0:
-    display = "unknown"
-
+  if not common.replay.isNil:
+    if common.replay.mgConfig != nil and common.replay.mgConfig.contains("label"):
+      let node = common.replay.mgConfig["label"]
+      if node.kind == JString:
+        display = node.getStr
+    if display == "Mettascope" and common.replay.fileName.len > 0:
+      display = common.replay.fileName
   let titleNode = find("**/GlobalTitle")
   titleNode.text = display
+
+proc onReplayLoaded() =
+  updateReplayHeader()
 
 proc parseArgs() =
   ## Parse command line arguments.
@@ -39,133 +31,142 @@ proc parseArgs() =
     of cmdLongOption, cmdShortOption:
       case p.key
       of "replay", "r":
-        replay = p.val
-        echo "Replay: ", replay
+        commandLineReplay = p.val
       else:
-        discard
+        quit("Unknown option: " & p.key)
     of cmdArgument:
-      discard
+      quit("Unknown option: " & p.key)
 
 find "/UI/Main":
 
-  find "**/PanelHeader":
-    onClick:
-      let title = thisNode.find("**/title")
-      rootArea.select(title.text)
-      echo "Selected panel: ", title.text
-
-  find "AreaHeader":
-    onClick:
-      echo "Clicked: AreaHeader: ", thisNode.name
-
-  find "WorldMapPanel":
-    onClick:
-      echo "Clicked: WorldMapPanel: ", thisNode.name
-
-  find "AgentTracesPanel":
-    onClick:
-      echo "Clicked: AgentTracesPanel: ", thisNode.name
-
   onLoad:
-    echo "onLoad"
+    # We need to build the atlas before loading the replay.
+    buildAtlas()
 
     utils.typeface = readTypeface(dataDir / "fonts" / "Inter-Regular.ttf")
 
-    if replay != "":
-      if replay.startsWith("http"):
-        echo "Loading replay from URL: ", replay
-        let req = startHttpRequest(replay)
-        req.onError = proc(msg: string) =
-          echo "onError: " & msg
-        req.onResponse = proc(response: HttpResponse) =
-          echo "onResponse: code=", $response.code, ", len=", response.body.len
-          common.replay = loadReplay(response.body, replay)
-          updateReplayHeader(replay)
-      else:
-        common.replay = loadReplay(replay)
-        updateReplayHeader(replay)
-    elif common.replay == nil:
-      common.replay = loadReplay( dataDir / "replays" / "pens.json.z")
-      updateReplayHeader(dataDir / "replays" / "pens.json.z")
+    case common.playMode
+    of Historical:
+      if commandLineReplay != "":
+        if commandLineReplay.startsWith("http"):
+          echo "Loading built-in replay while web is loading"
+          common.replay = loadReplay(dataDir / "replays" / "pens.json.z")
+          onReplayLoaded()
+          echo "Loading replay from URL: ", commandLineReplay
+          let req = startHttpRequest(commandLineReplay)
+          req.onError = proc(msg: string) =
+            echo "onError: " & msg
+          req.onResponse = proc(response: HttpResponse) =
+            echo "onResponse: code=", $response.code, ", len=", response.body.len
+            common.replay = loadReplay(response.body, commandLineReplay)
+            onReplayLoaded()
+        else:
+          echo "Loading replay from file: ", commandLineReplay
+          common.replay = loadReplay(commandLineReplay)
+          onReplayLoaded()
+      elif common.replay == nil:
+        echo "Loading built-in replay"
+        common.replay = loadReplay( dataDir / "replays" / "pens.json.z")
+        onReplayLoaded()
+    of Realtime:
+      echo "Realtime mode detected"
+      onReplayLoaded()
 
-    echo "Creating panels"
-    rootArea = Area(layout: Horizontal, node: find("**/AreaHeader"))
+    rootArea.split(Vertical)
+    rootArea.split = 0.20
 
-    worldMapPanel = Panel(panelType: WorldMap, name: "World Map", node: find("**/WorldMap"))
-    minimapPanel = Panel(panelType: Minimap, name: "Minimap", node: find("**/Minimap"))
-    agentTablePanel = Panel(panelType: AgentTable, name: "Agent Table", node: find("**/AgentTable"))
-    agentTracesPanel = Panel(panelType: AgentTraces, name: "Agent Traces", node: find("**/AgentTraces"))
-    envConfigPanel = Panel(panelType: EnvConfig, name: "Env Config", node: find("**/EnvConfig"))
+    rootArea.areas[0].split(Horizontal)
+    rootArea.areas[0].split = 0.8
+
+    objectInfoPanel = rootArea.areas[0].areas[0].addPanel(ObjectInfo, "Object")
+    environmentInfoPanel = rootArea.areas[0].areas[0].addPanel(EnvironmentInfo, "Environment")
+
+    worldMapPanel = rootArea.areas[1].addPanel(WorldMap, "Map")
+    minimapPanel = rootArea.areas[0].areas[1].addPanel(Minimap, "Minimap")
+
+    agentTracesPanel = rootArea.areas[1].addPanel(AgentTraces, "Agent Traces")
+    # agentTablePanel = rootArea.areas[1].areas[1].addPanel(AgentTable, "Agent Table")
+
+    rootArea.refresh()
 
     globalTimelinePanel = Panel(panelType: GlobalTimeline, node: find("GlobalTimeline"))
     globalFooterPanel = Panel(panelType: GlobalFooter, node: find("GlobalFooter"))
     globalHeaderPanel = Panel(panelType: GlobalHeader, node: find("GlobalHeader"))
 
-    topArea = Area(layout: Horizontal, node: rootArea.node.copy())
-    thisNode.addChild(topArea.node)
-    rootArea.add(topArea)
-    bottomArea = Area(layout: Horizontal, node: rootArea.node.copy())
-    # Update the names of the headers.
-    bottomArea.node.children[0].find("title").text = "Agent Traces"
-    bottomArea.node.children[1].find("title").text = "Env Config"
-    bottomArea.node.children[2].remove()
-
-
-    thisNode.addChild(bottomArea.node)
-    rootArea.add(bottomArea)
-
-    topArea.add(worldMapPanel)
-    topArea.add(minimapPanel)
-    topArea.add(agentTablePanel)
-    bottomArea.add(agentTracesPanel)
-    bottomArea.add(envConfigPanel)
-
     worldMapPanel.node.onRenderCallback = proc(thisNode: Node) =
       bxy.saveTransform()
-      bxy.translate(thisNode.position)
+      worldMapPanel.rect = irect(
+        thisNode.absolutePosition.x,
+        thisNode.absolutePosition.y,
+        thisNode.size.x,
+        thisNode.size.y
+      )
+      if not common.replay.isNil and worldMapPanel.pos == vec2(0, 0):
+        fitFullMap(worldMapPanel)
+      bxy.translate(worldMapPanel.rect.xy.vec2 * window.contentScale)
       drawWorldMap(worldMapPanel)
       bxy.restoreTransform()
 
     minimapPanel.node.onRenderCallback = proc(thisNode: Node) =
       bxy.saveTransform()
-      bxy.translate(thisNode.position)
+      minimapPanel.rect = irect(
+        thisNode.absolutePosition.x,
+        thisNode.absolutePosition.y,
+        thisNode.size.x,
+        thisNode.size.y
+      )
+      bxy.translate(minimapPanel.rect.xy.vec2 * window.contentScale)
       drawMinimap(minimapPanel)
       bxy.restoreTransform()
 
     agentTracesPanel.node.onRenderCallback = proc(thisNode: Node) =
       bxy.saveTransform()
-      bxy.translate(thisNode.position)
+      agentTracesPanel.rect = irect(
+        thisNode.absolutePosition.x,
+        thisNode.absolutePosition.y,
+        thisNode.size.x,
+        thisNode.size.y
+      )
+      bxy.translate(agentTracesPanel.rect.xy.vec2 * window.contentScale)
       drawAgentTraces(agentTracesPanel)
       bxy.restoreTransform()
 
     globalTimelinePanel.node.onRenderCallback = proc(thisNode: Node) =
       bxy.saveTransform()
+      globalTimelinePanel.rect = irect(
+        thisNode.position.x,
+        thisNode.position.y,
+        thisNode.size.x,
+        thisNode.size.y
+      )
       timeline.drawTimeline(globalTimelinePanel)
       bxy.restoreTransform()
 
-    echo "Loaded!"
+    onStepChanged()
+    updateEnvConfig()
 
   onFrame:
 
     playControls()
 
+    # super+w or super+q closes window on Mac.
+    when defined(macosx):
+      let superDown = window.buttonDown[KeyLeftSuper] or window.buttonDown[KeyRightSuper]
+      if superDown and (window.buttonPressed[KeyW] or window.buttonPressed[KeyQ]):
+        window.closeRequested = true
+
     if window.buttonReleased[MouseLeft]:
       mouseCaptured = false
       mouseCapturedPanel = nil
 
-    const RibbonHeight = 64
-    const HeaderHeight = 28
-
-    let size = (window.size.vec2 / window.contentScale).ivec2
-    rootArea.rect = irect(0, RibbonHeight, size.x, size.y - RibbonHeight*3)
-    topArea.rect = irect(0, rootArea.rect.y, rootArea.rect.w, (rootArea.rect.h.float32 * 0.75).int32)
-    bottomArea.rect = irect(0, rootArea.rect.y + (rootArea.rect.h.float32 * 0.75).int, rootArea.rect.w, (rootArea.rect.h.float32 * 0.25).int)
-    rootArea.updatePanelsSizes()
-
-    if not common.replay.isNil and worldMapPanel.pos == vec2(0, 0):
-      fitFullMap(worldMapPanel)
-
 when isMainModule:
+
+  # Check if the data directory exists.
+  let dataDir = "packages/mettagrid/nim/mettascope/data"
+  if not dirExists(dataDir):
+    echo "Data directory does not exist: ", dataDir
+    echo "Please run it from the root of the project."
+    quit(1)
 
   parseArgs()
 
@@ -174,10 +175,8 @@ when isMainModule:
     windowTitle = "MetaScope V2",
     entryFrame = "UI/Main",
     windowStyle = DecoratedResizable,
-    dataDir = "packages/mettagrid/nim/mettascope/data"
+    dataDir = dataDir
   )
-
-  buildAtlas()
 
   when defined(emscripten):
     # Emscripten can't block so it will call this callback instead.

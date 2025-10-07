@@ -2,24 +2,34 @@
 
 ## What is the Adaptive Experiments Framework?
 
-The adaptive experiments framework is a series of modules and protocols aiming to simplify the development, scaling, and execution of long-running experiments. It provides a clean, protocol-based architecture for orchestrating complex experimental workflows where decisions are made dynamically based on historical data and experiment state.
+The adaptive experiments framework is a series of modules and protocols aiming to simplify the development, scaling, and
+execution of long-running experiments. It provides a clean, protocol-based architecture for orchestrating complex
+experimental workflows where decisions are made dynamically based on historical data and experiment state.
 
 The framework can be used in two ways:
-1. **Through specialized tools** (like `SweepTool` for Bayesian optimization) that provide purpose-built interfaces for specific experiment types
+
+1. **Through specialized tools** (like `SweepTool` for Bayesian optimization) that provide purpose-built interfaces for
+   specific experiment types
 2. **Directly via `AdaptiveController`** for custom experiments that don't fit existing tool patterns
 
 ## When Should I Use Adaptive Experiments?
 
 Adaptive experiments shine when your experiment needs:
 
-1. **Many runs and/or decisions throughout an experiment** - Managing dozens or hundreds of training runs with complex dependencies
+1. **Many runs and/or decisions throughout an experiment** - Managing dozens or hundreds of training runs with complex
+   dependencies
 2. **Historical data in-experiment to inform decisions** - Using results from completed runs to guide future runs
 
-The canonical adaptive experiment is, of course, **hyperparameter sweeps**, which is where this architecture originated from. However, the logic is flexible and lends itself to a vast array of experiment types:
+The canonical adaptive experiment is, of course, **hyperparameter sweeps**, which is where this architecture originated
+from. However, the logic is flexible and lends itself to a vast array of experiment types:
 
-- **Validating runs**: You may choose to write an experiment which picks out the best N runs of a group of experiments, and re-runs the training over different seeds for validation. Additionally, you may wish to cancel remaining seed runs if you notice that performance across the first K seeds is actually terrible.
-- **Neural Architecture Search**: This becomes possible to write and test over 100s of runs as an adaptive experiment. Simply write a scheduler which produces different trainer configs.
-- **Experiment batch with early termination** *(Not yet supported)*: You may launch a bunch of runs simultaneously, monitor their performance, and decide to kill aforementioned jobs if their performance is sub-par.
+- **Validating runs**: You may choose to write an experiment which picks out the best N runs of a group of experiments,
+  and re-runs the training over different seeds for validation. Additionally, you may wish to cancel remaining seed runs
+  if you notice that performance across the first K seeds is actually terrible.
+- **Neural Architecture Search**: This becomes possible to write and test over 100s of runs as an adaptive experiment.
+  Simply write a scheduler which produces different trainer configs.
+- **Experiment batch with early termination** _(Not yet supported)_: You may launch a bunch of runs simultaneously,
+  monitor their performance, and decide to kill aforementioned jobs if their performance is sub-par.
 
 ## How Do I Write an Adaptive Experiment?
 
@@ -58,7 +68,8 @@ For experiments that don't fit existing tools, use the AdaptiveController direct
 
 #### Step 1: Write a Scheduler
 
-The scheduler is the brain of your experiment. It implements the `ExperimentScheduler` protocol with two required methods:
+The scheduler is the brain of your experiment. It implements the `ExperimentScheduler` protocol with two required
+methods:
 
 ```python
 from metta.adaptive.protocols import ExperimentScheduler
@@ -127,6 +138,7 @@ class JobDefinition:
 ```
 
 The `JobTypes` enum has two values:
+
 - `JobTypes.LAUNCH_TRAINING` - Training jobs that count against resource limits
 - `JobTypes.LAUNCH_EVAL` - Evaluation jobs that can run without resource constraints
 
@@ -226,6 +238,7 @@ if __name__ == "__main__":
 ```
 
 Then run it:
+
 ```bash
 python my_experiment.py
 ```
@@ -237,6 +250,7 @@ python my_experiment.py
 The `AdaptiveController` provides a hook for advanced data tracking:
 
 **`on_eval_completed`**: Called after a run's evaluation completes
+
 ```python
 def on_eval_completed(run: RunInfo, store: Store, all_runs: list[RunInfo]) -> None:
     """Process evaluation results and update run summaries.
@@ -248,7 +262,8 @@ def on_eval_completed(run: RunInfo, store: Store, all_runs: list[RunInfo]) -> No
 ```
 
 Example usage with AdaptiveController:
-```python
+
+````python
 def my_on_eval_completed(run, store, all_runs):
     # Extract metrics from evaluation
     summary = run.summary or {}
@@ -301,7 +316,7 @@ def on_eval_completed(run, store, all_runs):
         "sweep/cost": run.cost or 0,
         "sweep/suggestion": run.metadata.get("sweep/suggestion", {})
     })
-```
+````
 
 ### Passing Suggestions to Runs
 
@@ -326,7 +341,8 @@ def schedule(self, runs, available_training_slots):
     return jobs
 ```
 
-The AdaptiveController automatically passes job.metadata as initial_summary when initializing training runs, ensuring suggestions are persisted even with WandB's eventual consistency.
+The AdaptiveController automatically passes job.metadata as initial_summary when initializing training runs, ensuring
+suggestions are persisted even with WandB's eventual consistency.
 
 ## Controller Statelessness and Safety
 
@@ -334,11 +350,13 @@ The AdaptiveController automatically passes job.metadata as initial_summary when
 
 So the controller is stateless - how can you avoid double dispatch and other issues?
 
-Currently there are very thin guards against duplicate errors, but they are not rock solid. This should be improved on, and we will probably need to tweak our design to be able to run auto-adaptive experiments with peace of mind.
+Currently there are very thin guards against duplicate errors, but they are not rock solid. This should be improved on,
+and we will probably need to tweak our design to be able to run auto-adaptive experiments with peace of mind.
 
 ### Recommended Approach
 
-In the meantime, we recommend implementing your own safety layer through the scheduler state. To do this, simply subclass `ExperimentState` and make it known to your scheduler:
+In the meantime, we recommend implementing your own safety layer through the scheduler state. To do this, simply
+subclass `ExperimentState` and make it known to your scheduler:
 
 ```python
 from metta.adaptive.protocols import ExperimentState
@@ -367,11 +385,14 @@ class MySchedulerState(ExperimentState):
 
 The adaptive framework takes a hybrid approach to tooling:
 
-1. **Specialized tools for common patterns**: Tools like `SweepTool` provide opinionated, easy-to-use interfaces for specific experiment types. These tools are fully serializable and integrate with the tools runner.
+1. **Specialized tools for common patterns**: Tools like `SweepTool` provide opinionated, easy-to-use interfaces for
+   specific experiment types. These tools are fully serializable and integrate with the tools runner.
 
-2. **Direct controller usage for flexibility**: The `AdaptiveController` can be used directly in Python scripts for maximum flexibility and custom experiments.
+2. **Direct controller usage for flexibility**: The `AdaptiveController` can be used directly in Python scripts for
+   maximum flexibility and custom experiments.
 
 This design recognizes that:
+
 - Some experiments naturally fit into reusable patterns (sweeps, NAS, validation runs)
 - Other experiments are highly custom and benefit from direct control
 - What matters most is that the jobs launched by experiments are serializable, which is always the case
@@ -410,14 +431,14 @@ Two Entry Points:
 ```
 
 **Entry Points**:
+
 - **Specialized Tools** (e.g., `SweepTool`): Purpose-built tools for specific experiment types
 - **Direct Usage**: Custom Python scripts using AdaptiveController directly
 
-**AdaptiveController**: Main orchestration loop that fetches runs, calls scheduler, and dispatches jobs
-**Scheduler**: Contains experiment logic and decides what jobs to run next
-**Store**: Persistent storage for run state (currently WandB)
-**Dispatcher**: Handles job execution (Local or Skypilot)
-**Config**: AdaptiveConfig with settings like max_parallel, monitoring_interval
+**AdaptiveController**: Main orchestration loop that fetches runs, calls scheduler, and dispatches jobs **Scheduler**:
+Contains experiment logic and decides what jobs to run next **Store**: Persistent storage for run state (currently
+WandB) **Dispatcher**: Handles job execution (Local or Skypilot) **Config**: AdaptiveConfig with settings like
+max_parallel, monitoring_interval
 
 ### Controller Lifecycle
 
@@ -554,7 +575,8 @@ The `AdaptiveController.run()` method implements the main experiment loop:
 
 ### Anatomy of a Scheduler
 
-Schedulers are the most important part of the adaptive experiments framework. They encapsulate all experiment-specific logic.
+Schedulers are the most important part of the adaptive experiments framework. They encapsulate all experiment-specific
+logic.
 
 #### Basic Example: Train and Eval
 
@@ -786,12 +808,14 @@ class MySpecializedTool(Tool):
 ### When to Create a Specialized Tool
 
 Create a specialized tool when:
+
 - You have a reusable experiment pattern (e.g., hyperparameter sweeps, architecture search)
 - You want to provide a simplified interface for common use cases
 - You need tool-specific configuration and validation
 - You want to integrate with the tools runner (`./tools/run.py`)
 
 Use AdaptiveController directly when:
+
 - You're prototyping a new experiment type
 - The experiment is a one-off or highly custom
 - You need maximum flexibility in configuration
@@ -823,16 +847,21 @@ Use AdaptiveController directly when:
 
 ### Known Issues
 
-1. **WandB Eventual Consistency**: WandB has eventual consistency which could cause missing data. This is mitigated by passing suggestions via initial_summary at run creation.
-2. **WandB Timeouts**: First fetch from WandB may timeout on fresh experiments. The controller waits for monitoring_interval on first iteration to avoid this.
+1. **WandB Eventual Consistency**: WandB has eventual consistency which could cause missing data. This is mitigated by
+   passing suggestions via initial_summary at run creation.
+2. **WandB Timeouts**: First fetch from WandB may timeout on fresh experiments. The controller waits for
+   monitoring_interval on first iteration to avoid this.
 3. **Resource Counting**: Resource constraints only apply to training jobs, not evaluation jobs.
 4. **Hook Failures**: Hook failures are logged but don't stop the experiment.
-5. **State Persistence**: Scheduler state is not persisted across controller restarts. Some schedulers (like BatchedSyncedOptimizingScheduler) maintain their own state tracking to mitigate this.
+5. **State Persistence**: Scheduler state is not persisted across controller restarts. Some schedulers (like
+   BatchedSyncedOptimizingScheduler) maintain their own state tracking to mitigate this.
 
 ### Recent Improvements
 
-1. **Stateful Schedulers**: BatchedSyncedOptimizingScheduler now maintains state (runs_in_training, runs_in_eval, runs_completed) to prevent duplicate dispatches.
-2. **Suggestion Persistence**: Suggestions are now passed via job.metadata and persisted as initial_summary to handle WandB eventual consistency.
+1. **Stateful Schedulers**: BatchedSyncedOptimizingScheduler now maintains state (runs_in_training, runs_in_eval,
+   runs_completed) to prevent duplicate dispatches.
+2. **Suggestion Persistence**: Suggestions are now passed via job.metadata and persisted as initial_summary to handle
+   WandB eventual consistency.
 3. **Completion Detection**: Fixed to properly count FAILED and STALE runs toward experiment limits.
 
 ## Contributing

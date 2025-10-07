@@ -9,6 +9,7 @@ from pydantic import Field, model_validator
 
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
+from metta.agent.util.torch_backends import build_sdpa_context
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
 from metta.common.util.heartbeat import record_heartbeat
@@ -116,6 +117,8 @@ class TrainTool(Tool):
         self.training_env.seed += distributed_helper.get_rank()
         env = VectorizedTrainingEnvironment(self.training_env)
 
+        self._configure_torch_backends()
+
         checkpoint_manager = CheckpointManager(run=self.run or "default", system_cfg=self.system)
 
         # this check is not in the model validator because we setup the remote prefix in `invoke` rather than `init``
@@ -151,6 +154,10 @@ class TrainTool(Tool):
             if stats_client and hasattr(stats_client, "close"):
                 stats_client.close()
             distributed_helper.cleanup()
+            sdpa_stack = getattr(self, "_sdpa_context_stack", None)
+            if sdpa_stack is not None:
+                sdpa_stack.close()
+                self._sdpa_context_stack = None
 
     def _load_or_create_policy(
         self,
@@ -285,6 +292,38 @@ class TrainTool(Tool):
 
         if wandb_run is not None and distributed_helper.is_master():
             trainer.register(WandbLogger(wandb_run))
+
+    def _configure_torch_backends(self) -> None:
+        if not torch.cuda.is_available():
+            return
+
+        try:
+            torch.backends.cuda.matmul.allow_tf32 = True
+            torch.backends.cudnn.allow_tf32 = True
+        except Exception as exc:  # pragma: no cover - diagnostic only
+            logger.debug("Skipping CUDA matmul backend configuration: %s", exc)
+
+        # Opportunistically enable flash attention when available
+        if os.environ.get("FLASH_ATTENTION") is None:
+            try:
+                import flash_attn  # noqa: F401
+            except ImportError:
+                pass
+            else:
+                os.environ["FLASH_ATTENTION"] = "1"
+
+        context = build_sdpa_context(
+            prefer_flash=True,
+            prefer_mem_efficient=True,
+            prefer_math=True,
+            set_priority=True,
+        )
+        if context is not None:
+            stack = getattr(self, "_sdpa_context_stack", None)
+            if stack is None:
+                stack = contextlib.ExitStack()
+                self._sdpa_context_stack = stack
+            stack.enter_context(context)
 
     def _log_run_configuration(
         self,

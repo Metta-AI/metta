@@ -42,6 +42,21 @@ runs:
         # Get year and week number for weekly cache invalidation
         echo "yearweek=$(date +%Y-%U)" >> "$GITHUB_OUTPUT"
 
+    - name: Cache nimble
+      id: cache-nimble
+      uses: actions/cache@v4
+      with:
+        path: ~/.nimble
+        key: nim-binary-${{ runner.os }}-${{ steps.get-week.outputs.yearweek }}
+        restore-keys: |
+          nim-binary-${{ runner.os }}-
+
+    - name: Set up nim
+      uses: jiro4989/setup-nim-action@v2
+      with:
+        nim-version: 2.2.4
+        repo-token: ${{ github.token }}
+
     - name: Cache Bazel binary
       if: inputs.install-mode != 'minimal'
       id: cache-bazel
@@ -62,7 +77,7 @@ runs:
 
         for i in $(seq 1 $MAX_RETRIES); do
           echo "Attempt $i of $MAX_RETRIES to download bazel..."
-          
+
           if curl -L --connect-timeout 30 --max-time 120 \
                https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 \
                -o bazel; then

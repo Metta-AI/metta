@@ -12,6 +12,7 @@ from mettagrid.config.mettagrid_config import (
     GameConfig,
     MettaGridConfig,
 )
+from mettagrid.map_builder.assembler_map_builder import AssemblerMapBuilder
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 from mettagrid.map_builder.perimeter_incontext import PerimeterInContextMapBuilder
 from mettagrid.map_builder.random import RandomMapBuilder
@@ -37,7 +38,6 @@ def make_arena(
     actions = ActionsConfig(
         noop=ActionConfig(),
         move=ActionConfig(),
-        rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
         put_items=ActionConfig(),
         get_items=ActionConfig(),
         attack=AttackActionConfig(
@@ -48,8 +48,6 @@ def make_arena(
                 "armor": 1,
             },
         ),
-        swap=ActionConfig(enabled=False),
-        change_color=ActionConfig(enabled=False),
     )
 
     if not combat:
@@ -62,18 +60,16 @@ def make_arena(
             height=25,
             border_width=6,
             instance_border_width=0,
-            root=mettagrid.mapgen.scenes.random.Random.factory(
-                params=mettagrid.mapgen.scenes.random.Random.Params(
-                    agents=6,
-                    objects={
-                        "wall": 10,
-                        "altar": 5,
-                        "mine_red": 10,
-                        "generator_red": 5,
-                        "lasery": 1,
-                        "armory": 1,
-                    },
-                ),
+            instance=mettagrid.mapgen.scenes.random.Random.Config(
+                agents=6,
+                objects={
+                    "wall": 10,
+                    "altar": 5,
+                    "mine_red": 10,
+                    "generator_red": 5,
+                    "lasery": 1,
+                    "armory": 1,
+                },
             ),
         )
 
@@ -116,7 +112,6 @@ def make_navigation(num_agents: int) -> MettaGridConfig:
             resource_names=["heart"],
             actions=ActionsConfig(
                 move=ActionConfig(),
-                rotate=ActionConfig(enabled=False),
                 get_items=ActionConfig(),
             ),
             agent=AgentConfig(
@@ -153,7 +148,6 @@ def make_navigation_sequence(num_agents: int) -> MettaGridConfig:
             resource_names=["heart", "ore_red", "battery_red"],
             actions=ActionsConfig(
                 move=ActionConfig(),
-                rotate=ActionConfig(enabled=False),
                 get_items=ActionConfig(),
             ),
             agent=AgentConfig(
@@ -183,10 +177,10 @@ def make_in_context_chains(
     map_builder_objects: dict,
     width: int = 6,
     height: int = 6,
-    obstacle_type: Optional[str] = None,
-    density: Optional[str] = None,
+    terrain: str = "no-terrain",
     chain_length: int = 2,
     num_sinks: int = 0,
+    dir: Optional[str] = None,
 ) -> MettaGridConfig:
     game_objects["wall"] = empty_converters.wall
     cfg = MettaGridConfig(
@@ -197,20 +191,19 @@ def make_in_context_chains(
             objects=game_objects,
             map_builder=MapGen.Config(
                 instances=num_agents,
-                instance_map=PerimeterInContextMapBuilder.Config(
+                instance=PerimeterInContextMapBuilder.Config(
                     agents=1,
                     width=width,
                     height=height,
                     objects=map_builder_objects,
-                    obstacle_type=obstacle_type,
-                    density=density,
+                    density=terrain,
                     chain_length=chain_length,
                     num_sinks=num_sinks,
+                    dir=dir,
                 ),
             ),
             actions=ActionsConfig(
                 move=ActionConfig(),
-                rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
                 get_items=ActionConfig(),
                 put_items=ActionConfig(),
             ),
@@ -228,12 +221,15 @@ def make_in_context_chains(
     return cfg
 
 
-def make_icl_with_numpy(
+def make_icl_assembler(
     num_agents: int,
     num_instances: int,
     max_steps,
     game_objects: dict,
-    instance_map: MapBuilderConfig,
+    map_builder_objects: dict,
+    width: int = 6,
+    height: int = 6,
+    terrain: str = "no-terrain",
 ) -> MettaGridConfig:
     game_objects["wall"] = empty_converters.wall
     cfg = MettaGridConfig(
@@ -244,11 +240,55 @@ def make_icl_with_numpy(
             objects=game_objects,
             map_builder=MapGen.Config(
                 instances=num_instances,
-                instance_map=instance_map,
+                instance=AssemblerMapBuilder.Config(
+                    agents=num_agents,
+                    width=width,
+                    height=height,
+                    objects=map_builder_objects,
+                    terrain=terrain,
+                ),
             ),
             actions=ActionsConfig(
                 move=ActionConfig(),
                 rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
+                get_items=ActionConfig(enabled=False),
+                put_items=ActionConfig(enabled=False),
+                noop=ActionConfig(enabled=True),
+            ),
+            agent=AgentConfig(
+                rewards=AgentRewards(
+                    stats={"chest.heart.amount": 1},
+                    inventory_max={"heart": 15},
+                    # inventory={"heart": 1},
+                ),
+                default_resource_limit=3,
+                resource_limits={"heart": 30},
+            ),
+        ),
+    )
+    return cfg
+
+
+def make_icl_with_numpy(
+    num_agents: int,
+    num_instances: int,
+    max_steps,
+    game_objects: dict,
+    instance: MapBuilderConfig,
+) -> MettaGridConfig:
+    game_objects["wall"] = empty_converters.wall
+    cfg = MettaGridConfig(
+        desync_episodes=False,
+        game=GameConfig(
+            max_steps=max_steps,
+            num_agents=num_agents * num_instances,
+            objects=game_objects,
+            map_builder=MapGen.Config(
+                instances=num_instances,
+                instance=instance,
+            ),
+            actions=ActionsConfig(
+                move=ActionConfig(),
                 get_items=ActionConfig(),
                 put_items=ActionConfig(),
             ),

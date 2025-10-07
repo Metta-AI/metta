@@ -10,11 +10,11 @@
 #include <vector>
 
 #include "actions/action_handler.hpp"
-#include "core/grid_object.hpp"
 #include "config/mettagrid_config.hpp"
+#include "core/grid_object.hpp"
+#include "core/types.hpp"
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
-#include "core/types.hpp"
 
 // Attack takes an argument 0-8, which is the index of the target agent to attack.
 // Target agents are those found in a 3x3 grid in front of the agent, indexed in scan order.
@@ -45,7 +45,7 @@ protected:
   std::map<InventoryItem, InventoryQuantity> _defense_resources;
   const GameConfig* _game_config;
 
-  bool _handle_action(Agent* actor, ActionArg arg) override {
+  bool _handle_action(Agent& actor, ActionArg arg) override {
     Agent* last_agent = nullptr;
     short num_skipped = 0;
 
@@ -61,14 +61,14 @@ protected:
 
       for (short distance = 1; distance <= 3; distance++) {
         for (short offset : COL_OFFSETS) {
-          GridLocation target_loc = _grid->relative_location(actor->location, actor->orientation, distance, offset);
+          GridLocation target_loc = _grid->relative_location(actor.location, actor.orientation, distance, offset);
           target_loc.layer = GridLayer::AgentLayer;
 
           Agent* target_agent = static_cast<Agent*>(_grid->object_at(target_loc));
           if (target_agent) {
             last_agent = target_agent;
             if (num_skipped == arg) {
-              return _handle_target(*actor, *target_agent);
+              return _handle_target(actor, *target_agent);
             }
             num_skipped++;
           }
@@ -99,15 +99,14 @@ protected:
       };
 
       for (const auto& pos : DIAGONAL_POSITIONS) {
-        GridLocation target_loc =
-            _grid->relative_location(actor->location, actor->orientation, pos.forward, pos.lateral);
+        GridLocation target_loc = _grid->relative_location(actor.location, actor.orientation, pos.forward, pos.lateral);
         target_loc.layer = GridLayer::AgentLayer;
 
         Agent* target_agent = static_cast<Agent*>(_grid->object_at(target_loc));
         if (target_agent) {
           last_agent = target_agent;
           if (num_skipped == arg) {
-            return _handle_target(*actor, *target_agent);
+            return _handle_target(actor, *target_agent);
           }
           num_skipped++;
         }
@@ -116,7 +115,7 @@ protected:
 
     // If we got here, it means we skipped over all the targets. Attack the last one.
     if (last_agent) {
-      return _handle_target(*actor, *last_agent);
+      return _handle_target(actor, *last_agent);
     }
 
     return false;
@@ -153,8 +152,7 @@ protected:
 private:
   bool _check_defense_capability(const Agent& target) const {
     for (const auto& [item, amount] : _defense_resources) {
-      auto it = target.inventory.find(item);
-      if (it == target.inventory.end() || it->second < amount) {
+      if (target.inventory.amount(item) < amount) {
         return false;
       }
     }
@@ -171,17 +169,16 @@ private:
   void _steal_resources(Agent& actor, Agent& target) {
     // Create snapshot to avoid iterator invalidation
     std::vector<std::pair<InventoryItem, InventoryQuantity>> snapshot;
-    snapshot.reserve(target.inventory.size());
-    for (const auto& [item, amount] : target.inventory) {
+    snapshot.reserve(target.inventory.get().size());
+    for (const auto& [item, amount] : target.inventory.get()) {
       snapshot.emplace_back(item, amount);
     }
 
     // Transfer resources (excluding soul-bound resources)
     for (const auto& [item, amount] : snapshot) {
       // Check if this resource is soul-bound for the target
-      if (std::find(target.soul_bound_resources.begin(),
-                    target.soul_bound_resources.end(),
-                    item) != target.soul_bound_resources.end()) {
+      if (std::find(target.soul_bound_resources.begin(), target.soul_bound_resources.end(), item) !=
+          target.soul_bound_resources.end()) {
         // Skip soul-bound resources
         continue;
       }

@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "core/types.hpp"
+#include "systems/clipper_config.hpp"
 
 // Forward declarations
 struct ActionConfig;
@@ -43,6 +44,12 @@ struct GameConfig {
   bool recipe_details_obs = false;
   bool allow_diagonals = false;
   std::map<std::string, float> reward_estimates = {};
+
+  // Inventory regeneration interval (global check timing)
+  unsigned int inventory_regen_interval = 0;  // Interval in timesteps (0 = disabled)
+
+  // Global clipper settings
+  std::shared_ptr<ClipperConfig> clipper = nullptr;
 };
 
 namespace py = pybind11;
@@ -80,7 +87,13 @@ inline void bind_game_config(py::module& m) {
                     bool,
                     bool,
                     bool,
-                    const std::map<std::string, float>&>(),
+                    const std::map<std::string, float>&,
+
+                    // Inventory regeneration
+                    unsigned int,
+
+                    // Clipper
+                    const std::shared_ptr<ClipperConfig>&>(),
            py::arg("num_agents"),
            py::arg("max_steps"),
            py::arg("episode_truncates"),
@@ -98,7 +111,13 @@ inline void bind_game_config(py::module& m) {
            py::arg("track_movement_metrics"),
            py::arg("recipe_details_obs") = false,
            py::arg("allow_diagonals") = false,
-           py::arg("reward_estimates") = std::map<std::string, float>())
+           py::arg("reward_estimates") = std::map<std::string, float>(),
+
+           // Inventory regeneration
+           py::arg("inventory_regen_interval") = 0,
+
+           // Clipper
+           py::arg("clipper") = std::shared_ptr<ClipperConfig>(nullptr))
       .def_readwrite("num_agents", &GameConfig::num_agents)
       .def_readwrite("max_steps", &GameConfig::max_steps)
       .def_readwrite("episode_truncates", &GameConfig::episode_truncates)
@@ -121,7 +140,13 @@ inline void bind_game_config(py::module& m) {
       .def_readwrite("track_movement_metrics", &GameConfig::track_movement_metrics)
       .def_readwrite("recipe_details_obs", &GameConfig::recipe_details_obs)
       .def_readwrite("allow_diagonals", &GameConfig::allow_diagonals)
-      .def_readwrite("reward_estimates", &GameConfig::reward_estimates);
+      .def_readwrite("reward_estimates", &GameConfig::reward_estimates)
+
+      // Inventory regeneration
+      .def_readwrite("inventory_regen_interval", &GameConfig::inventory_regen_interval)
+
+      // Clipper
+      .def_readwrite("clipper", &GameConfig::clipper);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_CONFIG_METTAGRID_CONFIG_HPP_

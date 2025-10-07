@@ -1,17 +1,13 @@
 #!/usr/bin/env python3
 """
-Extract the `mettagrid/` subdirectory as a standalone repo (history preserved)
-and push it to a target repository.
+Sync a child repository from monorepo with preserved git history.
 
 Usage:
-    # Dry run (no push)
-    uv run devops/git/push_child_repo.py Metta-AI/mettagrid --dry-run
+    uv run devops/git/push_child_repo.py <repo>
+    uv run devops/git/push_child_repo.py <repo> --dry-run
+    uv run devops/git/push_child_repo.py <repo> --yes  # Skip confirmations
 
-    # Force push to target (with confirmations unless -y)
-    uv run devops/git/push_child_repo.py Metta-AI/mettagrid -y
-
-Target can be either an HTTPS remote URL or an owner/repo slug.
-Only HTTPS is supported (no SSH).
+Assumes any repo to publish is in packages/<repo>.
 """
 
 import argparse
@@ -19,46 +15,31 @@ import sys
 from pathlib import Path
 
 import gitta as git
-
-SUBDIR = "packages/mettagrid"
-
-
-def build_remote_url(target: str) -> str:
-    """Build HTTPS remote URL from input target.
-
-    - If target is an HTTPS URL, return as-is
-    - If target is an owner/repo slug, return https://github.com/owner/repo.git
-    - Otherwise, exit with an error (SSH and non-HTTPS URLs are not supported)
-    """
-    # HTTPS URL provided
-    if target.startswith("https://"):
-        return target
-
-    # Disallow SSH and non-HTTPS URLs
-    if target.startswith("git@") or target.startswith("ssh://") or target.startswith("http://"):
-        raise SystemExit("Only HTTPS remotes are supported. Provide an HTTPS URL or 'owner/repo' slug.")
-
-    # Expect owner/repo slug
-    if "/" not in target:
-        raise SystemExit("Target must be an HTTPS URL or an 'owner/repo' slug")
-
-    owner_repo = target.strip("/")
-    return f"https://github.com/{owner_repo}.git"
+from metta.common.util.constants import METTA_GITHUB_ORGANIZATION
 
 
-def sync_repo(target: str, dry_run: bool = False, skip_confirmation: bool = False):
-    """Filter `SUBDIR/` to repo root and push to the target remote."""
+def get_remote_url(package_name: str) -> str:
+    return f"https://github.com/{METTA_GITHUB_ORGANIZATION}/{package_name}.git"
 
-    remote_url = build_remote_url(target)
-    print(f"Syncing target: {target}")
-    print(f"Subdir: {SUBDIR}/")
+
+def sync_repo(package_name: str, dry_run: bool = False, skip_confirmation: bool = False):
+    """Filter and push repository subset to configured remote."""
+
+    # Assume all packages are in packages/<repo_name>
+    package_path = f"packages/{package_name}"
+    paths = [package_path + "/"]
+
+    remote_url = get_remote_url(package_name)
+
+    print(f"Syncing: {package_name}")
+    print(f"Paths: {', '.join(paths)}")
     print(f"Target: {remote_url}")
 
     # Step 1: Filter
     print("\nFiltering repository...")
     try:
-        # Make the configured subdirectory the repository root in the filtered repo
-        filtered_path = git.filter_repo(Path.cwd(), [SUBDIR], root_subdir=SUBDIR)
+        # Filter to package path and make it the repository root
+        filtered_path = git.filter_repo(Path.cwd(), paths, make_root=package_path + "/")
     except Exception as e:
         print(f"Filter failed: {e}")
         sys.exit(1)
@@ -115,14 +96,14 @@ def sync_repo(target: str, dry_run: bool = False, skip_confirmation: bool = Fals
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("target", help="Target GitHub repository (owner/repo) or full remote URL")
+    parser.add_argument("package", help="Package name (will sync packages/<package>)")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be pushed")
     parser.add_argument("-y", "--yes", action="store_true", help="Skip confirmation prompts")
 
     args = parser.parse_args()
 
     try:
-        sync_repo(args.target, args.dry_run, args.yes)
+        sync_repo(args.package, args.dry_run, args.yes)
     except KeyboardInterrupt:
         print("\nAborted")
         sys.exit(1)

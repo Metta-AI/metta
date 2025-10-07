@@ -1,4 +1,4 @@
-from typing import List, Optional, Sequence
+from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
@@ -13,15 +13,19 @@ from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.sweep.protein_config import ParameterConfig
+from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.sim import SimTool
+from metta.tools.sweep import SweepSchedulerType, SweepTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from mettagrid.config import ConverterConfig
 
+from experiments.sweeps.protein_configs import PPO_CORE, make_custom_protein_config
 
-def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
+
+def mettagrid(num_agents: int = 24) -> MettaGridConfig:
     arena_env = eb.make_arena(num_agents=num_agents)
 
     arena_env.game.agent.rewards.inventory = {
@@ -54,7 +58,7 @@ def make_curriculum(
     enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
 ) -> CurriculumConfig:
-    arena_env = arena_env or make_mettagrid()
+    arena_env = arena_env or mettagrid()
 
     arena_tasks = cc.bucketed(arena_env)
 
@@ -62,7 +66,7 @@ def make_curriculum(
         arena_tasks.add_bucket(
             f"game.agent.rewards.inventory.{item}", [0, 0.1, 0.5, 0.9, 1.0]
         )
-        arena_tasks.add_bucket(f"game.agent.rewards.inventory.{item}_max", [1, 2])
+        arena_tasks.add_bucket(f"game.agent.rewards.inventory_max.{item}", [1, 2])
 
     # enable or disable attacks. we use cost instead of 'enabled'
     # to maintain action space consistency.
@@ -85,8 +89,8 @@ def make_curriculum(
     return arena_tasks.to_curriculum(algorithm_config=algorithm_config)
 
 
-def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
-    basic_env = env or make_mettagrid()
+def simulations(env: Optional[MettaGridConfig] = None) -> list[SimulationConfig]:
+    basic_env = env or mettagrid()
     basic_env.game.actions.attack.consumed_resources["laser"] = 100
 
     combat_env = basic_env.model_copy()
@@ -107,7 +111,7 @@ def train(
         enable_detailed_slice_logging=enable_detailed_slice_logging
     )
 
-    eval_simulations = make_evals()
+    eval_simulations = simulations()
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
     )
@@ -124,32 +128,24 @@ def train(
     )
 
 
-def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
-    eval_env = env or make_mettagrid()
-    return PlayTool(sim=SimulationConfig(suite="arena", env=eval_env, name="eval"))
+def evaluate(policy_uris: Optional[Sequence[str]] = None) -> EvaluateTool:
+    """Evaluate policies on arena simulations."""
+    return EvaluateTool(simulations=simulations(), policy_uris=policy_uris or [])
 
 
-def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
-    eval_env = env or make_mettagrid()
-    return ReplayTool(sim=SimulationConfig(suite="arena", env=eval_env, name="eval"))
+def play(policy_uri: Optional[str] = None) -> PlayTool:
+    """Interactive play with a policy."""
+    return PlayTool(sim=simulations()[0], policy_uri=policy_uri)
 
 
-def evaluate(
-    policy_uri: str | None = None,
-    simulations: Optional[Sequence[SimulationConfig]] = None,
-) -> SimTool:
-    simulations = simulations or make_evals()
-    policy_uris = [policy_uri] if policy_uri is not None else None
-
-    return SimTool(
-        simulations=simulations,
-        policy_uris=policy_uris,
-    )
+def replay(policy_uri: Optional[str] = None) -> ReplayTool:
+    """Generate replay from a policy."""
+    return ReplayTool(sim=simulations()[0], policy_uri=policy_uri)
 
 
 def evaluate_in_sweep(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
-) -> SimTool:
+) -> EvaluateTool:
     """Evaluation function optimized for sweep runs.
 
     Uses 10 episodes per simulation with a 4-minute time limit to get
@@ -157,7 +153,7 @@ def evaluate_in_sweep(
     """
     if simulations is None:
         # Create sweep-optimized versions of the standard evaluations
-        basic_env = make_mettagrid()
+        basic_env = mettagrid()
         basic_env.game.actions.attack.consumed_resources["laser"] = 100
 
         combat_env = basic_env.model_copy()
@@ -180,7 +176,54 @@ def evaluate_in_sweep(
             ),
         ]
 
-    return SimTool(
+    return EvaluateTool(
         simulations=simulations,
         policy_uris=[policy_uri],
+    )
+
+
+def sweep_async_progressive(
+    min_timesteps: int,
+    max_timesteps: int,
+    initial_timesteps: int,
+    max_concurrent_evals: int = 1,
+    liar_strategy: str = "best",
+) -> SweepTool:
+    """Async-capped sweep that also sweeps over total timesteps.
+
+    Args:
+        min_timesteps: Minimum trainer.total_timesteps to consider.
+        max_timesteps: Maximum trainer.total_timesteps to consider.
+        initial_timesteps: Initial/mean value for trainer.total_timesteps.
+        max_concurrent_evals: Max number of concurrent evals (default: 1).
+        liar_strategy: Constant Liar strategy (best|mean|worst).
+
+    Returns:
+        SweepTool configured for async-capped scheduling and progressive timesteps.
+    """
+
+    protein_cfg = make_custom_protein_config(
+        PPO_CORE,
+        {
+            "trainer.total_timesteps": ParameterConfig(
+                min=min_timesteps,
+                max=max_timesteps,
+                distribution="int_uniform",
+                mean=initial_timesteps,
+                scale="auto",
+            )
+        },
+    )
+
+    return SweepTool(
+        # Protein with swept timesteps
+        protein_config=protein_cfg,
+        # Recipe entrypoints
+        recipe_module="experiments.recipes.arena_basic_easy_shaped",
+        train_entrypoint="train",
+        eval_entrypoint="evaluate_in_sweep",
+        # Async scheduler selection + knobs
+        scheduler_type=SweepSchedulerType.ASYNC_CAPPED,
+        max_concurrent_evals=max_concurrent_evals,
+        liar_strategy=liar_strategy,
     )

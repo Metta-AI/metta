@@ -156,7 +156,9 @@ class SimulationStatsDB(EpisodeStatsDB):
         self.con.execute("CHECKPOINT")
         write_file(dest, str(self.path))
 
-    def get_replay_urls(self, policy_uri: str | None = None, env: str | None = None) -> List[str]:
+    def get_replay_urls(
+        self, policy_uri: str | None = None, sim_suite: str | None = None, env: str | None = None
+    ) -> List[str]:
         """Get replay URLs, optionally filtered by policy URI and/or environment."""
         query = """
         SELECT e.replay_url
@@ -172,17 +174,16 @@ class SimulationStatsDB(EpisodeStatsDB):
             query += " AND s.policy_key = ? AND s.policy_version = ?"
             params.extend([policy_key, policy_version])
 
+        if sim_suite is not None:
+            query += " AND s.name = ?"
+            params.append(sim_suite)
+
         if env is not None:
             query += " AND s.env = ?"
             params.append(env)
 
         result = self.con.execute(query, params).fetchall()
         return [row[0] for row in result if row[0]]  # Filter out None values
-
-    def get_all_policy_uris(self) -> List[str]:
-        """Get all unique policy identifiers from the database."""
-        result = self.con.execute("SELECT DISTINCT policy_key, policy_version FROM simulations").fetchall()
-        return [f"{row[0]}:v{row[1]}" for row in result]
 
     def _insert_simulation(
         self, *, sim_id: str, name: str, env_name: str, policy_key: str, policy_version: int

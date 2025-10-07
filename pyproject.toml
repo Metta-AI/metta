@@ -3,7 +3,7 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["codebot", "cogweb", "devops", "experiments", "metta", "mettascope", "softmax"]
+packages = ["cogweb", "devops", "experiments", "metta", "mettascope"]
 py-modules = []
 
 [project]
@@ -23,7 +23,7 @@ dependencies = [
   "google-api-python-client>=2.0.0",
   "google-auth>=2.0.0",
   "google-auth-oauthlib>=1.0.0",
-  "gymnasium==0.29.1",
+  "gymnasium>=1.1.1",
   "heavyball>=1.7.2",
   "httpx>=0.28.1",
   "imageio>=2.37.0",
@@ -32,11 +32,11 @@ dependencies = [
   "metta-agent",
   "metta-app-backend",
   "metta-common",
-  "numpy>=1.26.4,<2",
+  "numpy>=2",
   "nvidia-ml-py",
   "omegaconf>=2.3.0",
   "pandas>=2.3.0",
-  "pettingzoo>=1.24.1,<1.25",
+  "pettingzoo>=1.25",
   "pixie-python>=4.3.0",
   "plotly>=6.1.1",
   "psycopg[binary]>=3.2.9",
@@ -110,7 +110,9 @@ mapgen-scene = "tools.map.gen_scene:main"
 
 [tool.coverage.run]
 source = [
+  "codebot",
   "cogames",
+  "gitta",
   "metta",
   "mettagrid",
   "metta.common",
@@ -126,7 +128,6 @@ python_functions = ["test_*"]
 python_classes = ["Test*"]
 filterwarnings = [
   "ignore::DeprecationWarning:wandb.analytics.sentry",
-  "ignore:.*Gym has been unmaintained.*:UserWarning",
   "ignore:The @wait_container_is_ready decorator is deprecated.*:DeprecationWarning",
 ]
 markers = [
@@ -134,8 +135,9 @@ markers = [
   "network: marks tests as requiring network access (deselect with '-m \"not network\"')",
 ]
 console_output_style = "progress"
-addopts = "-n auto --import-mode=importlib"
+addopts = "-n auto --import-mode=importlib --ignore-glob=**/bazel-*"
 pythonpath = [".", "packages/mettagrid/python/src"]
+norecursedirs = ["bazel-*", ".bazel_output"]
 
 [tool.uv]
 cache-keys = [
@@ -150,11 +152,11 @@ default-groups = ["interactive", "dev"]
 members = [
   "agent",
   "app_backend",
-  "codebot",
   "common",
   "experiments",
-  "gitta",
+  "packages/codebot",
   "packages/cogames",
+  "packages/gitta",
   "packages/mettagrid",
   "packages/pufferlib-core",
   "softmax",

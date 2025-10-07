@@ -2,34 +2,32 @@ from typing import Literal
 
 from pydantic import ConfigDict, Field
 
-from mettagrid.config.config import Config
+from mettagrid.mapgen.area import AreaWhere
 from mettagrid.mapgen.scene import ChildrenAction, Scene, SceneConfig
-from mettagrid.mapgen.types import AreaWhere
 
 Symmetry = Literal["horizontal", "vertical", "x4"]
 
 
-class MirrorParams(Config):
+class MirrorConfig(SceneConfig):
     scene: SceneConfig
     symmetry: Symmetry = "horizontal"
 
 
-class InnerMirrorParams(Config):
+class InnerMirrorConfig(SceneConfig):
     scene: SceneConfig
 
 
-class Mirror(Scene[MirrorParams]):
+class Mirror(Scene[MirrorConfig]):
     def get_children(self) -> list[ChildrenAction]:
         symmetry_to_child_class = {
             "horizontal": HorizontalMirror,
             "vertical": VerticalMirror,
             "x4": X4Mirror,
         }
-        params = InnerMirrorParams(scene=self.params.scene)
 
         return [
             ChildrenAction(
-                scene=symmetry_to_child_class[self.params.symmetry].factory(params),
+                scene=symmetry_to_child_class[self.config.symmetry].Config(scene=self.config.scene),
                 where="full",
             ),
         ]
@@ -38,15 +36,19 @@ class Mirror(Scene[MirrorParams]):
         pass
 
 
-class HorizontalMirror(Scene[InnerMirrorParams]):
+class HorizontalMirrorConfig(InnerMirrorConfig):
+    pass
+
+
+class HorizontalMirror(Scene[HorizontalMirrorConfig]):
     def get_children(self) -> list[ChildrenAction]:
         return [
             ChildrenAction(
-                scene=self.params.scene,
+                scene=self.config.scene,
                 where=AreaWhere(tags=["original"]),
             ),
             ChildrenAction(
-                scene=Mirrored.factory(Mirrored.Params(parent=self, flip_x=True)),
+                scene=Mirrored.Config(parent=self, flip_x=True),
                 where=AreaWhere(tags=["mirrored"]),
             ),
         ]
@@ -57,15 +59,19 @@ class HorizontalMirror(Scene[InnerMirrorParams]):
         self.make_area(left_width, 0, self.width - left_width, self.height, tags=["mirrored"])
 
 
-class VerticalMirror(Scene[InnerMirrorParams]):
+class VerticalMirrorConfig(InnerMirrorConfig):
+    pass
+
+
+class VerticalMirror(Scene[VerticalMirrorConfig]):
     def get_children(self) -> list[ChildrenAction]:
         return [
             ChildrenAction(
-                scene=self.params.scene,
+                scene=self.config.scene,
                 where=AreaWhere(tags=["original"]),
             ),
             ChildrenAction(
-                scene=Mirrored.factory(Mirrored.Params(parent=self, flip_y=True)),
+                scene=Mirrored.Config(parent=self, flip_y=True),
                 where=AreaWhere(tags=["mirrored"]),
             ),
         ]
@@ -76,20 +82,24 @@ class VerticalMirror(Scene[InnerMirrorParams]):
         self.make_area(0, top_height, self.width, self.height - top_height, tags=["mirrored"])
 
 
-class X4Mirror(Scene[InnerMirrorParams]):
+class X4MirrorConfig(InnerMirrorConfig):
+    pass
+
+
+class X4Mirror(Scene[X4MirrorConfig]):
     def get_children(self) -> list[ChildrenAction]:
         return [
-            ChildrenAction(scene=self.params.scene, where=AreaWhere(tags=["original"])),
+            ChildrenAction(scene=self.config.scene, where=AreaWhere(tags=["original"])),
             ChildrenAction(
-                scene=Mirrored.factory(Mirrored.Params(parent=self, flip_x=True)),
+                scene=Mirrored.Config(parent=self, flip_x=True),
                 where=AreaWhere(tags=["mirrored_x"]),
             ),
             ChildrenAction(
-                scene=Mirrored.factory(Mirrored.Params(parent=self, flip_y=True)),
+                scene=Mirrored.Config(parent=self, flip_y=True),
                 where=AreaWhere(tags=["mirrored_y"]),
             ),
             ChildrenAction(
-                scene=Mirrored.factory(Mirrored.Params(parent=self, flip_x=True, flip_y=True)),
+                scene=Mirrored.Config(parent=self, flip_x=True, flip_y=True),
                 where=AreaWhere(tags=["mirrored_xy"]),
             ),
         ]
@@ -103,7 +113,7 @@ class X4Mirror(Scene[InnerMirrorParams]):
         self.make_area(sub_width, sub_height, self.width - sub_width, self.height - sub_height, tags=["mirrored_xy"])
 
 
-class MirroredParams(Config):
+class MirroredConfig(SceneConfig):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     parent: VerticalMirror | HorizontalMirror | X4Mirror = Field(exclude=True)
     flip_x: bool = False
@@ -111,10 +121,10 @@ class MirroredParams(Config):
 
 
 # Helper scene, shouldn't be used directly. (Its params are not serializable.)
-class Mirrored(Scene[MirroredParams]):
+class Mirrored(Scene[MirroredConfig]):
     def render(self):
-        original_grid = self.params.parent._original_mirror_area.grid
-        slice_x = slice(self.width - 1, None, -1) if self.params.flip_x else slice(self.width)
-        slice_y = slice(self.height - 1, None, -1) if self.params.flip_y else slice(self.height)
+        original_grid = self.config.parent._original_mirror_area.grid
+        slice_x = slice(self.width - 1, None, -1) if self.config.flip_x else slice(self.width)
+        slice_y = slice(self.height - 1, None, -1) if self.config.flip_y else slice(self.height)
 
         self.grid[:] = original_grid[slice_y, slice_x]
