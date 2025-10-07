@@ -13,6 +13,7 @@ from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
 from metta.agent.policies.vit_reset import ViTResetConfig
+from metta.agent.policies.vit import ViTDefaultConfig
 
 from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
@@ -261,6 +262,8 @@ def train(
         policy_architecture = FastLSTMResetConfig()
     elif architecture == "vit_reset":
         policy_architecture = ViTResetConfig()
+    elif architecture == "vit_default":
+        policy_architecture = ViTDefaultConfig()
 
     return TrainTool(
         trainer=TrainerConfig(
