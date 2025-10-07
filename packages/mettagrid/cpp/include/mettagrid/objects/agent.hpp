@@ -31,7 +31,6 @@ public:
   std::vector<InventoryItem> soul_bound_resources;
   // Resources that this agent will try to share when it uses another agent.
   std::vector<InventoryItem> shareable_resources;
-  ObservationType color;
   ObservationType glyph;
   // Despite being a GridObjectId, this is different from the `id` property.
   // This is the index into MettaGrid._agents (std::vector<Agent*>)
@@ -45,8 +44,10 @@ public:
   GridLocation prev_location;
   std::string prev_action_name;
   unsigned int steps_without_motion;
+  // Inventory regeneration amounts (per-agent)
+  std::map<InventoryItem, InventoryQuantity> inventory_regen_amounts;
 
-  Agent(GridCoord r, GridCoord c, const AgentConfig& config)
+  Agent(GridCoord r, GridCoord c, const AgentConfig& config, const std::vector<std::string>* resource_names)
       : GridObject(),
         HasInventory(config.inventory_config),
         group(config.group_id),
@@ -59,15 +60,15 @@ public:
         group_name(config.group_name),
         soul_bound_resources(config.soul_bound_resources),
         shareable_resources(config.shareable_resources),
-        color(0),
         glyph(0),
         agent_id(0),
-        stats(),  // default constructor
+        stats(resource_names),
         current_stat_reward(0),
         reward(nullptr),
         prev_location(r, c, GridLayer::AgentLayer),
         prev_action_name(""),
-        steps_without_motion(0) {
+        steps_without_motion(0),
+        inventory_regen_amounts(config.inventory_regen_amounts) {
     populate_initial_inventory(config.initial_inventory);
     GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer), config.tag_ids);
   }
@@ -213,7 +214,6 @@ public:
     features.push_back({ObservationFeature::Group, static_cast<ObservationType>(group)});
     features.push_back({ObservationFeature::Frozen, static_cast<ObservationType>(frozen != 0 ? 1 : 0)});
     features.push_back({ObservationFeature::Orientation, static_cast<ObservationType>(orientation)});
-    features.push_back({ObservationFeature::Color, static_cast<ObservationType>(color)});
     if (glyph != 0) features.push_back({ObservationFeature::Glyph, static_cast<ObservationType>(glyph)});
 
     for (const auto& [item, amount] : this->inventory.get()) {

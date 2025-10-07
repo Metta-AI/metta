@@ -4,38 +4,21 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Optional
 
+import typer
 import yaml
 from rich.console import Console
 from rich.table import Table
 
-from cogames.cogs_vs_clips.scenarios import games as cogs_vs_clips_games
+from cogames.cogs_vs_clips.missions import USER_MAP_CATALOG
 from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig
 
-
-def get_all_games() -> Dict[str, MettaGridConfig]:
-    """Get all available games (scenarios).
-
-    Returns:
-        Dictionary of game names to their configurations
-    """
-    # Flatten all scenarios into a single dictionary
-    all_games = {}
-
-    # Add cogs_vs_clips games
-    for game_name, game_config in cogs_vs_clips_games().items():
-        all_games[game_name] = game_config
-
-    # Future games can be added here
-    # for scenario_name, scenario_config in other_game_scenarios().items():
-    #     all_games[scenario_name] = scenario_config
-
-    return all_games
+_SUPPORTED_MISSION_EXTENSIONS = [".yaml", ".yml", ".json", ".py"]
 
 
-def load_game_config_from_python(path: Path) -> MettaGridConfig:
-    """Load a game configuration from a Python file.
+def load_mission_config_from_python(path: Path) -> MettaGridConfig:
+    """Load a mission configuration from a Python file.
 
     The Python file should define a function called 'get_config()' that returns a MettaGridConfig.
     Alternatively, it can define a variable named 'config' that is a MettaGridConfig.
@@ -44,7 +27,7 @@ def load_game_config_from_python(path: Path) -> MettaGridConfig:
         path: Path to the Python file
 
     Returns:
-        The loaded game configuration
+        The loaded mission configuration
 
     Raises:
         ValueError: If the Python file doesn't contain the required function or variable
@@ -78,126 +61,114 @@ def load_game_config_from_python(path: Path) -> MettaGridConfig:
     return config
 
 
-def get_game(game_name: str) -> MettaGridConfig:
-    """Get a specific game configuration by name or file path.
+def get_all_missions() -> list[str]:
+    """Get all available missions."""
+    return [
+        f"{user_map.name}:{mission}" if mission != user_map.default_mission else user_map.name
+        for user_map in USER_MAP_CATALOG
+        for mission in user_map.available_missions
+    ]
+
+
+def get_mission(
+    map_name: str, mission_name: Optional[str] = None
+) -> tuple[MettaGridConfig, Optional[str], Optional[str]]:
+    """Get a specific mission configuration by name or file path.
 
     Args:
-        game_name: Name of the game or path to config file (.yaml, .json, or .py)
+        map_name: Name of the map or path to config file (.yaml, .json, or .py)
+        mission_name: Name of the mission. If unspecified, will use the default mission for the map.
 
     Returns:
-        Game configuration
+        Environment configuration, map name, mission name
 
     Raises:
-        ValueError: If game not found or file cannot be loaded
+        ValueError: If mission not found or file cannot be loaded
     """
     # Check if it's a file path
-    if any(game_name.endswith(ext) for ext in [".yaml", ".yml", ".json", ".py"]):
-        path = Path(game_name)
+    if any(map_name.endswith(ext) for ext in [".yaml", ".yml", ".json", ".py"]):
+        path = Path(map_name)
         if not path.exists():
-            raise ValueError(f"File not found: {game_name}")
+            raise ValueError(f"File not found: {map_name}")
         if not path.is_file():
-            raise ValueError(f"Not a file: {game_name}")
+            raise ValueError(f"Not a file: {map_name}")
 
         # Load config based on file extension
         if path.suffix == ".py":
-            return load_game_config_from_python(path)
+            return load_mission_config_from_python(path), None, None
         elif path.suffix in [".yaml", ".yml", ".json"]:
-            return load_game_config(path)
+            return load_mission_config(path), None, None
         else:
             raise ValueError(f"Unsupported file format: {path.suffix}")
 
-    # Otherwise, treat it as a game name
-    all_games = get_all_games()
-    if game_name not in all_games:
-        # Try partial match
-        matches = [name for name in all_games if game_name.lower() in name.lower()]
-        if len(matches) == 1:
-            return all_games[matches[0]]
-        elif len(matches) > 1:
-            raise ValueError(f"Ambiguous game name '{game_name}'. Matches: {', '.join(matches)}")
-        else:
-            raise ValueError(f"Game '{game_name}' not found. Available games: {', '.join(all_games.keys())}")
-    return all_games[game_name]
+    # Otherwise, treat it as a mission name
+    matching_maps = [um for um in USER_MAP_CATALOG if um.name == map_name]
+    if not matching_maps:
+        raise ValueError(
+            f"Map '{map_name}' not found. Available maps: {', '.join(user_map.name for user_map in USER_MAP_CATALOG)}"
+        )
+    user_map = matching_maps[0]
+    effective_mission = mission_name or user_map.default_mission
+    return user_map.generate_env(effective_mission), user_map.name, effective_mission
 
 
-def resolve_game_name(game_arg: Optional[str]) -> Optional[str]:
-    """Resolve a game name from user input.
-
-    Args:
-        game_arg: User input for game name
-
-    Returns:
-        Resolved game name or None if not found
-    """
-    if not game_arg:
-        return None
-
-    all_games = get_all_games()
-
-    # Exact match
-    if game_arg in all_games:
-        return game_arg
-
-    # Case-insensitive match
-    lower_map = {name.lower(): name for name in all_games}
-    if game_arg.lower() in lower_map:
-        return lower_map[game_arg.lower()]
-
-    # Partial match
-    matches = [name for name in all_games if game_arg.lower() in name.lower()]
-    if len(matches) == 1:
-        return matches[0]
-
-    return None
-
-
-def list_games(console: Console) -> Table:
-    """Create a table listing all available games.
+def list_missions(console: Console) -> None:
+    """Create a table listing all available missions.
 
     Args:
         console: Rich console for rendering
 
     Returns:
-        Rich Table with game information
+        Rich Table with mission information
     """
 
-    all_games = get_all_games()
+    if not USER_MAP_CATALOG:
+        console.print("No maps found")
+        return
 
-    table = Table(title="Available Games", show_header=True, header_style="bold magenta")
-    table.add_column("Game", style="cyan", no_wrap=True)
+    table = Table(title="Available Missions", show_header=True, header_style="bold magenta")
+    table.add_column("Mission", style="cyan", no_wrap=True)
     table.add_column("Agents", style="yellow", justify="center")
     table.add_column("Map Size", style="green", justify="center")
 
-    for game_name, game_config in all_games.items():
-        num_agents = game_config.game.num_agents
-        map_size = f"{game_config.game.map_builder.width}x{game_config.game.map_builder.height}"
+    for user_map in USER_MAP_CATALOG:
+        for mission_name in user_map.available_missions:
+            game_config = user_map.generate_env(mission_name)
+            num_agents = game_config.game.num_agents
 
-        table.add_row(game_name, str(num_agents), map_size)
+            # Try to get map size if available
+            map_builder = game_config.game.map_builder
+            if hasattr(map_builder, "width") and hasattr(map_builder, "height"):
+                map_size = f"{map_builder.width}x{map_builder.height}"  # type: ignore[attr-defined]
+            else:
+                map_size = "N/A"
 
-    return table
+            if mission_name == user_map.default_mission:
+                table.add_row(user_map.name, str(num_agents), map_size)
+            else:
+                table.add_row(f"{user_map.name}[gray]:[/gray][cyan]{mission_name}[/cyan]", str(num_agents), map_size)
+    console.print(table)
+    console.print()
+    console.print("To specify a <[bold cyan]mission[/bold cyan]>, you can:")
+    console.print("  • Use a mission name from above")
+    console.print("  • Use a path to a mission configuration file, e.g. path/to/mission.yaml")
 
 
-def describe_game(game_name: str, console: Console) -> None:
-    """Print detailed information about a specific game.
+def describe_mission(mission_name: str, game_config: MettaGridConfig, console: Console) -> None:
+    """Print detailed information about a specific mission.
 
     Args:
-        game_name: Name of the game
+        mission_name: Name of the mission
+        env_cfg: Environment configuration
         console: Rich console for output
     """
 
-    try:
-        game_config = get_game(game_name)
-    except ValueError as e:
-        console.print(f"[red]Error: {e}[/red]")
-        return
+    console.print(f"\n[bold cyan]{mission_name}[/bold cyan]\n")
 
-    console.print(f"\n[bold cyan]{game_name}[/bold cyan]\n")
-
-    # Display game configuration
-    console.print("[bold]Game Configuration:[/bold]")
+    # Display mission configuration
+    console.print("[bold]Mission Configuration:[/bold]")
     console.print(f"  • Number of agents: {game_config.game.num_agents}")
-    console.print(f"  • Map size: {game_config.game.map_builder.width}x{game_config.game.map_builder.height}")
-    console.print(f"  • Number of agents on map: {game_config.game.map_builder.agents}")
+    console.print(f"  • Map size: {game_config.game.map_builder.width}x{game_config.game.map_builder.height}")  # type: ignore[attr-defined]
 
     # Display available actions
     console.print("\n[bold]Available Actions:[/bold]")
@@ -223,43 +194,30 @@ def describe_game(game_name: str, console: Console) -> None:
         console.print(f"  • Resource limits: {game_config.game.agent.resource_limits}")
 
 
-def _convert_tuples_to_lists(obj):
-    """Recursively convert tuples to lists in a nested data structure."""
-    if isinstance(obj, dict):
-        return {k: _convert_tuples_to_lists(v) for k, v in obj.items()}
-    elif isinstance(obj, (list, tuple)):
-        return [_convert_tuples_to_lists(item) for item in obj]
-    else:
-        return obj
-
-
-def save_game_config(config: MettaGridConfig, output_path: Path) -> None:
-    """Save a game configuration to file.
+def save_mission_config(config: MettaGridConfig, output_path: Path) -> None:
+    """Save a mission configuration to file.
 
     Args:
-        config: The game configuration
+        config: The mission configuration
         output_path: Path to save the configuration
 
     Raises:
         ValueError: If file extension is not supported
     """
-    config_dict = config.model_dump()
-
-    # Convert tuples to lists for better serialization compatibility
-    config_dict = _convert_tuples_to_lists(config_dict)
-
     if output_path.suffix in [".yaml", ".yml"]:
         with open(output_path, "w") as f:
-            yaml.dump(config_dict, f, default_flow_style=False, sort_keys=False)
+            yaml.dump(config.model_dump(mode="yaml"), f, default_flow_style=False, sort_keys=False)
     elif output_path.suffix == ".json":
         with open(output_path, "w") as f:
-            json.dump(config_dict, f, indent=2)
+            json.dump(config.model_dump(mode="json"), f, indent=2)
     else:
-        raise ValueError(f"Unsupported file format: {output_path.suffix}. Use .yaml, .yml, or .json")
+        raise ValueError(
+            f"Unsupported file format: {output_path.suffix}. Supported: {', '.join(_SUPPORTED_MISSION_EXTENSIONS)}"
+        )
 
 
-def load_game_config(path: Path) -> MettaGridConfig:
-    """Load a game configuration from file.
+def load_mission_config(path: Path) -> MettaGridConfig:
+    """Load a mission configuration from file.
 
     Args:
         path: Path to the configuration file
@@ -277,6 +235,18 @@ def load_game_config(path: Path) -> MettaGridConfig:
         with open(path, "r") as f:
             config_dict = json.load(f)
     else:
-        raise ValueError(f"Unsupported file format: {path.suffix}. Use .yaml, .yml, or .json")
+        raise ValueError(
+            f"Unsupported file format: {path.suffix}. Supported: {', '.join(_SUPPORTED_MISSION_EXTENSIONS)}"
+        )
 
     return MettaGridConfig(**config_dict)
+
+
+def require_mission_argument(ctx: typer.Context, value: Optional[str], console: Console) -> str:
+    if value is not None:
+        return value
+
+    list_missions(console)
+    console.print(f"\n[dim]Usage: {ctx.command_path} <mission>[/dim]")
+    console.print()
+    raise typer.Exit(0)

@@ -4,24 +4,26 @@ import random
 import subprocess
 import time
 from typing import Optional, Sequence
-from experiments.sweeps.protein_configs import make_custom_protein_config, PPO_CORE
+
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.protein_config import ParameterConfig
+from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.sim import SimTool
 from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid.builder.envs import make_in_context_chains
 from mettagrid.config.mettagrid_config import MettaGridConfig
+
 from experiments.recipes.in_context_learning.in_context_learning import (
     ICLTaskGenerator,
     LPParams,
-    train_icl,
     _BuildCfg,
     play_icl,
     replay_icl,
+    train_icl,
 )
+from experiments.sweeps.protein_configs import PPO_CORE, make_custom_protein_config
 
 curriculum_args = {
     "level_0": {
@@ -325,7 +327,7 @@ def replay(
 
 def evaluate(
     simulations: Optional[Sequence[SimulationConfig]] = None,
-) -> SimTool:
+) -> EvaluateTool:
     # Local import to avoid circular import at module load time
     from experiments.evals.in_context_learning.converters.converter_chains import (
         make_converter_chain_eval_suite,
@@ -346,9 +348,9 @@ def evaluate(
     policy_uris = []
     for curriculum_style in curriculum_styles:
         policy_uris.append(
-            f"s3://softmax-public/policies/icl_resource_chain_{curriculum_style}.2.2025-09-24/icl_resource_chain_{curriculum_style}.2.2025-09-24:latest.pt"
+            f"s3://softmax-public/policies/icl_resource_chain_{curriculum_style}.2.2025-09-24/:latest"
         )
-    return SimTool(
+    return EvaluateTool(
         simulations=simulations,
         policy_uris=policy_uris,
         stats_server_uri="https://api.observatory.softmax-research.net",

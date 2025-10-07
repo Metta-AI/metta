@@ -1,0 +1,268 @@
+name: "Coverage and Benchmarks"
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coverage-and-benchmarks-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  python-coverage:
+    name: "Python Coverage Upload"
+    runs-on: ubuntu-8core
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
+
+      - name: Cache PufferLib clone
+        uses: actions/cache@v4
+        id: cache-pufferlib
+        with:
+          path: ~/pufferlib-cache
+          key: pufferlib-clone-${{ runner.os }}-${{ hashFiles('**/test_pufferlib_integration.py') }}
+          restore-keys: |
+            pufferlib-clone-${{ runner.os }}-
+
+      - name: Set PufferLib cache path
+        run: |
+          echo "PUFFERLIB_CACHE_DIR=$HOME/pufferlib-cache" >> $GITHUB_ENV
+          mkdir -p $HOME/pufferlib-cache
+
+      - name: Run package tests with coverage
+        shell: bash
+        run: .github/scripts/run_package_tests.sh
+
+      - name: Upload python test coverage to Codecov
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          SUBPACKAGES: "agent common app_backend mettagrid cogames codebot core"
+        run: |
+          chmod +x .github/scripts/upload_codecov.py
+          .github/scripts/upload_codecov.py
+
+  mettagrid-cpp-coverage:
+    name: "MettaGrid C++ Coverage Upload"
+    runs-on: ubuntu-4core
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
+        with:
+          install-mode: "testing"
+
+      - name: Setup Bazel caching
+        run: |
+          echo "build --disk_cache=$HOME/.bazel-disk-cache" >> packages/mettagrid/.bazelrc
+          echo "build --repository_cache=$HOME/.bazel-repo-cache" >> packages/mettagrid/.bazelrc
+
+          mkdir -p $HOME/.bazel-disk-cache
+          mkdir -p $HOME/.bazel-repo-cache
+
+      - name: Cache Bazel build artifacts
+        uses: actions/cache@v4
+        id: bazel-cache
+        with:
+          path: |
+            ~/.bazel-disk-cache
+            ~/.bazel-repo-cache
+          key: bazel-${{ runner.os }}-${{ hashFiles('packages/mettagrid/MODULE.bazel', 'packages/mettagrid/.bazelrc', '.bazelversion') }}
+          restore-keys: |
+            bazel-${{ runner.os }}-
+
+      - name: Build MettaGrid C++ (with coverage)
+        run: |
+          cd packages/mettagrid
+          make coverage VERBOSE=1
+
+      - name: Upload MettaGrid C++ coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/mettagrid/build-debug/coverage.info
+          flags: mettagrid_cpp
+          name: mettagrid-cpp-coverage
+          fail_ci_if_error: false
+          verbose: true
+
+  python-benchmark:
+    name: "Python Benchmarks"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
+        with:
+          install-mode: "testing"
+
+      - name: Run Python benchmarks
+        env:
+          PYTHONOPTIMIZE: 1
+        run: |
+          PYTEST_BENCHMARK_ARGS="-n 0 --timeout=100 --timeout-method=thread  --benchmark-only -v"
+
+          uv run pytest $PYTEST_BENCHMARK_ARGS --benchmark-json=main_benchmark_results.json
+
+          cd packages/mettagrid
+          uv run pytest $PYTEST_BENCHMARK_ARGS --benchmark-json=../mettagrid_benchmark_results.json
+
+      - name: Upload Python benchmark artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-benchmark-results
+          path: |
+            main_benchmark_results.json
+            mettagrid_benchmark_results.json
+          retention-days: 1
+
+  cpp-benchmark:
+    name: "C++ Benchmarks"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
+        with:
+          install-mode: "testing"
+
+      - name: Setup Bazel caching
+        run: |
+          echo "build --disk_cache=$HOME/.bazel-disk-cache" >> packages/mettagrid/.bazelrc
+          echo "build --repository_cache=$HOME/.bazel-repo-cache" >> packages/mettagrid/.bazelrc
+
+          mkdir -p $HOME/.bazel-disk-cache
+          mkdir -p $HOME/.bazel-repo-cache
+
+      - name: Cache Bazel build artifacts
+        uses: actions/cache@v4
+        id: bazel-cache
+        with:
+          path: |
+            ~/.bazel-disk-cache
+            ~/.bazel-repo-cache
+          key: bazel-${{ runner.os }}-${{ hashFiles('packages/mettagrid/MODULE.bazel', 'packages/mettagrid/.bazelrc', '.bazelversion') }}
+          restore-keys: |
+            bazel-${{ runner.os }}-
+
+      - name: Build C++ benchmarks
+        run: |
+          cd packages/mettagrid
+          make benchmark VERBOSE=1
+
+      - name: Collect benchmarks
+        working-directory: ./packages/mettagrid
+        run: |
+          mkdir -p benchmark_output
+          bazel run //benchmarks:test_mettagrid_env_benchmark -- --benchmark_format=json > benchmark_output/test_mettagrid_env_benchmark.json
+
+      - name: Upload C++ benchmark artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cpp-benchmark-results
+          path: packages/mettagrid/benchmark_output/*.json
+          retention-days: 1
+
+  upload-benchmarks:
+    name: "Upload Benchmarks"
+    needs: [python-benchmark, cpp-benchmark]
+    if: always() && (needs.python-benchmark.result == 'success' || needs.cpp-benchmark.result == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Python benchmark results
+        uses: actions/download-artifact@v4
+        with:
+          name: python-benchmark-results
+          path: ./benchmarks/
+        continue-on-error: true
+
+      - name: Download C++ benchmark results
+        uses: actions/download-artifact@v4
+        with:
+          name: cpp-benchmark-results
+          path: ./benchmarks/
+        continue-on-error: true
+
+      - name: Debug downloaded artifacts
+        shell: bash
+        run: |
+          echo "=== Checking downloaded artifacts ==="
+          ls -la ./benchmarks/ || echo "No benchmarks directory"
+
+          echo "=== Python benchmark files content ==="
+          for file in ./benchmarks/main_benchmark_results.json ./benchmarks/mettagrid_benchmark_results.json; do
+            if [ -f "$file" ]; then
+              echo "--- $file ---"
+              echo "File size: $(wc -c < "$file") bytes"
+              head -20 "$file" || echo "Could not read $file"
+            else
+              echo "$file not found"
+            fi
+          done
+
+      - name: Combine all benchmark results
+        uses: ./.github/actions/combine-all-benchmarks
+        with:
+          python_files: "./benchmarks/main_benchmark_results.json,./benchmarks/mettagrid_benchmark_results.json"
+          cpp_files: "./benchmarks/*.json"
+          output_file: "unified_benchmark_results.json"
+
+      - name: Validate generated BMF files
+        shell: bash
+        run: |
+          echo "=== Validating generated BMF files ==="
+
+          if [ -f "unified_benchmark_results.json" ]; then
+            if jq empty unified_benchmark_results.json; then
+              echo "✅ unified_benchmark_results.json is valid JSON"
+              echo "File size: $(wc -c < unified_benchmark_results.json) bytes"
+              echo "Number of benchmarks: $(jq 'length' unified_benchmark_results.json)"
+              echo "Sample benchmark names:"
+              jq -r 'keys[0:3][]' unified_benchmark_results.json || echo "No benchmarks found"
+            else
+              echo "❌ unified_benchmark_results.json is invalid JSON"
+              exit 1
+            fi
+          else
+            echo "❌ unified_benchmark_results.json not found"
+            exit 1
+          fi
+
+      - name: Check for significant performance changes
+        uses: ./.github/actions/call-bencher-api
+        with:
+          bencher_token: ${{ secrets.BENCHER_API_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          benchmark_file: "unified_benchmark_results.json"
+        continue-on-error: true
+
+      - name: Upload benchmark artifacts for debugging
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: processed-benchmark-results
+          path: |
+            unified_benchmark_results.json
+          retention-days: 7

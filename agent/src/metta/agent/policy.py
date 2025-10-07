@@ -22,7 +22,7 @@ from metta.agent.components.obs_shim import (
     ObsShimTokensConfig,
 )
 from metta.rl.training import EnvironmentMetaData
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 from mettagrid.util.module import load_symbol
 
 PolicyPresetFactory = Callable[[], type["PolicyArchitecture"]]
@@ -37,7 +37,23 @@ def _resolve_symbol(path: str) -> Any:
 
 POLICY_PRESETS: Dict[str, PolicyPresetFactory] = {
     "fast": lambda: importlib.import_module("metta.agent.policies.fast").FastConfig,
+    "fast_dynamics": lambda: importlib.import_module("metta.agent.policies.fast_dynamics").FastDynamicsConfig,
+    "fast-dynamics": lambda: importlib.import_module("metta.agent.policies.fast_dynamics").FastDynamicsConfig,
+    "fast_lstm_reset": lambda: importlib.import_module("metta.agent.policies.fast_lstm_reset").FastLSTMResetConfig,
+    "fast-lstm-reset": lambda: importlib.import_module("metta.agent.policies.fast_lstm_reset").FastLSTMResetConfig,
+    "memory_free": lambda: importlib.import_module("metta.agent.policies.memory_free").MemoryFreeConfig,
+    "memory-free": lambda: importlib.import_module("metta.agent.policies.memory_free").MemoryFreeConfig,
+    "puffer": lambda: importlib.import_module("metta.agent.policies.puffer").PufferPolicyConfig,
+    "transformer": lambda: importlib.import_module("metta.agent.policies.transformer").TransformerPolicyConfig,
     "vit": lambda: importlib.import_module("metta.agent.policies.vit").ViTDefaultConfig,
+    "vit_reset": lambda: importlib.import_module("metta.agent.policies.vit_reset").ViTResetConfig,
+    "vit-reset": lambda: importlib.import_module("metta.agent.policies.vit_reset").ViTResetConfig,
+    "vit_sliding_trans": lambda: importlib.import_module(
+        "metta.agent.policies.vit_sliding_trans"
+    ).ViTSlidingTransConfig,
+    "vit-sliding-trans": lambda: importlib.import_module(
+        "metta.agent.policies.vit_sliding_trans"
+    ).ViTSlidingTransConfig,
 }
 
 

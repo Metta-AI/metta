@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from typing import Optional, Sequence
+from typing import Optional
 
 import metta.cogworks.curriculum as cc
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
@@ -9,9 +9,9 @@ from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from mettagrid.builder import building, empty_converters
 from mettagrid.config.mettagrid_config import (
@@ -53,7 +53,7 @@ def _default_run_name() -> str:
         return f"object_use.{user}.{timestamp}"
 
 
-def make_mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConfig:
+def mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConfig:
     """Create a base object use environment for training."""
 
     # Configure objects with their resource chains
@@ -111,7 +111,7 @@ def make_mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConf
                 rotate=ActionConfig(),
                 get_items=ActionConfig(),
                 put_items=ActionConfig(),
-                swap=ActionConfig(enabled=True),
+                swap=ActionConfig(),
             ),
             agent=AgentConfig(
                 default_resource_limit=50,
@@ -128,7 +128,7 @@ def make_mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConf
                 instances=num_instances,
                 border_width=6,
                 instance_border_width=3,
-                instance_map=RandomMapBuilder.Config(
+                instance=RandomMapBuilder.Config(
                     agents=num_agents,
                     width=25,
                     height=25,
@@ -151,29 +151,30 @@ def make_mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConf
     return env
 
 
+"""Default mettagrid() defined above (parameterized version)."""
+
+
 def make_curriculum(
     object_use_env: Optional[MettaGridConfig] = None,
 ) -> CurriculumConfig:
     """Create curriculum for object use training."""
-    object_use_env = object_use_env or make_mettagrid()
+    object_use_env = object_use_env or mettagrid()
 
     # Create training tasks with varying difficulties
     tasks = cc.bucketed(object_use_env)
 
     # Vary map sizes
-    tasks.add_bucket("game.map_builder.instance_map.width", [Span(15, 50)])
-    tasks.add_bucket("game.map_builder.instance_map.height", [Span(15, 50)])
+    tasks.add_bucket("game.map_builder.instance.width", [Span(15, 50)])
+    tasks.add_bucket("game.map_builder.instance.height", [Span(15, 50)])
 
     # Vary object counts
-    tasks.add_bucket("game.map_builder.instance_map.objects.altar", [Span(1, 3)])
-    tasks.add_bucket("game.map_builder.instance_map.objects.mine_red", [Span(1, 5)])
-    tasks.add_bucket(
-        "game.map_builder.instance_map.objects.generator_red", [Span(1, 3)]
-    )
-    tasks.add_bucket("game.map_builder.instance_map.objects.armory", [Span(0, 2)])
-    tasks.add_bucket("game.map_builder.instance_map.objects.lasery", [Span(0, 2)])
-    tasks.add_bucket("game.map_builder.instance_map.objects.wall", [Span(0, 10)])
-    tasks.add_bucket("game.map_builder.instance_map.objects.block", [Span(0, 5)])
+    tasks.add_bucket("game.map_builder.instance.objects.altar", [Span(1, 3)])
+    tasks.add_bucket("game.map_builder.instance.objects.mine_red", [Span(1, 5)])
+    tasks.add_bucket("game.map_builder.instance.objects.generator_red", [Span(1, 3)])
+    tasks.add_bucket("game.map_builder.instance.objects.armory", [Span(0, 2)])
+    tasks.add_bucket("game.map_builder.instance.objects.lasery", [Span(0, 2)])
+    tasks.add_bucket("game.map_builder.instance.objects.wall", [Span(0, 10)])
+    tasks.add_bucket("game.map_builder.instance.objects.block", [Span(0, 5)])
 
     # Vary object cooldowns to change difficulty
     tasks.add_bucket("game.objects.altar.cooldown", [Span(10, 60)])
@@ -185,9 +186,9 @@ def make_curriculum(
     tasks.add_bucket("game.objects.generator_red.initial_resource_count", [0, 1])
 
     # Toggle additional objects directly on the base env; single unified generator
-    tasks.add_bucket("game.map_builder.instance_map.objects.temple", [Span(0, 2)])
-    tasks.add_bucket("game.map_builder.instance_map.objects.lab", [Span(0, 2)])
-    tasks.add_bucket("game.map_builder.instance_map.objects.factory", [Span(0, 2)])
+    tasks.add_bucket("game.map_builder.instance.objects.temple", [Span(0, 2)])
+    tasks.add_bucket("game.map_builder.instance.objects.lab", [Span(0, 2)])
+    tasks.add_bucket("game.map_builder.instance.objects.factory", [Span(0, 2)])
 
     return CurriculumConfig(task_generator=tasks)
 
@@ -218,36 +219,20 @@ def train(
     )
 
 
-def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
-    """Create a play tool for object use."""
-    eval_env = env or make_mettagrid()
-    return PlayTool(
-        sim=SimulationConfig(
-            env=eval_env,
-            suite="object_use",
-            name="eval",
-        ),
-    )
+def simulations() -> list[SimulationConfig]:
+    return list(make_object_use_eval_suite())
 
 
-def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
-    """Create a replay tool for object use."""
-    eval_env = env or make_mettagrid()
-    return ReplayTool(
-        sim=SimulationConfig(
-            env=eval_env,
-            suite="object_use",
-            name="eval",
-        ),
-    )
+def evaluate(policy_uris: Optional[list[str]] = None) -> EvaluateTool:
+    """Evaluate policies on object use tasks."""
+    return EvaluateTool(simulations=simulations(), policy_uris=policy_uris or [])
 
 
-def evaluate(
-    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
-) -> SimTool:
-    """Create an evaluation tool for object use."""
-    simulations = simulations or make_object_use_eval_suite()
-    return SimTool(
-        simulations=simulations,
-        policy_uris=[policy_uri],
-    )
+def play(policy_uri: Optional[str] = None) -> PlayTool:
+    """Interactive play with a policy."""
+    return PlayTool(sim=simulations()[0], policy_uri=policy_uri)
+
+
+def replay(policy_uri: Optional[str] = None) -> ReplayTool:
+    """Generate replay from a policy."""
+    return ReplayTool(sim=simulations()[0], policy_uri=policy_uri)

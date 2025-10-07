@@ -5,7 +5,8 @@
 // Test fixture for StatsTracker
 class StatsTrackerTest : public ::testing::Test {
 protected:
-  StatsTracker stats;
+  std::vector<std::string> resource_names = {"resource1", "resource2", "resource3"};
+  StatsTracker stats{&resource_names};
 };
 
 // Test basic increment functionality

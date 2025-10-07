@@ -32,7 +32,7 @@ class TestAgentResourceSharing:
         obs, info = env.reset()
 
         # Get initial state
-        grid_objects = env.grid_objects
+        grid_objects = env.grid_objects()
         agents = []
         for _obj_id, obj in grid_objects.items():
             if "agent_id" in obj:
@@ -66,7 +66,7 @@ class TestAgentResourceSharing:
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         # Check inventory after sharing
-        grid_objects_after = env.grid_objects
+        grid_objects_after = env.grid_objects()
         agents_after = []
         for _obj_id, obj in grid_objects_after.items():
             if "agent_id" in obj:

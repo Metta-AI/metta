@@ -3,14 +3,16 @@ import logging
 from fastapi import APIRouter, HTTPException
 
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
+from metta.common.util.fs import get_repo_root
 from metta.gridworks.common import ErrorResult, dump_config_with_implicit_info
 from metta.gridworks.configs.registry import ConfigMaker, ConfigMakerKind, ConfigMakerRegistry
 from metta.sim.simulation_config import SimulationConfig
+from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
-from mettagrid.config import Config, MettaGridConfig
+from mettagrid.base_config import Config
+from mettagrid.config import MettaGridConfig
 from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 from mettagrid.mapgen.utils.storable_map import StorableMap, StorableMapDict
 
@@ -20,7 +22,13 @@ logger = logging.getLogger(__name__)
 def make_configs_router() -> APIRouter:
     router = APIRouter(prefix="/configs", tags=["configs"])
 
-    registry = ConfigMakerRegistry()
+    repo_root = get_repo_root()
+    registry = ConfigMakerRegistry(
+        root_dirs=[
+            repo_root / "experiments",
+            repo_root / "packages/cogames/src/cogames",
+        ]
+    )
 
     def get_config_maker_or_404(path: str) -> ConfigMaker:
         cfg = registry.get_by_path(path)
@@ -44,21 +52,23 @@ def make_configs_router() -> APIRouter:
             status_code=400, detail=f"Config of type {type(cfg)} can't be converted to a MapBuilderConfig"
         )
 
-    def config_to_map_builder_by_name(cfg: Config | list[Config], name: str) -> AnyMapBuilderConfig:
-        if isinstance(cfg, SimTool):
+    def config_to_map_builder_by_name(cfg: Config | list[Config] | dict[str, Config], name: str) -> AnyMapBuilderConfig:
+        if isinstance(cfg, EvaluateTool):
             return config_to_map_builder_by_name(list(cfg.simulations), name)
 
         if isinstance(cfg, ReplayTool) or isinstance(cfg, PlayTool):
             return config_to_map_builder_by_name(cfg.sim, name)
 
-        if not isinstance(cfg, list):
+        if isinstance(cfg, list):
+            for c in cfg:
+                if not isinstance(c, SimulationConfig):
+                    raise HTTPException(status_code=400, detail="Config must be a list[SimulationConfig]")
+                if c.name == name:
+                    return config_to_map_builder(c)
+        elif isinstance(cfg, dict) and name in cfg:
+            return config_to_map_builder(cfg[name])
+        else:
             raise HTTPException(status_code=400, detail="Config must be a list")
-
-        for c in cfg:
-            if not isinstance(c, SimulationConfig):
-                raise HTTPException(status_code=400, detail="Config must be a list[SimulationConfig]")
-            if c.name == name:
-                return config_to_map_builder(c)
 
         raise HTTPException(status_code=404, detail=f"Config of type {type(cfg)} doesn't have map for name {name}")
 

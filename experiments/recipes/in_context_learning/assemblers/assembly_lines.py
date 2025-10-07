@@ -1,24 +1,27 @@
-from mettagrid.builder.envs import make_icl_assembler
-from experiments.recipes.in_context_learning.in_context_learning import (
-    ICLTaskGenerator,
-    _BuildCfg,
-    train_icl,
-    play_icl,
-    replay_icl,
-)
-from metta.tools.sim import SimTool
+import os
+import random
 import subprocess
 import time
+from typing import Optional
+
+from metta.tools.eval import EvaluateTool
+from metta.tools.play import PlayTool
+from metta.tools.replay import ReplayTool
+from metta.tools.train import TrainTool
+from mettagrid.builder.envs import make_icl_assembler
 from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
     Position,
 )
-from metta.tools.train import TrainTool
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
-import random
-from typing import Optional
-import os
+
+from experiments.recipes.in_context_learning.in_context_learning import (
+    ICLTaskGenerator,
+    _BuildCfg,
+    num_agents_to_positions,
+    play_icl,
+    replay_icl,
+    train_icl,
+)
 
 curriculum_args = {
     "train": {
@@ -26,18 +29,40 @@ curriculum_args = {
         "chain_lengths": [2, 3, 4, 5],
         "num_sinks": [0, 1, 2],
         "room_sizes": ["small", "medium", "large"],
-        "positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
-        "num_chests": [0],
-    }
+        "positions": num_agents_to_positions[1]
+        + num_agents_to_positions[2]
+        + num_agents_to_positions[3],
+        "chest_positions": [["N"], ["N", "S"], ["N", "S", "E"]],
+        "num_chests": [2, 5, 8],
+    },
+    "train_pairs": {
+        "num_agents": [2, 6, 12],
+        "chain_lengths": [2, 3, 4, 5],
+        "num_sinks": [0, 1, 2],
+        "room_sizes": ["small", "medium", "large"],
+        "positions": num_agents_to_positions[2],
+        "chest_positions": [["N"]],
+        "num_chests": [2, 5, 8],
+    },
+    "train_triplets": {
+        "num_agents": [3, 6, 12],
+        "chain_lengths": [2, 3, 4, 5],
+        "num_sinks": [0, 1, 2],
+        "room_sizes": ["small", "medium", "large"],
+        "positions": num_agents_to_positions[3],
+        "chest_positions": [["N"]],
+        "num_chests": [2, 5, 8],
+    },
+    # "test": {
+    #     "num_agents": [2],
+    #     "chain_lengths": [2],
+    #     "num_sinks": [0],
+    #     "chest_positions": [["N"]],
+    #     "num_chests": [1],
+    #     "room_sizes": ["medium"],
+    #     "positions": [["Any", "Any"]],
+    # }
 }
-# "test": {
-#     "num_agents": [2],
-#     "chain_lengths": [5],
-#     "num_sinks": [2],
-#     "room_sizes": ["medium"],
-#     "positions": [["Any", "Any"]],
-# },
-# }
 
 
 def make_task_generator_cfg(
@@ -74,7 +99,7 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
         cfg: _BuildCfg,
         rng: random.Random,
     ):
-        cooldown = avg_hop * (len(resources) + 1)
+        cooldown = avg_hop * len(resources)
         resource_chain = ["nothing"] + list(resources) + ["heart"]
         for i in range(len(resource_chain) - 1):
             input_resource, output_resource = resource_chain[i], resource_chain[i + 1]
@@ -268,11 +293,11 @@ def evaluate():
     policy_uris = []
 
     for curriculum_style in curriculum_args:
-        policy_uri = f"s3://softmax-public/policies/in_context.assembly_lines_{curriculum_style}.eval_local.2025-09-27/in_context.assembly_lines_{curriculum_style}.eval_local.2025-09-27:latest.pt"
+        policy_uri = f"s3://softmax-public/policies/in_context.assembly_lines_{curriculum_style}.eval_local.2025-09-27/:latest"
         policy_uris.append(policy_uri)
 
     simulations = make_assembly_line_eval_suite()
-    return SimTool(
+    return EvaluateTool(
         simulations=simulations,
         policy_uris=policy_uris,
         stats_server_uri="https://api.observatory.softmax-research.net",
