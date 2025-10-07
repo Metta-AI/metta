@@ -15,8 +15,8 @@ from packaging.version import Version
 from rich.console import Console
 from rich.table import Table
 
+from cogames import curricula, game, utils
 from cogames import evaluate as evaluate_module
-from cogames import game, utils
 from cogames import play as play_module
 from cogames import train as train_module
 from cogames.policy.policy import PolicySpec
@@ -221,8 +221,6 @@ def train_cmd(
         min=1,
     ),
 ) -> None:
-    from cogames import curricula
-
     rotation_aliases = {"training_rotation", "training_facility_rotation", "training_cycle"}
     rotation_easy_aliases = {"training_rotation_easy"}
     rotation_shaped_aliases = {"training_rotation_shaped"}
