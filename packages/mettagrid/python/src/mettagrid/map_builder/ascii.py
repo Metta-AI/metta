@@ -1,7 +1,8 @@
 import numpy as np
+from pydantic import Field, model_validator
 
 from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
-from mettagrid.util.char_encoder import char_to_grid_object
+from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME
 
 
 class AsciiMapBuilder(MapBuilder):
@@ -11,6 +12,12 @@ class AsciiMapBuilder(MapBuilder):
 
     class Config(MapBuilderConfig["AsciiMapBuilder"]):
         map_data: list[list[str]]
+        char_to_name_map: dict[str, str] = Field(default_factory=dict)
+
+        @model_validator(mode="after")
+        def validate_char_to_name_map(self) -> "AsciiMapBuilder.Config":
+            self.char_to_name_map = DEFAULT_CHAR_TO_NAME | self.char_to_name_map
+            return self
 
         @property
         def width(self) -> int:
@@ -21,11 +28,14 @@ class AsciiMapBuilder(MapBuilder):
             return len(self.map_data)
 
         @classmethod
-        def from_uri(cls, uri: str) -> "AsciiMapBuilder.Config":
+        def from_uri(cls, uri: str, char_to_name_map: dict[str, str] | None = None) -> "AsciiMapBuilder.Config":
             with open(uri, "r", encoding="utf-8") as f:
                 ascii_map = f.read()
             lines = ascii_map.strip().splitlines()
-            return cls(map_data=[list(line) for line in lines])
+            return cls(
+                map_data=[list(line) for line in lines],
+                char_to_name_map=char_to_name_map or {},
+            )
 
     def __init__(self, config: Config):
         self.config = config
@@ -40,7 +50,13 @@ class AsciiMapBuilder(MapBuilder):
                 )
 
         self._level = np.array([list(line) for line in config.map_data], dtype="U6")
-        self._level = np.vectorize(char_to_grid_object)(self._level)
+        self._level = np.vectorize(self._char_to_object_name)(self._level)
+
+    def _char_to_object_name(self, char: str) -> str:
+        """Convert a map character to an object name."""
+        if char in self.config.char_to_name_map:
+            return self.config.char_to_name_map[char]
+        raise ValueError(f"Unknown character: '{char}'. Available: {list(self.config.char_to_name_map.keys())}")
 
     def build(self) -> GameMap:
         return GameMap(self._level)

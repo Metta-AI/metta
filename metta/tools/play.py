@@ -62,7 +62,7 @@ class PlayTool(Tool):
 
             def send_replay_step():
                 grid_objects = []
-                for i, grid_object in enumerate(env.grid_objects.values()):
+                for i, grid_object in enumerate(env.grid_objects().values()):
                     if len(grid_objects) <= i:
                         grid_objects.append({})
 
@@ -86,15 +86,12 @@ class PlayTool(Tool):
                     break
 
                 actions = sim.generate_actions()
-
                 # Just do random actions for now.
                 actions[:, 0] = np.random.randint(0, 5, size=len(actions))  # Random action types
                 actions[:, 1] = np.random.randint(0, 4, size=len(actions))  # Random action args
-
-                # Get actions from mettascope.
-                if response.action:
-                    actions[response.action_agent_id, 0] = response.action_action_id
-                    actions[response.action_agent_id, 1] = response.action_argument
+                for action in response.actions:
+                    actions[action.agent_id, 0] = action.action_id
+                    actions[action.agent_id, 1] = action.argument
 
                 sim.step_simulation(actions)
                 current_step += 1

@@ -1,7 +1,7 @@
 import
-  std/[strformat, math, os, strutils],
+  std/[strformat, math, os, strutils, tables],
   boxy, vmath, windy, fidget2/[hybridrender, common],
-  common, panels, actions, utils, replays, objectinfo
+  common, panels, actions, utils, replays, objectinfo, pathfinding
 
 proc buildAtlas*() =
   ## Build the atlas.
@@ -22,17 +22,90 @@ proc agentColor*(id: int): Color =
 
 proc useSelections*(panel: Panel) =
   ## Reads the mouse position and selects the thing under it.
-  if window.buttonPressed[MouseLeft]:
-    selection = nil
-    let
-      mousePos = bxy.getTransform().inverse * window.mousePos.vec2
-      gridPos = (mousePos + vec2(0.5, 0.5)).ivec2
-    if gridPos.x >= 0 and gridPos.x < replay.mapSize[0] and
-      gridPos.y >= 0 and gridPos.y < replay.mapSize[1]:
-      for obj in replay.objects:
-        if obj.location.at(step).xy == gridPos:
+  let modifierDown = when defined(macosx):
+    window.buttonDown[KeyLeftSuper] or window.buttonDown[KeyRightSuper]
+  else:
+    window.buttonDown[KeyLeftControl] or window.buttonDown[KeyRightControl]
+
+  let shiftDown = window.buttonDown[KeyLeftShift] or window.buttonDown[KeyRightShift]
+  let rDown = window.buttonDown[KeyR]
+
+  # Track mouse down position to distinguish clicks from drags.
+  if window.buttonPressed[MouseLeft] and not modifierDown:
+    mouseDownPos = window.mousePos.vec2
+
+  # Only select on mouse up, and only if we didn't drag much.
+  if window.buttonReleased[MouseLeft] and not modifierDown:
+    let mouseDragDistance = (window.mousePos.vec2 - mouseDownPos).length
+    const maxClickDragDistance = 5.0
+    if mouseDragDistance < maxClickDragDistance:
+      selection = nil
+      let
+        mousePos = bxy.getTransform().inverse * window.mousePos.vec2
+        gridPos = (mousePos + vec2(0.5, 0.5)).ivec2
+      if gridPos.x >= 0 and gridPos.x < replay.mapSize[0] and
+        gridPos.y >= 0 and gridPos.y < replay.mapSize[1]:
+        let obj = getObjectAtLocation(gridPos)
+        if obj != nil:
           selectObject(obj)
-          break
+
+  if window.buttonPressed[MouseRight] or (window.buttonPressed[MouseLeft] and modifierDown):
+    if selection != nil and selection.isAgent:
+      let
+        mousePos = bxy.getTransform().inverse * window.mousePos.vec2
+        gridPos = (mousePos + vec2(0.5, 0.5)).ivec2
+      if gridPos.x >= 0 and gridPos.x < replay.mapSize[0] and
+        gridPos.y >= 0 and gridPos.y < replay.mapSize[1]:
+        let startPos = selection.location.at(step).xy
+
+        # Determine if this is a Bump or Move destination.
+        let targetObj = getObjectAtLocation(gridPos)
+        var destType = Move
+        var approachDir = ivec2(0, 0)
+        if targetObj != nil:
+          let typeName = replay.typeNames[targetObj.typeId]
+          if typeName != "agent" and typeName != "wall":
+            destType = Bump
+            # Calculate which quadrant of the tile was clicked.
+            # The tile center is at gridPos, and mousePos has fractional parts.
+            let
+              tileCenterX = gridPos.x.float32
+              tileCenterY = gridPos.y.float32
+              offsetX = mousePos.x - tileCenterX
+              offsetY = mousePos.y - tileCenterY
+            # Divide the tile into 4 quadrants at 45-degree angles (diamond shape).
+            # If the click is more horizontal than vertical, use left/right approach.
+            # If the click is more vertical than horizontal, use top/bottom approach.
+            if abs(offsetX) > abs(offsetY):
+              # Left or right quadrant.
+              if offsetX > 0:
+                approachDir = ivec2(1, 0)   # Clicked right, approach from right.
+              else:
+                approachDir = ivec2(-1, 0)  # Clicked left, approach from left.
+            else:
+              # Top or bottom quadrant.
+              if offsetY > 0:
+                approachDir = ivec2(0, 1)   # Clicked bottom, approach from bottom.
+              else:
+                approachDir = ivec2(0, -1)  # Clicked top, approach from top.
+
+        let destination = Destination(pos: gridPos, destinationType: destType, approachDir: approachDir, repeat: rDown)
+
+        if shiftDown:
+          # Queue up additional destinations.
+          if not agentDestinations.hasKey(selection.agentId) or agentDestinations[selection.agentId].len == 0:
+            # No existing destinations, start fresh.
+            agentDestinations[selection.agentId] = @[destination]
+            recomputePath(selection.agentId, startPos)
+          else:
+            # Append to existing destinations.
+            agentDestinations[selection.agentId].add(destination)
+            # Recompute path to include all destinations.
+            recomputePath(selection.agentId, startPos)
+        else:
+          # Replace the entire destination queue.
+          agentDestinations[selection.agentId] = @[destination]
+          recomputePath(selection.agentId, startPos)
 
 proc drawFloor*() =
   # Draw the floor tiles.
@@ -292,6 +365,17 @@ proc drawAgentDecorations*() =
         scale = 1/200
       )
 
+proc drawClippedStatus*() =
+  # Draw the clipped status of the selected agent.
+  for obj in replay.objects:
+    if obj.isClipped.at:
+      bxy.drawImage(
+        "agents/frozen",
+        obj.location.at.xy.vec2,
+        angle = 0,
+        scale = 1/200
+      )
+
 proc drawGrid*() =
   # Draw the grid.
   for x in 0 ..< replay.mapSize[0]:
@@ -322,6 +406,84 @@ proc drawInventory*() =
           scale = 1/200 / 4
         )
         x += xAdvance
+
+proc drawPlannedPath*() =
+  ## Draw the planned paths for all agents.
+  ## Only show paths when in realtime mode and viewing the latest step.
+  if playMode != Realtime or step != replay.maxSteps - 1:
+    return
+  for agentId, pathActions in agentPaths:
+    if pathActions.len == 0:
+      continue
+
+    # Get agent's current position.
+    let agent = getAgentById(agentId)
+    var currentPos = agent.location.at(step).xy
+
+    for action in pathActions:
+      if action.actionType != PathMove:
+        continue
+      # Draw arrow from current position to target position.
+      let
+        pos0 = currentPos
+        pos1 = action.pos
+        dx = pos1.x - pos0.x
+        dy = pos1.y - pos0.y
+
+      var rotation: float32 = 0
+      if dx > 0 and dy == 0:
+        rotation = 0
+      elif dx < 0 and dy == 0:
+        rotation = Pi
+      elif dx == 0 and dy > 0:
+        rotation = -Pi / 2
+      elif dx == 0 and dy < 0:
+        rotation = Pi / 2
+
+      let alpha = 0.6
+      bxy.drawImage(
+        "agents/path",
+        pos0.vec2,
+        angle = rotation,
+        scale = 1/200,
+        tint = color(1, 1, 1, alpha)
+      )
+      currentPos = action.pos
+
+    # Draw final queued destination.
+    if agentDestinations.hasKey(agentId):
+      let destinations = agentDestinations[agentId]
+      if destinations.len > 0:
+        let dest = destinations[^1]
+        bxy.drawImage(
+          "selection",
+          dest.pos.vec2,
+          angle = 0,
+          scale = 1.0 / 200.0,
+          tint = color(1, 1, 1, 0.5)
+        )
+
+      # Draw approach arrows for bump destinations.
+      for dest in destinations:
+        if dest.destinationType == Bump and (dest.approachDir.x != 0 or dest.approachDir.y != 0):
+          let approachPos = ivec2(dest.pos.x + dest.approachDir.x, dest.pos.y + dest.approachDir.y)
+          let offset = vec2(-dest.approachDir.x.float32 * 0.35, -dest.approachDir.y.float32 * 0.35)
+          var rotation: float32 = 0
+          if dest.approachDir.x > 0:
+            rotation = Pi / 2
+          elif dest.approachDir.x < 0:
+            rotation = -Pi / 2
+          elif dest.approachDir.y > 0:
+            rotation = 0
+          elif dest.approachDir.y < 0:
+            rotation = Pi
+          bxy.drawImage(
+            "actions/arrow",
+            approachPos.vec2 + offset,
+            angle = rotation,
+            scale = 1/200,
+            tint = color(1, 1, 1, 0.7)
+          )
 
 proc drawSelection*() =
   # Draw selection.
@@ -509,7 +671,9 @@ proc drawWorldMain*() =
   drawObjects()
   drawActions()
   drawAgentDecorations()
+  drawClippedStatus()
   drawSelection()
+  drawPlannedPath()
   drawInventory()
   drawRewards()
 
@@ -547,7 +711,7 @@ proc fitFullMap*(panel: Panel) =
   panel.pos.y = rectH / 2.0f - cy * z
 
 proc drawWorldMap*(panel: Panel) =
-
+  ## Draw the world map.
   panel.beginPanAndZoom()
 
   useSelections(panel)

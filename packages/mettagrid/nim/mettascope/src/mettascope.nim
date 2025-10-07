@@ -1,11 +1,9 @@
 import std/[os, strutils, parseopt, json],
   boxy, windy, windy/http, vmath, fidget2, fidget2/hybridrender,
   mettascope/[replays, common, panels, utils, timeline,
-  worldmap, minimap, agenttraces, footer, objectinfo]
+  worldmap, minimap, agenttraces, footer, objectinfo, envconfig]
 
-var replay = ""
-
-proc updateReplayHeader(replayPath: string = "") =
+proc updateReplayHeader() =
   ## Set the global header's display name for the current session.
   var display = "Mettascope"
 
@@ -16,11 +14,11 @@ proc updateReplayHeader(replayPath: string = "") =
         display = node.getStr
     if display == "Mettascope" and common.replay.fileName.len > 0:
       display = common.replay.fileName
-  if display == "Mettascope" and replayPath.len > 0:
-    display = extractFilename(replayPath)
-
   let titleNode = find("**/GlobalTitle")
   titleNode.text = display
+
+proc onReplayLoaded() =
+  updateReplayHeader()
 
 proc parseArgs() =
   ## Parse command line arguments.
@@ -33,12 +31,11 @@ proc parseArgs() =
     of cmdLongOption, cmdShortOption:
       case p.key
       of "replay", "r":
-        replay = p.val
-        echo "Replay: ", replay
+        commandLineReplay = p.val
       else:
-        discard
+        quit("Unknown option: " & p.key)
     of cmdArgument:
-      discard
+      quit("Unknown option: " & p.key)
 
 find "/UI/Main":
 
@@ -48,28 +45,32 @@ find "/UI/Main":
 
     utils.typeface = readTypeface(dataDir / "fonts" / "Inter-Regular.ttf")
 
-    if common.playMode != Realtime:
-      if replay != "":
-        if replay.startsWith("http"):
-          echo "Loading replay from URL: ", replay
-          let req = startHttpRequest(replay)
+    case common.playMode
+    of Historical:
+      if commandLineReplay != "":
+        if commandLineReplay.startsWith("http"):
+          echo "Loading built-in replay while web is loading"
+          common.replay = loadReplay(dataDir / "replays" / "pens.json.z")
+          onReplayLoaded()
+          echo "Loading replay from URL: ", commandLineReplay
+          let req = startHttpRequest(commandLineReplay)
           req.onError = proc(msg: string) =
             echo "onError: " & msg
           req.onResponse = proc(response: HttpResponse) =
             echo "onResponse: code=", $response.code, ", len=", response.body.len
-            common.replay = loadReplay(response.body, replay)
-            updateReplayHeader(replay)
+            common.replay = loadReplay(response.body, commandLineReplay)
+            onReplayLoaded()
         else:
-          echo "Loading replay from file: ", replay
-          common.replay = loadReplay(replay)
-          updateReplayHeader(replay)
+          echo "Loading replay from file: ", commandLineReplay
+          common.replay = loadReplay(commandLineReplay)
+          onReplayLoaded()
       elif common.replay == nil:
         echo "Loading built-in replay"
         common.replay = loadReplay( dataDir / "replays" / "pens.json.z")
-        updateReplayHeader(dataDir / "replays" / "pens.json.z")
-    else:
+        onReplayLoaded()
+    of Realtime:
       echo "Realtime mode detected"
-      updateReplayHeader()
+      onReplayLoaded()
 
     rootArea.split(Vertical)
     rootArea.split = 0.20
@@ -141,14 +142,22 @@ find "/UI/Main":
       timeline.drawTimeline(globalTimelinePanel)
       bxy.restoreTransform()
 
+    onStepChanged()
+    updateEnvConfig()
+
   onFrame:
 
     playControls()
 
+    # super+w or super+q closes window on Mac.
+    when defined(macosx):
+      let superDown = window.buttonDown[KeyLeftSuper] or window.buttonDown[KeyRightSuper]
+      if superDown and (window.buttonPressed[KeyW] or window.buttonPressed[KeyQ]):
+        window.closeRequested = true
+
     if window.buttonReleased[MouseLeft]:
       mouseCaptured = false
       mouseCapturedPanel = nil
-
 
 when isMainModule:
 

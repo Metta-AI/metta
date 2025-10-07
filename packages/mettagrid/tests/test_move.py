@@ -27,26 +27,25 @@ from mettagrid.test_support.orientation import Orientation
 
 # Test fixtures for MettaGrid environments
 @pytest.fixture
-def base_config():
+def base_config() -> GameConfig:
     """Base configuration for MettaGrid tests."""
-    return {
-        "max_steps": 50,
-        "num_agents": 1,
-        "obs_width": 3,
-        "obs_height": 3,
-        "num_observation_tokens": 100,
-        "resource_names": ["laser", "armor"],
-        "actions": {
-            "noop": {"enabled": True},
-            "move": {"enabled": True},
-            "rotate": {"enabled": True},
+    return GameConfig(
+        max_steps=50,
+        num_agents=1,
+        obs_width=3,
+        obs_height=3,
+        num_observation_tokens=100,
+        resource_names=["laser", "armor"],
+        actions=ActionsConfig(
+            noop=ActionConfig(enabled=True),
+            move=ActionConfig(enabled=True),
+            rotate=ActionConfig(enabled=True),
+        ),
+        objects={
+            "wall": WallConfig(type_id=1),
         },
-        "objects": {
-            "wall": {"type_id": 1},
-        },
-        "agent": {"rewards": {}},
-        "allow_diagonals": True,
-    }
+        allow_diagonals=True,
+    )
 
 
 @pytest.fixture
@@ -99,9 +98,11 @@ def configured_env(base_config):
     """Factory fixture that creates a configured MettaGrid environment."""
 
     def _create_env(game_map, config_overrides=None):
-        game_config = base_config.copy()
         if config_overrides:
-            game_config.update(config_overrides)
+            # Create a new config with overrides
+            game_config = base_config.model_copy(update=config_overrides)
+        else:
+            game_config = base_config
 
         env = MettaGrid(from_mettagrid_config(game_config), game_map, 42)
 
@@ -144,7 +145,7 @@ def test_8way_movement_all_directions():
     env = MettaGridCore(cfg)
     env.reset()
 
-    objects = env.grid_objects
+    objects = env.grid_objects()
     agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)  # type_id 0 is agent
     initial_pos = (objects[agent_id]["r"], objects[agent_id]["c"])
     assert initial_pos == (2, 2)
@@ -170,7 +171,7 @@ def test_8way_movement_all_directions():
         actions[0] = [move_idx, orientation.value]
         env.step(actions)
 
-        objects = env.grid_objects
+        objects = env.grid_objects()
         actual_pos = (objects[agent_id]["r"], objects[agent_id]["c"])
         assert actual_pos == expected_pos, f"Direction {orientation.name}: expected {expected_pos}, got {actual_pos}"
 
@@ -208,7 +209,7 @@ def test_8way_movement_obstacles():
     env = MettaGridCore(cfg)
     env.reset()
 
-    objects = env.grid_objects
+    objects = env.grid_objects()
     agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)
 
     action_names = env.action_names
@@ -223,7 +224,7 @@ def test_8way_movement_obstacles():
     actions[0] = [move_idx, Orientation.WEST.value]  # West
     env.step(actions)
 
-    objects = env.grid_objects
+    objects = env.grid_objects()
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (1, 1)
 
     # Try to move Northwest into wall - should fail
@@ -232,7 +233,7 @@ def test_8way_movement_obstacles():
     assert not env.action_success[0]
 
     # Position should remain unchanged
-    objects = env.grid_objects
+    objects = env.grid_objects()
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (1, 1)
 
 
@@ -258,7 +259,7 @@ def test_orientation_changes_with_8way():
     env = MettaGridCore(cfg)
     env.reset()
 
-    objects = env.grid_objects
+    objects = env.grid_objects()
     agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)
 
     action_names = env.action_names
@@ -270,7 +271,7 @@ def test_orientation_changes_with_8way():
     actions[0] = [rotate_idx, 3]  # Face right (East)
     env.step(actions)
 
-    objects = env.grid_objects
+    objects = env.grid_objects()
     assert objects[agent_id]["orientation"] == 3  # Right
 
     # Test movements and verify orientation changes
@@ -285,7 +286,7 @@ def test_orientation_changes_with_8way():
 
     for orientation, expected_facing in test_moves:
         # Skip movements that would go out of bounds
-        objects = env.grid_objects
+        objects = env.grid_objects()
         r, c = objects[agent_id]["r"], objects[agent_id]["c"]
 
         # Check bounds based on movement delta
@@ -314,7 +315,7 @@ def test_orientation_changes_with_8way():
         actions[0] = [move_idx, orientation.value]
         env.step(actions)
 
-        objects = env.grid_objects
+        objects = env.grid_objects()
         actual_facing = objects[agent_id]["orientation"]
         assert actual_facing == expected_facing, (
             f"Direction {orientation.name}: expected facing {expected_facing}, got {actual_facing}"
@@ -350,7 +351,7 @@ def test_8way_movement_with_simple_environment():
     env = MettaGridCore(cfg)
     env.reset()
 
-    objects = env.grid_objects
+    objects = env.grid_objects()
     agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)
 
     # Verify agent is at expected position
@@ -365,25 +366,25 @@ def test_8way_movement_with_simple_environment():
     # Move Northeast
     actions[0] = [move_idx, Orientation.NORTHEAST.value]
     env.step(actions)
-    objects = env.grid_objects
+    objects = env.grid_objects()
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (3, 5)
 
     # Move Southeast
     actions[0] = [move_idx, Orientation.SOUTHEAST.value]
     env.step(actions)
-    objects = env.grid_objects
+    objects = env.grid_objects()
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (4, 6)
 
     # Move Southwest
     actions[0] = [move_idx, Orientation.SOUTHWEST.value]
     env.step(actions)
-    objects = env.grid_objects
+    objects = env.grid_objects()
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (5, 5)
 
     # Move Northwest - back to start
     actions[0] = [move_idx, Orientation.NORTHWEST.value]
     env.step(actions)
-    objects = env.grid_objects
+    objects = env.grid_objects()
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (4, 4)
 
 
@@ -411,7 +412,7 @@ def test_8way_movement_boundary_check():
     env = MettaGridCore(cfg)
     env.reset()
 
-    objects = env.grid_objects
+    objects = env.grid_objects()
     agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)
 
     action_names = env.action_names
@@ -422,7 +423,7 @@ def test_8way_movement_boundary_check():
     actions[0] = [move_idx, Orientation.NORTHWEST.value]
     env.step(actions)
 
-    objects = env.grid_objects
+    objects = env.grid_objects()
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (0, 0)
 
     # Try to move further northwest - should fail
@@ -445,7 +446,7 @@ def test_8way_movement_boundary_check():
     env.step(actions)
     assert env.action_success[0]
 
-    objects = env.grid_objects
+    objects = env.grid_objects()
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (1, 1)
 
 
@@ -472,7 +473,7 @@ def test_orientation_changes_on_failed_8way_movement():
     env = MettaGridCore(cfg)
     env.reset()
 
-    objects = env.grid_objects
+    objects = env.grid_objects()
     agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)
 
     # Check initial orientation
@@ -488,7 +489,7 @@ def test_orientation_changes_on_failed_8way_movement():
         actions[0] = [rotate_idx, 2]  # Face Left (West)
         env.step(actions)
 
-        objects = env.grid_objects
+        objects = env.grid_objects()
         assert objects[agent_id]["orientation"] == 2  # Left
 
     # Try to move East into wall - should fail but SHOULD change orientation to East
@@ -496,7 +497,7 @@ def test_orientation_changes_on_failed_8way_movement():
     actions[0] = [move_idx, Orientation.EAST.value]
     env.step(actions)
 
-    objects = env.grid_objects
+    objects = env.grid_objects()
     assert not env.action_success[0]  # Movement should fail
     assert objects[agent_id]["orientation"] == Orientation.EAST.value  # Orientation should change to East
 
@@ -504,7 +505,7 @@ def test_orientation_changes_on_failed_8way_movement():
     actions[0] = [move_idx, Orientation.NORTHEAST.value]
     env.step(actions)
 
-    objects = env.grid_objects
+    objects = env.grid_objects()
     assert not env.action_success[0]  # Movement should fail
     assert objects[agent_id]["orientation"] == Orientation.NORTHEAST.value  # Orientation should change to Northeast
 
@@ -512,7 +513,7 @@ def test_orientation_changes_on_failed_8way_movement():
     actions[0] = [move_idx, Orientation.SOUTHWEST.value]
     env.step(actions)
 
-    objects = env.grid_objects
+    objects = env.grid_objects()
     assert not env.action_success[0]  # Movement should fail
     assert objects[agent_id]["orientation"] == Orientation.SOUTHWEST.value  # Orientation should change to Southwest
 

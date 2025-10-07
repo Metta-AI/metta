@@ -1,9 +1,9 @@
 from numpy import random
 
+from mettagrid.mapgen.area import AreaWhere
 from mettagrid.mapgen.scene import ChildrenAction, Scene, SceneConfig
 from mettagrid.mapgen.scenes.random import Random
 from mettagrid.mapgen.scenes.room_grid import RoomGrid
-from mettagrid.mapgen.types import AreaWhere
 
 
 class MultiLeftAndRightConfig(SceneConfig):

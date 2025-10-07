@@ -3,8 +3,8 @@ from typing import Literal, Tuple
 
 import numpy as np
 
+from mettagrid.map_builder import MapGrid
 from mettagrid.mapgen.scene import Scene, SceneConfig
-from mettagrid.mapgen.types import MapGrid
 
 logger = logging.getLogger(__name__)
 

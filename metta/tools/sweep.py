@@ -12,18 +12,13 @@ from metta.adaptive import AdaptiveConfig, AdaptiveController
 from metta.adaptive.dispatcher import LocalDispatcher, SkypilotDispatcher
 from metta.adaptive.stores import WandbStore
 from metta.common.tool import Tool
+from metta.common.util.constants import PROD_STATS_SERVER_URI
 from metta.common.util.log_config import init_logging
 from metta.common.wandb.context import WandbConfig
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig
-from metta.sweep.schedulers.async_capped import (
-    AsyncCappedOptimizingScheduler,
-    AsyncCappedSchedulerConfig,
-)
-from metta.sweep.schedulers.batched_synced import (
-    BatchedSyncedOptimizingScheduler,
-    BatchedSyncedSchedulerConfig,
-)
-from metta.tools.utils.auto_config import auto_stats_server_uri, auto_wandb_config
+from metta.sweep.schedulers.async_capped import AsyncCappedOptimizingScheduler, AsyncCappedSchedulerConfig
+from metta.sweep.schedulers.batched_synced import BatchedSyncedOptimizingScheduler, BatchedSyncedSchedulerConfig
+from metta.tools.utils.auto_config import auto_wandb_config
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +130,7 @@ class SweepTool(Tool):
     # Controller settings
     max_parallel_jobs: int = 6
     monitoring_interval: int = 60
-    sweep_server_uri: str = "https://api.observatory.softmax-research.net"
+    sweep_server_uri: str = PROD_STATS_SERVER_URI
     gpus: int = 1  # Number of GPUs per training job
     nodes: int = 1  # Number of nodes per training job
 
@@ -151,7 +146,7 @@ class SweepTool(Tool):
 
     # Infrastructure configuration
     wandb: WandbConfig = WandbConfig.Unconfigured()
-    stats_server_uri: Optional[str] = auto_stats_server_uri()  # Stats server for remote evaluations
+    stats_server_uri: str = PROD_STATS_SERVER_URI  # Stats server for remote evaluations
 
     # Dispatcher configuration
     dispatcher_type: DispatcherType = DispatcherType.SKYPILOT  # SKYPILOT or LOCAL
@@ -170,6 +165,7 @@ class SweepTool(Tool):
             # The keys include the full path "trainer.batch_size" not just "batch_size"
             self.protein_config.parameters.pop("trainer.batch_size", None)
             self.protein_config.parameters.pop("trainer.minibatch_size", None)
+            self.protein_config.parameters.pop("trainer.total_timesteps", None)
 
         # Handle sweep_name being passed via cmd line
         if "sweep_name" in args:

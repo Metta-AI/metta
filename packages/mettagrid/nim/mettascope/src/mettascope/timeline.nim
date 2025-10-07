@@ -1,7 +1,7 @@
 import
   std/[times, math],
   boxy, vmath, windy, fidget2, fidget2/[hybridrender, common],
-  common, panels, objectinfo
+  common, panels, actions, objectinfo
 
 const
   BgColor = parseHtmlColor("#1D1D1D")
@@ -25,18 +25,22 @@ var
   nodeScrubberBg: Node
   nodeScrubber: Node
 
-proc stepChanged() =
-  echo "step: ", step
+proc onStepChanged*() =
+  ## Called after the step changes so that UI is updated.
   updateObjectInfo()
+
+proc onRequestPython*() =
+  ## Called before requesting Python to process the next step.
+  processActions()
 
 proc bindTimelineNodes() =
   if nodesBound or globalTimelinePanel.isNil or globalTimelinePanel.node.isNil:
     return
   nodeTimeline = globalTimelinePanel.node
-  nodeTimelineReadout = nodeTimeline.find("**/TimelineReadout")
-  nodeStepCounter = nodeTimeline.find("**/#step-counter")
-  nodeScrubberBg = nodeTimeline.find("**/ScrubberBg")
-  nodeScrubber = nodeTimeline.find("**/Scrubber")
+  nodeTimelineReadout = nodeTimeline.find("TimelineReadout")
+  nodeStepCounter = nodeTimelineReadout.find("StepCounter")
+  nodeScrubberBg = nodeTimeline.find("ScrubberBg")
+  nodeScrubber = nodeTimeline.find("Scrubber")
   nodesBound = true
 
 proc playControls*() =
@@ -66,18 +70,22 @@ proc playControls*() =
         stepFloat = replay.maxSteps.float32 - 1
     step = stepFloat.int
     step = step.clamp(0, replay.maxSteps - 1)
-    stepChanged()
 
   if window.buttonPressed[KeyLeftBracket]:
     step -= 1
     step = clamp(step, 0, replay.maxSteps - 1)
     stepFloat = step.float32
-    stepChanged()
   if window.buttonPressed[KeyRightBracket]:
     step += 1
+    if playMode == Realtime and step >= replay.maxSteps:
+      requestPython = true
+      step = replay.maxSteps - 1
     step = clamp(step, 0, replay.maxSteps - 1)
     stepFloat = step.float32
-    stepChanged()
+  # Fire onStepChanged once and only once when step changes.
+  if step != previousStep:
+    previousStep = step
+    onStepChanged()
 
 proc getStepFromX(localX, panelWidth: float32): int =
   ## Maps a local X coordinate within the timeline panel to a replay step.
@@ -94,8 +102,13 @@ proc getStepFromX(localX, panelWidth: float32): int =
 proc onScrubberChange(localX, panelWidth: float32) =
   ## Updates global step based on local X.
   let s = getStepFromX(localX, panelWidth)
-  step = s
-  stepFloat = step.float32
+  if s != step:
+    step = s
+    stepFloat = step.float32
+    previousStep = step
+    # Stop playing when scrubbing.
+    play = false
+    onStepChanged()
 
 proc centerTracesOnStep(targetStep: int) =
   ## Recenters the Agent Traces panel on the given step.
@@ -159,8 +172,12 @@ proc drawFrozenMarkers(panel: Panel) =
 
 proc trackRect(panel: Panel): Rect =
   ## Track rectangle in panel-local coordinates.
-  return Rect(x: nodeScrubberBg.position.x, y: nodeScrubberBg.position.y,
-              w: nodeScrubberBg.size.x, h: nodeScrubberBg.size.y)
+  return rect(
+    nodeScrubberBg.position.x,
+    nodeScrubberBg.position.y,
+    nodeScrubberBg.size.x,
+    nodeScrubberBg.size.y
+  )
 
 proc updateScrubber() =
   ## Timeline should act like a video playbar:
@@ -196,17 +213,8 @@ proc updateScrubber() =
     fillW = progress * trackWidth2
   # Ensure the scrubber fill is visible at step 0: minimum width ~1px.
   fillW = max(fillW, 1f)
-  # Anchor left and scale width using node scale to support VECTOR nodes.
-  var changed = false
-  if abs(nodeScrubber.position.x - trackLeft2) > 0.1f:
-    nodeScrubber.position = vec2(trackLeft2, nodeScrubber.position.y)
-    changed = true
-  let baseW = (if nodeScrubber.origSize.x > 0: nodeScrubber.origSize.x else: max(1f, nodeScrubber.size.x))
-  let scaleX = max(fillW / baseW, 0.001f)
-  if abs(nodeScrubber.scale.x - scaleX) > 0.001f or abs(nodeScrubber.scale.y - 1f) > 0.001f:
-    nodeScrubber.scale = vec2(scaleX, 1f)
-    changed = true
-  if changed:
+  if nodeScrubber.size.x != fillW:
+    nodeScrubber.size.x = fillW
     nodeScrubber.dirty = true
 
 proc drawTimeline*(panel: Panel) =
@@ -229,8 +237,10 @@ proc drawTimeline*(panel: Panel) =
   if panel.hasMouse:
     if window.buttonPressed[MouseLeft]:
       let tr = trackRect(panel)
-      let inTrack = (localMouse.x >= tr.x and localMouse.x <= tr.x + tr.w and
-                     localMouse.y >= tr.y and localMouse.y <= tr.y + tr.h)
+      let inTrack = (
+        localMouse.x >= tr.x and localMouse.x <= tr.x + tr.w and
+        localMouse.y >= tr.y and localMouse.y <= tr.y + tr.h
+      )
       mouseCaptured = true
       mouseCapturedPanel = panel
       scrubberActive = inTrack

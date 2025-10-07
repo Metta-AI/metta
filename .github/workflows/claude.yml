@@ -1,0 +1,659 @@
+name: "Claude Assistant"
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+  discussion_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  discussions: write
+  id-token: write
+  actions: write
+
+env:
+  CLAUDE_MODEL: "claude-sonnet-4-20250514"
+
+jobs:
+  claude-response:
+    if: contains(github.event.comment.body, '@claude')
+    runs-on: ubuntu-latest
+    # Put user-controlled fields in env so shell uses $VAR (no YAML string injection)
+    env:
+      COMMENT_BODY: ${{ github.event.comment.body }}
+      COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+    outputs:
+      action: ${{ steps.check_action.outputs.action }}
+      review_types: ${{ steps.check_action.outputs.review_types }}
+      comment_id: ${{ steps.context_info.outputs.comment_id }}
+      comment_type: ${{ steps.context_info.outputs.comment_type }}
+      pr_number: ${{ steps.context_info.outputs.pr_number }}
+
+    steps:
+      - name: Extract Context Information
+        id: context_info
+        run: |
+          echo "=== EXTRACTING CONTEXT INFO ==="
+
+          # Determine comment type and extract relevant IDs
+          if [[ "${{ github.event_name }}" == "issue_comment" ]]; then
+            echo "comment_type=issue" >> $GITHUB_OUTPUT
+            echo "comment_id=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+            if [[ "${{ !!github.event.issue.pull_request }}" == "true" ]]; then
+              echo "is_pr=true" >> $GITHUB_OUTPUT
+              echo "pr_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+            else
+              echo "is_pr=false" >> $GITHUB_OUTPUT
+            fi
+          elif [[ "${{ github.event_name }}" == "pull_request_review_comment" ]] || [[ "${{ github.event_name }}" == "pull_request_review" ]]; then
+            echo "comment_type=pr_review" >> $GITHUB_OUTPUT
+            echo "comment_id=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+            echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+            echo "is_pr=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "discussion_comment" ]]; then
+            echo "comment_type=discussion" >> $GITHUB_OUTPUT
+            echo "comment_id=${{ github.event.discussion.number }}" >> $GITHUB_OUTPUT
+            echo "is_pr=false" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "commit_comment" ]]; then
+            echo "comment_type=commit" >> $GITHUB_OUTPUT
+            echo "comment_id=${{ github.event.comment.commit_id }}" >> $GITHUB_OUTPUT
+            echo "is_pr=false" >> $GITHUB_OUTPUT
+          else
+            echo "comment_type=unknown" >> $GITHUB_OUTPUT
+            echo "comment_id=none" >> $GITHUB_OUTPUT
+            echo "is_pr=false" >> $GITHUB_OUTPUT
+          fi
+
+          echo "==========================="
+
+      # Gate: only collaborators with write/maintain/admin can trigger the workflow
+      - name: Validate commenter is allowed
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const login = context.payload.comment?.user?.login;
+            if (!login) throw new Error('No comment user found.');
+            const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: login
+            });
+            const perm = data.permission;
+            core.info(`Commenter @${login} permission: ${perm}`);
+            if (!['admin','maintain','write'].includes(perm)) {
+              throw new Error(`@${login} is not permitted to trigger this workflow (permission=${perm}).`);
+            }
+
+      - name: Debug - Workflow Context
+        run: |
+          echo "=== WORKFLOW DEBUG INFO ==="
+          echo "Event: ${{ github.event_name }}"
+          echo "Action: ${{ github.event.action }}"
+          echo "Comment Type: ${{ steps.context_info.outputs.comment_type }}"
+          echo "Comment ID: ${{ steps.context_info.outputs.comment_id }}"
+          echo "Is PR: ${{ steps.context_info.outputs.is_pr }}"
+          echo "PR Number: ${{ steps.context_info.outputs.pr_number }}"
+          echo "Comment Body:"
+          printf '%s\n' "$COMMENT_BODY"
+          echo "Comment Author: $COMMENT_AUTHOR"
+          echo "Repository: ${{ github.repository }}"
+          echo "==========================="
+
+      - name: Check for action type
+        id: check_action
+        run: |
+          echo "=== ACTION DETECTION DEBUG ==="
+          echo "Full comment (safe):"
+          printf '%s\n' "$COMMENT_BODY"
+
+          IS_PR="${{ steps.context_info.outputs.is_pr }}"
+
+          # Check for review/open-pr on PRs first
+          if [[ "$IS_PR" == "true" ]]; then
+            if printf '%s' "$COMMENT_BODY" | grep -q "@claude review"; then
+              echo "✅ Detected: Review request"
+              echo "action=review" >> $GITHUB_OUTPUT
+              echo "fetch_depth=0" >> $GITHUB_OUTPUT
+
+              # Extract review types from the comment
+              REVIEW_ARGS=$(printf '%s\n' "$COMMENT_BODY" | sed -n 's/.*@claude review\s*\([^@]*\).*/\1/p' | head -1)
+              echo "Review arguments: '$REVIEW_ARGS'"
+
+              REVIEW_TYPES=""
+              if echo "$REVIEW_ARGS" | grep -qw "all"; then
+                echo "✅ Detected: All reviews requested"
+                REVIEW_TYPES="readme,comments,types,einops"
+              else
+                PARSED_TYPES=$(echo "$REVIEW_ARGS" | sed 's/[\[\]]//g' | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -E '^(readme|comments|types|einops)$' | tr '\n' ',' | sed 's/,$//')
+                if [ -z "$PARSED_TYPES" ]; then
+                  echo "⚠️ No valid review types found, defaulting to all"
+                  REVIEW_TYPES="readme,comments,types,einops"
+                else
+                  REVIEW_TYPES="$PARSED_TYPES"
+                fi
+              fi
+
+              echo "review_types=$REVIEW_TYPES" >> $GITHUB_OUTPUT
+              echo "✅ Review types to run: $REVIEW_TYPES"
+
+            elif printf '%s' "$COMMENT_BODY" | grep -q "@claude open-pr"; then
+              echo "✅ Detected: PR creation request"
+              echo "action=create_pr" >> $GITHUB_OUTPUT
+              echo "fetch_depth=0" >> $GITHUB_OUTPUT
+            else
+              echo "✅ Detected: Regular comment request"
+              echo "action=comment" >> $GITHUB_OUTPUT
+              echo "fetch_depth=1" >> $GITHUB_OUTPUT
+            fi
+          else
+            if printf '%s' "$COMMENT_BODY" | grep -q "@claude open-pr"; then
+              echo "✅ Detected: PR creation request"
+              echo "action=create_pr" >> $GITHUB_OUTPUT
+              echo "fetch_depth=0" >> $GITHUB_OUTPUT
+            else
+              echo "✅ Detected: Regular comment request"
+              echo "action=comment" >> $GITHUB_OUTPUT
+              echo "fetch_depth=1" >> $GITHUB_OUTPUT
+            fi
+          fi
+          echo "=============================="
+
+      # Post acknowledgment for review requests
+      - name: Post Review Acknowledgment
+        if: steps.check_action.outputs.action == 'review' && steps.context_info.outputs.comment_type == 'issue'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const reviewTypes = '${{ steps.check_action.outputs.review_types }}'.split(',');
+            await github.rest.issues.createComment({
+              issue_number: ${{ steps.context_info.outputs.comment_id }},
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🔍 **Starting Claude review...**\n\nI'll analyze:\n${reviewTypes.map(t => `- ${t.charAt(0).toUpperCase() + t.slice(1)}`).join('\n')}\n\nThis may take a few minutes. You can check the progress in the [Actions tab](${{ github.server_url }}/${{ github.repository }}/actions).`
+            });
+
+      # Only checkout and run Claude if not a review action
+      - name: Checkout repository
+        if: contains(fromJson('["comment", "create_pr"]'), steps.check_action.outputs.action)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ steps.check_action.outputs.fetch_depth == '0' && 0 || 1 }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        if: steps.check_action.outputs.action == 'create_pr'
+        run: |
+          git config --global user.name "Claude Assistant"
+          git config --global user.email "claude-assistant@users.noreply.github.com"
+
+      - name: Debug - Check Secrets
+        if: contains(fromJson('["comment", "create_pr"]'), steps.check_action.outputs.action)
+        run: |
+          echo "=== SECRETS DEBUG ==="
+          if [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
+            echo "✅ ANTHROPIC_API_KEY is set"
+          else
+            echo "❌ ANTHROPIC_API_KEY is missing!"
+          fi
+          echo "=================="
+
+      # Regular Claude responses for comments/questions
+      - name: Claude Comment Response
+        if: steps.check_action.outputs.action == 'comment'
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          model: ${{ env.CLAUDE_MODEL }}
+          timeout_minutes: 30
+          allowed_tools: "Bash(git status),Bash(git log --oneline -10),Bash(git show),Bash(git diff *),Bash(git branch -a),Bash(ruff check *),Bash(python -m *),Bash(./tools/*),View,GlobTool,GrepTool"
+          custom_instructions: |
+            Follow the project's coding standards defined in CLAUDE.md.
+            Provide helpful analysis and suggestions for code improvements.
+            Focus on code review, explanations, and suggestions rather than making changes.
+            You have access to ruff for linting Python code if needed.
+
+      # Determine target branch and generate new branch name
+      - name: Determine branches
+        if: steps.check_action.outputs.action == 'create_pr'
+        id: branches
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            let targetBranch = 'main'; // fallback
+            let contextInfo = '';
+            const commentType = '${{ steps.context_info.outputs.comment_type }}';
+            const commentId = '${{ steps.context_info.outputs.comment_id }}';
+            const prNumber = '${{ steps.context_info.outputs.pr_number }}';
+
+            if (commentType === 'issue' && prNumber) {
+              const prResponse = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: parseInt(prNumber)
+              });
+              targetBranch = prResponse.data.head.ref;
+              contextInfo = `PR #${prNumber} (${targetBranch})`;
+            } else if (commentType === 'pr_review') {
+              const prResponse = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: parseInt(prNumber)
+              });
+              targetBranch = prResponse.data.head.ref;
+              contextInfo = `PR #${prNumber} review (${targetBranch})`;
+            } else {
+              const repoResponse = await github.rest.repos.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo
+              });
+              targetBranch = repoResponse.data.default_branch;
+              if (commentType === 'issue') {
+                contextInfo = `issue #${commentId} (${targetBranch})`;
+              } else if (commentType === 'discussion') {
+                contextInfo = `discussion #${commentId} (${targetBranch})`;
+              } else if (commentType === 'commit') {
+                contextInfo = `commit ${commentId.substring(0, 7)} (${targetBranch})`;
+              } else {
+                contextInfo = `${commentType} comment (${targetBranch})`;
+              }
+            }
+
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+            const identifier = commentId === 'none' ? 'direct' : commentId;
+            const newBranch = `claude/auto-${identifier}-${timestamp}`;
+
+            core.setOutput('target_branch', targetBranch);
+            core.setOutput('new_branch', newBranch);
+            core.setOutput('context_info', contextInfo);
+
+            return { targetBranch, newBranch, contextInfo };
+
+      - name: Setup branch for Claude
+        if: steps.check_action.outputs.action == 'create_pr'
+        run: |
+          echo "=== SETTING UP BRANCH FOR CLAUDE ==="
+          git fetch origin
+          git checkout ${{ steps.branches.outputs.target_branch }}
+          git pull origin ${{ steps.branches.outputs.target_branch }}
+          git checkout -b ${{ steps.branches.outputs.new_branch }}
+          echo "✅ Created branch: $(git branch --show-current)"
+          echo "✅ Ready for Claude to make changes"
+
+      - name: Prepare MCP Configuration
+        if: steps.check_action.outputs.action == 'create_pr'
+        id: mcp_config
+        run: |
+          echo "=== PREPARING MCP CONFIGURATION ==="
+
+          CLAUDE_ACTION_PATH="/home/runner/work/_actions/anthropics/claude-code-action/beta"
+          if [ -d "$CLAUDE_ACTION_PATH" ]; then
+            echo "✅ Found Claude action at: $CLAUDE_ACTION_PATH"
+          else
+            echo "⚠️ Claude action not found at expected path, checking alternatives..."
+            find /home/runner/work/_actions -name "github-file-ops-server.ts" -type f 2>/dev/null || true
+          fi
+
+          MCP_CONFIG=$(cat <<'EOF'
+          {
+            "mcpServers": {
+              "github_file_ops": {
+                "command": "bun",
+                "args": [
+                  "run",
+                  "/home/runner/work/_actions/anthropics/claude-code-action/beta/src/mcp/github-file-ops-server.ts"
+                ],
+                "env": {
+                  "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+                  "REPO_OWNER": "${{ github.repository_owner }}",
+                  "REPO_NAME": "${{ github.event.repository.name }}",
+                  "BRANCH_NAME": "${{ steps.branches.outputs.new_branch }}",
+                  "REPO_DIR": "${{ github.workspace }}",
+                  "CLAUDE_COMMENT_ID": "${{ github.event.comment.id }}",
+                  "GITHUB_EVENT_NAME": "workflow_dispatch",
+                  "IS_PR": "false",
+                  "GITHUB_API_URL": "${{ github.api_url }}",
+                  "DEBUG": "github-file-ops:*"
+                }
+              }
+            }
+          }
+          EOF
+          )
+
+          echo "=== MCP CONFIGURATION ==="
+          echo "$MCP_CONFIG" | jq '.' || echo "$MCP_CONFIG"
+          echo "========================="
+
+          MCP_CONFIG_ESCAPED=$(echo "$MCP_CONFIG" | jq -c '.')
+          echo "config=$MCP_CONFIG_ESCAPED" >> $GITHUB_OUTPUT
+
+      - name: Claude PR Creation
+        if: steps.check_action.outputs.action == 'create_pr'
+        uses: anthropics/claude-code-action@beta
+        id: claude_pr
+        continue-on-error: true
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          model: ${{ env.CLAUDE_MODEL }}
+          timeout_minutes: 45
+          mcp_config: ${{ steps.mcp_config.outputs.config }}
+          # SECURITY NOTE:
+          # - The comment body is wrapped with `toJson` to prevent breaking YAML or JS.
+          # - Prompt injection is still possible, but only by trusted collaborators (gate checked above).
+          direct_prompt: |
+            CRITICAL FIRST STEP - BRANCH SWITCHING:
+            Use this bash command IMMEDIATELY as your first tool call:
+            Bash(git checkout ${{ steps.branches.outputs.new_branch }})
+
+            CONTEXT:
+            - Working directory: ${{ github.workspace }}
+            - Branch you MUST work on: ${{ steps.branches.outputs.new_branch }}
+            - Target branch for eventual PR: ${{ steps.branches.outputs.target_branch }}
+            - Request from: ${{ steps.branches.outputs.context_info }}
+
+            YOUR TASK: "${{ toJson(github.event.comment.body) }}"
+
+            WORKFLOW INSTRUCTIONS:
+            1. Run `Bash(git checkout ${{ steps.branches.outputs.new_branch }})`
+            2. Verify with `Bash(git branch --show-current)`
+            3. Check project standards (CLAUDE.md, formatters/linters)
+            4. Make requested changes
+            5. Run quality checks if available
+            6. Commit via MCP or bash
+
+            Reminders:
+            - Do NOT modify files in .github/workflows/
+            - Do NOT push or create a PR yourself; the workflow handles that
+
+          allowed_tools: "Edit,Replace,View,GlobTool,GrepTool,Read,Write,mcp__github_file_ops__commit_files,mcp__github__update_issue_comment,Bash(git checkout*),Bash(git branch*),Bash(git status),Bash(git add*),Bash(git commit*),Bash(git log*)"
+
+      - name: Fix git state after Claude
+        if: steps.check_action.outputs.action == 'create_pr' && steps.claude_pr.outcome == 'success'
+        id: fix_git_state
+        run: |
+          echo "=== FIXING GIT STATE ==="
+          CURRENT_BRANCH=$(git branch --show-current)
+          echo "Current branch: $CURRENT_BRANCH"
+          if [ "$CURRENT_BRANCH" != "${{ steps.branches.outputs.new_branch }}" ]; then
+            echo "⚠️ Not on expected branch, switching to ${{ steps.branches.outputs.new_branch }}"
+            git checkout ${{ steps.branches.outputs.new_branch }}
+          fi
+
+          echo "=== CLEANING UP EXTRA FILES ==="
+          for file in output.txt output.log debug.txt claude-debug.txt .claude-session*; do
+            if [ -f "$file" ]; then rm -f "$file"; fi
+          done
+
+          echo "=== GIT STATUS AFTER CLEANUP ==="
+          git status --short
+
+          if ! git diff --quiet || ! git diff --cached --quiet; then
+            echo "⚠️ Found uncommitted changes, committing them..."
+            git add -A
+            git commit -m "feat: implement requested changes from ${{ steps.branches.outputs.context_info }}"
+            echo "✅ Changes committed"
+          fi
+
+          COMMIT_COUNT=$(git rev-list --count origin/${{ steps.branches.outputs.target_branch }}..HEAD 2>/dev/null || echo "0")
+          echo "commit_count=$COMMIT_COUNT" >> $GITHUB_OUTPUT
+
+          if [ "$COMMIT_COUNT" -gt "0" ]; then
+            echo "✅ Found $COMMIT_COUNT commits to push"
+            echo "has_commits=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ No commits found"
+            echo "has_commits=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Debug git state after fix
+        if: steps.check_action.outputs.action == 'create_pr' && steps.claude_pr.outcome == 'success'
+        run: |
+          echo "=== GIT STATE AFTER FIX ==="
+          echo "Current branch: $(git branch --show-current)"
+          echo ""
+          echo "Git status:"
+          git status --short
+          echo ""
+          echo "Commits on current branch not on target:"
+          git log --oneline origin/${{ steps.branches.outputs.target_branch }}..HEAD || echo "No commits"
+          echo ""
+          echo "All local branches:"
+          git branch -vv
+          echo "============================"
+
+      - name: Push branch if needed
+        if: steps.check_action.outputs.action == 'create_pr' && steps.fix_git_state.outputs.has_commits == 'true'
+        id: push_branch
+        run: |
+          echo "=== PUSHING BRANCH ==="
+          git push -u origin ${{ steps.branches.outputs.new_branch }}
+          echo "✅ Branch pushed successfully"
+          echo "branch_pushed=true" >> $GITHUB_OUTPUT
+
+      - name: Create Pull Request
+        if: steps.check_action.outputs.action == 'create_pr' && steps.push_branch.outputs.branch_pushed == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            try {
+              const targetBranch = "${{ steps.branches.outputs.target_branch }}";
+              const newBranch = "${{ steps.branches.outputs.new_branch }}";
+              const contextInfo = "${{ steps.branches.outputs.context_info }}";
+              const commitCount = "${{ steps.fix_git_state.outputs.commit_count }}";
+              const commentType = "${{ steps.context_info.outputs.comment_type }}";
+
+              const { execSync } = require('child_process');
+              const latestCommit = execSync('git log -1 --pretty=format:"%s"', { encoding: 'utf-8' }).trim();
+
+              const prTitle = latestCommit.length > 50 ? `${latestCommit.substring(0, 47)}...` : latestCommit;
+              const commentBody = context.payload.comment?.body || 'No description provided';
+
+              const prResponse = await github.rest.pulls.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: prTitle,
+                head: newBranch,
+                base: targetBranch,
+                body: [
+                  "🤖 **Automated PR created by Claude**",
+                  "",
+                  "**Original request:**",
+                  ...commentBody.split('\n').map(line => '> ' + line.trim()),
+                  "",
+                  "**Context:** This PR addresses the request from " + contextInfo,
+                  "**Target:** This PR will merge into " + targetBranch + (targetBranch === 'main' ? '' : ' (not main)'),
+                  "",
+                  "**Changes made:**",
+                  "- " + commitCount + " commit(s) with: " + latestCommit,
+                  "",
+                  "**Branch flow:** " + newBranch + " → " + targetBranch,
+                  "",
+                  "---",
+                  "*This PR was automatically created by Claude Code Assistant.*"
+                ].join('\n')
+              });
+
+              const commentId = '${{ steps.context_info.outputs.comment_id }}';
+              const successMessage = [
+                "🚀 **PR Created Successfully!**",
+                "",
+                "I've implemented your request and created PR #" + prResponse.data.number + ":",
+                prResponse.data.html_url,
+                "",
+                "**Branch flow:** " + newBranch + " → " + targetBranch,
+                "**Commits:** " + commitCount,
+                "**Changes:** " + latestCommit,
+                "",
+                targetBranch !== 'main'
+                  ? "This PR targets the feature branch " + targetBranch + " for iterative development! 🔄"
+                  : "This PR is ready for review! 🎉"
+              ].join('\n');
+
+              if (commentType === 'issue' || (commentType === 'pr_review' && '${{ steps.context_info.outputs.pr_number }}')) {
+                await github.rest.issues.createComment({
+                  issue_number: parseInt(commentId),
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  body: successMessage
+                });
+              } else if (commentType === 'discussion' || commentType === 'commit') {
+                console.log("PR created from non-issue comment. See PR directly.");
+              }
+
+            } catch (error) {
+              console.error('Error creating PR:', error);
+              const errorMessage = [
+                "❌ **Failed to create PR**",
+                "",
+                "Error: " + error.message,
+                "",
+                "**Debug info:**",
+                "- New branch: ${{ steps.branches.outputs.new_branch }}",
+                "- Target branch: ${{ steps.branches.outputs.target_branch }}",
+                "- Branch pushed: ${{ steps.push_branch.outputs.branch_pushed }}",
+                "- Has commits: ${{ steps.fix_git_state.outputs.has_commits }}",
+                "- Commit count: ${{ steps.fix_git_state.outputs.commit_count }}",
+                "",
+                "Please check the Actions logs for more details."
+              ].join('\n');
+
+              const commentType = '${{ steps.context_info.outputs.comment_type }}';
+              const commentId = '${{ steps.context_info.outputs.comment_id }}';
+
+              if (commentType === 'issue' || commentType === 'pr_review') {
+                await github.rest.issues.createComment({
+                  issue_number: parseInt(commentId),
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  body: errorMessage
+                });
+              }
+            }
+
+      - name: Handle workflow failure
+        if: steps.check_action.outputs.action == 'create_pr' && (steps.push_branch.outputs.branch_pushed != 'true' || steps.fix_git_state.outputs.has_commits != 'true')
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            let reason = "Unknown issue";
+            if ("${{ steps.fix_git_state.outputs.has_commits }}" !== 'true') {
+              reason = "No changes were committed";
+            } else if ("${{ steps.push_branch.outputs.branch_pushed }}" !== 'true') {
+              reason = "Failed to push the branch";
+            }
+
+            const errorMessage = [
+              "⚠️ **Unable to create PR**",
+              "",
+              `**Reason:** ${reason}`,
+              "",
+              "**Debug info:**",
+              `- Expected branch: \`${{ steps.branches.outputs.new_branch }}\``,
+              `- Target branch: \`${{ steps.branches.outputs.target_branch }}\``,
+              `- Has commits: ${{ steps.fix_git_state.outputs.has_commits }}`,
+              `- Branch pushed: ${{ steps.push_branch.outputs.branch_pushed }}`,
+              `- Claude execution: ${{ steps.claude_pr.outcome }}`,
+              "",
+              "**Possible solutions:**",
+              "- Try a simpler, more specific request",
+              "- Check if the changes conflict with existing code",
+              "- Ensure Claude used mcp__github_file_ops__commit_files to commit",
+              "",
+              "You can view the full execution logs in the Actions tab for more details."
+            ].join('\n');
+
+            const commentType = '${{ steps.context_info.outputs.comment_type }}';
+            const commentId = '${{ steps.context_info.outputs.comment_id }}';
+
+            if ((commentType === 'issue' || commentType === 'pr_review') && commentId !== 'none') {
+              await github.rest.issues.createComment({
+                issue_number: parseInt(commentId),
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: errorMessage
+              });
+            }
+
+      - name: Post Help Message
+        if: steps.check_action.outputs.action == 'comment' && steps.context_info.outputs.is_pr == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            // Read from the event payload to avoid JS string-literal injection.
+            const comment = (context.payload.comment?.body || '').toLowerCase();
+            const commentId = '${{ steps.context_info.outputs.comment_id }}';
+            if (comment.includes('review') && commentId !== 'none') {
+              await github.rest.issues.createComment({
+                issue_number: parseInt(commentId),
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: [
+                  "💡 **Claude Review Commands Available**",
+                  "",
+                  "I noticed you mentioned 'review'. Here's how to use review commands:",
+                  "",
+                  "**Syntax:** `@claude review <types>`",
+                  "",
+                  "**Examples:**",
+                  "- `@claude review all` - Run all review types",
+                  "- `@claude review einops` - Check for einops optimization opportunities",
+                  "- `@claude review comments, types` - Review comments and type annotations",
+                  "- `@claude review readme, einops, comments` - Run multiple specific reviews",
+                  "",
+                  "**Available review types:**",
+                  "- `readme` - Verify README accuracy",
+                  "- `comments` - Review code comments and docstrings",
+                  "- `types` - Check type annotations",
+                  "- `einops` - Suggest einops optimizations",
+                  "- `all` - Run all review types",
+                  "",
+                  "You can also:",
+                  "- `@claude open-pr` - Create a new PR with changes",
+                  "- `@claude [question]` - Ask me anything about the code",
+                  "",
+                  "*Note: Review commands only work on pull requests.*"
+                ].join('\n')
+              });
+            }
+
+      - name: Final Debug Summary
+        if: always()
+        run: |
+          echo "=== FINAL WORKFLOW SUMMARY ==="
+          echo "Action type: ${{ steps.check_action.outputs.action }}"
+          echo "Comment type: ${{ steps.context_info.outputs.comment_type }}"
+          echo "Comment ID: ${{ steps.context_info.outputs.comment_id }}"
+          echo "New branch: ${{ steps.branches.outputs.new_branch }}"
+          echo "Target branch: ${{ steps.branches.outputs.target_branch }}"
+          echo "Context: ${{ steps.branches.outputs.context_info }}"
+          echo "Branch pushed: ${{ steps.push_branch.outputs.branch_pushed }}"
+          echo "Has commits: ${{ steps.fix_git_state.outputs.has_commits }}"
+          echo "Commit count: ${{ steps.fix_git_state.outputs.commit_count }}"
+          echo "Claude outcome: ${{ steps.claude_pr.outcome }}"
+          echo "Workflow status: ${{ job.status }}"
+          echo "=============================="
+
+  run-orchestrator:
+    needs: claude-response
+    if: needs.claude-response.outputs.action == 'review'
+    uses: ./.github/workflows/claude-review-orchestrator.yml
+    secrets: inherit
+    with:
+      pr_number: ${{ needs.claude-response.outputs.pr_number }}
+      run_readme: ${{ contains(needs.claude-response.outputs.review_types, 'readme') }}
+      run_comments: ${{ contains(needs.claude-response.outputs.review_types, 'comments') }}
+      run_types: ${{ contains(needs.claude-response.outputs.review_types, 'types') }}
+      run_einops: ${{ contains(needs.claude-response.outputs.review_types, 'einops') }}

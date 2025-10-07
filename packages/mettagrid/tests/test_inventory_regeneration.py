@@ -21,7 +21,7 @@ class TestInventoryRegeneration:
 
         # Add energy to resources and configure regeneration
         cfg.game.resource_names = ["energy", "heart", "battery_blue"]
-        cfg.game.inventory_regen_amounts = {"energy": 5}  # Regenerate 5 energy
+        cfg.game.agent.inventory_regen_amounts = {"energy": 5}  # Regenerate 5 energy
         cfg.game.inventory_regen_interval = 3  # Every 3 timesteps
         cfg.game.agent.initial_inventory = {"energy": 10}  # Start with 10 energy
         cfg.game.actions.noop.enabled = True
@@ -32,7 +32,7 @@ class TestInventoryRegeneration:
         obs, info = env.reset()
 
         # Get initial energy levels
-        grid_objects = env.grid_objects
+        grid_objects = env.grid_objects()
         agents = []
         for _obj_id, obj in grid_objects.items():
             if "agent_id" in obj:  # This is an agent
@@ -51,42 +51,42 @@ class TestInventoryRegeneration:
 
         # Step 1: No regeneration yet
         obs, rewards, terminals, truncations, info = env.step(actions)
-        grid_objects = env.grid_objects
+        grid_objects = env.grid_objects()
         agents = [obj for _obj_id, obj in grid_objects.items() if "agent_id" in obj]
         for agent in agents:
             assert agent["inventory"][energy_idx] == 10, "Energy should not regenerate at step 1"
 
         # Step 2: No regeneration yet
         obs, rewards, terminals, truncations, info = env.step(actions)
-        grid_objects = env.grid_objects
+        grid_objects = env.grid_objects()
         agents = [obj for _obj_id, obj in grid_objects.items() if "agent_id" in obj]
         for agent in agents:
             assert agent["inventory"][energy_idx] == 10, "Energy should not regenerate at step 2"
 
         # Step 3: Regeneration should occur (current_step % 3 == 0)
         obs, rewards, terminals, truncations, info = env.step(actions)
-        grid_objects = env.grid_objects
+        grid_objects = env.grid_objects()
         agents = [obj for _obj_id, obj in grid_objects.items() if "agent_id" in obj]
         for agent in agents:
             assert agent["inventory"][energy_idx] == 15, "Energy should regenerate to 15 at step 3"
 
         # Step 4: No regeneration
         obs, rewards, terminals, truncations, info = env.step(actions)
-        grid_objects = env.grid_objects
+        grid_objects = env.grid_objects()
         agents = [obj for _obj_id, obj in grid_objects.items() if "agent_id" in obj]
         for agent in agents:
             assert agent["inventory"][energy_idx] == 15, "Energy should remain at 15 at step 4"
 
         # Step 5: No regeneration
         obs, rewards, terminals, truncations, info = env.step(actions)
-        grid_objects = env.grid_objects
+        grid_objects = env.grid_objects()
         agents = [obj for _obj_id, obj in grid_objects.items() if "agent_id" in obj]
         for agent in agents:
             assert agent["inventory"][energy_idx] == 15, "Energy should remain at 15 at step 5"
 
         # Step 6: Regeneration should occur again
         obs, rewards, terminals, truncations, info = env.step(actions)
-        grid_objects = env.grid_objects
+        grid_objects = env.grid_objects()
         agents = [obj for _obj_id, obj in grid_objects.items() if "agent_id" in obj]
         for agent in agents:
             assert agent["inventory"][energy_idx] == 20, "Energy should regenerate to 20 at step 6"
@@ -102,7 +102,7 @@ class TestInventoryRegeneration:
         )
 
         cfg.game.resource_names = ["energy"]
-        cfg.game.inventory_regen_amounts = {"energy": 5}
+        cfg.game.agent.inventory_regen_amounts = {"energy": 5}
         cfg.game.inventory_regen_interval = 0  # Disabled
         cfg.game.agent.initial_inventory = {"energy": 10}
         cfg.game.actions.noop.enabled = True
@@ -118,7 +118,7 @@ class TestInventoryRegeneration:
 
         for _ in range(10):
             obs, rewards, terminals, truncations, info = env.step(actions)
-            grid_objects = env.grid_objects
+            grid_objects = env.grid_objects()
             agent = next(obj for _obj_id, obj in grid_objects.items() if "agent_id" in obj)
             assert agent["inventory"][energy_idx] == 10, "Energy should not regenerate with interval=0"
 
@@ -133,7 +133,7 @@ class TestInventoryRegeneration:
         )
 
         cfg.game.resource_names = ["energy"]
-        cfg.game.inventory_regen_amounts = {"energy": 10}  # Try to add 10
+        cfg.game.agent.inventory_regen_amounts = {"energy": 10}  # Try to add 10
         cfg.game.inventory_regen_interval = 1  # Every timestep
         cfg.game.agent.initial_inventory = {"energy": 95}
         cfg.game.agent.resource_limits = {"energy": 100}  # Max 100 energy
@@ -149,12 +149,12 @@ class TestInventoryRegeneration:
         actions = np.array([[noop_idx, 0]], dtype=dtype_actions)
 
         obs, rewards, terminals, truncations, info = env.step(actions)
-        grid_objects = env.grid_objects
+        grid_objects = env.grid_objects()
         agent = next(obj for _obj_id, obj in grid_objects.items() if "agent_id" in obj)
         assert agent["inventory"][energy_idx] == 100, "Energy should cap at 100 (limit)"
 
         # Take another step - should stay at 100
         obs, rewards, terminals, truncations, info = env.step(actions)
-        grid_objects = env.grid_objects
+        grid_objects = env.grid_objects()
         agent = next(obj for _obj_id, obj in grid_objects.items() if "agent_id" in obj)
         assert agent["inventory"][energy_idx] == 100, "Energy should remain at 100"

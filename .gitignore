@@ -121,6 +121,11 @@ packages/mettagrid/nim/mettascope/dist/
 packages/mettagrid/nim/mettascope/bindings/generated/
 mettascope.out
 !packages/mettagrid/nim/mettascope/data/resources/
+tmp/
+packages/mettagrid/python/src/mettagrid/nim/mettascope/
 
 # Nim runtime
 .nim_runtime
+
+.terraform*
+terraform.tfstate

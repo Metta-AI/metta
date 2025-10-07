@@ -101,7 +101,6 @@ class ConverterConfig(GridObjectConfig):
         conversion_ticks: int,
         cooldown: int,
         initial_resource_count: int = 0,
-        color: int = 0,
         recipe_details_obs: bool = False,
     ) -> None: ...
     type_id: int
@@ -113,7 +112,6 @@ class ConverterConfig(GridObjectConfig):
     conversion_ticks: int
     cooldown: int
     initial_resource_count: int
-    color: int
     recipe_details_obs: bool
 
 class ActionConfig:
@@ -139,12 +137,12 @@ class Recipe:
 class ClipperConfig:
     def __init__(
         self,
-        recipe: Recipe,
+        unclipping_recipes: list[Recipe],
         length_scale: float,
         cutoff_distance: float,
         clip_rate: float,
     ) -> None: ...
-    recipe: Recipe
+    unclipping_recipes: list[Recipe]
     length_scale: float
     cutoff_distance: float
     clip_rate: float
@@ -166,6 +164,21 @@ class ChangeGlyphActionConfig(ActionConfig):
         number_of_glyphs: int = ...,
     ) -> None: ...
     number_of_glyphs: int
+
+class ResourceModConfig(ActionConfig):
+    def __init__(
+        self,
+        required_resources: dict[int, int] = {},
+        consumed_resources: dict[int, float] = {},
+        modifies: dict[int, float] = {},
+        agent_radius: int = 0,
+        converter_radius: int = 0,
+        scales: bool = False,
+    ) -> None: ...
+    modifies: dict[int, float]
+    agent_radius: int
+    converter_radius: int
+    scales: bool
 
 class GlobalObsConfig:
     def __init__(
@@ -240,7 +253,14 @@ class MettaGrid:
     def set_buffers(
         self, observations: np.ndarray, terminals: np.ndarray, truncations: np.ndarray, rewards: np.ndarray
     ) -> None: ...
-    def grid_objects(self) -> dict[int, dict]: ...
+    def grid_objects(
+        self,
+        min_row: int = -1,
+        max_row: int = -1,
+        min_col: int = -1,
+        max_col: int = -1,
+        ignore_types: list[str] = [],
+    ) -> dict[int, dict]: ...
     def action_names(self) -> list[str]: ...
     def get_episode_rewards(self) -> np.ndarray: ...
     def get_episode_stats(self) -> EpisodeStats: ...

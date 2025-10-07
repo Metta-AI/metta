@@ -29,10 +29,11 @@ PYTHON_TEST_FOLDERS = [
     "mettascope/tests",
     "agent/tests",
     "app_backend/tests",
-    "codebot/tests",
     "common/tests",
-    "packages/mettagrid/tests",
+    "packages/codebot/tests",
     "packages/cogames/tests",
+    "packages/gitta/tests",
+    "packages/mettagrid/tests",
 ]
 
 VERSION_PATTERN = re.compile(r"^(\d+\.\d+\.\d+(?:\.\d+)?)$")
@@ -515,6 +516,7 @@ def cmd_publish(
         typer.Option("--version", "-v", help="Explicit version to tag (digits separated by dots)"),
     ] = None,
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Preview actions without tagging")] = False,
+    no_repo: Annotated[bool, typer.Option("--no-repo", help="Don't push the github repo")] = False,
     remote: Annotated[str, typer.Option("--remote", help="Git remote to push the tag to")] = "origin",
     force: Annotated[bool, typer.Option("--force", help="Bypass branch and clean checks")] = False,
 ):
@@ -589,25 +591,54 @@ def cmd_publish(
         warning("Force mode enabled: branch and clean checks were bypassed.")
     info("")
 
+    publish_mettagrid_after = False
+
     if dry_run:
         success("Dry run: no tag created. Run without --dry-run to proceed.")
         return
+
+    if package == "cogames":
+        publish_mettagrid_after = typer.confirm(
+            "Cogames depends on mettagrid. Publish mettagrid after this tag?",
+            default=True,
+        )
 
     if not typer.confirm("Create and push this tag?", default=True):
         info("Publishing aborted.")
         return
 
     try:
-        info(f"Pushing to {remote}...")
-        subprocess.run([f"{cli.repo_root}/devops/git/push_child_repo.py", package, "-y"], check=True)
         info(f"Tagging {package} {target_version}...")
         git.run_git("tag", "-a", tag_name, "-m", f"Release {package} {target_version}")
         git.run_git("push", remote, tag_name)
     except subprocess.CalledProcessError as exc:
-        error(f"Failed to publish: {exc}")
+        error(f"Failed to tag: {exc}.")
         raise typer.Exit(exc.returncode) from exc
 
     success(f"Published {tag_name} to {remote}.")
+
+    try:
+        if not no_repo:
+            info(f"Pushing {package} as child repo...")
+            subprocess.run([f"{cli.repo_root}/devops/git/push_child_repo.py", package, "-y"], check=True)
+    except subprocess.CalledProcessError as exc:
+        error(
+            f"Failed to publish: {exc}. {tag_name} was still published to {remote}."
+            + " Use --no-repo to skip pushing to github repo."
+        )
+        raise typer.Exit(exc.returncode) from exc
+
+    if publish_mettagrid_after:
+        info("")
+        info("Starting mettagrid publish flow...")
+        cmd_publish(
+            package="mettagrid",
+            version_override=None,
+            dry_run=False,
+            no_repo=no_repo,
+            remote=remote,
+            force=force,
+        )
 
 
 @app.command(name="lint", help="Run linting and formatting")
