@@ -5,62 +5,6 @@ from tensordict import TensorDict
 from metta.agent.components.component_config import ComponentConfig
 
 
-class HRMObsEncodingConfig(ComponentConfig):
-    """HRM observation encoding component that processes grid observations."""
-
-    class_path: str = "metta.agent.components.hrm.HRMObsEncoding"
-    in_key: str = "env_obs"
-    out_key: str = "hrm_obs_encoded"
-    name: str = "hrm_obs_encoding"
-    embed_dim: int = 256
-    out_width: int = 11
-    out_height: int = 11
-
-    def make_component(self, env=None) -> "HRMObsEncoding":
-        return HRMObsEncoding(self)
-
-
-class HRMObsEncoding(nn.Module):
-    """HRM observation encoding component."""
-
-    def __init__(self, config: HRMObsEncodingConfig):
-        super().__init__()
-        self.config = config
-
-        # Create coordinate embeddings like in the original HRM
-        self.coord_embed_x = nn.Parameter(torch.randn(config.out_width, config.embed_dim))
-        self.coord_embed_y = nn.Parameter(torch.randn(config.out_height, config.embed_dim))
-
-        # Layer normalization
-        self.layer_norm = nn.LayerNorm(config.embed_dim)
-
-    def forward(self, td: TensorDict) -> TensorDict:
-        obs = td[self.config.in_key]
-        batch_size = obs.shape[0]
-
-        # Create coordinate grid
-        x_coords = torch.arange(self.config.out_width, device=obs.device)
-        y_coords = torch.arange(self.config.out_height, device=obs.device)
-
-        # Get coordinate embeddings
-        x_embed = self.coord_embed_x[x_coords]  # (W, embed_dim)
-        y_embed = self.coord_embed_y[y_coords]  # (H, embed_dim)
-
-        # Broadcast and combine coordinates
-        x_embed = x_embed.unsqueeze(0).expand(self.config.out_height, -1, -1)  # (H, W, embed_dim)
-        y_embed = y_embed.unsqueeze(1).expand(-1, self.config.out_width, -1)  # (H, W, embed_dim)
-
-        # Combine coordinate embeddings
-        coord_embed = x_embed + y_embed  # (H, W, embed_dim)
-        coord_embed = coord_embed.unsqueeze(0).expand(batch_size, -1, -1, -1)  # (B, H, W, embed_dim)
-
-        # Apply layer norm
-        encoded_obs = self.layer_norm(coord_embed)
-
-        td[self.config.out_key] = encoded_obs
-        return td
-
-
 class LLevel(nn.Module):
     def __init__(self, embed_dim: int, num_layers: int):
         super().__init__()
