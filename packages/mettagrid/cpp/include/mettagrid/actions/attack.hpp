@@ -16,6 +16,9 @@
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
 
+// Attack takes an argument 0-8, which is the index of the target agent to attack.
+// Target agents are those found in a 3x3 grid in front of the agent, indexed in scan order.
+// If the argument (agent index to attack) > num_agents, the last agent is attacked.
 struct AttackActionConfig : public ActionConfig {
   std::map<InventoryItem, InventoryQuantity> defense_resources;
 
@@ -27,38 +30,44 @@ struct AttackActionConfig : public ActionConfig {
 
 class Attack : public ActionHandler {
 public:
-  Attack(const AttackActionConfig& cfg,
-         const GameConfig* game_config,
-         unsigned char target_slot,
-         const std::string& name)
-      : ActionHandler(cfg, name),
-        _defense_resources(cfg.defense_resources),
-        _game_config(game_config),
-        _target_slot(target_slot) {
+  explicit Attack(const AttackActionConfig& cfg,
+                  const GameConfig* game_config,
+                  const std::string& action_name = "attack")
+      : ActionHandler(cfg, action_name), _defense_resources(cfg.defense_resources), _game_config(game_config) {
     priority = 1;
+  }
+
+  unsigned char max_arg() const override {
+    return 8;
   }
 
 protected:
   std::map<InventoryItem, InventoryQuantity> _defense_resources;
   const GameConfig* _game_config;
-  unsigned char _target_slot;
 
-  bool _handle_action(Agent& actor) override {
+  bool _handle_action(Agent& actor, ActionArg arg) override {
     Agent* last_agent = nullptr;
     short num_skipped = 0;
 
+    // Attack pattern depends on diagonal support
     if (!_game_config->allow_diagonals) {
+      // Original 3x3 grid pattern for cardinal-only movement
+      // 7 6 8  (3 cells forward)
+      // 4 3 5  (2 cells forward)
+      // 1 0 2  (1 cell forward)
+      // . A .  (Agent position)
+
       static constexpr short COL_OFFSETS[3] = {0, -1, 1};
 
       for (short distance = 1; distance <= 3; distance++) {
         for (short offset : COL_OFFSETS) {
-          GridLocation target_loc = grid().relative_location(actor.location, actor.orientation, distance, offset);
+          GridLocation target_loc = _grid->relative_location(actor.location, actor.orientation, distance, offset);
           target_loc.layer = GridLayer::AgentLayer;
 
-          Agent* target_agent = static_cast<Agent*>(grid().object_at(target_loc));
+          Agent* target_agent = static_cast<Agent*>(_grid->object_at(target_loc));
           if (target_agent) {
             last_agent = target_agent;
-            if (num_skipped == _target_slot) {
+            if (num_skipped == arg) {
               return _handle_target(actor, *target_agent);
             }
             num_skipped++;
@@ -66,21 +75,37 @@ protected:
         }
       }
     } else {
+      // Diagonal attack pattern when diagonals are enabled
+      // Agent facing NE example:
+      // . 4 6 8
+      // . 1 3 7
+      // . 0 2 5
+      // A . . .
+
+      // Define the 9 positions in order (0-8)
       static constexpr struct {
         short forward;
         short lateral;
       } DIAGONAL_POSITIONS[9] = {
-          {1, 0},  {2, -1}, {1, 1}, {2, 0}, {3, -2},
-          {1, 2}, {3, -1}, {2, 1}, {3, 0}};
+          {1, 0},   // 0: directly forward
+          {2, -1},  // 1: forward-left
+          {1, 1},   // 2: forward-right
+          {2, 0},   // 3: 2 forward
+          {3, -2},  // 4: far forward-left
+          {1, 2},   // 5: right-forward
+          {3, -1},  // 6: far forward-left-center
+          {2, 1},   // 7: forward-right-center
+          {3, 0}    // 8: 3 forward
+      };
 
       for (const auto& pos : DIAGONAL_POSITIONS) {
-        GridLocation target_loc = grid().relative_location(actor.location, actor.orientation, pos.forward, pos.lateral);
+        GridLocation target_loc = _grid->relative_location(actor.location, actor.orientation, pos.forward, pos.lateral);
         target_loc.layer = GridLayer::AgentLayer;
 
-        Agent* target_agent = static_cast<Agent*>(grid().object_at(target_loc));
+        Agent* target_agent = static_cast<Agent*>(_grid->object_at(target_loc));
         if (target_agent) {
           last_agent = target_agent;
-          if (num_skipped == _target_slot) {
+          if (num_skipped == arg) {
             return _handle_target(actor, *target_agent);
           }
           num_skipped++;
@@ -88,6 +113,7 @@ protected:
       }
     }
 
+    // If we got here, it means we skipped over all the targets. Attack the last one.
     if (last_agent) {
       return _handle_target(actor, *last_agent);
     }
@@ -98,6 +124,7 @@ protected:
   bool _handle_target(Agent& actor, Agent& target) {
     bool was_already_frozen = target.frozen > 0;
 
+    // Check if target can defend
     if (!_defense_resources.empty()) {
       bool target_can_defend = _check_defense_capability(target);
 
@@ -108,12 +135,14 @@ protected:
       }
     }
 
+    // Attack succeeds
     target.frozen = target.freeze_duration;
 
     if (!was_already_frozen) {
       _steal_resources(actor, target);
       _log_successful_attack(actor, target);
     } else {
+      // Track wasted attacks on already-frozen targets
       const std::string& actor_group = actor.group_name;
       actor.stats.incr(_action_prefix(actor_group) + "wasted_on_frozen");
     }
@@ -138,15 +167,19 @@ private:
   }
 
   void _steal_resources(Agent& actor, Agent& target) {
+    // Create snapshot to avoid iterator invalidation
     std::vector<std::pair<InventoryItem, InventoryQuantity>> snapshot;
     snapshot.reserve(target.inventory.get().size());
     for (const auto& [item, amount] : target.inventory.get()) {
       snapshot.emplace_back(item, amount);
     }
 
+    // Transfer resources (excluding soul-bound resources)
     for (const auto& [item, amount] : snapshot) {
+      // Check if this resource is soul-bound for the target
       if (std::find(target.soul_bound_resources.begin(), target.soul_bound_resources.end(), item) !=
           target.soul_bound_resources.end()) {
+        // Skip soul-bound resources
         continue;
       }
 
@@ -160,26 +193,35 @@ private:
   }
 
   std::string _action_prefix(const std::string& group) const {
-    return "action." + action_name() + "." + group + ".";
+    return "action." + _action_name + "." + group + ".";
   }
 
   void _log_blocked_attack(Agent& actor, const Agent& target) const {
     const std::string& actor_group = actor.group_name;
-    actor.stats.incr(_action_prefix(actor_group) + "blocked");
-    actor.stats.incr(_action_prefix(actor_group) + "blocked.by_group." + target.group_name);
+    const std::string& target_group = target.group_name;
+
+    actor.stats.incr(_action_prefix(actor_group) + "blocked_by." + target_group);
   }
 
-  void _log_successful_attack(Agent& actor, const Agent& target) const {
+  void _log_successful_attack(Agent& actor, Agent& target) const {
     const std::string& actor_group = actor.group_name;
-    actor.stats.incr(_action_prefix(actor_group) + "success");
-    actor.stats.incr(_action_prefix(actor_group) + "success.on_group." + target.group_name);
+    const std::string& target_group = target.group_name;
+    bool same_team = (actor_group == target_group);
+
+    if (same_team) {
+      actor.stats.incr(_action_prefix(actor_group) + "friendly_fire");
+    } else {
+      actor.stats.incr(_action_prefix(actor_group) + "hit." + target_group);
+      target.stats.incr(_action_prefix(target_group) + "hit_by." + actor_group);
+    }
   }
 
-  void _log_resource_theft(Agent& actor, const Agent& target, InventoryItem item, InventoryDelta stolen) const {
+  void _log_resource_theft(Agent& actor, Agent& target, InventoryItem item, InventoryDelta amount) const {
     const std::string& actor_group = actor.group_name;
-    actor.stats.add(_action_prefix(actor_group) + "resources." + std::to_string(item) + ".stolen",
-                    static_cast<float>(stolen));
-    actor.stats.add(_action_prefix(actor_group) + "resources.total_stolen", static_cast<float>(stolen));
+    const std::string& target_group = target.group_name;
+    const std::string item_name = actor.stats.resource_name(item);
+
+    actor.stats.add(_action_prefix(actor_group) + "steals." + item_name + ".from." + target_group, amount);
   }
 };
 

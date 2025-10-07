@@ -17,7 +17,6 @@
 #include <memory>
 #include <random>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "config/mettagrid_config.hpp"
@@ -92,6 +91,7 @@ public:
   py::object action_space();
   py::object observation_space();
   py::list action_success_py();
+  py::list max_action_args();
   py::list object_type_names_py();
   py::list resource_names_py();
 
@@ -134,8 +134,9 @@ private:
   Actions _actions;
   ActionHandlers _action_handlers;
   size_t _num_action_handlers;
+  std::vector<unsigned char> _max_action_args;
+  unsigned char _max_action_arg;
   unsigned char _max_action_priority;
-  std::vector<std::string> _action_names;
 
   std::unique_ptr<ObservationEncoder> _obs_encoder;
   std::unique_ptr<StatsTracker> _stats;
@@ -161,6 +162,10 @@ private:
   std::mt19937 _rng;
   unsigned int _seed;
 
+  std::vector<std::pair<ActionType, ActionArg>> _flat_action_map;
+  std::vector<std::string> _flat_action_names;
+  std::vector<std::vector<int>> _action_arg_to_flat;
+
   // Movement tracking
   bool _track_movement_metrics;
   float _resource_loss_prob;
@@ -178,14 +183,17 @@ private:
                             ObservationCoord obs_width,
                             ObservationCoord obs_height,
                             size_t agent_idx,
-                            ActionType action);
+                            ActionType action,
+                            ActionArg action_arg);
   void _compute_observations(py::array_t<ActionType, py::array::c_style> actions);
   void _step(py::array_t<ActionType, py::array::c_style> actions);
 
-  void _handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type);
+  void _handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type, ActionArg arg);
   AgentConfig _create_agent_config(const py::dict& agent_group_cfg_py);
   ConverterConfig _create_converter_config(const py::dict& converter_cfg_py);
   WallConfig _create_wall_config(const py::dict& wall_cfg_py);
+  void build_flat_action_catalog();
+  int flat_action_index(ActionType action, ActionArg arg) const;
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_BINDINGS_METTAGRID_C_HPP_

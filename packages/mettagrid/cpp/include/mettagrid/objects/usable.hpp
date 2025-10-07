@@ -6,13 +6,14 @@
 #include "core/grid_object.hpp"
 #include "core/types.hpp"
 
+// Forward declaration
 class Agent;
 
 class Usable {
 public:
   virtual ~Usable() = default;
 
-  virtual bool onUse(Agent& actor) = 0;
+  virtual bool onUse(Agent& actor, ActionArg arg) = 0;
 };
 
 #endif  // OBJECTS_USABLE_HPP_
