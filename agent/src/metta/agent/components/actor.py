@@ -39,9 +39,10 @@ class ActorQuery(nn.Module):
         nn.init.uniform_(self.W, -bound, bound)
 
     def forward(self, td: TensorDict):
-        hidden = td[self.in_key]  # Shape: [B*TT, hidden]
+        hidden = td[self.in_key]  # Shape: [..., hidden]
 
-        query = torch.einsum("b h, h e -> b e", hidden, self.W)  # Shape: [B*TT, embed_dim]
+        # Support both flattened and multi-dimensional batches by contracting over the hidden dim.
+        query = torch.einsum("... h, h e -> ... e", hidden, self.W)
         query = self._tanh(query)
 
         td[self.out_key] = query
