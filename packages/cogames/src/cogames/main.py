@@ -7,7 +7,7 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import Callable, Literal, Optional
+from typing import Literal, Optional
 
 import typer
 import yaml
@@ -21,7 +21,7 @@ from cogames import play as play_module
 from cogames import train as train_module
 from cogames.policy.policy import PolicySpec
 from cogames.policy.utils import parse_policy_spec, resolve_policy_class_path, resolve_policy_data_path
-from mettagrid import MettaGridConfig, MettaGridEnv
+from mettagrid import MettaGridEnv
 
 # Always add current directory to Python path
 sys.path.insert(0, ".")
@@ -65,10 +65,6 @@ def games_cmd(
     ),
 ) -> None:
     resolved_mission, env_cfg = utils.get_mission_config(console, mission_name)
-
-    if format_ and save:
-        console.print("[red]Error: --format and --save cannot be used together[/red]")
-        raise typer.Exit(1)
 
     if save is not None:
         try:
@@ -157,12 +153,14 @@ def make_mission(
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (yml or json)"),  # noqa: B008
 ) -> None:
     try:
-        resolved_mission, env_cfg = utils.get_mission_config(console, base_mission)
+        _, env_cfg = utils.get_mission_config(console, base_mission)
 
+        # Update map dimensions
         env_cfg.game.map_builder.width = width  # type: ignore[attr-defined]
         env_cfg.game.map_builder.height = height  # type: ignore[attr-defined]
         env_cfg.game.num_agents = num_agents
 
+        # Validate the environment configuration
         _ = MettaGridEnv(env_cfg)
 
         if output:
@@ -223,27 +221,7 @@ def train_cmd(
         min=1,
     ),
 ) -> None:
-    from cogames import curricula
-
-    rotation_aliases = {"training_rotation", "training_facility_rotation", "training_cycle"}
-    rotation_easy_aliases = {"training_rotation_easy"}
-    rotation_shaped_aliases = {"training_rotation_shaped"}
-    rotation_easy_shaped_aliases = {"training_rotation_easy_shaped"}
-
-    env_cfg = None
-    curriculum_callable: Optional[Callable[[], "MettaGridConfig"]] = None
-    resolved_mission = mission_name
-
-    if mission_name in rotation_aliases:
-        curriculum_callable = curricula.training_rotation()
-    elif mission_name in rotation_easy_aliases:
-        curriculum_callable = curricula.training_rotation_easy()
-    elif mission_name in rotation_shaped_aliases:
-        curriculum_callable = curricula.training_rotation_shaped()
-    elif mission_name in rotation_easy_shaped_aliases:
-        curriculum_callable = curricula.training_rotation_easy_shaped()
-    else:
-        resolved_mission, env_cfg = utils.get_mission_config(console, mission_name)
+    resolved_mission, env_cfg = utils.get_mission_config(console, mission_name)
 
     torch_device = utils.resolve_training_device(console, device)
 
@@ -258,11 +236,10 @@ def train_cmd(
             seed=seed,
             batch_size=batch_size,
             minibatch_size=minibatch_size,
-            game_name=resolved_mission,
             vector_num_workers=num_workers,
             vector_num_envs=parallel_envs,
-            vector_batch_size=vector_batch_size or batch_size,
-            env_cfg_supplier=curriculum_callable,
+            vector_batch_size=vector_batch_size,
+            game_name=resolved_mission,
         )
 
     except ValueError as exc:  # pragma: no cover - user input
@@ -273,11 +250,11 @@ def train_cmd(
 
 
 @app.command(
-    name="evaluate",
+    name="eval",
     no_args_is_help=True,
     help="Evaluate one or more policies on a mission",
 )
-@app.command("eval", hidden=True)
+@app.command("evaluate", hidden=True)
 def evaluate_cmd(
     mission_name: str = mission_argument,
     policies: list[str] = typer.Argument(  # noqa: B008
@@ -312,36 +289,35 @@ def evaluate_cmd(
     if policies and (policy_class_path or policy_data_path):
         console.print("[red]Provide --policies or (--policy and --policy-data), not both.[/red]")
         raise typer.Exit(1)
-
-    resolved_mission, env_cfg = utils.get_mission_config(console, mission_name)
+    resolved_game, env_cfg = utils.get_mission_config(console, mission_name)
 
     try:
         if policies:
-            policy_specs = [parse_policy_spec(spec, console=console, game_name=resolved_mission) for spec in policies]
+            policy_specs = [parse_policy_spec(spec, console=console, game_name=resolved_game) for spec in policies]
         else:
-            resolved_policy_data = resolve_policy_data_path(
-                policy_data_path,
-                policy_class_path=policy_class_path,
-                game_name=resolved_mission,
-                console=console,
-            )
             policy_specs = [
                 PolicySpec(
                     policy_class_path=policy_class_path,
-                    policy_data_path=resolved_policy_data,
+                    policy_data_path=resolve_policy_data_path(
+                        policy_data_path,
+                        policy_class_path=policy_class_path,
+                        game_name=resolved_game,
+                        console=console,
+                    ),
                 )
             ]
-    except (ValueError, FileNotFoundError) as exc:  # pragma: no cover - user input
+    except ValueError as exc:  # pragma: no cover - user input
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(1) from exc
+    except FileNotFoundError as exc:  # pragma: no cover - user input
         console.print(f"[red]Error: {exc}[/red]")
         raise typer.Exit(1) from exc
 
-    console.print(
-        f"[cyan]Evaluating {len(policy_specs)} policies on {resolved_mission} over {episodes} episodes[/cyan]"
-    )
+    console.print(f"[cyan]Evaluating {len(policy_specs)} policies on {resolved_game} over {episodes} episodes[/cyan]")
 
     evaluate_module.evaluate(
         console,
-        resolved_game=resolved_mission,
+        resolved_game=resolved_game,
         env_cfg=env_cfg,
         policy_specs=policy_specs,
         action_timeout_ms=action_timeout_ms,

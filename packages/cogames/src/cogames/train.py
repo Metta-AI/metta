@@ -4,21 +4,15 @@ import logging
 import multiprocessing
 import platform
 from pathlib import Path
-from types import MethodType
 from typing import TYPE_CHECKING, Any, Callable, Optional
 
-import numpy as np
 import psutil
 from rich.console import Console
 
 from cogames.aws_storage import maybe_upload_checkpoint
 from cogames.policy import TrainablePolicy
 from cogames.policy.signal_handler import DeferSigintContextManager
-from cogames.policy.utils import (
-    ActionLayout,
-    get_policy_class_shorthand,
-    resolve_policy_data_path,
-)
+from cogames.policy.utils import get_policy_class_shorthand, resolve_policy_data_path
 from cogames.utils import initialize_or_load_policy
 from mettagrid import MettaGridConfig, MettaGridEnv
 from pufferlib import pufferl
@@ -59,7 +53,6 @@ def train(
         multiprocessing.set_start_method("spawn", force=True)
         backend = pvector.Serial
 
-    cpu_cores = None
     try:
         cpu_cores = psutil.cpu_count(logical=False) or psutil.cpu_count(logical=True)
     except Exception:  # pragma: no cover - best effort fallback
@@ -91,6 +84,9 @@ def train(
     if remainder:
         vector_batch_size += envs_per_worker - remainder
 
+    if backend is pvector.Serial:
+        vector_batch_size = num_envs
+
     logger.debug(
         "Vec env config: num_envs=%s, num_workers=%s, batch_size=%s (envs/worker=%s)",
         num_envs,
@@ -116,32 +112,18 @@ def train(
         seed: Optional[int] = None,
     ):
         target_cfg = cfg.model_copy(deep=True) if cfg is not None else _clone_cfg()
-        env = MettaGridEnv(env_cfg=target_cfg, is_training=True)
+        env = MettaGridEnv(env_cfg=target_cfg)
         set_buffers(env, buf)
         return env
 
     vecenv = pvector.make(
         env_creator,
         num_envs=num_envs,
-        backend=backend,
-        env_kwargs={"cfg": base_cfg},
         num_workers=num_workers,
         batch_size=vector_batch_size,
+        backend=backend,
+        env_kwargs={"cfg": base_cfg},
     )
-
-    layout = ActionLayout.from_env(vecenv.driver_env)
-    original_send = vecenv.send
-
-    def _send_with_projection(self, actions):
-        arr = np.asarray(actions)
-        if arr.ndim == 0 or arr.ndim == 1 or (arr.ndim > 1 and arr.shape[-1] != 2):
-            decoded = layout.decode_numpy(arr)
-            if decoded.ndim == 1:
-                decoded = decoded.reshape(1, 2)
-            arr = decoded.astype(np.int32, copy=False)
-        return original_send(arr)
-
-    vecenv.send = MethodType(_send_with_projection, vecenv)
 
     resolved_initial_weights = initial_weights_path
     if initial_weights_path is not None:
@@ -269,20 +251,21 @@ def train(
             while trainer.global_step < num_steps:
                 trainer.evaluate()
                 trainer.train()
+                # Check for NaN in network parameters after each training step
                 network = policy.network()
                 has_nan = False
                 for name, param in network.named_parameters():
                     if param.grad is not None and not param.grad.isfinite().all():
-                        logger.error("NaN/Inf detected in gradients for parameter: %s", name)
+                        logger.error(f"NaN/Inf detected in gradients for parameter: {name}")
                         has_nan = True
                     if not param.isfinite().all():
-                        logger.error("NaN/Inf detected in parameter: %s", name)
+                        logger.error(f"NaN/Inf detected in parameter: {name}")
                         has_nan = True
 
                 if has_nan:
                     logger.error(
-                        "Training diverged at step %s! Stopping early to prevent saving corrupted checkpoint.",
-                        trainer.global_step,
+                        f"Training diverged at step {trainer.global_step}! "
+                        "Stopping early to prevent saving corrupted checkpoint."
                     )
                     training_diverged = True
                     break
@@ -291,80 +274,88 @@ def train(
                 "KeyboardInterrupt received at step %s; stopping training gracefully.",
                 trainer.global_step,
             )
-    trainer.print_dashboard()
-    trainer.close()
 
-    console.print()
-    if training_diverged:
-        console.print("=" * 80, style="bold red")
-        console.print("Training diverged (NaN detected)! Stopped early.", style="bold red")
-        console.print(f"Checkpoints saved to: [cyan]{checkpoints_path}[/cyan]", style="bold red")
-        console.print("=" * 80, style="bold red")
+        trainer.print_dashboard()
+        trainer.close()
+
         console.print()
-        console.print("[yellow]Warning: The latest checkpoint may contain NaN values.[/yellow]")
-        console.print("[yellow]Try using an earlier checkpoint or retraining with lower learning rate.[/yellow]")
-    else:
-        console.print("=" * 80, style="bold green")
-        console.print("Training complete")
-        console.print(
-            f"Checkpoints saved to: [cyan]{checkpoints_path}[/cyan]",
-            style="bold green",
-        )
-        console.print("=" * 80, style="bold green")
-
-    checkpoint_dir = checkpoints_path / env_name
-    checkpoints: list[Path] = []
-    if checkpoint_dir.exists():
-        checkpoints = sorted(checkpoint_dir.glob("*.pt"))
-
-    if not checkpoints and checkpoints_path.exists():
-        checkpoints = sorted(checkpoints_path.glob("*.pt"))
-
-    if checkpoints and not training_diverged:
-        final_checkpoint = checkpoints[-1]
-        console.print()
-        console.print(f"Final checkpoint: [cyan]{final_checkpoint}[/cyan]")
-        if trainer.epoch < checkpoint_interval:
+        if training_diverged:
+            console.print("=" * 80, style="bold red")
+            console.print("Training diverged (NaN detected)! Stopped early.", style="bold red")
+            console.print(f"Checkpoints saved to: [cyan]{checkpoints_path}[/cyan]", style="bold red")
+            console.print("=" * 80, style="bold red")
+            console.print()
+            console.print("[yellow]Warning: The latest checkpoint may contain NaN values.[/yellow]")
+            console.print("[yellow]Try using an earlier checkpoint or retraining with lower learning rate.[/yellow]")
+        elif trainer.epoch >= checkpoint_interval:
+            console.print("=" * 80, style="bold green")
+            console.print("Training complete")
             console.print(
-                "This checkpoint has initialized weights but does not reflect training.\n"
-                "Training was cut off before the first meaningful checkpoint would have been saved"
-                f" (epoch {checkpoint_interval}).",
-                style="yellow",
+                f"Checkpoints saved to: [cyan]{checkpoints_path}[/cyan]",
+                style="bold green",
+            )
+            console.print("=" * 80, style="bold green")
+
+        # Try to find the final checkpoint
+        # PufferLib saves checkpoints in data_dir/env_name/
+        checkpoint_dir = checkpoints_path / env_name
+        checkpoints = []
+
+        if checkpoint_dir.exists():
+            checkpoints = sorted(checkpoint_dir.glob("*.pt"))
+
+        # Fallback: also check directly in checkpoints_path
+        if not checkpoints and checkpoints_path.exists():
+            checkpoints = sorted(checkpoints_path.glob("*.pt"))
+
+        if checkpoints and not training_diverged:
+            final_checkpoint = checkpoints[-1]
+            console.print()
+            console.print(f"Final checkpoint: [cyan]{final_checkpoint}[/cyan]")
+            if trainer.epoch < checkpoint_interval:
+                console.print(
+                    "This checkpoint has initialized weights but does not reflect training. \n"
+                    "Training was cut off before the first meaningful checkpoint would have been saved"
+                    f" (epoch {checkpoint_interval}).",
+                    style="yellow",
+                )
+
+            maybe_upload_checkpoint(
+                final_checkpoint=final_checkpoint,
+                game_name=game_name,
+                policy_class_path=policy_class_path,
+                console=console,
             )
 
-        maybe_upload_checkpoint(
-            final_checkpoint=final_checkpoint,
-            game_name=game_name,
-            policy_class_path=policy_class_path,
-            console=console,
-        )
+            # Show shorthand version if available
+            policy_shorthand = get_policy_class_shorthand(policy_class_path)
 
-        policy_shorthand = get_policy_class_shorthand(policy_class_path)
-        game_arg = f" {game_name}" if game_name else ""
-        policy_arg = policy_shorthand if policy_shorthand else policy_class_path
+            # Build the command with game name if provided
+            game_arg = f" {game_name}" if game_name else ""
+            policy_arg = policy_shorthand if policy_shorthand else policy_class_path
 
-        console.print()
-        console.print("To continue training this policy:", style="bold")
-        console.print(
-            f"  [yellow]cogames train{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
-        )
-        console.print()
-        console.print("To play with this policy:", style="bold")
-        console.print(
-            f"  [yellow]cogames play{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
-        )
-        console.print()
-        console.print("To evaluate this policy:", style="bold")
-        console.print(
-            f"  [yellow]cogames eval{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
-        )
-    elif checkpoints and training_diverged:
-        console.print()
-        console.print(f"[yellow]Found {len(checkpoints)} checkpoint(s). The most recent may be corrupted.[/yellow]")
-        console.print("[yellow]Try using an earlier checkpoint or retraining.[/yellow]")
-    else:
-        console.print()
-        console.print(f"[yellow]No checkpoint files found. Check {checkpoints_path} for saved models.[/yellow]")
+            console.print()
+            console.print("To continue training this policy:", style="bold")
+            console.print(
+                f"  [yellow]cogames train{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
+            )
+            console.print()
+            console.print("To play with this policy:", style="bold")
+            console.print(
+                f"  [yellow]cogames play{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
+            )
+            console.print()
+            console.print("To evaluate this policy:", style="bold")
+            console.print(
+                f"  [yellow]cogames eval{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
+            )
+        elif checkpoints and training_diverged:
+            console.print()
+            console.print(f"[yellow]Found {len(checkpoints)} checkpoint(s). The most recent may be corrupted.[/yellow]")
+            console.print("[yellow]Try using an earlier checkpoint or retraining.[/yellow]")
+        else:
+            console.print()
+            console.print(f"[yellow]No checkpoint files found. Check {checkpoints_path} for saved models.[/yellow]")
 
-    console.print("=" * 80, style="bold green")
-    console.print()
+        console.print("=" * 80, style="bold green")
+        console.print()
