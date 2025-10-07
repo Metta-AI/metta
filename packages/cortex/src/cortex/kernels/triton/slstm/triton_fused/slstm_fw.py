@@ -357,7 +357,9 @@ def _forward_sequence_kernel(
 
             matC_next_tile = matF_tile * matC_t_tile + matI_tile * matZ_tile
             matN_next_tile = matF_tile * matN_t_tile + matI_tile
-            matH_next_tile = matO_tile * (matC_next_tile / matN_next_tile)
+            # Add epsilon to prevent division by zero when n≈0 and igate≈0
+            EPS = 1e-8
+            matH_next_tile = matO_tile * (matC_next_tile / (matN_next_tile + EPS))
 
             # Store next states tiles at time idx_t+1
             h_next_tile_ptr = tl.make_block_ptr(

@@ -40,7 +40,9 @@ def _slstm_pointwise(
     fgate = torch.minimum(torch.exp(logfplusm - mnew), torch.ones_like(iraw))
     cnew = fgate * c + igate * torch.tanh(zraw)
     nnew = fgate * n + igate
-    ynew = ogate * cnew / nnew
+    # Add epsilon to prevent division by zero when n≈0 and igate≈0
+    eps = 1e-8
+    ynew = ogate * cnew / (nnew + eps)
 
     return (
         torch.stack((ynew, cnew, nnew, mnew), dim=0),
