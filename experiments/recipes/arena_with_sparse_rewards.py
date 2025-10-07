@@ -25,6 +25,9 @@ from mettagrid import MettaGridConfig
 from mettagrid.config import ConverterConfig
 
 
+from metta.rl.loss.contrastive_config import ContrastiveConfig
+from metta.rl.loss.ppo import PPOConfig
+
 def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
     """Create arena environment with sparse rewards: only heart gives reward."""
     arena_env = eb.make_arena(num_agents=num_agents)
@@ -110,9 +113,7 @@ def train(
         enable_detailed_slice_logging=enable_detailed_slice_logging
     )
 
-    # Create trainer config with contrastive loss enabled + PPO for actions
-    from metta.rl.loss.contrastive_config import ContrastiveConfig
-    from metta.rl.loss.ppo import PPOConfig
+
 
     contrastive_config = ContrastiveConfig(
         temperature=temperature,
