@@ -505,10 +505,10 @@ class PuffeRL:
             # This breaks vloss clipping?
             self.values[idx] = newvalue.detach().float()
 
+            updated_actions = actions.detach()
             if self._action_adapter is not None:
-                self.actions[idx] = actions.to(self.actions.dtype)
-            else:
-                self.actions[idx] = actions.to(self.actions.dtype)
+                updated_actions = updated_actions.reshape(flat_mb_actions.shape)
+            self.actions[idx] = updated_actions.to(self.actions.dtype)
 
             # Logging
             profile("train_misc", epoch)
