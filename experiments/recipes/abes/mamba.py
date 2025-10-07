@@ -15,6 +15,7 @@ from metta.agent.components.mamba import MambaBackboneConfig
 from metta.agent.policies.mamba_sliding import MambaSlidingConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
+from metta.rl.trainer_config import TorchProfilerConfig
 from metta.tools.train import TrainTool
 
 __all__ = [
@@ -53,11 +54,15 @@ def train(
     if ssm_layer is not None:
         policy = _set_ssm_layer(policy, ssm_layer)
 
-    return base_train(
+    tool = base_train(
         curriculum=curriculum,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
         policy_architecture=policy,
     )
+
+    tool.torch_profiler = TorchProfilerConfig(interval_epochs=0)
+
+    return tool
 
 
 def train_mamba2(
