@@ -71,31 +71,44 @@ resource "aws_ses_configuration_set" "library" {
   reputation_metrics_enabled = true
 }
 
-# Event destination for tracking bounces and complaints (optional)
-# Uncomment and configure if you want to track email delivery events
-# resource "aws_ses_event_destination" "cloudwatch" {
-#   name                   = "cloudwatch-metrics"
-#   configuration_set_name = aws_ses_configuration_set.library.name
-#   enabled                = true
-#   matching_types         = ["send", "reject", "bounce", "complaint", "delivery"]
-#
-#   cloudwatch_destination {
-#     default_value  = "default"
-#     dimension_name = "ses:configuration-set"
-#     value_source   = "emailHeader"
-#   }
-# }
+# Event destination for tracking bounces and complaints
+resource "aws_ses_event_destination" "cloudwatch" {
+  name                   = "cloudwatch-metrics"
+  configuration_set_name = aws_ses_configuration_set.library.name
+  enabled                = true
+  matching_types         = ["send", "reject", "bounce", "complaint", "delivery"]
 
-# Output the DNS records needed for domain verification
-# These must be added to your DNS provider
-output "ses_verification_token" {
-  description = "TXT record value for domain verification"
-  value       = aws_ses_domain_identity.library.verification_token
+  cloudwatch_destination {
+    default_value  = "default"
+    dimension_name = "ses:configuration-set"
+    value_source   = "emailHeader"
+  }
 }
 
-output "ses_dkim_tokens" {
-  description = "CNAME records for DKIM signing"
-  value       = aws_ses_domain_dkim.library.dkim_tokens
+# Reference existing Route53 hosted zone for the domain
+# This zone was created by external-dns or manually, and is managed elsewhere
+data "aws_route53_zone" "library" {
+  name         = var.domain
+  private_zone = false
+}
+
+# Route53 record for SES domain verification
+resource "aws_route53_record" "ses_verification" {
+  zone_id = data.aws_route53_zone.library.zone_id
+  name    = "_amazonses.${var.domain}"
+  type    = "TXT"
+  ttl     = 600
+  records = [aws_ses_domain_identity.library.verification_token]
+}
+
+# Route53 records for DKIM signing (3 records)
+resource "aws_route53_record" "ses_dkim" {
+  count   = 3
+  zone_id = data.aws_route53_zone.library.zone_id
+  name    = "${aws_ses_domain_dkim.library.dkim_tokens[count.index]}._domainkey.${var.domain}"
+  type    = "CNAME"
+  ttl     = 600
+  records = ["${aws_ses_domain_dkim.library.dkim_tokens[count.index]}.dkim.amazonses.com"]
 }
 
 # Convert AWS secret access key to SES SMTP password format

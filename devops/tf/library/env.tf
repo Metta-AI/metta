@@ -50,7 +50,7 @@ locals {
     SES_SMTP_USERNAME = local.ses_smtp_username
     SES_SMTP_PASSWORD = local.ses_smtp_password
     SES_FROM_EMAIL    = local.ses_from_email
-    SES_FROM_NAME     = "Softmax Library"
+    SES_FROM_NAME     = var.ses_from_name
     SES_REGION        = var.region
   }
 
