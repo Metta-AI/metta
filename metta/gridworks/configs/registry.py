@@ -19,6 +19,7 @@ ConfigMakerKind = Literal[
     "MettaGridConfig",
     "SimulationConfig",
     "List[SimulationConfig]",
+    "Dict[str, MettaGridConfig]",
     "TrainTool",
     "PlayTool",
     "ReplayTool",
@@ -29,7 +30,7 @@ ConfigMakerKind = Literal[
 
 def hover_value_to_return_type(hover_value: str) -> str:
     post_arrow = hover_value.split(" -> ")[1]
-    match = re.match(r"^[\w\[\]]+", post_arrow)
+    match = re.match(r"([lL]ist\[\w+\]|[dD]ict\[\w+, \w+\]|\w+)", post_arrow)
     if match:
         return match.group(0)
     else:
@@ -39,6 +40,7 @@ def hover_value_to_return_type(hover_value: str) -> str:
 def check_return_type(return_type: str) -> ConfigMakerKind | None:
     # normalize
     return_type = re.sub(r"\blist\b", "List", return_type)
+    return_type = re.sub(r"\bdict\b", "Dict", return_type)
     if return_type in get_args(ConfigMakerKind):
         return cast(ConfigMakerKind, return_type)
 
@@ -86,29 +88,30 @@ class ConfigMaker:
 class ConfigMakerRegistry:
     """Registry of all config makers."""
 
-    def __init__(self, root_dir: Path | None = None):
-        if not root_dir:
+    def __init__(self, root_dirs: list[Path] | None = None):
+        if not root_dirs:
             repo_root = get_repo_root()
-            root_dir = repo_root / "experiments"
+            root_dirs = [repo_root / "experiments"]
         else:
-            root_dir = root_dir.resolve()
+            root_dirs = [root_dir.resolve() for root_dir in root_dirs]
 
         self.lsp_client = LSPClient()
 
         # Load all config makers
         # TODO - implement reloading (full and maybe incremental based on file modification time)
         config_makers: list[ConfigMaker] = []
-        for py_file in root_dir.rglob("*.py"):
-            if py_file.name == "__init__.py":
-                continue
+        for root_dir in root_dirs:
+            for py_file in root_dir.rglob("*.py"):
+                if py_file.name == "__init__.py":
+                    continue
 
-            try:
-                file_config_makers = self.load_file_config_makers(py_file)
-                config_makers.extend(file_config_makers)
-            except Exception as e:
-                logger.info(f"Error getting config makers from {py_file}: {e}")
-                # Skip files that can't be parsed or processed
-                continue
+                try:
+                    file_config_makers = self.load_file_config_makers(py_file)
+                    config_makers.extend(file_config_makers)
+                except Exception as e:
+                    logger.info(f"Error getting config makers from {py_file}: {e}")
+                    # Skip files that can't be parsed or processed
+                    continue
 
         self._config_makers = config_makers
         self._config_makers_index = {maker.path(): maker for maker in config_makers}
@@ -123,7 +126,7 @@ class ConfigMakerRegistry:
                 # Top-level function
                 function_defs.append(node)
 
-        logging.debug(f"Found {len(function_defs)} function definitions in {file_path}")
+        logging.info(f"Found {len(function_defs)} function definitions in {file_path}")
 
         # TODO - what if the code changes between `ast.parse` and `get_hover_bulk`?
         # Should we pre-open the file with LSP during loading?
@@ -134,16 +137,19 @@ class ConfigMakerRegistry:
             # an individual node; if this becomes too fragile, we'll need either a third-party library, or regexes).
             [(node.lineno - 1, node.col_offset + 4) for node in function_defs],
         )
-        logging.debug(f"Found {len(hover_results)} hover results in {file_path}")
+        logging.info(f"Found {len(hover_results)} hover results in {file_path}")
 
         for node, hover_result in zip(function_defs, hover_results, strict=True):
             # Create full module path
             rel_file_path = file_path.relative_to(get_repo_root())
             module_path = str(rel_file_path.with_suffix("")).replace("/", ".")
             full_path = f"{module_path}.{node.name}"
+            if full_path.startswith("packages.cogames.src."):
+                full_path = full_path.replace("packages.cogames.src.", "")
 
             try:
                 assert hover_result is not None
+
                 return_type = hover_value_to_return_type(hover_result["contents"]["value"])
 
                 validated_return_type = check_return_type(return_type)
