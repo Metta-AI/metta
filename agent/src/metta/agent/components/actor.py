@@ -39,10 +39,9 @@ class ActorQuery(nn.Module):
         nn.init.uniform_(self.W, -bound, bound)
 
     def forward(self, td: TensorDict):
-        hidden = td[self.in_key]  # Shape: [..., hidden]
+        hidden = td[self.in_key]  # Shape: [B*TT, hidden]
 
-        # Support both flattened and multi-dimensional batches by contracting over the hidden dim.
-        query = torch.einsum("... h, h e -> ... e", hidden, self.W)
+        query = torch.einsum("b h, h e -> b e", hidden, self.W)  # Shape: [B*TT, embed_dim]
         query = self._tanh(query)
 
         td[self.out_key] = query
@@ -86,11 +85,11 @@ class ActorKey(nn.Module):
             nn.init.uniform_(self.bias, -bound, bound)
 
     def forward(self, td: TensorDict):
-        query = td[self.query_key]  # Shape: [..., embed_dim]
-        action_embeds = td[self.embedding_key]  # Shape: [..., num_actions, embed_dim]
+        query = td[self.query_key]  # Shape: [B*TT, embed_dim]
+        action_embeds = td[self.embedding_key]  # Shape: [B*TT, num_actions, embed_dim]
 
-        # Compute scores across any batch shape
-        scores = torch.einsum("... e, ... a e -> ... a", query, action_embeds)
+        # Compute scores
+        scores = torch.einsum("b e, b a e -> b a", query, action_embeds)  # Shape: [B*TT, num_actions]
 
         # Add bias
         biased_scores = scores + self.bias  # Shape: [B*TT, num_actions]
@@ -141,19 +140,9 @@ class ActionProbs(nn.Module):
     def forward_inference(self, td: TensorDict) -> TensorDict:
         logits = td[self.config.in_key]
         """Forward pass for inference mode with action sampling."""
-
-        original_batch_shape = logits.shape[:-1]
-        num_actions = logits.shape[-1]
-        flat_logits = logits.reshape(-1, num_actions)
-
-        action_logit_index, selected_log_probs, _, full_log_probs = sample_actions(flat_logits)
+        action_logit_index, selected_log_probs, _, full_log_probs = sample_actions(logits)
 
         action = self._convert_logit_index_to_action(action_logit_index)
-
-        if original_batch_shape:
-            action = action.reshape(*original_batch_shape, action.shape[-1])
-            selected_log_probs = selected_log_probs.reshape(*original_batch_shape)
-            full_log_probs = full_log_probs.reshape(*original_batch_shape, num_actions)
 
         td["actions"] = action.to(dtype=torch.int32)
         td["act_log_prob"] = selected_log_probs
