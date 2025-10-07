@@ -210,7 +210,11 @@ def _():
                 }
                 self.rotate_idx = lookup.get("rotate")
                 self.pickup_idx = next(
-                    (lookup[name] for name in ("get_items", "pickup") if name in lookup),
+                    (
+                        lookup[name]
+                        for name in ("get_items", "pickup")
+                        if name in lookup
+                    ),
                     None,
                 )
                 self.noop_idx = lookup.get("noop", 0)
@@ -262,13 +266,13 @@ def _():
                                     if orient == agent_ori:
                                         action_idx = self.pickup_idx
                                     else:
-                                        action_idx = self.rotate_indices.get(orient)
-                                        if action_idx is None:
-                                            action_idx = self.rotate_default
-                                        if action_idx is None:
-                                            action_idx = self._action_index("rotate")
+                                        action_idx = self.rotate_variants.get(
+                                            orient, self.rotate_idx
+                                        )
                                         if action_idx is None:
                                             action_idx = self.noop_idx
+                                    if action_idx is None:
+                                        action_idx = self.noop_idx
                                     return generate_valid_random_actions(
                                         self.env,
                                         self.num_agents,
