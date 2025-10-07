@@ -56,7 +56,7 @@ logger = getRankAwareLogger(__name__)
 class TrainTool(Tool):
     @classmethod
     def policy_presets(cls) -> dict[str, str]:
-        return {name: f"{preset().__module__}.{preset().__name__}" for name, preset in POLICY_PRESETS.items()}
+        return {name: name for name in POLICY_PRESETS}
 
     @field_validator("policy_architecture", mode="before")
     @classmethod

@@ -49,33 +49,9 @@ def test_parse_value():
 
 
 def test_parse_cli_args():
-    args = ["key1=value1", "key2=123", "nested.field=test"]
+    args = ["key1=value1", "key2=123", "nested.field=test", "flag=true"]
     result = parse_cli_args(args)
-    assert result == {"key1": "value1", "key2": 123, "nested.field": "test"}
-
-
-def test_parse_cli_args_commander_styles():
-    result = parse_cli_args(
-        [
-            "--inner.value",
-            "-1",
-            "--enabled",
-            "--name=worker",
-            "--payload",
-            '{"foo": 1}',
-            "threshold:0.5",
-            "--ratio:2",
-            "outer.depth=9",
-        ]
-    )
-
-    assert result["inner.value"] == -1
-    assert result["enabled"] is True
-    assert result["name"] == "worker"
-    assert result["payload"] == {"foo": 1}
-    assert result["threshold"] == 0.5
-    assert result["ratio"] == 2
-    assert result["outer.depth"] == 9
+    assert result == {"key1": "value1", "key2": 123, "nested.field": "test", "flag": True}
 
 
 def test_get_tool_fields():
@@ -108,10 +84,12 @@ def test_classify_remaining_args_for_tool_fields():
 def test_parse_cli_args_error_cases():
     import pytest
 
-    with pytest.raises(ValueError, match="Invalid argument format"):
+    with pytest.raises(ValueError, match="Expected key=value format"):
         parse_cli_args(["invalid_arg"])
-    with pytest.raises(ValueError, match="Invalid argument format"):
+    with pytest.raises(ValueError, match="Expected key=value format"):
         parse_cli_args([""])
+    with pytest.raises(ValueError, match="non-empty key"):
+        parse_cli_args(["=value"])
 
 
 def test_parse_cli_args_edge_cases():

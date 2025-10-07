@@ -118,61 +118,16 @@ def parse_value(value_str: str) -> Any:
 
 
 def parse_cli_args(cli_args: list[str]) -> dict[str, Any]:
-    """Parse CLI arguments into key/value pairs using simple heuristics."""
-    normalized = _normalize_cli_tokens(cli_args)
-
+    """Parse CLI arguments expecting simple key=value tokens."""
     parsed: dict[str, Any] = {}
-    for token in normalized:
+    for token in cli_args:
+        if "=" not in token:
+            raise ValueError(f"Expected key=value format, got: {token}")
         key, value_str = token.split("=", 1)
+        if not key:
+            raise ValueError("Expected non-empty key before '='")
         parsed[key] = parse_value(value_str)
     return parsed
-
-
-def _normalize_cli_tokens(cli_args: list[str]) -> list[str]:
-    normalized: list[str] = []
-    i = 0
-    stop_processing = False
-
-    while i < len(cli_args):
-        token = cli_args[i]
-
-        if token == "--":
-            stop_processing = True
-            i += 1
-            continue
-
-        key_token = token
-        if not stop_processing and token.startswith("--"):
-            key_token = token[2:]
-        elif not stop_processing and token.startswith("-") and len(token) > 1:
-            key_token = token[1:]
-
-        if not key_token:
-            raise ValueError("Invalid argument format: ''. Expected key=value")
-
-        inline_token = key_token
-        if ":" in inline_token and "=" not in inline_token:
-            inline_token = inline_token.replace(":", "=", 1)
-
-        if "=" in inline_token:
-            normalized.append(inline_token)
-            i += 1
-            continue
-
-        if not stop_processing and not token.startswith("-"):
-            raise ValueError(f"Invalid argument format: {token}. Expected key=value")
-
-        value = "true"
-        if i + 1 < len(cli_args):
-            next_token = cli_args[i + 1]
-            if next_token != "--" and not (not stop_processing and next_token.startswith("--")):
-                value = next_token
-                i += 1
-
-        normalized.append(f"{key_token}={value}")
-        i += 1
-
-    return normalized
 
 
 def deep_merge(dst: dict, src: dict) -> dict:

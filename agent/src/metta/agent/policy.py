@@ -3,6 +3,7 @@
 This ensures that all policies (ComponentPolicy, PyTorch agents with mixin, etc.)
 implement the required methods that MettaAgent depends on."""
 
+import importlib
 from abc import ABC, abstractmethod
 from typing import Any, Callable, ClassVar, Dict, List
 
@@ -35,8 +36,8 @@ def _resolve_symbol(path: str) -> Any:
 
 
 POLICY_PRESETS: Dict[str, PolicyPresetFactory] = {
-    "fast": lambda: _resolve_symbol("metta.agent.policies.fast.FastConfig"),
-    "vit": lambda: _resolve_symbol("metta.agent.policies.vit.ViTDefaultConfig"),
+    "fast": lambda: importlib.import_module("metta.agent.policies.fast").FastConfig,
+    "vit": lambda: importlib.import_module("metta.agent.policies.vit").ViTDefaultConfig,
 }
 
 
@@ -59,23 +60,10 @@ class PolicyArchitecture(Config):
 
         if isinstance(value, str):
             preset = POLICY_PRESETS.get(value.lower())
-            if preset is not None:
-                resolved_cls = preset()
-                if isinstance(resolved_cls, type) and issubclass(resolved_cls, cls):
-                    return resolved_cls()
-                raise TypeError("Policy preset factory must return a PolicyArchitecture subclass")
-
-            try:
-                resolved_obj = _resolve_symbol(value)
-            except ValueError as exc:
+            if preset is None:
                 available = ", ".join(sorted(POLICY_PRESETS))
-                raise ValueError(f"Unknown policy preset: {value}. Available presets: [{available}]") from exc
-
-            if isinstance(resolved_obj, type) and issubclass(resolved_obj, cls):
-                return resolved_obj()
-            if isinstance(resolved_obj, cls):
-                return resolved_obj
-            raise TypeError("Policy preset path must resolve to a PolicyArchitecture type or instance")
+                raise ValueError(f"Unknown policy preset: {value}. Available: [{available}]")
+            return preset()()
 
         if isinstance(value, type) and issubclass(value, cls):
             return value()
