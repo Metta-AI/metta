@@ -1,7 +1,6 @@
 import logging
 from typing import Any
 
-import numpy as np
 import torch
 from pydantic import ConfigDict
 from tensordict import TensorDict
@@ -124,7 +123,35 @@ class CoreTrainingLoop:
                 loss.rollout(td, context)
 
             assert "actions" in td, "No loss performed inference - at least one loss must generate actions"
-            self.last_action[training_env_id] = td["actions"].detach()
+            actions_tensor = td["actions"].detach()
+            if actions_tensor.dim() == 0:
+                actions_tensor = actions_tensor.view(1, 1)
+            elif actions_tensor.dim() == 1:
+                actions_tensor = actions_tensor.view(-1, 1)
+            elif actions_tensor.dim() == 2 and actions_tensor.size(-1) == 1:
+                actions_tensor = actions_tensor.view(-1, 1)
+            else:
+                raise ValueError(f"Unsupported action tensor shape {tuple(actions_tensor.shape)}")
+
+            if self.last_action is None:
+                raise RuntimeError("last_action buffer was not initialized before rollout actions were generated")
+
+            if self.last_action.device != actions_tensor.device:
+                self.last_action = self.last_action.to(device=actions_tensor.device)
+
+            if self.last_action.dtype != actions_tensor.dtype:
+                actions_tensor = actions_tensor.to(dtype=self.last_action.dtype)
+
+            target_buffer = self.last_action[training_env_id]
+            if target_buffer.shape != actions_tensor.shape:
+                logger.error(
+                    "last_action buffer shape mismatch: target=%s actions=%s raw=%s",
+                    target_buffer.shape,
+                    actions_tensor.shape,
+                    tuple(td["actions"].shape),
+                )
+
+            target_buffer.copy_(actions_tensor)
 
             # Ship actions to the environment
             env.send_actions(td["actions"].cpu().numpy())
@@ -278,9 +305,23 @@ class CoreTrainingLoop:
     def add_last_action_to_td(self, td: TensorDict, env: TrainingEnvironment) -> None:
         env_ids = td["training_env_ids"]
         if env_ids.dim() == 2:
-            env_ids = td["training_env_ids"].squeeze(-1)
-        if self.last_action is None or len(self.last_action) < env_ids.max() + 1:
-            act_space = env.single_action_space
-            act_dtype = torch.int32 if np.issubdtype(act_space.dtype, np.integer) else torch.float32
-            self.last_action = torch.zeros(env_ids.max() + 1, len(act_space.nvec), dtype=act_dtype, device=td.device)
+            env_ids = env_ids.squeeze(-1)
+
+        if env_ids.numel() == 0:
+            td["last_actions"] = torch.zeros((0, 1), dtype=torch.int64, device=td.device)
+            return
+
+        max_env_id = int(env_ids.max().item())
+        target_length = max_env_id + 1
+
+        if self.last_action is None:
+            self.last_action = torch.zeros(target_length, 1, dtype=torch.int64, device=td.device)
+        else:
+            if self.last_action.size(0) < target_length:
+                pad_shape = (target_length - self.last_action.size(0), self.last_action.size(1))
+                pad_tensor = torch.zeros(pad_shape, dtype=self.last_action.dtype, device=self.last_action.device)
+                self.last_action = torch.cat((self.last_action, pad_tensor), dim=0)
+            if self.last_action.device != td.device:
+                self.last_action = self.last_action.to(device=td.device)
+
         td["last_actions"] = self.last_action[env_ids].detach()
