@@ -26,3 +26,8 @@ Before finalizing changes (e.g. before a commit), or upon request from the user:
 
 - Mention relevant file paths when describing changes.
 - Include test output or note why tests were skipped.
+
+## Experiments and long-running tools
+
+- When running ABES recipes (e.g. `./tools/run.py experiments.recipes.abes.vit.train`), wrap the invocation in a shell `timeout` so local runs terminate cleanly. Example: `timeout 30s ./tools/run.py experiments.recipes.abes.vit.train run=local_vit trainer.total_timesteps=5_000_000`.
+- For quick end-to-end CoGames checks from the package directory, run `timeout 30s uv run cogames train training_facility_1 --policy simple` (from within `packages/cogames/`).
