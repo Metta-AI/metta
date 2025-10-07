@@ -7,15 +7,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-from setuptools.build_meta import (
-    build_editable as _build_editable,
-)
-from setuptools.build_meta import (
-    build_sdist as _build_sdist,
-)
-from setuptools.build_meta import (
-    build_wheel as _build_wheel,
-)
+from setuptools.build_meta import build_editable as _build_editable
+from setuptools.build_meta import build_sdist as _build_sdist
+from setuptools.build_meta import build_wheel as _build_wheel
 from setuptools.build_meta import (
     get_requires_for_build_editable,
     get_requires_for_build_sdist,
@@ -29,6 +23,17 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 METTASCOPE_DIR = PROJECT_ROOT / "nim" / "mettascope"
 PYTHON_PACKAGE_DIR = PROJECT_ROOT / "python" / "src" / "mettagrid"
 METTASCOPE_PACKAGE_DIR = PYTHON_PACKAGE_DIR / "nim" / "mettascope"
+REPO_ROOT = PROJECT_ROOT.resolve().parents[1]
+
+
+def _inject_safe_directory(env: dict[str, str], directory: Path) -> None:
+    """Allow git commands to operate inside CI sandboxes with mismatched ownership."""
+
+    resolved = str(directory.resolve())
+    count = int(env.get("GIT_CONFIG_COUNT", "0"))
+    env[f"GIT_CONFIG_KEY_{count}"] = "safe.directory"
+    env[f"GIT_CONFIG_VALUE_{count}"] = resolved
+    env["GIT_CONFIG_COUNT"] = str(count + 1)
 
 
 def _run_bazel_build() -> None:
@@ -200,8 +205,16 @@ def _run_mettascope_build() -> None:
     print(f"Building mettascope from {METTASCOPE_DIR}")
 
     # Run the build script
+    nim_env = os.environ.copy()
+    _inject_safe_directory(nim_env, REPO_ROOT)
     for cmd in ["update", "install", "bindings"]:
-        result = subprocess.run(["nimble", cmd, "-y"], cwd=METTASCOPE_DIR, capture_output=True, text=True)
+        result = subprocess.run(
+            ["nimble", cmd, "-y"],
+            cwd=METTASCOPE_DIR,
+            capture_output=True,
+            text=True,
+            env=nim_env,
+        )
         print(result.stderr, file=sys.stderr)
         print(result.stdout, file=sys.stderr)
         if result.returncode != 0:
