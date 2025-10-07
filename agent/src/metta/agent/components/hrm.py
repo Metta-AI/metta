@@ -109,7 +109,6 @@ class HRMReasoning(nn.Module):
         self.memory = HRMMemory()
         self.carry = self.memory.get_memory()
 
-
         # Multi-head attention layers
         self.attention_layers = nn.ModuleList(
             [
@@ -135,8 +134,6 @@ class HRMReasoning(nn.Module):
         self.layer_norms1 = nn.ModuleList([nn.LayerNorm(config.embed_dim) for _ in range(config.num_layers)])
         self.layer_norms2 = nn.ModuleList([nn.LayerNorm(config.embed_dim) for _ in range(config.num_layers)])
 
-
-
     def _rms_norm(self, x: torch.Tensor, variance_epsilon: float = 1e-5) -> torch.Tensor:
         """RMSNorm (no bias)."""
         return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + variance_epsilon)
@@ -148,6 +145,13 @@ class HRMReasoning(nn.Module):
         # - (B, D): Already pooled by upstream component, skip transformer
         # - (B, N, D): Sequence input, apply transformer
         # - (B, H, W, D): Spatial input, flatten and apply transformer
+
+        if self.carry is not None:
+            self.z_l = self.carry["z_l"]
+            self.z_h = self.carry["z_h"]
+        else:
+            self.z_l = torch.zeros(x.shape[0], self.config.embed_dim)
+            self.z_h = torch.zeros(x.shape[0], self.config.embed_dim)
 
         if x.ndim == 2:
             # Already pooled, use directly
