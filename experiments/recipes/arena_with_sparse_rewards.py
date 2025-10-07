@@ -1,6 +1,6 @@
 """Arena recipe with contrastive loss enabled and sparse rewards: ore -> battery -> heart."""
 
-from typing import List, Optional, Sequence
+from typing import Optional, Sequence
 
 from experiments.sweeps.protein_configs import PPO_CORE, make_custom_protein_config
 import metta.cogworks.curriculum as cc
@@ -15,10 +15,10 @@ from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.protein_config import ParameterConfig
+from metta.tools.eval import EvaluateTool
 from metta.tools.eval_remote import EvalRemoteTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.sim import SimTool
 from metta.tools.sweep import SweepTool, SweepSchedulerType
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
@@ -29,7 +29,7 @@ from metta.rl.loss.contrastive_config import ContrastiveConfig
 from metta.rl.loss.ppo import PPOConfig
 
 
-def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
+def mettagrid(num_agents: int = 24) -> MettaGridConfig:
     """Create arena environment with sparse rewards: only heart gives reward."""
     arena_env = eb.make_arena(num_agents=num_agents)
 
@@ -60,7 +60,7 @@ def make_curriculum(
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
 ) -> CurriculumConfig:
     """Create curriculum with sparse reward environment."""
-    arena_env = arena_env or make_mettagrid()
+    arena_env = arena_env or mettagrid()
 
     arena_tasks = cc.bucketed(arena_env)
 
@@ -88,9 +88,9 @@ def make_curriculum(
     return arena_tasks.to_curriculum(algorithm_config=algorithm_config)
 
 
-def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
+def simulations(env: Optional[MettaGridConfig] = None) -> list[SimulationConfig]:
     """Create evaluation environments with sparse rewards."""
-    basic_env = env or make_mettagrid()
+    basic_env = env or mettagrid()
     basic_env.game.actions.attack.consumed_resources["laser"] = 100
 
     combat_env = basic_env.model_copy()
@@ -137,44 +137,48 @@ def train(
     return TrainTool(
         trainer=trainer_config,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        evaluator=EvaluatorConfig(simulations=make_evals()),
+        evaluator=EvaluatorConfig(simulations=simulations()),
     )
 
 
-def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
+def play(policy_uri: Optional[str] = None) -> PlayTool:
     """Interactive play with sparse reward environment."""
-    eval_env = env or make_mettagrid()
-    return PlayTool(
-        sim=SimulationConfig(suite="arena_sparse", env=eval_env, name="eval")
-    )
+    return PlayTool(sim=simulations()[0], policy_uri=policy_uri)
 
 
-def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
+def replay(policy_uri: Optional[str] = None) -> ReplayTool:
     """Replay with sparse reward environment."""
-    eval_env = env or make_mettagrid()
-    return ReplayTool(
-        sim=SimulationConfig(suite="arena_sparse", env=eval_env, name="eval")
-    )
+    return ReplayTool(sim=simulations()[0], policy_uri=policy_uri)
 
 
 def evaluate(
-    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
-) -> SimTool:
+    policy_uris: Sequence[str] | str | None = None,
+    eval_simulations: Optional[Sequence[SimulationConfig]] = None,
+) -> EvaluateTool:
     """Evaluate with sparse reward environments."""
-    simulations = simulations or make_evals()
-    return SimTool(
-        simulations=simulations,
-        policy_uris=[policy_uri],
+    sims = list(eval_simulations) if eval_simulations is not None else simulations()
+
+    if policy_uris is None:
+        normalized_policy_uris: list[str] = []
+    elif isinstance(policy_uris, str):
+        normalized_policy_uris = [policy_uris]
+    else:
+        normalized_policy_uris = list(policy_uris)
+
+    return EvaluateTool(
+        simulations=sims,
+        policy_uris=normalized_policy_uris,
     )
 
 
 def evaluate_remote(
-    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
+    policy_uri: str,
+    eval_simulations: Optional[Sequence[SimulationConfig]] = None,
 ) -> EvalRemoteTool:
     """Remote evaluation with sparse reward environments."""
-    simulations = simulations or make_evals()
+    sims = list(eval_simulations) if eval_simulations is not None else simulations()
     return EvalRemoteTool(
-        simulations=simulations,
+        simulations=sims,
         policy_uri=policy_uri,
     )
 
