@@ -14,6 +14,7 @@ from cogames import evaluate as evaluate_module
 from cogames import game, utils
 from cogames import play as play_module
 from cogames import train as train_module
+from cogames.policy.policy import PolicySpec
 from cogames.policy.utils import parse_policy_spec, resolve_policy_class_path, resolve_policy_data_path
 from mettagrid import MettaGridEnv
 
@@ -43,7 +44,7 @@ def default(ctx: typer.Context) -> None:
 
 mission_argument = typer.Argument(
     None,
-    help="Name of the mission. Can be in the format 'map_name' or 'map_name.custom_mission' or 'path/to/mission.yaml'.",
+    help="Name of the mission. Can be in the format 'map_name' or 'map_name:mission' or 'path/to/mission.yaml'.",
     callback=lambda ctx, value: game.require_mission_argument(ctx, value, console),
 )
 
@@ -204,11 +205,11 @@ def train_cmd(
 
 
 @app.command(
-    name="evaluate",
+    name="eval",
     no_args_is_help=True,
     help="Evaluate one or more policies on a mission",
 )
-@app.command("eval", hidden=True)
+@app.command("evaluate", hidden=True)
 def evaluate_cmd(
     mission_name: str = mission_argument,
     policies: list[str] = typer.Argument(  # noqa: B008
@@ -218,6 +219,18 @@ def evaluate_cmd(
             "Provide multiple options for mixed populations."
         ),
     ),
+    policy_class_path: str = typer.Option(
+        None,
+        "--policy",
+        help="Path to policy class. Only provide this if you did not supply a list of policies",
+        callback=lambda p: None if p is None else resolve_policy_class_path(p),
+    ),
+    policy_data_path: Optional[str] = typer.Option(
+        None,
+        "--policy-data",
+        help="Path to policy weights file or directory. Only provide this if you did not supply a list of policies",
+        callback=resolve_policy_data_path,
+    ),
     episodes: int = typer.Option(10, "--episodes", "-e", help="Number of evaluation episodes", min=1),
     action_timeout_ms: int = typer.Option(
         250,
@@ -226,10 +239,21 @@ def evaluate_cmd(
         min=1,
     ),
 ) -> None:
-    if not policies:
+    if not policies and not policy_class_path:
         console.print("[red]Error: No policies provided[/red]")
         raise typer.Exit(1)
-    policy_specs = [parse_policy_spec(spec) for spec in policies]  # noqa: F821
+    if policies and (policy_class_path or policy_data_path):
+        console.print("[red]Provide --policies or (--policy and --policy-data), not[/red]")
+        raise typer.Exit(1)
+    if policies:
+        policy_specs = [parse_policy_spec(spec) for spec in policies]  # noqa: F821
+    else:
+        policy_specs = [
+            PolicySpec(
+                policy_class_path=policy_class_path,
+                policy_data_path=policy_data_path,
+            )
+        ]
 
     resolved_game, env_cfg = utils.get_mission_config(console, mission_name)
 

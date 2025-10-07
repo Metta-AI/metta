@@ -39,6 +39,8 @@ resource "aws_db_instance" "postgres" {
   db_name  = "softmax_login"
   username = "softmax_login"
   password = random_password.db.result
+
+  skip_final_snapshot = true
 }
 
 locals {

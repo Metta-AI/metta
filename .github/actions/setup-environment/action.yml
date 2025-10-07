@@ -42,6 +42,15 @@ runs:
         # Get year and week number for weekly cache invalidation
         echo "yearweek=$(date +%Y-%U)" >> "$GITHUB_OUTPUT"
 
+    - name: Cache nimble
+      id: cache-nimble
+      uses: actions/cache@v4
+      with:
+        path: ~/.nimble
+        key: nim-binary-${{ runner.os }}-${{ steps.get-week.outputs.yearweek }}
+        restore-keys: |
+          nim-binary-${{ runner.os }}-
+
     - name: Set up nim
       uses: jiro4989/setup-nim-action@v2
       with:

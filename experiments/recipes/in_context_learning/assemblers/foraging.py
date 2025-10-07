@@ -6,10 +6,10 @@ from typing import Optional, Sequence
 
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.tools.eval import EvaluateTool
 from metta.tools.eval_remote import EvalRemoteTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from mettagrid.builder.envs import make_icl_assembler
 from mettagrid.config.mettagrid_config import (
@@ -328,7 +328,7 @@ def train(
     return train_icl(task_generator_cfg, make_foraging_eval_suite, lp_params)
 
 
-def evaluate(simulations: Optional[Sequence[SimulationConfig]] = None) -> SimTool:
+def evaluate(simulations: Optional[Sequence[SimulationConfig]] = None) -> EvaluateTool:
     # Local import to avoid circular import at module load time
     from experiments.evals.in_context_learning.assemblers.foraging import (
         make_foraging_eval_suite,
@@ -343,7 +343,7 @@ def evaluate(simulations: Optional[Sequence[SimulationConfig]] = None) -> SimToo
     print(f"Policy uris:{policy_uris}")
 
     simulations = simulations or make_foraging_eval_suite()
-    return SimTool(
+    return EvaluateTool(
         simulations=simulations,
         policy_uris=policy_uris,
         stats_server_uri="https://api.observatory.softmax-research.net",
@@ -403,7 +403,7 @@ def play(
     return play_icl(task_generator)
 
 
-def evaluate_remote(
+def eval_remote(
     simulations: Optional[Sequence[SimulationConfig]] = None,
 ) -> EvalRemoteTool:
     # Local import to avoid circular import at module load time
@@ -418,6 +418,10 @@ def evaluate_remote(
         simulations=simulations,
         policy_uri=policy_uri,
     )
+
+
+# Backward compatibility alias
+evaluate_remote = eval_remote
 
 
 if __name__ == "__main__":
