@@ -2,24 +2,26 @@
 
 from __future__ import annotations
 
-from typing import Callable, Dict
+from typing import Callable
 
-from experiments.recipes import arena_basic_easy_shaped as base
+from experiments.recipes.arena_basic_easy_shaped import (
+    evaluate,
+    evaluate_in_sweep,
+    make_curriculum,
+    mettagrid,
+    play,
+    replay,
+    simulations,
+    sweep_async_progressive,
+    train as base_train,
+)
 from metta.agent.policies.agalite import AGaLiTePaperConfig
 from metta.agent.policy import PolicyArchitecture
+from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.rl.trainer_config import OptimizerConfig
 from metta.tools.train import TrainTool
 
-make_mettagrid = base.make_mettagrid
-make_curriculum = base.make_curriculum
-make_evals = base.make_evals
-play = base.play
-replay = base.replay
-evaluate = base.evaluate
-evaluate_in_sweep = base.evaluate_in_sweep
-sweep_async_progressive = base.sweep_async_progressive
-
-_POLICY_PRESETS: Dict[str, Callable[[], PolicyArchitecture]] = {
+_POLICY_PRESETS: dict[str, Callable[[], PolicyArchitecture]] = {
     "agalite_paper": AGaLiTePaperConfig,
 }
 
@@ -34,7 +36,7 @@ def _policy_from_name(name: str) -> PolicyArchitecture:
 
 def train(
     *,
-    curriculum=None,
+    curriculum: CurriculumConfig | None = None,
     enable_detailed_slice_logging: bool = False,
     policy_architecture: PolicyArchitecture | None = None,
     agent: str | None = None,
@@ -45,7 +47,7 @@ def train(
         else:
             policy_architecture = AGaLiTePaperConfig()
 
-    tool = base.train(
+    tool = base_train(
         curriculum=curriculum,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
         policy_architecture=policy_architecture,
@@ -61,9 +63,9 @@ def train(
 
 
 __all__ = [
-    "make_mettagrid",
+    "mettagrid",
     "make_curriculum",
-    "make_evals",
+    "simulations",
     "play",
     "replay",
     "evaluate",
