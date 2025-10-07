@@ -76,6 +76,7 @@ class MettaTDAdapter(nn.Module):
         d_hidden: int,
         out_features: Optional[int] = None,
         key_prefix: str = "cortex_state",
+        store_dtype: str = "fp32",
     ) -> None:
         super().__init__()
         # Constructor args
@@ -85,6 +86,10 @@ class MettaTDAdapter(nn.Module):
         self.d_hidden: int = int(d_hidden)
         self.out_features: Optional[int] = out_features
         self.key_prefix: str = key_prefix
+        # Storage dtype: 'fp32' (default) or 'bf16'
+        if store_dtype not in {"bf16", "fp32"}:
+            raise ValueError("store_dtype must be 'bf16' or 'fp32'")
+        self._store_dtype: torch.dtype = torch.bfloat16 if store_dtype == "bf16" else torch.float32
 
         # Discover state schema for per-env caches
         self._flat_entries: List[Tuple[FlatKey, LeafPath]] = self._discover_state_entries()
@@ -100,7 +105,6 @@ class MettaTDAdapter(nn.Module):
         self._leaf_shapes: Dict[LeafPath, Tuple[int, ...]] = self._discover_leaf_shapes()
         self._rollout_store: Dict[LeafPath, torch.Tensor] = {}
         self._train_store: Dict[LeafPath, torch.Tensor] = {}
-        self._store_dtype: torch.dtype = torch.bfloat16
 
         # Compact id→slot mappings (contiguous slots 0..N-1)
         self._rollout_id2slot: Dict[int, int] = {}
@@ -156,7 +160,7 @@ class MettaTDAdapter(nn.Module):
     def forward(self, td: TensorDict) -> TensorDict:
         # Backward-compatible lazy init (handles old checkpoints)
         if not hasattr(self, "_store_dtype"):
-            self._store_dtype = torch.bfloat16
+            self._store_dtype = torch.float32
         if not hasattr(self, "_rollout_id2slot"):
             self._rollout_id2slot = {}
         if not hasattr(self, "_rollout_next_slot"):
@@ -293,7 +297,7 @@ class MettaTDAdapter(nn.Module):
                 # Ensure dtype policy is respected after restore
                 # (actual dtype will be enforced on first gather/scatter)
                 if not hasattr(self, "_store_dtype"):
-                    self._store_dtype = torch.bfloat16
+                    self._store_dtype = torch.float32
             else:
                 raise RuntimeError("MettaTDAdapter.set_memory: missing 'rollout_store'/'train_store' data blobs")
         except Exception as e:
@@ -347,14 +351,6 @@ class MettaTDAdapter(nn.Module):
         device: torch.device,
         dtype: torch.dtype,
     ) -> TensorDict:
-        # Pick an appropriate storage dtype for this device (bf16 if supported, else f32)
-        if device.type == "cuda":
-            bf16_ok = getattr(torch.cuda, "is_bf16_supported", lambda: False)()
-            self._store_dtype = torch.bfloat16 if bf16_ok else torch.float32
-        else:
-            # CPU supports bf16 tensors; keep bf16 for memory unless caller prefers otherwise
-            self._store_dtype = torch.bfloat16
-
         # Ensure capacity for any large slot id; sanitize negatives if any (-1)
         if slot_ids.numel() == 0:
             return self.stack.init_state(batch=B, device=device, dtype=dtype)
@@ -390,20 +386,6 @@ class MettaTDAdapter(nn.Module):
         B = int(slot_ids.numel())
         if B == 0:
             return
-        # Set store dtype for this device
-        leaf_device = None
-        for _fk, (b_key, c_key, leaf_key) in self._flat_entries:
-            t = state.get(b_key).get(c_key).get(leaf_key)
-            if isinstance(t, torch.Tensor):
-                leaf_device = t.device
-                break
-        if leaf_device is None:
-            leaf_device = state.device if hasattr(state, "device") else torch.device("cpu")
-        if leaf_device.type == "cuda":
-            bf16_ok = getattr(torch.cuda, "is_bf16_supported", lambda: False)()
-            self._store_dtype = torch.bfloat16 if bf16_ok else torch.float32
-        else:
-            self._store_dtype = torch.bfloat16
         if slot_ids.dim() != 1:
             slot_ids = slot_ids.reshape(-1)
         # Ensure capacity (derive device/dtype from leaves to avoid TensorDict.device mismatches)

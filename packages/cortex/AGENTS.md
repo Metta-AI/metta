@@ -90,3 +90,45 @@ Always read both documents before making changes inside `packages/cortex`.
 - Unknown coverage: multi-layer wiring, projection heads, and non power-of-two
   hidden sizes are still PyTorch-only in several cells. When extending Triton
   support, document the new limits and keep the PyTorch path as reference.
+
+### Triton Kernel Safety & Debugging (sLSTM/mLSTM)
+
+- Bounds safety on tail tiles
+  - When the grid tiles B×DH (or B×L, etc.), use `boundary_check=(0, 1)` on every
+    `tl.load`/`tl.store` that operates on those block pointers. Do not assume `B % siz_B == 0`.
+  - If autotuning tries multiple `siz_B` (e.g., 16 and 32), padding B to a single
+    multiple is insufficient. Prefer boundary checks over relying on divisibility.
+
+- Compute sensitive math in float32, cast for storage
+  - Accumulate gate preactivations (Ī, F̄, Z̄, Ō) and intermediate states in `tl.float32`.
+  - Apply `log`, `exp`, `sigmoid`, and `tanh` in float32, then cast the final outputs
+    back to the kernel `DTYPE` only at store sites.
+
+- Stable nonlinearity patterns
+  - Tanh: avoid `(1 - exp(-2x)) / (1 + exp(-2x))` (inf/inf → NaN). Use a stable form:
+    `tanh(x) = sign(x) * (1 - 2 / (1 + exp(2*abs(x))))` in float32.
+  - Stabilized m_next rule (sLSTM): `m_next = is_first ? Ī : max(Ī, m + log_sigmoid(F̄))`.
+  - Always add a small epsilon (e.g., `1e-6`) to denominators that can approach 0.
+
+- Resets and segmentation
+  - Respect per‑timestep resets in forward and backward. Zero carry-over across reset
+    boundaries (e.g., inter‑chunk contributions) to match PyTorch step semantics.
+  - Prefer representing resets as explicit masks passed to kernels rather than implicit
+    assumptions in the caller.
+
+- Autotuning and shared memory
+  - Be mindful of SMEM budgets; accumulators are float32. Keep tile sizes within the
+    `CORTEX_TRITON_SMEM_SOFT_LIMIT` (defaults used in wrappers) or adjust grid/block sizes.
+
+- Repro and fallback toggles
+  - `CORTEX_DISABLE_TRITON=1` (or `CORTEX_FORCE_PYTORCH=1`) forces the PyTorch reference for
+    quick triage. If PyTorch is stable and Triton isn’t, focus debug on kernel math/tiling.
+
+- Minimal parity harness
+  - Build a small test that runs both backends on randomized shapes/dtypes (fp16/bf16/fp32),
+    non‑multiple batch sizes (e.g., 17/31/33), and reset patterns. Assert `no NaN/Inf` and
+    numeric closeness within agreed tolerances.
+
+- Upstream call‑site guardrails (useful while debugging)
+  - Add non‑finite checks around logits/states in the high‑level modules and skip optimizer
+    steps when any grad is non‑finite to avoid corrupting weights during kernel bring‑up.

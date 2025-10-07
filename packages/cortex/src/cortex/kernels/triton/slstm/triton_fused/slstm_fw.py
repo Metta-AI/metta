@@ -270,7 +270,7 @@ def _forward_sequence_kernel(
                 block_shape=(DH, TN),
                 order=(0, 1),
             )
-            matR_i_tile = tl.load(matR_i_tile_ptr)
+            matR_i_tile = tl.load(matR_i_tile_ptr, boundary_check=(0, 1))
 
             matR_f_tile_ptr = tl.make_block_ptr(
                 base=R + idx_b_NH * DH * NGR * DH + 1 * DH * DH,
@@ -280,7 +280,7 @@ def _forward_sequence_kernel(
                 block_shape=(DH, TN),
                 order=(0, 1),
             )
-            matR_f_tile = tl.load(matR_f_tile_ptr)
+            matR_f_tile = tl.load(matR_f_tile_ptr, boundary_check=(0, 1))
 
             matR_z_tile_ptr = tl.make_block_ptr(
                 base=R + idx_b_NH * DH * NGR * DH + 2 * DH * DH,
@@ -290,7 +290,7 @@ def _forward_sequence_kernel(
                 block_shape=(DH, TN),
                 order=(0, 1),
             )
-            matR_z_tile = tl.load(matR_z_tile_ptr)
+            matR_z_tile = tl.load(matR_z_tile_ptr, boundary_check=(0, 1))
 
             matR_o_tile_ptr = tl.make_block_ptr(
                 base=R + idx_b_NH * DH * NGR * DH + 3 * DH * DH,
@@ -300,7 +300,7 @@ def _forward_sequence_kernel(
                 block_shape=(DH, TN),
                 order=(0, 1),
             )
-            matR_o_tile = tl.load(matR_o_tile_ptr)
+            matR_o_tile = tl.load(matR_o_tile_ptr, boundary_check=(0, 1))
 
             # Compute recurrent contributions for tile: (B, TN)
             matRh_i_tile = tl.dot(matHtrans.to(DTYPE), matR_i_tile)
@@ -310,10 +310,11 @@ def _forward_sequence_kernel(
 
             # Bias tiles
             cols = n0 + tl.arange(0, TN)
-            vecBi_tile = tl.load(b_i_base + cols)
-            vecBf_tile = tl.load(b_f_base + cols)
-            vecBz_tile = tl.load(b_z_base + cols)
-            vecBo_tile = tl.load(b_o_base + cols)
+            mask_cols = cols < DH
+            vecBi_tile = tl.load(b_i_base + cols, mask=mask_cols, other=0.0)
+            vecBf_tile = tl.load(b_f_base + cols, mask=mask_cols, other=0.0)
+            vecBz_tile = tl.load(b_z_base + cols, mask=mask_cols, other=0.0)
+            vecBo_tile = tl.load(b_o_base + cols, mask=mask_cols, other=0.0)
 
             # Current state tiles from time idx_t
             c_t_tile_ptr = tl.make_block_ptr(

@@ -38,14 +38,9 @@ def slstm_sequence_triton(
     assert b.shape[0] == 4, f"b must be (4,NH,DH), got {b.shape}"
     assert initial_states.shape[0] == 4, f"initial_states must be (4,B,NH,DH), got {initial_states.shape}"
 
-    # Select kernel dtype policy
+    # Force fp32 compute inside the Triton kernels unless explicitly overridden
     if autocast_kernel_dtype is None:
-        if Wx.dtype == pt.bfloat16:
-            autocast_kernel_dtype = "bfloat16"
-        elif Wx.dtype == pt.float16:
-            autocast_kernel_dtype = "float16"
-        else:
-            autocast_kernel_dtype = "float32"
+        autocast_kernel_dtype = "float32"
 
     all_states, last_state = slstm_tr_fwbw(
         states_initial=initial_states,
