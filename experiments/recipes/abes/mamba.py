@@ -1,20 +1,34 @@
 from typing import Optional
 
-from experiments.recipes import arena_basic_easy_shaped as base
+from experiments.recipes.arena_basic_easy_shaped import (
+    evaluate,
+    evaluate_in_sweep,
+    make_curriculum,
+    mettagrid,
+    play,
+    replay,
+    simulations,
+    sweep_async_progressive,
+    train as base_train,
+)
 from metta.agent.components.mamba import MambaBackboneConfig
 from metta.agent.policies.mamba_sliding import MambaSlidingConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.tools.train import TrainTool
 
-make_mettagrid = base.make_mettagrid
-make_curriculum = base.make_curriculum
-make_evals = base.make_evals
-play = base.play
-replay = base.replay
-evaluate = base.evaluate
-evaluate_in_sweep = base.evaluate_in_sweep
-sweep_async_progressive = base.sweep_async_progressive
+__all__ = [
+    "mettagrid",
+    "make_curriculum",
+    "simulations",
+    "play",
+    "replay",
+    "evaluate",
+    "evaluate_in_sweep",
+    "sweep_async_progressive",
+    "train",
+    "train_mamba2",
+]
 
 
 def _set_ssm_layer(
@@ -39,7 +53,7 @@ def train(
     if ssm_layer is not None:
         policy = _set_ssm_layer(policy, ssm_layer)
 
-    return base.train(
+    return base_train(
         curriculum=curriculum,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
         policy_architecture=policy,
@@ -58,17 +72,3 @@ def train_mamba2(
         policy_architecture=policy_architecture,
         ssm_layer="Mamba2",
     )
-
-
-__all__ = [
-    "make_mettagrid",
-    "make_curriculum",
-    "make_evals",
-    "play",
-    "replay",
-    "evaluate",
-    "evaluate_in_sweep",
-    "sweep_async_progressive",
-    "train",
-    "train_mamba2",
-]

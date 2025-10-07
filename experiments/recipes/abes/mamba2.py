@@ -8,22 +8,24 @@ from .mamba import (
     evaluate,
     evaluate_in_sweep,
     make_curriculum,
-    make_evals,
-    make_mettagrid,
+    mettagrid,
     play,
     replay,
+    simulations,
+    sweep_async_progressive,
     train_mamba2 as _train_mamba2,
 )
 
 __all__ = [
     "train",
     "make_curriculum",
-    "make_mettagrid",
-    "make_evals",
+    "mettagrid",
+    "simulations",
     "play",
     "replay",
     "evaluate",
     "evaluate_in_sweep",
+    "sweep_async_progressive",
 ]
 
 
