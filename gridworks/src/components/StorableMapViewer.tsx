@@ -14,7 +14,7 @@ export const StorableMapViewer: FC<{
   map: StorableMap;
 }> = ({ map }) => {
   // Parse the frontmatter YAML
-  const grid = useMemo(() => MettaGrid.fromAscii(map.data), [map.data]);
+  const grid = useMemo(() => MettaGrid.fromStorableMap(map), [map]);
 
   const [selectedSceneTree, setSelectedSceneTree] = useState<
     SceneTree | undefined
