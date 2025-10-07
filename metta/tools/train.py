@@ -367,7 +367,6 @@ class TrainTool(Tool):
         self.training_env.forward_pass_minibatch_target_size = min(
             self.training_env.forward_pass_minibatch_target_size, 4
         )
-        self.context_checkpointer.epoch_interval = min(self.context_checkpointer.epoch_interval, 10)
         self.checkpointer.epoch_interval = min(self.checkpointer.epoch_interval, 10)
         self.uploader.epoch_interval = min(self.uploader.epoch_interval, 10)
         self.evaluator.epoch_interval = min(self.evaluator.epoch_interval, 10)
