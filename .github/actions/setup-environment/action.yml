@@ -49,7 +49,7 @@ runs:
         path: ~/.nimble
         key: nim-binary-${{ runner.os }}-${{ steps.get-week.outputs.yearweek }}
         restore-keys: |
-          ${{ runner.os }}-nimble-v2-
+          nim-binary-${{ runner.os }}-
 
     - name: Set up nim
       uses: jiro4989/setup-nim-action@v2
