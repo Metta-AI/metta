@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Dict, Optional, Sequence, Tuple, Union
 
 import torch
 import typer
@@ -96,18 +96,18 @@ def parse_multiple_policy_arguments(
     policies: RawPolicyValues, console: Console, game_name: Optional[str] = None
 ) -> list[PolicySpec]:
     if not policies:
-        console.print("[red]Error: Provide at least one --policy CLASS[:DATA][:PROPORTION].[/red]")
+        console.print("[red]Error: Provide at least one policy CLASS[:DATA][:PROPORTION].[/red]")
         raise typer.Exit(1)
-    return [parse_policy_argument(spec, console) for spec in policies]
+    return [parse_policy_argument(spec, console, game_name) for spec in policies]
 
 
 def parse_policy_argument(spec: Optional[str], console: Console, game_name: Optional[str] = None) -> PolicySpec:
     if spec is None:
-        console.print("[red]Error: Provide a --policy CLASS[:DATA][:PROPORTION].[/red]")
+        console.print("[red]Error: Provide a policy CLASS[:DATA][:PROPORTION].[/red]")
         raise typer.Exit(1)
     else:
         try:
-            return _parse_policy_spec(spec, console, game_name)
+            return _parse_policy_spec(spec, console=console, game_name=game_name)
         except ValueError as e:
             console.print(f"[red]Error parsing policy: {e}.[/red]")
             raise typer.Exit(1) from e

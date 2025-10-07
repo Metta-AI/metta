@@ -54,9 +54,9 @@ mission_argument = typer.Argument(
     callback=lambda ctx, value: game.require_mission_argument(ctx, value, console),
 )
 policy_help = (
-    "[blue]CLASS[/blue] can be a shorthand (e.g. 'simple', 'random', 'lstm') or a fully qualified class path. \n\n"
-    "[cyan]DATA[/cyan] is an optional checkpoint path. \n\n"
-    "[light_slate_grey]PROPORTION[/light_slate_grey] is an optional positive float specifying the population share."
+    "[blue]CLASS[/blue]: shorthand (e.g. 'simple', 'random') or fully qualified class path. \n\n"
+    "[cyan]DATA[/cyan]: optional checkpoint path. \n\n"
+    "[light_slate_grey]PROPORTION[/light_slate_grey]: optional float specifying the population share."
 )
 multiple_policies_argument = typer.Argument(
     None,
