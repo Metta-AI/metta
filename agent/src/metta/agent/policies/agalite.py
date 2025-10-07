@@ -91,10 +91,10 @@ def _build_components(
             out_key=actor_out_key,
             name="actor_mlp",
             in_features=hidden_size,
-            hidden_features=[],
+            hidden_features=[actor_hidden],
             out_features=actor_hidden,
             nonlinearity="ReLU",
-            output_nonlinearity="ReLU",
+            output_nonlinearity=None,
         ),
         ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=embedding_dim),
         ActorQueryConfig(
