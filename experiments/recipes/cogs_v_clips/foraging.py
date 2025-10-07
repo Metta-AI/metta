@@ -14,6 +14,7 @@ from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
 from metta.agent.policies.vit_reset import ViTResetConfig
 from metta.agent.policies.vit import ViTDefaultConfig
+from metta.tools.eval import EvaluateTool
 
 from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
@@ -312,6 +313,21 @@ def replay() -> ReplayTool:
     return ReplayTool(
         policy_uri=policy_uri,
         sim=SimulationConfig(suite="cogs_v_clips", env=eval_env, name="eval"),
+    )
+
+
+def evaluate() -> EvaluateTool:
+    from experiments.evals.cogs_v_clips.foraging import make_foraging_eval_suite
+
+    policy_uris = [
+        "s3://softmax-public/policies/cogs_v_clips.foraging_assembly_lines_chests_pairs_lstm_reset.442.2025-10-07/:latest",
+        "s3://softmax-public/policies/cogs_v_clips.foraging_extractor_chests_combined_lstm_reset.3001.2025-10-07/:latest",
+        "s3://softmax-public/policies/cogs_v_clips.foraging_extractor_chests_pairs_lstm_reset.7892.2025-10-07/:latest",
+    ]
+    return EvaluateTool(
+        simulations=make_foraging_eval_suite(),
+        policy_uris=policy_uris,
+        stats_server_uri="https://api.observatory.softmax-research.net",
     )
 
 
