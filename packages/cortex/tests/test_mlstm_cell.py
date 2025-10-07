@@ -893,6 +893,78 @@ def test_mlstm_reset_mask_functionality() -> None:
     print("✓ mLSTMCell reset mask behavior verified (sequence and step)")
 
 
+def test_mlstm_sequence_vs_step_with_resets_conv_multichunk_strict() -> None:
+    """Sequence vs step should match under resets when conv has memory (kernel>1).
+
+    This test intentionally uses conv1d_kernel_size>1 and T>chunk_size so that:
+    - the conv ring buffer carries history across timesteps, and
+    - the mLSTM sequence path uses the chunkwise backend with a reset mask.
+
+    Current implementation deviates from exact step semantics in this setting.
+    The assertion is strict to surface the discrepancy before we change code.
+    """
+    torch.manual_seed(42)
+
+    device = get_test_device()
+    dtype = torch.float32
+
+    B = 2
+    T = 64  # spans multiple chunks when chunk_size=16
+    H = 64
+    num_heads = 4
+
+    cfg = mLSTMCellConfig(
+        hidden_size=H,
+        num_heads=num_heads,
+        chunk_size=16,         # force multi-chunk processing in sequence mode
+        conv1d_kernel_size=4,  # conv has memory across time
+    )
+
+    cell = mLSTMCell(cfg).to(device=device, dtype=dtype)
+    cell.eval()
+
+    x = torch.randn(B, T, H, device=device, dtype=dtype)
+
+    # Create per-timestep resets at different positions
+    resets = torch.zeros(B, T, device=device, dtype=torch.bool)
+    resets[0, 17] = True
+    resets[1, 23] = True
+
+    # Sequence (parallel) path with resets
+    with torch.no_grad():
+        y_seqmode, state_seqmode = cell(x, state=None, resets=resets)
+
+    # Step-by-step path with per-timestep resets
+    state = None
+    y_steps = []
+    with torch.no_grad():
+        for t in range(T):
+            y_t, state = cell(x[:, t, :], state, resets=resets[:, t])
+            y_steps.append(y_t)
+    y_stepmode = torch.stack(y_steps, dim=1)
+
+    # Strict parity expectation to surface current discrepancy
+    assert y_seqmode.shape == y_stepmode.shape
+    torch.testing.assert_close(
+        y_seqmode,
+        y_stepmode,
+        rtol=2e-3,
+        atol=2e-3,
+        msg="mLSTMCell sequence vs step should match under resets with conv>1 (allow small numeric drift)",
+    )
+
+    # Also check final states for completeness
+    assert state_seqmode is not None and state is not None
+    for key in ("c", "n", "m"):
+        torch.testing.assert_close(
+            state_seqmode[key],
+            state[key],
+            rtol=2e-3,
+            atol=2e-3,
+            msg=f"Final state '{key}' should match between sequence and step (allow small numeric drift)",
+        )
+
+
 if __name__ == "__main__":
     # Run all tests
     test_mlstm_parallel_vs_sequential_close()
