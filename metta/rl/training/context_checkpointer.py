@@ -13,9 +13,6 @@ logger = logging.getLogger(__name__)
 class ContextCheckpointerConfig(Config):
     """Configuration for trainer state checkpointing."""
 
-    epoch_interval: int = 30
-    """Baseline frequency for trainer state checkpoints (in epochs)."""
-
     keep_last_n: int = 5
     """Number of trainer checkpoints to retain locally."""
 
@@ -32,7 +29,7 @@ class ContextCheckpointer(TrainerComponent):
         checkpoint_manager: CheckpointManager,
         distributed_helper: DistributedHelper,
     ) -> None:
-        super().__init__(epoch_interval=max(1, config.epoch_interval))
+        super().__init__(epoch_interval=1)
         self._config = config
         self._checkpoint_manager = checkpoint_manager
         self._distributed = distributed_helper
@@ -137,31 +134,25 @@ class ContextCheckpointer(TrainerComponent):
             return
 
         policy_epoch = self.context.latest_saved_policy_epoch
-        if policy_epoch is not None and policy_epoch != self._last_synced_policy_epoch:
-            self._save_state(force=True)
+        if policy_epoch is None:
             return
 
-        if self._config.epoch_interval and epoch % self._config.epoch_interval != 0:
-            return
-
-        self._save_state()
+        if policy_epoch != self._last_synced_policy_epoch:
+            self._save_state()
 
     def on_training_complete(self) -> None:  # type: ignore[override]
         if not self._distributed.should_checkpoint():
             return
 
-        self._save_state(force=True)
+        self._save_state()
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
-    def _save_state(self, *, force: bool = False) -> None:
+    def _save_state(self) -> None:
         context = self.context
         current_epoch = context.epoch
         agent_step = context.agent_step
-
-        if not force and self._config.epoch_interval and current_epoch % self._config.epoch_interval != 0:
-            return
 
         try:
             context.state.stopwatch_state = context.stopwatch.save_state()
