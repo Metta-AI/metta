@@ -61,6 +61,34 @@ class HRMObsEncoding(nn.Module):
         return td
 
 
+class LLevel(nn.Module):
+    def __init__(self, embed_dim: int, num_layers: int):
+        super().__init__()
+        self.embed_dim = embed_dim
+        self.num_layers = num_layers
+
+        self.layers = nn.ModuleList([nn.Linear(embed_dim, embed_dim) for _ in range(num_layers)])
+
+    def forward(self, x: torch.Tensor, h: torch.Tensor) -> torch.Tensor:
+        for layer in self.layers:
+            x = layer(x)
+        return x
+
+
+class HLevel(nn.Module):
+    def __init__(self, embed_dim: int, num_layers: int):
+        super().__init__()
+        self.embed_dim = embed_dim
+        self.num_layers = num_layers
+
+        self.layers = nn.ModuleList([nn.Linear(embed_dim, embed_dim) for _ in range(num_layers)])
+
+    def forward(self, x: torch.Tensor, h: torch.Tensor) -> torch.Tensor:
+        for layer in self.layers:
+            x = layer(x)
+        return x
+
+
 class HRMReasoningConfig(ComponentConfig):
     """HRM reasoning component that processes encoded observations."""
 
