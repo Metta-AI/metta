@@ -8,9 +8,8 @@ We need the crontab to clean up some files on the jobs controller host that caus
 
 import shlex
 import subprocess
-from pathlib import Path
 
-from devops.skypilot.utils.job_helpers import get_jobs_controller_name
+from devops.skypilot.utils.job_helpers import get_devops_skypilot_dir, get_jobs_controller_name
 from metta.common.util.text_styles import bold, green, yellow
 
 
@@ -19,7 +18,7 @@ def main():
     print(f"Jobs controller: {yellow(controller_name)}")
 
     # Read the crontab file
-    crontab_file = Path(__file__).parent / "files" / "controller.crontab"
+    crontab_file = get_devops_skypilot_dir() / "files" / "controller.crontab"
     if not crontab_file.exists():
         raise FileNotFoundError(f"Crontab file not found: {crontab_file}")
 
