@@ -10,6 +10,13 @@ import torch
 
 from cogames.policy.policy import PolicySpec
 
+_POLICY_CLASS_SHORTHAND: dict[str, str] = {
+    "random": "cogames.policy.random.RandomPolicy",
+    "simple": "cogames.policy.simple.SimplePolicy",
+    "lstm": "cogames.policy.lstm.LSTMPolicy",
+    "claude": "cogames.policy.claude.ClaudePolicy",
+}
+
 
 def resolve_policy_class_path(policy: str) -> str:
     """Resolve a policy shorthand or full class path.
@@ -20,12 +27,11 @@ def resolve_policy_class_path(policy: str) -> str:
     Returns:
         Full class path to the policy.
     """
-    return {
-        "random": "cogames.policy.random.RandomPolicy",
-        "simple": "cogames.policy.simple.SimplePolicy",
-        "lstm": "cogames.policy.lstm.LSTMPolicy",
-        "claude": "cogames.policy.claude.ClaudePolicy",
-    }.get(policy, policy)
+    return _POLICY_CLASS_SHORTHAND.get(policy, policy)
+
+
+def get_policy_class_shorthand(policy: str) -> Optional[str]:
+    return {v: k for k, v in _POLICY_CLASS_SHORTHAND.items()}.get(policy)
 
 
 def resolve_policy_data_path(policy_data_path: Optional[str]) -> Optional[str]:
