@@ -192,7 +192,7 @@ class TransformerPolicy(Policy):
         else:
             self.input_projection = nn.Identity()
 
-        self.action_dim = self._infer_action_dim()
+        self.action_dim = 1
         if self.use_aux_tokens:
             self.reward_proj = nn.Linear(1, self.hidden_size)
             self.reset_proj = nn.Linear(1, self.hidden_size)
@@ -284,14 +284,6 @@ class TransformerPolicy(Policy):
         self.obs_encoder(td)
         return td
 
-    def _infer_action_dim(self) -> int:
-        space = self.action_space
-        if hasattr(space, "n"):
-            return 1
-        if hasattr(space, "shape") and space.shape:
-            return int(space.shape[0])
-        return 1
-
     def _build_aux_tokens(self, td: TensorDict, batch_size: int, tt: int, device: torch.device) -> torch.Tensor | None:
         if not self.use_aux_tokens:
             return None
@@ -324,25 +316,17 @@ class TransformerPolicy(Policy):
 
         last_actions = td.get("last_actions", None)
         if last_actions is not None:
-            last_actions = last_actions.view(total, -1).to(device=device, dtype=action_dtype)
+            last_actions = last_actions.view(total, -1)[..., : self.action_dim].to(device=device, dtype=action_dtype)
         else:
             actions = td.get("actions", None)
             if actions is not None:
-                actions = actions.view(batch_size, tt, 1).to(device=device, dtype=action_dtype)
-                prev_actions = self._get_zero_buffer((batch_size, tt, 1), device, action_dtype)
+                actions = actions.view(batch_size, tt, self.action_dim).to(device=device, dtype=action_dtype)
+                prev_actions = self._get_zero_buffer((batch_size, tt, self.action_dim), device, action_dtype)
                 if tt > 1:
                     prev_actions[:, 1:] = actions[:, :-1]
-                last_actions = prev_actions.view(total, -1)
+                last_actions = prev_actions.view(total, self.action_dim)
             else:
                 last_actions = self._get_zero_buffer((total, self.action_dim), device, action_dtype)
-
-        if last_actions.size(1) != self.action_dim:
-            action_dim = last_actions.size(1)
-            if action_dim > self.action_dim:
-                last_actions = last_actions[:, : self.action_dim]
-            else:
-                pad = self._get_zero_buffer((total, self.action_dim - action_dim), device, action_dtype)
-                last_actions = torch.cat([last_actions, pad], dim=1)
 
         aux = self.reward_proj(reward)
         aux.add_(self.reset_proj(resets))
