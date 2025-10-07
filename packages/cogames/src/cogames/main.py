@@ -3,12 +3,17 @@
 """CLI for CoGames - collection of environments for multi-agent cooperative and competitive games."""
 
 import importlib.metadata
+import json
 import logging
 import sys
 from pathlib import Path
 from typing import Callable, Literal, Optional
 
+import typer
+import yaml
 from packaging.version import Version
+from rich.console import Console
+from rich.table import Table
 
 from cogames import evaluate as evaluate_module
 from cogames import game, utils
@@ -20,10 +25,6 @@ from mettagrid import MettaGridConfig, MettaGridEnv
 
 # Always add current directory to Python path
 sys.path.insert(0, ".")
-
-import typer
-from rich.console import Console
-from rich.table import Table
 
 logger = logging.getLogger("cogames.main")
 
@@ -53,13 +54,15 @@ mission_argument = typer.Argument(
 @app.command("games", hidden=True)
 def games_cmd(
     mission_name: str = mission_argument,
-    format_: Literal[None, "yaml", "json"] = typer.Option(None, "--format"),
+    format_: Literal[None, "yaml", "json"] = typer.Option(
+        None, "--format", help="Output mission configuration in YAML or JSON."
+    ),
     save: Optional[Path] = typer.Option(  # noqa: B008
         None,
         "--save",
         "-s",
         help="Save mission configuration to file (YAML or JSON)",
-    ),  # noqa: B008
+    ),
 ) -> None:
     resolved_mission, env_cfg = utils.get_mission_config(console, mission_name)
 
@@ -67,22 +70,30 @@ def games_cmd(
         console.print("[red]Error: --format and --save cannot be used together[/red]")
         raise typer.Exit(1)
 
-    if save:
+    if save is not None:
         try:
             game.save_mission_config(env_cfg, save)
-        except ValueError as exc:
+            console.print(f"[green]Mission configuration saved to: {save}[/green]")
+        except ValueError as exc:  # pragma: no cover - user input
             console.print(f"[red]Error saving configuration: {exc}[/red]")
             raise typer.Exit(1) from exc
-        console.print(f"[green]Mission configuration saved to: {save}[/green]")
         return
 
-    if format_:
-        console.print(env_cfg.model_dump(mode=format_))
+    if format_ is not None:
+        try:
+            data = env_cfg.model_dump(mode="json")
+            if format_ == "json":
+                console.print(json.dumps(data, indent=2))
+            else:
+                console.print(yaml.safe_dump(data, sort_keys=False))
+        except Exception as exc:  # pragma: no cover - serialization errors
+            console.print(f"[red]Error formatting configuration: {exc}[/red]")
+            raise typer.Exit(1) from exc
         return
 
     try:
         game.describe_mission(resolved_mission, env_cfg, console)
-    except ValueError as exc:
+    except ValueError as exc:  # pragma: no cover - user input
         console.print(f"[red]Error: {exc}[/red]")
         raise typer.Exit(1) from exc
 
@@ -116,7 +127,7 @@ def play_cmd(
             game_name=resolved_mission,
             console=console,
         )
-    except FileNotFoundError as exc:
+    except FileNotFoundError as exc:  # pragma: no cover - user input
         console.print(f"[red]Error: {exc}[/red]")
         raise typer.Exit(1) from exc
 
@@ -299,7 +310,7 @@ def evaluate_cmd(
         console.print("[red]Error: No policies provided[/red]")
         raise typer.Exit(1)
     if policies and (policy_class_path or policy_data_path):
-        console.print("[red]Provide --policies or (--policy and --policy-data), not both[/red]")
+        console.print("[red]Provide --policies or (--policy and --policy-data), not both.[/red]")
         raise typer.Exit(1)
 
     resolved_mission, env_cfg = utils.get_mission_config(console, mission_name)
@@ -320,7 +331,7 @@ def evaluate_cmd(
                     policy_data_path=resolved_policy_data,
                 )
             ]
-    except (ValueError, FileNotFoundError) as exc:
+    except (ValueError, FileNotFoundError) as exc:  # pragma: no cover - user input
         console.print(f"[red]Error: {exc}[/red]")
         raise typer.Exit(1) from exc
 

@@ -11,6 +11,7 @@ import numpy as np
 import psutil
 from rich.console import Console
 
+from cogames.aws_storage import maybe_upload_checkpoint
 from cogames.policy import TrainablePolicy
 from cogames.policy.signal_handler import DeferSigintContextManager
 from cogames.policy.utils import (
@@ -90,6 +91,9 @@ def train(
     if remainder:
         env_batch_size += envs_per_worker - remainder
 
+    if backend is pvector.Serial:
+        vector_batch_size = num_envs
+
     logger.debug(
         "Vec env config: num_envs=%s, num_workers=%s, batch_size=%s (envs/worker=%s)",
         num_envs,
@@ -119,15 +123,13 @@ def train(
         set_buffers(env, buf)
         return env
 
-    make_kwargs: dict[str, Any] = {"num_workers": num_workers}
-    make_kwargs["batch_size"] = env_batch_size
-
     vecenv = pvector.make(
         env_creator,
         num_envs=num_envs,
         backend=backend,
         env_kwargs={"cfg": base_cfg},
-        **make_kwargs,
+        num_workers=num_workers,
+        batch_size=env_batch_size,
     )
 
     layout = ActionLayout.from_env(vecenv.driver_env)
@@ -223,6 +225,7 @@ def train(
             num_steps,
             effective_timesteps,
         )
+
     checkpoint_interval = 200
     train_args = dict(
         env=env_name,
@@ -291,11 +294,9 @@ def train(
                 "KeyboardInterrupt received at step %s; stopping training gracefully.",
                 trainer.global_step,
             )
-
     trainer.print_dashboard()
     trainer.close()
 
-    console = Console()
     console.print()
     if training_diverged:
         console.print("=" * 80, style="bold red")
@@ -305,7 +306,7 @@ def train(
         console.print()
         console.print("[yellow]Warning: The latest checkpoint may contain NaN values.[/yellow]")
         console.print("[yellow]Try using an earlier checkpoint or retraining with lower learning rate.[/yellow]")
-    elif trainer.epoch >= checkpoint_interval:
+    else:
         console.print("=" * 80, style="bold green")
         console.print("Training complete")
         console.print(
@@ -333,6 +334,13 @@ def train(
                 f" (epoch {checkpoint_interval}).",
                 style="yellow",
             )
+
+        maybe_upload_checkpoint(
+            final_checkpoint=final_checkpoint,
+            game_name=game_name,
+            policy_class_path=policy_class_path,
+            console=console,
+        )
 
         policy_shorthand = get_policy_class_shorthand(policy_class_path)
         game_arg = f" {game_name}" if game_name else ""

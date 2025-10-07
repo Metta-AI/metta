@@ -4,17 +4,21 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Dict, Iterable, Optional, Tuple, Union
 
 import numpy as np
 import torch
 
+from cogames.aws_storage import DownloadOutcome, maybe_download_checkpoint
 from cogames.policy.policy import PolicySpec
 
-try:
+if TYPE_CHECKING:  # pragma: no cover - optional console for CLI
     from rich.console import Console
-except ImportError:  # pragma: no cover - rich is an optional dependency in some contexts
-    Console = object  # type: ignore[assignment]
+else:  # pragma: no cover - rich is optional at runtime
+    try:
+        from rich.console import Console
+    except ImportError:  # pragma: no cover - fallback for minimal environments
+        Console = object  # type: ignore[assignment]
 
 
 @dataclass
@@ -114,14 +118,10 @@ def resolve_policy_data_path(
 ) -> Optional[str]:
     """Resolve a checkpoint path if provided.
 
-    Only local filesystem lookups are supported. If the requested path (or latest
-    ``*.pt`` file inside a directory) cannot be found, ``FileNotFoundError`` is raised.
-    The ``policy_class_path``/``game_name``/``console`` parameters remain for
-    backward compatibility with existing call sites but are unused.
+    Attempts to resolve the path locally first. If the file is missing and AWS policy
+    storage is configured, this will try to download the checkpoint to the requested
+    location. Raises ``FileNotFoundError`` if no checkpoint can be located.
     """
-
-    _ = (policy_class_path, game_name, console)
-
     if policy_data_path is None:
         return None
 
@@ -141,6 +141,16 @@ def resolve_policy_data_path(
 
     if path.exists():  # Non-pt extension but present
         return str(path)
+
+    if console is not None and policy_class_path is not None:
+        outcome: DownloadOutcome = maybe_download_checkpoint(
+            policy_path=path,
+            game_name=game_name,
+            policy_class_path=policy_class_path,
+            console=console,
+        )
+        if outcome.downloaded:
+            return str(path)
 
     raise FileNotFoundError(f"Checkpoint path not found: {path}")
 

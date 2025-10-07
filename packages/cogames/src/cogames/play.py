@@ -39,6 +39,8 @@ def play(
     else:
         raise ValueError(f"Unknown render mode '{render}'.")
 
+    if game_name:
+        logger.debug("Starting play session", extra={"game_name": game_name})
     env = MettaGridEnv(env_cfg=env_cfg, render_mode=render_mode)
 
     policy = initialize_or_load_policy(policy_class_path, policy_data_path, env)
@@ -135,9 +137,6 @@ def play(
     def generate_replay_step() -> str:
         grid_objects = []
         for grid_object in env.grid_objects().values():
-            if "agent_id" in grid_object:
-                agent_id = grid_object["agent_id"]
-                total_rewards[agent_id] += env.rewards[agent_id]
             grid_objects.append(
                 format_grid_object(grid_object, actions, env.action_success, env.rewards, total_rewards)
             )
