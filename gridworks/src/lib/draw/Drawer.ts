@@ -2,14 +2,14 @@ import { loadMettaTileSets } from "./mettaTileSets";
 import { TileSetCollection } from "./TileSetCollection";
 
 // based on mettascope's colorFromId
-const colorFromId = (agentId: number) => {
+function colorFromId(agentId: number) {
   const n = agentId + Math.PI + Math.E + Math.SQRT2;
   return {
     r: (n * Math.PI) % 1.0,
     g: (n * Math.E) % 1.0,
     b: (n * Math.SQRT2) % 1.0,
   };
-};
+}
 
 type ObjectLayer = {
   tile: string;
@@ -29,40 +29,22 @@ const objectDrawers: Record<string, ObjectDrawer> = {
   lab: [{ tile: "lab" }],
   lasery: [{ tile: "lasery" }],
   temple: [{ tile: "temple" }],
-  mine_red: [
-    { tile: "mine" },
-    { tile: "mine.color", modulate: { r: 1, g: 0, b: 0 } },
-  ],
-  mine_blue: [
-    { tile: "mine" },
-    { tile: "mine.color", modulate: { r: 0, g: 0, b: 1 } },
-  ],
-  mine_green: [
-    { tile: "mine" },
-    { tile: "mine.color", modulate: { r: 0, g: 1, b: 0 } },
-  ],
-  generator_red: [
-    { tile: "generator" },
-    { tile: "generator.color", modulate: { r: 1, g: 0, b: 0 } },
-  ],
-  generator_blue: [
-    { tile: "generator" },
-    { tile: "generator.color", modulate: { r: 0, g: 0, b: 1 } },
-  ],
-  generator_green: [
-    { tile: "generator" },
-    { tile: "generator.color", modulate: { r: 0, g: 1, b: 0 } },
-  ],
+  mine_red: [{ tile: "mine_red" }],
+  mine_blue: [{ tile: "mine_blue" }],
+  mine_green: [{ tile: "mine_green" }],
+  generator_red: [{ tile: "generator_red" }],
+  generator_blue: [{ tile: "generator_blue" }],
+  generator_green: [{ tile: "generator_green" }],
   carbon_extractor: [{ tile: "carbon_extractor" }],
   oxygen_extractor: [{ tile: "oxygen_extractor" }],
   germanium_extractor: [{ tile: "germanium_extractor" }],
   silicon_extractor: [{ tile: "silicon_extractor" }],
   chest: [{ tile: "block" }], // TODO: create chest.png asset
   // depleted variants reuse base extractor tiles for now
-  carbon_ex_dep: [{ tile: "carbon_extractor" }],
-  oxygen_ex_dep: [{ tile: "oxygen_extractor" }],
-  germanium_ex_dep: [{ tile: "germanium_extractor" }],
-  silicon_ex_dep: [{ tile: "silicon_extractor" }],
+  carbon_ex_dep: [{ tile: "carbon_ex_dep" }],
+  oxygen_ex_dep: [{ tile: "oxygen_ex_dep" }],
+  germanium_ex_dep: [{ tile: "germanium_ex_dep" }],
+  silicon_ex_dep: [{ tile: "silicon_ex_dep" }],
   "agent.agent": [{ tile: "agent" }],
   "agent.team_1": [{ tile: "agent", modulate: colorFromId(0) }],
   "agent.team_2": [{ tile: "agent", modulate: colorFromId(1) }],
