@@ -14,8 +14,9 @@ from cogames import evaluate as evaluate_module
 from cogames import game, utils
 from cogames import play as play_module
 from cogames import train as train_module
+from cogames.policy.policy import PolicySpec
 from cogames.policy.utils import parse_policy_spec, resolve_policy_class_path, resolve_policy_data_path
-from mettagrid import MettaGridEnv
+from mettagrid import MettaGridConfig, MettaGridEnv
 
 # Always add current directory to Python path
 sys.path.insert(0, ".")
@@ -40,9 +41,10 @@ def default(ctx: typer.Context) -> None:
         # No command provided, show help
         print(ctx.get_help())
 
+
 mission_argument = typer.Argument(
     None,
-    help="Name of the mission. Can be in the format 'map_name' or 'map_name.custom_mission' or 'path/to/mission.yaml'.",
+    help="Name of the mission. Can be in the format 'map_name' or 'map_name:mission' or 'path/to/mission.yaml'.",
     callback=lambda ctx, value: game.require_mission_argument(ctx, value, console),
 )
 
@@ -52,7 +54,7 @@ mission_argument = typer.Argument(
 def games_cmd(
     mission_name: str = mission_argument,
     format_: Literal[None, "yaml", "json"] = typer.Option(None, "--format"),
-    save: Optional[Path] = typer.Option(
+    save: Optional[Path] = typer.Option(  # noqa: B008
         None,
         "--save",
         "-s",
@@ -274,6 +276,18 @@ def evaluate_cmd(
             "Provide multiple options for mixed populations."
         ),
     ),
+    policy_class_path: str = typer.Option(
+        None,
+        "--policy",
+        help="Path to policy class. Only provide this if you did not supply a list of policies",
+        callback=lambda p: None if p is None else resolve_policy_class_path(p),
+    ),
+    policy_data_path: Optional[str] = typer.Option(
+        None,
+        "--policy-data",
+        help="Path to policy weights file or directory. Only provide this if you did not supply a list of policies",
+        callback=resolve_policy_data_path,
+    ),
     episodes: int = typer.Option(10, "--episodes", "-e", help="Number of evaluation episodes", min=1),
     action_timeout_ms: int = typer.Option(
         250,
@@ -282,17 +296,32 @@ def evaluate_cmd(
         min=1,
     ),
 ) -> None:
-    if not policies:
+    if not policies and not policy_class_path:
         console.print("[red]Error: No policies provided[/red]")
+        raise typer.Exit(1)
+    if policies and (policy_class_path or policy_data_path):
+        console.print("[red]Provide --policies or (--policy and --policy-data), not both[/red]")
         raise typer.Exit(1)
 
     resolved_mission, env_cfg = utils.get_mission_config(console, mission_name)
 
     try:
-        policy_specs = [
-            parse_policy_spec(spec, console=console, game_name=resolved_mission) for spec in policies
-        ]
-    except ValueError as exc:
+        if policies:
+            policy_specs = [parse_policy_spec(spec, console=console, game_name=resolved_mission) for spec in policies]
+        else:
+            resolved_policy_data = resolve_policy_data_path(
+                policy_data_path,
+                policy_class_path=policy_class_path,
+                game_name=resolved_mission,
+                console=console,
+            )
+            policy_specs = [
+                PolicySpec(
+                    policy_class_path=policy_class_path,
+                    policy_data_path=resolved_policy_data,
+                )
+            ]
+    except (ValueError, FileNotFoundError) as exc:
         console.print(f"[red]Error: {exc}[/red]")
         raise typer.Exit(1) from exc
 

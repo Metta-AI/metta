@@ -16,14 +16,8 @@ from metta.common.util.constants import PROD_STATS_SERVER_URI
 from metta.common.util.log_config import init_logging
 from metta.common.wandb.context import WandbConfig
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig
-from metta.sweep.schedulers.async_capped import (
-    AsyncCappedOptimizingScheduler,
-    AsyncCappedSchedulerConfig,
-)
-from metta.sweep.schedulers.batched_synced import (
-    BatchedSyncedOptimizingScheduler,
-    BatchedSyncedSchedulerConfig,
-)
+from metta.sweep.schedulers.async_capped import AsyncCappedOptimizingScheduler, AsyncCappedSchedulerConfig
+from metta.sweep.schedulers.batched_synced import BatchedSyncedOptimizingScheduler, BatchedSyncedSchedulerConfig
 from metta.tools.utils.auto_config import auto_wandb_config
 
 logger = logging.getLogger(__name__)

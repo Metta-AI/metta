@@ -30,24 +30,7 @@ def _determine_run_name(policy_uri: str) -> str:
     return f"eval_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
 
-class SimTool(Tool):
-    """Tool for running policy evaluations on simulation suites.
-
-    Can evaluate policies specified either by:
-    - run: Training run name (automatically resolves to latest S3 checkpoint)
-    - policy_uris: Explicit list of policy URIs (file://, s3://, etc.)
-
-    Usage examples:
-        # Evaluate latest checkpoint from a training run
-        SimTool(simulations=my_sims, run="my_experiment_2024")
-
-        # Evaluate specific policy URIs
-        SimTool(simulations=my_sims, policy_uris=["s3://bucket/path/policy:v10.pt"])
-
-        # Can also be invoked with run parameter
-        tool.invoke({"run": "my_experiment_2024"})
-    """
-
+class EvaluateTool(Tool):
     # required params:
     simulations: Sequence[SimulationConfig]  # list of simulations to run
     policy_uris: str | Sequence[str] | None = None  # list of policy uris to evaluate
