@@ -35,25 +35,24 @@ def _resolve_symbol(path: str) -> Any:
         raise ValueError(f"Failed to resolve symbol '{path}': {exc}") from exc
 
 
+def _preset(module: str, attribute: str) -> PolicyPresetFactory:
+    return lambda: getattr(importlib.import_module(module), attribute)
+
+
+def _normalize_preset_key(value: str) -> str:
+    return value.lower().replace("-", "_")
+
+
 POLICY_PRESETS: Dict[str, PolicyPresetFactory] = {
-    "fast": lambda: importlib.import_module("metta.agent.policies.fast").FastConfig,
-    "fast_dynamics": lambda: importlib.import_module("metta.agent.policies.fast_dynamics").FastDynamicsConfig,
-    "fast-dynamics": lambda: importlib.import_module("metta.agent.policies.fast_dynamics").FastDynamicsConfig,
-    "fast_lstm_reset": lambda: importlib.import_module("metta.agent.policies.fast_lstm_reset").FastLSTMResetConfig,
-    "fast-lstm-reset": lambda: importlib.import_module("metta.agent.policies.fast_lstm_reset").FastLSTMResetConfig,
-    "memory_free": lambda: importlib.import_module("metta.agent.policies.memory_free").MemoryFreeConfig,
-    "memory-free": lambda: importlib.import_module("metta.agent.policies.memory_free").MemoryFreeConfig,
-    "puffer": lambda: importlib.import_module("metta.agent.policies.puffer").PufferPolicyConfig,
-    "transformer": lambda: importlib.import_module("metta.agent.policies.transformer").TransformerPolicyConfig,
-    "vit": lambda: importlib.import_module("metta.agent.policies.vit").ViTDefaultConfig,
-    "vit_reset": lambda: importlib.import_module("metta.agent.policies.vit_reset").ViTResetConfig,
-    "vit-reset": lambda: importlib.import_module("metta.agent.policies.vit_reset").ViTResetConfig,
-    "vit_sliding_trans": lambda: importlib.import_module(
-        "metta.agent.policies.vit_sliding_trans"
-    ).ViTSlidingTransConfig,
-    "vit-sliding-trans": lambda: importlib.import_module(
-        "metta.agent.policies.vit_sliding_trans"
-    ).ViTSlidingTransConfig,
+    "fast": _preset("metta.agent.policies.fast", "FastConfig"),
+    "fast_dynamics": _preset("metta.agent.policies.fast_dynamics", "FastDynamicsConfig"),
+    "fast_lstm_reset": _preset("metta.agent.policies.fast_lstm_reset", "FastLSTMResetConfig"),
+    "memory_free": _preset("metta.agent.policies.memory_free", "MemoryFreeConfig"),
+    "puffer": _preset("metta.agent.policies.puffer", "PufferPolicyConfig"),
+    "transformer": _preset("metta.agent.policies.transformer", "TransformerPolicyConfig"),
+    "vit": _preset("metta.agent.policies.vit", "ViTDefaultConfig"),
+    "vit_reset": _preset("metta.agent.policies.vit_reset", "ViTResetConfig"),
+    "vit_sliding_trans": _preset("metta.agent.policies.vit_sliding_trans", "ViTSlidingTransConfig"),
 }
 
 
@@ -75,7 +74,8 @@ class PolicyArchitecture(Config):
             return value
 
         if isinstance(value, str):
-            preset = POLICY_PRESETS.get(value.lower())
+            preset_key = _normalize_preset_key(value)
+            preset = POLICY_PRESETS.get(preset_key)
             if preset is None:
                 available = ", ".join(sorted(POLICY_PRESETS))
                 raise ValueError(f"Unknown policy preset: {value}. Available: [{available}]")
