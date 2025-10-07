@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import math
 import multiprocessing
 import platform
 from pathlib import Path
@@ -87,16 +86,16 @@ def train(
 
     envs_per_worker = max(1, num_envs // num_workers)
     base_batch_size = vector_batch_size or 128
-    env_batch_size = max(base_batch_size, envs_per_worker)
-    remainder = env_batch_size % envs_per_worker
+    vector_batch_size = max(base_batch_size, envs_per_worker)
+    remainder = vector_batch_size % envs_per_worker
     if remainder:
-        env_batch_size += envs_per_worker - remainder
+        vector_batch_size += envs_per_worker - remainder
 
     logger.debug(
         "Vec env config: num_envs=%s, num_workers=%s, batch_size=%s (envs/worker=%s)",
         num_envs,
         num_workers,
-        env_batch_size,
+        vector_batch_size,
         envs_per_worker,
     )
 
@@ -121,38 +120,14 @@ def train(
         set_buffers(env, buf)
         return env
 
-    def _is_divisible(x: int, divisor: float) -> bool:
-        if divisor == 0:
-            return False
-        ratio = x / divisor
-        return math.isclose(ratio, round(ratio), rel_tol=1e-9, abs_tol=1e-9)
-
-    envs_per_worker_exact = num_envs / num_workers if num_workers else num_envs
-    supports_zero_copy = (
-        backend is not pvector.Serial
-        and num_workers > 0
-        and _is_divisible(num_envs, envs_per_worker_exact)
-        and _is_divisible(env_batch_size, envs_per_worker_exact)
+    vecenv = pvector.make(
+        env_creator,
+        num_envs=num_envs,
+        backend=backend,
+        env_kwargs={"cfg": base_cfg},
+        num_workers=num_workers,
+        batch_size=vector_batch_size,
     )
-
-    make_kwargs: dict[str, Any] = {
-        "num_envs": num_envs,
-        "backend": backend,
-        "env_kwargs": {"cfg": base_cfg},
-        "num_workers": num_workers,
-    }
-
-    if supports_zero_copy:
-        make_kwargs["batch_size"] = env_batch_size
-    else:
-        if backend is not pvector.Serial:
-            console.print(
-                "[yellow]Falling back to non-zero-copy vectorization. "
-                "Adjust --parallel-envs/--num-workers/--vector-batch-size to re-enable.[/yellow]"
-            )
-        make_kwargs["zero_copy"] = False
-
-    vecenv = pvector.make(env_creator, **make_kwargs)
 
     layout = ActionLayout.from_env(vecenv.driver_env)
     original_send = vecenv.send
