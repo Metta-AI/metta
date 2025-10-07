@@ -1,7 +1,7 @@
 import { TileSet, TileSetSource } from "./TileSet";
 import { TileSetCollection } from "./TileSetCollection";
 
-const sources = [
+export const TILE_NAMES = [
   "altar",
   "armory",
   "factory",
@@ -18,17 +18,29 @@ const sources = [
   "oxygen_extractor",
   "germanium_extractor",
   "silicon_extractor",
+  "clipped_carbon_extractor",
+  "clipped_oxygen_extractor",
+  "clipped_germanium_extractor",
+  "clipped_silicon_extractor",
   "oxygen_ex_dep",
   "carbon_ex_dep",
   "germanium_ex_dep",
   "silicon_ex_dep",
+  "assembler",
+  "chest",
+  "chest_carbon",
+  "chest_oxygen",
+  "chest_germanium",
+  "chest_silicon",
   "lab",
   "lasery",
   "temple",
   "wall",
   "block",
-  "agent",
-].map(
+  // doesn't include "agent", it's special
+];
+
+const sources = [...TILE_NAMES, "agent"].map(
   (name) =>
     ({
       src: `/mettascope-assets/objects/${name}.png`,

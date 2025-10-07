@@ -1,4 +1,4 @@
-import { loadMettaTileSets } from "./mettaTileSets";
+import { loadMettaTileSets, TILE_NAMES } from "./mettaTileSets";
 import { TileSetCollection } from "./TileSetCollection";
 
 // based on mettascope's colorFromId
@@ -20,31 +20,9 @@ type ObjectDrawer = ObjectLayer[];
 
 const objectDrawers: Record<string, ObjectDrawer> = {
   empty: [],
-  wall: [{ tile: "wall" }],
-  block: [{ tile: "block" }],
-  altar: [{ tile: "altar" }],
-  armory: [{ tile: "armory" }],
-  factory: [{ tile: "factory" }],
-  charger: [{ tile: "charger" }],
-  lab: [{ tile: "lab" }],
-  lasery: [{ tile: "lasery" }],
-  temple: [{ tile: "temple" }],
-  mine_red: [{ tile: "mine_red" }],
-  mine_blue: [{ tile: "mine_blue" }],
-  mine_green: [{ tile: "mine_green" }],
-  generator_red: [{ tile: "generator_red" }],
-  generator_blue: [{ tile: "generator_blue" }],
-  generator_green: [{ tile: "generator_green" }],
-  carbon_extractor: [{ tile: "carbon_extractor" }],
-  oxygen_extractor: [{ tile: "oxygen_extractor" }],
-  germanium_extractor: [{ tile: "germanium_extractor" }],
-  silicon_extractor: [{ tile: "silicon_extractor" }],
-  chest: [{ tile: "block" }], // TODO: create chest.png asset
-  // depleted variants reuse base extractor tiles for now
-  carbon_ex_dep: [{ tile: "carbon_ex_dep" }],
-  oxygen_ex_dep: [{ tile: "oxygen_ex_dep" }],
-  germanium_ex_dep: [{ tile: "germanium_ex_dep" }],
-  silicon_ex_dep: [{ tile: "silicon_ex_dep" }],
+  ...Object.fromEntries(
+    TILE_NAMES.map((tile) => [tile, [{ tile }] as ObjectDrawer])
+  ),
   "agent.agent": [{ tile: "agent" }],
   "agent.team_1": [{ tile: "agent", modulate: colorFromId(0) }],
   "agent.team_2": [{ tile: "agent", modulate: colorFromId(1) }],
