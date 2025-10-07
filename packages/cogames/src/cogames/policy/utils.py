@@ -4,15 +4,21 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Dict, Optional, Tuple, Union
 
 import torch
 
+from cogames.aws_storage import DownloadOutcome, maybe_download_checkpoint
 from cogames.policy.policy import PolicySpec
+
+if TYPE_CHECKING:  # pragma: no cover - optional console for CLI
+    from rich.console import Console
+
 
 _POLICY_CLASS_SHORTHAND: dict[str, str] = {
     "random": "cogames.policy.random.RandomPolicy",
     "simple": "cogames.policy.simple.SimplePolicy",
+    "token": "cogames.policy.token.TokenPolicy",
     "lstm": "cogames.policy.lstm.LSTMPolicy",
     "claude": "cogames.policy.claude.ClaudePolicy",
 }
@@ -22,7 +28,7 @@ def resolve_policy_class_path(policy: str) -> str:
     """Resolve a policy shorthand or full class path.
 
     Args:
-        policy: Either a shorthand like "random", "simple", "lstm" or a full class path.
+        policy: Either a shorthand like "random", "simple", "token", "lstm" or a full class path.
 
     Returns:
         Full class path to the policy.
@@ -34,28 +40,60 @@ def get_policy_class_shorthand(policy: str) -> Optional[str]:
     return {v: k for k, v in _POLICY_CLASS_SHORTHAND.items()}.get(policy)
 
 
-def resolve_policy_data_path(policy_data_path: Optional[str]) -> Optional[str]:
-    """Resolve a checkpoint path if provided."""
+def resolve_policy_data_path(
+    policy_data_path: Optional[str],
+    *,
+    policy_class_path: Optional[str] = None,
+    game_name: Optional[str] = None,
+    console: Optional["Console"] = None,
+) -> Optional[str]:
+    """Resolve a checkpoint path if provided.
+
+    If the supplied path does not exist locally and AWS policy storage is configured,
+    this will attempt to download the checkpoint into the requested location.
+    """
+
     if policy_data_path is None:
         return None
-    path = Path(policy_data_path)
+
+    path = Path(policy_data_path).expanduser()
     if path.is_file():
         return str(path)
-    if not path.exists():
-        raise FileNotFoundError(f"Checkpoint path not found: {path}")
 
-    last_touched_checkpoint_file = max(
-        (p for p in path.rglob("*.pt")),
-        key=lambda target: target.stat().st_mtime,
-        default=None,
-    )
-    if not last_touched_checkpoint_file:
-        raise FileNotFoundError(f"No checkpoint files (*.pt) found in directory: {path}")
-    return str(last_touched_checkpoint_file)
+    if path.is_dir():
+        latest_checkpoint = max(
+            (candidate for candidate in path.rglob("*.pt")),
+            key=lambda candidate: candidate.stat().st_mtime,
+            default=None,
+        )
+        if latest_checkpoint is None:
+            raise FileNotFoundError(f"No checkpoint files (*.pt) found in directory: {path}")
+        return str(latest_checkpoint)
+
+    if path.exists():  # Non-pt extension but present
+        return str(path)
+
+    if console is not None and policy_class_path is not None:
+        outcome: DownloadOutcome = maybe_download_checkpoint(
+            policy_path=path,
+            game_name=game_name,
+            policy_class_path=policy_class_path,
+            console=console,
+        )
+        if outcome.downloaded:
+            return str(path)
+
+    raise FileNotFoundError(f"Checkpoint path not found: {path}")
 
 
-def parse_policy_spec(spec: str) -> PolicySpec:
+def parse_policy_spec(
+    spec: str,
+    *,
+    console: Optional["Console"] = None,
+    game_name: Optional[str] = None,
+) -> PolicySpec:
     """Parse a policy CLI option into its components."""
+
     raw = spec.strip()
     if not raw:
         raise ValueError("Policy specification cannot be empty.")
@@ -83,7 +121,12 @@ def parse_policy_spec(spec: str) -> PolicySpec:
             raise ValueError("Policy proportion must be a positive number.")
 
     resolved_class_path = resolve_policy_class_path(raw_class_path)
-    resolved_policy_data = resolve_policy_data_path(raw_policy_data or None)
+    resolved_policy_data = resolve_policy_data_path(
+        raw_policy_data or None,
+        policy_class_path=resolved_class_path,
+        game_name=game_name,
+        console=console,
+    )
 
     return PolicySpec(
         policy_class_path=resolved_class_path,

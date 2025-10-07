@@ -3,12 +3,17 @@
 """CLI for CoGames - collection of environments for multi-agent cooperative and competitive games."""
 
 import importlib.metadata
+import json
 import logging
 import sys
 from pathlib import Path
 from typing import Literal, Optional
 
+import typer
+import yaml
 from packaging.version import Version
+from rich.console import Console
+from rich.table import Table
 
 from cogames import evaluate as evaluate_module
 from cogames import game, utils
@@ -20,10 +25,6 @@ from mettagrid import MettaGridEnv
 
 # Always add current directory to Python path
 sys.path.insert(0, ".")
-
-import typer
-from rich.console import Console
-from rich.table import Table
 
 logger = logging.getLogger("cogames.main")
 
@@ -53,17 +54,44 @@ mission_argument = typer.Argument(
 @app.command("games", hidden=True)
 def games_cmd(
     mission_name: str = mission_argument,
-    format_: Literal[None, "yaml", "json"] = typer.Option(None, "--format"),
+    format_: Literal[None, "yaml", "json"] = typer.Option(
+        None, "--format", help="Output mission configuration in YAML or JSON."
+    ),
+    save: Optional[Path] = typer.Option(  # noqa: B008
+        None,
+        "--save",
+        "-s",
+        help="Save mission configuration to file (YAML or JSON)",
+    ),
 ) -> None:
-    mission_name, env_cfg = utils.get_mission_config(console, mission_name)
-    if format_:
-        console.print(env_cfg.model_dump(mode=format_))
+    resolved_mission, env_cfg = utils.get_mission_config(console, mission_name)
+
+    if save is not None:
+        try:
+            game.save_mission_config(env_cfg, save)
+            console.print(f"[green]Mission configuration saved to: {save}[/green]")
+        except ValueError as exc:  # pragma: no cover - user input
+            console.print(f"[red]Error saving configuration: {exc}[/red]")
+            raise typer.Exit(1) from exc
         return
+
+    if format_ is not None:
+        try:
+            data = env_cfg.model_dump(mode="json")
+            if format_ == "json":
+                console.print(json.dumps(data, indent=2))
+            else:
+                console.print(yaml.safe_dump(data, sort_keys=False))
+        except Exception as exc:  # pragma: no cover - serialization errors
+            console.print(f"[red]Error formatting configuration: {exc}[/red]")
+            raise typer.Exit(1) from exc
+        return
+
     try:
-        game.describe_mission(mission_name, env_cfg, console)
-    except ValueError as e:
-        console.print(f"[red]Error: {e}[/red]")
-        raise typer.Exit(1) from e
+        game.describe_mission(resolved_mission, env_cfg, console)
+    except ValueError as exc:  # pragma: no cover - user input
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(1) from exc
 
 
 @app.command(name="play", no_args_is_help=True, help="Play a game")
@@ -79,7 +107,6 @@ def play_cmd(
         None,
         "--policy-data",
         help="Path to policy weights file or directory",
-        callback=resolve_policy_data_path,
     ),
     interactive: bool = typer.Option(True, "--interactive", "-i", help="Run in interactive mode"),
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
@@ -87,20 +114,32 @@ def play_cmd(
         "gui", "--render", "-r", help="Render mode: 'gui', 'text', or 'none' (no rendering)"
     ),
 ) -> None:
-    mission_name, env_cfg = utils.get_mission_config(console, mission_name)
+    resolved_mission, env_cfg = utils.get_mission_config(console, mission_name)
 
-    console.print(f"[cyan]Playing {mission_name}[/cyan]")
+    try:
+        resolved_policy_data = resolve_policy_data_path(
+            policy_data_path,
+            policy_class_path=policy_class_path,
+            game_name=resolved_mission,
+            console=console,
+        )
+    except FileNotFoundError as exc:  # pragma: no cover - user input
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(1) from exc
+
+    console.print(f"[cyan]Playing {resolved_mission}[/cyan]")
     console.print(f"Max Steps: {steps}, Interactive: {interactive}, Render: {render}")
 
     play_module.play(
         console,
         env_cfg=env_cfg,
         policy_class_path=policy_class_path,
-        policy_data_path=policy_data_path,
+        policy_data_path=resolved_policy_data,
+        game_name=resolved_mission,
         max_steps=steps,
         seed=42,
         render=render,
-        verbose=interactive,  # Use interactive flag for verbose output
+        verbose=interactive,
     )
 
 
@@ -130,9 +169,9 @@ def make_mission(
         else:
             console.print("\n[yellow]To save this configuration, use the --output option.[/yellow]")
 
-    except Exception as e:
-        console.print(f"[red]Error: {e}[/red]")
-        raise typer.Exit(1) from e
+    except Exception as exc:  # pragma: no cover - user input
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(1) from exc
 
 
 @app.command(name="train", help="Train a policy on a mission")
@@ -154,7 +193,7 @@ def train_cmd(
         "--checkpoints",
         help="Path to save training data",
     ),
-    steps: int = typer.Option(10_0000_000_000, "--steps", "-s", help="Number of training steps", min=1),
+    steps: int = typer.Option(10_000_000_000, "--steps", "-s", help="Number of training steps", min=1),
     device: str = typer.Option(
         "auto",
         "--device",
@@ -175,8 +214,14 @@ def train_cmd(
         help="Number of parallel environments",
         min=1,
     ),
+    vector_batch_size: Optional[int] = typer.Option(
+        None,
+        "--vector-batch-size",
+        help="Override vectorized environment batch size",
+        min=1,
+    ),
 ) -> None:
-    mission_name, env_cfg = utils.get_mission_config(console, mission_name)
+    resolved_mission, env_cfg = utils.get_mission_config(console, mission_name)
 
     torch_device = utils.resolve_training_device(console, device)
 
@@ -193,13 +238,13 @@ def train_cmd(
             minibatch_size=minibatch_size,
             vector_num_workers=num_workers,
             vector_num_envs=parallel_envs,
-            vector_batch_size=batch_size,
-            game_name=mission_name,
+            vector_batch_size=vector_batch_size,
+            game_name=resolved_mission,
         )
 
-    except ValueError as e:
-        console.print(f"[red]Error: {e}[/red]")
-        raise typer.Exit(1) from e
+    except ValueError as exc:  # pragma: no cover - user input
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(1) from exc
 
     console.print(f"[green]Training complete. Checkpoints saved to: {checkpoints_path}[/green]")
 
@@ -229,7 +274,6 @@ def evaluate_cmd(
         None,
         "--policy-data",
         help="Path to policy weights file or directory. Only provide this if you did not supply a list of policies",
-        callback=resolve_policy_data_path,
     ),
     episodes: int = typer.Option(10, "--episodes", "-e", help="Number of evaluation episodes", min=1),
     action_timeout_ms: int = typer.Option(
@@ -243,19 +287,31 @@ def evaluate_cmd(
         console.print("[red]Error: No policies provided[/red]")
         raise typer.Exit(1)
     if policies and (policy_class_path or policy_data_path):
-        console.print("[red]Provide --policies or (--policy and --policy-data), not[/red]")
+        console.print("[red]Provide --policies or (--policy and --policy-data), not both.[/red]")
         raise typer.Exit(1)
-    if policies:
-        policy_specs = [parse_policy_spec(spec) for spec in policies]  # noqa: F821
-    else:
-        policy_specs = [
-            PolicySpec(
-                policy_class_path=policy_class_path,
-                policy_data_path=policy_data_path,
-            )
-        ]
-
     resolved_game, env_cfg = utils.get_mission_config(console, mission_name)
+
+    try:
+        if policies:
+            policy_specs = [parse_policy_spec(spec, console=console, game_name=resolved_game) for spec in policies]
+        else:
+            policy_specs = [
+                PolicySpec(
+                    policy_class_path=policy_class_path,
+                    policy_data_path=resolve_policy_data_path(
+                        policy_data_path,
+                        policy_class_path=policy_class_path,
+                        game_name=resolved_game,
+                        console=console,
+                    ),
+                )
+            ]
+    except ValueError as exc:  # pragma: no cover - user input
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(1) from exc
+    except FileNotFoundError as exc:  # pragma: no cover - user input
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(1) from exc
 
     console.print(f"[cyan]Evaluating {len(policy_specs)} policies on {resolved_game} over {episodes} episodes[/cyan]")
 

@@ -25,6 +25,7 @@ def play(
     env_cfg: "MettaGridConfig",
     policy_class_path: str,
     policy_data_path: Optional[str] = None,
+    game_name: Optional[str] = None,
     max_steps: Optional[int] = None,
     seed: int = 42,
     render: Literal["gui", "text", "none"] = "gui",
@@ -37,6 +38,7 @@ def play(
         env_cfg: Game configuration
         policy_class_path: Path to policy class
         policy_data_path: Optional path to policy weights/checkpoint
+        game_name: Human-readable name of the game (used for logging/metadata)
         max_steps: Maximum steps for the episode (None for no limit)
         seed: Random seed
         render: Render mode - "gui" (default), "text", or "none" (no rendering)
@@ -44,6 +46,8 @@ def play(
     """
     # Create environment with appropriate render mode
     render_mode = None if render == "gui" else "miniscope" if render == "text" else None
+    if game_name:
+        logger.debug("Starting play session", extra={"game_name": game_name})
     env = MettaGridEnv(env_cfg=env_cfg, render_mode=render_mode)
 
     policy = initialize_or_load_policy(policy_class_path, policy_data_path, env)
