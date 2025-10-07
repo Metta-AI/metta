@@ -218,13 +218,22 @@ class MambaBackboneComponent(nn.Module):
         return hidden_states
 
     def _pool_output(self, output: torch.Tensor) -> torch.Tensor:
+        leading = output.shape[:-2]
+        seq_len = output.shape[-2]
+        hidden_dim = output.shape[-1]
+
+        flat = output.reshape(-1, seq_len, hidden_dim)
+
         if self.pool == "cls":
-            return output[:, 0, :]
-        if self.pool == "mean":
-            return output.mean(dim=1)
-        if self.pool == "none":
-            return rearrange(output, "b s d -> b (s d)")
-        raise ValueError(f"Unsupported pool mode: {self.pool}")
+            pooled = flat[:, 0, :]
+        elif self.pool == "mean":
+            pooled = flat.mean(dim=1)
+        elif self.pool == "none":
+            pooled = flat.reshape(flat.size(0), seq_len * hidden_dim)
+        else:
+            raise ValueError(f"Unsupported pool mode: {self.pool}")
+
+        return pooled.reshape(*leading, -1)
 
     # Forward -----------------------------------------------------------
     def forward(self, td: TensorDict) -> TensorDict:
@@ -234,7 +243,6 @@ class MambaBackboneComponent(nn.Module):
         tt = tokens.size(1)
         batch = tokens.size(0)
         S = tokens.size(2)
-        self._tokens_per_step = S
 
         training_env_ids = td.get("training_env_ids", None)
         if training_env_ids is None:
@@ -245,7 +253,6 @@ class MambaBackboneComponent(nn.Module):
 
         if tt == 1:
             outputs = []
-            positions = []
             if not self._env_states:
                 raise RuntimeError(
                     "MambaBackboneComponent requires initialize_to_environment or a prior training pass before rollout"
@@ -254,86 +261,44 @@ class MambaBackboneComponent(nn.Module):
             truncateds = td.get("truncateds", torch.zeros(batch, device=device))
             resets = torch.logical_or(dones.bool(), truncateds.bool())
 
+            pos_template = torch.arange(S, device=device, dtype=torch.long)
+
             for idx in range(batch):
                 env_id = int(env_ids[idx].item())
                 state = self._ensure_env_state(env_id, device, tokens.dtype, S)
-                step_tokens = tokens[idx, 0]
+                step_tokens = tokens[idx, 0].unsqueeze(0)
 
-                hidden_stack = []
-                position = state.position
-                for token_idx in range(S):
-                    token = step_tokens[token_idx].unsqueeze(0).unsqueeze(0)
-                    pos_enc = _sinusoidal_positional_encoding(
-                        torch.tensor([position], device=device, dtype=torch.long),
-                        token.size(-1),
-                    )
-                    token = token + pos_enc.unsqueeze(0)
-                    hidden = self._apply_layers(token, inference_params=state.inference_params)
-                    hidden_stack.append(hidden.squeeze(0).squeeze(0))
-                    position += 1
-                    state.inference_params.seqlen_offset = position
-                    state.inference_params.max_seqlen = max(state.inference_params.max_seqlen, position)
+                pos = pos_template + state.position
+                step_tokens = step_tokens + _sinusoidal_positional_encoding(pos, step_tokens.size(-1)).unsqueeze(0)
 
-                hidden_tensor = torch.stack(hidden_stack, dim=0).unsqueeze(0)
-                pooled = self._pool_output(hidden_tensor)
+                hidden = self._apply_layers(step_tokens, inference_params=state.inference_params)
+                pooled = self._pool_output(hidden)
                 outputs.append(pooled.squeeze(0))
-                positions.append(torch.tensor(position - 1, device=device, dtype=torch.long))
 
-                state.position = position
+                state.position += S
+                state.inference_params.seqlen_offset = state.position
+                state.inference_params.max_seqlen = max(state.inference_params.max_seqlen, state.position)
+
                 if resets[idx]:
                     self._reset_env_state(env_id)
 
-            out_tensor = torch.stack(outputs, dim=0)
-            td.set(self.out_key, out_tensor)
-            td.set("transformer_position", torch.stack(positions, dim=0))
+            td.set(self.out_key, torch.stack(outputs, dim=0))
             return td
 
-        # training path
-        pos = torch.arange(tt, device=device, dtype=torch.long)
-        pos_enc = _sinusoidal_positional_encoding(pos, tokens.size(-1))
-        pos_enc = pos_enc.unsqueeze(1).expand(-1, S, -1)
-        seq = tokens + pos_enc
-        seq = rearrange(seq, "b tt s d -> b (tt s) d")
+        seq = tokens.reshape(batch, tt * S, -1)
+        pos = torch.arange(tt * S, device=device, dtype=torch.long)
+        seq = seq + _sinusoidal_positional_encoding(pos, seq.size(-1))
 
-        hidden = self._apply_layers(seq)
-        hidden = hidden.reshape(batch, tt, S, -1)
-        pooled = hidden.reshape(batch * tt, S, -1)
-        flat = self._pool_output(pooled)
-        td.set(self.out_key, flat)
-
-        # update caches to match training sequence
-        dones = td.get("dones", torch.zeros(batch * tt, device=device))
-        truncateds = td.get("truncateds", torch.zeros(batch * tt, device=device))
-        resets = torch.logical_or(dones.bool(), truncateds.bool()).reshape(batch, tt)
-
-        for idx in range(batch):
-            env_id = int(env_ids[idx].item())
-            state = self._ensure_env_state(env_id, device, tokens.dtype, S)
-            position = state.position
-            for step in range(tt):
-                step_tokens = tokens[idx, step]
-                for token_idx in range(S):
-                    token = step_tokens[token_idx].unsqueeze(0).unsqueeze(0)
-                    pos_enc = _sinusoidal_positional_encoding(
-                        torch.tensor([position], device=device, dtype=torch.long),
-                        token.size(-1),
-                    )
-                    token = token + pos_enc.unsqueeze(0)
-                    self._apply_layers(token, inference_params=state.inference_params)
-                    position += 1
-                if resets[idx, step]:
-                    self._reset_env_state(env_id)
-                    state = self._ensure_env_state(env_id, device, tokens.dtype, S)
-                    position = state.position
-            state.position = position
-
+        hidden = self._apply_layers(seq).reshape(batch, tt, S, -1)
+        pooled = self._pool_output(hidden).reshape(batch * tt, -1)
+        td.set(self.out_key, pooled)
         return td
 
     # ------------------------------------------------------------------
     # Integration hooks
     # ------------------------------------------------------------------
     def get_agent_experience_spec(self) -> Composite:
-        return Composite({"transformer_position": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.long)})
+        return Composite({})
 
     def initialize_to_environment(self, env: EnvironmentMetaData, device: torch.device) -> Optional[str]:
         self._env_states = []
