@@ -103,11 +103,12 @@ def evaluate(
                 actions = np.zeros(env.num_agents, dtype=env.action_space.dtype)
                 for i in range(env.num_agents):
                     start_time = time.time()
-                    step_result = agent_policies[i].step(obs[i])
-                    if isinstance(step_result, tuple):
-                        action = step_result[0]
-                    else:
-                        action = step_result
+                    action = agent_policies[i].step(obs[i])
+                    if isinstance(action, tuple):
+                        raise TypeError(
+                            "AgentPolicy.step must return a single MettaGridAction under the single-discrete API. "
+                            "Update the policy to emit an int-compatible action instead of a tuple."
+                        )
                     end_time = time.time()
                     if (end_time - start_time) > action_timeout_ms / 1000:
                         per_policy_timeouts[assignments[i]] += 1

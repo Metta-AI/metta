@@ -86,13 +86,20 @@ def play(
 
             for agent_id in range(env.num_agents):
                 if agent_id == selected_agent and manual_action is not None:
-                    # Apply manual action to selected agent
-                    if isinstance(manual_action, tuple):
-                        actions[agent_id] = int(manual_action[0])
+                    manual_action_value = manual_action
+                    if isinstance(manual_action_value, str):
+                        if manual_action_value not in action_lookup:
+                            raise ValueError(
+                                f"Manual action '{manual_action_value}' is not available in the action space."
+                            )
+                        actions[agent_id] = action_lookup[manual_action_value]
                     else:
-                        move_name = direction_names.get(int(manual_action))
+                        manual_idx = int(manual_action_value)
+                        move_name = direction_names.get(manual_idx)
                         if move_name and move_name in action_lookup:
                             actions[agent_id] = action_lookup[move_name]
+                        else:
+                            actions[agent_id] = manual_idx
                 elif agent_id in manual_agents:
                     # Agent is in manual mode but no action this step - use noop
                     actions[agent_id] = noop_action_id
