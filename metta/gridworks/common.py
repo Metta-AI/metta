@@ -7,7 +7,7 @@ class ErrorResult(TypedDict):
     error: str
 
 
-def dump_config_with_implicit_info(config: Config | list[Config]) -> dict:
+def dump_config_with_implicit_info(config: Config | list[Config] | dict[str, Config]) -> dict:
     fields_unset: list[str] = []
 
     def traverse(obj: Config, prefix: str = ""):
@@ -27,6 +27,9 @@ def dump_config_with_implicit_info(config: Config | list[Config]) -> dict:
     if isinstance(config, list):
         for item in config:
             traverse(item)
+    elif isinstance(config, dict):
+        for key, value in config.items():
+            traverse(value, key)
     else:
         traverse(config)
 
