@@ -341,11 +341,14 @@ def _forward_sequence_kernel(
 
             # Pointwise ops per tile
             matLogFplusM_tile = matM_t_tile + tl.log(tl.sigmoid(matFbar_tile))
-            # First timestep uses Ibar, thereafter max(Ibar, m + log(sigmoid(Fbar)))
-            if idx_t == 0:
-                matM_next_tile = matIbar_tile
-            else:
-                matM_next_tile = tl.maximum(matIbar_tile, matLogFplusM_tile)
+            # Elementwise first-step rule for all cases: if n == 0 for an element,
+            # treat it as first step (m_next = Ibar); otherwise use the stabilized rule.
+            is_first_elem = matN_t_tile == 0.0
+            matM_next_tile = tl.where(
+                is_first_elem,
+                matIbar_tile,
+                tl.maximum(matIbar_tile, matLogFplusM_tile),
+            )
 
             matI_tile = tl.minimum(tl.exp(matIbar_tile - matM_next_tile), 1.0)
             matF_tile = tl.minimum(tl.exp(matLogFplusM_tile - matM_next_tile), 1.0)
