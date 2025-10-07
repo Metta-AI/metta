@@ -176,6 +176,10 @@ def mlstm_chunkwise__recurrent_fw_C_kernel(
         # matC_k update
         vecAbar_k_val = tl.exp(vecA_k_val - scaMinter_next_val)
         scaGbar_k_val = tl.exp(scaG_k_val + scaMinter_k_val - scaMinter_next_val)
+        # If any reset occurred inside this chunk (i.e., last segment does not start at 0),
+        # zero the inter-chunk carry contribution so previous-chunk state does not leak past reset.
+        any_reset_in_chunk = tl.sum(vecMask_val) < L
+        scaGbar_k_val = tl.where(any_reset_in_chunk, 0.0, scaGbar_k_val)
 
         # Note: no cast on here, since matK_k_val is already float32 and tl.sum wants it to be float32
         matKbar_k_val = matK_k_val * vecAbar_k_val[None, :]

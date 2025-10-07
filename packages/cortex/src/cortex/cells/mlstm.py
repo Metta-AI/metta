@@ -260,40 +260,60 @@ class mLSTMCell(MemoryCell):
             new_state = TensorDict({"c": c_new, "n": n_new, "m": m_new}, batch_size=[B])
             new_state.update(conv_state_new)  # Add updated conv state
         else:
-            # Parallel processing for sequences using chunkwise backend
-            backend_kwargs = {
-                "queries": q,
-                "keys": k,
-                "values": v,
-                "igate_preact": igate_preact,
-                "fgate_preact": fgate_preact,
-                "initial_C": c_state,
-                "initial_n": n_state,
-                "initial_m": m_state,
-                "chunk_size": self.cfg.chunk_size,
-                "return_last_state": True,
-            }
-
-            # Pass reset mask in sequence mode if provided. Expect [B, T]. If a
-            # batch-only mask [B] is given, interpret as a reset at t=0 only.
-            if resets is not None:
+            # Sequence processing
+            # Exact segment-aware handling for resets: split the sequence into
+            # independent segments at reset positions and run each segment with
+            # zero initial state. This matches step semantics exactly while
+            # still allowing chunkwise acceleration within each segment.
+            if resets is not None and (resets.any().item() if isinstance(resets, torch.Tensor) else bool(resets)):
+                # Normalize resets to (B, T)
                 if resets.dim() == 1:
                     rm = torch.zeros(B, T, dtype=resets.dtype, device=x.device)
                     rm[:, 0] = resets
                 else:
                     rm = resets
-                backend_kwargs["reset_mask"] = rm
 
-            # Select backend at runtime based on device
-            backend_fn = select_backend(
-                triton_fn=mlstm_chunkwise_triton,
-                pytorch_fn=mlstm_chunkwise_simple,
-                tensor=x,
-                allow_triton=True,
-            )
-            backend_output = backend_fn(**backend_kwargs)
+                backend_fn = select_backend(
+                    triton_fn=mlstm_chunkwise_triton,
+                    pytorch_fn=mlstm_chunkwise_simple,
+                    tensor=x,
+                    allow_triton=True,
+                )
+                h_state, (c_new, n_new, m_new) = backend_fn(
+                    queries=q,
+                    keys=k,
+                    values=v,
+                    igate_preact=igate_preact,
+                    fgate_preact=fgate_preact,
+                    initial_C=c_state,
+                    initial_n=n_state,
+                    initial_m=m_state,
+                    reset_mask=rm,
+                    chunk_size=self.cfg.chunk_size,
+                    return_last_state=True,
+                )
+            else:
+                # No resets: use standard chunkwise backend
+                backend_kwargs = {
+                    "queries": q,
+                    "keys": k,
+                    "values": v,
+                    "igate_preact": igate_preact,
+                    "fgate_preact": fgate_preact,
+                    "initial_C": c_state,
+                    "initial_n": n_state,
+                    "initial_m": m_state,
+                    "chunk_size": self.cfg.chunk_size,
+                    "return_last_state": True,
+                }
 
-            h_state, (c_new, n_new, m_new) = backend_output
+                backend_fn = select_backend(
+                    triton_fn=mlstm_chunkwise_triton,
+                    pytorch_fn=mlstm_chunkwise_simple,
+                    tensor=x,
+                    allow_triton=True,
+                )
+                h_state, (c_new, n_new, m_new) = backend_fn(**backend_kwargs)
             # Attach conv buffer after sequence for continuity across calls
             new_state = TensorDict({"c": c_new, "n": n_new, "m": m_new}, batch_size=[B])
             new_state.update(conv_state_new)  # Add updated conv state
