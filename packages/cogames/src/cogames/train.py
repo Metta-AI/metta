@@ -204,55 +204,46 @@ def train(
     # The network() method is part of the new TrainablePolicy API
     trainer = pufferl.PuffeRL(train_args, vecenv, policy.network())
 
-    # Track if training diverged
-    training_diverged = False
+    try:
+        while trainer.global_step < num_steps:
+            trainer.evaluate()
+            trainer.train()
 
-    while trainer.global_step < num_steps:
-        trainer.evaluate()
-        trainer.train()
+            # Check for NaN in network parameters after each training step
+            network = policy.network()
+            has_nan = False
+            for name, param in network.named_parameters():
+                if param.grad is not None and not param.grad.isfinite().all():
+                    logger.error(f"NaN/Inf detected in gradients for parameter: {name}")
+                    has_nan = True
+                if not param.isfinite().all():
+                    logger.error(f"NaN/Inf detected in parameter: {name}")
+                    has_nan = True
 
-        # Check for NaN in network parameters after each training step
-        network = policy.network()
-        has_nan = False
-        for name, param in network.named_parameters():
-            if param.grad is not None and not param.grad.isfinite().all():
-                logger.error(f"NaN/Inf detected in gradients for parameter: {name}")
-                has_nan = True
-            if not param.isfinite().all():
-                logger.error(f"NaN/Inf detected in parameter: {name}")
-                has_nan = True
+            if has_nan:
+                message = (
+                    "Training diverged at step "
+                    f"{trainer.global_step}! Stopping early to avoid saving corrupt checkpoints."
+                )
+                logger.error(message)
+                raise RuntimeError(message)
 
-        if has_nan:
-            logger.error(
-                f"Training diverged at step {trainer.global_step}! "
-                "Stopping early to prevent saving corrupted checkpoint."
-            )
-            training_diverged = True
-            break
-
-    trainer.print_dashboard()
-    trainer.close()
+        trainer.print_dashboard()
+    finally:
+        # Always release worker resources so subprocesses exit promptly on error
+        trainer.close()
 
     # Print checkpoint path and usage commands with colored output
 
     console = Console()
 
     console.print()
-    if training_diverged:
-        console.print("=" * 80, style="bold red")
-        console.print("Training diverged (NaN detected)! Stopped early.", style="bold red")
-        console.print(f"Checkpoints saved to: [cyan]{checkpoints_path}[/cyan]", style="bold red")
-        console.print("=" * 80, style="bold red")
-        console.print()
-        console.print("[yellow]Warning: The latest checkpoint may contain NaN values.[/yellow]")
-        console.print("[yellow]Try using an earlier checkpoint or retraining with lower learning rate.[/yellow]")
-    else:
-        console.print("=" * 80, style="bold green")
-        console.print(
-            f"Training complete. Checkpoints saved to: [cyan]{checkpoints_path}[/cyan]",
-            style="bold green",
-        )
-        console.print("=" * 80, style="bold green")
+    console.print("=" * 80, style="bold green")
+    console.print(
+        f"Training complete. Checkpoints saved to: [cyan]{checkpoints_path}[/cyan]",
+        style="bold green",
+    )
+    console.print("=" * 80, style="bold green")
 
     # Try to find the final checkpoint
     # PufferLib saves checkpoints in data_dir/env_name/
@@ -266,7 +257,7 @@ def train(
     if not checkpoints and checkpoints_path.exists():
         checkpoints = sorted(checkpoints_path.glob("*.pt"))
 
-    if checkpoints and not training_diverged:
+    if checkpoints:
         final_checkpoint = checkpoints[-1]
         console.print()
         console.print(f"Final checkpoint: [cyan]{final_checkpoint}[/cyan]")
@@ -287,10 +278,6 @@ def train(
         console.print(
             f"  [yellow]cogames play{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
         )
-    elif checkpoints and training_diverged:
-        console.print()
-        console.print(f"[yellow]Found {len(checkpoints)} checkpoint(s). The most recent may be corrupted.[/yellow]")
-        console.print("[yellow]Try using an earlier checkpoint or retraining.[/yellow]")
     else:
         console.print()
         console.print(f"[yellow]No checkpoint files found. Check {checkpoints_path} for saved models.[/yellow]")

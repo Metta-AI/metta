@@ -377,8 +377,14 @@ class PuffeRL:
             mb_truncations = self.truncations[idx]
             mb_ratio = self.ratio[idx]
             mb_values = self.values[idx]
-            mb_returns = advantages[idx] + mb_values
             mb_advantages = advantages[idx]
+            if mb_advantages.ndim < mb_values.ndim:
+                # Expand singleton trailing dimension to match stored values
+                mb_advantages = mb_advantages.unsqueeze(-1)
+            elif mb_advantages.ndim > mb_values.ndim:
+                mb_advantages = mb_advantages.reshape(mb_values.shape)
+
+            mb_returns = mb_advantages + mb_values
 
             profile("train_forward", epoch)
             if not config["use_rnn"]:
@@ -409,6 +415,10 @@ class PuffeRL:
 
             # TODO: Do you need to do this? Policy hasn't changed
             adv = advantages[idx]
+            if adv.ndim < mb_values.ndim:
+                adv = adv.unsqueeze(-1)
+            elif adv.ndim > mb_values.ndim:
+                adv = adv.reshape(mb_values.shape)
             adv = compute_puff_advantage(
                 mb_values,
                 mb_rewards,
@@ -429,7 +439,16 @@ class PuffeRL:
             pg_loss2 = -adv * torch.clamp(ratio, 1 - clip_coef, 1 + clip_coef)
             pg_loss = torch.max(pg_loss1, pg_loss2).mean()
 
-            newvalue = newvalue.view(mb_returns.shape)
+            # Ensure value predictions match the stored value tensor shape for in-place updates
+            target_shape = tuple(mb_values.shape)
+            try:
+                newvalue = newvalue.reshape(target_shape)
+            except RuntimeError as exc:
+                raise RuntimeError(
+                    "PuffeRL expected value predictions shaped "
+                    f"{target_shape} but received {tuple(newvalue.shape)}"
+                ) from exc
+
             v_clipped = mb_values + torch.clamp(newvalue - mb_values, -vf_clip, vf_clip)
             v_loss_unclipped = (newvalue - mb_returns) ** 2
             v_loss_clipped = (v_clipped - mb_returns) ** 2
@@ -441,7 +460,8 @@ class PuffeRL:
             self.amp_context.__enter__()  # TODO: Debug
 
             # This breaks vloss clipping?
-            self.values[idx] = newvalue.detach().float()
+            newvalue = newvalue.contiguous()
+            self.values.index_copy_(0, idx, newvalue.detach().float())
 
             # Logging
             profile("train_misc", epoch)
