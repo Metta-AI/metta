@@ -27,10 +27,10 @@ Use MettaScope through the recipe system:
 
 ```bash
 # Interactive play with trained policies
-uv run ./tools/run.py experiments.recipes.arena.play policy_uri=file://./train_dir/my_run/checkpoints/my_run:v12.pt
+uv run ./tools/run.py play arena policy_uri=file://./train_dir/my_run/checkpoints/my_run:v12.pt
 
 # View replays
-uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=s3://my-bucket/checkpoints/my_run_name/my_run_name:v10.pt
+uv run ./tools/run.py replay arena policy_uri=s3://my-bucket/checkpoints/my_run_name/my_run_name:v10.pt
 ```
 
 ### Standalone Server
@@ -70,13 +70,13 @@ MettaScope is deeply integrated with the new recipe-based training system:
 
 ```bash
 # 1. Train a model
-uv run ./tools/run.py experiments.recipes.arena.train run=my_experiment
+uv run ./tools/run.py train arena run=my_experiment
 
 # 2. Interactively test the trained policy in MettaScope
-uv run ./tools/run.py experiments.recipes.arena.play policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
+uv run ./tools/run.py play arena policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
 
 # 3. Generate and view replays
-uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
+uv run ./tools/run.py replay arena policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
 ```
 
 ### Policy URI Formats

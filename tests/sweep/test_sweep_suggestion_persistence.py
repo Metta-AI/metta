@@ -57,7 +57,7 @@ def test_suggestion_stored_at_init():
         batch_size=2,
         recipe_module="test.recipe",
         train_entrypoint="train",
-        eval_entrypoint="eval",
+        eval_entrypoint="evaluate",
         experiment_id="test_sweep",
         protein_config=protein_config,
     )
@@ -181,7 +181,7 @@ def test_suggestion_not_duplicated_on_eval():
         batch_size=2,
         recipe_module="test.recipe",
         train_entrypoint="train",
-        eval_entrypoint="eval",
+        eval_entrypoint="evaluate",
         experiment_id="test_sweep",
         protein_config=protein_config,
     )
