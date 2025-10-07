@@ -1,4 +1,3 @@
-
 import torch
 import torch.nn as nn
 from tensordict import TensorDict
@@ -72,9 +71,32 @@ class HRMReasoningConfig(ComponentConfig):
     embed_dim: int = 256
     num_layers: int = 6
     num_heads: int = 8
+    ffn_multiplier: int = 4  # FFN hidden size = embed_dim * ffn_multiplier
 
     def make_component(self, env=None) -> "HRMReasoning":
         return HRMReasoning(self)
+
+
+# Memory
+class HRMMemory:
+    def __init__(self):
+        self.carry = {}
+
+    def has_memory(self):
+        return True
+
+    def set_memory(self, memory):
+        self.carry = memory
+
+    def get_memory(self):
+        return self.carry
+
+    def reset_memory(self):
+        self.carry = {}
+
+    def reset_env_memory(self, env_id):
+        if env_id in self.carry:
+            del self.carry[env_id]
 
 
 class HRMReasoning(nn.Module):
@@ -83,6 +105,10 @@ class HRMReasoning(nn.Module):
     def __init__(self, config: HRMReasoningConfig):
         super().__init__()
         self.config = config
+
+        self.memory = HRMMemory()
+        self.carry = self.memory.get_memory()
+
 
         # Multi-head attention layers
         self.attention_layers = nn.ModuleList(
@@ -93,12 +119,13 @@ class HRMReasoning(nn.Module):
         )
 
         # Feed-forward networks
+        ffn_hidden = config.embed_dim * config.ffn_multiplier
         self.ffn_layers = nn.ModuleList(
             [
                 nn.Sequential(
-                    nn.Linear(config.embed_dim, config.embed_dim * 4),
+                    nn.Linear(config.embed_dim, ffn_hidden),
                     nn.ReLU(),
-                    nn.Linear(config.embed_dim * 4, config.embed_dim),
+                    nn.Linear(ffn_hidden, config.embed_dim),
                 )
                 for _ in range(config.num_layers)
             ]
@@ -108,6 +135,8 @@ class HRMReasoning(nn.Module):
         self.layer_norms1 = nn.ModuleList([nn.LayerNorm(config.embed_dim) for _ in range(config.num_layers)])
         self.layer_norms2 = nn.ModuleList([nn.LayerNorm(config.embed_dim) for _ in range(config.num_layers)])
 
+
+
     def _rms_norm(self, x: torch.Tensor, variance_epsilon: float = 1e-5) -> torch.Tensor:
         """RMSNorm (no bias)."""
         return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + variance_epsilon)
@@ -115,27 +144,38 @@ class HRMReasoning(nn.Module):
     def forward(self, td: TensorDict) -> TensorDict:
         x = td[self.config.in_key]
 
-        # Flatten spatial dimensions for attention
-        batch_size, height, width, embed_dim = x.shape
-        x = x.view(batch_size, height * width, embed_dim)
+        # Handle different input shapes:
+        # - (B, D): Already pooled by upstream component, skip transformer
+        # - (B, N, D): Sequence input, apply transformer
+        # - (B, H, W, D): Spatial input, flatten and apply transformer
 
-        # Apply transformer layers
-        for i in range(self.config.num_layers):
-            # Self-attention with residual
-            x_norm = self.layer_norms1[i](x)
-            attn_out, _ = self.attention_layers[i](x_norm, x_norm, x_norm)
-            x = x + attn_out
+        if x.ndim == 2:
+            # Already pooled, use directly
+            reasoning_output = x
+        else:
+            if x.ndim == 4:
+                # Flatten spatial dimensions for attention
+                batch_size, height, width, embed_dim = x.shape
+                x = x.view(batch_size, height * width, embed_dim)
+            # else: already in (batch_size, sequence_length, embed_dim) format
 
-            # Feed-forward with residual
-            x_norm = self.layer_norms2[i](x)
-            ffn_out = self.ffn_layers[i](x_norm)
-            x = x + ffn_out
+            # Apply transformer layers
+            for i in range(self.config.num_layers):
+                # Self-attention with residual
+                x_norm = self.layer_norms1[i](x)
+                attn_out, _ = self.attention_layers[i](x_norm, x_norm, x_norm)
+                x = x + attn_out
 
-            # Apply RMS norm
-            x = self._rms_norm(x)
+                # Feed-forward with residual
+                x_norm = self.layer_norms2[i](x)
+                ffn_out = self.ffn_layers[i](x_norm)
+                x = x + ffn_out
 
-        # Global average pooling
-        reasoning_output = x.mean(dim=1)  # (batch_size, embed_dim)
+                # Apply RMS norm
+                x = self._rms_norm(x)
+
+            # Use CLS token approach: take first latent as summary
+            reasoning_output = x[:, 0, :]  # (batch_size, embed_dim)
 
         td[self.config.out_key] = reasoning_output
         return td
@@ -149,14 +189,26 @@ class HRMActorConfig(ComponentConfig):
     out_key: str = "logits"
     name: str = "hrm_actor"
     embed_dim: int = 256
-    num_actions: int = 100
+    num_actions: int | None = None
 
     def make_component(self, env=None) -> "HRMActor":
-        # Use actual action space size if environment is provided
-        if env is not None and hasattr(env, "num_actions"):
-            self.num_actions = env.num_actions
-        elif env is not None and hasattr(env, "action_space") and hasattr(env.action_space, "n"):
-            self.num_actions = env.action_space.n
+        # Calculate total number of logits needed from max_action_args
+        if env is not None and hasattr(env, "max_action_args"):
+            # For MultiDiscrete action space, sum up all possible actions
+            self.num_actions = sum(max_arg + 1 for max_arg in env.max_action_args)
+        elif env is not None and hasattr(env, "action_space"):
+            if hasattr(env.action_space, "n"):
+                self.num_actions = env.action_space.n
+            elif hasattr(env.action_space, "nvec"):
+                # Fallback for MultiDiscrete without max_action_args
+                self.num_actions = sum(env.action_space.nvec)
+
+        if self.num_actions is None:
+            raise ValueError(
+                "Could not determine num_actions from environment. "
+                "Environment must have max_action_args or action_space attribute."
+            )
+
         return HRMActor(self)
 
 
