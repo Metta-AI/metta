@@ -322,7 +322,7 @@ def experiment():
                 [
                     "./devops/skypilot/launch.py",
                     "experiments.recipes.cogs_v_clips.foraging.train",
-                    f"run=cogs_v_clips.foraging_{curriculum_style}.{random.randint(0, 10000)}.{time.strftime('%Y-%m-%d')}",
+                    f"run=cogs_v_clips.foraging_{curriculum_style}_{architecture}.{random.randint(0, 10000)}.{time.strftime('%Y-%m-%d')}",
                     f"curriculum_style={curriculum_style}",
                     f"architecture={architecture}",
                     "--gpus=4",

@@ -171,6 +171,8 @@ class Simulation:
             policy = CheckpointManager.load_from_uri(policy_uri, device=device)
         else:
             policy = MockAgent()
+            # Set policy_uri to a valid mock URI if None
+            policy_uri = "mock://null"
 
         # Create replay directory path with simulation name
         full_replay_dir = f"{replay_dir}/{sim_config.name}"
@@ -179,7 +181,7 @@ class Simulation:
         return cls(
             sim_config,
             policy,
-            policy_uri or "mock://",
+            policy_uri,
             device=torch.device(device),
             vectorization=vectorization,
             stats_dir=stats_dir,
