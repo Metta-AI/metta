@@ -272,81 +272,87 @@ def train(
                 trainer.global_step,
             )
 
-    trainer.print_dashboard()
-    trainer.close()
+        trainer.print_dashboard()
+        trainer.close()
 
-    console.print()
-    if training_diverged:
-        console.print("=" * 80, style="bold red")
-        console.print("Training diverged (NaN detected)! Stopped early.", style="bold red")
-        console.print(f"Checkpoints saved to: [cyan]{checkpoints_path}[/cyan]", style="bold red")
-        console.print("=" * 80, style="bold red")
         console.print()
-        console.print("[yellow]Warning: The latest checkpoint may contain NaN values.[/yellow]")
-        console.print("[yellow]Try using an earlier checkpoint or retraining with lower learning rate.[/yellow]")
-    elif trainer.epoch >= checkpoint_interval:
-        console.print("=" * 80, style="bold green")
-        console.print("Training complete")
-        console.print(
-            f"Checkpoints saved to: [cyan]{checkpoints_path}[/cyan]",
-            style="bold green",
-        )
-        console.print("=" * 80, style="bold green")
-
-    # Try to find the final checkpoint
-    # PufferLib saves checkpoints in data_dir/env_name/
-    checkpoint_dir = checkpoints_path / env_name
-    checkpoints = []
-
-    if checkpoint_dir.exists():
-        checkpoints = sorted(checkpoint_dir.glob("*.pt"))
-
-    # Fallback: also check directly in checkpoints_path
-    if not checkpoints and checkpoints_path.exists():
-        checkpoints = sorted(checkpoints_path.glob("*.pt"))
-
-    if checkpoints and not training_diverged:
-        final_checkpoint = checkpoints[-1]
-        console.print()
-        console.print(f"Final checkpoint: [cyan]{final_checkpoint}[/cyan]")
-        if trainer.epoch < checkpoint_interval:
+        if training_diverged:
+            console.print("=" * 80, style="bold red")
+            console.print("Training diverged (NaN detected)! Stopped early.", style="bold red")
+            console.print(f"Checkpoints saved to: [cyan]{checkpoints_path}[/cyan]", style="bold red")
+            console.print("=" * 80, style="bold red")
+            console.print()
+            console.print("[yellow]Warning: The latest checkpoint may contain NaN values.[/yellow]")
+            console.print("[yellow]Try using an earlier checkpoint or retraining with lower learning rate.[/yellow]")
+        elif trainer.epoch >= checkpoint_interval:
+            console.print("=" * 80, style="bold green")
+            console.print("Training complete")
             console.print(
-                "This checkpoint has initialized weights but does not reflect training. \n"
-                "Training was cut off before the first meaningful checkpoint would have been saved"
-                f" (epoch {checkpoint_interval}).",
-                style="yellow",
+                f"Checkpoints saved to: [cyan]{checkpoints_path}[/cyan]",
+                style="bold green",
+            )
+            console.print("=" * 80, style="bold green")
+
+        # Try to find the final checkpoint
+        # PufferLib saves checkpoints in data_dir/env_name/
+        checkpoint_dir = checkpoints_path / env_name
+        checkpoints = []
+
+        if checkpoint_dir.exists():
+            checkpoints = sorted(checkpoint_dir.glob("*.pt"))
+
+        # Fallback: also check directly in checkpoints_path
+        if not checkpoints and checkpoints_path.exists():
+            checkpoints = sorted(checkpoints_path.glob("*.pt"))
+
+        if checkpoints and not training_diverged:
+            final_checkpoint = checkpoints[-1]
+            console.print()
+            console.print(f"Final checkpoint: [cyan]{final_checkpoint}[/cyan]")
+            if trainer.epoch < checkpoint_interval:
+                console.print(
+                    "This checkpoint has initialized weights but does not reflect training. \n"
+                    "Training was cut off before the first meaningful checkpoint would have been saved"
+                    f" (epoch {checkpoint_interval}).",
+                    style="yellow",
+                )
+
+            maybe_upload_checkpoint(
+                final_checkpoint=final_checkpoint,
+                game_name=game_name,
+                policy_class_path=policy_class_path,
+                console=console,
             )
 
-        maybe_upload_checkpoint(
-            final_checkpoint=final_checkpoint,
-            game_name=game_name,
-            policy_class_path=policy_class_path,
-            console=console,
-        )
+            # Show shorthand version if available
+            policy_shorthand = get_policy_class_shorthand(policy_class_path)
 
-        # Show shorthand version if available
-        policy_shorthand = get_policy_class_shorthand(policy_class_path)
+            # Build the command with game name if provided
+            game_arg = f" {game_name}" if game_name else ""
+            policy_arg = policy_shorthand if policy_shorthand else policy_class_path
 
-        # Build the command with game name if provided
-        game_arg = f" {game_name}" if game_name else ""
-        policy_arg = policy_shorthand if policy_shorthand else policy_class_path
+            console.print()
+            console.print("To continue training this policy:", style="bold")
+            console.print(
+                f"  [yellow]cogames train{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
+            )
+            console.print()
+            console.print("To play with this policy:", style="bold")
+            console.print(
+                f"  [yellow]cogames play{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
+            )
+            console.print()
+            console.print("To evaluate this policy:", style="bold")
+            console.print(
+                f"  [yellow]cogames eval{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
+            )
+        elif checkpoints and training_diverged:
+            console.print()
+            console.print(f"[yellow]Found {len(checkpoints)} checkpoint(s). The most recent may be corrupted.[/yellow]")
+            console.print("[yellow]Try using an earlier checkpoint or retraining.[/yellow]")
+        else:
+            console.print()
+            console.print(f"[yellow]No checkpoint files found. Check {checkpoints_path} for saved models.[/yellow]")
 
+        console.print("=" * 80, style="bold green")
         console.print()
-        console.print("To play with this policy:", style="bold")
-        console.print(
-            f"  [yellow]cogames play{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
-        )
-        console.print("To evaluate this policy:", style="bold")
-        console.print(
-            f"  [yellow]cogames eval{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
-        )
-    elif checkpoints and training_diverged:
-        console.print()
-        console.print(f"[yellow]Found {len(checkpoints)} checkpoint(s). The most recent may be corrupted.[/yellow]")
-        console.print("[yellow]Try using an earlier checkpoint or retraining.[/yellow]")
-    else:
-        console.print()
-        console.print(f"[yellow]No checkpoint files found. Check {checkpoints_path} for saved models.[/yellow]")
-
-    console.print("=" * 80, style="bold green")
-    console.print()
