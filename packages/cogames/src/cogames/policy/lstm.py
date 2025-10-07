@@ -34,6 +34,7 @@ class LSTMPolicyNet(torch.nn.Module):
 
         self._action_head = torch.nn.Linear(self.hidden_size, self._layout.total_actions)
         self._value_head = torch.nn.Linear(self.hidden_size, 1)
+        self.action_layout_max_args = self._layout.max_args
 
     def forward_eval(
         self,

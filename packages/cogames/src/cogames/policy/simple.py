@@ -30,6 +30,7 @@ class SimplePolicyNet(torch.nn.Module):
 
         self.action_head = torch.nn.Linear(self.hidden_size, self._layout.total_actions)
         self.value_head = torch.nn.Linear(self.hidden_size, 1)
+        self.action_layout_max_args = self._layout.max_args
 
     def forward_eval(
         self,

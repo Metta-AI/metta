@@ -356,6 +356,9 @@ class PuffeRL:
                     self.full_rows += num_full
 
                 action_out = decoded_actions.cpu().numpy()
+                expected_dtype = getattr(self.vecenv.single_action_space, "dtype", None)
+                if expected_dtype is not None and action_out.dtype != expected_dtype:
+                    action_out = action_out.astype(expected_dtype, copy=False)
                 if isinstance(logits, torch.distributions.Normal):
                     action_out = np.clip(action_out, self.vecenv.action_space.low, self.vecenv.action_space.high)
 
@@ -420,16 +423,16 @@ class PuffeRL:
             idx = torch.multinomial(prio_probs, self.minibatch_segments)
             mb_prio = (self.segments * prio_probs[idx, None]) ** -anneal_beta
             mb_obs = self.observations[idx]
+            mb_actions_flat = self.actions[idx]
             if self._action_adapter is not None:
-                state_action = self.actions[idx]
+                decoded = self._action_adapter.decode_torch(mb_actions_flat.reshape(-1)).view(
+                    *mb_actions_flat.shape, 2
+                )
+                state_action = decoded
+                flat_mb_actions = mb_actions_flat
             else:
-                state_action = self.actions[idx]
-            if self._action_adapter is not None:
-                flat_mb_actions = self._action_adapter.encode_torch(mb_actions.reshape(-1, 2)).view(mb_actions.shape[:-1])
-                state_action = flat_mb_actions
-            else:
-                flat_mb_actions = mb_actions
-                state_action = mb_actions
+                state_action = mb_actions_flat
+                flat_mb_actions = mb_actions_flat
             mb_logprobs = self.logprobs[idx]
             mb_rewards = self.rewards[idx]
             mb_terminals = self.terminals[idx]
@@ -452,7 +455,7 @@ class PuffeRL:
             # TODO: Currently only returning traj shaped value as a hack
             logits, newvalue = self.policy(mb_obs, state)
             # TODO: Redundant actions?
-            actions, newlogprob, entropy = pufferlib.pytorch.sample_logits(logits, action=state_action)
+            actions, newlogprob, entropy = pufferlib.pytorch.sample_logits(logits, action=flat_mb_actions)
 
             profile("train_misc", epoch)
             newlogprob = newlogprob.reshape(mb_logprobs.shape)

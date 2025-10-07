@@ -29,12 +29,13 @@ def _make_rotation_supplier(
 ) -> Callable[[], MettaGridConfig]:
     rotation = deque(tuple(names) if names is not None else _BASE_ROTATION)
     if not rotation:
-        raise ValueError("Rotation must contain at least one game name")
+        raise ValueError("Rotation must contain at least one mission name")
 
     def _supplier() -> MettaGridConfig:
         map_name = rotation[0]
         rotation.rotate(-1)
-        cfg = game.get_game(map_name).model_copy(deep=True)
+        cfg, _, _ = game.get_mission(map_name)
+        cfg = cfg.model_copy(deep=True)
         if easy:
             scenarios.add_easy_heart_recipe(cfg)
         if shaped:
