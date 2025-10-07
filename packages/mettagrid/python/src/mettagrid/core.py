@@ -211,15 +211,7 @@ class MettaGridCore:
         self, actions: np.ndarray | int | Sequence[int]
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
         """Execute one timestep of the environment dynamics with the given actions."""
-        arr = np.asarray(actions)
-        if arr.ndim == 2 and arr.shape[0] == self.num_agents:
-            if arr.shape[1] >= 1:
-                arr = arr[:, 0]
-            else:
-                raise ValueError(
-                    "Action array has zero-width second dimension; expected at least one column for each agent"
-                )
-        arr = np.asarray(arr, dtype=np.int32)
+        arr = np.asarray(actions, dtype=np.int32)
         if arr.ndim != 1 or arr.shape[0] != self.num_agents:
             raise ValueError(
                 f"Expected actions of shape ({self.num_agents},) but received {arr.shape}; "

@@ -727,6 +727,17 @@ py::tuple MettaGrid::step(const py::array_t<ActionType, py::array::c_style> acti
   auto info = actions.request();
   py::array_t<ActionType, py::array::c_style> converted;
 
+  auto assign_flat = [&](auto& view, size_t agent_idx, ActionType flat_index) {
+    if (flat_index < 0 || static_cast<size_t>(flat_index) >= _flat_action_map.size()) {
+      view(agent_idx, 0) = -1;
+      view(agent_idx, 1) = 0;
+      return;
+    }
+    const auto& mapping = _flat_action_map[static_cast<size_t>(flat_index)];
+    view(agent_idx, 0) = mapping.first;
+    view(agent_idx, 1) = mapping.second;
+  };
+
   if (info.ndim == 1) {
     if (info.shape[0] != static_cast<ssize_t>(_agents.size())) {
       throw std::runtime_error("actions has the wrong shape");
@@ -737,12 +748,7 @@ py::tuple MettaGrid::step(const py::array_t<ActionType, py::array::c_style> acti
     auto converted_view = converted.mutable_unchecked<2>();
     for (size_t agent_idx = 0; agent_idx < _agents.size(); ++agent_idx) {
       auto flat_index = view(agent_idx);
-      if (flat_index < 0 || static_cast<size_t>(flat_index) >= _flat_action_map.size()) {
-        throw std::runtime_error("actions has value outside the action space");
-      }
-      const auto& mapping = _flat_action_map[static_cast<size_t>(flat_index)];
-      converted_view(agent_idx, 0) = mapping.first;
-      converted_view(agent_idx, 1) = mapping.second;
+      assign_flat(converted_view, agent_idx, flat_index);
     }
     _step(converted);
   } else if (info.ndim == 2) {
@@ -757,12 +763,7 @@ py::tuple MettaGrid::step(const py::array_t<ActionType, py::array::c_style> acti
       auto converted_view = converted.mutable_unchecked<2>();
       for (size_t agent_idx = 0; agent_idx < _agents.size(); ++agent_idx) {
         auto flat_index = view(agent_idx, 0);
-        if (flat_index < 0 || static_cast<size_t>(flat_index) >= _flat_action_map.size()) {
-          throw std::runtime_error("actions has value outside the action space");
-        }
-        const auto& mapping = _flat_action_map[static_cast<size_t>(flat_index)];
-        converted_view(agent_idx, 0) = mapping.first;
-        converted_view(agent_idx, 1) = mapping.second;
+        assign_flat(converted_view, agent_idx, flat_index);
       }
       _step(converted);
     } else if (info.shape[1] == 2) {

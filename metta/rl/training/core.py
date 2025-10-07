@@ -124,17 +124,13 @@ class CoreTrainingLoop:
 
             assert "actions" in td, "No loss performed inference - at least one loss must generate actions"
             raw_actions = td["actions"].detach()
-            if raw_actions.dim() == 2 and raw_actions.size(-1) == 1:
-                flat_actions = raw_actions.squeeze(-1)
-            elif raw_actions.dim() == 1:
-                flat_actions = raw_actions
-            else:
+            if raw_actions.dim() != 1:
                 raise ValueError(
                     "Policies must emit a single discrete action id per agent; "
                     f"received tensor of shape {tuple(raw_actions.shape)}"
                 )
 
-            actions_column = flat_actions.view(-1, 1)
+            actions_column = raw_actions.view(-1, 1)
 
             if self.last_action is None:
                 raise RuntimeError("last_action buffer was not initialized before rollout actions were generated")
