@@ -45,8 +45,9 @@ resource "aws_iam_role_policy_attachment" "spacelift_poweruser" {
 # Register the integration with Spacelift
 # (Will be available at https://metta-ai.app.spacelift.io/cloud-integrations)
 resource "spacelift_aws_integration" "softmax" {
-  name     = local.aws_integration_name
-  role_arn = aws_iam_role.spacelift.arn
+  name             = local.aws_integration_name
+  role_arn         = aws_iam_role.spacelift.arn
+  duration_seconds = 3600 # default is 15 min, which is too short for some resources, for example RDS databases
 }
 
 import {

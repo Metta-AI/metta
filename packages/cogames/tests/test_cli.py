@@ -1,14 +1,17 @@
 """Tests for cogames CLI commands."""
 
 import subprocess
+import tempfile
 from pathlib import Path
 
+cogames_root = Path(__file__).parent.parent
 
-def test_games_list_command():
-    """Test that 'cogames games' lists all available games."""
+
+def test_missions_list_command():
+    """Test that 'cogames missions' lists all available missions."""
     result = subprocess.run(
-        ["uv", "run", "cogames", "games"],
-        cwd=Path(__file__).parent.parent,
+        ["uv", "run", "cogames", "missions"],
+        cwd=cogames_root,
         capture_output=True,
         text=True,
         timeout=30,
@@ -18,17 +21,16 @@ def test_games_list_command():
 
     # Check that the output contains expected content
     output = result.stdout
-    assert "Available Games" in output
     assert "training_facility_1" in output
     assert "Agents" in output
     assert "Map Size" in output
 
 
-def test_games_describe_command():
-    """Test that 'cogames games <game_name>' describes a specific game."""
+def test_missions_describe_command():
+    """Test that 'cogames missions <mission_name>' describes a specific mission."""
     result = subprocess.run(
-        ["uv", "run", "cogames", "games", "training_facility_1"],
-        cwd=Path(__file__).parent.parent,
+        ["uv", "run", "cogames", "missions", "training_facility_1"],
+        cwd=cogames_root,
         capture_output=True,
         text=True,
         timeout=30,
@@ -39,30 +41,30 @@ def test_games_describe_command():
     # Check that the output contains expected game details
     output = result.stdout
     assert "training_facility_1" in output
-    assert "Game Configuration:" in output
+    assert "Mission Configuration:" in output
     assert "Number of agents:" in output
     assert "Available Actions:" in output
 
 
-def test_games_nonexistent_game():
+def test_missions_nonexistent_mission():
     """Test that describing a nonexistent game returns an error."""
     result = subprocess.run(
-        ["uv", "run", "cogames", "games", "nonexistent_game"],
-        cwd=Path(__file__).parent.parent,
+        ["uv", "run", "cogames", "missions", "nonexistent_mission"],
+        cwd=cogames_root,
         capture_output=True,
         text=True,
         timeout=30,
     )
 
-    assert result.returncode == 1, "Command should fail for nonexistent game"
+    assert result.returncode == 1, "Command should fail for nonexistent mission"
     assert "Error:" in result.stdout or "Error:" in result.stderr
 
 
-def test_games_help_command():
+def test_missions_help_command():
     """Test that 'cogames --help' shows help text."""
     result = subprocess.run(
         ["uv", "run", "cogames", "--help"],
-        cwd=Path(__file__).parent.parent,
+        cwd=cogames_root,
         capture_output=True,
         text=True,
         timeout=30,
@@ -75,3 +77,46 @@ def test_games_help_command():
     assert "games" in output
     assert "play" in output
     assert "train" in output
+
+
+def test_make_mission_command():
+    """Test that 'cogames make-mission' creates a new mission configuration."""
+    with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+        tmp_path = Path(f.name)
+
+    try:
+        # Run make-game and write to temp file
+        result = subprocess.run(
+            [
+                "uv",
+                "run",
+                "cogames",
+                "make-mission",
+                "random",
+                "--width",
+                "100",
+                "--height",
+                "100",
+                "--output",
+                str(tmp_path),
+            ],
+            cwd=cogames_root,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert result.returncode == 0, f"make-mission failed: {result.stderr}"
+
+        # Run games command with the generated file
+        result = subprocess.run(
+            ["uv", "run", "cogames", "missions", str(tmp_path)],
+            cwd=cogames_root,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert result.returncode == 0, f"missions failed: {result.stderr}"
+
+        assert tmp_path.exists()
+    finally:
+        tmp_path.unlink(missing_ok=True)

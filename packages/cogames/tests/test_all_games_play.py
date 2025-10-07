@@ -4,19 +4,19 @@ import subprocess
 
 import pytest
 
-from cogames.game import get_all_games
+from cogames.game import get_all_missions
 
 
-@pytest.mark.parametrize("game_name", get_all_games())
+@pytest.mark.parametrize("mission_name", get_all_missions())
 @pytest.mark.timeout(60)
-def test_game_play_non_interactive(game_name):
+def test_mission_play_non_interactive(mission_name):
     result = subprocess.run(
         [
             "uv",
             "run",
             "cogames",
             "play",
-            game_name,
+            mission_name,
             "--steps",
             "10",
             "--render",
@@ -28,4 +28,4 @@ def test_game_play_non_interactive(game_name):
     )
 
     if result.returncode != 0:
-        pytest.fail(f"Play failed for game {game_name}: {result.stderr}")
+        pytest.fail(f"Play failed for mission {mission_name}: {result.stderr}")
