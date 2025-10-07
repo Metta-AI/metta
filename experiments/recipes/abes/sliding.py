@@ -12,6 +12,7 @@ from experiments.recipes.arena_basic_easy_shaped import (
 from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
 from metta.agent.policy import PolicyArchitecture
 
+
 def train(
     *,
     curriculum=None,
