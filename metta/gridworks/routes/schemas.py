@@ -13,7 +13,7 @@ from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.sim import SimTool
+from metta.tools.sim import EvaluateTool
 from metta.tools.train import TrainTool
 from mettagrid.base_config import Config
 from mettagrid.builder.envs import MettaGridConfig, RandomMapBuilder
@@ -55,7 +55,7 @@ def make_schemas_router() -> APIRouter:
                     CurriculumConfig,
                     PlayTool,
                     ReplayTool,
-                    SimTool,
+                    EvaluateTool,
                     TrainTool,
                     MapGen.Config,
                     RandomMapBuilder.Config,
