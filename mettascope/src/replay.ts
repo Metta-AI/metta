@@ -108,7 +108,6 @@ export class Entity {
 
   // Agent specific keys.
   actionId: Sequence<number> = new Sequence(0)
-  actionParameter: Sequence<number> = new Sequence(0)
   actionSuccess: Sequence<boolean> = new Sequence(false)
   currentReward: Sequence<number> = new Sequence(0)
   totalReward: Sequence<number> = new Sequence(0)
@@ -496,19 +495,24 @@ function convertReplayV1ToV2(replayData: any) {
       object.current_reward = gridObject['reward']
       object.total_reward = gridObject['total_reward']
 
-      const action_id = []
-      const action_param = []
-      gridObject['action'] = expandSequenceV2(gridObject['action'], replayData.max_steps)
-      for (let step = 0; step < replayData.max_steps; step++) {
-        const action = getAttrV1(gridObject, 'action', step)
-        if (action != null) {
-          action_id.push([step, action[0]])
-          action_param.push([step, action[1]])
+      let actionId = gridObject['action_id']
+
+      if (gridObject['action'] != null) {
+        gridObject['action'] = expandSequenceV2(gridObject['action'], replayData.max_steps)
+        const convertedId = []
+        for (let step = 0; step < replayData.max_steps; step++) {
+          const action = getAttrV1(gridObject, 'action', step)
+          if (action != null) {
+            convertedId.push([step, action[0]])
+          }
         }
+        actionId = convertedId
       }
-      object.action_id = action_id
-      object.action_param = action_param
+
+      if (!actionId) actionId = []
+      object.action_id = actionId
     }
+
     data.objects.push(object)
   }
 
@@ -566,7 +570,6 @@ function loadReplayJson(url: string, replayJson: any) {
       object.groupId = gridObject.group_id
       object.isFrozen.expand(gridObject.is_frozen, replayData.max_steps, false)
       object.actionId.expand(gridObject.action_id, replayData.max_steps, 0)
-      object.actionParameter.expand(gridObject.action_param, replayData.max_steps, 0)
       object.actionSuccess.expand(gridObject.action_success, replayData.max_steps, false)
       object.currentReward.expand(gridObject.current_reward, replayData.max_steps, 0)
       object.totalReward.expand(gridObject.total_reward, replayData.max_steps, 0)
@@ -643,7 +646,6 @@ export function loadReplayStep(replayStep: any) {
       object.agentId = gridObject.agent_id
       object.visionSize = gridObject.vision_size
       object.actionId.add(gridObject.action_id, step)
-      object.actionParameter.add(gridObject.action_param, step)
       object.actionSuccess.add(gridObject.action_success, step)
       object.currentReward.add(gridObject.current_reward, step)
       object.totalReward.add(gridObject.total_reward, step)
@@ -693,8 +695,8 @@ export function initWebSocket(wsUrl: string) {
   }
 }
 
-/** Sends an action to the server. */
-export function sendAction(actionName: string, actionParam: number) {
+/** Sends an action to the server using a string key from actionNames. */
+export function sendAction(actionKey: string) {
   if (state.ws === null) {
     console.error('WebSocket is not connected')
     return
@@ -702,14 +704,14 @@ export function sendAction(actionName: string, actionParam: number) {
   if (state.selectedGridObject === null) {
     return
   }
-  if (actionName === '') {
+  if (actionKey === '') {
     throw new Error('Action name must be a non-empty string')
   }
   const agentId = state.selectedGridObject.agentId
   if (agentId != null) {
-    const actionId = state.replay.actionNames.indexOf(actionName)
+    const actionId = state.replay.actionNames.indexOf(actionKey)
     if (actionId === -1) {
-      console.error('Action not found: ', actionName)
+      console.error('Action not found: ', actionKey)
       return
     }
     state.ws.send(
@@ -717,7 +719,6 @@ export function sendAction(actionName: string, actionParam: number) {
         type: 'action',
         agent_id: agentId,
         action_id: actionId,
-        action_param: actionParam,
       })
     )
   } else {

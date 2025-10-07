@@ -13,24 +13,20 @@ class Swap : public ActionHandler {
 public:
   explicit Swap(const ActionConfig& cfg) : ActionHandler(cfg, "swap") {}
 
-  unsigned char max_arg() const override {
-    return 0;
-  }
-
 protected:
-  bool _handle_action(Agent& actor, ActionArg /*arg*/) override {
+  bool _handle_action(Agent& actor) override {
     // target the square we are facing
-    GridLocation target_loc = _grid->relative_location(actor.location, actor.orientation);
+    GridLocation target_loc = grid().relative_location(actor.location, actor.orientation);
 
     // Check layers in swap priority order
     const auto layers = {GridLayer::ObjectLayer, GridLayer::AgentLayer};
 
     for (auto layer : layers) {
       target_loc.layer = layer;
-      GridObject* target = this->_grid->object_at(target_loc);
+      GridObject* target = grid().object_at(target_loc);
       if (target && target->swappable()) {
-        actor.stats.incr("action." + this->_action_name + "." + target->type_name);
-        this->_grid->swap_objects(actor, *target);
+        actor.stats.incr("action." + action_name() + "." + target->type_name);
+        grid().swap_objects(actor, *target);
         return true;
       }
     }

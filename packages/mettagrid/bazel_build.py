@@ -6,16 +6,11 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Tuple
 
-from setuptools.build_meta import (
-    build_editable as _build_editable,
-)
-from setuptools.build_meta import (
-    build_sdist as _build_sdist,
-)
-from setuptools.build_meta import (
-    build_wheel as _build_wheel,
-)
+from setuptools.build_meta import build_editable as _build_editable
+from setuptools.build_meta import build_sdist as _build_sdist
+from setuptools.build_meta import build_wheel as _build_wheel
 from setuptools.build_meta import (
     get_requires_for_build_editable,
     get_requires_for_build_sdist,
@@ -29,6 +24,37 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 METTASCOPE_DIR = PROJECT_ROOT / "nim" / "mettascope"
 PYTHON_PACKAGE_DIR = PROJECT_ROOT / "python" / "src" / "mettagrid"
 METTASCOPE_PACKAGE_DIR = PYTHON_PACKAGE_DIR / "nim" / "mettascope"
+_PROJECT_PARENTS = PROJECT_ROOT.resolve().parents
+REPO_ROOT = _PROJECT_PARENTS[1] if len(_PROJECT_PARENTS) > 1 else _PROJECT_PARENTS[0]
+
+
+def _inject_safe_directory(env: dict[str, str], directory: Path) -> None:
+    """Allow git commands to operate inside CI sandboxes with mismatched ownership."""
+
+    resolved = str(directory.resolve())
+    count = int(env.get("GIT_CONFIG_COUNT", "0"))
+    env[f"GIT_CONFIG_KEY_{count}"] = "safe.directory"
+    env[f"GIT_CONFIG_VALUE_{count}"] = resolved
+    env["GIT_CONFIG_COUNT"] = str(count + 1)
+
+
+def _ensure_safe_git_config(env: dict[str, str], directories: Tuple[Path, ...]) -> None:
+    """Create an ad-hoc gitconfig to whitelist safe directories when none is provided."""
+
+    if env.get("GIT_CONFIG_GLOBAL"):
+        return
+
+    safe_config = PROJECT_ROOT / ".nimble_gitconfig"
+    lines = ["[safe]\n"]
+    seen = set()
+    for directory in directories:
+        resolved = str(directory.resolve())
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        lines.append(f"\tdirectory = {resolved}\n")
+    safe_config.write_text("".join(lines), encoding="utf-8")
+    env["GIT_CONFIG_GLOBAL"] = str(safe_config)
 
 
 def _run_bazel_build() -> None:
@@ -200,8 +226,18 @@ def _run_mettascope_build() -> None:
     print(f"Building mettascope from {METTASCOPE_DIR}")
 
     # Run the build script
+    nim_env = os.environ.copy()
+    _inject_safe_directory(nim_env, REPO_ROOT)
+    _inject_safe_directory(nim_env, METTASCOPE_DIR)
+    _ensure_safe_git_config(nim_env, (REPO_ROOT, METTASCOPE_DIR))
     for cmd in ["update", "install", "bindings"]:
-        result = subprocess.run(["nimble", cmd, "-y"], cwd=METTASCOPE_DIR, capture_output=True, text=True)
+        result = subprocess.run(
+            ["nimble", cmd, "-y"],
+            cwd=METTASCOPE_DIR,
+            capture_output=True,
+            text=True,
+            env=nim_env,
+        )
         print(result.stderr, file=sys.stderr)
         print(result.stdout, file=sys.stderr)
         if result.returncode != 0:

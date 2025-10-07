@@ -58,12 +58,8 @@ public:
         _converter_radius(cfg.converter_radius),
         _scales(cfg.scales) {}
 
-  unsigned char max_arg() const override {
-    return std::numeric_limits<unsigned char>::max();
-  }
-
 protected:
-  bool _handle_action(Agent& actor, ActionArg /* arg */) override {
+  bool _handle_action(Agent& actor) override {
     // Center AoE on actor's position
     int center_row = static_cast<int>(actor.location.r);
     int center_col = static_cast<int>(actor.location.c);
@@ -84,10 +80,10 @@ protected:
           int target_row = center_row + dr;
           int target_col = center_col + dc;
 
-          if (target_row >= 0 && target_row < static_cast<int>(_grid->height) &&
-              target_col >= 0 && target_col < static_cast<int>(_grid->width)) {
+          if (target_row >= 0 && target_row < static_cast<int>(grid().height) &&
+              target_col >= 0 && target_col < static_cast<int>(grid().width)) {
             GridLocation loc(target_row, target_col, GridLayer::AgentLayer);
-            GridObject* obj = _grid->object_at(loc);
+            GridObject* obj = grid().object_at(loc);
             if (obj != nullptr) {
               Agent* agent = static_cast<Agent*>(obj);
               affected_agents.push_back(agent);
@@ -110,10 +106,10 @@ protected:
           int target_row = center_row + dr;
           int target_col = center_col + dc;
 
-          if (target_row >= 0 && target_row < static_cast<int>(_grid->height) &&
-              target_col >= 0 && target_col < static_cast<int>(_grid->width)) {
+          if (target_row >= 0 && target_row < static_cast<int>(grid().height) &&
+              target_col >= 0 && target_col < static_cast<int>(grid().width)) {
             GridLocation loc(target_row, target_col, GridLayer::ObjectLayer);
-            GridObject* obj = _grid->object_at(loc);
+            GridObject* obj = grid().object_at(loc);
             if (obj != nullptr) {
               Converter* converter = dynamic_cast<Converter*>(obj);
               if (converter != nullptr) {

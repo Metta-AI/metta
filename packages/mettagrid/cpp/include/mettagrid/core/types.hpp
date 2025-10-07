@@ -48,7 +48,6 @@ using TerminalType = bool;
 using TruncationType = bool;
 using RewardType = float;
 using ActionType = int32_t;
-using ActionArg = ActionType;
 using MaskType = bool;
 using SuccessType = bool;
 

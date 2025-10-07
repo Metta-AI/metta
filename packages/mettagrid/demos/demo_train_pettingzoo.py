@@ -78,10 +78,8 @@ def demo_random_rollout():
         actions = {}
         for agent in env.agents:
             action_space = env.action_space(agent)
-            if isinstance(action_space, spaces.MultiDiscrete):
-                actions[agent] = np.random.randint(0, action_space.nvec, size=len(action_space.nvec), dtype=np.int32)
-            else:
-                actions[agent] = action_space.sample()
+            assert isinstance(action_space, spaces.Discrete)
+            actions[agent] = int(action_space.sample())
 
         _, rewards, terminations, truncations, _ = env.step(actions)
 
@@ -124,14 +122,8 @@ def demo_simple_marl_training():
     policies = {}
     for agent in env.possible_agents:
         action_space = env.action_space(agent)
-        if isinstance(action_space, spaces.MultiDiscrete):
-            # MultiDiscrete case
-            policies[agent] = (
-                np.ones((len(action_space.nvec), max(action_space.nvec))) / action_space.nvec[:, np.newaxis]
-            )
-        elif isinstance(action_space, spaces.Discrete):
-            # Discrete case
-            policies[agent] = np.ones(action_space.n) / action_space.n
+        assert isinstance(action_space, spaces.Discrete)
+        policies[agent] = np.ones(action_space.n) / action_space.n
 
     _, _ = env.reset(seed=42)
     total_rewards = {agent: 0 for agent in env.possible_agents}
@@ -145,36 +137,24 @@ def demo_simple_marl_training():
         for agent in env.agents:
             if agent in policies:
                 action_space = env.action_space(agent)
-                if isinstance(action_space, spaces.MultiDiscrete):
-                    # MultiDiscrete case
-                    action = []
-                    for i, nvec in enumerate(action_space.nvec):
-                        probs = policies[agent][i, :nvec]
-                        probs = probs / probs.sum()
-                        action.append(np.random.choice(nvec, p=probs))
-                    actions[agent] = np.array(action, dtype=np.int32)
-                elif isinstance(action_space, spaces.Discrete):
-                    # Discrete case
-                    probs = policies[agent] / policies[agent].sum()
-                    actions[agent] = np.random.choice(action_space.n, p=probs)
+                assert isinstance(action_space, spaces.Discrete)
+                probs = policies[agent]
+                probs = probs / probs.sum()
+                actions[agent] = int(np.random.choice(action_space.n, p=probs))
             else:
-                actions[agent] = env.action_space(agent).sample()
+                action_space = env.action_space(agent)
+                assert isinstance(action_space, spaces.Discrete)
+                actions[agent] = int(action_space.sample())
 
         _, rewards, terminations, truncations, _ = env.step(actions)
 
         for agent, reward in rewards.items():
             if agent in policies and agent in actions and reward > 0:
-                action_taken = actions[agent]
+                action_taken = int(actions[agent])
                 action_space = env.action_space(agent)
-                if isinstance(action_space, spaces.MultiDiscrete):
-                    # MultiDiscrete case
-                    for i, a in enumerate(action_taken):
-                        policies[agent][i, a] *= 1.1
-                        policies[agent][i] /= policies[agent][i].sum()
-                elif isinstance(action_space, spaces.Discrete):
-                    # Discrete case
-                    policies[agent][action_taken] *= 1.1
-                    policies[agent] /= policies[agent].sum()
+                assert isinstance(action_space, spaces.Discrete)
+                policies[agent][action_taken] *= 1.1
+                policies[agent] /= policies[agent].sum()
 
             total_rewards[agent] += reward
 

@@ -133,7 +133,7 @@ def test_pettingzoo_env_step():
         # Random actions for active agents
         actions = {}
         for agent in env.agents:
-            actions[agent] = np.random.randint(0, 2, size=2, dtype=np.int32)
+            actions[agent] = int(env.action_space(agent).sample())
 
         observations, rewards, terminations, truncations, infos = env.step(actions)
 
@@ -178,7 +178,7 @@ def test_pettingzoo_env_agent_removal():
     while env.agents and step_count < max_test_steps:
         actions = {}
         for agent in env.agents:
-            actions[agent] = np.random.randint(0, 2, size=2, dtype=np.int32)
+            actions[agent] = int(env.action_space(agent).sample())
 
         observations, rewards, terminations, truncations, infos = env.step(actions)
         step_count += 1
@@ -328,7 +328,7 @@ def test_pettingzoo_action_observation_spaces():
 
         # In our implementation, all agents have the same spaces
         assert obs_space.shape == reference_obs_space.shape
-        assert action_space.nvec.tolist() == reference_action_space.nvec.tolist()
+        assert action_space.n == reference_action_space.n
 
         # Test that spaces can generate valid samples
         obs_sample = obs_space.sample()

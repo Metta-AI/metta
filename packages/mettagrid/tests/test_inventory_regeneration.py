@@ -47,7 +47,7 @@ class TestInventoryRegeneration:
 
         # Take steps and verify regeneration
         noop_idx = env.action_names.index("noop")
-        actions = np.array([[noop_idx, 0], [noop_idx, 0]], dtype=dtype_actions)
+        actions = np.full(env.num_agents, noop_idx, dtype=dtype_actions)
 
         # Step 1: No regeneration yet
         obs, rewards, terminals, truncations, info = env.step(actions)
@@ -114,7 +114,7 @@ class TestInventoryRegeneration:
 
         # Take many steps
         noop_idx = env.action_names.index("noop")
-        actions = np.array([[noop_idx, 0]], dtype=dtype_actions)
+        actions = np.full(env.num_agents, noop_idx, dtype=dtype_actions)
 
         for _ in range(10):
             obs, rewards, terminals, truncations, info = env.step(actions)
@@ -146,7 +146,7 @@ class TestInventoryRegeneration:
 
         # Take a step - should regenerate but cap at 100
         noop_idx = env.action_names.index("noop")
-        actions = np.array([[noop_idx, 0]], dtype=dtype_actions)
+        actions = np.full(env.num_agents, noop_idx, dtype=dtype_actions)
 
         obs, rewards, terminals, truncations, info = env.step(actions)
         grid_objects = env.grid_objects()

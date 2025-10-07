@@ -23,9 +23,9 @@ class SimplePolicyNet(torch.nn.Module):
             pufferlib.pytorch.layer_init(torch.nn.Linear(self.hidden_size, self.hidden_size)),
         )
 
-        self.action_nvec = tuple(env.single_action_space.nvec)
+        self.num_actions = int(env.single_action_space.n)
 
-        self.action_head = torch.nn.Linear(self.hidden_size, sum(self.action_nvec))
+        self.action_head = torch.nn.Linear(self.hidden_size, self.num_actions)
         self.value_head = torch.nn.Linear(self.hidden_size, 1)
 
     def forward_eval(self, observations, state=None):
@@ -33,7 +33,6 @@ class SimplePolicyNet(torch.nn.Module):
         observations = observations.view(batch_size, -1).float() / 255.0
         hidden = self.net(observations)
         logits = self.action_head(hidden)
-        logits = logits.split(self.action_nvec, dim=1)
 
         values = self.value_head(hidden)
         return logits, values
@@ -46,10 +45,10 @@ class SimplePolicyNet(torch.nn.Module):
 class SimpleAgentPolicyImpl(AgentPolicy):
     """Per-agent policy that uses the shared feedforward network."""
 
-    def __init__(self, net: SimplePolicyNet, device: torch.device, action_nvec: tuple):
+    def __init__(self, net: SimplePolicyNet, device: torch.device, num_actions: int):
         self._net = net
         self._device = device
-        self._action_nvec = action_nvec
+        self._num_actions = num_actions
 
     def step(self, obs: MettaGridObservation) -> MettaGridAction:
         """Get action for this agent."""
@@ -59,13 +58,8 @@ class SimpleAgentPolicyImpl(AgentPolicy):
         with torch.no_grad():
             self._net.eval()
             logits, _ = self._net.forward_eval(obs_tensor)
-
-            actions = []
-            for logit in logits:
-                dist = torch.distributions.Categorical(logits=logit)
-                actions.append(dist.sample().item())
-
-            return np.array(actions, dtype=np.int32)
+            dist = torch.distributions.Categorical(logits=logits)
+            return np.int32(dist.sample().cpu().item())
 
 
 class SimplePolicy(TrainablePolicy):
@@ -75,14 +69,14 @@ class SimplePolicy(TrainablePolicy):
         super().__init__()
         self._net = SimplePolicyNet(env).to(device)
         self._device = device
-        self.action_nvec = tuple(env.single_action_space.nvec)
+        self.num_actions = int(env.single_action_space.n)
 
     def network(self) -> nn.Module:
         return self._net
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         """Create a Policy instance for a specific agent."""
-        return SimpleAgentPolicyImpl(self._net, self._device, self.action_nvec)
+        return SimpleAgentPolicyImpl(self._net, self._device, self.num_actions)
 
     def load_policy_data(self, checkpoint_path: str) -> None:
         self._net.load_state_dict(torch.load(checkpoint_path, map_location=self._device))

@@ -3,7 +3,7 @@ class TestGlobalObservations:
 
     This file tests global observation features such as:
     - episode_completion_pct
-    - last_action and last_action_arg
+    - last_action
     - last_reward
 
     Reward-related global observations are tested in test_global_reward_observations.py
@@ -11,5 +11,5 @@ class TestGlobalObservations:
 
     # Placeholder for future tests of non-reward global observation features
     # TODO: Add tests for episode_completion_pct
-    # TODO: Add tests for last_action and last_action_arg
+    # TODO: Add tests for last_action updates
     # TODO: Add tests for last_reward

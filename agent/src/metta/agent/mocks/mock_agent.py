@@ -61,7 +61,7 @@ class MockAgent(Policy):
 
         This is a minimal implementation that satisfies the simulation's requirements:
         - Takes a TensorDict with "env_obs"
-        - Adds "actions" key with shape [num_agents, 2] for [action_type, action_param]
+        - Adds "actions" key with shape [num_agents] representing discrete action ids
         - Returns the modified TensorDict
 
         Args:
@@ -79,9 +79,8 @@ class MockAgent(Policy):
             # Some tests might not provide env_obs, default to batch size 1
             num_agents = td.batch_size[0] if td.batch_size else 1
 
-        # Create "do nothing" actions (action_type=0, action_param=0)
-        # These are the minimal valid actions that won't cause errors
-        actions = torch.zeros((num_agents, 2), dtype=torch.long)
+        # Create "do nothing" actions (flattened index 0)
+        actions = torch.zeros((num_agents,), dtype=torch.long)
 
         # Add required outputs to the TensorDict
         # The simulation expects at least the "actions" key
@@ -110,7 +109,6 @@ class MockAgent(Policy):
 
         # Action configuration
         self.action_names = list(env.action_names)
-        self.action_max_params = list(env.max_action_args)
 
         features: Mapping[str, object] = env.obs_features
         feature_map = {}

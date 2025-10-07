@@ -155,7 +155,6 @@ export function drawTrace(panel: PanelInfo) {
     const agent = state.replay.agents[i]
     for (let j = 0; j < state.replay.maxSteps; j++) {
       const actionId = agent.actionId.get(j)
-      const actionParam = agent.actionParameter.get(j)
       const actionSuccess = agent.actionSuccess.get(j)
 
       if (agent.isFrozen.get(j)) {

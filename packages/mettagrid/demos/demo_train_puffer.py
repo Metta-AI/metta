@@ -75,20 +75,8 @@ def demo_puffer_env():
     # Generate random actions compatible with the action space
     from gymnasium import spaces
 
-    if isinstance(env.action_space, spaces.MultiDiscrete):
-        # MultiDiscrete case
-        actions = np.zeros((env.num_agents, len(env.action_space.nvec)), dtype=np.int32)
-        for i in range(env.num_agents):
-            for j, n in enumerate(env.action_space.nvec):
-                actions[i, j] = np.random.randint(0, n)
-    else:
-        # Box case
-        actions = np.random.randint(
-            env.action_space.low,
-            env.action_space.high + 1,
-            size=env.action_space.shape,
-            dtype=np.int32,
-        )
+    assert isinstance(env.action_space, spaces.Discrete)
+    actions = np.random.randint(0, env.action_space.n, size=(env.num_agents,), dtype=np.int32)
 
     _, rewards, terminals, truncations, _ = env.step(actions)
     print(f"   - Step successful: obs {observations.shape}, rewards {rewards.shape}")
@@ -123,17 +111,8 @@ def demo_random_rollout():
         # Generate random actions for all agents
         from gymnasium import spaces
 
-        if isinstance(env.action_space, spaces.MultiDiscrete):
-            # MultiDiscrete case
-            actions = np.zeros((env.num_agents, len(env.action_space.nvec)), dtype=np.int32)
-            for i in range(env.num_agents):
-                for j, n in enumerate(env.action_space.nvec):
-                    actions[i, j] = np.random.randint(0, n)
-        else:
-            # Box case
-            actions = np.random.randint(
-                env.action_space.low, env.action_space.high + 1, size=env.action_space.shape, dtype=np.int32
-            )
+        assert isinstance(env.action_space, spaces.Discrete)
+        actions = np.random.randint(0, env.action_space.n, size=(env.num_agents,), dtype=np.int32)
 
         _, rewards, terminals, truncations, _ = env.step(actions)
         total_reward += rewards.sum()
@@ -195,63 +174,23 @@ def demo_pufferlib_training():
         # Initialize simple policies based on action space type
         from gymnasium import spaces
 
-        if isinstance(env.action_space, spaces.MultiDiscrete):
-            # MultiDiscrete: maintain preferences per action value
-            action_preferences = []
-            for n in env.action_space.nvec:
-                action_preferences.append(np.ones(n) / n)
-        else:
-            # Box: track preferences for discretized bins
-            action_low = env.action_space.low
-            action_high = env.action_space.high
-            num_bins = 10
-            action_preferences = np.ones((env.num_agents, env.action_space.shape[1], num_bins))
+        assert isinstance(env.action_space, spaces.Discrete)
+        action_preferences = np.ones(env.action_space.n)
 
         for _ in range(max_steps):
             # Sample actions based on current preferences
-            if isinstance(env.action_space, spaces.MultiDiscrete):
-                # MultiDiscrete case
-                actions = np.zeros((env.num_agents, len(env.action_space.nvec)), dtype=np.int32)
-                for i in range(env.num_agents):
-                    for j, n in enumerate(env.action_space.nvec):
-                        probs = action_preferences[j] / action_preferences[j].sum()
-                        actions[i, j] = np.random.choice(n, p=probs)
-            else:
-                # Box case
-                actions = np.zeros((env.num_agents, env.action_space.shape[1]), dtype=np.int32)
-                for i in range(env.num_agents):
-                    for j in range(env.action_space.shape[1]):
-                        # Convert preferences to probabilities
-                        probs = action_preferences[i, j] / action_preferences[i, j].sum()
-                        # Sample bin and convert to action value
-                        bin_idx = np.random.choice(num_bins, p=probs)
-                        action_range = action_high[i, j] - action_low[i, j] + 1
-                        action_val = int(action_low[i, j] + (bin_idx * action_range) / num_bins)
-                        action_val = np.clip(action_val, action_low[i, j], action_high[i, j])
-                        actions[i, j] = action_val
+            probs = action_preferences / action_preferences.sum()
+            actions = np.random.choice(env.action_space.n, size=env.num_agents, p=probs).astype(np.int32)
 
             _, rewards, terminals, truncations, _ = env.step(actions)
             total_reward += rewards.sum()
             steps += 1
 
             # Simple "learning": increase preference for actions that led to positive rewards
-            if isinstance(env.action_space, spaces.MultiDiscrete):
-                # MultiDiscrete learning
-                for i in range(env.num_agents):
-                    if rewards[i] > 0:
-                        for j in range(len(env.action_space.nvec)):
-                            action_preferences[j][actions[i, j]] *= 1.1
-            else:
-                # Box learning
-                for i in range(env.num_agents):
-                    if rewards[i] > 0:
-                        for j in range(env.action_space.shape[1]):
-                            # Find which bin the action belonged to
-                            action_range = action_high[i, j] - action_low[i, j] + 1
-                            bin_idx = int((actions[i, j] - action_low[i, j]) * num_bins / action_range)
-                            bin_idx = np.clip(bin_idx, 0, num_bins - 1)
-                            # Increase preference for this bin
-                            action_preferences[i, j, bin_idx] *= 1.1
+            if rewards.any():
+                for action, reward in zip(actions, rewards, strict=False):
+                    if reward > 0:
+                        action_preferences[action] *= 1.1
 
             if terminals.any() or truncations.any():
                 _, _ = env.reset()

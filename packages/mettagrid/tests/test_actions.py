@@ -323,7 +323,7 @@ def test_diagonal_movement_integration(configured_env):
 
     env: MettaGrid = configured_env(open_map)
 
-    print(env.action_names(), env.max_action_args())
+    print(env.action_names())
 
     # Test diagonal movement pattern
     diagonal_moves = [

@@ -76,25 +76,23 @@ class MettaGridGymEnv(MettaGridCore, GymEnv):
         return obs[0], info
 
     @override  # gymnasium.Env.step
-    def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
+    def step(self, action: np.ndarray | int) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
         """
         Execute one timestep of the environment dynamics.
 
         Args:
-            action: Action array. For single-agent: shape (2,). For multi-agent: shape (num_agents, 2)
+            action: Discrete action index for the single agent
 
         Returns:
             Tuple of (observation, reward, terminated, truncated, info)
         """
-        # Handle single-agent action format
-        if action.ndim == 1:
-            # Convert single action to multi-agent format
-            actions = action[np.newaxis, ...]  # Add batch dimension
+        action_array = np.asarray(action, dtype=dtype_actions)
+        if action_array.ndim == 0:
+            actions = action_array.reshape(1)
+        elif action_array.ndim == 1 and action_array.shape[0] == 1:
+            actions = action_array
         else:
-            actions = action
-
-        # Ensure correct dtype
-        actions = actions.astype(dtype_actions)
+            raise ValueError(f"Expected scalar action for single-agent gym env, received shape {action_array.shape}")
 
         # Call base step implementation
         observations, rewards, terminals, truncations, infos = super().step(actions)

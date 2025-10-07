@@ -2,7 +2,7 @@
 
 import numpy as np
 import torch
-from gymnasium.spaces import Box, MultiDiscrete
+from gymnasium.spaces import Box, Discrete
 
 from cogames.policy.lstm import LSTMPolicyNet
 
@@ -12,7 +12,7 @@ class MockEnv:
 
     def __init__(self):
         self.single_observation_space = Box(low=0, high=255, shape=(7, 7, 3), dtype=np.uint8)
-        self.single_action_space = MultiDiscrete([6, 4])  # 6 move actions, 4 interaction actions
+        self.single_action_space = Discrete(8)
 
 
 def test_forward_return_signature():
@@ -31,8 +31,8 @@ def test_forward_return_signature():
     assert len(result) == 2, f"Expected 2 values, got {len(result)}"
 
     logits, values = result
-    assert isinstance(logits, (list, tuple))
-    assert len(logits) == 2  # Two action heads
+    assert isinstance(logits, torch.Tensor)
+    assert logits.shape == (4, MockEnv().single_action_space.n)
     assert values.shape == (4, 1)  # Batch of 4, single value per obs
 
 
@@ -96,7 +96,8 @@ def test_forward_with_none_state():
     logits, values = net.forward_eval(obs, None)
 
     # Should still work and return valid outputs
-    assert len(logits) == 2
+    assert isinstance(logits, torch.Tensor)
+    assert logits.shape == (4, MockEnv().single_action_space.n)
     assert values.shape == (4, 1)
 
 

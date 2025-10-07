@@ -43,7 +43,7 @@ class TestResourceLoss:
 
         # Take a step with noop action
         noop_idx = env.action_names.index("noop")
-        actions = np.array([[noop_idx, 0]], dtype=dtype_actions)
+        actions = np.full(env.num_agents, noop_idx, dtype=dtype_actions)
 
         obs, rewards, terminals, truncations, info = env.step(actions)
 
@@ -98,7 +98,7 @@ class TestResourceLoss:
 
         # Take multiple steps with noop action
         noop_idx = env.action_names.index("noop")
-        actions = np.array([[noop_idx, 0]], dtype=dtype_actions)
+        actions = np.full(env.num_agents, noop_idx, dtype=dtype_actions)
 
         # Take 10 steps
         for _ in range(10):
@@ -155,7 +155,7 @@ class TestResourceLoss:
 
         # Take multiple steps with noop action
         noop_idx = env.action_names.index("noop")
-        actions = np.array([[noop_idx, 0]], dtype=dtype_actions)
+        actions = np.full(env.num_agents, noop_idx, dtype=dtype_actions)
 
         initial_count = inventory[env.resource_names.index("heart")]
 

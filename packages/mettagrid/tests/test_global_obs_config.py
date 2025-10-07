@@ -73,12 +73,12 @@ def test_all_global_tokens_enabled():
 
     expected_features = {
         env.feature_spec()[feature_name]["id"]
-        for feature_name in ["episode_completion_pct", "last_action", "last_action_arg", "last_reward"]
+        for feature_name in ["episode_completion_pct", "last_action", "last_reward"]
     }
     global_token_count = count_global_features(obs, expected_features)
 
-    # Each agent should have 4 global tokens
-    assert global_token_count == 8  # 2 agents * 4 tokens
+    # Each agent should have 3 global tokens
+    assert global_token_count == 6  # 2 agents * 3 tokens
 
 
 def test_episode_completion_disabled():
@@ -88,13 +88,11 @@ def test_episode_completion_disabled():
     env = create_test_env(global_obs)
     obs, _ = env.reset()
 
-    expected_features = {
-        env.feature_spec()[feature_name]["id"] for feature_name in ["last_action", "last_action_arg", "last_reward"]
-    }
+    expected_features = {env.feature_spec()[feature_name]["id"] for feature_name in ["last_action", "last_reward"]}
     global_token_count = count_global_features(obs, expected_features)
 
-    # Each agent should have 3 global tokens
-    assert global_token_count == 6  # 2 agents * 3 tokens
+    # Each agent should have 2 global tokens
+    assert global_token_count == 4  # 2 agents * 2 tokens
 
 
 def test_last_action_disabled():
@@ -123,7 +121,7 @@ def test_all_global_tokens_disabled():
     # Should have no global tokens
     unexpected_features = {
         env.feature_spec()[feature_name]["id"]
-        for feature_name in ["episode_completion_pct", "last_action", "last_action_arg", "last_reward"]
+        for feature_name in ["episode_completion_pct", "last_action", "last_reward"]
     }
     global_token_count = count_global_features(obs, unexpected_features)
 
@@ -158,11 +156,11 @@ def test_global_obs_default_values():
     env = MettaGrid(from_mettagrid_config(game_config), game_map, 42)
     obs, _ = env.reset()
 
-    # Should have all 4 global tokens by default
+    # Should have all 3 global tokens by default
     expected_features = {
         env.feature_spec()[feature_name]["id"]
-        for feature_name in ["episode_completion_pct", "last_action", "last_action_arg", "last_reward"]
+        for feature_name in ["episode_completion_pct", "last_action", "last_reward"]
     }
     global_token_count = count_global_features(obs, expected_features)
 
-    assert global_token_count == 4
+    assert global_token_count == 3

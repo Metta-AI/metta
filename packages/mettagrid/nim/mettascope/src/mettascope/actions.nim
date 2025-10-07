@@ -1,5 +1,5 @@
 import
-  std/[tables],
+  std/[strutils, tables],
   windy, fidget2, vmath,
   common, replays, pathfinding
 
@@ -10,12 +10,29 @@ type
     W = 2
     E = 3
 
-proc sendAction*(agentId, actionId, argument: int) =
-  ## Send an action to the Python from the user.
+proc moveActionName(orientation: Orientation): string =
+  case orientation
+  of N: "move_north"
+  of S: "move_south"
+  of W: "move_west"
+  of E: "move_east"
+
+proc defaultAttackActionName(): string =
+  ## Fallback attack; use first attack variant if available.
+  for name in replay.actionNames:
+    if startsWith(name, "attack_"):
+      return name
+  return "attack_nearest"
+
+proc sendAction*(agentId: int, actionName: string) =
+  ## Send an action to Python using a discrete action name.
+  let idx = replay.actionNames.find(actionName)
+  if idx == -1:
+    echo "Unknown action name: ", actionName
+    return
   requestActions.add(ActionRequest(
     agentId: agentId,
-    actionId: actionId,
-    argument: argument
+    actionId: idx
   ))
   requestPython = true
 
@@ -61,7 +78,7 @@ proc processActions*() =
       let dx = nextAction.pos.x - currentPos.x
       let dy = nextAction.pos.y - currentPos.y
       let orientation = getOrientationFromDelta(dx.int, dy.int)
-      sendAction(agentId, replay.moveActionId, orientation.int)
+      sendAction(agentId, moveActionName(orientation))
       # Remove this action from the queue.
       agentPaths[agentId].delete(0)
       # Check if we completed a destination.
@@ -77,7 +94,7 @@ proc processActions*() =
     of PathBump:
       # Execute bump action.
       let targetOrientation = getOrientationFromDelta(nextAction.bumpDir.x.int, nextAction.bumpDir.y.int)
-      sendAction(agentId, replay.moveActionId, targetOrientation.int)
+      sendAction(agentId, moveActionName(targetOrientation))
       # Remove this action from the queue.
       agentPaths[agentId].delete(0)
       # Remove the corresponding destination.
@@ -96,34 +113,34 @@ proc agentControls*() =
 
     # Move
     if window.buttonPressed[KeyW] or window.buttonPressed[KeyUp]:
-      sendAction(agent.agentId, replay.moveActionId, N.int)
+      sendAction(agent.agentId, moveActionName(N))
       clearPath(agent.agentId)
 
     elif window.buttonPressed[KeyS] or window.buttonPressed[KeyDown]:
-      sendAction(agent.agentId, replay.moveActionId, S.int)
+      sendAction(agent.agentId, moveActionName(S))
       clearPath(agent.agentId)
 
     elif window.buttonPressed[KeyD] or window.buttonPressed[KeyRight]:
-      sendAction(agent.agentId, replay.moveActionId, E.int)
+      sendAction(agent.agentId, moveActionName(E))
       clearPath(agent.agentId)
 
     elif window.buttonPressed[KeyA] or window.buttonPressed[KeyLeft]:
-      sendAction(agent.agentId, replay.moveActionId, W.int)
+      sendAction(agent.agentId, moveActionName(W))
       clearPath(agent.agentId)
 
     # Put items
     elif window.buttonPressed[KeyQ]:
-      sendAction(agent.agentId, replay.putItemsActionId, 0)
+      sendAction(agent.agentId, "put_items")
 
     # Get items
     elif window.buttonPressed[KeyE]:
-      sendAction(agent.agentId, replay.getItemsActionId, 0)
+      sendAction(agent.agentId, "get_items")
 
     # Attack
     elif window.buttonPressed[KeyZ]:
       # TODO: Get implementation attack selection ui.
-      sendAction(agent.agentId, replay.attackActionId, 0)
+      sendAction(agent.agentId, defaultAttackActionName())
 
     # Noop
     elif window.buttonPressed[KeyX]:
-      sendAction(agent.agentId, replay.noopActionId, 0)
+      sendAction(agent.agentId, "noop")
