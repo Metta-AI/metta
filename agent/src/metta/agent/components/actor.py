@@ -182,7 +182,3 @@ class ActionProbs(nn.Module):
             td = td.reshape(batch_size, bptt_size)
 
         return td
-
-    @property
-    def action_count(self) -> int:
-        return self.num_actions

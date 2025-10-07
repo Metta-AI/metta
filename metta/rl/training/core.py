@@ -123,35 +123,38 @@ class CoreTrainingLoop:
                 loss.rollout(td, context)
 
             assert "actions" in td, "No loss performed inference - at least one loss must generate actions"
-            actions_tensor = td["actions"].detach()
-            if actions_tensor.dim() == 0:
-                actions_tensor = actions_tensor.view(1, 1)
-            elif actions_tensor.dim() == 1:
-                actions_tensor = actions_tensor.view(-1, 1)
-            elif actions_tensor.dim() == 2 and actions_tensor.size(-1) == 1:
-                actions_tensor = actions_tensor.view(-1, 1)
+            raw_actions = td["actions"].detach()
+            if raw_actions.dim() == 2 and raw_actions.size(-1) == 1:
+                flat_actions = raw_actions.squeeze(-1)
+            elif raw_actions.dim() == 1:
+                flat_actions = raw_actions
             else:
-                raise ValueError(f"Unsupported action tensor shape {tuple(actions_tensor.shape)}")
+                raise ValueError(
+                    "Policies must emit a single discrete action id per agent; "
+                    f"received tensor of shape {tuple(raw_actions.shape)}"
+                )
+
+            actions_column = flat_actions.view(-1, 1)
 
             if self.last_action is None:
                 raise RuntimeError("last_action buffer was not initialized before rollout actions were generated")
 
-            if self.last_action.device != actions_tensor.device:
-                self.last_action = self.last_action.to(device=actions_tensor.device)
+            if self.last_action.device != actions_column.device:
+                self.last_action = self.last_action.to(device=actions_column.device)
 
-            if self.last_action.dtype != actions_tensor.dtype:
-                actions_tensor = actions_tensor.to(dtype=self.last_action.dtype)
+            if self.last_action.dtype != actions_column.dtype:
+                actions_column = actions_column.to(dtype=self.last_action.dtype)
 
             target_buffer = self.last_action[training_env_id]
-            if target_buffer.shape != actions_tensor.shape:
-                logger.error(
-                    "last_action buffer shape mismatch: target=%s actions=%s raw=%s",
-                    target_buffer.shape,
-                    actions_tensor.shape,
-                    tuple(td["actions"].shape),
+            if target_buffer.shape != actions_column.shape:
+                msg = (
+                    "last_action buffer shape mismatch: target=%s actions=%s raw=%s"
+                    % (target_buffer.shape, actions_column.shape, tuple(td["actions"].shape))
                 )
+                logger.error(msg)
+                raise RuntimeError(msg)
 
-            target_buffer.copy_(actions_tensor)
+            target_buffer.copy_(actions_column)
 
             # Ship actions to the environment
             env.send_actions(td["actions"].cpu().numpy())

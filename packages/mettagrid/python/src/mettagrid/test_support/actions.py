@@ -237,12 +237,13 @@ def attack(env: MettaGrid, target_arg: int = 0, agent_idx: int = 0) -> dict[str,
     elif "attack_nearest" in action_names:
         fallback_attack = "attack_nearest"
 
+    selected_arg: Optional[int] = None
     if attack_variants:
-        clamped_arg = max(0, min(target_arg, len(attack_variants) - 1))
-        attack_name = f"attack_{clamped_arg}"
+        candidate_arg = max(0, min(target_arg, len(attack_variants) - 1))
+        attack_name = f"attack_{candidate_arg}"
         if attack_name in action_names:
             attack_idx = action_names.index(attack_name)
-            result["target_arg"] = clamped_arg
+            selected_arg = candidate_arg
         elif fallback_attack is not None:
             attack_idx = action_names.index(fallback_attack)
         else:
@@ -265,13 +266,14 @@ def attack(env: MettaGrid, target_arg: int = 0, agent_idx: int = 0) -> dict[str,
             break
 
     # Perform attack
-    result["target_arg"] = clamped_arg
-
     attack_action = np.zeros((env.num_agents,), dtype=dtype_actions)
     attack_action[agent_idx] = attack_idx
     env.step(attack_action)
 
     result["success"] = bool(env.action_success()[agent_idx])
+
+    if selected_arg is not None:
+        result["target_arg"] = selected_arg
 
     if result["success"]:
         # Analyze the results
