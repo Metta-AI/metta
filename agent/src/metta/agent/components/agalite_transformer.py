@@ -194,8 +194,7 @@ class AGaLiTeTransformer(nn.Module):
 
         if not self._env_memory:
             self._env_memory = {
-                key: tuple(tensor.detach() for tensor in tensors)
-                for key, tensors in initialized.items()
+                key: tuple(tensor.detach() for tensor in tensors) for key, tensors in initialized.items()
             }
         else:
             for layer_key, tensors in initialized.items():
