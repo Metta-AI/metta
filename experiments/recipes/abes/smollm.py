@@ -48,8 +48,7 @@ def train(
             "freeze_llm": freeze_llm,
             "attn_implementation": _select_attn_implementation(attn_implementation),
         }
-        if model_name is not None:
-            config_kwargs["model_name"] = model_name
+        config_kwargs["model_name"] = model_name or "HuggingFaceTB/SmolLM2-42M"
         policy_architecture = SmolLLMConfig(**config_kwargs)
 
     tool = base_train(
@@ -65,10 +64,10 @@ def _apply_smollm_defaults(tool: TrainTool) -> TrainTool:
     """Clamp heavy training defaults to keep SmolLLM within memory limits."""
 
     trainer_updates = {}
-    if tool.trainer.batch_size < 16384:
-        trainer_updates["batch_size"] = 16384
-    if tool.trainer.minibatch_size < 2048:
-        trainer_updates["minibatch_size"] = 2048
+    if tool.trainer.batch_size > 4096:
+        trainer_updates["batch_size"] = 4096
+    if tool.trainer.minibatch_size > 1024:
+        trainer_updates["minibatch_size"] = 1024
     if tool.trainer.bptt_horizon > 8:
         trainer_updates["bptt_horizon"] = 8
     if tool.trainer.compile:
