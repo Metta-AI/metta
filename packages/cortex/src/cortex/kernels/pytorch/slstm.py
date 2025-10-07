@@ -29,10 +29,11 @@ def _slstm_pointwise(
     iraw, fraw, zraw, oraw = torch.unbind(raw.view(raw.shape[0], 4, -1), dim=1)
 
     logfplusm = m + torch.nn.functional.logsigmoid(fraw)
-    if torch.all(n == 0.0):
-        mnew = iraw
-    else:
-        mnew = torch.maximum(iraw, logfplusm)
+    # Elementwise first-step rule: whenever n==0 for an element, treat it as
+    # the first step for that element and use m_next = iraw; otherwise use
+    # the stabilized rule m_next = max(iraw, m + log(sigmoid(f_raw))).
+    is_first = n == 0.0
+    mnew = torch.where(is_first, iraw, torch.maximum(iraw, logfplusm))
 
     ogate = torch.sigmoid(oraw)
     igate = torch.minimum(torch.exp(iraw - mnew), torch.ones_like(iraw))
