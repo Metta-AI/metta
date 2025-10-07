@@ -150,16 +150,17 @@ class MapGen(MapBuilder):
             return self
 
         @classmethod
-        def with_ascii_uri(
-            cls, ascii_map_uri: str, char_to_name_map: dict[str, str] | None = None, **kwargs
-        ) -> MapGen.Config:
+        def with_ascii_uri(cls, ascii_map_uri: str, **kwargs) -> MapGen.Config:
+            # question to slava whether this function is needed
             """Create a MapGenConfig with an ASCII map file as instance."""
 
-            kwargs["instance"] = AsciiMapBuilder.Config.from_uri(ascii_map_uri, char_to_name_map)
+            ascii_config = AsciiMapBuilder.Config.from_uri(ascii_map_uri)
+            kwargs["instance"] = ascii_config
             return cls(**kwargs)
 
         @classmethod
         def with_ascii_map(cls, ascii_map: str, **kwargs) -> MapGen.Config:
+            # question to slava whether this function is needed
             """Create a MapGenConfig with an ASCII map as instance."""
             map_lines, legend_map = parse_ascii_map(ascii_map)
             kwargs["instance"] = AsciiMapBuilder.Config(

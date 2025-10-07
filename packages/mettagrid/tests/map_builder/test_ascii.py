@@ -127,6 +127,27 @@ class TestAsciiMapBuilder:
         finally:
             os.unlink(temp_file)
 
+    def test_config_accepts_string_map_data(self):
+        config = AsciiMapBuilder.Config(
+            map_data="\n".join(["#@", "##"]),
+            char_to_name_map={"#": "wall", "@": "agent.agent"},
+        )
+        assert config.map_data == [["#", "@"], ["#", "#"]]
+
+    def test_config_accepts_list_of_strings(self):
+        config = AsciiMapBuilder.Config(
+            map_data=["##", "@#"],
+            char_to_name_map={"#": "wall", "@": "agent.agent"},
+        )
+        assert config.map_data == [["#", "#"], ["@", "#"]]
+
+    def test_config_accepts_legend_as_pairs(self):
+        config = AsciiMapBuilder.Config(
+            map_data=["##"],
+            char_to_name_map=(("#", "wall"),),
+        )
+        assert config.char_to_name_map["#"] == "wall"
+
     def test_build_empty_map(self):
         yaml_content = make_yaml_map(
             [
@@ -150,6 +171,21 @@ class TestAsciiMapBuilder:
         with pytest.raises(FileNotFoundError):
             config = AsciiMapBuilder.Config.from_uri("nonexistent_file.txt")
             AsciiMapBuilder(config)
+
+    def test_from_uri_loads_legend(self):
+        yaml_content = make_yaml_map(
+            [
+                "A",
+            ],
+            {"A": "legend_name"},
+        )
+
+        temp_file = write_temp_map(yaml_content)
+        try:
+            config = AsciiMapBuilder.Config.from_uri(temp_file)
+            assert config.char_to_name_map["A"] == "legend_name"
+        finally:
+            os.unlink(temp_file)
 
     def test_with_spaces_raises_error(self):
         yaml_content = make_yaml_map(

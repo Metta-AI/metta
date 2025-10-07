@@ -1,6 +1,10 @@
-from abc import ABC, abstractmethod
-from typing import Annotated, Any, ClassVar, Generic, Type, TypeVar
+from __future__ import annotations
 
+from abc import ABC, abstractmethod
+from pathlib import Path
+from typing import Annotated, Any, ClassVar, Generic, Self, Type, TypeVar
+
+import yaml
 from pydantic import SerializeAsAny, WrapValidator, model_serializer, model_validator
 
 from mettagrid.base_config import Config
@@ -51,6 +55,19 @@ class MapBuilderConfig(Config, Generic[TBuilder]):
                 f"either define it nested under the builder or set `_builder_cls`."
             )
         return cls._builder_cls
+
+    @classmethod
+    def from_uri(cls, uri: str | Path) -> Self:
+        """Load a builder config from a YAML or JSON file."""
+
+        path = Path(uri)
+        with path.open("r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+
+        if not isinstance(data, dict):
+            raise ValueError("Map builder config file must contain a mapping")
+
+        return cls.model_validate(data)
 
     @model_validator(mode="before")
     @classmethod

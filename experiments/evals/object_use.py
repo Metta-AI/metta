@@ -10,6 +10,7 @@ from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
     WallConfig,
 )
+from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.scenes.mean_distance import MeanDistance
 
@@ -71,6 +72,21 @@ def make_object_use_ascii_env(
 ) -> MettaGridConfig:
     """Create an object use evaluation environment from ASCII map."""
 
+    instance_config = MapGen.Config.with_ascii_uri(
+        f"packages/mettagrid/configs/maps/object_use/{ascii_map}.map", border_width=1
+    )
+    ascii_builder = instance_config.instance
+    if isinstance(ascii_builder, AsciiMapBuilder.Config):
+        override_map = {o.map_char: o.name for o in objects.values()}
+        if override_map:
+            merged = ascii_builder.char_to_name_map | override_map
+            ascii_builder = ascii_builder.model_copy(
+                update={"char_to_name_map": merged}
+            )
+            instance_config = instance_config.model_copy(
+                update={"instance": ascii_builder}
+            )
+
     env = MettaGridConfig(
         game=GameConfig(
             num_agents=num_agents * num_instances,
@@ -89,11 +105,7 @@ def make_object_use_ascii_env(
                 instances=num_instances,
                 border_width=6,
                 instance_border_width=3,
-                instance=MapGen.Config.with_ascii_uri(
-                    f"packages/mettagrid/configs/maps/object_use/{ascii_map}.map",
-                    {o.map_char: o.name for o in objects.values()},
-                    border_width=1,
-                ),
+                instance=instance_config,
             ),
         )
     )

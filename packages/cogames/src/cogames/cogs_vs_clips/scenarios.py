@@ -36,6 +36,7 @@ from mettagrid.config.mettagrid_config import (
     WallConfig,
 )
 from mettagrid.map_builder.ascii import AsciiMapBuilder
+from mettagrid.map_builder.map_builder import MapBuilderConfig
 from mettagrid.map_builder.random import RandomMapBuilder
 
 
@@ -187,11 +188,15 @@ def make_game_from_map(map_name: str, num_cogs: int = 4, clipping_rate: float = 
 
     maps_dir = Path(__file__).parent.parent / "maps"
     map_path = maps_dir / map_name
-    map_builder = AsciiMapBuilder.Config.from_uri(
-        str(map_path), {o.map_char: o.name for o in config.game.objects.values()}
-    )
-    config.game.map_builder = map_builder
+    base_builder = MapBuilderConfig.from_uri(str(map_path))
+    map_builder = AsciiMapBuilder.Config.model_validate(base_builder.model_dump())
 
+    override_map = {o.map_char: o.name for o in config.game.objects.values()}
+    if override_map:
+        merged = map_builder.char_to_name_map | override_map
+        map_builder = map_builder.model_copy(update={"char_to_name_map": merged})
+
+    config.game.map_builder = map_builder
     return config
 
 

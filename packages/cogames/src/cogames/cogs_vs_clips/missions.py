@@ -177,9 +177,14 @@ def get_map_builder_for_site(site: str) -> MapBuilderConfig[AsciiMapBuilder]:
     maps_dir = Path(__file__).parent.parent / "maps"
     map_path = maps_dir / site
 
-    return AsciiMapBuilder.Config.from_uri(
-        str(map_path), {o.map_char: o.name for o in _get_default_map_objects().values()}
-    )
+    base_config = MapBuilderConfig.from_uri(str(map_path))
+    config = AsciiMapBuilder.Config.model_validate(base_config.model_dump())
+
+    override_map = {o.map_char: o.name for o in _get_default_map_objects().values()}
+    if override_map:
+        merged = config.char_to_name_map | override_map
+        config = config.model_copy(update={"char_to_name_map": merged})
+    return config
 
 
 def get_random_map_builder(

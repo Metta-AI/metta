@@ -81,12 +81,22 @@ class TestPolymorphicSerialization:
 
     def test_ascii_config_serialization(self):
         """Test serialization and deserialization of AsciiMapBuilderConfig."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-            f.write("###\n#.#\n###")
+        yaml_content = """\
+map_data: |-
+  ###
+  #.#
+  ###
+char_to_name_map:
+  "#": wall
+  ".": empty
+"""
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".map", delete=False, encoding="utf-8") as f:
+            f.write(yaml_content)
             temp_path = f.name
 
         try:
-            config = AsciiMapBuilder.Config.from_uri(temp_path, {})
+            config = AsciiMapBuilder.Config.from_uri(temp_path)
 
             # Test serialization
             serialized = config.model_dump()
