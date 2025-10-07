@@ -67,6 +67,9 @@ class MapBuilderConfig(Config, Generic[TBuilder]):
         if not isinstance(data, dict):
             raise ValueError("Map builder config file must contain a mapping")
 
+        if cls is MapBuilderConfig or cls._builder_cls is None:
+            return validate_any_map_builder(data)  # type: ignore[return-value]
+
         return cls.model_validate(data)
 
     @model_validator(mode="before")
