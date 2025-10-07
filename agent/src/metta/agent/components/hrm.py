@@ -100,6 +100,11 @@ class HRMReasoningConfig(ComponentConfig):
     num_layers: int = 6
     num_heads: int = 8
     ffn_multiplier: int = 4  # FFN hidden size = embed_dim * ffn_multiplier
+    # ACT parameters
+    H_cycles: int = 3  # Number of high-level reasoning cycles
+    L_cycles: int = 5  # Number of low-level processing cycles per H-cycle
+    Mmin: int = 1  # Minimum number of reasoning segments
+    Mmax: int = 10  # Maximum number of reasoning segments
 
     def make_component(self, env=None) -> "HRMReasoning":
         return HRMReasoning(self)
@@ -128,7 +133,7 @@ class HRMMemory:
 
 
 class HRMReasoning(nn.Module):
-    """HRM reasoning component using transformer layers."""
+    """HRM reasoning component using hierarchical reasoning with ACT."""
 
     def __init__(self, config: HRMReasoningConfig):
         super().__init__()
@@ -137,7 +142,14 @@ class HRMReasoning(nn.Module):
         self.memory = HRMMemory()
         self.carry = self.memory.get_memory()
 
-        # Multi-head attention layers
+        # Hierarchical reasoning levels
+        self.L_level = LLevel(embed_dim=config.embed_dim, num_layers=config.num_layers)
+        self.H_level = HLevel(embed_dim=config.embed_dim, num_layers=config.num_layers)
+
+        # Q-head for halting decision (2 outputs: halt, continue)
+        self.q_head = nn.Linear(config.embed_dim, 2)
+
+        # Multi-head attention layers (kept for backward compatibility)
         self.attention_layers = nn.ModuleList(
             [
                 nn.MultiheadAttention(embed_dim=config.embed_dim, num_heads=config.num_heads, batch_first=True)
@@ -169,69 +181,57 @@ class HRMReasoning(nn.Module):
     def forward(self, td: TensorDict) -> TensorDict:
         x = td[self.config.in_key]
 
-        if x.ndim == 2:
-            # Already pooled, use directly
-            reasoning_output = x
+        # Handle different input shapes - get batch size and ensure 2D input
+        if x.ndim == 4:
+            # Spatial input: flatten to (batch, embed_dim)
+            batch_size = x.shape[0]
+            x = x.view(batch_size, -1).mean(dim=1)  # Pool spatial dims
+        elif x.ndim == 3:
+            # Sequence input: pool to (batch, embed_dim)
+            x = x.mean(dim=1)
+        # else: x.ndim == 2, already (batch, embed_dim)
+
+        batch_size = x.shape[0]
+        device = x.device
+
+        # Initialize or retrieve hidden states from memory
+        # Always reinitialize if batch size doesn't match to avoid shape mismatches
+        if self.carry and "z_l" in self.carry and "z_h" in self.carry and self.carry["z_l"].shape[0] == batch_size:
+            z_l = self.carry["z_l"].to(device)
+            z_h = self.carry["z_h"].to(device)
         else:
-            if x.ndim == 4:
-                # Flatten spatial dimensions for attention
-                batch_size, height, width, embed_dim = x.shape
-                x = x.view(batch_size, height * width, embed_dim)
-            # else: already in (batch_size, sequence_length, embed_dim) format
+            z_l = torch.zeros(batch_size, self.config.embed_dim, device=device)
+            z_h = torch.zeros(batch_size, self.config.embed_dim, device=device)
 
-            # Apply transformer layers
-            for i in range(self.config.num_layers):
-                # Self-attention with residual
-                x_norm = self.layer_norms1[i](x)
-                attn_out, _ = self.attention_layers[i](x_norm, x_norm, x_norm)
-                x = x + attn_out
-
-                # Feed-forward with residual
-                x_norm = self.layer_norms2[i](x)
-                ffn_out = self.ffn_layers[i](x_norm)
-                x = x + ffn_out
-
-                # Apply RMS norm
-                x = self._rms_norm(x)
-
-        # Handle different input shapes:
-        # - (B, D): Already pooled by upstream component, skip transformer
-        # - (B, N, D): Sequence input, apply transformer
-        # - (B, H, W, D): Spatial input, flatten and apply transformer
-
-        # Main ACT loop (for inference; training adds deep supervision)
-
-        if self.carry is not None:
-            self.z_l = self.carry["z_l"]
-            self.z_h = self.carry["z_h"]
-        else:
-            self.z_l = torch.zeros(x.shape[0], self.config.embed_dim)
-            self.z_h = torch.zeros(x.shape[0], self.config.embed_dim)
-
-        halt = False
+        # Main ACT loop with hierarchical reasoning
         segments = 0
         while True:
+            # Run most cycles without gradients for efficiency
             with torch.no_grad():
-                for i in range(self.config.H_cycles * self.config.L_cycles - 1):  # Most timesteps no_grad
+                for i in range(self.config.H_cycles * self.config.L_cycles - 1):
                     z_l = self.L_level(z_l, z_h + x)
                     if (i + 1) % self.config.L_cycles == 0:
                         z_h = self.H_level(z_h, z_l)
 
-            # Final 1-step with gradients (for approx gradient)
+            # Final cycle with gradients for learning
             z_l = self.L_level(z_l, z_h + x)
             z_h = self.H_level(z_h, z_l)
 
-            # Q-head: sigmoid on linear projection of z_h (two values: halt, continue)
-            q_logits = self.q_head(z_h)  # Shape: [2]
+            # Halting decision using Q-head
+            q_logits = self.q_head(z_h)  # Shape: (batch, 2)
             q_values = torch.sigmoid(q_logits)  # Q̂_halt, Q̂_continue
 
-            # Halting decision (with Mmin/Mmax)
+            # Check halting condition (halt if halt_prob > continue_prob and reached Mmin)
             if segments >= self.config.Mmax or (
-                q_values[0] > q_values[1] and segments >= self.config.Mmin
-            ):  # halt=0, continue=1
-                break  # Use y_hat as final prediction
+                q_values[:, 0].mean() > q_values[:, 1].mean() and segments >= self.config.Mmin
+            ):
+                break
 
             segments += 1
+
+        # Store hidden states in memory for next step
+        self.carry["z_l"] = z_l.detach()
+        self.carry["z_h"] = z_h.detach()
 
         td[self.config.out_key] = z_h
         return td
@@ -276,8 +276,12 @@ class HRMActor(nn.Module):
         self.config = config
 
         # Action projection layers
+        if config.num_actions is None:
+            raise ValueError("num_actions must be set before creating HRMActor")
         self.action_proj = nn.Sequential(
-            nn.Linear(config.embed_dim, config.embed_dim), nn.ReLU(), nn.Linear(config.embed_dim, config.num_actions)
+            nn.Linear(config.embed_dim, config.embed_dim),
+            nn.ReLU(),
+            nn.Linear(config.embed_dim, config.num_actions),
         )
 
     def forward(self, td: TensorDict) -> TensorDict:
