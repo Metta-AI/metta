@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Iterable, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Dict, Optional, Tuple, Union
 
-import numpy as np
 import torch
 
 from cogames.aws_storage import DownloadOutcome, maybe_download_checkpoint
@@ -14,74 +13,6 @@ from cogames.policy.policy import PolicySpec
 
 if TYPE_CHECKING:  # pragma: no cover - optional console for CLI
     from rich.console import Console
-else:  # pragma: no cover - rich is optional at runtime
-    try:
-        from rich.console import Console
-    except ImportError:  # pragma: no cover - fallback for minimal environments
-        Console = object  # type: ignore[assignment]
-
-
-@dataclass
-class ActionLayout:
-    """Helper for mapping between flattened action logits and (verb, arg) pairs."""
-
-    max_args: np.ndarray  # size: num_verbs, each entry is max arg value for that verb
-    starts: np.ndarray  # size: num_verbs, starting index of each verb block
-
-    @property
-    def total_actions(self) -> int:
-        return int(self.max_args.sum() + len(self.max_args))
-
-    @classmethod
-    def from_env(cls, env: object) -> "ActionLayout":
-        max_args: Iterable[int] = env.max_action_args  # type: ignore[attr-defined]
-        array = np.asarray(list(max_args), dtype=np.int64)
-        counts = array + 1
-        starts = np.concatenate(([0], np.cumsum(counts[:-1])))
-        return cls(max_args=array, starts=starts)
-
-    def clamp_args_numpy(self, verb_indices: np.ndarray, arg_indices: np.ndarray) -> np.ndarray:
-        verbs = verb_indices.astype(np.int64, copy=False)
-        args = arg_indices.astype(np.int64, copy=False)
-        max_allowed = self.max_args[verbs]
-        return np.minimum(args, max_allowed)
-
-    def decode_numpy(self, flat_indices: np.ndarray) -> np.ndarray:
-        idx = np.asarray(flat_indices, dtype=np.int64)
-        verbs = np.searchsorted(self.starts[1:], idx, side="right")
-        args = idx - self.starts[verbs]
-        args = self.clamp_args_numpy(verbs, args)
-        return np.stack([verbs, args], axis=-1)
-
-    def encode_torch(self, verb_arg: torch.Tensor) -> torch.Tensor:
-        """Convert tensor of shape (..., 2) to flattened indices."""
-
-        if verb_arg.numel() == 0:
-            return torch.empty_like(verb_arg[..., 0])
-
-        starts = torch.as_tensor(self.starts, device=verb_arg.device, dtype=torch.long)
-        max_args = torch.as_tensor(self.max_args, device=verb_arg.device, dtype=torch.long)
-        verbs = verb_arg[..., 0].long()
-        args = torch.minimum(verb_arg[..., 1].long(), max_args[verbs])
-        return starts[verbs] + args
-
-    def decode_torch(self, flat_indices: torch.Tensor) -> torch.Tensor:
-        """Convert flattened indices to (..., 2) tensor on same device."""
-
-        if flat_indices.numel() == 0:
-            shape = flat_indices.shape + (2,)
-            return torch.empty(*shape, device=flat_indices.device, dtype=torch.long)
-
-        starts = torch.as_tensor(self.starts, device=flat_indices.device, dtype=torch.long)
-        counts = torch.as_tensor(self.max_args + 1, device=flat_indices.device, dtype=torch.long)
-
-        # torch.bucketize expects boundaries; use cumulative starts of next block
-        boundaries = torch.cumsum(counts, dim=0)[:-1]
-        verbs = torch.bucketize(flat_indices.long(), boundaries, right=False)
-        args = flat_indices.long() - starts[verbs]
-        max_args = torch.as_tensor(self.max_args, device=flat_indices.device, dtype=torch.long)
-        args = torch.minimum(args, max_args[verbs])
-        return torch.stack([verbs, args], dim=-1)
 
 
 _POLICY_CLASS_SHORTHAND: dict[str, str] = {
@@ -118,10 +49,10 @@ def resolve_policy_data_path(
 ) -> Optional[str]:
     """Resolve a checkpoint path if provided.
 
-    Attempts to resolve the path locally first. If the file is missing and AWS policy
-    storage is configured, this will try to download the checkpoint to the requested
-    location. Raises ``FileNotFoundError`` if no checkpoint can be located.
+    If the supplied path does not exist locally and AWS policy storage is configured,
+    this will attempt to download the checkpoint into the requested location.
     """
+
     if policy_data_path is None:
         return None
 
@@ -296,10 +227,8 @@ class LSTMState:
 
 
 __all__ = [
-    "ActionLayout",
     "PolicySpec",
     "resolve_policy_class_path",
-    "get_policy_class_shorthand",
     "resolve_policy_data_path",
     "parse_policy_spec",
     "LSTMState",

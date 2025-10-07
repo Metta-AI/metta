@@ -10,11 +10,12 @@ import psutil
 from rich.console import Console
 
 from cogames.aws_storage import maybe_upload_checkpoint
+from cogames.env import make_hierarchical_env
 from cogames.policy import TrainablePolicy
 from cogames.policy.signal_handler import DeferSigintContextManager
 from cogames.policy.utils import get_policy_class_shorthand, resolve_policy_data_path
 from cogames.utils import initialize_or_load_policy
-from mettagrid import MettaGridConfig, MettaGridEnv
+from mettagrid import MettaGridConfig
 from pufferlib import pufferl
 from pufferlib import vector as pvector
 from pufferlib.pufferlib import set_buffers
@@ -112,7 +113,7 @@ def train(
         seed: Optional[int] = None,
     ):
         target_cfg = cfg.model_copy(deep=True) if cfg is not None else _clone_cfg()
-        env = MettaGridEnv(env_cfg=target_cfg)
+        env = make_hierarchical_env(env_cfg=target_cfg)
         set_buffers(env, buf)
         return env
 

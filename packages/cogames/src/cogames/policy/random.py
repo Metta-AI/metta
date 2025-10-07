@@ -1,36 +1,52 @@
 """Random policy implementation for CoGames."""
 
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 
 from cogames.policy.policy import AgentPolicy, Policy
-from cogames.policy.utils import ActionLayout
 from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation
 
 
 class RandomAgentPolicy(AgentPolicy):
-    """Per-agent random policy that respects verb-specific argument limits."""
+    """Per-agent random policy."""
 
-    def __init__(self, layout: ActionLayout) -> None:
-        self._layout = layout
+    def __init__(self, action_space):
+        self._action_space = action_space
 
     def step(self, obs: MettaGridObservation) -> MettaGridAction:
-        verb = np.random.randint(0, len(self._layout.max_args))
-        arg = np.random.randint(0, int(self._layout.max_args[verb]) + 1)
-        return np.asarray([verb, arg], dtype=np.int32)
+        """Get random action.
 
-    def reset(self) -> None:  # pragma: no cover - nothing to reset
-        return None
+        Args:
+            obs: The observation (unused for random policy)
+
+        Returns:
+            A random action sampled from the action space
+        """
+        sample = self._action_space.sample()
+        return np.asarray(sample, dtype=np.int32)
 
 
 class RandomPolicy(Policy):
-    """Creates independent per-agent random policies."""
+    """Random policy that samples actions uniformly from the action space."""
 
-    def __init__(self, env: MettaGridEnv, device: Optional[object] = None) -> None:
+    def __init__(self, env: MettaGridEnv, device: Optional[Any] = None):
+        """Initialize random policy.
+
+        Args:
+            env: The environment to sample actions from
+            device: Device to use (ignored for random policy)
+        """
         self._env = env
-        self._layout = ActionLayout.from_env(env)
-        self.action_layout_max_args = self._layout.max_args
+        self._action_space = env.single_action_space
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
-        return RandomAgentPolicy(self._layout)
+        """Get an AgentPolicy instance for a specific agent.
+
+        Args:
+            agent_id: The ID of the agent
+
+        Returns:
+            A RandomAgentPolicy instance
+        """
+        return RandomAgentPolicy(self._action_space)

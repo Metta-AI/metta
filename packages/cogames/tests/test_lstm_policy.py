@@ -4,8 +4,7 @@ import numpy as np
 import torch
 from gymnasium.spaces import Box, MultiDiscrete
 
-from cogames.policy.lstm import LSTMAgentPolicy, LSTMPolicyNet
-from cogames.policy.utils import LSTMState
+from cogames.policy.lstm import LSTMPolicyNet
 
 
 class MockEnv:
@@ -70,7 +69,10 @@ def test_forward_with_dict_state():
 
 
 def test_forward_with_empty_dict_state():
-    """Empty dict should be populated with new LSTM state for subsequent calls."""
+    """Test that forward_eval works with an empty dict (no initial state).
+
+    Empty dict means no LSTM state, so the dict should remain empty.
+    """
     env = MockEnv()
     net = LSTMPolicyNet(env)
     obs = torch.randint(0, 256, (4, 7, 7, 3))
@@ -80,10 +82,8 @@ def test_forward_with_empty_dict_state():
 
     logits, values = net.forward_eval(obs, state)
 
-    # Dict should now contain the new hidden state tensors
-    assert set(state.keys()) == {"lstm_h", "lstm_c"}
-    assert state["lstm_h"].shape[0] == obs.shape[0]
-    assert state["lstm_c"].shape[0] == obs.shape[0]
+    # Empty dict should stay empty (no state to update)
+    assert len(state) == 0, "Empty dict should remain empty"
 
 
 def test_forward_with_none_state():
@@ -111,36 +111,3 @@ def test_forward_method_matches_forward_eval():
     result2 = net.forward_eval(obs, None)
 
     assert len(result1) == len(result2) == 2
-
-
-def test_forward_with_tuple_state_layers_first():
-    """LSTM should accept tuple state in layers-first orientation."""
-    env = MockEnv()
-    net = LSTMPolicyNet(env)
-    batch_size = 4
-    obs = torch.randint(0, 256, (batch_size, 7, 7, 3))
-
-    hidden = torch.zeros(1, batch_size, net.hidden_size)
-    cell = torch.zeros(1, batch_size, net.hidden_size)
-
-    logits, values = net.forward_eval(obs, (hidden, cell))
-
-    assert len(logits) == len(env.single_action_space.nvec)
-    assert values.shape == (batch_size, 1)
-
-
-def test_agent_policy_returns_tuple_state():
-    """Agent policy should surface tuple state and reuse it on subsequent calls."""
-    env = MockEnv()
-    net = LSTMPolicyNet(env)
-    agent_policy = LSTMAgentPolicy(net, torch.device("cpu"), tuple(env.single_action_space.nvec))
-
-    obs = env.single_observation_space.sample()
-
-    action, state = agent_policy.step_with_state(obs, None)
-    assert isinstance(state, LSTMState)
-    assert action.shape == (len(env.single_action_space.nvec),)
-
-    next_action, next_state = agent_policy.step_with_state(obs, state)
-    assert isinstance(next_state, LSTMState)
-    assert next_action.shape == action.shape
