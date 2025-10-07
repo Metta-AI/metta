@@ -92,6 +92,17 @@ class ActorKey(nn.Module):
         # Compute scores across any batch shape the policy keeps.
         scores = torch.einsum("... e, ... a e -> ... a", query, action_embeds)
 
+        if scores.dim() > 2:
+            import logging
+
+            logger = logging.getLogger("metta_agent")
+            logger.info(
+                "ActorKey shapes query=%s action_embeds=%s scores=%s",
+                tuple(query.shape),
+                tuple(action_embeds.shape),
+                tuple(scores.shape),
+            )
+
         # Add bias
         biased_scores = scores + self.bias  # Shape: [B*TT, num_actions]
 
