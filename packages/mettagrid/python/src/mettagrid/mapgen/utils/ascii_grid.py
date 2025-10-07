@@ -23,7 +23,7 @@ DEFAULT_CHAR_TO_NAME: dict[str, str] = {
     "s": "silicon_ex_dep",
     "=": "chest",
     "D": "chest_carbon",
-    "P": "chest_oxygen",
+    "P": "agent.predator",
     "H": "chest_germanium",
     "T": "chest_silicon",
     "&": "assembler",

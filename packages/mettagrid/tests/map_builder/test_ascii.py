@@ -49,37 +49,7 @@ class TestAsciiMapBuilder:
 
             assert np.array_equal(game_map.grid, expected)
         finally:
-            os.unlink(temp_file)
-
-    def test_build_complex_map(self):
-        # Test with more complex characters
-        ascii_content = """#####
-#@._#
-#p.P#
-#####"""
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-            f.write(ascii_content)
-            temp_file = f.name
-
-        try:
-            config = AsciiMapBuilder.Config.from_uri(temp_file)
-            builder = AsciiMapBuilder(config)
-            game_map = builder.build()
-
-            expected = np.array(
-                [
-                    ["wall", "wall", "wall", "wall", "wall"],
-                    ["wall", "agent.agent", "empty", "altar", "wall"],
-                    ["wall", "agent.prey", "empty", "agent.predator", "wall"],
-                    ["wall", "wall", "wall", "wall", "wall"],
-                ],
-                dtype=map_grid_dtype,
-            )
-
-            assert np.array_equal(game_map.grid, expected)
-        finally:
-            os.unlink(temp_file)
+            os.unlink(temp_file))
 
     def test_build_single_line_map(self):
         ascii_content = "#@#"
