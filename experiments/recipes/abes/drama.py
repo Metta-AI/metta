@@ -36,7 +36,9 @@ def _apply_overrides(
     trainer.batch_size = batch_size
     trainer.minibatch_size = minibatch_size
 
-    tool.training_env.forward_pass_minibatch_target_size = forward_pass_minibatch_target_size
+    tool.training_env.forward_pass_minibatch_target_size = (
+        forward_pass_minibatch_target_size
+    )
     tool.torch_profiler = TorchProfilerConfig(interval_epochs=0)
 
 
