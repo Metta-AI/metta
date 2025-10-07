@@ -83,6 +83,7 @@ class ActionLayout:
 _POLICY_CLASS_SHORTHAND: dict[str, str] = {
     "random": "cogames.policy.random.RandomPolicy",
     "simple": "cogames.policy.simple.SimplePolicy",
+    "token": "cogames.policy.token.TokenPolicy",
     "lstm": "cogames.policy.lstm.LSTMPolicy",
     "claude": "cogames.policy.claude.ClaudePolicy",
 }
@@ -92,7 +93,7 @@ def resolve_policy_class_path(policy: str) -> str:
     """Resolve a policy shorthand or full class path.
 
     Args:
-        policy: Either a shorthand like "random", "simple", "lstm" or a full class path.
+        policy: Either a shorthand like "random", "simple", "token", "lstm" or a full class path.
 
     Returns:
         Full class path to the policy.
