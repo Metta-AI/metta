@@ -68,8 +68,8 @@ def _apply_smollm_defaults(tool: TrainTool) -> TrainTool:
         trainer_updates["batch_size"] = 4096
     if tool.trainer.minibatch_size > 1024:
         trainer_updates["minibatch_size"] = 1024
-    if tool.trainer.bptt_horizon > 8:
-        trainer_updates["bptt_horizon"] = 8
+    if tool.trainer.bptt_horizon > 4:
+        trainer_updates["bptt_horizon"] = 4  # keep segments >= agents without inflating batch size
     if tool.trainer.compile:
         trainer_updates["compile"] = False
     if trainer_updates:
