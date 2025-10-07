@@ -7,7 +7,7 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Callable, Literal, Optional
 
 import typer
 import yaml
@@ -21,7 +21,7 @@ from cogames import play as play_module
 from cogames import train as train_module
 from cogames.policy.policy import PolicySpec
 from cogames.policy.utils import parse_policy_spec, resolve_policy_class_path, resolve_policy_data_path
-from mettagrid import MettaGridEnv
+from mettagrid import MettaGridConfig, MettaGridEnv
 
 # Always add current directory to Python path
 sys.path.insert(0, ".")
@@ -221,7 +221,27 @@ def train_cmd(
         min=1,
     ),
 ) -> None:
-    resolved_mission, env_cfg = utils.get_mission_config(console, mission_name)
+    from cogames import curricula
+
+    rotation_aliases = {"training_rotation", "training_facility_rotation", "training_cycle"}
+    rotation_easy_aliases = {"training_rotation_easy"}
+    rotation_shaped_aliases = {"training_rotation_shaped"}
+    rotation_easy_shaped_aliases = {"training_rotation_easy_shaped"}
+
+    env_cfg: Optional[MettaGridConfig] = None
+    curriculum_supplier: Optional[Callable[[], MettaGridConfig]] = None
+    resolved_mission = mission_name
+
+    if mission_name in rotation_aliases:
+        curriculum_supplier = curricula.training_rotation()
+    elif mission_name in rotation_easy_aliases:
+        curriculum_supplier = curricula.training_rotation_easy()
+    elif mission_name in rotation_shaped_aliases:
+        curriculum_supplier = curricula.training_rotation_shaped()
+    elif mission_name in rotation_easy_shaped_aliases:
+        curriculum_supplier = curricula.training_rotation_easy_shaped()
+    else:
+        resolved_mission, env_cfg = utils.get_mission_config(console, mission_name)
 
     torch_device = utils.resolve_training_device(console, device)
 
@@ -240,6 +260,7 @@ def train_cmd(
             vector_num_envs=parallel_envs,
             vector_batch_size=vector_batch_size,
             game_name=resolved_mission,
+            env_cfg_supplier=curriculum_supplier,
         )
 
     except ValueError as exc:  # pragma: no cover - user input
