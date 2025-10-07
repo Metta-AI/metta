@@ -1,8 +1,5 @@
 from typing import List
 
-import torch.nn as nn
-from tensordict import TensorDict
-
 from metta.agent.components.action import ActionEmbeddingConfig
 from metta.agent.components.actor import ActionProbsConfig, ActorKeyConfig, ActorQueryConfig
 from metta.agent.components.component_config import ComponentConfig
@@ -12,20 +9,6 @@ from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
 from metta.agent.components.obs_shim import ObsShimTokensConfig
 from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourierConfig
 from metta.agent.policy import PolicyArchitecture
-
-
-class FlattenBatchComponent(ComponentConfig):
-    name: str = "flatten_batch"
-
-    def make_component(self, env=None):
-        return _FlattenBatch()
-
-
-class _FlattenBatch(nn.Module):
-    def forward(self, td: TensorDict) -> TensorDict:
-        if td.batch_dims > 1:
-            return td.reshape(td.batch_size.numel())
-        return td
 
 
 class MambaSlidingConfig(PolicyArchitecture):
@@ -64,7 +47,6 @@ class MambaSlidingConfig(PolicyArchitecture):
             max_cache_size=128,
             pool="mean",
         ),
-        FlattenBatchComponent(),
         MLPConfig(
             in_key="core",
             out_key="values",
