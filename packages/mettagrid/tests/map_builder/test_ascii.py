@@ -49,7 +49,7 @@ class TestAsciiMapBuilder:
 
             assert np.array_equal(game_map.grid, expected)
         finally:
-            os.unlink(temp_file))
+            os.unlink(temp_file)
 
     def test_build_single_line_map(self):
         ascii_content = "#@#"
