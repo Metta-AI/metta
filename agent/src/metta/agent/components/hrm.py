@@ -194,14 +194,42 @@ class HRMReasoning(nn.Module):
         batch_size = x.shape[0]
         device = x.device
 
-        # Initialize or retrieve hidden states from memory
-        # Always reinitialize if batch size doesn't match to avoid shape mismatches
-        if self.carry and "z_l" in self.carry and "z_h" in self.carry and self.carry["z_l"].shape[0] == batch_size:
-            z_l = self.carry["z_l"].to(device)
-            z_h = self.carry["z_h"].to(device)
+        # Get reset mask from dones and truncateds like LSTM does
+        dones = td.get("dones", None)
+        truncateds = td.get("truncateds", None)
+        if dones is not None and truncateds is not None:
+            reset_mask = (dones.bool() | truncateds.bool()).view(-1, 1)
         else:
-            z_l = torch.zeros(batch_size, self.config.embed_dim, device=device)
-            z_h = torch.zeros(batch_size, self.config.embed_dim, device=device)
+            # We're in eval mode
+            reset_mask = torch.zeros(batch_size, 1, dtype=torch.bool, device=device)
+
+        # Get training_env_ids to track which environment each batch element is from
+        training_env_ids = td.get("training_env_ids", None)
+        if training_env_ids is None:
+            training_env_ids = torch.arange(batch_size, device=device)
+        else:
+            training_env_ids = training_env_ids.reshape(batch_size)
+
+        # Allocate memory for new environments if needed
+        max_num_envs = training_env_ids.max().item() + 1
+        if "z_l" not in self.carry or self.carry["z_l"].shape[0] < max_num_envs:
+            num_allocated_envs = max_num_envs - (self.carry["z_l"].shape[0] if "z_l" in self.carry else 0)
+            z_l_new = torch.zeros(num_allocated_envs, self.config.embed_dim, device=device)
+            z_h_new = torch.zeros(num_allocated_envs, self.config.embed_dim, device=device)
+            if "z_l" in self.carry:
+                self.carry["z_l"] = torch.cat([self.carry["z_l"], z_l_new], dim=0).to(device)
+                self.carry["z_h"] = torch.cat([self.carry["z_h"], z_h_new], dim=0).to(device)
+            else:
+                self.carry["z_l"] = z_l_new
+                self.carry["z_h"] = z_h_new
+
+        # Retrieve hidden states for current environments
+        z_l = self.carry["z_l"][training_env_ids]
+        z_h = self.carry["z_h"][training_env_ids]
+
+        # Reset hidden states where episodes ended
+        z_l = z_l.masked_fill(reset_mask, 0)
+        z_h = z_h.masked_fill(reset_mask, 0)
 
         # Main ACT loop with hierarchical reasoning
         segments = 0
@@ -229,9 +257,9 @@ class HRMReasoning(nn.Module):
 
             segments += 1
 
-        # Store hidden states in memory for next step
-        self.carry["z_l"] = z_l.detach()
-        self.carry["z_h"] = z_h.detach()
+        # Store hidden states back to memory for their respective environments
+        self.carry["z_l"][training_env_ids] = z_l.detach()
+        self.carry["z_h"][training_env_ids] = z_h.detach()
 
         td[self.config.out_key] = z_h
         return td
