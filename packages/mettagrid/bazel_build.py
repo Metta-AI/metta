@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Tuple
 
 from setuptools.build_meta import build_editable as _build_editable
 from setuptools.build_meta import build_sdist as _build_sdist
@@ -35,6 +36,25 @@ def _inject_safe_directory(env: dict[str, str], directory: Path) -> None:
     env[f"GIT_CONFIG_KEY_{count}"] = "safe.directory"
     env[f"GIT_CONFIG_VALUE_{count}"] = resolved
     env["GIT_CONFIG_COUNT"] = str(count + 1)
+
+
+def _ensure_safe_git_config(env: dict[str, str], directories: Tuple[Path, ...]) -> None:
+    """Create an ad-hoc gitconfig to whitelist safe directories when none is provided."""
+
+    if env.get("GIT_CONFIG_GLOBAL"):
+        return
+
+    safe_config = PROJECT_ROOT / ".nimble_gitconfig"
+    lines = ["[safe]\n"]
+    seen = set()
+    for directory in directories:
+        resolved = str(directory.resolve())
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        lines.append(f"\tdirectory = {resolved}\n")
+    safe_config.write_text("".join(lines), encoding="utf-8")
+    env["GIT_CONFIG_GLOBAL"] = str(safe_config)
 
 
 def _run_bazel_build() -> None:
@@ -209,6 +229,7 @@ def _run_mettascope_build() -> None:
     nim_env = os.environ.copy()
     _inject_safe_directory(nim_env, REPO_ROOT)
     _inject_safe_directory(nim_env, METTASCOPE_DIR)
+    _ensure_safe_git_config(nim_env, (REPO_ROOT, METTASCOPE_DIR))
     for cmd in ["update", "install", "bindings"]:
         result = subprocess.run(
             ["nimble", cmd, "-y"],
