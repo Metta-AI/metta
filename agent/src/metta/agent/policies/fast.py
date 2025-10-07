@@ -97,7 +97,7 @@ class FastPolicy(Policy):
         self.action_probs = ActionProbs(config=self.config.action_probs_config)
 
     @torch._dynamo.disable  # Avoid graph breaks from TensorDict operations hurting performance
-    def forward(self, td: TensorDict, state=None, action: torch.Tensor = None):
+    def forward(self, td: TensorDict, state=None, action: torch.Tensor | None = None):
         self.obs_shim(td)
         self.cnn_encoder(td)
         self.lstm(td)
@@ -125,7 +125,7 @@ class FastPolicy(Policy):
         log = self.obs_shim.initialize_to_environment(env, device)
         self.action_embeddings.initialize_to_environment(env, device)
         self.action_probs.initialize_to_environment(env, device)
-        return [log]
+        return [log or ""]
 
     def reset_memory(self):
         self.lstm.reset_memory()
