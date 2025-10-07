@@ -25,6 +25,17 @@ def train(
     ).model_copy(update={"policy_architecture": policy_architecture or HRMTinyConfig()})
 
 
+def train_shaped(
+    rewards: bool = True,
+    converters: bool = True,
+    policy_architecture: PolicyArchitecture | None = None,
+):
+    """Train with HRM policy architecture using shaped rewards (defaults to HRMTinyConfig)."""
+    return base.train_shaped(rewards=rewards, converters=converters).model_copy(
+        update={"policy_architecture": policy_architecture or HRMTinyConfig()}
+    )
+
+
 __all__ = [
     "make_mettagrid",
     "make_curriculum",
@@ -33,4 +44,5 @@ __all__ = [
     "replay",
     "evaluate",
     "train",
+    "train_shaped",
 ]
