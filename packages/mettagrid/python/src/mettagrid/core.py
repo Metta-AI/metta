@@ -211,8 +211,21 @@ class MettaGridCore:
         self, actions: np.ndarray | int | Sequence[int]
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
         """Execute one timestep of the environment dynamics with the given actions."""
-        actions_array = np.asarray(actions, dtype=np.int32).reshape(self.num_agents)
-        return self.__c_env_instance.step(actions_array)
+        arr = np.asarray(actions)
+        if arr.ndim == 2 and arr.shape[0] == self.num_agents:
+            if arr.shape[1] >= 1:
+                arr = arr[:, 0]
+            else:
+                raise ValueError(
+                    "Action array has zero-width second dimension; expected at least one column for each agent"
+                )
+        arr = np.asarray(arr, dtype=np.int32)
+        if arr.ndim != 1 or arr.shape[0] != self.num_agents:
+            raise ValueError(
+                f"Expected actions of shape ({self.num_agents},) but received {arr.shape}; "
+                "ensure policies emit a scalar action id per agent"
+            )
+        return self.__c_env_instance.step(arr)
 
     def render(self) -> Optional[str]:
         """Render the environment."""

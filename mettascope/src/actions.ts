@@ -36,23 +36,45 @@ function orientationFromParam(param: number): DirectionKey {
   }
 }
 
-function requireAction(key: string): string {
-  if (!state.replay.actionNames.includes(key)) {
-    throw new Error(`Action '${key}' not available in current replay`)
+function optionalAction(key: string): string | null {
+  return state.replay.actionNames.includes(key) ? key : null
+}
+
+function requireAction(key: string, fallbacks: string[] = []): string {
+  const direct = optionalAction(key)
+  if (direct) {
+    return direct
   }
-  return key
+  for (const fallback of fallbacks) {
+    const candidate = optionalAction(fallback)
+    if (candidate) {
+      return candidate
+    }
+  }
+  const defaultAction = state.replay.actionNames[0]
+  console.warn(`Action '${key}' not available; falling back to '${defaultAction ?? 'noop'}'`)
+  return defaultAction ?? 'noop'
 }
 
 function directionalActionKey(base: 'move' | 'rotate', param: number): string {
   const orientation = orientationFromParam(param)
-  return requireAction(`${base}_${orientation}`)
+  const key = `${base}_${orientation}`
+  if (base === 'move') {
+    return requireAction(key, ['move', 'move_cardinal'])
+  }
+  if (base === 'rotate') {
+    return requireAction(key, ['rotate'])
+  }
+  return requireAction(key)
 }
 
 function attackActionKey(index: number): string {
   if (index < 0 || index > 8) {
-    throw new Error(`Unsupported attack index: ${index}`)
+    console.warn(`Unsupported attack index: ${index}; defaulting to attack_nearest`)
+    return requireAction('attack_nearest', ['attack'])
   }
-  return requireAction(`attack_${index}`)
+  const key = `attack_${index}`
+  return requireAction(key, ['attack', 'attack_nearest'])
 }
 
 // Small timing window to combine two directional key presses (e.g., W+A -> Northwest).
@@ -168,8 +190,10 @@ export function processActions(event: KeyboardEvent) {
     // Support WASD, arrow keys, and all numpad keys for movement/rotation.
     const key = event.key
     const code = event.code
-    const supportsMove = state.replay.actionNames.some((name) => name.startsWith('move_'))
-    const supportsMove8 = supportsMove && (state.replay.MettaGridConfig.game?.allow_diagonals ?? false)
+    const supportsMoveVariants = state.replay.actionNames.some((name) => name.startsWith('move_'))
+    const supportsMove =
+      supportsMoveVariants || state.replay.actionNames.includes('move') || state.replay.actionNames.includes('move_cardinal')
+    const supportsMove8 = supportsMoveVariants && (state.replay.MettaGridConfig.game?.allow_diagonals ?? false)
 
     // Movement handling.
     if (key === 'w' || key === 'ArrowUp') {

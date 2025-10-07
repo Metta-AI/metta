@@ -367,11 +367,172 @@ function fixReplay() {
   }
 }
 
+/** Converts a replay from version 1 to version 2. */
+function convertReplayV1ToV2(replayData: any) {
+  console.info('Converting replay from version 1 to version 2...')
+  console.info('Replay data: ', replayData)
+  const data: any = {
+    version: 2,
+  }
+  data.action_names = replayData.action_names
+  data.action_names = data.action_names.map((name: string) => {
+    if (name === 'put_recipe_items') {
+      return 'put_items'
+    }
+    if (name === 'get_output') {
+      return 'get_items'
+    }
+    return name
+  })
+  if (
+    replayData.inventory_items != null &&
+    replayData.inventory_items != undefined &&
+    replayData.inventory_items.length > 0
+  ) {
+    data.item_names = replayData.inventory_items
+  } else {
+    data.item_names = ['ore.red', 'ore.blue', 'ore.green', 'battery', 'heart', 'armor', 'laser', 'blueprint']
+  }
+  data.type_names = replayData.object_types
+  data.num_agents = replayData.num_agents
+  data.max_steps = replayData.max_steps
+
+  /** Gets an attribute from a grid object, respecting the current step. */
+  function getAttrV1(obj: any, attr: string, atStep = -1, defaultValue = 0): any {
+    const prop = obj[attr]
+    if (prop === undefined) {
+      return defaultValue
+    }
+    if (!Array.isArray(prop)) {
+      return prop // This must be a constant that does not change over time.
+    }
+    return prop[atStep === -1 ? state.step : atStep] // When the step is not passed in, use the global step.
+  }
+
+  function expandSequenceV2(sequence: any[], numSteps: number): any[] {
+    if (!Array.isArray(sequence)) {
+      return sequence
+    }
+    const expanded: any[] = []
+    let i = 0
+    let j = 0
+    let v: any = null
+    for (i = 0; i < numSteps; i++) {
+      if (j < sequence.length && sequence[j][0] === i) {
+        v = sequence[j][1]
+        j++
+      }
+      expanded.push(v)
+    }
+    return expanded
+  }
+
+  data.objects = []
+  let maxX = 0
+  let maxY = 0
+  for (const gridObject of replayData.grid_objects) {
+    const location = []
+    gridObject['c'] = expandSequenceV2(gridObject['c'], replayData.max_steps)
+    gridObject['r'] = expandSequenceV2(gridObject['r'], replayData.max_steps)
+    gridObject['layer'] = expandSequenceV2(gridObject['layer'], replayData.max_steps)
+    for (let step = 0; step < replayData.max_steps; step++) {
+      const x = getAttrV1(gridObject, 'c', step, 0)
+      const y = getAttrV1(gridObject, 'r', step, 0)
+      const z = getAttrV1(gridObject, 'layer', step, 0)
+      location.push([step, [x, y, z]])
+      maxX = Math.max(maxX, x)
+      maxY = Math.max(maxY, y)
+    }
+
+    const inventory = []
+    for (let inventoryId = 0; inventoryId < data.item_names.length; inventoryId++) {
+      const inventoryName = data.item_names[inventoryId]
+      if ('inv:' + inventoryName in gridObject) {
+        gridObject['inv:' + inventoryName] = expandSequenceV2(gridObject['inv:' + inventoryName], replayData.max_steps)
+      }
+      if ('agent:inv:' + inventoryName in gridObject) {
+        gridObject['inv:' + inventoryName] = expandSequenceV2(
+          gridObject['agent:inv:' + inventoryName],
+          replayData.max_steps
+        )
+      }
+    }
+    for (let step = 0; step < replayData.max_steps; step++) {
+      const inventoryList = []
+      for (let inventoryId = 0; inventoryId < data.item_names.length; inventoryId++) {
+        const inventoryName = data.item_names[inventoryId]
+        const inventoryAmount = getAttrV1(gridObject, 'inv:' + inventoryName, step, 0)
+        if (inventoryAmount != 0) {
+          inventoryList.push([inventoryId, inventoryAmount])
+        }
+      }
+      inventory.push([step, inventoryList])
+    }
+
+    const object: any = {
+      id: gridObject.id,
+      type_id: gridObject.type,
+      location: location,
+      inventory: inventory,
+      orientation: gridObject.orientation,
+    }
+
+    if (gridObject.agent_id != null) {
+      object.agent_id = gridObject.agent_id
+
+      const frozen = gridObject['agent:frozen']
+      if (frozen && Array.isArray(frozen)) {
+        object.is_frozen = frozen.map((pair: any) => [pair[0], Boolean(pair[1])])
+      } else {
+        object.is_frozen = Boolean(frozen)
+      }
+
+      object.color = gridObject['agent:color']
+      object.action_success = gridObject['action_success']
+      object.group_id = gridObject['agent:group']
+      object.orientation = gridObject['agent:orientation']
+      object.hp = gridObject['hp']
+      object.current_reward = gridObject['reward']
+      object.total_reward = gridObject['total_reward']
+
+      let actionId = gridObject['action_id']
+
+      if (gridObject['action'] != null) {
+        gridObject['action'] = expandSequenceV2(gridObject['action'], replayData.max_steps)
+        const convertedId = []
+        for (let step = 0; step < replayData.max_steps; step++) {
+          const action = getAttrV1(gridObject, 'action', step)
+          if (action != null) {
+            convertedId.push([step, action[0]])
+          }
+        }
+        actionId = convertedId
+      }
+
+      if (!actionId) actionId = []
+      object.action_id = actionId
+    }
+
+    data.objects.push(object)
+  }
+
+  data.map_size = [maxX + 1, maxY + 1]
+  data.mg_config = {
+    label: 'Unlabeled Replay',
+  }
+  return data
+}
+
 /** Loads a replay from a JSON object. */
 function loadReplayJson(url: string, replayJson: any) {
   let replayData = replayJson
 
   console.info('Replay data: ', replayData)
+
+  // If the replay is version 1, convert it to version 2.
+  if (replayData.version === 1) {
+    replayData = convertReplayV1ToV2(replayData)
+  }
 
   if (replayData.version !== 2) {
     Common.showModal('error', 'Error loading replay', `Unsupported replay version: ${replayData.version}`)

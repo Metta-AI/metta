@@ -198,6 +198,162 @@ proc getAttrV1(obj: JsonNode, attr: string, atStep: int, defaultValue: JsonNode)
     return prop[atStep]
   return defaultValue
 
+proc convertReplayV1ToV2(replayData: JsonNode): JsonNode =
+  ## Converts a replay from version 1 to version 2.
+  echo "Converting replay from version 1 to version 2..."
+  var data = newJObject()
+  data["version"] = newJInt(2)
+
+  var actionNames = newJArray()
+  for nameNode in replayData["action_names"]:
+    var name = nameNode.getStr
+    if name == "put_recipe_items":
+      name = "put_items"
+    elif name == "get_output":
+      name = "get_items"
+    actionNames.add(newJString(name))
+  data["action_names"] = actionNames
+
+  if ("inventory_items" in replayData) and replayData["inventory_items"].len > 0:
+    data["item_names"] = replayData["inventory_items"]
+  else:
+    var items = newJArray()
+    for s in [
+      "ore.red", "ore.blue", "ore.green", "battery", "heart", "armor", "laser", "blueprint"
+    ]:
+      items.add(newJString(s))
+    data["item_names"] = items
+
+  data["type_names"] = replayData["object_types"]
+  data["num_agents"] = replayData["num_agents"]
+  data["max_steps"] = replayData["max_steps"]
+
+  let maxSteps = replayData["max_steps"].getInt
+
+  proc pair(a, b: JsonNode): JsonNode =
+    result = newJArray()
+    result.add(a)
+    result.add(b)
+
+  var objects = newJArray()
+  var maxX = 0
+  var maxY = 0
+  for gridObject in replayData["grid_objects"]:
+    if "c" in gridObject:
+      gridObject["c"] = expandSequenceV2(gridObject["c"], maxSteps)
+    if "r" in gridObject:
+      gridObject["r"] = expandSequenceV2(gridObject["r"], maxSteps)
+    if "layer" in gridObject:
+      gridObject["layer"] = expandSequenceV2(gridObject["layer"], maxSteps)
+
+    var location = newJArray()
+    for step in 0 ..< maxSteps:
+      let xNode = getAttrV1(gridObject, "c", step, newJInt(0))
+      let yNode = getAttrV1(gridObject, "r", step, newJInt(0))
+      let zNode = getAttrV1(gridObject, "layer", step, newJInt(0))
+      var triple = newJArray()
+      triple.add(newJInt(if xNode.kind == JInt: xNode.getInt else: 0))
+      triple.add(newJInt(if yNode.kind == JInt: yNode.getInt else: 0))
+      triple.add(newJInt(if zNode.kind == JInt: zNode.getInt else: 0))
+      location.add(pair(newJInt(step), triple))
+      if triple[0].getInt > maxX: maxX = triple[0].getInt
+      if triple[1].getInt > maxY: maxY = triple[1].getInt
+
+    var inventory = newJArray()
+    let itemNames = data["item_names"]
+    for step in 0 ..< maxSteps:
+      var inventoryList = newJArray()
+      for i in 0 ..< itemNames.len:
+        let inventoryName = itemNames[i].getStr
+        let invKey = "inv:" & inventoryName
+        if invKey notin gridObject:
+          continue
+        let amountNode = getAttrV1(gridObject, invKey, step, newJInt(0))
+        if amountNode.kind == JInt and amountNode.getInt != 0:
+          var entry = newJArray()
+          entry.add(newJInt(i))
+          entry.add(newJInt(amountNode.getInt))
+          inventoryList.add(entry)
+      inventory.add(pair(newJInt(step), inventoryList))
+
+    var obj = newJObject()
+    obj["id"] = gridObject["id"]
+    obj["type_id"] = gridObject["type"]
+    obj["location"] = location
+    obj["inventory"] = inventory
+    if "orientation" in gridObject:
+      obj["orientation"] = gridObject["orientation"]
+    else:
+      obj["orientation"] = newJInt(0)
+    if "inventory_max" in gridObject:
+      obj["inventory_max"] = gridObject["inventory_max"]
+    else:
+      obj["inventory_max"] = newJInt(0)
+
+    if "agent_id" in gridObject:
+      obj["agent_id"] = gridObject["agent_id"]
+
+      if "agent:frozen" in gridObject:
+        let frozen = gridObject["agent:frozen"]
+        if frozen.kind == JArray:
+          var fr = newJArray()
+          for pairNode in frozen:
+            let value = if pairNode[1].kind == JBool: pairNode[1] else: newJBool(pairNode[1].getInt != 0)
+            fr.add(pair(pairNode[0], value))
+          obj["is_frozen"] = fr
+        else:
+          let value = if frozen.kind == JBool: frozen.getBool else: frozen.getInt != 0
+          obj["is_frozen"] = newJBool(value)
+
+      if "agent:color" in gridObject:
+        obj["color"] = gridObject["agent:color"]
+      elif "color" in gridObject:
+        obj["color"] = gridObject["color"]
+      else:
+        obj["color"] = newJInt(0)
+
+      if "action_success" in gridObject:
+        obj["action_success"] = gridObject["action_success"]
+      else:
+        obj["action_success"] = newJArray()
+      if "agent:group" in gridObject:
+        obj["group_id"] = gridObject["agent:group"]
+      else:
+        obj["group_id"] = newJInt(0)
+      if "agent:orientation" in gridObject:
+        obj["orientation"] = gridObject["agent:orientation"]
+      if "hp" in gridObject:
+        obj["hp"] = gridObject["hp"]
+      if "reward" in gridObject:
+        obj["current_reward"] = gridObject["reward"]
+      if "total_reward" in gridObject:
+        obj["total_reward"] = gridObject["total_reward"]
+
+      if "action" in gridObject:
+        gridObject["action"] = expandSequenceV2(gridObject["action"], maxSteps)
+      var actionId = newJArray()
+      if "action_id" in gridObject:
+        actionId = gridObject["action_id"]
+      else:
+        for step in 0 ..< maxSteps:
+          let action = getAttrV1(gridObject, "action", step, newJNull())
+          if action.kind == JArray and action.len >= 1:
+            actionId.add(pair(newJInt(step), action[0]))
+      obj["action_id"] = actionId
+
+    objects.add(obj)
+
+  data["objects"] = objects
+  var mapSize = newJArray()
+  mapSize.add(newJInt(maxX + 1))
+  mapSize.add(newJInt(maxY + 1))
+  data["map_size"] = mapSize
+
+  var mg = newJObject()
+  mg["label"] = newJString("Unlabeled Replay")
+  data["mg_config"] = mg
+  return data
+
 proc computeGainMap(replay: Replay) =
   ## Compute gain/loss for agents.
   var items = [
@@ -240,11 +396,13 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
   var jsonObj = fromJson(jsonData)
 
   let version = jsonObj["version"].getInt
-  if version != 2:
+  if version == 1:
+    jsonObj = convertReplayV1ToV2(jsonObj)
+  elif version != 2:
     raise newException(ValueError, "Unsupported replay version: " & $version)
 
   let replay = Replay(
-    version: version,
+    version: 2,
     actionNames: jsonObj["action_names"].to(seq[string]),
     itemNames: jsonObj["item_names"].to(seq[string]),
     typeNames: jsonObj["type_names"].to(seq[string]),
