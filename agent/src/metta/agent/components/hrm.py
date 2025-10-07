@@ -153,6 +153,19 @@ class HRMReasoning(nn.Module):
             self.z_l = torch.zeros(x.shape[0], self.config.embed_dim)
             self.z_h = torch.zeros(x.shape[0], self.config.embed_dim)
 
+        halt = False
+
+        for _ in range(self.config.Mmax):
+            with torch.no_grad():
+                for i in range(self.config.H_cycles * self.config.L_cycles - 1):  # Most timesteps no_grad
+                    z_l = self.L_level(z_l, z_h + x)
+                    if (i + 1) % self.config.L_cycles == 0:
+                        z_h = self.H_level(z_h, z_l)
+
+            # Final 1-step with gradients (for approx gradient)
+            z_l = self.L_level(z_l, z_h + x)
+            z_h = self.H_level(z_h, z_l)
+
         if x.ndim == 2:
             # Already pooled, use directly
             reasoning_output = x
