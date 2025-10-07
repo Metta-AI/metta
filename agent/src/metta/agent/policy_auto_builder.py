@@ -55,9 +55,20 @@ class PolicyAutoBuilder(nn.Module):
 
     def forward(self, td: TensorDict, action: torch.Tensor = None):
         self.network(td)
-        self.action_probs(td, action)
-        td["values"] = td["values"].flatten()  # could update Experience to not need this line but need to update ppo.py
-        return td
+
+        needs_flatten = td.batch_dims > 1
+        td_flat = td.reshape(td.batch_size.numel()) if needs_flatten else td
+
+        action_flat = action
+        if action is not None and needs_flatten and action.dim() >= 2:
+            leading = td.batch_size.numel()
+            trailing_shape = action.shape[action.dim() - 1 :]
+            action_flat = action.reshape(leading, *trailing_shape)
+
+        self.action_probs(td_flat, action_flat)
+        td_flat["values"] = td_flat["values"].flatten()
+
+        return td_flat
 
     def initialize_to_environment(
         self,
