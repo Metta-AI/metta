@@ -29,7 +29,6 @@ from metta.adaptive.utils import create_eval_job, create_training_job
 from metta.common.util.constants import PROD_STATS_SERVER_URI
 
 
-
 @dataclass
 class BenchmarkArchSchedulerConfig:
     """Configuration for the benchmark architectures scheduler."""
@@ -183,9 +182,35 @@ def make_adaptive_controller(  # noqa: PLR0913
     )
 
 
-def run(experiment_id: str, local: bool = False,timesteps: int = 50_000):
+def run(experiment_id: str, local: bool = False, timesteps: int = 50_000):
     make_adaptive_controller(
         experiment_id=experiment_id,
         scheduler_config=BenchmarkArchSchedulerConfig(total_timesteps=timesteps),
         use_skypilot=not local,
     ).run()
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Run benchmark architecture experiments across all levels and architectures"
+    )
+    parser.add_argument(
+        "--experiment-id",
+        type=str,
+        required=True,
+        help="Unique identifier for this experiment run",
+    )
+    parser.add_argument(
+        "--local",
+        action="store_true",
+        help="Run locally instead of using Skypilot",
+    )
+    parser.add_argument(
+        "--timesteps",
+        type=int,
+        default=50_000,
+        help="Total timesteps per training run (default: 50,000)",
+    )
+    args = parser.parse_args()
+
+    run(experiment_id=args.experiment_id, local=args.local, timesteps=args.timesteps)
