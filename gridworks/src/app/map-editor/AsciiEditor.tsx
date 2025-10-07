@@ -2,20 +2,20 @@ import { FC, useEffect, useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 
 import { Button } from "@/components/Button";
-import { MettaGrid } from "@/lib/MettaGrid";
+import { AsciiEncoding, MettaGrid } from "@/lib/MettaGrid";
 
 export const AsciiEditor: FC<{
   grid: MettaGrid;
   setGrid: (grid: MettaGrid) => void;
 }> = ({ grid, setGrid }) => {
-  const [ascii, setAscii] = useState(grid.toAscii());
+  const [ascii, setAscii] = useState(grid.toAscii(AsciiEncoding.default()));
 
   const [state, setState] = useState<
     { type: "idle" } | { type: "applied" } | { type: "error"; error: string }
   >({ type: "idle" });
 
   useEffect(() => {
-    setAscii(grid.toAscii());
+    setAscii(grid.toAscii(AsciiEncoding.default()));
   }, [grid]);
 
   return (
@@ -31,7 +31,7 @@ export const AsciiEditor: FC<{
       <Button
         onClick={() => {
           try {
-            setGrid(MettaGrid.fromAscii(ascii));
+            setGrid(MettaGrid.fromAscii(ascii, AsciiEncoding.default()));
             setState({ type: "applied" });
           } catch (e) {
             setState({
@@ -41,7 +41,7 @@ export const AsciiEditor: FC<{
           }
         }}
         theme="primary"
-        disabled={ascii === grid.toAscii()}
+        disabled={ascii === grid.toAscii(AsciiEncoding.default())}
       >
         Apply
       </Button>
