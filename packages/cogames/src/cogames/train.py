@@ -90,15 +90,6 @@ def train(
     if remainder:
         vector_batch_size += envs_per_worker - remainder
 
-    if num_envs % vector_batch_size != 0:
-        logger.info(
-            "Adjusting vector batch size from %s to %s so num_envs (%s) is divisible by batch size",
-            vector_batch_size,
-            num_envs,
-            num_envs,
-        )
-        vector_batch_size = num_envs
-
     logger.debug(
         "Vec env config: num_envs=%s, num_workers=%s, batch_size=%s (envs/worker=%s)",
         num_envs,
