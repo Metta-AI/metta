@@ -141,9 +141,19 @@ class ActionProbs(nn.Module):
     def forward_inference(self, td: TensorDict) -> TensorDict:
         logits = td[self.config.in_key]
         """Forward pass for inference mode with action sampling."""
-        action_logit_index, selected_log_probs, _, full_log_probs = sample_actions(logits)
+
+        original_batch_shape = logits.shape[:-1]
+        num_actions = logits.shape[-1]
+        flat_logits = logits.reshape(-1, num_actions)
+
+        action_logit_index, selected_log_probs, _, full_log_probs = sample_actions(flat_logits)
 
         action = self._convert_logit_index_to_action(action_logit_index)
+
+        if original_batch_shape:
+            action = action.reshape(*original_batch_shape, action.shape[-1])
+            selected_log_probs = selected_log_probs.reshape(*original_batch_shape)
+            full_log_probs = full_log_probs.reshape(*original_batch_shape, num_actions)
 
         td["actions"] = action.to(dtype=torch.int32)
         td["act_log_prob"] = selected_log_probs
