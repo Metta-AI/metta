@@ -6,9 +6,22 @@ const sources = [
   "armory",
   "factory",
   "generator",
-  "generator.color",
+  "generator_red",
+  "generator_blue",
+  "generator_green",
   "mine",
-  "mine.color",
+  "mine_red",
+  "mine_blue",
+  "mine_green",
+  "charger",
+  "carbon_extractor",
+  "oxygen_extractor",
+  "germanium_extractor",
+  "silicon_extractor",
+  "oxygen_ex_dep",
+  "carbon_ex_dep",
+  "germanium_ex_dep",
+  "silicon_ex_dep",
   "lab",
   "lasery",
   "temple",
@@ -18,7 +31,7 @@ const sources = [
 ].map(
   (name) =>
     ({
-      src: `/assets/objects/${name}.png`,
+      src: `/mettascope-assets/objects/${name}.png`,
       tileSize: 256,
       tiles: [
         {
