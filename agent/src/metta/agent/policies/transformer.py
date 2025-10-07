@@ -316,11 +316,11 @@ class TransformerPolicy(Policy):
 
         last_actions = td.get("last_actions", None)
         if last_actions is not None:
-            last_actions = last_actions.view(total, -1)[..., : self.action_dim].to(device=device, dtype=action_dtype)
+            last_actions = last_actions.reshape(total, -1)[..., : self.action_dim].to(device=device, dtype=action_dtype)
         else:
             actions = td.get("actions", None)
             if actions is not None:
-                actions = actions.view(batch_size, tt, self.action_dim).to(device=device, dtype=action_dtype)
+                actions = actions.reshape(batch_size, tt, self.action_dim).to(device=device, dtype=action_dtype)
                 prev_actions = self._get_zero_buffer((batch_size, tt, self.action_dim), device, action_dtype)
                 if tt > 1:
                     prev_actions[:, 1:] = actions[:, :-1]

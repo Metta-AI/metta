@@ -1,7 +1,6 @@
 import logging
 from typing import Any
 
-import numpy as np
 import torch
 from pydantic import ConfigDict
 from tensordict import TensorDict
@@ -287,7 +286,5 @@ class CoreTrainingLoop:
         if env_ids.dim() == 2:
             env_ids = td["training_env_ids"].squeeze(-1)
         if self.last_action is None or len(self.last_action) < env_ids.max() + 1:
-            act_space = env.single_action_space
-            act_dtype = torch.int32 if np.issubdtype(act_space.dtype, np.integer) else torch.float32
-            self.last_action = torch.zeros(env_ids.max() + 1, 1, dtype=act_dtype, device=td.device)
+            self.last_action = torch.zeros(env_ids.max() + 1, 1, dtype=torch.int32, device=td.device)
         td["last_actions"] = self.last_action[env_ids].detach()
