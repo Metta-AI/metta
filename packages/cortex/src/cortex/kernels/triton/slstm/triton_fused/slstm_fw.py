@@ -51,7 +51,23 @@ else:
 
 @triton.jit
 def triton_tanh(x):
-    return (1.0 - tl.exp(-2.0 * x)) / (1.0 + tl.exp(-2.0 * x))
+    """Numerically stable tanh.
+
+    The naive form (1 - exp(-2x)) / (1 + exp(-2x)) overflows for large -x, yielding
+    inf/inf -> NaN. This stable variant computes in float32 and uses a sign/abs
+    formulation that never creates inf/inf:
+
+        tanh(x) = sign(x) * (1 - 2 / (1 + exp(2*abs(x))))
+
+    For large |x|, exp(2*abs(x)) -> inf, so 2/(1+inf) -> 0 and the expression
+    approaches ±1 without producing NaNs. Finally cast back to input dtype.
+    """
+    xf = x.to(tl.float32)
+    ax = tl.abs(xf)
+    e2a = tl.exp(2.0 * ax)
+    t = 1.0 - 2.0 / (1.0 + e2a)
+    s = tl.where(xf >= 0, 1.0, -1.0)
+    return (s * t).to(x.dtype)
 
 
 @triton.autotune(configs, key=["siz_B", "T", "B", "NH", "DH"])
@@ -100,7 +116,7 @@ def _forward_sequence_kernel(
         block_shape=(siz_B, DH),
         order=(0, 1),
     )
-    matHtrans = tl.load(matHtrans_initial_ptr).to(tl.float32)  # (B, DH)
+    matHtrans = tl.load(matHtrans_initial_ptr, boundary_check=(0, 1)).to(tl.float32)  # (B, DH)
 
     # load initial c state
     matCtrans_initial_ptr = tl.make_block_ptr(
@@ -111,7 +127,7 @@ def _forward_sequence_kernel(
         block_shape=(siz_B, DH),
         order=(0, 1),
     )
-    matCtrans = tl.load(matCtrans_initial_ptr).to(tl.float32)  # (B, DH)
+    matCtrans = tl.load(matCtrans_initial_ptr, boundary_check=(0, 1)).to(tl.float32)  # (B, DH)
 
     # load initial n state
     matNtrans_initial_ptr = tl.make_block_ptr(
@@ -122,7 +138,7 @@ def _forward_sequence_kernel(
         block_shape=(siz_B, DH),
         order=(0, 1),
     )
-    matNtrans = tl.load(matNtrans_initial_ptr).to(tl.float32)  # (B, DH)
+    matNtrans = tl.load(matNtrans_initial_ptr, boundary_check=(0, 1)).to(tl.float32)  # (B, DH)
 
     # load initial m state
     matMtrans_initial_ptr = tl.make_block_ptr(
@@ -133,7 +149,7 @@ def _forward_sequence_kernel(
         block_shape=(siz_B, DH),
         order=(0, 1),
     )
-    matMtrans = tl.load(matMtrans_initial_ptr).to(tl.float32)  # (B, DH)
+    matMtrans = tl.load(matMtrans_initial_ptr, boundary_check=(0, 1)).to(tl.float32)  # (B, DH)
 
     ## store initial states
     # store initial h state in states all
@@ -145,7 +161,7 @@ def _forward_sequence_kernel(
         block_shape=(siz_B, DH),
         order=(0, 1),
     )
-    tl.store(matHtrans_initial_store_ptr, matHtrans.to(DTYPE))
+    tl.store(matHtrans_initial_store_ptr, matHtrans.to(DTYPE), boundary_check=(0, 1))
     # store initial c state in states all
     matCtrans_initial_store_ptr = tl.make_block_ptr(
         base=states_all + idx_b_NH * str_matStatesAll_NH + 0 * str_matStatesAll_T + 1 * B * DH,
@@ -155,7 +171,7 @@ def _forward_sequence_kernel(
         block_shape=(siz_B, DH),
         order=(0, 1),
     )
-    tl.store(matCtrans_initial_store_ptr, matCtrans.to(DTYPE))
+    tl.store(matCtrans_initial_store_ptr, matCtrans.to(DTYPE), boundary_check=(0, 1))
     # store initial n state in states all
     matNtrans_initial_store_ptr = tl.make_block_ptr(
         base=states_all + idx_b_NH * str_matStatesAll_NH + 0 * str_matStatesAll_T + 2 * B * DH,
@@ -165,7 +181,7 @@ def _forward_sequence_kernel(
         block_shape=(siz_B, DH),
         order=(0, 1),
     )
-    tl.store(matNtrans_initial_store_ptr, matNtrans.to(DTYPE))
+    tl.store(matNtrans_initial_store_ptr, matNtrans.to(DTYPE), boundary_check=(0, 1))
     # store initial m state in states all
     matMtrans_initial_store_ptr = tl.make_block_ptr(
         base=states_all + idx_b_NH * str_matStatesAll_NH + 0 * str_matStatesAll_T + 3 * B * DH,
@@ -175,7 +191,7 @@ def _forward_sequence_kernel(
         block_shape=(siz_B, DH),
         order=(0, 1),
     )
-    tl.store(matMtrans_initial_store_ptr, matMtrans.to(DTYPE))
+    tl.store(matMtrans_initial_store_ptr, matMtrans.to(DTYPE), boundary_check=(0, 1))
 
     ## recurrent weights will be processed in output-column tiles to reduce shared memory usage
 
@@ -213,7 +229,7 @@ def _forward_sequence_kernel(
                 block_shape=(siz_B, TN),
                 order=(0, 1),
             )
-            matIx_tile = tl.load(matIx_tile_ptr)
+            matIx_tile = tl.load(matIx_tile_ptr, boundary_check=(0, 1))
 
             matFx_tile_ptr = tl.make_block_ptr(
                 base=Wx + idx_b_NH * str_matWx_NH + idx_t * str_matWx_T + 1 * B * DH,
@@ -223,7 +239,7 @@ def _forward_sequence_kernel(
                 block_shape=(siz_B, TN),
                 order=(0, 1),
             )
-            matFx_tile = tl.load(matFx_tile_ptr)
+            matFx_tile = tl.load(matFx_tile_ptr, boundary_check=(0, 1))
 
             matZx_tile_ptr = tl.make_block_ptr(
                 base=Wx + idx_b_NH * str_matWx_NH + idx_t * str_matWx_T + 2 * B * DH,
@@ -233,7 +249,7 @@ def _forward_sequence_kernel(
                 block_shape=(siz_B, TN),
                 order=(0, 1),
             )
-            matZx_tile = tl.load(matZx_tile_ptr)
+            matZx_tile = tl.load(matZx_tile_ptr, boundary_check=(0, 1))
 
             matOx_tile_ptr = tl.make_block_ptr(
                 base=Wx + idx_b_NH * str_matWx_NH + idx_t * str_matWx_T + 3 * B * DH,
@@ -243,7 +259,7 @@ def _forward_sequence_kernel(
                 block_shape=(siz_B, TN),
                 order=(0, 1),
             )
-            matOx_tile = tl.load(matOx_tile_ptr)
+            matOx_tile = tl.load(matOx_tile_ptr, boundary_check=(0, 1))
 
             # Load R tiles (DH x TN) for each gate
             matR_i_tile_ptr = tl.make_block_ptr(
@@ -308,7 +324,7 @@ def _forward_sequence_kernel(
                 block_shape=(siz_B, TN),
                 order=(0, 1),
             )
-            matC_t_tile = tl.load(c_t_tile_ptr)
+            matC_t_tile = tl.load(c_t_tile_ptr, boundary_check=(0, 1))
             matC_t_tile = matC_t_tile * reset_keep[:, None]
 
             n_t_tile_ptr = tl.make_block_ptr(
@@ -319,7 +335,7 @@ def _forward_sequence_kernel(
                 block_shape=(siz_B, TN),
                 order=(0, 1),
             )
-            matN_t_tile = tl.load(n_t_tile_ptr)
+            matN_t_tile = tl.load(n_t_tile_ptr, boundary_check=(0, 1))
             matN_t_tile = matN_t_tile * reset_keep[:, None]
 
             m_t_tile_ptr = tl.make_block_ptr(
@@ -330,36 +346,45 @@ def _forward_sequence_kernel(
                 block_shape=(siz_B, TN),
                 order=(0, 1),
             )
-            matM_t_tile = tl.load(m_t_tile_ptr)
+            matM_t_tile = tl.load(m_t_tile_ptr, boundary_check=(0, 1))
             matM_t_tile = matM_t_tile * reset_keep[:, None]
 
-            # Gate preactivations for tile
-            matIbar_tile = matIx_tile + matRh_i_tile + vecBi_tile[None, :]
-            matFbar_tile = matFx_tile + matRh_f_tile + vecBf_tile[None, :]
-            matZbar_tile = matZx_tile + matRh_z_tile + vecBz_tile[None, :]
-            matObar_tile = matOx_tile + matRh_o_tile + vecBo_tile[None, :]
+            # Gate preactivations for tile (accumulate in fp32 for stability)
+            ibar_f32 = (matIx_tile.to(tl.float32)
+                        + matRh_i_tile.to(tl.float32)
+                        + vecBi_tile[None, :].to(tl.float32))
+            fbar_f32 = (matFx_tile.to(tl.float32)
+                        + matRh_f_tile.to(tl.float32)
+                        + vecBf_tile[None, :].to(tl.float32))
+            zbar_f32 = (matZx_tile.to(tl.float32)
+                        + matRh_z_tile.to(tl.float32)
+                        + vecBz_tile[None, :].to(tl.float32))
+            obar_f32 = (matOx_tile.to(tl.float32)
+                        + matRh_o_tile.to(tl.float32)
+                        + vecBo_tile[None, :].to(tl.float32))
 
-            # Pointwise ops per tile
-            matLogFplusM_tile = matM_t_tile + tl.log(tl.sigmoid(matFbar_tile))
-            # Elementwise first-step rule for all cases: if n == 0 for an element,
-            # treat it as first step (m_next = Ibar); otherwise use the stabilized rule.
-            is_first_elem = matN_t_tile == 0.0
-            matM_next_tile = tl.where(
-                is_first_elem,
-                matIbar_tile,
-                tl.maximum(matIbar_tile, matLogFplusM_tile),
-            )
+            # Pointwise ops in fp32: log-sigmoid, exp, sigmoid, tanh
+            logfplusm_f32 = matM_t_tile.to(tl.float32) + tl.log(tl.sigmoid(fbar_f32))
+            is_first_elem = (matN_t_tile == 0.0)
+            m_next_f32 = tl.where(is_first_elem, ibar_f32, tl.maximum(ibar_f32, logfplusm_f32))
 
-            matI_tile = tl.minimum(tl.exp(matIbar_tile - matM_next_tile), 1.0)
-            matF_tile = tl.minimum(tl.exp(matLogFplusM_tile - matM_next_tile), 1.0)
-            matZ_tile = triton_tanh(matZbar_tile)
-            matO_tile = tl.sigmoid(matObar_tile)
+            i_f32 = tl.minimum(tl.exp(ibar_f32 - m_next_f32), 1.0)
+            f_f32 = tl.minimum(tl.exp(logfplusm_f32 - m_next_f32), 1.0)
+            z_f32 = triton_tanh(zbar_f32)  # returns float32
+            o_f32 = tl.sigmoid(obar_f32)
 
-            matC_next_tile = matF_tile * matC_t_tile + matI_tile * matZ_tile
-            matN_next_tile = matF_tile * matN_t_tile + matI_tile
-            # Add epsilon to prevent division by zero when n≈0 and igate≈0
-            EPS = 1e-8
-            matH_next_tile = matO_tile * (matC_next_tile / (matN_next_tile + EPS))
+            c_next_f32 = f_f32 * matC_t_tile.to(tl.float32) + i_f32 * z_f32
+            n_next_f32 = f_f32 * matN_t_tile.to(tl.float32) + i_f32
+            EPS = 1e-6
+            h_next_f32 = o_f32 * (c_next_f32 / (n_next_f32 + EPS))
+
+            # Cast back for storage
+            matM_next_tile = m_next_f32.to(DTYPE)
+            matI_tile = i_f32.to(DTYPE)
+            matF_tile = f_f32.to(DTYPE)
+            matC_next_tile = c_next_f32.to(DTYPE)
+            matN_next_tile = n_next_f32.to(DTYPE)
+            matH_next_tile = h_next_f32.to(DTYPE)
 
             # Store next states tiles at time idx_t+1
             h_next_tile_ptr = tl.make_block_ptr(
@@ -370,7 +395,7 @@ def _forward_sequence_kernel(
                 block_shape=(siz_B, TN),
                 order=(0, 1),
             )
-            tl.store(h_next_tile_ptr, matH_next_tile.to(DTYPE))
+            tl.store(h_next_tile_ptr, matH_next_tile.to(DTYPE), boundary_check=(0, 1))
 
             c_next_tile_ptr = tl.make_block_ptr(
                 base=states_all + idx_b_NH * str_matStatesAll_NH + (idx_t + 1) * str_matStatesAll_T + 1 * B * DH,
@@ -380,7 +405,7 @@ def _forward_sequence_kernel(
                 block_shape=(siz_B, TN),
                 order=(0, 1),
             )
-            tl.store(c_next_tile_ptr, matC_next_tile.to(DTYPE))
+            tl.store(c_next_tile_ptr, matC_next_tile.to(DTYPE), boundary_check=(0, 1))
 
             n_next_tile_ptr = tl.make_block_ptr(
                 base=states_all + idx_b_NH * str_matStatesAll_NH + (idx_t + 1) * str_matStatesAll_T + 2 * B * DH,
@@ -390,7 +415,7 @@ def _forward_sequence_kernel(
                 block_shape=(siz_B, TN),
                 order=(0, 1),
             )
-            tl.store(n_next_tile_ptr, matN_next_tile.to(DTYPE))
+            tl.store(n_next_tile_ptr, matN_next_tile.to(DTYPE), boundary_check=(0, 1))
 
             m_next_tile_ptr = tl.make_block_ptr(
                 base=states_all + idx_b_NH * str_matStatesAll_NH + (idx_t + 1) * str_matStatesAll_T + 3 * B * DH,
@@ -400,7 +425,7 @@ def _forward_sequence_kernel(
                 block_shape=(siz_B, TN),
                 order=(0, 1),
             )
-            tl.store(m_next_tile_ptr, matM_next_tile.to(DTYPE))
+            tl.store(m_next_tile_ptr, matM_next_tile.to(DTYPE), boundary_check=(0, 1))
 
             # [optional] store gates per tile
             if OUTPUT_GATES:
@@ -412,7 +437,7 @@ def _forward_sequence_kernel(
                     block_shape=(siz_B, TN),
                     order=(0, 1),
                 )
-                tl.store(gI_tile_ptr, matIbar_tile.to(DTYPE))
+                tl.store(gI_tile_ptr, ibar_f32.to(DTYPE), boundary_check=(0, 1))
 
                 gF_tile_ptr = tl.make_block_ptr(
                     base=gates_all + idx_b_NH * str_matGatesAll_NH + idx_t * str_matGatesAll_T + 1 * B * DH,
@@ -422,7 +447,7 @@ def _forward_sequence_kernel(
                     block_shape=(siz_B, TN),
                     order=(0, 1),
                 )
-                tl.store(gF_tile_ptr, matFbar_tile.to(DTYPE))
+                tl.store(gF_tile_ptr, fbar_f32.to(DTYPE), boundary_check=(0, 1))
 
                 gZ_tile_ptr = tl.make_block_ptr(
                     base=gates_all + idx_b_NH * str_matGatesAll_NH + idx_t * str_matGatesAll_T + 2 * B * DH,
@@ -432,7 +457,7 @@ def _forward_sequence_kernel(
                     block_shape=(siz_B, TN),
                     order=(0, 1),
                 )
-                tl.store(gZ_tile_ptr, matZ_tile.to(DTYPE))
+                tl.store(gZ_tile_ptr, z_f32.to(DTYPE), boundary_check=(0, 1))
 
                 gO_tile_ptr = tl.make_block_ptr(
                     base=gates_all + idx_b_NH * str_matGatesAll_NH + idx_t * str_matGatesAll_T + 3 * B * DH,
@@ -442,7 +467,7 @@ def _forward_sequence_kernel(
                     block_shape=(siz_B, TN),
                     order=(0, 1),
                 )
-                tl.store(gO_tile_ptr, matO_tile.to(DTYPE))
+                tl.store(gO_tile_ptr, o_f32.to(DTYPE), boundary_check=(0, 1))
 
         # Load next-step h,c,n,m fully for next iteration's recurrent mix
         matHtrans_next_ptr = tl.make_block_ptr(
@@ -453,7 +478,7 @@ def _forward_sequence_kernel(
             block_shape=(siz_B, DH),
             order=(0, 1),
         )
-        matHtrans = tl.load(matHtrans_next_ptr).to(tl.float32)
+        matHtrans = tl.load(matHtrans_next_ptr, boundary_check=(0, 1)).to(tl.float32)
 
         matCtrans_next_ptr_full = tl.make_block_ptr(
             base=states_all + idx_b_NH * str_matStatesAll_NH + (idx_t + 1) * str_matStatesAll_T + 1 * B * DH,
@@ -463,7 +488,7 @@ def _forward_sequence_kernel(
             block_shape=(siz_B, DH),
             order=(0, 1),
         )
-        matCtrans = tl.load(matCtrans_next_ptr_full).to(tl.float32)
+        matCtrans = tl.load(matCtrans_next_ptr_full, boundary_check=(0, 1)).to(tl.float32)
 
         matNtrans_next_ptr_full = tl.make_block_ptr(
             base=states_all + idx_b_NH * str_matStatesAll_NH + (idx_t + 1) * str_matStatesAll_T + 2 * B * DH,
@@ -473,7 +498,7 @@ def _forward_sequence_kernel(
             block_shape=(siz_B, DH),
             order=(0, 1),
         )
-        matNtrans = tl.load(matNtrans_next_ptr_full).to(tl.float32)
+        matNtrans = tl.load(matNtrans_next_ptr_full, boundary_check=(0, 1)).to(tl.float32)
 
         matMtrans_next_ptr_full = tl.make_block_ptr(
             base=states_all + idx_b_NH * str_matStatesAll_NH + (idx_t + 1) * str_matStatesAll_T + 3 * B * DH,
@@ -483,7 +508,7 @@ def _forward_sequence_kernel(
             block_shape=(siz_B, DH),
             order=(0, 1),
         )
-        matMtrans = tl.load(matMtrans_next_ptr_full).to(tl.float32)
+        matMtrans = tl.load(matMtrans_next_ptr_full, boundary_check=(0, 1)).to(tl.float32)
 
 
 def forward_sequence(
