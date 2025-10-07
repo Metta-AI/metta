@@ -200,7 +200,7 @@ class PolicySpec(BaseModel):
     policy_data_path: Optional[str]
 
     # Proportion of total agents to assign to this policy
-    proportion: float
+    proportion: float = 1.0
 
     @property
     def name(self) -> str:
