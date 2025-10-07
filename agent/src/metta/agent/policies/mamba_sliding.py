@@ -18,7 +18,7 @@ class MambaSlidingConfig(PolicyArchitecture):
     _token_embed_dim = 8
     _fourier_freqs = 3
     _embed_dim = 16
-    _core_out_dim = 256
+    _core_out_dim = 128
 
     components: List[ComponentConfig] = [
         ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=48),
@@ -33,7 +33,7 @@ class MambaSlidingConfig(PolicyArchitecture):
             out_key="encoded_obs",
             feat_dim=_token_embed_dim + (4 * _fourier_freqs) + 1,
             latent_dim=_latent_dim,
-            num_latents=12,
+            num_latents=8,
             num_heads=4,
             num_layers=2,
         ),
@@ -43,7 +43,7 @@ class MambaSlidingConfig(PolicyArchitecture):
             input_dim=_latent_dim,
             d_model=_core_out_dim,
             d_intermediate=_core_out_dim * 2,
-            n_layer=4,
+            n_layer=2,
             max_cache_size=128,
             pool="mean",
         ),
