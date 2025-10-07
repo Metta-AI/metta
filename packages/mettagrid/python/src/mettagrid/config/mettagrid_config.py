@@ -112,7 +112,7 @@ class GlobalObsConfig(Config):
 
     episode_completion_pct: bool = Field(default=True)
 
-    # Controls both last_action and last_action_arg
+    # Controls whether the last_action global token is included
     last_action: bool = Field(default=True)
 
     last_reward: bool = Field(default=True)
