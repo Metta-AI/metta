@@ -20,7 +20,7 @@ from metta.cogworks.curriculum import env_curriculum
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import CheckpointerConfig, ContextCheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
 from metta.tools.train import TrainTool
 from mettagrid.builder.envs import make_arena
 
@@ -82,7 +82,6 @@ class TestTrainerCheckpointIntegration:
             policy_architecture=policy_cfg.model_copy(deep=True),
             stats_server_uri=None,
             checkpointer=CheckpointerConfig(epoch_interval=1),
-            context_checkpointer=ContextCheckpointerConfig(),
             evaluator=EvaluatorConfig(epoch_interval=0, evaluate_local=False, evaluate_remote=False),
         )
         tool.invoke({})

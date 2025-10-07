@@ -5,16 +5,8 @@ from typing import Any, Dict, Optional
 
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training import ComponentContext, DistributedHelper, TrainerComponent
-from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
-
-
-class ContextCheckpointerConfig(Config):
-    """Configuration for trainer state checkpointing."""
-
-    keep_last_n: int = 5
-    """Number of trainer checkpoints to retain locally."""
 
 
 class ContextCheckpointer(TrainerComponent):
@@ -25,12 +17,10 @@ class ContextCheckpointer(TrainerComponent):
     def __init__(
         self,
         *,
-        config: ContextCheckpointerConfig,
         checkpoint_manager: CheckpointManager,
         distributed_helper: DistributedHelper,
     ) -> None:
         super().__init__(epoch_interval=1)
-        self._config = config
         self._checkpoint_manager = checkpoint_manager
         self._distributed = distributed_helper
         self._last_synced_policy_epoch: Optional[int] = None
