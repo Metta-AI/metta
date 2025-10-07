@@ -14,7 +14,6 @@ def generate_valid_random_actions(
     env: MettaGridEnv,
     num_agents: int,
     force_action_type: Optional[int] = None,
-    force_action_arg: Optional[int] = None,
     seed: Optional[int] = None,
 ) -> np.ndarray:
     """
@@ -24,7 +23,6 @@ def generate_valid_random_actions(
         env: MettaGridEnv instance
         num_agents: Number of agents to generate actions for
         force_action_type: If provided, use this action type for all agents
-        force_action_arg: If provided, use this action arg (clamped to valid range) for all agents
         seed: Optional random seed for deterministic action generation
 
     Returns:
@@ -33,8 +31,6 @@ def generate_valid_random_actions(
     # Set the random seed if provided (for deterministic behavior)
     if seed is not None:
         np.random.seed(seed)
-
-    _ = force_action_arg  # retained for backward compatibility; args are implicit in action index
 
     actions = np.zeros((num_agents,), dtype=dtype_actions)
 
