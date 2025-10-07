@@ -286,7 +286,6 @@ def evaluate_cmd(
         None,
         "--policy-data",
         help="Path to policy weights file or directory. Only provide this if you did not supply a list of policies",
-        callback=resolve_policy_data_path,
     ),
     episodes: int = typer.Option(10, "--episodes", "-e", help="Number of evaluation episodes", min=1),
     action_timeout_ms: int = typer.Option(
