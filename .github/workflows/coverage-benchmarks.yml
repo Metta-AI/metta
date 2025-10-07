@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch: {}
 
 permissions:
   contents: read
@@ -250,7 +251,6 @@ jobs:
           fi
 
       - name: Check for significant performance changes
-        if: secrets.BENCHER_API_TOKEN != ''
         uses: ./.github/actions/call-bencher-api
         with:
           bencher_token: ${{ secrets.BENCHER_API_TOKEN }}
