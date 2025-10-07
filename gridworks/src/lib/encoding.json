@@ -1,15 +1,1 @@
-{
-  "#": "wall",
-  ".": "empty",
-  "@": "agent.agent",
-  "p": "agent.prey",
-  "P": "agent.predator",
-  "_": "altar",
-  "c": "converter",
-  "C": "chest",
-  "Z": "assembler",
-  "1": "agent.team_1",
-  "2": "agent.team_2",
-  "3": "agent.team_3",
-  "4": "agent.team_4"
-}
+{"#": "wall", ".": "empty", "@": "agent.agent", "p": "agent.prey", "P": "agent.predator", "_": "altar", "c": "converter", "C": "chest", "Z": "assembler", "1": "agent.team_1", "2": "agent.team_2", "3": "agent.team_3", "4": "agent.team_4"}
