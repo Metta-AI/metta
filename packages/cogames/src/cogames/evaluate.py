@@ -103,7 +103,11 @@ def evaluate(
                 actions = np.zeros(env.num_agents, dtype=env.action_space.dtype)
                 for i in range(env.num_agents):
                     start_time = time.time()
-                    action, _ = agent_policies[i].step(obs[i])
+                    step_result = agent_policies[i].step(obs[i])
+                    if isinstance(step_result, tuple):
+                        action = step_result[0]
+                    else:
+                        action = step_result
                     end_time = time.time()
                     if (end_time - start_time) > action_timeout_ms / 1000:
                         per_policy_timeouts[assignments[i]] += 1

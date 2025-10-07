@@ -51,6 +51,15 @@ runs:
         restore-keys: |
           nim-binary-${{ runner.os }}-
 
+    - name: Ensure action path accessible inside containers
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [ -d /__w/_actions ] && [ ! -e /home/runner/work/_actions ]; then
+          mkdir -p /home/runner/work
+          ln -s /__w/_actions /home/runner/work/_actions
+        fi
+
     - name: Set up nim
       uses: jiro4989/setup-nim-action@v2
       with:
