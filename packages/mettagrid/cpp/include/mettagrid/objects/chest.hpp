@@ -140,7 +140,7 @@ public:
   }
 
   // Implement pure virtual method from Usable
-  virtual bool onUse(Agent& actor, ActionArg /*arg*/) override {
+  virtual bool onUse(Agent& actor) override {
     if (!grid) {
       return false;
     }
