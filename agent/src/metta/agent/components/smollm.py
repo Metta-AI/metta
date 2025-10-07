@@ -35,7 +35,7 @@ class SmolLLMBackboneConfig(ComponentConfig):
     values_key: str = "values"
     hidden_key: Optional[str] = None
 
-    model_name: str = "HuggingFaceTB/SmolLM2-42M"
+    model_name: str = "HuggingFaceTB/SmolLM2-135M"
     max_sequence_length: int = 32
     freeze_llm: bool = True
     torch_dtype: Literal["auto", "float32", "float16", "bfloat16"] = "auto"
@@ -163,7 +163,9 @@ class SmolLLMBackbone(nn.Module):
         self.token_norm = self.token_norm.to(device=device, dtype=llm_dtype)
         self.k_proj = self.k_proj.to(device=device, dtype=llm_dtype)
         self.v_proj = self.v_proj.to(device=device, dtype=llm_dtype)
-        self.latents = nn.Parameter(self.latents.to(device=device, dtype=llm_dtype), requires_grad=self.latents.requires_grad)
+        self.latents = nn.Parameter(
+            self.latents.to(device=device, dtype=llm_dtype), requires_grad=self.latents.requires_grad
+        )
         self.perceiver_layers = self.perceiver_layers.to(device=device, dtype=llm_dtype)
         self.final_norm = self.final_norm.to(device=device, dtype=llm_dtype)
         self.actor_head = self.actor_head.to(device=device, dtype=llm_dtype)

@@ -48,7 +48,7 @@ def train(
             "freeze_llm": freeze_llm,
             "attn_implementation": _select_attn_implementation(attn_implementation),
         }
-        config_kwargs["model_name"] = model_name or "HuggingFaceTB/SmolLM2-42M"
+        config_kwargs["model_name"] = model_name or "HuggingFaceTB/SmolLM2-135M"
         policy_architecture = SmolLLMConfig(**config_kwargs)
 
     tool = base_train(
