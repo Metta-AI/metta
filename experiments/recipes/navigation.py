@@ -14,6 +14,8 @@ from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
+from metta.tools.play import PlayTool
+from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.map_builder.random import RandomMapBuilder
@@ -119,3 +121,11 @@ def evaluate(
         simulations=simulations(),
         policy_uris=policy_uris,
     )
+
+
+def play(policy_uri: Optional[str] = None) -> PlayTool:
+    return PlayTool(simulations=simulations(), policy_uri=policy_uri)
+
+
+def replay(policy_uri: Optional[str] = None) -> ReplayTool:
+    return ReplayTool(simulations=simulations(), policy_uri=policy_uri)
