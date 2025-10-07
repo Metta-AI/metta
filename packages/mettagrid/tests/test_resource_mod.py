@@ -13,6 +13,7 @@ from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
 from mettagrid.mettagrid_c import (
     MettaGrid,
     ResourceModConfig,
+    dtype_actions,
     dtype_observations,
     dtype_rewards,
     dtype_terminals,
