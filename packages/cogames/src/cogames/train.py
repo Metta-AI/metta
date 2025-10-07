@@ -293,10 +293,16 @@ def train(
             policy_arg = policy_shorthand if policy_shorthand else policy_class_path
 
             console.print()
+            console.print("To continue training this policy:", style="bold")
+            console.print(
+                f"  [yellow]cogames train{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
+            )
+            console.print()
             console.print("To play with this policy:", style="bold")
             console.print(
                 f"  [yellow]cogames play{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
             )
+            console.print()
             console.print("To evaluate this policy:", style="bold")
             console.print(
                 f"  [yellow]cogames eval{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
