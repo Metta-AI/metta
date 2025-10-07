@@ -347,7 +347,10 @@ def evaluate_cmd(
 @app.command(name="version", help="Show version information")
 def version_cmd() -> None:
     def public_version(dist_name: str) -> str:
-        return str(Version(importlib.metadata.version(dist_name)).public)
+        try:
+            return str(Version(importlib.metadata.version(dist_name)).public)
+        except importlib.metadata.PackageNotFoundError:
+            return "local"
 
     table = Table(show_header=False, box=None, show_lines=False, pad_edge=False)
     table.add_column("", justify="right", style="bold cyan")
