@@ -1,4 +1,4 @@
-from cogames.cogs_vs_clips.scenarios import make_game
+from cogames.cogs_vs_clips.missions import make_game
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
 

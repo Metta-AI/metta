@@ -11,6 +11,8 @@ from rich.console import Console
 
 import pufferlib.vector
 from cogames.policy import TrainablePolicy
+from cogames.policy.signal_handler import DeferSigintContextManager
+from cogames.policy.utils import get_policy_class_shorthand
 from cogames.utils import initialize_or_load_policy
 from mettagrid import MettaGridConfig, MettaGridEnv
 from pufferlib import pufferl
@@ -162,7 +164,7 @@ def train(
             num_steps,
             effective_timesteps,
         )
-
+    checkpoint_interval = 200
     train_args = dict(
         env=env_name,
         device=device.type,
@@ -170,7 +172,7 @@ def train(
         minibatch_size=amended_minibatch_size,
         batch_size=amended_batch_size,
         data_dir=str(checkpoints_path),
-        checkpoint_interval=200,
+        checkpoint_interval=checkpoint_interval,
         bptt_horizon=bptt_horizon,
         seed=seed,
         use_rnn=use_rnn,
@@ -204,83 +206,114 @@ def train(
     # The network() method is part of the new TrainablePolicy API
     trainer = pufferl.PuffeRL(train_args, vecenv, policy.network())
 
-    try:
-        while trainer.global_step < num_steps:
-            trainer.evaluate()
-            trainer.train()
+    # Track if training diverged
+    training_diverged = False
 
-            # Check for NaN in network parameters after each training step
-            network = policy.network()
-            has_nan = False
-            for name, param in network.named_parameters():
-                if param.grad is not None and not param.grad.isfinite().all():
-                    logger.error(f"NaN/Inf detected in gradients for parameter: {name}")
-                    has_nan = True
-                if not param.isfinite().all():
-                    logger.error(f"NaN/Inf detected in parameter: {name}")
-                    has_nan = True
+    with DeferSigintContextManager():
+        try:
+            while trainer.global_step < num_steps:
+                trainer.evaluate()
+                trainer.train()
+                # Check for NaN in network parameters after each training step
+                network = policy.network()
+                has_nan = False
+                for name, param in network.named_parameters():
+                    if param.grad is not None and not param.grad.isfinite().all():
+                        logger.error(f"NaN/Inf detected in gradients for parameter: {name}")
+                        has_nan = True
+                    if not param.isfinite().all():
+                        logger.error(f"NaN/Inf detected in parameter: {name}")
+                        has_nan = True
 
-            if has_nan:
-                message = (
-                    "Training diverged at step "
-                    f"{trainer.global_step}! Stopping early to avoid saving corrupt checkpoints."
-                )
-                logger.error(message)
-                raise RuntimeError(message)
-
+                if has_nan:
+                    logger.error(
+                        f"Training diverged at step {trainer.global_step}! "
+                        "Stopping early to prevent saving corrupted checkpoint."
+                    )
+                    training_diverged = True
+                    break
+        except KeyboardInterrupt:
+            logger.warning(
+                "KeyboardInterrupt received at step %s; stopping training gracefully.",
+                trainer.global_step,
+            )
         trainer.print_dashboard()
-    finally:
-        # Always release worker resources so subprocesses exit promptly on error
         trainer.close()
 
-    # Print checkpoint path and usage commands with colored output
-
-    console = Console()
-
-    console.print()
-    console.print("=" * 80, style="bold green")
-    console.print(
-        f"Training complete. Checkpoints saved to: [cyan]{checkpoints_path}[/cyan]",
-        style="bold green",
-    )
-    console.print("=" * 80, style="bold green")
-
-    # Try to find the final checkpoint
-    # PufferLib saves checkpoints in data_dir/env_name/
-    checkpoint_dir = checkpoints_path / env_name
-    checkpoints = []
-
-    if checkpoint_dir.exists():
-        checkpoints = sorted(checkpoint_dir.glob("*.pt"))
-
-    # Fallback: also check directly in checkpoints_path
-    if not checkpoints and checkpoints_path.exists():
-        checkpoints = sorted(checkpoints_path.glob("*.pt"))
-
-    if checkpoints:
-        final_checkpoint = checkpoints[-1]
-        console.print()
-        console.print(f"Final checkpoint: [cyan]{final_checkpoint}[/cyan]")
-
-        # Show shorthand version if available
-        policy_shorthand = {
-            "cogames.policy.random.RandomPolicy": "random",
-            "cogames.policy.simple.SimplePolicy": "simple",
-            "cogames.policy.lstm.LSTMPolicy": "lstm",
-        }.get(policy_class_path)
-
-        # Build the command with game name if provided
-        game_arg = f" {game_name}" if game_name else ""
-        policy_arg = policy_shorthand if policy_shorthand else policy_class_path
+        # Print checkpoint path and usage commands with colored output
+        console = Console()
 
         console.print()
-        console.print("To play with this policy:", style="bold")
-        console.print(
-            f"  [yellow]cogames play{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
-        )
-    else:
-        console.print()
-        console.print(f"[yellow]No checkpoint files found. Check {checkpoints_path} for saved models.[/yellow]")
+        if training_diverged:
+            console.print("=" * 80, style="bold red")
+            console.print("Training diverged (NaN detected)! Stopped early.", style="bold red")
+            console.print(f"Checkpoints saved to: [cyan]{checkpoints_path}[/cyan]", style="bold red")
+            console.print("=" * 80, style="bold red")
+            console.print()
+            console.print("[yellow]Warning: The latest checkpoint may contain NaN values.[/yellow]")
+            console.print("[yellow]Try using an earlier checkpoint or retraining with lower learning rate.[/yellow]")
+        elif trainer.epoch >= checkpoint_interval:
+            console.print("=" * 80, style="bold green")
+            console.print("Training complete")
+            console.print(
+                f"Checkpoints saved to: [cyan]{checkpoints_path}[/cyan]",
+                style="bold green",
+            )
+            console.print("=" * 80, style="bold green")
 
-    console.print("=" * 80, style="bold green")
-    console.print()
+        # Try to find the final checkpoint
+        # PufferLib saves checkpoints in data_dir/env_name/
+        checkpoint_dir = checkpoints_path / env_name
+        checkpoints = []
+
+        if checkpoint_dir.exists():
+            checkpoints = sorted(checkpoint_dir.glob("*.pt"))
+
+        # Fallback: also check directly in checkpoints_path
+        if not checkpoints and checkpoints_path.exists():
+            checkpoints = sorted(checkpoints_path.glob("*.pt"))
+
+        if checkpoints and not training_diverged:
+            final_checkpoint = checkpoints[-1]
+            console.print()
+            console.print(f"Final checkpoint: [cyan]{final_checkpoint}[/cyan]")
+            if trainer.epoch < checkpoint_interval:
+                console.print(
+                    "This checkpoint has initialized weights but does not reflect training. \n"
+                    "Training was cut off before the first meaningful checkpoint would have been saved"
+                    f" (epoch {checkpoint_interval}).",
+                    style="yellow",
+                )
+
+            # Show shorthand version if available
+            policy_shorthand = get_policy_class_shorthand(policy_class_path)
+
+            # Build the command with game name if provided
+            game_arg = f" {game_name}" if game_name else ""
+            policy_arg = policy_shorthand if policy_shorthand else policy_class_path
+
+            console.print()
+            console.print("To continue training this policy:", style="bold")
+            console.print(
+                f"  [yellow]cogames train{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
+            )
+            console.print()
+            console.print("To play with this policy:", style="bold")
+            console.print(
+                f"  [yellow]cogames play{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
+            )
+            console.print()
+            console.print("To evaluate this policy:", style="bold")
+            console.print(
+                f"  [yellow]cogames eval{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
+            )
+        elif checkpoints and training_diverged:
+            console.print()
+            console.print(f"[yellow]Found {len(checkpoints)} checkpoint(s). The most recent may be corrupted.[/yellow]")
+            console.print("[yellow]Try using an earlier checkpoint or retraining.[/yellow]")
+        else:
+            console.print()
+            console.print(f"[yellow]No checkpoint files found. Check {checkpoints_path} for saved models.[/yellow]")
+
+        console.print("=" * 80, style="bold green")
+        console.print()
