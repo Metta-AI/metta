@@ -7,6 +7,7 @@ from tensordict import TensorDict
 
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
+from metta.rl.training import EnvironmentMetaData
 
 
 class ActorQueryConfig(ComponentConfig):
@@ -118,10 +119,17 @@ class ActionProbs(nn.Module):
 
     def initialize_to_environment(
         self,
-        env: Any,
-        device,
+        env: EnvironmentMetaData,
+        device: torch.device,
     ) -> None:
-        self.num_actions = int(env.action_space.n)
+        from gymnasium.spaces import Discrete
+
+        action_space = env.action_space
+        if not isinstance(action_space, Discrete):
+            msg = f"ActionProbs expects a Discrete action space, got {type(action_space).__name__}"
+            raise TypeError(msg)
+
+        self.num_actions = int(action_space.n)
 
     def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
         if action is None:
