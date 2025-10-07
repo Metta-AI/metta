@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-from einops import repeat
 from tensordict import TensorDict
 
 from metta.agent.components.component_config import ComponentConfig
@@ -83,11 +82,13 @@ class ActionEmbedding(nn.Module):
         self.num_actions = len(self.active_indices)
 
     def forward(self, td: TensorDict):
-        B_TT = td.batch_size.numel()
+        batch_shape = td.batch_size
 
-        # get embeddings then expand to match the batch size
+        # Get base embeddings and broadcast to match the policy's current batch shape (may include time dims).
         indices = self.active_indices.to(self.net.weight.device)
-        td[self.out_key] = repeat(self.net(indices), "a e -> b a e", b=B_TT)
+        base = self.net(indices)
+        expand_shape = (*batch_shape, *base.shape)
+        td[self.out_key] = base.reshape(*((1,) * len(batch_shape)), *base.shape).expand(expand_shape)
         return td
 
     def _orthogonal_init(self, weight: torch.Tensor) -> None:
