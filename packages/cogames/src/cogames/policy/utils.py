@@ -4,15 +4,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Iterable, Optional, Tuple, Union
+from typing import Dict, Iterable, Optional, Tuple, Union
 
 import numpy as np
 import torch
 
 from cogames.policy.policy import PolicySpec
 
-if TYPE_CHECKING:  # pragma: no cover - optional console for CLI
+try:
     from rich.console import Console
+except ImportError:  # pragma: no cover - rich is an optional dependency in some contexts
+    Console = object  # type: ignore[assignment]
 
 
 @dataclass
