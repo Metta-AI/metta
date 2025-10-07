@@ -94,6 +94,7 @@ public:
   py::list max_action_args();
   py::list object_type_names_py();
   py::list resource_names_py();
+  py::list action_specs();
 
   uint64_t initial_grid_hash;
 

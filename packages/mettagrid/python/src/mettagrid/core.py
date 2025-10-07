@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import numpy.typing as npt
@@ -47,8 +47,8 @@ logger = logging.getLogger("MettaGridCore")
 # - value: uint8 feature value
 MettaGridObservation = npt.NDArray[np.uint8]  # Shape: (num_tokens, 3)
 
-# Actions are MultiDiscrete: shape (num_action_dims,) where each dimension is an action choice
-MettaGridAction = npt.NDArray[np.int32]  # Shape: (num_action_dims,)
+# Actions are Discrete: single integer index representing unique action choices
+MettaGridAction = npt.NDArray[np.int32]  # Shape: ()
 
 
 @dataclass
@@ -102,6 +102,12 @@ class MettaGridCore:
         # Initialize renderer class if needed (before C++ env creation)
         if self._render_mode is not None:
             self._initialize_renderer()
+
+        self._action_pairs: np.ndarray = np.empty((0, 2), dtype=np.int32)
+        self._action_names: List[str] = []
+        self._action_verbs: List[str] = []
+        self._actions_by_verb: Dict[str, Dict[int, int]] = {}
+        self._raw_multi_action_space = None
 
         self.__c_env_instance: MettaGridCpp = self._create_c_env()
         self._update_core_buffers()
@@ -174,6 +180,8 @@ class MettaGridCore:
                 )
 
         self.__c_env_instance = c_env
+        self._raw_multi_action_space = c_env.action_space
+        self._sync_action_metadata()
         return c_env
 
     def _validate_c_env_types(self, c_env: MettaGridCpp) -> None:
@@ -186,9 +194,40 @@ class MettaGridCore:
             raise TypeError(f"C++ environment observation space does not conform to MettaGrid types: {e}") from e
 
         try:
-            validate_action_space(c_env.action_space)
+            spec_count = len(c_env.action_specs())
+            validate_action_space(spaces.Discrete(spec_count))
         except TypeError as e:
             raise TypeError(f"C++ environment action space does not conform to MettaGrid types: {e}") from e
+
+    def _sync_action_metadata(self) -> None:
+        """Cache the discrete action catalogue exposed by the C++ core."""
+
+        entries = list(self.__c_env_instance.action_specs())
+        if not entries:
+            raise RuntimeError("C++ environment returned no action specs")
+
+        pairs = np.zeros((len(entries), 2), dtype=np.int32)
+        names: List[str] = []
+        verbs: List[str] = []
+        by_verb: Dict[str, Dict[int, int]] = {}
+
+        for idx, entry in enumerate(entries):
+            action_index = int(entry["action_index"])
+            arg_index = int(entry["arg"])
+            display_name = str(entry["name"])
+            verb_name = str(entry.get("verb", display_name))
+
+            pairs[idx, 0] = action_index
+            pairs[idx, 1] = arg_index
+            names.append(display_name)
+            verbs.append(verb_name)
+
+            by_verb.setdefault(verb_name, {})[arg_index] = idx
+
+        self._action_pairs = pairs
+        self._action_names = names
+        self._action_verbs = verbs
+        self._actions_by_verb = by_verb
 
     def _update_core_buffers(self) -> None:
         if hasattr(self, "observations") and self.observations is not None:
@@ -207,10 +246,37 @@ class MettaGridCore:
 
         return obs, infos
 
-    def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
+    def step(
+        self, actions: np.ndarray | int | Sequence[int]
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
         """Execute one timestep of the environment dynamics with the given actions."""
-        # Execute step in core environment
-        return self.__c_env_instance.step(actions)
+
+        action_array = np.asarray(actions)
+
+        if action_array.ndim == 2 and action_array.shape[-1] == 2:
+            pair_actions = np.asarray(action_array, dtype=np.int32, order="C")
+            if pair_actions.shape[0] != self.num_agents:
+                raise ValueError(f"Expected ({self.num_agents}, 2) action pairs but received {pair_actions.shape}")
+        else:
+            action_ids = np.asarray(action_array, dtype=np.int64).reshape(-1)
+            if action_ids.size != self.num_agents:
+                raise ValueError(f"Expected {self.num_agents} actions but received {action_ids.size}")
+            if action_ids.size == 0:
+                raise ValueError("No actions provided to step")
+
+            if self._action_pairs.size == 0:
+                raise RuntimeError("Action metadata not initialized")
+
+            if action_ids.min() < 0 or action_ids.max() >= self._action_pairs.shape[0]:
+                raise ValueError(
+                    f"Action indices must be in [0, {self._action_pairs.shape[0] - 1}], "
+                    f"got range [{action_ids.min()}, {action_ids.max()}]"
+                )
+
+            pair_actions = self._action_pairs[action_ids]
+
+        pair_actions = np.ascontiguousarray(pair_actions, dtype=np.int32)
+        return self.__c_env_instance.step(pair_actions)
 
     def render(self) -> Optional[str]:
         """Render the environment."""
@@ -272,13 +338,32 @@ class MettaGridCore:
         return self.__c_env_instance.observation_space
 
     @property
-    def _action_space(self) -> spaces.MultiDiscrete:
+    def _action_space(self) -> spaces.Discrete:
         """Internal action space - use single_action_space for PufferEnv compatibility."""
-        return self.__c_env_instance.action_space
+        if self._action_pairs.size == 0:
+            raise RuntimeError("Action metadata not initialized")
+        return spaces.Discrete(self._action_pairs.shape[0])
 
     @property
     def action_names(self) -> List[str]:
-        return self.__c_env_instance.action_names()
+        return self._action_names
+
+    @property
+    def action_specs(self) -> List[Dict[str, Any]]:
+        return [
+            {
+                "index": idx,
+                "action_index": int(pair[0]),
+                "arg": int(pair[1]),
+                "name": self._action_names[idx],
+                "verb": self._action_verbs[idx],
+            }
+            for idx, pair in enumerate(self._action_pairs)
+        ]
+
+    @property
+    def multi_action_space(self) -> Any:
+        return self._raw_multi_action_space
 
     @property
     def max_action_args(self) -> List[int]:
@@ -311,6 +396,15 @@ class MettaGridCore:
     @property
     def action_success(self) -> List[bool]:
         return self.__c_env_instance.action_success()
+
+    def action_index(self, verb: str, arg: int = 0) -> int:
+        mapping = self._actions_by_verb.get(verb)
+        if mapping is None:
+            raise KeyError(f"Unknown action verb '{verb}'")
+        if arg not in mapping:
+            available = ", ".join(str(v) for v in sorted(mapping))
+            raise KeyError(f"Action '{verb}' does not support argument {arg}; available args: [{available}]")
+        return mapping[arg]
 
     @property
     def observation_features(self) -> Dict[str, ObsFeature]:

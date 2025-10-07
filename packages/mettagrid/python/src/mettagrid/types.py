@@ -27,6 +27,8 @@ def validate_observation_space(space: spaces.Space) -> None:
 
 
 def validate_action_space(space: spaces.Space) -> None:
+    if isinstance(space, spaces.Discrete):
+        return
     _require_space(space, spaces.MultiDiscrete, "action")
 
 

@@ -882,6 +882,53 @@ py::list MettaGrid::action_names() {
   return names;
 }
 
+py::list MettaGrid::action_specs() {
+  py::list specs;
+  size_t index = 0;
+
+  static constexpr const char* ORIENTATION_NAMES[8] = {
+      "north", "south", "west", "east", "northwest", "northeast", "southwest", "southeast"};
+
+  for (size_t handler_idx = 0; handler_idx < _action_handlers.size(); ++handler_idx) {
+    const auto& handler = _action_handlers[handler_idx];
+    const std::string& verb = handler->action_name();
+    unsigned int arg_limit = static_cast<unsigned int>(_max_action_args[handler_idx]);
+
+    auto append = [&](unsigned int arg) {
+      std::string display = verb;
+      if (verb == "move" || verb == "rotate") {
+        if (arg < 8) {
+          display += "_";
+          display += ORIENTATION_NAMES[arg];
+        } else {
+          display += "_" + std::to_string(arg);
+        }
+      } else if (verb == "attack" || verb == "change_glyph") {
+        display += "_" + std::to_string(arg);
+      }
+
+      py::dict entry;
+      entry["index"] = py::int_(index++);
+      entry["action_index"] = py::int_(handler_idx);
+      entry["arg"] = py::int_(arg);
+      entry["name"] = py::str(display);
+      entry["verb"] = py::str(verb);
+      specs.append(entry);
+    };
+
+    if (arg_limit == 0) {
+      append(0);
+      continue;
+    }
+
+    for (unsigned int arg = 0; arg <= arg_limit; ++arg) {
+      append(arg);
+    }
+  }
+
+  return specs;
+}
+
 GridCoord MettaGrid::map_width() {
   return _grid->width;
 }
@@ -1024,6 +1071,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("max_col") = -1,
            py::arg("ignore_types") = py::list())
       .def("action_names", &MettaGrid::action_names)
+      .def("action_specs", &MettaGrid::action_specs)
       .def_property_readonly("map_width", &MettaGrid::map_width)
       .def_property_readonly("map_height", &MettaGrid::map_height)
       .def_property_readonly("num_agents", &MettaGrid::num_agents)
