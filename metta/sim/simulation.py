@@ -255,7 +255,9 @@ class Simulation:
 
             npc_actions = None
             if self._npc_policy is not None and len(self._npc_idxs):
-                npc_actions = self._get_actions_for_agents(self._npc_idxs, self._npc_policy).to(dtype=TORCH_ACTION_DTYPE)
+                npc_actions = self._get_actions_for_agents(self._npc_idxs, self._npc_policy).to(
+                    dtype=TORCH_ACTION_DTYPE
+                )
 
         if self._npc_agents_per_env:
             policy_actions = rearrange(

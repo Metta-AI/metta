@@ -13,8 +13,8 @@ from fastapi.staticfiles import StaticFiles
 
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.sim.simulation import Simulation
-from mettagrid.util.grid_object_formatter import format_grid_object
 from mettagrid import dtype_actions
+from mettagrid.util.grid_object_formatter import format_grid_object
 
 if TYPE_CHECKING:
     from metta.tools.play import PlayTool

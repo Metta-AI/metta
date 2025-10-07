@@ -143,9 +143,10 @@ class CoreTrainingLoop:
 
             target_buffer = self.last_action[training_env_id]
             if target_buffer.shape != actions_column.shape:
-                msg = (
-                    "last_action buffer shape mismatch: target=%s actions=%s raw=%s"
-                    % (target_buffer.shape, actions_column.shape, tuple(td["actions"].shape))
+                msg = "last_action buffer shape mismatch: target=%s actions=%s raw=%s" % (
+                    target_buffer.shape,
+                    actions_column.shape,
+                    tuple(td["actions"].shape),
                 )
                 logger.error(msg)
                 raise RuntimeError(msg)
