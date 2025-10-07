@@ -1,4 +1,3 @@
-import logging
 from typing import Any, Tuple
 
 import numpy as np
@@ -146,14 +145,6 @@ class PPO(Loss):
         env_slice = context.training_env_id
         if env_slice is None:
             raise RuntimeError("ComponentContext.training_env_id is required for PPO rollout")
-        actions = td.get("actions")
-        if actions is not None:
-            logger = logging.getLogger("metta_agent")
-            logger.info(
-                "PPO rollout actions shape=%s batch_size=%s",
-                tuple(actions.shape),
-                tuple(td.batch_size),
-            )
         self.replay.store(data_td=td, env_id=env_slice)
 
         return

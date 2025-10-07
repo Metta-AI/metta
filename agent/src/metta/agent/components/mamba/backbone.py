@@ -302,16 +302,13 @@ class MambaBackboneComponent(nn.Module):
 
                 hidden_tensor = torch.stack(hidden_stack, dim=0).unsqueeze(0)
                 pooled = self._pool_output(hidden_tensor, tt=1)
-                outputs.append(pooled.reshape(-1))
+                outputs.append(pooled.squeeze(0))
                 positions.append(torch.tensor(position - 1, device=device, dtype=torch.long))
 
                 if resets[idx]:
                     self._reset_env_state(env_id)
 
-            out_tensor = torch.stack(outputs, dim=0)
-            import logging
-
-            logging.getLogger("metta_agent").info("MambaBackbone out_tensor shape=%s", tuple(out_tensor.shape))
+            out_tensor = torch.stack(outputs, dim=0).squeeze(1)
             td.set(self.out_key, out_tensor)
             td.set("transformer_position", torch.stack(positions, dim=0))
             return td
