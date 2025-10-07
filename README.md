@@ -220,6 +220,10 @@ def evaluate() -> EvaluateTool:
     return EvaluateTool(simulations=[...])
 ```
 
+> Trainer state (optimizer, scheduler, curriculum, timers) now checkpoints automatically whenever a new policy
+> snapshot is written. Legacy knobs such as `context_checkpointer.epoch_interval` or `keep_last_n` no longer have any
+> effect.
+
 Recipes can optionally define helper functions like `mettagrid()` or `simulations()` to avoid duplication when multiple tools need the same configuration.
 
 Examples:
