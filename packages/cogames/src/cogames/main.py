@@ -19,12 +19,8 @@ from cogames import evaluate as evaluate_module
 from cogames import game, utils
 from cogames import play as play_module
 from cogames import train as train_module
-from cogames.policy.policy import PolicySpec
-from cogames.policy.utils import (
-    ParsedPolicies,
-    parse_multiple_policy_arguments,
-    parse_policy_argument,
-)
+from cogames.policy.interfaces import PolicySpec
+from cogames.policy.utils import ParsedPolicies, get_policy_argument
 from mettagrid import MettaGridEnv
 
 # Always add current directory to Python path
@@ -53,33 +49,14 @@ mission_argument = typer.Argument(
     help="Name of the mission. Can be in the format 'map_name' or 'map_name:mission' or 'path/to/mission.yaml'.",
     callback=lambda ctx, value: game.require_mission_argument(ctx, value, console),
 )
-policy_help = (
-    "[blue]CLASS[/blue]: shorthand (e.g. 'simple', 'random') or fully qualified class path. \n\n"
-    "[cyan]DATA[/cyan]: optional checkpoint path. \n\n"
-    "[light_slate_grey]PROPORTION[/light_slate_grey]: optional float specifying the population share."
-)
-multiple_policies_argument = typer.Argument(
-    None,
-    help=(
-        "Your target policies, specified with repeated --policy "
-        "[blue]CLASS[/blue][cyan]:DATA[/cyan][light_slate_grey]:PROPORTION[/light_slate_grey] values.\n\n" + policy_help
-    ),
-    callback=lambda ctx, value: parse_multiple_policy_arguments(value, console),
-)
-single_policy_argument = typer.Argument(
-    None,
-    help=(
-        "Your target policy, specified as "
-        "[blue]CLASS[/blue][cyan]:DATA[/cyan][light_slate_grey]:PROPORTION[/light_slate_grey].\n\n" + policy_help
-    ),
-    callback=lambda ctx, value: parse_policy_argument(value, console),
-)
+multiple_policies_argument = get_policy_argument(multiple=True, console=console)
+single_policy_argument = get_policy_argument(multiple=False, console=console)
 
 
 @app.command("missions", help="List all available missions, or describe a specific mission")
 @app.command("games", hidden=True)
 def games_cmd(
-    mission_name: str = mission_argument,
+    mission: str = mission_argument,
     format_: Literal[None, "yaml", "json"] = typer.Option(
         None, "--format", help="Output mission configuration in YAML or JSON."
     ),
@@ -90,7 +67,7 @@ def games_cmd(
         help="Save mission configuration to file (YAML or JSON)",
     ),
 ) -> None:
-    resolved_mission, env_cfg = utils.get_mission_config(console, mission_name)
+    resolved_mission, env_cfg = game.get_mission_config(console, mission)
 
     if save is not None:
         try:
@@ -122,8 +99,8 @@ def games_cmd(
 
 @app.command(name="play", no_args_is_help=True, help="Play a game")
 def play_cmd(
-    mission_name: str = mission_argument,
-    policy: Optional[str] = single_policy_argument,
+    mission: str = mission_argument,
+    policy: str = single_policy_argument,
     interactive: bool = typer.Option(True, "--interactive", "-i", help="Run in interactive mode"),
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
     render: Literal["gui", "text", "none"] = typer.Option(
@@ -131,7 +108,7 @@ def play_cmd(
     ),
 ) -> None:
     policy_spec = cast(PolicySpec, policy)  # single_policy_argument callback handles parsing
-    mission_name, env_cfg = utils.get_mission_config(console, mission_name)
+    mission_name, env_cfg = game.get_mission_config(console, mission)
     console.print(f"[cyan]Playing {mission_name}[/cyan]")
     console.print(f"Max Steps: {steps}, Interactive: {interactive}, Render: {render}")
 
@@ -157,7 +134,7 @@ def make_mission(
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (yml or json)"),  # noqa: B008
 ) -> None:
     try:
-        _, env_cfg = utils.get_mission_config(console, base_mission)
+        _, env_cfg = game.get_mission_config(console, base_mission)
 
         # Update map dimensions
         env_cfg.game.map_builder.width = width  # type: ignore[attr-defined]
@@ -180,7 +157,7 @@ def make_mission(
 
 @app.command(name="train", help="Train a policy on a mission")
 def train_cmd(
-    mission_name: str = mission_argument,
+    mission: str = mission_argument,
     policy: str = single_policy_argument,
     checkpoints_path: str = typer.Option(
         "./train_dir",
@@ -215,7 +192,7 @@ def train_cmd(
         min=1,
     ),
 ) -> None:
-    resolved_mission, env_cfg = utils.get_mission_config(console, mission_name)
+    resolved_mission, env_cfg = game.get_mission_config(console, mission)
     policy_spec = cast(PolicySpec, policy)  # single_policy_argument callback handles parsing
     torch_device = utils.resolve_training_device(console, device)
 
@@ -250,7 +227,7 @@ def train_cmd(
 )
 @app.command("evaluate", hidden=True)
 def evaluate_cmd(
-    mission_name: str = mission_argument,
+    mission: str = mission_argument,
     policies: list[str] = multiple_policies_argument,
     episodes: int = typer.Option(10, "--episodes", "-e", help="Number of evaluation episodes", min=1),
     action_timeout_ms: int = typer.Option(
@@ -262,7 +239,7 @@ def evaluate_cmd(
 ) -> None:
     policy_specs = cast(ParsedPolicies, policies)  # multiple_policies_argument callback handles parsing
 
-    resolved_game, env_cfg = utils.get_mission_config(console, mission_name)
+    resolved_game, env_cfg = game.get_mission_config(console, mission)
 
     console.print(f"[cyan]Evaluating {len(policy_specs)} policies on {resolved_game} over {episodes} episodes[/cyan]")
 

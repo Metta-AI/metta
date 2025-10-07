@@ -2,19 +2,26 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Optional, Sequence, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Tuple, Union
 
 import torch
 import typer
 from rich.console import Console
+from rich.table import Table
 
 from cogames.aws_storage import DownloadOutcome, maybe_download_checkpoint
-from cogames.policy.policy import PolicySpec
+from cogames.policy.interfaces import Policy, PolicySpec, TrainablePolicy
+from mettagrid.util.module import load_symbol
 
 if TYPE_CHECKING:  # pragma: no cover - optional console for CLI
     from rich.console import Console
+
+
+default_checkpoint_dir = Path("train_dir")
 
 
 _POLICY_CLASS_SHORTHAND: dict[str, str] = {
@@ -26,6 +33,20 @@ _POLICY_CLASS_SHORTHAND: dict[str, str] = {
 }
 
 
+def initialize_or_load_policy(
+    policy_class_path: str, policy_data_path: Optional[str], env: Any, device: "torch.device | None" = None
+) -> Policy:
+    policy_class = load_symbol(policy_class_path)
+    policy = policy_class(env, device or torch.device("cpu"))
+
+    if policy_data_path:
+        if not isinstance(policy, TrainablePolicy):
+            raise TypeError("Policy data provided, but the selected policy does not support loading checkpoints.")
+
+        policy.load_policy_data(policy_data_path)
+    return policy
+
+
 def resolve_policy_class_path(policy: str) -> str:
     """Resolve a policy shorthand or full class path.
 
@@ -35,11 +56,40 @@ def resolve_policy_class_path(policy: str) -> str:
     Returns:
         Full class path to the policy.
     """
-    return _POLICY_CLASS_SHORTHAND.get(policy, policy)
+    full_path = _POLICY_CLASS_SHORTHAND.get(policy, policy)
+
+    # Will raise an error if invalid
+    _ = load_symbol(full_path)
+    return full_path
 
 
 def get_policy_class_shorthand(policy: str) -> Optional[str]:
     return {v: k for k, v in _POLICY_CLASS_SHORTHAND.items()}.get(policy)
+
+
+_NOT_CHECKPOINT_PATTERNS = (
+    r"trainer_state\.pt",  # trainer state file
+    r"model_\d{6}\.pt",  # matches model_000001.pt etc
+)
+
+
+def find_policy_checkpoints(checkpoints_path: Path, env_name: Optional[str] = None) -> list[Path]:
+    checkpoints = []
+    if env_name:
+        # Try to find the final checkpoint
+        # PufferLib saves checkpoints in data_dir/env_name/
+        checkpoint_dir = checkpoints_path / env_name
+        if checkpoint_dir.exists():
+            checkpoints = checkpoint_dir.glob("*.pt")
+
+    # Fallback: also check directly in checkpoints_path
+    if not checkpoints and checkpoints_path.exists():
+        checkpoints = checkpoints_path.glob("*.pt")
+    return [
+        p
+        for p in sorted(checkpoints, key=lambda c: c.stat().st_mtime)
+        if not any(re.fullmatch(pattern, p.name) for pattern in _NOT_CHECKPOINT_PATTERNS)
+    ]
 
 
 def resolve_policy_data_path(
@@ -63,14 +113,10 @@ def resolve_policy_data_path(
         return str(path)
 
     if path.is_dir():
-        latest_checkpoint = max(
-            (candidate for candidate in path.rglob("*.pt")),
-            key=lambda candidate: candidate.stat().st_mtime,
-            default=None,
-        )
-        if latest_checkpoint is None:
+        checkpoints = find_policy_checkpoints(path)
+        if not checkpoints:
             raise FileNotFoundError(f"No checkpoint files (*.pt) found in directory: {path}")
-        return str(latest_checkpoint)
+        return str(checkpoints[-1])
 
     if path.exists():  # Non-pt extension but present
         return str(path)
@@ -92,25 +138,56 @@ RawPolicyValues = Optional[Sequence[str]]
 ParsedPolicies = list[PolicySpec]
 
 
-def parse_multiple_policy_arguments(
-    policies: RawPolicyValues, console: Console, game_name: Optional[str] = None
-) -> list[PolicySpec]:
-    if not policies:
-        console.print("[red]Error: Provide at least one policy CLASS[:DATA][:PROPORTION].[/red]")
-        raise typer.Exit(1)
-    return [parse_policy_argument(spec, console, game_name) for spec in policies]
+def get_policy_argument(multiple: bool, console: Console) -> Any:
+    formatted_example = "[blue]CLASS[/blue][cyan]:DATA[/cyan][light_slate_grey]:PROPORTION[/light_slate_grey]"
+    help_text = "\n".join(
+        [
+            "[blue]CLASS[/blue]: shorthand (e.g. 'simple', 'random') or fully qualified class path.",
+            "[cyan]DATA[/cyan]: optional checkpoint path.",
+            "[light_slate_grey]PROPORTION[/light_slate_grey]: optional float specifying the population share.",
+        ]
+    )
 
+    def callback(ctx: typer.Context, value: list[str] | str | None) -> list[PolicySpec] | PolicySpec:
+        if value:
+            try:
+                if multiple:
+                    return [_parse_policy_spec(spec=spec, console=console) for spec in value]
+                return _parse_policy_spec(spec=value, console=console)  # type: ignore
+            except ValueError as e:
+                translated = str(e).replace("Invalid symbol name", "Could not find policy class")
+                console.print(f"[yellow]Error parsing policy argument: {translated}[/yellow]")
+                pass
+        supplied_mission = ctx.params.get("mission", ctx.params.get("base_mission", "[MISSION]"))
 
-def parse_policy_argument(spec: Optional[str], console: Console, game_name: Optional[str] = None) -> PolicySpec:
-    if spec is None:
-        console.print("[red]Error: Provide a policy CLASS[:DATA][:PROPORTION].[/red]")
+        console.print()
+        console.print(f"Policies should be supplied in this format: {formatted_example}\n")
+        console.print(help_text)
+        console.print()
+        if local_checkpoints := find_policy_checkpoints(default_checkpoint_dir):
+            console.print("Discovered local policy checkpoints usable as [cyan]DATA[/cyan]:")
+            table = Table(show_header=False, box=None, show_lines=False, pad_edge=False)
+
+            table.add_column("Policy data path", justify="right", style="bold cyan")
+            table.add_column("Last touched", justify="right")
+
+            for checkpoint in local_checkpoints:
+                table.add_row(checkpoint.name, str(datetime.fromtimestamp(checkpoint.stat().st_mtime)))
+            console.print(table)
+            console.print()
+        console.print(
+            f"\n[dim]Usage: {ctx.command_path} {supplied_mission}[/dim] [{'POLICIES...' if multiple else 'POLICY'}]\n"
+        )
         raise typer.Exit(1)
-    else:
-        try:
-            return _parse_policy_spec(spec, console=console, game_name=game_name)
-        except ValueError as e:
-            console.print(f"[red]Error parsing policy: {e}.[/red]")
-            raise typer.Exit(1) from e
+
+    return typer.Argument(
+        None,
+        help=(
+            f"Your target {'policies' if multiple else 'policy'}, specified as{' repeated' if multiple else ''} "
+            f"{formatted_example}\n\n" + help_text.replace("\n", "\n\n")
+        ),
+        callback=callback,
+    )
 
 
 def _parse_policy_spec(
@@ -251,14 +328,3 @@ class LSTMState:
 
     def detach(self) -> "LSTMState":
         return LSTMState(self.hidden.detach(), self.cell.detach())
-
-
-__all__ = [
-    "PolicySpec",
-    "resolve_policy_class_path",
-    "resolve_policy_data_path",
-    "parse_policy_spec",
-    "LSTMState",
-    "LSTMStateDict",
-    "LSTMStateTuple",
-]

@@ -92,7 +92,7 @@ To get started, `cogames` supports some torch-nn-based policy architectures out 
 supply your own, you will want to extend `cogames.policy.Policy`.
 
 ```python
-from cogames.policy import Policy
+from cogames.policy.interfaces import Policy
 
 class MyPolicy(Policy):
     def __init__(self, observation_space, action_space):

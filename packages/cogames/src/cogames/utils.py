@@ -1,35 +1,11 @@
 """Utility functions for CoGames CLI."""
 
-from typing import Any, Optional
+from pathlib import Path
 
 import torch
-import typer
 from rich.console import Console
 
-from cogames import game as game_module
-from cogames.policy import Policy, TrainablePolicy
-from mettagrid.config.mettagrid_config import MettaGridConfig
-from mettagrid.util.module import load_symbol
-
-
-def get_mission_config(console: Console, mission_arg: str) -> tuple[str, MettaGridConfig]:
-    """Return a resolved mission name and configuration for cli usage."""
-
-    requested_mission: Optional[str] = None
-    if ":" in mission_arg:
-        map_name, requested_mission = mission_arg.split(":")
-    else:
-        map_name = mission_arg
-
-    config, registered_map_name, mission_name = game_module.get_mission(map_name, requested_mission)
-    try:
-        full_mission_name = (
-            f"{registered_map_name}:{mission_name}" if registered_map_name and mission_name else map_name
-        )
-        return full_mission_name, config
-    except Exception as e:
-        console.print(f"[red]Error: {e}[/red]")
-        raise typer.Exit(1) from e
+cogames_root = Path(__file__).parent
 
 
 def resolve_training_device(console: Console, requested: str) -> torch.device:
@@ -60,17 +36,3 @@ def resolve_training_device(console: Console, requested: str) -> torch.device:
         return torch.device("cpu")
 
     return candidate
-
-
-def initialize_or_load_policy(
-    policy_class_path: str, policy_data_path: Optional[str], env: Any, device: "torch.device | None" = None
-) -> Policy:
-    policy_class = load_symbol(policy_class_path)
-    policy = policy_class(env, device or torch.device("cpu"))
-
-    if policy_data_path:
-        if not isinstance(policy, TrainablePolicy):
-            raise TypeError("Policy data provided, but the selected policy does not support loading checkpoints.")
-
-        policy.load_policy_data(policy_data_path)
-    return policy

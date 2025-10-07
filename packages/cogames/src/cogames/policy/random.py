@@ -4,7 +4,7 @@ from typing import Any, Optional
 
 import numpy as np
 
-from cogames.policy.policy import AgentPolicy, Policy
+from cogames.policy.interfaces import AgentPolicy, Policy
 from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation
 
 

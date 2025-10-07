@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 
 import pufferlib.pytorch
-from cogames.policy.policy import AgentPolicy, TrainablePolicy
+from cogames.policy.interfaces import AgentPolicy, TrainablePolicy
 from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation
 
 logger = logging.getLogger("cogames.policies.token_policy")

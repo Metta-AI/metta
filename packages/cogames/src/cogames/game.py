@@ -250,3 +250,23 @@ def require_mission_argument(ctx: typer.Context, value: Optional[str], console: 
     console.print(f"\n[dim]Usage: {ctx.command_path} <mission>[/dim]")
     console.print()
     raise typer.Exit(0)
+
+
+def get_mission_config(console: Console, mission_arg: str) -> tuple[str, MettaGridConfig]:
+    """Return a resolved mission name and configuration for cli usage."""
+
+    requested_mission: Optional[str] = None
+    if ":" in mission_arg:
+        map_name, requested_mission = mission_arg.split(":")
+    else:
+        map_name = mission_arg
+
+    config, registered_map_name, mission_name = get_mission(map_name, requested_mission)
+    try:
+        full_mission_name = (
+            f"{registered_map_name}:{mission_name}" if registered_map_name and mission_name else map_name
+        )
+        return full_mission_name, config
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(1) from e
