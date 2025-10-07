@@ -85,16 +85,16 @@ def train(
 
     envs_per_worker = max(1, num_envs // num_workers)
     base_batch_size = vector_batch_size or 128
-    vector_batch_size = max(base_batch_size, envs_per_worker)
-    remainder = vector_batch_size % envs_per_worker
+    env_batch_size = max(base_batch_size, envs_per_worker)
+    remainder = env_batch_size % envs_per_worker
     if remainder:
-        vector_batch_size += envs_per_worker - remainder
+        env_batch_size += envs_per_worker - remainder
 
     logger.debug(
         "Vec env config: num_envs=%s, num_workers=%s, batch_size=%s (envs/worker=%s)",
         num_envs,
         num_workers,
-        vector_batch_size,
+        env_batch_size,
         envs_per_worker,
     )
 
@@ -120,8 +120,7 @@ def train(
         return env
 
     make_kwargs: dict[str, Any] = {"num_workers": num_workers}
-    if vector_batch_size is not None and backend is not pvector.Serial:
-        make_kwargs["batch_size"] = vector_batch_size
+    make_kwargs["batch_size"] = env_batch_size
 
     vecenv = pvector.make(
         env_creator,
