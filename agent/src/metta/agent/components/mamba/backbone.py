@@ -267,52 +267,6 @@ class MambaBackboneComponent(nn.Module):
             env_ids = training_env_ids.reshape(-1).to(device=device, dtype=torch.long)
         self._ensure_capacity(int(env_ids.max().item()) + 1)
 
-        if tt == 1:
-            outputs = []
-            positions = []
-            if not self._env_states:
-                raise RuntimeError(
-                    "MambaBackboneComponent requires initialize_to_environment or a prior training pass before rollout"
-                )
-            dones = td.get("dones", torch.zeros(batch, device=device))
-            truncateds = td.get("truncateds", torch.zeros(batch, device=device))
-            resets = torch.logical_or(dones.bool(), truncateds.bool())
-
-            for idx in range(batch):
-                env_id = int(env_ids[idx].item())
-                state = self._ensure_env_state(env_id, device, tokens.dtype, S)
-                step_tokens = tokens[idx, 0]
-
-                start_position = state.position
-                pos_enc = self._positional_encoding_for_range(start_position, S, step_tokens.size(-1), device)
-                tokens_with_pos = step_tokens + pos_enc
-
-                hidden_stack = []
-                position = start_position
-                for token in torch.unbind(tokens_with_pos, dim=0):
-                    state.inference_params.seqlen_offset = position
-                    hidden = self._run_layers_step(
-                        token.unsqueeze(0).unsqueeze(0), inference_params=state.inference_params
-                    )
-                    hidden_stack.append(hidden.squeeze(0))
-                    position += 1
-                    state.position = position
-                    state.inference_params.seqlen_offset = position
-                    state.inference_params.max_seqlen = max(state.inference_params.max_seqlen, position)
-
-                hidden_tensor = torch.stack(hidden_stack, dim=0).unsqueeze(0)
-                pooled = self._pool_output(hidden_tensor, tt=1)
-                outputs.append(pooled.squeeze(0))
-                positions.append(torch.tensor(position - 1, device=device, dtype=torch.long))
-
-                if resets[idx]:
-                    self._reset_env_state(env_id)
-
-            out_tensor = torch.stack(outputs, dim=0).squeeze(1)
-            td.set(self.out_key, out_tensor)
-            td.set("transformer_position", torch.stack(positions, dim=0))
-            return td
-
         # training path
         pos = torch.arange(tt, device=device, dtype=torch.long)
         pos_enc = _sinusoidal_positional_encoding(pos, tokens.size(-1))
@@ -328,32 +282,6 @@ class MambaBackboneComponent(nn.Module):
         if flat.shape[0] != td.batch_size.numel():
             raise RuntimeError(f"mamba backbone batch mismatch: got {flat.shape[0]}, expected {td.batch_size.numel()}")
         td.set(self.out_key, flat)
-
-        # update caches
-        dones = td.get("dones", torch.zeros(batch * tt, device=device))
-        truncateds = td.get("truncateds", torch.zeros(batch * tt, device=device))
-        resets = torch.logical_or(dones.bool(), truncateds.bool()).reshape(batch, tt)
-
-        with torch.no_grad():
-            for idx in range(batch):
-                env_id = int(env_ids[idx].item())
-                state = self._ensure_env_state(env_id, device, tokens.dtype, S)
-                position = state.position
-                for step in range(tt):
-                    step_tokens = tokens[idx, step]
-                    pos_enc = self._positional_encoding_for_range(position, S, step_tokens.size(-1), device)
-                    tokens_with_pos = step_tokens + pos_enc
-                    for token in torch.unbind(tokens_with_pos, dim=0):
-                        state.inference_params.seqlen_offset = position
-                        self._run_layers_step(token.unsqueeze(0).unsqueeze(0), inference_params=state.inference_params)
-                        position += 1
-                        state.position = position
-                        state.inference_params.seqlen_offset = position
-                        state.inference_params.max_seqlen = max(state.inference_params.max_seqlen, position)
-                    if resets[idx, step]:
-                        self._reset_env_state(env_id)
-                        state = self._ensure_env_state(env_id, device, tokens.dtype, S)
-                        position = state.position
 
         return td
 
