@@ -133,7 +133,7 @@ def test_pettingzoo_env_step():
         # Random actions for active agents
         actions = {}
         for agent in env.agents:
-            actions[agent] = np.random.randint(0, 2, size=2, dtype=np.int32)
+            actions[agent] = int(env.action_space(agent).sample())
 
         observations, rewards, terminations, truncations, infos = env.step(actions)
 
@@ -178,7 +178,7 @@ def test_pettingzoo_env_agent_removal():
     while env.agents and step_count < max_test_steps:
         actions = {}
         for agent in env.agents:
-            actions[agent] = np.random.randint(0, 2, size=2, dtype=np.int32)
+            actions[agent] = int(env.action_space(agent).sample())
 
         observations, rewards, terminations, truncations, infos = env.step(actions)
         step_count += 1
