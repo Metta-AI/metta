@@ -1,12 +1,10 @@
 from typing import List
 
-from metta.agent.components.actor import ActionProbsConfig
+from metta.agent.components.action import ActionEmbeddingConfig
+from metta.agent.components.actor import ActionProbsConfig, ActorKeyConfig, ActorQueryConfig
 from metta.agent.components.component_config import ComponentConfig
-from metta.agent.components.hrm import (
-    HRMActorConfig,
-    HRMCriticConfig,
-    HRMReasoningConfig,
-)
+from metta.agent.components.hrm import HRMReasoningConfig
+from metta.agent.components.misc import MLPConfig
 from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
 from metta.agent.components.obs_shim import ObsShimTokensConfig
 from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourierConfig
@@ -21,6 +19,9 @@ class HRMPolicy(PolicyAutoBuilder):
         _embed_dim = 256
         _token_embed_dim = 16
         _fourier_freqs = 3
+        _embedding_dim = 16
+        _actor_hidden = 512
+        _critic_hidden = 1024
 
         config = PolicyArchitecture(
             class_path="metta.agent.policy_auto_builder.PolicyAutoBuilder",
@@ -45,22 +46,40 @@ class HRMPolicy(PolicyAutoBuilder):
                 # Hierarchical reasoning
                 HRMReasoningConfig(
                     in_key="hrm_obs_encoded",
-                    out_key="hrm_reasoning",
+                    out_key="core",
                     embed_dim=_embed_dim,
                     num_layers=4,
                     num_heads=8,
                 ),
-                # Critic (value function)
-                HRMCriticConfig(
-                    in_key="hrm_reasoning",
-                    out_key="values",
-                    embed_dim=_embed_dim,
+                # Actor and Critic using ViT-style components
+                MLPConfig(
+                    in_key="core",
+                    out_key="actor_hidden",
+                    name="actor_mlp",
+                    in_features=_embed_dim,
+                    hidden_features=[_actor_hidden],
+                    out_features=_actor_hidden,
                 ),
-                # Actor components (num_actions will be determined from environment)
-                HRMActorConfig(
-                    in_key="hrm_reasoning",
+                MLPConfig(
+                    in_key="core",
+                    out_key="values",
+                    name="critic",
+                    in_features=_embed_dim,
+                    out_features=1,
+                    hidden_features=[_critic_hidden],
+                ),
+                ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embedding_dim),
+                ActorQueryConfig(
+                    in_key="actor_hidden",
+                    out_key="actor_query",
+                    hidden_size=_actor_hidden,
+                    embed_dim=_embedding_dim,
+                ),
+                ActorKeyConfig(
+                    query_key="actor_query",
+                    embedding_key="action_embedding",
                     out_key="logits",
-                    embed_dim=_embed_dim,
+                    embed_dim=_embedding_dim,
                 ),
             ],
             action_probs_config=ActionProbsConfig(in_key="logits"),
@@ -72,11 +91,14 @@ class HRMPolicy(PolicyAutoBuilder):
 class HRMPolicyConfig(PolicyArchitecture):
     """Component-based Hierarchical Reasoning Model (HRM) policy configuration."""
 
-    class_path: str = "metta.agent.policies.hrm.HRMPolicy"
+    class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
     _embed_dim = 256
     _token_embed_dim = 16
     _fourier_freqs = 3
+    _embedding_dim = 16
+    _actor_hidden = 512
+    _critic_hidden = 1024
 
     components: List[ComponentConfig] = [
         # Token-based observation pipeline
@@ -99,22 +121,40 @@ class HRMPolicyConfig(PolicyArchitecture):
         # Hierarchical reasoning
         HRMReasoningConfig(
             in_key="hrm_obs_encoded",
-            out_key="hrm_reasoning",
+            out_key="core",
             embed_dim=_embed_dim,
             num_layers=4,
             num_heads=8,
         ),
-        # Critic (value function)
-        HRMCriticConfig(
-            in_key="hrm_reasoning",
-            out_key="values",
-            embed_dim=_embed_dim,
+        # Actor and Critic using ViT-style components
+        MLPConfig(
+            in_key="core",
+            out_key="actor_hidden",
+            name="actor_mlp",
+            in_features=_embed_dim,
+            hidden_features=[_actor_hidden],
+            out_features=_actor_hidden,
         ),
-        # Actor components (num_actions will be determined from environment)
-        HRMActorConfig(
-            in_key="hrm_reasoning",
+        MLPConfig(
+            in_key="core",
+            out_key="values",
+            name="critic",
+            in_features=_embed_dim,
+            out_features=1,
+            hidden_features=[_critic_hidden],
+        ),
+        ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embedding_dim),
+        ActorQueryConfig(
+            in_key="actor_hidden",
+            out_key="actor_query",
+            hidden_size=_actor_hidden,
+            embed_dim=_embedding_dim,
+        ),
+        ActorKeyConfig(
+            query_key="actor_query",
+            embedding_key="action_embedding",
             out_key="logits",
-            embed_dim=_embed_dim,
+            embed_dim=_embedding_dim,
         ),
     ]
 
@@ -129,6 +169,9 @@ class HRMCompactConfig(PolicyArchitecture):
     _embed_dim = 128
     _token_embed_dim = 12
     _fourier_freqs = 2
+    _embedding_dim = 16
+    _actor_hidden = 384
+    _critic_hidden = 768
 
     components: List[ComponentConfig] = [
         # Token-based observation pipeline (reduced size)
@@ -151,23 +194,41 @@ class HRMCompactConfig(PolicyArchitecture):
         # Hierarchical reasoning (fewer layers and heads)
         HRMReasoningConfig(
             in_key="hrm_obs_encoded",
-            out_key="hrm_reasoning",
+            out_key="core",
             embed_dim=_embed_dim,
             num_layers=2,
             num_heads=4,
             ffn_multiplier=3,
         ),
-        # Critic (value function)
-        HRMCriticConfig(
-            in_key="hrm_reasoning",
-            out_key="values",
-            embed_dim=_embed_dim,
+        # Actor and Critic using ViT-style components
+        MLPConfig(
+            in_key="core",
+            out_key="actor_hidden",
+            name="actor_mlp",
+            in_features=_embed_dim,
+            hidden_features=[_actor_hidden],
+            out_features=_actor_hidden,
         ),
-        # Actor components (num_actions will be determined from environment)
-        HRMActorConfig(
-            in_key="hrm_reasoning",
+        MLPConfig(
+            in_key="core",
+            out_key="values",
+            name="critic",
+            in_features=_embed_dim,
+            out_features=1,
+            hidden_features=[_critic_hidden],
+        ),
+        ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embedding_dim),
+        ActorQueryConfig(
+            in_key="actor_hidden",
+            out_key="actor_query",
+            hidden_size=_actor_hidden,
+            embed_dim=_embedding_dim,
+        ),
+        ActorKeyConfig(
+            query_key="actor_query",
+            embedding_key="action_embedding",
             out_key="logits",
-            embed_dim=_embed_dim,
+            embed_dim=_embedding_dim,
         ),
     ]
 
@@ -182,6 +243,9 @@ class HRMLargeConfig(PolicyArchitecture):
     _embed_dim = 512
     _token_embed_dim = 24
     _fourier_freqs = 4
+    _embedding_dim = 24
+    _actor_hidden = 1024
+    _critic_hidden = 2048
 
     components: List[ComponentConfig] = [
         # Token-based observation pipeline (larger capacity)
@@ -204,22 +268,40 @@ class HRMLargeConfig(PolicyArchitecture):
         # Hierarchical reasoning (more layers and heads)
         HRMReasoningConfig(
             in_key="hrm_obs_encoded",
-            out_key="hrm_reasoning",
+            out_key="core",
             embed_dim=_embed_dim,
             num_layers=8,
             num_heads=16,
         ),
-        # Critic (value function)
-        HRMCriticConfig(
-            in_key="hrm_reasoning",
-            out_key="values",
-            embed_dim=_embed_dim,
+        # Actor and Critic using ViT-style components
+        MLPConfig(
+            in_key="core",
+            out_key="actor_hidden",
+            name="actor_mlp",
+            in_features=_embed_dim,
+            hidden_features=[_actor_hidden],
+            out_features=_actor_hidden,
         ),
-        # Actor components (num_actions will be determined from environment)
-        HRMActorConfig(
-            in_key="hrm_reasoning",
+        MLPConfig(
+            in_key="core",
+            out_key="values",
+            name="critic",
+            in_features=_embed_dim,
+            out_features=1,
+            hidden_features=[_critic_hidden],
+        ),
+        ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embedding_dim),
+        ActorQueryConfig(
+            in_key="actor_hidden",
+            out_key="actor_query",
+            hidden_size=_actor_hidden,
+            embed_dim=_embedding_dim,
+        ),
+        ActorKeyConfig(
+            query_key="actor_query",
+            embedding_key="action_embedding",
             out_key="logits",
-            embed_dim=_embed_dim,
+            embed_dim=_embedding_dim,
         ),
     ]
 
@@ -234,6 +316,9 @@ class HRMTinyConfig(PolicyArchitecture):
     _embed_dim = 64
     _token_embed_dim = 8
     _fourier_freqs = 2
+    _embedding_dim = 16
+    _actor_hidden = 256
+    _critic_hidden = 512
 
     components: List[ComponentConfig] = [
         # Token-based observation pipeline (minimal config)
@@ -256,23 +341,41 @@ class HRMTinyConfig(PolicyArchitecture):
         # Hierarchical reasoning (minimal layers, smaller FFN)
         HRMReasoningConfig(
             in_key="hrm_obs_encoded",
-            out_key="hrm_reasoning",
+            out_key="core",
             embed_dim=_embed_dim,
             num_layers=1,
             num_heads=2,
-            ffn_multiplier=2,  # Reduced from default 4
+            ffn_multiplier=2,
         ),
-        # Critic (value function)
-        HRMCriticConfig(
-            in_key="hrm_reasoning",
+        # Actor and Critic using ViT-style components
+        MLPConfig(
+            in_key="core",
+            out_key="actor_hidden",
+            name="actor_mlp",
+            in_features=_embed_dim,
+            hidden_features=[_actor_hidden],
+            out_features=_actor_hidden,
+        ),
+        MLPConfig(
+            in_key="core",
             out_key="values",
-            embed_dim=_embed_dim,
+            name="critic",
+            in_features=_embed_dim,
+            out_features=1,
+            hidden_features=[_critic_hidden],
         ),
-        # Actor components (num_actions will be determined from environment)
-        HRMActorConfig(
-            in_key="hrm_reasoning",
+        ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embedding_dim),
+        ActorQueryConfig(
+            in_key="actor_hidden",
+            out_key="actor_query",
+            hidden_size=_actor_hidden,
+            embed_dim=_embedding_dim,
+        ),
+        ActorKeyConfig(
+            query_key="actor_query",
+            embedding_key="action_embedding",
             out_key="logits",
-            embed_dim=_embed_dim,
+            embed_dim=_embedding_dim,
         ),
     ]
 
