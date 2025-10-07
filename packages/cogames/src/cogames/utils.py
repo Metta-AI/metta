@@ -1,6 +1,5 @@
 """Utility functions for CoGames CLI."""
 
-from pathlib import Path
 from typing import Any, Optional
 
 import torch
@@ -13,50 +12,24 @@ from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.util.module import load_symbol
 
 
-def resolve_game(game_arg: Optional[str]) -> tuple[Optional[str], Optional[str]]:
-    """Resolve a game name from user input.
+def get_mission_config(console: Console, mission_arg: str) -> tuple[str, MettaGridConfig]:
+    """Return a resolved mission name and configuration for cli usage."""
 
-    Args:
-        game_arg: User input for game name or path to config file
-
-    Returns:
-        Tuple of (resolved_game_name, error_message)
-    """
-    if not game_arg:
-        return None, None
-
-    # Check if it's a file path
-    if any(game_arg.endswith(ext) for ext in [".yaml", ".yml", ".json", ".py"]):
-        path = Path(game_arg)
-        if not path.exists():
-            return None, f"File not found: {game_arg}"
-        if not path.is_file():
-            return None, f"Not a file: {game_arg}"
-        # Return the path as the resolved name
-        return game_arg, None
-
-    # Otherwise, treat it as a game name
-    resolved = game_module.resolve_game_name(game_arg)
-    if resolved:
-        return resolved, None
-
-    # Check for partial matches
-    all_games = game_module.get_all_games()
-    matches = [name for name in all_games if game_arg.lower() in name.lower()]
-
-    if len(matches) > 1:
-        return None, f"Ambiguous game name '{game_arg}'. Matches: {', '.join(matches)}"
+    requested_mission: Optional[str] = None
+    if ":" in mission_arg:
+        map_name, requested_mission = mission_arg.split(":")
     else:
-        return None, f"Game '{game_arg}' not found. Use 'cogames games' to list available games."
+        map_name = mission_arg
 
-
-def get_game_config(console: Console, game_arg: str) -> tuple[str, MettaGridConfig]:
-    """Return a resolved game name and configuration for cli usage."""
-    resolved_game, error = resolve_game(game_arg)
-    if error or resolved_game is None:
-        console.print(f"[red]Error: {error or 'Unknown game'}[/red]")
-        raise typer.Exit(1)
-    return resolved_game, game_module.get_game(resolved_game)
+    config, registered_map_name, mission_name = game_module.get_mission(map_name, requested_mission)
+    try:
+        full_mission_name = (
+            f"{registered_map_name}:{mission_name}" if registered_map_name and mission_name else map_name
+        )
+        return full_mission_name, config
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(1) from e
 
 
 def resolve_training_device(console: Console, requested: str) -> torch.device:
