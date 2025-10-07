@@ -140,6 +140,7 @@ class MettaGridCore:
         level_agents = np.count_nonzero(np.char.startswith(game_map.grid, "agent"))
         assert self.__mg_config.game.num_agents == level_agents, (
             f"Number of agents {self.__mg_config.game.num_agents} does not match number of agents in map {level_agents}"
+            f". This may be because your map, after removing border width, is too small to fit the number of agents."
         )
         game_config_dict = self.__mg_config.game.model_dump()
 
