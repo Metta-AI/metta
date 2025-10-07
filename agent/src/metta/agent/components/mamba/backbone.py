@@ -237,16 +237,15 @@ class MambaBackboneComponent(nn.Module):
 
     def _pool_output(self, output: torch.Tensor, tt: int) -> torch.Tensor:
         if self.pool == "cls":
-            if tt == 1:
-                return output[:, 0, :]
-            return output[:, :, 0, :]
-        if self.pool == "mean":
-            if tt == 1:
-                return output.mean(dim=1)
-            return output.mean(dim=2)
-        if tt == 1:
-            return rearrange(output, "b s d -> b (s d)")
-        return rearrange(output, "b tt s d -> b tt (s d)")
+            pooled = output[:, :, 0, :]
+        elif self.pool == "mean":
+            pooled = output.mean(dim=2)
+        else:
+            pooled = rearrange(output, "b tt s d -> b tt (s d)")
+
+        if pooled.dim() == 2:
+            pooled = pooled.unsqueeze(1)
+        return pooled
 
     # ------------------------------------------------------------------
     # Forward
