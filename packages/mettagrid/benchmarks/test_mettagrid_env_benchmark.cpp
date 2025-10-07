@@ -55,7 +55,6 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
   actions_cfg.push_back({"swap", action_cfg});
   actions_cfg.push_back({"put_items", action_cfg});
   actions_cfg.push_back({"get_items", action_cfg});
-  actions_cfg.push_back({"change_color", action_cfg});
   actions_cfg.push_back({"change_glyph", change_glyph_cfg});
 
   std::map<std::string, std::shared_ptr<GridObjectConfig>> objects_cfg;
