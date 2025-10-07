@@ -85,11 +85,10 @@ resource "aws_ses_event_destination" "cloudwatch" {
   }
 }
 
-# Reference existing Route53 hosted zone for the domain
+# Reference existing Route53 hosted zone for the parent domain
 # This zone is managed by external-dns from the EKS cluster
-# We look it up by domain name to avoid hardcoding the zone ID
 data "aws_route53_zone" "library" {
-  name         = var.domain
+  name         = "softmax-research.net"
   private_zone = false
 }
 
