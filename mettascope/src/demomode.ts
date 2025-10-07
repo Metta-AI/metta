@@ -101,8 +101,6 @@ export function doDemoMode() {
             actionName !== 'noop' &&
             !actionName.startsWith('rotate') &&
             !actionName.startsWith('move') &&
-            actionName !== 'change_color' &&
-            actionName !== 'change_shape' &&
             actionSuccess
           ) {
             agentId = i

@@ -157,12 +157,14 @@ protected:
     return delta;
   }
 
+protected:
+  Grid* _grid{};
+  std::mt19937* _rng{};
+
 private:
   std::string _action_name;
   std::map<InventoryItem, InventoryQuantity> _required_resources;
   std::map<InventoryItem, InventoryProbability> _consumed_resources;
-  Grid* _grid{};
-  std::mt19937* _rng{};
 };
 
 namespace py = pybind11;

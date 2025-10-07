@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.sim.simulation import Simulation
+from mettagrid import dtype_actions
 from mettagrid.util.grid_object_formatter import format_grid_object
 
 if TYPE_CHECKING:
@@ -172,7 +173,7 @@ def make_app(cfg: "PlayTool"):
 
         current_step = 0
         action_message = None
-        actions = np.zeros(env.num_agents, dtype=int)
+        actions = np.zeros(env.num_agents, dtype=dtype_actions)
         total_rewards = np.zeros(env.num_agents)
 
         async def send_replay_step():
@@ -231,7 +232,7 @@ def make_app(cfg: "PlayTool"):
             if current_step < sim._vecenv.driver_env.max_steps:
                 await send_message(type="message", message="Step!")
 
-                actions = np.asarray(sim.generate_actions(), dtype=np.int64)
+                actions = np.asarray(sim.generate_actions(), dtype=dtype_actions)
                 if action_message is not None:
                     agent_id = action_message["agent_id"]
                     actions[agent_id] = action_message["action_id"]
