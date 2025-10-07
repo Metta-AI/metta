@@ -86,11 +86,11 @@ class ActorKey(nn.Module):
             nn.init.uniform_(self.bias, -bound, bound)
 
     def forward(self, td: TensorDict):
-        query = td[self.query_key]  # Shape: [B*TT, embed_dim]
-        action_embeds = td[self.embedding_key]  # Shape: [B*TT, num_actions, embed_dim]
+        query = td[self.query_key]  # Shape: [..., embed_dim]
+        action_embeds = td[self.embedding_key]  # Shape: [..., num_actions, embed_dim]
 
-        # Compute scores
-        scores = torch.einsum("b e, b a e -> b a", query, action_embeds)  # Shape: [B*TT, num_actions]
+        # Compute scores across any batch shape
+        scores = torch.einsum("... e, ... a e -> ... a", query, action_embeds)
 
         # Add bias
         biased_scores = scores + self.bias  # Shape: [B*TT, num_actions]
