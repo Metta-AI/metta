@@ -76,18 +76,15 @@ class HyperSchedule:
         # If no bounds supplied, consider full [0,1] immediately
         return 1.0
 
-    def apply(self, *, obj: object, epoch: int, agent_step: int) -> None:
-        progress = self.compute_progress(epoch=epoch, agent_step=agent_step)
+    # Unified scheduler API
+    def update(self, obj: object, ctx) -> None:
+        """update method for scheduler classes must have the same signature as they are all called by Loss"""
+        epoch = getattr(ctx, "epoch", 0)
+        agent_step = getattr(ctx, "agent_step", 0)
+        progress = self.compute_progress(epoch=int(epoch), agent_step=int(agent_step))
         fn = ANNEALERS[self.style]
         new_value = fn(progress, self.start_value, self.end_value)
         _set_attr_path(obj, self.attr_path, new_value)
-
-    # Unified scheduler API
-    def update(self, obj: object, ctx) -> None:
-        """Update target attribute using values from ctx."""
-        epoch = getattr(ctx, "epoch", 0)
-        agent_step = getattr(ctx, "agent_step", 0)
-        self.apply(obj=obj, epoch=int(epoch), agent_step=int(agent_step))
 
 
 def _set_attr_path(obj: object, path: str, value: float) -> None:
@@ -172,15 +169,12 @@ class MetricSchedule:
                 return None
         return self._apply_smoothing_and_clamp(metric)
 
-    def apply(self, *, obj: object, ctx) -> None:
+    def update(self, *, obj: object, ctx) -> None:
+        """update method for scheduler classes must have the same signature as they are all called by Loss"""
         value = self.compute_value(ctx)
         if value is None:
             return
         _set_attr_path(obj, self.attr_path, value)
-
-    # Unified scheduler API
-    def update(self, obj: object, ctx) -> None:
-        self.apply(obj=obj, ctx=ctx)
 
 
 # -----------------------------------------------------------------------------
