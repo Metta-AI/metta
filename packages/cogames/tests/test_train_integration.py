@@ -93,8 +93,8 @@ def test_train_lstm_policy(test_env_config, temp_checkpoint_dir):
 @pytest.mark.timeout(180)  # 3 minute timeout
 def test_train_and_load_policy_data(test_env_config, temp_checkpoint_dir):
     """Test training a policy, then loading it for evaluation."""
+    from cogames.env import make_hierarchical_env
     from cogames.policy.simple import SimplePolicy
-    from mettagrid import MettaGridEnv
 
     # Train the policy
     train(
@@ -117,7 +117,7 @@ def test_train_and_load_policy_data(test_env_config, temp_checkpoint_dir):
     assert len(checkpoints) > 0, f"Should have at least one checkpoint in {temp_checkpoint_dir}"
 
     # Load the checkpoint into a new policy
-    env = MettaGridEnv(env_cfg=test_env_config)
+    env = make_hierarchical_env(env_cfg=test_env_config)
     policy = SimplePolicy(env, torch.device("cpu"))
     policy.load_policy_data(str(checkpoints[0]))
 
@@ -144,8 +144,8 @@ def test_train_and_load_policy_data(test_env_config, temp_checkpoint_dir):
 @pytest.mark.timeout(180)
 def test_train_lstm_and_load_policy_data(test_env_config, temp_checkpoint_dir):
     """Test training LSTM policy, then loading it for evaluation."""
+    from cogames.env import make_hierarchical_env
     from cogames.policy.lstm import LSTMPolicy
-    from mettagrid import MettaGridEnv
 
     # Train the policy
     train(
@@ -168,7 +168,7 @@ def test_train_lstm_and_load_policy_data(test_env_config, temp_checkpoint_dir):
     assert len(checkpoints) > 0, f"Should have at least one checkpoint in {temp_checkpoint_dir}"
 
     # Load the checkpoint into a new policy
-    env = MettaGridEnv(env_cfg=test_env_config)
+    env = make_hierarchical_env(env_cfg=test_env_config)
     policy = LSTMPolicy(env, torch.device("cpu"))
     policy.load_policy_data(str(checkpoints[0]))
 
