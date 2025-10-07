@@ -87,14 +87,15 @@ resource "aws_ses_event_destination" "cloudwatch" {
 
 # Reference existing Route53 hosted zone for the domain
 # This zone is managed by external-dns from the EKS cluster
-# Zone ID: Z03090461BEBKPEGZIZ63 (library.softmax-research.net)
-locals {
-  route53_zone_id = "Z03090461BEBKPEGZIZ63"
+# We look it up by domain name to avoid hardcoding the zone ID
+data "aws_route53_zone" "library" {
+  name         = var.domain
+  private_zone = false
 }
 
 # Route53 record for SES domain verification
 resource "aws_route53_record" "ses_verification" {
-  zone_id = local.route53_zone_id
+  zone_id = data.aws_route53_zone.library.zone_id
   name    = "_amazonses.${var.domain}"
   type    = "TXT"
   ttl     = 600
@@ -104,7 +105,7 @@ resource "aws_route53_record" "ses_verification" {
 # Route53 records for DKIM signing (3 records)
 resource "aws_route53_record" "ses_dkim" {
   count   = 3
-  zone_id = local.route53_zone_id
+  zone_id = data.aws_route53_zone.library.zone_id
   name    = "${aws_ses_domain_dkim.library.dkim_tokens[count.index]}._domainkey.${var.domain}"
   type    = "CNAME"
   ttl     = 600
