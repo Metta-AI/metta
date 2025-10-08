@@ -1,31 +1,34 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { createServerMutation, queryKeys } from "@/lib/hooks/useServerMutation";
 import { toggleQueueAction } from "@/posts/actions/toggleQueueAction";
 
-export function useQueuePaper() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({
-      paperId,
-      postId,
-    }: {
-      paperId: string;
-      postId?: string;
-    }) => {
-      const formData = new FormData();
-      formData.append("paperId", paperId);
-      if (postId) {
-        formData.append("postId", postId);
-      }
-      return await toggleQueueAction(formData);
-    },
-    onSuccess: () => {
-      // Invalidate relevant queries to refetch data
-      queryClient.invalidateQueries({ queryKey: ["papers"] });
-      queryClient.invalidateQueries({ queryKey: ["feed"] });
-      queryClient.invalidateQueries({ queryKey: ["user-papers"] });
-    },
-  });
+interface ToggleQueueVariables {
+  paperId: string;
+  postId?: string;
 }
+
+/**
+ * Hook for toggling paper queue status
+ *
+ * Adds or removes a paper from the user's reading queue.
+ */
+export const useQueuePaper = createServerMutation<
+  unknown,
+  ToggleQueueVariables
+>({
+  mutationFn: toggleQueueAction,
+  toFormData: ({ paperId, postId }) => {
+    const formData = new FormData();
+    formData.append("paperId", paperId);
+    if (postId) {
+      formData.append("postId", postId);
+    }
+    return formData;
+  },
+  invalidateQueries: [
+    queryKeys.papers.all,
+    queryKeys.feed.all,
+    queryKeys.user.papers,
+  ],
+});

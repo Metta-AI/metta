@@ -124,7 +124,7 @@ export function PapersView({
 
   const handleToggleStar = useCallback(
     (paperId: string) => {
-      starMutation.mutate(paperId);
+      starMutation.mutate({ paperId });
     },
     [starMutation]
   );

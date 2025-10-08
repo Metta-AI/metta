@@ -15,6 +15,7 @@ import {
   extractMentionQuery,
   MentionType,
 } from "@/lib/mentions";
+import * as mentionsApi from "@/lib/api/resources/mentions";
 
 interface MentionSuggestion {
   type: MentionType;
@@ -73,22 +74,13 @@ export const MentionInput: React.FC<MentionInputProps> = ({
     }
 
     try {
-      const params = new URLSearchParams({
+      const data = await mentionsApi.searchMentions({
         q: query,
         type,
-        limit: "8",
+        limit: 8,
+        domain,
+        institutionName,
       });
-
-      if (domain) {
-        params.set("domain", domain);
-      }
-
-      if (institutionName) {
-        params.set("institutionName", institutionName);
-      }
-
-      const response = await fetch(`/api/mentions/search?${params}`);
-      const data = await response.json();
 
       setSuggestions(data.suggestions || []);
     } catch (error) {
