@@ -1,5 +1,6 @@
 import logging
-from typing import Optional
+import sys
+from typing import Optional, TYPE_CHECKING
 
 from experiments.recipes.arena_basic_easy_shaped import (
     evaluate,
@@ -12,12 +13,14 @@ from experiments.recipes.arena_basic_easy_shaped import (
     sweep_async_progressive,
     train as base_train,
 )
-from metta.agent.components.mamba import MambaBackboneConfig
-from metta.agent.policies.mamba_sliding import MambaSlidingConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.rl.trainer_config import TorchProfilerConfig
 from metta.tools.train import TrainTool
+
+if TYPE_CHECKING:  # pragma: no cover - imports only for type checkers
+    from metta.agent.components.mamba import MambaBackboneConfig
+    from metta.agent.policies.mamba_sliding import MambaSlidingConfig
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +29,23 @@ DEFAULT_BATCH_SIZE = 131_072
 DEFAULT_MINIBATCH_SIZE = 4_096
 DEFAULT_FORWARD_PASS_MINIBATCH_TARGET_SIZE = 1_024
 DEFAULT_SSM_LAYER = "Mamba2"
+
+
+def _load_mamba_components() -> tuple["MambaBackboneConfig", "MambaSlidingConfig"]:
+    """Import Mamba components lazily so the recipe can register without CUDA deps."""
+
+    try:
+        from metta.agent.components.mamba import MambaBackboneConfig
+        from metta.agent.policies.mamba_sliding import MambaSlidingConfig
+    except ModuleNotFoundError as exc:  # noqa: PERF203 - clarity over micro-optimisation
+        if exc.name == "mamba_ssm":
+            raise RuntimeError(
+                "Mamba recipes require the `mamba-ssm` package (available on Linux with CUDA)."
+                " Install it or run on a supported platform before invoking this recipe."
+            ) from exc
+        raise
+
+    return MambaBackboneConfig, MambaSlidingConfig
 
 
 def train(
@@ -39,6 +59,8 @@ def train(
     minibatch_size: int = DEFAULT_MINIBATCH_SIZE,
     forward_pass_minibatch_target_size: int = DEFAULT_FORWARD_PASS_MINIBATCH_TARGET_SIZE,
 ) -> TrainTool:
+    MambaBackboneConfig, MambaSlidingConfig = _load_mamba_components()
+
     policy = policy_architecture or MambaSlidingConfig()
 
     if ssm_layer != "Mamba2":
@@ -79,6 +101,7 @@ def train_mamba2(
     minibatch_size: int = DEFAULT_MINIBATCH_SIZE,
     forward_pass_minibatch_target_size: int = DEFAULT_FORWARD_PASS_MINIBATCH_TARGET_SIZE,
 ) -> TrainTool:
+    _load_mamba_components()
     return train(
         curriculum=curriculum,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
@@ -117,15 +140,15 @@ def _debug_recipe_registration() -> None:
 
         recipe = recipe_registry.get("experiments.recipes.abes.mamba")
         if recipe is None:
-            logger.warning("[ABES Mamba] recipe_registry.get returned None during import")
+            print("[ABES Mamba DEBUG] registry returned None", file=sys.stderr)
             return
 
         maker_names = sorted(recipe.get_all_tool_maker_names())
-        logger.info("[ABES Mamba] registered tool makers: %s", maker_names)
+        print(f"[ABES Mamba DEBUG] makers={maker_names}", file=sys.stderr)
         train_maker = recipe.get_tool_maker("train")
-        logger.info("[ABES Mamba] train tool maker present: %s", bool(train_maker))
+        print(f"[ABES Mamba DEBUG] has_train={bool(train_maker)}", file=sys.stderr)
     except Exception as exc:  # noqa: BLE001 - debugging-only handler
-        logger.exception("[ABES Mamba] recipe registration check failed: %s", exc)
+        print(f"[ABES Mamba DEBUG] registry check failed: {exc}", file=sys.stderr)
 
 
 _debug_recipe_registration()
