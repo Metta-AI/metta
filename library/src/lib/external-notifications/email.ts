@@ -9,6 +9,7 @@ import { createTransport, Transporter } from "nodemailer";
 import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
 import { prisma } from "@/lib/db/prisma";
 import type { Notification, User, Post, Comment } from "@prisma/client";
+import { Logger } from "../logging/logger";
 
 // Extended notification type with relations
 export interface NotificationWithDetails extends Notification {
@@ -47,9 +48,7 @@ export class EmailNotificationService {
     this.isEnabled = process.env.ENABLE_EMAIL_NOTIFICATIONS !== "false";
 
     if (!this.isEnabled) {
-      console.log(
-        "📧 Email notifications are DISABLED (ENABLE_EMAIL_NOTIFICATIONS=false)"
-      );
+      Logger.info("Email notifications are DISABLED");
       return;
     }
 
@@ -69,7 +68,7 @@ export class EmailNotificationService {
           secretAccessKey: process.env.AWS_SES_SECRET_ACCESS_KEY!,
         },
       });
-      console.log("📧 Email service configured for AWS SES");
+      Logger.info("Email service configured for AWS SES");
     } else {
       // Fallback to SMTP configuration
       this.transporter = createTransport({
@@ -81,7 +80,7 @@ export class EmailNotificationService {
           pass: process.env.SMTP_PASSWORD,
         },
       });
-      console.log("📧 Email service configured for SMTP");
+      Logger.info("Email service configured for SMTP");
     }
   }
 
@@ -94,14 +93,16 @@ export class EmailNotificationService {
   ): Promise<boolean> {
     try {
       if (!this.isEnabled) {
-        console.log(
-          `📧 Email notifications are disabled, skipping notification ${notification.id}`
-        );
+        Logger.debug("Email notifications disabled, skipping", {
+          notificationId: notification.id,
+        });
         return false;
       }
 
       if (!notification.user.email) {
-        console.warn(`No email address for user ${notification.userId}`);
+        Logger.warn("No email address for user", {
+          userId: notification.userId,
+        });
         return false;
       }
 
@@ -145,7 +146,11 @@ export class EmailNotificationService {
         );
       }
 
-      console.log(`📧 Email sent to ${notification.user.email}: ${messageId}`);
+      Logger.info("Email sent successfully", {
+        recipient: notification.user.email,
+        messageId,
+        notificationId: notification.id,
+      });
 
       // Mark as delivered
       await this.updateDeliveryStatus(currentDeliveryId, "sent", {
@@ -154,7 +159,11 @@ export class EmailNotificationService {
 
       return true;
     } catch (error) {
-      console.error("Email notification failed:", error);
+      Logger.error(
+        "Email notification failed",
+        error instanceof Error ? error : new Error(String(error)),
+        { notificationId: notification.id, userId: notification.userId }
+      );
 
       if (deliveryId) {
         await this.updateDeliveryStatus(deliveryId, "failed", {
@@ -693,7 +702,7 @@ Manage your preferences: ${this.baseUrl}/settings/notifications
         }
 
         // Simple test - if we can create the client and it doesn't throw, it's likely configured
-        console.log("✅ AWS SES configuration appears valid");
+        Logger.info("✅ AWS SES configuration appears valid");
         return true;
       } else {
         // For SMTP, use the existing nodemailer verify
@@ -702,11 +711,11 @@ Manage your preferences: ${this.baseUrl}/settings/notifications
         }
 
         await this.transporter.verify();
-        console.log("✅ SMTP configuration is valid");
+        Logger.info("✅ SMTP configuration is valid");
         return true;
       }
     } catch (error) {
-      console.error("❌ Email configuration error:", error);
+      Logger.error("❌ Email configuration error:", error);
       return false;
     }
   }

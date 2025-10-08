@@ -7,6 +7,7 @@
 import { Worker, Job } from "bullmq";
 import { redisConfig, BackgroundJobs } from "../job-queue";
 import { processArxivInstitutionsAsync } from "../arxiv-auto-import";
+import { Logger } from "../logging/logger";
 
 export class InstitutionWorker {
   private worker: Worker;
@@ -35,34 +36,37 @@ export class InstitutionWorker {
   ): Promise<void> {
     const { paperId, arxivUrl } = job.data;
 
-    console.log(`🏛️ [Institution Worker] Processing paper ${paperId}`);
-    console.log(`   arXiv URL: ${arxivUrl}`);
+    Logger.info("Institution Worker: Processing paper", { paperId, arxivUrl });
 
     try {
       await processArxivInstitutionsAsync(paperId, arxivUrl);
-      console.log(`✅ [Institution Worker] Completed paper ${paperId}`);
+      Logger.info("Institution Worker: Completed paper", { paperId });
     } catch (error) {
-      console.error(`❌ [Institution Worker] Failed paper ${paperId}:`, error);
+      Logger.error(
+        "Institution Worker: Failed to process paper",
+        error instanceof Error ? error : new Error(String(error)),
+        { paperId, arxivUrl }
+      );
       throw error; // BullMQ will handle retries
     }
   }
 
   private setupEventHandlers(): void {
     this.worker.on("completed", (job) => {
-      console.log(`✅ Institution job ${job.id} completed successfully`);
+      Logger.debug("Institution job completed", { jobId: job.id });
     });
 
     this.worker.on("failed", (job, err) => {
-      console.error(`❌ Institution job ${job?.id} failed:`, err.message);
+      Logger.error("Institution job failed", err, { jobId: job?.id });
     });
 
     this.worker.on("error", (err) => {
-      console.error("🚨 Institution worker error:", err);
+      Logger.error("Institution worker error", err);
     });
   }
 
   async shutdown(): Promise<void> {
-    console.log("🛑 Shutting down institution worker...");
+    Logger.info("Shutting down institution worker");
     await this.worker.close();
   }
 }
@@ -70,6 +74,6 @@ export class InstitutionWorker {
 // Export for standalone usage
 export async function startInstitutionWorker(): Promise<InstitutionWorker> {
   const worker = new InstitutionWorker();
-  console.log("🚀 Institution worker started");
+  Logger.info("Institution worker started");
   return worker;
 }
