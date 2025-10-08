@@ -65,7 +65,6 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
         beta2=0.999,
         eps=3.186531e-07,
         weight_decay=0.01,
-        warmup_steps=1000,
     )
 
     trainer_config = TrainerConfig(
