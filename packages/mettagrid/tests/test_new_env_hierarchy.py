@@ -7,6 +7,7 @@ works correctly while being compatible with the existing test framework.
 
 import numpy as np
 
+from mettagrid import dtype_actions
 from mettagrid.builder.envs import make_arena
 from mettagrid.config.mettagrid_config import (
     ActionConfig,
@@ -93,7 +94,7 @@ class TestNewEnvironmentHierarchy:
         assert obs is not None
 
         # Test step
-        action = np.array([0, 0], dtype=np.int32)
+        action = np.array(0, dtype=dtype_actions)
         obs, reward, terminated, truncated, info = env.step(action)
 
         assert obs is not None
@@ -180,7 +181,7 @@ class TestNewEnvironmentHierarchy:
         assert len(observations) > 0
 
         # Test step
-        actions = {agent: np.array([0, 0], dtype=np.int32) for agent in env.agents}
+        actions = {agent: np.array(0, dtype=dtype_actions) for agent in env.agents}
         observations, rewards, terminations, truncations, infos = env.step(actions)
 
         assert isinstance(observations, dict)

@@ -1,13 +1,12 @@
 import logging
 from typing import Dict, Optional
 
-import numpy as np
 import torch
 import torch.nn as nn
 
 import pufferlib.pytorch
 from cogames.policy.policy import AgentPolicy, TrainablePolicy
-from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation
+from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation, dtype_actions
 
 logger = logging.getLogger("cogames.policies.token_policy")
 
@@ -49,9 +48,9 @@ class TokenPolicyNet(torch.nn.Module):
             nn.ReLU(),
         )
 
-        self.action_nvec = tuple(env.single_action_space.nvec)
+        self.num_actions = int(env.single_action_space.n)
 
-        self.action_head = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, sum(self.action_nvec)))
+        self.action_head = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, self.num_actions))
         self.value_head = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 1))
 
     def _flatten_tokens(self, observations: torch.Tensor) -> torch.Tensor:
@@ -98,29 +97,28 @@ class TokenPolicyNet(torch.nn.Module):
         self,
         observations: torch.Tensor,
         state: Optional[Dict[str, torch.Tensor]] = None,
-    ) -> tuple[list[torch.Tensor], torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         features = self._encode_tokens(observations)
         hidden = self.post_mlp(features)
         logits = self.action_head(hidden)
-        logits_split = logits.split(self.action_nvec, dim=1)
         values = self.value_head(hidden)
-        return list(logits_split), values
+        return logits, values
 
     def forward(
         self,
         observations: torch.Tensor,
         state: Optional[Dict[str, torch.Tensor]] = None,
-    ) -> tuple[list[torch.Tensor], torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         return self.forward_eval(observations, state)
 
 
 class TokenAgentPolicyImpl(AgentPolicy):
     """Per-agent policy utilising the shared token encoder network."""
 
-    def __init__(self, net: TokenPolicyNet, device: torch.device, action_nvec: tuple[int, ...]):
+    def __init__(self, net: TokenPolicyNet, device: torch.device, num_actions: int):
         self._net = net
         self._device = device
-        self._action_nvec = action_nvec
+        self._num_actions = num_actions
 
     def step(self, obs: MettaGridObservation) -> MettaGridAction:
         obs_tensor = torch.tensor(obs, device=self._device).unsqueeze(0).float()
@@ -128,13 +126,9 @@ class TokenAgentPolicyImpl(AgentPolicy):
         with torch.no_grad():
             self._net.eval()
             logits, _ = self._net.forward_eval(obs_tensor)
-
-            actions: list[int] = []
-            for logit in logits:
-                dist = torch.distributions.Categorical(logits=logit)
-                actions.append(dist.sample().item())
-
-            return np.array(actions, dtype=np.int32)
+            dist = torch.distributions.Categorical(logits=logits)
+            action = dist.sample().item()
+            return dtype_actions.type(action)
 
 
 class TokenPolicy(TrainablePolicy):
@@ -144,13 +138,13 @@ class TokenPolicy(TrainablePolicy):
         super().__init__()
         self._net = TokenPolicyNet(env).to(device)
         self._device = device
-        self._action_nvec = tuple(env.single_action_space.nvec)
+        self._num_actions = int(env.single_action_space.n)
 
     def network(self) -> nn.Module:
         return self._net
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
-        return TokenAgentPolicyImpl(self._net, self._device, self._action_nvec)
+        return TokenAgentPolicyImpl(self._net, self._device, self._num_actions)
 
     def load_policy_data(self, checkpoint_path: str) -> None:
         state_dict = torch.load(checkpoint_path, map_location=self._device)

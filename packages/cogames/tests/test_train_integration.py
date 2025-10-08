@@ -138,7 +138,7 @@ def test_train_and_load_policy_data(test_env_config, temp_checkpoint_dir):
         agent_policy = policy.agent_policy(int(agent_id))
         action = agent_policy.step(agent_obs)
         assert action is not None
-        assert len(action) == len(env.single_action_space.nvec)
+        assert np.isscalar(action)
 
 
 @pytest.mark.timeout(180)
@@ -188,4 +188,4 @@ def test_train_lstm_and_load_policy_data(test_env_config, temp_checkpoint_dir):
         agent_policy = policy.agent_policy(int(agent_id))
         action = agent_policy.step(agent_obs)
         assert action is not None
-        assert len(action) == len(env.single_action_space.nvec)
+        assert np.isscalar(action)
