@@ -16,7 +16,6 @@ import pytest
 
 from mettagrid import MettaGridEnv
 from mettagrid.mettagrid_c import (
-    dtype_actions,
     dtype_observations,
     dtype_rewards,
     dtype_terminals,
@@ -114,7 +113,7 @@ class TestBufferSharingRegression:
         test_rewards = np.zeros(2, dtype=dtype_rewards)
         test_terminals = np.zeros(2, dtype=dtype_terminals)
         test_truncations = np.zeros(2, dtype=dtype_truncations)
-        test_actions = np.zeros((2, 2), dtype=dtype_actions)
+        test_actions = np.zeros(2, dtype=np.int32)
 
         # Verify dtypes match PufferLib expectations
         assert test_obs.dtype == np.uint8, f"Observations dtype mismatch: {test_obs.dtype}"

@@ -226,8 +226,8 @@ def run_interactive_loop(
                                 glyph_id = results[0][0]
 
                         if glyph_id is not None and 0 <= glyph_id < len(GLYPH_DATA):
-                            change_glyph_idx = env.action_names.index("change_glyph")
-                            manual_action = (change_glyph_idx, glyph_id)
+                            action_name = f"change_glyph_{glyph_id}"
+                            manual_action = env.action_names.index(action_name)
                             should_step = True
 
                         mode = "follow"  # Exit glyph picker
@@ -381,7 +381,7 @@ def run_interactive_loop(
                 elif ch in ["r", "R"] and selected_agent is not None:
                     # Get noop action ID from environment
                     noop_action_id = env.action_names.index("noop") if "noop" in env.action_names else 0
-                    manual_action = (noop_action_id, 0)  # REST/NOOP with arg=0
+                    manual_action = noop_action_id  # REST/NOOP as a single discrete action
                     should_step = True
 
             # Step simulation if manual action or auto-play is active
