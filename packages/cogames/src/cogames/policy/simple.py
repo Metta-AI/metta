@@ -6,7 +6,7 @@ import torch.nn as nn
 
 import pufferlib.pytorch
 from cogames.policy.policy import AgentPolicy, TrainablePolicy
-from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation, dtype_actions
+from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation
 
 logger = logging.getLogger("cogames.policies.simple_policy")
 
@@ -59,8 +59,7 @@ class SimpleAgentPolicyImpl(AgentPolicy):
             self._net.eval()
             logits, _ = self._net.forward_eval(obs_tensor)
             dist = torch.distributions.Categorical(logits=logits)
-            sampled_action = dist.sample().cpu().item()
-            return np.asarray(sampled_action, dtype=dtype_actions)
+            return np.int32(dist.sample().cpu().item())
 
 
 class SimplePolicy(TrainablePolicy):

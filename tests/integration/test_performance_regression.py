@@ -121,7 +121,7 @@ class TestBufferSharingRegression:
         assert test_rewards.dtype == np.float32, f"Rewards dtype mismatch: {test_rewards.dtype}"
         assert test_terminals.dtype == bool, f"Terminals dtype mismatch: {test_terminals.dtype}"
         assert test_truncations.dtype == bool, f"Truncations dtype mismatch: {test_truncations.dtype}"
-        assert test_actions.dtype == dtype_actions, f"Actions dtype mismatch: {test_actions.dtype}"
+        assert test_actions.dtype == np.int32, f"Actions dtype mismatch: {test_actions.dtype}"
 
         print("✅ Buffer dtypes compatible with PufferLib requirements")
 

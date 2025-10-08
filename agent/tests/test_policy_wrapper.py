@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import numpy as np
 import torch
 from torch import nn
 
 from metta.agent.policy import ExternalPolicyWrapper
 from metta.rl.training import EnvironmentMetaData
-from mettagrid import dtype_actions
 
 
 class _DummyPolicy(nn.Module):
@@ -27,7 +27,7 @@ def _make_env_metadata() -> EnvironmentMetaData:
         action_names=["noop"],
         num_agents=1,
         observation_space=SimpleNamespace(),
-        action_space=SimpleNamespace(n=1, dtype=dtype_actions),
+        action_space=SimpleNamespace(n=1, dtype=np.int32),
         feature_normalizations={0: 1.0},
     )
 

@@ -5,7 +5,7 @@ from typing import Any, Optional
 import numpy as np
 
 from cogames.policy.policy import AgentPolicy, Policy
-from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation, dtype_actions
+from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation
 
 
 class RandomAgentPolicy(AgentPolicy):
@@ -24,7 +24,7 @@ class RandomAgentPolicy(AgentPolicy):
             A random action sampled from the action space
         """
         sample = self._action_space.sample()
-        return np.asarray(sample, dtype=dtype_actions)
+        return np.int32(sample)
 
 
 class RandomPolicy(Policy):

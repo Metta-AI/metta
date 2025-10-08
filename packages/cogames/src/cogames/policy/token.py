@@ -7,7 +7,7 @@ import torch.nn as nn
 
 import pufferlib.pytorch
 from cogames.policy.policy import AgentPolicy, TrainablePolicy
-from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation, dtype_actions
+from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation
 
 logger = logging.getLogger("cogames.policies.token_policy")
 
@@ -129,7 +129,7 @@ class TokenAgentPolicyImpl(AgentPolicy):
             logits, _ = self._net.forward_eval(obs_tensor)
             dist = torch.distributions.Categorical(logits=logits)
             action = dist.sample().item()
-            return np.asarray(action, dtype=dtype_actions)
+            return np.array(action, dtype=np.int32)
 
 
 class TokenPolicy(TrainablePolicy):
