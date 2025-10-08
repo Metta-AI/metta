@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
-import { ActionError } from "@/lib/actionClient";
+import { ConflictError } from "@/lib/errors";
 
 /**
  * Validates that a name doesn't conflict with existing identifiers across the system
@@ -115,7 +115,7 @@ export async function validateAuthorUsername(
   );
 
   if (!result.isValid) {
-    throw new ActionError(result.message);
+    throw new ConflictError(result.message || "Name already in use");
   }
 }
 
@@ -133,7 +133,7 @@ export async function validateInstitutionName(
   );
 
   if (!result.isValid) {
-    throw new ActionError(result.message);
+    throw new ConflictError(result.message || "Name already in use");
   }
 }
 
@@ -147,6 +147,6 @@ export async function validateGroupName(
   const result = await validateNameUniqueness(name, "group", excludeGroupId);
 
   if (!result.isValid) {
-    throw new ActionError(result.message);
+    throw new ConflictError(result.message || "Name already in use");
   }
 }

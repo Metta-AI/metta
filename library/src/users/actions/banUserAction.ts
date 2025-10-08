@@ -4,9 +4,10 @@ import { revalidatePath } from "next/cache";
 import { zfd } from "zod-form-data";
 import { z } from "zod/v4";
 
-import { actionClient, ActionError } from "@/lib/actionClient";
+import { actionClient } from "@/lib/actionClient";
 import { getAdminSessionOrRedirect } from "@/lib/adminAuth";
 import { prisma } from "@/lib/db/prisma";
+import { NotFoundError, ConflictError, AuthorizationError } from "@/lib/errors";
 
 const inputSchema = zfd.formData({
   userEmail: zfd.text(z.string().email()),
@@ -31,19 +32,19 @@ export const banUserAction = actionClient
     });
 
     if (!targetUser) {
-      throw new ActionError("User not found");
+      throw new NotFoundError("User", input.userEmail);
     }
 
     if (targetUser.isBanned) {
-      throw new ActionError("User is already banned");
+      throw new ConflictError("User is already banned");
     }
 
     // Prevent admins from banning themselves
     if (!session.user || targetUser.id === session.user.id) {
       if (!session.user) {
-        throw new ActionError("Session unavailable");
+        throw new AuthorizationError("Session unavailable");
       }
-      throw new ActionError("You cannot ban yourself");
+      throw new AuthorizationError("You cannot ban yourself");
     }
 
     // Ban the user
