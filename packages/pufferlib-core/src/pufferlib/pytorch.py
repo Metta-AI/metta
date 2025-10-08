@@ -198,11 +198,8 @@ def sample_logits(logits, action=None):
         return action, log_probs, logits_entropy
     elif is_discrete:
         logits = logits.unsqueeze(0)
-    # TODO: Double check this
-    else:  # multi-discrete
-        logits = torch.nn.utils.rnn.pad_sequence(
-            [l.transpose(0, 1) for l in logits], batch_first=False, padding_value=-torch.inf
-        ).permute(1, 2, 0)
+    else:
+        raise TypeError("Expected tensor logits for discrete actions or Normal distribution for continuous actions")
 
     # This can fail on nans etc
     normalized_logits = logits - logits.logsumexp(dim=-1, keepdim=True)

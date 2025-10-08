@@ -22,13 +22,6 @@ def emulate(struct, sample):
 
 def make_buffer(arr_dtype, struct_dtype, struct, n=None):
     """None instead of 1 makes it work for 1 agent PZ envs"""
-    """
-    if n is None:
-        struct = np.zeros(1, dtype=struct_dtype)
-    else:
-        struct = np.zeros(n, dtype=struct_dtype)
-    """
-
     arr = struct.view(arr_dtype)
 
     if n is None:
@@ -42,12 +35,11 @@ def make_buffer(arr_dtype, struct_dtype, struct, n=None):
 def _nativize(struct, space):
     if isinstance(space, Discrete):
         return struct.item()
-    elif isinstance(space, Tuple):
+    if isinstance(space, Tuple):
         return tuple(_nativize(struct[f"f{i}"], elem) for i, elem in enumerate(space))
-    elif isinstance(space, Dict):
+    if isinstance(space, Dict):
         return {k: _nativize(struct[k], value) for k, value in space.items()}
-    else:
-        return struct
+    return struct
 
 
 def nativize(arr, space, struct_dtype):
@@ -55,27 +47,59 @@ def nativize(arr, space, struct_dtype):
     return _nativize(struct, space)
 
 
-# TODO: Uncomment?
-"""
-try:
-    from pufferlib.extensions import emulate, nativize
-except ImportError:
-    warnings.warn('PufferLib Cython extensions not installed. Using slow Python versions')
-"""
+class FlattenedDiscreteAdapter:
+    def __init__(self, space, nvec, struct_dtype):
+        self.original_space = space
+        self._nvec = np.asarray(nvec, dtype=np.int64)
+        if self._nvec.size == 0:
+            raise ValueError("FlattenedDiscreteAdapter requires at least one dimension")
+        self.struct_dtype = struct_dtype
+        self._flat_space = gymnasium.spaces.Discrete(int(np.prod(self._nvec, dtype=np.int64)))
+        self._vector_dtype = np.int32
+
+    @property
+    def flattened_space(self):
+        return self._flat_space
+
+    @property
+    def metadata(self):
+        return {"type": "flattened_discrete", "nvec": self._nvec.tolist()}
+
+    def to_flat(self, action):
+        vector = self.to_vector(action)
+        flat = np.ravel_multi_index(vector.astype(np.int64), self._nvec.tolist(), order="C")
+        return int(flat)
+
+    def to_vector(self, action):
+        arr = np.asarray(action)
+        if arr.shape == (len(self._nvec),):
+            vector = arr.reshape(-1).astype(self._vector_dtype, copy=False)
+        else:
+            if arr.size != 1:
+                raise ValueError("Expected scalar action compatible with flattened discrete space")
+            idx = int(arr.reshape(-1)[0])
+            if idx < 0 or idx >= self._flat_space.n:
+                raise ValueError("Flattened action index out of bounds")
+            vector = np.array(np.unravel_index(idx, self._nvec.tolist(), order="C"), dtype=self._vector_dtype)
+
+        if np.any(vector < 0) or np.any(vector >= self._nvec):
+            raise ValueError("Discrete components out of bounds")
+        return vector
+
+    def to_native(self, action):
+        return self.to_vector(action)
 
 
 def get_dtype_bounds(dtype):
-    if dtype == bool:
+    if np.issubdtype(dtype, np.bool_):
         return 0, 1
-    elif np.issubdtype(dtype, np.integer):
-        return np.iinfo(dtype).min, np.iinfo(dtype).max
-    elif np.issubdtype(dtype, np.unsignedinteger):
-        return np.iinfo(dtype).min, np.iinfo(dtype).max
-    elif np.issubdtype(dtype, np.floating):
+    if np.issubdtype(dtype, np.integer):
+        info = np.iinfo(dtype)
+        return info.min, info.max
+    if np.issubdtype(dtype, np.floating):
         # Gym fails on float64
         return np.finfo(np.float32).min, np.finfo(np.float32).max
-    else:
-        raise ValueError(f"Unsupported dtype: {dtype}")
+    raise ValueError(f"Unsupported dtype: {dtype}")
 
 
 def dtype_from_space(space):
@@ -89,8 +113,6 @@ def dtype_from_space(space):
             dtype.append((k, dtype_from_space(value)))
     elif isinstance(space, (pufferlib.spaces.Discrete)):
         dtype = (np.int32, ())
-    elif isinstance(space, (pufferlib.spaces.MultiDiscrete)):
-        dtype = (np.int32, (len(space.nvec),))
     else:
         dtype = (space.dtype, space.shape)
 
@@ -133,14 +155,24 @@ def emulate_observation_space(space):
 
 def emulate_action_space(space):
     if isinstance(space, pufferlib.spaces.Box):
-        return space, space.dtype
-    elif isinstance(space, (pufferlib.spaces.Discrete, pufferlib.spaces.MultiDiscrete)):
-        return space, np.int32
+        return space, None, None
+    if isinstance(space, pufferlib.spaces.Discrete):
+        return space, None, None
+
+    if hasattr(space, "nvec"):
+        struct_dtype = np.dtype((np.int32, (len(space.nvec),)))
+        adapter = FlattenedDiscreteAdapter(space, list(space.nvec), struct_dtype)
+        return adapter.flattened_space, struct_dtype, adapter
 
     emulated_dtype = dtype_from_space(space)
     leaves = flatten_space(space)
-    emulated_space = gymnasium.spaces.MultiDiscrete([e.n for e in leaves])
-    return emulated_space, emulated_dtype
+    try:
+        nvec = [int(e.n) for e in leaves]
+    except AttributeError as exc:
+        raise ValueError(f"Unsupported action space: {space}") from exc
+
+    adapter = FlattenedDiscreteAdapter(space, nvec, emulated_dtype)
+    return adapter.flattened_space, emulated_dtype, adapter
 
 
 class GymnasiumPufferEnv(gymnasium.Env):
@@ -154,16 +186,19 @@ class GymnasiumPufferEnv(gymnasium.Env):
         self.is_action_checked = False
 
         self.observation_space, self.obs_dtype = emulate_observation_space(self.env.observation_space)
-        self.action_space, self.atn_dtype = emulate_action_space(self.env.action_space)
+        self.action_space, self.atn_struct_dtype, self.action_adapter = emulate_action_space(self.env.action_space)
         self.single_observation_space = self.observation_space
         self.single_action_space = self.action_space
         self.num_agents = 1
 
         self.is_obs_emulated = self.single_observation_space is not self.env.observation_space
-        self.is_atn_emulated = self.single_action_space is not self.env.action_space
+        self.is_atn_emulated = (self.single_action_space is not self.env.action_space) or (
+            self.action_adapter is not None
+        )
         self.emulated = dict(
             observation_dtype=self.observation_space.dtype,
             emulated_observation_dtype=self.obs_dtype,
+            action_adapter=self.action_adapter.metadata if self.action_adapter else None,
         )
 
         self.render_modes = "human rgb_array".split()
@@ -210,11 +245,19 @@ class GymnasiumPufferEnv(gymnasium.Env):
 
         # Unpack actions from multidiscrete into the original action space
         if self.is_atn_emulated:
-            action = nativize(action, self.env.action_space, self.atn_dtype)
-        elif isinstance(action, np.ndarray):
+            if self.action_adapter is not None:
+                action_vector = self.action_adapter.to_native(action)
+                if self.atn_struct_dtype is not None:
+                    action = nativize(action_vector, self.env.action_space, self.atn_struct_dtype)
+                else:
+                    action = action_vector
+            elif self.atn_struct_dtype is not None:
+                action = nativize(action, self.env.action_space, self.atn_struct_dtype)
+
+        if isinstance(action, np.ndarray):
             action = action.ravel()
             # TODO: profile or speed up
-            if isinstance(self.action_space, pufferlib.spaces.Discrete):
+            if isinstance(self.env.action_space, pufferlib.spaces.Discrete):
                 action = action[0]
 
         if not self.is_action_checked:
@@ -256,12 +299,17 @@ class PettingZooPufferEnv:
         self.env_single_observation_space = self.env.observation_space(single_agent)
         self.env_single_action_space = self.env.action_space(single_agent)
         self.single_observation_space, self.obs_dtype = emulate_observation_space(self.env_single_observation_space)
-        self.single_action_space, self.atn_dtype = emulate_action_space(self.env_single_action_space)
+        self.single_action_space, self.atn_struct_dtype, self.action_adapter = emulate_action_space(
+            self.env_single_action_space
+        )
         self.is_obs_emulated = self.single_observation_space is not self.env_single_observation_space
-        self.is_atn_emulated = self.single_action_space is not self.env_single_action_space
+        self.is_atn_emulated = (self.single_action_space is not self.env_single_action_space) or (
+            self.action_adapter is not None
+        )
         self.emulated = dict(
             observation_dtype=self.single_observation_space.dtype,
             emulated_observation_dtype=self.obs_dtype,
+            action_adapter=self.action_adapter.metadata if self.action_adapter else None,
         )
 
         self.num_agents = len(self.possible_agents)
@@ -368,7 +416,14 @@ class PettingZooPufferEnv:
                 continue
 
             if self.is_atn_emulated:
-                atn = nativize(atn, self.env_single_action_space, self.atn_dtype)
+                if self.action_adapter is not None:
+                    action_vector = self.action_adapter.to_native(atn)
+                    if self.atn_struct_dtype is not None:
+                        atn = nativize(action_vector, self.env_single_action_space, self.atn_struct_dtype)
+                    else:
+                        atn = action_vector
+                elif self.atn_struct_dtype is not None:
+                    atn = nativize(atn, self.env_single_action_space, self.atn_struct_dtype)
 
             unpacked_actions[agent] = atn
 

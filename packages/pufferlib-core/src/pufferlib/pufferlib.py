@@ -56,12 +56,10 @@ class PufferEnv:
             raise APIUsageError("PufferEnvs must define single_action_space, not action_space")
         if not isinstance(self.single_observation_space, pufferlib.spaces.Box):
             raise APIUsageError("Native observation_space must be a Box")
-        if (
-            not isinstance(self.single_action_space, pufferlib.spaces.Discrete)
-            and not isinstance(self.single_action_space, pufferlib.spaces.MultiDiscrete)
-            and not isinstance(self.single_action_space, pufferlib.spaces.Box)
+        if not isinstance(self.single_action_space, pufferlib.spaces.Discrete) and not isinstance(
+            self.single_action_space, pufferlib.spaces.Box
         ):
-            raise APIUsageError("Native action_space must be a Discrete, MultiDiscrete, or Box")
+            raise APIUsageError("Native action_space must be a Discrete or Box")
 
         set_buffers(self, buf)
 
