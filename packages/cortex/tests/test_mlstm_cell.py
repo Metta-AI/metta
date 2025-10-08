@@ -916,7 +916,7 @@ def test_mlstm_sequence_vs_step_with_resets_conv_multichunk_strict() -> None:
     cfg = mLSTMCellConfig(
         hidden_size=H,
         num_heads=num_heads,
-        chunk_size=16,         # force multi-chunk processing in sequence mode
+        chunk_size=16,  # force multi-chunk processing in sequence mode
         conv1d_kernel_size=4,  # conv has memory across time
     )
 

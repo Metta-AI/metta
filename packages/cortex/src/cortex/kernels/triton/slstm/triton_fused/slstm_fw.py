@@ -351,22 +351,14 @@ def _forward_sequence_kernel(
             matM_t_tile = matM_t_tile * reset_keep[:, None]
 
             # Gate preactivations for tile (accumulate in fp32 for stability)
-            ibar_f32 = (matIx_tile.to(tl.float32)
-                        + matRh_i_tile.to(tl.float32)
-                        + vecBi_tile[None, :].to(tl.float32))
-            fbar_f32 = (matFx_tile.to(tl.float32)
-                        + matRh_f_tile.to(tl.float32)
-                        + vecBf_tile[None, :].to(tl.float32))
-            zbar_f32 = (matZx_tile.to(tl.float32)
-                        + matRh_z_tile.to(tl.float32)
-                        + vecBz_tile[None, :].to(tl.float32))
-            obar_f32 = (matOx_tile.to(tl.float32)
-                        + matRh_o_tile.to(tl.float32)
-                        + vecBo_tile[None, :].to(tl.float32))
+            ibar_f32 = matIx_tile.to(tl.float32) + matRh_i_tile.to(tl.float32) + vecBi_tile[None, :].to(tl.float32)
+            fbar_f32 = matFx_tile.to(tl.float32) + matRh_f_tile.to(tl.float32) + vecBf_tile[None, :].to(tl.float32)
+            zbar_f32 = matZx_tile.to(tl.float32) + matRh_z_tile.to(tl.float32) + vecBz_tile[None, :].to(tl.float32)
+            obar_f32 = matOx_tile.to(tl.float32) + matRh_o_tile.to(tl.float32) + vecBo_tile[None, :].to(tl.float32)
 
             # Pointwise ops in fp32: log-sigmoid, exp, sigmoid, tanh
             logfplusm_f32 = matM_t_tile.to(tl.float32) + tl.log(tl.sigmoid(fbar_f32))
-            is_first_elem = (matN_t_tile == 0.0)
+            is_first_elem = matN_t_tile == 0.0
             m_next_f32 = tl.where(is_first_elem, ibar_f32, tl.maximum(ibar_f32, logfplusm_f32))
 
             i_f32 = tl.minimum(tl.exp(ibar_f32 - m_next_f32), 1.0)
@@ -381,8 +373,6 @@ def _forward_sequence_kernel(
 
             # Cast back for storage
             matM_next_tile = m_next_f32.to(DTYPE)
-            matI_tile = i_f32.to(DTYPE)
-            matF_tile = f_f32.to(DTYPE)
             matC_next_tile = c_next_f32.to(DTYPE)
             matN_next_tile = n_next_f32.to(DTYPE)
             matH_next_tile = h_next_f32.to(DTYPE)
