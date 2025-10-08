@@ -227,30 +227,32 @@ def attack(env: MettaGrid, target_arg: int = 0, agent_idx: int = 0) -> dict[str,
 
     action_names = env.action_names()
 
-    attack_variants = [name for name in action_names if name.startswith("attack_")]
-    fallback_attack = None
-    if "attack" in action_names:
-        fallback_attack = "attack"
-    elif "attack_nearest" in action_names:
-        fallback_attack = "attack_nearest"
+    attack_variants = sorted(
+        (
+            name
+            for name in action_names
+            if name.startswith("attack_") and name.removeprefix("attack_").isdigit()
+        ),
+        key=lambda n: int(n.split("_", maxsplit=1)[1]),
+    )
 
+    attack_name: Optional[str] = None
     selected_arg: Optional[int] = None
+
     if attack_variants:
         candidate_arg = max(0, min(target_arg, len(attack_variants) - 1))
-        attack_name = f"attack_{candidate_arg}"
-        if attack_name in action_names:
-            attack_idx = action_names.index(attack_name)
-            selected_arg = candidate_arg
-        elif fallback_attack is not None:
-            attack_idx = action_names.index(fallback_attack)
-        else:
-            result["error"] = f"Attack variant {attack_name} not available"
-            return result
-    else:
-        if fallback_attack is None:
-            result["error"] = "Attack action not available"
-            return result
-        attack_idx = action_names.index(fallback_attack)
+        attack_name = attack_variants[candidate_arg]
+        selected_arg = candidate_arg
+    elif "attack" in action_names:
+        attack_name = "attack"
+    elif "attack_nearest" in action_names:
+        attack_name = "attack_nearest"
+
+    if attack_name is None:
+        result["error"] = "Attack action not available"
+        return result
+
+    attack_idx = action_names.index(attack_name)
 
     # Get initial state for comparison
     objects_before = env.grid_objects()
