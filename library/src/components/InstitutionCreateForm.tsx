@@ -6,6 +6,7 @@ import { X, Building2 } from "lucide-react";
 
 import { useFormWithMutation } from "@/lib/hooks/useFormWithMutation";
 import { useCreateInstitution } from "@/hooks/mutations/admin";
+import { ErrorAlert } from "@/components/ui/error-alert";
 import {
   Form,
   FormControl,
@@ -252,9 +253,7 @@ export const InstitutionCreateForm: FC<InstitutionCreateFormProps> = ({
             />
 
             {submitError && (
-              <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">
-                {submitError}
-              </div>
+              <ErrorAlert message={submitError} className="mb-4" />
             )}
 
             <div className="flex justify-end gap-3 pt-4">
