@@ -7,7 +7,8 @@ import {
   UserInteraction,
 } from "@/posts/data/papers";
 import { useOverlayNavigation } from "./OverlayStack";
-import { loadAuthorClient, AuthorDTO } from "@/posts/data/authors-client";
+import * as authorsApi from "@/lib/api/resources/authors";
+import type { AuthorDetail } from "@/lib/api/resources/authors";
 import { StarWidgetQuery } from "./StarWidgetQuery";
 import { BaseOverlay } from "@/components/overlays/BaseOverlay";
 
@@ -75,7 +76,7 @@ export default function NavigablePaperOverlay({
   const handleAuthorClick = async (authorId: string, authorName: string) => {
     try {
       // Try to load full author data by ID first
-      let fullAuthor = await loadAuthorClient(authorId);
+      let fullAuthor = await authorsApi.getAuthor(authorId);
 
       // If that fails, try searching by name via the authors API
       if (!fullAuthor) {
@@ -99,7 +100,7 @@ export default function NavigablePaperOverlay({
         openAuthor(fullAuthor);
       } else {
         // Fallback: create a minimal author object if all loading attempts fail
-        const fallbackAuthor: AuthorDTO = {
+        const fallbackAuthor: AuthorDetail = {
           id: authorId,
           name: authorName,
           username: null,
