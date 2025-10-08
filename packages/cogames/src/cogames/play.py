@@ -10,7 +10,7 @@ from typing_extensions import TYPE_CHECKING
 
 from cogames.cogs_vs_clips.glyphs import GLYPHS
 from cogames.utils import initialize_or_load_policy
-from mettagrid import MettaGridConfig, MettaGridEnv
+from mettagrid import MettaGridConfig, MettaGridEnv, dtype_actions
 from mettagrid.util.grid_object_formatter import format_grid_object
 
 if TYPE_CHECKING:
@@ -86,7 +86,7 @@ def play(
                 7: "move_southeast",
             }
 
-            actions = np.full(env.num_agents, noop_action_id, dtype=np.int32)
+            actions = np.full(env.num_agents, noop_action_id, dtype=dtype_actions)
 
             for agent_id in range(env.num_agents):
                 if agent_id == selected_agent and manual_action is not None:
@@ -129,7 +129,7 @@ def play(
         obs, _ = env.reset(seed=seed)
         step_count = 0
         total_rewards = np.zeros(env.num_agents)
-        actions = np.zeros(env.num_agents, dtype=np.int32)
+        actions = np.zeros(env.num_agents, dtype=dtype_actions)
 
         while max_steps is None or step_count < max_steps:
             # Get actions from policies
@@ -162,7 +162,7 @@ def play(
     obs, _ = env.reset(seed=seed)
     step_count = 0
     num_agents = env_cfg.game.num_agents
-    actions = np.zeros(env.num_agents, dtype=np.int32)
+    actions = np.zeros(env.num_agents, dtype=dtype_actions)
     total_rewards = np.zeros(env.num_agents)
 
     # Initialize GUI replay

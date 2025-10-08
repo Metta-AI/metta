@@ -4,7 +4,7 @@ import pytest
 from mettagrid.config.mettagrid_config import ActionConfig, ActionsConfig, GameConfig, MettaGridConfig
 from mettagrid.core import MettaGridCore
 from mettagrid.map_builder.random import RandomMapBuilder
-from mettagrid.mettagrid_c import MettaGrid, PackedCoordinate
+from mettagrid.mettagrid_c import MettaGrid, PackedCoordinate, dtype_actions
 from mettagrid.test_support import TokenTypes
 
 NUM_OBS_TOKENS = 50
@@ -63,7 +63,7 @@ class TestBasicFunctionality:
         assert any(name.startswith("move") for name in action_names)
 
         noop_idx = action_names.index("noop")
-        actions = np.full(basic_env.num_agents, noop_idx, dtype=np.int32)
+        actions = np.full(basic_env.num_agents, noop_idx, dtype=dtype_actions)
 
         obs, rewards, terminals, truncations, info = basic_env.step(actions)
 
@@ -85,7 +85,7 @@ class TestBasicFunctionality:
         initial_objects = basic_env.grid_objects()
 
         noop_idx = basic_env.action_names.index("noop")
-        actions = np.full(basic_env.num_agents, noop_idx, dtype=np.int32)
+        actions = np.full(basic_env.num_agents, noop_idx, dtype=dtype_actions)
 
         obs2, _, _, _, _ = basic_env.step(actions)
         post_step_objects = basic_env.grid_objects()
