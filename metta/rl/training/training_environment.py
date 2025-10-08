@@ -18,6 +18,7 @@ from metta.utils.batch import calculate_batch_sizes
 from mettagrid.base_config import Config
 from mettagrid.builder.envs import make_arena
 from mettagrid.core import ObsFeature
+from mettagrid.mettagrid_c import dtype_actions
 
 logger = logging.getLogger(__name__)
 
@@ -249,6 +250,6 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         return o, r, d, t, info, training_env_id, mask, num_steps
 
     def send_actions(self, actions: np.ndarray) -> None:
-        if actions.dtype != np.int32:
-            actions = actions.astype(np.int32, copy=False)
+        if actions.dtype != dtype_actions:
+            actions = actions.astype(dtype_actions, copy=False)
         self._vecenv.send(actions)
