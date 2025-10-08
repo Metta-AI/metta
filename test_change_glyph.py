@@ -13,7 +13,7 @@ from mettagrid.config.mettagrid_config import (
     WallConfig,
 )
 from mettagrid.map_builder.utils import create_grid
-from mettagrid.mettagrid_c import MettaGrid
+from mettagrid.mettagrid_c import MettaGrid, dtype_actions
 
 # Create a minimal environment with change_glyph enabled
 game_config = GameConfig(
@@ -67,7 +67,7 @@ print(f"Agent 0 glyph: {agent_0.get('glyph')}")
 print(f"Agent 1 glyph: {agent_1.get('glyph')}")
 
 # Agent 0 changes glyph to 5, Agent 1 does nothing
-actions = np.array([[change_glyph_idx, 5], [noop_idx, 0]], dtype=np.int32)
+actions = np.array([[change_glyph_idx, 5], [noop_idx, 0]], dtype=dtype_actions)
 print(f"\nSending actions: {actions}")
 
 obs, rewards, terminals, truncations, info = env.step(actions)
