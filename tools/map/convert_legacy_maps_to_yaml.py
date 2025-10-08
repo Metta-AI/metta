@@ -27,6 +27,11 @@ DEFAULT_CHAR_TO_NAME = {
     "O": "altar",
     "B": "wall",
     "o": "altar",
+    "G": "generator",
+    "N": "generator",
+    "g": "generator",
+    "=": "wall",
+    "D": "door",
 }
 
 LEGEND_PREFIX = "#:"
