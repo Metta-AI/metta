@@ -47,31 +47,36 @@ def default(ctx: typer.Context) -> None:
 def _apply_num_cogs_override(
     mission_name: str,
     env_cfg,
-    num_cogs: Optional[int],
-) -> tuple[Optional[str], Optional[object]]:
+    num_cogs: int,
+    user_requested: bool,
+) -> tuple[Optional[str], object]:
     """Attempt to override the agent count using dynamic spawning helpers."""
-    if num_cogs is None:
-        return None, None
+    warning_msg: Optional[str] = None
+    updated_env = env_cfg
 
-    updated_env = None
-    warning_msg = None
     if supports_dynamic_spawn(mission_name):
         try:
             updated_env = make_map_game(mission_name, num_agents=num_cogs, dynamic_spawn=True)
+            return warning_msg, updated_env
         except Exception as exc:  # pragma: no cover - log only
             warning_msg = f"Dynamic spawn override failed: {exc}"
+            updated_env = env_cfg
 
-    if updated_env is None:
-        map_builder = getattr(env_cfg.game, "map_builder", None)
-        if hasattr(map_builder, "target_agents"):
-            try:
-                map_builder.target_agents = num_cogs  # type: ignore[attr-defined]
-                env_cfg.game.num_agents = num_cogs
-                updated_env = env_cfg
-            except Exception as exc:  # pragma: no cover - log only
-                warning_msg = f"Fallback agent override failed: {exc}"
+    map_builder = getattr(updated_env.game, "map_builder", None)
+    if hasattr(map_builder, "target_agents"):
+        try:
+            map_builder.target_agents = num_cogs  # type: ignore[attr-defined]
+            updated_env.game.num_agents = num_cogs
+        except Exception as exc:  # pragma: no cover - log only
+            warning_msg = f"Fallback agent override failed: {exc}"
+            updated_env = env_cfg
+    else:
+        updated_env = env_cfg
 
-    return warning_msg, updated_env or env_cfg
+    if warning_msg and not user_requested:
+        warning_msg = None
+
+    return warning_msg, updated_env
 
 
 mission_argument = typer.Argument(
@@ -145,13 +150,21 @@ def play_cmd(
         "gui", "--render", "-r", help="Render mode: 'gui', 'text', or 'none' (no rendering)"
     ),
     num_cogs: Optional[int] = typer.Option(
-        None, "--num-cogs", help="Override number of agents (uses dynamic spawning when supported)"
+        None,
+        "--num-cogs",
+        help="Override number of agents (uses dynamic spawning when supported). Defaults to 4",
     ),
 ) -> None:
     resolved_mission, env_cfg = utils.get_mission_config(console, mission_name)
 
-    warning, env_cfg = _apply_num_cogs_override(resolved_mission, env_cfg, num_cogs)
-    if warning and num_cogs is not None:
+    effective_num_cogs = num_cogs if num_cogs is not None else 4
+    warning, env_cfg = _apply_num_cogs_override(
+        resolved_mission,
+        env_cfg,
+        effective_num_cogs,
+        user_requested=num_cogs is not None,
+    )
+    if warning:
         console.print(f"[yellow]Warning: {warning}. Using default configuration for '{resolved_mission}'.[/yellow]")
 
     try:
