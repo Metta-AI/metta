@@ -558,11 +558,7 @@ export function EvalTasks({ repo }: Props) {
     )
   }
 
-  const renderFilterInput = (
-    value: string,
-    onChange: (value: string) => void,
-    placeholder: string = 'Filter...'
-  ) => {
+  const renderFilterInput = (value: string, onChange: (value: string) => void, placeholder: string = 'Filter...') => {
     return (
       <input
         type="text"
