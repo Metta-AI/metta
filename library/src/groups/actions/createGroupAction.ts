@@ -8,6 +8,7 @@ import { actionClient } from "@/lib/actionClient";
 import { getSessionOrRedirect } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { validateGroupName } from "@/lib/name-validation";
+import { GroupRepository } from "../data/group-repository";
 
 const inputSchema = zfd.formData({
   name: zfd.text(
