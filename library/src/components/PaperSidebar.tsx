@@ -10,7 +10,8 @@ import { StarWidgetQuery } from "@/components/StarWidgetQuery";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { AuthorDTO, loadAuthorClient } from "@/posts/data/authors-client";
+import * as authorsApi from "@/lib/api/resources/authors";
+import type { AuthorDetail } from "@/lib/api/resources/authors";
 
 interface PaperSidebarProps {
   paper: FeedPostDTO["paper"];
@@ -49,7 +50,7 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper, onClose }) => {
   const handleAuthorClick = async (authorId: string, authorName: string) => {
     try {
       // Try to load full author data by ID first
-      let fullAuthor = await loadAuthorClient(authorId);
+      let fullAuthor = await authorsApi.getAuthor(authorId);
 
       // If that fails, try searching by name via the authors API
       if (!fullAuthor) {
