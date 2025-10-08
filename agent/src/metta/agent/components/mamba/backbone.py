@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import math
-from functools import partial
-from typing import List, Literal, Optional
+from dataclasses import dataclass
+from typing import Dict, Literal, Optional
 
 import torch
 import torch.nn as nn
@@ -10,62 +9,42 @@ from einops import rearrange
 from tensordict import TensorDict
 from torchrl.data import Composite
 
-from metta.agent.components.mamba_ssm.modules.block import Block
-from metta.agent.components.mamba_ssm.modules.mamba import Mamba
-from metta.agent.components.mamba_ssm.modules.mamba2 import Mamba2
-from metta.agent.components.mamba_ssm.modules.mha import MHA
-from metta.agent.components.mamba_ssm.modules.mlp import GatedMLP
-from metta.agent.components.mamba_ssm.ops.triton.layer_norm import RMSNorm
+from metta.agent.components.drama.mamba_wrapper import MambaConfig as _WrapperConfig
+from metta.agent.components.drama.mamba_wrapper import MambaWrapperModel
 from metta.rl.training import EnvironmentMetaData
 
 from .config import MambaBackboneConfig
 
-TORCH_DTYPE = torch.float32
+
+@dataclass
+class _EnvState:
+    inference_params: "_CacheWrapper"
+    position: int = 0
+
+    def reset(self) -> None:
+        self.inference_params.reset()
+        self.position = 0
 
 
-def _sinusoidal_positional_encoding(positions: torch.Tensor, dim: int) -> torch.Tensor:
-    device = positions.device
-    div_term = torch.exp(torch.arange(0, dim, 2, device=device) * -(math.log(10000.0) / dim))
-    pe = torch.zeros(*positions.shape, dim, device=device, dtype=TORCH_DTYPE)
-    pe[..., 0::2] = torch.sin(positions.unsqueeze(-1) * div_term)
-    pe[..., 1::2] = torch.cos(positions.unsqueeze(-1) * div_term)
-    return pe
+class _CacheWrapper:
+    def __init__(self, cache_dict: dict, max_seqlen: int):
+        self.key_value_memory_dict = cache_dict
+        self.seqlen_offset = 0
+        self.max_seqlen = max_seqlen
 
-
-def _create_block(
-    d_model: int,
-    d_intermediate: int,
-    layer_idx: int,
-    ssm_cfg: dict,
-    attn_layer_idx: List[int],
-    attn_cfg: dict,
-    norm_epsilon: float,
-    rms_norm: bool,
-) -> Block:
-    cfg = dict(ssm_cfg) if ssm_cfg else {}
-    attn_cfg = dict(attn_cfg) if attn_cfg else {}
-
-    if layer_idx in attn_layer_idx:
-        mixer_cls = partial(MHA, layer_idx=layer_idx, **attn_cfg)
-    else:
-        ssm_layer = cfg.pop("layer", "Mamba1")
-        mixer = Mamba2 if ssm_layer == "Mamba2" else Mamba
-        mixer_cls = partial(mixer, layer_idx=layer_idx, **cfg)
-
-    if d_intermediate == 0:
-        mlp_cls = nn.Identity
-    else:
-        mlp_cls = partial(GatedMLP, hidden_features=d_intermediate, out_features=d_model)
-
-    norm_base = nn.LayerNorm if not rms_norm else RMSNorm
-    norm_cls = partial(norm_base, eps=norm_epsilon)
-    block = Block(d_model, mixer_cls, mlp_cls, norm_cls=norm_cls, fused_add_norm=False, residual_in_fp32=False)
-    block.layer_idx = layer_idx
-    return block
+    def reset(self) -> None:
+        for cache in self.key_value_memory_dict.values():
+            if torch.is_tensor(cache):
+                cache.zero_()
+            elif isinstance(cache, dict):
+                for value in cache.values():
+                    if torch.is_tensor(value):
+                        value.zero_()
+        self.seqlen_offset = 0
 
 
 class MambaBackboneComponent(nn.Module):
-    """Simplified Mamba backbone following the Transformer policy flow."""
+    """Streaming-friendly Mamba backbone that mirrors the drama wrapper contract."""
 
     def __init__(self, config: MambaBackboneConfig, env: Optional[EnvironmentMetaData] = None):
         super().__init__()
@@ -74,42 +53,40 @@ class MambaBackboneComponent(nn.Module):
         self.out_key = config.out_key
         self.pool: Literal["cls", "mean", "none"] = config.pool
         self.use_aux_tokens = config.use_aux_tokens
-        self.last_action_dim = config.last_action_dim
+        self.last_action_dim = max(1, config.last_action_dim)
+        self.max_cache_size = max(1, config.max_cache_size)
+
+        wrapper_cfg = _WrapperConfig(
+            d_model=config.d_model,
+            d_intermediate=config.d_intermediate,
+            n_layer=config.n_layer,
+            stoch_dim=config.d_model,
+            action_dim=self.last_action_dim,
+            dropout_p=config.dropout_p,
+            ssm_cfg=config.ssm_cfg,
+            attn_layer_idx=config.attn_layer_idx,
+            attn_cfg=config.attn_cfg,
+        )
+        self.wrapper = MambaWrapperModel(wrapper_cfg)
 
         self.input_proj = nn.Linear(config.input_dim, config.d_model)
-
         if self.use_aux_tokens:
             self.reward_proj = nn.Linear(1, config.d_model)
             self.reset_proj = nn.Linear(1, config.d_model)
-            self.action_proj = nn.Linear(self.last_action_dim, config.d_model)
+            self.action_proj = nn.Linear(config.last_action_dim, config.d_model)
         else:
             self.reward_proj = None
             self.reset_proj = None
             self.action_proj = None
 
         self.cls_token = nn.Parameter(torch.randn(1, 1, config.d_model))
-
-        self.layers = nn.ModuleList(
-            [
-                _create_block(
-                    d_model=config.d_model,
-                    d_intermediate=config.d_intermediate,
-                    layer_idx=i,
-                    ssm_cfg=config.ssm_cfg,
-                    attn_layer_idx=config.attn_layer_idx,
-                    attn_cfg=config.attn_cfg,
-                    norm_epsilon=config.norm_epsilon,
-                    rms_norm=config.rms_norm,
-                )
-                for i in range(config.n_layer)
-            ]
-        )
-        norm_cls = nn.LayerNorm if not config.rms_norm else RMSNorm
-        self.norm_f = norm_cls(config.d_model, eps=config.norm_epsilon)
+        self.norm = nn.LayerNorm(config.d_model)
         self.dropout = nn.Dropout(config.dropout_p)
 
+        self._env_states: Dict[int, _EnvState] = {}
+
     # ------------------------------------------------------------------
-    # Helpers
+    # Token preparation
     # ------------------------------------------------------------------
     def _build_tokens(self, td: TensorDict) -> torch.Tensor:
         x = td[self.in_key]
@@ -149,33 +126,33 @@ class MambaBackboneComponent(nn.Module):
         tokens = torch.cat([cls, x, reward_token + reset_token, action_token], dim=2)
         return tokens
 
-    def _apply_layers(self, tokens: torch.Tensor) -> torch.Tensor:
-        hidden_states = tokens
-        residual = None
-        for layer in self.layers:
-            hidden_states, residual = layer(hidden_states, residual)
-        if residual is not None:
-            hidden_states = hidden_states + residual
-        hidden_states = self.norm_f(self.dropout(hidden_states))
-        return hidden_states
+    def _dummy_actions(self, batch: int, seq_len: int, device: torch.device) -> torch.Tensor:
+        return torch.zeros(batch, seq_len, dtype=torch.long, device=device)
 
-    def _pool_output(self, output: torch.Tensor) -> torch.Tensor:
-        leading = output.shape[:-2]
-        seq_len = output.shape[-2]
-        hidden_dim = output.shape[-1]
-
-        flat = output.reshape(-1, seq_len, hidden_dim)
-
+    def _pool(self, hidden: torch.Tensor) -> torch.Tensor:
         if self.pool == "cls":
-            pooled = flat[:, 0, :]
-        elif self.pool == "mean":
-            pooled = flat.mean(dim=1)
-        elif self.pool == "none":
-            pooled = flat.reshape(flat.size(0), seq_len * hidden_dim)
-        else:
-            raise ValueError(f"Unsupported pool mode: {self.pool}")
+            return hidden[:, 0, :]
+        if self.pool == "mean":
+            return hidden.mean(dim=1)
+        if self.pool == "none":
+            b, s, d = hidden.shape
+            return hidden.reshape(b, s * d)
+        raise ValueError(f"Unsupported pool mode: {self.pool}")
 
-        return pooled.reshape(*leading, -1)
+    def _ensure_state(self, env_id: int, tokens_per_step: int, device: torch.device, dtype: torch.dtype) -> _EnvState:
+        state = self._env_states.get(env_id)
+        if state is not None and state.inference_params.max_seqlen >= tokens_per_step:
+            return state
+
+        cache = self.wrapper.allocate_inference_cache(
+            batch_size=1,
+            max_seqlen=self.max_cache_size * tokens_per_step,
+            dtype=dtype,
+        )
+        cache_wrapper = _CacheWrapper(cache, self.max_cache_size * tokens_per_step)
+        state = _EnvState(cache_wrapper)
+        self._env_states[env_id] = state
+        return state
 
     # ------------------------------------------------------------------
     # Forward
@@ -183,29 +160,61 @@ class MambaBackboneComponent(nn.Module):
     def forward(self, td: TensorDict) -> TensorDict:
         tokens = self._build_tokens(td)
         device = tokens.device
+        dtype = tokens.dtype
 
         tt = tokens.size(1)
         batch = tokens.size(0)
-        S = tokens.size(2)
+        tokens_per_step = tokens.size(2)
+
+        training_env_ids = td.get("training_env_ids", None)
+        if training_env_ids is None:
+            env_ids = torch.arange(batch, device=device, dtype=torch.long)
+        else:
+            env_ids = training_env_ids.reshape(-1).to(device=device, dtype=torch.long)
 
         if tt == 1:
-            seq_tokens = tokens.reshape(batch, S, -1)
-            pos = torch.arange(S, device=device, dtype=torch.long)
-            seq_tokens = seq_tokens + _sinusoidal_positional_encoding(pos, seq_tokens.size(-1))
+            outputs = []
+            tokens = tokens.reshape(batch, tokens_per_step, -1)
+            for idx in range(batch):
+                env_id = int(env_ids[idx].item())
+                state = self._ensure_state(env_id, tokens_per_step, device, dtype)
 
-            hidden = self._apply_layers(seq_tokens)
-            pooled = self._pool_output(hidden)
-            td.set(self.out_key, pooled)
+                cache = state.inference_params
+                cache.seqlen_offset = state.position
+
+                hidden = self.wrapper(
+                    tokens[idx : idx + 1],
+                    self._dummy_actions(1, tokens_per_step, device),
+                    inference_params=cache,
+                    num_last_tokens=tokens_per_step,
+                )
+                hidden = hidden[:, -tokens_per_step:]
+                hidden = self.norm(self.dropout(hidden))
+                pooled = self._pool(hidden)
+                outputs.append(pooled.squeeze(0))
+
+                state.position = min(state.position + tokens_per_step, cache.max_seqlen)
+                cache.seqlen_offset = state.position
+
+            td.set(self.out_key, torch.stack(outputs, dim=0))
             return td
 
-        seq_tokens = tokens.reshape(batch * tt, S, -1)
-        pos = torch.arange(S, device=device, dtype=torch.long)
-        pos_enc = _sinusoidal_positional_encoding(pos, seq_tokens.size(-1))
-        seq_tokens = seq_tokens + pos_enc.unsqueeze(0)
+        # training path – no caching; reset existing caches to avoid stale state
+        seq = tokens.reshape(batch * tt, tokens_per_step, -1)
+        hidden = self.wrapper(
+            seq,
+            self._dummy_actions(batch * tt, tokens_per_step, device),
+            inference_params=None,
+        )
+        hidden = self.norm(self.dropout(hidden))
+        pooled = self._pool(hidden)
+        td.set(self.out_key, pooled)
 
-        hidden = self._apply_layers(seq_tokens)
-        pooled = self._pool_output(hidden)
-        td.set(self.out_key, pooled.reshape(batch * tt, -1))
+        for env_id in env_ids.tolist():
+            state = self._env_states.get(env_id)
+            if state is not None:
+                state.reset()
+
         return td
 
     # ------------------------------------------------------------------
@@ -215,10 +224,12 @@ class MambaBackboneComponent(nn.Module):
         return Composite({})
 
     def initialize_to_environment(self, env: EnvironmentMetaData, device: torch.device) -> Optional[str]:
+        self._env_states.clear()
         return None
 
     def reset_memory(self) -> None:
-        return
+        for state in self._env_states.values():
+            state.reset()
 
     @property
     def device(self) -> torch.device:
