@@ -309,7 +309,13 @@ class Curriculum(StatsLogger):
 
         self._algorithm: Optional[CurriculumAlgorithm] = None
         if config.algorithm_config is not None:
-            self._algorithm = config.algorithm_config.create(config.num_active_tasks)
+            # Always use algorithm_config.num_active_tasks if available (source of truth for algorithm-based curricula)
+            num_tasks = (
+                config.algorithm_config.num_active_tasks
+                if hasattr(config.algorithm_config, "num_active_tasks")
+                else config.num_active_tasks
+            )
+            self._algorithm = config.algorithm_config.create(num_tasks)
             # Pass curriculum reference to algorithm for stats updates
             if hasattr(self._algorithm, "set_curriculum_reference"):
                 self._algorithm.set_curriculum_reference(self)
@@ -318,10 +324,29 @@ class Curriculum(StatsLogger):
         if not config.defer_init:
             self._initialize_at_capacity()
 
+    @property
+    def _num_active_tasks(self) -> int:
+        """Get the effective number of active tasks.
+
+        Handles three scenarios:
+        1. No algorithm_config: use config.num_active_tasks
+        2. Algorithm_config present and in sync with config: use algorithm_config (allows CLI overrides)
+        3. Algorithm_config present but out of sync: use config (manual override after creation)
+        """
+        if self._config.algorithm_config is None or not hasattr(self._config.algorithm_config, "num_active_tasks"):
+            return self._config.num_active_tasks
+
+        # If they match, they're in sync - use algorithm_config (allows CLI overrides to work)
+        if self._config.algorithm_config.num_active_tasks == self._config.num_active_tasks:
+            return self._config.algorithm_config.num_active_tasks
+
+        # If they differ, config was manually overridden - prefer config
+        return self._config.num_active_tasks
+
     def get_task(self) -> CurriculumTask:
         """Sample a task from the population."""
         # Curriculum always manages the task pool - no delegation
-        if len(self._tasks) < self._config.num_active_tasks:
+        if len(self._tasks) < self._num_active_tasks:
             task = self._create_task()
         else:
             # At capacity - check if any task meets eviction criteria first
@@ -348,7 +373,7 @@ class Curriculum(StatsLogger):
 
     def _initialize_at_capacity(self) -> None:
         """Initialize the task pool to full capacity."""
-        while len(self._tasks) < self._config.num_active_tasks:
+        while len(self._tasks) < self._num_active_tasks:
             self._create_task()
 
     def _evict_specific_task(self, task_id: int) -> None:
