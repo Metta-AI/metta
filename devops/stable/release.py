@@ -442,6 +442,20 @@ def run_validation(
                 result.logs_path = job.logs_path
                 result.job_id = job.job_id
 
+                # Extract W&B URL and ask for manual confirmation
+                wandb_url_match = re.search(r"https://wandb\.ai/[^\s]+", log_text)
+                if wandb_url_match:
+                    wandb_url = wandb_url_match.group(0)
+                    print(f"\n     📊 W&B Run: {wandb_url}")
+                    print("     Please verify:")
+                    print("       - SPS (samples per second) looks reasonable")
+                    print("       - Heartbeat is consistent")
+                    print("       - No anomalies in training curves")
+                    if not _get_user_confirmation(f"Do the metrics look good for '{validation.name}'?"):
+                        result.complete("failed", 1, error="User indicated metrics look bad")
+                        print(f"  ❌ {validation.name} - User confirmed FAILURE")
+                        return result
+
         # Check exit code
         if result.exit_code == 124:
             result.complete("failed", result.exit_code, error="Timeout exceeded")
@@ -515,13 +529,17 @@ def get_workflow_tests() -> list[Validation]:
     )
 
     # 2. TRAIN workflow - local smoke test
+    # Use timestamp-based run name to avoid resuming completed runs
+    from datetime import datetime
+
+    smoke_run = f"stable.smoke.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     validations.append(
         Validation(
             name="arena_local_smoke",
             workflow_type=WorkflowType.TRAIN,
             module="experiments.recipes.arena_basic_easy_shaped.train",
             location="local",
-            args=["run=stable.smoke", "trainer.total_timesteps=1000", "wandb.enabled=false"],
+            args=[f"run={smoke_run}", "trainer.total_timesteps=1000", "wandb.enabled=false"],
             timeout_s=600,
             acceptance=[ThresholdCheck(key="sps_max", op=">=", expected=30000)],
         )
