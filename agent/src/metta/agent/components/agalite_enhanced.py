@@ -26,7 +26,7 @@ class AGaLiTeAttentionLayer(nn.Module):
         r: int,
         kernel: AGaLiTeKernelConfig,
         dropout: float = 0.0,
-        eps: float = 1e-6,
+        eps: float = 1e-5,
         reset_hidden_on_terminate: bool = True,
     ) -> None:
         super().__init__()
@@ -93,7 +93,9 @@ class AGaLiTeAttentionLayer(nn.Module):
         values = self.v_proj(inputs).view(T, B, self.head_num, self.head_dim)
 
         beta = torch.sigmoid(self.beta_proj(inputs).view(T, B, self.head_num, self.head_dim))
+        beta = torch.clamp(beta, 0.05, 0.95)
         gamma = torch.sigmoid(self.gamma_proj(inputs).view(T, B, self.head_num, self.head_dim))
+        gamma = torch.clamp(gamma, 0.05, 0.95)
 
         p1 = self.p1_proj(inputs).view(T, B, self.head_num, self.eta)
         p2 = self.p2_proj(inputs).view(T, B, self.head_num, self.eta)

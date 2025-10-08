@@ -34,7 +34,7 @@ class AGaLiTeTransformerConfig(ComponentConfig):
     n_heads: int = 4
     feedforward_size: int = 768
     eta: int = 4
-    r: int = 8
+    r: int = 2
     dropout: float = 0.0
     reset_on_terminate: bool = True
     layer_norm_eps: float = 1e-5

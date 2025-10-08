@@ -125,7 +125,7 @@ class AGaLiTeConfig(PolicyArchitecture):
             n_heads=4,
             feedforward_size=512,
             eta=8,
-            r=1,
+            r=2,
             dropout=0.05,
             kernel=AGaLiTeKernelConfig(name="eluplus1", nu=4),
             max_tokens=64,
