@@ -5,18 +5,13 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 import torch
-from rich.console import Console
 
 from cogames.aws_storage import DownloadOutcome, maybe_download_checkpoint
 from cogames.policy.interfaces import Policy, TrainablePolicy
 from mettagrid.util.module import load_symbol
-
-if TYPE_CHECKING:  # pragma: no cover - optional console for CLI
-    from rich.console import Console
-
 
 _POLICY_CLASS_SHORTHAND: dict[str, str] = {
     "random": "cogames.policy.random.RandomPolicy",
@@ -91,7 +86,6 @@ def resolve_policy_data_path(
     *,
     policy_class_path: Optional[str] = None,
     game_name: Optional[str] = None,
-    console: Optional["Console"] = None,
 ) -> Optional[str]:
     """Resolve a checkpoint path if provided.
 
@@ -115,12 +109,11 @@ def resolve_policy_data_path(
     if path.exists():  # Non-pt extension but present
         return str(path)
 
-    if console is not None and policy_class_path is not None:
+    if policy_class_path is not None:
         outcome: DownloadOutcome = maybe_download_checkpoint(
             policy_path=path,
             game_name=game_name,
             policy_class_path=policy_class_path,
-            console=console,
         )
         if outcome.downloaded:
             return str(path)

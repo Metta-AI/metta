@@ -319,7 +319,6 @@ def train(
                 final_checkpoint=final_checkpoint,
                 game_name=game_name,
                 policy_class_path=policy_class_path,
-                console=console,
             )
 
             # Show shorthand version if available

@@ -7,13 +7,11 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, Optional
+from typing import Any, Literal, Optional
 
+from cogames.cli.base import console
 from metta.tools.utils.auto_config import auto_policy_storage_decision
 from metta.utils.uri import ParsedURI
-
-if TYPE_CHECKING:
-    from rich.console import Console
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +67,6 @@ def maybe_upload_checkpoint(
     final_checkpoint: Path,
     game_name: Optional[str],
     policy_class_path: str,
-    console: "Console",
 ) -> Optional[str]:
     """Upload the checkpoint to Softmax S3 if AWS is configured."""
 
@@ -135,7 +132,6 @@ def maybe_download_checkpoint(
     policy_path: Path,
     game_name: Optional[str],
     policy_class_path: str,
-    console: "Console",
 ) -> DownloadOutcome:
     """Download the checkpoint from Softmax S3 if accessible and available."""
 
