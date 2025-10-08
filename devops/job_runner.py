@@ -92,12 +92,12 @@ class Job(ABC):
         """Internal method to fetch result when job completes."""
         pass
 
-    def wait(self, stream_output: bool = False, poll_interval_s: int = 10) -> JobResult:
+    def wait(self, stream_output: bool = False, poll_interval_s: float = 0.5) -> JobResult:
         """Wait for job to complete (sync).
 
         Args:
             stream_output: Stream logs to console as they arrive
-            poll_interval_s: Seconds between status checks
+            poll_interval_s: Seconds between status checks (default: 0.5s)
 
         Returns:
             JobResult when complete
@@ -210,15 +210,17 @@ class LocalJob(Job):
     def _read_output(self) -> None:
         """Read available output from process."""
         if self._proc and self._proc.stdout:
-            # Read available lines without blocking
+            # Read all available lines without blocking
             import select
 
-            # Check if data is available
-            if select.select([self._proc.stdout], [], [], 0)[0]:
+            # Keep reading while data is available
+            while select.select([self._proc.stdout], [], [], 0)[0]:
                 line = self._proc.stdout.readline()
                 if line:
                     self._log_file.write(line)
                     self._log_file.flush()
+                else:
+                    break
 
     def _drain_output(self) -> None:
         """Drain all remaining output from process."""
