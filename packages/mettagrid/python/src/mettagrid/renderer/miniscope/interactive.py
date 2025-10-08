@@ -227,14 +227,8 @@ def run_interactive_loop(
 
                         if glyph_id is not None and 0 <= glyph_id < len(GLYPH_DATA):
                             action_name = f"change_glyph_{glyph_id}"
-                            if action_name not in env.action_names:
-                                print(
-                                    f"Warning: glyph action '{action_name}' not available in action space.",
-                                    flush=True,
-                                )
-                            else:
-                                manual_action = env.action_names.index(action_name)
-                                should_step = True
+                            manual_action = env.action_names.index(action_name)
+                            should_step = True
 
                         mode = "follow"  # Exit glyph picker
                         should_render = True

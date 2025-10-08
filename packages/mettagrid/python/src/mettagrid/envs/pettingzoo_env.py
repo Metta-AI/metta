@@ -13,10 +13,9 @@ from gymnasium import spaces
 from pettingzoo import ParallelEnv
 from typing_extensions import override
 
+# Data types for PettingZoo - import from C++ module
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.core import MettaGridCore
-
-# Data types for PettingZoo - import from C++ module
 from mettagrid.mettagrid_c import (
     dtype_actions,
 )
