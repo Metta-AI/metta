@@ -208,17 +208,23 @@ def make_game_from_map(
     if not map_path.exists():
         raise ValueError(f"Map '{map_name}' not found: {map_path}")
 
+    raw_lines = [line.rstrip("\n") for line in map_path.read_text(encoding="utf-8").splitlines() if line]
+    spawn_count = sum(line.count("%") for line in raw_lines)
+    agent_count = sum(line.count("@") for line in raw_lines)
+
+    use_dynamic_target = dynamic_spawn or (spawn_count > 0 and agent_count == 0)
+
     base_config = _base_game_config(num_cogs, clipping_rate)
     char_to_name = _char_to_name_for(base_config)
 
     map_builder = AsciiMapBuilder.Config.from_uri(
         str(map_path),
         char_to_name_map=char_to_name,
-        target_agents=(num_cogs if dynamic_spawn else None),
+        target_agents=(num_cogs if use_dynamic_target else None),
     )
 
     base_config.game.map_builder = map_builder
-    base_config.game.num_agents = num_cogs
+    base_config.game.num_agents = num_cogs if use_dynamic_target else base_config.game.num_agents
     return base_config
 
 
