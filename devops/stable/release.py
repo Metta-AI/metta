@@ -2,22 +2,32 @@
 """Stable Release System (lean, single-file)
 
 Usage:
-  ./devops/stable/release.py                            # run full release flow
-  ./devops/stable/release.py --step workflow-tests      # run specific step only
-  ./devops/stable/release.py --step summary             # show validation summary
-  ./devops/stable/release.py --step release             # create release tag and notes
+  ./devops/stable/release.py                    # Run full release flow
+  ./devops/stable/release.py --prepare-branch   # Create staging branch
+  ./devops/stable/release.py --bugs             # Check bug status
+  ./devops/stable/release.py --workflow test    # Run TEST workflows
+  ./devops/stable/release.py --workflow train   # Run TRAIN workflows
+  ./devops/stable/release.py --summary          # Show validation summary
+  ./devops/stable/release.py --release          # Create release tag
 
 Auto-resume:
   By default, continues the most recent in-progress release.
   Use --new to force start a new release.
   Use --version X to use a specific version.
 
+Workflow filtering:
+  --workflow test              # Run all TEST workflows (metta_test)
+  --workflow train             # Run all TRAIN workflows (smoke, single-gpu, multi-gpu)
+  --workflow play              # Run all PLAY workflows (interactive testing)
+  --workflow metta_test        # Run specific validation by name
+  --workflow arena_local_smoke # Run specific validation by name
+
 Examples:
-  ./devops/stable/release.py                            # full release (auto-continue)
-  ./devops/stable/release.py --new                      # full release (force new)
-  ./devops/stable/release.py --step workflow-tests      # just run tests
-  ./devops/stable/release.py --step workflow-tests --new    # run tests (force new)
-  ./devops/stable/release.py --version 2025.10.07-test1     # use specific version
+  ./devops/stable/release.py                          # Full release (auto-continue)
+  ./devops/stable/release.py --new                    # Full release (force new)
+  ./devops/stable/release.py --workflow test          # Just run tests
+  ./devops/stable/release.py --workflow train --new   # Run train workflows (force new)
+  ./devops/stable/release.py --version 2025.10.07-test1  # Use specific version
 """
 
 from __future__ import annotations
@@ -702,8 +712,16 @@ def step_bug_check(**_kwargs) -> None:
     print("✅ Bug check PASSED - user confirmed")
 
 
-def step_workflow_tests(version: str, **_kwargs) -> None:
-    """Step 3: Run validation workflows."""
+def step_workflow_tests(version: str, workflow_filter: Optional[str] = None, **_kwargs) -> None:
+    """Step 3: Run validation workflows.
+
+    Args:
+        version: Release version
+        workflow_filter: Optional filter - can be:
+            - Workflow type: "test", "train", "play"
+            - Validation name: "metta_test", "arena_local_smoke", etc.
+            - None: run all workflows
+    """
     print("\n" + "=" * 60)
     print(bold("STEP 3: Workflow Validation"))
     print("=" * 60 + "\n")
@@ -718,8 +736,29 @@ def step_workflow_tests(version: str, **_kwargs) -> None:
             commit_sha=_get_commit_sha(),
         )
 
+    # Get all validations
+    all_validations = get_workflow_tests()
+
+    # Filter validations if requested
+    if workflow_filter:
+        # Check if filter is a workflow type
+        workflow_filter_lower = workflow_filter.lower()
+        if workflow_filter_lower in ("test", "train", "play"):
+            validations = [v for v in all_validations if v.workflow_type.value == workflow_filter_lower]
+            print(f"Running {workflow_filter.upper()} workflows only\n")
+        else:
+            # Filter by validation name
+            validations = [v for v in all_validations if v.name == workflow_filter]
+            if not validations:
+                print(f"Error: Unknown workflow '{workflow_filter}'")
+                print(f"Available workflows: {', '.join(v.name for v in all_validations)}")
+                sys.exit(1)
+            print(f"Running workflow: {workflow_filter}\n")
+    else:
+        validations = all_validations
+        print("Running all workflows\n")
+
     # Run validations sequentially
-    validations = get_workflow_tests()
     for validation in validations:
         # Determine cluster config based on validation name
         if "multi_gpu" in validation.name:
@@ -996,6 +1035,18 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Stable Release System",
         formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  %(prog)s                           # Run full release flow
+  %(prog)s --new                     # Start new release
+  %(prog)s --prepare-branch          # Only create staging branch
+  %(prog)s --bugs                    # Only check bugs
+  %(prog)s --workflow test           # Run TEST workflows only
+  %(prog)s --workflow train          # Run TRAIN workflows only
+  %(prog)s --workflow metta_test     # Run specific validation
+  %(prog)s --summary                 # Show validation summary
+  %(prog)s --release                 # Create release tag
+""",
     )
 
     parser.add_argument(
@@ -1010,10 +1061,48 @@ def main() -> None:
         help="Force start a new release (ignore existing in-progress state)",
     )
 
+    # Step flags
+    parser.add_argument(
+        "--prepare-branch",
+        action="store_true",
+        help="Create and push staging branch",
+    )
+
+    parser.add_argument(
+        "--bugs",
+        action="store_true",
+        help="Check bug status in Asana",
+    )
+
+    parser.add_argument(
+        "--workflow",
+        metavar="FILTER",
+        help="Run workflow validations (test|train|play|<validation_name>)",
+    )
+
+    parser.add_argument(
+        "--summary",
+        action="store_true",
+        help="Show validation summary and release notes template",
+    )
+
+    parser.add_argument(
+        "--release",
+        action="store_true",
+        help="Create release tag and notes",
+    )
+
+    parser.add_argument(
+        "--announce",
+        action="store_true",
+        help="Show announcement message template",
+    )
+
+    # Deprecated --step flag (for backwards compatibility)
     parser.add_argument(
         "--step",
         choices=[Step.PREPARE, Step.BUG, Step.TESTS, Step.SUMMARY, Step.RELEASE, Step.ANNOUNCE],
-        help="Run a specific step (default: run all steps)",
+        help=argparse.SUPPRESS,  # Hide from help
     )
 
     args = parser.parse_args()
@@ -1045,21 +1134,6 @@ def main() -> None:
             version = generate_version()
             print(f"Starting new release: {version}")
 
-    # Map steps to functions (all have same signature now)
-    steps = {
-        Step.PREPARE: step_prepare_branch,
-        Step.BUG: step_bug_check,
-        Step.TESTS: step_workflow_tests,
-        Step.SUMMARY: step_summary,
-        Step.RELEASE: step_release,
-        Step.ANNOUNCE: step_announce,
-    }
-
-    # Build kwargs (same for all steps)
-    kwargs = {
-        "version": version,
-    }
-
     # Print header with version and contacts
     print("=" * 80)
     print(bold(cyan(f"Stable Release System - Version {version}")))
@@ -1069,14 +1143,62 @@ def main() -> None:
         print(f"  - {contact}")
     print("")
 
-    # Execute
+    # Determine which steps to run
+    steps_to_run = []
+
+    # Check for new flag-based args
+    if args.prepare_branch:
+        steps_to_run.append(("prepare-branch", {}))
+    if args.bugs:
+        steps_to_run.append(("bugs", {}))
+    if args.workflow is not None:  # Can be empty string for "run all workflows"
+        steps_to_run.append(("workflow", {"workflow_filter": args.workflow or None}))
+    if args.summary:
+        steps_to_run.append(("summary", {}))
+    if args.release:
+        steps_to_run.append(("release", {}))
+    if args.announce:
+        steps_to_run.append(("announce", {}))
+
+    # Handle deprecated --step flag for backwards compatibility
     if args.step:
-        # Run specific step
-        steps[args.step](**kwargs)
-    else:
-        # Run all steps (default behavior)
-        for step_name in [Step.PREPARE, Step.BUG, Step.TESTS, Step.SUMMARY, Step.RELEASE, Step.ANNOUNCE]:
-            steps[step_name](**kwargs)
+        step_map = {
+            Step.PREPARE: ("prepare-branch", {}),
+            Step.BUG: ("bugs", {}),
+            Step.TESTS: ("workflow", {"workflow_filter": None}),
+            Step.SUMMARY: ("summary", {}),
+            Step.RELEASE: ("release", {}),
+            Step.ANNOUNCE: ("announce", {}),
+        }
+        steps_to_run.append(step_map[args.step])
+
+    # If no steps specified, run full release flow
+    if not steps_to_run:
+        steps_to_run = [
+            ("prepare-branch", {}),
+            ("bugs", {}),
+            ("workflow", {"workflow_filter": None}),
+            ("summary", {}),
+            ("release", {}),
+            ("announce", {}),
+        ]
+
+    # Map step names to functions
+    step_functions = {
+        "prepare-branch": step_prepare_branch,
+        "bugs": step_bug_check,
+        "workflow": step_workflow_tests,
+        "summary": step_summary,
+        "release": step_release,
+        "announce": step_announce,
+    }
+
+    # Execute steps
+    for step_name, step_kwargs in steps_to_run:
+        func = step_functions[step_name]
+        # Merge version with step-specific kwargs
+        all_kwargs = {"version": version, **step_kwargs}
+        func(**all_kwargs)
 
 
 if __name__ == "__main__":
