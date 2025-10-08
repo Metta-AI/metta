@@ -2,6 +2,24 @@
 
 `cortex` is a modular library for building recurrent backbones and agent memory systems. It separates cell-level recurrence from architectural concerns (projections, skips, normalization) so you can compose new stacks quickly and safely.
 
+## Table of Contents
+
+- [Architecture](#architecture)
+  - [Why This Design?](#why-this-design)
+  - [Uniform Interface Design](#uniform-interface-design)
+- [Supported Components](#supported-components)
+  - [Memory Cells](#memory-cells)
+  - [Blocks](#blocks)
+- [Quick Start](#quick-start)
+- [Template Architectures](#template-architectures)
+- [Metta Framework Integration](#metta-framework-integration)
+- [Evaluate Quickly](#evaluate-quickly)
+- [Backend Configuration](#backend-configuration)
+- [Extending Cortex](#extending-cortex)
+  - [Custom Cell](#custom-cell)
+  - [Custom Block](#custom-block)
+  - [Create a New Architecture (Stack Recipe)](#create-a-new-architecture-stack-recipe)
+
 ## Architecture
 
 Cortex implements a modular stack-based memory architecture with three core abstractions:
@@ -21,12 +39,10 @@ Cortex implements a modular stack-based memory architecture with three core abst
 
 The separation of concerns between cells, blocks, and stacks provides several advantages:
 
-- **Gradient Stability**: Blocks include skip connections, gating mechanisms, and normalization to prevent
-  vanishing/exploding gradients in deep networks
-- **Information Flow**: Learnable gates and skip paths allow the network to dynamically route information, bypassing
-  cells when needed
 - **Modularity**: Mix and match different memory cells without rewriting projection logic
-- **Efficiency**: Blocks can operate cells at optimal dimensions (e.g., PreUp runs cells at 2x size for more capacity)
+- **Efficiency**: GPU-accelerated Triton kernels provide optimized implementations for core cells (LSTM, mLSTM, sLSTM,
+  CausalConv1d) with automatic fallback to PyTorch. Triton kernels deliver significant speedups on CUDA while
+  maintaining numerical parity with reference implementations.
 - **Composability**: The design is fully compositional—cells can be built from other cells, blocks can contain multiple
   cells or even nest other blocks, and stacks can be composed of other stacks. This recursive structure enables
   arbitrarily complex architectures while maintaining clean interfaces.
@@ -35,14 +51,41 @@ The separation of concerns between cells, blocks, and stacks provides several ad
   without manual dimension tracking.
 - **Flexibility**: Add new cell types or block patterns without modifying existing code
 - **Clarity**: Clean separation between memory computation (cells) and architectural decisions (blocks/stacks)
+- **Gradient Stability**: Blocks include skip connections, gating mechanisms, and normalization to prevent
+  vanishing/exploding gradients in deep networks
+- **Information Flow**: Learnable gates and skip paths allow the network to dynamically route information, bypassing
+  cells when needed
 
-### Key Features
+### Uniform Interface Design
 
-- **Stateless design**: All state is explicitly passed as TensorDict inputs/outputs
-- **Batch-first convention**: Consistent [B, T, H] tensor shapes throughout
-- **Reset handling**: Per-timestep and per-batch reset masks for episode boundaries
-- **Registry system**: Extensible architecture supporting custom cells and blocks
-- **Type-safe configuration**: Pydantic-based configs with validation
+A core principle of Cortex is that **cells, blocks, and stacks all share the same interface**, enabling seamless composition at any level:
+
+**Shared Signatures:**
+```python
+# All three abstractions implement these methods:
+def forward(x: Tensor, state: TensorDict, *, resets: Optional[ResetMask] = None) -> Tuple[Tensor, TensorDict]:
+    """Process input with state, optionally applying resets, return output and new state."""
+
+def init_state(batch: int, *, device: torch.device, dtype: torch.dtype) -> TensorDict:
+    """Initialize state for a batch."""
+
+def reset_state(state: TensorDict, mask: ResetMask) -> TensorDict:
+    """Apply episode boundary resets to state (rarely needed, see below)."""
+```
+
+**Key Properties:**
+- **Consistent shapes**: All accept `[B, T, H]` for sequences or `[B, H]` for single-step
+- **TensorDict state**: State is always a TensorDict with arbitrary nesting depth
+  - Cells: Flat state (e.g., `{"h": ..., "c": ...}`)
+  - Blocks: Nest cell state under cell class name (e.g., `{"LSTMCell": {"h": ..., "c": ...}}`)
+  - Stacks: Nest block states under indexed keys (e.g., `{"PreUpBlock_0": {"LSTMCell": {...}}}`)
+- **Automatic reset handling**: Resets are handled automatically when passed through `forward(resets=mask)`
+  - The reset mask propagates through Stack → Block → Cell automatically
+  - `reset_state()` exists for completeness but is typically not needed in practice
+  - Just pass `resets` to `forward()` and the hierarchy handles it internally
+
+This uniformity means you can treat a complex multi-layer stack exactly like a single cell, enabling arbitrary composition without changing your code interface.
+
 
 ## Supported Components
 
@@ -73,7 +116,7 @@ Wrappers around cells that handle projections, normalization, and information fl
 | `PostUpBlock`      | Runs the cell at `d_hidden`, then applies a gated feed-forward projection up and back down before residual. Useful for deep stacks. |
 | `AdapterBlock`     | Wraps another block with a trainable residual adapter (identity at init). Lets you insert capacity without changing behavior at t=0. |
 
-### Hidden Size Inference in Blocks
+#### Hidden Size Inference in Blocks
 
 **Important**: Some blocks control the working dimension of their nested cell and will **override** the cell's `hidden_size` during stack construction, regardless of what value you provide:
 
@@ -169,7 +212,70 @@ stack = build_xlstm_stack(
 )
 ```
 
-You can also run these templates in the synthetic evaluation harness (see below).
+
+## Metta Framework Integration
+
+Cortex provides a ready-to-use adapter for integrating memory stacks with the [Metta RL framework](https://github.com/metta-ai/metta), which uses TensorDict-based state management.
+
+### MettaTDAdapter
+
+The `MettaTDAdapter` wraps a `CortexStack` and makes it compatible with Metta's TensorDict interface, handling stateful recurrent memory across rollout and training phases.
+
+**Key Features:**
+
+- **Two-cache architecture**: Separate caches for rollout (data collection) and training (gradient updates)
+  - `rollout_cache`: Updated during environment interaction (single-step mode)
+  - `train_cache`: Frozen snapshot used for deterministic training on replayed sequences
+- **Per-environment memory**: Efficiently manages separate hidden states for each environment
+- **Reset handling**: Automatically applies episode boundary resets via done/truncated flags
+- **Memory-efficient replay**: Stores only `env_id` in replay buffer; reconstructs states from cache
+- **Optional output projection**: Configurable linear projection after the stack
+
+**Example Usage:**
+
+```python
+from cortex import build_cortex, CortexStackConfig, LSTMCellConfig, PreUpBlockConfig
+from cortex.adapters import MettaTDAdapter
+
+# Build a memory stack
+stack = build_cortex(CortexStackConfig(
+    d_hidden=256,
+    blocks=[
+        PreUpBlockConfig(
+            cell=LSTMCellConfig(hidden_size=None),
+            proj_factor=2.0
+        )
+    ]
+))
+
+# Wrap with Metta adapter
+adapter = MettaTDAdapter(
+    stack=stack,
+    in_key="latent",           # Input key in TensorDict
+    out_key="recurrent_out",   # Output key in TensorDict
+    d_hidden=256,              # Stack's external hidden size
+    out_features=512,          # Optional projection to different size
+    store_dtype="fp32"         # Storage precision: 'fp32' or 'bf16'
+)
+
+# Use in your Metta policy
+# The adapter handles state management automatically via TensorDict metadata
+```
+
+**Integration Notes:**
+
+- The adapter is an `nn.Module` that registers the stack's parameters for optimization
+- Requires `training_env_ids` in TensorDict for per-environment state tracking
+- Expects `bptt` (backprop through time steps) metadata to distinguish rollout (bptt=1) from training (bptt>1)
+- Implements `get_memory()` / `set_memory()` for checkpoint serialization
+- Reset masks are constructed from `dones` and `truncateds` in the TensorDict
+
+**Performance Considerations:**
+
+- Uses `store_dtype` to control memory vs precision tradeoff (fp32 for accuracy, bf16 for memory)
+- Maintains a persistent batched state during rollout to avoid redundant gather/scatter operations
+- Training cache is compacted to only store active environment states
+
 
 ## Evaluate Quickly
 
@@ -316,65 +422,3 @@ python packages/cortex/evaluations/run.py --task majority --stack all   # runs a
 - Use `PreUpBlock` when a cell benefits from a larger inner width; use `PostUpBlock` to stabilize depth with a cell at `d_hidden`.
 - Let the stack infer `cell.hidden_size=None` inside `PreUpBlock`/`PostUpBlock` unless you're composing blocks manually.
 
-## Metta Framework Integration
-
-Cortex provides a ready-to-use adapter for integrating memory stacks with the [Metta RL framework](https://github.com/metta-ai/metta), which uses TensorDict-based state management.
-
-### MettaTDAdapter
-
-The `MettaTDAdapter` wraps a `CortexStack` and makes it compatible with Metta's TensorDict interface, handling stateful recurrent memory across rollout and training phases.
-
-**Key Features:**
-
-- **Two-cache architecture**: Separate caches for rollout (data collection) and training (gradient updates)
-  - `rollout_cache`: Updated during environment interaction (single-step mode)
-  - `train_cache`: Frozen snapshot used for deterministic training on replayed sequences
-- **Per-environment memory**: Efficiently manages separate hidden states for each environment
-- **Reset handling**: Automatically applies episode boundary resets via done/truncated flags
-- **Memory-efficient replay**: Stores only `env_id` in replay buffer; reconstructs states from cache
-- **Optional output projection**: Configurable linear projection after the stack
-
-**Example Usage:**
-
-```python
-from cortex import build_cortex, CortexStackConfig, LSTMCellConfig, PreUpBlockConfig
-from cortex.adapters import MettaTDAdapter
-
-# Build a memory stack
-stack = build_cortex(CortexStackConfig(
-    d_hidden=256,
-    blocks=[
-        PreUpBlockConfig(
-            cell=LSTMCellConfig(hidden_size=None),
-            proj_factor=2.0
-        )
-    ]
-))
-
-# Wrap with Metta adapter
-adapter = MettaTDAdapter(
-    stack=stack,
-    in_key="latent",           # Input key in TensorDict
-    out_key="recurrent_out",   # Output key in TensorDict
-    d_hidden=256,              # Stack's external hidden size
-    out_features=512,          # Optional projection to different size
-    store_dtype="fp32"         # Storage precision: 'fp32' or 'bf16'
-)
-
-# Use in your Metta policy
-# The adapter handles state management automatically via TensorDict metadata
-```
-
-**Integration Notes:**
-
-- The adapter is an `nn.Module` that registers the stack's parameters for optimization
-- Requires `training_env_ids` in TensorDict for per-environment state tracking
-- Expects `bptt` (backprop through time steps) metadata to distinguish rollout (bptt=1) from training (bptt>1)
-- Implements `get_memory()` / `set_memory()` for checkpoint serialization
-- Reset masks are constructed from `dones` and `truncateds` in the TensorDict
-
-**Performance Considerations:**
-
-- Uses `store_dtype` to control memory vs precision tradeoff (fp32 for accuracy, bf16 for memory)
-- Maintains a persistent batched state during rollout to avoid redundant gather/scatter operations
-- Training cache is compacted to only store active environment states
