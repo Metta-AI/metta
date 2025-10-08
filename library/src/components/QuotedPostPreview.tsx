@@ -1,23 +1,13 @@
 "use client";
 
-import { FC, useEffect, useState } from "react";
+import { FC } from "react";
 import Link from "next/link";
 import { X } from "lucide-react";
+import { useQueries } from "@tanstack/react-query";
 
 import { getUserDisplayName, getUserInitials } from "@/lib/utils/user";
-
-interface QuotedPost {
-  id: string;
-  title: string;
-  content: string | null;
-  author: {
-    id: string;
-    name: string | null;
-    email: string | null;
-    image: string | null;
-  };
-  createdAt: Date;
-}
+import * as postsApi from "@/lib/api/resources/posts";
+import type { PostDetail } from "@/lib/api/resources/posts";
 
 interface QuotedPostPreviewProps {
   quotedPostIds: string[];
@@ -28,39 +18,19 @@ export const QuotedPostPreview: FC<QuotedPostPreviewProps> = ({
   quotedPostIds,
   onRemove,
 }) => {
-  const [quotedPosts, setQuotedPosts] = useState<QuotedPost[]>([]);
-  const [loading, setLoading] = useState(false);
+  // Use React Query's useQueries to fetch multiple posts efficiently
+  const postQueries = useQueries({
+    queries: quotedPostIds.map((id) => ({
+      queryKey: ["posts", id],
+      queryFn: () => postsApi.getPost(id),
+      enabled: !!id,
+    })),
+  });
 
-  useEffect(() => {
-    const fetchQuotedPosts = async () => {
-      if (quotedPostIds.length === 0) {
-        setQuotedPosts([]);
-        return;
-      }
-
-      setLoading(true);
-      try {
-        // Fetch posts data from the API
-        const promises = quotedPostIds.map(async (id) => {
-          const response = await fetch(`/api/posts/${id}`);
-          if (response.ok) {
-            return await response.json();
-          }
-          return null;
-        });
-
-        const results = await Promise.all(promises);
-        const validPosts = results.filter(Boolean);
-        setQuotedPosts(validPosts);
-      } catch (error) {
-        console.error("Error fetching quoted posts:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchQuotedPosts();
-  }, [quotedPostIds]);
+  const loading = postQueries.some((query) => query.isLoading);
+  const quotedPosts = postQueries
+    .map((query) => query.data)
+    .filter(Boolean) as PostDetail[];
 
   if (quotedPostIds.length === 0) {
     return null;
