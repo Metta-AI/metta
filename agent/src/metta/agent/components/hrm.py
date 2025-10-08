@@ -98,8 +98,8 @@ class HRMReasoning(nn.Module):
         super().__init__()
         self.config = config
 
-        self.memory = HRMMemory()
-        self.carry = self.memory.get_memory()
+        # Initialize memory dictionary
+        self.carry: dict[str, torch.Tensor] = {}
 
         # Reasoning modules (H and L levels)
         self.H_level = HRMReasoningModule(
@@ -193,24 +193,21 @@ class HRMReasoning(nn.Module):
         z_l = z_l.unsqueeze(1)
         z_h = z_h.unsqueeze(1)
 
-        # Main HRM forward pass (matching official implementation)
-        with torch.no_grad():
-            for H_step in range(self.config.H_cycles):
-                for L_step in range(self.config.L_cycles):
-                    # Skip last iteration (will be done with gradients)
-                    if not ((H_step == self.config.H_cycles - 1) and (L_step == self.config.L_cycles - 1)):
-                        z_l = self.L_level(z_l, z_h + x)
 
-                # Skip last H update (will be done with gradients)
-                if not (H_step == self.config.H_cycles - 1):
+        for _ in range(self.config.Mmax):
+            with torch.no_grad():
+                for _ in range(self.config.H_cycles - 1):
+                    for _ in range(self.config.L_cycles):
+                        z_l = self.L_level(z_l, z_h + x)
                     z_h = self.H_level(z_h, z_l)
 
-        # Final 1-step with gradients (for learning)
-        z_l = self.L_level(z_l, z_h + x)
-        z_h = self.H_level(z_h, z_l)
+            z_l = self.L_level(z_l, z_h + x)
+            z_h = self.H_level(z_h, z_l)
+            # Q-head for halting decision (use first token)
+            q_logits = self.q_head(z_h[:, 0])  # (batch, 2)
 
-        # Q-head for halting decision (use first token)
-        q_logits = self.q_head(z_h[:, 0])  # (batch, 2)
+            if q_logits[:, 0].mean() > q_logits[:, 1].mean():
+                break
 
         # Store Q-logits in tensordict for ACT loss computation
         td["q_halt_logits"] = q_logits[:, 0]  # (batch,)
