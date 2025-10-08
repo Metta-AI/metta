@@ -13,7 +13,6 @@ from fastapi.staticfiles import StaticFiles
 
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.sim.simulation import Simulation
-from mettagrid import dtype_actions
 from mettagrid.util.grid_object_formatter import format_grid_object
 
 if TYPE_CHECKING:
@@ -173,7 +172,7 @@ def make_app(cfg: "PlayTool"):
 
         current_step = 0
         action_message = None
-        actions = np.zeros(env.num_agents, dtype=dtype_actions)
+        actions = np.zeros(env.num_agents, dtype=np.int32)
         total_rewards = np.zeros(env.num_agents)
 
         async def send_replay_step():

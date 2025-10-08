@@ -15,7 +15,6 @@ from typing_extensions import override
 
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.core import MettaGridCore
-from mettagrid.mettagrid_c import dtype_actions
 
 
 class MettaGridGymEnv(MettaGridCore, GymEnv):
@@ -86,7 +85,7 @@ class MettaGridGymEnv(MettaGridCore, GymEnv):
         Returns:
             Tuple of (observation, reward, terminated, truncated, info)
         """
-        action_array = np.asarray(action, dtype=dtype_actions)
+        action_array = np.asarray(action, dtype=np.int32)
         if action_array.ndim == 0:
             actions = action_array.reshape(1)
         elif action_array.ndim == 1 and action_array.shape[0] == 1:

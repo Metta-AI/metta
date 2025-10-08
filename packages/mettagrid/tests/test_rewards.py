@@ -14,7 +14,6 @@ from mettagrid.config.mettagrid_config import (
 )
 from mettagrid.mettagrid_c import (
     MettaGrid,
-    dtype_actions,
     dtype_observations,
     dtype_rewards,
     dtype_terminals,
@@ -96,7 +95,7 @@ def perform_action(env, action_name):
         raise ValueError(f"Unknown action '{action_name}'. Available actions: {available_actions}")
 
     action_idx = available_actions.index(action_name)
-    action = np.full((NUM_AGENTS,), action_idx, dtype=dtype_actions)
+    action = np.full((NUM_AGENTS,), action_idx, dtype=np.int32)
     obs, rewards, _terminals, _truncations, _info = env.step(action)
     return obs, float(rewards[0]), env.action_success()[0]
 

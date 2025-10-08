@@ -15,7 +15,6 @@ from mettagrid.core import MettaGridCore
 from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.mettagrid_c import (
     MettaGrid,
-    dtype_actions,
     dtype_observations,
     dtype_rewards,
     dtype_terminals,
@@ -163,7 +162,7 @@ def test_8way_movement_all_directions():
     ]
 
     for orientation, expected_pos in moves:
-        actions = np.zeros((1,), dtype=dtype_actions)
+        actions = np.zeros((1,), dtype=np.int32)
         actions[0] = action_index(env, "move", orientation)
         env.step(actions)
 
@@ -210,7 +209,7 @@ def test_8way_movement_obstacles():
     agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)
 
     # Test diagonal movements near corners
-    actions = np.zeros((1,), dtype=dtype_actions)
+    actions = np.zeros((1,), dtype=np.int32)
 
     # Move to top-left corner area
     actions[0] = action_index(env, "move", Orientation.NORTH)
@@ -257,7 +256,7 @@ def test_orientation_changes_with_8way():
     agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)
 
     # First rotate to face right
-    actions = np.zeros((1,), dtype=dtype_actions)
+    actions = np.zeros((1,), dtype=np.int32)
     actions[0] = action_index(env, "rotate", Orientation.EAST)
     env.step(actions)
 
@@ -348,7 +347,7 @@ def test_8way_movement_with_simple_environment():
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (4, 4)
 
     # Test diagonal movement pattern (diamond shape)
-    actions = np.zeros((1,), dtype=dtype_actions)
+    actions = np.zeros((1,), dtype=np.int32)
 
     # Move Northeast
     actions[0] = action_index(env, "move", Orientation.NORTHEAST)
@@ -403,7 +402,7 @@ def test_8way_movement_boundary_check():
     agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)
 
     # Move to top-left corner
-    actions = np.zeros((1,), dtype=dtype_actions)
+    actions = np.zeros((1,), dtype=np.int32)
     actions[0] = action_index(env, "move", Orientation.NORTHWEST)
     env.step(actions)
 
@@ -466,7 +465,7 @@ def test_orientation_changes_on_failed_8way_movement():
     # Set initial orientation to Left
     action_names = env.action_names
     if "rotate_west" in action_names:
-        actions = np.zeros((1,), dtype=dtype_actions)
+        actions = np.zeros((1,), dtype=np.int32)
         actions[0] = action_index(env, "rotate", Orientation.WEST)
         env.step(actions)
 
@@ -474,7 +473,7 @@ def test_orientation_changes_on_failed_8way_movement():
         assert objects[agent_id]["orientation"] == 2  # Left
 
     # Try to move East into wall - should fail but SHOULD change orientation to East
-    actions = np.zeros((1,), dtype=dtype_actions)
+    actions = np.zeros((1,), dtype=np.int32)
     actions[0] = action_index(env, "move", Orientation.EAST)
     env.step(actions)
 

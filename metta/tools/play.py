@@ -12,7 +12,6 @@ from metta.common.wandb.context import WandbConfig
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_wandb_config
-from mettagrid import dtype_actions
 from mettagrid.util.grid_object_formatter import format_grid_object
 
 logger = logging.getLogger(__name__)
@@ -54,7 +53,7 @@ class PlayTool(Tool):
             initial_replay = sim.get_replay()
 
             current_step = 0
-            actions = np.zeros(env.num_agents, dtype=dtype_actions)
+            actions = np.zeros(env.num_agents, dtype=np.int32)
             total_rewards = np.zeros(env.num_agents)
 
             response = mettascope2.init(replay=json.dumps(initial_replay))
@@ -86,10 +85,10 @@ class PlayTool(Tool):
                 if response.should_close:
                     break
 
-                actions = np.asarray(sim.generate_actions(), dtype=dtype_actions)
+                actions = np.asarray(sim.generate_actions(), dtype=np.int32)
                 # Just do random actions for now.
                 random_actions = np.random.randint(0, env.action_space.n, size=len(actions))
-                actions[:] = random_actions.astype(dtype_actions, copy=False)
+                actions[:] = random_actions.astype(np.int32, copy=False)
                 for action in response.actions:
                     actions[action.agent_id] = action.action_id
 

@@ -2,7 +2,6 @@ import numpy as np
 
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.core import MettaGridCore
-from mettagrid.mettagrid_c import dtype_actions
 
 
 class TestResourceLoss:
@@ -43,7 +42,7 @@ class TestResourceLoss:
 
         # Take a step with noop action
         noop_idx = env.action_names.index("noop")
-        actions = np.full(env.num_agents, noop_idx, dtype=dtype_actions)
+        actions = np.full(env.num_agents, noop_idx, dtype=np.int32)
 
         obs, rewards, terminals, truncations, info = env.step(actions)
 
@@ -98,7 +97,7 @@ class TestResourceLoss:
 
         # Take multiple steps with noop action
         noop_idx = env.action_names.index("noop")
-        actions = np.full(env.num_agents, noop_idx, dtype=dtype_actions)
+        actions = np.full(env.num_agents, noop_idx, dtype=np.int32)
 
         # Take 10 steps
         for _ in range(10):
@@ -155,7 +154,7 @@ class TestResourceLoss:
 
         # Take multiple steps with noop action
         noop_idx = env.action_names.index("noop")
-        actions = np.full(env.num_agents, noop_idx, dtype=dtype_actions)
+        actions = np.full(env.num_agents, noop_idx, dtype=np.int32)
 
         initial_count = inventory[env.resource_names.index("heart")]
 

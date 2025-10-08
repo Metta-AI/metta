@@ -2,10 +2,7 @@ from typing import Any, Optional
 
 import numpy as np
 
-from mettagrid import (
-    MettaGridEnv,
-    dtype_actions,
-)
+from mettagrid import MettaGridEnv
 from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.test_support.orientation import Orientation
 
@@ -32,7 +29,7 @@ def generate_valid_random_actions(
     if seed is not None:
         np.random.seed(seed)
 
-    actions = np.zeros((num_agents,), dtype=dtype_actions)
+    actions = np.zeros((num_agents,), dtype=np.int32)
 
     for i in range(num_agents):
         if force_action_type is None:
@@ -66,7 +63,7 @@ def move(env: MettaGrid, direction: Orientation, agent_idx: int = 0) -> dict[str
     # Get initial position for verification
     position_before = get_agent_position(env, agent_idx)
 
-    move_action = np.zeros((env.num_agents,), dtype=dtype_actions)
+    move_action = np.zeros((env.num_agents,), dtype=np.int32)
     move_action[agent_idx] = action_names.index(move_action_name)
 
     env.step(move_action)
@@ -128,7 +125,7 @@ def rotate(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> dict
         print(f"  Before: {result['orientation_before']}")
 
         # Perform rotation
-        rotate_action = np.zeros((env.num_agents,), dtype=dtype_actions)
+        rotate_action = np.zeros((env.num_agents,), dtype=np.int32)
         rotate_action[agent_idx] = rotate_action_idx
 
         env.step(rotate_action)
@@ -185,7 +182,7 @@ def noop(env: MettaGrid, agent_idx: int = 0) -> dict[str, Any]:
     noop_idx = action_names.index("noop")
 
     # Perform noop
-    noop_action = np.zeros((env.num_agents,), dtype=dtype_actions)
+    noop_action = np.zeros((env.num_agents,), dtype=np.int32)
     noop_action[agent_idx] = noop_idx
     env.step(noop_action)
 
@@ -266,7 +263,7 @@ def attack(env: MettaGrid, target_arg: int = 0, agent_idx: int = 0) -> dict[str,
             break
 
     # Perform attack
-    attack_action = np.zeros((env.num_agents,), dtype=dtype_actions)
+    attack_action = np.zeros((env.num_agents,), dtype=np.int32)
     attack_action[agent_idx] = attack_idx
     env.step(attack_action)
 
@@ -362,7 +359,7 @@ def swap(env: MettaGrid, agent_idx: int = 0) -> dict[str, Any]:
     result["position_before"] = get_agent_position(env, agent_idx)
 
     # Perform swap
-    swap_action = np.zeros((env.num_agents,), dtype=dtype_actions)
+    swap_action = np.zeros((env.num_agents,), dtype=np.int32)
     swap_action[agent_idx] = swap_idx
     env.step(swap_action)
 
@@ -385,7 +382,7 @@ def get_current_observation(env: MettaGrid, agent_idx: int):
         action_names = env.action_names()
         if "noop" in action_names:
             noop_idx = action_names.index("noop")
-            noop_action = np.zeros((env.num_agents,), dtype=dtype_actions)
+            noop_action = np.zeros((env.num_agents,), dtype=np.int32)
             noop_action[agent_idx] = noop_idx
             obs, _, _, _, _ = env.step(noop_action)
             return obs.copy()

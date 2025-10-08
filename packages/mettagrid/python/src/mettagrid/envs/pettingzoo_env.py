@@ -16,10 +16,7 @@ from typing_extensions import override
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.core import MettaGridCore
 
-# Data types for PettingZoo - import from C++ module
-from mettagrid.mettagrid_c import (
-    dtype_actions,
-)
+# Data types for PettingZoo - rely on numpy types directly
 
 
 class MettaGridPettingZooEnv(MettaGridCore, ParallelEnv):
@@ -123,10 +120,10 @@ class MettaGridPettingZooEnv(MettaGridCore, ParallelEnv):
             Tuple of (observations, rewards, terminations, truncations, infos)
         """
         # Convert actions dict to array format
-        actions_array = np.zeros(len(self.agents), dtype=dtype_actions)
+        actions_array = np.zeros(len(self.agents), dtype=np.int32)
         for i, agent in enumerate(self.agents):
             if agent in actions:
-                actions_array[i] = np.asarray(actions[agent], dtype=dtype_actions).reshape(()).item()
+                actions_array[i] = np.asarray(actions[agent], dtype=np.int32).reshape(()).item()
 
         # Call base step implementation
         observations, rewards, terminals, truncations, infos = super().step(actions_array)

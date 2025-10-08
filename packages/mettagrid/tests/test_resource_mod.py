@@ -13,7 +13,6 @@ from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
 from mettagrid.mettagrid_c import (
     MettaGrid,
     ResourceModConfig,
-    dtype_actions,
     dtype_observations,
     dtype_rewards,
     dtype_terminals,
@@ -117,7 +116,7 @@ def test_resource_mod_consumption():
 
     # Execute resource_mod action
     action_idx = env.action_names().index("resource_mod")
-    actions = np.zeros(1, dtype=dtype_actions)
+    actions = np.zeros(1, dtype=np.int32)
     actions[0] = action_idx
     env.step(actions)
 
@@ -224,7 +223,7 @@ def test_resource_mod_aoe_agents():
 
     # Red agent uses resource_mod (affects all 3 agents within radius 2)
     action_idx = env.action_names().index("resource_mod")
-    actions = np.zeros(3, dtype=dtype_actions)
+    actions = np.zeros(3, dtype=np.int32)
     actions[0] = action_idx  # Red uses resource_mod centered on self (arg ignored)
 
     env.step(actions)
@@ -352,7 +351,7 @@ def test_resource_mod_converters():
 
     # Agent uses resource_mod
     action_idx = env.action_names().index("resource_mod")
-    actions = np.zeros(1, dtype=dtype_actions)
+    actions = np.zeros(1, dtype=np.int32)
     actions[0] = action_idx
 
     env.step(actions)
@@ -453,7 +452,7 @@ def test_resource_mod_negative():
 
     # Red uses AoE damage
     action_idx = env.action_names().index("resource_mod")
-    actions = np.zeros(3, dtype=dtype_actions)
+    actions = np.zeros(3, dtype=np.int32)
     actions[0] = action_idx
 
     env.step(actions)
@@ -585,7 +584,7 @@ def test_resource_mod_scaling_vs_no_scaling():
     env_scale.reset()
 
     action_idx = env_scale.action_names().index("resource_mod")
-    actions = np.zeros(2, dtype=dtype_actions)
+    actions = np.zeros(2, dtype=np.int32)
     actions[0] = action_idx
     env_scale.step(actions)
 
@@ -601,7 +600,7 @@ def test_resource_mod_scaling_vs_no_scaling():
     env_no_scale.set_buffers(observations, terminals, truncations, rewards)
     env_no_scale.reset()
 
-    actions = np.zeros(2, dtype=dtype_actions)
+    actions = np.zeros(2, dtype=np.int32)
     actions[0] = action_idx
     env_no_scale.step(actions)
 
