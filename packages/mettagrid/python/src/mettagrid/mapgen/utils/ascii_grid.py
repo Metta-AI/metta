@@ -5,6 +5,7 @@ DEFAULT_CHAR_TO_NAME: dict[str, str] = {
     "#": "wall",
     ".": "empty",
     "@": "agent.agent",
+    "%": "empty",
     "p": "agent.prey",
     "P": "agent.predator",
     "_": "altar",
