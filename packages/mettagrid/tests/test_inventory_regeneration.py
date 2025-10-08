@@ -2,6 +2,7 @@ import numpy as np
 
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.core import MettaGridCore
+from mettagrid.mettagrid_c import dtype_actions
 
 
 class TestInventoryRegeneration:
@@ -46,7 +47,7 @@ class TestInventoryRegeneration:
 
         # Take steps and verify regeneration
         noop_idx = env.action_names.index("noop")
-        actions = np.full(env.num_agents, noop_idx, dtype=np.int32)
+        actions = np.full(env.num_agents, noop_idx, dtype=dtype_actions)
 
         # Step 1: No regeneration yet
         obs, rewards, terminals, truncations, info = env.step(actions)
@@ -113,7 +114,7 @@ class TestInventoryRegeneration:
 
         # Take many steps
         noop_idx = env.action_names.index("noop")
-        actions = np.full(env.num_agents, noop_idx, dtype=np.int32)
+        actions = np.full(env.num_agents, noop_idx, dtype=dtype_actions)
 
         for _ in range(10):
             obs, rewards, terminals, truncations, info = env.step(actions)
@@ -145,7 +146,7 @@ class TestInventoryRegeneration:
 
         # Take a step - should regenerate but cap at 100
         noop_idx = env.action_names.index("noop")
-        actions = np.full(env.num_agents, noop_idx, dtype=np.int32)
+        actions = np.full(env.num_agents, noop_idx, dtype=dtype_actions)
 
         obs, rewards, terminals, truncations, info = env.step(actions)
         grid_objects = env.grid_objects()
