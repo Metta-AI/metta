@@ -4,22 +4,10 @@ This test compares the Triton kernel implementation against the pure PyTorch
 reference implementation, verifying both forward and backward passes.
 """
 
-import os
-import sys
-from pathlib import Path
-
 import pytest
 import torch
-
-# Make cortex package importable relative to this test
-try:
-    PKG_ROOT = Path(__file__).resolve().parents[1]
-except NameError:
-    PKG_ROOT = Path.cwd().parent
-sys.path.insert(0, os.fspath(PKG_ROOT / "src"))
-
-from cortex.kernels import causal_conv1d_pytorch, causal_conv1d_triton  # noqa: E402
-from cortex.utils import TRITON_AVAILABLE  # noqa: E402
+from cortex.kernels import causal_conv1d_pytorch, causal_conv1d_triton
+from cortex.utils import TRITON_AVAILABLE
 
 
 def get_test_device():

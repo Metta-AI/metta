@@ -1,10 +1,5 @@
+#!/usr/bin/env -S uv run python
 """Example showing how to create custom cell types for the cortex architecture."""
-
-import sys
-from pathlib import Path
-
-# Add cortex package to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 import torch
 import torch.nn as nn
