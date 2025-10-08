@@ -3,8 +3,9 @@
 
 Usage:
   ./devops/stable/release.py --all                      # run full flow
-  ./devops/stable/release.py --step workflow-tests      # quick mode (50k)
-  ./devops/stable/release.py --step workflow-tests --comprehensive  # staging mode (2B)
+  ./devops/stable/release.py --step workflow-tests      # run validation tests
+  ./devops/stable/release.py --step summary             # show validation summary
+  ./devops/stable/release.py --step release             # create release tag and notes
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Literal, Optional
 
+import gitta as git
 from devops.job_runner import run_local, run_remote
 
 # Configure logging
@@ -138,14 +140,8 @@ LOG_DIR_REMOTE.mkdir(parents=True, exist_ok=True)
 def _get_commit_sha() -> Optional[str]:
     """Get current git commit SHA."""
     try:
-        result = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        return result.stdout.strip()
-    except subprocess.CalledProcessError:
+        return git.get_current_commit()
+    except git.GitError:
         return None
 
 
@@ -153,33 +149,15 @@ def _get_git_log_since_stable() -> str:
     """Get git log since the last stable release tag."""
     try:
         # Find the latest stable tag
-        result = subprocess.run(
-            ["git", "describe", "--tags", "--abbrev=0", "--match=v*", "stable"],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        last_tag = result.stdout.strip()
+        last_tag = git.run_git("describe", "--tags", "--abbrev=0", "--match=v*", "stable")
 
         # Get git log from that tag to HEAD
-        result = subprocess.run(
-            ["git", "log", f"{last_tag}..HEAD", "--oneline"],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        return result.stdout.strip()
-    except subprocess.CalledProcessError:
+        return git.run_git("log", f"{last_tag}..HEAD", "--oneline")
+    except git.GitError:
         # If no stable tag found, just return recent commits
         try:
-            result = subprocess.run(
-                ["git", "log", "--oneline", "-20"],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-            return result.stdout.strip()
-        except subprocess.CalledProcessError:
+            return git.run_git("log", "--oneline", "-20")
+        except git.GitError:
             return "Unable to retrieve git log"
 
 
@@ -560,12 +538,8 @@ def get_workflow_tests() -> list[Validation]:
 def _ensure_git_repo() -> None:
     """Ensure we're in a git repository."""
     try:
-        subprocess.run(
-            ["git", "rev-parse", "--git-dir"],
-            check=True,
-            capture_output=True,
-        )
-    except subprocess.CalledProcessError:
+        git.run_git("rev-parse", "--git-dir")
+    except git.GitError:
         logger.error("Not in a git repository. Aborting.")
         sys.exit(1)
 
@@ -582,10 +556,10 @@ def step_prepare_branch(version: str, **_kwargs) -> None:
 
     logger.info(f"Creating branch: {branch_name}")
     try:
-        subprocess.run(["git", "checkout", "-b", branch_name], check=True, capture_output=True)
-        subprocess.run(["git", "push", "-u", "origin", branch_name], check=True, capture_output=True)
+        git.run_git("checkout", "-b", branch_name)
+        git.run_git("push", "-u", "origin", branch_name)
         logger.info(f"✅ Branch {branch_name} created and pushed successfully")
-    except subprocess.CalledProcessError as e:
+    except git.GitError as e:
         logger.error(f"Failed to create/push branch: {e}")
         sys.exit(1)
 
@@ -765,20 +739,25 @@ def step_workflow_tests(version: str, **_kwargs) -> None:
     logger.info(f"State saved to: {STATE_DIR / f'{state_version}.json'}")
 
 
-def step_release(version: str, **_kwargs) -> None:
-    """Step 4: Print release instructions with actual metrics from validation."""
+def step_summary(version: str, **_kwargs) -> None:
+    """Step 4: Print validation summary and release notes template."""
     logger.info("\n" + "=" * 60)
-    logger.info("STEP 4: Release")
+    logger.info("STEP 4: Release Summary")
     logger.info("=" * 60 + "\n")
 
     # Load state to extract metrics
     state_version = f"release_{version}"
     state = load_state(state_version)
 
+    if not state:
+        logger.error(f"No state found for version {version}")
+        logger.error("Run --step workflow-tests first")
+        sys.exit(1)
+
     # Extract training metrics from TRAIN validations
     training_metrics = {}
     training_job_id = None
-    for name, result in state.validations.items() if state else {}:
+    for name, result in state.validations.items():
         if "train" in name.lower() and result.metrics:
             training_metrics.update(result.metrics)
             if result.job_id:
@@ -791,11 +770,19 @@ def step_release(version: str, **_kwargs) -> None:
     # Get git log since last stable release
     git_log = _get_git_log_since_stable()
 
-    logger.info("4.1 Prepare Release PR:")
-    logger.info(f"  1. Create release notes at: devops/stable/release-notes/v{version}.md")
-    logger.info(f"  2. Open PR from staging/v{version}-rc1 to stable")
-    logger.info("  3. Use this template for PR description:")
-    logger.info("")
+    # Print validation summary
+    logger.info("Validation Results:")
+    for name, result in state.validations.items():
+        icon = {"passed": "✅", "failed": "❌", "skipped": "⏸️"}.get(result.outcome or "", "❓")
+        logger.info(f"  {icon} {name}")
+        if result.metrics:
+            metrics_str = ", ".join(f"{k}={v:.1f}" for k, v in result.metrics.items())
+            logger.info(f"       Metrics: {metrics_str}")
+
+    # Print release notes template
+    logger.info("\n" + "=" * 60)
+    logger.info("Release Notes Template")
+    logger.info("=" * 60 + "\n")
     logger.info(f"## Version {version}")
     logger.info("")
     logger.info("### Changes Since Last Stable Release")
@@ -808,7 +795,7 @@ def step_release(version: str, **_kwargs) -> None:
     logger.info("")
     logger.info("### Known Issues")
     logger.info("")
-    logger.info("<Notes from step 2>")
+    logger.info("<Add notes from bug-check step>")
     logger.info("")
     logger.info("### Training Job Links")
     logger.info("")
@@ -816,34 +803,130 @@ def step_release(version: str, **_kwargs) -> None:
         logger.info(f"- SkyPilot Job ID: {training_job_id}")
         logger.info(f"- View logs: sky logs {training_job_id}")
     else:
-        logger.info("- Job ID: <not available>")
+        logger.info("- No remote training jobs")
     logger.info("")
     logger.info("### Key Metrics")
     logger.info("")
     logger.info(f"- Training throughput (SPS max): {sps_max}")
     logger.info(f"- Training throughput (SPS last): {sps_last}")
-    logger.info("- Final loss: <manual - check logs>")
-    logger.info("- Final reward: <manual - check logs>")
-    logger.info("- Elapsed training time: <manual - check logs>")
-    logger.info("- GPU usage: <manual - check logs>")
-    logger.info("- CPU usage: <manual - check logs>")
-    logger.info("- GPU memory usage: <manual - check logs>")
-    logger.info("- CPU memory usage: <manual - check logs>")
     logger.info("")
-    logger.info("4.2 Merge and Tag:")
-    logger.info("  1. After PR approval, merge into stable")
-    logger.info("  2. Checkout stable and create the final annotated release tag:")
-    logger.info("")
-    logger.info("     git checkout stable")
-    logger.info("     git pull")
-    logger.info(f'     git tag -a v{version} -m "Release version {version}"')
-    logger.info(f"     git push origin v{version}")
+
+
+def step_release(version: str, **_kwargs) -> None:
+    """Step 5: Automatically create release tag and release notes."""
+    logger.info("\n" + "=" * 60)
+    logger.info("STEP 5: Create Release")
+    logger.info("=" * 60 + "\n")
+
+    _ensure_git_repo()
+
+    # Load state to get validation results
+    state_version = f"release_{version}"
+    state = load_state(state_version)
+
+    if not state:
+        logger.error(f"No state found for version {version}")
+        logger.error("Run --step workflow-tests first")
+        sys.exit(1)
+
+    # Verify all validations passed
+    failed = [name for name, result in state.validations.items() if result.outcome == "failed"]
+    if failed:
+        logger.error("Cannot release with failed validations:")
+        for name in failed:
+            logger.error(f"  ❌ {name}")
+        sys.exit(1)
+
+    # Extract metrics for release notes
+    training_metrics = {}
+    training_job_id = None
+    for name, result in state.validations.items():
+        if "train" in name.lower() and result.metrics:
+            training_metrics.update(result.metrics)
+            if result.job_id:
+                training_job_id = result.job_id
+
+    sps_max = training_metrics.get("sps_max", "N/A")
+    sps_last = training_metrics.get("sps_last", "N/A")
+    git_log = _get_git_log_since_stable()
+
+    # Create release notes
+    release_notes_dir = Path("devops/stable/release-notes")
+    release_notes_dir.mkdir(parents=True, exist_ok=True)
+    release_notes_path = release_notes_dir / f"v{version}.md"
+
+    release_notes_content = f"""# Release Notes - Version {version}
+
+## Validation Summary
+
+"""
+    for name, result in state.validations.items():
+        icon = {"passed": "✅", "failed": "❌", "skipped": "⏸️"}.get(result.outcome or "", "❓")
+        release_notes_content += f"- {icon} {name}\n"
+        if result.metrics:
+            metrics_str = ", ".join(f"{k}={v:.1f}" for k, v in result.metrics.items())
+            release_notes_content += f"  - Metrics: {metrics_str}\n"
+
+    release_notes_content += f"""
+## Changes Since Last Stable Release
+
+{git_log if git_log else "No commits found"}
+
+## Training Job Links
+
+"""
+    if training_job_id:
+        release_notes_content += f"- SkyPilot Job ID: {training_job_id}\n"
+        release_notes_content += f"- View logs: `sky logs {training_job_id}`\n"
+    else:
+        release_notes_content += "- No remote training jobs\n"
+
+    release_notes_content += f"""
+## Key Metrics
+
+- Training throughput (SPS max): {sps_max}
+- Training throughput (SPS last): {sps_last}
+"""
+
+    # Write release notes
+    release_notes_path.write_text(release_notes_content)
+    logger.info(f"✅ Created release notes: {release_notes_path}")
+
+    # Create git tag
+    tag_name = f"v{version}"
+    try:
+        # Check if tag already exists
+        existing = git.run_git("tag", "-l", tag_name)
+        if existing.strip():
+            logger.error(f"Tag {tag_name} already exists")
+            sys.exit(1)
+
+        # Create annotated tag
+        git.run_git("tag", "-a", tag_name, "-m", f"Release version {version}")
+        logger.info(f"✅ Created git tag: {tag_name}")
+
+        # Push tag
+        git.run_git("push", "origin", tag_name)
+        logger.info(f"✅ Pushed tag to origin: {tag_name}")
+
+    except git.GitError as e:
+        logger.error(f"Failed to create/push tag: {e}")
+        sys.exit(1)
+
+    logger.info("\n" + "=" * 60)
+    logger.info("Release Complete!")
+    logger.info("=" * 60)
+    logger.info(f"\nRelease notes: {release_notes_path}")
+    logger.info(f"Git tag: {tag_name}")
+    logger.info("\nNext steps:")
+    logger.info("  1. Create GitHub release from tag")
+    logger.info("  2. Run --step announce to notify team")
 
 
 def step_announce(version: str, **_kwargs) -> None:
-    """Step 5: Print announcement instructions."""
+    """Step 6: Print announcement instructions."""
     logger.info("\n" + "=" * 60)
-    logger.info("STEP 5: Announce")
+    logger.info("STEP 6: Announce")
     logger.info("=" * 60 + "\n")
 
     logger.info("Post release completion to Discord in #eng-process")
@@ -863,6 +946,7 @@ class Step:
     PREPARE = "prepare-branch"
     BUG = "bug-check"
     TESTS = "workflow-tests"
+    SUMMARY = "summary"
     RELEASE = "release"
     ANNOUNCE = "announce"
 
@@ -890,7 +974,7 @@ def main() -> None:
 
     parser.add_argument(
         "--step",
-        choices=[Step.PREPARE, Step.BUG, Step.TESTS, Step.RELEASE, Step.ANNOUNCE],
+        choices=[Step.PREPARE, Step.BUG, Step.TESTS, Step.SUMMARY, Step.RELEASE, Step.ANNOUNCE],
         help="Run a specific step",
     )
 
@@ -926,6 +1010,7 @@ def main() -> None:
         Step.PREPARE: step_prepare_branch,
         Step.BUG: step_bug_check,
         Step.TESTS: step_workflow_tests,
+        Step.SUMMARY: step_summary,
         Step.RELEASE: step_release,
         Step.ANNOUNCE: step_announce,
     }
@@ -946,7 +1031,7 @@ def main() -> None:
 
     # Execute
     if args.all:
-        for step_name in [Step.PREPARE, Step.BUG, Step.TESTS, Step.RELEASE, Step.ANNOUNCE]:
+        for step_name in [Step.PREPARE, Step.BUG, Step.TESTS, Step.SUMMARY, Step.RELEASE, Step.ANNOUNCE]:
             steps[step_name](**kwargs)
     else:
         steps[args.step](**kwargs)
