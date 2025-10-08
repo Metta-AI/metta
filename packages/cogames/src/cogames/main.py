@@ -15,10 +15,11 @@ from packaging.version import Version
 from rich.console import Console
 from rich.table import Table
 
-from cogames import curricula, game, utils
 from cogames import evaluate as evaluate_module
+from cogames import game, utils
 from cogames import play as play_module
 from cogames import train as train_module
+from cogames.cogs_vs_clips.missions import CurriculumUserMap
 from cogames.policy.policy import PolicySpec
 from cogames.policy.utils import parse_policy_spec, resolve_policy_class_path, resolve_policy_data_path
 from mettagrid import MettaGridConfig, MettaGridEnv
@@ -64,7 +65,7 @@ def games_cmd(
         help="Save mission configuration to file (YAML or JSON)",
     ),
 ) -> None:
-    resolved_mission, env_cfg = utils.get_mission_config(console, mission_name)
+    resolved_mission, env_cfg, _ = utils.get_mission_config(console, mission_name)
 
     if save is not None:
         try:
@@ -114,7 +115,7 @@ def play_cmd(
         "gui", "--render", "-r", help="Render mode: 'gui', 'text', or 'none' (no rendering)"
     ),
 ) -> None:
-    resolved_mission, env_cfg = utils.get_mission_config(console, mission_name)
+    resolved_mission, env_cfg, _ = utils.get_mission_config(console, mission_name)
 
     try:
         resolved_policy_data = resolve_policy_data_path(
@@ -153,7 +154,7 @@ def make_mission(
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (yml or json)"),  # noqa: B008
 ) -> None:
     try:
-        _, env_cfg = utils.get_mission_config(console, base_mission)
+        _, env_cfg, _ = utils.get_mission_config(console, base_mission)
 
         # Update map dimensions
         env_cfg.game.map_builder.width = width  # type: ignore[attr-defined]
@@ -221,15 +222,15 @@ def train_cmd(
         min=1,
     ),
 ) -> None:
-    env_cfg: Optional[MettaGridConfig] = None
-    curriculum_supplier: Optional[Callable[[], MettaGridConfig]] = None
-    resolved_mission = mission_name
+    resolved_mission, env_cfg, user_map = utils.get_mission_config(console, mission_name)
 
-    curriculum_factory = curricula.CURRICULUM_ALIAS_SUPPLIERS.get(mission_name)
-    if curriculum_factory is not None:
-        curriculum_supplier = curriculum_factory()
-    else:
-        resolved_mission, env_cfg = utils.get_mission_config(console, mission_name)
+    curriculum_supplier: Optional[Callable[[], MettaGridConfig]] = None
+    if isinstance(user_map, CurriculumUserMap):
+
+        def _supplier() -> MettaGridConfig:
+            return user_map.generate_env(user_map.default_mission)
+
+        curriculum_supplier = _supplier
 
     torch_device = utils.resolve_training_device(console, device)
 
@@ -298,7 +299,7 @@ def evaluate_cmd(
     if policies and (policy_class_path or policy_data_path):
         console.print("[red]Provide --policies or (--policy and --policy-data), not both.[/red]")
         raise typer.Exit(1)
-    resolved_game, env_cfg = utils.get_mission_config(console, mission_name)
+    resolved_game, env_cfg, _ = utils.get_mission_config(console, mission_name)
 
     try:
         if policies:

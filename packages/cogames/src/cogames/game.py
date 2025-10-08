@@ -11,7 +11,7 @@ import yaml
 from rich.console import Console
 from rich.table import Table
 
-from cogames.cogs_vs_clips.missions import USER_MAP_CATALOG
+from cogames.cogs_vs_clips.missions import USER_MAP_CATALOG, UserMap
 from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig
 
 _SUPPORTED_MISSION_EXTENSIONS = [".yaml", ".yml", ".json", ".py"]
@@ -63,20 +63,20 @@ def load_mission_config_from_python(path: Path) -> MettaGridConfig:
 
 def get_all_missions() -> list[str]:
     """Get all available missions."""
-    missions = [
+    return [
         f"{user_map.name}:{mission}" if mission != user_map.default_mission else user_map.name
         for user_map in USER_MAP_CATALOG
         for mission in user_map.available_missions
     ]
 
-    try:
-        from cogames.curricula import CURRICULUM_ALIAS_SUPPLIERS
 
-        missions.extend(sorted(CURRICULUM_ALIAS_SUPPLIERS.keys()))
-    except Exception:  # pragma: no cover - defensive import guard
-        pass
+def get_user_map(map_name: str) -> Optional[UserMap]:
+    """Return the registered user map for a given name, if present."""
 
-    return missions
+    for user_map in USER_MAP_CATALOG:
+        if user_map.name == map_name:
+            return user_map
+    return None
 
 
 def get_mission(
@@ -113,6 +113,16 @@ def get_mission(
     # Otherwise, treat it as a mission name
     matching_maps = [um for um in USER_MAP_CATALOG if um.name == map_name]
     if not matching_maps:
+        suffix_to_variant = (
+            ("_easy_shaped", "easy_shaped"),
+            ("_easy", "easy"),
+            ("_shaped", "shaped"),
+        )
+        for suffix, variant in suffix_to_variant:
+            if map_name.endswith(suffix):
+                base_name = map_name[: -len(suffix)]
+                return get_mission(base_name, variant)
+
         raise ValueError(
             f"Map '{map_name}' not found. Available maps: {', '.join(user_map.name for user_map in USER_MAP_CATALOG)}"
         )
@@ -161,16 +171,6 @@ def list_missions(console: Console) -> None:
     console.print("To specify a <[bold cyan]mission[/bold cyan]>, you can:")
     console.print("  • Use a mission name from above")
     console.print("  • Use a path to a mission configuration file, e.g. path/to/mission.yaml")
-
-    try:
-        from cogames.curricula import CURRICULUM_ALIAS_SUPPLIERS
-
-        if CURRICULUM_ALIAS_SUPPLIERS:
-            console.print("\n[bold]Curriculum aliases available:[/bold]")
-            for alias in sorted(CURRICULUM_ALIAS_SUPPLIERS.keys()):
-                console.print(f"  • {alias}")
-    except Exception:  # pragma: no cover - defensive import guard
-        return
 
 
 def describe_mission(mission_name: str, game_config: MettaGridConfig, console: Console) -> None:

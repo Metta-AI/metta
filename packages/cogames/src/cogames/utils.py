@@ -6,15 +6,15 @@ import torch
 import typer
 from rich.console import Console
 
-from cogames import curricula
 from cogames import game as game_module
+from cogames.cogs_vs_clips.missions import UserMap
 from cogames.policy import Policy, TrainablePolicy
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.util.module import load_symbol
 
 
-def get_mission_config(console: Console, mission_arg: str) -> tuple[str, MettaGridConfig]:
-    """Return a resolved mission name and configuration for cli usage."""
+def get_mission_config(console: Console, mission_arg: str) -> tuple[str, MettaGridConfig, Optional[UserMap]]:
+    """Return a resolved mission name, configuration, and matching UserMap (if registered)."""
 
     requested_mission: Optional[str] = None
     if ":" in mission_arg:
@@ -22,20 +22,15 @@ def get_mission_config(console: Console, mission_arg: str) -> tuple[str, MettaGr
     else:
         map_name = mission_arg
 
-    curriculum_factory = curricula.CURRICULUM_ALIAS_SUPPLIERS.get(map_name)
-    if curriculum_factory is not None:
-        if requested_mission is not None:
-            raise ValueError("Curriculum aliases do not support specifying a secondary mission via ':' syntax")
-        curriculum_supplier = curriculum_factory()
-        config = curriculum_supplier()
-        return map_name, config
-
     config, registered_map_name, mission_name = game_module.get_mission(map_name, requested_mission)
+    user_map: Optional[UserMap] = None
+    if registered_map_name is not None:
+        user_map = game_module.get_user_map(registered_map_name)
     try:
         full_mission_name = (
             f"{registered_map_name}:{mission_name}" if registered_map_name and mission_name else map_name
         )
-        return full_mission_name, config
+        return full_mission_name, config, user_map
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
         raise typer.Exit(1) from e
