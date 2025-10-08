@@ -438,9 +438,7 @@ class HRMPPO(PPO):
                 target = torch.ones_like(q_halt_logits_flat)
 
         # Binary cross-entropy loss
-        q_halt_loss = torch.nn.functional.binary_cross_entropy_with_logits(
-            q_halt_logits_flat, target, reduction="mean"
-        )
+        q_halt_loss = torch.nn.functional.binary_cross_entropy_with_logits(q_halt_logits_flat, target, reduction="mean")
 
         # Metrics
         with torch.no_grad():
@@ -525,4 +523,31 @@ class HRMPPO(PPO):
         for key, value in act_metrics.items():
             self._track(key, value)
 
+        # Track HRM-specific metrics if available
+        if "num_hrm_segments" in policy_td:
+            self._track("num_hrm_segments", policy_td["num_hrm_segments"].mean())
+
+        # Track gradient norms from HRM components
+        self._track_hrm_gradients()
+
         return loss
+
+    def _track_hrm_gradients(self):
+        """Track gradient norms from HRM reasoning components."""
+        # Find HRM reasoning components in policy network
+        if not hasattr(self.policy, "network"):
+            return
+
+        # TensorDictSequential has .module dict with name->module mapping
+        if hasattr(self.policy.network, "module") and hasattr(self.policy.network.module, "values"):
+            # module is a ModuleDict, iterate through actual modules
+            for module_obj in self.policy.network.module.values():
+                # Check for TensorDictModule wrapper
+                target = module_obj.func if hasattr(module_obj, "func") else module_obj
+
+                # Check if this is an HRM component with gradient tracking
+                if hasattr(target, "get_grad_norms"):
+                    grad_norms = target.get_grad_norms()
+                    for name, value in grad_norms.items():
+                        self._track(name, torch.tensor(value))
+                    break  # Found HRM, no need to continue
