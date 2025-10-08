@@ -19,16 +19,7 @@ from cortex.utils import select_backend
 
 
 class CausalConv1d(MemoryCell):
-    """Causal 1D Convolution cell with stateful processing support.
-
-    This cell implements a causal depthwise convolution that can process
-    sequences step-by-step while maintaining a convolution state buffer.
-
-    The cell supports:
-    - Full sequence processing with automatic padding
-    - Step-by-step processing with state management
-    - Depthwise (groups=feature_dim) or channel-mixing (groups=1) modes
-    """
+    """Causal 1D convolution with depthwise or channel-mixing modes and stateful buffering."""
 
     def __init__(self, cfg: CausalConv1dConfig) -> None:
         super().__init__(hidden_size=cfg.feature_dim)
@@ -72,16 +63,7 @@ class CausalConv1d(MemoryCell):
         *,
         resets: Optional[ResetMask] = None,
     ) -> Tuple[Tensor, MaybeState]:
-        """Forward pass with optional state and reset handling.
-
-        Args:
-            x: Input tensor [B, T, F] or [B, F]
-            state: Optional state TensorDict with conv buffer
-            resets: Optional reset mask [B] or [B, T]
-
-        Returns:
-            Tuple of (output [B, T, F] or [B, F], new_state)
-        """
+        """Apply causal convolution with optional resets."""
         # Handle both [B, F] and [B, T, F] inputs
         is_step = x.dim() == 2
         if is_step:

@@ -1,3 +1,5 @@
+"""xLSTM stack builder with alternating mLSTM and sLSTM blocks."""
+
 from __future__ import annotations
 
 from cortex.config import (
@@ -23,26 +25,7 @@ def build_xlstm_stack(
     post_norm: bool = True,
     block_pattern: str | None = None,
 ) -> CortexStack:
-    """Build an xLSTM stack with alternating mLSTM (PreUp) and sLSTM (PostUp) blocks.
-
-    This creates a stack similar to the base xLSTM architecture where:
-    - mLSTM blocks use PreUpBlock (projects up before the cell)
-    - sLSTM blocks use PostUpBlock (cell first, then FFN sublayer)
-
-    Args:
-        d_hidden: External hidden dimension of the stack
-        num_blocks: Total number of blocks in the stack
-        mlstm_num_heads: Number of heads for mLSTM cells
-        slstm_num_heads: Number of heads for sLSTM cells
-        mlstm_proj_factor: Projection factor for mLSTM PreUpBlocks
-        slstm_proj_factor: Projection factor for sLSTM PostUpBlocks
-        mlstm_chunk_size: Chunk size for mLSTM parallel processing
-        conv1d_kernel_size: Kernel size for causal conv preprocessing
-        dropout: Dropout rate for sLSTM cells
-        post_norm: Whether to apply LayerNorm after all blocks
-        block_pattern: Pattern string where '0' = mLSTM, '1' = sLSTM (e.g., "0101010").
-                      If None, alternates starting with mLSTM.
-    """
+    """Build xLSTM stack with alternating mLSTM and sLSTM blocks."""
     blocks = []
 
     # Determine block pattern

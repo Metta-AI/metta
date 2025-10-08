@@ -1,3 +1,5 @@
+"""Type aliases for tensors and stateful computation."""
+
 from __future__ import annotations
 
 import torch

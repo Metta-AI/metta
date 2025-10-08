@@ -1,3 +1,5 @@
+"""PyTorch sLSTM sequence kernel with stabilized exponential gating."""
+
 from __future__ import annotations
 
 from typing import Tuple

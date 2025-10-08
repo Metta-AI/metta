@@ -10,13 +10,7 @@ _CELL_REGISTRY: dict[Type[CellConfig], Type[MemoryCell]] = {}
 
 
 def register_cell(config_class: Type[CellConfig]) -> Callable:
-    """Decorator to register a cell class with its config type.
-
-    Usage:
-        @register_cell(LSTMCellConfig)
-        class LSTMCell(MemoryCell):
-            ...
-    """
+    """Register decorator linking cell class to its configuration type."""
 
     def decorator(cell_class: Type[MemoryCell]) -> Type[MemoryCell]:
         _CELL_REGISTRY[config_class] = cell_class
@@ -28,7 +22,7 @@ def register_cell(config_class: Type[CellConfig]) -> Callable:
 
 
 def get_cell_class(config: CellConfig) -> Type[MemoryCell]:
-    """Get the cell class for a given config instance."""
+    """Lookup cell class from configuration instance."""
     config_type = type(config)
     if config_type not in _CELL_REGISTRY:
         raise ValueError(f"No cell registered for config type {config_type.__name__}")
@@ -36,7 +30,7 @@ def get_cell_class(config: CellConfig) -> Type[MemoryCell]:
 
 
 def build_cell(config: CellConfig) -> MemoryCell:
-    """Build a cell from its configuration."""
+    """Instantiate cell from configuration using registry lookup."""
     cell_class = get_cell_class(config)
     return cell_class(config)
 

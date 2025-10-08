@@ -1,3 +1,5 @@
+"""Post-processing block that applies cell then FFN with residual connections."""
+
 from __future__ import annotations
 
 from typing import Optional, Tuple
@@ -14,27 +16,7 @@ from cortex.types import MaybeState, ResetMask, Tensor
 
 @register_block(PostUpBlockConfig)
 class PostUpBlock(BaseBlock):
-    """Post-processing block with cell followed by FFN.
-
-    Hidden-size inference
-    - When constructed via ``CortexStackConfig``/``build_cortex``, the nested
-      cell's ``hidden_size`` may be ``None``. The stack builder will infer and
-      set it to ``d_hidden`` for this block (the cell runs at the external
-      stack dimension).
-    - If constructing directly (without the stack builder), pass a concrete
-      ``hidden_size`` equal to ``d_hidden``.
-
-    Block layout (batch-first)
-    1. Input → LayerNorm → Cell (cell hidden size = ``d_hidden``)
-    2. Add residual from input
-    3. Result → LayerNorm → FFN: up-projection to ``d_inner = int(proj_factor * d_hidden)``
-       → activation (SiLU) → down-projection to ``d_hidden``
-    4. Add residual from step 2
-
-    Constraints
-    - ``cell.hidden_size == d_hidden``; the builder enforces this and this
-      class asserts it in construction.
-    """
+    """Block that applies cell then FFN sublayer with residual connections."""
 
     def __init__(self, config: PostUpBlockConfig, d_hidden: int, cell: MemoryCell) -> None:
         super().__init__(d_hidden=d_hidden, cell=cell)

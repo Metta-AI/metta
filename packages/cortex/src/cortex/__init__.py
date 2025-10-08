@@ -1,3 +1,5 @@
+"""Cortex: Modular neural stack library for stateful memory cells and composable blocks."""
+
 from cortex.blocks import (
     AdapterBlock,
     BaseBlock,

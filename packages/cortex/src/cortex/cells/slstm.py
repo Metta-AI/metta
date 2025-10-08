@@ -1,3 +1,5 @@
+"""Structured LSTM cell with per-head recurrence and stabilized gating."""
+
 from __future__ import annotations
 
 import logging
@@ -21,11 +23,7 @@ from cortex.utils import select_backend
 
 
 class _HeadwiseLinearExpand(nn.Module):
-    """Per-head linear layer with block-diagonal weights.
-
-    Matches the reference LinearHeadwiseExpand with expand_factor_up=1.
-    Weight shape: [NH, DH, DH]
-    """
+    """Per-head linear layer with block-diagonal weight structure."""
 
     def __init__(self, in_features: int, num_heads: int, bias: bool = False) -> None:
         super().__init__()
@@ -63,35 +61,7 @@ class _HeadwiseLinearExpand(nn.Module):
 
 @register_cell(sLSTMCellConfig)
 class sLSTMCell(MemoryCell):
-    """Stateful sLSTM cell (vanilla PyTorch backend).
-
-    - Input x: [B, T, H] or [B, H]
-    - Output y: same shape as input
-
-    State structure (TensorDict keys):
-    - "y" [B, H]: last raw output before dropout/normalization. This is the
-      recurrent signal used to compute the next step's recurrent preactivations (Ry).
-    - "c" [B, H]: content accumulator; weighted running sum of tanh(z).
-      Update: c_t = f_t * c_{t-1} + i_t * tanh(z_t).
-    - "n" [B, H]: normalization accumulator; running sum of gate weights.
-      Update: n_t = f_t * n_{t-1} + i_t. The exposed output divides c_t by n_t
-      (after output gate) to stabilize scale across time.
-    - "m" [B, H]: log-scale stabilizer for numerically stable i/f gating.
-      Update: m_t = max(i_raw, m_{t-1} + logsigmoid(f_raw)); for the first step
-      (all n==0) m_t is set to i_raw.
-    - "conv" [B, KS, H]: optional causal-conv ring buffer present only when
-      conv1d_kernel_size > 0; supplies the pre-activation path for i,f gates.
-
-    Semantics:
-    - Returned state always corresponds to the final timestep for the given call
-      (both step and sequence modes).
-    - Forward returns dropout + MultiHeadLayerNorm applied to "y"; the stored
-      "y" in state is pre-dropout/normalization for correct recurrence.
-
-    Layout relative to PostUpBlock:
-    - LN -> sLSTMCell (optional conv -> gate projections -> sLSTM core -> dropout -> MH-LN)
-      -> residual, then PostUpBlock applies its own FFN sublayer with pre-LN and residual.
-    """
+    """Structured LSTM cell with per-head gating, state normalization, and optional causal conv."""
 
     def __init__(self, cfg: sLSTMCellConfig) -> None:
         super().__init__(hidden_size=cfg.hidden_size)
@@ -201,10 +171,7 @@ class sLSTMCell(MemoryCell):
         *,
         resets: Optional[ResetMask] = None,
     ) -> Tuple[Tensor, MaybeState]:
-        """Forward pass through sLSTM cell.
-
-        Dispatches to either Triton or PyTorch kernel based on device and shape constraints.
-        """
+        """Apply sLSTM recurrence with automatic backend selection."""
         # Handle [B, H] vs [B, T, H]
         is_step = x.dim() == 2
         if is_step:

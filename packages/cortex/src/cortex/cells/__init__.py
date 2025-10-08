@@ -1,3 +1,5 @@
+"""Memory cell implementations for stateful neural computation."""
+
 from cortex.cells.base import MemoryCell
 
 # Import cells to register them

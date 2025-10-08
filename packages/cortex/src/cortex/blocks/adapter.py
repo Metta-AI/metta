@@ -1,3 +1,5 @@
+"""Adapter block for adding trainable residual paths to pretrained models."""
+
 from __future__ import annotations
 
 import math
@@ -9,6 +11,7 @@ from tensordict import TensorDict
 
 from cortex.blocks.base import BaseBlock
 from cortex.blocks.registry import build_block, register_block
+from cortex.cells import build_cell
 from cortex.cells.base import MemoryCell
 from cortex.config import AdapterBlockConfig
 from cortex.types import MaybeState, ResetMask, Tensor
@@ -16,24 +19,9 @@ from cortex.types import MaybeState, ResetMask, Tensor
 
 @register_block(AdapterBlockConfig)
 class AdapterBlock(BaseBlock):
-    """Wraps another block and adds a trainable adapter path.
-
-    Structure:
-        input → wrapped_block → adapter_residual → output
-
-    The adapter is a gated residual bottleneck MLP initialized to identity (gate=0).
-    This allows inserting adapters into pretrained models without changing behavior at t=0.
-
-    Formula:
-        y = block_out + gate * Up(act(Down(LN(block_out))))
-
-    Where gate starts at 0, making this an identity wrapper initially.
-    """
+    """Wraps a block with identity-initialized gated bottleneck adapter for finetuning."""
 
     def __init__(self, config: AdapterBlockConfig, d_hidden: int, cell: MemoryCell | None = None) -> None:
-        # Import here to avoid circular dependency
-        from cortex.cells import build_cell
-
         # Build the cell for the base block
         base_cell_hidden_size = config.base_block.get_cell_hidden_size(d_hidden)
         base_cell_config = type(config.base_block.cell)(

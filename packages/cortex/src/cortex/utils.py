@@ -34,17 +34,7 @@ def select_backend(
     *,
     allow_triton: bool = True,
 ) -> Callable:
-    """Select backend at runtime based on tensor device and conditions.
-
-    Args:
-        triton_fn: Triton implementation function (or None if not available)
-        pytorch_fn: PyTorch reference implementation function
-        tensor: Input tensor to check device
-        allow_triton: Whether Triton is allowed for this call (e.g., False for step mode)
-
-    Returns:
-        Selected backend function (Triton or PyTorch)
-    """
+    """Select Triton or PyTorch backend based on device and availability."""
     use_triton = TRITON_AVAILABLE and triton_fn is not None and allow_triton and tensor.is_cuda
 
     if use_triton:

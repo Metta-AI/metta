@@ -1,3 +1,5 @@
+"""Passthrough block that applies cell directly without projections."""
+
 from __future__ import annotations
 
 from typing import Optional, Tuple
