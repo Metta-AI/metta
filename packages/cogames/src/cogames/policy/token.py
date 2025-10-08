@@ -1,7 +1,6 @@
 import logging
 from typing import Dict, Optional
 
-import numpy as np
 import torch
 import torch.nn as nn
 
@@ -129,7 +128,7 @@ class TokenAgentPolicyImpl(AgentPolicy):
             logits, _ = self._net.forward_eval(obs_tensor)
             dist = torch.distributions.Categorical(logits=logits)
             action = dist.sample().item()
-            return np.asarray(action, dtype=dtype_actions)
+            return dtype_actions.type(action)
 
 
 class TokenPolicy(TrainablePolicy):

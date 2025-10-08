@@ -211,7 +211,7 @@ class LSTMAgentPolicy(StatefulAgentPolicy[LSTMState]):
             # Sample action from the logits
             dist = torch.distributions.Categorical(logits=logits)
             sampled_action = dist.sample().cpu().item()
-            action = np.asarray(sampled_action, dtype=dtype_actions)
+            action = dtype_actions.type(sampled_action)
 
             return action, new_state.detach() if new_state is not None else None
 

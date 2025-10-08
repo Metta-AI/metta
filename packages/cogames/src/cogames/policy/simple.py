@@ -60,7 +60,7 @@ class SimpleAgentPolicyImpl(AgentPolicy):
             logits, _ = self._net.forward_eval(obs_tensor)
             dist = torch.distributions.Categorical(logits=logits)
             sampled_action = dist.sample().cpu().item()
-            return np.asarray(sampled_action, dtype=dtype_actions)
+            return dtype_actions.type(sampled_action)
 
 
 class SimplePolicy(TrainablePolicy):
