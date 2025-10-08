@@ -6,6 +6,7 @@
 
 import { prisma } from "@/lib/db/prisma";
 import { ParsedMention, parseMentions } from "./mentions";
+import { Logger } from "./logging/logger";
 
 export interface ResolvedMention {
   type: "user" | "group" | "institution";
@@ -38,7 +39,11 @@ export async function resolveMentions(
         resolved.push(resolution);
       }
     } catch (error) {
-      console.error(`Failed to resolve mention: ${mention.raw}`, error);
+      Logger.error(
+        "Failed to resolve mention",
+        error instanceof Error ? error : new Error(String(error)),
+        { mention: mention.raw }
+      );
     }
   }
 
