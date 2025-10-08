@@ -1,8 +1,8 @@
 """
-Enhanced AGaLiTe Core implementation using the new enhanced attention layers.
+Enhanced AGaLiTe core backed by the paper-aligned attention layers.
 
-This module provides the core transformer functionality with mode switching
-between GaLiTe (exact) and AGaLiTe (approximated) implementations.
+This module provides transformer functionality with mode switching between
+GaLiTe (exact) and AGaLiTe (approximated) implementations.
 """
 
 import logging
@@ -12,7 +12,6 @@ import torch
 import torch.nn as nn
 
 from metta.agent.components.agalite_enhanced import EnhancedTransformerEncoder
-from metta.agent.components.agalite_fast import FastAGaLiTeLayer
 from metta.agent.components.agalite_kernel import AGaLiTeKernelConfig
 
 logger = logging.getLogger(__name__)
@@ -22,10 +21,9 @@ class EnhancedAGaLiTeCore(nn.Module):
     """
     Enhanced AGaLiTe transformer core with full paper implementation.
 
-    Supports three modes:
+    Supports two modes:
     - "galite": Exact linear attention without approximation
     - "agalite": Full AGaLiTe with oscillatory approximation
-    - "fast": Optimized fast mode with reduced parameters (backward compatibility)
     """
 
     def __init__(
@@ -37,7 +35,7 @@ class EnhancedAGaLiTeCore(nn.Module):
         n_heads: int,
         eta: int,
         r: int,
-        mode: Literal["galite", "agalite", "fast"] = "agalite",
+        mode: Literal["galite", "agalite"] = "agalite",
         reset_on_terminate: bool = True,
         dropout: float = 0.0,
         layer_norm_eps: float = 1e-5,
@@ -53,51 +51,32 @@ class EnhancedAGaLiTeCore(nn.Module):
         self.mode = mode
         self.reset_on_terminate = reset_on_terminate
 
-        # Parameter adjustment for fast mode
-        if mode == "fast":
-            self.eta = min(eta, 2)  # Cap at 2 for fast mode
-            self.r = min(r, 4)  # Cap at 4 for fast mode
-            logger.info(f"Using fast mode with reduced parameters: eta={self.eta}, r={self.r}")
-        else:
-            self.eta = eta
-            self.r = r
-            logger.info(f"Using {mode} mode with full parameters: eta={self.eta}, r={self.r}")
+        self.eta = eta
+        self.r = r
+        logger.info(f"Using {mode} mode with parameters: eta={self.eta}, r={self.r}")
 
         self.kernel = kernel or AGaLiTeKernelConfig()
 
         # Create encoder layers
         self.encoders = nn.ModuleList()
         for layer_idx in range(n_layers):
-            if mode == "fast":
-                # Use existing fast implementation for backward compatibility
-                encoder = FastAGaLiTeLayer(
-                    d_model=d_model,
-                    head_num=n_heads,
-                    head_dim=d_head,
-                    eta=self.eta,
-                    r=self.r,
-                    reset_hidden_on_terminate=reset_on_terminate,
-                    dropout=dropout,
-                    kernel=self.kernel,
-                )
-            else:
-                # Use enhanced implementation with mode selection
-                use_dense = layer_idx == 0  # Use dense layer for first layer
-                encoder = EnhancedTransformerEncoder(
-                    d_model=d_model,
-                    d_head=d_head,
-                    d_ffc=d_ffc,
-                    n_heads=n_heads,
-                    eta=self.eta,
-                    r=self.r,
-                    kernel=self.kernel,
-                    mode=mode,
-                    use_dense=use_dense,
-                    gru_bias=gru_bias,
-                    reset_hidden_on_terminate=reset_on_terminate,
-                    dropout=dropout,
-                    layer_norm_eps=layer_norm_eps,
-                )
+            # Use enhanced implementation with mode selection
+            use_dense = layer_idx == 0  # Use dense layer for first layer
+            encoder = EnhancedTransformerEncoder(
+                d_model=d_model,
+                d_head=d_head,
+                d_ffc=d_ffc,
+                n_heads=n_heads,
+                eta=self.eta,
+                r=self.r,
+                kernel=self.kernel,
+                mode=mode,
+                use_dense=use_dense,
+                gru_bias=gru_bias,
+                reset_hidden_on_terminate=reset_on_terminate,
+                dropout=dropout,
+                layer_norm_eps=layer_norm_eps,
+            )
             self.encoders.append(encoder)
 
     def forward(
@@ -110,14 +89,7 @@ class EnhancedAGaLiTeCore(nn.Module):
         for layer_idx, encoder in enumerate(self.encoders):
             layer_key = f"layer_{layer_idx + 1}"
 
-            if self.mode == "fast":
-                # Fast mode: encoder is FastAGaLiTeLayer, add residual connection
-                residual = u_i
-                attn_out, memory_updated = encoder(u_i, terminations, memory[layer_key])
-                u_i = residual + attn_out  # Residual connection
-            else:
-                # Enhanced mode: encoder is EnhancedTransformerEncoder (has built-in residuals)
-                u_i, memory_updated = encoder(u_i, terminations, memory[layer_key])
+            u_i, memory_updated = encoder(u_i, terminations, memory[layer_key])
 
             new_memory[layer_key] = memory_updated
 
@@ -133,15 +105,8 @@ class EnhancedAGaLiTeCore(nn.Module):
         for layer_idx in range(self.n_layers):
             layer_key = f"layer_{layer_idx + 1}"
 
-            if self.mode == "fast":
-                # Fast mode memory initialization
-                memory_dict[layer_key] = FastAGaLiTeLayer.initialize_memory(
-                    batch_size, self.n_heads, self.d_head, self.eta, self.r, device, kernel=self.kernel
-                )
-            else:
-                # Enhanced mode memory initialization
-                encoder = self.encoders[layer_idx]
-                memory_dict[layer_key] = encoder.initialize_memory(batch_size, device)
+            encoder = self.encoders[layer_idx]
+            memory_dict[layer_key] = encoder.initialize_memory(batch_size, device)
 
         return memory_dict
 

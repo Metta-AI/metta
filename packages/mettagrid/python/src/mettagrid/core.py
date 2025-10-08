@@ -287,13 +287,13 @@ class MettaGridCore:
 
         action_names: List[str] = []
         if hasattr(c_env, "action_names"):
-            action_names_attr = getattr(c_env, "action_names")
+            action_names_attr = c_env.action_names
             action_names_value = action_names_attr() if callable(action_names_attr) else action_names_attr
             action_names = list(action_names_value)
 
         max_args: List[int] = []
         if hasattr(c_env, "max_action_args"):
-            max_args_attr = getattr(c_env, "max_action_args")
+            max_args_attr = c_env.max_action_args
             max_args_value = max_args_attr() if callable(max_args_attr) else max_args_attr
             max_args = [int(value) for value in list(max_args_value)]
 

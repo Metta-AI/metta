@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Literal, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -27,7 +27,7 @@ class AGaLiTeTransformerConfig(ComponentConfig):
     feedforward_size: int = 768
     eta: int = 4
     r: int = 8
-    mode: str = "agalite"
+    mode: Literal["galite", "agalite"] = "agalite"
     dropout: float = 0.0
     reset_on_terminate: bool = True
     layer_norm_eps: float = 1e-5
