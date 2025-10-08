@@ -205,9 +205,7 @@ class WandbStore:
 
         # Check for evaluator metrics under configured namespace (if provided) to avoid false positives
         if self.evaluator_prefix:
-            has_evaluator_metrics = any(
-                k.startswith(self.evaluator_prefix) for k in summary.keys()
-            )  # type: ignore
+            has_evaluator_metrics = any(k.startswith(self.evaluator_prefix) for k in summary.keys())  # type: ignore
         else:
             # Backward-compatible behavior: any evaluator/* metric counts
             has_evaluator_metrics = any(k.startswith("evaluator/") for k in summary.keys())  # type: ignore
