@@ -6,6 +6,7 @@ import { X, Users, Globe, Lock, Building } from "lucide-react";
 
 import { useFormWithMutation } from "@/lib/hooks/useFormWithMutation";
 import { useCreateGroup } from "@/hooks/mutations/admin";
+import { ErrorAlert } from "@/components/ui/error-alert";
 import {
   Form,
   FormControl,
@@ -277,9 +278,7 @@ export const GroupCreateForm: FC<GroupCreateFormProps> = ({
                 />
 
                 {submitError && (
-                  <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">
-                    {submitError}
-                  </div>
+                  <ErrorAlert message={submitError} className="mb-4" />
                 )}
 
                 <div className="mt-6 flex justify-end gap-3">
