@@ -7,7 +7,8 @@ from tensordict import TensorDict
 from tensordict.nn import TensorDictModule as TDM
 from torch import nn
 
-from metta.agent.components.actor import ActionProbsConfig, ActorHeadConfig
+from metta.agent.components.action import ActionEmbeddingConfig
+from metta.agent.components.actor import ActionProbsConfig, ActorKeyConfig, ActorQueryConfig
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.components.misc import MLPConfig
 from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
@@ -28,7 +29,7 @@ def forward(self, td: TensorDict, action: torch.Tensor = None) -> TensorDict:
     self.network(td)
     self.action_probs(td, action)
 
-    td["pred_input"] = torch.cat([td["core"], td["logits"]], dim=-1)
+    td["pred_input"] = torch.cat([td["core"], td["actor_query"]], dim=-1)
     self.returns_pred(td)
     self.reward_pred(td)
     td["values"] = td["values"].flatten()
@@ -38,11 +39,15 @@ def forward(self, td: TensorDict, action: torch.Tensor = None) -> TensorDict:
 class FastDynamicsConfig(PolicyArchitecture):
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
+    _hidden_size = 32
+    _embedding_dim = 16
+
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
     _latent_dim = 64
     _token_embed_dim = 8
     _fourier_freqs = 3
+    _embed_dim = 16
     _core_out_dim = 32
     _memory_num_layers = 2
 
@@ -78,7 +83,14 @@ class FastDynamicsConfig(PolicyArchitecture):
             out_features=1,
             hidden_features=[1024],
         ),
-        ActorHeadConfig(in_key="core", out_key="logits", input_dim=_core_out_dim),
+        ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embed_dim),
+        ActorQueryConfig(in_key="core", out_key="actor_query", hidden_size=_core_out_dim, embed_dim=_embed_dim),
+        ActorKeyConfig(
+            query_key="actor_query",
+            embedding_key="action_embedding",
+            out_key="logits",
+            embed_dim=_embed_dim,
+        ),
     ]
 
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
@@ -87,8 +99,7 @@ class FastDynamicsConfig(PolicyArchitecture):
         AgentClass = load_symbol(self.class_path)
         policy = AgentClass(env_metadata, self)
 
-        num_actions = int(env_metadata.action_space.n)
-        pred_input_dim = self._core_out_dim + num_actions
+        pred_input_dim = self._hidden_size + self._embedding_dim
         returns_module = nn.Linear(pred_input_dim, 1)
         reward_module = nn.Linear(pred_input_dim, 1)
         policy.returns_pred = TDM(returns_module, in_keys=["pred_input"], out_keys=["returns_pred"])

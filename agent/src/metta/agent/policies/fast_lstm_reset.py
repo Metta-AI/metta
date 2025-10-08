@@ -1,7 +1,8 @@
 import logging
 from typing import List
 
-from metta.agent.components.actor import ActionProbsConfig, ActorHeadConfig
+from metta.agent.components.action import ActionEmbeddingConfig
+from metta.agent.components.actor import ActionProbsConfig, ActorKeyConfig, ActorQueryConfig
 from metta.agent.components.cnn_encoder import CNNEncoderConfig
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.components.lstm_reset import LSTMResetConfig
@@ -18,6 +19,8 @@ class FastLSTMResetConfig(PolicyArchitecture):
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
     _hidden_size = 128
+    _action_embedding_dim = 16
+
     components: List[ComponentConfig] = [
         ObsShimBoxConfig(in_key="env_obs", out_key="obs_shim_box"),
         CNNEncoderConfig(in_key="obs_shim_box", out_key="encoded_obs"),
@@ -36,7 +39,19 @@ class FastLSTMResetConfig(PolicyArchitecture):
             out_features=1,
             hidden_features=[1024],
         ),
-        ActorHeadConfig(in_key="core", out_key="logits", input_dim=_hidden_size),
+        ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_action_embedding_dim),
+        ActorQueryConfig(
+            in_key="core",
+            out_key="actor_query",
+            hidden_size=_hidden_size,
+            embed_dim=_action_embedding_dim,
+        ),
+        ActorKeyConfig(
+            query_key="actor_query",
+            embedding_key="action_embedding",
+            out_key="logits",
+            embed_dim=_action_embedding_dim,
+        ),
     ]
 
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")

@@ -1,6 +1,7 @@
 from typing import List
 
-from metta.agent.components.actor import ActionProbsConfig, ActorHeadConfig
+from metta.agent.components.action import ActionEmbeddingConfig
+from metta.agent.components.actor import ActionProbsConfig, ActorKeyConfig, ActorQueryConfig
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.components.misc import MLPConfig
 from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
@@ -13,6 +14,8 @@ class MemoryFreeConfig(PolicyArchitecture):
     """Speed-optimized ViT variant with lighter token embeddings and attention stack."""
 
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
+
+    _embedding_dim = 16
 
     _token_embed_dim = 8
     _fourier_freqs = 3
@@ -54,7 +57,19 @@ class MemoryFreeConfig(PolicyArchitecture):
             out_features=1,
             hidden_features=[_critic_hidden],
         ),
-        ActorHeadConfig(in_key="actor_hidden", out_key="logits", input_dim=_actor_hidden),
+        ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embedding_dim),
+        ActorQueryConfig(
+            in_key="actor_hidden",
+            out_key="actor_query",
+            hidden_size=_actor_hidden,
+            embed_dim=_embedding_dim,
+        ),
+        ActorKeyConfig(
+            query_key="actor_query",
+            embedding_key="action_embedding",
+            out_key="logits",
+            embed_dim=_embedding_dim,
+        ),
     ]
 
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
