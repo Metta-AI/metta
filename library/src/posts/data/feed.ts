@@ -1,6 +1,13 @@
 import { prisma } from "@/lib/db/prisma";
 import { makePaginated, Paginated } from "@/lib/paginated";
 import { auth } from "@/lib/auth";
+import type { LLMAbstract } from "@/lib/llm-abstract-generator-clean";
+import type {
+  PrismaPost,
+  PrismaPaper,
+  PrismaUser,
+  PrismaUserPaperInteraction,
+} from "@/types/prisma-models";
 
 export type FeedPostDTO = {
   id: string;
@@ -49,7 +56,7 @@ export type FeedPostDTO = {
     queued: boolean;
     createdAt: Date;
     updatedAt: Date;
-    llmAbstract?: any; // LLM-generated enhanced abstract
+    llmAbstract?: LLMAbstract | null;
     llmAbstractGeneratedAt?: Date | null;
   };
   createdAt: Date;
@@ -58,10 +65,10 @@ export type FeedPostDTO = {
 };
 
 export function toFeedPostDTO(
-  dbModel: any,
-  usersMap: Map<string, any>,
-  papersMap: Map<string, any>,
-  userPaperInteractionsMap: Map<string, any> = new Map()
+  dbModel: PrismaPost,
+  usersMap: Map<string, PrismaUser>,
+  papersMap: Map<string, PrismaPaper>,
+  userPaperInteractionsMap: Map<string, PrismaUserPaperInteraction> = new Map()
 ): FeedPostDTO {
   const author = usersMap.get(dbModel.authorId);
   const paper = dbModel.paperId ? papersMap.get(dbModel.paperId) : null;
@@ -71,7 +78,7 @@ export function toFeedPostDTO(
   let lastActivityAt = dbModel.createdAt;
   if (dbModel.comments && dbModel.comments.length > 0) {
     const mostRecentCommentTime = dbModel.comments.reduce(
-      (latest: Date, comment: any) => {
+      (latest: Date, comment) => {
         return comment.createdAt > latest ? comment.createdAt : latest;
       },
       new Date(0)
@@ -95,7 +102,7 @@ export function toFeedPostDTO(
     queues: dbModel.queues ?? 0,
     replies: dbModel.replies ?? 0,
     quotedPostIds: dbModel.quotedPostIds ?? [],
-    quotedPosts: dbModel.quotedPosts?.map((qp: any) => ({
+    quotedPosts: dbModel.quotedPosts?.map((qp) => ({
       id: qp.id,
       title: qp.title,
       content: qp.content,
@@ -119,15 +126,14 @@ export function toFeedPostDTO(
           title: paper.title,
           abstract: paper.abstract,
           authors:
-            paper.paperAuthors?.map((pa: any) => ({
+            paper.paperAuthors?.map((pa) => ({
               id: pa.author.id,
               name: pa.author.name,
               orcid: pa.author.orcid,
               institution: pa.author.institution,
             })) || [],
           institutions:
-            paper.paperInstitutions?.map((pi: any) => pi.institution.name) ||
-            [],
+            paper.paperInstitutions?.map((pi) => pi.institution.name) || [],
           tags: paper.tags,
           link: paper.link,
           source: paper.source,
@@ -334,7 +340,13 @@ export async function loadFeedPosts({
       papersMap.set(row.paper.id, row.paper);
     }
 
-    return toFeedPostDTO(row, usersMap, papersMap, userPaperInteractionsMap);
+    // Cast row to PrismaPost (Prisma query result has different shape)
+    return toFeedPostDTO(
+      row as unknown as PrismaPost,
+      usersMap,
+      papersMap,
+      userPaperInteractionsMap
+    );
   });
 
   // Check if there are more posts to load
