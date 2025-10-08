@@ -16,13 +16,7 @@ _BLOCK_REGISTRY: Dict[Type[BlockConfig], Type[BaseBlock]] = {}
 
 
 def register_block(config_class: Type[BlockConfig]) -> Callable:
-    """Decorator to register a block class with its config type.
-
-    Usage:
-        @register_block(MyBlockConfig)
-        class MyBlock(BaseBlock):
-            ...
-    """
+    """Register decorator linking block class to its configuration type."""
 
     def decorator(block_class: Type[BaseBlock]) -> Type[BaseBlock]:
         _BLOCK_REGISTRY[config_class] = block_class
@@ -34,7 +28,7 @@ def register_block(config_class: Type[BlockConfig]) -> Callable:
 
 
 def get_block_class(config: BlockConfig) -> Type[BaseBlock]:
-    """Get the block class for a given config instance."""
+    """Lookup block class from configuration instance."""
     config_type = type(config)
 
     # First check if config has _block_class attribute
@@ -49,10 +43,7 @@ def get_block_class(config: BlockConfig) -> Type[BaseBlock]:
 
 
 def build_block(config: BlockConfig, d_hidden: int, cell: MemoryCell) -> BaseBlock:
-    """Build a block from its configuration.
-
-    This is the generic builder that works for any registered block type.
-    """
+    """Instantiate block from configuration using registry lookup."""
     block_class = get_block_class(config)
     return block_class(config=config, d_hidden=d_hidden, cell=cell)
 

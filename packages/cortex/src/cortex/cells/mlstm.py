@@ -1,3 +1,5 @@
+"""Matrix LSTM cell with parallel chunk processing and normalized state."""
+
 from __future__ import annotations
 
 from typing import Optional, Tuple
@@ -65,37 +67,7 @@ class MultiHeadLayerNorm(nn.Module):
 
 @register_cell(mLSTMCellConfig)
 class mLSTMCell(MemoryCell):
-    """Stateful mLSTM cell with matrix-valued memory and a causal conv pre-act.
-
-    Input/Output
-    - forward(x, state=None, resets=None) -> (y, new_state)
-      - x: `[B, T, H]` or `[B, H]` (step). Returns `y` with identical shape.
-      - state: `TensorDict | None`. If `None`, zero state is used.
-      - resets: optional reset mask `[B]` or `[B, T]` (step respected; sequence currently simplified).
-      - new_state corresponds to the state at the last processed timestep.
-
-    State structure (TensorDict keys)
-    - "c": `[B, num_heads, head_dim, head_dim]` — matrix memory.
-    - "n": `[B, num_heads, head_dim, 1]` — normalization accumulator.
-    - "m": `[B, num_heads, 1, 1]` — running max in log-space for stabilization.
-    - "conv": `[B, conv1d_kernel_size, H]` — ring buffer for the causal conv pre-activation
-      (present when `conv1d_kernel_size > 0`).
-
-    Notes on state semantics and shapes
-    - The returned state is always the final (last-timestep) state for the given call.
-    - Step vs. sequence parity:
-      * If `T <= chunk_size`, outputs and states are computed by replaying the
-        recurrent step for exact parity.
-      * If `T > chunk_size`, full chunks are computed with a closed-form
-        chunkwise backend and any tail is handled by recurrent steps; the
-        returned state matches step semantics.
-    - When this cell is wrapped by `PreUpBlock`, the cell state is nested under the key "cell":
-      `TensorDict({"cell": {"c":..., "n":..., "m":..., "conv":...}})`.
-
-    State reset
-    - `reset_state(state, mask)` zeroes "c", "n", "m" for the masked batch rows and also resets the internal
-      conv buffer under "conv".
-    """
+    """Matrix LSTM cell with matrix-valued state and parallel/recurrent processing modes."""
 
     def __init__(self, cfg: mLSTMCellConfig) -> None:
         super().__init__(hidden_size=cfg.hidden_size)
@@ -161,16 +133,7 @@ class mLSTMCell(MemoryCell):
         *,
         resets: Optional[ResetMask] = None,
     ) -> Tuple[Tensor, MaybeState]:
-        """Forward pass with optional state and reset handling.
-
-        Args:
-            x: Input tensor [B, T, H] or [B, H]
-            state: Optional state TensorDict with c, n, m tensors
-            resets: Optional reset mask [B, T]
-
-        Returns:
-            Tuple of (output [B, T, H] or [B, H], new_state)
-        """
+        """Apply mLSTM with automatic backend selection for step or chunk processing."""
         # Check if single step
         is_step = x.dim() == 2
         if is_step:

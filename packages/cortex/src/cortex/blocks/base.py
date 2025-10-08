@@ -1,3 +1,5 @@
+"""Base abstract block interface for wrapping memory cells."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

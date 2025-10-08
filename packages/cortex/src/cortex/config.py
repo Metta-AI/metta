@@ -1,19 +1,12 @@
+"""Configuration classes for Cortex cells, blocks, and stacks."""
+
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
 
 class CellConfig(BaseModel):
-    """Base configuration for a memory cell.
-
-    hidden_size may be left as ``None`` when the cell config is nested inside
-    a block that defines the working dimension (e.g., ``PreUpBlock`` or
-    ``PostUpBlock``). The stack builder will then infer and set the correct
-    size based on the block recipe.
-
-    When constructing a cell directly (not via a stack/block), ``hidden_size``
-    must be provided as a positive integer.
-    """
+    """Base configuration for memory cells with optional hidden size inference."""
 
     hidden_size: int | None = Field(default=None)
 
@@ -22,13 +15,7 @@ class CellConfig(BaseModel):
 
 
 class LSTMCellConfig(CellConfig):
-    """Config for a stateless LSTM cell wrapper.
-
-    Notes
-    - `hidden_size` must equal the external stack `d_hidden` unless used in a preup block
-      that projects to an inner dimension and back.
-    - Always uses batch_first=True internally.
-    """
+    """Configuration for standard LSTM cell (batch-first, single layer default)."""
 
     hidden_size: int | None = Field(default=None)
     num_layers: int = Field(default=1, ge=1)
@@ -38,10 +25,7 @@ class LSTMCellConfig(CellConfig):
 
 
 class CausalConv1dConfig(CellConfig):
-    """Config for a Causal 1D Convolution cell.
-
-    This cell performs causal convolution with optional channel mixing.
-    """
+    """Configuration for causal 1D convolution with optional channel mixing."""
 
     kernel_size: int = Field(default=4, ge=0)
     causal_conv_bias: bool = Field(default=True)
@@ -54,11 +38,7 @@ class CausalConv1dConfig(CellConfig):
 
 
 class mLSTMCellConfig(CellConfig):
-    """Config for a stateful mLSTM (Matrix LSTM) cell.
-
-    The mLSTM cell uses matrix-valued state with input/forget gates
-    and supports both parallel and recurrent computation modes.
-    """
+    """Configuration for Matrix LSTM cell with parallel chunk processing."""
 
     hidden_size: int | None = Field(default=None)
     num_heads: int = Field(default=4, ge=1)
@@ -68,14 +48,7 @@ class mLSTMCellConfig(CellConfig):
 
 
 class sLSTMCellConfig(CellConfig):
-    """Config for a stateful sLSTM (Structured LSTM) cell.
-
-    This cell follows the reference sLSTM layer structure with optional
-    causal depthwise Conv1d used to form pre-activations for gates.
-
-    The recurrence uses per-head recurrent matrices and maintains four
-    state tensors per batch row: y, c, n, m.
-    """
+    """Configuration for Structured LSTM cell with per-head recurrence."""
 
     hidden_size: int | None = Field(default=None)
     num_heads: int = Field(default=4, ge=1)  # Must be power of 2 for triton to work.
@@ -86,11 +59,7 @@ class sLSTMCellConfig(CellConfig):
 
 
 class BlockConfig(BaseModel):
-    """Base configuration for a cortex block.
-
-    This is the base class that all block configurations should inherit from.
-    Specific block types can add their own parameters.
-    """
+    """Base configuration for cortex blocks."""
 
     cell: CellConfig  # Any cell config type
 
@@ -98,16 +67,7 @@ class BlockConfig(BaseModel):
         extra = "allow"  # Allow additional fields for extensibility
 
     def get_cell_hidden_size(self, d_hidden: int) -> int:
-        """Get the hidden size that the cell should use for this block.
-
-        Args:
-            d_hidden: The external hidden size of the stack
-
-        Returns:
-            The hidden size to use for the cell
-
-        This can be overridden by subclasses to compute different sizes.
-        """
+        """Compute cell hidden size from stack's external dimension."""
         return d_hidden
 
 
@@ -118,41 +78,23 @@ class PassThroughBlockConfig(BlockConfig):
 
 
 class PreUpBlockConfig(BlockConfig):
-    """Configuration for a pre-up projection block.
-
-    Projects up before the cell, then down after.
-
-    Notes
-    - The nested ``cell.hidden_size`` may be left as ``None``; the stack builder
-      will set it to ``int(proj_factor * d_hidden)``.
-    """
+    """Configuration for pre-upsampling blocks (projects before cell)."""
 
     proj_factor: float = Field(default=2.0, gt=0.0)
 
     def get_cell_hidden_size(self, d_hidden: int) -> int:
-        """For pre-up blocks, the cell operates on the inner dimension."""
+        """Cell operates on expanded inner dimension."""
         return int(self.proj_factor * d_hidden)
 
 
 class PostUpBlockConfig(BlockConfig):
-    """Configuration for a post-up projection block.
-
-    Applies cell first, then projects up and down.
-
-    Notes
-    - The nested ``cell.hidden_size`` may be left as ``None``; the stack builder
-      will set it to ``d_hidden`` for this block type.
-    """
+    """Configuration for post-processing blocks (cell then FFN)."""
 
     proj_factor: float = Field(default=1.5, gt=0.0)
 
 
 class AdapterBlockConfig(BlockConfig):
-    """Configuration for an adapter block that wraps another block.
-
-    The adapter adds a trainable residual path that is identity at initialization.
-    This allows inserting adapters into pretrained models without changing behavior at t=0.
-    """
+    """Configuration for adapter blocks with identity-initialized residual paths."""
 
     base_block: BlockConfig  # The block to wrap
     cell: CellConfig | None = None  # Not used for adapters, delegated to base_block
@@ -167,7 +109,7 @@ class AdapterBlockConfig(BlockConfig):
 
 
 class CortexStackConfig(BaseModel):
-    """Recipe for building a cortex stack composed of blocks."""
+    """Configuration for building a sequential stack of blocks."""
 
     blocks: list[BlockConfig]  # Accept any BlockConfig subclass
     d_hidden: int = Field(ge=1)

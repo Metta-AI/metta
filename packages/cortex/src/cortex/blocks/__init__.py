@@ -1,3 +1,5 @@
+"""Block components for composing memory cells with projections and adapters."""
+
 # Import blocks to register them
 from cortex.blocks.adapter import AdapterBlock
 from cortex.blocks.base import BaseBlock

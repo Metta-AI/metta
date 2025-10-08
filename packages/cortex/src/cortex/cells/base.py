@@ -1,3 +1,5 @@
+"""Abstract interface for memory cells with explicit TensorDict state management."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -11,10 +13,7 @@ from cortex.types import MaybeState, ResetMask, Tensor
 
 
 class MemoryCell(nn.Module, ABC):
-    """Stateless memory cell interface used inside blocks.
-
-    All state is passed as a TensorDict and returned alongside outputs.
-    """
+    """Abstract memory cell interface with explicit TensorDict state passing."""
 
     def __init__(self, hidden_size: int) -> None:
         super().__init__()
@@ -22,7 +21,7 @@ class MemoryCell(nn.Module, ABC):
 
     @abstractmethod
     def init_state(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> TensorDict:
-        """Return an initial state TensorDict for the given batch."""
+        """Initialize zero state for given batch size."""
 
     @abstractmethod
     def forward(
@@ -32,11 +31,11 @@ class MemoryCell(nn.Module, ABC):
         *,
         resets: Optional[ResetMask] = None,
     ) -> Tuple[Tensor, MaybeState]:
-        """Apply the cell to input and state, returning output and new state."""
+        """Process input with current state and optional resets."""
 
     @abstractmethod
     def reset_state(self, state: MaybeState, mask: ResetMask) -> MaybeState:
-        """Return a state with masked batch elements reset."""
+        """Apply reset mask to zero selected batch elements."""
 
 
 __all__ = ["MemoryCell"]

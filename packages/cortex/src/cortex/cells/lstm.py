@@ -1,3 +1,5 @@
+"""LSTM cell with TensorDict state and dual PyTorch/Triton backends."""
+
 from __future__ import annotations
 
 from typing import Optional, Tuple
@@ -17,15 +19,7 @@ from cortex.utils import select_backend
 
 @register_cell(LSTMCellConfig)
 class LSTMCell(MemoryCell):
-    """Stateless wrapper over nn.LSTM with TensorDict state.
-
-    State format (batch-first):
-      - h: [B, num_layers, H_out]
-      - c: [B, num_layers, H_cell] (H_cell == hidden_size)
-
-    Input shapes: [B, T, H] (batch-first) or [B, H] for single step.
-    Output shapes mirror inputs with last dim = H_out.
-    """
+    """Standard LSTM cell with TensorDict state and dual backends."""
 
     def __init__(self, cfg: LSTMCellConfig) -> None:
         super().__init__(hidden_size=cfg.hidden_size)
