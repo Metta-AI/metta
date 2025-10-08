@@ -221,23 +221,13 @@ def train_cmd(
         min=1,
     ),
 ) -> None:
-    rotation_aliases = {"training_rotation", "training_facility_rotation", "training_cycle"}
-    rotation_easy_aliases = {"training_rotation_easy"}
-    rotation_shaped_aliases = {"training_rotation_shaped"}
-    rotation_easy_shaped_aliases = {"training_rotation_easy_shaped"}
-
     env_cfg: Optional[MettaGridConfig] = None
     curriculum_supplier: Optional[Callable[[], MettaGridConfig]] = None
     resolved_mission = mission_name
 
-    if mission_name in rotation_aliases:
-        curriculum_supplier = curricula.training_rotation()
-    elif mission_name in rotation_easy_aliases:
-        curriculum_supplier = curricula.training_rotation_easy()
-    elif mission_name in rotation_shaped_aliases:
-        curriculum_supplier = curricula.training_rotation_shaped()
-    elif mission_name in rotation_easy_shaped_aliases:
-        curriculum_supplier = curricula.training_rotation_easy_shaped()
+    curriculum_factory = curricula.CURRICULUM_ALIAS_SUPPLIERS.get(mission_name)
+    if curriculum_factory is not None:
+        curriculum_supplier = curriculum_factory()
     else:
         resolved_mission, env_cfg = utils.get_mission_config(console, mission_name)
 

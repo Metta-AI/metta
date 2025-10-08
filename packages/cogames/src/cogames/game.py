@@ -63,11 +63,20 @@ def load_mission_config_from_python(path: Path) -> MettaGridConfig:
 
 def get_all_missions() -> list[str]:
     """Get all available missions."""
-    return [
+    missions = [
         f"{user_map.name}:{mission}" if mission != user_map.default_mission else user_map.name
         for user_map in USER_MAP_CATALOG
         for mission in user_map.available_missions
     ]
+
+    try:
+        from cogames.curricula import CURRICULUM_ALIAS_SUPPLIERS
+
+        missions.extend(sorted(CURRICULUM_ALIAS_SUPPLIERS.keys()))
+    except Exception:  # pragma: no cover - defensive import guard
+        pass
+
+    return missions
 
 
 def get_mission(
@@ -152,6 +161,16 @@ def list_missions(console: Console) -> None:
     console.print("To specify a <[bold cyan]mission[/bold cyan]>, you can:")
     console.print("  • Use a mission name from above")
     console.print("  • Use a path to a mission configuration file, e.g. path/to/mission.yaml")
+
+    try:
+        from cogames.curricula import CURRICULUM_ALIAS_SUPPLIERS
+
+        if CURRICULUM_ALIAS_SUPPLIERS:
+            console.print("\n[bold]Curriculum aliases available:[/bold]")
+            for alias in sorted(CURRICULUM_ALIAS_SUPPLIERS.keys()):
+                console.print(f"  • {alias}")
+    except Exception:  # pragma: no cover - defensive import guard
+        return
 
 
 def describe_mission(mission_name: str, game_config: MettaGridConfig, console: Console) -> None:

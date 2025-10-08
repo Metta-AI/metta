@@ -73,3 +73,16 @@ def training_rotation_easy_shaped(names: Iterable[str] | None = None) -> Callabl
 
 # Backward compatibility alias
 training_facility_rotation = training_rotation
+
+
+CurriculumFactory = Callable[..., Callable[[], MettaGridConfig]]
+
+
+CURRICULUM_ALIAS_SUPPLIERS: dict[str, CurriculumFactory] = {
+    "training_rotation": training_rotation,
+    "training_facility_rotation": training_rotation,
+    "training_cycle": training_rotation,
+    "training_rotation_easy": training_rotation_easy,
+    "training_rotation_shaped": training_rotation_shaped,
+    "training_rotation_easy_shaped": training_rotation_easy_shaped,
+}

@@ -6,6 +6,7 @@ import torch
 import typer
 from rich.console import Console
 
+from cogames import curricula
 from cogames import game as game_module
 from cogames.policy import Policy, TrainablePolicy
 from mettagrid.config.mettagrid_config import MettaGridConfig
@@ -20,6 +21,14 @@ def get_mission_config(console: Console, mission_arg: str) -> tuple[str, MettaGr
         map_name, requested_mission = mission_arg.split(":")
     else:
         map_name = mission_arg
+
+    curriculum_factory = curricula.CURRICULUM_ALIAS_SUPPLIERS.get(map_name)
+    if curriculum_factory is not None:
+        if requested_mission is not None:
+            raise ValueError("Curriculum aliases do not support specifying a secondary mission via ':' syntax")
+        curriculum_supplier = curriculum_factory()
+        config = curriculum_supplier()
+        return map_name, config
 
     config, registered_map_name, mission_name = game_module.get_mission(map_name, requested_mission)
     try:
