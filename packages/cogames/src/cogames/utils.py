@@ -27,9 +27,10 @@ def get_mission_config(console: Console, mission_arg: str) -> tuple[str, MettaGr
     if registered_map_name is not None:
         user_map = game_module.get_user_map(registered_map_name)
     try:
-        full_mission_name = (
-            f"{registered_map_name}:{mission_name}" if registered_map_name and mission_name else map_name
-        )
+        if registered_map_name and mission_name and mission_name != "default":
+            full_mission_name = f"{registered_map_name}:{mission_name}"
+        else:
+            full_mission_name = registered_map_name or map_name
         return full_mission_name, config, user_map
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")

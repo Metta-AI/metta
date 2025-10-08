@@ -13,7 +13,7 @@ def test_get_mission_config_handles_curriculum_alias() -> None:
 
     resolved_name, config, user_map = utils.get_mission_config(console, "training_rotation_easy_shaped")
 
-    assert resolved_name == "training_rotation_easy_shaped:default"
+    assert resolved_name == "training_rotation_easy_shaped"
     assert config.game.num_agents > 0
 
     assert isinstance(user_map, CurriculumUserMap)
