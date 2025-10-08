@@ -10,6 +10,7 @@ import psutil
 from rich.console import Console
 
 from cogames.aws_storage import maybe_upload_checkpoint
+from cogames.cli.mission import MAP_MISSION_DELIMITER
 from cogames.policy.interfaces import TrainablePolicy
 from cogames.policy.signal_handler import DeferSigintContextManager
 from cogames.policy.utils import (
@@ -326,23 +327,18 @@ def train(
 
             # Build the command with game name if provided
             game_arg = f" {game_name}" if game_name else ""
-            policy_arg = policy_shorthand if policy_shorthand else policy_class_path
+            policy_class_arg = policy_shorthand if policy_shorthand else policy_class_path
+            policy_arg = f"{policy_class_arg}{MAP_MISSION_DELIMITER}{final_checkpoint}"
 
             console.print()
             console.print("To continue training this policy:", style="bold")
-            console.print(
-                f"  [yellow]cogames train{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
-            )
+            console.print(f"  [yellow]cogames train{game_arg} [/yellow]")
             console.print()
             console.print("To play with this policy:", style="bold")
-            console.print(
-                f"  [yellow]cogames play{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
-            )
+            console.print(f"  [yellow]cogames play{game_arg} {policy_arg}[/yellow]")
             console.print()
             console.print("To evaluate this policy:", style="bold")
-            console.print(
-                f"  [yellow]cogames eval{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
-            )
+            console.print(f"  [yellow]cogames eval{game_arg} {policy_arg}[/yellow]")
         elif checkpoints and training_diverged:
             console.print()
             console.print(f"[yellow]Found {len(checkpoints)} checkpoint(s). The most recent may be corrupted.[/yellow]")

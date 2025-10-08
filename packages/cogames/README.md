@@ -128,8 +128,8 @@ class MyPolicy(Policy):
         return policy
 ```
 
-To train with using your class, supply a path to it with the `--policy`argument, e.g.
-`cogames train training_facility_1 --policy path.to.MyPolicy`.
+To train with using your class, supply a path to it in your POLICY argument, e.g.
+`cogames train training_facility_1 path.to.MyPolicy`.
 
 #### Environment API
 

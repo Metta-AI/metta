@@ -40,10 +40,11 @@ app = typer.Typer(
 
 @app.command("missions", help="List all available missions, or describe a specific mission")
 @app.command("games", hidden=True)
+@app.command("mission", hidden=True)
 def games_cmd(
     ctx: typer.Context,
-    mission: str = typer.Argument(None, help="Name of the mission"),
-    format_: Literal[None, "yaml", "json"] = typer.Option(
+    mission: Optional[str] = typer.Argument(None, help="Name of the mission"),
+    format_: Optional[Literal["yaml", "json"]] = typer.Option(
         None, "--format", help="Output mission configuration in YAML or JSON."
     ),
     save: Optional[Path] = typer.Option(  # noqa: B008
@@ -86,8 +87,8 @@ def games_cmd(
 @app.command(name="play", help="Play a game")
 def play_cmd(
     ctx: typer.Context,
-    mission: str = typer.Argument(None, help="Mission name"),
-    policy: str = typer.Argument(None, help=f"Policy ({policy_arg_example})"),
+    mission: Optional[str] = typer.Argument(None, help="Mission name"),
+    policy: Optional[str] = typer.Argument(None, help=f"Policy ({policy_arg_example})"),
     interactive: bool = typer.Option(True, "--interactive", "-i", help="Run in interactive mode"),
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
     render: Literal["gui", "text", "none"] = typer.Option(
@@ -115,7 +116,7 @@ def play_cmd(
 @app.command("make-game", hidden=True)
 def make_mission(
     ctx: typer.Context,
-    base_mission: str = typer.Argument(None, help="Base mission to start configuring from"),
+    base_mission: Optional[str] = typer.Argument(None, help="Base mission to start configuring from"),
     num_agents: int = typer.Option(2, "--agents", "-a", help="Number of agents", min=1),
     width: int = typer.Option(10, "--width", "-w", help="Map width", min=1),
     height: int = typer.Option(10, "--height", "-h", help="Map height", min=1),
@@ -146,8 +147,8 @@ def make_mission(
 @app.command(name="train", help="Train a policy on a mission")
 def train_cmd(
     ctx: typer.Context,
-    mission: str = typer.Argument(None, help="Name of the mission to train on"),
-    policy: str = typer.Argument(None, help=f"Policy ({policy_arg_example})"),
+    mission: Optional[str] = typer.Argument(None, help="Name of the mission to train on"),
+    policy: Optional[str] = typer.Argument(None, help=f"Policy ({policy_arg_example})"),
     checkpoints_path: str = typer.Option(
         "./train_dir",
         "--checkpoints",
@@ -236,8 +237,10 @@ def train_cmd(
 @app.command("evaluate", hidden=True)
 def evaluate_cmd(
     ctx: typer.Context,
-    mission: str = typer.Argument(None, help="Name of the mission"),
-    policies: list[str] = typer.Argument(None, help=f"Policies to evaluate: ({policy_arg_w_proportion_example}...)"),  # noqa: B008
+    mission: Optional[str] = typer.Argument(None, help="Name of the mission"),
+    policies: Optional[list[str]] = typer.Argument(  # noqa: B008
+        None, help=f"Policies to evaluate: ({policy_arg_w_proportion_example}...)"
+    ),
     episodes: int = typer.Option(10, "--episodes", "-e", help="Number of evaluation episodes", min=1),
     action_timeout_ms: int = typer.Option(
         250,

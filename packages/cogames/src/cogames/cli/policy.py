@@ -75,7 +75,7 @@ def get_policy_spec(ctx: typer.Context, policy_arg: Optional[str]) -> PolicySpec
     raise typer.Exit(0)
 
 
-def get_policy_specs(ctx: typer.Context, policy_args: list[str]) -> list[PolicySpec]:
+def get_policy_specs(ctx: typer.Context, policy_args: Optional[list[str]]) -> list[PolicySpec]:
     if not policy_args:
         console.print(ctx.get_help())
     else:

@@ -45,7 +45,6 @@ def test_alternate_eval_format(mission_name):
             "cogames",
             "eval",
             mission_name,
-            "--policy",
             "random",
             "--episodes",
             "1",
