@@ -43,6 +43,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import StrEnum
@@ -247,11 +248,70 @@ def get_most_recent_state() -> Optional[tuple[str, ReleaseState]]:
 
 
 def save_state(state: ReleaseState) -> Path:
-    """Save release state to JSON file."""
+    """Save release state to JSON file with atomic write.
+
+    Uses atomic write pattern to prevent corruption from concurrent writes.
+    """
     path = STATE_DIR / f"{state.version}.json"
+    temp_path = path.with_suffix(".json.tmp")
+
     serialized = _recursive_asdict(state)
-    path.write_text(json.dumps(serialized, indent=2))
+
+    # Write to temp file first
+    temp_path.write_text(json.dumps(serialized, indent=2))
+
+    # Atomic rename (on POSIX systems this is atomic)
+    temp_path.replace(path)
+
     return path
+
+
+def update_validation_result(version: str, validation_name: str, result: ValidationResult) -> None:
+    """Atomically update a single validation result in the state file.
+
+    This prevents race conditions when multiple processes are running different validations.
+    Uses a simple retry loop with file locking via exclusive creation.
+    """
+    lock_path = STATE_DIR / f"{version}.lock"
+    max_retries = 10
+    retry_delay = 0.5  # seconds
+
+    for attempt in range(max_retries):
+        try:
+            # Try to acquire lock by creating lock file exclusively
+            # This fails if file already exists (another process has the lock)
+            lock_fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+
+            try:
+                # We have the lock - reload state, update, and save
+                state = load_state(version)
+                if not state:
+                    # State was deleted or doesn't exist - this is unexpected
+                    print(f"Warning: State file not found during update for {validation_name}")
+                    return
+
+                state.validations[validation_name] = result
+                save_state(state)
+
+            finally:
+                # Release lock
+                os.close(lock_fd)
+                lock_path.unlink()
+
+            return  # Success
+
+        except FileExistsError:
+            # Lock is held by another process - retry after delay
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)
+            else:
+                # Give up after max retries
+                print(f"Warning: Could not acquire lock after {max_retries} attempts for {validation_name}")
+                # Fall back to direct save (may cause race condition)
+                state = load_state(version)
+                if state:
+                    state.validations[validation_name] = result
+                    save_state(state)
 
 
 # ============================================================================
@@ -482,8 +542,8 @@ def run_validation(
 
                 # Save job_id to state immediately after submission
                 result.job_id = job.job_id
-                state.validations[validation.name] = result
-                save_state(state)
+                # Use atomic update to prevent race conditions with concurrent workflows
+                update_validation_result(state.version, validation.name, result)
 
                 result.exit_code = job.wait(timeout_s=validation.timeout_s, stream_output=True)
                 # Extract data from RemoteJob for state persistence
@@ -844,8 +904,11 @@ def step_workflow_tests(version: str, workflow_filter: Optional[str] = None, **_
             cluster_config = None
 
         result = run_validation(state, validation, cluster_config=cluster_config)
-        state.validations[validation.name] = result
-        save_state(state)
+        # Use atomic update to prevent race conditions with concurrent workflows
+        update_validation_result(state.version, validation.name, result)
+
+    # Reload state to get latest results from all concurrent workflows
+    state = load_state(state_version) or state
 
     # Print summary
     passed = sum(1 for r in state.validations.values() if r.outcome == "passed")
