@@ -13,7 +13,7 @@ from mettagrid.config.mettagrid_config import (
     WallConfig,
 )
 from mettagrid.map_builder.utils import create_grid
-from mettagrid.mettagrid_c import MettaGrid
+from mettagrid.mettagrid_c import MettaGrid, dtype_actions
 
 # Create a minimal environment with change_glyph enabled
 game_config = GameConfig(

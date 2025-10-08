@@ -14,7 +14,7 @@ from mettagrid.config.mettagrid_config import (
 from mettagrid.core import MettaGridCore
 from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.map_builder.utils import create_grid
-from mettagrid.mettagrid_c import PackedCoordinate
+from mettagrid.mettagrid_c import PackedCoordinate, dtype_actions
 from mettagrid.test_support import ObservationHelper, Orientation, TokenTypes
 from mettagrid.test_support.actions import action_index
 
@@ -304,7 +304,7 @@ class TestGlobalTokens:
 
         # Take a noop action
         noop_idx = env.action_names.index("noop")
-        actions = np.full(num_agents, noop_idx, dtype=np.int32)
+        actions = np.full(num_agents, noop_idx, dtype=dtype_actions)
         obs, _, _, _, _ = env.step(actions)
 
         # Check episode completion updated (1/10 = 10%)
@@ -322,7 +322,7 @@ class TestGlobalTokens:
 
         # Take a move action
         move_idx = action_index(env, "move", Orientation.SOUTH)
-        actions = np.full(num_agents, move_idx, dtype=np.int32)
+        actions = np.full(num_agents, move_idx, dtype=dtype_actions)
         obs, _, _, _, _ = env.step(actions)
 
         # Check updates
@@ -407,7 +407,7 @@ class TestGlobalTokens:
                 glyph_action(3),
                 glyph_action(5),
             ],
-            dtype=np.int32,
+            dtype=dtype_actions,
         )
 
         obs, _, _, _, _ = env.step(actions)
@@ -432,7 +432,7 @@ class TestGlobalTokens:
                 glyph_action(0),
                 glyph_action(0),
             ],
-            dtype=np.int32,
+            dtype=dtype_actions,
         )
         obs, _, _, _, _ = env.step(actions)
 
@@ -520,7 +520,7 @@ class TestEdgeObservations:
 
         # Move right (East) 3 steps
         for step in range(3):
-            actions = np.array([move_east], dtype=np.int32)
+            actions = np.array([move_east], dtype=dtype_actions)
             obs, _, _, _, _ = env.step(actions)
 
             # Calculate agent position after this step
@@ -559,7 +559,7 @@ class TestEdgeObservations:
 
         # Continue moving right until altar leaves view
         for step in range(3, 9):
-            actions = np.array([move_east], dtype=np.int32)
+            actions = np.array([move_east], dtype=dtype_actions)
             obs, _, _, _, _ = env.step(actions)
 
             agent_col = 2 + step + 1
@@ -585,13 +585,13 @@ class TestEdgeObservations:
         # Now walk to bottom-right corner
         # Move right to x=13
         for _ in range(5):
-            actions = np.array([move_east], dtype=np.int32)
+            actions = np.array([move_east], dtype=dtype_actions)
             obs, _, _, _, _ = env.step(actions)
 
         # Move down to y=8 using move (direction 4 = South)
         move_south = action_index(env, "move", Orientation.SOUTH)
         for _ in range(6):
-            actions = np.array([move_south], dtype=np.int32)
+            actions = np.array([move_south], dtype=dtype_actions)
             obs, _, _, _, _ = env.step(actions)
 
         # Verify agent is still at center of observation
