@@ -264,9 +264,7 @@ export function EvalTasks({ repo }: Props) {
   // Load active tasks with filters
   const loadActiveTasks = async (page: number) => {
     try {
-      console.log('Loading active tasks with filters:', activeFilters)
       const response = await repo.getEvalTasksPaginated(page, pageSize, activeFilters)
-      console.log('Active tasks response:', { count: response.tasks.length, total: response.total_count })
       setActiveTasks(response.tasks)
       setActiveCurrentPage(response.page)
       setActiveTotalPages(response.total_pages)
@@ -282,9 +280,7 @@ export function EvalTasks({ repo }: Props) {
   // Load history tasks with filters
   const loadHistoryTasks = async (page: number) => {
     try {
-      console.log('Loading history tasks with filters:', historyFilters)
       const response = await repo.getEvalTasksPaginated(page, pageSize, historyFilters)
-      console.log('History tasks response:', { count: response.tasks.length, total: response.total_count })
       setHistoryTasks(response.tasks)
       setHistoryCurrentPage(response.page)
       setHistoryTotalPages(response.total_pages)
@@ -329,7 +325,6 @@ export function EvalTasks({ repo }: Props) {
   useEffect(() => {
     if (isFirstRender.current) return
 
-    console.log('Active filters changed, will reload in 300ms:', activeFilters)
     const timeoutId = setTimeout(() => {
       loadActiveTasks(1)
     }, 300) // 300ms debounce
@@ -341,7 +336,6 @@ export function EvalTasks({ repo }: Props) {
   useEffect(() => {
     if (isFirstRender.current) return
 
-    console.log('History filters changed, will reload in 300ms:', historyFilters)
     const timeoutId = setTimeout(() => {
       loadHistoryTasks(1)
     }, 300) // 300ms debounce
@@ -604,10 +598,7 @@ export function EvalTasks({ repo }: Props) {
     return (
       <select
         value={value || ''}
-        onChange={(e) => {
-          console.log('Status dropdown changed to:', e.target.value)
-          onChange(e.target.value)
-        }}
+        onChange={(e) => onChange(e.target.value)}
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',
@@ -792,7 +783,7 @@ export function EvalTasks({ repo }: Props) {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ backgroundColor: '#f8f9fa' }}>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '20%' }}>
+                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '18%' }}>
                   Policy
                   {renderFilterInput(historyFilters.policy_name || '', (value) =>
                     setHistoryFilters({ ...historyFilters, policy_name: value })
@@ -804,25 +795,28 @@ export function EvalTasks({ repo }: Props) {
                     setHistoryFilters({ ...historyFilters, sim_suite: value })
                   )}
                 </th>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '12%' }}>
+                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '10%' }}>
                   User
                   {renderFilterInput(historyFilters.user_id || '', (value) =>
                     setHistoryFilters({ ...historyFilters, user_id: value })
                   )}
                 </th>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '15%' }}>
+                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '12%' }}>
                   Status
                   {renderStatusDropdown(historyFilters.status || '', (value) =>
                     setHistoryFilters({ ...historyFilters, status: value })
                   )}
                 </th>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '19%' }}>
+                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '10%' }}>
+                  Logs
+                </th>
+                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '15%' }}>
                   Created
                   {renderFilterInput(historyFilters.created_at || '', (value) =>
                     setHistoryFilters({ ...historyFilters, created_at: value })
                   )}
                 </th>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '19%' }}>
+                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '15%' }}>
                   Updated
                   {renderFilterInput(historyFilters.updated_at || '', (value) =>
                     setHistoryFilters({ ...historyFilters, updated_at: value })
@@ -910,12 +904,58 @@ export function EvalTasks({ repo }: Props) {
                           )}
                         </div>
                       </td>
+                      <td style={{ padding: '12px' }}>
+                        {(task.attributes?.stderr_log_path || task.attributes?.stdout_log_path) && (
+                          <div style={{ display: 'flex', gap: '8px', fontSize: '13px' }}>
+                            {task.attributes?.stderr_log_path && (
+                              <a
+                                href={repo.getTaskLogUrl(task.id, 'stderr')}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                  color: '#dc3545',
+                                  textDecoration: 'none',
+                                  fontWeight: 500,
+                                }}
+                                onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+                                onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
+                              >
+                                stderr
+                              </a>
+                            )}
+                            {task.attributes?.stderr_log_path && task.attributes?.stdout_log_path && (
+                              <span style={{ color: '#6c757d' }}>|</span>
+                            )}
+                            {task.attributes?.stdout_log_path && (
+                              <a
+                                href={repo.getTaskLogUrl(task.id, 'stdout')}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                  color: '#007bff',
+                                  textDecoration: 'none',
+                                  fontWeight: 500,
+                                }}
+                                onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+                                onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
+                              >
+                                stdout
+                              </a>
+                            )}
+                          </div>
+                        )}
+                        {!task.attributes?.stderr_log_path && !task.attributes?.stdout_log_path && (
+                          <span style={{ color: '#6c757d' }}>-</span>
+                        )}
+                      </td>
                       <td style={{ padding: '12px' }}>{new Date(task.created_at + 'Z').toLocaleString()}</td>
                       <td style={{ padding: '12px' }}>{new Date(task.updated_at + 'Z').toLocaleString()}</td>
                     </tr>
                     {isExpanded && (
                       <tr>
-                        <td colSpan={6} style={{ padding: 0 }}>
+                        <td colSpan={7} style={{ padding: 0 }}>
                           {renderAttributes(task.attributes)}
                         </td>
                       </tr>

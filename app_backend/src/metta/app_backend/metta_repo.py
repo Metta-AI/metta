@@ -1526,6 +1526,22 @@ class MettaRepo:
                 )
                 return await cur.fetchone()
 
+    async def get_task_by_id(self, task_id: uuid.UUID) -> EvalTaskWithPolicyName | None:
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(EvalTaskWithPolicyName)) as cur:
+                await cur.execute(
+                    """
+                    SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
+                           et.assignee, et.created_at, et.attributes, et.retries,
+                           p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
+                    FROM eval_tasks et
+                    JOIN policies p ON et.policy_id = p.id
+                    WHERE et.id = %s
+                    """,
+                    (task_id,),
+                )
+                return await cur.fetchone()
+
     async def get_all_tasks(
         self,
         limit: int = 500,

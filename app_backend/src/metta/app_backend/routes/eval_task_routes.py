@@ -1,8 +1,11 @@
 import uuid
 from datetime import datetime, timedelta
 from typing import Any, Optional, TypeVar
+from urllib.parse import urlparse
 
+import boto3
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 import gitta as git
@@ -333,5 +336,56 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
     @timed_http_handler
     async def get_avg_runtime(where_clause: str = Query(default="")) -> TaskAvgRuntimeResponse:
         return TaskAvgRuntimeResponse(avg_runtime=await stats_repo.get_avg_runtime(where_clause=where_clause))
+
+    @router.get("/{task_id}/logs/{log_type}")
+    @timed_http_handler
+    async def get_task_logs(task_id: uuid.UUID, log_type: str):
+        """Stream log files from S3 for a specific task.
+
+        Args:
+            task_id: The UUID of the task
+            log_type: Either "stdout" or "stderr"
+
+        Returns:
+            StreamingResponse with the log file content as text/plain
+        """
+        if log_type not in ("stdout", "stderr"):
+            raise HTTPException(status_code=400, detail="log_type must be 'stdout' or 'stderr'")
+
+        # Get the task to retrieve the log path from attributes
+        task = await stats_repo.get_task_by_id(task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
+
+        # Get the log path from task attributes
+        log_path_key = f"{log_type}_log_path"
+        log_path = task.attributes.get(log_path_key)
+
+        if not log_path:
+            raise HTTPException(status_code=404, detail=f"No {log_type} log path found for task {task_id}")
+
+        # Parse the S3 URL (format: s3://bucket/key)
+        parsed = urlparse(log_path)
+        if parsed.scheme != "s3":
+            raise HTTPException(status_code=400, detail=f"Invalid S3 URL format: {log_path}")
+
+        bucket = parsed.netloc
+        key = parsed.path.lstrip("/")
+
+        # Stream the file from S3
+        try:
+            s3_client = boto3.client("s3")
+            response = s3_client.get_object(Bucket=bucket, Key=key)
+
+            # Return streaming response
+            return StreamingResponse(
+                response["Body"].iter_chunks(),
+                media_type="text/plain",
+                headers={"Content-Disposition": f'inline; filename="{task_id}_{log_type}.txt"'},
+            )
+        except s3_client.exceptions.NoSuchKey as e:
+            raise HTTPException(status_code=404, detail=f"Log file not found in S3: {log_path}") from e
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to retrieve log from S3: {str(e)}") from e
 
     return router

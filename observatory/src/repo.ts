@@ -321,6 +321,7 @@ export interface Repo {
   createEvalTask(request: EvalTaskCreateRequest): Promise<EvalTask>
   getEvalTasks(): Promise<EvalTask[]>
   getEvalTasksPaginated(page: number, pageSize: number, filters: TaskFilters): Promise<PaginatedEvalTasksResponse>
+  getTaskLogUrl(taskId: string, logType: 'stdout' | 'stderr'): string
 
   // Policy methods
   getPolicyIds(policyNames: string[]): Promise<Record<string, string>>
@@ -521,9 +522,11 @@ export class ServerRepo implements Repo {
     if (filters.assigned_at?.trim()) params.append('assigned_at', filters.assigned_at.trim())
     if (filters.updated_at?.trim()) params.append('updated_at', filters.updated_at.trim())
 
-    const url = `/tasks/paginated?${params}`
-    console.log('Fetching:', url, 'with filters:', filters)
-    return this.apiCall<PaginatedEvalTasksResponse>(url)
+    return this.apiCall<PaginatedEvalTasksResponse>(`/tasks/paginated?${params}`)
+  }
+
+  getTaskLogUrl(taskId: string, logType: 'stdout' | 'stderr'): string {
+    return `${this.baseUrl}/tasks/${taskId}/logs/${logType}`
   }
 
   async getPolicyIds(policyNames: string[]): Promise<Record<string, string>> {
