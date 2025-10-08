@@ -227,21 +227,36 @@ def make_game_from_map_with_agents(map_name: str, num_agents: int) -> MettaGridC
 
 
 def games() -> dict[str, MettaGridConfig]:
-    # Build from catalog to avoid duplication
-    g: dict[str, MettaGridConfig] = {}
-
-    # Tutorials (unchanged)
-    g["assembler_1_simple"] = tutorial_assembler_complex(num_cogs=1)
-    g["assembler_1_complex"] = tutorial_assembler_simple(num_cogs=1)
-    g["assembler_2_simple"] = tutorial_assembler_simple(num_cogs=4)
-    g["assembler_2_complex"] = tutorial_assembler_complex(num_cogs=4)
-
-    # Map-based from catalog; default to non-dynamic maps, clip rate from catalog
-    for name, (filename, clip_rate) in _map_name_to_file().items():
-        # Only auto-generate canonical names; variants like *_clipped covered in catalog
-        g[name] = make_game_from_map(filename, clipping_rate=clip_rate)
-
-    return g
+    return {
+        # "extractor_1cog_1resource": tutorial_extractor(num_cogs=1),""
+        # "extractor_1cog_4resource": tutorial_extractor(num_cogs=1),
+        # "harvest_1": tutorial_harvest(num_cogs=1),
+        # "harvest_4": tutorial_harvest(num_cogs=4),
+        # "base_1": tutorial_base(num_cogs=1),
+        # "base_4": tutorial_base(num_cogs=4),
+        # "forage_1": tutorial_forage(num_cogs=1),
+        # "forage_4": tutorial_forage(num_cogs=4),
+        # "chest_1": tutorial_chest(num_cogs=1),
+        # "chest_4": tutorial_chest(num_cogs=4),
+        "training_facility_1": make_game_from_map("training_facility_open_1.map"),
+        "training_facility_2": make_game_from_map("training_facility_open_2.map"),
+        "training_facility_3": make_game_from_map("training_facility_open_3.map"),
+        "training_facility_4": make_game_from_map("training_facility_tight_4.map"),
+        "training_facility_5": make_game_from_map("training_facility_tight_5.map"),
+        "training_facility_6": make_game_from_map("training_facility_clipped.map"),
+        # Biomes dungeon maps with stations
+        "machina_1_clipped": make_game_from_map("cave_base_50.map", clipping_rate=0.02),
+        "machina_1": make_game_from_map("cave_base_50.map"),
+        "machina_2": make_game_from_map("machina_100_stations.map"),
+        "machina_3": make_game_from_map("machina_200_stations.map"),
+        "machina_1_big": make_game_from_map("canidate1_500_stations.map"),
+        "machina_2_bigger": make_game_from_map("canidate1_1000_stations.map"),
+        "machina_3_big": make_game_from_map("canidate2_500_stations.map"),
+        "machina_4_bigger": make_game_from_map("canidate2_1000_stations.map"),
+        "machina_5_big": make_game_from_map("canidate3_500_stations.map"),
+        "machina_6_bigger": make_game_from_map("canidate3_1000_stations.map"),
+        "machina_7_big": make_game_from_map("canidate4_500_stations.map"),
+    }
 
 
 def supports_dynamic_spawn(game_name: str) -> bool:

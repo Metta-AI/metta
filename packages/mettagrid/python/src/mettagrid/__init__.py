@@ -47,7 +47,7 @@ _LAZY_ATTRS: Dict[str, Tuple[str, str]] = {
     ),
     "validate_action_space": ("mettagrid.types", "validate_action_space"),
     "get_observation_shape": ("mettagrid.types", "get_observation_shape"),
-    "get_action_nvec": ("mettagrid.types", "get_action_nvec"),
+    "get_action_count": ("mettagrid.types", "get_action_count"),
     # Supporting classes
     "GameMap": ("mettagrid.map_builder.map_builder", "GameMap"),
     "ReplayWriter": ("mettagrid.util.replay_writer", "ReplayWriter"),
@@ -71,7 +71,7 @@ if TYPE_CHECKING:
         dtype_truncations,
     )
     from mettagrid.types import (
-        get_action_nvec,
+        get_action_count,
         get_observation_shape,
         validate_action_space,
         validate_observation_space,
@@ -108,7 +108,7 @@ __all__ = [
     "validate_observation_space",
     "validate_action_space",
     "get_observation_shape",
-    "get_action_nvec",
+    "get_action_count",
     # Supporting classes
     "GameMap",
     "ReplayWriter",

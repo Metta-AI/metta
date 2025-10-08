@@ -215,7 +215,9 @@ TEST_F(ClipperTest, PickAssemblerRespectsWeights) {
 
   // Give a_high_weight artificial high weight
   clipper.assembler_infection_weight[a_high_weight] = 100.0f;
+  clipper.border_assemblers.insert(a_high_weight);
   clipper.assembler_infection_weight[a_low_weight] = 0.1f;
+  clipper.border_assemblers.insert(a_low_weight);
 
   // Pick many times and verify high-weight assembler is picked more often
   int high_weight_picked = 0;
@@ -242,7 +244,8 @@ protected:
     current_timestep = 0;
     rng.seed(42);
     unclip_recipe = std::make_shared<Recipe>(std::map<InventoryItem, InventoryQuantity>{{TestItems::ORE, 1}},
-                                             std::map<InventoryItem, InventoryQuantity>{{TestItems::BATTERY, 1}}, 10);
+                                             std::map<InventoryItem, InventoryQuantity>{{TestItems::BATTERY, 1}},
+                                             10);
   }
 
   void TearDown() override {}

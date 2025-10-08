@@ -15,13 +15,12 @@ from mettagrid.core import MettaGridCore
 from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.mettagrid_c import (
     MettaGrid,
-    dtype_actions,
     dtype_observations,
     dtype_rewards,
     dtype_terminals,
     dtype_truncations,
 )
-from mettagrid.test_support.actions import get_agent_position, move
+from mettagrid.test_support.actions import action_index, get_agent_position, move
 from mettagrid.test_support.orientation import Orientation
 
 
@@ -144,14 +143,10 @@ def test_8way_movement_all_directions():
     )
     env = MettaGridCore(cfg)
     env.reset()
-
     objects = env.grid_objects()
     agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)  # type_id 0 is agent
     initial_pos = (objects[agent_id]["r"], objects[agent_id]["c"])
     assert initial_pos == (2, 2)
-
-    action_names = env.action_names
-    move_idx = action_names.index("move")
 
     # Test moves with correct enum values and expected positions
     # Starting from (2,2) in center
@@ -167,8 +162,8 @@ def test_8way_movement_all_directions():
     ]
 
     for orientation, expected_pos in moves:
-        actions = np.zeros((1, 2), dtype=dtype_actions)
-        actions[0] = [move_idx, orientation.value]
+        actions = np.zeros((1,), dtype=np.int32)
+        actions[0] = action_index(env, "move", orientation)
         env.step(actions)
 
         objects = env.grid_objects()
@@ -206,29 +201,27 @@ def test_8way_movement_obstacles():
             ),
         )
     )
+    cfg.game.allow_diagonals = True
     env = MettaGridCore(cfg)
     env.reset()
 
     objects = env.grid_objects()
     agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)
 
-    action_names = env.action_names
-    move_idx = action_names.index("move")
-
     # Test diagonal movements near corners
-    actions = np.zeros((1, 2), dtype=dtype_actions)
+    actions = np.zeros((1,), dtype=np.int32)
 
     # Move to top-left corner area
-    actions[0] = [move_idx, Orientation.NORTH.value]  # North
+    actions[0] = action_index(env, "move", Orientation.NORTH)
     env.step(actions)
-    actions[0] = [move_idx, Orientation.WEST.value]  # West
+    actions[0] = action_index(env, "move", Orientation.WEST)
     env.step(actions)
 
     objects = env.grid_objects()
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (1, 1)
 
     # Try to move Northwest into wall - should fail
-    actions[0] = [move_idx, Orientation.NORTHWEST.value]  # Northwest
+    actions[0] = action_index(env, "move", Orientation.NORTHWEST)
     env.step(actions)
     assert not env.action_success[0]
 
@@ -262,13 +255,9 @@ def test_orientation_changes_with_8way():
     objects = env.grid_objects()
     agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)
 
-    action_names = env.action_names
-    move_idx = action_names.index("move")
-    rotate_idx = action_names.index("rotate")
-
     # First rotate to face right
-    actions = np.zeros((1, 2), dtype=dtype_actions)
-    actions[0] = [rotate_idx, 3]  # Face right (East)
+    actions = np.zeros((1,), dtype=np.int32)
+    actions[0] = action_index(env, "rotate", Orientation.EAST)
     env.step(actions)
 
     objects = env.grid_objects()
@@ -312,7 +301,7 @@ def test_orientation_changes_with_8way():
         if new_r < 0 or new_r >= 3 or new_c < 0 or new_c >= 5:
             continue
 
-        actions[0] = [move_idx, orientation.value]
+        actions[0] = action_index(env, "move", orientation)
         env.step(actions)
 
         objects = env.grid_objects()
@@ -357,32 +346,29 @@ def test_8way_movement_with_simple_environment():
     # Verify agent is at expected position
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (4, 4)
 
-    action_names = env.action_names
-    move_idx = action_names.index("move")
-
     # Test diagonal movement pattern (diamond shape)
-    actions = np.zeros((1, 2), dtype=dtype_actions)
+    actions = np.zeros((1,), dtype=np.int32)
 
     # Move Northeast
-    actions[0] = [move_idx, Orientation.NORTHEAST.value]
+    actions[0] = action_index(env, "move", Orientation.NORTHEAST)
     env.step(actions)
     objects = env.grid_objects()
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (3, 5)
 
     # Move Southeast
-    actions[0] = [move_idx, Orientation.SOUTHEAST.value]
+    actions[0] = action_index(env, "move", Orientation.SOUTHEAST)
     env.step(actions)
     objects = env.grid_objects()
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (4, 6)
 
     # Move Southwest
-    actions[0] = [move_idx, Orientation.SOUTHWEST.value]
+    actions[0] = action_index(env, "move", Orientation.SOUTHWEST)
     env.step(actions)
     objects = env.grid_objects()
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (5, 5)
 
     # Move Northwest - back to start
-    actions[0] = [move_idx, Orientation.NORTHWEST.value]
+    actions[0] = action_index(env, "move", Orientation.NORTHWEST)
     env.step(actions)
     objects = env.grid_objects()
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (4, 4)
@@ -415,34 +401,31 @@ def test_8way_movement_boundary_check():
     objects = env.grid_objects()
     agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)
 
-    action_names = env.action_names
-    move_idx = action_names.index("move")
-
     # Move to top-left corner
-    actions = np.zeros((1, 2), dtype=dtype_actions)
-    actions[0] = [move_idx, Orientation.NORTHWEST.value]
+    actions = np.zeros((1,), dtype=np.int32)
+    actions[0] = action_index(env, "move", Orientation.NORTHWEST)
     env.step(actions)
 
     objects = env.grid_objects()
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (0, 0)
 
     # Try to move further northwest - should fail
-    actions[0] = [move_idx, Orientation.NORTHWEST.value]
+    actions[0] = action_index(env, "move", Orientation.NORTHWEST)
     env.step(actions)
     assert not env.action_success[0]
 
     # Try to move north - should fail
-    actions[0] = [move_idx, Orientation.NORTH.value]
+    actions[0] = action_index(env, "move", Orientation.NORTH)
     env.step(actions)
     assert not env.action_success[0]
 
     # Try to move west - should fail
-    actions[0] = [move_idx, Orientation.WEST.value]
+    actions[0] = action_index(env, "move", Orientation.WEST)
     env.step(actions)
     assert not env.action_success[0]
 
     # Move southeast - should succeed
-    actions[0] = [move_idx, Orientation.SOUTHEAST.value]
+    actions[0] = action_index(env, "move", Orientation.SOUTHEAST)
     env.step(actions)
     assert env.action_success[0]
 
@@ -479,22 +462,19 @@ def test_orientation_changes_on_failed_8way_movement():
     # Check initial orientation
     assert objects[agent_id]["orientation"] == 0  # Up
 
-    action_names = env.action_names
-    move_idx = action_names.index("move")
-
     # Set initial orientation to Left
-    if "rotate" in action_names:
-        rotate_idx = action_names.index("rotate")
-        actions = np.zeros((1, 2), dtype=dtype_actions)
-        actions[0] = [rotate_idx, 2]  # Face Left (West)
+    action_names = env.action_names
+    if "rotate_west" in action_names:
+        actions = np.zeros((1,), dtype=np.int32)
+        actions[0] = action_index(env, "rotate", Orientation.WEST)
         env.step(actions)
 
         objects = env.grid_objects()
         assert objects[agent_id]["orientation"] == 2  # Left
 
     # Try to move East into wall - should fail but SHOULD change orientation to East
-    actions = np.zeros((1, 2), dtype=dtype_actions)
-    actions[0] = [move_idx, Orientation.EAST.value]
+    actions = np.zeros((1,), dtype=np.int32)
+    actions[0] = action_index(env, "move", Orientation.EAST)
     env.step(actions)
 
     objects = env.grid_objects()
@@ -502,7 +482,7 @@ def test_orientation_changes_on_failed_8way_movement():
     assert objects[agent_id]["orientation"] == Orientation.EAST.value  # Orientation should change to East
 
     # Try to move Northeast into wall - should fail but SHOULD change orientation to Northeast
-    actions[0] = [move_idx, Orientation.NORTHEAST.value]
+    actions[0] = action_index(env, "move", Orientation.NORTHEAST)
     env.step(actions)
 
     objects = env.grid_objects()
@@ -510,7 +490,7 @@ def test_orientation_changes_on_failed_8way_movement():
     assert objects[agent_id]["orientation"] == Orientation.NORTHEAST.value  # Orientation should change to Northeast
 
     # Try to move Southwest into wall - should fail but SHOULD change orientation to Southwest
-    actions[0] = [move_idx, Orientation.SOUTHWEST.value]
+    actions[0] = action_index(env, "move", Orientation.SOUTHWEST)
     env.step(actions)
 
     objects = env.grid_objects()

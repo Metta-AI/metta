@@ -36,6 +36,9 @@ def key_and_version(uri: str) -> tuple[str, int] | None:
         "mock://test_agent" -> ("test_agent", 0)
     """
     parsed = ParsedURI.parse(uri)
+    if parsed.scheme == "mock":
+        # For mock URIs, extract the agent name from the path
+        return (parsed.path, 0)
     if parsed.scheme == "file" and parsed.local_path:
         file_path = Path(parsed.local_path)
     elif parsed.scheme == "s3" and parsed.key:
@@ -263,7 +266,7 @@ class CheckpointManager:
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
         if not trainer_file.exists():
             return None
-        state = torch.load(trainer_file, weights_only=False)
+        state = torch.load(trainer_file, map_location="cpu", weights_only=False)
         result = {
             "optimizer_state": state.get("optimizer", state.get("optimizer_state")),
             "epoch": state.get("epoch", 0),
