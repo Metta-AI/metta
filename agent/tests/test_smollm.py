@@ -3,6 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import torch
+from gymnasium import spaces
 from tensordict import TensorDict
 
 from metta.agent.components.smollm import SmolLLMBackbone, SmolLLMBackboneConfig
@@ -36,8 +37,8 @@ def _fake_from_pretrained(hidden_size: int = 64):
     return _factory
 
 
-def _make_env(max_action_args: list[int]) -> SimpleNamespace:
-    return SimpleNamespace(max_action_args=max_action_args)
+def _make_env(num_actions: int) -> SimpleNamespace:
+    return SimpleNamespace(action_space=spaces.Discrete(num_actions))
 
 
 def _make_tokens(batch: int, seq: int) -> torch.Tensor:
@@ -52,7 +53,7 @@ def test_smollm_backbone_forward_sets_logits_and_values(monkeypatch):
         SimpleNamespace(from_pretrained=_fake_from_pretrained()),
     )
 
-    env = _make_env([1, 2])
+    env = _make_env(5)
     config = SmolLLMBackboneConfig(
         in_key="tokens",
         logits_key="logits",
@@ -90,7 +91,7 @@ def test_compress_tokens_vectorized(monkeypatch):
         SimpleNamespace(from_pretrained=_fake_from_pretrained()),
     )
 
-    env = _make_env([1, 1])
+    env = _make_env(4)
     config = SmolLLMBackboneConfig(in_key="tokens", max_sequence_length=4)
     backbone = SmolLLMBackbone(env, config)
 

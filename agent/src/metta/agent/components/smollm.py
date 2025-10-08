@@ -8,6 +8,7 @@ from typing import Literal, Optional
 import einops
 import torch
 import torch.nn.functional as F
+from gymnasium.spaces import Discrete
 from tensordict import TensorDict
 from torch import nn
 
@@ -111,8 +112,14 @@ class SmolLLMBackbone(nn.Module):
 
         self.final_norm = nn.LayerNorm(self.hidden_size)
 
-        self.max_action_args = list(env.max_action_args)
-        self.total_actions = sum(arg + 1 for arg in self.max_action_args)
+        action_space = getattr(env, "action_space", None)
+        if not isinstance(action_space, Discrete):
+            raise TypeError(
+                "SmolLLMBackbone requires a discrete action space; "
+                f"received {type(action_space).__name__ if action_space is not None else 'None'}"
+            )
+
+        self.total_actions = int(action_space.n)
 
         self.actor_head = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, self.total_actions), std=0.01)
         self.value_head = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 1), std=1.0)
@@ -242,6 +249,8 @@ class SmolLLMBackbone(nn.Module):
         valid_mask = mask
         coords = torch.where(valid_mask, coords, torch.zeros_like(coords))
         features = torch.where(valid_mask, features, torch.zeros_like(features))
+        embed_dtype = self.value_embed[0].weight.dtype
+        values = values.to(dtype=embed_dtype)
         values = torch.where(valid_mask.unsqueeze(-1), values, torch.zeros_like(values))
 
         coords = torch.clamp(coords, max=self.config.coord_vocab_size - 1)
