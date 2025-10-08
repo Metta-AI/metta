@@ -7,6 +7,7 @@
 import { Worker, Job } from "bullmq";
 import { redisConfig, BackgroundJobs } from "../job-queue";
 import { AutoTaggingService } from "../auto-tagging-service";
+import { Logger } from "../logging/logger";
 
 export class TaggingWorker {
   private worker: Worker;
@@ -35,17 +36,19 @@ export class TaggingWorker {
   ): Promise<void> {
     const { paperId } = job.data;
 
-    console.log(`🏷️ [Tagging Worker] Auto-tagging paper ${paperId}`);
+    Logger.info("Tagging Worker: Auto-tagging paper", { paperId });
 
     try {
       const tags = await AutoTaggingService.autoTagPaper(paperId);
-      console.log(
-        `✅ [Tagging Worker] Tagged paper ${paperId} with ${tags?.length || 0} tags`
-      );
+      Logger.info("Tagging Worker: Tagged paper", {
+        paperId,
+        tagCount: tags?.length || 0,
+      });
     } catch (error) {
-      console.error(
-        `❌ [Tagging Worker] Failed to tag paper ${paperId}:`,
-        error
+      Logger.error(
+        "Tagging Worker: Failed to tag paper",
+        error instanceof Error ? error : new Error(String(error)),
+        { paperId }
       );
       throw error; // BullMQ will handle retries
     }
@@ -53,20 +56,20 @@ export class TaggingWorker {
 
   private setupEventHandlers(): void {
     this.worker.on("completed", (job) => {
-      console.log(`✅ Tagging job ${job.id} completed successfully`);
+      Logger.debug("Tagging job completed", { jobId: job.id });
     });
 
     this.worker.on("failed", (job, err) => {
-      console.error(`❌ Tagging job ${job?.id} failed:`, err.message);
+      Logger.error("Tagging job failed", err, { jobId: job?.id });
     });
 
     this.worker.on("error", (err) => {
-      console.error("🚨 Tagging worker error:", err);
+      Logger.error("Tagging worker error", err);
     });
   }
 
   async shutdown(): Promise<void> {
-    console.log("🛑 Shutting down tagging worker...");
+    Logger.info("Shutting down tagging worker");
     await this.worker.close();
   }
 }
@@ -74,6 +77,6 @@ export class TaggingWorker {
 // Export for standalone usage
 export async function startTaggingWorker(): Promise<TaggingWorker> {
   const worker = new TaggingWorker();
-  console.log("🚀 Tagging worker started");
+  Logger.info("Tagging worker started");
   return worker;
 }

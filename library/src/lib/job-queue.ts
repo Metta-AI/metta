@@ -8,6 +8,7 @@
 import { Queue, Worker, Job } from "bullmq";
 import { Redis } from "ioredis";
 import { config } from "./config";
+import { Logger } from "./logging/logger";
 
 // Redis connection configuration
 const redisConfig = {
@@ -122,7 +123,7 @@ export class JobQueueService {
     paperId: string,
     arxivUrl: string
   ): Promise<void> {
-    console.log(`📤 Queuing institution extraction for paper ${paperId}`);
+    Logger.info(`📤 Queuing institution extraction for paper ${paperId}`);
 
     await institutionQueue.add(
       "extract-institutions",
@@ -141,7 +142,7 @@ export class JobQueueService {
     paperId: string,
     arxivUrl: string
   ): Promise<void> {
-    console.log(`📤 Queuing author extraction for paper ${paperId}`);
+    Logger.info(`📤 Queuing author extraction for paper ${paperId}`);
 
     await authorQueue.add(
       "extract-authors",
@@ -157,7 +158,7 @@ export class JobQueueService {
    * Queue LLM abstract generation for a paper
    */
   static async queueLLMAbstractGeneration(paperId: string): Promise<void> {
-    console.log(`📤 Queuing LLM abstract generation for paper ${paperId}`);
+    Logger.info(`📤 Queuing LLM abstract generation for paper ${paperId}`);
 
     await llmQueue.add(
       "generate-llm-abstract",
@@ -173,7 +174,7 @@ export class JobQueueService {
    * Queue auto-tagging for a paper
    */
   static async queueAutoTagging(paperId: string): Promise<void> {
-    console.log(`📤 Queuing auto-tagging for paper ${paperId}`);
+    Logger.info(`📤 Queuing auto-tagging for paper ${paperId}`);
 
     await taggingQueue.add(
       "auto-tag-paper",
@@ -193,7 +194,7 @@ export class JobQueueService {
     userId: string,
     priority: number = 0
   ): Promise<void> {
-    console.log(
+    Logger.info(
       `📤 Queuing external notifications for ${notificationId}: ${channels.join(", ")}`
     );
 
@@ -211,7 +212,7 @@ export class JobQueueService {
    * Queue retry for a failed notification delivery
    */
   static async queueNotificationRetry(deliveryId: string): Promise<void> {
-    console.log(`📤 Queuing notification retry for delivery ${deliveryId}`);
+    Logger.info(`📤 Queuing notification retry for delivery ${deliveryId}`);
 
     await externalNotificationQueue.add(
       "retry-failed-notification",
@@ -254,7 +255,7 @@ export class JobQueueService {
    * Graceful shutdown - close all queues
    */
   static async shutdown(): Promise<void> {
-    console.log("🛑 Shutting down job queues...");
+    Logger.info("🛑 Shutting down job queues...");
     await Promise.all([
       institutionQueue.close(),
       authorQueue.close(),
