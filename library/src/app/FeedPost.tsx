@@ -3,20 +3,18 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FC, useState, useEffect } from "react";
-import { useAction } from "next-safe-action/hooks";
 
 import { FeedPostDTO } from "@/posts/data/feed";
 import { PaperCard } from "@/components/PaperCard";
 import { DeleteConfirmationModal } from "@/components/DeleteConfirmationModal";
 import { PhotoViewer } from "@/components/PhotoViewer";
 import { RichTextRenderer } from "@/components/RichTextRenderer";
-import { deletePostAction } from "@/posts/actions/deletePostAction";
-import { toggleQueueAction } from "@/posts/actions/toggleQueueAction";
 import { SilentArxivRefresh } from "@/components/SilentArxivRefresh";
 import { InPostComments } from "@/components/InPostComments";
 import { getUserInitials, getUserDisplayName } from "@/lib/utils/user";
 import { formatRelativeTimeCompact } from "@/lib/utils/date";
 import { cleanArxivUrls } from "@/lib/utils/url";
+import { useQueuePaper, useDeletePost } from "@/hooks/mutations";
 import { MessageSquare, ExternalLink, Quote } from "lucide-react";
 
 /**
@@ -143,34 +141,9 @@ export const FeedPost: FC<{
     router.push("/?quote=" + post.id);
   };
 
-  // Delete post action
-  const { execute: executeDelete, isExecuting: isDeleting } = useAction(
-    deletePostAction,
-    {
-      onSuccess: () => {
-        window.location.reload(); // Refresh to show updated feed
-      },
-      onError: (error) => {
-        console.error("Error deleting post:", error);
-      },
-    }
-  );
-
-  // Queue paper action
-  const { execute: executeQueue, isExecuting: isQueueing } = useAction(
-    toggleQueueAction,
-    {
-      onSuccess: () => {
-        // Success is handled by optimistic updates
-      },
-      onError: (error) => {
-        // Revert optimistic updates on error
-        setOptimisticQueued(!optimisticQueued);
-        setOptimisticQueues(post.queues);
-        console.error("Error toggling queue:", error);
-      },
-    }
-  );
+  // Mutations
+  const deletePostMutation = useDeletePost();
+  const queuePaperMutation = useQueuePaper();
 
   // Check if current user can delete this post
   const canDelete = currentUser && currentUser.id === post.author.id;
@@ -193,11 +166,20 @@ export const FeedPost: FC<{
     setOptimisticQueued(newQueued);
     setOptimisticQueues(newQueues);
 
-    // Execute the action
-    const formData = new FormData();
-    formData.append("paperId", paperData.id);
-    formData.append("postId", post.id); // Need to pass post ID to update count
-    executeQueue(formData);
+    // Execute the mutation
+    queuePaperMutation.mutate(
+      {
+        paperId: paperData.id,
+        postId: post.id,
+      },
+      {
+        onError: () => {
+          // Revert optimistic updates on error
+          setOptimisticQueued(!newQueued);
+          setOptimisticQueues(post.queues);
+        },
+      }
+    );
   };
 
   const handlePostClick = (e: React.MouseEvent) => {
@@ -221,9 +203,7 @@ export const FeedPost: FC<{
   };
 
   const handleConfirmDelete = () => {
-    const formData = new FormData();
-    formData.append("postId", post.id);
-    executeDelete(formData);
+    deletePostMutation.mutate(post.id);
     setShowDeleteModal(false);
   };
 
@@ -295,7 +275,7 @@ export const FeedPost: FC<{
                   e.stopPropagation();
                   handleQueue();
                 }}
-                disabled={isQueueing}
+                disabled={queuePaperMutation.isPending}
                 className={`rounded-full p-1 transition-colors disabled:opacity-50 ${
                   optimisticQueued
                     ? "text-blue-500 hover:bg-neutral-100 hover:text-blue-600"
@@ -327,7 +307,7 @@ export const FeedPost: FC<{
                   e.stopPropagation();
                   handleDelete();
                 }}
-                disabled={isDeleting}
+                disabled={deletePostMutation.isPending}
                 className="rounded-full p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-red-500 disabled:opacity-50"
                 title="Delete post"
               >
@@ -421,7 +401,7 @@ export const FeedPost: FC<{
           onConfirm={handleConfirmDelete}
           title="Delete Post"
           message="Are you sure you want to delete this post? This action cannot be undone and will permanently remove the post and all its comments from the feed."
-          isDeleting={isDeleting}
+          isDeleting={deletePostMutation.isPending}
         />
 
         {/* Photo Viewer */}
@@ -508,7 +488,7 @@ export const FeedPost: FC<{
                 e.stopPropagation();
                 handleQueue();
               }}
-              disabled={isQueueing}
+              disabled={queuePaperMutation.isPending}
               className={`rounded-full p-1 transition-colors disabled:opacity-50 ${
                 optimisticQueued
                   ? "text-blue-500 hover:bg-neutral-100 hover:text-blue-600"
@@ -540,7 +520,7 @@ export const FeedPost: FC<{
                 e.stopPropagation();
                 handleDelete();
               }}
-              disabled={isDeleting}
+              disabled={deletePostMutation.isPending}
               className="rounded-full p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-red-500 disabled:opacity-50"
               title="Delete post"
             >
@@ -724,7 +704,7 @@ export const FeedPost: FC<{
         onConfirm={handleConfirmDelete}
         title="Delete Post"
         message="Are you sure you want to delete this post? This action cannot be undone and will permanently remove the post and all its comments from the feed."
-        isDeleting={isDeleting}
+        isDeleting={deletePostMutation.isPending}
       />
 
       {/* Photo Viewer */}
