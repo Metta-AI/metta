@@ -189,7 +189,7 @@ def sweep_async_progressive(
     initial_timesteps: int,
     max_concurrent_evals: int = 5,
     liar_strategy: str = "best",
-) -> SweepTool:
+) -> None:
     """Async-capped sweep that also sweeps over total timesteps.
 
     Args:
@@ -202,7 +202,10 @@ def sweep_async_progressive(
     Returns:
         SweepTool configured for async-capped scheduling and progressive timesteps.
     """
+    print("This function is deperecated and must be refactored. \n Please look at the sweep function in basic_easy_shaped for reference.")
+    return
 
+    # DEPRECATED
     protein_cfg = make_custom_protein_config(
         base_config=PPO_CORE,
         parameters={
