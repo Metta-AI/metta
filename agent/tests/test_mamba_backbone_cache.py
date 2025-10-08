@@ -62,4 +62,3 @@ def test_training_keeps_shape_and_updates_cache():
 
     out = component(td)
     assert out["core"].shape == torch.Size([4, component.config.d_model])
-Py

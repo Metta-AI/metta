@@ -8,7 +8,7 @@ import torch.nn as nn
 from tensordict import TensorDict
 from tensordict.nn import TensorDictSequential
 from torch.nn.parameter import UninitializedParameter
-from torchrl.data import Composite
+from torchrl.data import Composite, UnboundedDiscrete
 
 from mettagrid.base_config import Config
 

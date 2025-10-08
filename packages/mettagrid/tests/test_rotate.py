@@ -241,4 +241,4 @@ def test_rotation_without_rotate_action(configured_env, simple_game_map, base_co
     result = rotate(env, Orientation.EAST)
 
     assert result["success"] is False
-    assert result["error"] == "Rotate action not available"
+    assert result["error"] == "rotate_east action not available"

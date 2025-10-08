@@ -63,7 +63,7 @@ def demo_single_agent_gym():
     from gymnasium import spaces
 
     assert isinstance(env.observation_space, spaces.Box), "Single-agent obs space should be Box"
-    assert isinstance(env.action_space, spaces.MultiDiscrete), "Single-agent action space should be MultiDiscrete"
+    assert isinstance(env.action_space, spaces.Discrete), "Single-agent action space should be Discrete"
     print("Single-agent Gymnasium compatibility verified")
 
     env.close()

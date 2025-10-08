@@ -2,10 +2,7 @@ from typing import Any, Optional
 
 import numpy as np
 
-from mettagrid import (
-    MettaGridEnv,
-    dtype_actions,
-)
+from mettagrid import MettaGridEnv
 from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.test_support.orientation import Orientation
 
@@ -14,7 +11,6 @@ def generate_valid_random_actions(
     env: MettaGridEnv,
     num_agents: int,
     force_action_type: Optional[int] = None,
-    force_action_arg: Optional[int] = None,
     seed: Optional[int] = None,
 ) -> np.ndarray:
     """
@@ -24,51 +20,22 @@ def generate_valid_random_actions(
         env: MettaGridEnv instance
         num_agents: Number of agents to generate actions for
         force_action_type: If provided, use this action type for all agents
-        force_action_arg: If provided, use this action arg (clamped to valid range) for all agents
         seed: Optional random seed for deterministic action generation
 
     Returns:
-        NumPy array of valid actions with shape (num_agents, 2)
+        NumPy array of valid actions with shape (num_agents,)
     """
     # Set the random seed if provided (for deterministic behavior)
     if seed is not None:
         np.random.seed(seed)
 
-    # Get the action space parameters
-    # For MultiDiscrete, shape[0] gives the number of dimensions (should be 2: action_type and action_arg)
-    # and nvec[0] gives the number of possible values for the first dimension (action types)
-    action_space = env.single_action_space
-    num_actions = action_space.nvec[0]  # Number of action types
-
-    # Get the maximum argument values for each action type
-    max_args = env.max_action_args
-
-    # Initialize actions array with correct dtype
-    actions = np.zeros((num_agents, 2), dtype=dtype_actions)
+    actions = np.zeros((num_agents,), dtype=np.int32)
 
     for i in range(num_agents):
-        # Determine action type
         if force_action_type is None:
-            # Random action type if not forced
-            act_type = np.random.randint(0, num_actions)
+            actions[i] = np.random.randint(0, env.single_action_space.n)
         else:
-            # Use forced action type (ensure it's valid)
-            act_type = min(force_action_type, num_actions - 1) if num_actions > 0 else 0
-
-        # Get maximum allowed argument for this action type
-        max_allowed = max_args[act_type] if act_type < len(max_args) else 0
-
-        # Determine action argument
-        if force_action_arg is None:
-            # Random valid argument if not forced
-            act_arg = np.random.randint(0, max_allowed + 1) if max_allowed >= 0 else 0
-        else:
-            # Use forced argument (clamped to valid range)
-            act_arg = min(force_action_arg, max_allowed)
-
-        # Set the action values
-        actions[i, 0] = act_type
-        actions[i, 1] = act_arg
+            actions[i] = np.clip(force_action_type, 0, env.single_action_space.n - 1)
 
     return actions
 
@@ -88,21 +55,16 @@ def move(env: MettaGrid, direction: Orientation, agent_idx: int = 0) -> dict[str
     result = {"success": False, "error": None}
     action_names = env.action_names()
 
-    if "move" not in action_names:
-        result["error"] = "move not available"
+    move_action_name = f"move_{direction.name.lower()}"
+    if move_action_name not in action_names:
+        result["error"] = f"{move_action_name} not available"
         return result
-
-    move_idx = action_names.index("move")
 
     # Get initial position for verification
     position_before = get_agent_position(env, agent_idx)
 
-    # Orientation values map directly to movement indices
-    movement_idx = direction.value
-
-    # Use direct 8-way movement
-    move_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
-    move_action[agent_idx] = [move_idx, movement_idx]
+    move_action = np.zeros((env.num_agents,), dtype=np.int32)
+    move_action[agent_idx] = action_names.index(move_action_name)
 
     env.step(move_action)
 
@@ -149,11 +111,12 @@ def rotate(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> dict
     try:
         action_names = env.action_names()
 
-        if "rotate" not in action_names:
-            result["error"] = "Rotate action not available"
+        rotate_action_name = f"rotate_{orientation.name.lower()}"
+        if rotate_action_name not in action_names:
+            result["error"] = f"{rotate_action_name} action not available"
             return result
 
-        rotate_action_idx = action_names.index("rotate")
+        rotate_action_idx = action_names.index(rotate_action_name)
 
         # Get initial orientation
         result["orientation_before"] = get_agent_orientation(env, agent_idx)
@@ -162,8 +125,8 @@ def rotate(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> dict
         print(f"  Before: {result['orientation_before']}")
 
         # Perform rotation
-        rotate_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
-        rotate_action[agent_idx] = [rotate_action_idx, orientation.value]
+        rotate_action = np.zeros((env.num_agents,), dtype=np.int32)
+        rotate_action[agent_idx] = rotate_action_idx
 
         env.step(rotate_action)
         action_success = env.action_success()
@@ -219,8 +182,8 @@ def noop(env: MettaGrid, agent_idx: int = 0) -> dict[str, Any]:
     noop_idx = action_names.index("noop")
 
     # Perform noop
-    noop_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
-    noop_action[agent_idx] = [noop_idx, 0]
+    noop_action = np.zeros((env.num_agents,), dtype=np.int32)
+    noop_action[agent_idx] = noop_idx
     env.step(noop_action)
 
     result["success"] = bool(env.action_success()[agent_idx])
@@ -264,11 +227,28 @@ def attack(env: MettaGrid, target_arg: int = 0, agent_idx: int = 0) -> dict[str,
 
     action_names = env.action_names()
 
-    if "attack" not in action_names:
+    attack_variants = sorted(
+        (name for name in action_names if name.startswith("attack_") and name.removeprefix("attack_").isdigit()),
+        key=lambda n: int(n.split("_", maxsplit=1)[1]),
+    )
+
+    attack_name: Optional[str] = None
+    selected_arg: Optional[int] = None
+
+    if attack_variants:
+        candidate_arg = max(0, min(target_arg, len(attack_variants) - 1))
+        attack_name = attack_variants[candidate_arg]
+        selected_arg = candidate_arg
+    elif "attack" in action_names:
+        attack_name = "attack"
+    elif "attack_nearest" in action_names:
+        attack_name = "attack_nearest"
+
+    if attack_name is None:
         result["error"] = "Attack action not available"
         return result
 
-    attack_idx = action_names.index("attack")
+    attack_idx = action_names.index(attack_name)
 
     # Get initial state for comparison
     objects_before = env.grid_objects()
@@ -281,11 +261,14 @@ def attack(env: MettaGrid, target_arg: int = 0, agent_idx: int = 0) -> dict[str,
             break
 
     # Perform attack
-    attack_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
-    attack_action[agent_idx] = [attack_idx, target_arg]
+    attack_action = np.zeros((env.num_agents,), dtype=np.int32)
+    attack_action[agent_idx] = attack_idx
     env.step(attack_action)
 
     result["success"] = bool(env.action_success()[agent_idx])
+
+    if selected_arg is not None:
+        result["target_arg"] = selected_arg
 
     if result["success"]:
         # Analyze the results
@@ -374,8 +357,8 @@ def swap(env: MettaGrid, agent_idx: int = 0) -> dict[str, Any]:
     result["position_before"] = get_agent_position(env, agent_idx)
 
     # Perform swap
-    swap_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
-    swap_action[agent_idx] = [swap_idx, 0]  # Swap argument is typically ignored
+    swap_action = np.zeros((env.num_agents,), dtype=np.int32)
+    swap_action[agent_idx] = swap_idx
     env.step(swap_action)
 
     result["success"] = bool(env.action_success()[agent_idx])
@@ -397,8 +380,8 @@ def get_current_observation(env: MettaGrid, agent_idx: int):
         action_names = env.action_names()
         if "noop" in action_names:
             noop_idx = action_names.index("noop")
-            noop_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
-            noop_action[agent_idx] = [noop_idx, 0]
+            noop_action = np.zeros((env.num_agents,), dtype=np.int32)
+            noop_action[agent_idx] = noop_idx
             obs, _, _, _, _ = env.step(noop_action)
             return obs.copy()
         else:
@@ -424,3 +407,16 @@ def get_agent_orientation(env: MettaGrid, agent_idx: int = 0) -> int:
         if "agent_id" in obj_data and obj_data.get("agent_id") == agent_idx:
             return obj_data["agent:orientation"]
     raise ValueError(f"Agent {agent_idx} not found in grid objects")
+
+
+def action_index(env, base: str, orientation: Orientation | None = None) -> int:
+    """Return the flattened action index for a given action name."""
+    target = base if orientation is None else f"{base}_{orientation.name.lower()}"
+    names_getter = getattr(env, "action_names", None)
+    if callable(names_getter):
+        names = names_getter()
+    else:
+        names = names_getter
+    if target not in names:
+        raise AssertionError(f"Action {target} not available; available actions: {names}")
+    return names.index(target)

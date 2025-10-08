@@ -1,4 +1,5 @@
-from typing import Any, Optional
+import math
+from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -6,6 +7,7 @@ from tensordict import TensorDict
 
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
+from metta.rl.training import EnvironmentMetaData
 
 
 class ActorQueryConfig(ComponentConfig):
@@ -34,13 +36,15 @@ class ActorQuery(nn.Module):
 
     def _init_weights(self):
         """Kaiming (He) initialization"""
-        bound = 1 / torch.sqrt(torch.tensor(self.hidden_size, dtype=torch.float32))
+        bound = 1 / math.sqrt(self.hidden_size)
         nn.init.uniform_(self.W, -bound, bound)
 
     def forward(self, td: TensorDict):
-        hidden = td[self.in_key]
-        query = torch.einsum("... h, h e -> ... e", hidden, self.W)
+        hidden = td[self.in_key]  # Shape: [B*TT, hidden]
+
+        query = torch.einsum("b h, h e -> b e", hidden, self.W)  # Shape: [B*TT, embed_dim]
         query = self._tanh(query)
+
         td[self.out_key] = query
         return td
 
@@ -77,15 +81,19 @@ class ActorKey(nn.Module):
     def _init_weights(self):
         """Kaiming (He) initialization for bias"""
         if self.bias is not None:
-            bound = 1 / torch.sqrt(torch.tensor(self.embed_dim, dtype=torch.float32))
+            # The input to this layer is the query dim
+            bound = 1 / math.sqrt(self.embed_dim)
             nn.init.uniform_(self.bias, -bound, bound)
 
     def forward(self, td: TensorDict):
-        query = td[self.query_key]
-        action_embeds = td[self.embedding_key]
+        query = td[self.query_key]  # Shape: [B*TT, embed_dim]
+        action_embeds = td[self.embedding_key]  # Shape: [B*TT, num_actions, embed_dim]
 
-        scores = torch.einsum("... e, ... a e -> ... a", query, action_embeds)
-        biased_scores = scores + self.bias
+        # Compute scores
+        scores = torch.einsum("b e, b a e -> b a", query, action_embeds)  # Shape: [B*TT, num_actions]
+
+        # Add bias
+        biased_scores = scores + self.bias  # Shape: [B*TT, num_actions]
 
         td[self.out_key] = biased_scores
         return td
@@ -100,25 +108,28 @@ class ActionProbsConfig(ComponentConfig):
 
 
 class ActionProbs(nn.Module):
+    """
+    Computes action scores based on a query and action embeddings (keys).
+    """
+
     def __init__(self, config: ActionProbsConfig):
         super().__init__()
         self.config = config
+        self.num_actions = 0
 
     def initialize_to_environment(
         self,
-        env: Any,
-        device,
+        env: EnvironmentMetaData,
+        device: torch.device,
     ) -> None:
-        action_max_params = list(env.max_action_args)
-        self.cum_action_max_params = torch.cumsum(
-            torch.tensor([0] + action_max_params, device=device, dtype=torch.long), dim=0
-        )
+        from gymnasium.spaces import Discrete
 
-        self.action_index_tensor = torch.tensor(
-            [[idx, j] for idx, max_param in enumerate(action_max_params) for j in range(max_param + 1)],
-            device=device,
-            dtype=torch.int32,
-        )
+        action_space = env.action_space
+        if not isinstance(action_space, Discrete):
+            msg = f"ActionProbs expects a Discrete action space, got {type(action_space).__name__}"
+            raise TypeError(msg)
+
+        self.num_actions = int(action_space.n)
 
     def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
         if action is None:
@@ -127,45 +138,47 @@ class ActionProbs(nn.Module):
             return self.forward_training(td, action)
 
     def forward_inference(self, td: TensorDict) -> TensorDict:
+        """Forward pass for inference mode with action sampling."""
         logits = td[self.config.in_key]
-        logits = logits.reshape(-1, logits.size(-1))
-
         action_logit_index, selected_log_probs, _, full_log_probs = sample_actions(logits)
-        action = self._convert_logit_index_to_action(action_logit_index)
 
-        td["actions"] = action.to(dtype=torch.int32)
+        td["actions"] = action_logit_index.to(dtype=torch.int32)
         td["act_log_prob"] = selected_log_probs
         td["full_log_probs"] = full_log_probs
 
         return td
 
     def forward_training(self, td: TensorDict, action: torch.Tensor) -> TensorDict:
+        """Forward pass for training mode with proper TD reshaping."""
+        # CRITICAL: ComponentPolicy expects the action to be flattened already during training
+        # The TD should be reshaped to match the flattened batch dimension
         logits = td[self.config.in_key]
         if action.dim() == 3:
-            batch_size_orig, time_steps, A = action.shape
-            action = action.view(batch_size_orig * time_steps, A)
+            batch_size_orig, time_steps, _ = action.shape
+            action = action.view(batch_size_orig * time_steps, -1)
+            # Also flatten the TD to match
             if td.batch_dims > 1:
                 td = td.reshape(td.batch_size.numel())
 
-        action_logit_index = self._convert_action_to_logit_index(action)
+        if action.dim() == 2 and action.size(1) == 1:
+            action = action.view(-1)
+
+        if action.dim() != 1:
+            raise ValueError(f"Expected flattened action indices, got shape {tuple(action.shape)}")
+
+        action_logit_index = action.to(dtype=torch.long)
         selected_log_probs, entropy, action_log_probs = evaluate_actions(logits, action_logit_index)
 
+        # Store in flattened TD (will be reshaped by caller if needed)
         td["act_log_prob"] = selected_log_probs
         td["entropy"] = entropy
         td["full_log_probs"] = action_log_probs
 
+        # ComponentPolicy reshapes the TD after training forward based on td["batch"] and td["bptt"]
+        # The reshaping happens in ComponentPolicy.forward() after forward_training()
         if "batch" in td.keys() and "bptt" in td.keys():
             batch_size = td["batch"][0].item()
             bptt_size = td["bptt"][0].item()
             td = td.reshape(batch_size, bptt_size)
 
         return td
-
-    def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
-        action_type_numbers = flattened_action[:, 0].long()
-        action_params = flattened_action[:, 1].long()
-        cumulative_sum = self.cum_action_max_params[action_type_numbers]
-        return cumulative_sum + action_type_numbers + action_params
-
-    def _convert_logit_index_to_action(self, logit_indices: torch.Tensor) -> torch.Tensor:
-        return self.action_index_tensor[logit_indices]

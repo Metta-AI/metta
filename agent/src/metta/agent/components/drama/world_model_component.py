@@ -25,12 +25,22 @@ class DramaWorldModelComponent(nn.Module):
         self.action_key = config.action_key
         self.pool: Literal["cls", "mean", "none"] = "mean"
 
+        action_dim = max(1, config.action_dim)
+        if env is not None:
+            env_action_space = getattr(env, "action_space", None)
+            resolved_action_dim = getattr(env_action_space, "n", None)
+            if resolved_action_dim is not None:
+                action_dim = max(1, int(resolved_action_dim))
+
+        self.action_dim = action_dim
+        self.config.action_dim = action_dim
+
         mamba_cfg = _DramaMambaConfig(
             d_model=config.d_model,
             d_intermediate=config.d_intermediate,
             n_layer=config.n_layer,
             stoch_dim=config.stoch_dim,
-            action_dim=config.action_dim,
+            action_dim=self.action_dim,
             dropout_p=config.dropout_p,
             ssm_cfg=config.ssm_cfg,
             attn_layer_idx=config.attn_layer_idx,
@@ -46,12 +56,41 @@ class DramaWorldModelComponent(nn.Module):
 
         if samples.dim() == 2:
             samples = samples.unsqueeze(1)
+
+        batch_size, seq_len = samples.shape[0], samples.shape[1]
+
         if actions is None:
-            actions = torch.zeros(samples.size(0), samples.size(1), dtype=torch.long, device=samples.device)
-        if actions.dim() == 2 and actions.size(-1) > 1:
-            actions = actions.argmax(dim=-1)
-        if actions.dim() == 1:
-            actions = actions.unsqueeze(1)
+            actions = torch.zeros(batch_size, seq_len, dtype=torch.long, device=samples.device)
+        else:
+            actions = actions.to(device=samples.device)
+            if actions.dim() == 1:
+                actions = actions.unsqueeze(-1)
+            if actions.dim() >= 3:
+                if actions.size(-1) > 1:
+                    actions = actions.argmax(dim=-1)
+                else:
+                    actions = actions.squeeze(-1)
+            if actions.dim() == 2 and actions.size(-1) > seq_len:
+                actions = actions[..., :seq_len]
+            actions = actions.reshape(-1)
+            required = batch_size * seq_len
+            if actions.numel() < required:
+                pad = torch.zeros(required - actions.numel(), dtype=actions.dtype, device=samples.device)
+                actions = torch.cat([actions, pad], dim=0)
+            else:
+                actions = actions[:required]
+            actions = actions.view(batch_size, -1)
+            if actions.size(1) == 1 and seq_len > 1:
+                actions = actions.expand(-1, seq_len)
+            elif actions.size(1) != seq_len:
+                if actions.numel() == batch_size * seq_len:
+                    actions = actions.reshape(batch_size, seq_len)
+                elif actions.size(1) == 0:
+                    actions = torch.zeros(batch_size, seq_len, dtype=torch.long, device=samples.device)
+                elif actions.size(1) == 1:
+                    actions = actions.expand(batch_size, seq_len)
+                else:
+                    actions = actions[:, :seq_len]
 
         hidden = self.backbone(samples, actions.long())
         hidden = self.output_norm(hidden)

@@ -26,7 +26,7 @@ class MambaBackboneConfig(ComponentConfig):
     dropout_p: float = 0.0
     max_cache_size: int = 128
     use_aux_tokens: bool = True
-    last_action_dim: int = 2
+    last_action_dim: int = 1
     pool: Literal["cls", "mean", "none"] = "mean"
 
     def make_component(self, env: Optional[Any] = None):  # type: ignore[override]

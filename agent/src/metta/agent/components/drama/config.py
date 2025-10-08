@@ -14,7 +14,7 @@ class DramaMambaConfig:
     d_intermediate: int = 1024
     n_layer: int = 4
     stoch_dim: int = 128
-    action_dim: int = 8
+    action_dim: int = 1
     ssm_cfg: Dict[str, Any] = field(default_factory=dict)
     attn_layer_idx: list[int] = field(default_factory=list)
     attn_cfg: Dict[str, Any] = field(default_factory=dict)
@@ -34,7 +34,7 @@ class DramaWorldModelConfig(ComponentConfig):
     action_key: str = "last_actions"
 
     stoch_dim: int = 128
-    action_dim: int = 8
+    action_dim: int = 1
     d_model: int = 512
     d_intermediate: int = 1024
     n_layer: int = 4
@@ -52,7 +52,14 @@ class DramaWorldModelConfig(ComponentConfig):
     def make_component(self, env: Optional[Any] = None):  # type: ignore[override]
         from .world_model_component import DramaWorldModelComponent
 
-        return DramaWorldModelComponent(config=self, env=env)
+        resolved = self
+        if env is not None:
+            action_space = getattr(env, "action_space", None)
+            action_dim = getattr(action_space, "n", None)
+            if action_dim is not None:
+                resolved = self.model_copy(update={"action_dim": max(1, int(action_dim))})
+
+        return DramaWorldModelComponent(config=resolved, env=env)
 
     @model_validator(mode="after")
     def _fill_defaults(self) -> "DramaWorldModelConfig":

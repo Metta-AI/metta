@@ -46,7 +46,6 @@ class DramaPolicyConfig(PolicyArchitecture):
             out_key="core",
             action_key="last_actions",
             stoch_dim=_latent_dim,
-            action_dim=8,
             d_model=_core_out_dim,
             d_intermediate=_core_out_dim * 2,
             n_layer=4,

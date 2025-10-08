@@ -73,7 +73,7 @@ class MambaBackboneComponent(nn.Module):
         if self.use_aux_tokens:
             self.reward_proj = nn.Linear(1, config.d_model)
             self.reset_proj = nn.Linear(1, config.d_model)
-            self.action_proj = nn.Linear(config.last_action_dim, config.d_model)
+            self.action_proj = nn.Linear(self.last_action_dim, config.d_model)
         else:
             self.reward_proj = None
             self.reset_proj = None
@@ -114,7 +114,15 @@ class MambaBackboneComponent(nn.Module):
             resets = rearrange(resets, "(b tt) -> b tt 1 1", b=batch, tt=tt)
             reset_token = self.reset_proj(resets)
 
-            last_actions = td.get("last_actions", torch.zeros(batch_flat, self.last_action_dim, device=device))
+            last_actions = td.get("last_actions")
+            if last_actions is None:
+                last_actions = torch.zeros(batch_flat, self.last_action_dim, device=device)
+            else:
+                last_actions = last_actions.to(device=device)
+                if last_actions.dim() == 1:
+                    last_actions = last_actions.unsqueeze(-1)
+                last_actions = last_actions.reshape(batch_flat, -1)[..., : self.last_action_dim]
+
             last_actions = rearrange(last_actions, "(b tt) d -> b tt 1 d", b=batch, tt=tt)
             action_token = self.action_proj(last_actions.float())
         else:

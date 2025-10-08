@@ -46,8 +46,12 @@ env = MettaGrid(from_mettagrid_config(game_config), game_map.tolist(), 42)
 env.reset()
 
 # Get action indices
-change_glyph_idx = env.action_names.index("change_glyph")
-noop_idx = env.action_names.index("noop")
+action_names = env.action_names
+change_glyph_action = f"change_glyph_{5}"
+if change_glyph_action not in action_names:
+    raise RuntimeError(f"{change_glyph_action} not found in action set: {action_names}")
+change_glyph_idx = action_names.index(change_glyph_action)
+noop_idx = action_names.index("noop")
 
 print(f"Action names: {env.action_names}")
 print(f"change_glyph index: {change_glyph_idx}")
@@ -67,7 +71,7 @@ print(f"Agent 0 glyph: {agent_0.get('glyph')}")
 print(f"Agent 1 glyph: {agent_1.get('glyph')}")
 
 # Agent 0 changes glyph to 5, Agent 1 does nothing
-actions = np.array([[change_glyph_idx, 5], [noop_idx, 0]], dtype=np.int32)
+actions = np.array([change_glyph_idx, noop_idx], dtype=np.int32)
 print(f"\nSending actions: {actions}")
 
 obs, rewards, terminals, truncations, info = env.step(actions)

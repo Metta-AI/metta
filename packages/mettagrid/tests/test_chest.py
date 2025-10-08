@@ -2,7 +2,8 @@ import numpy as np
 
 from mettagrid.config.mettagrid_config import ChestConfig, MettaGridConfig
 from mettagrid.core import MettaGridCore
-from mettagrid.mettagrid_c import dtype_actions
+from mettagrid.test_support.actions import action_index
+from mettagrid.test_support.orientation import Orientation
 
 
 class TestChest:
@@ -36,13 +37,12 @@ class TestChest:
         obs, info = env.reset()
 
         gold_idx = env.resource_names.index("gold")
-        move_idx = env.action_names.index("move")
 
         # Agent starts at (3,2), chest is at (2,2)
         # Agent is south of chest (withdrawal position)
 
         # Try to move south (to chest position) - should trigger deposit
-        actions = np.array([[move_idx, 1]], dtype=dtype_actions)  # Move south
+        actions = np.array([action_index(env, "move", Orientation.SOUTH)], dtype=np.int32)
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         # Check deposit happened
@@ -58,21 +58,21 @@ class TestChest:
         )
 
         # Move around to south position to withdraw
-        actions = np.array([[move_idx, 2]], dtype=dtype_actions)  # Move west
+        actions = np.array([action_index(env, "move", Orientation.WEST)], dtype=np.int32)
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         # Then south
-        actions = np.array([[move_idx, 1]], dtype=dtype_actions)  # Move south
+        actions = np.array([action_index(env, "move", Orientation.SOUTH)], dtype=np.int32)
         obs, rewards, terminals, truncations, info = env.step(actions)
-        actions = np.array([[move_idx, 1]], dtype=dtype_actions)  # Move south
+        actions = np.array([action_index(env, "move", Orientation.SOUTH)], dtype=np.int32)
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         # Then east to be south of chest
-        actions = np.array([[move_idx, 3]], dtype=dtype_actions)  # Move east
+        actions = np.array([action_index(env, "move", Orientation.EAST)], dtype=np.int32)
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         # Now move north to chest (from withdrawal position)
-        actions = np.array([[move_idx, 0]], dtype=dtype_actions)  # Move north
+        actions = np.array([action_index(env, "move", Orientation.NORTH)], dtype=np.int32)
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         # Check withdrawal happened
@@ -116,13 +116,12 @@ class TestChest:
         obs, info = env.reset()
 
         gold_idx = env.resource_names.index("gold")
-        move_idx = env.action_names.index("move")
 
         # Agent starts at (1,2), chest is at (2,2)
         # Agent is north of chest (deposit position)
 
         # Try to deposit 5 gold, but agent only has 3
-        actions = np.array([[move_idx, 1]], dtype=dtype_actions)  # Move south
+        actions = np.array([action_index(env, "move", Orientation.SOUTH)], dtype=np.int32)
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         # Check partial deposit happened
@@ -138,17 +137,17 @@ class TestChest:
         )
 
         # Move around to south position to withdraw
-        actions = np.array([[move_idx, 2]], dtype=dtype_actions)  # Move west
+        actions = np.array([action_index(env, "move", Orientation.WEST)], dtype=np.int32)
         obs, rewards, terminals, truncations, info = env.step(actions)
-        actions = np.array([[move_idx, 1]], dtype=dtype_actions)  # Move south
+        actions = np.array([action_index(env, "move", Orientation.SOUTH)], dtype=np.int32)
         obs, rewards, terminals, truncations, info = env.step(actions)
-        actions = np.array([[move_idx, 1]], dtype=dtype_actions)  # Move south
+        actions = np.array([action_index(env, "move", Orientation.SOUTH)], dtype=np.int32)
         obs, rewards, terminals, truncations, info = env.step(actions)
-        actions = np.array([[move_idx, 3]], dtype=dtype_actions)  # Move east
+        actions = np.array([action_index(env, "move", Orientation.EAST)], dtype=np.int32)
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         # Try to withdraw 5 gold, chest has exactly 5
-        actions = np.array([[move_idx, 0]], dtype=dtype_actions)  # Move north
+        actions = np.array([action_index(env, "move", Orientation.NORTH)], dtype=np.int32)
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         # Check full withdrawal happened
@@ -164,9 +163,9 @@ class TestChest:
         )
 
         # Try to withdraw again when chest is empty
-        actions = np.array([[move_idx, 1]], dtype=dtype_actions)  # Move south
+        actions = np.array([action_index(env, "move", Orientation.SOUTH)], dtype=np.int32)
         obs, rewards, terminals, truncations, info = env.step(actions)
-        actions = np.array([[move_idx, 0]], dtype=dtype_actions)  # Move north
+        actions = np.array([action_index(env, "move", Orientation.NORTH)], dtype=np.int32)
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         # Check nothing changed (no resources to withdraw)
