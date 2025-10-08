@@ -2,44 +2,17 @@ from __future__ import annotations
 
 import argparse
 import logging
-import os
 import random
 from dataclasses import dataclass
 from typing import Callable, Dict, Tuple
 
 import torch
 import torch.nn as nn
+from cortex.stacks import CortexStack
+from model import SequenceClassifier
+from stacks import STACKS, StackSpec
+from synthetic_datasets import DelayedRecallDataset, DyckDataset, MajorityDataset
 from torch.utils.data import DataLoader
-
-# Ensure local cortex package is importable when executed from repo root
-_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src"))
-if _ROOT not in os.sys.path:
-    os.sys.path.insert(0, _ROOT)
-
-from cortex.stacks import CortexStack  # noqa: E402
-
-# Support running as a script (no package parent)
-try:
-    from .model import SequenceClassifier  # type: ignore
-    from .stacks import STACKS, StackSpec  # type: ignore
-    from .synthetic_datasets import (  # type: ignore
-        DelayedRecallDataset,
-        DyckDataset,
-        MajorityDataset,
-    )
-except Exception:
-    import sys as _sys
-
-    _EVAL_ROOT = os.path.dirname(__file__)
-    if _EVAL_ROOT not in _sys.path:
-        _sys.path.insert(0, _EVAL_ROOT)
-    from model import SequenceClassifier  # type: ignore
-    from stacks import STACKS, StackSpec  # type: ignore
-    from synthetic_datasets import (  # type: ignore
-        DelayedRecallDataset,
-        DyckDataset,
-        MajorityDataset,
-    )
 
 
 def _ensure_disjoint_splits(train_ds, val_ds, test_ds) -> None:
