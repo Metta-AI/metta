@@ -510,17 +510,20 @@ export class ServerRepo implements Repo {
     params.append('page', page.toString())
     params.append('page_size', pageSize.toString())
 
-    if (filters.policy_name) params.append('policy_name', filters.policy_name)
-    if (filters.sim_suite) params.append('sim_suite', filters.sim_suite)
-    if (filters.status) params.append('status', filters.status)
-    if (filters.assignee) params.append('assignee', filters.assignee)
-    if (filters.user_id) params.append('user_id', filters.user_id)
-    if (filters.retries) params.append('retries', filters.retries)
-    if (filters.created_at) params.append('created_at', filters.created_at)
-    if (filters.assigned_at) params.append('assigned_at', filters.assigned_at)
-    if (filters.updated_at) params.append('updated_at', filters.updated_at)
+    // Only append non-empty filter values
+    if (filters.policy_name?.trim()) params.append('policy_name', filters.policy_name.trim())
+    if (filters.sim_suite?.trim()) params.append('sim_suite', filters.sim_suite.trim())
+    if (filters.status?.trim()) params.append('status', filters.status.trim())
+    if (filters.assignee?.trim()) params.append('assignee', filters.assignee.trim())
+    if (filters.user_id?.trim()) params.append('user_id', filters.user_id.trim())
+    if (filters.retries?.trim()) params.append('retries', filters.retries.trim())
+    if (filters.created_at?.trim()) params.append('created_at', filters.created_at.trim())
+    if (filters.assigned_at?.trim()) params.append('assigned_at', filters.assigned_at.trim())
+    if (filters.updated_at?.trim()) params.append('updated_at', filters.updated_at.trim())
 
-    return this.apiCall<PaginatedEvalTasksResponse>(`/tasks/paginated?${params}`)
+    const url = `/tasks/paginated?${params}`
+    console.log('Fetching:', url, 'with filters:', filters)
+    return this.apiCall<PaginatedEvalTasksResponse>(url)
   }
 
   async getPolicyIds(policyNames: string[]): Promise<Record<string, string>> {

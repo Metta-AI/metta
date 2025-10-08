@@ -1605,8 +1605,9 @@ class MettaRepo:
                 params.append(f"%{sim_suite}%")
 
             if status:
-                where_conditions.append("et.status ILIKE %s")
-                params.append(f"%{status}%")
+                # Use exact match for status since it's an enum-like field
+                where_conditions.append("et.status = %s")
+                params.append(status)
 
             if assignee:
                 where_conditions.append("et.assignee ILIKE %s")

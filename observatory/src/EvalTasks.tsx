@@ -235,7 +235,7 @@ export function EvalTasks({ repo }: Props) {
   const [activeCurrentPage, setActiveCurrentPage] = useState(1)
   const [activeTotalPages, setActiveTotalPages] = useState(1)
   const [activeTotalCount, setActiveTotalCount] = useState(0)
-  const [activeFilters, setActiveFilters] = useState<TaskFilters>({})
+  const [activeFilters, setActiveFilters] = useState<TaskFilters>({ status: 'unprocessed' })
 
   // History tasks state
   const [historyTasks, setHistoryTasks] = useState<EvalTask[]>([])
@@ -264,8 +264,9 @@ export function EvalTasks({ repo }: Props) {
   // Load active tasks with filters
   const loadActiveTasks = async (page: number) => {
     try {
-      const filterWithStatus = { ...activeFilters, status: 'unprocessed' }
-      const response = await repo.getEvalTasksPaginated(page, pageSize, filterWithStatus)
+      console.log('Loading active tasks with filters:', activeFilters)
+      const response = await repo.getEvalTasksPaginated(page, pageSize, activeFilters)
+      console.log('Active tasks response:', { count: response.tasks.length, total: response.total_count })
       setActiveTasks(response.tasks)
       setActiveCurrentPage(response.page)
       setActiveTotalPages(response.total_pages)
@@ -281,10 +282,10 @@ export function EvalTasks({ repo }: Props) {
   // Load history tasks with filters
   const loadHistoryTasks = async (page: number) => {
     try {
-      // Get all tasks that are NOT unprocessed
+      console.log('Loading history tasks with filters:', historyFilters)
       const response = await repo.getEvalTasksPaginated(page, pageSize, historyFilters)
-      const nonUnprocessedTasks = response.tasks.filter((t) => t.status !== 'unprocessed')
-      setHistoryTasks(nonUnprocessedTasks)
+      console.log('History tasks response:', { count: response.tasks.length, total: response.total_count })
+      setHistoryTasks(response.tasks)
       setHistoryCurrentPage(response.page)
       setHistoryTotalPages(response.total_pages)
       setHistoryTotalCount(response.total_count)
@@ -328,6 +329,7 @@ export function EvalTasks({ repo }: Props) {
   useEffect(() => {
     if (isFirstRender.current) return
 
+    console.log('Active filters changed, will reload in 300ms:', activeFilters)
     const timeoutId = setTimeout(() => {
       loadActiveTasks(1)
     }, 300) // 300ms debounce
@@ -339,6 +341,7 @@ export function EvalTasks({ repo }: Props) {
   useEffect(() => {
     if (isFirstRender.current) return
 
+    console.log('History filters changed, will reload in 300ms:', historyFilters)
     const timeoutId = setTimeout(() => {
       loadHistoryTasks(1)
     }, 300) // 300ms debounce
@@ -356,7 +359,7 @@ export function EvalTasks({ repo }: Props) {
 
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeCurrentPage, historyCurrentPage])
+  }, [activeCurrentPage, historyCurrentPage, activeFilters, historyFilters])
 
   const handleCreateTask = async () => {
     if (!policyIdInput.trim()) {
@@ -597,6 +600,35 @@ export function EvalTasks({ repo }: Props) {
     )
   }
 
+  const renderStatusDropdown = (value: string, onChange: (value: string) => void) => {
+    return (
+      <select
+        value={value || ''}
+        onChange={(e) => {
+          console.log('Status dropdown changed to:', e.target.value)
+          onChange(e.target.value)
+        }}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '100%',
+          padding: '4px 8px',
+          fontSize: '12px',
+          border: '1px solid #d1d5db',
+          borderRadius: '4px',
+          marginTop: '4px',
+          backgroundColor: '#fff',
+          cursor: 'pointer',
+        }}
+      >
+        <option value="">All</option>
+        <option value="unprocessed">Unprocessed</option>
+        <option value="done">Done</option>
+        <option value="error">Error</option>
+        <option value="canceled">Canceled</option>
+      </select>
+    )
+  }
+
   const renderActiveTasksTable = () => {
     return (
       <div style={{ marginBottom: '30px' }}>
@@ -611,43 +643,37 @@ export function EvalTasks({ repo }: Props) {
                     setActiveFilters({ ...activeFilters, policy_name: value })
                   )}
                 </th>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '8%' }}>
+                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '10%' }}>
                   Suite
                   {renderFilterInput(activeFilters.sim_suite || '', (value) =>
                     setActiveFilters({ ...activeFilters, sim_suite: value })
                   )}
                 </th>
                 <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '12%' }}>
-                  Status
-                  {renderFilterInput(activeFilters.status || '', (value) =>
-                    setActiveFilters({ ...activeFilters, status: value })
-                  )}
-                </th>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '10%' }}>
                   User
                   {renderFilterInput(activeFilters.user_id || '', (value) =>
                     setActiveFilters({ ...activeFilters, user_id: value })
                   )}
                 </th>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '10%' }}>
+                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '15%' }}>
                   Assignee
                   {renderFilterInput(activeFilters.assignee || '', (value) =>
                     setActiveFilters({ ...activeFilters, assignee: value })
                   )}
                 </th>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '7%' }}>
+                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '8%' }}>
                   Tries
                   {renderFilterInput(activeFilters.retries || '', (value) =>
                     setActiveFilters({ ...activeFilters, retries: value })
                   )}
                 </th>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '10%' }}>
+                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '12%' }}>
                   Created
                   {renderFilterInput(activeFilters.created_at || '', (value) =>
                     setActiveFilters({ ...activeFilters, created_at: value })
                   )}
                 </th>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '10%' }}>
+                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '12%' }}>
                   Updated
                   {renderFilterInput(activeFilters.updated_at || '', (value) =>
                     setActiveFilters({ ...activeFilters, updated_at: value })
@@ -709,37 +735,6 @@ export function EvalTasks({ repo }: Props) {
                         </div>
                       </td>
                       <td style={{ padding: '12px' }}>{task.sim_suite}</td>
-                      <td style={{ padding: '12px' }}>
-                        <div>
-                          <span
-                            style={{
-                              padding: '4px 8px',
-                              borderRadius: '4px',
-                              backgroundColor: getStatusColor(task.status, isInProgress),
-                              color: 'white',
-                              fontSize: '12px',
-                              fontWeight: isInProgress ? 600 : 400,
-                              textTransform: isInProgress ? 'uppercase' : 'none',
-                              letterSpacing: isInProgress ? '0.5px' : '0',
-                            }}
-                          >
-                            {displayStatus}
-                          </span>
-                          {task.status === 'error' && task.attributes?.details?.error && (
-                            <div
-                              style={{
-                                fontSize: '11px',
-                                color: '#dc3545',
-                                marginTop: '4px',
-                                maxWidth: '200px',
-                                wordBreak: 'break-word',
-                              }}
-                            >
-                              {task.attributes.details.error}
-                            </div>
-                          )}
-                        </div>
-                      </td>
                       <td style={{ padding: '12px' }}>{task.user_id || '-'}</td>
                       <td style={{ padding: '12px' }}>
                         <span
@@ -761,7 +756,7 @@ export function EvalTasks({ repo }: Props) {
                     </tr>
                     {isExpanded && (
                       <tr>
-                        <td colSpan={8} style={{ padding: 0 }}>
+                        <td colSpan={7} style={{ padding: 0 }}>
                           {renderAttributes(task.attributes)}
                         </td>
                       </tr>
@@ -817,7 +812,7 @@ export function EvalTasks({ repo }: Props) {
                 </th>
                 <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '15%' }}>
                   Status
-                  {renderFilterInput(historyFilters.status || '', (value) =>
+                  {renderStatusDropdown(historyFilters.status || '', (value) =>
                     setHistoryFilters({ ...historyFilters, status: value })
                   )}
                 </th>
