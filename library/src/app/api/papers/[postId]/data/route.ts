@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@/lib/db/prisma";
+import { BadRequestError, NotFoundError } from "@/lib/errors";
+import { handleApiError } from "@/lib/api/error-handler";
 
 export async function GET(
   request: NextRequest,
@@ -10,10 +12,7 @@ export async function GET(
     const { postId } = await params;
 
     if (!postId) {
-      return NextResponse.json(
-        { error: "Post ID is required" },
-        { status: 400 }
-      );
+      throw new BadRequestError("Post ID is required");
     }
 
     // Get the paper data for this post
@@ -47,10 +46,7 @@ export async function GET(
     });
 
     if (!post?.paper) {
-      return NextResponse.json(
-        { error: "Paper not found for this post" },
-        { status: 404 }
-      );
+      throw new NotFoundError("Paper", postId);
     }
 
     const institutions = post.paper.paperInstitutions.map(
@@ -65,10 +61,6 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error("Error fetching paper data:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch paper data" },
-      { status: 500 }
-    );
+    return handleApiError(error, { endpoint: "GET /api/papers/[postId]/data" });
   }
 }

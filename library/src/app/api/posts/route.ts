@@ -1,24 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { listPosts } from "@/posts/data/posts-server";
+import { withErrorHandler } from "@/lib/api/error-handler";
 
-export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const limit = searchParams.get("limit");
-    const offset = searchParams.get("offset");
+export const GET = withErrorHandler(async (request: NextRequest) => {
+  const { searchParams } = new URL(request.url);
+  const limit = searchParams.get("limit");
+  const offset = searchParams.get("offset");
 
-    const response = await listPosts({
-      limit: limit ? Number(limit) : undefined,
-      offset: offset ? Number(offset) : undefined,
-    });
+  const response = await listPosts({
+    limit: limit ? Number(limit) : undefined,
+    offset: offset ? Number(offset) : undefined,
+  });
 
-    return NextResponse.json(response);
-  } catch (error) {
-    console.error("Error loading posts:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
-  }
-}
+  return NextResponse.json(response);
+});
