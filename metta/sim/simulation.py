@@ -29,8 +29,6 @@ from metta.sim.thumbnail_automation import maybe_generate_and_upload_thumbnail
 from metta.sim.utils import get_or_create_policy_ids
 from mettagrid import MettaGridEnv, dtype_actions
 
-TORCH_ACTION_DTYPE = torch.int32
-
 SYNTHETIC_EVAL_SUITE = "training"
 
 logger = logging.getLogger(__name__)
@@ -249,15 +247,11 @@ class Simulation:
                 )
 
         with torch.no_grad():
-            policy_actions = self._get_actions_for_agents(self._policy_idxs.cpu(), self._policy).to(
-                dtype=TORCH_ACTION_DTYPE
-            )
+            policy_actions = self._get_actions_for_agents(self._policy_idxs.cpu(), self._policy).to(dtype=torch.int32)
 
             npc_actions = None
             if self._npc_policy is not None and len(self._npc_idxs):
-                npc_actions = self._get_actions_for_agents(self._npc_idxs, self._npc_policy).to(
-                    dtype=TORCH_ACTION_DTYPE
-                )
+                npc_actions = self._get_actions_for_agents(self._npc_idxs, self._npc_policy).to(dtype=torch.int32)
 
         if self._npc_agents_per_env:
             policy_actions = rearrange(
@@ -277,8 +271,7 @@ class Simulation:
         else:
             actions = policy_actions
 
-        actions = actions.to(dtype=TORCH_ACTION_DTYPE)
-        actions_np = actions.cpu().numpy().astype(dtype_actions, copy=False)
+        actions_np = actions.to(dtype=torch.int32).cpu().numpy().astype(dtype_actions, copy=False)
         return actions_np
 
     def step_simulation(self, actions_np: np.ndarray) -> None:
