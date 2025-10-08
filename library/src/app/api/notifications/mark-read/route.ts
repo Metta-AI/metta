@@ -6,6 +6,8 @@ import {
   markNotificationsRead,
   markAllNotificationsRead,
 } from "@/lib/notifications";
+import { AuthenticationError } from "@/lib/errors";
+import { handleApiError } from "@/lib/api/error-handler";
 
 const markReadSchema = z.object({
   notificationIds: z.array(z.string()).optional(),
@@ -17,10 +19,7 @@ export async function POST(request: NextRequest) {
     const session = await auth();
 
     if (!isSignedIn(session)) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
+      throw new AuthenticationError();
     }
 
     const body = await request.json();
@@ -49,10 +48,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error marking notifications as read:", error);
-    return NextResponse.json(
-      { error: "Failed to mark notifications as read" },
-      { status: 500 }
-    );
+    return handleApiError(error, {
+      endpoint: "POST /api/notifications/mark-read",
+    });
   }
 }

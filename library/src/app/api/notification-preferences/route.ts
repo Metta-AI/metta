@@ -7,6 +7,8 @@ import {
   updateNotificationPreferences,
   getDeliveryStats,
 } from "@/lib/notification-preferences";
+import { AuthenticationError } from "@/lib/errors";
+import { handleApiError } from "@/lib/api/error-handler";
 
 // Schema for updating preferences
 const updatePreferencesSchema = z.object({
@@ -26,10 +28,7 @@ export async function GET(request: NextRequest) {
     const session = await auth();
 
     if (!isSignedIn(session)) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
+      throw new AuthenticationError();
     }
 
     const { searchParams } = new URL(request.url);
@@ -50,11 +49,9 @@ export async function GET(request: NextRequest) {
       ...(stats && { deliveryStats: stats }),
     });
   } catch (error) {
-    console.error("Error loading notification preferences:", error);
-    return NextResponse.json(
-      { error: "Failed to load notification preferences" },
-      { status: 500 }
-    );
+    return handleApiError(error, {
+      endpoint: "GET /api/notification-preferences",
+    });
   }
 }
 
@@ -65,10 +62,7 @@ export async function PUT(request: NextRequest) {
     const session = await auth();
 
     if (!isSignedIn(session)) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
+      throw new AuthenticationError();
     }
 
     const body = await request.json();
@@ -82,18 +76,8 @@ export async function PUT(request: NextRequest) {
       preferences,
     });
   } catch (error) {
-    console.error("Error updating notification preferences:", error);
-
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: "Invalid request data", details: error.issues },
-        { status: 400 }
-      );
-    }
-
-    return NextResponse.json(
-      { error: "Failed to update notification preferences" },
-      { status: 500 }
-    );
+    return handleApiError(error, {
+      endpoint: "PUT /api/notification-preferences",
+    });
   }
 }

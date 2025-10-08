@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { loadInstitution } from "@/posts/data/institutions-server";
+import { NotFoundError } from "@/lib/errors";
+import { handleApiError } from "@/lib/api/error-handler";
 
 export async function GET(
   request: NextRequest,
@@ -12,18 +14,11 @@ export async function GET(
     const institution = await loadInstitution(institutionName);
 
     if (!institution) {
-      return NextResponse.json(
-        { error: "Institution not found" },
-        { status: 404 }
-      );
+      throw new NotFoundError("Institution", institutionName);
     }
 
     return NextResponse.json(institution);
   } catch (error) {
-    console.error("Error loading institution:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(error, { endpoint: "GET /api/institutions/[name]" });
   }
 }

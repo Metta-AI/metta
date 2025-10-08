@@ -5,6 +5,7 @@
 ## ✅ Completed
 
 ### Core Infrastructure
+
 - ✅ Error class hierarchy (`src/lib/errors.ts`)
 - ✅ API error handler (`src/lib/api/error-handler.ts`)
 - ✅ Logger service (`src/lib/logging/logger.ts`)
@@ -12,10 +13,11 @@
 - ✅ Created centralized API exports
 
 ### API Routes Updated (8/22)
-- ✅ `/api/notifications` 
+
+- ✅ `/api/notifications`
 - ✅ `/api/notifications/count`
 - ✅ `/api/posts/[id]`
-- ✅ `/api/posts` 
+- ✅ `/api/posts`
 - ✅ `/api/papers/[postId]/data`
 - ✅ `/api/institutions`
 - ✅ `/api/authors`
@@ -24,6 +26,7 @@
 ## 🚧 Remaining Work
 
 ### API Routes to Update (14 remaining)
+
 1. `/api/notification-preferences/route.ts`
 2. `/api/notifications/mark-read/route.ts`
 3. `/api/papers/[postId]/institutions/route.ts`
@@ -43,12 +46,14 @@
 ### console.error Replacement (201 instances across 66 files)
 
 **Priority Areas:**
+
 - `/lib/**` backend services (high priority)
-- `/workers/**` background jobs (high priority)  
+- `/workers/**` background jobs (high priority)
 - `/posts/actions/**` server actions (high priority)
 - Components (lower priority - most are client-side)
 
 **Backend Files Needing Logger:**
+
 - `lib/workers/*.ts` (5 files)
 - `lib/external-notifications/*.ts` (2 files)
 - `lib/arxiv-auto-import.ts`
@@ -61,6 +66,7 @@
 ## 📋 Migration Pattern
 
 ### For Simple API Routes
+
 ```typescript
 import { withErrorHandler } from "@/lib/api/error-handler";
 
@@ -70,7 +76,8 @@ export const GET = withErrorHandler(async (request) => {
 });
 ```
 
-### For Complex API Routes  
+### For Complex API Routes
+
 ```typescript
 import { handleApiError, AuthenticationError } from "@/lib/errors";
 
@@ -88,6 +95,7 @@ export async function GET(request) {
 ```
 
 ### For Backend Services
+
 ```typescript
 import { Logger } from "@/lib/logging/logger";
 
@@ -101,16 +109,16 @@ Logger.error("Error message", error, { context: "additional info" });
 ## 🎯 Next Steps
 
 1. **Complete remaining API routes** - Use patterns above
-2. **Replace console.error in backend** - Systematic file-by-file  
+2. **Replace console.error in backend** - Systematic file-by-file
 3. **Update server actions** - Use typed errors where appropriate
 4. **Test error scenarios** - Verify proper error responses
 5. **Monitor in production** - Set up error tracking integration
 
 ## 📊 Progress
+
 - Infrastructure: 100% ✅
 - API Routes: 36% (8/22)
 - Backend logging: 0% (0/201 console.error replaced)
 - Server Actions: 0%
 
 **Overall: ~15% complete**
-
