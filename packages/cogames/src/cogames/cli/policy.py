@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Optional, Sequence
 
 import typer
-from rich.console import Console
 from rich.table import Table
 
 from cogames.cli.base import console
@@ -58,7 +57,7 @@ def get_policy_spec(ctx: typer.Context, policy_arg: Optional[str]) -> PolicySpec
         console.print(ctx.get_help())
     else:
         try:
-            return _parse_policy_spec(spec=policy_arg, console=console)  # type: ignore
+            return _parse_policy_spec(spec=policy_arg)  # type: ignore
         except ValueError as e:
             translated = str(e).replace("Invalid symbol name", "Could not find policy class")
             console.print(f"[yellow]Error parsing policy argument: {translated}[/yellow]")
@@ -80,7 +79,7 @@ def get_policy_specs(ctx: typer.Context, policy_args: Optional[list[str]]) -> li
         console.print(ctx.get_help())
     else:
         try:
-            return [_parse_policy_spec(spec=policy_arg, console=console) for policy_arg in policy_args]
+            return [_parse_policy_spec(spec=policy_arg) for policy_arg in policy_args]
         except ValueError as e:
             translated = str(e).replace("Invalid symbol name", "Could not find policy class")
             console.print(f"[yellow]Error parsing policy argument: {translated}[/yellow]")
@@ -99,7 +98,6 @@ def get_policy_specs(ctx: typer.Context, policy_args: Optional[list[str]]) -> li
 def _parse_policy_spec(
     spec: str,
     *,
-    console: Optional["Console"] = None,
     game_name: Optional[str] = None,
 ) -> PolicySpec:
     """Parse a policy CLI option into its components."""
@@ -135,7 +133,6 @@ def _parse_policy_spec(
         raw_policy_data or None,
         policy_class_path=resolved_class_path,
         game_name=game_name,
-        console=console,
     )
 
     return PolicySpec(

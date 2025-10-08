@@ -137,7 +137,6 @@ def train(
                 initial_weights_path,
                 policy_class_path=policy_class_path,
                 game_name=game_name,
-                console=console,
             )
         except FileNotFoundError as exc:
             console.print(f"[yellow]Initial weights not found ({exc}). Continuing with random initialization.[/yellow]")
