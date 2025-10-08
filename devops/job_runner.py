@@ -101,6 +101,9 @@ class Job(ABC):
 
         Returns:
             JobResult when complete
+
+        Raises:
+            KeyboardInterrupt: If interrupted by user (after cleanup)
         """
         if not self._submitted:
             self.submit()
@@ -108,32 +111,43 @@ class Job(ABC):
         start_time = time.time()
         printed_bytes = 0
 
-        while not self.is_complete():
-            # Check timeout
-            if (time.time() - start_time) > self.timeout_s:
-                # Job timed out - create timeout result
-                self._result = JobResult(
-                    name=self.name,
-                    exit_code=124,
-                    logs_path=str(self._get_log_path()),
-                    duration_s=time.time() - start_time,
-                )
-                return self._result
+        try:
+            while not self.is_complete():
+                # Check timeout
+                if (time.time() - start_time) > self.timeout_s:
+                    # Job timed out - create timeout result
+                    self._result = JobResult(
+                        name=self.name,
+                        exit_code=124,
+                        logs_path=str(self._get_log_path()),
+                        duration_s=time.time() - start_time,
+                    )
+                    return self._result
 
-            # Stream output if requested
-            if stream_output:
-                logs = self.get_logs()
-                if logs and len(logs) > printed_bytes:
-                    new_content = logs[printed_bytes:]
-                    print(new_content, end="", flush=True)
-                    printed_bytes = len(logs)
+                # Stream output if requested
+                if stream_output:
+                    logs = self.get_logs()
+                    if logs and len(logs) > printed_bytes:
+                        new_content = logs[printed_bytes:]
+                        print(new_content, end="", flush=True)
+                        printed_bytes = len(logs)
 
-            time.sleep(poll_interval_s)
+                time.sleep(poll_interval_s)
 
-        # Job complete - get result
-        result = self.get_result()
-        assert result is not None
-        return result
+            # Job complete - get result
+            result = self.get_result()
+            assert result is not None
+            return result
+
+        except KeyboardInterrupt:
+            print(f"\n\n⚠️  Interrupted! Cleaning up job '{self.name}'...")
+            self.cancel()
+            raise
+
+    @abstractmethod
+    def cancel(self) -> None:
+        """Cancel/kill the running job."""
+        pass
 
     @abstractmethod
     def _get_log_path(self) -> Path:
@@ -174,7 +188,7 @@ class LocalJob(Job):
         env["FORCE_COLOR"] = "1"
         env["CLICOLOR_FORCE"] = "1"
 
-        # Start process
+        # Start process in new process group (for clean cancellation)
         self._log_file = open(log_path, "wb")
         self._proc = subprocess.Popen(
             self.cmd,
@@ -182,6 +196,7 @@ class LocalJob(Job):
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             env=env,
+            preexec_fn=os.setpgrp if os.name != "nt" else None,  # Unix only
         )
         self._submitted = True
         self._start_time = time.time()
@@ -252,6 +267,33 @@ class LocalJob(Job):
     def _get_log_path(self) -> Path:
         """Get path to log file."""
         return self.log_dir / f"{self.name}.log"
+
+    def cancel(self) -> None:
+        """Cancel/kill the running job."""
+        if self._proc and self._exit_code is None:
+            print(f"Killing local job process (PID {self._proc.pid})...")
+            try:
+                # Kill process group to ensure child processes are also killed
+                import signal
+
+                pgid = os.getpgid(self._proc.pid)
+                os.killpg(pgid, signal.SIGTERM)
+
+                # Give it a moment to terminate gracefully
+                try:
+                    self._proc.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    # Force kill if still running
+                    os.killpg(pgid, signal.SIGKILL)
+                    self._proc.wait()
+
+                self._exit_code = -1  # Mark as cancelled
+                if hasattr(self, "_log_file") and self._log_file:
+                    self._log_file.close()
+
+            except (ProcessLookupError, PermissionError) as e:
+                # Process already terminated or permission denied
+                print(f"Could not kill process: {e}")
 
 
 class RemoteJob(Job):
@@ -364,6 +406,18 @@ class RemoteJob(Job):
         """Get path to log file."""
         job_id_str = self._job_id or "unknown"
         return self.log_dir / f"{self.name}.{job_id_str}.log"
+
+    def cancel(self) -> None:
+        """Note: Remote jobs cannot be cancelled from here.
+
+        Remote jobs continue running in the cloud. Use SkyPilot CLI to manage:
+            sky cancel <job_id>
+        """
+        if self._job_id:
+            print(f"⚠️  Remote job '{self.name}' (Job ID: {self._job_id}) is still running in the cloud")
+            print(f"    To cancel: sky cancel {self._job_id}")
+        else:
+            print(f"Remote job '{self.name}' was not successfully launched")
 
 
 # Backwards compatibility - keep old function-based API
