@@ -22,7 +22,7 @@ DEFAULT_LEARNING_RATE = 8e-4
 DEFAULT_BATCH_SIZE = 131_072
 DEFAULT_MINIBATCH_SIZE = 4_096
 DEFAULT_FORWARD_PASS_MINIBATCH_TARGET_SIZE = 1_024
-DEFAULT_SSM_LAYER = "Mamba1"
+DEFAULT_SSM_LAYER = "Mamba2"
 
 
 def train(
@@ -38,10 +38,14 @@ def train(
 ) -> TrainTool:
     policy = policy_architecture or MambaSlidingConfig()
 
+    if ssm_layer != "Mamba2":
+        msg = f"Unsupported SSM layer '{ssm_layer}'. Only 'Mamba2' is available."
+        raise ValueError(msg)
+
     for component in policy.components:
         if isinstance(component, MambaBackboneConfig):
             ssm_cfg = dict(component.ssm_cfg) if component.ssm_cfg else {}
-            ssm_cfg["layer"] = ssm_layer
+            ssm_cfg["layer"] = "Mamba2"
             component.ssm_cfg = ssm_cfg
 
     tool = base_train(

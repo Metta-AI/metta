@@ -46,6 +46,7 @@ class MambaSlidingConfig(PolicyArchitecture):
             n_layer=4,
             max_cache_size=128,
             pool="mean",
+            ssm_cfg={"layer": "Mamba2"},
         ),
         MLPConfig(
             in_key="core",
@@ -69,6 +70,8 @@ class MambaSlidingConfig(PolicyArchitecture):
 
 
 def _update_ssm_layer(config: MambaSlidingConfig, layer: str) -> MambaSlidingConfig:
+    if layer != "Mamba2":
+        raise ValueError(f"Unsupported SSM layer '{layer}'. Only 'Mamba2' is available.")
     for component in config.components:
         if isinstance(component, MambaBackboneConfig):
             next_cfg = dict(component.ssm_cfg) if component.ssm_cfg else {}

@@ -11,7 +11,6 @@ import torch.nn.functional as F
 from einops import repeat
 from metta.agent.components.mamba_ssm.modules.block import Block
 from metta.agent.components.mamba_ssm.modules.mamba2 import Mamba2
-from metta.agent.components.mamba_ssm.modules.mamba_simple import Mamba
 from metta.agent.components.mamba_ssm.modules.mha import MHA
 from metta.agent.components.mamba_ssm.modules.mlp import MLP
 from metta.agent.components.mamba_ssm.utils.generation import GenerationMixin
@@ -70,12 +69,10 @@ def create_block(
     if layer_idx not in attn_layer_idx:
         # Create a copy of the config to modify
         ssm_cfg = copy.deepcopy(ssm_cfg) if ssm_cfg is not None else {}
-        ssm_layer = ssm_cfg.pop("layer", "Mamba1")
-        if ssm_layer not in ["Mamba1", "Mamba2"]:
-            raise ValueError(f"Invalid ssm_layer: {ssm_layer}, only support Mamba1 and Mamba2")
-        mixer_cls = partial(
-            Mamba2 if ssm_layer == "Mamba2" else Mamba, layer_idx=layer_idx, **ssm_cfg, **factory_kwargs
-        )
+        ssm_layer = ssm_cfg.pop("layer", "Mamba2")
+        if ssm_layer != "Mamba2":
+            raise ValueError(f"Invalid ssm_layer: {ssm_layer}, only support Mamba2")
+        mixer_cls = partial(Mamba2, layer_idx=layer_idx, **ssm_cfg, **factory_kwargs)
     else:
         mixer_cls = partial(MHA, layer_idx=layer_idx, **attn_cfg, **factory_kwargs)
     if guard_triton and rms_norm and RMSNorm is None:
