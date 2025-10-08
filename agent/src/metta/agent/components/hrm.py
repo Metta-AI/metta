@@ -91,29 +91,6 @@ class HRMReasoningConfig(ComponentConfig):
         return HRMReasoning(self)
 
 
-class HRMMemory:
-    """Memory manager for per-environment hidden states."""
-
-    def __init__(self):
-        self.carry = {}
-
-    def has_memory(self):
-        return True
-
-    def set_memory(self, memory):
-        self.carry = memory
-
-    def get_memory(self):
-        return self.carry
-
-    def reset_memory(self):
-        self.carry = {}
-
-    def reset_env_memory(self, env_id):
-        if env_id in self.carry:
-            del self.carry[env_id]
-
-
 class HRMReasoning(nn.Module):
     """HRM reasoning component matching official implementation."""
 
