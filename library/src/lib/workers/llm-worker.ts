@@ -7,6 +7,7 @@
 import { Worker, Job } from "bullmq";
 import { redisConfig, BackgroundJobs } from "../job-queue";
 import { PaperAbstractService } from "../paper-abstract-service";
+import { Logger } from "../logging/logger";
 
 export class LLMWorker {
   private worker: Worker;
@@ -35,23 +36,22 @@ export class LLMWorker {
   ): Promise<void> {
     const { paperId } = job.data;
 
-    console.log(`🤖 [LLM Worker] Generating abstract for paper ${paperId}`);
+    Logger.info("LLM Worker: Generating abstract for paper", { paperId });
 
     try {
       const abstract =
         await PaperAbstractService.generateAbstractForPaper(paperId);
 
       if (abstract) {
-        console.log(`✅ [LLM Worker] Generated abstract for paper ${paperId}`);
+        Logger.info("LLM Worker: Generated abstract for paper", { paperId });
       } else {
-        console.log(
-          `⚠️ [LLM Worker] No abstract generated for paper ${paperId}`
-        );
+        Logger.warn("LLM Worker: No abstract generated for paper", { paperId });
       }
     } catch (error) {
-      console.error(
-        `❌ [LLM Worker] Failed to generate abstract for paper ${paperId}:`,
-        error
+      Logger.error(
+        "LLM Worker: Failed to generate abstract",
+        error instanceof Error ? error : new Error(String(error)),
+        { paperId }
       );
       throw error; // BullMQ will handle retries
     }
@@ -59,20 +59,20 @@ export class LLMWorker {
 
   private setupEventHandlers(): void {
     this.worker.on("completed", (job) => {
-      console.log(`✅ LLM job ${job.id} completed successfully`);
+      Logger.debug("LLM job completed", { jobId: job.id });
     });
 
     this.worker.on("failed", (job, err) => {
-      console.error(`❌ LLM job ${job?.id} failed:`, err.message);
+      Logger.error("LLM job failed", err, { jobId: job?.id });
     });
 
     this.worker.on("error", (err) => {
-      console.error("🚨 LLM worker error:", err);
+      Logger.error("LLM worker error", err);
     });
   }
 
   async shutdown(): Promise<void> {
-    console.log("🛑 Shutting down LLM worker...");
+    Logger.info("Shutting down LLM worker");
     await this.worker.close();
   }
 }
@@ -80,6 +80,6 @@ export class LLMWorker {
 // Export for standalone usage
 export async function startLLMWorker(): Promise<LLMWorker> {
   const worker = new LLMWorker();
-  console.log("🚀 LLM worker started");
+  Logger.info("LLM worker started");
   return worker;
 }
