@@ -8,6 +8,7 @@ import { redirect } from "next/navigation";
 
 import { prisma } from "./db/prisma";
 import { config } from "./config";
+import { Logger } from "./logging/logger";
 
 function buildAuthConfig(): NextAuthConfig {
   const providers: Provider[] = [];
@@ -20,7 +21,7 @@ function buildAuthConfig(): NextAuthConfig {
       name: "Log magic link to console (dev)",
       async sendVerificationRequest(params) {
         const { url } = params;
-        console.log({ url });
+        Logger.info({ url });
       },
     });
   } else {
@@ -67,7 +68,7 @@ function buildAuthConfig(): NextAuthConfig {
           });
 
           if (userData?.isBanned) {
-            console.log(`Banned user attempted login: ${user.email}`);
+            Logger.info(`Banned user attempted login: ${user.email}`);
             // Prevent login by returning false
             return false;
           }

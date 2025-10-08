@@ -10,6 +10,7 @@ import { redisConfig, BackgroundJobs } from "../job-queue";
 import { emailService } from "../external-notifications/email";
 import { discordBot } from "../external-notifications/discord-bot";
 import { prisma } from "@/lib/db/prisma";
+import { Logger } from "../logging/logger";
 
 export class ExternalNotificationWorker {
   private worker: Worker;
@@ -60,10 +61,11 @@ export class ExternalNotificationWorker {
   ): Promise<void> {
     const { notificationId, channels, userId } = job.data;
 
-    console.log(
-      `📧 [External Notification Worker] Processing notification ${notificationId} for user ${userId}`
-    );
-    console.log(`   Channels: ${channels.join(", ")}`);
+    Logger.info("External Notification Worker: Processing notification", {
+      notificationId,
+      userId,
+      channels,
+    });
 
     try {
       // Fetch notification with all required relations
@@ -90,7 +92,9 @@ export class ExternalNotificationWorker {
       });
 
       if (!notification) {
-        console.error(`❌ Notification ${notificationId} not found`);
+        Logger.error("Notification not found", new Error("Not found"), {
+          notificationId,
+        });
         return;
       }
 
@@ -108,9 +112,10 @@ export class ExternalNotificationWorker {
       });
 
       if (enabledChannels.length === 0) {
-        console.log(
-          `📧 No enabled channels for user ${userId}, notification ${notificationId}`
-        );
+        Logger.debug("No enabled channels for notification", {
+          userId,
+          notificationId,
+        });
         return;
       }
 
@@ -130,20 +135,25 @@ export class ExternalNotificationWorker {
       results.forEach((result, index) => {
         const channel = enabledChannels[index];
         if (result.status === "fulfilled") {
-          console.log(
-            `✅ [External Notification Worker] ${channel} notification sent for ${notificationId}`
-          );
+          Logger.info("External notification sent successfully", {
+            channel,
+            notificationId,
+          });
         } else {
-          console.error(
-            `❌ [External Notification Worker] ${channel} notification failed for ${notificationId}:`,
-            result.reason
+          Logger.error(
+            "External notification failed",
+            result.reason instanceof Error
+              ? result.reason
+              : new Error(String(result.reason)),
+            { channel, notificationId }
           );
         }
       });
     } catch (error) {
-      console.error(
-        `❌ [External Notification Worker] Failed processing notification ${notificationId}:`,
-        error
+      Logger.error(
+        "External Notification Worker: Failed processing notification",
+        error instanceof Error ? error : new Error(String(error)),
+        { notificationId }
       );
       throw error; // BullMQ will handle retries
     }
@@ -154,9 +164,9 @@ export class ExternalNotificationWorker {
   ): Promise<void> {
     const { deliveryId } = job.data;
 
-    console.log(
-      `🔄 [External Notification Worker] Retrying delivery ${deliveryId}`
-    );
+    Logger.info("External Notification Worker: Retrying delivery", {
+      deliveryId,
+    });
 
     try {
       // Fetch delivery record with notification
@@ -187,7 +197,9 @@ export class ExternalNotificationWorker {
       });
 
       if (!delivery) {
-        console.error(`❌ Delivery ${deliveryId} not found`);
+        Logger.error("Delivery not found for retry", new Error("Not found"), {
+          deliveryId,
+        });
         return;
       }
 
@@ -215,18 +227,19 @@ export class ExternalNotificationWorker {
       }
 
       if (success) {
-        console.log(
-          `✅ [External Notification Worker] Retry successful for delivery ${deliveryId}`
-        );
+        Logger.info("External Notification Worker: Retry successful", {
+          deliveryId,
+        });
       } else {
-        console.error(
-          `❌ [External Notification Worker] Retry failed for delivery ${deliveryId}`
-        );
+        Logger.warn("External Notification Worker: Retry failed", {
+          deliveryId,
+        });
       }
     } catch (error) {
-      console.error(
-        `❌ [External Notification Worker] Failed retry for delivery ${deliveryId}:`,
-        error
+      Logger.error(
+        "External Notification Worker: Failed retry for delivery",
+        error instanceof Error ? error : new Error(String(error)),
+        { deliveryId }
       );
       throw error;
     }
@@ -234,7 +247,9 @@ export class ExternalNotificationWorker {
 
   private async sendEmailNotification(notification: any): Promise<boolean> {
     if (!notification.user.email) {
-      console.warn(`📧 No email address for user ${notification.userId}`);
+      Logger.warn("No email address for user", {
+        userId: notification.userId,
+      });
       return false;
     }
 
@@ -249,7 +264,7 @@ export class ExternalNotificationWorker {
     );
 
     if (!preferences.discordUserId) {
-      console.warn(
+      Logger.warn(
         `🤖 No Discord account linked for user ${notification.userId}`
       );
       return false;
@@ -289,25 +304,25 @@ export class ExternalNotificationWorker {
 
   private setupEventHandlers(): void {
     this.worker.on("completed", (job) => {
-      console.log(
+      Logger.info(
         `✅ External notification job ${job.id} completed successfully`
       );
     });
 
     this.worker.on("failed", (job, err) => {
-      console.error(
+      Logger.error(
         `❌ External notification job ${job?.id} failed:`,
         err.message
       );
     });
 
     this.worker.on("error", (err) => {
-      console.error("🚨 External notification worker error:", err);
+      Logger.error("🚨 External notification worker error:", err);
     });
   }
 
   async shutdown(): Promise<void> {
-    console.log("🛑 Shutting down external notification worker...");
+    Logger.info("🛑 Shutting down external notification worker...");
     await this.worker.close();
   }
 }
@@ -315,6 +330,6 @@ export class ExternalNotificationWorker {
 // Export for standalone usage
 export async function startExternalNotificationWorker(): Promise<ExternalNotificationWorker> {
   const worker = new ExternalNotificationWorker();
-  console.log("🚀 External notification worker started");
+  Logger.info("🚀 External notification worker started");
   return worker;
 }

@@ -8,6 +8,7 @@
 
 import { prisma } from "@/lib/db/prisma";
 import type { NotificationWithDetails } from "./email";
+import { Logger } from "../logging/logger";
 
 export interface DiscordNotificationEmbed {
   title: string;
@@ -41,10 +42,10 @@ export class DiscordBotService {
     this.isConfigured = !!this.botToken;
 
     if (this.isConfigured) {
-      console.log("🤖 Discord bot configured with REST API");
+      Logger.info("Discord bot configured with REST API");
     } else {
-      console.warn(
-        "⚠️ Discord bot token not configured - Discord notifications disabled"
+      Logger.warn(
+        "Discord bot token not configured - Discord notifications disabled"
       );
     }
   }
@@ -89,7 +90,7 @@ export class DiscordBotService {
 
     if (remaining === 0 && resetTime && Date.now() < resetTime * 1000) {
       const waitTime = resetTime * 1000 - Date.now();
-      console.log(`⏳ Rate limited on ${endpoint}, waiting ${waitTime}ms`);
+      Logger.warn("Discord rate limited, waiting", { endpoint, waitTime });
       await new Promise((resolve) => setTimeout(resolve, waitTime));
     }
   }
@@ -112,7 +113,7 @@ export class DiscordBotService {
       const retryAfter = response.headers.get("retry-after");
       const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : 1000;
 
-      console.warn(`⚠️ Rate limit hit on ${endpoint}, waiting ${waitTime}ms`);
+      Logger.warn("Discord rate limit hit (429)", { endpoint, waitTime });
       await new Promise((resolve) => setTimeout(resolve, waitTime));
     }
   }
@@ -127,14 +128,14 @@ export class DiscordBotService {
   ): Promise<boolean> {
     try {
       if (!this.isConfigured) {
-        console.warn("Discord bot not configured");
+        Logger.warn("Discord bot not configured");
         return false;
       }
 
       // Create DM channel with user
       const dmChannel = await this.createDMChannel(discordUserId);
       if (!dmChannel) {
-        console.warn(`Failed to create DM channel with user ${discordUserId}`);
+        Logger.warn(`Failed to create DM channel with user ${discordUserId}`);
         return false;
       }
 
@@ -147,22 +148,29 @@ export class DiscordBotService {
       });
 
       if (success) {
-        console.log(`🤖 Discord DM sent to user ${discordUserId}`);
+        Logger.info("Discord DM sent successfully", {
+          discordUserId,
+          notificationId: notification.id,
+        });
         return true;
       } else {
         return false;
       }
     } catch (error: any) {
-      console.error(`❌ Failed to send Discord DM to ${discordUserId}:`, error);
+      Logger.error(
+        "Failed to send Discord DM",
+        error instanceof Error ? error : new Error(String(error)),
+        { discordUserId, notificationId: notification.id }
+      );
 
       // Handle specific Discord errors
       if (
         error?.code === 50007 ||
         error?.message?.includes("Cannot send messages")
       ) {
-        console.warn(
-          `User ${discordUserId} has DMs disabled or blocked the bot`
-        );
+        Logger.warn("User has DMs disabled or blocked the bot", {
+          discordUserId,
+        });
         // Mark user as having DMs disabled
         await this.markUserDMsDisabled(discordUserId);
       }
@@ -187,9 +195,10 @@ export class DiscordBotService {
 
       if (!response.ok) {
         const error = await response.json();
-        console.error(
-          `Failed to create DM channel with ${discordUserId}:`,
-          error
+        Logger.error(
+          "Failed to create DM channel",
+          new Error(JSON.stringify(error)),
+          { discordUserId }
         );
         return null;
       }
@@ -197,7 +206,11 @@ export class DiscordBotService {
       const channel = await response.json();
       return { id: channel.id };
     } catch (error) {
-      console.error(`Error creating DM channel with ${discordUserId}:`, error);
+      Logger.error(
+        "Error creating DM channel",
+        error instanceof Error ? error : new Error(String(error)),
+        { discordUserId }
+      );
       return null;
     }
   }
@@ -220,13 +233,21 @@ export class DiscordBotService {
 
       if (!response.ok) {
         const error = await response.json();
-        console.error(`Failed to send message to channel ${channelId}:`, error);
+        Logger.error(
+          "Failed to send message to Discord channel",
+          new Error(JSON.stringify(error)),
+          { channelId }
+        );
         return false;
       }
 
       return true;
     } catch (error) {
-      console.error(`Error sending message to channel ${channelId}:`, error);
+      Logger.error(
+        "Error sending message to Discord channel",
+        error instanceof Error ? error : new Error(String(error)),
+        { channelId }
+      );
       return false;
     }
   }
@@ -240,13 +261,21 @@ export class DiscordBotService {
 
       if (!response.ok) {
         const error = await response.json();
-        console.error(`Failed to fetch Discord user ${discordUserId}:`, error);
+        Logger.error(
+          "Failed to fetch Discord user",
+          new Error(JSON.stringify(error)),
+          { discordUserId }
+        );
         return null;
       }
 
       return await response.json();
     } catch (error) {
-      console.error(`Error fetching Discord user ${discordUserId}:`, error);
+      Logger.error(
+        "Error fetching Discord user",
+        error instanceof Error ? error : new Error(String(error)),
+        { discordUserId }
+      );
       return null;
     }
   }
@@ -496,11 +525,11 @@ export class DiscordBotService {
         },
       });
 
-      console.log(
+      Logger.info(
         `Disabled Discord notifications for user ${discordUserId} (DMs blocked)`
       );
     } catch (error) {
-      console.error(
+      Logger.error(
         `Failed to disable Discord for user ${discordUserId}:`,
         error
       );
@@ -516,14 +545,14 @@ export class DiscordBotService {
   ): Promise<boolean> {
     try {
       if (!this.isConfigured) {
-        console.warn("Discord bot not configured");
+        Logger.warn("Discord bot not configured");
         return false;
       }
 
       // Create DM channel with user
       const dmChannel = await this.createDMChannel(discordUserId);
       if (!dmChannel) {
-        console.warn(`Failed to create DM channel with user ${discordUserId}`);
+        Logger.warn(`Failed to create DM channel with user ${discordUserId}`);
         return false;
       }
 
@@ -558,13 +587,13 @@ export class DiscordBotService {
         embeds: [embed],
       });
       if (success) {
-        console.log(`🤖 Welcome message sent to user ${discordUserId}`);
+        Logger.info(`🤖 Welcome message sent to user ${discordUserId}`);
         return true;
       } else {
         return false;
       }
     } catch (error) {
-      console.error(
+      Logger.error(
         `Failed to send welcome message to ${discordUserId}:`,
         error
       );
@@ -585,7 +614,7 @@ export class DiscordBotService {
       const response = await this.discordRequest("/users/@me");
       return response.ok;
     } catch (error) {
-      console.error("Discord bot configuration test failed:", error);
+      Logger.error("Discord bot configuration test failed:", error);
       return false;
     }
   }
@@ -629,7 +658,7 @@ export class DiscordBotService {
     // Clear rate limit tracking
     this.rateLimitResetTimes.clear();
     this.rateLimitRemaining.clear();
-    console.log("🤖 Discord bot service shut down");
+    Logger.info("🤖 Discord bot service shut down");
   }
 }
 

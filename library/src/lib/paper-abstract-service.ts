@@ -4,6 +4,7 @@ import {
   updateLLMAbstractIfNeeded,
   LLMAbstract,
 } from "./llm-abstract-generator-clean";
+import { Logger } from "./logging/logger";
 
 /**
  * Service for generating and managing LLM-enhanced abstracts for papers
@@ -16,7 +17,7 @@ export class PaperAbstractService {
     paperId: string
   ): Promise<LLMAbstract | null> {
     try {
-      console.log(`📋 Generating LLM abstract for paper: ${paperId}`);
+      Logger.info("Generating LLM abstract for paper", { paperId });
 
       // Fetch paper from database
       const paper = await prisma.paper.findUnique({
@@ -33,28 +34,29 @@ export class PaperAbstractService {
       });
 
       if (!paper) {
-        console.error(`❌ Paper not found: ${paperId}`);
+        Logger.warn("Paper not found", { paperId });
         return null;
       }
 
       if (!paper.link) {
-        console.error(`❌ No PDF link found for paper: ${paperId}`);
+        Logger.warn("No PDF link found for paper", { paperId });
         return null;
       }
 
       // Check if we already have an LLM abstract
       if (paper.llmAbstract && paper.llmAbstractGeneratedAt) {
         const existingAbstract = paper.llmAbstract as unknown as LLMAbstract;
-        console.log(`📋 Found existing LLM abstract for paper: ${paperId}`);
+        Logger.debug("Found existing LLM abstract for paper", { paperId });
         return existingAbstract;
       }
 
       // Generate new LLM abstract
       return await this.generateNewAbstract(paper);
     } catch (error) {
-      console.error(
-        `❌ Error generating abstract for paper ${paperId}:`,
-        error
+      Logger.error(
+        "Error generating abstract for paper",
+        error instanceof Error ? error : new Error(String(error)),
+        { paperId }
       );
       return null;
     }
@@ -68,7 +70,9 @@ export class PaperAbstractService {
   ): Promise<Map<string, LLMAbstract | null>> {
     const results = new Map<string, LLMAbstract | null>();
 
-    console.log(`📋 Generating LLM abstracts for ${paperIds.length} papers...`);
+    Logger.info("Generating LLM abstracts for batch", {
+      paperCount: paperIds.length,
+    });
 
     // Process papers sequentially to avoid overwhelming the API
     for (const paperId of paperIds) {
@@ -79,9 +83,9 @@ export class PaperAbstractService {
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
 
-    console.log(
-      `✅ Completed batch abstract generation for ${paperIds.length} papers`
-    );
+    Logger.info("Completed batch abstract generation", {
+      paperCount: paperIds.length,
+    });
     return results;
   }
 
@@ -102,18 +106,21 @@ export class PaperAbstractService {
       });
 
       if (papersNeedingAbstracts.length === 0) {
-        console.log("✅ No papers found that need LLM abstracts");
+        Logger.info("No papers found that need LLM abstracts");
         return;
       }
 
-      console.log(
-        `📋 Found ${papersNeedingAbstracts.length} papers needing LLM abstracts`
-      );
+      Logger.info("Found papers needing LLM abstracts", {
+        count: papersNeedingAbstracts.length,
+      });
 
       const paperIds = papersNeedingAbstracts.map((p) => p.id);
       await this.generateAbstractsForPapers(paperIds);
     } catch (error) {
-      console.error("❌ Error generating missing abstracts:", error);
+      Logger.error(
+        "Error generating missing abstracts",
+        error instanceof Error ? error : new Error(String(error))
+      );
     }
   }
 
@@ -126,7 +133,7 @@ export class PaperAbstractService {
     try {
       // Normalize URL to ensure we get the actual PDF
       const normalizedUrl = this.normalizePdfUrl(paper.link);
-      console.log(`📥 Fetching PDF from: ${normalizedUrl}`);
+      Logger.info(`📥 Fetching PDF from: ${normalizedUrl}`);
 
       const response = await fetch(normalizedUrl, {
         headers: {
@@ -137,7 +144,7 @@ export class PaperAbstractService {
       });
 
       if (!response.ok) {
-        console.error(
+        Logger.error(
           `❌ Failed to fetch PDF: ${response.status} ${response.statusText}`
         );
         return null;
@@ -145,18 +152,18 @@ export class PaperAbstractService {
 
       // Validate content type
       const contentType = response.headers.get("content-type") || "";
-      console.log(`📄 Response content-type: ${contentType}`);
+      Logger.info(`📄 Response content-type: ${contentType}`);
 
       if (contentType.includes("text/html")) {
-        console.error(
+        Logger.error(
           `❌ URL returned HTML instead of PDF. URL might be incorrect: ${normalizedUrl}`
         );
-        console.error(`❌ Original URL: ${paper.link}`);
+        Logger.error(`❌ Original URL: ${paper.link}`);
         return null;
       }
 
       const pdfBuffer = Buffer.from(await response.arrayBuffer());
-      console.log(`📄 Successfully fetched PDF (${pdfBuffer.length} bytes)`);
+      Logger.info(`📄 Successfully fetched PDF (${pdfBuffer.length} bytes)`);
 
       // Generate LLM abstract directly (no separate content extraction step)
       const homepageUrl = this.getHomepageUrl(paper);
@@ -171,10 +178,10 @@ export class PaperAbstractService {
       // Save to database
       await this.saveAbstractToDatabase(paper.id, llmAbstract);
 
-      console.log(`✅ Generated and saved LLM abstract for paper: ${paper.id}`);
+      Logger.info(`✅ Generated and saved LLM abstract for paper: ${paper.id}`);
       return llmAbstract;
     } catch (error) {
-      console.error(
+      Logger.error(
         `❌ Error generating new abstract for paper ${paper.id}:`,
         error
       );
@@ -198,9 +205,9 @@ export class PaperAbstractService {
         },
       });
 
-      console.log(`💾 Saved LLM abstract to database for paper: ${paperId}`);
+      Logger.info(`💾 Saved LLM abstract to database for paper: ${paperId}`);
     } catch (error) {
-      console.error(`❌ Error saving LLM abstract to database:`, error);
+      Logger.error(`❌ Error saving LLM abstract to database:`, error);
       throw error;
     }
   }
@@ -264,7 +271,7 @@ export class PaperAbstractService {
 
       return null;
     } catch (error) {
-      console.error(
+      Logger.error(
         `❌ Error fetching LLM abstract for paper ${paperId}:`,
         error
       );
@@ -285,9 +292,9 @@ export class PaperAbstractService {
         },
       });
 
-      console.log(`🗑️ Deleted LLM abstract for paper: ${paperId}`);
+      Logger.info(`🗑️ Deleted LLM abstract for paper: ${paperId}`);
     } catch (error) {
-      console.error(
+      Logger.error(
         `❌ Error deleting LLM abstract for paper ${paperId}:`,
         error
       );
