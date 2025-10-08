@@ -4,9 +4,10 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createGroupAction } from "@/groups/actions/createGroupAction";
 
 interface CreateGroupInput {
+  institutionId: string;
   name: string;
   description?: string;
-  isPrivate: boolean;
+  isPublic: boolean;
 }
 
 export function useCreateGroup() {
@@ -15,11 +16,12 @@ export function useCreateGroup() {
   return useMutation({
     mutationFn: async (input: CreateGroupInput) => {
       const formData = new FormData();
+      formData.append("institutionId", input.institutionId);
       formData.append("name", input.name);
       if (input.description) {
         formData.append("description", input.description);
       }
-      formData.append("isPrivate", input.isPrivate.toString());
+      formData.append("isPublic", input.isPublic ? "on" : "");
 
       return await createGroupAction(formData);
     },

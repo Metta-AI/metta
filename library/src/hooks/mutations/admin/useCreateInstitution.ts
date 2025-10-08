@@ -5,8 +5,17 @@ import { createInstitutionAction } from "@/institutions/actions/createInstitutio
 
 interface CreateInstitutionInput {
   name: string;
-  domain: string;
+  domain?: string;
   description?: string;
+  website?: string;
+  location?: string;
+  type:
+    | "UNIVERSITY"
+    | "COMPANY"
+    | "RESEARCH_LAB"
+    | "NONPROFIT"
+    | "GOVERNMENT"
+    | "OTHER";
 }
 
 export function useCreateInstitution() {
@@ -16,10 +25,11 @@ export function useCreateInstitution() {
     mutationFn: async (input: CreateInstitutionInput) => {
       const formData = new FormData();
       formData.append("name", input.name);
-      formData.append("domain", input.domain);
-      if (input.description) {
-        formData.append("description", input.description);
-      }
+      if (input.domain) formData.append("domain", input.domain);
+      if (input.description) formData.append("description", input.description);
+      if (input.website) formData.append("website", input.website);
+      if (input.location) formData.append("location", input.location);
+      formData.append("type", input.type);
 
       return await createInstitutionAction(formData);
     },

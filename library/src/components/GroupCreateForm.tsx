@@ -1,14 +1,11 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
 import { FC, useEffect } from "react";
-import { useAction } from "next-safe-action/hooks";
-import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { X, Users, Globe, Lock, Building } from "lucide-react";
 
-import { createGroupAction } from "@/groups/actions/createGroupAction";
-import { useErrorHandling } from "@/lib/hooks/useErrorHandling";
+import { useFormWithMutation } from "@/lib/hooks/useFormWithMutation";
+import { useCreateGroup } from "@/hooks/mutations/admin";
 import {
   Form,
   FormControl,
@@ -73,29 +70,21 @@ export const GroupCreateForm: FC<GroupCreateFormProps> = ({
   onClose,
   userInstitutions,
 }) => {
-  const form = useForm<GroupFormValues>({
-    resolver: zodResolver(groupSchema),
-    defaultValues,
-  });
+  const createGroupMutation = useCreateGroup();
 
   const {
+    form,
     error: submitError,
-    setError: setSubmitError,
-    clearError: clearSubmitError,
-  } = useErrorHandling({
-    fallbackMessage: "Failed to create group. Please try again.",
-  });
-
-  const { execute, isExecuting, result } = useAction(createGroupAction, {
+    isSubmitting,
+    handleSubmit,
+  } = useFormWithMutation({
+    schema: groupSchema,
+    mutation: createGroupMutation,
+    defaultValues,
     onSuccess: () => {
-      form.reset(defaultValues);
-      clearSubmitError();
       onClose();
     },
-    onError: (error) => {
-      console.error("Error creating group:", error);
-      setSubmitError(error);
-    },
+    errorMessage: "Failed to create group. Please try again.",
   });
 
   useEffect(() => {
@@ -107,22 +96,10 @@ export const GroupCreateForm: FC<GroupCreateFormProps> = ({
     }
     if (!isOpen) {
       form.reset(defaultValues);
-      clearSubmitError();
     }
-  }, [isOpen, userInstitutions, form, clearSubmitError]);
+  }, [isOpen, userInstitutions, form]);
 
   if (!isOpen) return null;
-
-  const onSubmit = (values: GroupFormValues) => {
-    const formData = new FormData();
-    formData.append("name", values.name);
-    formData.append("description", values.description ?? "");
-    formData.append("institutionId", values.institutionId);
-    if (values.isPublic) {
-      formData.append("isPublic", "on");
-    }
-    execute(formData);
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -148,7 +125,7 @@ export const GroupCreateForm: FC<GroupCreateFormProps> = ({
         </div>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="p-6">
+          <form onSubmit={handleSubmit} className="p-6">
             {userInstitutions.length === 0 ? (
               <div className="rounded-md bg-yellow-50 p-4 text-center">
                 <Building className="mx-auto h-8 w-8 text-yellow-600" />
@@ -305,18 +282,12 @@ export const GroupCreateForm: FC<GroupCreateFormProps> = ({
                   </div>
                 )}
 
-                {result?.data?.message && (
-                  <div className="rounded-md bg-green-50 p-3 text-sm text-green-800">
-                    {result.data.message}
-                  </div>
-                )}
-
                 <div className="mt-6 flex justify-end gap-3">
                   <Button type="button" variant="outline" onClick={onClose}>
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={isExecuting}>
-                    {isExecuting ? "Creating..." : "Create Group"}
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? "Creating..." : "Create Group"}
                   </Button>
                 </div>
               </div>

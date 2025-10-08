@@ -1,14 +1,11 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
 import { FC, useEffect } from "react";
-import { useAction } from "next-safe-action/hooks";
-import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { X, Building2 } from "lucide-react";
 
-import { createInstitutionAction } from "@/institutions/actions/createInstitutionAction";
-import { useErrorHandling } from "@/lib/hooks/useErrorHandling";
+import { useFormWithMutation } from "@/lib/hooks/useFormWithMutation";
+import { useCreateInstitution } from "@/hooks/mutations/admin";
 import {
   Form,
   FormControl,
@@ -82,49 +79,30 @@ export const InstitutionCreateForm: FC<InstitutionCreateFormProps> = ({
   isOpen,
   onClose,
 }) => {
-  const form = useForm<InstitutionFormValues>({
-    resolver: zodResolver(institutionSchema),
-    defaultValues,
-  });
+  const createInstitutionMutation = useCreateInstitution();
 
   const {
+    form,
     error: submitError,
-    setError: setSubmitError,
-    clearError: clearSubmitError,
-  } = useErrorHandling({
-    fallbackMessage: "Failed to create institution. Please try again.",
-  });
-
-  const { execute, isExecuting } = useAction(createInstitutionAction, {
+    isSubmitting,
+    handleSubmit,
+  } = useFormWithMutation({
+    schema: institutionSchema,
+    mutation: createInstitutionMutation,
+    defaultValues,
     onSuccess: () => {
-      form.reset(defaultValues);
-      clearSubmitError();
       onClose();
     },
-    onError: (error) => {
-      console.error("Error creating institution:", error);
-      setSubmitError(error);
-    },
+    errorMessage: "Failed to create institution. Please try again.",
   });
 
   useEffect(() => {
     if (!isOpen) {
       form.reset(defaultValues);
-      clearSubmitError();
     }
-  }, [isOpen, form, clearSubmitError]);
+  }, [isOpen, form]);
 
   if (!isOpen) return null;
-
-  const onSubmit = (values: InstitutionFormValues) => {
-    const formData = new FormData();
-    Object.entries(values).forEach(([key, value]) => {
-      if (!value) return;
-      formData.append(key, value);
-    });
-
-    execute(formData);
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -145,7 +123,7 @@ export const InstitutionCreateForm: FC<InstitutionCreateFormProps> = ({
         </div>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <FormField
               control={form.control}
               name="name"
@@ -283,8 +261,8 @@ export const InstitutionCreateForm: FC<InstitutionCreateFormProps> = ({
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={isExecuting}>
-                {isExecuting ? "Creating..." : "Create Institution"}
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Creating..." : "Create Institution"}
               </Button>
             </div>
           </form>
