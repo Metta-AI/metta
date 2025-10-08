@@ -1,11 +1,7 @@
 """Utility functions for CoGames CLI."""
 
-from pathlib import Path
-
 import torch
 from rich.console import Console
-
-cogames_root = Path(__file__).parent
 
 
 def resolve_training_device(console: Console, requested: str) -> torch.device:

@@ -13,6 +13,14 @@ from mettagrid.config.mettagrid_config import AssemblerConfig
 MAP_MISSION_DELIMITER = ":"
 
 
+def get_all_missions() -> list[str]:
+    return [
+        f"{user_map.name}{MAP_MISSION_DELIMITER}{mission_name}"
+        for user_map in USER_MAP_CATALOG
+        for mission_name in user_map.available_missions
+    ]
+
+
 def get_mission_name_and_config(ctx: typer.Context, mission_arg: Optional[str]) -> tuple[str, MettaGridConfig]:
     if mission_arg is None:
         console.print(ctx.get_help())
