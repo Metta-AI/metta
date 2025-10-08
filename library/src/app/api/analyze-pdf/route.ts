@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { extractPdfWithOpenAI } from "@/lib/openai-pdf-extractor";
+import { config } from "@/lib/config";
+import { BadRequestError, ServiceUnavailableError } from "@/lib/errors";
+import { handleApiError } from "@/lib/api/error-handler";
+import { Logger } from "@/lib/logging/logger";
 
 export async function POST(request: NextRequest) {
   try {
     // Check for Anthropic API key
-    if (!process.env.ANTHROPIC_API_KEY) {
-      return NextResponse.json(
-        { error: "Anthropic API key not configured" },
-        { status: 500 }
-      );
+    if (!config.llm.anthropicApiKey) {
+      throw new ServiceUnavailableError("Anthropic API key not configured");
     }
 
     // Parse the form data
@@ -16,27 +17,24 @@ export async function POST(request: NextRequest) {
     const file = formData.get("file") as File;
 
     if (!file) {
-      return NextResponse.json({ error: "No file provided" }, { status: 400 });
+      throw new BadRequestError("No file provided");
     }
 
     // Validate file type
     if (file.type !== "application/pdf") {
-      return NextResponse.json(
-        { error: "File must be a PDF" },
-        { status: 400 }
-      );
+      throw new BadRequestError("File must be a PDF");
     }
 
     // Validate file size (limit to 10MB)
     const maxSize = 10 * 1024 * 1024; // 10MB
     if (file.size > maxSize) {
-      return NextResponse.json(
-        { error: "File size must be less than 10MB" },
-        { status: 400 }
-      );
+      throw new BadRequestError("File size must be less than 10MB");
     }
 
-    console.log(`🔄 Processing PDF: ${file.name} (${file.size} bytes)`);
+    Logger.info("Processing PDF for analysis", {
+      fileName: file.name,
+      fileSize: file.size,
+    });
 
     // Convert file to buffer
     const arrayBuffer = await file.arrayBuffer();
@@ -47,11 +45,14 @@ export async function POST(request: NextRequest) {
     const result = await extractPdfWithOpenAI(pdfBuffer);
     const processingTime = (Date.now() - startTime) / 1000;
 
-    console.log(`✅ PDF analysis complete in ${processingTime.toFixed(1)}s`);
-    console.log(`   Title: ${result.title}`);
-    console.log(`   Pages: ${result.pageCount}`);
-    console.log(`   Summary: ${result.summary.length} chars`);
-    console.log(`   Figures: ${result.figuresWithImages.length}`);
+    Logger.info("PDF analysis complete", {
+      fileName: file.name,
+      processingTime,
+      title: result.title,
+      pageCount: result.pageCount,
+      summaryLength: result.summary.length,
+      figureCount: result.figuresWithImages.length,
+    });
 
     // Return structured results (no file saving)
     return NextResponse.json({
@@ -81,26 +82,32 @@ export async function POST(request: NextRequest) {
       })),
     });
   } catch (error) {
-    console.error("❌ PDF analysis error:", error);
-
-    let errorMessage = "Internal server error";
+    // Map common PDF processing errors to appropriate types
     if (error instanceof Error) {
-      errorMessage = error.message;
-
-      // Provide more specific error messages for common issues
       if (error.message.includes("API")) {
-        errorMessage =
-          "Anthropic API error. Please check your API key and credits.";
+        return handleApiError(
+          new ServiceUnavailableError(
+            "Anthropic API error. Please check your API key and credits."
+          ),
+          { endpoint: "POST /api/analyze-pdf" }
+        );
       } else if (error.message.includes("GraphicsMagick")) {
-        errorMessage =
-          "PDF conversion error. GraphicsMagick may not be installed.";
+        return handleApiError(
+          new ServiceUnavailableError(
+            "PDF conversion error. GraphicsMagick may not be installed."
+          ),
+          { endpoint: "POST /api/analyze-pdf" }
+        );
       } else if (error.message.includes("timeout")) {
-        errorMessage =
-          "Processing timeout. The PDF may be too complex or large.";
+        return handleApiError(
+          new BadRequestError(
+            "Processing timeout. The PDF may be too complex or large."
+          ),
+          { endpoint: "POST /api/analyze-pdf" }
+        );
       }
     }
-
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
+    return handleApiError(error, { endpoint: "POST /api/analyze-pdf" });
   }
 }
 

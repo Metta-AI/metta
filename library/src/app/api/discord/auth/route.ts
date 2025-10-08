@@ -5,6 +5,7 @@ import { discordAuth, DiscordAuthService } from "@/lib/discord-auth";
 import { discordBot } from "@/lib/external-notifications/discord-bot";
 import { prisma } from "@/lib/db/prisma";
 import type { NotificationType } from "@prisma/client";
+import { Logger } from "@/lib/logging/logger";
 
 // GET /api/discord/auth - Handle Discord OAuth callback
 export async function GET(request: NextRequest) {
@@ -22,6 +23,10 @@ export async function GET(request: NextRequest) {
 
     // Handle Discord OAuth errors
     if (error) {
+      Logger.warn("Discord OAuth error received", {
+        error,
+        userId: session.user.id,
+      });
       const errorRedirectUrl = new URL("/settings", request.url);
       errorRedirectUrl.searchParams.set("error", "discord_oauth_error");
       errorRedirectUrl.searchParams.set("message", error);
@@ -29,6 +34,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (!code) {
+      Logger.warn("Discord OAuth missing code", { userId: session.user.id });
       const errorRedirectUrl = new URL("/settings", request.url);
       errorRedirectUrl.searchParams.set("error", "discord_oauth_no_code");
       errorRedirectUrl.searchParams.set(
@@ -39,19 +45,23 @@ export async function GET(request: NextRequest) {
     }
 
     // Exchange code for token
-    console.log("🔄 Exchanging code for token...");
+    Logger.debug("Exchanging Discord code for token", {
+      userId: session.user.id,
+    });
     const tokenResponse = await discordAuth.exchangeCodeForToken(code);
-    console.log("✅ Token received");
+    Logger.debug("Discord token received", { userId: session.user.id });
 
     // Get Discord user info
-    console.log("🔄 Getting Discord user info...");
     const discordUser = await discordAuth.getDiscordUser(
       tokenResponse.access_token
     );
-    console.log("✅ Discord user:", discordUser.username, discordUser.id);
+    Logger.info("Discord user info retrieved", {
+      userId: session.user.id,
+      discordUsername: discordUser.username,
+      discordId: discordUser.id,
+    });
 
     // Check if this Discord account is already linked to another user
-    console.log("🔄 Checking for existing links...");
     const existingLink = await prisma.notificationPreference.findFirst({
       where: {
         discordUserId: discordUser.id,
@@ -62,10 +72,13 @@ export async function GET(request: NextRequest) {
         },
       },
     });
-    console.log("🔍 Existing link found:", !!existingLink);
 
     if (existingLink && existingLink.userId !== session.user.id) {
-      console.log("❌ Discord account already linked to another user");
+      Logger.warn("Discord account already linked to another user", {
+        userId: session.user.id,
+        discordId: discordUser.id,
+        existingUserId: existingLink.userId,
+      });
       const errorRedirectUrl = new URL("/settings", request.url);
       errorRedirectUrl.searchParams.set("error", "discord_already_linked");
       errorRedirectUrl.searchParams.set(
@@ -76,7 +89,6 @@ export async function GET(request: NextRequest) {
     }
 
     // Link Discord account to user for all notification types
-    console.log("🔄 Linking Discord account to user...");
     const notificationTypes: NotificationType[] = [
       "MENTION",
       "COMMENT",
@@ -89,14 +101,7 @@ export async function GET(request: NextRequest) {
 
     const username = DiscordAuthService.formatDiscordUsername(discordUser);
     const displayName = DiscordAuthService.getDisplayName(discordUser);
-    console.log(
-      "📝 Generated username:",
-      username,
-      "displayName:",
-      displayName
-    );
 
-    console.log("🔄 Starting database transaction...");
     await prisma.$transaction(async (tx) => {
       for (const type of notificationTypes) {
         await tx.notificationPreference.upsert({
@@ -124,38 +129,42 @@ export async function GET(request: NextRequest) {
         });
       }
     });
-    console.log("✅ Database transaction completed");
 
     // Send welcome message
-    console.log("🔄 Sending welcome message...");
     const welcomeSent = await discordBot.sendWelcomeMessage(
       discordUser.id,
       displayName
     );
-    console.log("📨 Welcome message sent:", welcomeSent);
+    Logger.info("Discord welcome message sent", {
+      userId: session.user.id,
+      discordId: discordUser.id,
+      success: welcomeSent,
+    });
 
     // Revoke the access token (we don't need to store it since we only needed user info)
-    console.log("🔄 Revoking access token...");
     await discordAuth.revokeToken(tokenResponse.access_token);
-    console.log("✅ Access token revoked");
 
     // Redirect back to settings with success message
-    console.log("🔄 Redirecting to settings with success message...");
+    Logger.info("Discord account linked successfully", {
+      userId: session.user.id,
+      discordUsername: username,
+      discordId: discordUser.id,
+    });
     const successRedirectUrl = new URL("/settings", request.url);
     successRedirectUrl.searchParams.set("success", "discord_linked");
     successRedirectUrl.searchParams.set(
       "message",
       `✅ Discord account ${username} linked successfully!`
     );
-    console.log("✅ Discord OAuth callback completed successfully");
     return NextResponse.redirect(successRedirectUrl);
   } catch (error) {
-    console.error("❌ Error in Discord OAuth callback:", error);
+    const errorInstance =
+      error instanceof Error ? error : new Error(String(error));
+    Logger.error("Discord OAuth callback failed", errorInstance, {
+      endpoint: "GET /api/discord/auth",
+    });
 
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    console.error("❌ Error details:", errorMessage);
-
+    const errorMessage = errorInstance.message;
     const errorRedirectUrl = new URL("/settings", request.url);
     errorRedirectUrl.searchParams.set("error", "discord_oauth_failed");
     errorRedirectUrl.searchParams.set(
