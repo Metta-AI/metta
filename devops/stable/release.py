@@ -197,7 +197,15 @@ def _recursive_asdict(obj):
 
 
 def load_state(version: str) -> Optional[ReleaseState]:
-    """Load release state from JSON file."""
+    """Load release state from JSON file.
+
+    Args:
+        version: Version string (with or without 'release_' prefix)
+    """
+    # Ensure version has release_ prefix for filename
+    if not version.startswith("release_"):
+        version = f"release_{version}"
+
     path = STATE_DIR / f"{version}.json"
     if not path.exists():
         return None
@@ -252,7 +260,12 @@ def save_state(state: ReleaseState) -> Path:
 
     Uses atomic write pattern to prevent corruption from concurrent writes.
     """
-    path = STATE_DIR / f"{state.version}.json"
+    version = state.version
+    # Ensure version has release_ prefix for filename
+    if not version.startswith("release_"):
+        version = f"release_{version}"
+
+    path = STATE_DIR / f"{version}.json"
     temp_path = path.with_suffix(".json.tmp")
 
     serialized = _recursive_asdict(state)
@@ -272,7 +285,9 @@ def update_validation_result(version: str, validation_name: str, result: Validat
     This prevents race conditions when multiple processes are running different validations.
     Uses a simple retry loop with file locking via exclusive creation.
     """
-    lock_path = STATE_DIR / f"{version}.lock"
+    # Ensure version has release_ prefix for lock filename
+    lock_version = version if version.startswith("release_") else f"release_{version}"
+    lock_path = STATE_DIR / f"{lock_version}.lock"
     max_retries = 10
     retry_delay = 0.5  # seconds
 
