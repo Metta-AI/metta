@@ -308,14 +308,14 @@ class CoreTrainingLoop:
             env_ids = env_ids.squeeze(-1)
 
         if env_ids.numel() == 0:
-            td["last_actions"] = torch.zeros((0, 1), dtype=torch.int32, device=td.device)
+            td["last_actions"] = torch.zeros((0, 1), dtype=torch.int64, device=td.device)
             return
 
         max_env_id = int(env_ids.max().item())
         target_length = max_env_id + 1
 
         if self.last_action is None:
-            self.last_action = torch.zeros(target_length, 1, dtype=torch.int32, device=td.device)
+            self.last_action = torch.zeros(target_length, 1, dtype=torch.int64, device=td.device)
         else:
             if self.last_action.size(0) < target_length:
                 pad_shape = (target_length - self.last_action.size(0), self.last_action.size(1))
