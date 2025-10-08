@@ -5,6 +5,7 @@ import { Bell, X, Check, CheckCheck } from "lucide-react";
 import Link from "next/link";
 
 import { getUserDisplayName } from "@/lib/utils/user";
+import { markNotificationsReadAction } from "@/notifications/actions/markNotificationsReadAction";
 
 interface Notification {
   id: string;
@@ -121,26 +122,20 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
 
   const markAsRead = async (notificationIds: string[]) => {
     try {
-      const response = await fetch("/api/notifications/mark-read", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notificationIds }),
-      });
+      await markNotificationsReadAction({ notificationIds });
 
-      if (response.ok) {
-        // Update local state
-        setNotifications((prev) =>
-          prev.map((n) =>
-            notificationIds.includes(n.id) ? { ...n, isRead: true } : n
-          )
-        );
+      // Update local state
+      setNotifications((prev) =>
+        prev.map((n) =>
+          notificationIds.includes(n.id) ? { ...n, isRead: true } : n
+        )
+      );
 
-        // Update counts
-        setCounts((prev) => ({
-          ...prev,
-          unread: Math.max(0, prev.unread - notificationIds.length),
-        }));
-      }
+      // Update counts
+      setCounts((prev) => ({
+        ...prev,
+        unread: Math.max(0, prev.unread - notificationIds.length),
+      }));
     } catch (error) {
       console.error("Error marking notifications as read:", error);
     }
@@ -148,17 +143,11 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
 
   const markAllAsRead = async () => {
     try {
-      const response = await fetch("/api/notifications/mark-read", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ markAllRead: true }),
-      });
+      await markNotificationsReadAction({ markAllRead: true });
 
-      if (response.ok) {
-        // Update local state
-        setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-        setCounts((prev) => ({ ...prev, unread: 0 }));
-      }
+      // Update local state
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      setCounts((prev) => ({ ...prev, unread: 0 }));
     } catch (error) {
       console.error("Error marking all notifications as read:", error);
     }
