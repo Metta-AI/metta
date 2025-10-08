@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Repo, EvalTask, TaskFilters } from './repo'
 import { METTA_GITHUB_ORGANIZATION, METTA_GITHUB_REPO } from './constants'
 
@@ -212,18 +212,6 @@ function Pagination({ currentPage, totalPages, onPageChange }: PaginationProps) 
     </div>
   )
 }
-
-type SortField =
-  | 'policy_name'
-  | 'sim_suite'
-  | 'status'
-  | 'assignee'
-  | 'user_id'
-  | 'retries'
-  | 'created_at'
-  | 'assigned_at'
-  | 'updated_at'
-type SortDirection = 'asc' | 'desc'
 
 interface Props {
   repo: Repo
@@ -674,8 +662,6 @@ export function EvalTasks({ repo }: Props) {
             </thead>
             <tbody>
               {activeTasks.map((task) => {
-                const displayStatus = getDisplayStatus(task)
-                const isInProgress = displayStatus === 'in progress'
                 const workingDuration = getWorkingDuration(task)
                 const gitHash = task.attributes?.git_hash
                 const isExpanded = expandedRows.has(task.id)
