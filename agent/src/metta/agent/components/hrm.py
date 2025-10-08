@@ -85,7 +85,9 @@ class HRMReasoningConfig(ComponentConfig):
     H_cycles: int = 3  # Number of high-level reasoning cycles
     L_cycles: int = 5  # Number of low-level processing cycles per H-cycle
     Mmin: int = 1  # Minimum number of reasoning segments
-    Mmax: int = 10  # Maximum number of reasoning segments
+    Mmax: int = 4  # Maximum number of reasoning segments
+    # Monitoring
+    track_gradients: bool = True  # Enable gradient tracking for debugging
 
     def make_component(self, env=None) -> "HRMReasoning":
         return HRMReasoning(self)
@@ -98,8 +100,11 @@ class HRMReasoning(nn.Module):
         super().__init__()
         self.config = config
 
-        # Initialize memory dictionary
-        self.carry: dict[str, torch.Tensor] = {}
+        # Initialize memory dictionary (env_id -> {z_l, z_h})
+        self.carry: dict[int, dict[str, torch.Tensor]] = {}
+
+        # Gradient tracking storage
+        self._grad_norms: dict[str, list[float]] = {}
 
         # Reasoning modules (H and L levels)
         self.H_level = HRMReasoningModule(
@@ -118,10 +123,11 @@ class HRMReasoning(nn.Module):
         # Q-head for ACT halting (2 outputs: halt, continue)
         self.q_head = nn.Linear(config.embed_dim, 2, bias=True)
 
-        # Initialize Q-head for fast learning (official implementation)
+        # Initialize Q-head with less conservative bias for better exploration
+        # Original paper used -5.0, but this prevents multi-step reasoning
         with torch.no_grad():
             self.q_head.weight.zero_()
-            self.q_head.bias.fill_(-5.0)
+            self.q_head.bias.fill_(-1.0)  # Reduced from -5.0 to allow more reasoning steps
 
         # Initial states (truncated normal like official implementation)
         self.register_buffer(
@@ -130,6 +136,55 @@ class HRMReasoning(nn.Module):
         self.register_buffer(
             "L_init", trunc_normal_init_(torch.empty(config.embed_dim), std=1.0, a=-2.0, b=2.0), persistent=True
         )
+
+        # Register gradient hooks for all layers if tracking enabled
+        if self.config.track_gradients:
+            self._register_gradient_hooks()
+
+    def _register_gradient_hooks(self):
+        """Register gradient hooks on all layers to track gradient norms."""
+        # Track H-level layers
+        for i, layer in enumerate(self.H_level.layers):
+            layer.self_attn.out_proj.weight.register_hook(
+                lambda grad, idx=i: self._track_grad_norm(f"H_level.layer{idx}.attn.out_proj", grad)
+            )
+            layer.mlp.w2.weight.register_hook(
+                lambda grad, idx=i: self._track_grad_norm(f"H_level.layer{idx}.mlp.w2", grad)
+            )
+
+        # Track L-level layers
+        for i, layer in enumerate(self.L_level.layers):
+            layer.self_attn.out_proj.weight.register_hook(
+                lambda grad, idx=i: self._track_grad_norm(f"L_level.layer{idx}.attn.out_proj", grad)
+            )
+            layer.mlp.w2.weight.register_hook(
+                lambda grad, idx=i: self._track_grad_norm(f"L_level.layer{idx}.mlp.w2", grad)
+            )
+
+        # Track Q-head
+        self.q_head.weight.register_hook(lambda grad: self._track_grad_norm("q_head.weight", grad))
+
+    def _track_grad_norm(self, name: str, grad: torch.Tensor) -> None:
+        """Track gradient norm for a specific layer."""
+        if grad is not None:
+            grad_norm = grad.norm().item()
+            if name not in self._grad_norms:
+                self._grad_norms[name] = []
+            self._grad_norms[name].append(grad_norm)
+
+    def get_grad_norms(self) -> dict[str, float]:
+        """Get average gradient norms since last call and reset."""
+        result = {}
+        for name, norms in self._grad_norms.items():
+            if norms:
+                result[f"grad_norm/{name}"] = sum(norms) / len(norms)
+
+        # Debug: Always return at least one metric to verify this is being called
+        if not result:
+            result["grad_norm/debug_called"] = 1.0
+
+        self._grad_norms.clear()
+        return result
 
     def forward(self, td: TensorDict) -> TensorDict:
         x = td[self.config.in_key]
@@ -147,75 +202,113 @@ class HRMReasoning(nn.Module):
         batch_size = x.shape[0]
         device = x.device
 
+        # Track gradient statistics if enabled (stored in _grad_norms, not TensorDict)
+        if self.config.track_gradients and x.requires_grad:
+
+            def input_grad_hook(grad):
+                if grad is not None:
+                    if "input" not in self._grad_norms:
+                        self._grad_norms["input"] = []
+                    self._grad_norms["input"].append(grad.norm().item())
+
+            x.register_hook(input_grad_hook)
+
         # Unsqueeze to add sequence dimension for transformer: (B, D) -> (B, 1, D)
         if x.ndim == 2:
             x = x.unsqueeze(1)
 
-        # Get reset mask
-        dones = td.get("dones", None)
-        truncateds = td.get("truncateds", None)
-        if dones is not None and truncateds is not None:
-            reset_mask = (dones.bool() | truncateds.bool()).view(-1, 1)
-        else:
-            reset_mask = torch.zeros(batch_size, 1, dtype=torch.bool, device=device)
-
-        # Get environment IDs
+        # Get environment ID (single ID per batch, like LSTM)
         training_env_ids = td.get("training_env_ids", None)
-        if training_env_ids is None:
-            training_env_ids = torch.arange(batch_size, device=device)
+        if training_env_ids is not None:
+            flat_env_ids = training_env_ids.reshape(-1)
         else:
-            training_env_ids = training_env_ids.reshape(batch_size)
+            flat_env_ids = torch.arange(batch_size, device=device)
 
-        # Allocate/expand memory
-        max_num_envs = int(training_env_ids.max().item()) + 1
-        if "z_l" not in self.carry or self.carry["z_l"].shape[0] < max_num_envs:
-            num_new = max_num_envs - (self.carry["z_l"].shape[0] if "z_l" in self.carry else 0)
-            # Initialize with same init values as buffers
-            z_l_new = self.L_init.unsqueeze(0).expand(num_new, -1).clone()
-            z_h_new = self.H_init.unsqueeze(0).expand(num_new, -1).clone()
+        training_env_id_start = int(flat_env_ids[0].item()) if flat_env_ids.numel() else 0
 
-            if "z_l" in self.carry:
-                self.carry["z_l"] = torch.cat([self.carry["z_l"], z_l_new], dim=0).to(device)
-                self.carry["z_h"] = torch.cat([self.carry["z_h"], z_h_new], dim=0).to(device)
+        # Retrieve or initialize hidden states for this environment
+        if training_env_id_start in self.carry:
+            z_l_stored = self.carry[training_env_id_start]["z_l"]
+            z_h_stored = self.carry[training_env_id_start]["z_h"]
+
+            # Check if batch size matches - if not, reinitialize
+            if z_l_stored.shape[0] == batch_size:
+                z_l = z_l_stored.clone()
+                z_h = z_h_stored.clone()
+
+                # Reset the hidden state if the episode is done or truncated
+                dones = td.get("dones", None)
+                truncateds = td.get("truncateds", None)
+                if dones is not None and truncateds is not None:
+                    reset_mask = (dones.bool() | truncateds.bool()).view(-1, 1)
+                    z_l = z_l.masked_fill(reset_mask, 0)
+                    z_h = z_h.masked_fill(reset_mask, 0)
+                    # Re-initialize with L_init and H_init for reset envs
+                    z_l = torch.where(reset_mask, self.L_init.unsqueeze(0).expand(batch_size, -1), z_l)
+                    z_h = torch.where(reset_mask, self.H_init.unsqueeze(0).expand(batch_size, -1), z_h)
             else:
-                self.carry["z_l"] = z_l_new
-                self.carry["z_h"] = z_h_new
-
-        # Retrieve and reset states
-        z_l = self.carry["z_l"][training_env_ids].clone()
-        z_h = self.carry["z_h"][training_env_ids].clone()
-
-        # Reset on episode end (use init values)
-        z_l = torch.where(reset_mask, self.L_init.unsqueeze(0), z_l)
-        z_h = torch.where(reset_mask, self.H_init.unsqueeze(0), z_h)
+                # Batch size mismatch - reinitialize
+                z_l = self.L_init.unsqueeze(0).expand(batch_size, -1).clone()
+                z_h = self.H_init.unsqueeze(0).expand(batch_size, -1).clone()
+        else:
+            # Initialize new environment with init values
+            z_l = self.L_init.unsqueeze(0).expand(batch_size, -1).clone()
+            z_h = self.H_init.unsqueeze(0).expand(batch_size, -1).clone()
 
         # Add sequence dimension: (B, D) -> (B, 1, D)
         z_l = z_l.unsqueeze(1)
         z_h = z_h.unsqueeze(1)
 
-        for _ in range(self.config.Mmax):
+        # Track number of segments used
+        num_segments = 0
+
+        for m_step in range(self.config.Mmax):
+            num_segments = m_step + 1
+
+            # Run H_cycles - 1 iterations without gradients (exploration)
             with torch.no_grad():
                 for _ in range(self.config.H_cycles - 1):
                     for _ in range(self.config.L_cycles):
                         z_l = self.L_level(z_l, z_h + x)
                     z_h = self.H_level(z_h, z_l)
 
-            z_l = self.L_level(z_l, z_h + x)
+            # Final iteration WITH gradients (one-step approximation)
+            for _ in range(self.config.L_cycles):
+                z_l = self.L_level(z_l, z_h + x)
             z_h = self.H_level(z_h, z_l)
+
+            # Track gradients on z_h if enabled (stored in _grad_norms, not TensorDict)
+            if self.config.track_gradients and z_h.requires_grad:
+
+                def grad_hook(grad, step=m_step):
+                    if grad is not None:
+                        grad_norm = grad.norm().item()
+                        key = f"z_h_m{step}"
+                        if key not in self._grad_norms:
+                            self._grad_norms[key] = []
+                        self._grad_norms[key].append(grad_norm)
+
+                z_h.register_hook(grad_hook)
+
             # Q-head for halting decision (use first token)
             q_logits = self.q_head(z_h[:, 0])  # (batch, 2)
-            q_logits = torch.softmax(q_logits, dim=-1)
+            q_probs = torch.softmax(q_logits, dim=-1)
 
-            if q_logits[:, 0].mean() > q_logits[:, 1].mean():
+            # Halt if Q(halt) > Q(continue) on average across batch
+            if q_probs[:, 0].mean() > q_probs[:, 1].mean():
                 break
 
         # Store Q-logits in tensordict for ACT loss computation
         td["q_halt_logits"] = q_logits[:, 0]  # (batch,)
         td["q_continue_logits"] = q_logits[:, 1]  # (batch,)
+        # Broadcast num_segments to match batch size
+        td["num_hrm_segments"] = torch.full((batch_size,), num_segments, device=device, dtype=torch.float32)
 
         # Store hidden states (squeeze seq dim and detach)
-        self.carry["z_l"][training_env_ids] = z_l.squeeze(1).detach()
-        self.carry["z_h"][training_env_ids] = z_h.squeeze(1).detach()
+        self.carry[training_env_id_start] = {
+            "z_l": z_l.squeeze(1).detach(),
+            "z_h": z_h.squeeze(1).detach(),
+        }
 
         # Output final state (squeeze seq dimension)
         td[self.config.out_key] = z_h.squeeze(1)
