@@ -5,13 +5,12 @@ import torch
 from tensordict import TensorDict
 
 from metta.agent.policies.agalite import AGaLiTeConfig
-from metta.rl.training.training_environment import EnvironmentMetaData, SingleDiscreteActionSpaceAdapter
+from metta.rl.training.training_environment import EnvironmentMetaData
 from metta.rl.utils import ensure_sequence_metadata
 
 
 def _build_env_metadata():
     action_names = ["move", "attack"]
-    max_action_args = [0, 2]
     feature_normalizations = {0: 1.0, 1: 10.0, 2: 5.0, 3: 2.0}
 
     obs_features = {
@@ -20,21 +19,15 @@ def _build_env_metadata():
         "shield": SimpleNamespace(id=2, normalization=5.0),
     }
 
-    original_action_space = gym.spaces.MultiDiscrete([len(action_names), max(max_action_args) + 1])
-    adapter = SingleDiscreteActionSpaceAdapter(original_action_space, action_names, max_action_args)
-
     return EnvironmentMetaData(
         obs_width=11,
         obs_height=11,
         obs_features=obs_features,
-        action_names=adapter.variant_names,
-        max_action_args=max_action_args,
+        action_names=action_names,
         num_agents=1,
         observation_space=None,
-        action_space=adapter.discrete_space,
+        action_space=gym.spaces.Discrete(len(action_names)),
         feature_normalizations=feature_normalizations,
-        action_adapter=adapter,
-        original_action_space=original_action_space,
     )
 
 

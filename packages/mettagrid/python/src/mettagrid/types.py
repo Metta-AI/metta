@@ -27,11 +27,7 @@ def validate_observation_space(space: spaces.Space) -> None:
 
 
 def validate_action_space(space: spaces.Space) -> None:
-    if isinstance(space, (spaces.Discrete, spaces.MultiDiscrete)):
-        return
-    raise TypeError(
-        f"MettaGrid action space must be Discrete or MultiDiscrete, got {type(space).__name__}",
-    )
+    _require_space(space, spaces.Discrete, "action")
 
 
 def get_observation_shape(space: spaces.Box) -> tuple[int, ...]:

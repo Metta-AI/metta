@@ -17,7 +17,7 @@ from metta.rl.vecenv import make_vecenv
 from metta.utils.batch import calculate_batch_sizes
 from mettagrid.base_config import Config
 from mettagrid.builder.envs import make_arena
-from mettagrid.core import ObsFeature, SingleDiscreteActionSpaceAdapter
+from mettagrid.core import ObsFeature
 from mettagrid.mettagrid_c import dtype_actions
 
 logger = logging.getLogger(__name__)
@@ -67,9 +67,6 @@ class EnvironmentMetaData:
     observation_space: Any
     action_space: Any
     feature_normalizations: dict[int, float]
-    max_action_args: list[int] | None = None
-    action_adapter: SingleDiscreteActionSpaceAdapter | None = None
-    original_action_space: Any | None = None
 
 
 @dataclass
@@ -128,7 +125,6 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         self._num_workers = 0
         self._curriculum = None
         self._vecenv = None
-        self._action_adapter: SingleDiscreteActionSpaceAdapter | None = None
 
         self._curriculum = Curriculum(cfg.curriculum)
         env_cfg = self._curriculum.get_task().get_env_cfg()
@@ -176,9 +172,6 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         self._vecenv.async_reset(cfg.seed)
 
         driver_env = self._vecenv.driver_env
-        max_action_args = list(getattr(driver_env, "max_action_args", []))
-        original_action_space = getattr(driver_env, "original_action_space", None)
-        action_adapter = getattr(driver_env, "action_adapter", None)
 
         self._meta_data = EnvironmentMetaData(
             obs_width=driver_env.obs_width,
@@ -189,11 +182,7 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
             observation_space=driver_env.observation_space,
             action_space=driver_env.single_action_space,
             feature_normalizations=driver_env.feature_normalizations,
-            max_action_args=max_action_args or None,
-            action_adapter=action_adapter,
-            original_action_space=original_action_space,
         )
-        self._action_adapter = action_adapter
 
     def __repr__(self) -> str:
         return (
@@ -263,8 +252,6 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         return o, r, d, t, info, training_env_id, mask, num_steps
 
     def send_actions(self, actions: np.ndarray) -> None:
-        if self._action_adapter is not None and actions.ndim >= 2 and actions.shape[-1] == 2:
-            actions = self._action_adapter.flatten(actions)
         if actions.dtype != dtype_actions:
             actions = actions.astype(dtype_actions, copy=False)
         self._vecenv.send(actions)

@@ -109,18 +109,6 @@ class MettaGridPufferBase(MettaGridCore, PufferEnv):
         return self._action_space
 
     @property
-    def max_action_args(self):
-        return self._max_action_args
-
-    @property
-    def action_adapter(self):
-        return self._action_adapter
-
-    @property
-    def original_action_space(self):
-        return self._original_action_space
-
-    @property
     def emulated(self) -> bool:
         """Native envs do not use emulation (PufferLib compatibility)."""
         return False

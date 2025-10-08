@@ -40,100 +40,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger("MettaGridCore")
 
 
-# ---------------------------------------------------------------------------
-# Action space adaptation helpers
-# ---------------------------------------------------------------------------
-
-
-class SingleDiscreteActionSpaceAdapter:
-    """Adapter that flattens a MultiDiscrete action space into a single Discrete space."""
-
-    def __init__(
-        self,
-        original_space: spaces.MultiDiscrete,
-        action_names: Sequence[str],
-        max_action_args: Sequence[int] | None = None,
-    ) -> None:
-        if not isinstance(original_space, spaces.MultiDiscrete):
-            raise TypeError(
-                "SingleDiscreteActionSpaceAdapter requires a MultiDiscrete action space",
-            )
-
-        self.original_space = original_space
-
-        if original_space.nvec.size < 2:
-            raise ValueError("Expected MultiDiscrete space with at least two components (action, argument)")
-
-        num_actions = int(original_space.nvec[0])
-        if max_action_args is not None and len(max_action_args) != num_actions:
-            raise ValueError(
-                "Length of max_action_args must match number of actions reported by the MultiDiscrete space",
-            )
-
-        if len(action_names) != num_actions:
-            raise ValueError("Number of action names must match number of action handlers")
-
-        if max_action_args is None:
-            # Fall back to uniform max argument inferred from space definition
-            if original_space.nvec.size != 2:
-                raise ValueError(
-                    "Cannot infer per-action argument counts from MultiDiscrete space with >2 dimensions; "
-                    "provide max_action_args explicitly",
-                )
-            inferred_max_arg = int(original_space.nvec[1]) - 1
-            max_action_args = [inferred_max_arg for _ in range(num_actions)]
-
-        self.max_action_args: List[int] = [int(value) for value in max_action_args]
-        self.variant_names: List[str] = []
-        self._flat_to_components: List[Tuple[int, int]] = []
-        self._components_to_flat: Dict[Tuple[int, int], int] = {}
-
-        for action_idx, base_name in enumerate(action_names):
-            max_arg = self.max_action_args[action_idx]
-            arg_count = max_arg + 1
-            for arg in range(arg_count):
-                flat_index = len(self._flat_to_components)
-                self._flat_to_components.append((action_idx, arg))
-                self._components_to_flat[(action_idx, arg)] = flat_index
-                if arg_count == 1:
-                    variant_name = base_name
-                else:
-                    variant_name = f"{base_name}:{arg}"
-                self.variant_names.append(variant_name)
-
-        self.discrete_space = spaces.Discrete(len(self._flat_to_components))
-
-    def expand(self, flat_actions: np.ndarray) -> np.ndarray:
-        """Convert flat action ids back to (action, argument) pairs."""
-
-        indices = np.asarray(flat_actions, dtype=int)
-        flat = indices.reshape(-1)
-        result = np.empty((flat.size, 2), dtype=int)
-        for idx, flat_index in enumerate(flat):
-            if flat_index < 0 or flat_index >= len(self._flat_to_components):
-                result[idx] = (-1, 0)
-            else:
-                result[idx] = self._flat_to_components[flat_index]
-        return result.reshape(indices.shape + (2,))
-
-    def flatten(self, action_components: np.ndarray) -> np.ndarray:
-        """Convert (action, argument) pairs into flat action ids."""
-
-        components = np.asarray(action_components, dtype=int)
-        if components.ndim == 1:
-            if components.shape[0] != 2:
-                raise ValueError("Expected two elements per action (type, argument)")
-            components = components.reshape(1, 2)
-        if components.shape[-1] != 2:
-            raise ValueError("Last dimension must contain (action, argument) pairs")
-
-        flat_components = components.reshape(-1, 2)
-        flat = np.empty(flat_components.shape[0], dtype=int)
-        for idx, (action, argument) in enumerate(flat_components):
-            flat[idx] = self._components_to_flat.get((int(action), int(argument)), -1)
-        return flat.reshape(components.shape[:-1])
-
-
 # MettaGrid Type Definitions
 # Observations are token-based: shape (num_tokens, 3) where each token is [PackedCoordinate, key, value]
 # - PackedCoordinate: uint8 packed (x, y) coordinate
@@ -186,11 +92,6 @@ class MettaGridCore:
         self._current_seed: int = 0
 
         self._map_builder = self.__mg_config.game.map_builder.create()
-        self._action_adapter: SingleDiscreteActionSpaceAdapter | None = None
-        self._single_action_space: spaces.Space | None = None
-        self._original_action_space: spaces.Space | None = None
-        self._action_names_cache: List[str] = []
-        self._max_action_args: List[int] = []
 
         # Set by PufferBase
         self.observations: np.ndarray
@@ -256,7 +157,6 @@ class MettaGridCore:
         self._update_core_buffers()
 
         # Validate that C++ environment conforms to expected types
-        self._configure_action_interface(c_env)
         self._validate_c_env_types(c_env)
 
         # Initialize renderer if needed
@@ -276,42 +176,6 @@ class MettaGridCore:
         self.__c_env_instance = c_env
         return c_env
 
-    def _configure_action_interface(self, c_env: MettaGridCpp) -> None:
-        """Normalize the action space to a single discrete representation."""
-
-        raw_action_space_attr = getattr(c_env, "action_space", None)
-        if raw_action_space_attr is None:
-            raise AttributeError("C++ environment is missing expected action_space attribute")
-
-        raw_action_space = raw_action_space_attr() if callable(raw_action_space_attr) else raw_action_space_attr
-
-        action_names: List[str] = []
-        if hasattr(c_env, "action_names"):
-            action_names_attr = c_env.action_names
-            action_names_value = action_names_attr() if callable(action_names_attr) else action_names_attr
-            action_names = list(action_names_value)
-
-        max_args: List[int] = []
-        if hasattr(c_env, "max_action_args"):
-            max_args_attr = c_env.max_action_args
-            max_args_value = max_args_attr() if callable(max_args_attr) else max_args_attr
-            max_args = [int(value) for value in list(max_args_value)]
-
-        self._original_action_space = raw_action_space
-        self._max_action_args = max_args
-
-        if isinstance(raw_action_space, spaces.MultiDiscrete):
-            adapter = SingleDiscreteActionSpaceAdapter(raw_action_space, action_names, self._max_action_args or None)
-            self._action_adapter = adapter
-            self._single_action_space = adapter.discrete_space
-            self._action_names_cache = adapter.variant_names
-            if not self._max_action_args:
-                self._max_action_args = adapter.max_action_args
-        else:
-            self._action_adapter = None
-            self._single_action_space = raw_action_space
-            self._action_names_cache = action_names
-
     def _validate_c_env_types(self, c_env: MettaGridCpp) -> None:
         """Validate that the C++ environment conforms to expected MettaGrid types."""
         from mettagrid.types import validate_action_space, validate_observation_space
@@ -322,9 +186,7 @@ class MettaGridCore:
             raise TypeError(f"C++ environment observation space does not conform to MettaGrid types: {e}") from e
 
         try:
-            if self._single_action_space is None:
-                raise RuntimeError("Single action space not initialized")
-            validate_action_space(self._single_action_space)
+            validate_action_space(c_env.action_space)
         except TypeError as e:
             raise TypeError(f"C++ environment action space does not conform to MettaGrid types: {e}") from e
 
@@ -419,29 +281,19 @@ class MettaGridCore:
     @property
     def _action_space(self) -> spaces.Discrete:
         """Internal action space - use single_action_space for PufferEnv compatibility."""
-        if self._single_action_space is None:
-            raise RuntimeError("Action space not initialized")
-        return self._single_action_space
+        return self.__c_env_instance.action_space
 
     @property
     def action_names(self) -> List[str]:
-        if not self._action_names_cache and hasattr(self.__c_env_instance, "action_names"):
-            self._action_names_cache = list(self.__c_env_instance.action_names())
-        return self._action_names_cache
+        if hasattr(self.__c_env_instance, "action_names"):
+            return list(self.__c_env_instance.action_names())
+        return []
 
     @property
     def max_action_args(self) -> List[int]:
-        if not self._max_action_args and hasattr(self.__c_env_instance, "max_action_args"):
-            self._max_action_args = list(self.__c_env_instance.max_action_args())
-        return list(self._max_action_args)
-
-    @property
-    def action_adapter(self) -> SingleDiscreteActionSpaceAdapter | None:
-        return self._action_adapter
-
-    @property
-    def original_action_space(self) -> spaces.Space | None:
-        return self._original_action_space
+        if hasattr(self.__c_env_instance, "max_action_args"):
+            return list(self.__c_env_instance.max_action_args())
+        return []
 
     @property
     def object_type_names(self) -> List[str]:
