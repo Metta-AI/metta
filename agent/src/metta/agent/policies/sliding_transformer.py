@@ -221,13 +221,15 @@ class SlidingTransformer(nn.Module):
 
         empty_tensor = torch.zeros(B * TT, device=td.device)
         reward = td.get("reward", empty_tensor)  # scalar
-        proj_dtype = self.last_action_proj.weight.dtype
-        last_actions = td.get("last_actions", None)
-        if last_actions is None:
-            last_actions = torch.zeros(B * TT, self.action_dim, device=td.device, dtype=proj_dtype)
+        last_actions = td.get(
+            "last_actions",
+            torch.zeros(B * TT, self.action_dim, device=td.device),
+        )
+        if last_actions.dim() == 1:
+            last_actions = last_actions.view(-1, 1)
         else:
-            last_actions = last_actions.reshape(-1, last_actions.size(-1) if last_actions.dim() > 1 else 1)
-            last_actions = last_actions[..., : self.action_dim].to(dtype=proj_dtype)
+            last_actions = last_actions.reshape(B * TT, -1)
+        last_actions = last_actions[..., : self.action_dim]
         dones = td.get("dones", empty_tensor)
         truncateds = td.get("truncateds", empty_tensor)
 
@@ -246,7 +248,7 @@ class SlidingTransformer(nn.Module):
         reward_token = self.reward_proj(reward)
         reset_token = self.dones_truncateds_proj(resets)
         reward_reset_token = (reward_token + reset_token).view(B, TT, 1, self.hidden_size)
-        action_token = self.last_action_proj(last_actions).view(B, TT, 1, self.hidden_size)
+        action_token = self.last_action_proj(last_actions.float()).view(B, TT, 1, self.hidden_size)
 
         # Combine all tokens for each timestep
         cls_token = self.cls_token.expand(B, TT, -1, -1)
