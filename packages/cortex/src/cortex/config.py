@@ -58,6 +58,23 @@ class sLSTMCellConfig(CellConfig):
     dropout: float = Field(default=0.0, ge=0.0)
 
 
+class RTUCellConfig(CellConfig):
+    """Configuration for the low-rank Recurrent Trace Unit (RTU) cell.
+
+    The RTU operates on an internal dimension ``hidden_size`` (D == H) and exposes
+    a low-rank input map with rank ``rank``. The underlying kernel produces a
+    2H-dimensional activation which the Cortex cell projects back to H to fit the
+    block interfaces.
+    """
+
+    hidden_size: int | None = Field(default=None)
+    rank: int = Field(default=16, ge=1)
+    activation: str = Field(default="identity")  # one of: silu|relu|tanh|identity
+    r_max: float = Field(default=1.0)
+    r_min: float = Field(default=0.0)
+    max_phase: float = Field(default=6.28)
+
+
 class BlockConfig(BaseModel):
     """Base configuration for cortex blocks."""
 
