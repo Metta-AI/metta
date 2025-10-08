@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { db } from "@/lib/db";
+import { prisma } from "@/lib/db/prisma";
 
 export async function GET(
   request: NextRequest,
@@ -17,7 +17,7 @@ export async function GET(
     }
 
     // Get the paper data for this post
-    const post = await db.post.findUnique({
+    const post = await prisma.post.findUnique({
       where: { id: postId },
       select: {
         paper: {
