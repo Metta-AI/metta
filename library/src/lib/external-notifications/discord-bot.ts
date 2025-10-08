@@ -119,13 +119,17 @@ export class DiscordBotService {
   }
 
   /**
-   * Send a DM notification to a Discord user
+   * Send a DM notification to a Discord user (with simplified delivery tracking)
    */
   async sendNotification(
     notification: NotificationWithDetails,
     discordUserId: string,
     deliveryId?: string
   ): Promise<boolean> {
+    let success = false;
+    let errorMessage: string | null = null;
+    const startTime = Date.now();
+
     try {
       if (!this.isConfigured) {
         Logger.warn("Discord bot not configured");
@@ -135,6 +139,7 @@ export class DiscordBotService {
       // Create DM channel with user
       const dmChannel = await this.createDMChannel(discordUserId);
       if (!dmChannel) {
+        errorMessage = "Failed to create DM channel";
         Logger.warn(`Failed to create DM channel with user ${discordUserId}`);
         return false;
       }
@@ -143,7 +148,7 @@ export class DiscordBotService {
       const embed = this.generateNotificationEmbed(notification);
 
       // Send message to DM channel
-      const success = await this.sendMessageToChannel(dmChannel.id, {
+      success = await this.sendMessageToChannel(dmChannel.id, {
         embeds: [embed],
       });
 
@@ -151,12 +156,13 @@ export class DiscordBotService {
         Logger.info("Discord DM sent successfully", {
           discordUserId,
           notificationId: notification.id,
+          durationMs: Date.now() - startTime,
         });
-        return true;
       } else {
-        return false;
+        errorMessage = "Failed to send message to channel";
       }
     } catch (error: any) {
+      errorMessage = error instanceof Error ? error.message : String(error);
       Logger.error(
         "Failed to send Discord DM",
         error instanceof Error ? error : new Error(String(error)),
@@ -173,10 +179,39 @@ export class DiscordBotService {
         });
         // Mark user as having DMs disabled
         await this.markUserDMsDisabled(discordUserId);
+        errorMessage = "User has DMs disabled or blocked the bot";
       }
-
-      return false;
+    } finally {
+      // Single DB write: create or update delivery record with final status
+      if (deliveryId) {
+        // Update existing delivery record (for retries)
+        await prisma.notificationDelivery.update({
+          where: { id: deliveryId },
+          data: {
+            status: success ? "sent" : "failed",
+            deliveredAt: success ? new Date() : null,
+            errorMessage,
+            attemptCount: { increment: 1 },
+            lastAttempt: new Date(),
+          },
+        });
+      } else {
+        // Create new delivery record with final status
+        await prisma.notificationDelivery.create({
+          data: {
+            notificationId: notification.id,
+            channel: "discord",
+            status: success ? "sent" : "failed",
+            deliveredAt: success ? new Date() : null,
+            errorMessage,
+            attemptCount: 1,
+            lastAttempt: new Date(),
+          },
+        });
+      }
     }
+
+    return success;
   }
 
   /**

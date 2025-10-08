@@ -21,6 +21,45 @@ const redisConfig = {
 };
 
 // Job type definitions
+import type { NotificationType } from "./notifications";
+
+export interface NotificationData {
+  id: string;
+  userId: string;
+  type: NotificationType;
+  title: string;
+  message?: string | null;
+  actionUrl?: string | null;
+  actorId?: string | null;
+  postId?: string | null;
+  commentId?: string | null;
+  mentionText?: string | null;
+  isRead: boolean;
+  createdAt: Date;
+  user?: {
+    id: string;
+    name: string | null;
+    email: string | null;
+  };
+  actor?: {
+    id: string;
+    name: string | null;
+    email: string | null;
+  } | null;
+  post?: {
+    id: string;
+    title: string;
+  } | null;
+  comment?: {
+    id: string;
+    content: string;
+    post?: {
+      id: string;
+      title: string;
+    };
+  } | null;
+}
+
 export interface BackgroundJobs {
   "extract-institutions": {
     paperId: string;
@@ -37,9 +76,12 @@ export interface BackgroundJobs {
     paperId: string;
   };
   "send-external-notification": {
-    notificationId: string;
+    notification: NotificationData;
     channels: ("email" | "discord")[];
-    userId: string;
+    preferences: {
+      emailEnabled: boolean;
+      discordEnabled: boolean;
+    };
   };
   "retry-failed-notification": {
     deliveryId: string;
@@ -186,21 +228,21 @@ export class JobQueueService {
   }
 
   /**
-   * Queue external notification sending
+   * Queue external notification sending with full notification data
    */
   static async queueExternalNotification(
-    notificationId: string,
+    notification: NotificationData,
     channels: ("email" | "discord")[],
-    userId: string,
+    preferences: { emailEnabled: boolean; discordEnabled: boolean },
     priority: number = 0
   ): Promise<void> {
     Logger.info(
-      `📤 Queuing external notifications for ${notificationId}: ${channels.join(", ")}`
+      `📤 Queuing external notifications for ${notification.id}: ${channels.join(", ")}`
     );
 
     await externalNotificationQueue.add(
       "send-external-notification",
-      { notificationId, channels, userId },
+      { notification, channels, preferences },
       {
         priority, // Higher priority notifications go first
         delay: 500, // Small delay to allow database to settle

@@ -91,6 +91,10 @@ export class EmailNotificationService {
     notification: NotificationWithDetails,
     deliveryId?: string
   ): Promise<boolean> {
+    let success = false;
+    let errorMessage: string | null = null;
+    const startTime = Date.now();
+
     try {
       if (!this.isEnabled) {
         Logger.debug("Email notifications disabled, skipping", {
@@ -105,25 +109,6 @@ export class EmailNotificationService {
         });
         return false;
       }
-
-      // Create delivery record if not provided
-      let currentDeliveryId = deliveryId;
-      if (!currentDeliveryId) {
-        const delivery = await prisma.notificationDelivery.create({
-          data: {
-            notificationId: notification.id,
-            channel: "email",
-            status: "pending",
-          },
-        });
-        currentDeliveryId = delivery.id;
-      }
-
-      // Update delivery record to 'sending'
-      await this.updateDeliveryStatus(currentDeliveryId, "sending", {
-        attemptCount: { increment: 1 },
-        lastAttempt: new Date(),
-      });
 
       // Generate email template
       const template = await this.generateEmailTemplate(notification);
@@ -150,29 +135,48 @@ export class EmailNotificationService {
         recipient: notification.user.email,
         messageId,
         notificationId: notification.id,
+        durationMs: Date.now() - startTime,
       });
 
-      // Mark as delivered
-      await this.updateDeliveryStatus(currentDeliveryId, "sent", {
-        deliveredAt: new Date(),
-      });
-
-      return true;
+      success = true;
     } catch (error) {
+      errorMessage = error instanceof Error ? error.message : String(error);
       Logger.error(
         "Email notification failed",
         error instanceof Error ? error : new Error(String(error)),
         { notificationId: notification.id, userId: notification.userId }
       );
-
+    } finally {
+      // Single DB write: create or update delivery record with final status
       if (deliveryId) {
-        await this.updateDeliveryStatus(deliveryId, "failed", {
-          errorMessage: error instanceof Error ? error.message : String(error),
+        // Update existing delivery record (for retries)
+        await prisma.notificationDelivery.update({
+          where: { id: deliveryId },
+          data: {
+            status: success ? "sent" : "failed",
+            deliveredAt: success ? new Date() : null,
+            errorMessage,
+            attemptCount: { increment: 1 },
+            lastAttempt: new Date(),
+          },
+        });
+      } else {
+        // Create new delivery record with final status
+        await prisma.notificationDelivery.create({
+          data: {
+            notificationId: notification.id,
+            channel: "email",
+            status: success ? "sent" : "failed",
+            deliveredAt: success ? new Date() : null,
+            errorMessage,
+            attemptCount: 1,
+            lastAttempt: new Date(),
+          },
         });
       }
-
-      return false;
     }
+
+    return success;
   }
 
   /**
@@ -630,23 +634,6 @@ Manage your preferences: ${this.baseUrl}/settings/notifications
     `.trim();
 
     return { subject, html, text };
-  }
-
-  /**
-   * Update delivery record status
-   */
-  private async updateDeliveryStatus(
-    deliveryId: string,
-    status: string,
-    additionalData: any = {}
-  ): Promise<void> {
-    await prisma.notificationDelivery.update({
-      where: { id: deliveryId },
-      data: {
-        status,
-        ...additionalData,
-      },
-    });
   }
 
   /**
