@@ -147,7 +147,9 @@ class PolicyAutoBuilder(nn.Module):
         return self._total_params
 
     def get_agent_experience_spec(self) -> Composite:
-        spec = Composite()
+        spec = Composite(
+            env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
+        )
         for layer in self.components.values():
             if hasattr(layer, "get_agent_experience_spec"):
                 spec.update(layer.get_agent_experience_spec())
