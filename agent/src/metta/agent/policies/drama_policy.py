@@ -22,7 +22,7 @@ class DramaPolicyConfig(PolicyArchitecture):
     _token_embed_dim = 8
     _fourier_freqs = 3
     _embed_dim = 16
-    _core_out_dim = 512
+    _core_out_dim = 128
 
     components: List[ComponentConfig] = [
         ObsShimTokensConfig(in_key="env_obs", out_key="obs_tokens", max_tokens=48),
@@ -48,7 +48,7 @@ class DramaPolicyConfig(PolicyArchitecture):
             stoch_dim=_latent_dim,
             d_model=_core_out_dim,
             d_intermediate=_core_out_dim * 2,
-            n_layer=4,
+            n_layer=2,
         ),
         MLPConfig(
             in_key="core",
@@ -56,7 +56,7 @@ class DramaPolicyConfig(PolicyArchitecture):
             name="critic",
             in_features=_core_out_dim,
             out_features=1,
-            hidden_features=[512],
+            hidden_features=[256],
         ),
         ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embed_dim),
         ActorQueryConfig(in_key="core", out_key="actor_query", hidden_size=_core_out_dim, embed_dim=_embed_dim),
