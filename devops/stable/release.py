@@ -449,8 +449,28 @@ def run_validation(
 
         # Handle different workflow types
         if validation.workflow_type == WorkflowType.CI:
-            # Run metta ci locally via job_runner
-            cmd = ["metta", "ci"]
+            # Run pytest directly with verbose output to show hanging tests
+            # Using pytest directly instead of `metta ci` for better visibility
+            cmd = [
+                "uv",
+                "run",
+                "pytest",
+                "tests",
+                "mettascope/tests",
+                "agent/tests",
+                "app_backend/tests",
+                "common/tests",
+                "packages/codebot/tests",
+                "packages/cogames/tests",
+                "packages/gitta/tests",
+                "packages/mettagrid/tests",
+                "--benchmark-disable",
+                "-n",
+                "auto",
+                "-v",  # Verbose: show test names
+                "--timeout=60",  # Fail tests that hang for more than 60s
+                "--timeout-method=thread",  # Use thread-based timeout
+            ]
             job = run_local(
                 name=validation.name,
                 cmd=cmd,
