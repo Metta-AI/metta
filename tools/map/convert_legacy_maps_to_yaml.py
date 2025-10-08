@@ -32,6 +32,10 @@ DEFAULT_CHAR_TO_NAME = {
     "g": "generator",
     "=": "wall",
     "D": "door",
+    "H": "wall",
+    "T": "wall",
+    "F": "wall",
+    "R": "wall",
 }
 
 LEGEND_PREFIX = "#:"
