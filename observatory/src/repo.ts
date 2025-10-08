@@ -114,6 +114,26 @@ export type EvalTasksResponse = {
   tasks: EvalTask[]
 }
 
+export type PaginatedEvalTasksResponse = {
+  tasks: EvalTask[]
+  total_count: number
+  page: number
+  page_size: number
+  total_pages: number
+}
+
+export type TaskFilters = {
+  policy_name?: string
+  sim_suite?: string
+  status?: string
+  assignee?: string
+  user_id?: string
+  retries?: string
+  created_at?: string
+  assigned_at?: string
+  updated_at?: string
+}
+
 // Policy-based scorecard types
 export type PaginationRequest = {
   page: number
@@ -300,6 +320,7 @@ export interface Repo {
   // Eval task methods
   createEvalTask(request: EvalTaskCreateRequest): Promise<EvalTask>
   getEvalTasks(): Promise<EvalTask[]>
+  getEvalTasksPaginated(page: number, pageSize: number, filters: TaskFilters): Promise<PaginatedEvalTasksResponse>
 
   // Policy methods
   getPolicyIds(policyNames: string[]): Promise<Record<string, string>>
@@ -478,6 +499,28 @@ export class ServerRepo implements Repo {
   async getEvalTasks(): Promise<EvalTask[]> {
     const response = await this.apiCall<EvalTasksResponse>('/tasks/all?limit=500')
     return response.tasks
+  }
+
+  async getEvalTasksPaginated(
+    page: number,
+    pageSize: number,
+    filters: TaskFilters
+  ): Promise<PaginatedEvalTasksResponse> {
+    const params = new URLSearchParams()
+    params.append('page', page.toString())
+    params.append('page_size', pageSize.toString())
+
+    if (filters.policy_name) params.append('policy_name', filters.policy_name)
+    if (filters.sim_suite) params.append('sim_suite', filters.sim_suite)
+    if (filters.status) params.append('status', filters.status)
+    if (filters.assignee) params.append('assignee', filters.assignee)
+    if (filters.user_id) params.append('user_id', filters.user_id)
+    if (filters.retries) params.append('retries', filters.retries)
+    if (filters.created_at) params.append('created_at', filters.created_at)
+    if (filters.assigned_at) params.append('assigned_at', filters.assigned_at)
+    if (filters.updated_at) params.append('updated_at', filters.updated_at)
+
+    return this.apiCall<PaginatedEvalTasksResponse>(`/tasks/paginated?${params}`)
   }
 
   async getPolicyIds(policyNames: string[]): Promise<Record<string, string>> {

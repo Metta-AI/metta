@@ -46,6 +46,20 @@ class TaskFilterParams(BaseModel):
     sim_suites: list[str] | None = None
 
 
+class TaskPaginationParams(BaseModel):
+    page: int = Field(default=1, ge=1)
+    page_size: int = Field(default=50, ge=1, le=100)
+    policy_name: str | None = None
+    sim_suite: str | None = None
+    status: str | None = None
+    assignee: str | None = None
+    user_id: str | None = None
+    retries: str | None = None
+    created_at: str | None = None
+    assigned_at: str | None = None
+    updated_at: str | None = None
+
+
 class EvalTaskResponse(BaseModel):
     id: uuid.UUID
     policy_id: uuid.UUID
@@ -127,6 +141,14 @@ class TaskUpdateResponse(BaseModel):
 
 class TasksResponse(BaseModel):
     tasks: list[EvalTaskResponse]
+
+
+class PaginatedTasksResponse(BaseModel):
+    tasks: list[EvalTaskResponse]
+    total_count: int
+    page: int
+    page_size: int
+    total_pages: int
 
 
 class GitHashesRequest(BaseModel):
@@ -253,6 +275,44 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
         )
         task_responses = [EvalTaskResponse.from_db(task) for task in tasks]
         return TasksResponse(tasks=task_responses)
+
+    @router.get("/paginated", response_model=PaginatedTasksResponse)
+    @timed_http_handler
+    async def get_tasks_paginated(
+        page: int = Query(default=1, ge=1),
+        page_size: int = Query(default=50, ge=1, le=100),
+        policy_name: str | None = Query(default=None),
+        sim_suite: str | None = Query(default=None),
+        status: str | None = Query(default=None),
+        assignee: str | None = Query(default=None),
+        user_id: str | None = Query(default=None),
+        retries: str | None = Query(default=None),
+        created_at: str | None = Query(default=None),
+        assigned_at: str | None = Query(default=None),
+        updated_at: str | None = Query(default=None),
+    ) -> PaginatedTasksResponse:
+        tasks, total_count = await stats_repo.get_tasks_paginated(
+            page=page,
+            page_size=page_size,
+            policy_name=policy_name,
+            sim_suite=sim_suite,
+            status=status,
+            assignee=assignee,
+            user_id=user_id,
+            retries=retries,
+            created_at=created_at,
+            assigned_at=assigned_at,
+            updated_at=updated_at,
+        )
+        task_responses = [EvalTaskResponse.from_db(task) for task in tasks]
+        total_pages = (total_count + page_size - 1) // page_size
+        return PaginatedTasksResponse(
+            tasks=task_responses,
+            total_count=total_count,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+        )
 
     @router.post("/claimed/update")
     @timed_http_handler
