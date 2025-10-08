@@ -2,10 +2,22 @@
 """Stable Release System (lean, single-file)
 
 Usage:
-  ./devops/stable/release.py --all                      # run full flow
-  ./devops/stable/release.py --step workflow-tests      # run validation tests
+  ./devops/stable/release.py                            # run full release flow
+  ./devops/stable/release.py --step workflow-tests      # run specific step only
   ./devops/stable/release.py --step summary             # show validation summary
   ./devops/stable/release.py --step release             # create release tag and notes
+
+Auto-resume:
+  By default, continues the most recent in-progress release.
+  Use --new to force start a new release.
+  Use --version X to use a specific version.
+
+Examples:
+  ./devops/stable/release.py                            # full release (auto-continue)
+  ./devops/stable/release.py --new                      # full release (force new)
+  ./devops/stable/release.py --step workflow-tests      # just run tests
+  ./devops/stable/release.py --step workflow-tests --new    # run tests (force new)
+  ./devops/stable/release.py --version 2025.10.07-test1     # use specific version
 """
 
 from __future__ import annotations
@@ -27,10 +39,7 @@ import gitta as git
 from devops.job_runner import run_local, run_remote
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(message)s",
-)
+
 logger = logging.getLogger(__name__)
 
 # ============================================================================
@@ -114,6 +123,7 @@ class ReleaseState:
     commit_sha: Optional[str] = None
     validations: dict[str, ValidationResult] = field(default_factory=dict)
     gates: list[dict] = field(default_factory=list)
+    released: bool = False
 
 
 # ============================================================================
@@ -194,11 +204,33 @@ def load_state(version: str) -> Optional[ReleaseState]:
             commit_sha=data.get("commit_sha"),
             validations=validations,
             gates=data.get("gates", []),
+            released=data.get("released", False),
         )
         return state
     except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
         logger.error(f"Failed to load state from {path}: {e}")
         return None
+
+
+def get_most_recent_state() -> Optional[tuple[str, ReleaseState]]:
+    """Get the most recent release state.
+
+    Returns:
+        Tuple of (version, state) or None if no state files exist
+    """
+    state_files = sorted(STATE_DIR.glob("release_*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+
+    if not state_files:
+        return None
+
+    # Try to load the most recent state
+    most_recent = state_files[0]
+    version = most_recent.stem.replace("release_", "")
+    state = load_state(version)
+
+    if state:
+        return (version, state)
+    return None
 
 
 def save_state(state: ReleaseState) -> Path:
@@ -913,6 +945,10 @@ def step_release(version: str, **_kwargs) -> None:
         logger.error(f"Failed to create/push tag: {e}")
         sys.exit(1)
 
+    # Mark state as released
+    state.released = True
+    save_state(state)
+
     logger.info("\n" + "=" * 60)
     logger.info("Release Complete!")
     logger.info("=" * 60)
@@ -968,42 +1004,50 @@ def main() -> None:
 
     parser.add_argument(
         "--version",
-        help="Version number (default: auto-generated from date YYYY.MM.DD-HHMM)",
+        help="Version number (overrides auto-continue behavior)",
         default=None,
+    )
+
+    parser.add_argument(
+        "--new",
+        action="store_true",
+        help="Force start a new release (ignore existing in-progress state)",
     )
 
     parser.add_argument(
         "--step",
         choices=[Step.PREPARE, Step.BUG, Step.TESTS, Step.SUMMARY, Step.RELEASE, Step.ANNOUNCE],
-        help="Run a specific step",
-    )
-
-    parser.add_argument(
-        "--all",
-        action="store_true",
-        help="Run all steps",
+        help="Run a specific step (default: run all steps)",
     )
 
     args = parser.parse_args()
 
-    # Generate or use provided version
-    version = args.version if args.version else generate_version()
-
-    # Show help if no action specified
-    if not args.step and not args.all:
-        parser.print_help()
-        logger.info(f"\nAuto-generated version: {version}")
-        logger.info("\nEnvironment variables:")
-        logger.info("  ASANA_TOKEN - Personal Access Token for Asana API")
-        logger.info("  ASANA_PROJECT_ID - Asana project ID for bug tracking")
-        logger.info("\nValidations:")
-        logger.info("  - TEST: metta test locally")
-        logger.info("  - TRAIN: local smoke, single-GPU remote, multi-GPU remote")
-        logger.info("  - PLAY: interactive testing with manual confirmation")
-        logger.info("\nContacts:")
-        for contact in CONTACTS:
-            logger.info(f"  - {contact}")
-        return
+    # Determine version to use
+    if args.version:
+        # Explicit version specified - use it
+        version = args.version
+        logger.debug(f"Using explicit version: {version}")
+    elif args.new:
+        # Force new release
+        version = generate_version()
+        logger.info(f"Starting new release: {version}")
+    else:
+        # Smart default: continue if in progress, new if last was released
+        recent = get_most_recent_state()
+        if recent:
+            recent_version, recent_state = recent
+            if recent_state.released:
+                # Last release was completed, start new one
+                version = generate_version()
+                logger.info(f"Previous release ({recent_version}) completed. Starting new: {version}")
+            else:
+                # Continue in-progress release
+                version = recent_version
+                logger.info(f"Continuing in-progress release: {version}")
+        else:
+            # No existing state, start new
+            version = generate_version()
+            logger.info(f"Starting new release: {version}")
 
     # Map steps to functions (all have same signature now)
     steps = {
@@ -1030,11 +1074,13 @@ def main() -> None:
     logger.info("")
 
     # Execute
-    if args.all:
+    if args.step:
+        # Run specific step
+        steps[args.step](**kwargs)
+    else:
+        # Run all steps (default behavior)
         for step_name in [Step.PREPARE, Step.BUG, Step.TESTS, Step.SUMMARY, Step.RELEASE, Step.ANNOUNCE]:
             steps[step_name](**kwargs)
-    else:
-        steps[args.step](**kwargs)
 
 
 if __name__ == "__main__":
