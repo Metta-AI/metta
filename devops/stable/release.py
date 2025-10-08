@@ -726,14 +726,17 @@ def get_workflow_tests() -> list[Validation]:
         )
     )
 
-    # 5. PLAY workflow - interactive testing
+    # 5. PLAY workflow - manual interactive testing
+    # This launches the mettascope server and browser for manual gameplay testing
     validations.append(
         Validation(
             name="arena_play",
             workflow_type=WorkflowType.PLAY,
             module="experiments.recipes.arena.play",
             location="local",
-            args=["policy_uri=file://./train_dir/stable.smoke/checkpoints"],  # Use smoke test checkpoint
+            args=[
+                "policy_uri=mock://play",  # Use mock policy for testing
+            ],
             timeout_s=600,  # 10 minutes for manual testing
         )
     )
