@@ -373,7 +373,6 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
         key = parsed.path.lstrip("/")
 
         # Stream the file from S3
-        try:
 
         s3_client = boto3.client("s3")
         try:
@@ -386,7 +385,6 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
                 headers={"Content-Disposition": f'inline; filename="{task_id}_{log_type}.txt"'},
             )
         except s3_client.exceptions.NoSuchKey as e:
-
             raise HTTPException(status_code=404, detail=f"Log file not found in S3: {log_path}") from e
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to retrieve log from S3: {str(e)}") from e
