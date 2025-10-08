@@ -13,6 +13,84 @@ import torch
 # Import the kernel directly from cortex package
 from cortex.kernels.pytorch.rtu import LinearRTU
 
+# Triton parity tests (skip when Triton/CUDA are unavailable)
+from cortex.utils import TRITON_AVAILABLE
+
+
+@pytest.mark.skipif(not (torch.cuda.is_available() and TRITON_AVAILABLE), reason="CUDA/Triton not available")
+def test_triton_rtu_matches_pytorch_forward_and_gradients() -> None:
+    from cortex.kernels.triton.mlstm.rtu_triton import LinearRTU_Triton
+
+    torch.manual_seed(2024)
+    device = torch.device("cuda")
+    dtype = torch.float32
+
+    # Problem sizes kept modest to limit JIT compile time
+    B, T, D, H, R = 2, 64, 32, 24, 8
+
+    x = torch.randn(B, T, D, device=device, dtype=dtype, requires_grad=True)
+
+    # Construct models and align parameters
+    pt_model = LinearRTU(
+        input_size=D,
+        hidden_size=H,
+        rank=R,
+        batch_first=True,
+        activation=torch.nn.SiLU(),
+    ).to(device=device, dtype=dtype)
+
+    tr_model = LinearRTU_Triton(
+        input_size=D,
+        hidden_size=H,
+        rank=R,
+        batch_first=True,
+        activation=torch.nn.SiLU(),
+    ).to(device=device, dtype=dtype)
+
+    # Copy parameters from PyTorch baseline to Triton model for 1:1 parity
+    with torch.no_grad():
+        tr_model.nu_log.copy_(pt_model.nu_log)
+        tr_model.theta_log.copy_(pt_model.theta_log)
+        tr_model.U1.copy_(pt_model.U1)
+        tr_model.U2.copy_(pt_model.U2)
+        tr_model.V1.copy_(pt_model.V1)
+        tr_model.V2.copy_(pt_model.V2)
+
+    # Forward
+    y_pt, _ = pt_model(x)
+    y_tr, _ = tr_model(x)
+
+    assert torch.allclose(y_pt, y_tr, rtol=1e-5, atol=1e-6), (
+        f"forward mismatch: max abs err={(y_pt - y_tr).abs().max().item():.3e}"
+    )
+
+    # Backward: compare gradients for all parameters and inputs
+    loss_pt = (y_pt**2).mean()
+    loss_tr = (y_tr**2).mean()
+
+    params_pt = [pt_model.nu_log, pt_model.theta_log, pt_model.U1, pt_model.U2, pt_model.V1, pt_model.V2]
+    params_tr = [tr_model.nu_log, tr_model.theta_log, tr_model.U1, tr_model.U2, tr_model.V1, tr_model.V2]
+
+    # Compare input gradients first using autograd.grad before freeing graphs
+    dx_pt = torch.autograd.grad(loss_pt, x, retain_graph=True, allow_unused=False)[0]
+    dx_tr = torch.autograd.grad(loss_tr, x, retain_graph=True, allow_unused=False)[0]
+
+    # Now accumulate parameter grads via .backward on each loss
+    loss_pt.backward(retain_graph=True)
+    loss_tr.backward()
+    assert torch.allclose(dx_pt, dx_tr, rtol=1e-4, atol=1e-5), (
+        f"dx mismatch: max abs err={(dx_pt - dx_tr).abs().max().item():.3e}"
+    )
+
+    # Compare parameter gradients
+    for p_pt, p_tr, name in zip(params_pt, params_tr, ["nu_log", "theta_log", "U1", "U2", "V1", "V2"], strict=False):
+        assert p_pt.grad is not None and p_tr.grad is not None
+        gt, gb = p_tr.grad.detach(), p_pt.grad.detach()
+        assert torch.allclose(gt, gb, rtol=1e-4, atol=1e-5), (
+            f"{name} grad mismatch: max abs err={(gt - gb).abs().max().item():.3e}"
+        )
+
+
 torch.manual_seed(7)
 
 
@@ -122,7 +200,7 @@ def test_linear_rtu_rtrl_grad_matches_finite_difference(device: str, verbose: bo
 
         # Elementwise closeness
         assert torch.allclose(gt, gn, rtol=rtol, atol=atol), (
-            f"{k} grads mismatch\nmax abs err: {(gt-gn).abs().max().item():.3e}\n"
+            f"{k} grads mismatch\nmax abs err: {(gt - gn).abs().max().item():.3e}\n"
             f"true norm: {gt.norm().item():.3e}  num norm: {gn.norm().item():.3e}"
         )
         assert rel_err.item() < 1e-4, f"{k} relative error too high: {rel_err.item():.3e}"
