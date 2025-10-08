@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FC, useState, useEffect } from "react";
 
@@ -8,14 +7,17 @@ import { FeedPostDTO } from "@/posts/data/feed";
 import { PaperCard } from "@/components/PaperCard";
 import { DeleteConfirmationModal } from "@/components/DeleteConfirmationModal";
 import { PhotoViewer } from "@/components/PhotoViewer";
-import { RichTextRenderer } from "@/components/RichTextRenderer";
 import { SilentArxivRefresh } from "@/components/SilentArxivRefresh";
 import { InPostComments } from "@/components/InPostComments";
-import { getUserInitials, getUserDisplayName } from "@/lib/utils/user";
-import { formatRelativeTimeCompact } from "@/lib/utils/date";
-import { cleanArxivUrls } from "@/lib/utils/url";
+import {
+  PostHeader,
+  PostActionButtons,
+  AttachedImages,
+  QuotedPostCard,
+  PostContent,
+} from "@/components/feed";
+import { getUserDisplayName } from "@/lib/utils/user";
 import { useQueuePaper, useDeletePost } from "@/hooks/mutations";
-import { MessageSquare, ExternalLink, Quote } from "lucide-react";
 
 /**
  * FeedPost Component
@@ -240,109 +242,26 @@ export const FeedPost: FC<{
       >
         {/* Header with user info */}
         <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onUserClick?.(post.author.id);
-              }}
-              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-sm font-semibold transition-colors hover:bg-gray-200"
-              style={{ backgroundColor: "#EFF3F9", color: "#131720" }}
-            >
-              {getUserInitials(post.author.name, post.author.email)}
-            </button>
-            <div className="flex items-center gap-2 text-[12.5px] leading-5 text-neutral-600">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onUserClick?.(post.author.id);
-                }}
-                className="cursor-pointer font-medium text-neutral-900 transition-colors hover:text-blue-600"
-              >
-                {getUserDisplayName(post.author.name, post.author.email)}
-              </button>
-              <span>•</span>
-              <span>{formatRelativeTimeCompact(post.createdAt)}</span>
-            </div>
-          </div>
+          <PostHeader
+            author={post.author}
+            createdAt={post.createdAt}
+            onUserClick={onUserClick}
+          />
 
-          {/* Action buttons group */}
-          <div className="flex items-center gap-2">
-            {/* Queue button - only show for posts with papers */}
-            {paperData && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleQueue();
-                }}
-                disabled={queuePaperMutation.isPending}
-                className={`rounded-full p-1 transition-colors disabled:opacity-50 ${
-                  optimisticQueued
-                    ? "text-blue-500 hover:bg-neutral-100 hover:text-blue-600"
-                    : "text-neutral-400 hover:bg-neutral-100 hover:text-blue-500"
-                }`}
-                title={`${optimisticQueues} queued`}
-              >
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  suppressHydrationWarning
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                  />
-                </svg>
-              </button>
-            )}
-
-            {/* Delete button - only show for post author */}
-            {canDelete && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDelete();
-                }}
-                disabled={deletePostMutation.isPending}
-                className="rounded-full p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-red-500 disabled:opacity-50"
-                title="Delete post"
-              >
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  suppressHydrationWarning
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                  />
-                </svg>
-              </button>
-            )}
-
-            {/* Comment button */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handlePostClick(e);
-              }}
-              className="rounded-full p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-blue-500"
-              title={`${commentCount} comments`}
-            >
-              <div className="flex items-center gap-1">
-                <MessageSquare className="h-4 w-4" />
-                <span className="text-[11px] tabular-nums">{commentCount}</span>
-              </div>
-            </button>
-          </div>
+          <PostActionButtons
+            postId={post.id}
+            commentCount={commentCount}
+            canDelete={canDelete}
+            isPurePaper={true}
+            paperId={paperData?.id}
+            optimisticQueues={optimisticQueues}
+            optimisticQueued={optimisticQueued}
+            isQueuePending={queuePaperMutation.isPending}
+            isDeletePending={deletePostMutation.isPending}
+            onQueue={handleQueue}
+            onDelete={handleDelete}
+            onCommentClick={handlePostClick}
+          />
         </div>
 
         {/* Paper card */}
@@ -351,38 +270,10 @@ export const FeedPost: FC<{
         </div>
 
         {/* Attached images for pure-paper posts */}
-        {post.images && post.images.length > 0 && (
-          <div className="px-4 pb-2">
-            <div
-              className={`grid gap-2 ${
-                post.images.length === 1
-                  ? "grid-cols-1"
-                  : post.images.length === 2
-                    ? "grid-cols-2"
-                    : "grid-cols-2 sm:grid-cols-3"
-              }`}
-            >
-              {post.images.map((imageUrl, index) => (
-                <div
-                  key={index}
-                  data-image-container="true"
-                  className="group relative overflow-hidden rounded-lg border border-gray-200 bg-gray-50"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleImageClick(index);
-                  }}
-                  style={{ cursor: "pointer" }}
-                >
-                  <img
-                    src={imageUrl}
-                    alt={`Attached image ${index + 1}`}
-                    className="h-32 w-full object-cover transition-transform group-hover:scale-105 sm:h-40"
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        <AttachedImages
+          images={post.images || []}
+          onImageClick={handleImageClick}
+        />
 
         {/* In-post comments */}
         <div onClick={(e) => e.stopPropagation()}>
@@ -435,235 +326,43 @@ export const FeedPost: FC<{
     >
       {/* Post header with user info */}
       <div className="flex items-center justify-between px-4 pt-4 pb-2">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onUserClick?.(post.author.id);
-            }}
-            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-sm font-medium transition-colors hover:bg-neutral-100"
-            style={{ backgroundColor: "#EFF3F9", color: "#131720" }}
-          >
-            {getUserInitials(post.author.name, post.author.email)}
-          </button>
-          <div className="flex items-center gap-2 text-[12.5px] leading-5 text-neutral-600">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onUserClick?.(post.author.id);
-              }}
-              className="cursor-pointer font-medium text-neutral-900 transition-colors hover:text-blue-600"
-            >
-              {getUserDisplayName(post.author.name, post.author.email)}
-            </button>
-            <span>•</span>
-            <span>{formatRelativeTimeCompact(post.createdAt)}</span>
-          </div>
-        </div>
+        <PostHeader
+          author={post.author}
+          createdAt={post.createdAt}
+          onUserClick={onUserClick}
+        />
 
-        {/* Action buttons group */}
-        <div className="flex items-center gap-2">
-          {/* Permalink button */}
-          <Link
-            href={`/posts/${post.id}`}
-            onClick={(e) => e.stopPropagation()}
-            className="rounded-full p-1 text-neutral-400 opacity-0 transition-all group-hover:opacity-100 hover:bg-neutral-100 hover:text-blue-500"
-            title="Open post"
-          >
-            <ExternalLink className="h-4 w-4" />
-          </Link>
-
-          {/* Quote post button */}
-          <button
-            onClick={handleQuotePost}
-            className="rounded-full p-1 text-neutral-400 opacity-0 transition-all group-hover:opacity-100 hover:bg-neutral-100 hover:text-green-500"
-            title="Quote post (up to 2 posts can be quoted)"
-          >
-            <Quote className="h-4 w-4" />
-          </button>
-          {/* Queue button - only show for posts with papers */}
-          {paperData && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleQueue();
-              }}
-              disabled={queuePaperMutation.isPending}
-              className={`rounded-full p-1 transition-colors disabled:opacity-50 ${
-                optimisticQueued
-                  ? "text-blue-500 hover:bg-neutral-100 hover:text-blue-600"
-                  : "text-neutral-400 hover:bg-neutral-100 hover:text-blue-500"
-              }`}
-              title={`${optimisticQueues} queued`}
-            >
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                suppressHydrationWarning
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                />
-              </svg>
-            </button>
-          )}
-
-          {/* Delete button - only show for post author */}
-          {canDelete && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleDelete();
-              }}
-              disabled={deletePostMutation.isPending}
-              className="rounded-full p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-red-500 disabled:opacity-50"
-              title="Delete post"
-            >
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                suppressHydrationWarning
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                />
-              </svg>
-            </button>
-          )}
-
-          {/* Comment button */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handlePostClick(e);
-            }}
-            className="rounded-full p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-blue-500"
-            title={`${commentCount} comments`}
-          >
-            <div className="flex items-center gap-1">
-              <MessageSquare className="h-4 w-4" />
-              <span className="text-[11px] tabular-nums">{commentCount}</span>
-            </div>
-          </button>
-        </div>
+        <PostActionButtons
+          postId={post.id}
+          commentCount={commentCount}
+          canDelete={canDelete}
+          paperId={paperData?.id}
+          optimisticQueues={optimisticQueues}
+          optimisticQueued={optimisticQueued}
+          isQueuePending={queuePaperMutation.isPending}
+          isDeletePending={deletePostMutation.isPending}
+          onQueue={handleQueue}
+          onDelete={handleDelete}
+          onQuote={handleQuotePost}
+          onCommentClick={handlePostClick}
+        />
       </div>
 
       {/* Post content with LaTeX support */}
-      {post.content && cleanArxivUrls(post.content).trim() && (
-        <div className="px-4 pb-2 text-[14px] leading-[1.55] whitespace-pre-wrap text-neutral-900">
-          <RichTextRenderer text={cleanArxivUrls(post.content)} />
-        </div>
-      )}
+      {post.content && <PostContent content={post.content} />}
 
       {/* Attached images */}
-      {post.images && post.images.length > 0 && (
-        <div className="px-4 pb-2">
-          <div
-            className={`grid gap-2 ${
-              post.images.length === 1
-                ? "grid-cols-1"
-                : post.images.length === 2
-                  ? "grid-cols-2"
-                  : "grid-cols-2 sm:grid-cols-3"
-            }`}
-          >
-            {post.images.map((imageUrl, index) => (
-              <div
-                key={index}
-                data-image-container="true"
-                className="group relative overflow-hidden rounded-lg border border-gray-200 bg-gray-50"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleImageClick(index);
-                }}
-                style={{ cursor: "pointer" }}
-              >
-                <img
-                  src={imageUrl}
-                  alt={`Attached image ${index + 1}`}
-                  className="h-32 w-full object-cover transition-transform group-hover:scale-105 sm:h-40"
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <AttachedImages
+        images={post.images || []}
+        onImageClick={handleImageClick}
+      />
 
       {/* Quoted posts display */}
       {post.quotedPosts && post.quotedPosts.length > 0 && (
         <div className="px-4 pb-4">
           <div className="space-y-2">
             {post.quotedPosts.map((quotedPost) => (
-              <div
-                key={quotedPost.id}
-                className="rounded-lg border border-gray-300 bg-gray-50 p-3"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex items-start gap-3">
-                  {/* Author avatar */}
-                  <div className="flex-shrink-0">
-                    {quotedPost.author.image ? (
-                      <img
-                        src={quotedPost.author.image}
-                        alt={quotedPost.author.name || "User"}
-                        className="h-6 w-6 rounded-full"
-                      />
-                    ) : (
-                      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-xs font-medium text-white">
-                        {(
-                          quotedPost.author.name ||
-                          quotedPost.author.email?.split("@")[0] ||
-                          "U"
-                        )
-                          .split(" ")
-                          .map((n) => n[0])
-                          .join("")
-                          .toUpperCase()
-                          .slice(0, 2)}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Quoted post content */}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-gray-900">
-                        {getUserDisplayName(
-                          quotedPost.author.name,
-                          quotedPost.author.email
-                        )}
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        {formatRelativeTimeCompact(quotedPost.createdAt)}
-                      </span>
-                    </div>
-
-                    {quotedPost.content && (
-                      <p className="mt-1 line-clamp-3 text-sm text-gray-700">
-                        {quotedPost.content}
-                      </p>
-                    )}
-
-                    <Link
-                      href={`/posts/${quotedPost.id}`}
-                      className="mt-2 inline-block text-xs text-blue-600 hover:text-blue-800"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      View original post →
-                    </Link>
-                  </div>
-                </div>
-              </div>
+              <QuotedPostCard key={quotedPost.id} quotedPost={quotedPost} />
             ))}
           </div>
         </div>
