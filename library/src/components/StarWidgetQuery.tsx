@@ -52,7 +52,7 @@ export const StarWidgetQuery: FC<StarWidgetQueryProps> = ({
 
   const handleStarToggle = () => {
     if (readonly) return;
-    starMutation.mutate(paperId);
+    starMutation.mutate({ paperId });
   };
 
   return (

@@ -6,34 +6,13 @@ import Link from "next/link";
 
 import { getUserDisplayName } from "@/lib/utils/user";
 import { markNotificationsReadAction } from "@/notifications/actions/markNotificationsReadAction";
+import {
+  listNotifications,
+  getNotificationCounts,
+  type NotificationDTO,
+} from "@/lib/api/resources/notifications";
 
-interface Notification {
-  id: string;
-  type: string;
-  title: string;
-  message?: string | null;
-  actionUrl?: string | null;
-  isRead: boolean;
-  createdAt: string;
-  mentionText?: string | null;
-  actor?: {
-    id: string;
-    name?: string | null;
-    email?: string | null;
-  } | null;
-  post?: {
-    id: string;
-    title: string;
-  } | null;
-  comment?: {
-    id: string;
-    content: string;
-    post: {
-      id: string;
-      title: string;
-    };
-  } | null;
-}
+type Notification = NotificationDTO;
 
 interface NotificationCounts {
   total: number;
@@ -91,11 +70,8 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
 
   const loadCounts = async () => {
     try {
-      const response = await fetch("/api/notifications/count");
-      if (response.ok) {
-        const newCounts = await response.json();
-        setCounts(newCounts);
-      }
+      const newCounts = await getNotificationCounts();
+      setCounts(newCounts);
     } catch (error) {
       console.error("Error loading notification counts:", error);
     }
@@ -104,15 +80,10 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
   const loadNotifications = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(
-        "/api/notifications?limit=20&includeRead=true"
-      );
-      if (response.ok) {
-        const data = await response.json();
-        setNotifications(data.notifications);
-        setCounts(data.counts);
-        setHasLoaded(true);
-      }
+      const data = await listNotifications({ limit: 20, includeRead: true });
+      setNotifications(data.notifications);
+      setCounts(data.counts);
+      setHasLoaded(true);
     } catch (error) {
       console.error("Error loading notifications:", error);
     } finally {

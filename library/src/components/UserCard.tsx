@@ -56,7 +56,7 @@ export default function UserCard({
 
   // Handle toggle star
   const handleToggleStar = (paperId: string) => {
-    starMutation.mutate(paperId);
+    starMutation.mutate({ paperId });
   };
 
   // Handle toggle queue

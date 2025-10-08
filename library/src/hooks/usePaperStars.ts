@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/hooks/useServerMutation";
 
 interface StarData {
   totalStars: number;
@@ -12,10 +13,15 @@ interface UsePaperStarsProps {
   initialData?: StarData;
 }
 
-// This hook manages star data for a paper using TanStack Query
+/**
+ * Hook for querying paper star data
+ *
+ * This hook manages star data for a paper using TanStack Query.
+ * It relies on mutations to populate data and uses placeholderData for initial state.
+ */
 export function usePaperStars({ paperId, initialData }: UsePaperStarsProps) {
   return useQuery({
-    queryKey: ["paper-stars", paperId],
+    queryKey: queryKeys.papers.stars(paperId),
     queryFn: async (): Promise<StarData> => {
       // In a real implementation, this would fetch from /api/papers/${paperId}/stars
       // For now, we throw an error since we rely on mutations and placeholderData
