@@ -2,7 +2,8 @@ import numpy as np
 
 from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig, RecipeConfig
 from mettagrid.core import MettaGridCore
-from mettagrid.mettagrid_c import dtype_actions
+from mettagrid.test_support.actions import action_index
+from mettagrid.test_support.orientation import Orientation
 
 
 class TestAssemblerPartialUsage:
@@ -37,11 +38,10 @@ class TestAssemblerPartialUsage:
 
         iron_idx = env.resource_names.index("iron")
         steel_idx = env.resource_names.index("steel")
-        move_idx = env.action_names.index("move")
         noop_idx = env.action_names.index("noop")
 
         # First usage
-        actions = np.array([[move_idx, 3]], dtype=dtype_actions)
+        actions = np.array([action_index(env, "move", Orientation.EAST)], dtype=np.int32)
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         grid_objects = env.grid_objects()
@@ -52,11 +52,11 @@ class TestAssemblerPartialUsage:
 
         # Wait 5 ticks (50% cooldown)
         for _ in range(5):
-            actions = np.array([[noop_idx, 0]], dtype=dtype_actions)
+            actions = np.array([noop_idx], dtype=np.int32)
             obs, rewards, terminals, truncations, info = env.step(actions)
 
         # Try to use during cooldown (should fail)
-        actions = np.array([[move_idx, 1]], dtype=dtype_actions)
+        actions = np.array([action_index(env, "move", Orientation.SOUTH)], dtype=np.int32)
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         grid_objects = env.grid_objects()
@@ -99,11 +99,10 @@ class TestAssemblerPartialUsage:
 
         iron_idx = env.resource_names.index("iron")
         steel_idx = env.resource_names.index("steel")
-        move_idx = env.action_names.index("move")
         noop_idx = env.action_names.index("noop")
 
         # First full usage
-        actions = np.array([[move_idx, 3]], dtype=dtype_actions)
+        actions = np.array([action_index(env, "move", Orientation.EAST)], dtype=np.int32)
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         grid_objects = env.grid_objects()
@@ -123,7 +122,7 @@ class TestAssemblerPartialUsage:
 
         # Test at 12% progress (12 ticks into 100 tick cooldown)
         for _ in range(12):
-            actions = np.array([[noop_idx, 0]], dtype=dtype_actions)
+            actions = np.array([noop_idx], dtype=np.int32)
             obs, rewards, terminals, truncations, info = env.step(actions)
 
         # Verify cooldown has decreased to 88 ticks remaining
@@ -136,7 +135,7 @@ class TestAssemblerPartialUsage:
         iron_before = agent["inventory"][iron_idx]
         steel_before = agent["inventory"][steel_idx]
 
-        actions = np.array([[move_idx, 3]], dtype=dtype_actions)
+        actions = np.array([action_index(env, "move", Orientation.EAST)], dtype=np.int32)
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         grid_objects = env.grid_objects()
@@ -162,7 +161,7 @@ class TestAssemblerPartialUsage:
         # Input: 20 * 0.01 = 0.2, rounded up = 1
         # Output: 10 * 0.01 = 0.1, rounded down = 0
 
-        actions = np.array([[move_idx, 3]], dtype=dtype_actions)
+        actions = np.array([action_index(env, "move", Orientation.EAST)], dtype=np.int32)
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         grid_objects = env.grid_objects()

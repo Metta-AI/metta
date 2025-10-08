@@ -53,7 +53,7 @@ class PlayTool(Tool):
             initial_replay = sim.get_replay()
 
             current_step = 0
-            actions = np.zeros((env.num_agents, 2))
+            actions = np.zeros(env.num_agents, dtype=np.int32)
             total_rewards = np.zeros(env.num_agents)
 
             response = mettascope2.init(replay=json.dumps(initial_replay))
@@ -85,13 +85,12 @@ class PlayTool(Tool):
                 if response.should_close:
                     break
 
-                actions = sim.generate_actions()
+                actions = np.asarray(sim.generate_actions(), dtype=np.int32)
                 # Just do random actions for now.
-                actions[:, 0] = np.random.randint(0, 5, size=len(actions))  # Random action types
-                actions[:, 1] = np.random.randint(0, 4, size=len(actions))  # Random action args
+                random_actions = np.random.randint(0, env.action_space.n, size=len(actions))
+                actions[:] = random_actions.astype(np.int32, copy=False)
                 for action in response.actions:
-                    actions[action.agent_id, 0] = action.action_id
-                    actions[action.agent_id, 1] = action.argument
+                    actions[action.agent_id] = action.action_id
 
                 sim.step_simulation(actions)
                 current_step += 1

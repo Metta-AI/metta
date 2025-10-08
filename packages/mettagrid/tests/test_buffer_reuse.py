@@ -99,7 +99,7 @@ def test_buffer_consistency_during_episode():
     # Take a few steps
     for step in range(5):
         # Create random actions (noop action = 0)
-        actions = np.zeros((env.num_agents, 2), dtype=np.int32)
+        actions = np.zeros(env.num_agents, dtype=np.int32)
 
         # Step environment
         obs, rewards, terminals, truncations, info = env.step(actions)
