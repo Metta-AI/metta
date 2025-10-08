@@ -25,8 +25,8 @@ Automated qualification system for creating stable releases.
 
 ### Release Steps
 
-#### Step 1: Prepare Branch
-Creates and pushes a `release-qual/{version}` branch.
+#### Step 1: Prepare Staging Branch
+Creates and pushes a `staging/v{version}-rc1` branch.
 
 ```bash
 ./devops/stable/release_stable.py --step prepare-branch --version 2025.10.02
@@ -44,12 +44,25 @@ export ASANA_PROJECT_ID="your_project_id"
 If not configured, will prompt for manual confirmation.
 
 #### Step 3: Workflow Validation
-Runs automated training validations (local + remote):
+Runs automated training validations (local + remote).
 
+**Quick mode (default)**:
 - **arena_local_smoke**: 1k timesteps locally, expects SPS ≥ 30k
-- **arena_remote_50k**: 50k timesteps on SkyPilot, expects SPS ≥ 40k
+- **arena_remote_50k**: 50k timesteps on SkyPilot (1 node), expects SPS ≥ 40k
+
+**Comprehensive mode** (`--comprehensive` flag, for major releases):
+- **arena_local_smoke**: 1k timesteps locally, expects SPS ≥ 30k
+- **arena_staging_2b**: 2B timesteps on SkyPilot (4 nodes, 16 GPUs), expects SPS ≥ 40k
 
 State is saved to `devops/stable/state/release_{version}.json` for resumability.
+
+```bash
+# Quick validation (regular releases)
+./devops/stable/release_stable.py --step workflow-tests
+
+# Comprehensive validation (major releases)
+./devops/stable/release_stable.py --step workflow-tests --comprehensive
+```
 
 **If validations fail:**
 - Check logs in `devops/stable/logs/`
@@ -60,13 +73,13 @@ State is saved to `devops/stable/state/release_{version}.json` for resumability.
 Creates the release PR and tags.
 
 1. **Create release notes**: `devops/stable/release-notes/v{version}.md`
-2. **Open PR**: From `release-qual/{version}` to `stable`
-3. **After approval**:
+2. **Open PR**: From `staging/v{version}-rc1` to `stable`
+3. **After approval**, merge and tag:
    ```bash
+   git checkout stable
+   git pull
    git tag -a v{version} -m "Release version {version}"
    git push origin v{version}
-   # Merge PR on GitHub
-   git push origin --delete release-qual/{version}
    ```
 
 #### Step 5: Announce
