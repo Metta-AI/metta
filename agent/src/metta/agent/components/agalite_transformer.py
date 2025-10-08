@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Literal, Optional, Tuple
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -10,10 +11,17 @@ from pydantic import Field
 from tensordict import NonTensorData, TensorDict
 from torchrl.data import Composite
 
-from metta.agent.components.agalite_core_enhanced import EnhancedAGaLiTeCore
+from metta.agent.components.agalite_core_enhanced import AGaLiTeCore
 from metta.agent.components.agalite_kernel import AGaLiTeKernelConfig
 from metta.agent.components.component_config import ComponentConfig
-from metta.agent.memory import SegmentMemoryRecord
+
+
+@dataclass(slots=True)
+class SegmentMemoryRecord:
+    """Snapshot of policy memory captured at the start of a replay segment."""
+
+    segment_index: int
+    memory: Optional[Dict[str, Optional[List[torch.Tensor]]]]
 
 
 class AGaLiTeTransformerConfig(ComponentConfig):
@@ -27,7 +35,6 @@ class AGaLiTeTransformerConfig(ComponentConfig):
     feedforward_size: int = 768
     eta: int = 4
     r: int = 8
-    mode: Literal["galite", "agalite"] = "agalite"
     dropout: float = 0.0
     reset_on_terminate: bool = True
     layer_norm_eps: float = 1e-5
@@ -52,7 +59,7 @@ class AGaLiTeTransformer(nn.Module):
             raise ValueError(f"hidden_size ({self.hidden_size}) must be divisible by n_heads ({config.n_heads})")
 
         self._head_dim = self.hidden_size // config.n_heads
-        self._core = EnhancedAGaLiTeCore(
+        self._core = AGaLiTeCore(
             n_layers=config.n_layers,
             d_model=self.hidden_size,
             d_head=self._head_dim,
@@ -60,7 +67,6 @@ class AGaLiTeTransformer(nn.Module):
             n_heads=config.n_heads,
             eta=config.eta,
             r=config.r,
-            mode=config.mode,
             reset_on_terminate=config.reset_on_terminate,
             dropout=config.dropout,
             layer_norm_eps=config.layer_norm_eps,
