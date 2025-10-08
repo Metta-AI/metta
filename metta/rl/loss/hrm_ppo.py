@@ -89,7 +89,7 @@ class HRMPPOConfig(PPOConfig):
     """PPO Loss config with ACT Q-learning for HRM."""
 
     # ACT-specific parameters
-    act_loss_coef: float = Field(default=0.5, ge=0)  # Weight for ACT Q-learning loss
+    act_loss_coef: float = Field(default=0.0, ge=0)  # Weight for ACT Q-learning loss
     use_advantage_target: bool = True  # Use advantage as target for Q-halt
 
     def create(
