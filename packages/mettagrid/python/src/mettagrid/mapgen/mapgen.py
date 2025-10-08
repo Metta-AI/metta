@@ -14,7 +14,6 @@ from mettagrid.mapgen.scene import ChildrenAction, Scene, SceneConfig, load_symb
 from mettagrid.mapgen.scenes.copy_grid import CopyGrid
 from mettagrid.mapgen.scenes.room_grid import RoomGrid
 from mettagrid.mapgen.scenes.transplant_scene import TransplantScene
-from mettagrid.mapgen.utils.ascii_grid import parse_ascii_map
 
 
 class MapGen(MapBuilder):
@@ -150,23 +149,21 @@ class MapGen(MapBuilder):
             return self
 
         @classmethod
-        def with_ascii_uri(cls, ascii_map_uri: str, **kwargs) -> MapGen.Config:
-            # question to slava whether this function is needed
-            """Create a MapGenConfig with an ASCII map file as instance."""
+        def with_map_url(cls, map_url: str, **kwargs) -> MapGen.Config:
+            """Create a MapGenConfig from a map file on disk."""
 
-            ascii_config = AsciiMapBuilder.Config.from_uri(ascii_map_uri)
+            char_map = kwargs.pop("char_to_name_map", None)
+            ascii_config = AsciiMapBuilder.Config.from_uri(map_url, char_to_name_map=char_map)
             kwargs["instance"] = ascii_config
             return cls(**kwargs)
 
         @classmethod
-        def with_ascii_map(cls, ascii_map: str, **kwargs) -> MapGen.Config:
-            # question to slava whether this function is needed
+        def with_str_map(cls, map_str: str, **kwargs) -> MapGen.Config:
             """Create a MapGenConfig with an ASCII map as instance."""
-            map_lines, legend_map = parse_ascii_map(ascii_map)
-            kwargs["instance"] = AsciiMapBuilder.Config(
-                map_data=[list(line) for line in map_lines],
-                char_to_name_map=legend_map,
-            )
+
+            char_map = kwargs.pop("char_to_name_map", None)
+            ascii_config = AsciiMapBuilder.Config.from_ascii_map(map_str, char_to_name_map=char_map)
+            kwargs["instance"] = ascii_config
             return cls(**kwargs)
 
     def __init__(self, config: Config):

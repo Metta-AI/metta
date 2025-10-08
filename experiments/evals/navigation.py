@@ -39,7 +39,7 @@ def make_nav_ascii_env(
         instances=num_instances,
         border_width=border_width,
         instance_border_width=instance_border_width,
-        instance=MapGen.Config.with_ascii_map(ascii_map, border_width=border_width),
+        instance=MapGen.Config.with_str_map(ascii_map, border_width=border_width),
     )
 
     return make_nav_eval_env(env)

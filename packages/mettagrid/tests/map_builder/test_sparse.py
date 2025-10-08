@@ -56,3 +56,25 @@ def test_map_builder_config_from_uri_detects_sparse_builder():
         assert np.array_equal(game_map.grid, expected)
     finally:
         path.unlink(missing_ok=True)
+
+
+def test_map_builder_config_from_str():
+    yaml_content = textwrap.dedent(
+        """
+        type: mettagrid.map_builder.sparse.SparseMapBuilder
+        width: 2
+        height: 1
+        objects:
+          - row: 0
+            column: 1
+            name: agent.agent
+        """
+    )
+
+    config = MapBuilderConfig.from_str(yaml_content)
+    assert isinstance(config, SparseMapBuilder.Config)
+
+    builder = config.create()
+    game_map = builder.build()
+    assert game_map.grid.shape == (1, 2)
+    assert game_map.grid[0, 1] == "agent.agent"

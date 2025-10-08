@@ -3,10 +3,31 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
+import yaml
 from pydantic import Field, field_validator, model_validator
 
 from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
 from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME
+
+MAP_KEY = "map_data"
+LEGEND_KEY = "char_to_name_map"
+
+
+def _parse_ascii_map(text: str) -> tuple[list[list[str]], dict[str, str]]:
+    try:
+        data = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        raise ValueError("Map file must be valid YAML") from exc
+
+    if not isinstance(data, dict):
+        raise ValueError("Map file must be a YAML mapping with 'map' and 'legend'")
+
+    if MAP_KEY not in data or LEGEND_KEY not in data:
+        raise ValueError("Map YAML must include both 'map' and 'legend'")
+
+    map_rows = AsciiMapBuilder.Config._normalize_map_data(data[MAP_KEY])
+    legend_map = AsciiMapBuilder.Config._normalize_char_map(data[LEGEND_KEY])
+    return map_rows, legend_map
 
 
 class AsciiMapBuilder(MapBuilder):
@@ -107,6 +128,29 @@ class AsciiMapBuilder(MapBuilder):
                 legend[token] = cls._validate_value(name_raw)
             return legend
 
+        @classmethod
+        def _build_from_ascii(cls, ascii_map: str, char_to_name_map: dict[str, str] | None = None) -> dict[str, Any]:
+            try:
+                map_rows, legend_map = _parse_ascii_map(ascii_map)
+                map_lines = ["".join(row) for row in map_rows]
+            except ValueError:
+                if "map_data" in ascii_map and "char_to_name_map" in ascii_map:
+                    raise
+                map_lines = cls._map_lines_from_yaml(ascii_map)
+                legend_map = {}
+
+            merged = legend_map.copy()
+            if char_to_name_map:
+                merged |= char_to_name_map
+
+            data: dict[str, Any] = {
+                "map_data": [list(line) for line in map_lines],
+            }
+            if merged:
+                data["char_to_name_map"] = merged
+
+            return data
+
         @model_validator(mode="after")
         def validate_char_to_name_map(self) -> "AsciiMapBuilder.Config":
             self.char_to_name_map = DEFAULT_CHAR_TO_NAME | self.char_to_name_map
@@ -121,8 +165,19 @@ class AsciiMapBuilder(MapBuilder):
             return len(self.map_data)
 
         @classmethod
-        def from_uri(cls, uri: str) -> "AsciiMapBuilder.Config":
-            return super().from_uri(uri)
+        def from_uri(cls, uri: str, char_to_name_map: dict[str, str] | None = None) -> "AsciiMapBuilder.Config":
+            with open(uri, "r", encoding="utf-8") as f:
+                ascii_map = f.read()
+
+            data = cls._build_from_ascii(ascii_map, char_to_name_map)
+            return cls.model_validate(data)
+
+        @classmethod
+        def from_ascii_map(
+            cls, ascii_map: str, char_to_name_map: dict[str, str] | None = None
+        ) -> "AsciiMapBuilder.Config":
+            data = cls._build_from_ascii(ascii_map, char_to_name_map)
+            return cls.model_validate(data)
 
     def __init__(self, config: Config):
         self.config = config

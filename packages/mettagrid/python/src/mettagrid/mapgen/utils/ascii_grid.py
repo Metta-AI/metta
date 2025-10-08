@@ -1,35 +1,6 @@
 from __future__ import annotations
 
-import yaml
-
 from mettagrid.mapgen.types import MapGrid
-
-MAP_KEY = "map_data"
-LEGEND_KEY = "char_to_name_map"
-
-
-def parse_ascii_map(text: str) -> tuple[list[str], dict[str, str]]:
-    """Parse map content from YAML."""
-
-    try:
-        data = yaml.safe_load(text)
-    except yaml.YAMLError as exc:
-        raise ValueError("Map file must be valid YAML") from exc
-
-    if not isinstance(data, dict):
-        raise ValueError("Map file must be a YAML mapping with 'map' and 'legend'")
-
-    if MAP_KEY not in data or LEGEND_KEY not in data:
-        raise ValueError("Map YAML must include both 'map' and 'legend'")
-
-    from mettagrid.map_builder.ascii import AsciiMapBuilder
-
-    map_rows = AsciiMapBuilder.Config._normalize_map_data(data[MAP_KEY])
-    legend_map = AsciiMapBuilder.Config._normalize_char_map(data[LEGEND_KEY])
-
-    map_lines = ["".join(row) for row in map_rows]
-    return map_lines, legend_map
-
 
 DEFAULT_CHAR_TO_NAME: dict[str, str] = {
     "#": "wall",

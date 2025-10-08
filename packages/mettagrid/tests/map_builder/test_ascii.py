@@ -187,6 +187,20 @@ class TestAsciiMapBuilder:
         finally:
             os.unlink(temp_file)
 
+    def test_from_uri_accepts_char_override(self):
+        temp_file = write_temp_map("@.\n..\n")
+        try:
+            config = AsciiMapBuilder.Config.from_uri(temp_file, char_to_name_map={"@": "agent.custom"})
+            assert config.char_to_name_map["@"] == "agent.custom"
+        finally:
+            os.unlink(temp_file)
+
+    def test_from_ascii_map_string(self):
+        ascii_map = "#@\n.#"
+        config = AsciiMapBuilder.Config.from_ascii_map(ascii_map)
+        assert config.map_data == [["#", "@"], [".", "#"]]
+        assert config.char_to_name_map["#"] == "wall"
+
     def test_with_spaces_raises_error(self):
         yaml_content = make_yaml_map(
             [

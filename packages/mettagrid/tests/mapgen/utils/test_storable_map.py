@@ -1,7 +1,7 @@
 import textwrap
 
+from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.map_builder.map_builder import validate_any_map_builder
-from mettagrid.mapgen.utils.ascii_grid import parse_ascii_map
 from mettagrid.mapgen.utils.storable_map import StorableMap
 
 MAP_LINE_STRINGS = [
@@ -41,16 +41,17 @@ def test_serializes_map_from_yaml_string():
         """
     )
 
-    map_lines, legend_map = parse_ascii_map(ascii_yaml)
-    assert map_lines == MAP_LINE_STRINGS
-    assert legend_map == LEGEND
+    config = AsciiMapBuilder.Config.from_ascii_map(ascii_yaml)
+    assert ["".join(row) for row in config.map_data] == MAP_LINE_STRINGS
+    for token, name in LEGEND.items():
+        assert config.char_to_name_map[token] == name
 
     storable_map = StorableMap.from_cfg(
         validate_any_map_builder(
             {
                 "type": "mettagrid.map_builder.ascii.AsciiMapBuilder",
-                "map_data": [list(line) for line in map_lines],
-                "char_to_name_map": legend_map,
+                "map_data": config.map_data,
+                "char_to_name_map": config.char_to_name_map,
             }
         )
     )

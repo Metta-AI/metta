@@ -62,15 +62,26 @@ class MapBuilderConfig(Config, Generic[TBuilder]):
 
         path = Path(uri)
         with path.open("r", encoding="utf-8") as f:
-            data = yaml.safe_load(f)
+            raw = f.read()
 
-        if not isinstance(data, dict):
+        return cls.from_str(raw)
+
+    @classmethod
+    def from_str(cls, data: str | bytes | dict[str, Any]) -> Self:
+        """Load a builder config from a serialized string or mapping."""
+
+        if isinstance(data, (str, bytes)):
+            parsed = yaml.safe_load(data)
+        else:
+            parsed = data
+
+        if not isinstance(parsed, dict):
             raise ValueError("Map builder config file must contain a mapping")
 
         if cls is MapBuilderConfig or cls._builder_cls is None:
-            return validate_any_map_builder(data)  # type: ignore[return-value]
+            return validate_any_map_builder(parsed)  # type: ignore[return-value]
 
-        return cls.model_validate(data)
+        return cls.model_validate(parsed)
 
     @model_validator(mode="before")
     @classmethod
