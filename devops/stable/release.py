@@ -28,7 +28,7 @@ Workflow filtering:
 Examples:
   ./devops/stable/release.py                               # Full release (auto-continue)
   ./devops/stable/release.py --new                         # Full release (force new)
-  ./devops/stable/release.py --workflow test               # Just run tests
+  ./devops/stable/release.py --workflow ci                 # Just run CI (tests + linting)
   ./devops/stable/release.py --workflow train_local        # Run local smoke test
   ./devops/stable/release.py --workflow train_remote       # Run single-GPU remote training
   ./devops/stable/release.py --workflow train --new        # Run all train workflows (force new)
@@ -873,7 +873,7 @@ def step_workflow_tests(version: str, workflow_filter: Optional[str] = None, **_
     if workflow_filter:
         # Check if filter is a workflow type
         workflow_filter_lower = workflow_filter.lower()
-        if workflow_filter_lower in ("test", "train_local", "train_remote", "train_remote_multigpu", "play"):
+        if workflow_filter_lower in ("ci", "train_local", "train_remote", "train_remote_multigpu", "play"):
             # Exact workflow type match
             validations = [v for v in all_validations if v.workflow_type.value == workflow_filter_lower]
             print(f"Running {workflow_filter.upper()} workflows only\n")
@@ -1216,8 +1216,7 @@ Examples:
         "--workflow",
         metavar="FILTER",
         help=(
-            "Run workflow validations "
-            "(test|train|train_local|train_remote|train_remote_multigpu|play|<validation_name>)"
+            "Run workflow validations (ci|train|train_local|train_remote|train_remote_multigpu|play|<validation_name>)"
         ),
     )
 
