@@ -304,6 +304,7 @@ void MettaGrid::build_flat_action_catalog() {
   _action_arg_to_flat.resize(_action_handlers.size());
 
   std::unordered_set<std::string> seen_names;
+  seen_names.reserve(total_variants);
 
   for (size_t handler_index = 0; handler_index < _action_handlers.size(); ++handler_index) {
     auto& handler = _action_handlers[handler_index];
@@ -311,33 +312,24 @@ void MettaGrid::build_flat_action_catalog() {
     auto& arg_map = _action_arg_to_flat[handler_index];
     arg_map.assign(static_cast<size_t>(max_arg) + 1, -1);
 
-    auto append_variant = [&](ActionArg arg) {
-      std::string variant = handler->variant_name(arg);
-      if (variant.empty()) {
-        variant = handler->action_name();
+    for (unsigned char raw_arg = 0; raw_arg <= max_arg; ++raw_arg) {
+      const ActionArg arg = static_cast<ActionArg>(raw_arg);
+
+      std::string base_name = handler->variant_name(arg);
+      if (base_name.empty()) {
+        base_name = handler->action_name();
       }
 
-      if (seen_names.find(variant) != seen_names.end()) {
-        std::string base = variant;
-        int suffix = 1;
-        do {
-          variant = base + "_" + std::to_string(suffix++);
-        } while (seen_names.find(variant) != seen_names.end());
+      std::string variant = base_name;
+      int suffix = 1;
+      while (!seen_names.insert(variant).second) {
+        variant = base_name + "_" + std::to_string(suffix++);
       }
 
-      seen_names.insert(variant);
-
-      _flat_action_map.emplace_back(static_cast<ActionType>(handler_index), static_cast<ActionArg>(arg));
-      _flat_action_names.push_back(std::move(variant));
-      arg_map[static_cast<size_t>(arg)] = static_cast<int>(_flat_action_map.size() - 1);
-    };
-
-    if (max_arg == 0) {
-      append_variant(0);
-    } else {
-      for (unsigned char arg = 0; arg <= max_arg; ++arg) {
-        append_variant(static_cast<ActionArg>(arg));
-      }
+      const auto flat_index = static_cast<int>(_flat_action_map.size());
+      _flat_action_map.emplace_back(static_cast<ActionType>(handler_index), arg);
+      _flat_action_names.emplace_back(std::move(variant));
+      arg_map[static_cast<size_t>(arg)] = flat_index;
     }
   }
 }
