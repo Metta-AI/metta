@@ -7,16 +7,14 @@
 
 import { Queue, Worker, Job } from "bullmq";
 import { Redis } from "ioredis";
+import { config } from "./config";
 
 // Redis connection configuration
 const redisConfig = {
-  host: process.env.REDIS_HOST || "localhost",
-  port: parseInt(process.env.REDIS_PORT || "6379"),
-  // Add auth if needed in production
-  ...(process.env.REDIS_PASSWORD && { password: process.env.REDIS_PASSWORD }),
-  // Add TLS if needed for ElastiCache encryption in transit
-  ...(process.env.REDIS_TLS === "true" && { tls: {} }),
-  // Connection timeout to prevent hanging
+  host: config.redis.host,
+  port: config.redis.port,
+  ...(config.redis.password && { password: config.redis.password }),
+  ...(config.redis.tls && { tls: {} }),
   connectTimeout: 10000,
   lazyConnect: false,
 };

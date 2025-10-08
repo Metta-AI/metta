@@ -7,11 +7,12 @@ import Google from "next-auth/providers/google";
 import { redirect } from "next/navigation";
 
 import { prisma } from "./db/prisma";
+import { config } from "./config";
 
 function buildAuthConfig(): NextAuthConfig {
   const providers: Provider[] = [];
 
-  if (process.env.DEV_MODE === "true") {
+  if (config.features.devMode) {
     // Fake email provider. For local development only!
     providers.push({
       id: "fake-email",
@@ -24,30 +25,28 @@ function buildAuthConfig(): NextAuthConfig {
     });
   } else {
     // Google OAuth provider for production
-    if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+    if (config.google.clientId && config.google.clientSecret) {
       providers.push(
         Google({
-          clientId: process.env.GOOGLE_CLIENT_ID,
-          clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+          clientId: config.google.clientId,
+          clientSecret: config.google.clientSecret,
         })
       );
     }
   }
 
-  const allowedEmailDomains = process.env.ALLOWED_EMAIL_DOMAINS
-    ? process.env.ALLOWED_EMAIL_DOMAINS.split(",")
-    : ["stem.ai", "softmax.com"];
+  const allowedEmailDomains =
+    config.auth.allowedDomains.length > 0
+      ? config.auth.allowedDomains
+      : ["stem.ai", "softmax.com"];
 
-  const config: NextAuthConfig = {
+  const authConfig: NextAuthConfig = {
     adapter: PrismaAdapter(prisma),
     providers,
     callbacks: {
       async signIn({ account, profile, user }) {
         // Check domain restrictions for Google OAuth
-        if (
-          process.env.DEV_MODE !== "false" &&
-          account?.provider === "google"
-        ) {
+        if (config.features.devMode && account?.provider === "google") {
           const domainCheck = Boolean(
             profile?.email_verified &&
               allowedEmailDomains.some((domain) =>
@@ -87,10 +86,10 @@ function buildAuthConfig(): NextAuthConfig {
     session: {
       strategy: "database",
     },
-    secret: process.env.NEXTAUTH_SECRET,
+    secret: config.auth.secret,
   };
 
-  return config;
+  return authConfig;
 }
 
 function makeAuth(): NextAuthResult {
