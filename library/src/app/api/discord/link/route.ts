@@ -3,6 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth, isSignedIn } from "@/lib/auth";
 import { discordBot } from "@/lib/external-notifications/discord-bot";
 import { prisma } from "@/lib/db/prisma";
+import { AuthenticationError, BadRequestError } from "@/lib/errors";
+import { handleApiError } from "@/lib/api/error-handler";
+import { Logger } from "@/lib/logging/logger";
 
 // GET /api/discord/link - Get Discord linking status
 export async function GET() {
@@ -10,10 +13,7 @@ export async function GET() {
     const session = await auth();
 
     if (!isSignedIn(session)) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
+      throw new AuthenticationError();
     }
 
     // Get Discord linking status from notification preferences
@@ -57,14 +57,7 @@ export async function GET() {
       message: `Discord account ${firstPref.discordUsername} is linked`,
     });
   } catch (error) {
-    console.error("Error getting Discord link status:", error);
-    return NextResponse.json(
-      {
-        error: "Failed to get Discord link status",
-        details: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 }
-    );
+    return handleApiError(error, { endpoint: "GET /api/discord/link" });
   }
 }
 
@@ -74,10 +67,7 @@ export async function DELETE() {
     const session = await auth();
 
     if (!isSignedIn(session)) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
+      throw new AuthenticationError();
     }
 
     // Get current Discord link info
@@ -93,10 +83,7 @@ export async function DELETE() {
     });
 
     if (existingPreferences.length === 0) {
-      return NextResponse.json(
-        { error: "No Discord account linked" },
-        { status: 400 }
-      );
+      throw new BadRequestError("No Discord account linked");
     }
 
     const discordInfo = existingPreferences[0];
@@ -122,22 +109,23 @@ export async function DELETE() {
         // await discordBot.sendFarewellMessage(discordInfo.discordUserId);
       }
     } catch (error) {
-      console.warn("Failed to send farewell message:", error);
+      Logger.warn("Failed to send Discord farewell message", {
+        userId: session.user.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
       // Don't fail the unlinking if farewell message fails
     }
+
+    Logger.info("Discord account unlinked", {
+      userId: session.user.id,
+      discordUsername: discordInfo.discordUsername,
+    });
 
     return NextResponse.json({
       success: true,
       message: `Discord account ${discordInfo.discordUsername} unlinked successfully`,
     });
   } catch (error) {
-    console.error("Error unlinking Discord account:", error);
-    return NextResponse.json(
-      {
-        error: "Failed to unlink Discord account",
-        details: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 }
-    );
+    return handleApiError(error, { endpoint: "DELETE /api/discord/link" });
   }
 }

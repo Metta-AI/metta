@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db/prisma";
 import { ResolvedMention } from "./mention-resolution";
 import { JobQueueService } from "./job-queue";
 import { getEnabledChannels } from "./notification-preferences";
+import { Logger } from "./logging/logger";
 
 export type NotificationType =
   | "MENTION"
@@ -75,14 +76,16 @@ async function queueExternalNotifications(
         priority
       );
 
-      console.log(
-        `📤 Queued external notifications for ${notificationId}: ${enabledChannels.join(", ")}`
-      );
+      Logger.debug("Queued external notifications", {
+        notificationId,
+        channels: enabledChannels,
+      });
     }
   } catch (error) {
-    console.error(
-      `❌ Failed to queue external notifications for ${notificationId}:`,
-      error
+    Logger.error(
+      "Failed to queue external notifications",
+      error instanceof Error ? error : new Error(String(error)),
+      { notificationId }
     );
     // Don't throw - we don't want external notification failures to break the main flow
   }
@@ -121,7 +124,10 @@ export async function createNotifications(
 
   // Don't await these - let them run in background
   Promise.allSettled(queuePromises).catch((error) => {
-    console.error("❌ Some external notification queuing failed:", error);
+    Logger.error(
+      "Some external notification queuing failed",
+      error instanceof Error ? error : new Error(String(error))
+    );
   });
 
   return result;
@@ -190,7 +196,9 @@ export async function createMentionNotifications(
 
   if (notifications.length > 0) {
     await createNotifications(notifications);
-    console.log(`📧 Created ${notifications.length} mention notifications`);
+    Logger.info("Created mention notifications", {
+      count: notifications.length,
+    });
   }
 
   return notifications;
