@@ -4,6 +4,7 @@ Provides a simple, unified interface for running jobs locally via subprocess
 or remotely via SkyPilot, with synchronous wait and log fetching.
 """
 
+import os
 import re
 import subprocess
 import time
@@ -12,15 +13,10 @@ from typing import Optional
 
 from devops.skypilot.utils.job_helpers import tail_job_log
 from devops.skypilot.utils.testing_helpers import LaunchedJob, SkyPilotTestLauncher
+from metta.common.util.fs import get_repo_root
 
 
-def repo_root() -> str:
-    """Get repository root dynamically via git."""
-    result = subprocess.run(["git", "rev-parse", "--show-toplevel"], check=True, text=True, capture_output=True)
-    return result.stdout.strip()
-
-
-class LocalJob:
+class LocalJobResult:
     """A completed local job."""
 
     def __init__(self, name: str, logs_path: str, returncode: int):
@@ -47,15 +43,32 @@ class RemoteJob:
         self._launched_job = launched_job
         self._logs_path_obj = logs_path
 
-    def wait(self, timeout_s: Optional[int] = None) -> int:
-        """Poll until job completes or times out."""
+    def wait(self, timeout_s: Optional[int] = None, stream_output: bool = False) -> int:
+        """Poll until job completes or times out.
+
+        Args:
+            timeout_s: Timeout in seconds
+            stream_output: If True, stream new log lines to console as they arrive
+
+        Returns:
+            Exit code of the job
+        """
         if not self._launched_job.success or not self.job_id:
             self.exit_code = 1
             return 1
 
         start = time.time()
+        printed_bytes = 0
+
         while True:
             logs = self.get_logs()
+
+            # Stream new output to console
+            if stream_output and logs and len(logs) > printed_bytes:
+                new_content = logs[printed_bytes:]
+                print(new_content, end="", flush=True)
+                printed_bytes = len(logs)
+
             # Check for completion marker
             if "Exit code:" in logs:
                 match = re.search(r"Exit code: (\d+)", logs)
@@ -96,7 +109,8 @@ def run_local(
     timeout_s: int = 900,
     log_dir: str = "logs/local",
     cwd: Optional[str] = None,
-) -> LocalJob:
+    stream_output: bool = False,
+) -> LocalJobResult:
     """Run a command locally via subprocess.
 
     Args:
@@ -105,29 +119,57 @@ def run_local(
         timeout_s: Timeout in seconds
         log_dir: Directory to write logs
         cwd: Working directory (defaults to current git repo root)
+        stream_output: If True, stream output to console in real-time
 
     Returns:
-        LocalJob with exit code and logs path
+        LocalJobResult with exit code and logs path
     """
-    cwd = cwd or repo_root()
+    cwd = cwd or get_repo_root()
     log_path = Path(log_dir) / f"{name}.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
 
     try:
-        with open(log_path, "w") as lf:
-            proc = subprocess.run(
-                cmd,
-                cwd=cwd,
-                text=True,
-                stdout=lf,
-                stderr=subprocess.STDOUT,
-                timeout=timeout_s,
-            )
-        return LocalJob(name=name, logs_path=str(log_path), returncode=proc.returncode)
+        if stream_output:
+            # Use Popen for streaming output
+            # Force color output and unbuffered mode
+            env = os.environ.copy()
+            env["PYTHONUNBUFFERED"] = "1"
+            env["FORCE_COLOR"] = "1"
+            env["CLICOLOR_FORCE"] = "1"
+
+            with open(log_path, "wb") as lf:
+                proc = subprocess.Popen(
+                    cmd,
+                    cwd=cwd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    env=env,
+                )
+
+                # Stream output to both console and log file (preserve colors)
+                for line in proc.stdout:
+                    # Write raw bytes to preserve ANSI color codes
+                    print(line.decode("utf-8", errors="replace"), end="", flush=True)
+                    lf.write(line)
+
+                # Wait for process to complete
+                proc.wait(timeout=timeout_s)
+                return LocalJobResult(name=name, logs_path=str(log_path), returncode=proc.returncode)
+        else:
+            with open(log_path, "w") as lf:
+                proc = subprocess.run(
+                    cmd,
+                    cwd=cwd,
+                    text=True,
+                    stdout=lf,
+                    stderr=subprocess.STDOUT,
+                    timeout=timeout_s,
+                )
+            return LocalJobResult(name=name, logs_path=str(log_path), returncode=proc.returncode)
     except subprocess.TimeoutExpired:
         with open(log_path, "a") as lf:
             lf.write(f"\n\n[TIMEOUT] Job exceeded {timeout_s} seconds\n")
-        return LocalJob(name=name, logs_path=str(log_path), returncode=124)
+        return LocalJobResult(name=name, logs_path=str(log_path), returncode=124)
 
 
 def run_remote(

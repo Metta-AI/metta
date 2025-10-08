@@ -1,0 +1,21 @@
+{
+  "version": "release_2025.10.07-1856",
+  "created_at": "2025-10-08T01:56:36",
+  "commit_sha": "13c76c7cf7be6ec8d308c8ca24bfb537f778e4ce",
+  "validations": {
+    "metta_test": {
+      "name": "metta_test",
+      "workflow_type": "test",
+      "location": "local",
+      "started_at": "2025-10-08T01:56:36",
+      "ended_at": "2025-10-08T01:59:07",
+      "exit_code": 1,
+      "metrics": {},
+      "logs_path": "devops/stable/logs/local/metta_test.log",
+      "job_id": null,
+      "outcome": "failed",
+      "error": "Exit code 1"
+    }
+  },
+  "gates": []
+}
