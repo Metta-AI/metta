@@ -261,7 +261,7 @@ class MixerModel(nn.Module):
         else:
             # Set prenorm=False here since we don't need the residual
             norm_f_bias = getattr(self.norm_f, "bias", None)
-            hidden_states, _ = layer_norm_fn(
+            layer_norm_out = layer_norm_fn(
                 hidden_states,
                 self.norm_f.weight,
                 norm_f_bias,
@@ -272,6 +272,10 @@ class MixerModel(nn.Module):
                 is_rms_norm=isinstance(self.norm_f, RMSNorm),
                 dropout_p=self.dropout_p if self.training else 0.0,
             )
+            if isinstance(layer_norm_out, tuple):
+                hidden_states = layer_norm_out[0]
+            else:
+                hidden_states = layer_norm_out
         return hidden_states
 
 
