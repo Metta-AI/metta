@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import logging
 import os
 import re
 import subprocess
@@ -37,10 +36,7 @@ from typing import Literal, Optional
 
 import gitta as git
 from devops.job_runner import run_local, run_remote
-
-# Configure logging
-
-logger = logging.getLogger(__name__)
+from metta.common.util.text_styles import bold, cyan, green, red
 
 # ============================================================================
 # Data Models
@@ -208,7 +204,7 @@ def load_state(version: str) -> Optional[ReleaseState]:
         )
         return state
     except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
-        logger.error(f"Failed to load state from {path}: {e}")
+        print(f"Failed to load state from {path}: {e}")
         return None
 
 
@@ -335,7 +331,7 @@ def run_validation(
     if validation.name in state.validations:
         existing = state.validations[validation.name]
         if existing.outcome in ("passed", "failed", "skipped"):
-            logger.info(f"  ⏭️  {validation.name} - already completed ({existing.outcome})")
+            print(f"  ⏭️  {validation.name} - already completed ({existing.outcome})")
             return existing
 
     # Create new result record (for state persistence)
@@ -347,7 +343,7 @@ def run_validation(
     )
 
     try:
-        logger.info(f"  🔄 {validation.name} [{validation.workflow_type.value}] - starting...")
+        print(f"  🔄 {validation.name} [{validation.workflow_type.value}] - starting...")
 
         # Handle different workflow types
         if validation.workflow_type == WorkflowType.TEST:
@@ -368,8 +364,8 @@ def run_validation(
         elif validation.workflow_type == WorkflowType.PLAY:
             # Run play recipe locally via job_runner
             cmd = ["uv", "run", "./tools/run.py", validation.module, *validation.args]
-            logger.info("     Launching play window for manual verification...")
-            logger.info(f"     Command: {' '.join(cmd)}")
+            print("     Launching play window for manual verification...")
+            print(f"     Command: {' '.join(cmd)}")
 
             job = run_local(
                 name=validation.name,
@@ -385,10 +381,10 @@ def run_validation(
 
             # Always require manual confirmation for PLAY workflows
             if result.exit_code == 0:
-                logger.info("     Play window launched successfully")
+                print("     Play window launched successfully")
                 if not _get_user_confirmation(f"Did the play workflow '{validation.name}' work correctly?"):
                     result.complete("failed", 1, error="User indicated play workflow failed")
-                    logger.error(f"  ❌ {validation.name} - User confirmed FAILURE")
+                    print(f"  ❌ {validation.name} - User confirmed FAILURE")
                     return result
 
         elif validation.workflow_type == WorkflowType.TRAIN:
@@ -420,7 +416,7 @@ def run_validation(
                 if region:
                     base_args.extend(["--region", region])
 
-                logger.info(f"     Cluster config: {nodes} nodes × {gpus} GPUs = {nodes * gpus} total GPUs")
+                print(f"     Cluster config: {nodes} nodes × {gpus} GPUs = {nodes * gpus} total GPUs")
 
                 job = run_remote(
                     name=validation.name,
@@ -439,11 +435,11 @@ def run_validation(
         # Check exit code
         if result.exit_code == 124:
             result.complete("failed", result.exit_code, error="Timeout exceeded")
-            logger.error(f"  ❌ {validation.name} - TIMEOUT")
+            print(red(f"  ❌ {validation.name} - TIMEOUT"))
             return result
         elif result.exit_code != 0:
             result.complete("failed", result.exit_code, error=f"Exit code {result.exit_code}")
-            logger.error(f"  ❌ {validation.name} - FAILED (exit {result.exit_code})")
+            print(f"  ❌ {validation.name} - FAILED (exit {result.exit_code})")
             return result
 
         # Extract metrics (only for TRAIN workflows)
@@ -456,31 +452,31 @@ def run_validation(
             result.complete(outcome, result.exit_code)
 
             if outcome == "passed":
-                logger.info(f"  ✅ {validation.name} - PASSED")
+                print(green(f"  ✅ {validation.name} - PASSED"))
                 if result.metrics:
                     metrics_str = ", ".join(f"{k}={v:.1f}" for k, v in result.metrics.items())
-                    logger.info(f"     Metrics: {metrics_str}")
+                    print(f"     Metrics: {metrics_str}")
             else:
-                logger.error(f"  ❌ {validation.name} - FAILED acceptance criteria")
+                print(f"  ❌ {validation.name} - FAILED acceptance criteria")
                 if result.metrics:
                     metrics_str = ", ".join(f"{k}={v:.1f}" for k, v in result.metrics.items())
-                    logger.info(f"     Metrics: {metrics_str}")
+                    print(f"     Metrics: {metrics_str}")
                 for check in failed_checks:
-                    logger.error(f"     Failed: {check.note}")
+                    print(f"     Failed: {check.note}")
         else:
             # No acceptance criteria - just mark as passed
             result.complete("passed", result.exit_code)
-            logger.info(f"  ✅ {validation.name} - PASSED")
+            print(f"  ✅ {validation.name} - PASSED")
 
         return result
 
     except subprocess.TimeoutExpired as e:
         result.complete("failed", 124, error=f"Timeout: {e}")
-        logger.error(f"  ❌ {validation.name} - TIMEOUT")
+        print(f"  ❌ {validation.name} - TIMEOUT")
         return result
     except Exception as e:
         result.complete("failed", 1, error=f"Unexpected error: {e}")
-        logger.error(f"  ❌ {validation.name} - ERROR: {e}")
+        print(f"  ❌ {validation.name} - ERROR: {e}")
         return result
 
 
@@ -572,7 +568,7 @@ def _ensure_git_repo() -> None:
     try:
         git.run_git("rev-parse", "--git-dir")
     except git.GitError:
-        logger.error("Not in a git repository. Aborting.")
+        print("Not in a git repository. Aborting.")
         sys.exit(1)
 
 
@@ -582,17 +578,17 @@ def step_prepare_branch(version: str, **_kwargs) -> None:
 
     branch_name = f"staging/v{version}-rc1"
 
-    logger.info("\n" + "=" * 60)
-    logger.info(f"STEP 1: Prepare Staging Branch (v{version})")
-    logger.info("=" * 60 + "\n")
+    print("\n" + "=" * 60)
+    print(bold(f"STEP 1: Prepare Staging Branch (v{version})"))
+    print("=" * 60 + "\n")
 
-    logger.info(f"Creating branch: {branch_name}")
+    print(f"Creating branch: {branch_name}")
     try:
         git.run_git("checkout", "-b", branch_name)
         git.run_git("push", "-u", "origin", branch_name)
-        logger.info(f"✅ Branch {branch_name} created and pushed successfully")
+        print(green(f"✅ Branch {branch_name} created and pushed successfully"))
     except git.GitError as e:
-        logger.error(f"Failed to create/push branch: {e}")
+        print(f"Failed to create/push branch: {e}")
         sys.exit(1)
 
 
@@ -613,7 +609,7 @@ def _check_asana_blockers() -> Optional[bool]:
     try:
         import asana
     except ImportError:
-        logger.warning("Asana library not installed (pip install asana)")
+        print("Asana library not installed (pip install asana)")
         return None
 
     try:
@@ -625,7 +621,7 @@ def _check_asana_blockers() -> Optional[bool]:
         # Get user info to verify auth
         users_api = asana.UsersApi(client)
         user = users_api.get_user("me", {})
-        logger.info(f"✓ Authenticated as {user.get('name', '?')}")
+        print(f"✓ Authenticated as {user.get('name', '?')}")
 
         # Get project sections
         sections_api = asana.SectionsApi(client)
@@ -634,7 +630,7 @@ def _check_asana_blockers() -> Optional[bool]:
         # Find "Active" section
         active_section = next((s for s in sections if s["name"].lower() == "active"), None)
         if not active_section:
-            logger.warning("No 'Active' section found in Asana project")
+            print("No 'Active' section found in Asana project")
             return None
 
         # Get tasks in Active section
@@ -648,18 +644,18 @@ def _check_asana_blockers() -> Optional[bool]:
         open_tasks = [t for t in tasks if not t.get("completed", False)]
 
         if not open_tasks:
-            logger.info("✅ No blocking bugs in Asana Active section")
+            print(green("✅ No blocking bugs in Asana Active section"))
             return True
 
-        logger.error(f"❌ Found {len(open_tasks)} blocking task(s) in Active:")
+        print(f"❌ Found {len(open_tasks)} blocking task(s) in Active:")
         for task in open_tasks[:10]:  # Show first 10
-            logger.error(f"  • {task['name']}")
+            print(f"  • {task['name']}")
             if task.get("permalink_url"):
-                logger.error(f"    {task['permalink_url']}")
+                print(f"    {task['permalink_url']}")
         return False
 
     except Exception as e:
-        logger.warning(f"Asana API error: {e}")
+        print(f"Asana API error: {e}")
         return None
 
 
@@ -674,43 +670,43 @@ def _get_user_confirmation(prompt: str) -> bool:
 
 def step_bug_check(**_kwargs) -> None:
     """Step 2: Check for blocking bugs."""
-    logger.info("\n" + "=" * 60)
-    logger.info("STEP 2: Bug Status Check")
-    logger.info("=" * 60 + "\n")
+    print("\n" + "=" * 60)
+    print(bold("STEP 2: Bug Status Check"))
+    print("=" * 60 + "\n")
 
     # Try automated Asana check
     result = _check_asana_blockers()
 
     if result is True:
-        logger.info("✅ Bug check PASSED - clear for release")
+        print("✅ Bug check PASSED - clear for release")
         return
     elif result is False:
-        logger.error("❌ Bug check FAILED - resolve blocking issues before release")
+        print("❌ Bug check FAILED - resolve blocking issues before release")
         sys.exit(1)
 
     # Asana check inconclusive - fall back to manual
-    logger.warning("⚠️  Asana automation unavailable or inconclusive")
-    logger.info("\nTo enable automated checking:")
-    logger.info("  export ASANA_TOKEN='your_personal_access_token'")
-    logger.info("  export ASANA_PROJECT_ID='your_project_id'")
-    logger.info("\nManual steps required:")
-    logger.info("1. Open Asana project for bug tracking")
-    logger.info("2. Verify no active/open bugs marked as blockers")
-    logger.info("3. Update bug statuses as needed in consultation with bug owners")
-    logger.info("")
+    print("⚠️  Asana automation unavailable or inconclusive")
+    print("\nTo enable automated checking:")
+    print("  export ASANA_TOKEN='your_personal_access_token'")
+    print("  export ASANA_PROJECT_ID='your_project_id'")
+    print("\nManual steps required:")
+    print("1. Open Asana project for bug tracking")
+    print("2. Verify no active/open bugs marked as blockers")
+    print("3. Update bug statuses as needed in consultation with bug owners")
+    print("")
 
     if not _get_user_confirmation("Have you completed the bug status check and is it PASSED?"):
-        logger.error("❌ Bug check FAILED - user indicated issues remain")
+        print("❌ Bug check FAILED - user indicated issues remain")
         sys.exit(1)
 
-    logger.info("✅ Bug check PASSED - user confirmed")
+    print("✅ Bug check PASSED - user confirmed")
 
 
 def step_workflow_tests(version: str, **_kwargs) -> None:
     """Step 3: Run validation workflows."""
-    logger.info("\n" + "=" * 60)
-    logger.info("STEP 3: Workflow Validation")
-    logger.info("=" * 60 + "\n")
+    print("\n" + "=" * 60)
+    print(bold("STEP 3: Workflow Validation"))
+    print("=" * 60 + "\n")
 
     # Load or create state
     state_version = f"release_{version}"
@@ -741,49 +737,49 @@ def step_workflow_tests(version: str, **_kwargs) -> None:
     passed = sum(1 for r in state.validations.values() if r.outcome == "passed")
     failed = sum(1 for r in state.validations.values() if r.outcome == "failed")
 
-    logger.info("\n" + "=" * 80)
-    logger.info("Validation Summary")
-    logger.info("=" * 80)
-    logger.info("\nResults:")
-    logger.info(f"  ✅ Passed:  {passed}")
-    logger.info(f"  ❌ Failed:  {failed}")
+    print("\n" + "=" * 80)
+    print("Validation Summary")
+    print("=" * 80)
+    print("\nResults:")
+    print(f"  ✅ Passed:  {passed}")
+    print(f"  ❌ Failed:  {failed}")
 
-    logger.info("\nDetailed Results:")
+    print("\nDetailed Results:")
     for result in state.validations.values():
         icon = {"passed": "✅", "failed": "❌", "skipped": "⏸️"}.get(result.outcome or "", "❓")
-        logger.info(f"  {icon} {result.name:24} loc={result.location:6} exit={result.exit_code:>3}")
+        print(f"  {icon} {result.name:24} loc={result.location:6} exit={result.exit_code:>3}")
         if result.metrics:
             metrics_str = "  ".join(f"{k}={v:.1f}" for k, v in result.metrics.items())
-            logger.info(f"       Metrics: {metrics_str}")
+            print(f"       Metrics: {metrics_str}")
         if result.logs_path:
-            logger.info(f"       Logs: {result.logs_path}")
+            print(f"       Logs: {result.logs_path}")
         if result.job_id:
-            logger.info(f"       Job ID: {result.job_id}")
+            print(f"       Job ID: {result.job_id}")
 
-    logger.info("=" * 80)
+    print("=" * 80)
 
     if failed:
-        logger.info(f"\nState saved to: {STATE_DIR / f'{state_version}.json'}")
-        logger.error("❌ Workflow validation FAILED")
+        print(f"\nState saved to: {STATE_DIR / f'{state_version}.json'}")
+        print("❌ Workflow validation FAILED")
         sys.exit(1)
 
-    logger.info("\n✅ All workflow validations PASSED")
-    logger.info(f"State saved to: {STATE_DIR / f'{state_version}.json'}")
+    print("\n✅ All workflow validations PASSED")
+    print(f"State saved to: {STATE_DIR / f'{state_version}.json'}")
 
 
 def step_summary(version: str, **_kwargs) -> None:
     """Step 4: Print validation summary and release notes template."""
-    logger.info("\n" + "=" * 60)
-    logger.info("STEP 4: Release Summary")
-    logger.info("=" * 60 + "\n")
+    print("\n" + "=" * 60)
+    print(bold("STEP 4: Release Summary"))
+    print("=" * 60 + "\n")
 
     # Load state to extract metrics
     state_version = f"release_{version}"
     state = load_state(state_version)
 
     if not state:
-        logger.error(f"No state found for version {version}")
-        logger.error("Run --step workflow-tests first")
+        print(f"No state found for version {version}")
+        print("Run --step workflow-tests first")
         sys.exit(1)
 
     # Extract training metrics from TRAIN validations
@@ -803,52 +799,52 @@ def step_summary(version: str, **_kwargs) -> None:
     git_log = _get_git_log_since_stable()
 
     # Print validation summary
-    logger.info("Validation Results:")
+    print("Validation Results:")
     for name, result in state.validations.items():
         icon = {"passed": "✅", "failed": "❌", "skipped": "⏸️"}.get(result.outcome or "", "❓")
-        logger.info(f"  {icon} {name}")
+        print(f"  {icon} {name}")
         if result.metrics:
             metrics_str = ", ".join(f"{k}={v:.1f}" for k, v in result.metrics.items())
-            logger.info(f"       Metrics: {metrics_str}")
+            print(f"       Metrics: {metrics_str}")
 
     # Print release notes template
-    logger.info("\n" + "=" * 60)
-    logger.info("Release Notes Template")
-    logger.info("=" * 60 + "\n")
-    logger.info(f"## Version {version}")
-    logger.info("")
-    logger.info("### Changes Since Last Stable Release")
-    logger.info("")
+    print("\n" + "=" * 60)
+    print("Release Notes Template")
+    print("=" * 60 + "\n")
+    print(f"## Version {version}")
+    print("")
+    print("### Changes Since Last Stable Release")
+    print("")
     if git_log:
         for line in git_log.split("\n"):
-            logger.info(f"- {line}")
+            print(f"- {line}")
     else:
-        logger.info("- <No commits found>")
-    logger.info("")
-    logger.info("### Known Issues")
-    logger.info("")
-    logger.info("<Add notes from bug-check step>")
-    logger.info("")
-    logger.info("### Training Job Links")
-    logger.info("")
+        print("- <No commits found>")
+    print("")
+    print("### Known Issues")
+    print("")
+    print("<Add notes from bug-check step>")
+    print("")
+    print("### Training Job Links")
+    print("")
     if training_job_id:
-        logger.info(f"- SkyPilot Job ID: {training_job_id}")
-        logger.info(f"- View logs: sky logs {training_job_id}")
+        print(f"- SkyPilot Job ID: {training_job_id}")
+        print(f"- View logs: sky logs {training_job_id}")
     else:
-        logger.info("- No remote training jobs")
-    logger.info("")
-    logger.info("### Key Metrics")
-    logger.info("")
-    logger.info(f"- Training throughput (SPS max): {sps_max}")
-    logger.info(f"- Training throughput (SPS last): {sps_last}")
-    logger.info("")
+        print("- No remote training jobs")
+    print("")
+    print("### Key Metrics")
+    print("")
+    print(f"- Training throughput (SPS max): {sps_max}")
+    print(f"- Training throughput (SPS last): {sps_last}")
+    print("")
 
 
 def step_release(version: str, **_kwargs) -> None:
     """Step 5: Automatically create release tag and release notes."""
-    logger.info("\n" + "=" * 60)
-    logger.info("STEP 5: Create Release")
-    logger.info("=" * 60 + "\n")
+    print("\n" + "=" * 60)
+    print(bold("STEP 5: Create Release"))
+    print("=" * 60 + "\n")
 
     _ensure_git_repo()
 
@@ -857,16 +853,16 @@ def step_release(version: str, **_kwargs) -> None:
     state = load_state(state_version)
 
     if not state:
-        logger.error(f"No state found for version {version}")
-        logger.error("Run --step workflow-tests first")
+        print(f"No state found for version {version}")
+        print("Run --step workflow-tests first")
         sys.exit(1)
 
     # Verify all validations passed
     failed = [name for name, result in state.validations.items() if result.outcome == "failed"]
     if failed:
-        logger.error("Cannot release with failed validations:")
+        print("Cannot release with failed validations:")
         for name in failed:
-            logger.error(f"  ❌ {name}")
+            print(f"  ❌ {name}")
         sys.exit(1)
 
     # Extract metrics for release notes
@@ -922,7 +918,7 @@ def step_release(version: str, **_kwargs) -> None:
 
     # Write release notes
     release_notes_path.write_text(release_notes_content)
-    logger.info(f"✅ Created release notes: {release_notes_path}")
+    print(f"✅ Created release notes: {release_notes_path}")
 
     # Create git tag
     tag_name = f"v{version}"
@@ -930,45 +926,45 @@ def step_release(version: str, **_kwargs) -> None:
         # Check if tag already exists
         existing = git.run_git("tag", "-l", tag_name)
         if existing.strip():
-            logger.error(f"Tag {tag_name} already exists")
+            print(f"Tag {tag_name} already exists")
             sys.exit(1)
 
         # Create annotated tag
         git.run_git("tag", "-a", tag_name, "-m", f"Release version {version}")
-        logger.info(f"✅ Created git tag: {tag_name}")
+        print(f"✅ Created git tag: {tag_name}")
 
         # Push tag
         git.run_git("push", "origin", tag_name)
-        logger.info(f"✅ Pushed tag to origin: {tag_name}")
+        print(f"✅ Pushed tag to origin: {tag_name}")
 
     except git.GitError as e:
-        logger.error(f"Failed to create/push tag: {e}")
+        print(f"Failed to create/push tag: {e}")
         sys.exit(1)
 
     # Mark state as released
     state.released = True
     save_state(state)
 
-    logger.info("\n" + "=" * 60)
-    logger.info("Release Complete!")
-    logger.info("=" * 60)
-    logger.info(f"\nRelease notes: {release_notes_path}")
-    logger.info(f"Git tag: {tag_name}")
-    logger.info("\nNext steps:")
-    logger.info("  1. Create GitHub release from tag")
-    logger.info("  2. Run --step announce to notify team")
+    print("\n" + "=" * 60)
+    print("Release Complete!")
+    print("=" * 60)
+    print(f"\nRelease notes: {release_notes_path}")
+    print(f"Git tag: {tag_name}")
+    print("\nNext steps:")
+    print("  1. Create GitHub release from tag")
+    print("  2. Run --step announce to notify team")
 
 
 def step_announce(version: str, **_kwargs) -> None:
     """Step 6: Print announcement instructions."""
-    logger.info("\n" + "=" * 60)
-    logger.info("STEP 6: Announce")
-    logger.info("=" * 60 + "\n")
+    print("\n" + "=" * 60)
+    print(bold("STEP 6: Announce"))
+    print("=" * 60 + "\n")
 
-    logger.info("Post release completion to Discord in #eng-process")
-    logger.info("\nSuggested message:")
-    logger.info(f"Released stable version v{version}")
-    logger.info(f"Release notes: devops/stable/release-notes/v{version}.md")
+    print("Post release completion to Discord in #eng-process")
+    print("\nSuggested message:")
+    print(f"Released stable version v{version}")
+    print(f"Release notes: devops/stable/release-notes/v{version}.md")
 
 
 # ============================================================================
@@ -1026,11 +1022,11 @@ def main() -> None:
     if args.version:
         # Explicit version specified - use it
         version = args.version
-        logger.debug(f"Using explicit version: {version}")
+        print(f"Using explicit version: {version}")
     elif args.new:
         # Force new release
         version = generate_version()
-        logger.info(f"Starting new release: {version}")
+        print(f"Starting new release: {version}")
     else:
         # Smart default: continue if in progress, new if last was released
         recent = get_most_recent_state()
@@ -1039,15 +1035,15 @@ def main() -> None:
             if recent_state.released:
                 # Last release was completed, start new one
                 version = generate_version()
-                logger.info(f"Previous release ({recent_version}) completed. Starting new: {version}")
+                print(f"Previous release ({recent_version}) completed. Starting new: {version}")
             else:
                 # Continue in-progress release
                 version = recent_version
-                logger.info(f"Continuing in-progress release: {version}")
+                print(f"Continuing in-progress release: {version}")
         else:
             # No existing state, start new
             version = generate_version()
-            logger.info(f"Starting new release: {version}")
+            print(f"Starting new release: {version}")
 
     # Map steps to functions (all have same signature now)
     steps = {
@@ -1065,13 +1061,13 @@ def main() -> None:
     }
 
     # Print header with version and contacts
-    logger.info("=" * 80)
-    logger.info(f"Stable Release System - Version {version}")
-    logger.info("=" * 80)
-    logger.info("\nContacts:")
+    print("=" * 80)
+    print(bold(cyan(f"Stable Release System - Version {version}")))
+    print("=" * 80)
+    print("\nContacts:")
     for contact in CONTACTS:
-        logger.info(f"  - {contact}")
-    logger.info("")
+        print(f"  - {contact}")
+    print("")
 
     # Execute
     if args.step:
