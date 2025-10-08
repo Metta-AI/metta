@@ -81,15 +81,10 @@ export default function NavigablePaperOverlay({
       // If that fails, try searching by name via the authors API
       if (!fullAuthor) {
         try {
-          const searchResponse = await fetch(
-            `/api/authors?search=${encodeURIComponent(authorName)}`
-          );
-          if (searchResponse.ok) {
-            const searchResults = await searchResponse.json();
-            if (searchResults.length > 0) {
-              // Use the first matching author
-              fullAuthor = searchResults[0];
-            }
+          const searchResults = await authorsApi.searchAuthors(authorName);
+          if (searchResults.length > 0) {
+            // Use the first matching author
+            fullAuthor = searchResults[0];
           }
         } catch (searchError) {
           console.log("Search by name failed:", searchError);

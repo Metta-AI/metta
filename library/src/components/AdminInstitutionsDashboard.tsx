@@ -15,6 +15,7 @@ import { useErrorHandling } from "@/lib/hooks/useErrorHandling";
 import { manageInstitutionOwnershipAction } from "@/institutions/actions/manageInstitutionOwnershipAction";
 import { toggleApprovalRequirementAction } from "@/institutions/actions/toggleApprovalRequirementAction";
 import { approveRejectMembershipAction } from "@/institutions/actions/approveRejectMembershipAction";
+import { listAdminInstitutions } from "@/lib/api/resources/admin";
 
 interface AdminInstitutionUser {
   id: string;
@@ -88,13 +89,22 @@ export const AdminInstitutionsDashboard: React.FC<
     });
 
   const refreshInstitutions = useCallback(async () => {
-    const response = await fetch("/api/admin/institutions");
-    if (!response.ok) {
-      console.error("Failed to refresh institutions");
-      return;
+    try {
+      const data = await listAdminInstitutions();
+      // Map AdminInstitution to AdminInstitutionRow
+      const mapped: AdminInstitutionRow[] = data.map((inst) => ({
+        ...inst,
+        type: "University" as const, // Default type
+        isVerified: true,
+        createdAt: new Date(),
+        pendingCount: inst.pendingMembersCount,
+        admins: [], // Will be loaded separately
+        pendingRequests: [], // Will be loaded separately
+      }));
+      setInstitutions(mapped);
+    } catch (error) {
+      console.error("Failed to refresh institutions:", error);
     }
-    const data = await response.json();
-    setInstitutions(data.institutions);
   }, []);
 
   useEffect(() => {
@@ -198,17 +208,15 @@ export const AdminInstitutionsDashboard: React.FC<
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() =>
-                  toggleApproval(
-                    new FormData([
-                      ["institutionId", institution.id],
-                      [
-                        "requiresApproval",
-                        (!institution.requiresApproval).toString(),
-                      ],
-                    ])
-                  )
-                }
+                onClick={() => {
+                  const formData = new FormData();
+                  formData.append("institutionId", institution.id);
+                  formData.append(
+                    "requiresApproval",
+                    (!institution.requiresApproval).toString()
+                  );
+                  toggleApproval(formData);
+                }}
                 disabled={isTogglingApproval}
               >
                 {institution.requiresApproval ? "Disable" : "Require"} approval
@@ -366,14 +374,12 @@ export const AdminInstitutionsDashboard: React.FC<
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() =>
-                      toggleApproval(
-                        new FormData([
-                          ["institutionId", selectedInstitution.id],
-                          ["requiresApproval", "false"],
-                        ])
-                      )
-                    }
+                    onClick={() => {
+                      const formData = new FormData();
+                      formData.append("institutionId", selectedInstitution.id);
+                      formData.append("requiresApproval", "false");
+                      toggleApproval(formData);
+                    }}
                     disabled={isTogglingApproval}
                   >
                     Disable approval
@@ -381,14 +387,12 @@ export const AdminInstitutionsDashboard: React.FC<
                 ) : (
                   <Button
                     size="sm"
-                    onClick={() =>
-                      toggleApproval(
-                        new FormData([
-                          ["institutionId", selectedInstitution.id],
-                          ["requiresApproval", "true"],
-                        ])
-                      )
-                    }
+                    onClick={() => {
+                      const formData = new FormData();
+                      formData.append("institutionId", selectedInstitution.id);
+                      formData.append("requiresApproval", "true");
+                      toggleApproval(formData);
+                    }}
                     disabled={isTogglingApproval}
                   >
                     Require approval

@@ -3,26 +3,22 @@
 import { useState, useEffect } from "react";
 import { User } from "next-auth";
 import { toast } from "sonner";
+import {
+  getDiscordStatus,
+  unlinkDiscord,
+  getDiscordBotStatus,
+  sendTestDiscordNotification,
+  getNotificationPreferences,
+  updateNotificationPreferences,
+} from "@/lib/api/resources/settings";
 
-interface DiscordLinkStatus {
-  isLinked: boolean;
-  discordUsername?: string;
-  discordUserId?: string;
-}
+import type {
+  DiscordStatus,
+  DiscordBotStatus,
+  NotificationPreferences,
+} from "@/lib/api/resources/settings";
 
-interface DiscordBotStatus {
-  configured: boolean;
-  botUser: string | null;
-  ready: boolean;
-  error?: string;
-}
-
-interface NotificationPreferences {
-  [key: string]: {
-    emailEnabled: boolean;
-    discordEnabled: boolean;
-  };
-}
+type DiscordLinkStatus = DiscordStatus;
 
 interface SettingsViewProps {
   user: User;
@@ -37,14 +33,15 @@ export function SettingsView({ user }: SettingsViewProps) {
   const [loading, setLoading] = useState(true);
   const [testingDiscord, setTestingDiscord] = useState(false);
   const [testMessage, setTestMessage] = useState("");
+  const [urlMessage, setUrlMessage] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
 
   const loadDiscordStatus = async () => {
     try {
-      const response = await fetch("/api/discord/link");
-      if (response.ok) {
-        const data = await response.json();
-        setDiscordStatus(data);
-      }
+      const data = await getDiscordStatus();
+      setDiscordStatus(data);
     } catch (error) {
       console.error("Failed to load Discord status:", error);
     }
@@ -52,11 +49,8 @@ export function SettingsView({ user }: SettingsViewProps) {
 
   const loadBotStatus = async () => {
     try {
-      const response = await fetch("/api/discord/test");
-      if (response.ok) {
-        const data = await response.json();
-        setBotStatus(data.configuration);
-      }
+      const data = await getDiscordBotStatus();
+      setBotStatus(data.configuration);
     } catch (error) {
       console.error("Failed to load bot status:", error);
     }
@@ -64,11 +58,8 @@ export function SettingsView({ user }: SettingsViewProps) {
 
   const loadNotificationPreferences = async () => {
     try {
-      const response = await fetch("/api/notification-preferences");
-      if (response.ok) {
-        const data = await response.json();
-        setPreferences(data.preferences || {});
-      }
+      const data = await getNotificationPreferences();
+      setPreferences(data.preferences || {});
     } catch (error) {
       console.error("Failed to load notification preferences:", error);
     }
@@ -87,18 +78,11 @@ export function SettingsView({ user }: SettingsViewProps) {
 
   const handleDiscordUnlink = async () => {
     try {
-      const response = await fetch("/api/discord/link", {
-        method: "DELETE",
-      });
-
-      if (response.ok) {
-        setDiscordStatus({ isLinked: false });
-        // Reload preferences to update Discord settings
-        await loadNotificationPreferences();
-        toast.success("Discord account unlinked successfully");
-      } else {
-        toast.error("Failed to unlink Discord account");
-      }
+      await unlinkDiscord();
+      setDiscordStatus({ isLinked: false });
+      // Reload preferences to update Discord settings
+      await loadNotificationPreferences();
+      toast.success("Discord account unlinked successfully");
     } catch (error) {
       console.error("Failed to unlink Discord:", error);
       toast.error("Failed to unlink Discord account");
@@ -121,21 +105,7 @@ export function SettingsView({ user }: SettingsViewProps) {
     setPreferences(newPreferences);
 
     try {
-      const response = await fetch("/api/notification-preferences", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          preferences: newPreferences,
-        }),
-      });
-
-      if (!response.ok) {
-        // Revert on failure
-        await loadNotificationPreferences();
-        toast.error("Failed to update preferences");
-      }
+      await updateNotificationPreferences(newPreferences);
     } catch (error) {
       console.error("Failed to update preferences:", error);
       // Revert on failure
@@ -152,25 +122,12 @@ export function SettingsView({ user }: SettingsViewProps) {
 
     setTestingDiscord(true);
     try {
-      const response = await fetch("/api/discord/test", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          action: "send",
-          testMessage: testMessage || undefined,
-        }),
-      });
-
-      const data = await response.json();
-      if (response.ok && data.success) {
-        toast.success(`Test Discord DM sent to ${data.discordUser}`);
+      const data = await sendTestDiscordNotification();
+      if (data.success) {
+        toast.success("Test Discord DM sent successfully");
         setTestMessage("");
       } else {
-        toast.error(
-          `Failed to send test Discord DM: ${data.message || data.error}`
-        );
+        toast.error(`Failed to send test Discord DM: ${data.message}`);
       }
     } catch (error) {
       console.error("Failed to test Discord:", error);

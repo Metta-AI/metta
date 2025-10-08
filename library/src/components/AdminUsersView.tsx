@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AdminDataTable, type ColumnDef } from "@/components/AdminDataTable";
 import { cn } from "@/lib/utils";
+import * as adminApi from "@/lib/api/resources/admin";
 
 type AdminUser = {
   id: string;
@@ -47,10 +48,8 @@ type AdminUser = {
 type AdminUsersPagination = {
   page: number;
   limit: number;
-  totalCount: number;
+  total: number;
   totalPages: number;
-  hasNextPage: boolean;
-  hasPrevPage: boolean;
 };
 
 const columnsKey = Symbol("adminUsersColumns");
@@ -87,17 +86,12 @@ export const AdminUsersView: FC = () => {
   const loadUsers = useCallback(async () => {
     setIsLoading(true);
     try {
-      const params = new URLSearchParams({
-        page: currentPage.toString(),
-        limit: "20",
+      const data = await adminApi.listAdminUsers({
+        page: currentPage,
+        limit: 20,
         ...(searchQuery && { search: searchQuery }),
-        ...(showBannedOnly && { banned: "true" }),
+        ...(showBannedOnly && { banned: true }),
       });
-      const response = await fetch(`/api/admin/users?${params}`);
-      if (!response.ok) {
-        throw new Error("Failed to fetch users");
-      }
-      const data = await response.json();
       setUsers(data.users);
       setPagination(data.pagination);
     } catch (error) {
@@ -126,7 +120,8 @@ export const AdminUsersView: FC = () => {
       onError: (error) => {
         console.error("Error banning user:", error);
         setBanError(error);
-        toast.error(error.message ?? "Failed to ban user");
+        const errorMsg = error.error?.serverError ?? "Failed to ban user";
+        toast.error(errorMsg);
       },
     }
   );
@@ -142,7 +137,8 @@ export const AdminUsersView: FC = () => {
       onError: (error) => {
         console.error("Error unbanning user:", error);
         setUnbanError(error);
-        toast.error(error.message ?? "Failed to unban user");
+        const errorMsg = error.error?.serverError ?? "Failed to unban user";
+        toast.error(errorMsg);
       },
     }
   );
@@ -361,7 +357,7 @@ export const AdminUsersView: FC = () => {
 
       {pagination && (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3 md:gap-4">
-          <Stat label="Total Users" value={pagination.totalCount} />
+          <Stat label="Total Users" value={pagination.total} />
           <Stat
             label="Currently Banned"
             value={users.filter((user) => user.isBanned).length}
@@ -399,18 +395,14 @@ export const AdminUsersView: FC = () => {
         <div className="mt-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="text-muted-foreground text-sm">
             Showing {(pagination.page - 1) * pagination.limit + 1}–
-            {Math.min(
-              pagination.page * pagination.limit,
-              pagination.totalCount
-            )}{" "}
-            of
-            {pagination.totalCount}
+            {Math.min(pagination.page * pagination.limit, pagination.total)} of{" "}
+            {pagination.total}
           </div>
           <div className="flex justify-center gap-2 md:justify-end">
             <Button
               variant="outline"
               size="sm"
-              disabled={!pagination.hasPrevPage}
+              disabled={pagination.page <= 1}
               onClick={() => setCurrentPage((page) => page - 1)}
             >
               Previous
@@ -421,7 +413,7 @@ export const AdminUsersView: FC = () => {
             <Button
               variant="outline"
               size="sm"
-              disabled={!pagination.hasNextPage}
+              disabled={pagination.page >= pagination.totalPages}
               onClick={() => setCurrentPage((page) => page + 1)}
             >
               Next

@@ -205,7 +205,7 @@ export const FeedPost: FC<{
   };
 
   const handleConfirmDelete = () => {
-    deletePostMutation.mutate(post.id);
+    deletePostMutation.mutate({ postId: post.id });
     setShowDeleteModal(false);
   };
 

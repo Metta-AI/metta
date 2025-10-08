@@ -1,25 +1,31 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
+import { createServerMutation, queryKeys } from "@/lib/hooks/useServerMutation";
 import { deletePostAction } from "@/posts/actions/deletePostAction";
 
+interface DeletePostVariables {
+  postId: string;
+}
+
+/**
+ * Hook for deleting a post
+ *
+ * Removes a post and invalidates related queries to update the UI.
+ * Note: This hook also triggers a router refresh to ensure server components update.
+ */
 export function useDeletePost() {
-  const queryClient = useQueryClient();
   const router = useRouter();
 
-  return useMutation({
-    mutationFn: async (postId: string) => {
-      const formData = new FormData();
-      formData.append("postId", postId);
-      return await deletePostAction(formData);
-    },
+  const mutation = createServerMutation<unknown, DeletePostVariables>({
+    mutationFn: deletePostAction,
+    invalidateQueries: [queryKeys.feed.all, queryKeys.posts.all],
+  })({
     onSuccess: () => {
-      // Invalidate feed to remove the deleted post
-      queryClient.invalidateQueries({ queryKey: ["feed"] });
-      queryClient.invalidateQueries({ queryKey: ["posts"] });
-      // Optionally refresh the page
+      // Refresh the page to ensure server components update
       router.refresh();
     },
   });
+
+  return mutation;
 }
