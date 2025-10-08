@@ -21,10 +21,13 @@
 struct ActionConfig {
   std::map<InventoryItem, InventoryQuantity> required_resources;
   std::map<InventoryItem, InventoryProbability> consumed_resources;
+  bool track_invalid_arg = false;
 
   ActionConfig(const std::map<InventoryItem, InventoryQuantity>& required_resources = {},
-               const std::map<InventoryItem, InventoryProbability>& consumed_resources = {})
-      : required_resources(required_resources), consumed_resources(consumed_resources) {}
+               const std::map<InventoryItem, InventoryProbability>& consumed_resources = {},
+               bool track_invalid_arg = false)
+      : required_resources(required_resources), consumed_resources(consumed_resources),
+        track_invalid_arg(track_invalid_arg) {}
 
   virtual ~ActionConfig() {}
 };
@@ -38,7 +41,8 @@ public:
       : priority(0),
         _action_name(action_name),
         _required_resources(cfg.required_resources),
-        _consumed_resources(cfg.consumed_resources) {
+        _consumed_resources(cfg.consumed_resources),
+        _track_invalid_arg(cfg.track_invalid_arg) {
     // Validate consumed_resources values are non-negative and finite
     for (const auto& [item, probability] : _consumed_resources) {
       if (!std::isfinite(probability) || probability < 0.0f) {
@@ -144,6 +148,10 @@ public:
     return _action_name;
   }
 
+  bool track_invalid_arg() const {
+    return _track_invalid_arg;
+  }
+
 protected:
   virtual bool _handle_action(Agent& actor, ActionArg arg) = 0;
 
@@ -174,6 +182,7 @@ protected:
   std::string _action_name;
   std::map<InventoryItem, InventoryQuantity> _required_resources;
   std::map<InventoryItem, InventoryProbability> _consumed_resources;
+  bool _track_invalid_arg;
   std::mt19937* _rng{};
 };
 
@@ -182,11 +191,14 @@ namespace py = pybind11;
 inline void bind_action_config(py::module& m) {
   py::class_<ActionConfig, std::shared_ptr<ActionConfig>>(m, "ActionConfig")
       .def(py::init<const std::map<InventoryItem, InventoryQuantity>&,
-                    const std::map<InventoryItem, InventoryProbability>&>(),
+                    const std::map<InventoryItem, InventoryProbability>&,
+                    bool>(),
            py::arg("required_resources") = std::map<InventoryItem, InventoryQuantity>(),
-           py::arg("consumed_resources") = std::map<InventoryItem, InventoryProbability>())
+           py::arg("consumed_resources") = std::map<InventoryItem, InventoryProbability>(),
+           py::arg("track_invalid_arg") = false)
       .def_readwrite("required_resources", &ActionConfig::required_resources)
-      .def_readwrite("consumed_resources", &ActionConfig::consumed_resources);
+      .def_readwrite("consumed_resources", &ActionConfig::consumed_resources)
+      .def_readwrite("track_invalid_arg", &ActionConfig::track_invalid_arg);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_ACTION_HANDLER_HPP_

@@ -66,6 +66,7 @@ class ActionConfig(Config):
     # required_resources defaults to consumed_resources. Otherwise, should be a superset of consumed_resources.
     required_resources: dict[str, int] = Field(default_factory=dict)
     consumed_resources: dict[str, float] = Field(default_factory=dict)
+    track_invalid_arg: bool = Field(default=False, description="Track invalid action argument statistics")
 
 
 class AttackActionConfig(ActionConfig):

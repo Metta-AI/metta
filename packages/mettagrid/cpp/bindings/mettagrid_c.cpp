@@ -415,10 +415,13 @@ void MettaGrid::_compute_observations(const py::array_t<ActionType, py::array::c
   }
 }
 
-void MettaGrid::_handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type, ActionArg arg) {
+void MettaGrid::_handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type, ActionArg arg,
+                                       bool track_invalid_arg) {
   auto& agent = _agents[agent_idx];
   agent->stats.incr(stat);
-  agent->stats.incr(stat + "." + std::to_string(type) + "." + std::to_string(arg));
+  if (track_invalid_arg) {
+    agent->stats.incr(stat + "." + std::to_string(type) + "." + std::to_string(arg));
+  }
   _action_success[agent_idx] = false;
   *agent->reward -= agent->action_failure_penalty;
 }
@@ -457,7 +460,7 @@ void MettaGrid::_step(Actions actions) {
       ActionArg arg = actions_view(agent_idx, 1);
 
       if (action < 0 || static_cast<size_t>(action) >= _num_action_handlers) {
-        _handle_invalid_action(agent_idx, "action.invalid_type", action, arg);
+        _handle_invalid_action(agent_idx, "action.invalid_type", action, arg, false);
         continue;
       }
       size_t action_idx = static_cast<size_t>(action);
@@ -469,7 +472,7 @@ void MettaGrid::_step(Actions actions) {
 
       // Tolerate invalid action arguments
       if (arg < 0 || arg > _max_action_args[action_idx]) {
-        _handle_invalid_action(agent_idx, "action.invalid_arg", action, arg);
+        _handle_invalid_action(agent_idx, "action.invalid_arg", action, arg, handler->track_invalid_arg());
         continue;
       }
 
