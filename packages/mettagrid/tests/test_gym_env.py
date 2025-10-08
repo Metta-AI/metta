@@ -4,8 +4,6 @@ Tests for Gymnasium integration with MettaGrid.
 This module tests the MettaGridGymEnv with Gymnasium's standard environment interface.
 """
 
-import numpy as np
-
 from mettagrid.config.mettagrid_config import ActionConfig, ActionsConfig, GameConfig, MettaGridConfig, WallConfig
 from mettagrid.envs.gym_env import MettaGridGymEnv
 from mettagrid.map_builder.ascii import AsciiMapBuilder
@@ -53,7 +51,7 @@ def test_single_agent_gym_env():
 
     # Test a few steps
     for _ in range(5):
-        action = np.random.randint(0, 2, size=2, dtype=np.int32)
+        action = int(env.action_space.sample())
         obs, reward, terminated, truncated, info = env.step(action)
 
         assert obs.shape == (200, 3)
@@ -101,8 +99,8 @@ def test_gym_env_episode_termination():
     max_test_steps = 150  # More than max_steps to test termination
 
     while step_count < max_test_steps:
-        actions = np.random.randint(0, 2, size=(env.num_agents, 2), dtype=np.int32)
-        obs, reward, term, trunc, info = env.step(actions)
+        action = int(env.action_space.sample())
+        obs, reward, term, trunc, info = env.step(action)
         step_count += 1
 
         # Check that we don't exceed max_steps

@@ -24,7 +24,7 @@ class RandomAgentPolicy(AgentPolicy):
             A random action sampled from the action space
         """
         sample = self._action_space.sample()
-        return np.asarray(sample, dtype=np.int32)
+        return np.int32(sample)
 
 
 class RandomPolicy(Policy):

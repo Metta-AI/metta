@@ -16,10 +16,7 @@ from typing_extensions import override
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.core import MettaGridCore
 
-# Data types for PettingZoo - import from C++ module
-from mettagrid.mettagrid_c import (
-    dtype_actions,
-)
+# Data types for PettingZoo - rely on numpy types directly
 
 
 class MettaGridPettingZooEnv(MettaGridCore, ParallelEnv):
@@ -111,7 +108,7 @@ class MettaGridPettingZooEnv(MettaGridCore, ParallelEnv):
 
     @override  # pettingzoo.ParallelEnv.step
     def step(
-        self, actions: Dict[str, np.ndarray]
+        self, actions: Dict[str, np.ndarray | int]
     ) -> Tuple[Dict[str, np.ndarray], Dict[str, float], Dict[str, bool], Dict[str, bool], Dict[str, Dict[str, Any]]]:
         """
         Execute one timestep of the environment dynamics.
@@ -123,10 +120,10 @@ class MettaGridPettingZooEnv(MettaGridCore, ParallelEnv):
             Tuple of (observations, rewards, terminations, truncations, infos)
         """
         # Convert actions dict to array format
-        actions_array = np.zeros((len(self.agents), 2), dtype=dtype_actions)
+        actions_array = np.zeros(len(self.agents), dtype=np.int32)
         for i, agent in enumerate(self.agents):
             if agent in actions:
-                actions_array[i] = actions[agent].astype(dtype_actions)
+                actions_array[i] = np.asarray(actions[agent], dtype=np.int32).reshape(()).item()
 
         # Call base step implementation
         observations, rewards, terminals, truncations, infos = super().step(actions_array)
@@ -160,7 +157,7 @@ class MettaGridPettingZooEnv(MettaGridCore, ParallelEnv):
         return self._observation_space_obj
 
     @override  # pettingzoo.ParallelEnv.action_space
-    def action_space(self, agent: str) -> spaces.MultiDiscrete:
+    def action_space(self, agent: str) -> spaces.Discrete:
         """Get action space for a specific agent."""
         del agent  # Unused parameter - all agents have same space
         # Return the same space object instance (PettingZoo requirement)

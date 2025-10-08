@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import numpy.typing as npt
@@ -47,8 +47,8 @@ logger = logging.getLogger("MettaGridCore")
 # - value: uint8 feature value
 MettaGridObservation = npt.NDArray[np.uint8]  # Shape: (num_tokens, 3)
 
-# Actions are MultiDiscrete: shape (num_action_dims,) where each dimension is an action choice
-MettaGridAction = npt.NDArray[np.int32]  # Shape: (num_action_dims,)
+# Actions are Discrete: single integer index representing unique action choices
+MettaGridAction = npt.NDArray[np.int32]  # Shape: ()
 
 
 @dataclass
@@ -207,10 +207,17 @@ class MettaGridCore:
 
         return obs, infos
 
-    def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
+    def step(
+        self, actions: np.ndarray | int | Sequence[int]
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
         """Execute one timestep of the environment dynamics with the given actions."""
-        # Execute step in core environment
-        return self.__c_env_instance.step(actions)
+        arr = np.asarray(actions, dtype=np.int32)
+        if arr.ndim != 1 or arr.shape[0] != self.num_agents:
+            raise ValueError(
+                f"Expected actions of shape ({self.num_agents},) but received {arr.shape}; "
+                "ensure policies emit a scalar action id per agent"
+            )
+        return self.__c_env_instance.step(arr)
 
     def render(self) -> Optional[str]:
         """Render the environment."""
@@ -272,18 +279,13 @@ class MettaGridCore:
         return self.__c_env_instance.observation_space
 
     @property
-    def _action_space(self) -> spaces.MultiDiscrete:
+    def _action_space(self) -> spaces.Discrete:
         """Internal action space - use single_action_space for PufferEnv compatibility."""
         return self.__c_env_instance.action_space
 
     @property
     def action_names(self) -> List[str]:
         return self.__c_env_instance.action_names()
-
-    @property
-    def max_action_args(self) -> List[int]:
-        action_args_array = self.__c_env_instance.max_action_args()
-        return [int(x) for x in action_args_array]
 
     @property
     def object_type_names(self) -> List[str]:
