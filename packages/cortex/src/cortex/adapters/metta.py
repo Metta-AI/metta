@@ -20,9 +20,10 @@ from typing import Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
-from cortex.stacks import CortexStack
 from einops import rearrange
 from tensordict import TensorDict
+
+from cortex.stacks import CortexStack
 
 FlatKey = str
 LeafPath = Tuple[str, str, str]  # (block_key, cell_key, leaf_key)
