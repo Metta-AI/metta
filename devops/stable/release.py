@@ -873,6 +873,8 @@ def step_workflow_tests(version: str, workflow_filter: Optional[str] = None, **_
             created_at=datetime.utcnow().isoformat(timespec="seconds"),
             commit_sha=_get_commit_sha(),
         )
+        # Save initial state to disk so update_validation_result() can reload it
+        save_state(state)
 
     # Get all validations
     all_validations = get_workflow_tests()
