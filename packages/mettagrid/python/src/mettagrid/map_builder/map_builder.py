@@ -67,13 +67,10 @@ class MapBuilderConfig(Config, Generic[TBuilder]):
         return cls.from_str(raw)
 
     @classmethod
-    def from_str(cls, data: str | bytes | dict[str, Any]) -> Self:
+    def from_str(cls, data: str | bytes) -> Self:
         """Load a builder config from a serialized string or mapping."""
 
-        if isinstance(data, (str, bytes)):
-            parsed = yaml.safe_load(data)
-        else:
-            parsed = data
+        parsed = yaml.safe_load(data)
 
         if not isinstance(parsed, dict):
             raise ValueError("Map builder config file must contain a mapping")
