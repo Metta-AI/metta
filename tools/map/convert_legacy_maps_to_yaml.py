@@ -18,6 +18,15 @@ DEFAULT_CHAR_TO_NAME = {
     "2": "agent.team_2",
     "3": "agent.team_3",
     "4": "agent.team_4",
+    "m": "mine_red",
+    "n": "generator_red",
+    "S": "special",
+    "s": "swappable_wall",
+    "&": "altar",
+    "+": "wall",
+    "O": "altar",
+    "B": "wall",
+    "o": "altar",
 }
 
 LEGEND_PREFIX = "#:"
@@ -99,7 +108,7 @@ def ordered_chars(map_lines: list[str]) -> list[str]:
 def make_yaml(map_lines: list[str], legend: dict[str, str]) -> str:
     map_block = "\n".join(f"  {line}" for line in map_lines)
     legend_block = "\n".join(f'  "{token}": {name}' for token, name in legend.items())
-    return f"{MAP_KEY}: |-\n{map_block}\n{LEGEND_KEY}:\n{legend_block}\n"
+    return f"type: mettagrid.map_builder.ascii.AsciiMapBuilder\n{MAP_KEY}: |-\n{map_block}\n{LEGEND_KEY}:\n{legend_block}\n"
 
 
 def convert_map(path: Path, dry_run: bool) -> bool:
