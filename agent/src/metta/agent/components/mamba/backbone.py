@@ -88,7 +88,7 @@ class MambaBackboneComponent(nn.Module):
     # ------------------------------------------------------------------
     # Token preparation
     # ------------------------------------------------------------------
-    def _build_tokens(self, td: TensorDict) -> torch.Tensor:
+    def _build_tokens(self, td: TensorDict) -> tuple[torch.Tensor, torch.Tensor]:
         x = td[self.in_key]
         device = x.device
 
@@ -102,16 +102,18 @@ class MambaBackboneComponent(nn.Module):
 
         x = rearrange(x, "(b tt) s d -> b tt s d", b=batch, tt=tt)
 
+        zeros = torch.zeros(batch_flat, device=device)
+        rewards = td.get("rewards", zeros)
+        dones = td.get("dones", zeros)
+        truncateds = td.get("truncateds", zeros)
+        reset_flags = torch.logical_or(dones.bool(), truncateds.bool()).reshape(batch, tt)
+
         if self.use_aux_tokens:
             zeros = torch.zeros(batch_flat, device=device)
-            rewards = td.get("rewards", zeros)
             rewards = rearrange(rewards, "(b tt) -> b tt 1 1", b=batch, tt=tt).float()
             reward_token = self.reward_proj(rewards)
 
-            dones = td.get("dones", zeros)
-            truncateds = td.get("truncateds", zeros)
-            resets = torch.logical_or(dones.bool(), truncateds.bool()).float()
-            resets = rearrange(resets, "(b tt) -> b tt 1 1", b=batch, tt=tt)
+            resets = reset_flags.float().reshape(batch, tt, 1, 1)
             reset_token = self.reset_proj(resets)
 
             last_actions = td.get("last_actions")
@@ -132,7 +134,7 @@ class MambaBackboneComponent(nn.Module):
 
         cls = self.cls_token.to(device).expand(x.size(0), x.size(1), -1, -1)
         tokens = torch.cat([cls, x, reward_token + reset_token, action_token], dim=2)
-        return tokens
+        return tokens, reset_flags
 
     def _dummy_actions(self, batch: int, seq_len: int, device: torch.device) -> torch.Tensor:
         return torch.zeros(batch, seq_len, dtype=torch.long, device=device)
@@ -166,7 +168,7 @@ class MambaBackboneComponent(nn.Module):
     # Forward
     # ------------------------------------------------------------------
     def forward(self, td: TensorDict) -> TensorDict:
-        tokens = self._build_tokens(td)
+        tokens, reset_flags = self._build_tokens(td)
         device = tokens.device
         dtype = tokens.dtype
 
@@ -182,7 +184,12 @@ class MambaBackboneComponent(nn.Module):
 
         if tt == 1:
             outputs = []
+            positions = torch.zeros(batch, dtype=torch.long, device=device)
+            resets_step = (
+                reset_flags[:, 0] if reset_flags.numel() else torch.zeros(batch, dtype=torch.bool, device=device)
+            )
             tokens = tokens.reshape(batch, tokens_per_step, -1)
+            dummy_action = self._dummy_actions(1, 1, device)
             for idx in range(batch):
                 env_id = int(env_ids[idx].item())
                 state = self._ensure_state(env_id, tokens_per_step, device, dtype)
@@ -190,21 +197,30 @@ class MambaBackboneComponent(nn.Module):
                 cache = state.inference_params
                 cache.seqlen_offset = state.position
 
-                hidden = self.wrapper(
-                    tokens[idx : idx + 1],
-                    self._dummy_actions(1, tokens_per_step, device),
-                    inference_params=cache,
-                    num_last_tokens=tokens_per_step,
-                )
-                hidden = hidden[:, -tokens_per_step:]
+                hidden_steps = []
+                for token_idx in range(tokens_per_step):
+                    token = tokens[idx : idx + 1, token_idx : token_idx + 1]
+                    hidden = self.wrapper(
+                        token,
+                        dummy_action,
+                        inference_params=cache,
+                        num_last_tokens=1,
+                    )
+                    hidden_steps.append(hidden[:, -1:])
+                    state.position = min(state.position + 1, cache.max_seqlen)
+                    cache.seqlen_offset = state.position
+
+                hidden = torch.cat(hidden_steps, dim=1)
                 hidden = self.norm(self.dropout(hidden))
                 pooled = self._pool(hidden)
                 outputs.append(pooled.squeeze(0))
 
-                state.position = min(state.position + tokens_per_step, cache.max_seqlen)
-                cache.seqlen_offset = state.position
+                if resets_step[idx]:
+                    state.reset()
+                positions[idx] = state.position
 
             td.set(self.out_key, torch.stack(outputs, dim=0))
+            td.set("transformer_position", positions)
             return td
 
         # training path – no caching; reset existing caches to avoid stale state
