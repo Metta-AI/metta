@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run python
 """Benchmark mLSTM Triton vs PyTorch implementations.
 
 This script compares the performance of Triton-accelerated mLSTM kernels
@@ -7,15 +7,9 @@ against pure PyTorch implementations across various configurations.
 
 from __future__ import annotations
 
-import sys
 import time
-from pathlib import Path
 
 import torch
-
-# Add cortex to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
 from cortex.kernels.pytorch.mlstm import mlstm_chunkwise_simple
 from cortex.kernels.triton.mlstm import mlstm_chunkwise_triton
 

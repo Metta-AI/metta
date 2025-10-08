@@ -1,21 +1,12 @@
 """Tests for LSTM cell implementation."""
 
-import os
-import sys
-from pathlib import Path
-
 import pytest
 import torch
-
-# Make cortex package importable relative to this test
-PKG_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, os.fspath(PKG_ROOT / "src"))
-
-from cortex.cells.lstm import LSTMCell  # noqa: E402
-from cortex.config import LSTMCellConfig  # noqa: E402
-from cortex.kernels.pytorch.lstm import lstm_sequence_pytorch  # noqa: E402
-from cortex.kernels.triton.lstm import lstm_sequence_triton  # noqa: E402
-from cortex.utils import TRITON_AVAILABLE  # noqa: E402
+from cortex.cells.lstm import LSTMCell
+from cortex.config import LSTMCellConfig
+from cortex.kernels.pytorch.lstm import lstm_sequence_pytorch
+from cortex.kernels.triton.lstm import lstm_sequence_triton
+from cortex.utils import TRITON_AVAILABLE
 
 
 def get_test_device():

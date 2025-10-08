@@ -1,18 +1,9 @@
 """Tests for sLSTM cell implementation (Triton vs vanilla parity)."""
 
-import os
-import sys
-from pathlib import Path
-
 import torch
-
-# Make cortex package importable relative to this test
-PKG_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, os.fspath(PKG_ROOT / "src"))
-
-from cortex.blocks import PostUpBlock  # noqa: E402
-from cortex.cells.slstm import sLSTMCell  # noqa: E402
-from cortex.config import PostUpBlockConfig, sLSTMCellConfig  # noqa: E402
+from cortex.blocks import PostUpBlock
+from cortex.cells.slstm import sLSTMCell
+from cortex.config import PostUpBlockConfig, sLSTMCellConfig
 
 
 def get_test_device():

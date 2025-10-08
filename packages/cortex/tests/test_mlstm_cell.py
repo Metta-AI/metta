@@ -1,21 +1,9 @@
 """Tests for mLSTM cell implementation."""
 
-import os
-import sys
-from pathlib import Path
-
 import torch
-
-# Make cortex package importable relative to this test
-try:
-    PKG_ROOT = Path(__file__).resolve().parents[1]
-except NameError:
-    PKG_ROOT = Path.cwd().parent
-sys.path.insert(0, os.fspath(PKG_ROOT / "src"))
-
-from cortex.blocks import PreUpBlock  # noqa: E402
-from cortex.cells.mlstm import mLSTMCell  # noqa: E402
-from cortex.config import PreUpBlockConfig, mLSTMCellConfig  # noqa: E402
+from cortex.blocks import PreUpBlock
+from cortex.cells.mlstm import mLSTMCell
+from cortex.config import PreUpBlockConfig, mLSTMCellConfig
 
 
 def get_test_device():

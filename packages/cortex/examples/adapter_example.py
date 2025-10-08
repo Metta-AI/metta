@@ -1,14 +1,9 @@
+#!/usr/bin/env -S uv run python
 """Example showing how to use AdapterBlocks to wrap existing blocks.
 
 AdapterBlocks allow you to add trainable residual paths that start as identity,
 making them perfect for fine-tuning pretrained models without disrupting learned behavior.
 """
-
-import sys
-from pathlib import Path
-
-# Add cortex package to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 import torch
 from cortex import (

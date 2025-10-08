@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run python
 """Benchmark Conv1D Triton vs PyTorch implementations.
 
 This script compares the performance of Triton-accelerated causal conv1d kernels
@@ -7,16 +7,10 @@ against pure PyTorch implementations across various configurations.
 
 from __future__ import annotations
 
-import sys
 import time
-from pathlib import Path
 
 import torch
 import torch.nn as nn
-
-# Add cortex to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
 from cortex.kernels.pytorch.conv1d import causal_conv1d_pytorch
 from cortex.kernels.triton.conv1d import causal_conv1d_triton
 
