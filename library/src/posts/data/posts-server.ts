@@ -1,4 +1,4 @@
-import { db } from "@/lib/db";
+import { prisma } from "@/lib/db/prisma";
 
 interface ListPostsOptions {
   limit?: number;
@@ -9,7 +9,7 @@ export async function listPosts(options: ListPostsOptions = {}) {
   const { limit = 20, offset = 0 } = options;
 
   const [posts, total] = await Promise.all([
-    db.post.findMany({
+    prisma.post.findMany({
       skip: offset,
       take: limit,
       orderBy: { createdAt: "desc" },
@@ -34,7 +34,7 @@ export async function listPosts(options: ListPostsOptions = {}) {
         },
       },
     }),
-    db.post.count(),
+    prisma.post.count(),
   ]);
 
   const summaries = posts.map((post) => ({
