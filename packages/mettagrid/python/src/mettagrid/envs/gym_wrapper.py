@@ -3,13 +3,15 @@ from typing import Any
 import gymnasium as gym
 import numpy as np
 
+from mettagrid.mettagrid_c import dtype_actions
+
 
 class SingleAgentWrapper(gym.Wrapper):
     def __init__(self, env):
         super(SingleAgentWrapper, self).__init__(env)
 
     def step(self, action):
-        action_array = np.asarray(action, dtype=np.int32)
+        action_array = np.asarray(action, dtype=dtype_actions)
         if action_array.ndim == 0:
             action_array = action_array.reshape(1)
         elif action_array.ndim == 1 and action_array.shape[0] == 1:

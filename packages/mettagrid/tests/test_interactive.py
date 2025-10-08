@@ -10,6 +10,7 @@ import time
 
 import numpy as np
 
+from mettagrid import dtype_actions
 from mettagrid.builder.envs import make_arena
 from mettagrid.config.mettagrid_config import (
     ActionConfig,
@@ -49,7 +50,7 @@ def test_puffer_env():
     total_reward = 0
     for step in range(20):
         # Random actions - in a real game these would be from policies
-        actions = np.random.randint(0, env.single_action_space.n, size=env.num_agents, dtype=np.int32)
+        actions = np.random.randint(0, env.single_action_space.n, size=env.num_agents).astype(dtype_actions, copy=False)
 
         obs, rewards, terminals, truncations, _ = env.step(actions)
         total_reward += rewards.sum()
