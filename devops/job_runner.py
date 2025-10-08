@@ -308,19 +308,27 @@ class RemoteJob(Job):
         log_dir: str = "logs/remote",
         base_args: Optional[list[str]] = None,
         skip_git_check: bool = False,
+        job_id: Optional[str] = None,
     ):
         super().__init__(name, log_dir, timeout_s)
         self.module = module
         self.args = args
         self.base_args = base_args or ["--no-spot", "--gpus=4", "--nodes", "1"]
         self.skip_git_check = skip_git_check
-        self._job_id: Optional[str] = None
+        self._job_id: Optional[str] = job_id  # Can resume existing job
         self._launched_job: Optional[LaunchedJob] = None
         self._start_time: Optional[float] = None
+        self._is_resumed = bool(job_id)  # Track if this is a resumed job
 
     def submit(self) -> None:
         """Submit job to SkyPilot."""
         if self._submitted:
+            return
+
+        # If resuming existing job, skip launch
+        if self._is_resumed:
+            self._submitted = True
+            self._start_time = time.time()
             return
 
         launcher = SkyPilotTestLauncher(base_name="job", skip_git_check=self.skip_git_check)
@@ -350,7 +358,12 @@ class RemoteJob(Job):
         if not self._submitted:
             return False
 
-        if not self._launched_job or not self._launched_job.success or not self._job_id:
+        # For resumed jobs or failed launches, check if we have a job_id
+        if not self._job_id:
+            return True  # No job to track (launch failed)
+
+        # If not resumed, check if launch succeeded
+        if not self._is_resumed and (not self._launched_job or not self._launched_job.success):
             return True  # Failed to launch
 
         # Check logs for completion marker
@@ -387,8 +400,8 @@ class RemoteJob(Job):
         match = re.search(r"Exit code: (\d+)", logs)
         if match:
             exit_code = int(match.group(1))
-        elif not self._launched_job or not self._launched_job.success:
-            exit_code = 1  # Launch failure
+        elif not self._is_resumed and (not self._launched_job or not self._launched_job.success):
+            exit_code = 1  # Launch failure (only for new jobs, not resumed)
 
         duration = None
         if self._start_time:
@@ -454,6 +467,7 @@ def run_remote(
     log_dir: str = "logs/remote",
     base_args: Optional[list[str]] = None,
     skip_git_check: bool = False,
+    job_id: Optional[str] = None,
 ) -> "RemoteJobLegacy":
     """Run a job on SkyPilot (legacy API).
 
@@ -468,6 +482,7 @@ def run_remote(
         log_dir=log_dir,
         base_args=base_args,
         skip_git_check=skip_git_check,
+        job_id=job_id,
     )
     job.submit()
     return RemoteJobLegacy(job)

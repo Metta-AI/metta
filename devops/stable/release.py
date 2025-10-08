@@ -16,18 +16,23 @@ Auto-resume:
   Use --version X to use a specific version.
 
 Workflow filtering:
-  --workflow test              # Run all TEST workflows (metta_test)
-  --workflow train             # Run all TRAIN workflows (smoke, single-gpu, multi-gpu)
-  --workflow play              # Run all PLAY workflows (interactive testing)
-  --workflow metta_test        # Run specific validation by name
-  --workflow arena_local_smoke # Run specific validation by name
+  --workflow test                  # Run all TEST workflows (metta_test)
+  --workflow train                 # Run all TRAIN workflows (local + remote)
+  --workflow train_local           # Run local training smoke tests
+  --workflow train_remote          # Run remote single-GPU training
+  --workflow train_remote_multigpu # Run remote multi-GPU training
+  --workflow play                  # Run all PLAY workflows (interactive testing)
+  --workflow metta_test            # Run specific validation by name
+  --workflow arena_local_smoke     # Run specific validation by name
 
 Examples:
-  ./devops/stable/release.py                          # Full release (auto-continue)
-  ./devops/stable/release.py --new                    # Full release (force new)
-  ./devops/stable/release.py --workflow test          # Just run tests
-  ./devops/stable/release.py --workflow train --new   # Run train workflows (force new)
-  ./devops/stable/release.py --version 2025.10.07-test1  # Use specific version
+  ./devops/stable/release.py                               # Full release (auto-continue)
+  ./devops/stable/release.py --new                         # Full release (force new)
+  ./devops/stable/release.py --workflow test               # Just run tests
+  ./devops/stable/release.py --workflow train_local        # Run local smoke test
+  ./devops/stable/release.py --workflow train_remote       # Run single-GPU remote training
+  ./devops/stable/release.py --workflow train --new        # Run all train workflows (force new)
+  ./devops/stable/release.py --version 2025.10.07-test1    # Use specific version
 """
 
 from __future__ import annotations
@@ -59,8 +64,10 @@ Outcome = Literal["passed", "failed", "skipped", "inconclusive"]
 class WorkflowType(StrEnum):
     """Types of workflow validations."""
 
-    TRAIN = "train"  # Multi-GPU training validation
     TEST = "test"  # Run metta test locally
+    TRAIN_LOCAL = "train_local"  # Local smoke test with manual validation
+    TRAIN_REMOTE = "train_remote"  # Remote single-GPU training with strict thresholds
+    TRAIN_REMOTE_MULTIGPU = "train_remote_multigpu"  # Remote multi-GPU/multi-node training
     PLAY = "play"  # Run play recipe with manual verification
 
 
@@ -397,7 +404,11 @@ def run_validation(
                     print(f"  ❌ {validation.name} - User confirmed FAILURE")
                     return result
 
-        elif validation.workflow_type == WorkflowType.TRAIN:
+        elif validation.workflow_type in (
+            WorkflowType.TRAIN_LOCAL,
+            WorkflowType.TRAIN_REMOTE,
+            WorkflowType.TRAIN_REMOTE_MULTIGPU,
+        ):
             # Run training job via job_runner (local or remote)
             if validation.location == "local":
                 cmd = ["uv", "run", "./tools/run.py", validation.module, *validation.args]
@@ -442,6 +453,21 @@ def run_validation(
 
                 print(f"     Cluster config: {nodes} nodes × {gpus} GPUs = {nodes * gpus} total GPUs")
 
+                # Check if we should resume existing job
+                existing_job_id = None
+                if validation.name in state.validations:
+                    existing_result = state.validations[validation.name]
+                    if existing_result.job_id and existing_result.outcome not in ("passed", "failed"):
+                        # Check if job still exists
+                        from devops.skypilot.utils.job_helpers import check_job_statuses
+
+                        job_status = check_job_statuses([int(existing_result.job_id)])
+                        if int(existing_result.job_id) in job_status:
+                            status = job_status[int(existing_result.job_id)].get("status", "UNKNOWN")
+                            if status not in ("UNKNOWN", "ERROR"):
+                                existing_job_id = existing_result.job_id
+                                print(f"     📋 Resuming existing job {existing_job_id} (status: {status})")
+
                 job = run_remote(
                     name=validation.name,
                     module=validation.module,
@@ -449,12 +475,18 @@ def run_validation(
                     timeout_s=validation.timeout_s,
                     log_dir=str(LOG_DIR_REMOTE),
                     base_args=base_args,
+                    job_id=existing_job_id,
                 )
+
+                # Save job_id to state immediately after submission
+                result.job_id = job.job_id
+                state.validations[validation.name] = result
+                save_state(state)
+
                 result.exit_code = job.wait(timeout_s=validation.timeout_s, stream_output=True)
                 # Extract data from RemoteJob for state persistence
                 log_text = job.get_logs()
                 result.logs_path = job.logs_path
-                result.job_id = job.job_id
 
                 # Extract W&B URL and ask for manual confirmation
                 wandb_url_match = re.search(r"https://wandb\.ai/[^\s]+", log_text)
@@ -481,7 +513,11 @@ def run_validation(
             return result
 
         # Extract metrics (only for TRAIN workflows)
-        if validation.workflow_type == WorkflowType.TRAIN:
+        if validation.workflow_type in (
+            WorkflowType.TRAIN_LOCAL,
+            WorkflowType.TRAIN_REMOTE,
+            WorkflowType.TRAIN_REMOTE_MULTIGPU,
+        ):
             result.metrics = extract_metrics(log_text or "")
 
         # Evaluate acceptance criteria
@@ -542,7 +578,7 @@ def get_workflow_tests() -> list[Validation]:
         )
     )
 
-    # 2. TRAIN workflow - local smoke test
+    # 2. TRAIN_LOCAL - local smoke test
     # Use timestamp-based run name to avoid resuming completed runs
     from datetime import datetime
 
@@ -550,7 +586,7 @@ def get_workflow_tests() -> list[Validation]:
     validations.append(
         Validation(
             name="arena_local_smoke",
-            workflow_type=WorkflowType.TRAIN,
+            workflow_type=WorkflowType.TRAIN_LOCAL,
             module="experiments.recipes.arena_basic_easy_shaped.train",
             location="local",
             args=[f"run={smoke_run}", "trainer.total_timesteps=1000", "wandb.enabled=false"],
@@ -559,11 +595,11 @@ def get_workflow_tests() -> list[Validation]:
         )
     )
 
-    # 3. TRAIN workflow - single GPU remote validation
+    # 3. TRAIN_REMOTE - single GPU remote validation
     validations.append(
         Validation(
             name="arena_single_gpu_50k",
-            workflow_type=WorkflowType.TRAIN,
+            workflow_type=WorkflowType.TRAIN_REMOTE,
             module="experiments.recipes.arena_basic_easy_shaped.train",
             location="remote",
             args=["trainer.total_timesteps=50000"],
@@ -572,11 +608,11 @@ def get_workflow_tests() -> list[Validation]:
         )
     )
 
-    # 4. TRAIN workflow - multi-GPU remote validation
+    # 4. TRAIN_REMOTE_MULTIGPU - multi-GPU/multi-node remote validation
     validations.append(
         Validation(
             name="arena_multi_gpu_2b",
-            workflow_type=WorkflowType.TRAIN,
+            workflow_type=WorkflowType.TRAIN_REMOTE_MULTIGPU,
             module="experiments.recipes.arena_basic_easy_shaped.train",
             location="remote",
             args=["trainer.total_timesteps=2000000000"],  # 2B timesteps
@@ -775,9 +811,14 @@ def step_workflow_tests(version: str, workflow_filter: Optional[str] = None, **_
     if workflow_filter:
         # Check if filter is a workflow type
         workflow_filter_lower = workflow_filter.lower()
-        if workflow_filter_lower in ("test", "train", "play"):
+        if workflow_filter_lower in ("test", "train_local", "train_remote", "train_remote_multigpu", "play"):
+            # Exact workflow type match
             validations = [v for v in all_validations if v.workflow_type.value == workflow_filter_lower]
             print(f"Running {workflow_filter.upper()} workflows only\n")
+        elif workflow_filter_lower == "train":
+            # Match all training workflows
+            validations = [v for v in all_validations if v.workflow_type.value.startswith("train_")]
+            print("Running ALL TRAIN workflows\n")
         else:
             # Filter by validation name
             validations = [v for v in all_validations if v.name == workflow_filter]
@@ -792,10 +833,10 @@ def step_workflow_tests(version: str, workflow_filter: Optional[str] = None, **_
 
     # Run validations sequentially
     for validation in validations:
-        # Determine cluster config based on validation name
-        if "multi_gpu" in validation.name:
+        # Determine cluster config based on workflow type
+        if validation.workflow_type == WorkflowType.TRAIN_REMOTE_MULTIGPU:
             cluster_config = {"nodes": 4, "gpus": 4}
-        elif "single_gpu" in validation.name:
+        elif validation.workflow_type == WorkflowType.TRAIN_REMOTE:
             cluster_config = {"nodes": 1, "gpus": 1}
         else:
             cluster_config = None
@@ -1109,7 +1150,10 @@ Examples:
     parser.add_argument(
         "--workflow",
         metavar="FILTER",
-        help="Run workflow validations (test|train|play|<validation_name>)",
+        help=(
+            "Run workflow validations "
+            "(test|train|train_local|train_remote|train_remote_multigpu|play|<validation_name>)"
+        ),
     )
 
     parser.add_argument(
