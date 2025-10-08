@@ -1,6 +1,6 @@
 # Cortex
 
-`cortex` is a modular memory stack library for building recurrent backbones and agent memory systems. It separates cell-level recurrence from architectural concerns (projections, skips, normalization) so you can compose new stacks quickly and safely.
+`cortex` is a modular library for building recurrent backbones and agent memory systems. It separates cell-level recurrence from architectural concerns (projections, skips, normalization) so you can compose new stacks quickly and safely.
 
 ## Architecture
 
@@ -27,6 +27,12 @@ The separation of concerns between cells, blocks, and stacks provides several ad
   cells when needed
 - **Modularity**: Mix and match different memory cells without rewriting projection logic
 - **Efficiency**: Blocks can operate cells at optimal dimensions (e.g., PreUp runs cells at 2x size for more capacity)
+- **Composability**: The design is fully compositional—cells can be built from other cells, blocks can contain multiple
+  cells or even nest other blocks, and stacks can be composed of other stacks. This recursive structure enables
+  arbitrarily complex architectures while maintaining clean interfaces.
+- **Auto-Configuration**: Cells and blocks are automatically configured with hidden sizes inferred from the highest level
+  of abstraction (the stack's `d_hidden`). This top-down configuration makes it easy to define complex architectures
+  without manual dimension tracking.
 - **Flexibility**: Add new cell types or block patterns without modifying existing code
 - **Clarity**: Clean separation between memory computation (cells) and architectural decisions (blocks/stacks)
 
@@ -38,17 +44,60 @@ The separation of concerns between cells, blocks, and stacks provides several ad
 - **Registry system**: Extensible architecture supporting custom cells and blocks
 - **Type-safe configuration**: Pydantic-based configs with validation
 
+## Supported Components
+
+### Memory Cells
+
+Core computational units implementing recurrent logic. All cells follow batch-first convention: `[B, T, H]` for sequences, `[B, H]` for single-step.
+
+| Cell            | Description | Triton Accelerated |
+|-----------------|-------------|-------------------|
+| `LSTMCell`      | Stateless LSTM wrapper with TensorDict state (`h`, `c`); step and sequence parity; optional resets. | Yes |
+| `mLSTMCell`     | Matrix-LSTM with per-head state, chunkwise closed-form updates, and optional causal Conv1D pre-activation. | Yes |
+| `sLSTMCell`     | Structured LSTM with per-head gating, stabilized accumulators (`c`, `n`, `m`), and optional causal Conv1D. | Yes |
+| `CausalConv1d`  | Depthwise causal Conv1D cell (ring-buffer state); supports optional channel-mixing mode. | Yes (channel-mixing only) |
+
+**Notes:**
+- Triton kernels are selected automatically on CUDA when constraints are met; otherwise PyTorch fallback is used
+- `CausalConv1d` uses Triton only in channel-mixing mode (groups=1) with per-timestep resets
+- Resets (episode boundaries) are optional and broadcast-safe: `[B, T]` for sequences, `[B]` for steps
+
+### Blocks
+
+Wrappers around cells that handle projections, normalization, and information flow.
+
+| Block              | Description |
+|--------------------|------------|
+| `PassThroughBlock` | Applies the nested cell directly at `d_hidden` with residual; no projections. |
+| `PreUpBlock`       | Pre-upsamples to `d_inner = int(proj_factor * d_hidden)`, runs the cell at `d_inner`, gates and projects back to `d_hidden`, then adds residual. |
+| `PostUpBlock`      | Runs the cell at `d_hidden`, then applies a gated feed-forward projection up and back down before residual. Useful for deep stacks. |
+| `AdapterBlock`     | Wraps another block with a trainable residual adapter (identity at init). Lets you insert capacity without changing behavior at t=0. |
+
 ### Hidden Size Inference in Blocks
 
-Some blocks define the working dimension of their nested cell. For those cases,
-you may set the nested cell config's `hidden_size` to `None` and let the stack
-builder infer it:
+**Important**: Some blocks control the working dimension of their nested cell and will **override** the cell's `hidden_size` during stack construction, regardless of what value you provide:
 
-- `PreUpBlock`: infers `hidden_size = int(proj_factor * d_hidden)`.
-- `PostUpBlock`: infers `hidden_size = d_hidden`.
+- `PreUpBlock`: Sets `cell.hidden_size = int(proj_factor * d_hidden)`
+- `PostUpBlock`: Sets `cell.hidden_size = d_hidden`
+- `PassThroughBlock`: Sets `cell.hidden_size = d_hidden`
 
-This inference happens only when building via `CortexStackConfig`/`build_cortex`.
-If you instantiate cells directly, provide a concrete `hidden_size`.
+**Best Practice**: Set `hidden_size = None` in the cell config to make the override explicit and avoid confusion. The builder will infer and set the correct value automatically.
+
+```python
+# Recommended: explicit None shows the value will be inferred
+PreUpBlockConfig(
+    cell=LSTMCellConfig(hidden_size=None),  # Will be set to int(2.0 * 256) = 512
+    proj_factor=2.0
+)
+
+# Also works but misleading: 128 will be ignored and overridden to 512
+PreUpBlockConfig(
+    cell=LSTMCellConfig(hidden_size=128),  # Ignored! Actually becomes 512
+    proj_factor=2.0
+)
+```
+
+This override happens only when building via `CortexStackConfig`/`build_cortex`. If you instantiate blocks and cells directly (without the stack builder), you must provide concrete sizes that satisfy these relationships manually.
 
 ## Quick Start
 
@@ -120,7 +169,58 @@ stack = build_xlstm_stack(
 )
 ```
 
-You can also run these templates in the synthetic evaluation harness (see “Evaluate Quickly”).
+You can also run these templates in the synthetic evaluation harness (see below).
+
+## Evaluate Quickly
+
+Cortex includes lightweight synthetic tasks for sanity-checking stacks and comparing recipes. These evaluations verify wiring, state handling, and step/sequence parity.
+
+**Available Tasks:**
+- `delayed_recall` (T-Maze): Tests long-range memory retention
+- `majority`: Tests additive integration and counting
+- `dyck`: Tests stack-like behavior with balanced parentheses
+
+**Run a Single Stack:**
+
+```bash
+uv run python packages/cortex/evaluations/run.py --task delayed_recall --stack slstm_postup
+```
+
+**Run All Registered Stacks:**
+
+```bash
+uv run python packages/cortex/evaluations/run.py --task majority --stack all
+```
+
+**Common Flags:**
+- `--epochs`, `--batch-size`, `--lr`, `--seed`
+- `--log-level {DEBUG, INFO, WARNING, ERROR}`
+
+For more details, see [`docs/evaluations.md`](docs/evaluations.md).
+
+## Backend Configuration
+
+Cortex automatically selects between Triton (GPU-accelerated) and PyTorch backends based on device, dtype, and cell constraints. You can override this behavior with environment variables:
+
+```bash
+# Force PyTorch backend (disable Triton)
+CORTEX_DISABLE_TRITON=1 python your_script.py
+
+# Equivalent alternative
+CORTEX_FORCE_PYTORCH=1 python your_script.py
+```
+
+**When to Use:**
+- Debugging numerical differences between backends
+- Testing on systems without Triton support
+- Ensuring consistent behavior during development
+
+**Backend Selection Details:**
+- Triton kernels are used automatically on CUDA for supported cells (`LSTMCell`, `mLSTMCell`, `sLSTMCell`, `CausalConv1d`)
+- Some cells have additional constraints (e.g., LSTM requires power-of-two `hidden_size`)
+- Falls back to PyTorch when constraints aren't met
+
+For more details, see [`docs/api/kernels.md`](docs/api/kernels.md).
 
 ## Extending Cortex
 
@@ -214,4 +314,67 @@ python packages/cortex/evaluations/run.py --task majority --stack all   # runs a
 ### Tips
 - Prefer batch‑first shapes `[B, T, H]` and pass state explicitly.
 - Use `PreUpBlock` when a cell benefits from a larger inner width; use `PostUpBlock` to stabilize depth with a cell at `d_hidden`.
-- Let the stack infer `cell.hidden_size=None` inside `PreUpBlock`/`PostUpBlock` unless you’re composing blocks manually.
+- Let the stack infer `cell.hidden_size=None` inside `PreUpBlock`/`PostUpBlock` unless you're composing blocks manually.
+
+## Metta Framework Integration
+
+Cortex provides a ready-to-use adapter for integrating memory stacks with the [Metta RL framework](https://github.com/metta-ai/metta), which uses TensorDict-based state management.
+
+### MettaTDAdapter
+
+The `MettaTDAdapter` wraps a `CortexStack` and makes it compatible with Metta's TensorDict interface, handling stateful recurrent memory across rollout and training phases.
+
+**Key Features:**
+
+- **Two-cache architecture**: Separate caches for rollout (data collection) and training (gradient updates)
+  - `rollout_cache`: Updated during environment interaction (single-step mode)
+  - `train_cache`: Frozen snapshot used for deterministic training on replayed sequences
+- **Per-environment memory**: Efficiently manages separate hidden states for each environment
+- **Reset handling**: Automatically applies episode boundary resets via done/truncated flags
+- **Memory-efficient replay**: Stores only `env_id` in replay buffer; reconstructs states from cache
+- **Optional output projection**: Configurable linear projection after the stack
+
+**Example Usage:**
+
+```python
+from cortex import build_cortex, CortexStackConfig, LSTMCellConfig, PreUpBlockConfig
+from cortex.adapters import MettaTDAdapter
+
+# Build a memory stack
+stack = build_cortex(CortexStackConfig(
+    d_hidden=256,
+    blocks=[
+        PreUpBlockConfig(
+            cell=LSTMCellConfig(hidden_size=None),
+            proj_factor=2.0
+        )
+    ]
+))
+
+# Wrap with Metta adapter
+adapter = MettaTDAdapter(
+    stack=stack,
+    in_key="latent",           # Input key in TensorDict
+    out_key="recurrent_out",   # Output key in TensorDict
+    d_hidden=256,              # Stack's external hidden size
+    out_features=512,          # Optional projection to different size
+    store_dtype="fp32"         # Storage precision: 'fp32' or 'bf16'
+)
+
+# Use in your Metta policy
+# The adapter handles state management automatically via TensorDict metadata
+```
+
+**Integration Notes:**
+
+- The adapter is an `nn.Module` that registers the stack's parameters for optimization
+- Requires `training_env_ids` in TensorDict for per-environment state tracking
+- Expects `bptt` (backprop through time steps) metadata to distinguish rollout (bptt=1) from training (bptt>1)
+- Implements `get_memory()` / `set_memory()` for checkpoint serialization
+- Reset masks are constructed from `dones` and `truncateds` in the TensorDict
+
+**Performance Considerations:**
+
+- Uses `store_dtype` to control memory vs precision tradeoff (fp32 for accuracy, bf16 for memory)
+- Maintains a persistent batched state during rollout to avoid redundant gather/scatter operations
+- Training cache is compacted to only store active environment states
