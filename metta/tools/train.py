@@ -158,6 +158,8 @@ class TrainTool(Tool):
                 sdpa_stack.close()
                 self._sdpa_context_stack = None
 
+        return 0  # Explicitly return success
+
     def _load_or_create_policy(
         self,
         checkpoint_manager: CheckpointManager,
