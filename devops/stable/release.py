@@ -16,13 +16,13 @@ Auto-resume:
   Use --version X to use a specific version.
 
 Workflow filtering:
-  --workflow test                  # Run all TEST workflows (metta_test)
+  --workflow ci                    # Run CI workflow (metta ci - tests + linting)
   --workflow train                 # Run all TRAIN workflows (local + remote)
   --workflow train_local           # Run local training smoke tests
   --workflow train_remote          # Run remote single-GPU training
   --workflow train_remote_multigpu # Run remote multi-GPU training
   --workflow play                  # Run all PLAY workflows (interactive testing)
-  --workflow metta_test            # Run specific validation by name
+  --workflow metta_ci              # Run specific validation by name
   --workflow arena_local_smoke     # Run specific validation by name
 
 Examples:
@@ -425,9 +425,9 @@ def run_validation(
         print(f"  🔄 {validation.name} [{validation.workflow_type.value}] - starting...")
 
         # Handle different workflow types
-        if validation.workflow_type == WorkflowType.TEST:
-            # Run metta test locally via job_runner
-            cmd = ["metta", "test"]
+        if validation.workflow_type == WorkflowType.CI:
+            # Run metta ci locally via job_runner
+            cmd = ["metta", "ci"]
             job = run_local(
                 name=validation.name,
                 cmd=cmd,
@@ -625,16 +625,16 @@ def get_workflow_tests() -> list[Validation]:
     """Get the validation plan for this release.
 
     Returns:
-        List of validations to run (TEST, TRAIN single-GPU, TRAIN multi-GPU, PLAY)
+        List of validations to run (CI, TRAIN single-GPU, TRAIN multi-GPU, PLAY)
     """
     validations = []
 
-    # 1. TEST workflow - run metta test locally
+    # 1. CI workflow - run metta ci locally (tests + linting)
     validations.append(
         Validation(
-            name="metta_test",
-            workflow_type=WorkflowType.TEST,
-            module="",  # Not used for TEST workflow
+            name="metta_ci",
+            workflow_type=WorkflowType.CI,
+            module="",  # Not used for CI workflow
             location="local",
             timeout_s=1800,  # 30 minutes
         )
