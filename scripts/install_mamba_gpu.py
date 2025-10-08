@@ -67,6 +67,11 @@ def install_default(packages: list[str]) -> bool:
     return run(cmd)
 
 
+def install_no_isolation(packages: list[str]) -> bool:
+    cmd = ["pip", "install", "--no-build-isolation", *packages]
+    return run(cmd)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--quiet", action="store_true", help="suppress success output")
@@ -98,6 +103,10 @@ def main() -> int:
 
     ensure_cuda_home()
 
+    # Ensure build requirements that flash-attn often assumes are already present.
+    install_default(["packaging"])  # idempotent
+    install_default(["torch"])
+
     flash_installed = False
     causal_installed = False
 
@@ -120,6 +129,11 @@ def main() -> int:
             if install_default([pkg]):
                 causal_installed = True
                 break
+
+    if not flash_installed:
+        flash_installed = install_no_isolation(["flash-attn"])
+    if not causal_installed:
+        causal_installed = install_no_isolation(["causal-conv1d"])
 
     if flash_installed and causal_installed:
         if not args.quiet:
