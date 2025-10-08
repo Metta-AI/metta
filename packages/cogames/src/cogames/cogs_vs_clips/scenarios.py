@@ -173,24 +173,27 @@ def _char_to_name_for(base_config: MettaGridConfig) -> dict[str, str]:
     return char_to_name
 
 
-def _map_name_to_file() -> dict[str, str]:
+def _map_name_to_file() -> dict[str, tuple[str, float]]:
     """Single source of truth for map-based scenarios."""
     return {
-        "machina_1": "cave_base_50.map",
-        "machina_2": "machina_100_stations.map",
-        "machina_3": "machina_200_stations.map",
-        "machina_1_big": "canidate1_500_stations.map",
-        "machina_2_bigger": "canidate1_1000_stations.map",
-        "machina_3_big": "canidate2_500_stations.map",
-        "machina_4_bigger": "canidate2_1000_stations.map",
-        "machina_5_big": "canidate3_500_stations.map",
-        "machina_6_bigger": "canidate3_1000_stations.map",
-        "machina_7_big": "canidate4_500_stations.map",
-        "training_facility_1": "training_facility_open_1.map",
-        "training_facility_2": "training_facility_open_2.map",
-        "training_facility_3": "training_facility_open_3.map",
-        "training_facility_4": "training_facility_tight_4.map",
-        "training_facility_5": "training_facility_tight_5.map",
+        # name: (filename, default_clip_rate)
+        "machina_1": ("cave_base_50.map", 0.0),
+        "machina_1_clipped": ("cave_base_50.map", 0.02),
+        "machina_2": ("machina_100_stations.map", 0.0),
+        "machina_3": ("machina_200_stations.map", 0.0),
+        "machina_1_big": ("canidate1_500_stations.map", 0.0),
+        "machina_2_bigger": ("canidate1_1000_stations.map", 0.0),
+        "machina_3_big": ("canidate2_500_stations.map", 0.0),
+        "machina_4_bigger": ("canidate2_1000_stations.map", 0.0),
+        "machina_5_big": ("canidate3_500_stations.map", 0.0),
+        "machina_6_bigger": ("canidate3_1000_stations.map", 0.0),
+        "machina_7_big": ("canidate4_500_stations.map", 0.0),
+        "training_facility_1": ("training_facility_open_1.map", 0.0),
+        "training_facility_2": ("training_facility_open_2.map", 0.0),
+        "training_facility_3": ("training_facility_open_3.map", 0.0),
+        "training_facility_4": ("training_facility_tight_4.map", 0.0),
+        "training_facility_5": ("training_facility_tight_5.map", 0.0),
+        "training_facility_6": ("training_facility_clipped.map", 0.0),
     }
 
 
@@ -220,41 +223,25 @@ def make_game_from_map(
 
 
 def make_game_from_map_with_agents(map_name: str, num_agents: int) -> MettaGridConfig:
-    return make_game_from_map(map_name, num_agents=num_agents, dynamic_spawn=True)
+    return make_game_from_map(map_name, num_cogs=num_agents, dynamic_spawn=True)
 
 
 def games() -> dict[str, MettaGridConfig]:
-    # Align with main's structure; defaults do not enable dynamic spawn
-    return {
-        # "extractor_1cog_1resource": tutorial_extractor(num_cogs=1),""
-        # "extractor_1cog_4resource": tutorial_extractor(num_cogs=1),
-        # "harvest_1": tutorial_harvest(num_cogs=1),
-        # "harvest_4": tutorial_harvest(num_cogs=4),
-        # "base_1": tutorial_base(num_cogs=1),
-        # "base_4": tutorial_base(num_cogs=4),
-        # "forage_1": tutorial_forage(num_cogs=1),
-        # "forage_4": tutorial_forage(num_cogs=4),
-        # "chest_1": tutorial_chest(num_cogs=1),
-        # "chest_4": tutorial_chest(num_cogs=4),
-        "training_facility_1": make_game_from_map("training_facility_open_1.map"),
-        "training_facility_2": make_game_from_map("training_facility_open_2.map"),
-        "training_facility_3": make_game_from_map("training_facility_open_3.map"),
-        "training_facility_4": make_game_from_map("training_facility_tight_4.map"),
-        "training_facility_5": make_game_from_map("training_facility_tight_5.map"),
-        "training_facility_6": make_game_from_map("training_facility_clipped.map"),
-        # Biomes dungeon maps with stations
-        "machina_1_clipped": make_game_from_map("cave_base_50.map", clipping_rate=0.02),
-        "machina_1": make_game_from_map("cave_base_50.map"),
-        "machina_2": make_game_from_map("machina_100_stations.map"),
-        "machina_3": make_game_from_map("machina_200_stations.map"),
-        "machina_1_big": make_game_from_map("canidate1_500_stations.map"),
-        "machina_2_bigger": make_game_from_map("canidate1_1000_stations.map"),
-        "machina_3_big": make_game_from_map("canidate2_500_stations.map"),
-        "machina_4_bigger": make_game_from_map("canidate2_1000_stations.map"),
-        "machina_5_big": make_game_from_map("canidate3_500_stations.map"),
-        "machina_6_bigger": make_game_from_map("canidate3_1000_stations.map"),
-        "machina_7_big": make_game_from_map("canidate4_500_stations.map"),
-    }
+    # Build from catalog to avoid duplication
+    g: dict[str, MettaGridConfig] = {}
+
+    # Tutorials (unchanged)
+    g["assembler_1_simple"] = tutorial_assembler_complex(num_cogs=1)
+    g["assembler_1_complex"] = tutorial_assembler_simple(num_cogs=1)
+    g["assembler_2_simple"] = tutorial_assembler_simple(num_cogs=4)
+    g["assembler_2_complex"] = tutorial_assembler_complex(num_cogs=4)
+
+    # Map-based from catalog; default to non-dynamic maps, clip rate from catalog
+    for name, (filename, clip_rate) in _map_name_to_file().items():
+        # Only auto-generate canonical names; variants like *_clipped covered in catalog
+        g[name] = make_game_from_map(filename, clipping_rate=clip_rate)
+
+    return g
 
 
 def supports_dynamic_spawn(game_name: str) -> bool:
@@ -264,7 +251,8 @@ def supports_dynamic_spawn(game_name: str) -> bool:
 
 def make_map_game(game_name: str, num_agents: int, dynamic_spawn: bool = True) -> MettaGridConfig:
     """Create a map-based game by name, optionally enabling dynamic spawn."""
-    name_to_map = _map_name_to_file()
-    if game_name not in name_to_map:
+    catalog = _map_name_to_file()
+    if game_name not in catalog:
         raise ValueError(f"Game '{game_name}' is not a recognized map-based scenario")
-    return make_game_from_map(name_to_map[game_name], num_cogs=num_agents, dynamic_spawn=dynamic_spawn)
+    filename, clip_rate = catalog[game_name]
+    return make_game_from_map(filename, num_cogs=num_agents, clipping_rate=clip_rate, dynamic_spawn=dynamic_spawn)
