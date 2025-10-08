@@ -112,37 +112,6 @@ def _build_components(
 
 
 class AGaLiTeConfig(PolicyArchitecture):
-    class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
-    learning_rate_hint: float = 7.5e-4
-
-    # Parameter budget tuned to match Transformer GTrXL/TRXL cores (~14k params).
-    components: List[ComponentConfig] = Field(
-        default_factory=lambda: _build_components(
-            hidden_size=32,
-            embedding_dim=16,
-            n_layers=1,
-            n_heads=2,
-            feedforward_size=128,
-            eta=2,
-            r=2,
-            dropout=0.05,
-            kernel=AGaLiTeKernelConfig(name="eluplus1", nu=2),
-            max_tokens=48,
-            attr_embed_dim=8,
-            fourier_freqs=3,
-            num_latents=12,
-            critic_hidden=[512],
-            actor_hidden_dim=32,
-        )
-    )
-
-    action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
-
-    def policy_defaults(self) -> dict[str, object]:
-        return {"learning_rate_hint": self.learning_rate_hint}
-
-
-class AGaLiTePaperConfig(PolicyArchitecture):
     """AGaLiTe configuration aligned with the published architecture."""
 
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
@@ -175,4 +144,4 @@ class AGaLiTePaperConfig(PolicyArchitecture):
         return {"learning_rate_hint": self.learning_rate_hint}
 
 
-__all__ = ["AGaLiTeConfig", "AGaLiTePaperConfig"]
+__all__ = ["AGaLiTeConfig"]
