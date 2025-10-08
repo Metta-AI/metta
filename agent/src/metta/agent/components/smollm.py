@@ -5,9 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Literal, Optional
 
-import einops
 import torch
-import torch.nn.functional as F
 from gymnasium.spaces import Discrete
 from tensordict import TensorDict
 from torch import nn
@@ -41,9 +39,6 @@ class SmolLLMBackboneConfig(ComponentConfig):
     freeze_llm: bool = True
     torch_dtype: Literal["auto", "float32", "float16", "bfloat16"] = "auto"
     attn_implementation: Optional[str] = "flash_attention_2"
-    num_latents: int = 16
-    perceiver_heads: int = 4
-    perceiver_layers: int = 2
     coord_vocab_size: int = 256
     feature_vocab_size: int = 256
 
@@ -52,7 +47,7 @@ class SmolLLMBackboneConfig(ComponentConfig):
 
 
 class SmolLLMBackbone(nn.Module):
-    """Backbone that projects Metta observations into a pretrained SmolLLM."""
+    """Backbone that projects Metta observation tokens into a pretrained SmolLLM."""
 
     def __init__(self, env: EnvironmentMetaData, config: SmolLLMBackboneConfig):
         super().__init__()
@@ -70,47 +65,12 @@ class SmolLLMBackbone(nn.Module):
         self._load_model()
 
         self.hidden_size = self.llm.config.hidden_size
+
         self.coord_embed = nn.Embedding(self.config.coord_vocab_size, self.hidden_size)
         self.feature_embed = nn.Embedding(self.config.feature_vocab_size, self.hidden_size)
-        self.value_embed = nn.Sequential(
-            nn.Linear(1, self.hidden_size),
-            nn.Tanh(),
-        )
-
+        self.value_embed = nn.Sequential(nn.Linear(1, self.hidden_size), nn.Tanh())
+        self.position_embed = nn.Embedding(self.max_sequence_length, self.hidden_size)
         self.token_norm = nn.LayerNorm(self.hidden_size)
-        self.k_proj = nn.Linear(self.hidden_size, self.hidden_size, bias=False)
-        self.v_proj = nn.Linear(self.hidden_size, self.hidden_size, bias=False)
-
-        self.num_latents = self.config.num_latents
-        self.num_heads = self.config.perceiver_heads
-        self.num_layers = self.config.perceiver_layers
-
-        if self.hidden_size % self.num_heads != 0:
-            raise ValueError("hidden_size must be divisible by perceiver_heads")
-
-        self.latents = nn.Parameter(torch.randn(1, self.num_latents, self.hidden_size))
-        nn.init.trunc_normal_(self.latents, std=0.02)
-
-        self.perceiver_layers = nn.ModuleList(
-            [
-                nn.ModuleDict(
-                    {
-                        "latent_norm": nn.LayerNorm(self.hidden_size),
-                        "q_proj": nn.Linear(self.hidden_size, self.hidden_size, bias=False),
-                        "attn_out_proj": nn.Linear(self.hidden_size, self.hidden_size),
-                        "mlp_norm": nn.LayerNorm(self.hidden_size),
-                        "mlp": nn.Sequential(
-                            nn.Linear(self.hidden_size, self.hidden_size * 4),
-                            nn.GELU(),
-                            nn.Linear(self.hidden_size * 4, self.hidden_size),
-                        ),
-                    }
-                )
-                for _ in range(self.num_layers)
-            ]
-        )
-
-        self.final_norm = nn.LayerNorm(self.hidden_size)
 
         action_space = getattr(env, "action_space", None)
         if not isinstance(action_space, Discrete):
@@ -131,23 +91,22 @@ class SmolLLMBackbone(nn.Module):
         if tokens.dim() == 4:
             tokens = tokens.view(-1, tokens.shape[-2], tokens.shape[-1])
 
-        tokens, mask = self._compress_tokens(tokens)
-        token_features = self._embed_tokens(tokens, mask)
-        latents = self._encode_latents(token_features, mask)
-
+        embeds, attention_mask = self._embed_tokens(tokens)
         llm_dtype = next(self.llm.parameters()).dtype
-        latents = latents.to(dtype=llm_dtype)
-        attention_mask = torch.ones(latents.shape[:2], dtype=torch.long, device=latents.device)
+        embeds = embeds.to(dtype=llm_dtype)
+        attention_mask = attention_mask.to(device=embeds.device)
 
         outputs = self.llm(
-            inputs_embeds=latents,
+            inputs_embeds=embeds,
             attention_mask=attention_mask,
             output_hidden_states=True,
             return_dict=True,
             use_cache=False,
         )
         final_hidden = outputs.hidden_states[-1]
-        pooled = final_hidden.mean(dim=1)
+
+        mask = attention_mask.unsqueeze(-1)
+        pooled = (final_hidden * mask).sum(dim=1) / mask.sum(dim=1).clamp_min(1.0)
 
         logits = self.actor_head(pooled).to(dtype=torch.float32)
         values = self.value_head(pooled).squeeze(-1).to(dtype=torch.float32)
@@ -167,14 +126,8 @@ class SmolLLMBackbone(nn.Module):
         self.coord_embed = self.coord_embed.to(device=device, dtype=llm_dtype)
         self.feature_embed = self.feature_embed.to(device=device, dtype=llm_dtype)
         self.value_embed = self.value_embed.to(device=device, dtype=llm_dtype)
+        self.position_embed = self.position_embed.to(device=device, dtype=llm_dtype)
         self.token_norm = self.token_norm.to(device=device, dtype=llm_dtype)
-        self.k_proj = self.k_proj.to(device=device, dtype=llm_dtype)
-        self.v_proj = self.v_proj.to(device=device, dtype=llm_dtype)
-        self.latents = nn.Parameter(
-            self.latents.to(device=device, dtype=llm_dtype), requires_grad=self.latents.requires_grad
-        )
-        self.perceiver_layers = self.perceiver_layers.to(device=device, dtype=llm_dtype)
-        self.final_norm = self.final_norm.to(device=device, dtype=llm_dtype)
         self.actor_head = self.actor_head.to(device=device, dtype=llm_dtype)
         self.value_head = self.value_head.to(device=device, dtype=llm_dtype)
 
@@ -212,87 +165,54 @@ class SmolLLMBackbone(nn.Module):
             return None
         return mapping[self.config.torch_dtype]
 
-    def _compress_tokens(self, tokens: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        """Trim tokens to the effective max length and build an attention mask."""
+    def _embed_tokens(self, tokens: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        if tokens.shape[-1] != 3:
+            raise ValueError(f"Expected token tensors with last dim 3, got {tokens.shape[-1]}")
 
-        device = tokens.device
-        valid_mask = tokens[..., 0] != 255
-        lengths = valid_mask.sum(dim=1)
-        if self.max_sequence_length is not None:
-            lengths = torch.clamp(lengths, max=self.max_sequence_length)
+        batch_size = tokens.shape[0]
+        max_len = min(tokens.shape[1], self.max_sequence_length)
+        if max_len == 0:
+            max_len = 1
+            tokens = torch.zeros(batch_size, max_len, 3, dtype=tokens.dtype, device=tokens.device)
+        else:
+            tokens = tokens[:, :max_len]
 
-        if lengths.numel() == 0:
-            return tokens[:, :0], valid_mask[:, :0]
+        coord_tokens = tokens[..., 0].long()
+        feature_tokens = tokens[..., 1].long()
+        value_tokens = tokens[..., 2].float() / 255.0
 
-        max_len = int(torch.maximum(lengths.max(), torch.tensor(1, device=device)))
-        if self.max_sequence_length is not None:
-            max_len = min(max_len, self.max_sequence_length)
+        valid_mask = coord_tokens != 255
 
-        gather_idx = torch.arange(max_len, device=device).expand(tokens.shape[0], -1)
-        last_valid = torch.clamp(lengths - 1, min=0)
-        gather_idx = torch.minimum(gather_idx, last_valid.unsqueeze(1)).to(torch.int64)
+        coord_tokens = torch.clamp(coord_tokens, max=self.config.coord_vocab_size - 1)
+        feature_tokens = torch.clamp(feature_tokens, max=self.config.feature_vocab_size - 1)
 
-        gather_idx_expanded = gather_idx.unsqueeze(-1).expand(-1, -1, tokens.shape[-1])
-        gathered = torch.gather(tokens, 1, gather_idx_expanded)
+        zero_coords = torch.zeros_like(coord_tokens)
+        zero_features = torch.zeros_like(feature_tokens)
+        zero_values = torch.zeros_like(value_tokens)
 
-        keep_mask = torch.arange(max_len, device=device).expand(tokens.shape[0], -1) < lengths.unsqueeze(1)
-        fill = torch.full_like(gathered, 255)
-        compressed = torch.where(keep_mask.unsqueeze(-1), gathered, fill)
+        coord_tokens = torch.where(valid_mask, coord_tokens, zero_coords)
+        feature_tokens = torch.where(valid_mask, feature_tokens, zero_features)
+        value_tokens = torch.where(valid_mask, value_tokens, zero_values)
 
-        return compressed, keep_mask
+        coord_emb = self.coord_embed(coord_tokens)
+        feature_emb = self.feature_embed(feature_tokens)
+        value_tokens = value_tokens.to(dtype=self.value_embed[0].weight.dtype)
+        value_emb = self.value_embed(value_tokens.unsqueeze(-1))
 
-    def _embed_tokens(self, tokens: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-        coords = tokens[..., 0].long()
-        features = tokens[..., 1].long()
-        values = tokens[..., 2].float().unsqueeze(-1)
+        token_features = coord_emb + feature_emb + value_emb
 
-        valid_mask = mask
-        coords = torch.where(valid_mask, coords, torch.zeros_like(coords))
-        features = torch.where(valid_mask, features, torch.zeros_like(features))
-        embed_dtype = self.value_embed[0].weight.dtype
-        values = values.to(dtype=embed_dtype)
-        values = torch.where(valid_mask.unsqueeze(-1), values, torch.zeros_like(values))
-
-        coords = torch.clamp(coords, max=self.config.coord_vocab_size - 1)
-        features = torch.clamp(features, max=self.config.feature_vocab_size - 1)
-
-        coord_emb = self.coord_embed(coords)
-        feat_emb = self.feature_embed(features)
-        value_emb = self.value_embed(values)
-
-        token_features = coord_emb + feat_emb + value_emb
+        position_ids = torch.arange(max_len, device=tokens.device).unsqueeze(0)
+        position_emb = self.position_embed(position_ids)
+        token_features = token_features + position_emb
         token_features = torch.where(valid_mask.unsqueeze(-1), token_features, torch.zeros_like(token_features))
-        return token_features
+        token_features = self.token_norm(token_features)
 
-    def _encode_latents(self, token_features: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-        if token_features.numel() == 0:
-            latents = self.latents.expand(token_features.shape[0], -1, -1)
-            return latents
+        attention_mask = valid_mask.to(dtype=torch.long)
+        empty_rows = attention_mask.sum(dim=1) == 0
+        if empty_rows.any():
+            attention_mask = attention_mask.clone()
+            attention_mask[empty_rows, 0] = 1
+            token_features = token_features.clone()
+            token_features[empty_rows, 0] = 0
 
-        tokens_norm = self.token_norm(token_features)
-        k = self.k_proj(tokens_norm)
-        v = self.v_proj(tokens_norm)
-
-        k = einops.rearrange(k, "b m (h d) -> b h m d", h=self.num_heads)
-        v = einops.rearrange(v, "b m (h d) -> b h m d", h=self.num_heads)
-
-        attn_bias = None
-        if not mask.all():
-            mask_value = torch.finfo(k.dtype).min
-            attn_bias = (~mask).unsqueeze(1).unsqueeze(2).to(k.dtype) * mask_value
-
-        latents = self.latents.expand(token_features.shape[0], -1, -1)
-
-        for layer in self.perceiver_layers:
-            residual = latents
-            q = layer["q_proj"](layer["latent_norm"](latents))
-            q = einops.rearrange(q, "b n (h d) -> b h n d", h=self.num_heads)
-
-            attn_output = F.scaled_dot_product_attention(q, k, v, attn_mask=attn_bias)
-            attn_output = einops.rearrange(attn_output, "b h n d -> b n (h d)")
-            latents = residual + layer["attn_out_proj"](attn_output)
-
-            latents = latents + layer["mlp"](layer["mlp_norm"](latents))
-
-        latents = self.final_norm(latents)
-        return latents
+        return token_features, attention_mask
