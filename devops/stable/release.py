@@ -598,11 +598,11 @@ def get_workflow_tests() -> list[Validation]:
     # 3. TRAIN_REMOTE - single GPU remote validation
     validations.append(
         Validation(
-            name="arena_single_gpu_50k",
+            name="arena_single_gpu_10m",
             workflow_type=WorkflowType.TRAIN_REMOTE,
             module="experiments.recipes.arena_basic_easy_shaped.train",
             location="remote",
-            args=["trainer.total_timesteps=50000"],
+            args=["trainer.total_timesteps=10000000"],
             timeout_s=3600,  # 1 hour
             acceptance=[ThresholdCheck(key="sps_max", op=">=", expected=40000)],
         )
