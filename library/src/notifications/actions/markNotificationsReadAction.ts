@@ -1,48 +1,51 @@
 "use server";
 
-import { zfd } from "zod-form-data";
-import { actionClient } from "@/lib/actionClient";
+import { z } from "zod/v4";
 import { getSessionOrRedirect } from "@/lib/auth";
+import {
+  markNotificationsRead,
+  markAllNotificationsRead,
+} from "@/lib/notifications";
 import { prisma } from "@/lib/db/prisma";
 
-const inputSchema = zfd.formData({
-  notificationIds: zfd.text().optional(),
-  markAllRead: zfd.text().optional(),
+export type MarkNotificationsReadInput = {
+  notificationIds?: string[];
+  markAllRead?: boolean;
+};
+
+const markReadSchema = z.object({
+  notificationIds: z.array(z.string()).optional(),
+  markAllRead: z.boolean().default(false),
 });
 
-export const markNotificationsReadAction = actionClient
-  .inputSchema(inputSchema)
-  .action(async ({ parsedInput: input }) => {
-    const notificationIds = input.notificationIds
-      ? JSON.parse(input.notificationIds)
-      : undefined;
-    const markAllRead = input.markAllRead === "true";
-    const session = await getSessionOrRedirect();
-    const userId = session.user.id;
+/**
+ * Server action to mark notifications as read
+ */
+export async function markNotificationsReadAction(
+  input: MarkNotificationsReadInput
+): Promise<{ success: boolean }> {
+  const session = await getSessionOrRedirect();
+  const { notificationIds, markAllRead } = markReadSchema.parse(input);
 
-    if (markAllRead) {
-      // Mark all notifications as read
-      await prisma.notification.updateMany({
-        where: {
-          userId,
-          isRead: false,
-        },
-        data: {
-          isRead: true,
-        },
-      });
-    } else if (notificationIds && notificationIds.length > 0) {
-      // Mark specific notifications as read
-      await prisma.notification.updateMany({
-        where: {
-          id: { in: notificationIds },
-          userId, // Ensure user owns these notifications
-        },
-        data: {
-          isRead: true,
-        },
-      });
+  if (markAllRead) {
+    // Mark all notifications as read
+    await markAllNotificationsRead(session.user.id);
+  } else if (notificationIds && notificationIds.length > 0) {
+    // Mark specific notifications as read
+    // First verify these notifications belong to the current user
+    const userNotifications = await prisma.notification.findMany({
+      where: {
+        id: { in: notificationIds },
+        userId: session.user.id, // Security: only mark user's own notifications
+      },
+      select: { id: true },
+    });
+
+    const verifiedIds = userNotifications.map((n) => n.id);
+    if (verifiedIds.length > 0) {
+      await markNotificationsRead(verifiedIds);
     }
+  }
 
-    return { success: true };
-  });
+  return { success: true };
+}
