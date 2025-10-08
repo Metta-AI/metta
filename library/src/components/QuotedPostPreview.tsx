@@ -4,6 +4,8 @@ import { FC, useEffect, useState } from "react";
 import Link from "next/link";
 import { X } from "lucide-react";
 
+import { getUserDisplayName, getUserInitials } from "@/lib/utils/user";
+
 interface QuotedPost {
   id: string;
   title: string;
@@ -64,20 +66,6 @@ export const QuotedPostPreview: FC<QuotedPostPreviewProps> = ({
     return null;
   }
 
-  const getUserDisplayName = (author: QuotedPost["author"]) => {
-    return author.name || author.email?.split("@")[0] || "Unknown User";
-  };
-
-  const getUserInitials = (author: QuotedPost["author"]) => {
-    const name = getUserDisplayName(author);
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
-  };
-
   return (
     <div className="space-y-3">
       {quotedPosts.length === 1 && (
@@ -99,12 +87,15 @@ export const QuotedPostPreview: FC<QuotedPostPreviewProps> = ({
                 {post.author.image ? (
                   <img
                     src={post.author.image}
-                    alt={getUserDisplayName(post.author)}
+                    alt={getUserDisplayName(
+                      post.author.name,
+                      post.author.email
+                    )}
                     className="h-8 w-8 rounded-full"
                   />
                 ) : (
                   <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500 text-xs font-medium text-white">
-                    {getUserInitials(post.author)}
+                    {getUserInitials(post.author.name, post.author.email)}
                   </div>
                 )}
               </div>
@@ -113,7 +104,7 @@ export const QuotedPostPreview: FC<QuotedPostPreviewProps> = ({
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-gray-900">
-                    {getUserDisplayName(post.author)}
+                    {getUserDisplayName(post.author.name, post.author.email)}
                   </span>
                   <span className="text-xs text-gray-500">
                     {new Date(post.createdAt).toLocaleDateString()}
