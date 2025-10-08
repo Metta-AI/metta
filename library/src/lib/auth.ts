@@ -5,10 +5,37 @@ import NextAuth, { NextAuthConfig, NextAuthResult, Session } from "next-auth";
 import { Provider } from "next-auth/providers";
 import Google from "next-auth/providers/google";
 import { redirect } from "next/navigation";
+import type { Adapter } from "next-auth/adapters";
 
 import { prisma } from "./db/prisma";
 import { config } from "./config";
 import { Logger } from "./logging/logger";
+
+/**
+ * Wrap Prisma adapter to handle missing session deletion gracefully.
+ * This prevents errors when trying to delete a non-existent session during magic link login.
+ */
+function createSafeAdapter(): Adapter {
+  const baseAdapter = PrismaAdapter(prisma);
+
+  return {
+    ...baseAdapter,
+    async deleteSession(sessionToken: string) {
+      try {
+        return await baseAdapter.deleteSession!(sessionToken);
+      } catch (error: any) {
+        // Ignore "record not found" errors when deleting sessions
+        if (error?.code === "P2025") {
+          Logger.debug("Session not found for deletion (safe to ignore)", {
+            sessionToken,
+          });
+          return null;
+        }
+        throw error;
+      }
+    },
+  };
+}
 
 function buildAuthConfig(): NextAuthConfig {
   const providers: Provider[] = [];
@@ -21,7 +48,7 @@ function buildAuthConfig(): NextAuthConfig {
       name: "Log magic link to console (dev)",
       async sendVerificationRequest(params) {
         const { url } = params;
-        Logger.info({ url });
+        Logger.info(`Magic login link: ${url}`);
       },
     });
   } else {
@@ -42,7 +69,7 @@ function buildAuthConfig(): NextAuthConfig {
       : ["stem.ai", "softmax.com"];
 
   const authConfig: NextAuthConfig = {
-    adapter: PrismaAdapter(prisma),
+    adapter: createSafeAdapter(),
     providers,
     callbacks: {
       async signIn({ account, profile, user }) {
