@@ -4,34 +4,24 @@
  * Processes jobs from the auto-tagging queue using BullMQ
  */
 
-import { Worker, Job } from "bullmq";
-import { redisConfig, BackgroundJobs } from "../job-queue";
+import { Job } from "bullmq";
+import { BackgroundJobs } from "../job-queue";
 import { AutoTaggingService } from "../auto-tagging-service";
 import { Logger } from "../logging/logger";
+import { BaseWorker } from "./base-worker";
 
-export class TaggingWorker {
-  private worker: Worker;
-
+export class TaggingWorker extends BaseWorker<
+  BackgroundJobs["auto-tag-paper"]
+> {
   constructor() {
-    this.worker = new Worker(
-      "auto-tagging",
-      async (job: Job<BackgroundJobs["auto-tag-paper"]>) => {
-        return await this.processJob(job);
-      },
-      {
-        connection: redisConfig,
-        concurrency: 3, // Can process multiple tagging jobs concurrently
-        limiter: {
-          max: 20, // Max 20 jobs
-          duration: 60000, // Per minute
-        },
-      }
-    );
-
-    this.setupEventHandlers();
+    super({
+      queueName: "auto-tagging",
+      concurrency: 3, // Can process multiple tagging jobs concurrently
+      maxJobsPerMinute: 20,
+    });
   }
 
-  private async processJob(
+  protected async processJob(
     job: Job<BackgroundJobs["auto-tag-paper"]>
   ): Promise<void> {
     const { paperId } = job.data;
@@ -52,25 +42,6 @@ export class TaggingWorker {
       );
       throw error; // BullMQ will handle retries
     }
-  }
-
-  private setupEventHandlers(): void {
-    this.worker.on("completed", (job) => {
-      Logger.debug("Tagging job completed", { jobId: job.id });
-    });
-
-    this.worker.on("failed", (job, err) => {
-      Logger.error("Tagging job failed", err, { jobId: job?.id });
-    });
-
-    this.worker.on("error", (err) => {
-      Logger.error("Tagging worker error", err);
-    });
-  }
-
-  async shutdown(): Promise<void> {
-    Logger.info("Shutting down tagging worker");
-    await this.worker.close();
   }
 }
 
