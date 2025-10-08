@@ -10,7 +10,6 @@ import torch
 
 from cogames import game
 from cogames.train import train
-from mettagrid import MettaGridEnv
 
 
 @pytest.fixture
@@ -95,6 +94,7 @@ def test_train_lstm_policy(test_env_config, temp_checkpoint_dir):
 def test_train_and_load_policy_data(test_env_config, temp_checkpoint_dir):
     """Test training a policy, then loading it for evaluation."""
     from cogames.policy.simple import SimplePolicy
+    from mettagrid import MettaGridEnv
 
     # Train the policy
     train(
@@ -145,6 +145,7 @@ def test_train_and_load_policy_data(test_env_config, temp_checkpoint_dir):
 def test_train_lstm_and_load_policy_data(test_env_config, temp_checkpoint_dir):
     """Test training LSTM policy, then loading it for evaluation."""
     from cogames.policy.lstm import LSTMPolicy
+    from mettagrid import MettaGridEnv
 
     # Train the policy
     train(
