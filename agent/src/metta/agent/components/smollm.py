@@ -39,8 +39,7 @@ class SmolLLMBackboneConfig(ComponentConfig):
     freeze_llm: bool = True
     torch_dtype: Literal["auto", "float32", "float16", "bfloat16"] = "auto"
     attn_implementation: Optional[str] = "flash_attention_2"
-    coord_vocab_size: int = 256
-    feature_vocab_size: int = 256
+    pad_value: int = 255
 
     def make_component(self, env: EnvironmentMetaData):
         return SmolLLMBackbone(env, self)
@@ -61,16 +60,15 @@ class SmolLLMBackbone(nn.Module):
         self.values_key = config.values_key
         self.hidden_key = config.hidden_key
         self.max_sequence_length = config.max_sequence_length
+        self.pad_value = config.pad_value
 
         self._load_model()
 
         self.hidden_size = self.llm.config.hidden_size
 
-        self.coord_embed = nn.Embedding(self.config.coord_vocab_size, self.hidden_size)
-        self.feature_embed = nn.Embedding(self.config.feature_vocab_size, self.hidden_size)
-        self.value_embed = nn.Sequential(nn.Linear(1, self.hidden_size), nn.Tanh())
-        self.position_embed = nn.Embedding(self.max_sequence_length, self.hidden_size)
-        self.token_norm = nn.LayerNorm(self.hidden_size)
+        self.projector = nn.Linear(3, self.hidden_size)
+        self.activation = nn.GELU()
+        self.embed_norm = nn.LayerNorm(self.hidden_size)
 
         action_space = getattr(env, "action_space", None)
         if not isinstance(action_space, Discrete):
@@ -91,7 +89,7 @@ class SmolLLMBackbone(nn.Module):
         if tokens.dim() == 4:
             tokens = tokens.view(-1, tokens.shape[-2], tokens.shape[-1])
 
-        embeds, attention_mask = self._embed_tokens(tokens)
+        embeds, attention_mask = self._project_tokens(tokens)
         llm_dtype = next(self.llm.parameters()).dtype
         embeds = embeds.to(dtype=llm_dtype)
         attention_mask = attention_mask.to(device=embeds.device)
@@ -105,10 +103,7 @@ class SmolLLMBackbone(nn.Module):
         )
         final_hidden = outputs.hidden_states[-1]
 
-        mask = attention_mask.unsqueeze(-1).to(dtype=final_hidden.dtype)
-        token_sum = (final_hidden * mask).sum(dim=1)
-        denom = mask.sum(dim=1).clamp_min(1.0)
-        pooled = token_sum / denom
+        pooled = self._pool_hidden_states(final_hidden, attention_mask)
         pooled = pooled.to(dtype=self.actor_head.weight.dtype)
 
         logits = self.actor_head(pooled).to(dtype=torch.float32)
@@ -126,11 +121,9 @@ class SmolLLMBackbone(nn.Module):
         self.to(device)
 
         llm_dtype = next(self.llm.parameters()).dtype
-        self.coord_embed = self.coord_embed.to(device=device, dtype=llm_dtype)
-        self.feature_embed = self.feature_embed.to(device=device, dtype=llm_dtype)
-        self.value_embed = self.value_embed.to(device=device, dtype=llm_dtype)
-        self.position_embed = self.position_embed.to(device=device, dtype=llm_dtype)
-        self.token_norm = self.token_norm.to(device=device, dtype=llm_dtype)
+        self.projector = self.projector.to(device=device, dtype=llm_dtype)
+        self.embed_norm = self.embed_norm.to(device=device, dtype=llm_dtype)
+        self.activation = self.activation.to(device=device)
         self.actor_head = self.actor_head.to(device=device, dtype=llm_dtype)
         self.value_head = self.value_head.to(device=device, dtype=llm_dtype)
 
@@ -168,54 +161,42 @@ class SmolLLMBackbone(nn.Module):
             return None
         return mapping[self.config.torch_dtype]
 
-    def _embed_tokens(self, tokens: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def _project_tokens(self, tokens: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         if tokens.shape[-1] != 3:
             raise ValueError(f"Expected token tensors with last dim 3, got {tokens.shape[-1]}")
 
-        batch_size = tokens.shape[0]
-        max_len = min(tokens.shape[1], self.max_sequence_length)
-        if max_len == 0:
-            max_len = 1
-            tokens = torch.zeros(batch_size, max_len, 3, dtype=tokens.dtype, device=tokens.device)
-        else:
-            tokens = tokens[:, :max_len]
+        batch_size, seq_len, _ = tokens.shape
+        if seq_len == 0:
+            tokens = torch.full(
+                (batch_size, 1, 3),
+                fill_value=self.pad_value,
+                dtype=tokens.dtype,
+                device=tokens.device,
+            )
+            seq_len = 1
 
-        coord_tokens = tokens[..., 0].long()
-        feature_tokens = tokens[..., 1].long()
-        value_tokens = tokens[..., 2].float() / 255.0
+        max_len = min(seq_len, self.max_sequence_length)
+        tokens = tokens[:, :max_len]
 
-        valid_mask = coord_tokens != 255
+        valid_mask = (tokens != self.pad_value).any(dim=-1)
 
-        coord_tokens = torch.clamp(coord_tokens, max=self.config.coord_vocab_size - 1)
-        feature_tokens = torch.clamp(feature_tokens, max=self.config.feature_vocab_size - 1)
+        scaled_tokens = tokens.to(dtype=torch.float32) / 255.0
+        scaled_tokens = torch.where(valid_mask.unsqueeze(-1), scaled_tokens, torch.zeros_like(scaled_tokens))
+        scaled_tokens = scaled_tokens.to(dtype=self.projector.weight.dtype)
 
-        zero_coords = torch.zeros_like(coord_tokens)
-        zero_features = torch.zeros_like(feature_tokens)
-        zero_values = torch.zeros_like(value_tokens)
-
-        coord_tokens = torch.where(valid_mask, coord_tokens, zero_coords)
-        feature_tokens = torch.where(valid_mask, feature_tokens, zero_features)
-        value_tokens = torch.where(valid_mask, value_tokens, zero_values)
-
-        coord_emb = self.coord_embed(coord_tokens)
-        feature_emb = self.feature_embed(feature_tokens)
-        value_tokens = value_tokens.to(dtype=self.value_embed[0].weight.dtype)
-        value_emb = self.value_embed(value_tokens.unsqueeze(-1))
-
-        token_features = coord_emb + feature_emb + value_emb
-
-        position_ids = torch.arange(max_len, device=tokens.device).unsqueeze(0)
-        position_emb = self.position_embed(position_ids)
-        token_features = token_features + position_emb
-        token_features = torch.where(valid_mask.unsqueeze(-1), token_features, torch.zeros_like(token_features))
-        token_features = self.token_norm(token_features)
+        embeds = self.projector(scaled_tokens)
+        embeds = self.activation(embeds)
+        embeds = self.embed_norm(embeds)
 
         attention_mask = valid_mask.to(dtype=torch.long)
         empty_rows = attention_mask.sum(dim=1) == 0
         if empty_rows.any():
             attention_mask = attention_mask.clone()
             attention_mask[empty_rows, 0] = 1
-            token_features = token_features.clone()
-            token_features[empty_rows, 0] = 0
 
-        return token_features, attention_mask
+        return embeds, attention_mask
+
+    def _pool_hidden_states(self, hidden: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
+        mask = attention_mask.unsqueeze(-1).to(dtype=hidden.dtype)
+        total = mask.sum(dim=1).clamp_min(1.0)
+        return (hidden * mask).sum(dim=1) / total

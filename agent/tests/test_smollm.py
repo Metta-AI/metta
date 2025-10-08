@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
 import torch
 from gymnasium import spaces
 from tensordict import TensorDict
-import pytest
 
 from metta.agent.components.smollm import SmolLLMBackbone, SmolLLMBackboneConfig
 
@@ -15,12 +15,13 @@ class DummyOutput:
         self.hidden_states = hidden_states
 
 
-class DummyModel(torch.nn.Module):
+class RecordingModel(torch.nn.Module):
     def __init__(self, hidden_size: int, dtype: torch.dtype) -> None:
         super().__init__()
         self.config = SimpleNamespace(hidden_size=hidden_size)
-        self.proj = torch.nn.Linear(hidden_size, hidden_size)
-        self.proj.to(dtype=dtype)
+        self.last_inputs_embeds: torch.Tensor | None = None
+        self.last_attention_mask: torch.Tensor | None = None
+        self.scale = torch.nn.Parameter(torch.tensor(2.0, dtype=dtype))
 
     def forward(
         self,
@@ -31,17 +32,19 @@ class DummyModel(torch.nn.Module):
         return_dict: bool,
         use_cache: bool,
     ) -> DummyOutput:
-        del attention_mask, output_hidden_states, return_dict, use_cache
-        hidden = self.proj(inputs_embeds)
+        del output_hidden_states, return_dict, use_cache
+        self.last_inputs_embeds = inputs_embeds
+        self.last_attention_mask = attention_mask
+        hidden = inputs_embeds * self.scale
         return DummyOutput((inputs_embeds, hidden))
 
 
 def _fake_from_pretrained(hidden_size: int = 64):
-    def _factory(*_: object, **kwargs: object) -> DummyModel:
+    def _factory(*_: object, **kwargs: object) -> RecordingModel:
         dtype = kwargs.get("torch_dtype", torch.float32)
         if not isinstance(dtype, torch.dtype):
             dtype = torch.float32
-        return DummyModel(hidden_size=hidden_size, dtype=dtype)
+        return RecordingModel(hidden_size=hidden_size, dtype=dtype)
 
     return _factory
 
@@ -50,25 +53,22 @@ def _make_env(num_actions: int) -> SimpleNamespace:
     return SimpleNamespace(action_space=spaces.Discrete(num_actions))
 
 
-def _make_tokens(batch: int, seq: int, valid_prefix: int) -> torch.Tensor:
-    tokens = torch.full((batch, seq, 3), fill_value=255, dtype=torch.uint8)
-    tokens[:, :valid_prefix, 0] = 10
-    tokens[:, :valid_prefix, 1] = 3
-    tokens[:, :valid_prefix, 2] = 7
-    return tokens
+def _make_tensordict(tokens: torch.Tensor) -> TensorDict:
+    return TensorDict({"tokens": tokens}, batch_size=[tokens.shape[0]])
 
 
-def test_backbone_forward_produces_float32_logits_and_values(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_forward_projects_tokens_and_calls_llm(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "metta.agent.components.smollm.AutoModelForCausalLM",
         SimpleNamespace(from_pretrained=_fake_from_pretrained()),
     )
 
-    env = _make_env(num_actions=5)
+    env = _make_env(num_actions=4)
     config = SmolLLMBackboneConfig(
         in_key="tokens",
         logits_key="logits",
         values_key="values",
+        max_sequence_length=4,
         freeze_llm=False,
         torch_dtype="float16",
     )
@@ -76,51 +76,71 @@ def test_backbone_forward_produces_float32_logits_and_values(monkeypatch: pytest
     init_log = backbone.initialize_to_environment(env, torch.device("cpu"))
     assert "SmolLLM actions" in init_log
 
-    td = TensorDict({"tokens": _make_tokens(batch=2, seq=12, valid_prefix=6)}, batch_size=[2])
-    td_copy = td.clone()
+    tokens = torch.tensor(
+        [
+            [[1, 2, 3], [4, 5, 6], [255, 255, 255], [7, 8, 9], [10, 11, 12]],
+            [[255, 255, 255], [2, 3, 4], [3, 4, 5], [255, 255, 255], [6, 7, 8]],
+        ],
+        dtype=torch.uint8,
+    )
+    td = _make_tensordict(tokens)
 
-    output = backbone(td_copy)
+    output = backbone(td)
 
-    assert output is td_copy
-    logits = td_copy["logits"]
-    values = td_copy["values"]
-    assert logits.shape == (2, 5)
-    assert logits.dtype == torch.float32
-    assert values.shape == (2,)
-    assert values.dtype == torch.float32
+    assert output is td
+
+    assert td["logits"].shape == (2, 4)
+    assert td["logits"].dtype == torch.float32
+    assert td["values"].shape == (2,)
+    assert td["values"].dtype == torch.float32
+
+    model = backbone.llm
+    assert isinstance(model, RecordingModel)
+    assert model.last_inputs_embeds is not None
+    assert model.last_attention_mask is not None
+    assert model.last_inputs_embeds.dtype == torch.float16
+    expected_mask = torch.tensor([[1, 1, 0, 1], [0, 1, 1, 0]], dtype=torch.long)
+    assert torch.equal(model.last_attention_mask, expected_mask)
 
 
-def test_embed_tokens_builds_attention_mask(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_forward_adds_token_for_all_padding(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "metta.agent.components.smollm.AutoModelForCausalLM",
-        SimpleNamespace(from_pretrained=_fake_from_pretrained()),
+        SimpleNamespace(from_pretrained=_fake_from_pretrained(hidden_size=32)),
     )
 
     env = _make_env(num_actions=3)
-    backbone = SmolLLMBackbone(env, SmolLLMBackboneConfig(in_key="tokens", max_sequence_length=4))
+    backbone = SmolLLMBackbone(env, SmolLLMBackboneConfig(in_key="tokens", max_sequence_length=3, freeze_llm=False))
+    backbone.initialize_to_environment(env, torch.device("cpu"))
 
-    tokens = _make_tokens(batch=2, seq=6, valid_prefix=3)
-    embeds, attention_mask = backbone._embed_tokens(tokens)
+    tokens = torch.full((1, 3, 3), fill_value=255, dtype=torch.uint8)
+    td = _make_tensordict(tokens)
+    backbone(td)
 
-    assert embeds.shape[:2] == attention_mask.shape
-    assert embeds.shape[2] == backbone.hidden_size
+    model = backbone.llm
+    assert isinstance(model, RecordingModel)
+    assert model.last_inputs_embeds is not None
+    assert model.last_attention_mask is not None
+    assert model.last_inputs_embeds.shape[1] == 3
+    expected_mask = torch.tensor([[1, 0, 0]], dtype=torch.long)
+    assert torch.equal(model.last_attention_mask, expected_mask)
 
-    expected_mask = torch.tensor([[1, 1, 1, 0], [1, 1, 1, 0]], dtype=torch.long)
-    assert torch.equal(attention_mask, expected_mask)
 
-
-def test_embed_tokens_handles_all_padding(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_initialize_to_environment_aligns_module_dtypes(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "metta.agent.components.smollm.AutoModelForCausalLM",
-        SimpleNamespace(from_pretrained=_fake_from_pretrained()),
+        SimpleNamespace(from_pretrained=_fake_from_pretrained(hidden_size=16)),
     )
 
     env = _make_env(num_actions=2)
-    backbone = SmolLLMBackbone(env, SmolLLMBackboneConfig(in_key="tokens", max_sequence_length=2))
+    backbone = SmolLLMBackbone(
+        env,
+        SmolLLMBackboneConfig(in_key="tokens", freeze_llm=False, torch_dtype="float16"),
+    )
 
-    tokens = torch.full((1, 5, 3), fill_value=255, dtype=torch.uint8)
-    embeds, attention_mask = backbone._embed_tokens(tokens)
+    backbone.initialize_to_environment(env, torch.device("cpu"))
 
-    assert embeds.shape == (1, 2, backbone.hidden_size)
-    assert torch.equal(attention_mask, torch.tensor([[1, 0]], dtype=torch.long))
-    assert torch.allclose(embeds, torch.zeros_like(embeds))
+    assert backbone.projector.weight.dtype == torch.float16
+    assert backbone.embed_norm.weight.dtype == torch.float16
+    assert backbone.actor_head.weight.dtype == torch.float16
+    assert backbone.value_head.weight.dtype == torch.float16
