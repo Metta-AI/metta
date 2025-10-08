@@ -9,6 +9,7 @@ import { getSessionOrRedirect } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { validateGroupName } from "@/lib/name-validation";
 import { GroupRepository } from "../data/group-repository";
+import { AuthorizationError, ConflictError } from "@/lib/errors";
 
 const inputSchema = zfd.formData({
   name: zfd.text(
@@ -32,17 +33,13 @@ export const createGroupAction = actionClient
     const session = await getSessionOrRedirect();
 
     // Check if user is a member of the institution
-    const userInstitution = await prisma.userInstitution.findUnique({
-      where: {
-        userId_institutionId: {
-          userId: session.user.id,
-          institutionId: input.institutionId,
-        },
-      },
-    });
+    const isInInstitution = await GroupRepository.isUserInInstitution(
+      session.user.id,
+      input.institutionId
+    );
 
-    if (!userInstitution || !userInstitution.isActive) {
-      throw new Error(
+    if (!isInInstitution) {
+      throw new AuthorizationError(
         "You must be a member of the institution to create groups"
       );
     }
@@ -58,7 +55,7 @@ export const createGroupAction = actionClient
     });
 
     if (existingGroup) {
-      throw new Error(
+      throw new ConflictError(
         "A group with this name already exists in this institution"
       );
     }
@@ -67,28 +64,20 @@ export const createGroupAction = actionClient
     await validateGroupName(input.name);
 
     // Create the group
-    const group = await prisma.group.create({
-      data: {
-        name: input.name,
-        description: input.description || null,
-        isPublic: input.isPublic ?? true,
-        createdByUserId: session.user.id,
-        institutionId: input.institutionId,
-      },
-      select: {
-        id: true,
-        name: true,
-      },
+    const group = await GroupRepository.create({
+      name: input.name,
+      description: input.description || null,
+      isPublic: input.isPublic ?? true,
+      createdByUserId: session.user.id,
+      institutionId: input.institutionId,
     });
 
     // Automatically add the creator as an admin of the group
-    await prisma.userGroup.create({
-      data: {
-        userId: session.user.id,
-        groupId: group.id,
-        role: "admin",
-        isActive: true,
-      },
+    await GroupRepository.createMembership({
+      userId: session.user.id,
+      groupId: group.id,
+      role: "admin",
+      isActive: true,
     });
 
     revalidatePath("/groups");
