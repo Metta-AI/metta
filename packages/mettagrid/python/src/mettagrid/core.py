@@ -279,12 +279,26 @@ class MettaGridCore:
     def _configure_action_interface(self, c_env: MettaGridCpp) -> None:
         """Normalize the action space to a single discrete representation."""
 
-        raw_action_space = c_env.action_space()
-        action_names = list(c_env.action_names()) if hasattr(c_env, "action_names") else []
-        max_args = list(c_env.max_action_args()) if hasattr(c_env, "max_action_args") else []
+        raw_action_space_attr = getattr(c_env, "action_space", None)
+        if raw_action_space_attr is None:
+            raise AttributeError("C++ environment is missing expected action_space attribute")
+
+        raw_action_space = raw_action_space_attr() if callable(raw_action_space_attr) else raw_action_space_attr
+
+        action_names: List[str] = []
+        if hasattr(c_env, "action_names"):
+            action_names_attr = getattr(c_env, "action_names")
+            action_names_value = action_names_attr() if callable(action_names_attr) else action_names_attr
+            action_names = list(action_names_value)
+
+        max_args: List[int] = []
+        if hasattr(c_env, "max_action_args"):
+            max_args_attr = getattr(c_env, "max_action_args")
+            max_args_value = max_args_attr() if callable(max_args_attr) else max_args_attr
+            max_args = [int(value) for value in list(max_args_value)]
 
         self._original_action_space = raw_action_space
-        self._max_action_args = [int(value) for value in max_args]
+        self._max_action_args = max_args
 
         if isinstance(raw_action_space, spaces.MultiDiscrete):
             adapter = SingleDiscreteActionSpaceAdapter(raw_action_space, action_names, self._max_action_args or None)
