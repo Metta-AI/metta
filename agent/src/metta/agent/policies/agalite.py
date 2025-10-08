@@ -119,12 +119,12 @@ class AGaLiTeConfig(PolicyArchitecture):
 
     components: List[ComponentConfig] = Field(
         default_factory=lambda: _build_components(
-            hidden_size=128,
+            hidden_size=64,
             embedding_dim=16,
-            n_layers=4,
+            n_layers=3,
             n_heads=4,
-            feedforward_size=512,
-            eta=8,
+            feedforward_size=256,
+            eta=6,
             r=2,
             dropout=0.05,
             kernel=AGaLiTeKernelConfig(name="eluplus1", nu=4),
@@ -132,8 +132,8 @@ class AGaLiTeConfig(PolicyArchitecture):
             attr_embed_dim=12,
             fourier_freqs=4,
             num_latents=16,
-            critic_hidden=[512],
-            actor_hidden_dim=256,
+            critic_hidden=[256],
+            actor_hidden_dim=128,
             reset_on_terminate=False,
         )
     )

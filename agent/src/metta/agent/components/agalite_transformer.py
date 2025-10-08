@@ -29,11 +29,11 @@ class AGaLiTeTransformerConfig(ComponentConfig):
     out_key: str
     name: str = "agalite_transformer"
 
-    hidden_size: int = 192
+    hidden_size: int = 64
     n_layers: int = 2
     n_heads: int = 4
-    feedforward_size: int = 768
-    eta: int = 4
+    feedforward_size: int = 256
+    eta: int = 6
     r: int = 2
     dropout: float = 0.0
     reset_on_terminate: bool = True
