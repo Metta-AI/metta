@@ -171,17 +171,15 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         # Initialize environment with seed
         self._vecenv.async_reset(cfg.seed)
 
-        driver_env = self._vecenv.driver_env
-
         self._meta_data = EnvironmentMetaData(
-            obs_width=driver_env.obs_width,
-            obs_height=driver_env.obs_height,
-            obs_features=driver_env.observation_features,
-            action_names=list(driver_env.action_names),
+            obs_width=self._vecenv.driver_env.obs_width,
+            obs_height=self._vecenv.driver_env.obs_height,
+            obs_features=self._vecenv.driver_env.observation_features,
+            action_names=self._vecenv.driver_env.action_names,
             num_agents=self._num_agents,
-            observation_space=driver_env.observation_space,
-            action_space=driver_env.single_action_space,
-            feature_normalizations=driver_env.feature_normalizations,
+            observation_space=self._vecenv.driver_env.observation_space,
+            action_space=self._vecenv.driver_env.single_action_space,
+            feature_normalizations=self._vecenv.driver_env.feature_normalizations,
         )
 
     def __repr__(self) -> str:

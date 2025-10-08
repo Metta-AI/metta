@@ -285,15 +285,7 @@ class MettaGridCore:
 
     @property
     def action_names(self) -> List[str]:
-        if hasattr(self.__c_env_instance, "action_names"):
-            return list(self.__c_env_instance.action_names())
-        return []
-
-    @property
-    def max_action_args(self) -> List[int]:
-        if hasattr(self.__c_env_instance, "max_action_args"):
-            return list(self.__c_env_instance.max_action_args())
-        return []
+        return self.__c_env_instance.action_names()
 
     @property
     def object_type_names(self) -> List[str]:
