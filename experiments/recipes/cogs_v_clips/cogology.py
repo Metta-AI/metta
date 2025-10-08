@@ -99,6 +99,14 @@ class CogologyStageConfig:
     returns_plateau_window: int = 100
     min_episodes_before_progression: int = 10  # Very low for rapid testing/progression
 
+    # Timed progression (alternative to success-based progression)
+    use_timed_progression: bool = (
+        False  # If True, advance based on epochs instead of success
+    )
+    epochs_per_stage: int = (
+        25  # Advance to next stage every N epochs (when timed mode enabled)
+    )
+
     # Learning progress config for within-stage sampling
     use_learning_progress: bool = True
     learning_progress_config: dict = field(
@@ -1108,6 +1116,7 @@ class CogologyProgressionCallback(TrainerComponent):
         self.task_generator = task_generator
         self.success_tracker = success_tracker
         self.progression_checked = False
+        self.stage_start_epoch = 0  # Track when current stage started
 
     def on_step(self, infos: list[dict]):
         """Extract episode-level information for success tracking."""
@@ -1159,6 +1168,9 @@ class CogologyProgressionCallback(TrainerComponent):
             # Already at final stage
             return
 
+        current_stage = self.stages[self.current_stage_idx]
+        epochs_in_stage = epoch - self.stage_start_epoch
+
         # Log current metrics
         metrics = self.success_tracker.get_metrics()
 
@@ -1173,34 +1185,60 @@ class CogologyProgressionCallback(TrainerComponent):
 
             print(f"\n[Epoch {epoch}] Cogology Progress:")
             print(f"  Stage: {self.success_tracker.config.name}")
-            print(
-                f"  Success Rate: {metrics['curriculum/success_rate']:.2%} (need {self.success_tracker.config.success_rate_threshold:.0%})"
-            )
-            print(
-                f"  Episodes: {metrics['curriculum/episode_count']} (need {self.success_tracker.config.min_episodes_before_progression})"
-            )
+
+            if current_stage.use_timed_progression:
+                print("  Mode: Timed Progression")
+                print(
+                    f"  Epochs in Stage: {epochs_in_stage}/{current_stage.epochs_per_stage}"
+                )
+            else:
+                print("  Mode: Success-Based Progression")
+                print(
+                    f"  Success Rate: {metrics['curriculum/success_rate']:.2%} (need {self.success_tracker.config.success_rate_threshold:.0%})"
+                )
+                print(
+                    f"  Episodes: {metrics['curriculum/episode_count']} (need {self.success_tracker.config.min_episodes_before_progression})"
+                )
+                print(
+                    f"  Returns Improvement: {metrics['curriculum/returns_improvement']:.2%}"
+                )
+                print(
+                    f"  Returns Plateaued: {self.success_tracker.returns_plateaued} (need True)"
+                )
+
             print(
                 f"  Latest Return: {latest_return:.2f} | Mean Return: {metrics['curriculum/recent_mean_return']:.2f}"
             )
-            print(
-                f"  Returns Improvement: {metrics['curriculum/returns_improvement']:.2%}"
-            )
-            print(
-                f"  Returns Plateaued: {self.success_tracker.returns_plateaued} (need True)"
-            )
             print(f"  Mean Energy: {metrics['curriculum/mean_energy']:.1f}")
-            print(f"  Should Progress: {metrics['curriculum/should_progress']}")
 
         # Check if progression criteria met
-        if self.success_tracker.should_progress() and not self.progression_checked:
+        should_progress = False
+
+        if current_stage.use_timed_progression:
+            # Timed progression: advance after N epochs
+            should_progress = epochs_in_stage >= current_stage.epochs_per_stage
+        else:
+            # Success-based progression: advance when criteria met
+            should_progress = self.success_tracker.should_progress()
+
+        if should_progress and not self.progression_checked:
             print(f"\n{'=' * 60}")
-            print("STAGE PROGRESSION TRIGGERED")
+            if current_stage.use_timed_progression:
+                print(
+                    f"TIMED STAGE PROGRESSION TRIGGERED (after {epochs_in_stage} epochs)"
+                )
+            else:
+                print("SUCCESS-BASED STAGE PROGRESSION TRIGGERED")
             print(f"{'=' * 60}")
-            self._advance_stage()
+            self._advance_stage(epoch)
             self.progression_checked = True
 
-    def _advance_stage(self):
-        """Advance to next stage."""
+    def _advance_stage(self, current_epoch: int):
+        """Advance to next stage.
+
+        Args:
+            current_epoch: The current epoch number (used to track stage start time)
+        """
         current_stage = self.stages[self.current_stage_idx]
         self.current_stage_idx += 1
         next_stage = self.stages[self.current_stage_idx]
@@ -1226,6 +1264,7 @@ class CogologyProgressionCallback(TrainerComponent):
                     "curriculum/to_stage": next_stage.stage_id,
                     "curriculum/from_stage_name": current_stage.name,
                     "curriculum/to_stage_name": next_stage.name,
+                    "curriculum/transition_epoch": current_epoch,
                 }
             )
 
@@ -1247,10 +1286,19 @@ class CogologyProgressionCallback(TrainerComponent):
         self.success_tracker = CogologySuccessTracker(next_stage)
         self.progression_checked = False
 
+        # 6. Track when new stage starts
+        self.stage_start_epoch = current_epoch
+
         print(f"\n{'=' * 60}")
         print(f"Stage {next_stage.stage_id} ({next_stage.name}) started!")
-        print(f"  Target Success Rate: {next_stage.success_rate_threshold:.1%}")
-        print(f"  Min Episodes: {next_stage.min_episodes_before_progression}")
+        if next_stage.use_timed_progression:
+            print(
+                f"  Mode: Timed Progression ({next_stage.epochs_per_stage} epochs per stage)"
+            )
+        else:
+            print("  Mode: Success-Based Progression")
+            print(f"  Target Success Rate: {next_stage.success_rate_threshold:.1%}")
+            print(f"  Min Episodes: {next_stage.min_episodes_before_progression}")
         print(f"{'=' * 60}\n")
 
 
@@ -1280,6 +1328,8 @@ def _create_stage_configs() -> list[CogologyStageConfig]:
             ],
             variants=["5x5", "10x10", "15x15", "20x20"],  # Different room sizes
             success_rate_threshold=0.60,  # > 50% success rate
+            use_timed_progression=True,  # Advance after fixed epochs
+            epochs_per_stage=25,  # Advance every 25 epochs
         ),
         # Stage 2: Simple Assembly
         CogologyStageConfig(
@@ -1298,6 +1348,8 @@ def _create_stage_configs() -> list[CogologyStageConfig]:
             ],
             variants=["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"],
             success_rate_threshold=0.60,
+            use_timed_progression=True,
+            epochs_per_stage=25,
         ),
         # Stage 3: Single Resource Foraging
         CogologyStageConfig(
@@ -1318,6 +1370,8 @@ def _create_stage_configs() -> list[CogologyStageConfig]:
             ],
             variants=["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"],
             success_rate_threshold=0.60,
+            use_timed_progression=True,
+            epochs_per_stage=25,
         ),
         # Stage 4: Multi-Resource Foraging (Abundant)
         CogologyStageConfig(
@@ -1338,6 +1392,8 @@ def _create_stage_configs() -> list[CogologyStageConfig]:
             initial_inventory_options=[{}],  # Empty
             variants=["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"],
             success_rate_threshold=0.60,
+            use_timed_progression=True,
+            epochs_per_stage=25,
         ),
         # Stage 5: Resource Depletion
         CogologyStageConfig(
@@ -1358,6 +1414,8 @@ def _create_stage_configs() -> list[CogologyStageConfig]:
             initial_inventory_options=[{}],
             variants=["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"],
             success_rate_threshold=0.60,
+            use_timed_progression=True,
+            epochs_per_stage=25,
         ),
         # Stage 6: Small Premade Maps
         CogologyStageConfig(
@@ -1368,6 +1426,8 @@ def _create_stage_configs() -> list[CogologyStageConfig]:
             map_names=["training_facility_1", "training_facility_2"],
             num_agents=4,
             success_rate_threshold=0.60,
+            use_timed_progression=True,
+            epochs_per_stage=25,
         ),
         # Stage 7: Medium Premade Maps
         CogologyStageConfig(
@@ -1378,6 +1438,8 @@ def _create_stage_configs() -> list[CogologyStageConfig]:
             map_names=["machina_1", "machina_2", "machina_3"],
             num_agents=4,
             success_rate_threshold=0.60,
+            use_timed_progression=True,
+            epochs_per_stage=25,
         ),
         # Stage 8: Large Premade Maps
         CogologyStageConfig(
@@ -1396,6 +1458,8 @@ def _create_stage_configs() -> list[CogologyStageConfig]:
             ],
             num_agents=4,
             success_rate_threshold=0.60,
+            use_timed_progression=True,
+            epochs_per_stage=25,
         ),
         # Stage 9: Advanced Clipped Maps
         CogologyStageConfig(
@@ -1406,6 +1470,8 @@ def _create_stage_configs() -> list[CogologyStageConfig]:
             map_names=["training_facility_6"],
             num_agents=4,
             success_rate_threshold=0.60,
+            use_timed_progression=True,
+            epochs_per_stage=25,
         ),
     ]
 
