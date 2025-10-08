@@ -4,9 +4,10 @@ import { revalidatePath } from "next/cache";
 import { zfd } from "zod-form-data";
 import { z } from "zod/v4";
 
-import { actionClient, ActionError } from "@/lib/actionClient";
+import { actionClient } from "@/lib/actionClient";
 import { getAdminSessionOrRedirect } from "@/lib/adminAuth";
 import { prisma } from "@/lib/db/prisma";
+import { NotFoundError, ConflictError } from "@/lib/errors";
 
 const inputSchema = zfd.formData({
   userEmail: zfd.text(z.string().email()),
@@ -32,11 +33,11 @@ export const unbanUserAction = actionClient
     });
 
     if (!targetUser) {
-      throw new ActionError("User not found");
+      throw new NotFoundError("User", input.userEmail);
     }
 
     if (!targetUser.isBanned) {
-      throw new ActionError("User is not banned");
+      throw new ConflictError("User is not banned");
     }
 
     // Unban the user
