@@ -1,5 +1,11 @@
 import { prisma } from "@/lib/db/prisma";
 
+import type {
+  PrismaAuthorWithRelations,
+  PrismaPaperWithInstitutions,
+  PrismaPaperInstitution,
+} from "@/types/prisma-models";
+
 export type AuthorDTO = {
   id: string;
   name: string;
@@ -52,7 +58,7 @@ function deriveInstitutionFromPapers(
 
   papers.forEach((paper) => {
     if (paper.paperInstitutions && paper.paperInstitutions.length > 0) {
-      paper.paperInstitutions.forEach((pi: any) => {
+      paper.paperInstitutions.forEach((pi) => {
         const name = pi.institution.name;
         institutionCounts.set(name, (institutionCounts.get(name) || 0) + 1);
       });
@@ -73,28 +79,8 @@ function deriveInstitutionFromPapers(
  * Helper: Map author data to AuthorDTO
  */
 function mapToAuthorDTO(
-  author: {
-    id: string;
-    name: string;
-    username: string | null;
-    email: string | null;
-    avatar: string | null;
-    institution: string | null;
-    department: string | null;
-    title: string | null;
-    expertise: string[];
-    hIndex: number | null;
-    totalCitations: number | null;
-    claimed: boolean;
-    recentActivity: Date | null;
-    orcid: string | null;
-    googleScholarId: string | null;
-    arxivId: string | null;
-    createdAt: Date;
-    updatedAt: Date;
-    paperAuthors: any[];
-  },
-  recentPapers: any[],
+  author: PrismaAuthorWithRelations,
+  recentPapers: PrismaPaperWithInstitutions[],
   derivedInstitution: string | null
 ): AuthorDTO {
   return {
@@ -217,6 +203,7 @@ export async function loadAuthor(authorId: string): Promise<AuthorDTO | null> {
     link: pa.paper.link,
     createdAt: pa.paper.createdAt,
     stars: pa.paper.stars,
+    paperInstitutions: pa.paper.paperInstitutions,
   }));
 
   const derivedInstitution = deriveInstitutionFromPapers(
