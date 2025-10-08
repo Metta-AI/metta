@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { BadRequestError } from "@/lib/errors";
+import { handleApiError } from "@/lib/api/error-handler";
 
 export async function GET(
   request: NextRequest,
@@ -9,10 +11,7 @@ export async function GET(
     const { postId } = await params;
 
     if (!postId) {
-      return NextResponse.json(
-        { error: "Post ID is required" },
-        { status: 400 }
-      );
+      throw new BadRequestError("Post ID is required");
     }
 
     // Check if the post has a linked paper with institutions
@@ -36,10 +35,8 @@ export async function GET(
 
     return NextResponse.json({ hasInstitutions });
   } catch (error) {
-    console.error("Error checking institution status:", error);
-    return NextResponse.json(
-      { error: "Failed to check institution status" },
-      { status: 500 }
-    );
+    return handleApiError(error, {
+      endpoint: "GET /api/papers/[postId]/institutions",
+    });
   }
 }
