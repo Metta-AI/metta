@@ -141,6 +141,18 @@ class HRMReasoning(nn.Module):
         if self.config.track_gradients:
             self._register_gradient_hooks()
 
+    def __setstate__(self, state):
+        """Ensure HRM hidden states are properly initialized after loading from checkpoint."""
+        self.__dict__.update(state)
+        # Reset hidden states when loading from checkpoint to avoid batch size mismatch
+        if not hasattr(self, "carry"):
+            self.carry = {}
+        # Clear any existing states to handle batch size mismatches
+        self.carry.clear()
+        # Reset gradient tracking
+        if not hasattr(self, "_grad_norms"):
+            self._grad_norms = {}
+
     def _register_gradient_hooks(self):
         """Register gradient hooks on all layers to track gradient norms."""
         # Track H-level layers
@@ -186,6 +198,7 @@ class HRMReasoning(nn.Module):
         self._grad_norms.clear()
         return result
 
+    @torch._dynamo.disable  # Exclude HRM forward from Dynamo to avoid graph breaks with stateful memory
     def forward(self, td: TensorDict) -> TensorDict:
         x = td[self.config.in_key]
 
