@@ -9,12 +9,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import repeat
-from metta.agent.components.mamba_ssm.modules.block import Block
-from metta.agent.components.mamba_ssm.modules.mamba2 import Mamba2
-from metta.agent.components.mamba_ssm.modules.mha import MHA
-from metta.agent.components.mamba_ssm.modules.mlp import MLP
-from metta.agent.components.mamba_ssm.utils.generation import GenerationMixin
-from metta.agent.components.mamba_ssm.ops.triton.layer_norm import (
+from mamba_ssm.modules.block import Block
+from mamba_ssm.modules.mamba2 import Mamba2
+from mamba_ssm.modules.mha import MHA
+from mamba_ssm.modules.mlp import MLP
+from mamba_ssm.utils.generation import GenerationMixin
+from mamba_ssm.ops.triton.layer_norm import (
     RMSNorm,
     layer_norm_fn,
     rms_norm_fn,

@@ -15,6 +15,7 @@ urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com
 dependencies = [
   "pufferlib-core",
   "einops>=0.7.0",
+  "mamba-ssm>=2.2.0",
 ]
 
 [dependency-groups]
@@ -29,12 +30,11 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["metta.agent", "mamba_ssm"]
+include = ["metta.agent"]
 
 [tool.setuptools.package-data]
 "metta" = ["__init__.py"]
 "metta.agent" = ["py.typed"]
-"mamba_ssm" = []
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
