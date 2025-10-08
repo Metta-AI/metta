@@ -249,9 +249,7 @@ class AGaLiTeTransformerLayer(nn.Module):
                 nn.init.orthogonal_(module.weight, gain=math.sqrt(2))
                 nn.init.constant_(module.bias, 0)
 
-    def forward(
-        self, inputs: torch.Tensor, terminations: torch.Tensor, memory: Tuple
-    ) -> Tuple[torch.Tensor, Tuple]:
+    def forward(self, inputs: torch.Tensor, terminations: torch.Tensor, memory: Tuple) -> Tuple[torch.Tensor, Tuple]:
         x = F.relu(self.input_proj(inputs)) if self.use_input_proj else inputs
 
         ln1 = self.ln1(x)
