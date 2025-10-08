@@ -228,11 +228,7 @@ def attack(env: MettaGrid, target_arg: int = 0, agent_idx: int = 0) -> dict[str,
     action_names = env.action_names()
 
     attack_variants = sorted(
-        (
-            name
-            for name in action_names
-            if name.startswith("attack_") and name.removeprefix("attack_").isdigit()
-        ),
+        (name for name in action_names if name.startswith("attack_") and name.removeprefix("attack_").isdigit()),
         key=lambda n: int(n.split("_", maxsplit=1)[1]),
     )
 
