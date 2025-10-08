@@ -2,6 +2,7 @@
 
 import numpy as np
 
+from mettagrid import dtype_actions
 from mettagrid.builder.envs import make_arena
 from mettagrid.envs.mettagrid_env import MettaGridEnv
 
@@ -99,7 +100,7 @@ def test_buffer_consistency_during_episode():
     # Take a few steps
     for step in range(5):
         # Create random actions (noop action = 0)
-        actions = np.zeros(env.num_agents, dtype=np.int32)
+        actions = np.zeros(env.num_agents, dtype=dtype_actions)
 
         # Step environment
         obs, rewards, terminals, truncations, info = env.step(actions)

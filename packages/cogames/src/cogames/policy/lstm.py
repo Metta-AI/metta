@@ -9,7 +9,7 @@ from einops import rearrange
 import pufferlib.pytorch
 from cogames.policy.policy import AgentPolicy, StatefulAgentPolicy, TrainablePolicy
 from cogames.policy.utils import LSTMState, LSTMStateDict
-from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation
+from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation, dtype_actions
 
 logger = logging.getLogger("cogames.policies.lstm_policy")
 
@@ -210,7 +210,8 @@ class LSTMAgentPolicy(StatefulAgentPolicy[LSTMState]):
 
             # Sample action from the logits
             dist = torch.distributions.Categorical(logits=logits)
-            action = np.int32(dist.sample().cpu().item())
+            sampled_action = dist.sample().cpu().item()
+            action = dtype_actions.type(sampled_action)
 
             return action, new_state.detach() if new_state is not None else None
 
