@@ -128,6 +128,9 @@ class Simulation:
             observation_space=metta_grid_env.observation_space,
             action_space=metta_grid_env.single_action_space,
             feature_normalizations=metta_grid_env.feature_normalizations,
+            max_action_args=list(getattr(metta_grid_env, "max_action_args", [])) or None,
+            action_adapter=getattr(metta_grid_env, "action_adapter", None),
+            original_action_space=getattr(metta_grid_env, "original_action_space", None),
         )
 
         # Initialize policy to environment

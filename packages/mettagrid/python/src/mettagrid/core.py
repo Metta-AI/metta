@@ -426,6 +426,10 @@ class MettaGridCore:
         return self._action_adapter
 
     @property
+    def original_action_space(self) -> spaces.Space | None:
+        return self._original_action_space
+
+    @property
     def object_type_names(self) -> List[str]:
         return self.__c_env_instance.object_type_names()
 
