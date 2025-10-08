@@ -65,7 +65,7 @@ Outcome = Literal["passed", "failed", "skipped", "inconclusive"]
 class WorkflowType(StrEnum):
     """Types of workflow validations."""
 
-    TEST = "test"  # Run metta test locally
+    CI = "ci"  # Run metta ci locally (tests + linting)
     TRAIN_LOCAL = "train_local"  # Local smoke test with manual validation
     TRAIN_REMOTE = "train_remote"  # Remote single-GPU training with strict thresholds
     TRAIN_REMOTE_MULTIGPU = "train_remote_multigpu"  # Remote multi-GPU/multi-node training
