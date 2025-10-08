@@ -2,7 +2,7 @@
 
 import torch
 import torch.nn.functional as F
-from mamba_ssm.utils.torch import custom_bwd, custom_fwd
+from metta.agent.components.mamba_ssm.utils.torch import custom_bwd, custom_fwd
 
 from einops import rearrange, repeat
 
@@ -19,7 +19,7 @@ except ImportError:
     causal_conv1d_bwd_function = None
     causal_conv1d_update_function = None
 
-from mamba_ssm.ops.triton.layer_norm import _layer_norm_fwd
+from metta.agent.components.mamba_ssm.ops.triton.layer_norm import _layer_norm_fwd
 
 try:
     import selective_scan_cuda  # type: ignore

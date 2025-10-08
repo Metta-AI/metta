@@ -8,7 +8,7 @@ import torch
 import torch.nn.functional as F
 from einops import rearrange, repeat
 
-from mamba_ssm.ops.triton.ssd_combined import mamba_chunk_scan_combined
+from metta.agent.components.mamba_ssm.ops.triton.ssd_combined import mamba_chunk_scan_combined
 
 
 def segsum_unstable(x):

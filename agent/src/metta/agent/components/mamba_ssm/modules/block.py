@@ -2,7 +2,7 @@
 from typing import Optional
 
 import torch
-from mamba_ssm.ops.triton.layer_norm import RMSNorm, layer_norm_fn
+from metta.agent.components.mamba_ssm.ops.triton.layer_norm import RMSNorm, layer_norm_fn
 from torch import Tensor, nn
 
 

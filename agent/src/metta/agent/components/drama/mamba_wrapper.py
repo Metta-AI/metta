@@ -9,12 +9,17 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import repeat
-from mamba_ssm.modules.block import Block
-from mamba_ssm.modules.mamba2 import Mamba2
-from mamba_ssm.modules.mamba_simple import Mamba
-from mamba_ssm.modules.mha import MHA
-from mamba_ssm.modules.mlp import MLP
-from mamba_ssm.utils.generation import GenerationMixin
+from metta.agent.components.mamba_ssm.modules.block import Block
+from metta.agent.components.mamba_ssm.modules.mamba2 import Mamba2
+from metta.agent.components.mamba_ssm.modules.mamba_simple import Mamba
+from metta.agent.components.mamba_ssm.modules.mha import MHA
+from metta.agent.components.mamba_ssm.modules.mlp import MLP
+from metta.agent.components.mamba_ssm.utils.generation import GenerationMixin
+from metta.agent.components.mamba_ssm.ops.triton.layer_norm import (
+    RMSNorm,
+    layer_norm_fn,
+    rms_norm_fn,
+)
 
 
 @dataclass
@@ -33,12 +38,6 @@ class MambaConfig:
     residual_in_fp32: bool = True
     fused_add_norm: bool = True
     use_triton_norms: bool = True
-
-
-try:
-    from mamba_ssm.ops.triton.layer_norm import RMSNorm, layer_norm_fn, rms_norm_fn
-except ImportError:
-    RMSNorm, layer_norm_fn, rms_norm_fn = None, None, None
 
 
 def create_block(

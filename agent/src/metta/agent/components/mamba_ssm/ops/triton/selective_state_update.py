@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import triton
 import triton.language as tl
 from einops import rearrange, repeat
-from mamba_ssm.ops.triton.softplus import softplus
+from metta.agent.components.mamba_ssm.ops.triton.softplus import softplus
 
 
 @triton.heuristics({"HAS_DT_BIAS": lambda args: args["dt_bias_ptr"] is not None})
