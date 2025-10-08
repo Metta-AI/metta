@@ -2,18 +2,10 @@ from __future__ import annotations
 
 # ruff: noqa: E402
 
-"""Metta TensorDict adapter for Cortex stacks (stateful).
+"""Metta TensorDict adapter integrating a CortexStack with per‑env state.
 
-Two‑cache design:
-- `rollout_cache` advances only during rollout (TT == 1).
-- `train_cache` is a frozen snapshot of `rollout_cache`, taken at the start
-  of the next rollout following a training phase. It is used to initialize
-  training segments and is never mutated during training. We do not store
-  per‑timestep hidden state in replay; instead we persist only `env_id` so
-  training can index `train_cache` deterministically.
-
-This avoids clearing memory on trainer hooks and keeps repeated samples (PER)
-consistent without extra metadata.
+Maintains a rollout cache (TT==1) and a compact, frozen training snapshot
+used to initialize sequences during training.
 """
 
 from typing import Dict, List, Optional, Tuple
@@ -80,43 +72,34 @@ class MettaTDAdapter(nn.Module):
         store_dtype: str = "fp32",
     ) -> None:
         super().__init__()
-        # Constructor args
         self.stack: CortexStack = stack
         self.in_key: str = in_key
         self.out_key: str = out_key
         self.d_hidden: int = int(d_hidden)
         self.out_features: Optional[int] = out_features
         self.key_prefix: str = key_prefix
-        # Storage dtype: 'fp32' (default) or 'bf16'
         if store_dtype not in {"bf16", "fp32"}:
             raise ValueError("store_dtype must be 'bf16' or 'fp32'")
         self._store_dtype: torch.dtype = torch.bfloat16 if store_dtype == "bf16" else torch.float32
 
-        # Discover state schema for per-env caches
         self._flat_entries: List[Tuple[FlatKey, LeafPath]] = self._discover_state_entries()
 
-        # Output projection (optional)
         if self.out_features is None or int(self.out_features) == int(self.d_hidden):
-            self._out_proj = nn.Identity()
+            self._out_proj: nn.Module = nn.Identity()
         else:
             self._out_proj = nn.Linear(int(self.d_hidden), int(self.out_features))
 
-        # Dense per-leaf caches: LeafPath -> Tensor[N_slots, *leaf_shape]
-        # These enable vectorized gather/scatter via index_select / index_copy_.
         self._leaf_shapes: Dict[LeafPath, Tuple[int, ...]] = self._discover_leaf_shapes()
         self._rollout_store: Dict[LeafPath, torch.Tensor] = {}
         self._train_store: Dict[LeafPath, torch.Tensor] = {}
 
-        # Compact id→slot mappings (contiguous slots 0..N-1)
         self._rollout_id2slot: Dict[int, int] = {}
         self._rollout_next_slot: int = 0
         self._train_id2slot: Dict[int, int] = {}
 
-        # Phase state machine flags
         self._in_training: bool = False
         self._snapshot_done: bool = False
 
-        # Persistent rollout batched state (for TT==1 fast path)
         self._rollout_current_state: Optional[TensorDict] = None
         self._rollout_current_env_ids: Optional[torch.Tensor] = None  # Long[Br]
 
@@ -156,93 +139,63 @@ class MettaTDAdapter(nn.Module):
                         shapes[(block_key, cell_key, leaf_key)] = tuple(tensor.shape[1:])
         return shapes
 
-    # ----------------------------- Public API -----------------------------
     @torch._dynamo.disable
     def forward(self, td: TensorDict) -> TensorDict:
-        # Backward-compatible lazy init (handles old checkpoints)
-        if not hasattr(self, "_store_dtype"):
-            self._store_dtype = torch.float32
-        if not hasattr(self, "_rollout_id2slot"):
-            self._rollout_id2slot = {}
-        if not hasattr(self, "_rollout_next_slot"):
-            self._rollout_next_slot = 0
-        if not hasattr(self, "_train_id2slot"):
-            self._train_id2slot = {}
-
         x = td[self.in_key]
 
         if "bptt" not in td.keys():
             raise KeyError("TensorDict is missing required 'bptt' metadata")
-        TT = int(td["bptt"][0].item())
-        if TT <= 0:
-            raise ValueError("bptt entries must be positive")
+        if "batch" not in td.keys():
+            raise KeyError("TensorDict is missing required 'batch' metadata")
 
-        total_batch = x.shape[0]
-        B, rem = divmod(total_batch, TT)
-        if rem != 0:
-            raise ValueError("input batch must be divisible by bptt")
-        if "batch" in td.keys():
-            B = int(td["batch"][0].item())
+        TT = int(td["bptt"][0].item())
+        B = int(td["batch"][0].item())
+        if TT <= 0 or B <= 0:
+            raise ValueError("'bptt' and 'batch' must be positive integers")
+
+        if x.shape[0] != B * TT:
+            raise ValueError(f"input length {x.shape[0]} must equal batch*bptt ({B}*{TT})")
 
         device = x.device
         dtype = x.dtype
 
-        # No debug/timing; only raise on errors.
-
-        # Env IDs for per-env cache
         if "training_env_ids" not in td.keys():
             raise KeyError("TensorDict is missing required 'training_env_ids' key")
 
         env_ids = td["training_env_ids"].squeeze(-1).reshape(-1)[:B]
         env_ids_long = env_ids.to(device=device, dtype=torch.long)
 
-        # Resets
         resets = _as_reset_mask(td.get("dones", None), td.get("truncateds", None), B=B, TT=TT, device=device)
 
-        # Update phase flags
         if TT > 1:
             self._in_training = True
             self._snapshot_done = False
-            # If this is the first training and train_store is empty, snapshot now
-            # (after first rollout has completed and populated rollout_store)
             if not self._train_store:
                 self._flush_rollout_current_to_store()
                 self._snapshot_train_store()
-            # Free persistent rollout batch during training
             self._rollout_current_state = None
             self._rollout_current_env_ids = None
-        # Take snapshot at first rollout call after training
         if TT == 1 and self._in_training and not self._snapshot_done:
-            # Flush any live rollout state to the dense store, then snapshot
             self._flush_rollout_current_to_store()
             self._snapshot_train_store()
             self._in_training = False
             self._snapshot_done = True
-            # Free the persistent rollout batch after snapshot
             self._rollout_current_state = None
             self._rollout_current_env_ids = None
 
         if TT == 1:
-            # ----------------------------- Rollout path -----------------------------
-            # Maintain persistent batched state for current env slice
             state_prev = self._ensure_rollout_current_state(env_ids_long, B=B, device=device, dtype=dtype)
-
-            # Step
             x_step = x.view(B, -1)
             y, state_next = self.stack.step(x_step, state_prev, resets=resets)
-            # Update persistent rollout state in-place; no per-step scatter
             self._rollout_current_state = state_next
             y = self._out_proj(y)
             td.set(self.out_key, y.reshape(B * TT, -1))
             return td
         else:
-            # ------------------------------ Training path ------------------------------
-            # Use training_env_ids from replay to select initial states from frozen train_cache
             env_ids_train = td["training_env_ids"].squeeze(-1).to(device=device)
             env_ids_train = env_ids_train.view(B, TT)[:, 0]
             env_ids_train_long = env_ids_train.to(dtype=torch.long)
 
-            # Map env ids to compact slot ids (unknown → -1) and gather by slots
             train_slots = self._map_ids_to_slots(env_ids_train_long, self._train_id2slot, create_missing=False)
             state0 = self._gather_state_by_slots(train_slots, store=self._train_store, B=B, device=device, dtype=dtype)
 
@@ -253,16 +206,10 @@ class MettaTDAdapter(nn.Module):
             return td
 
     def reset_memory(self) -> None:
-        # No-op by design; trainer hooks call reset_memory() at rollout/train starts.
-        # Per-step resets are handled inside forward via masks, and caches persist.
         return
 
     def get_memory(self) -> Dict[str, Dict[str, Dict[str, torch.Tensor]]]:
-        """Serialize dense stores for checkpointing.
-
-        Returns a nested mapping with per-leaf tensors; current live rollout
-        batch is not serialized (it will be re-gathered on next call).
-        """
+        """Serialize dense stores for checkpointing."""
 
         def pack(store: Dict[LeafPath, torch.Tensor]) -> Dict[str, torch.Tensor]:
             packed: Dict[str, torch.Tensor] = {}
@@ -276,11 +223,7 @@ class MettaTDAdapter(nn.Module):
         }
 
     def set_memory(self, memory) -> None:  # type: ignore[override]
-        """Restore dense stores if provided; raises on malformed input.
-
-        Accepts the structure emitted by ``get_memory``. If the provided
-        object does not match the expected schema, a RuntimeError is raised.
-        """
+        """Restore dense stores from the structure emitted by ``get_memory``."""
         try:
 
             def unpack(blob: Dict[str, torch.Tensor]) -> Dict[LeafPath, torch.Tensor]:
@@ -295,8 +238,6 @@ class MettaTDAdapter(nn.Module):
             if rollout_blob or train_blob:
                 self._rollout_store = unpack(rollout_blob)
                 self._train_store = unpack(train_blob)
-                # Ensure dtype policy is respected after restore
-                # (actual dtype will be enforced on first gather/scatter)
                 if not hasattr(self, "_store_dtype"):
                     self._store_dtype = torch.float32
             else:
@@ -305,16 +246,10 @@ class MettaTDAdapter(nn.Module):
             raise RuntimeError(f"MettaTDAdapter.set_memory: malformed memory structure: {e}") from e
 
     def experience_keys(self) -> Dict[FlatKey, torch.Size]:
-        """Replay keys required by the adapter.
-
-        We only need `training_env_ids` so the frozen training cache can be indexed
-        deterministically; hidden states are not stored per timestep.
-        """
+        """Replay keys required by the adapter."""
 
         return {"training_env_ids": torch.Size([1])}
 
-    # --------------------------- Internal helpers ---------------------------
-    # --------------------------- Dense store helpers ---------------------------
     def _ensure_store_capacity(
         self,
         store: Dict[LeafPath, torch.Tensor],
@@ -331,7 +266,6 @@ class MettaTDAdapter(nn.Module):
             if ok and cur_cap >= min_slots:
                 return
         new_cap = max(min_slots, max(1, cur_cap * 2))
-        # Expand or create per-leaf storage
         for leaf_path, leaf_shape in self._leaf_shapes.items():
             if leaf_path not in store:
                 store[leaf_path] = torch.zeros((new_cap, *leaf_shape), device=device, dtype=dtype)
@@ -341,7 +275,6 @@ class MettaTDAdapter(nn.Module):
                     new = torch.zeros((new_cap, *leaf_shape), device=device, dtype=dtype)
                     new[: old.shape[0]].copy_(old.to(device=device, dtype=dtype))
                     store[leaf_path] = new
-        # capacity tracked per-store via leaf shapes
 
     def _gather_state_by_slots(
         self,
@@ -352,7 +285,6 @@ class MettaTDAdapter(nn.Module):
         device: torch.device,
         dtype: torch.dtype,
     ) -> TensorDict:
-        # Ensure capacity for any large slot id; sanitize negatives if any (-1)
         if slot_ids.numel() == 0:
             return self.stack.init_state(batch=B, device=device, dtype=dtype)
 
@@ -371,11 +303,10 @@ class MettaTDAdapter(nn.Module):
                 raise RuntimeError(
                     f"[MettaTDAdapter] slot out of bounds: need<{max_slot} got cap={cap} for leaf {(bkey, ckey, lkey)}"
                 )
-            gathered = src.index_select(0, slot_ids_clamped)  # [B, ...] (bf16)
+            gathered = src.index_select(0, slot_ids_clamped)
             if not bool(valid_mask.all()):
                 gathered[~valid_mask] = 0
             gathered = gathered.to(dtype=dtype)
-            # Assign into nested TD
             block_td = batch_state.get(bkey)
             cell_td = block_td.get(ckey)
             cell_td.set(lkey, gathered)
@@ -389,9 +320,7 @@ class MettaTDAdapter(nn.Module):
             return
         if slot_ids.dim() != 1:
             slot_ids = slot_ids.reshape(-1)
-        # Ensure capacity (derive device/dtype from leaves to avoid TensorDict.device mismatches)
         max_slot = int(slot_ids.max().item()) + 1
-        # Determine device from first available leaf tensor
         leaf_device = None
         for _fk, (b_key, c_key, leaf_key) in self._flat_entries:
             t = state.get(b_key).get(c_key).get(leaf_key)
@@ -408,9 +337,7 @@ class MettaTDAdapter(nn.Module):
             dest.index_copy_(0, slot_ids, src.to(dtype=dest.dtype).detach())
 
     def _snapshot_train_store(self) -> None:
-        # Build a compact snapshot of rollout_store (only assigned slots) for training
         if not self._rollout_id2slot:
-            # Nothing assigned yet; create an empty train store
             self._train_store = {leaf: tensor.clone().detach() for leaf, tensor in self._rollout_store.items()}
             self._train_id2slot = {}
             return
@@ -419,7 +346,6 @@ class MettaTDAdapter(nn.Module):
         old_slots = [slot for _, slot in items]
         new_slots = list(range(len(old_slots)))
         self._train_id2slot = {eid: ns for eid, ns in zip(env_ids_sorted, new_slots, strict=False)}
-        # Reindex per-leaf tensors to compact [M, ...]
         self._train_store = {}
         for leaf_path, src in self._rollout_store.items():
             device = src.device
@@ -429,7 +355,6 @@ class MettaTDAdapter(nn.Module):
             self._train_store[leaf_path] = compact.clone().detach().to(dtype=dtype)
 
     def _infer_dtype(self, state: TensorDict) -> torch.dtype:
-        # Infer a reasonable dtype from first leaf
         for _fkey, (bkey, ckey, lkey) in self._flat_entries:
             t = state.get(bkey).get(ckey).get(lkey)
             if isinstance(t, torch.Tensor):
@@ -437,7 +362,6 @@ class MettaTDAdapter(nn.Module):
         return torch.float32
 
     def _infer_device(self, state: TensorDict) -> torch.device:
-        # Prefer a leaf device; fallback to TensorDict.device
         for _fkey, (bkey, ckey, lkey) in self._flat_entries:
             t = state.get(bkey).get(ckey).get(lkey)
             if isinstance(t, torch.Tensor):
@@ -445,11 +369,9 @@ class MettaTDAdapter(nn.Module):
         return state.device if hasattr(state, "device") else torch.device("cpu")
 
     def _flush_rollout_current_to_store(self) -> None:
-        # If we have a live rollout batched state, scatter it into the rollout store
         if self._rollout_current_state is not None and self._rollout_current_env_ids is not None:
             slots = self._map_ids_to_slots(self._rollout_current_env_ids, self._rollout_id2slot, create_missing=True)
             self._scatter_state_by_slots(self._rollout_current_state, slots, store=self._rollout_store)
-            # Do not clear current state; it can remain valid until env slice changes
 
     def _ensure_rollout_current_state(
         self,
@@ -459,7 +381,6 @@ class MettaTDAdapter(nn.Module):
         device: torch.device,
         dtype: torch.dtype,
     ) -> TensorDict:
-        # If current env slice matches, reuse live state
         if (
             self._rollout_current_state is not None
             and self._rollout_current_env_ids is not None
@@ -468,7 +389,6 @@ class MettaTDAdapter(nn.Module):
         ):
             return self._rollout_current_state
 
-        # Slice changed: flush previous live state to store, gather new batch
         self._flush_rollout_current_to_store()
         slots = self._map_ids_to_slots(env_ids_long, self._rollout_id2slot, create_missing=False)
         state_prev = self._gather_state_by_slots(slots, store=self._rollout_store, B=B, device=device, dtype=dtype)
