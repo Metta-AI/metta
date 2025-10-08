@@ -1,7 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/db/prisma";
-import { ActionError } from "@/lib/actionClient";
+import { NotFoundError, AuthorizationError } from "@/lib/errors";
 
 /**
  * Check if a user is banned and throw an error if they are
@@ -17,11 +17,11 @@ export async function checkUserNotBanned(userId: string): Promise<void> {
   });
 
   if (!user) {
-    throw new ActionError("User not found");
+    throw new NotFoundError("User", userId);
   }
 
   if (user.isBanned) {
-    throw new ActionError(
+    throw new AuthorizationError(
       `Your account has been suspended. Reason: ${user.banReason || "No reason provided"}. Please contact support if you believe this is a mistake.`
     );
   }
