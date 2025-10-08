@@ -7,6 +7,8 @@ import { z } from "zod/v4";
 import { actionClient } from "@/lib/actionClient";
 import { getAdminSessionOrRedirect } from "@/lib/adminAuth";
 import { prisma } from "@/lib/db/prisma";
+import { InstitutionRepository } from "../data/institution-repository";
+import { NotFoundError, ConflictError } from "@/lib/errors";
 
 const inputSchema = zfd.formData({
   institutionId: zfd.text(z.string()),
@@ -21,124 +23,88 @@ export const manageInstitutionOwnershipAction = actionClient
     await getAdminSessionOrRedirect();
 
     // Find the institution
-    const institution = await prisma.institution.findUnique({
-      where: { id: input.institutionId },
-      select: { id: true, name: true },
-    });
+    const institution = await InstitutionRepository.findById(
+      input.institutionId
+    );
 
     if (!institution) {
-      throw new Error("Institution not found");
+      throw new NotFoundError("Institution", input.institutionId);
     }
 
     // Find the target user by email
     const targetUser = await prisma.user.findUnique({
       where: { email: input.userEmail },
+      select: { id: true, name: true, email: true },
     });
 
     if (!targetUser) {
-      throw new Error("User not found");
+      throw new NotFoundError("User", input.userEmail);
     }
 
-    let result: any = {};
-
     switch (input.action) {
-      case "assign_admin":
+      case "assign_admin": {
         // Check if user is already a member
-        const existingMembership = await prisma.userInstitution.findUnique({
-          where: {
-            userId_institutionId: {
-              userId: targetUser.id,
-              institutionId: input.institutionId,
-            },
-          },
-        });
+        const existingMembership = await InstitutionRepository.findMembership(
+          targetUser.id,
+          input.institutionId
+        );
 
         if (existingMembership) {
           // Update existing membership to admin
-          result = await prisma.userInstitution.update({
-            where: {
-              userId_institutionId: {
-                userId: targetUser.id,
-                institutionId: input.institutionId,
-              },
-            },
-            data: {
+          await InstitutionRepository.updateMembership(
+            targetUser.id,
+            input.institutionId,
+            {
               role: "admin",
               isActive: true,
-            },
-            include: {
-              user: {
-                select: { name: true, email: true },
-              },
-            },
-          });
+            }
+          );
         } else {
           // Create new admin membership
-          result = await prisma.userInstitution.create({
-            data: {
-              userId: targetUser.id,
-              institutionId: input.institutionId,
-              role: "admin",
-              isActive: true,
-            },
-            include: {
-              user: {
-                select: { name: true, email: true },
-              },
-            },
-          });
-        }
-        break;
-
-      case "remove_admin":
-        // Check if this is the last admin
-        const adminCount = await prisma.userInstitution.count({
-          where: {
+          await InstitutionRepository.createMembership({
+            userId: targetUser.id,
             institutionId: input.institutionId,
             role: "admin",
             isActive: true,
-          },
-        });
+          });
+        }
+        break;
+      }
 
-        const targetMembership = await prisma.userInstitution.findUnique({
-          where: {
-            userId_institutionId: {
-              userId: targetUser.id,
-              institutionId: input.institutionId,
-            },
-          },
-        });
+      case "remove_admin": {
+        // Check if this is the last admin
+        const adminCount = await InstitutionRepository.countAdmins(
+          input.institutionId
+        );
+        const targetMembership = await InstitutionRepository.findMembership(
+          targetUser.id,
+          input.institutionId
+        );
 
         if (targetMembership?.role === "admin" && adminCount <= 1) {
-          throw new Error("Cannot remove the last admin of the institution");
+          throw new ConflictError(
+            "Cannot remove the last admin of the institution"
+          );
         }
 
         // Convert to member
         if (targetMembership?.role === "admin") {
-          result = await prisma.userInstitution.update({
-            where: {
-              userId_institutionId: {
-                userId: targetUser.id,
-                institutionId: input.institutionId,
-              },
-            },
-            data: {
+          await InstitutionRepository.updateMembership(
+            targetUser.id,
+            input.institutionId,
+            {
               role: "member",
-            },
-            include: {
-              user: {
-                select: { name: true, email: true },
-              },
-            },
-          });
+            }
+          );
         }
         break;
+      }
     }
 
     revalidatePath("/admin/institutions");
 
     return {
-      ...result,
+      success: true,
       message: `Successfully ${input.action.replace("_", " ")} for ${institution.name}`,
     };
   });
