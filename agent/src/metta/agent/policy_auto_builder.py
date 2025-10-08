@@ -44,8 +44,10 @@ class PolicyAutoBuilder(nn.Module):
 
     def forward(self, td: TensorDict, action: torch.Tensor = None):
         td = self.network(td)
+        if "values" in td.keys():
+            values = td["values"]
+            td["values"] = values.reshape(td.batch_size.numel())
         td = self.action_probs(td, action)
-        td["values"] = td["values"].flatten()
         return td
 
     def initialize_to_environment(
