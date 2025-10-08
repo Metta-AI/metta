@@ -3,18 +3,20 @@ from typing import List
 from metta.agent.components.action import ActionEmbeddingConfig
 from metta.agent.components.actor import ActionProbsConfig, ActorKeyConfig, ActorQueryConfig
 from metta.agent.components.component_config import ComponentConfig
-from metta.agent.components.lstm_reset import LSTMResetConfig
 from metta.agent.components.misc import MLPConfig
 from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
 from metta.agent.components.obs_shim import ObsShimTokensConfig
 from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourierConfig
+from metta.agent.meta_cog.mc_lstm_reset import MCLSTMResetConfig
 from metta.agent.policy import PolicyArchitecture
 
 
-class ViTResetConfig(PolicyArchitecture):
+class MCViTResetConfig(PolicyArchitecture):
     """Speed-optimized ViT variant with lighter token embeddings and attention stack."""
 
-    class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
+    class_path: str = "metta.agent.meta_cog.mc_policy_auto_builder.MCPolicyAutoBuilder"
+
+    think_first: bool = True
 
     _embedding_dim = 16
 
@@ -44,7 +46,7 @@ class ViTResetConfig(PolicyArchitecture):
             num_heads=4,
             num_layers=2,
         ),
-        LSTMResetConfig(
+        MCLSTMResetConfig(
             in_key="obs_latent_attn",
             out_key="core",
             latent_size=_latent_dim,

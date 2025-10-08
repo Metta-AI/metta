@@ -21,7 +21,7 @@ def log_on_master(*args, **argv):
         logger.info(*args, **argv)
 
 
-class PolicyAutoBuilder(nn.Module):
+class MCPolicyAutoBuilder(nn.Module):
     """Generic policy builder for use with configs.
 
     Requirements of your configs:
@@ -77,9 +77,22 @@ class PolicyAutoBuilder(nn.Module):
                 component.mc_initialize_to_environment(self.mc_action_names)
 
     def forward(self, td: TensorDict, action: torch.Tensor = None, mc_actions: torch.Tensor = None):
+        input_td = td.clone()
         self.network(td)
-        self.action_probs(td, action)
         self.mc_action_probs(td, mc_actions)
+        if self.config.think_first:
+            self.apply_mc_actions(td)
+
+            mc_actions = td["mc_actions"]
+            mc_act_log_prob = td["mc_act_log_prob"]
+            mc_full_log_probs = td["mc_full_log_probs"]
+
+            self.network(input_td)
+            td = input_td
+            td["mc_actions"] = mc_actions
+            td["mc_act_log_prob"] = mc_act_log_prob
+            td["mc_full_log_probs"] = mc_full_log_probs
+        self.action_probs(td, action)
         td["values"] = td["values"].flatten()  # could update Experience to not need this line but need to update ppo.py
         return td
 

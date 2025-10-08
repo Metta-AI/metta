@@ -5,6 +5,7 @@ import torch.nn as nn
 from tensordict import TensorDict
 
 from metta.agent.components.component_config import ComponentConfig
+from metta.agent.meta_cog.mc import MetaCogAction
 
 # =========================== Token-based observation shaping ===========================
 # The two nn.Module-based classes below are composed into ObsShaperTokens. You can simply call that class in your policy
@@ -33,11 +34,26 @@ class ObsTokenPadStrip(nn.Module):
         super().__init__()
         self.in_key = in_key
         self.out_key = out_key
+
         self._max_tokens = max_tokens
+        self.register_buffer("max_tokens", torch.tensor(0)) # i think this is wrong
+
+        self.focus_1 = MetaCogAction("focus_1")
+        self.focus_1.attach_apply_method(self.inject_focus_1)
+        self.focus_1_max_tokens = 15
+        self.focus_2 = MetaCogAction("focus_2")
+        self.focus_2.attach_apply_method(self.inject_focus_2)
+        self.focus_2_max_tokens = 30
+        # self.noise_1 = MetaCogAction("noise_1")
+        # self.noise_1.attach_apply_method(self.inject_noise_1)
+
         # Initialize feature remapping as identity by default
         self.register_buffer("feature_id_remap", torch.arange(256, dtype=torch.uint8))
         self._remapping_active = False
         self.register_buffer("_positions_cache", torch.empty(0, dtype=torch.int64), persistent=False)
+
+    def apply_focus_1(self, env_ids):
+
 
     def initialize_to_environment(
         self,
@@ -107,6 +123,22 @@ class ObsTokenPadStrip(nn.Module):
         # [B, M, 3] the 3 vector is: coord (unit8), attr_idx, attr_val
         observations = td[self.in_key]
         M = observations.shape[1]
+
+        B = td.batch_size.numel()
+        if td["bptt"][0] != 1:
+            TT = td["bptt"][0]
+            self._in_training = True
+        else:
+            TT = 1
+        B = B // TT
+
+        training_env_ids = td.get("training_env_ids", None)
+        if training_env_ids is None:
+            training_env_ids = torch.arange(B, device=observations.device)
+        elif TT == 1:
+            # training_env_ids = training_env_ids.reshape(B * TT)  # av why reshape this? should already be B*TT
+            training_env_ids = training_env_ids.reshape(B)
+
 
         # Apply feature remapping if active
         if self._remapping_active:

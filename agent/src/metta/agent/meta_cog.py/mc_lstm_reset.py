@@ -35,19 +35,19 @@ class LstmTrainStep(nn.Module):
         return hidden, (h_t, c_t)
 
 
-class LSTMResetConfig(ComponentConfig):
+class MCLSTMResetConfig(ComponentConfig):
     in_key: str
     out_key: str
-    name: str = "lstm_reset"
+    name: str = "mc_lstm_reset"
     latent_size: int = 128
     hidden_size: int = 128
     num_layers: int = 2
 
     def make_component(self, env=None):
-        return LSTMReset(config=self)
+        return MCLSTMReset(config=self)
 
 
-class LSTMReset(nn.Module):
+class MCLSTMReset(nn.Module):
     """
     LSTM layer that resets cell states when the episode is done or truncated in both inference and training. The file
     lstm.py only resets state in inference but runs much faster because it doesn't need to unroll the LSTM state as in
@@ -61,7 +61,7 @@ class LSTMReset(nn.Module):
     limitation imposed by prioritized experience replay - it doesn't let us pull from segments in temporal order.
     """
 
-    def __init__(self, config: LSTMResetConfig):
+    def __init__(self, config: MCLSTMResetConfig):
         super().__init__()
         self.config = config
         self.latent_size = self.config.latent_size
