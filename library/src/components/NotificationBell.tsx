@@ -4,6 +4,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { Bell, X, Check, CheckCheck } from "lucide-react";
 import Link from "next/link";
 
+import { getUserDisplayName } from "@/lib/utils/user";
+
 interface Notification {
   id: string;
   type: string;
@@ -288,10 +290,9 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
   formatTimeAgo,
   getNotificationIcon,
 }) => {
-  const actorName =
-    notification.actor?.name ||
-    notification.actor?.email?.split("@")[0] ||
-    "Someone";
+  const actorName = notification.actor
+    ? getUserDisplayName(notification.actor.name, notification.actor.email)
+    : "Someone";
 
   const content = (
     <div

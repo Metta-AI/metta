@@ -157,10 +157,7 @@ export const FeedPostsPage: FC<{
   return (
     <div className="flex h-auto w-full flex-col md:flex-row">
       {/* Main feed area */}
-      <div
-        ref={feedScrollRef}
-        className="h-full flex-1 overflow-y-auto"
-      >
+      <div ref={feedScrollRef} className="h-full flex-1 overflow-y-auto">
         {/* Post Composition */}
         <NewPostForm />
         {/* Feed (virtualized) */}

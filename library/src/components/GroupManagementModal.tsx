@@ -9,6 +9,7 @@ import { X, Users, UserPlus, Trash2, Globe, Lock } from "lucide-react";
 
 import { manageGroupMembershipAction } from "@/groups/actions/manageGroupMembershipAction";
 import { useErrorHandling } from "@/lib/hooks/useErrorHandling";
+import { getUserDisplayName } from "@/lib/utils/user";
 import {
   Form,
   FormControl,
@@ -259,9 +260,10 @@ export const GroupManagementModal: FC<GroupManagementModalProps> = ({
                       </div>
                       <div>
                         <div className="font-medium text-gray-900">
-                          {member.user.name ||
-                            member.user.email?.split("@")[0] ||
-                            "Unknown"}
+                          {getUserDisplayName(
+                            member.user.name,
+                            member.user.email
+                          )}
                         </div>
                         <div className="text-sm text-gray-500">
                           {member.user.email}
