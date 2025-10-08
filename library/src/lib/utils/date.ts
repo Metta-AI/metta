@@ -53,3 +53,46 @@ export function formatRelativeDate(
     day: "numeric",
   });
 }
+
+/**
+ * Format a date in compact relative time format (e.g., "2h", "3d", "1w")
+ * Used in social feed contexts where space is limited
+ *
+ * @param date - Date to format
+ * @returns Compact relative time string
+ *
+ * @example
+ * formatRelativeTimeCompact(new Date()) // "now"
+ * formatRelativeTimeCompact(threeHoursAgo) // "3h"
+ * formatRelativeTimeCompact(twoDaysAgo) // "2d"
+ */
+export function formatRelativeTimeCompact(
+  date: Date | string | null | undefined
+): string {
+  if (!date) {
+    return "Unknown";
+  }
+
+  const dateObj = typeof date === "string" ? new Date(date) : date;
+
+  if (Number.isNaN(dateObj.getTime())) {
+    return "Unknown";
+  }
+
+  const now = new Date();
+  const diffInHours = Math.floor(
+    (now.getTime() - dateObj.getTime()) / (1000 * 60 * 60)
+  );
+
+  if (diffInHours < 1) return "now";
+  if (diffInHours < 24) return `${diffInHours}h`;
+
+  const diffInDays = Math.floor(diffInHours / 24);
+  if (diffInDays < 7) return `${diffInDays}d`;
+
+  const diffInWeeks = Math.floor(diffInDays / 7);
+  if (diffInWeeks < 4) return `${diffInWeeks}w`;
+
+  const diffInMonths = Math.floor(diffInDays / 30);
+  return `${diffInMonths}m`;
+}

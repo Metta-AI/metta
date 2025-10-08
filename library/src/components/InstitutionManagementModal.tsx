@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { manageUserMembershipAction } from "@/institutions/actions/manageUserMembershipAction";
 import { toggleApprovalRequirementAction } from "@/institutions/actions/toggleApprovalRequirementAction";
 import { useErrorHandling } from "@/lib/hooks/useErrorHandling";
+import { getUserDisplayName } from "@/lib/utils/user";
 import {
   Form,
   FormControl,
@@ -158,7 +159,9 @@ export const InstitutionManagementModal: FC<
       onError: (error) => {
         console.error("Error managing membership:", error);
         setMembershipError(error);
-        toast.error(error.message ?? "Failed to manage membership");
+        const errorMessage =
+          error.error?.serverError ?? "Failed to manage membership";
+        toast.error(errorMessage);
         pendingMembershipActionRef.current = null;
         pendingMemberEmailRef.current = null;
       },
@@ -304,9 +307,10 @@ export const InstitutionManagementModal: FC<
                       </div>
                       <div>
                         <div className="font-medium text-gray-900">
-                          {member.user.name ||
-                            member.user.email?.split("@")[0] ||
-                            "Unknown"}
+                          {getUserDisplayName(
+                            member.user.name,
+                            member.user.email
+                          )}
                         </div>
                         <div className="text-sm text-gray-500">
                           {member.user.email}

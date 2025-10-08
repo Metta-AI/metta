@@ -14,7 +14,9 @@ import { deletePostAction } from "@/posts/actions/deletePostAction";
 import { toggleQueueAction } from "@/posts/actions/toggleQueueAction";
 import { SilentArxivRefresh } from "@/components/SilentArxivRefresh";
 import { InPostComments } from "@/components/InPostComments";
-import { getUserInitials } from "@/lib/utils/user";
+import { getUserInitials, getUserDisplayName } from "@/lib/utils/user";
+import { formatRelativeTimeCompact } from "@/lib/utils/date";
+import { cleanArxivUrls } from "@/lib/utils/url";
 import { MessageSquare, ExternalLink, Quote } from "lucide-react";
 
 /**
@@ -139,34 +141,6 @@ export const FeedPost: FC<{
 
     // Navigate to home page where the new post form will pick up the draft
     router.push("/?quote=" + post.id);
-  };
-
-  // Format relative time
-  const formatRelativeTime = (date: Date) => {
-    const now = new Date();
-    const diffInHours = Math.floor(
-      (now.getTime() - date.getTime()) / (1000 * 60 * 60)
-    );
-
-    if (diffInHours < 1) return "now";
-    if (diffInHours < 24) return `${diffInHours}h`;
-
-    const diffInDays = Math.floor(diffInHours / 24);
-    if (diffInDays < 7) return `${diffInDays}d`;
-
-    const diffInWeeks = Math.floor(diffInDays / 7);
-    if (diffInWeeks < 4) return `${diffInWeeks}w`;
-
-    const diffInMonths = Math.floor(diffInDays / 30);
-    return `${diffInMonths}m`;
-  };
-
-  // Remove arxiv URLs and trim trailing whitespace
-  const cleanPostContent = (content: string) => {
-    // Remove arxiv URLs (various formats)
-    const arxivPattern =
-      /https?:\/\/(www\.)?(arxiv\.org\/abs\/|arxiv\.org\/pdf\/)[^\s]+/gi;
-    return content.replace(arxivPattern, "").replace(/\s+$/, "");
   };
 
   // Delete post action
@@ -305,12 +279,10 @@ export const FeedPost: FC<{
                 }}
                 className="cursor-pointer font-medium text-neutral-900 transition-colors hover:text-blue-600"
               >
-                {post.author.name ||
-                  post.author.email?.split("@")[0] ||
-                  "Unknown User"}
+                {getUserDisplayName(post.author.name, post.author.email)}
               </button>
               <span>•</span>
-              <span>{formatRelativeTime(post.createdAt)}</span>
+              <span>{formatRelativeTimeCompact(post.createdAt)}</span>
             </div>
           </div>
 
@@ -502,12 +474,10 @@ export const FeedPost: FC<{
               }}
               className="cursor-pointer font-medium text-neutral-900 transition-colors hover:text-blue-600"
             >
-              {post.author.name ||
-                post.author.email?.split("@")[0] ||
-                "Unknown User"}
+              {getUserDisplayName(post.author.name, post.author.email)}
             </button>
             <span>•</span>
-            <span>{formatRelativeTime(post.createdAt)}</span>
+            <span>{formatRelativeTimeCompact(post.createdAt)}</span>
           </div>
         </div>
 
@@ -609,9 +579,9 @@ export const FeedPost: FC<{
       </div>
 
       {/* Post content with LaTeX support */}
-      {post.content && cleanPostContent(post.content).trim() && (
+      {post.content && cleanArxivUrls(post.content).trim() && (
         <div className="px-4 pb-2 text-[14px] leading-[1.55] whitespace-pre-wrap text-neutral-900">
-          <RichTextRenderer text={cleanPostContent(post.content)} />
+          <RichTextRenderer text={cleanArxivUrls(post.content)} />
         </div>
       )}
 
@@ -688,12 +658,13 @@ export const FeedPost: FC<{
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-gray-900">
-                        {quotedPost.author.name ||
-                          quotedPost.author.email?.split("@")[0] ||
-                          "Unknown User"}
+                        {getUserDisplayName(
+                          quotedPost.author.name,
+                          quotedPost.author.email
+                        )}
                       </span>
                       <span className="text-xs text-gray-500">
-                        {formatRelativeTime(quotedPost.createdAt)}
+                        {formatRelativeTimeCompact(quotedPost.createdAt)}
                       </span>
                     </div>
 

@@ -32,3 +32,35 @@ export function getUserInitials(
   }
   return "?";
 }
+
+/**
+ * Get a user's display name for UI rendering
+ * Priority: name > email username > "Unknown User"
+ *
+ * @param name - User's full name
+ * @param email - User's email address
+ * @returns User-friendly display name
+ *
+ * @example
+ * getUserDisplayName("John Doe", null) // "John Doe"
+ * getUserDisplayName(null, "jane@example.com") // "jane"
+ * getUserDisplayName(null, null) // "Unknown User"
+ */
+export function getUserDisplayName(
+  name: string | null | undefined,
+  email: string | null | undefined
+): string {
+  if (name) return name;
+  if (email) return email.split("@")[0];
+  return "Unknown User";
+}
+
+/**
+ * Type guard to check if a user object has required display information
+ */
+export function hasUserDisplayInfo(user: {
+  name?: string | null;
+  email?: string | null;
+}): boolean {
+  return Boolean(user.name || user.email);
+}

@@ -13,6 +13,8 @@ import { DeleteConfirmationModal } from "@/components/DeleteConfirmationModal";
 import { MentionInput } from "@/components/MentionInput";
 import { RichTextRenderer } from "@/components/RichTextRenderer";
 import { parseMentions } from "@/lib/mentions";
+import { getUserInitials, getUserDisplayName } from "@/lib/utils/user";
+import { formatRelativeTimeCompact } from "@/lib/utils/date";
 
 interface ThreadedCommentsProps {
   postId: string;
@@ -35,32 +37,6 @@ function countComments(nodes: CommentDTO[]): number {
     if (c.replies) n += countComments(c.replies);
   }
   return n;
-}
-
-function getUserInitials(name: string | null, email: string | null): string {
-  if (name) {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
-  }
-  if (email) {
-    return email.charAt(0).toUpperCase();
-  }
-  return "?";
-}
-
-function formatRelativeTime(date: Date): string {
-  const now = new Date();
-  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-  if (diffInSeconds < 60) return "now";
-  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m`;
-  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h`;
-  if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d`;
-  return `${Math.floor(diffInSeconds / 604800)}w`;
 }
 
 // Check if comment contains bot mention
@@ -113,9 +89,9 @@ function CommentItem({ c }: { c: CommentDTO }) {
           >
             {c.isBot
               ? "@library_bot"
-              : c.author.name || c.author.email?.split("@")[0] || "Unknown"}
+              : getUserDisplayName(c.author.name, c.author.email)}
           </span>{" "}
-          • {formatRelativeTime(c.createdAt)}
+          • {formatRelativeTimeCompact(c.createdAt)}
         </div>
         <div className="mt-0.5 text-[14px] leading-[1.55] whitespace-pre-wrap text-neutral-900">
           <RichTextRenderer text={c.content} />
@@ -294,7 +270,7 @@ function CommentNode({
       {isOpen && (
         <div className="ml-6">
           <CommentComposer
-            placeholder={`Reply to ${c.author.name || c.author.email?.split("@")[0] || "user"}…`}
+            placeholder={`Reply to ${getUserDisplayName(c.author.name, c.author.email)}…`}
             value={replyText}
             onChange={setReplyText}
             onSubmit={(text, mentions) => {
