@@ -112,9 +112,9 @@ identified-figures/
 # TODO - remove after troubleshooting stability and re-add to keys in .github/workflows/checks.yml
 mettagrid/MODULE.bazel.lock
 
-# skypilot testing
-recipe_test_jobs.json
-cluster_test_jobs.json
+# Stable Release System
+devops/stable/state/
+devops/stable/logs/
 
 # MetaScope
 packages/mettagrid/nim/mettascope/dist/
