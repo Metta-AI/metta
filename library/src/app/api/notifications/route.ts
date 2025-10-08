@@ -6,6 +6,8 @@ import {
   getUserNotifications,
   getNotificationCounts,
 } from "@/lib/notifications";
+import { AuthenticationError } from "@/lib/errors";
+import { handleApiError } from "@/lib/api/error-handler";
 
 const querySchema = z.object({
   limit: z.coerce.number().min(1).max(50).default(20),
@@ -18,10 +20,7 @@ export async function GET(request: NextRequest) {
     const session = await auth();
 
     if (!isSignedIn(session)) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
+      throw new AuthenticationError();
     }
 
     const { searchParams } = new URL(request.url);
@@ -47,10 +46,6 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Error loading notifications:", error);
-    return NextResponse.json(
-      { error: "Failed to load notifications" },
-      { status: 500 }
-    );
+    return handleApiError(error, { endpoint: "GET /api/notifications" });
   }
 }
