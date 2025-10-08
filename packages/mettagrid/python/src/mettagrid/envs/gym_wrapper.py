@@ -9,13 +9,7 @@ class SingleAgentWrapper(gym.Wrapper):
         super(SingleAgentWrapper, self).__init__(env)
 
     def step(self, action):
-        action_array = np.asarray(action, dtype=np.int32)
-        if action_array.ndim == 0:
-            action_array = action_array.reshape(1)
-        elif action_array.ndim == 1 and action_array.shape[0] == 1:
-            pass
-        else:
-            raise ValueError(f"SingleAgentWrapper expects scalar action, got shape {action_array.shape}")
+        action_array = np.asarray(action, dtype=np.int32).reshape(1)
         observations, rewards, terminals, truncations, infos = self.env.step(action_array)
 
         observations = observations.squeeze(0)

@@ -226,7 +226,10 @@ class SlidingTransformer(nn.Module):
         if last_actions is None:
             last_actions = torch.zeros(B * TT, self.action_dim, device=td.device, dtype=proj_dtype)
         else:
-            last_actions = last_actions.reshape(-1, last_actions.size(-1) if last_actions.dim() > 1 else 1)
+            if last_actions.dim() == 1:
+                last_actions = last_actions.view(-1, 1)
+            else:
+                last_actions = last_actions.reshape(B * TT, -1)
             last_actions = last_actions[..., : self.action_dim].to(dtype=proj_dtype)
         dones = td.get("dones", empty_tensor)
         truncateds = td.get("truncateds", empty_tensor)
