@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { loadAuthor } from "@/posts/data/authors-server";
+import { NotFoundError } from "@/lib/errors";
+import { handleApiError } from "@/lib/api/error-handler";
 
 /**
  * API endpoint for fetching individual author data
@@ -17,15 +19,11 @@ export async function GET(
     const author = await loadAuthor(authorId);
 
     if (!author) {
-      return NextResponse.json({ error: "Author not found" }, { status: 404 });
+      throw new NotFoundError("Author", authorId);
     }
 
     return NextResponse.json(author);
   } catch (error) {
-    console.error("Error loading author:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(error, { endpoint: "GET /api/authors/[authorId]" });
   }
 }
