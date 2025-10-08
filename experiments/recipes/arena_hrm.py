@@ -1,9 +1,10 @@
 """Arena recipe with HRM policy architecture."""
 
-from experiments.recipes import arena as base
 from metta.agent.policies.hrm import HRMTinyConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.rl.loss.hrm_ppo import HRMPPOConfig
+
+from experiments.recipes import arena as base
 
 make_mettagrid = base.make_mettagrid
 make_curriculum = base.make_curriculum
@@ -25,7 +26,9 @@ def train(
         enable_detailed_slice_logging=enable_detailed_slice_logging,
     )
     # Update policy architecture
-    tool = tool.model_copy(update={"policy_architecture": policy_architecture or HRMTinyConfig()})
+    tool = tool.model_copy(
+        update={"policy_architecture": policy_architecture or HRMTinyConfig()}
+    )
     # Update loss config to use HRMPPO
     tool.trainer.losses.loss_configs = {"hrm_ppo": HRMPPOConfig()}
     return tool
@@ -39,7 +42,9 @@ def train_shaped(
     """Train with HRM policy architecture using shaped rewards (defaults to HRMTinyConfig)."""
     tool = base.train_shaped(rewards=rewards, converters=converters)
     # Update policy architecture
-    tool = tool.model_copy(update={"policy_architecture": policy_architecture or HRMTinyConfig()})
+    tool = tool.model_copy(
+        update={"policy_architecture": policy_architecture or HRMTinyConfig()}
+    )
     # Update loss config to use HRMPPO
     tool.trainer.losses.loss_configs = {"hrm_ppo": HRMPPOConfig()}
     return tool
