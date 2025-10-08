@@ -347,7 +347,6 @@ class HRMTinyConfig(PolicyArchitecture):
             num_layers=1,
             num_heads=2,
             ffn_expansion=2.0,
-            track_gradients=True,  # Enable gradient tracking for monitoring
         ),
         # Actor and Critic using ViT-style components
         MLPConfig(
