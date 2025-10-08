@@ -11,24 +11,7 @@ import torch.nn.functional as F
 from einops import rearrange, repeat
 from torch import Tensor
 from torch.profiler import ProfilerActivity, profile, record_function
-
-try:  # pragma: no cover - optional dependency
-    from transformers.generation import GreedySearchDecoderOnlyOutput, SampleDecoderOnlyOutput, TextStreamer
-except ModuleNotFoundError:  # pragma: no cover - minimal stubs for non-NLP use
-    _GenerationOutput = namedtuple("_GenerationOutput", ["sequences", "scores"])
-
-    class TextStreamer:  # type: ignore[too-few-public-methods]
-        def __init__(self, *args, **kwargs) -> None:  # noqa: D401 - simple stub
-            pass
-
-        def put(self, *args, **kwargs) -> None:
-            return None
-
-        def end(self) -> None:
-            return None
-
-    GreedySearchDecoderOnlyOutput = _GenerationOutput  # type: ignore[assignment]
-    SampleDecoderOnlyOutput = _GenerationOutput  # type: ignore[assignment]
+from transformers.generation import GreedySearchDecoderOnlyOutput, SampleDecoderOnlyOutput, TextStreamer
 
 
 @dataclass

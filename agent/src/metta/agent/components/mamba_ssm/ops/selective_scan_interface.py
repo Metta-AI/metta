@@ -2,29 +2,18 @@
 
 import torch
 import torch.nn.functional as F
-from metta.agent.components.mamba_ssm.utils.torch import custom_bwd, custom_fwd
-
+from causal_conv1d import causal_conv1d_fn
+from causal_conv1d.cpp_functions import (
+    causal_conv1d_bwd_function,
+    causal_conv1d_fwd_function,
+    causal_conv1d_update_function,
+)
 from einops import rearrange, repeat
 
-try:
-    from causal_conv1d import causal_conv1d_fn
-    from causal_conv1d.cpp_functions import (
-        causal_conv1d_fwd_function,
-        causal_conv1d_bwd_function,
-        causal_conv1d_update_function,
-    )
-except ImportError:
-    causal_conv1d_fn = None
-    causal_conv1d_fwd_function = None
-    causal_conv1d_bwd_function = None
-    causal_conv1d_update_function = None
+import selective_scan_cuda  # type: ignore
 
 from metta.agent.components.mamba_ssm.ops.triton.layer_norm import _layer_norm_fwd
-
-try:
-    import selective_scan_cuda  # type: ignore
-except ImportError:  # pragma: no cover - CPU fallback
-    selective_scan_cuda = None
+from metta.agent.components.mamba_ssm.utils.torch import custom_bwd, custom_fwd
 
 
 class SelectiveScanFn(torch.autograd.Function):
@@ -59,7 +48,6 @@ class SelectiveScanFn(torch.autograd.Function):
         ctx.squeeze_C = False
         ctx.has_z = z is not None
         ctx.delta_softplus = delta_softplus
-        ctx.cuda_available = selective_scan_cuda is not None
 
         if B.dim() == 3:
             B = rearrange(B, "b dstate l -> b 1 dstate l")
@@ -67,18 +55,6 @@ class SelectiveScanFn(torch.autograd.Function):
         if C.dim() == 3:
             C = rearrange(C, "b dstate l -> b 1 dstate l")
             ctx.squeeze_C = True
-
-        if selective_scan_cuda is None:
-            ctx.save_for_backward(u, delta, A, B, C)
-            last_state = torch.zeros(
-                u.shape[0],
-                u.shape[1],
-                A.shape[-1],
-                device=u.device,
-                dtype=u.dtype,
-            )
-            output = u.clone()
-            return output if not return_last_state else (output, last_state)
 
         out, x, *rest = selective_scan_cuda.fwd(u, delta, A, B, C, D, z, delta_bias, delta_softplus)
         last_state = x[:, :, -1, 1::2]
@@ -93,22 +69,6 @@ class SelectiveScanFn(torch.autograd.Function):
     def backward(ctx, dout, *args):
         if dout.stride(-1) != 1:
             dout = dout.contiguous()
-
-        if not getattr(ctx, "cuda_available", False):
-            u, delta, A, B, C = ctx.saved_tensors
-            zeros = torch.zeros_like
-            return (
-                dout,
-                zeros(delta),
-                zeros(A),
-                zeros(B),
-                zeros(C),
-                None,
-                None,
-                None,
-                None,
-                None,
-            )
 
         if not ctx.has_z:
             u, delta, A, B, C, D, delta_bias, x = ctx.saved_tensors
@@ -262,12 +222,7 @@ class MambaInnerFn(torch.autograd.Function):
         dt_rms_weight=None,
         b_c_dt_rms_eps=1e-6,
     ):
-        """
-        xz: (batch, dim, seqlen)
-        """
-        assert causal_conv1d_fwd_function is not None, (
-            "causal_conv1d_cuda is not available. Please install causal-conv1d."
-        )
+        """xz: (batch, dim, seqlen)"""
         assert checkpoint_lvl in [0, 1]
         L = xz.shape[-1]
         delta_rank = delta_proj_weight.shape[1]
@@ -373,9 +328,6 @@ class MambaInnerFn(torch.autograd.Function):
     @custom_bwd
     def backward(ctx, dout):
         # dout: (batch, seqlen, dim)
-        assert causal_conv1d_fwd_function is not None, (
-            "causal_conv1d_cuda is not available. Please install causal-conv1d."
-        )
         (
             xz,
             conv1d_weight,
@@ -567,7 +519,6 @@ def mamba_inner_ref(
     C_proj_bias=None,
     delta_softplus=True,
 ):
-    assert causal_conv1d_fn is not None, "causal_conv1d_fn is not available. Please install causal-conv1d."
     L = xz.shape[-1]
     delta_rank = delta_proj_weight.shape[1]
     d_state = A.shape[-1] * (1 if not A.is_complex() else 2)

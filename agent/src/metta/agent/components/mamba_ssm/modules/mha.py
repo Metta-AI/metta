@@ -5,22 +5,10 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from causal_conv1d import causal_conv1d_fn, causal_conv1d_update
 from einops import rearrange
-
-try:
-    from flash_attn import flash_attn_with_kvcache
-except ImportError:
-    flash_attn_with_kvcache = None
-
-try:
-    from flash_attn.layers.rotary import RotaryEmbedding
-except ImportError:
-    RotaryEmbedding = None
-
-try:
-    from causal_conv1d import causal_conv1d_fn, causal_conv1d_update
-except ImportError:
-    causal_conv1d_fn, causal_conv1d_update = None, None
+from flash_attn import flash_attn_with_kvcache
+from flash_attn.layers.rotary import RotaryEmbedding
 
 
 def _update_kv_cache(kv, inference_params, layer_idx):
@@ -89,7 +77,6 @@ class MHA(nn.Module):
         out_dim = self.head_dim * self.num_heads
 
         if self.rotary_emb_dim > 0:
-            assert RotaryEmbedding is not None, "rotary requires flash_attn to be installed"
             self.rotary_emb = RotaryEmbedding(
                 self.rotary_emb_dim,
                 base=rotary_emb_base,
@@ -147,7 +134,6 @@ class MHA(nn.Module):
             if inference_params.lengths_per_sample is not None
             else inference_params.seqlen_offset
         )
-        assert flash_attn_with_kvcache is not None, "flash_attn must be installed"
         context = flash_attn_with_kvcache(
             q,
             kv_cache[:, :, 0],
@@ -165,7 +151,7 @@ class MHA(nn.Module):
 
     def _update_kvcache_attention(self, q, kv, inference_params):
         """Write kv to inference_params, then do attention"""
-        if inference_params.seqlen_offset == 0 or flash_attn_with_kvcache is None:
+        if inference_params.seqlen_offset == 0:
             # TODO: this only uses seqlen_offset and not lengths_per_sample.
             kv = self._update_kv_cache(kv, inference_params)
             k, v = kv.unbind(dim=-3)

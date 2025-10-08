@@ -9,26 +9,19 @@ from packaging import version
 
 import torch
 import torch.nn.functional as F
+from causal_conv1d import causal_conv1d_fn
+from causal_conv1d.cpp_functions import (
+    causal_conv1d_bwd_function,
+    causal_conv1d_fwd_function,
+    causal_conv1d_update_function,
+)
+from einops import rearrange, repeat
 from torch import Tensor
-from metta.agent.components.mamba_ssm.utils.torch import custom_bwd, custom_fwd
 
 import triton
 import triton.language as tl
 
-from einops import rearrange, repeat
-
-try:
-    from causal_conv1d import causal_conv1d_fn
-    from causal_conv1d.cpp_functions import (
-        causal_conv1d_fwd_function,
-        causal_conv1d_bwd_function,
-        causal_conv1d_update_function,
-    )
-except ImportError:
-    causal_conv1d_fn = None
-    causal_conv1d_fwd_function = None
-    causal_conv1d_bwd_function = None
-    causal_conv1d_update_function = None
+from metta.agent.components.mamba_ssm.utils.torch import custom_bwd, custom_fwd
 
 from metta.agent.components.mamba_ssm.ops.triton.ssd_bmm import _bmm_chunk_fwd, _bmm_chunk_bwd
 from metta.agent.components.mamba_ssm.ops.triton.ssd_chunk_state import _chunk_cumsum_fwd, _chunk_cumsum_bwd
