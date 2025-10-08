@@ -1,13 +1,12 @@
 import logging
 from typing import Dict, Optional
 
-import numpy as np
 import torch
 import torch.nn as nn
 
 import pufferlib.pytorch
 from cogames.policy.policy import AgentPolicy, TrainablePolicy
-from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation
+from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation, dtype_actions
 
 logger = logging.getLogger("cogames.policies.token_policy")
 
@@ -129,7 +128,7 @@ class TokenAgentPolicyImpl(AgentPolicy):
             logits, _ = self._net.forward_eval(obs_tensor)
             dist = torch.distributions.Categorical(logits=logits)
             action = dist.sample().item()
-            return np.array(action, dtype=np.int32)
+            return dtype_actions.type(action)
 
 
 class TokenPolicy(TrainablePolicy):

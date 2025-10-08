@@ -12,7 +12,7 @@ from mettagrid.config.mettagrid_config import (
     GameConfig,
     WallConfig,
 )
-from mettagrid.mettagrid_c import MettaGrid
+from mettagrid.mettagrid_c import MettaGrid, dtype_actions
 from mettagrid.test_support.actions import action_index, get_agent_position, get_current_observation
 from mettagrid.test_support.orientation import Orientation
 
@@ -137,7 +137,7 @@ class TestActionValidation:
         env.reset()
 
         # Try invalid flattened index
-        invalid_action = np.array([env.action_space.n + 99], dtype=np.int32)
+        invalid_action = np.array([env.action_space.n + 99], dtype=dtype_actions)
         env.step(invalid_action)
 
         # Action should fail
@@ -149,7 +149,7 @@ class TestActionValidation:
         env.reset()
 
         # Use an out-of-range flattened index to simulate invalid input
-        invalid_action = np.array([env.action_space.n + 1], dtype=np.int32)
+        invalid_action = np.array([env.action_space.n + 1], dtype=dtype_actions)
         env.step(invalid_action)
 
         # Action should fail
@@ -187,7 +187,7 @@ class TestResourceRequirements:
             None,
         )
         assert move_action_idx is not None, "Expected move action in action names"
-        move_action = np.array([move_action_idx], dtype=np.int32)
+        move_action = np.array([move_action_idx], dtype=dtype_actions)
 
         # Agent starts with no resources, so move should fail
         env.step(move_action)
@@ -245,7 +245,7 @@ class TestResourceRequirements:
 
         # Move east
         move_action_idx = action_index(env, "move", Orientation.EAST)
-        move_action = np.array([move_action_idx], dtype=np.int32)
+        move_action = np.array([move_action_idx], dtype=dtype_actions)
 
         obs_after, _rewards, _dones, _truncs, _infos = env.step(move_action)
         action_success = env.action_success()[0]
@@ -328,7 +328,7 @@ class TestActionSpace:
 
         # Create actions for all 3 agents using the noop label
         noop_idx = action_names.index("noop")
-        actions = np.full(env.num_agents, noop_idx, dtype=np.int32)
+        actions = np.full(env.num_agents, noop_idx, dtype=dtype_actions)
 
         # This should work without error
         env.step(actions)
