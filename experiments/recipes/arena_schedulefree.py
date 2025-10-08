@@ -60,7 +60,7 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
     # Configure ScheduleFree AdamW optimizer
     optimizer_config = OptimizerConfig(
         type="adamw_schedulefree",
-        learning_rate=0.001153637,
+        learning_rate=0.3,
         beta1=0.9,
         beta2=0.999,
         eps=3.186531e-07,

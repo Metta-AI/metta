@@ -29,7 +29,7 @@ def create_optimizer(cfg: OptimizerConfig, policy: Policy) -> torch.optim.Optimi
     elif optimizer_type == "adamw_schedulefree":
         optimizer = schedulefree.AdamWScheduleFree(
             policy.parameters(),
-            lr=cfg.learning_rate,
+            lr=0.3,
             betas=(cfg.beta1, cfg.beta2),
             eps=cfg.eps,
             weight_decay=cfg.weight_decay,
@@ -55,7 +55,7 @@ def create_optimizer(cfg: OptimizerConfig, policy: Policy) -> torch.optim.Optimi
     #         logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
 
     # For ScheduleFree optimizers, put them in train mode immediately
-    
+
     return optimizer
 
 
