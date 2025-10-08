@@ -4,34 +4,24 @@
  * Processes jobs from the institution-extraction queue using BullMQ
  */
 
-import { Worker, Job } from "bullmq";
-import { redisConfig, BackgroundJobs } from "../job-queue";
+import { Job } from "bullmq";
+import { BackgroundJobs } from "../job-queue";
 import { processArxivInstitutionsAsync } from "../arxiv-auto-import";
 import { Logger } from "../logging/logger";
+import { BaseWorker } from "./base-worker";
 
-export class InstitutionWorker {
-  private worker: Worker;
-
+export class InstitutionWorker extends BaseWorker<
+  BackgroundJobs["extract-institutions"]
+> {
   constructor() {
-    this.worker = new Worker(
-      "institution-extraction",
-      async (job: Job<BackgroundJobs["extract-institutions"]>) => {
-        return await this.processJob(job);
-      },
-      {
-        connection: redisConfig,
-        concurrency: 2, // Process 2 jobs concurrently
-        limiter: {
-          max: 10, // Max 10 jobs
-          duration: 60000, // Per minute (rate limiting for external APIs)
-        },
-      }
-    );
-
-    this.setupEventHandlers();
+    super({
+      queueName: "institution-extraction",
+      concurrency: 2, // Process 2 jobs concurrently
+      maxJobsPerMinute: 10, // Rate limiting for external APIs
+    });
   }
 
-  private async processJob(
+  protected async processJob(
     job: Job<BackgroundJobs["extract-institutions"]>
   ): Promise<void> {
     const { paperId, arxivUrl } = job.data;
@@ -49,25 +39,6 @@ export class InstitutionWorker {
       );
       throw error; // BullMQ will handle retries
     }
-  }
-
-  private setupEventHandlers(): void {
-    this.worker.on("completed", (job) => {
-      Logger.debug("Institution job completed", { jobId: job.id });
-    });
-
-    this.worker.on("failed", (job, err) => {
-      Logger.error("Institution job failed", err, { jobId: job?.id });
-    });
-
-    this.worker.on("error", (err) => {
-      Logger.error("Institution worker error", err);
-    });
-  }
-
-  async shutdown(): Promise<void> {
-    Logger.info("Shutting down institution worker");
-    await this.worker.close();
   }
 }
 

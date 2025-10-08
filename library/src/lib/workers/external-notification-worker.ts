@@ -5,41 +5,27 @@
  * Handles email and Discord notification delivery
  */
 
-import { Worker, Job } from "bullmq";
-import { redisConfig, BackgroundJobs } from "../job-queue";
+import { Job } from "bullmq";
+import { BackgroundJobs } from "../job-queue";
 import { emailService } from "../external-notifications/email";
 import { discordBot } from "../external-notifications/discord-bot";
 import { prisma } from "@/lib/db/prisma";
 import { Logger } from "../logging/logger";
+import { BaseWorker } from "./base-worker";
 
-export class ExternalNotificationWorker {
-  private worker: Worker;
-
+export class ExternalNotificationWorker extends BaseWorker<
+  | BackgroundJobs["send-external-notification"]
+  | BackgroundJobs["retry-failed-notification"]
+> {
   constructor() {
-    this.worker = new Worker(
-      "external-notifications",
-      async (
-        job: Job<
-          | BackgroundJobs["send-external-notification"]
-          | BackgroundJobs["retry-failed-notification"]
-        >
-      ) => {
-        return await this.processJob(job);
-      },
-      {
-        connection: redisConfig,
-        concurrency: 3, // Process up to 3 notifications concurrently
-        limiter: {
-          max: 20, // Max 20 notifications per
-          duration: 60000, // Per minute (rate limiting for external services)
-        },
-      }
-    );
-
-    this.setupEventHandlers();
+    super({
+      queueName: "external-notifications",
+      concurrency: 3, // Process up to 3 notifications concurrently
+      maxJobsPerMinute: 20, // Rate limiting for external services
+    });
   }
 
-  private async processJob(
+  protected async processJob(
     job: Job<
       | BackgroundJobs["send-external-notification"]
       | BackgroundJobs["retry-failed-notification"]
@@ -302,28 +288,21 @@ export class ExternalNotificationWorker {
     return preference;
   }
 
-  private setupEventHandlers(): void {
+  protected setupEventHandlers(): void {
+    // Override base event handlers with custom formatting
     this.worker.on("completed", (job) => {
-      Logger.info(
-        `✅ External notification job ${job.id} completed successfully`
-      );
+      Logger.info("External notification job completed", { jobId: job.id });
     });
 
     this.worker.on("failed", (job, err) => {
-      Logger.error(
-        `❌ External notification job ${job?.id} failed:`,
-        err.message
-      );
+      Logger.error("External notification job failed", err, {
+        jobId: job?.id,
+      });
     });
 
     this.worker.on("error", (err) => {
-      Logger.error("🚨 External notification worker error:", err);
+      Logger.error("External notification worker error", err);
     });
-  }
-
-  async shutdown(): Promise<void> {
-    Logger.info("🛑 Shutting down external notification worker...");
-    await this.worker.close();
   }
 }
 
