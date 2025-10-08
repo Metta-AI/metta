@@ -105,8 +105,11 @@ class SmolLLMBackbone(nn.Module):
         )
         final_hidden = outputs.hidden_states[-1]
 
-        mask = attention_mask.unsqueeze(-1)
-        pooled = (final_hidden * mask).sum(dim=1) / mask.sum(dim=1).clamp_min(1.0)
+        mask = attention_mask.unsqueeze(-1).to(dtype=final_hidden.dtype)
+        token_sum = (final_hidden * mask).sum(dim=1)
+        denom = mask.sum(dim=1).clamp_min(1.0)
+        pooled = token_sum / denom
+        pooled = pooled.to(dtype=self.actor_head.weight.dtype)
 
         logits = self.actor_head(pooled).to(dtype=torch.float32)
         values = self.value_head(pooled).squeeze(-1).to(dtype=torch.float32)
