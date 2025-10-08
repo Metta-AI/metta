@@ -1,3 +1,4 @@
+import logging
 from typing import Optional, TYPE_CHECKING
 
 from experiments.recipes.arena_basic_easy_shaped import (
@@ -16,8 +17,20 @@ from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.rl.trainer_config import TorchProfilerConfig
 from metta.tools.train import TrainTool
 
+logger = logging.getLogger(__name__)
+
 if TYPE_CHECKING:  # pragma: no cover
     from metta.agent.policies.drama_policy import DramaPolicyConfig
+
+
+def _supports_mem_eff_path() -> bool:
+    try:
+        from causal_conv1d import causal_conv1d_fn  # type: ignore[attr-defined]
+    except ModuleNotFoundError:
+        return False
+
+    return callable(causal_conv1d_fn)
+
 
 DEFAULT_LEARNING_RATE = 8e-4
 DEFAULT_BATCH_SIZE = 131_072
@@ -69,8 +82,23 @@ def train(
     forward_pass_minibatch_target_size: int = DEFAULT_FORWARD_PASS_MINIBATCH_TARGET_SIZE,
 ) -> TrainTool:
     DramaPolicyConfig = _load_drama_policy_config()
+    from metta.agent.components.drama import DramaWorldModelConfig
 
     policy = policy_architecture or DramaPolicyConfig()
+
+    mem_eff_supported = _supports_mem_eff_path()
+    if not mem_eff_supported:
+        logger.warning(
+            "[ABES Drama] Detected missing causal-conv1d CUDA kernels; disabling memory-efficient path."
+            " Install `flash-attn` and `causal-conv1d` for best performance."
+        )
+
+    for component in policy.components:
+        if isinstance(component, DramaWorldModelConfig):
+            ssm_cfg = dict(component.ssm_cfg) if component.ssm_cfg else {}
+            if not mem_eff_supported:
+                ssm_cfg["use_mem_eff_path"] = False
+            component.ssm_cfg = ssm_cfg
 
     tool = base_train(
         curriculum=curriculum,

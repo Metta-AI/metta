@@ -12,6 +12,7 @@ from einops import repeat
 from mamba_ssm.modules.block import Block
 from mamba_ssm.modules.mamba2 import Mamba2
 from mamba_ssm.modules.mha import MHA
+
 try:
     from mamba_ssm.modules.mlp import MLP  # type: ignore[attr-defined]
 except ImportError:  # pragma: no cover - compatibility with newer mamba-ssm releases

@@ -31,6 +31,17 @@ DEFAULT_FORWARD_PASS_MINIBATCH_TARGET_SIZE = 1_024
 DEFAULT_SSM_LAYER = "Mamba2"
 
 
+def _supports_mem_eff_path() -> bool:
+    """Return True if the fused causal-conv1d kernels are available."""
+
+    try:
+        from causal_conv1d import causal_conv1d_fn  # type: ignore[attr-defined]
+    except ModuleNotFoundError:
+        return False
+
+    return callable(causal_conv1d_fn)
+
+
 def _load_mamba_components() -> tuple["MambaBackboneConfig", "MambaSlidingConfig"]:
     """Import Mamba components lazily so the recipe can register without CUDA deps."""
 
@@ -67,10 +78,19 @@ def train(
         msg = f"Unsupported SSM layer '{ssm_layer}'. Only 'Mamba2' is available."
         raise ValueError(msg)
 
+    mem_eff_supported = _supports_mem_eff_path()
+    if not mem_eff_supported:
+        logger.warning(
+            "[ABES Mamba] Detected missing causal-conv1d CUDA kernels; disabling memory-efficient path."
+            " Install `flash-attn` and `causal-conv1d` for best performance."
+        )
+
     for component in policy.components:
         if isinstance(component, MambaBackboneConfig):
             ssm_cfg = dict(component.ssm_cfg) if component.ssm_cfg else {}
             ssm_cfg["layer"] = "Mamba2"
+            if not mem_eff_supported:
+                ssm_cfg["use_mem_eff_path"] = False
             component.ssm_cfg = ssm_cfg
 
     tool = base_train(
