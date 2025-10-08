@@ -320,6 +320,7 @@ def update_validation_result(version: str, validation_name: str, result: Validat
 
 # Regex patterns for extracting metrics from logs
 _SPS_RE = re.compile(r"\bSPS[:=]\s*(\d+(?:\.\d+)?)", re.IGNORECASE)
+_KSPS_RE = re.compile(r"(\d+(?:\.\d+)?)\s*ksps", re.IGNORECASE)  # Match "87.75 ksps"
 _EVAL_RATE_RE = re.compile(r"\beval[_\s-]?success[_\s-]?rate[:=]\s*(0?\.\d+|1(?:\.0)?)", re.IGNORECASE)
 
 
@@ -328,15 +329,22 @@ def extract_metrics(log_text: str) -> dict[str, float]:
 
     Supports:
     - SPS (samples per second) - max and last value
+    - KSPS (kilosamples per second) - converted to SPS
     - Eval success rate
     """
     metrics: dict[str, float] = {}
 
-    # Extract SPS values
+    # Extract SPS values (plain format: "SPS: 1234" or "SPS=1234")
     sps_matches = [float(x) for x in _SPS_RE.findall(log_text)]
-    if sps_matches:
-        metrics["sps_max"] = max(sps_matches)
-        metrics["sps_last"] = sps_matches[-1]
+
+    # Extract KSPS values (progress logger format: "87.75 ksps")
+    ksps_matches = [float(x) * 1000 for x in _KSPS_RE.findall(log_text)]
+
+    # Combine both formats
+    all_sps = sps_matches + ksps_matches
+    if all_sps:
+        metrics["sps_max"] = max(all_sps)
+        metrics["sps_last"] = all_sps[-1]
 
     # Extract eval success rate
     eval_matches = _EVAL_RATE_RE.findall(log_text)
