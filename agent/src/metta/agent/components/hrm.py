@@ -303,20 +303,6 @@ class HRMReasoning(nn.Module):
 
                 z_h.register_hook(grad_hook)
 
-            # Q-head for halting decision (use first token)
-            q_logits = self.q_head(z_h[:, 0])  # (batch, 2)
-            q_probs = torch.softmax(q_logits, dim=-1)
-
-            # Halt if Q(halt) > Q(continue) on average across batch
-            if q_probs[:, 0].mean() > q_probs[:, 1].mean():
-                break
-
-        # Store Q-logits in tensordict for ACT loss computation
-        td["q_halt_logits"] = q_logits[:, 0]  # (batch,)
-        td["q_continue_logits"] = q_logits[:, 1]  # (batch,)
-        # Broadcast num_segments to match batch size
-        td["num_hrm_segments"] = torch.full((batch_size,), num_segments, device=device, dtype=torch.float32)
-
         # Store hidden states (squeeze seq dim and detach)
         self.carry[training_env_id_start] = {
             "z_l": z_l.squeeze(1).detach(),
