@@ -202,7 +202,6 @@ class ForagingTaskGenerator(TaskGenerator):
             game_objects=cfg.game_objects,
             perimeter_objects=perimeter_objects,
             center_objects=center_objects,
-            resources=list(self.used_resources) + ["heart", "energy"],
             agent=agent,
             size=size,
             random_scatter=True,
@@ -308,7 +307,7 @@ def make_env(
 
 def replay() -> ReplayTool:
     eval_env = make_env()
-    policy_uri = "s3://softmax-public/policies/cogs_v_clips.level_1.eval_local.multi_agent_pairs_bases_vit_reset.2025-10-02/:latest"
+    policy_uri = "s3://softmax-public/policies/cogs_v_clips.foraging_assembly_lines_chests_pairs_lstm_reset.442.2025-10-07/:latest"
 
     return ReplayTool(
         policy_uri=policy_uri,
@@ -335,7 +334,7 @@ def experiment():
     import subprocess
     import time
 
-    for architecture in ["lstm_reset", "vit_reset", "vit_default"]:
+    for architecture in ["lstm_reset"]:
         for curriculum_style in foraging_curriculum_args:
             subprocess.run(
                 [

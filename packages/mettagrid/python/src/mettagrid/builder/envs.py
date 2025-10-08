@@ -175,8 +175,7 @@ def make_icl_assembler(
     perimeter_objects: dict,
     center_objects: dict,
     agent,
-    resources,
-    size=10,
+    size,
     random_scatter=False,
     inventory_regen_interval=0,
 ) -> MettaGridConfig:
@@ -185,7 +184,7 @@ def make_icl_assembler(
     cfg = MettaGridConfig(
         desync_episodes=False,
         game=GameConfig(
-            resource_names=resources,
+            resource_names=["energy", "heart", "carbon", "oxygen", "germanium", "silicon"],
             max_steps=max_steps,
             num_agents=num_agents * num_instances,
             objects=game_objects,
