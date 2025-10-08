@@ -9,6 +9,7 @@ import { getSessionOrRedirect } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { validateGroupName } from "@/lib/name-validation";
 import { GroupRepository } from "../data/group-repository";
+import { AuthorizationError, ConflictError, NotFoundError } from "@/lib/errors";
 
 const inputSchema = zfd.formData({
   groupId: zfd.text(z.string()),
@@ -32,28 +33,23 @@ export const updateGroupAction = actionClient
     const session = await getSessionOrRedirect();
 
     // Check if current user has admin rights for this group
-    const userGroup = await prisma.userGroup.findUnique({
-      where: {
-        userId_groupId: {
-          userId: session.user.id,
-          groupId: input.groupId,
-        },
-      },
-    });
+    const isAdmin = await GroupRepository.isAdmin(
+      session.user.id,
+      input.groupId
+    );
 
-    if (!userGroup || userGroup.role !== "admin") {
-      throw new Error("You don't have permission to update this group");
+    if (!isAdmin) {
+      throw new AuthorizationError(
+        "You don't have permission to update this group"
+      );
     }
 
     // Check if another group with this name already exists in the same institution
     if (input.name) {
-      const currentGroup = await prisma.group.findUnique({
-        where: { id: input.groupId },
-        select: { institutionId: true },
-      });
+      const currentGroup = await GroupRepository.findById(input.groupId);
 
       if (!currentGroup) {
-        throw new Error("Group not found");
+        throw new NotFoundError("Group", input.groupId);
       }
 
       const existingGroup = await prisma.group.findFirst({
@@ -65,7 +61,7 @@ export const updateGroupAction = actionClient
       });
 
       if (existingGroup) {
-        throw new Error(
+        throw new ConflictError(
           "A group with this name already exists in this institution"
         );
       }
@@ -75,17 +71,10 @@ export const updateGroupAction = actionClient
     }
 
     // Update the group
-    const group = await prisma.group.update({
-      where: { id: input.groupId },
-      data: {
-        name: input.name,
-        description: input.description || null,
-        isPublic: input.isPublic ?? true,
-      },
-      select: {
-        id: true,
-        name: true,
-      },
+    const group = await GroupRepository.update(input.groupId, {
+      name: input.name,
+      description: input.description || null,
+      isPublic: input.isPublic ?? true,
     });
 
     revalidatePath("/groups");

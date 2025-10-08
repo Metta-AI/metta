@@ -6,8 +6,9 @@ import { z } from "zod/v4";
 
 import { actionClient } from "@/lib/actionClient";
 import { getSessionOrRedirect } from "@/lib/auth";
-import { prisma } from "@/lib/db/prisma";
 import { validateInstitutionName } from "@/lib/name-validation";
+import { AuthorizationError, ConflictError } from "@/lib/errors";
+import { InstitutionRepository } from "../data/institution-repository";
 
 const inputSchema = zfd.formData({
   institutionId: zfd.text(z.string()),
@@ -34,17 +35,15 @@ export const updateInstitutionAction = actionClient
     const session = await getSessionOrRedirect();
 
     // Check if user has admin or owner rights for this institution
-    const userInstitution = await prisma.userInstitution.findUnique({
-      where: {
-        userId_institutionId: {
-          userId: session.user.id,
-          institutionId: input.institutionId,
-        },
-      },
-    });
+    const isAdmin = await InstitutionRepository.isAdmin(
+      session.user.id,
+      input.institutionId
+    );
 
-    if (!userInstitution || userInstitution.role !== "admin") {
-      throw new Error("You don't have permission to edit this institution");
+    if (!isAdmin) {
+      throw new AuthorizationError(
+        "You don't have permission to edit this institution"
+      );
     }
 
     // Validate name uniqueness across all entity types (excluding current institution)
@@ -54,34 +53,29 @@ export const updateInstitutionAction = actionClient
 
     // Check domain uniqueness if provided (excluding current institution)
     if (input.domain) {
-      const existingDomain = await prisma.institution.findFirst({
-        where: {
-          domain: input.domain,
-          id: { not: input.institutionId },
-        },
-      });
+      const existingDomain = await InstitutionRepository.findByDomain(
+        input.domain
+      );
 
-      if (existingDomain) {
-        throw new Error("An institution with this domain already exists");
+      if (existingDomain && existingDomain.id !== input.institutionId) {
+        throw new ConflictError(
+          "An institution with this domain already exists"
+        );
       }
     }
 
     // Update the institution
-    const institution = await prisma.institution.update({
-      where: { id: input.institutionId },
-      data: {
+    const institution = await InstitutionRepository.update(
+      input.institutionId,
+      {
         name: input.name,
         domain: input.domain || null,
         description: input.description || null,
         website: input.website || null,
         location: input.location || null,
         type: input.type,
-      },
-      select: {
-        id: true,
-        name: true,
-      },
-    });
+      }
+    );
 
     revalidatePath("/institutions");
 

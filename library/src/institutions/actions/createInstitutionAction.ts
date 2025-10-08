@@ -6,9 +6,9 @@ import { z } from "zod/v4";
 
 import { actionClient } from "@/lib/actionClient";
 import { getSessionOrRedirect } from "@/lib/auth";
-import { prisma } from "@/lib/db/prisma";
 import { validateInstitutionName } from "@/lib/name-validation";
 import { ConflictError } from "@/lib/errors";
+import { InstitutionRepository } from "../data/institution-repository";
 
 const inputSchema = zfd.formData({
   name: zfd.text(z.string().min(1).max(255)),
@@ -38,9 +38,9 @@ export const createInstitutionAction = actionClient
 
     // Check domain uniqueness if provided
     if (input.domain) {
-      const existingDomain = await prisma.institution.findUnique({
-        where: { domain: input.domain },
-      });
+      const existingDomain = await InstitutionRepository.findByDomain(
+        input.domain
+      );
 
       if (existingDomain) {
         throw new ConflictError(
@@ -50,30 +50,22 @@ export const createInstitutionAction = actionClient
     }
 
     // Create the institution
-    const institution = await prisma.institution.create({
-      data: {
-        name: input.name,
-        domain: input.domain || null,
-        description: input.description || null,
-        website: input.website || null,
-        location: input.location || null,
-        type: input.type,
-        createdByUserId: session.user.id,
-      },
-      select: {
-        id: true,
-        name: true,
-      },
+    const institution = await InstitutionRepository.create({
+      name: input.name,
+      domain: input.domain || null,
+      description: input.description || null,
+      website: input.website || null,
+      location: input.location || null,
+      type: input.type,
+      createdByUserId: session.user.id,
     });
 
     // Automatically add the creator as an admin of the institution
-    await prisma.userInstitution.create({
-      data: {
-        userId: session.user.id,
-        institutionId: institution.id,
-        role: "admin",
-        isActive: true,
-      },
+    await InstitutionRepository.createMembership({
+      userId: session.user.id,
+      institutionId: institution.id,
+      role: "admin",
+      isActive: true,
     });
 
     revalidatePath("/institutions");
