@@ -193,7 +193,6 @@ class HRMReasoning(nn.Module):
         z_l = z_l.unsqueeze(1)
         z_h = z_h.unsqueeze(1)
 
-
         for _ in range(self.config.Mmax):
             with torch.no_grad():
                 for _ in range(self.config.H_cycles - 1):
@@ -205,6 +204,7 @@ class HRMReasoning(nn.Module):
             z_h = self.H_level(z_h, z_l)
             # Q-head for halting decision (use first token)
             q_logits = self.q_head(z_h[:, 0])  # (batch, 2)
+            q_logits = torch.softmax(q_logits, dim=-1)
 
             if q_logits[:, 0].mean() > q_logits[:, 1].mean():
                 break
