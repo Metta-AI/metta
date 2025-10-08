@@ -344,12 +344,14 @@ def run_validation(
     Returns:
         ValidationResult with outcome and metrics
     """
-    # Skip if already completed
+    # Skip if already passed or skipped (allow retrying failed validations)
     if validation.name in state.validations:
         existing = state.validations[validation.name]
-        if existing.outcome in ("passed", "failed", "skipped"):
+        if existing.outcome in ("passed", "skipped"):
             print(f"  ⏭️  {validation.name} - already completed ({existing.outcome})")
             return existing
+        elif existing.outcome == "failed":
+            print(f"  🔄 {validation.name} - retrying previous failure...")
 
     # Create new result record (for state persistence)
     result = ValidationResult(
