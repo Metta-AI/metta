@@ -125,4 +125,15 @@ inline const char* OrientationNames[8] = {
     "SE"   // 7
 };
 
+inline const char* OrientationFullNames[8] = {
+    "north",      // 0
+    "south",      // 1
+    "west",       // 2
+    "east",       // 3
+    "northwest",  // 4
+    "northeast",  // 5
+    "southwest",  // 6
+    "southeast"   // 7
+};
+
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_ORIENTATION_HPP_

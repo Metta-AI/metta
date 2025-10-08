@@ -2,6 +2,15 @@ import numpy as np
 import pytest
 
 from mettagrid.config.mettagrid_c_config import from_mettagrid_config
+from mettagrid.config.mettagrid_config import (
+    ActionConfig,
+    ActionsConfig,
+    AgentConfig,
+    AttackActionConfig,
+    ChangeGlyphActionConfig,
+    GameConfig,
+    WallConfig,
+)
 from mettagrid.map_builder.utils import create_grid
 from mettagrid.mettagrid_c import (
     MettaGrid,
@@ -19,14 +28,14 @@ NUM_OBS_TOKENS = 30
 OBS_TOKEN_SIZE = 3
 
 
-def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5, config_override=None):
+def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5, config_overrides: dict | None = None):
     """Helper function to create a MettaGrid environment with minimal config.
 
     Args:
         max_steps: Maximum steps before truncation
         width: Map width
         height: Map height
-        config_override: Dictionary to override/merge with default config
+        config_overrides: Dictionary to override GameConfig fields
     """
     # Define a simple map: empty with walls around perimeter
     game_map = create_grid(height, width)
@@ -41,42 +50,29 @@ def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5, config_overr
     mid_x = width // 2
     game_map[mid_y, mid_x] = "agent.red"
 
-    game_config = {
-        "max_steps": max_steps,
-        "num_agents": NUM_AGENTS,
-        "obs_width": OBS_WIDTH,
-        "obs_height": OBS_HEIGHT,
-        "num_observation_tokens": NUM_OBS_TOKENS,
-        "resource_names": ["laser", "armor"],
-        "actions": {
-            # don't really care about the actions for this test
-            "noop": {"enabled": True},
-            "move": {"enabled": True},
-            "attack": {"enabled": False},
-            "put_items": {"enabled": False},
-            "get_items": {"enabled": False},
-            "swap": {"enabled": False},
-            "change_color": {"enabled": False},
-            "change_glyph": {"enabled": True, "number_of_glyphs": 4},
-        },
-        "objects": {
-            "wall": {"type_id": 1},
-        },
-        "agent": {},
-    }
+    game_config = GameConfig(
+        max_steps=max_steps,
+        num_agents=NUM_AGENTS,
+        obs_width=OBS_WIDTH,
+        obs_height=OBS_HEIGHT,
+        num_observation_tokens=NUM_OBS_TOKENS,
+        resource_names=["laser", "armor"],
+        actions=ActionsConfig(
+            noop=ActionConfig(enabled=True),
+            move=ActionConfig(enabled=True),
+            attack=AttackActionConfig(enabled=False),
+            put_items=ActionConfig(enabled=False),
+            get_items=ActionConfig(enabled=False),
+            swap=ActionConfig(enabled=False),
+            change_glyph=ChangeGlyphActionConfig(enabled=True, number_of_glyphs=4),
+        ),
+        objects={"wall": WallConfig(type_id=1)},
+        agent=AgentConfig(),
+    )
 
     # Apply config overrides if provided
-    if config_override:
-
-        def deep_merge(base_dict, override_dict):
-            """Recursively merge override_dict into base_dict."""
-            for key, value in override_dict.items():
-                if key in base_dict and isinstance(base_dict[key], dict) and isinstance(value, dict):
-                    deep_merge(base_dict[key], value)
-                else:
-                    base_dict[key] = value
-
-        deep_merge(game_config, config_override)
+    if config_overrides:
+        game_config = game_config.model_copy(update=config_overrides)
 
     return MettaGrid(from_mettagrid_config(game_config), game_map.tolist(), 42)
 
@@ -90,7 +86,7 @@ class TestBuffers:
         c_env.reset()
 
         noop_action_idx = c_env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
+        actions = np.full(NUM_AGENTS, noop_action_idx, dtype=dtype_actions)
         obs, rewards, terminals, truncations, info = c_env.step(actions)
         episode_rewards = c_env.get_episode_rewards()
 
@@ -260,7 +256,7 @@ class TestBuffers:
 
         # Take a step - this should overwrite our manual values
         noop_action_idx = c_env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
+        actions = np.full(NUM_AGENTS, noop_action_idx, dtype=dtype_actions)
 
         obs_returned, rewards_returned, terminals_returned, truncations_returned, info = c_env.step(actions)
 
@@ -286,7 +282,7 @@ class TestBuffers:
     def test_truncations_on_max_steps(self):
         """Test that truncations are set when max_steps is reached."""
         # Create environment with max_steps = 1
-        c_env = create_minimal_mettagrid_c_env(config_override={"max_steps": 1, "episode_truncates": True})
+        c_env = create_minimal_mettagrid_c_env(config_overrides={"max_steps": 1, "episode_truncates": True})
 
         # Set up buffers
         observations = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=np.uint8)
@@ -299,7 +295,7 @@ class TestBuffers:
 
         # Take one step to reach max_steps
         noop_action_idx = c_env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
+        actions = np.full(NUM_AGENTS, noop_action_idx, dtype=dtype_actions)
         c_env.step(actions)  # current_step = 1, should trigger end of episode
 
         # Now truncations should all be True
@@ -309,7 +305,7 @@ class TestBuffers:
     def test_terminals_on_max_steps(self):
         """Test that truncations are set when max_steps is reached."""
         # Create environment with max_steps = 1
-        c_env = create_minimal_mettagrid_c_env(config_override={"max_steps": 1})
+        c_env = create_minimal_mettagrid_c_env(config_overrides={"max_steps": 1})
 
         # Set up buffers
         observations = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=np.uint8)
@@ -322,7 +318,7 @@ class TestBuffers:
 
         # Take one step to reach max_steps
         noop_action_idx = c_env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
+        actions = np.full(NUM_AGENTS, noop_action_idx, dtype=dtype_actions)
         c_env.step(actions)  # current_step = 1, should trigger end of episode
 
         # Now terminals should all be True, truncations should all be False
@@ -343,7 +339,7 @@ class TestBuffers:
 
         # Take a step to get valid baseline values
         noop_action_idx = c_env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
+        actions = np.full(NUM_AGENTS, noop_action_idx, dtype=dtype_actions)
         c_env.step(actions)
 
         # Store initial values
@@ -434,7 +430,7 @@ class TestBuffers:
 
         # Take first step
         noop_action_idx = c_env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
+        actions = np.full(NUM_AGENTS, noop_action_idx, dtype=dtype_actions)
 
         obs, step_rewards_1, terminals_ret, truncations_ret, _info = c_env.step(actions)
         episode_rewards_1 = c_env.get_episode_rewards()

@@ -9,23 +9,6 @@ type
     S = 1
     W = 2
     E = 3
-  
-  QueuedAction = object
-    agentId: int
-    actionId: int
-    argument: int
-
-var
-  ## Action queue for each agent. Only one action per step.
-  actionQueue = initTable[int, QueuedAction]()
-
-proc queueAction(agentId, actionId, argument: int) =
-  ## Queue an action for the agent. Will be sent on next step.
-  actionQueue[agentId] = QueuedAction(
-    agentId: agentId,
-    actionId: actionId,
-    argument: argument
-  )
 
 proc sendAction*(agentId, actionId, argument: int) =
   ## Send an action to the Python from the user.
@@ -50,48 +33,67 @@ proc getOrientationFromDelta(dx, dy: int): Orientation =
     return N
 
 proc processActions*() =
-  ## Process pathfinding and action queue. Called on step change.
+  ## Process pathfinding and send actions for the current step while in play mode.
   if not (play or requestPython):
     return
-  
-  for agentId, path in agentPaths:
-    if path.len > 1:
-      var agent: Entity = nil
-      for obj in replay.objects:
-        if obj.isAgent and obj.agentId == agentId:
-          agent = obj
-          break
-      
-      if agent != nil:
-        let currentPos = agent.location.at(step).xy
-        
-        if path[0] == currentPos:
-          if path.len > 1:
-            let nextPos = path[1]
-            let dx = nextPos.x - currentPos.x
-            let dy = nextPos.y - currentPos.y
-            let orientation = getOrientationFromDelta(dx.int, dy.int)
-            queueAction(agentId, replay.moveActionId, orientation.int)
-            agentPaths[agentId].delete(0)
-          else:
-            recomputePath(agentId, currentPos)
-        else:
+
+  var agentIds: seq[int] = @[]
+  for agentId in agentPaths.keys:
+    agentIds.add(agentId)
+
+  for agentId in agentIds:
+    if not agentPaths.hasKey(agentId):
+      continue
+
+    let agent = getAgentById(agentId)
+    let currentPos = agent.location.at(step).xy
+    let pathActions = agentPaths[agentId]
+
+    if pathActions.len == 0:
+      agentPaths.del(agentId)
+      continue
+
+    let nextAction = pathActions[0]
+
+    case nextAction.actionType
+    of PathMove:
+      # Execute movement action.
+      let dx = nextAction.pos.x - currentPos.x
+      let dy = nextAction.pos.y - currentPos.y
+      let orientation = getOrientationFromDelta(dx.int, dy.int)
+      sendAction(agentId, replay.moveActionId, orientation.int)
+      # Remove this action from the queue.
+      agentPaths[agentId].delete(0)
+      # Check if we completed a destination.
+      if agentDestinations.hasKey(agentId) and agentDestinations[agentId].len > 0:
+        let dest = agentDestinations[agentId][0]
+        if dest.destinationType == Move and nextAction.pos == dest.pos:
+          # Completed this Move destination.
+          agentDestinations[agentId].delete(0)
+          if dest.repeat:
+            # Re-queue this destination at the end.
+            agentDestinations[agentId].add(dest)
+            recomputePath(agentId, nextAction.pos)
+    of PathBump:
+      # Execute bump action.
+      let targetOrientation = getOrientationFromDelta(nextAction.bumpDir.x.int, nextAction.bumpDir.y.int)
+      sendAction(agentId, replay.moveActionId, targetOrientation.int)
+      # Remove this action from the queue.
+      agentPaths[agentId].delete(0)
+      # Remove the corresponding destination.
+      if agentDestinations.hasKey(agentId) and agentDestinations[agentId].len > 0:
+        let dest = agentDestinations[agentId][0]
+        agentDestinations[agentId].delete(0)
+        if dest.repeat:
+          # Re-queue this destination at the end.
+          agentDestinations[agentId].add(dest)
           recomputePath(agentId, currentPos)
-  
-  if actionQueue.len > 0:
-    for agentId, action in actionQueue:
-      requestActions.add(ActionRequest(
-        agentId: action.agentId,
-        actionId: action.actionId,
-        argument: action.argument
-      ))
-    actionQueue.clear()
 
 proc agentControls*() =
   ## Manual controls with WASD for selected agent.
   if selection != nil and selection.isAgent:
     let agent = selection
-    
+
     # Move
     if window.buttonPressed[KeyW] or window.buttonPressed[KeyUp]:
       sendAction(agent.agentId, replay.moveActionId, N.int)

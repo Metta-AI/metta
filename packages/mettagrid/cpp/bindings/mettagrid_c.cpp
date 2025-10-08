@@ -8,15 +8,16 @@
 #include <iostream>
 #include <numeric>
 #include <random>
+#include <unordered_set>
 
 #include "actions/action_handler.hpp"
 #include "actions/attack.hpp"
-#include "actions/change_color.hpp"
 #include "actions/change_glyph.hpp"
 #include "actions/get_output.hpp"
 #include "actions/move.hpp"
 #include "actions/noop.hpp"
 #include "actions/put_recipe_items.hpp"
+#include "actions/resource_mod.hpp"
 #include "actions/rotate.hpp"
 #include "actions/swap.hpp"
 #include "core/event.hpp"
@@ -26,6 +27,7 @@
 #include "objects/agent.hpp"
 #include "objects/assembler.hpp"
 #include "objects/assembler_config.hpp"
+#include "objects/chest.hpp"
 #include "objects/constants.hpp"
 #include "objects/converter.hpp"
 #include "objects/converter_config.hpp"
@@ -104,8 +106,9 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
       _action_handlers.push_back(std::make_unique<ChangeGlyph>(*change_glyph_config));
     } else if (action_name == "swap") {
       _action_handlers.push_back(std::make_unique<Swap>(*action_config));
-    } else if (action_name == "change_color") {
-      _action_handlers.push_back(std::make_unique<ChangeColor>(*action_config));
+    } else if (action_name == "resource_mod") {
+      auto modify_config = std::static_pointer_cast<const ResourceModConfig>(action_config);
+      _action_handlers.push_back(std::make_unique<ResourceMod>(*modify_config, action_name));
     } else {
       throw std::runtime_error("Unknown action: " + action_name);
     }
@@ -254,8 +257,12 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
     if (clipper_cfg.unclipping_recipes.empty()) {
       throw std::runtime_error("Clipper config provided but unclipping_recipes is empty");
     }
-    _clipper = std::make_unique<Clipper>(
-        *_grid, clipper_cfg.unclipping_recipes, clipper_cfg.length_scale, clipper_cfg.cutoff_distance, clipper_cfg.clip_rate);
+    _clipper = std::make_unique<Clipper>(*_grid,
+                                         clipper_cfg.unclipping_recipes,
+                                         clipper_cfg.length_scale,
+                                         clipper_cfg.cutoff_distance,
+                                         clipper_cfg.clip_rate,
+                                         _rng);
   }
 }
 
@@ -278,6 +285,69 @@ void MettaGrid::init_action_handlers() {
       _max_action_arg = _max_action_args[i];
     }
   }
+
+  build_flat_action_catalog();
+}
+
+void MettaGrid::build_flat_action_catalog() {
+  _flat_action_map.clear();
+  _flat_action_names.clear();
+  _action_arg_to_flat.clear();
+
+  size_t total_variants = 0;
+  for (unsigned char max_arg : _max_action_args) {
+    total_variants += static_cast<size_t>(max_arg) + 1;
+  }
+
+  _flat_action_map.reserve(total_variants);
+  _flat_action_names.reserve(total_variants);
+  _action_arg_to_flat.resize(_action_handlers.size());
+
+  std::unordered_set<std::string> seen_names;
+  seen_names.reserve(total_variants);
+
+  for (size_t handler_index = 0; handler_index < _action_handlers.size(); ++handler_index) {
+    auto& handler = _action_handlers[handler_index];
+    unsigned char max_arg = _max_action_args[handler_index];
+    auto& arg_map = _action_arg_to_flat[handler_index];
+    arg_map.assign(static_cast<size_t>(max_arg) + 1, -1);
+
+    for (unsigned char raw_arg = 0; raw_arg <= max_arg; ++raw_arg) {
+      const ActionArg arg = static_cast<ActionArg>(raw_arg);
+
+      std::string base_name = handler->variant_name(arg);
+      if (base_name.empty()) {
+        base_name = handler->action_name();
+      }
+
+      std::string variant = base_name;
+      int suffix = 1;
+      while (!seen_names.insert(variant).second) {
+        variant = base_name + "_" + std::to_string(suffix++);
+      }
+
+      const auto flat_index = static_cast<int>(_flat_action_map.size());
+      _flat_action_map.emplace_back(static_cast<ActionType>(handler_index), arg);
+      _flat_action_names.emplace_back(std::move(variant));
+      arg_map[static_cast<size_t>(arg)] = flat_index;
+    }
+  }
+}
+
+int MettaGrid::flat_action_index(ActionType action, ActionArg arg) const {
+  if (action < 0) {
+    return -1;
+  }
+  size_t action_idx = static_cast<size_t>(action);
+  if (action_idx >= _action_arg_to_flat.size()) {
+    return -1;
+  }
+  size_t arg_idx = static_cast<size_t>(arg);
+  const auto& mapping = _action_arg_to_flat[action_idx];
+  if (arg_idx >= mapping.size()) {
+    return -1;
+  }
+  return mapping[arg_idx];
 }
 
 void MettaGrid::add_agent(Agent* agent) {
@@ -318,6 +388,7 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
 
   // Build global tokens based on configuration
   std::vector<PartialObservationToken> global_tokens;
+  int flat_action = flat_action_index(action, action_arg);
 
   if (_global_obs_config.episode_completion_pct) {
     ObservationType episode_completion_pct = 0;
@@ -330,7 +401,8 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   }
 
   if (_global_obs_config.last_action) {
-    global_tokens.push_back({ObservationFeature::LastAction, static_cast<ObservationType>(action)});
+    ObservationType action_value = static_cast<ObservationType>(std::max(0, flat_action));
+    global_tokens.push_back({ObservationFeature::LastAction, action_value});
     global_tokens.push_back({ObservationFeature::LastActionArg, static_cast<ObservationType>(action_arg)});
   }
 
@@ -461,7 +533,7 @@ void MettaGrid::_step(Actions actions) {
       }
 
       // Tolerate invalid action arguments
-      if (arg > _max_action_args[action_idx]) {
+      if (arg < 0 || arg > _max_action_args[action_idx]) {
         _handle_invalid_action(agent_idx, "action.invalid_arg", action, arg);
         continue;
       }
@@ -509,7 +581,7 @@ void MettaGrid::_step(Actions actions) {
 
   // Apply global systems
   if (_clipper) {
-    _clipper->maybe_clip_new_assembler(_rng);
+    _clipper->maybe_clip_new_assembler();
   }
 
   // Compute observations for next step
@@ -644,7 +716,56 @@ void MettaGrid::set_buffers(const py::array_t<uint8_t, py::array::c_style>& obse
 }
 
 py::tuple MettaGrid::step(const py::array_t<ActionType, py::array::c_style> actions) {
-  _step(actions);
+  auto info = actions.request();
+  py::array_t<ActionType, py::array::c_style> converted;
+
+  auto assign_flat = [&](auto& view, size_t agent_idx, ActionType flat_index) {
+    if (flat_index < 0 || static_cast<size_t>(flat_index) >= _flat_action_map.size()) {
+      view(agent_idx, 0) = -1;
+      view(agent_idx, 1) = 0;
+      return;
+    }
+    const auto& mapping = _flat_action_map[static_cast<size_t>(flat_index)];
+    view(agent_idx, 0) = mapping.first;
+    view(agent_idx, 1) = mapping.second;
+  };
+
+  if (info.ndim == 1) {
+    if (info.shape[0] != static_cast<ssize_t>(_agents.size())) {
+      throw std::runtime_error("actions has the wrong shape");
+    }
+    auto view = actions.unchecked<1>();
+    converted = py::array_t<ActionType, py::array::c_style>(
+        py::array::ShapeContainer{static_cast<ssize_t>(_agents.size()), static_cast<ssize_t>(2)});
+    auto converted_view = converted.mutable_unchecked<2>();
+    for (size_t agent_idx = 0; agent_idx < _agents.size(); ++agent_idx) {
+      auto flat_index = view(agent_idx);
+      assign_flat(converted_view, agent_idx, flat_index);
+    }
+    _step(converted);
+  } else if (info.ndim == 2) {
+    if (info.shape[0] != static_cast<ssize_t>(_agents.size())) {
+      throw std::runtime_error("actions has the wrong shape");
+    }
+
+    if (info.shape[1] == 1) {
+      auto view = actions.unchecked<2>();
+      converted = py::array_t<ActionType, py::array::c_style>(
+          py::array::ShapeContainer{static_cast<ssize_t>(_agents.size()), static_cast<ssize_t>(2)});
+      auto converted_view = converted.mutable_unchecked<2>();
+      for (size_t agent_idx = 0; agent_idx < _agents.size(); ++agent_idx) {
+        auto flat_index = view(agent_idx, 0);
+        assign_flat(converted_view, agent_idx, flat_index);
+      }
+      _step(converted);
+    } else if (info.shape[1] == 2) {
+      _step(actions);
+    } else {
+      throw std::runtime_error("actions has the wrong shape");
+    }
+  } else {
+    throw std::runtime_error("actions has the wrong shape");
+  }
 
   auto rewards_view = _rewards.mutable_unchecked<1>();
 
@@ -678,20 +799,41 @@ py::tuple MettaGrid::step(const py::array_t<ActionType, py::array::c_style> acti
   return py::make_tuple(_observations, _rewards, _terminals, _truncations, py::dict());
 }
 
-py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_col) {
+py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_col, const py::list& ignore_types) {
   py::dict objects;
 
   // Determine if bounding box filtering is enabled
   bool use_bounds = (min_row >= 0 && max_row >= 0 && min_col >= 0 && max_col >= 0);
 
+  // Convert ignore_types list (type names) to type IDs for O(1) integer comparison
+  std::unordered_set<TypeId> ignore_type_ids;
+  for (const auto& item : ignore_types) {
+    std::string type_name = item.cast<std::string>();
+    // Find the type_id for this type_name
+    for (size_t type_id = 0; type_id < object_type_names.size(); ++type_id) {
+      if (object_type_names[type_id] == type_name) {
+        ignore_type_ids.insert(static_cast<TypeId>(type_id));
+        break;
+      }
+    }
+  }
+  bool use_type_filter = !ignore_type_ids.empty();
+
   for (unsigned int obj_id = 1; obj_id < _grid->objects.size(); obj_id++) {
     auto obj = _grid->object(obj_id);
     if (!obj) continue;
 
+    // Filter by type_id if specified (fast integer comparison)
+    if (use_type_filter) {
+      if (ignore_type_ids.find(obj->type_id) != ignore_type_ids.end()) {
+        continue;
+      }
+    }
+
     // Filter by bounding box if specified
     if (use_bounds) {
-      if (obj->location.r < min_row || obj->location.r >= max_row ||
-          obj->location.c < min_col || obj->location.c >= max_col) {
+      if (obj->location.r < min_row || obj->location.r >= max_row || obj->location.c < min_col ||
+          obj->location.c >= max_col) {
         continue;
       }
     }
@@ -699,6 +841,8 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
     py::dict obj_dict;
     obj_dict["id"] = obj_id;
     obj_dict["type"] = obj->type_id;
+    obj_dict["type_id"] = obj->type_id;
+    obj_dict["type_name"] = object_type_names[obj->type_id];
     // Location here is defined as XYZ coordinates specifically to be used by MettaScope.
     // We define that for location: x is column, y is row, and z is layer.
     // Note: it might be different for matrix computations.
@@ -727,10 +871,16 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
     if (auto* agent = dynamic_cast<Agent*>(obj)) {
       obj_dict["orientation"] = static_cast<int>(agent->orientation);
       obj_dict["group_id"] = agent->group;
+      obj_dict["group_name"] = agent->group_name;
       obj_dict["is_frozen"] = !!agent->frozen;
       obj_dict["freeze_remaining"] = agent->frozen;
       obj_dict["freeze_duration"] = agent->freeze_duration;
-      obj_dict["color"] = agent->color;
+      obj_dict["glyph"] = agent->glyph;
+      obj_dict["agent_id"] = agent->agent_id;
+      obj_dict["action_failure_penalty"] = agent->action_failure_penalty;
+      obj_dict["current_stat_reward"] = agent->current_stat_reward;
+      obj_dict["prev_action_name"] = agent->prev_action_name;
+      obj_dict["steps_without_motion"] = agent->steps_without_motion;
 
       // We made resource limits more complicated than this, and need to review how to expose them.
       // py::dict resource_limits_dict;
@@ -738,7 +888,6 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
       //   resource_limits_dict[py::int_(resource)] = quantity;
       // }
       // obj_dict["resource_limits"] = resource_limits_dict;
-      obj_dict["agent_id"] = agent->agent_id;
     }
 
     if (auto* converter = dynamic_cast<Converter*>(obj)) {
@@ -747,7 +896,6 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
       obj_dict["conversion_duration"] = converter->conversion_ticks;
       obj_dict["cooldown_duration"] = converter->cooldown;
       obj_dict["output_limit"] = converter->max_output;
-      obj_dict["color"] = converter->color;
       py::dict input_resources_dict;
       for (const auto& [resource, quantity] : converter->input_resources) {
         input_resources_dict[py::int_(resource)] = quantity;
@@ -760,6 +908,80 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
       obj_dict["output_resources"] = output_resources_dict;
     }
 
+    // Add assembler-specific info
+    if (auto* assembler = dynamic_cast<Assembler*>(obj)) {
+      obj_dict["cooldown_remaining"] = assembler->cooldown_remaining();
+      obj_dict["cooldown_duration"] = assembler->cooldown_duration;
+      obj_dict["cooldown_progress"] = assembler->cooldown_progress();
+      obj_dict["is_clipped"] = assembler->is_clipped;
+      obj_dict["is_clip_immune"] = assembler->clip_immune;
+      obj_dict["uses_count"] = assembler->uses_count;
+      obj_dict["max_uses"] = assembler->max_uses;
+      obj_dict["allow_partial_usage"] = assembler->allow_partial_usage;
+      obj_dict["exhaustion"] = assembler->exhaustion;
+      obj_dict["cooldown_multiplier"] = assembler->cooldown_multiplier;
+
+      // Add current recipe ID (pattern byte)
+      obj_dict["current_recipe_id"] = static_cast<int>(assembler->get_agent_pattern_byte());
+
+      // Add current recipe information
+      const Recipe* current_recipe = assembler->get_current_recipe();
+      if (current_recipe) {
+        py::dict input_resources_dict;
+        for (const auto& [resource, quantity] : current_recipe->input_resources) {
+          input_resources_dict[py::int_(resource)] = quantity;
+        }
+        obj_dict["current_recipe_inputs"] = input_resources_dict;
+
+        py::dict output_resources_dict;
+        for (const auto& [resource, quantity] : current_recipe->output_resources) {
+          output_resources_dict[py::int_(resource)] = quantity;
+        }
+        obj_dict["current_recipe_outputs"] = output_resources_dict;
+        obj_dict["current_recipe_cooldown"] = current_recipe->cooldown;
+      }
+
+      // Add all recipes information (only non-null recipes)
+      const std::vector<std::shared_ptr<Recipe>>& active_recipes =
+          assembler->is_clipped ? assembler->unclip_recipes : assembler->recipes;
+      py::list recipes_list;
+
+      for (size_t i = 0; i < active_recipes.size(); ++i) {
+        if (active_recipes[i]) {
+          py::dict recipe_dict;
+
+          py::dict input_resources_dict;
+          for (const auto& [resource, quantity] : active_recipes[i]->input_resources) {
+            input_resources_dict[py::int_(resource)] = quantity;
+          }
+          recipe_dict["inputs"] = input_resources_dict;
+
+          py::dict output_resources_dict;
+          for (const auto& [resource, quantity] : active_recipes[i]->output_resources) {
+            output_resources_dict[py::int_(resource)] = quantity;
+          }
+          recipe_dict["outputs"] = output_resources_dict;
+          recipe_dict["cooldown"] = active_recipes[i]->cooldown;
+
+          recipes_list.append(recipe_dict);
+        }
+      }
+      obj_dict["recipes"] = recipes_list;
+    }
+
+    // Add chest-specific info
+    if (auto* chest = dynamic_cast<Chest*>(obj)) {
+      obj_dict["resource_type"] = static_cast<int>(chest->resource_type);
+      obj_dict["max_inventory"] = chest->max_inventory;
+
+      // Convert position_deltas map to dict
+      py::dict position_deltas_dict;
+      for (const auto& [pos, delta] : chest->position_deltas) {
+        position_deltas_dict[py::int_(pos)] = delta;
+      }
+      obj_dict["position_deltas"] = position_deltas_dict;
+    }
+
     objects[py::int_(obj_id)] = obj_dict;
   }
 
@@ -768,8 +990,8 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
 
 py::list MettaGrid::action_names() {
   py::list names;
-  for (const auto& handler : _action_handlers) {
-    names.append(handler->action_name());
+  for (const auto& name : _flat_action_names) {
+    names.append(py::str(name));
   }
   return names;
 }
@@ -839,10 +1061,7 @@ py::object MettaGrid::action_space() {
   auto gym = py::module_::import("gymnasium");
   auto spaces = gym.attr("spaces");
 
-  size_t number_of_actions = py::len(action_names());
-  size_t number_of_action_args = _max_action_arg + 1;
-  return spaces.attr("MultiDiscrete")(py::make_tuple(number_of_actions, number_of_action_args),
-                                      py::arg("dtype") = dtype_actions());
+  return spaces.attr("Discrete")(py::int_(_flat_action_map.size()));
 }
 
 py::object MettaGrid::observation_space() {
@@ -913,7 +1132,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("min_row") = -1,
            py::arg("max_row") = -1,
            py::arg("min_col") = -1,
-           py::arg("max_col") = -1)
+           py::arg("max_col") = -1,
+           py::arg("ignore_types") = py::list())
       .def("action_names", &MettaGrid::action_names)
       .def_property_readonly("map_width", &MettaGrid::map_width)
       .def_property_readonly("map_height", &MettaGrid::map_height)
@@ -956,6 +1176,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
   bind_action_config(m);
   bind_attack_action_config(m);
   bind_change_glyph_action_config(m);
+  bind_resource_mod_config(m);
   bind_global_obs_config(m);
   bind_clipper_config(m);
   bind_game_config(m);

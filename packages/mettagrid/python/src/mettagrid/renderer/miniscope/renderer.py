@@ -4,17 +4,47 @@ from typing import Callable, Dict, List, Optional
 
 import numpy as np
 
-from .buffer import build_grid_buffer, compute_bounds
+from mettagrid.config.mettagrid_config import GameConfig
+
+from .buffer import build_grid_buffer, compute_bounds, get_symbol_for_object
 from .info_panels import build_agent_info_panel, build_object_info_panel
 from .interactive import run_interactive_loop
-from .symbols import get_symbol_for_object
+
+DEFAULT_SYMBOL_MAP = {
+    # Terrain
+    "wall": "⬛",
+    "empty": "⬜",
+    "block": "📦",
+    # Agents
+    "agent": "🤖",
+    "agent.agent": "🤖",
+    "agent.team_1": "🔵",
+    "agent.team_2": "🔴",
+    "agent.team_3": "🟢",
+    "agent.team_4": "🟡",
+    "agent.prey": "🐰",
+    "agent.predator": "🦁",
+    # UI elements
+    "cursor": "🎯",
+    "?": "❓",
+}
 
 
 class MiniscopeRenderer:
     """Emoji-based renderer for MettaGridEnv with full-width emoji support."""
 
-    def __init__(self, object_type_names: List[str], map_height: int = 0, map_width: int = 0):
+    def __init__(
+        self,
+        object_type_names: list[str],
+        game_config: GameConfig,
+        map_height: int = 0,
+        map_width: int = 0,
+    ):
         self._object_type_names = object_type_names
+        self._resource_names = game_config.resource_names
+        self._symbol_map = DEFAULT_SYMBOL_MAP | {
+            **{o.name: o.render_symbol for o in game_config.objects.values()},
+        }
         self._min_row = 0
         self._min_col = 0
         self._height = map_height if map_height > 0 else 0
@@ -32,7 +62,7 @@ class MiniscopeRenderer:
 
     def _symbol_for(self, obj: dict) -> str:
         """Get the emoji symbol for an object (for backward compatibility with tests)."""
-        return get_symbol_for_object(obj, self._object_type_names)
+        return get_symbol_for_object(obj, self._object_type_names, self._symbol_map)
 
     def _compute_bounds(self, grid_objects: Dict[int, dict]):
         """Compute and update bounds (for backward compatibility with tests)."""
@@ -54,6 +84,7 @@ class MiniscopeRenderer:
         return build_grid_buffer(
             grid_objects,
             self._object_type_names,
+            self._symbol_map,
             self._min_row,
             self._min_col,
             self._height,
@@ -73,10 +104,19 @@ class MiniscopeRenderer:
         resource_names: List[str],
         panel_height: int,
         total_rewards: np.ndarray,
+        glyphs: list[str] | None = None,
     ) -> List[str]:
         """Build info panel (for backward compatibility with tests)."""
         return build_agent_info_panel(
-            grid_objects, self._object_type_names, selected_agent, resource_names, panel_height, total_rewards
+            grid_objects,
+            self._object_type_names,
+            selected_agent,
+            resource_names,
+            panel_height,
+            total_rewards,
+            glyphs,
+            self._symbol_map,
+            None,  # manual_agents not available in this context
         )
 
     def _build_object_info_panel(
@@ -111,6 +151,7 @@ class MiniscopeRenderer:
         current_buffer = build_grid_buffer(
             grid_objects,
             self._object_type_names,
+            self._symbol_map,
             self._min_row,
             self._min_col,
             self._height,
@@ -140,6 +181,7 @@ class MiniscopeRenderer:
         return build_grid_buffer(
             grid_objects,
             self._object_type_names,
+            self._symbol_map,
             self._min_row,
             self._min_col,
             self._height,
@@ -156,6 +198,7 @@ class MiniscopeRenderer:
         get_actions_fn: Callable[[np.ndarray, Optional[int], Optional[int | tuple]], np.ndarray],
         max_steps: Optional[int] = None,
         target_fps: int = 4,
+        glyphs: list[str] | None = None,
     ) -> Dict[str, any]:
         """Run interactive rendering loop with keyboard controls.
 
@@ -165,8 +208,18 @@ class MiniscopeRenderer:
                            and returns actions for all agents
             max_steps: Maximum steps to run (None for unlimited)
             target_fps: Target frames per second when playing
+            glyphs: Optional list of glyph symbols for display
 
         Returns:
             Dict with final statistics
         """
-        return run_interactive_loop(env, self._object_type_names, get_actions_fn, max_steps, target_fps)
+        return run_interactive_loop(
+            env,
+            self._object_type_names,
+            self._symbol_map,
+            get_actions_fn,
+            max_steps,
+            target_fps,
+            glyphs,
+            self._resource_names,
+        )

@@ -99,7 +99,12 @@ implementation.
    - Any known limitations or future work
    - Lessons learned (if applicable)
 2. **Verify success criteria** - Check off completed criteria in the plan
-3. **Clean up** - Ensure all code is properly tested and documented
+3. **Run CI checks** - ALWAYS run `metta ci` to verify all tests pass:
+   ```bash
+   metta ci
+   ```
+   Fix any test failures before marking the work complete.
+4. **Clean up** - Ensure all code is properly tested and documented
 
 ---
 
@@ -183,50 +188,34 @@ metta install core                   # Reinstall core dependencies only
 
 ### Key Entry Points
 
-#### Training and Evaluation Pipeline
+See `common/src/metta/common/tool/README.md` for the runner and two‑token usage.
 
-All tools are now run through `./tools/run.py` with recipe functions:
-
-1. **Training**: Use recipe functions for different training configurations
-
-   ```bash
-   # Training with arena recipe
-   uv run ./tools/run.py experiments.recipes.arena.train run=my_experiment
-
-   # Training with navigation recipe
-   uv run ./tools/run.py experiments.recipes.navigation.train run=my_experiment
-   ```
-
-2. **Simulation/Evaluation**: Run evaluation suites on trained policies
+#### Common Workflows
 
 ```bash
-# Run evaluation
-uv run ./tools/run.py experiments.recipes.arena.evaluate \
+# Train
+uv run ./tools/run.py train arena run=my_experiment
+
+# Evaluate locally (single policy)
+uv run ./tools/run.py evaluate arena \
   policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
 
-# Using a remote S3 checkpoint
-uv run ./tools/run.py experiments.recipes.arena.evaluate \
-  policy_uri=s3://my-bucket/checkpoints/my-training-run/my-training-run:v12.pt
-```
+# Evaluate remotely (dispatch to server)
+uv run ./tools/run.py eval_remote arena \
+  policy_uri=s3://my-bucket/checkpoints/run/run:v10.pt
 
-3. **Analysis**: Analyze evaluation results
+# Analyze evaluation results
+uv run ./tools/run.py analyze arena eval_db_uri=./train_dir/eval/stats.db
 
-   ```bash
-   uv run ./tools/run.py experiments.recipes.arena.analyze eval_db_uri=./train_dir/eval/stats.db
-   ```
+# Interactive play / Replay
+uv run ./tools/run.py play arena policy_uri=...
+uv run ./tools/run.py replay arena policy_uri=...
 
-4. **Interactive Play**: Test policies interactively (browser-based)
+# List explicit tools for a recipe module (recommended)
+uv run ./tools/run.py arena --list
 
-```bash
-uv run ./tools/run.py experiments.recipes.arena.play \
-  policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
-```
-
-5. **View Replays**: Watch recorded gameplay
-
-```bash
-uv run ./tools/run.py experiments.recipes.arena.replay \
-  policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
+# Dry run (resolve only; does not construct or run the tool)
+uv run ./tools/run.py evaluate arena --dry-run
 ```
 
 #### Visualization Tools
@@ -245,6 +234,9 @@ See @.cursor/commands.md for quick test commands and examples.
 #### Code Quality
 
 ```bash
+# Run full CI (tests + linting) - ALWAYS run this to verify changes
+metta ci
+
 # Run all tests with coverage
 metta test --cov=mettagrid --cov-report=term-missing
 
@@ -261,6 +253,9 @@ uv run ./devops/tools/auto_ruff_fix.py path/to/file
 # Format shell scripts
 ./devops/tools/format_sh.sh
 ```
+
+**IMPORTANT**: Always run `metta ci` after making changes to verify that all tests pass. This is the standard way to
+check if your changes are working correctly.
 
 #### Building
 
@@ -282,39 +277,6 @@ The project uses OmegaConf for configuration, with config files organized in `co
 - `user/`: User-specific configurations
 - `wandb/`: Weights & Biases settings
 
-#### Running Training and Tools
-
-All tools are now run through `./tools/run.py` with recipe functions:
-
-```bash
-# Training with arena recipe
-uv run ./tools/run.py experiments.recipes.arena.train run=my_experiment
-
-# Training with navigation recipe
-uv run ./tools/run.py experiments.recipes.navigation.train run=my_experiment
-
-# Play/test a trained policy (interactive browser)
-uv run ./tools/run.py experiments.recipes.arena.play \
-  policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
-
-# Run evaluation
-uv run ./tools/run.py experiments.recipes.arena.evaluate \
-  policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
-
-# View replays
-uv run ./tools/run.py experiments.recipes.arena.replay \
-  policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
-```
-
-#### Configuration System
-
-The project now uses Pydantic-based configuration instead of Hydra/YAML. Configurations are built programmatically in
-recipe files:
-
-- Recipes define training setups, environments, and evaluation suites
-- Each recipe function returns a Tool configuration object
-- Override parameters can be passed via command line arguments to the recipe functions
-
 ### Development Workflows
 
 #### Adding a New Evaluation Task
@@ -335,7 +297,7 @@ recipe files:
 
 1. Use smaller batch sizes for debugging
 2. Check wandb logs for metrics anomalies
-3. Use `./tools/run.py experiments.recipes.arena.play` for interactive debugging (Note: Less useful in Claude Code due
+3. Use `./tools/run.py arena.play` for interactive debugging (Note: Less useful in Claude Code due
    to interactive nature)
 
 #### Performance Profiling
@@ -353,7 +315,8 @@ recipe files:
 
 ### Renovate Automated Updates
 
-The project uses **Renovate** (not Dependabot) for automated dependency management. Renovate has better support for uv workspaces and provides more flexible configuration options.
+The project uses **Renovate** (not Dependabot) for automated dependency management. Renovate has better support for uv
+workspaces and provides more flexible configuration options.
 
 #### Configuration
 
@@ -382,13 +345,14 @@ Renovate groups related packages together to reduce PR noise:
    - Major updates require approval via dependency dashboard
 
 2. **Manual Updates**
+
    ```bash
    # Update specific packages
    uv add package_name@latest
-   
+
    # Update all dependencies to latest compatible versions
    uv lock --upgrade
-   
+
    # Update only patch/minor versions
    uv lock --upgrade-package package_name
    ```
@@ -407,28 +371,31 @@ Renovate groups related packages together to reduce PR noise:
 #### Troubleshooting Dependency Issues
 
 1. **Version Conflicts**
+
    ```bash
    # Check for conflicts
    uv sync --frozen --check
-   
+
    # Resolve conflicts by updating lock file
    uv lock --upgrade
    ```
 
 2. **Workspace Inconsistencies**
+
    ```bash
    # Validate all packages can be installed together
    uv sync --all-packages
-   
+
    # Run consistency check script
    python devops/tools/check_dependency_consistency.py
    ```
 
 3. **Lock File Issues**
+
    ```bash
    # Regenerate lock file from scratch
    rm uv.lock && uv lock
-   
+
    # Check if lock file is synchronized
    uv lock --check
    ```
@@ -443,6 +410,7 @@ Renovate groups related packages together to reduce PR noise:
 #### CI Integration
 
 The `dependency-validation.yml` workflow automatically:
+
 - Validates `uv.lock` is synchronized with `pyproject.toml` files
 - Checks for dependency conflicts across the workspace
 - Generates dependency reports for visibility

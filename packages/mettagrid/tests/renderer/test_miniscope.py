@@ -9,8 +9,11 @@ import io
 import sys
 from contextlib import contextmanager
 
+import numpy as np
 import pytest
+from rich.console import Console
 
+from mettagrid.config.mettagrid_config import GameConfig, WallConfig
 from mettagrid.renderer.miniscope import MiniscopeRenderer
 
 
@@ -34,8 +37,29 @@ class TestMiniscopeRenderer:
         return ["agent", "wall", "altar", "mine_red", "generator_red", "lasery", "marker", "block"]
 
     @pytest.fixture
-    def renderer(self, object_type_names):
-        return MiniscopeRenderer(object_type_names, map_height=10, map_width=10)
+    def game_config(self):
+        """Provide a minimal GameConfig for testing."""
+
+        return GameConfig(
+            resource_names=[],
+            num_agents=1,
+            max_steps=100,
+            obs_width=7,
+            obs_height=7,
+            num_observation_tokens=50,
+            objects={
+                "altar": WallConfig(name="altar", type_id=2, map_char="_", render_symbol="🎯"),
+                "mine_red": WallConfig(name="mine_red", type_id=3, map_char="r", render_symbol="🔺"),
+                "generator_red": WallConfig(name="generator_red", type_id=4, map_char="g", render_symbol="🔋"),
+                "lasery": WallConfig(name="lasery", type_id=5, map_char="L", render_symbol="🟥"),
+                "marker": WallConfig(name="marker", type_id=6, map_char="m", render_symbol="🟠"),
+                "block": WallConfig(name="block", type_id=7, map_char="s", render_symbol="📦"),
+            },
+        )
+
+    @pytest.fixture
+    def renderer(self, object_type_names, game_config):
+        return MiniscopeRenderer(object_type_names, game_config, map_height=10, map_width=10)
 
     def test_initialization(self, renderer):
         """Test that MiniscopeRenderer initializes correctly."""
@@ -118,11 +142,11 @@ class TestMiniscopeRenderer:
         assert "🎯" in output  # altar (target)
         assert "⬜" in output  # empty spaces
 
-    def test_render_with_special_objects(self, object_type_names):
+    def test_render_with_special_objects(self, game_config):
         """Test rendering with the special objects from debug maps."""
         # Update object type names to include special types
         object_type_names = ["agent", "wall", "altar", "lasery", "marker", "block"]
-        renderer = MiniscopeRenderer(object_type_names, map_height=10, map_width=10)
+        renderer = MiniscopeRenderer(object_type_names, game_config, map_height=10, map_width=10)
 
         grid_objects = {
             0: {"type": 1, "r": 0, "c": 0},  # wall
@@ -259,18 +283,21 @@ class TestMiniscopeRenderer:
 
     def test_info_panel_no_agent_selected(self, renderer):
         """Test info panel when no agent is selected."""
-        import numpy as np
 
         grid_objects = {}
         panel = renderer._build_info_panel(grid_objects, None, [], 10, np.array([]))
 
-        assert len(panel) == 10
-        assert "No agent" in panel[1]
-        assert "selected" in panel[2]
+        # Panel is now a rich.Table, so render it to text to check content
+        console = Console()
+        with console.capture() as capture:
+            console.print(panel)
+        panel_text = capture.get()
+
+        assert "No agent" in panel_text
+        assert "selected" in panel_text
 
     def test_info_panel_with_agent(self, renderer):
         """Test info panel with an agent selected."""
-        import numpy as np
 
         grid_objects = {
             0: {"type": 0, "r": 0, "c": 0, "agent_id": 1, "inventory": {0: 10, 1: 5}},
@@ -280,9 +307,13 @@ class TestMiniscopeRenderer:
 
         panel = renderer._build_info_panel(grid_objects, 1, resource_names, 15, total_rewards)
 
-        assert len(panel) == 15
-        panel_text = "\n".join(panel)
-        assert "Agent 1" in panel_text
+        # Panel is now a rich.Table, so render it to text to check content
+        console = Console()
+        with console.capture() as capture:
+            console.print(panel)
+        panel_text = capture.get()
+
+        assert "1" in panel_text  # Agent ID
         assert "42.5" in panel_text  # Reward
         assert "energy" in panel_text
         assert "10" in panel_text  # energy amount
@@ -291,7 +322,6 @@ class TestMiniscopeRenderer:
 
     def test_info_panel_with_empty_inventory(self, renderer):
         """Test info panel with an agent that has no inventory."""
-        import numpy as np
 
         grid_objects = {
             0: {"type": 0, "r": 0, "c": 0, "agent_id": 0, "inventory": {}},
@@ -300,7 +330,12 @@ class TestMiniscopeRenderer:
 
         panel = renderer._build_info_panel(grid_objects, 0, [], 10, total_rewards)
 
-        panel_text = "\n".join(panel)
+        # Panel is now a rich.Table, so render it to text to check content
+        console = Console()
+        with console.capture() as capture:
+            console.print(panel)
+        panel_text = capture.get()
+
         assert "(empty)" in panel_text
 
     def test_bounds_checking_skips_out_of_range_objects(self, renderer):

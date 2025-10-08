@@ -8,7 +8,9 @@ description = "Multi-agent cooperative games"
 readme = "README.md"
 requires-python = ">=3.11.7"
 dependencies = [
+  "heavyball>=2.0.0",
   "mettagrid",
+  "packaging>=24.0.0",
   "pufferlib-core",
   "pydantic>=2.11.5",
   "pyyaml>=6.0.2",
@@ -37,15 +39,7 @@ root = "../.."
 fallback_version = "0.0.0"
 
 [tool.setuptools_scm.scm.git]
-describe_command = [
-  "git",
-  "describe",
-  "--dirty",
-  "--tags",
-  "--long",
-  "--match",
-  "cogames-v*",
-]
+describe_command = ["git", "describe", "--dirty", "--tags", "--long", "--match", "cogames-v*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

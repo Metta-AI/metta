@@ -3,7 +3,7 @@
 from typing import Any, Optional
 
 from cogames.policy.policy import AgentPolicy, Policy
-from mettagrid import MettaGridEnv
+from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation, dtype_actions
 
 
 class RandomAgentPolicy(AgentPolicy):
@@ -12,7 +12,7 @@ class RandomAgentPolicy(AgentPolicy):
     def __init__(self, action_space):
         self._action_space = action_space
 
-    def step(self, obs: Any) -> Any:
+    def step(self, obs: MettaGridObservation) -> MettaGridAction:
         """Get random action.
 
         Args:
@@ -21,7 +21,8 @@ class RandomAgentPolicy(AgentPolicy):
         Returns:
             A random action sampled from the action space
         """
-        return self._action_space.sample()
+        sample = self._action_space.sample()
+        return dtype_actions.type(sample)
 
 
 class RandomPolicy(Policy):

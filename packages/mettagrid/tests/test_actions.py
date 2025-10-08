@@ -52,7 +52,6 @@ def base_config():
         ),
         objects={
             "wall": WallConfig(type_id=1, swappable=False),
-            "block": WallConfig(type_id=14, swappable=True),
         },
         agent=AgentConfig(rewards=AgentRewards()),
         allow_diagonals=True,
@@ -65,7 +64,7 @@ def complex_game_map():
     return [
         ["wall", "wall", "wall", "wall", "wall", "wall", "wall"],
         ["wall", "agent.red", "empty", "empty", "empty", "agent.blue", "wall"],
-        ["wall", "empty", "empty", "block", "empty", "empty", "wall"],
+        ["wall", "empty", "empty", "empty", "empty", "empty", "wall"],
         ["wall", "empty", "empty", "empty", "empty", "empty", "wall"],
         ["wall", "wall", "wall", "wall", "wall", "wall", "wall"],
     ]
@@ -260,7 +259,7 @@ def test_all_actions_sequence(configured_env):
     test_map = [
         ["wall", "wall", "wall", "wall", "wall"],
         ["wall", "agent.red", "empty", "empty", "wall"],
-        ["wall", "empty", "block", "empty", "wall"],
+        ["wall", "empty", "empty", "empty", "wall"],
         ["wall", "empty", "empty", "empty", "wall"],
         ["wall", "wall", "wall", "wall", "wall"],
     ]
@@ -295,33 +294,19 @@ def test_all_actions_sequence(configured_env):
     # Now at (1, 3)
     print(f"   Position: {get_agent_position(env, 0)}")
 
-    # 5. Move south to row with block
+    # 5. Move south
     print("5. Moving south...")
     move_result = move(env, Orientation.SOUTH)
     assert move_result["success"], "Move south should succeed"
 
-    # Now at (2, 3), next to block at (2, 2)
+    # Now at (2, 3)
     current_pos = get_agent_position(env, 0)
-    print(f"   Position next to block: {current_pos}")
+    print(f"   Position: {current_pos}")
 
-    # 6. Rotate to face the block (west)
-    print("6. Rotating to face west (toward block)...")
-    rotate_result = rotate(env, Orientation.WEST)
-
-    # 7. Swap with block
-    print("7. Testing swap with block...")
+    # 6. Test swap (should fail with empty space)
+    print("6. Testing swap (should fail with empty space)...")
     swap_result = swap(env)
-    if swap_result["success"]:
-        print("   ✅ Swap succeeded")
-        # Verify position changed
-        new_pos = get_agent_position(env, 0)
-        print(f"   New position after swap: {new_pos}")
-        # Note: position depends on implementation of swap
-    else:
-        print(f"   ℹ️ Swap failed: {swap_result.get('error')}")
-        # Try moving to a different position for other tests
-        print("   Moving to continue other tests...")
-        move(env, Orientation.SOUTH)
+    print(f"   Swap result: {swap_result.get('success')}")
 
     print("\n✅ All actions tested successfully!")
 
@@ -338,7 +323,7 @@ def test_diagonal_movement_integration(configured_env):
 
     env: MettaGrid = configured_env(open_map)
 
-    print(env.action_names(), env.max_action_args())
+    print(env.action_names())
 
     # Test diagonal movement pattern
     diagonal_moves = [

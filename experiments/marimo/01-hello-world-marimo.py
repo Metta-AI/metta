@@ -104,7 +104,7 @@ def _():
     from mettagrid.config.mettagrid_config import (
         AgentRewards,
     )
-    from mettagrid.config import Config
+    from mettagrid.base_config import Config
     from mettagrid.test_support.actions import generate_valid_random_actions
     from metta.sim.simulation_config import SimulationConfig
     from metta.agent.utils import obs_to_td
@@ -193,38 +193,37 @@ def _():
             3: (0, 1),  # right
         }
         DELTA_TO_ORIENT = {v: k for k, v in ORIENT_TO_DELTA.items()}
+        ORIENT_NAMES = {0: "north", 1: "south", 2: "west", 3: "east"}
 
         def __init__(self, env: MettaGridEnv) -> None:
             super().__init__(env)
-            # Movement options
-            self.cardinal_directions: List[int] = [1, 3, 5, 7]
-            self.rotation_orientations: List[int] = [0, 1, 2, 3]
             self._initialize_action_indices()
 
         def _initialize_action_indices(self) -> None:
             """Determine indices of move/rotate/pickup actions for this env."""
             try:
-                action_names: List[str] = self.env.action_names
-                self.move_idx: int = (
-                    action_names.index("move_cardinal")
-                    if "move_cardinal" in action_names
-                    else 0
+                action_names: List[str] = list(self.env.action_names)
+                lookup = {name: idx for idx, name in enumerate(action_names)}
+                self.rotate_variants = {
+                    orient: lookup.get(f"rotate_{self.ORIENT_NAMES[orient]}")
+                    for orient in self.ORIENT_TO_DELTA
+                }
+                self.rotate_idx = lookup.get("rotate")
+                self.pickup_idx = next(
+                    (
+                        lookup[name]
+                        for name in ("get_items", "pickup")
+                        if name in lookup
+                    ),
+                    None,
                 )
-                self.rotate_idx: int = (
-                    action_names.index("rotate") if "rotate" in action_names else 1
-                )
-                # Prefer modern name; accept legacy alias
-                if "get_items" in action_names:
-                    self.pickup_idx = action_names.index("get_items")
-                elif "pickup" in action_names:
-                    self.pickup_idx = action_names.index("pickup")
-                else:
-                    self.pickup_idx = 2
+                self.noop_idx = lookup.get("noop", 0)
             except (AttributeError, ValueError):
                 # Fallback defaults
-                self.move_idx = 0
-                self.rotate_idx = 1
                 self.pickup_idx = 2
+                self.rotate_idx = 1
+                self.noop_idx = 0
+                self.rotate_variants = {}
 
         def predict(self, obs: np.ndarray) -> np.ndarray:
             """Wander randomly and get ore if next to a mine."""
@@ -265,17 +264,19 @@ def _():
 
                                     # If facing the mine, pick up; otherwise rotate toward it
                                     if orient == agent_ori:
-                                        action_type, action_arg = self.pickup_idx, 0
+                                        action_idx = self.pickup_idx
                                     else:
-                                        action_type, action_arg = (
-                                            self.rotate_idx,
-                                            orient,
+                                        action_idx = self.rotate_variants.get(
+                                            orient, self.rotate_idx
                                         )
+                                        if action_idx is None:
+                                            action_idx = self.noop_idx
+                                    if action_idx is None:
+                                        action_idx = self.noop_idx
                                     return generate_valid_random_actions(
                                         self.env,
                                         self.num_agents,
-                                        force_action_type=action_type,
-                                        force_action_arg=action_arg,
+                                        force_action_type=action_idx,
                                     )
 
             # Otherwise, wander randomly
@@ -486,7 +487,6 @@ def _(
     mg_config.game.actions.get_items.enabled = True
     mg_config.game.actions.put_items.enabled = False  # Training had this disabled
     mg_config.game.actions.attack.enabled = True  # Training had attack enabled
-    mg_config.game.actions.change_color.enabled = False
     mg_config.game.actions.change_glyph.enabled = False
     mg_config.game.actions.swap.enabled = False
 
@@ -1293,7 +1293,6 @@ def _(
     mg_config2.game.actions.attack.enabled = False
     mg_config2.game.actions.get_items.enabled = True
     mg_config2.game.actions.put_items.enabled = True
-    mg_config2.game.actions.change_color.enabled = False
     mg_config2.game.actions.change_glyph.enabled = False
     mg_config2.game.actions.swap.enabled = False
 

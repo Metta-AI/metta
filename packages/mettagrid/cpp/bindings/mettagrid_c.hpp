@@ -73,7 +73,11 @@ public:
                    const py::array_t<TruncationType, py::array::c_style>& truncations,
                    const py::array_t<RewardType, py::array::c_style>& rewards);
   void validate_buffers();
-  py::dict grid_objects(int min_row = -1, int max_row = -1, int min_col = -1, int max_col = -1);
+  py::dict grid_objects(int min_row = -1,
+                        int max_row = -1,
+                        int min_col = -1,
+                        int max_col = -1,
+                        const py::list& ignore_types = py::list());
   py::list action_names();
 
   GridCoord map_width();
@@ -158,6 +162,10 @@ private:
   std::mt19937 _rng;
   unsigned int _seed;
 
+  std::vector<std::pair<ActionType, ActionArg>> _flat_action_map;
+  std::vector<std::string> _flat_action_names;
+  std::vector<std::vector<int>> _action_arg_to_flat;
+
   // Movement tracking
   bool _track_movement_metrics;
   float _resource_loss_prob;
@@ -184,6 +192,8 @@ private:
   AgentConfig _create_agent_config(const py::dict& agent_group_cfg_py);
   ConverterConfig _create_converter_config(const py::dict& converter_cfg_py);
   WallConfig _create_wall_config(const py::dict& wall_cfg_py);
+  void build_flat_action_catalog();
+  int flat_action_index(ActionType action, ActionArg arg) const;
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_BINDINGS_METTAGRID_C_HPP_

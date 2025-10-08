@@ -14,7 +14,7 @@ export const StorableMapViewer: FC<{
   map: StorableMap;
 }> = ({ map }) => {
   // Parse the frontmatter YAML
-  const grid = useMemo(() => MettaGrid.fromAscii(map.data), [map.data]);
+  const grid = useMemo(() => MettaGrid.fromStorableMap(map), [map]);
 
   const [selectedSceneTree, setSelectedSceneTree] = useState<
     SceneTree | undefined
@@ -56,7 +56,16 @@ export const StorableMapViewer: FC<{
             {
               id: "config",
               label: "Config",
-              content: <ConfigViewer value={map.frontmatter.config} />,
+              content: (
+                <ConfigViewer
+                  value={map.frontmatter.config}
+                  kind={
+                    String(map.frontmatter.config.type).endsWith("MapGen")
+                      ? "mettagrid__mapgen__mapgen__MapGen__Config"
+                      : undefined
+                  }
+                />
+              ),
             },
             {
               id: "metadata",

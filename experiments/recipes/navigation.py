@@ -13,9 +13,9 @@ from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.map_builder.random import RandomMapBuilder
@@ -24,7 +24,7 @@ from mettagrid.mapgen.mapgen import MapGen
 from experiments.evals.navigation import make_navigation_eval_suite
 
 
-def make_mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConfig:
+def mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConfig:
     nav = eb.make_navigation(num_agents=num_agents * num_instances)
 
     nav.game.map_builder = MapGen.Config(
@@ -40,12 +40,16 @@ def make_mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConf
     return nav
 
 
+def simulations() -> list[SimulationConfig]:
+    return list(make_navigation_eval_suite())
+
+
 def make_curriculum(
     nav_env: Optional[MettaGridConfig] = None,
     enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
 ) -> CurriculumConfig:
-    nav_env = nav_env or make_mettagrid()
+    nav_env = nav_env or mettagrid()
 
     # make a set of training tasks for navigation
     dense_tasks = cc.bucketed(nav_env)
@@ -109,33 +113,18 @@ def train(
     )
 
 
-def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
-    eval_env = env or make_mettagrid()
-    return PlayTool(
-        sim=SimulationConfig(
-            env=eval_env,
-            suite="navigation",
-            name="eval",
-        ),
-    )
-
-
-def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
-    eval_env = env or make_mettagrid()
-    return ReplayTool(
-        sim=SimulationConfig(
-            env=eval_env,
-            suite="navigation",
-            name="eval",
-        ),
-    )
-
-
 def evaluate(
-    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
-) -> SimTool:
-    simulations = simulations or make_navigation_eval_suite()
-    return SimTool(
-        simulations=simulations,
-        policy_uris=[policy_uri],
+    policy_uris: str | Sequence[str] | None = None,
+) -> EvaluateTool:
+    return EvaluateTool(
+        simulations=simulations(),
+        policy_uris=policy_uris,
     )
+
+
+def play(policy_uri: Optional[str] = None) -> PlayTool:
+    return PlayTool(simulations=simulations(), policy_uri=policy_uri)
+
+
+def replay(policy_uri: Optional[str] = None) -> ReplayTool:
+    return ReplayTool(simulations=simulations(), policy_uri=policy_uri)

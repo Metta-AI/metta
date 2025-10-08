@@ -7,6 +7,7 @@
 #include "actions/get_output.hpp"
 #include "actions/noop.hpp"
 #include "actions/put_recipe_items.hpp"
+#include "actions/resource_mod.hpp"
 #include "config/mettagrid_config.hpp"
 #include "core/event.hpp"
 #include "core/grid.hpp"
@@ -513,7 +514,6 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
                                 1,                        // conversion_ticks
                                 10,                       // cooldown
                                 0,                        // initial_resource_count
-                                0,                        // color
                                 false);                   // recipe_details_obs
   EventManager event_manager;
   Converter* generator = new Converter(0, 0, generator_cfg);
@@ -567,7 +567,6 @@ TEST_F(MettaGridCppTest, GetOutput) {
                                 1,                        // conversion_ticks
                                 10,                       // cooldown
                                 1,                        // initial_items
-                                0,                        // color
                                 false);                   // recipe_details_obs
   EventManager event_manager;
   Converter* generator = new Converter(0, 0, generator_cfg);
@@ -1084,7 +1083,8 @@ TEST_F(MettaGridCppTest, EventManager) {
   EXPECT_NO_THROW(event_manager.process_events(1));
 }
 
-// Assembler Tests
+// ==================== Assembler Tests ====================
+
 TEST_F(MettaGridCppTest, AssemblerBasicObservationFeatures) {
   AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
   Assembler assembler(5, 5, config);
@@ -1254,7 +1254,7 @@ TEST_F(MettaGridCppTest, AssemblerGetAgentPatternByte) {
   grid->move_object(*agent2, GridLocation(6, 4, GridLayer::AgentLayer));  // Move to SW
 
   Agent* agent3 = new Agent(6, 6, agent_cfg, &resource_names);  // SE of assembler
-  grid->add_object(agent3);                    // Add new agent
+  grid->add_object(agent3);                                     // Add new agent
 
   pattern = assembler->get_agent_pattern_byte();
   EXPECT_EQ(pattern, 161) << "Pattern with agents at NW, SW, and SE should be 161 (1 + 32 + 128)";
@@ -1673,4 +1673,155 @@ TEST_F(MettaGridCppTest, AssemblerExhaustion) {
   // Fourth cooldown should be 10 * 3.375 = 33.75, rounded to 33
   EXPECT_EQ(assembler.cooldown_end_timestep, 80) << "Fourth cooldown should end at 80 (47 + 33)";
   EXPECT_FLOAT_EQ(assembler.cooldown_multiplier, 5.0625f) << "Cooldown multiplier should be 5.0625 after fourth use";
+}
+
+// ==================== ResourceMod Tests ====================
+
+TEST_F(MettaGridCppTest, ResourceModBasic) {
+  Grid grid(5, 5);
+  std::mt19937 rng(42);
+  auto resource_names = create_test_resource_names();
+
+  // Create actor at center
+  AgentConfig actor_cfg = create_test_agent_config();
+  actor_cfg.initial_inventory[TestItems::ORE] = 10;
+  Agent* actor = new Agent(2, 2, actor_cfg, &resource_names);
+  float actor_reward = 0.0f;
+  actor->init(&actor_reward);
+  grid.add_object(actor);
+
+  // Create target agent nearby
+  AgentConfig target_cfg = create_test_agent_config();
+  target_cfg.initial_inventory[TestItems::HEART] = 10;
+  Agent* target = new Agent(2, 3, target_cfg, &resource_names);
+  float target_reward = 0.0f;
+  target->init(&target_reward);
+  grid.add_object(target);
+
+  // Create resource mod action that adds hearts with 100% probability
+  ResourceModConfig modify_cfg({{TestItems::ORE, 1}},       // required_resources
+                               {{TestItems::ORE, 1.0f}},    // consumed_resources
+                               {{TestItems::HEART, 1.0f}},  // modifies - adds 1 heart
+                               1,                           // agent_radius
+                               0,                           // converter_radius
+                               false);                      // scales
+  ResourceMod modify(modify_cfg);
+  modify.init(&grid, &rng);
+
+  ActionArg arg = 0;  // Unused
+  bool success = modify.handle_action(*actor, arg);
+  EXPECT_TRUE(success);
+
+  // Check that target gained 1 heart
+  EXPECT_EQ(target->inventory.amount(TestItems::HEART), 11);
+  // Check that actor lost 1 ore
+  EXPECT_EQ(actor->inventory.amount(TestItems::ORE), 9);
+}
+
+TEST_F(MettaGridCppTest, ResourceModProbabilistic) {
+  Grid grid(5, 5);
+  std::mt19937 rng(42);
+  auto resource_names = create_test_resource_names();
+
+  // Create actor
+  AgentConfig actor_cfg = create_test_agent_config();
+  actor_cfg.initial_inventory[TestItems::ORE] = 200;
+  Agent* actor = new Agent(2, 2, actor_cfg, &resource_names);
+  float actor_reward = 0.0f;
+  actor->init(&actor_reward);
+  grid.add_object(actor);
+
+  // Create target
+  AgentConfig target_cfg = create_test_agent_config();
+  target_cfg.initial_inventory[TestItems::HEART] = 10;
+  Agent* target = new Agent(2, 3, target_cfg, &resource_names);
+  float target_reward = 0.0f;
+  target->init(&target_reward);
+  grid.add_object(target);
+
+  // Create action with fractional modifications (30% chance)
+  ResourceModConfig modify_cfg({{TestItems::ORE, 1}},       // required_resources must have ceil(0.5) = 1
+                               {{TestItems::ORE, 0.5f}},    // 50% chance to consume
+                               {{TestItems::HEART, 0.3f}},  // 30% chance to add 1 heart
+                               1,
+                               0,
+                               false);  // radius 1, no converters, no scaling
+  ResourceMod modify(modify_cfg);
+  modify.init(&grid, &rng);
+
+  // Execute multiple times to test probabilistic behavior
+  ActionArg arg = 0;  // Unused
+  int hearts_added = 0;
+  int ore_consumed = 0;
+
+  for (int i = 0; i < 100; i++) {
+    int ore_before = actor->inventory.amount(TestItems::ORE);
+    int hearts_before = target->inventory.amount(TestItems::HEART);
+
+    // Check if actor has required resources
+    if (ore_before < 1) {
+      // Actor is out of ore, can't continue test
+      break;
+    }
+
+    bool success = modify.handle_action(*actor, arg);
+    EXPECT_TRUE(success);
+
+    ore_consumed += (ore_before - actor->inventory.amount(TestItems::ORE));
+    hearts_added += (target->inventory.amount(TestItems::HEART) - hearts_before);
+  }
+
+  // With 30% probability for hearts and 50% for ore consumption
+  // Expect around 30 hearts added and 50 ore consumed
+  EXPECT_GE(hearts_added, 20);  // At least 20
+  EXPECT_LE(hearts_added, 40);  // At most 40
+  EXPECT_GE(ore_consumed, 40);  // At least 40
+  EXPECT_LE(ore_consumed, 60);  // At most 60
+}
+
+TEST_F(MettaGridCppTest, ResourceModConverter) {
+  Grid grid(5, 5);
+  std::mt19937 rng(42);
+  EventManager event_manager;
+  auto resource_names = create_test_resource_names();
+
+  // Create actor
+  AgentConfig actor_cfg = create_test_agent_config();
+  Agent* actor = new Agent(2, 2, actor_cfg, &resource_names);
+  float actor_reward = 0.0f;
+  actor->init(&actor_reward);
+  grid.add_object(actor);
+
+  // Create converter nearby
+  ConverterConfig converter_cfg(TestItems::CONVERTER,  // type_id
+                                "converter",           // type_name
+                                {},                    // input_resources
+                                {},                    // output_resources
+                                -1,                    // max_output
+                                -1,                    // max_conversions
+                                0,                     // conversion_ticks
+                                0,                     // cooldown
+                                0,                     // initial_items
+                                false);                // recipe_details_obs
+  Converter* converter = new Converter(3, 2, converter_cfg);
+  grid.add_object(converter);
+  converter->set_event_manager(&event_manager);
+
+  // Create action that modifies converter resources
+  ResourceModConfig modify_cfg({},
+                               {},
+                               {{TestItems::ORE, 1.0f}},  // Add 1 ore to converter
+                               0,
+                               1,
+                               false);  // No agents, converters within radius 1
+  ResourceMod modify(modify_cfg);
+  modify.init(&grid, &rng);
+
+  // Target converter at (3, 2) from actor at (2, 2)
+  ActionArg arg = 0;  // Unused
+  bool success = modify.handle_action(*actor, arg);
+  EXPECT_TRUE(success);
+
+  // Check that converter gained 1 ore
+  EXPECT_EQ(converter->inventory.amount(TestItems::ORE), 1);
 }

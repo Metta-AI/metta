@@ -50,3 +50,5 @@ if defined(emscripten):
 --exceptions:goto # Goto exceptions are friendlier with crazy platforms.
 --define:noSignalHandler # Emscripten doesn't support signal handlers.
 --define:noAutoGLerrorCheck
+--define:windyUseStdHttp
+--define:ssl

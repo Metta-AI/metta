@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import numpy.typing as npt
@@ -47,8 +47,8 @@ logger = logging.getLogger("MettaGridCore")
 # - value: uint8 feature value
 MettaGridObservation = npt.NDArray[np.uint8]  # Shape: (num_tokens, 3)
 
-# Actions are MultiDiscrete: shape (num_action_dims,) where each dimension is an action choice
-MettaGridAction = npt.NDArray[np.int32]  # Shape: (num_action_dims,)
+# Actions are Discrete: single integer index representing unique action choices
+MettaGridAction = npt.NDArray[np.int32]  # Shape: ()
 
 
 @dataclass
@@ -56,6 +56,14 @@ class ObsFeature:
     id: int
     normalization: float
     name: str
+
+
+@dataclass
+class BoundingBox:
+    min_row: int
+    max_row: int
+    min_col: int
+    max_col: int
 
 
 class MettaGridCore:
@@ -82,6 +90,7 @@ class MettaGridCore:
         self._render_mode = render_mode
         self._renderer = None
         self._current_seed: int = 0
+
         self._map_builder = self.__mg_config.game.map_builder.create()
 
         # Set by PufferBase
@@ -130,8 +139,8 @@ class MettaGridCore:
         # Validate number of agents
         level_agents = np.count_nonzero(np.char.startswith(game_map.grid, "agent"))
         assert self.__mg_config.game.num_agents == level_agents, (
-            f"Number of agents {self.__mg_config.game.num_agents} "
-            f"does not match number  of agents in map {level_agents}"
+            f"Number of agents {self.__mg_config.game.num_agents} does not match number of agents in map {level_agents}"
+            f". This may be because your map, after removing border width, is too small to fit the number of agents."
         )
         game_config_dict = self.__mg_config.game.model_dump()
 
@@ -160,7 +169,9 @@ class MettaGridCore:
             if self._renderer_native:
                 self._renderer = self._renderer_class()
             else:
-                self._renderer = self._renderer_class(c_env.object_type_names(), c_env.map_height, c_env.map_width)
+                self._renderer = self._renderer_class(
+                    c_env.object_type_names(), self.__mg_config.game, c_env.map_height, c_env.map_width
+                )
 
         self.__c_env_instance = c_env
         return c_env
@@ -196,10 +207,17 @@ class MettaGridCore:
 
         return obs, infos
 
-    def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
+    def step(
+        self, actions: np.ndarray | int | Sequence[int]
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
         """Execute one timestep of the environment dynamics with the given actions."""
-        # Execute step in core environment
-        return self.__c_env_instance.step(actions)
+        arr = np.asarray(actions, dtype=dtype_actions)
+        if arr.ndim != 1 or arr.shape[0] != self.num_agents:
+            raise ValueError(
+                f"Expected actions of shape ({self.num_agents},) but received {arr.shape}; "
+                "ensure policies emit a scalar action id per agent"
+            )
+        return self.__c_env_instance.step(arr)
 
     def render(self) -> Optional[str]:
         """Render the environment."""
@@ -261,18 +279,13 @@ class MettaGridCore:
         return self.__c_env_instance.observation_space
 
     @property
-    def _action_space(self) -> spaces.MultiDiscrete:
+    def _action_space(self) -> spaces.Discrete:
         """Internal action space - use single_action_space for PufferEnv compatibility."""
         return self.__c_env_instance.action_space
 
     @property
     def action_names(self) -> List[str]:
         return self.__c_env_instance.action_names()
-
-    @property
-    def max_action_args(self) -> List[int]:
-        action_args_array = self.__c_env_instance.max_action_args()
-        return [int(x) for x in action_args_array]
 
     @property
     def object_type_names(self) -> List[str]:
@@ -317,20 +330,22 @@ class MettaGridCore:
         return features
 
     def grid_objects(
-        self, min_row: int = -1, max_row: int = -1, min_col: int = -1, max_col: int = -1
+        self, bbox: Optional[BoundingBox] = None, ignore_types: Optional[List[str]] = None
     ) -> Dict[int, Dict[str, Any]]:
-        """Get grid objects information, optionally filtered by bounding box.
+        """Get grid objects information, optionally filtered by bounding box and type.
 
         Args:
-            min_row: Minimum row (inclusive), -1 for no limit
-            max_row: Maximum row (exclusive), -1 for no limit
-            min_col: Minimum column (inclusive), -1 for no limit
-            max_col: Maximum column (exclusive), -1 for no limit
+            bbox: Bounding box, None for no limit
+            ignore_types: List of type names to exclude from results (e.g., ["wall"])
 
         Returns:
             Dictionary mapping object IDs to object dictionaries
         """
-        return self.__c_env_instance.grid_objects(min_row, max_row, min_col, max_col)
+        if bbox is None:
+            bbox = BoundingBox(min_row=-1, max_row=-1, min_col=-1, max_col=-1)
+
+        ignore_list = ignore_types if ignore_types is not None else []
+        return self.__c_env_instance.grid_objects(bbox.min_row, bbox.max_row, bbox.min_col, bbox.max_col, ignore_list)
 
     def set_inventory(self, agent_id: int, inventory: Dict[str, int]) -> None:
         """Set an agent's inventory by resource name.

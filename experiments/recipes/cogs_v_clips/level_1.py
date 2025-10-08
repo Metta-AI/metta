@@ -27,29 +27,31 @@
 # hardest recipe: some number of some resources and four cogs to make a heart
 
 # resource extractors
+import random
 import subprocess
 import time
 
-from mettagrid.config.mettagrid_config import MettaGridConfig
-from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
-import random
-from mettagrid.config.mettagrid_config import Field
-from mettagrid.config.mettagrid_config import Position
-from cogames.cogs_vs_clips.scenarios import make_game
-from metta.tools.play import PlayTool
-from metta.sim.simulation_config import SimulationConfig
-from mettagrid.config.mettagrid_config import ChestConfig
-from metta.tools.train import TrainTool
-from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.trainer_config import TrainerConfig
-from metta.rl.loss import LossConfig
-from metta.agent.policies.vit_reset import ViTResetConfig
+from cogames.cogs_vs_clips.missions import make_game
 from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
+from metta.agent.policies.vit_reset import ViTResetConfig
 from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from mettagrid.mapgen.mapgen import MapGen
+from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 from metta.map.terrain_from_numpy import CogsVClippiesFromNumpy
+from metta.rl.loss import LossConfig
+from metta.rl.trainer_config import TrainerConfig
+from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.sim.simulation_config import SimulationConfig
+from metta.tools.play import PlayTool
+from metta.tools.train import TrainTool
+from mettagrid.config.mettagrid_config import (
+    ChestConfig,
+    Field,
+    MettaGridConfig,
+    Position,
+)
+from mettagrid.mapgen.mapgen import MapGen
 
 # ADDING TERRAIN
 
