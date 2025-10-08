@@ -6,6 +6,8 @@ import {
   emailService,
   type NotificationWithDetails,
 } from "@/lib/external-notifications/email";
+import { AuthenticationError, BadRequestError } from "@/lib/errors";
+import { handleApiError } from "@/lib/api/error-handler";
 
 // Schema for test email request
 const testEmailSchema = z.object({
@@ -27,14 +29,7 @@ export async function GET() {
         : `❌ Email configuration invalid`,
     });
   } catch (error) {
-    console.error("Error checking email configuration:", error);
-    return NextResponse.json(
-      {
-        error: "Failed to check email configuration",
-        details: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 }
-    );
+    return handleApiError(error, { endpoint: "GET /api/email-test" });
   }
 }
 
@@ -44,10 +39,7 @@ export async function POST(request: NextRequest) {
     const session = await auth();
 
     if (!isSignedIn(session)) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
+      throw new AuthenticationError();
     }
 
     const body = await request.json();
@@ -72,10 +64,7 @@ export async function POST(request: NextRequest) {
       const recipientEmail = testEmail || session.user.email;
 
       if (!recipientEmail) {
-        return NextResponse.json(
-          { error: "No email address available for test" },
-          { status: 400 }
-        );
+        throw new BadRequestError("No email address available for test");
       }
 
       // Create a mock notification for testing
@@ -115,23 +104,8 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+    throw new BadRequestError("Invalid action");
   } catch (error) {
-    console.error("Error in email test:", error);
-
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: "Invalid request data", details: error.issues },
-        { status: 400 }
-      );
-    }
-
-    return NextResponse.json(
-      {
-        error: "Failed to process email test",
-        details: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 }
-    );
+    return handleApiError(error, { endpoint: "POST /api/email-test" });
   }
 }
