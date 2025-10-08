@@ -471,11 +471,6 @@ def run_validation(
                         return result
 
         # Check exit code
-        # Special case: Check if training completed successfully even with non-zero exit
-        if validation.workflow_type == WorkflowType.TRAIN and "Training run status updated to 'completed'" in log_text:
-            # Training completed successfully, override exit code
-            result.exit_code = 0
-
         if result.exit_code == 124:
             result.complete("failed", result.exit_code, error="Timeout exceeded")
             print(red(f"  ❌ {validation.name} - TIMEOUT"))

@@ -259,7 +259,7 @@ class LocalJob(Job):
 
         return JobResult(
             name=self.name,
-            exit_code=self._exit_code or 1,
+            exit_code=self._exit_code if self._exit_code is not None else 1,
             logs_path=str(self._get_log_path()),
             duration_s=duration,
         )
