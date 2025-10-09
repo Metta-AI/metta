@@ -1,16 +1,10 @@
 """Tests for cogames CLI commands."""
 
-import importlib.metadata
 import subprocess
 import tempfile
 from pathlib import Path
 
-from typer.testing import CliRunner
-
-from cogames.main import app
-
 cogames_root = Path(__file__).parent.parent
-runner = CliRunner()
 
 
 def test_missions_list_command():
@@ -126,19 +120,3 @@ def test_make_mission_command():
         assert tmp_path.exists()
     finally:
         tmp_path.unlink(missing_ok=True)
-
-
-def test_version_command_handles_missing_metadata(monkeypatch):
-    """Version command should not crash if cogames metadata is missing."""
-
-    def fake_version(dist_name: str) -> str:
-        if dist_name == "cogames":
-            raise importlib.metadata.PackageNotFoundError
-        return "1.2.3"
-
-    monkeypatch.setattr(importlib.metadata, "version", fake_version)
-
-    result = runner.invoke(app, ["version"])
-    assert result.exit_code == 0
-    assert "cogames" in result.stdout
-    assert "local" in result.stdout

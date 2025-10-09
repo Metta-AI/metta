@@ -117,7 +117,7 @@ def train(
         seed: Optional[int] = None,
     ):
         target_cfg = cfg.model_copy(deep=True) if cfg is not None else _clone_cfg()
-        env = MettaGridEnv(env_cfg=target_cfg, is_training=True)
+        env = MettaGridEnv(env_cfg=target_cfg)
         set_buffers(env, buf)
         return env
 

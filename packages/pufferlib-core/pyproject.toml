@@ -46,8 +46,8 @@ Repository = "https://github.com/PufferAI/PufferLib"
 Issues = "https://github.com/PufferAI/PufferLib/issues"
 
 [tool.setuptools.packages.find]
-where = ["src", "../cogames/src"]
-include = ["pufferlib", "pufferlib.*", "pufferlib_core.egg-info", "cogames", "cogames.*"]
+where = ["src"]
+include = ["pufferlib", "pufferlib_core.egg-info"]
 
 [tool.setuptools_scm]
 tag_regex = "^pufferlib-core-v(?P<version>\\d+\\.\\d+\\.\\d+(?:\\.\\d+)?)$"
@@ -70,4 +70,3 @@ describe_command = [
 
 [tool.setuptools.package-data]
 pufferlib = ["*.py", "*.so", "*.pyd"]
-cogames = ["py.typed", "maps/*.map"]
