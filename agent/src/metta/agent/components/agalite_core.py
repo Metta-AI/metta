@@ -87,30 +87,4 @@ class AGaLiTeCore(nn.Module):
             memory[key] = encoder.initialize_memory(batch_size, device)
         return memory
 
-    @property
-    def parameter_count(self) -> Dict[str, int]:
-        total = sum(p.numel() for p in self.parameters())
-        trainable = sum(p.numel() for p in self.parameters() if p.requires_grad)
-        return {
-            "total_parameters": total,
-            "trainable_parameters": trainable,
-            "eta": self.eta,
-            "r": self.r,
-            "n_layers": self.n_layers,
-            "d_model": self.d_model,
-        }
-
-    def get_config(self) -> Dict[str, object]:
-        return {
-            "n_layers": self.n_layers,
-            "d_model": self.d_model,
-            "d_head": self.d_head,
-            "d_ffc": self.d_ffc,
-            "n_heads": self.n_heads,
-            "eta": self.eta,
-            "r": self.r,
-            "reset_on_terminate": self.reset_on_terminate,
-        }
-
-
 __all__ = ["AGaLiTeCore"]
