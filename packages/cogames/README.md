@@ -37,21 +37,21 @@ uv pip install cogames
 cogames missions
 
 # Play an episode of the machina_1 game.
-cogames play training_facility_1 random
+cogames play -m training_facility_1 -p random
 
 # Train a policy in a simple, single-agent game
-cogames train training_facility_1 simple
+cogames train -m training_facility_1 -p simple
 
 # Watch or play along side your trained policy
-cogames play training_facility_1 simple:train_dir/policy.pt
+cogames play -m training_facility_1 -p simple:train_dir/policy.pt
 
 # Evaluate your policy
-cogames eval training_facility_1 simple:./train_dir/policy.pt
+cogames eval -m training_facility_1 -p simple:./train_dir/policy.pt
 ```
 
 ## Commands
 
-Most commands are of the form `cogames <command> [MISSION] [POLICY] [OPTIONS]`
+Most commands are of the form `cogames <command> -p [MISSION] -p [POLICY] [OPTIONS]`
 
 To specify a `MISSION`, you can:
 - Use a mission name from the default registry emitted by `cogames missions`, e.g. `training_facility_1`
@@ -62,15 +62,20 @@ To specify a `POLICY`, provide an argument with up to three parts `CLASS[:DATA][
 - `DATA`: Optional path to a weights file or directory. When omitted, defaults to the policy's built-in weights.
 - `PROPORTION`: Optional positive float specifying the relative share of agents that use this policy (default: 1.0).
 
-### `cogames missions [MISSION]`
+### `cogames missions -m [MISSION]`
 
 Lists all missions and their high-level specs.
 
 If a mission is provided, it describe a specific mission in detail.
 
-### `cogames play [MISSION] [POLICY]`
+### `cogames play -m [MISSION] -p [POLICY]`
 
-Play an episode of the specified mission. Cogs' actions are determined by the provided policy.
+Play an episode of the specified mission.
+
+**Policy**
+Cogs' actions are determined by the provided policy, except if you take over their actions manually.
+
+If not specified, this command will use the `noop`-policy agent -- do not be surprised if when you play you don't see other agents moving around! Just provide a different policy, like `random`.
 
 **Options:**
 
@@ -81,9 +86,27 @@ Play an episode of the specified mission. Cogs' actions are determined by the pr
 `cogames play` supports a gui-based and text-based game renderer, both of which support many features to inspect agents
 and manually play alongside them.
 
-### `cogames train [MISSION] [POLICY]`
+### `cogames train -m [MISSION] -p [POLICY]`
 
 Train a policy on a mission.
+
+**Policy**
+By default, our `simple` policy architecture will be used. But as is explained above, you can select a different policy architecture we support out of the box (like `lstm`), or can define your own and supply a path to it.
+
+Any policy provided must implement the `TrainablePolicy` interface, which you can find in `cogames/policy/interfaces.py`.
+
+You can continue training an already-initialized policy by also supplying a path to its weights checkpoint file:
+
+```
+cogames train -m [MISSION] -p path/to/policy.py:train_dir/my_checkpoint.pt
+```
+
+**Mission**
+Note that you can supply repeated `-m` missions to supply a training curriculum that rotates through environments:
+
+```
+cogames train -m training_facility_1 -m training_facility_2 -p simple
+```
 
 **Options:**
 - `--steps N`: Training steps (default: 10000)
@@ -91,14 +114,6 @@ Train a policy on a mission.
 - `--batch-size N`: Batch size (default: 4096)
 - `--num-workers N`: Worker processes (default: CPU count)
 
-#### Training curricula
-
-Passing one of the rotation curricula as the `mission` argument cycles training across the six training facilities and the `machina_1` and `machina_2` maps. These suppliers refresh the map each time `cogames train` requests a new environment so policies see a steady mix of layouts.
-
-- `training_rotation`: Baseline rotation with the standard heart recipe and reward structure.
-- `training_rotation_easy`: Enables the "easy" heart recipe in each map and extends the episode length, reducing the component requirements so current architectures can reliably craft hearts even when the default recipe is out of reach.
-- `training_rotation_shaped`: Adds the shaped intermediate rewards and longer episodes while keeping the full recipe, providing denser feedback without altering the target objective.
-- `training_rotation_easy_shaped`: Combines the easier heart recipe and shaped rewards, plus extended episode lengths, letting agents practice end-to-end heart crafting in a forgiving setting.
 
 ### Custom Policy Architectures
 
@@ -136,11 +151,11 @@ To train with using your class, supply a path to it in your POLICY argument, e.g
 The underlying environment follows the Gymnasium API:
 
 ```python
-from cogames.game import get_mission
+from cogames.cli.mission import get_mission
 from mettagrid.envs import MettaGridEnv
 
 # Load a mission configuration
-config, _, __ = game_module.get_mission("assembler_2_complex", "default")
+_, config = get_mission("assembler_2_complex")
 
 # Create environment
 env = MettaGridEnv(env_cfg=config)
@@ -160,18 +175,21 @@ for step in range(1000):
         obs, info = env.reset()
 ```
 
-### `cogames eval [MISSION] [POLICIES...]`
+### `cogames eval -m [MISSION] -p POLICY [-p POLICY...]`
 
-Evaluate one or more policies. Note that here, you can provide a list of `POLICY` arguments if you want to run evaluations on mixed-policy populations.
+Evaluate one or more policies
+
+**Policy**
+ Note that here, you can provide multiple `-p POLICY` arguments if you want to run evaluations on mixed-policy populations.
 
 **Examples:**
 
 ```bash
 # Evaluate a single trained policy checkpoint
-cogames eval machina_1 simple:train_dir/model.pt
+cogames eval -m machina_1 -p simple:train_dir/model.pt
 
 # Mix two policies: 3 parts your policy, 5 parts random policy
-cogames eval machina_1 simple:train_dir/model.pt:3 random::5
+cogames eval -m machina_1 -p simple:train_dir/model.pt:3 -p random::5
 ```
 
 **Options:**
@@ -182,7 +200,7 @@ cogames eval machina_1 simple:train_dir/model.pt:3 random::5
 When multiple policies are provided, `cogames eval` fixes the number of agents each policy will control, but
 randomizes their assignments each episode.
 
-### `cogames make-mission [BASE_MISSION]`
+### `cogames make-mission -m [BASE_MISSION]`
 
 Create custom mission configuration. In this case, the mission provided is the template mission to which you'll apply modifications.
 

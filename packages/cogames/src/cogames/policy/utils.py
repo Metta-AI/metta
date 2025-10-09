@@ -83,9 +83,6 @@ def find_policy_checkpoints(checkpoints_path: Path, env_name: Optional[str] = No
 
 def resolve_policy_data_path(
     policy_data_path: Optional[str],
-    *,
-    policy_class_path: Optional[str] = None,
-    game_name: Optional[str] = None,
 ) -> Optional[str]:
     """Resolve a checkpoint path if provided.
 
