@@ -1,81 +1,49 @@
-"""Utility functions for CoGames CLI."""
+"""Backward-compatible utilities for the CoGames CLI."""
 
-from typing import Any, Optional
+from __future__ import annotations
 
-import torch
+from typing import Optional, Tuple
+
 import typer
 from rich.console import Console
 
-from cogames import game as game_module
+from cogames import game
+from cogames.cli.mission import MAP_MISSION_DELIMITER
 from cogames.cogs_vs_clips.missions import UserMap
-from cogames.policy import Policy, TrainablePolicy
+from cogames.device import resolve_training_device as _resolve_training_device
+from cogames.policy.utils import initialize_or_load_policy as _initialize_or_load_policy
 from mettagrid.config.mettagrid_config import MettaGridConfig
-from mettagrid.util.module import load_symbol
 
 
-def get_mission_config(console: Console, mission_arg: str) -> tuple[str, MettaGridConfig, Optional[UserMap]]:
-    """Return a resolved mission name, configuration, and matching UserMap (if registered)."""
-
-    requested_mission: Optional[str] = None
-    if ":" in mission_arg:
-        map_name, requested_mission = mission_arg.split(":")
-    else:
-        map_name = mission_arg
-
-    config, registered_map_name, mission_name = game_module.get_mission(map_name, requested_mission)
-    user_map: Optional[UserMap] = None
-    if registered_map_name is not None:
-        user_map = game_module.get_user_map(registered_map_name)
+def get_mission_config(
+    console: Console,
+    mission_arg: str,
+) -> Tuple[str, MettaGridConfig, Optional[UserMap]]:
+    """Resolve mission arguments while retaining backward-compatible metadata."""
     try:
-        if registered_map_name and mission_name and mission_name != "default":
-            full_mission_name = f"{registered_map_name}:{mission_name}"
-        else:
-            full_mission_name = registered_map_name or map_name
-        return full_mission_name, config, user_map
-    except Exception as e:
-        console.print(f"[red]Error: {e}[/red]")
-        raise typer.Exit(1) from e
+        config, map_name, mission_name = game.get_mission(mission_arg)
+    except ValueError as exc:
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(1) from exc
+
+    resolved_name = _format_resolved_name(mission_arg, map_name, mission_name)
+    user_map = game.get_user_map(map_name) if map_name is not None else None
+    return resolved_name, config, user_map
 
 
-def resolve_training_device(console: Console, requested: str) -> torch.device:
-    normalized = requested.strip().lower()
+resolve_training_device = _resolve_training_device
+initialize_or_load_policy = _initialize_or_load_policy
 
-    def cuda_usable() -> bool:
-        cuda_backend = getattr(torch.backends, "cuda", None)
-        if cuda_backend is None or not cuda_backend.is_built():
-            return False
-        if not hasattr(torch._C, "_cuda_getDeviceCount"):
-            return False
-        return torch.cuda.is_available()
-
-    if normalized == "auto":
-        if cuda_usable():
-            return torch.device("cuda")
-        console.print("[yellow]CUDA not available; falling back to CPU for training.[/yellow]")
-        return torch.device("cpu")
-
-    try:
-        candidate = torch.device(requested)
-    except (RuntimeError, ValueError):
-        console.print(f"[yellow]Warning: Unknown device '{requested}'. Falling back to CPU.[/yellow]")
-        return torch.device("cpu")
-
-    if candidate.type == "cuda" and not cuda_usable():
-        console.print("[yellow]CUDA requested but unavailable. Training will run on CPU instead.[/yellow]")
-        return torch.device("cpu")
-
-    return candidate
+__all__ = ["get_mission_config", "resolve_training_device", "initialize_or_load_policy"]
 
 
-def initialize_or_load_policy(
-    policy_class_path: str, policy_data_path: Optional[str], env: Any, device: "torch.device | None" = None
-) -> Policy:
-    policy_class = load_symbol(policy_class_path)
-    policy = policy_class(env, device or torch.device("cpu"))
-
-    if policy_data_path:
-        if not isinstance(policy, TrainablePolicy):
-            raise TypeError("Policy data provided, but the selected policy does not support loading checkpoints.")
-
-        policy.load_policy_data(policy_data_path)
-    return policy
+def _format_resolved_name(
+    requested: str,
+    map_name: Optional[str],
+    mission_name: Optional[str],
+) -> str:
+    if map_name is None:
+        return requested
+    if mission_name and mission_name != "default":
+        return f"{map_name}{MAP_MISSION_DELIMITER}{mission_name}"
+    return map_name
