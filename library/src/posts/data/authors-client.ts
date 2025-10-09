@@ -7,4 +7,3 @@ export async function loadAuthorClient(
 ): Promise<AuthorDTO | null> {
   return authors.getAuthor(authorId);
 }
-

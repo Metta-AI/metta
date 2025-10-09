@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { createColumnHelper } from "@tanstack/react-table";
+import { createColumnHelper, ColumnDef } from "@tanstack/react-table";
 
 import { AdminDataTable } from "@/components/AdminDataTable";
 import type { InstitutionCardData } from "@/components/institutions/InstitutionCard";
@@ -9,19 +9,19 @@ import { getInitialsFromName } from "@/lib/utils/text";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-interface InstitutionTableProps<TInstitution extends InstitutionCardData> {
-  data: TInstitution[];
+interface InstitutionTableProps {
+  data: InstitutionCardData[];
   isLoading?: boolean;
-  onSelect?: (institution: TInstitution) => void;
+  onSelect?: (institution: InstitutionCardData) => void;
 }
 
 const columnHelper = createColumnHelper<InstitutionCardData>();
 
-export function InstitutionTable<TInstitution extends InstitutionCardData>({
+export function InstitutionTable({
   data,
   isLoading = false,
   onSelect,
-}: InstitutionTableProps<TInstitution>) {
+}: InstitutionTableProps) {
   const columns = useMemo(() => {
     return [
       columnHelper.accessor("name", {
@@ -96,7 +96,7 @@ export function InstitutionTable<TInstitution extends InstitutionCardData>({
   return (
     <AdminDataTable
       data={data}
-      columns={columns}
+      columns={columns as any}
       isLoading={isLoading}
       onRowClick={onSelect}
       emptyMessage="No institutions found."
