@@ -33,6 +33,13 @@ export type AuthorDTO = {
     link: string | null;
     createdAt: Date;
     stars: number;
+    abstract: string | null;
+    tags: string[];
+    authors: Array<{
+      id: string;
+      name: string;
+    }>;
+    institutions: string[];
   }>;
 };
 
@@ -80,7 +87,7 @@ function deriveInstitutionFromPapers(
  */
 function mapToAuthorDTO(
   author: PrismaAuthorWithRelations,
-  recentPapers: PrismaPaperWithInstitutions[],
+  recentPapers: AuthorDTO["recentPapers"],
   derivedInstitution: string | null
 ): AuthorDTO {
   return {
@@ -147,9 +154,19 @@ export async function loadAuthors(): Promise<AuthorDTO[]> {
   });
 
   return authors.map((author) => {
-    const recentPapers = author.paperAuthors.map((pa) => pa.paper);
+    const recentPapers = author.paperAuthors.map((pa) => ({
+      id: pa.paper.id,
+      title: pa.paper.title,
+      link: pa.paper.link,
+      createdAt: pa.paper.createdAt,
+      stars: pa.paper.stars,
+      abstract: null,
+      tags: [],
+      authors: [],
+      institutions: pa.paper.paperInstitutions.map((pi) => pi.institution.name),
+    }));
     const derivedInstitution = deriveInstitutionFromPapers(
-      recentPapers,
+      author.paperAuthors.map((pa) => pa.paper),
       author.institution
     );
     return mapToAuthorDTO(author, recentPapers, derivedInstitution);
@@ -170,6 +187,17 @@ export async function loadAuthor(authorId: string): Promise<AuthorDTO | null> {
               createdAt: true,
               stars: true,
               abstract: true,
+              tags: true,
+              paperAuthors: {
+                include: {
+                  author: {
+                    select: {
+                      id: true,
+                      name: true,
+                    },
+                  },
+                },
+              },
               paperInstitutions: {
                 select: {
                   institution: {
@@ -180,7 +208,6 @@ export async function loadAuthor(authorId: string): Promise<AuthorDTO | null> {
                   },
                 },
               },
-              tags: true,
             },
           },
         },
@@ -203,7 +230,13 @@ export async function loadAuthor(authorId: string): Promise<AuthorDTO | null> {
     link: pa.paper.link,
     createdAt: pa.paper.createdAt,
     stars: pa.paper.stars,
-    paperInstitutions: pa.paper.paperInstitutions,
+    abstract: pa.paper.abstract,
+    tags: pa.paper.tags,
+    authors: pa.paper.paperAuthors.map((paperAuthor) => ({
+      id: paperAuthor.author.id,
+      name: paperAuthor.author.name,
+    })),
+    institutions: pa.paper.paperInstitutions.map((pi) => pi.institution.name),
   }));
 
   const derivedInstitution = deriveInstitutionFromPapers(
