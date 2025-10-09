@@ -115,11 +115,9 @@ def make_sweep(
     num_parallel_trials: int = 1,
     train_overrides: Optional[Dict] = None,
     eval_overrides: Optional[Dict] = None,
-
     # Catch all for un-exposed tool overrides.
     # See SweepTool definition for details.
     **advanced,
-
 ) -> SweepTool:
     """Create a sweep with minimal configuration.
 
