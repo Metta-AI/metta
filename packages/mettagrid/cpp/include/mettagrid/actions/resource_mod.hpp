@@ -59,7 +59,7 @@ public:
         _scales(cfg.scales) {}
 
   unsigned char max_arg() const override {
-    return std::numeric_limits<unsigned char>::max();
+    return 0;
   }
 
 protected:

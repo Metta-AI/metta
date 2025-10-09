@@ -74,7 +74,7 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
                 initial_resource_count=5,
                 max_output=50,
                 conversion_ticks=1,
-                cooldown=10,
+                cooldown=[10],
             ),
         },
         agent=AgentConfig(

@@ -191,7 +191,13 @@ def play(
                 agent_id = grid_object["agent_id"]
                 total_rewards[agent_id] += env.rewards[agent_id]
             grid_objects.append(
-                format_grid_object(grid_object, actions, env.action_success, env.rewards, total_rewards)
+                format_grid_object(
+                    grid_object,
+                    actions,
+                    env.action_success,
+                    env.rewards,
+                    total_rewards,
+                )
             )
         step_replay = {"step": step_count, "objects": grid_objects}
         return json.dumps(step_replay)

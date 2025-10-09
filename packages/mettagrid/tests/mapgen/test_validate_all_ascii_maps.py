@@ -98,7 +98,7 @@ class TestAsciiMap:
         # Create a comprehensive mapping that includes all object types used in maps
         objects = {
             "wall": WallConfig(name="wall", type_id=1, map_char="#", render_symbol="⬛"),
-            "converter": ConverterConfig(name="converter", type_id=2, map_char="c", render_symbol="🔄", cooldown=0),
+            "converter": ConverterConfig(name="converter", type_id=2, map_char="c", render_symbol="🔄", cooldown=[0]),
             "assembler": AssemblerConfig(name="assembler", type_id=3, map_char="m", render_symbol="🏭"),
             "chest": ChestConfig(
                 name="chest",
