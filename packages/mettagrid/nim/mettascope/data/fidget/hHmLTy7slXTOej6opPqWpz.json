@@ -45416,29 +45416,20 @@
                     "interactions": []
                   },
                   {
-                    "id": "2364:374",
+                    "id": "2501:502",
                     "name": "Logo",
-                    "type": "INSTANCE",
+                    "type": "FRAME",
                     "scrollBehavior": "SCROLLS",
-                    "componentId": "4:92",
-                    "overrides": [
-                      {
-                        "id": "2364:374",
-                        "overriddenFields": [
-                          "clipsContent",
-                          "name"
-                        ]
-                      }
-                    ],
                     "children": [
                       {
-                        "id": "I2364:374;4:83",
+                        "id": "2501:503",
                         "name": "Group 174",
+                        "visible": false,
                         "type": "GROUP",
                         "scrollBehavior": "SCROLLS",
                         "children": [
                           {
-                            "id": "I2364:374;2384:668",
+                            "id": "2501:504",
                             "name": "Union",
                             "type": "VECTOR",
                             "scrollBehavior": "SCROLLS",
@@ -45487,12 +45478,7 @@
                               "width": 41.0,
                               "height": 37.77312088012695
                             },
-                            "absoluteRenderBounds": {
-                              "x": 1796.0,
-                              "y": 9.999497413635254,
-                              "width": 47.0,
-                              "height": 44.22535705566406
-                            },
+                            "absoluteRenderBounds": null,
                             "constraints": {
                               "vertical": "TOP",
                               "horizontal": "LEFT"
@@ -45517,7 +45503,7 @@
                             "interactions": []
                           },
                           {
-                            "id": "I2364:374;2384:679",
+                            "id": "2501:505",
                             "name": "Union",
                             "type": "VECTOR",
                             "scrollBehavior": "SCROLLS",
@@ -45583,12 +45569,7 @@
                               "width": 41.0,
                               "height": 37.77214431762695
                             },
-                            "absoluteRenderBounds": {
-                              "x": 1799.0,
-                              "y": 13.000279426574707,
-                              "width": 41.0,
-                              "height": 37.77214431762695
-                            },
+                            "absoluteRenderBounds": null,
                             "constraints": {
                               "vertical": "TOP",
                               "horizontal": "LEFT"
@@ -45613,7 +45594,7 @@
                             "interactions": []
                           },
                           {
-                            "id": "I2364:374;4:90",
+                            "id": "2501:506",
                             "name": "Ellipse 37",
                             "type": "ELLIPSE",
                             "scrollBehavior": "SCROLLS",
@@ -45648,12 +45629,7 @@
                               "width": 9.848021290225688,
                               "height": 10.738437223616899
                             },
-                            "absoluteRenderBounds": {
-                              "x": 1803.1282958984375,
-                              "y": 15.039290428161621,
-                              "width": 6.9854736328125,
-                              "height": 7.816885948181152
-                            },
+                            "absoluteRenderBounds": null,
                             "constraints": {
                               "vertical": "TOP",
                               "horizontal": "LEFT"
@@ -45704,12 +45680,7 @@
                           "width": 41.0,
                           "height": 37.773128509521484
                         },
-                        "absoluteRenderBounds": {
-                          "x": 1796.0,
-                          "y": 9.999497413635254,
-                          "width": 47.0,
-                          "height": 44.22535705566406
-                        },
+                        "absoluteRenderBounds": null,
                         "constraints": {
                           "vertical": "CENTER",
                           "horizontal": "CENTER"
@@ -45729,6 +45700,70 @@
                         "size": {
                           "x": 41.0,
                           "y": 37.773128509521484
+                        },
+                        "effects": [],
+                        "interactions": []
+                      },
+                      {
+                        "id": "2501:500",
+                        "name": "Icon_Heart 1",
+                        "type": "RECTANGLE",
+                        "scrollBehavior": "SCROLLS",
+                        "blendMode": "PASS_THROUGH",
+                        "fills": [
+                          {
+                            "blendMode": "NORMAL",
+                            "type": "IMAGE",
+                            "scaleMode": "FILL",
+                            "imageRef": "2dfbd5e7b3d21568037d7eb29001dda51ca94711"
+                          }
+                        ],
+                        "fillGeometry": [
+                          {
+                            "path": "M0 0L64 0L64 64L0 64L0 0Z",
+                            "windingRule": "NONZERO"
+                          }
+                        ],
+                        "strokes": [],
+                        "strokeWeight": 1.0,
+                        "strokeAlign": "INSIDE",
+                        "strokeGeometry": [],
+                        "absoluteBoundingBox": {
+                          "x": 1788.0,
+                          "y": 0.0,
+                          "width": 64.0,
+                          "height": 64.0
+                        },
+                        "absoluteRenderBounds": {
+                          "x": 1788.0,
+                          "y": 0.0,
+                          "width": 64.0,
+                          "height": 64.0
+                        },
+                        "preserveRatio": true,
+                        "targetAspectRatio": {
+                          "x": 64.0,
+                          "y": 64.0
+                        },
+                        "constraints": {
+                          "vertical": "CENTER",
+                          "horizontal": "CENTER"
+                        },
+                        "relativeTransform": [
+                          [
+                            1.0,
+                            0.0,
+                            1.0
+                          ],
+                          [
+                            0.0,
+                            1.0,
+                            0.0
+                          ]
+                        ],
+                        "size": {
+                          "x": 64.0,
+                          "y": 64.0
                         },
                         "effects": [],
                         "interactions": []
@@ -45758,7 +45793,7 @@
                     "absoluteRenderBounds": {
                       "x": 1787.0,
                       "y": 0.0,
-                      "width": 64.0,
+                      "width": 65.0,
                       "height": 64.0
                     },
                     "constraints": {
@@ -86020,9 +86055,9 @@
   "schemaVersion": 0,
   "styles": {},
   "name": "MetaScope V2 Rig",
-  "lastModified": "2025-10-03T22:58:20Z",
-  "thumbnailUrl": "https://s3-alpha.figma.com/thumbnails/51c2545f-2008-4433-b669-1abccb6f2835?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAQ4GOSFWC6UK6QLJ2%2F20251002%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20251002T000000Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=163aa996a880dbcb682375134c8971e50a5563643b0948714aad2313a54f3dce",
-  "version": "2270823826403730615",
+  "lastModified": "2025-10-05T04:11:17Z",
+  "thumbnailUrl": "https://s3-alpha.figma.com/thumbnails/d035cb0c-4e37-4d7b-88b7-a0bb6b90859e?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAQ4GOSFWC6UK6QLJ2%2F20251002%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20251002T000000Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=5513af57c304155dfa694895884482255b3443679bb884374dad1f35c503973c",
+  "version": "2271222927673779835",
   "role": "owner",
   "editorType": "figma",
   "linkAccess": "inherit"

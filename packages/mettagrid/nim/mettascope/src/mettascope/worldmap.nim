@@ -107,11 +107,14 @@ proc useSelections*(panel: Panel) =
           agentDestinations[selection.agentId] = @[destination]
           recomputePath(selection.agentId, startPos)
 
+
 proc drawFloor*() =
   # Draw the floor tiles.
+  bxy.drawRect(rect(-0.5, -0.5, replay.mapSize[0].float32, replay.mapSize[1].float32), parseHtmlColor("#8F7D7D"))
+
   for x in 0 ..< replay.mapSize[0]:
     for y in 0 ..< replay.mapSize[1]:
-      bxy.drawImage("objects/floor", ivec2(x.int32, y.int32).vec2, angle = 0, scale = 1/200)
+      bxy.drawImage("objects/floor", ivec2(x.int32, y.int32).vec2, angle = 0, scale = 1/256)
 
 const wallSprites = @[
   "objects/wall",
@@ -186,7 +189,7 @@ proc drawObjects*() =
     case typeName
     of "wall":
       discard
-      # bxy.drawImage("objects/wall",  pos.vec2, angle = 0, scale = 1/200)
+      # bxy.drawImage("objects/wall",  pos.vec2, angle = 0, scale = 1/256)
     of "agent":
       let agent = thing
       var agentImage = case agent.orientation.at:
@@ -201,7 +204,7 @@ proc drawObjects*() =
         agentImage,
         pos.vec2,
         angle = 0,
-        scale = 1/200,
+        scale = 1/256,
         tint = agentColor(agent.agentId)
       )
     else:
@@ -209,7 +212,7 @@ proc drawObjects*() =
         replay.typeImages[thing.typeId],
         pos.vec2,
         angle = 0,
-        scale = 1/200
+        scale = 1/256
       )
 
 proc drawVisualRanges*(alpha = 0.2) =
@@ -345,13 +348,13 @@ proc drawActions*() =
           of 2: PI # West
           of 3: 0 # East
           else: 0, # East
-        scale = 1/200)
+        scale = 1/256)
     elif obj.productionProgress.at > 0:
       bxy.drawImage(
         "actions/converting",
         obj.location.at.xy.vec2,
         angle = 0,
-        scale = 1/200
+        scale = 1/256
       )
 
 proc drawAgentDecorations*() =
@@ -362,7 +365,7 @@ proc drawAgentDecorations*() =
         "agents/frozen",
         agent.location.at.xy.vec2,
         angle = 0,
-        scale = 1/200
+        scale = 1/256
       )
 
 proc drawClippedStatus*() =
@@ -373,7 +376,7 @@ proc drawClippedStatus*() =
         "agents/frozen",
         obj.location.at.xy.vec2,
         angle = 0,
-        scale = 1/200
+        scale = 1/256
       )
 
 proc drawGrid*() =
@@ -384,7 +387,7 @@ proc drawGrid*() =
         "view/grid",
         ivec2(x.int32, y.int32).vec2,
         angle = 0,
-        scale = 1/200
+        scale = 1/256
       )
 
 proc drawInventory*() =
@@ -403,7 +406,7 @@ proc drawInventory*() =
           replay.itemImages[itemAmount.itemId],
           obj.location.at.xy.vec2 + vec2(x.float32, -0.5),
           angle = 0,
-          scale = 1/200 / 4
+          scale = 1/256 / 4
         )
         x += xAdvance
 
@@ -445,7 +448,7 @@ proc drawPlannedPath*() =
         "agents/path",
         pos0.vec2,
         angle = rotation,
-        scale = 1/200,
+        scale = 1/256,
         tint = color(1, 1, 1, alpha)
       )
       currentPos = action.pos
@@ -481,7 +484,7 @@ proc drawPlannedPath*() =
             "actions/arrow",
             approachPos.vec2 + offset,
             angle = rotation,
-            scale = 1/200,
+            scale = 1/256,
             tint = color(1, 1, 1, 0.7)
           )
 
@@ -492,7 +495,7 @@ proc drawSelection*() =
       "selection",
       selection.location.at.xy.vec2,
       angle = 0,
-      scale = 1/200
+      scale = 1/256
     )
 
 proc drawRewards*() =
@@ -507,7 +510,7 @@ proc drawRewards*() =
           "resources/reward",
           obj.location.at.xy.vec2 + vec2(rewardX, 0.5 - 16/200),
           angle = 0,
-          scale = 1/200/8
+          scale = 1/256/8
         )
         rewardX += advanceX
 
@@ -579,7 +582,7 @@ proc drawThoughtBubbles*() =
         "actions/arrow",
         vec2(tX, tY),
         angle = angle + PI,
-        scale = 1/200
+        scale = 1/256
       )
     let pos = loc.vec2 + vec2(0.5, -0.5)
     # We have a key action, so draw the thought bubble.
@@ -588,7 +591,7 @@ proc drawThoughtBubbles*() =
       if step == keyStep: "actions/thoughts_lightning" else: "actions/thoughts",
       pos,
       angle = 0,
-      scale = 1/200
+      scale = 1/256
     )
     # Draw the action icon.
     bxy.drawImage(
@@ -596,7 +599,7 @@ proc drawThoughtBubbles*() =
         replay.actionIconImages[keyAction] else: "actions/icons/unknown",
       pos,
       angle = 0,
-      scale = 1/200/4
+      scale = 1/256/4
     )
 
     # Draw the resources lost on the left and gained on the right.
@@ -615,7 +618,7 @@ proc drawThoughtBubbles*() =
         replay.itemImages[item.itemId],
         vec2(drawX, pos.y),
         angle = 0,
-        scale = 1/200/8
+        scale = 1/256/8
       )
 
 proc drawWorldMini*() =

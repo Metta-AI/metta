@@ -36,6 +36,7 @@ if defined(emscripten):
     -o dist/mettascope.html
     --preload-file data
     --shell-file src/mettascope/shell.html
+    -s ASYNCIFY
     -s USE_WEBGL2=1
     -s MAX_WEBGL_VERSION=2
     -s MIN_WEBGL_VERSION=1
@@ -50,5 +51,5 @@ if defined(emscripten):
 --exceptions:goto # Goto exceptions are friendlier with crazy platforms.
 --define:noSignalHandler # Emscripten doesn't support signal handlers.
 --define:noAutoGLerrorCheck
---define:windyUseStdHttp
 --define:ssl
+--debugger:native

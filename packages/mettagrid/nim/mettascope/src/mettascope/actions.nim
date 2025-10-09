@@ -10,6 +10,9 @@ type
     W = 2
     E = 3
 
+
+
+
 proc sendAction*(agentId, actionId, argument: int) =
   ## Send an action to the Python from the user.
   requestActions.add(ActionRequest(
