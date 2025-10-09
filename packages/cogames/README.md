@@ -36,14 +36,14 @@ uv pip install cogames
 # List missions
 cogames missions
 
-# Play an episode of the machina_1 game
-cogames play training_facility_1 --interactive
+# Play an episode of the machina_1 game.
+cogames play training_facility_1 random
 
 # Train a policy in a simple, single-agent game
 cogames train training_facility_1 simple
 
 # Watch or play along side your trained policy
-cogames play training_facility_1 simple:train_dir/policy.pt --interactive
+cogames play training_facility_1 simple:train_dir/policy.pt
 
 # Evaluate your policy
 cogames eval training_facility_1 simple:./train_dir/policy.pt
