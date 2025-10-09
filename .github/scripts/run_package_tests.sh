@@ -65,7 +65,8 @@ run_package_tests() {
   fi
 
   # Pytest arguments matching CI
-  PYTEST_BASE_ARGS="-n 4 --timeout=100 --timeout-method=thread --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v"
+  # Use concise pytest output: skip per-test PASS lines, but keep failures/errors/warnings summaries.
+  PYTEST_BASE_ARGS="-n 4 --timeout=100 --timeout-method=thread --cov --cov-branch --benchmark-skip --maxfail=1 --durations=10 -r fEw"
 
   # Save raw output for duration parsing
   local raw_output="test-results/${package_name}_raw.log"
