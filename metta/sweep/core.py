@@ -115,22 +115,29 @@ def make_sweep(
     num_parallel_trials: int = 1,
     train_overrides: Optional[Dict] = None,
     eval_overrides: Optional[Dict] = None,
+
+    # Catch all for un-exposed tool overrides.
+    # See SweepTool definition for details.
     **advanced,
+
 ) -> SweepTool:
     """Create a sweep with minimal configuration.
 
-    Args:
-        name: Sweep identifier
-        recipe: Recipe module path
-        train_entrypoint: Training entrypoint function
-        eval_entrypoint: Evaluation entrypoint function
-        objective: Metric to optimize
-        parameters: Parameters to sweep - either dict or list of single-item dicts
-        num_trials: Number of trials
-        num_parallel_trials: Max parallel jobs
-        train_overrides: Optional overrides for training configuration
-        eval_overrides: Optional overrides for evaluation configuration
-        **advanced: Additional SweepTool options
+    Args (all passed as tool overrides downstream):
+        Tool overrides:
+            name: Sweep identifier
+            recipe: Recipe module path
+            train_entrypoint: Training entrypoint function
+            eval_entrypoint: Evaluation entrypoint function
+            num_trials: Number of trials
+            num_parallel_trials: Max parallel jobs
+            train_overrides: Optional overrides for training configuration
+            eval_overrides: Optional overrides for evaluation configuration
+            **advanced: Additional SweepTool options
+
+        Protein config args:
+            objective: Metric to optimize
+            parameters: Parameters to sweep - either dict or list of single-item dicts
 
     Returns:
         Configured SweepTool
@@ -150,13 +157,7 @@ def make_sweep(
         metric=objective,
         goal=advanced.pop("goal", "maximize"),
         parameters=parameters,
-        settings=ProteinSettings(
-            num_random_samples=0,
-            max_suggestion_cost=3600 * 6,
-            resample_frequency=10,
-            random_suggestions=15,
-            suggestions_per_pareto=128,
-        ),
+        settings=ProteinSettings(),
     )
 
     scheduler_type = SweepSchedulerType.ASYNC_CAPPED
