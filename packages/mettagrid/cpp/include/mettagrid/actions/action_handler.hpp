@@ -144,6 +144,13 @@ public:
     return _action_name;
   }
 
+  virtual std::string variant_name(ActionArg arg) const {
+    if (max_arg() == 0) {
+      return _action_name;
+    }
+    return _action_name + "_" + std::to_string(static_cast<int>(arg));
+  }
+
 protected:
   virtual bool _handle_action(Agent& actor, ActionArg arg) = 0;
 

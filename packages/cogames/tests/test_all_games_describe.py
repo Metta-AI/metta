@@ -4,20 +4,20 @@ import subprocess
 
 import pytest
 
-from cogames.game import get_all_games
+from cogames.cli.mission import get_all_missions
 
 
-@pytest.mark.parametrize("game_name", get_all_games())
+@pytest.mark.parametrize("mission_name", get_all_missions())
 @pytest.mark.timeout(60)
-def test_game_describe(game_name):
-    """Test that 'cogames games <game>' works for all games."""
+def test_mission_describe(mission_name):
+    """Test that 'cogames mission <mission_name>' works for all games."""
     result = subprocess.run(
-        ["uv", "run", "cogames", "games", game_name],
+        ["uv", "run", "cogames", "missions", mission_name],
         capture_output=True,
         text=True,
         timeout=60,
     )
 
-    assert result.returncode == 0, f"Failed to describe game {game_name}: {result.stderr}"
-    assert "Game Configuration:" in result.stdout
+    assert result.returncode == 0, f"Failed to describe mission {mission_name}: {result.stderr}"
+    assert "Mission Configuration:" in result.stdout
     assert "Available Actions:" in result.stdout

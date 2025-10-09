@@ -12,26 +12,61 @@ class Glyph:
 
 
 GLYPH_DATA = [
-    Glyph("🙂", "default"),
-    Glyph("⬆️", "up"),
+    # --- Tier 0: Core Starter Set (13 glyphs) ---
+    Glyph("🙂", "default"),  # neutral
+    Glyph("⬆️", "up"),  # directions
     Glyph("⬇️", "down"),
     Glyph("⬅️", "left"),
     Glyph("➡️", "right"),
+    Glyph("😄", "happy"),  # positive emotion
+    Glyph("😡", "angry"),  # conflict / aggression
+    Glyph("❤️", "heart"),  # reward / health
+    Glyph("🔋", "battery"),  # energy / charge
+    Glyph("⚫", "carbon"),  # C — Carbon
+    Glyph("⚪", "oxygen"),  # O — Oxygen
+    Glyph("🟣", "germanium"),  # G — Germanium
+    Glyph("🟠", "silicon"),  # S — Silicon
+    # --- Tier 1: Identity and Team Culture ---
+    Glyph("👽", "alien"),
+    Glyph("🤖", "robot"),
+    Glyph("🟩", "green-square"),
+    Glyph("🟦", "blue-square"),
+    Glyph("🟥", "red-square"),
+    # --- Tier 2: Directional Nuance ---
     Glyph("↗️", "up-right"),
     Glyph("↘️", "down-right"),
     Glyph("↙️", "down-left"),
     Glyph("↖️", "up-left"),
     Glyph("🔄", "rotate"),
+    # --- Tier 3: Expression Nuance ---
+    Glyph("😢", "sad"),
+    Glyph("🤔", "thinking"),
+    Glyph("😱", "screaming"),
+    Glyph("😎", "sunglasses"),
+    Glyph("😴", "sleeping"),
+    Glyph("👀", "eyes"),
+    Glyph("✨", "sparkles"),
+    Glyph("💀", "skull"),
+    Glyph("💩", "poop"),
+    # --- Tier 4: Combat / Tools / Economy ---
+    Glyph("⚔️", "swords"),
+    Glyph("🛡️", "shield"),
+    Glyph("🔧", "wrench"),
+    Glyph("⚙️", "gear"),
+    Glyph("💰", "money"),
+    Glyph("🏭", "factory"),
+    Glyph("⚡", "lightning"),
+    Glyph("🔥", "fire"),
+    Glyph("💧", "water"),
+    Glyph("🌳", "tree"),
+    # --- Tier 5: Miscellaneous ---
     Glyph("🔃", "rotate-clockwise"),
     Glyph("🔂", "rotate-loop"),
     Glyph("🧭", "compass"),
     Glyph("📍", "pin"),
     Glyph("📌", "pushpin"),
     Glyph("💎", "diamond"),
-    Glyph("💰", "money"),
     Glyph("🪙", "coin"),
-    Glyph("⚡", "lightning"),
-    Glyph("🔋", "battery"),
     Glyph("🛢️", "oil"),
     Glyph("⛽", "fuel"),
     Glyph("🌾", "wheat"),
@@ -40,23 +75,15 @@ GLYPH_DATA = [
     Glyph("🪨", "rock"),
     Glyph("⛰️", "mountain"),
     Glyph("🪵", "wood"),
-    Glyph("🌳", "tree"),
-    Glyph("💧", "water"),
     Glyph("🌊", "wave"),
-    Glyph("🔥", "fire"),
-    Glyph("⚔️", "swords"),
     Glyph("🗡️", "dagger"),
     Glyph("🏹", "bow"),
-    Glyph("🛡️", "shield"),
-    Glyph("🔧", "wrench"),
     Glyph("🔨", "hammer"),
-    Glyph("⚙️", "gear"),
     Glyph("📎", "paperclip"),
     Glyph("⚗️", "alembic"),
     Glyph("🧪", "test-tube"),
     Glyph("📦", "package"),
     Glyph("🎒", "backpack"),
-    Glyph("🏭", "factory"),
     Glyph("0️⃣", "zero"),
     Glyph("1️⃣", "one"),
     Glyph("2️⃣", "two"),
@@ -115,32 +142,23 @@ GLYPH_DATA = [
     Glyph("🤬", "swearing"),
     Glyph("😨", "fearful"),
     Glyph("😰", "anxious"),
-    Glyph("😱", "screaming"),
-    Glyph("🤔", "thinking"),
     Glyph("🧐", "monocle"),
     Glyph("😕", "confused"),
-    Glyph("😴", "sleeping"),
     Glyph("😪", "sleepy"),
     Glyph("🥱", "yawning"),
     Glyph("🤤", "drooling"),
     Glyph("😋", "savoring"),
-    Glyph("😎", "sunglasses"),
     Glyph("😏", "smirking"),
     Glyph("🙄", "rolling-eyes"),
     Glyph("🤡", "clown"),
-    Glyph("🤖", "robot"),
     Glyph("👻", "ghost"),
     Glyph("🗿", "moai"),
-    Glyph("👀", "eyes"),
-    Glyph("💀", "skull"),
     Glyph("☠️", "skull-crossbones"),
     Glyph("📈", "chart-up"),
     Glyph("📉", "chart-down"),
     Glyph("🚀", "rocket"),
     Glyph("🎯", "target"),
     Glyph("⭐", "star"),
-    Glyph("✨", "sparkles"),
-    Glyph("💩", "poop"),
     Glyph("🔴", "red-circle"),
     Glyph("🟠", "orange-circle"),
     Glyph("🟡", "yellow-circle"),
@@ -150,11 +168,8 @@ GLYPH_DATA = [
     Glyph("🟤", "brown-circle"),
     Glyph("⚫", "black-circle"),
     Glyph("⚪", "white-circle"),
-    Glyph("🟥", "red-square"),
     Glyph("🟧", "orange-square"),
     Glyph("🟨", "yellow-square"),
-    Glyph("🟩", "green-square"),
-    Glyph("🟦", "blue-square"),
     Glyph("🟪", "purple-square"),
     Glyph("🟫", "brown-square"),
     Glyph("⬛", "black-square"),
@@ -167,6 +182,9 @@ GLYPH_DATA = [
     Glyph("░", "light-shade"),
     Glyph("▒", "medium-shade"),
 ]
+
+# Use only Tier 0 glyphs for now.
+GLYPH_DATA = GLYPH_DATA[:13]
 
 # For backward compatibility - list of just symbols
 GLYPHS = [glyph.symbol for glyph in GLYPH_DATA]
