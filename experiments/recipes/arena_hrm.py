@@ -46,7 +46,7 @@ def train_shaped(
         update={"policy_architecture": policy_architecture or HRMTinyConfig()}
     )
     # Update loss config to use HRMPPO
-    tool.trainer.losses.loss_configs = {"hrm_ppo": HRMPPOConfig()}
+    # tool.trainer.losses.loss_configs = {"hrm_ppo": HRMPPOConfig()}
     return tool
 
 
