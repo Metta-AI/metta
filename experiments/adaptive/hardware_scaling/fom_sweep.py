@@ -23,11 +23,12 @@ def calculate_hardware_specific_batch_range(
 
     Uses the exact calculations from optimized_sweep_config.py.
     """
+    # Calculate minimum batch size for this hardware
     total_gpus = gpus * nodes
 
     # CPU-related (environment parallelization)
-    cpu_count = os.cpu_count() or 8
-    num_workers = max(1, cpu_count // 2)
+    cpu_count = os.cpu_count() or 8  # Assume 8 CPUs per node if not available
+    num_workers = max(1, cpu_count // 2)  # Half CPUs for workers
 
     # Environment calculation (CPU-side) per GPU
     target_batch = forward_pass_minibatch_target_size // num_agents
@@ -46,8 +47,9 @@ def calculate_hardware_specific_batch_range(
     # Round up to nearest power of 2
     min_batch_size = 2 ** math.ceil(math.log2(min_batch_size))
 
-    # Max batch size is 8x minimum, capped at 8192 for stability
-    max_batch_size = min(min_batch_size * 8, 8192)
+    # Max batch size is 8x minimum (as specified in original requirements)
+    # Cap at 8192 for memory stability
+    max_batch_size = min_batch_size * 8
 
     # Default batch is 2x minimum (from optimized config)
     default_batch = min_batch_size * 2
