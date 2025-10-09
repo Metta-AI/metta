@@ -2,7 +2,6 @@
 
 from typing import Optional, Sequence
 
-from experiments.sweeps.protein_configs import PPO_CORE, make_custom_protein_config
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
 from metta.cogworks.curriculum.curriculum import (
@@ -14,12 +13,12 @@ from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.sweep.protein_config import ParameterConfig
+from metta.sweep.core import make_sweep, SweepParameters as SP, Distribution as D
 from metta.tools.eval import EvaluateTool
 from metta.tools.eval_remote import EvalRemoteTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.sweep import SweepTool, SweepSchedulerType
+from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from mettagrid.config import ConverterConfig
@@ -106,6 +105,7 @@ def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
     enable_contrastive: bool = True,
+    # These parameters can now be swept over.
     temperature: float = 0.07,
     contrastive_coef: float = 0.1,
 ) -> TrainTool:
@@ -183,62 +183,59 @@ def evaluate_remote(
     )
 
 
-def sweep_async_progressive(
-    min_timesteps: int,
-    max_timesteps: int,
-    initial_timesteps: int,
-    max_concurrent_evals: int = 5,
-    liar_strategy: str = "best",
-) -> None:
-    """Async-capped sweep that also sweeps over total timesteps.
+# Sweep section
 
-    Args:
-        min_timesteps: Minimum trainer.total_timesteps to consider.
-        max_timesteps: Maximum trainer.total_timesteps to consider.
-        initial_timesteps: Initial/mean value for trainer.total_timesteps.
-        max_concurrent_evals: Max number of concurrent evals (default: 1).
-        liar_strategy: Constant Liar strategy (best|mean|worst).
+SWEEP_EVAL_SUITE = "sweep_arena_sparse"
 
-    Returns:
-        SweepTool configured for async-capped scheduling and progressive timesteps.
-    """
-    print("This function is deperecated and must be refactored. \n Please look at the sweep function in basic_easy_shaped for reference.")
-    return
 
-    # DEPRECATED
-    protein_cfg = make_custom_protein_config(
-        base_config=PPO_CORE,
-        parameters={
-            "trainer.total_timesteps": ParameterConfig(
-                min=min_timesteps,
-                max=max_timesteps,
-                distribution="int_uniform",
-                mean=initial_timesteps,
-                scale="auto",
-            ),
-            "temperature": ParameterConfig(
-                min=0,
-                max=0.5,
-                distribution="uniform",
-                mean=0.07,
-                scale="auto",
-            ),
-            "contrastive_coef": ParameterConfig(
-                min=0,
-                max=1.0,
-                distribution="uniform",
-                mean=0.5,
-                scale="auto",
-            ),
-        },
+def evaluate_in_sweep(policy_uri: str) -> EvaluateTool:
+    basic_env = mettagrid()
+    basic_env.game.actions.attack.consumed_resources["laser"] = 100
+
+    combat_env = basic_env.model_copy()
+    combat_env.game.actions.attack.consumed_resources["laser"] = 1
+
+    simulations = [
+        SimulationConfig(suite=SWEEP_EVAL_SUITE, name="basic", env=basic_env),
+        SimulationConfig(suite=SWEEP_EVAL_SUITE, name="combat", env=combat_env),
+    ]
+
+    return EvaluateTool(
+        simulations=simulations,
+        policy_uris=[policy_uri],
     )
-    protein_cfg.metric = "evaluator/eval_arena_sparse/score"
-    return SweepTool(
-        protein_config=protein_cfg,
-        recipe_module="experiments.recipes.arena_with_sparse_rewards",
+
+
+def sweep(sweep_name: str) -> SweepTool:
+    parameters = [
+        SP.LEARNING_RATE,
+        SP.PPO_CLIP_COEF,
+        SP.PPO_GAE_LAMBDA,
+        SP.PPO_VF_COEF,
+        SP.ADAM_EPS,
+        SP.param(
+            "trainer.total_timesteps",
+            D.INT_UNIFORM,
+            min=5e8,
+            max=2e9,
+            search_center=7.5e8,
+        ),
+        # These two custom parameters are handled by the train function of this recipe,
+        # and are therefore sweepable.
+        SP.param("temperature", D.UNIFORM, min=0, max=0.4, search_center=0.07),
+        SP.param("contrastive_coef", D.UNIFORM, min=0.0001, max=1, search_center=0.2),
+    ]
+
+    return make_sweep(
+        name=sweep_name,
+        recipe="experiments.recipes.arena_with_sparse_reward",
         train_entrypoint="train",
-        eval_entrypoint="evaluate",
-        scheduler_type=SweepSchedulerType.ASYNC_CAPPED,
-        max_concurrent_evals=max_concurrent_evals,
-        liar_strategy=liar_strategy,
+        # We can set global overrides for training here.
+        # These are passed via the CLI
+        train_overrides={"enable_contrastive": True},
+        eval_entrypoint="evaluate_in_sweep",
+        objective=f"evaluator/eval_{SWEEP_EVAL_SUITE}/score",
+        parameters=parameters,
+        num_trials=80,
+        num_parallel_trials=4,
     )

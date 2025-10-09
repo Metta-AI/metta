@@ -13,12 +13,11 @@ from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.sweep.protein_config import ParameterConfig
 from metta.sweep.core import make_sweep, SweepParameters as SP, Distribution as D
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.sweep import SweepSchedulerType, SweepTool
+from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from mettagrid.config import ConverterConfig
@@ -142,69 +141,70 @@ def replay(policy_uri: Optional[str] = None) -> ReplayTool:
     return ReplayTool(sim=simulations()[0], policy_uri=policy_uri)
 
 
-def evaluate_in_sweep(
-    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
-) -> EvaluateTool:
-    """Evaluation function optimized for sweep runs.
+def evaluate_in_sweep(policy_uri: str) -> EvaluateTool:
+    """Evaluation tool for sweep runs.
 
     Uses 10 episodes per simulation with a 4-minute time limit to get
     reliable results quickly during hyperparameter sweeps.
+    NB: Please note that this function takes a **single** policy_uri. This is the expected signature in our sweeps.
+    Additional arguments are supported through eval_overrides.
     """
-    if simulations is None:
-        # Create sweep-optimized versions of the standard evaluations
-        # Use a dedicated suite name to control the metric namespace in WandB
-        basic_env = mettagrid()
-        basic_env.game.actions.attack.consumed_resources["laser"] = 100
 
-        combat_env = basic_env.model_copy()
-        combat_env.game.actions.attack.consumed_resources["laser"] = 1
+    # Create sweep-optimized versions of the standard evaluations
+    # Use a dedicated suite name to control the metric namespace in WandB
+    basic_env = mettagrid()
+    basic_env.game.actions.attack.consumed_resources["laser"] = 100
 
-        simulations = [
-            SimulationConfig(
-                suite="sweep",
-                name="basic",
-                env=basic_env,
-                num_episodes=10,  # 10 episodes for statistical reliability
-                max_time_s=240,  # 4 minutes max per simulation
-            ),
-            SimulationConfig(
-                suite="sweep",
-                name="combat",
-                env=combat_env,
-                num_episodes=10,
-                max_time_s=240,
-            ),
-        ]
+    combat_env = basic_env.model_copy()
+    combat_env.game.actions.attack.consumed_resources["laser"] = 1
+
+    simulations = [
+        SimulationConfig(
+            suite="sweep",
+            name="basic",
+            env=basic_env,
+            num_episodes=10,  # 10 episodes for statistical reliability
+            max_time_s=240,  # 4 minutes max per simulation
+        ),
+        SimulationConfig(
+            suite="sweep",
+            name="combat",
+            env=combat_env,
+            num_episodes=10,
+            max_time_s=240,
+        ),
+    ]
 
     return EvaluateTool(
         simulations=simulations,
         policy_uris=[policy_uri],
     )
 
+
 def sweep(sweep_name: str) -> SweepTool:
     """
-        Prototypical sweep function.
-        In your own recipe, you likely only every need this. You can override other SweepTool parameters in the CLI.
+    Prototypical sweep function.
+    In your own recipe, you likely only every need this. You can override other SweepTool parameters in the CLI.
 
-        Example usage:
-            `uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.sweep sweep_name="ak.baes.10081528" -- gpus=4 nodes=2`
+    Example usage:
+        `uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.sweep sweep_name="ak.baes.10081528" -- gpus=4 nodes=2`
 
-        We recommend running using local_test=True before running the sweep on the remote:
-            `uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.sweep sweep_name="ak.baes.10081528.local_test" -- local_test=True`
-        This will run a quick local sweep and allow you to catch configuration bugs (NB: Unless those bugs are related to batch_size, minibatch_size, or hardware configuration).
-        If this runs smoothly, you must launch the sweep on a remote sandbox (otherwise sweep progress will halt when you close your computer).
+    We recommend running using local_test=True before running the sweep on the remote:
+        `uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.sweep sweep_name="ak.baes.10081528.local_test" -- local_test=True`
+    This will run a quick local sweep and allow you to catch configuration bugs (NB: Unless those bugs are related to batch_size, minibatch_size, or hardware configuration).
+    If this runs smoothly, you must launch the sweep on a remote sandbox (otherwise sweep progress will halt when you close your computer).
 
-        Running on the remote:
-            1 - Start a sweep controller sandbox: `./devops/skypilot/sandbox.py --sweep-controller`, and ssh into it.
-            2 - Clean git pollution: `git clean -df && git stash`
-            3 - Ensure your sky credentials are present: `sky status` -- if not, follow the instructions on screen.
-            4 - Install tmux on the sandbox `apt install tmux`
-            5 - Launch tmux session: `tmux new -s sweep`
-            6 - Launch the sweep: `uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.sweep sweep_name="ak.baes.10081528" -- gpus=4 nodes=2`
-            7 - Detach when you want: CTRL+B then d
-            8 - Attach to look at status/output: `tmux attach -t sweep_configs`
+    Running on the remote:
+        1 - Start a sweep controller sandbox: `./devops/skypilot/sandbox.py --sweep-controller`, and ssh into it.
+        2 - Clean git pollution: `git clean -df && git stash`
+        3 - Ensure your sky credentials are present: `sky status` -- if not, follow the instructions on screen.
+        4 - Install tmux on the sandbox `apt install tmux`
+        5 - Launch tmux session: `tmux new -s sweep`
+        6 - Launch the sweep: `uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.sweep sweep_name="ak.baes.10081528" -- gpus=4 nodes=2`
+        7 - Detach when you want: CTRL+B then d
+        8 - Attach to look at status/output: `tmux attach -t sweep_configs`
 
-        Please tag Axel (akerbec@softmax.ai) on any bug report.
+    Please tag Axel (akerbec@softmax.ai) on any bug report.
     """
 
     # Common parameters are accessible via SP (SweepParameters).
@@ -214,25 +214,28 @@ def sweep(sweep_name: str) -> SweepTool:
         SP.PPO_GAE_LAMBDA,
         SP.PPO_VF_COEF,
         SP.ADAM_EPS,
-        SP.param("trainer.total_timesteps", D.UNIFORM, min=5e8, max=2e9, search_center=7.5e8)
+        SP.param(
+            "trainer.total_timesteps",
+            D.INT_UNIFORM,
+            min=5e8,
+            max=2e9,
+            search_center=7.5e8,
+        ),
     ]
 
     return make_sweep(
         name=sweep_name,
         recipe="experiments.recipes.arena_basic_easy_shaped",
         train_entrypoint="train",
-
         # NB: You MUST use a specific sweep eval suite, different than those in training.
         # Besides this being a recommended practice, using the same eval suite in both
         # training and scoring will lead to key conflicts that will lock the sweep.
         eval_entrypoint="evaluate_in_sweep",
-
         # Typically, "evaluator/eval_{suite}/score"
         objective="evaluator/eval_sweep/score",
         parameters=parameters,
         num_trials=80,
-
         # Default value is 1. We don't recommend going higher than 4.
         # The faster each individual trial, the lower you should set this number.
-        num_parallel_trials=4
+        num_parallel_trials=4,
     )
