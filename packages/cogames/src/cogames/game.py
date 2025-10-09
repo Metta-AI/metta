@@ -7,6 +7,12 @@ from pathlib import Path
 
 import yaml
 
+from cogames.mission_aliases import (
+    MAP_MISSION_DELIMITER,
+    generate_env,
+    list_registered_missions,
+    resolve_map_and_mission,
+)
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
 _SUPPORTED_MISSION_EXTENSIONS = [".yaml", ".yml", ".json", ".py"]
@@ -102,3 +108,35 @@ def load_mission_config(path: Path) -> MettaGridConfig:
         )
 
     return MettaGridConfig(**config_dict)
+
+
+def get_all_missions() -> list[str]:
+    """Return the list of registered missions, including aliases."""
+    return list_registered_missions()
+
+
+def get_mission(map_identifier: str, mission_name: str | None = None) -> tuple[MettaGridConfig, str | None, str | None]:
+    """Resolve a mission by name, alias, or file path."""
+    if any(map_identifier.endswith(ext) for ext in _SUPPORTED_MISSION_EXTENSIONS):
+        path = Path(map_identifier)
+        if not path.exists() or not path.is_file():
+            raise ValueError(f"File not found: {map_identifier}")
+        if path.suffix == ".py":
+            return load_mission_config_from_python(path), None, None
+        if path.suffix in [".yaml", ".yml", ".json"]:
+            return load_mission_config(path), None, None
+        raise ValueError(f"Unsupported file format: {path.suffix}")
+
+    normalized_map, normalized_mission = resolve_map_and_mission(map_identifier, mission_name)
+    config, resolved_map, resolved_mission = generate_env(normalized_map, normalized_mission)
+    return config, resolved_map, resolved_mission
+
+
+__all__ = [
+    "MAP_MISSION_DELIMITER",
+    "get_all_missions",
+    "get_mission",
+    "load_mission_config",
+    "load_mission_config_from_python",
+    "save_mission_config",
+]

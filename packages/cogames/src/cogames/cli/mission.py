@@ -1,24 +1,18 @@
-from pathlib import Path
 from typing import Optional
 
 import typer
 from rich.table import Table
 
+from cogames import game
 from cogames.cli.base import console
 from cogames.cogs_vs_clips.missions import USER_MAP_CATALOG
-from cogames.game import load_mission_config, load_mission_config_from_python
+from cogames.mission_aliases import MAP_MISSION_DELIMITER, list_registered_missions
 from mettagrid import MettaGridConfig
 from mettagrid.config.mettagrid_config import AssemblerConfig
 
-MAP_MISSION_DELIMITER = ":"
-
 
 def get_all_missions() -> list[str]:
-    return [
-        f"{user_map.name}{MAP_MISSION_DELIMITER}{mission_name}"
-        for user_map in USER_MAP_CATALOG
-        for mission_name in user_map.available_missions
-    ]
+    return list_registered_missions()
 
 
 def get_mission_name_and_config(ctx: typer.Context, mission_arg: Optional[str]) -> tuple[str, MettaGridConfig]:
@@ -39,56 +33,14 @@ def get_mission_name_and_config(ctx: typer.Context, mission_arg: Optional[str]) 
     raise typer.Exit(0)
 
 
-def get_mission(
-    mission_arg: str,
-) -> tuple[str, MettaGridConfig]:
-    """Get a specific mission configuration by name or file path.
-
-    Args:
-        map_name: Name of the map or path to config file (.yaml, .json, or .py)
-        mission_name: Name of the mission. If unspecified, will use the default mission for the map.
-
-    Returns:
-        Environment configuration, map name, mission name
-
-    Raises:
-        ValueError: If mission not found or file cannot be loaded
-    """
-    # Check if it's a file path
-    if any(mission_arg.endswith(ext) for ext in [".yaml", ".yml", ".json", ".py"]):
-        path = Path(mission_arg)
-        if not path.exists():
-            raise ValueError(f"File not found: {mission_arg}")
-        if not path.is_file():
-            raise ValueError(f"Not a file: {mission_arg}")
-
-        # Load config based on file extension
-        if path.suffix == ".py":
-            return mission_arg, load_mission_config_from_python(path)
-        elif path.suffix in [".yaml", ".yml", ".json"]:
-            return mission_arg, load_mission_config(path)
-        else:
-            raise ValueError(f"Unsupported file format: {path.suffix}")
-
-    # Otherwise, treat it as a mission name
-    if (delim_count := mission_arg.count(MAP_MISSION_DELIMITER)) == 0:
-        map_name, mission_name = mission_arg, None
-    elif delim_count > 1:
-        raise ValueError(f"Mission name can contain at most one `{MAP_MISSION_DELIMITER}` delimiter")
-    else:
-        map_name, mission_name = mission_arg.split(MAP_MISSION_DELIMITER)
-    matching_maps = [user_map for user_map in USER_MAP_CATALOG if user_map.name == map_name]
-    if not matching_maps:
-        raise ValueError(f"Could not find map {map_name}")
-    elif len(matching_maps) > 1:
-        raise ValueError(f"Invalid map catalog: more than one map named {map_name}")
-    matching_map = matching_maps[0]
-    effective_mission = mission_name if mission_name is not None else matching_map.default_mission
-    if effective_mission not in matching_map.available_missions:
-        raise ValueError(f"Mission {effective_mission} not available on map {map_name}")
-    return f"{matching_map.name}{MAP_MISSION_DELIMITER}{effective_mission}", matching_map.generate_env(
-        effective_mission
-    )
+def get_mission(mission_arg: str) -> tuple[str, MettaGridConfig]:
+    """Resolve a mission argument into a canonical mission name and configuration."""
+    config, resolved_map, resolved_mission = game.get_mission(mission_arg)
+    if resolved_map is None:
+        return mission_arg, config
+    if resolved_mission in (None, "default"):
+        return resolved_map, config
+    return f"{resolved_map}{MAP_MISSION_DELIMITER}{resolved_mission}", config
 
 
 def list_missions() -> None:
