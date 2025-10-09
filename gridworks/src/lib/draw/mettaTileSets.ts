@@ -39,7 +39,7 @@ export const TILE_NAMES = [
   // doesn't include "agent" or "wall", they're special
 ];
 
-const WALL_NAMES = [
+export const WALL_NAMES = [
   "wall",
   "wall.e",
   "wall.s",
@@ -60,8 +60,8 @@ const WALL_NAMES = [
 
 export const WALL_E = 1;
 export const WALL_S = 2;
-export const WALL_N = 4;
-export const WALL_W = 8;
+export const WALL_W = 4;
+export const WALL_N = 8;
 
 const sources = [...TILE_NAMES, ...WALL_NAMES, "wall.fill", "agent"].map(
   (name) =>

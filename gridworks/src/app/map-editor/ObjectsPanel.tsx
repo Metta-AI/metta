@@ -2,7 +2,7 @@ import clsx from "clsx";
 import { FC, useEffect, useRef } from "react";
 
 import { useDrawer } from "@/components/MapViewer/hooks";
-import { Drawer, objectNames } from "@/lib/draw/Drawer";
+import { BACKGROUND_MAP_COLOR, Drawer, objectNames } from "@/lib/draw/Drawer";
 import { MettaObject } from "@/lib/MettaGrid";
 
 const SelectableButton: FC<{
@@ -54,7 +54,12 @@ const ObjectIcon: FC<{
   }, [name, drawer]);
 
   if (name === "empty") {
-    return <div className="h-8 w-8 bg-gray-200" />;
+    return (
+      <div
+        className="h-8 w-8"
+        style={{ backgroundColor: BACKGROUND_MAP_COLOR }}
+      />
+    );
   }
 
   return (
@@ -97,7 +102,7 @@ const GroupedObjectEntry: FC<{
   drawer: Drawer;
 }> = ({ groupName, names, selected, onClick, drawer }) => {
   return (
-    <div className={clsx("flex items-center justify-between gap-2")}>
+    <div className="flex items-center justify-between gap-2">
       <div className="mx-1 font-mono text-xs tracking-wider text-gray-600 uppercase">
         {groupName}
       </div>
@@ -127,20 +132,34 @@ export const ObjectsPanel: FC<{
     return null;
   }
 
-  const basicNames: string[] = [];
+  const basicNames: string[] = ["empty", "wall"];
   const groupedNames: Record<string, string[]> = {};
 
+  const groupRegexes = {
+    agent: /agent\.(\w+)/,
+    mine: /mine_(\w+)/,
+    generator: /generator_(\w+)/,
+    chest: /chest_(\w+)/,
+    clipped_extractor: /clipped_(\w+)_extractor/,
+    extractor: /(\w+)_extractor/,
+    ex_dep: /(\w+)_ex_dep/,
+  };
+
   for (const name of objectNames) {
-    if (
-      name.startsWith("agent.") ||
-      name.startsWith("mine_") ||
-      name.startsWith("generator_")
-    ) {
-      const groupName = name.startsWith("agent.")
-        ? "agent"
-        : name.split("_")[0];
-      groupedNames[groupName] = [...(groupedNames[groupName] || []), name];
-    } else {
+    if (name === "empty" || name === "wall") {
+      continue;
+    }
+
+    let isGrouped = false;
+    for (const [groupName, regex] of Object.entries(groupRegexes)) {
+      const match = name.match(regex);
+      if (match) {
+        groupedNames[groupName] = [...(groupedNames[groupName] || []), name];
+        isGrouped = true;
+        break;
+      }
+    }
+    if (!isGrouped) {
       basicNames.push(name);
     }
   }

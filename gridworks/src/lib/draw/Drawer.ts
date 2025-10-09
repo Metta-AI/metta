@@ -1,5 +1,13 @@
 import { Cell, MettaGrid, MettaObject } from "../MettaGrid";
-import { loadMettaTileSets, TILE_NAMES } from "./mettaTileSets";
+import {
+  loadMettaTileSets,
+  TILE_NAMES,
+  WALL_E,
+  WALL_N,
+  WALL_NAMES,
+  WALL_S,
+  WALL_W,
+} from "./mettaTileSets";
 import { TileSetCollection } from "./TileSetCollection";
 
 // based on mettascope's colorFromId
@@ -21,6 +29,7 @@ type ObjectDrawer = ObjectLayer[];
 
 const objectDrawers: Record<string, ObjectDrawer> = {
   empty: [],
+  wall: [{ tile: "wall" }], // unused by Drawer but used by AsciiEditor
   ...Object.fromEntries(
     TILE_NAMES.map((tile) => [tile, [{ tile }] as ObjectDrawer])
   ),
@@ -35,7 +44,7 @@ const objectDrawers: Record<string, ObjectDrawer> = {
 
 export const objectNames = Object.keys(objectDrawers);
 
-const BACKGROUND_COLOR = "#cfa970";
+export const BACKGROUND_MAP_COLOR = "#cfa970";
 
 function visibleRegion(ctx: CanvasRenderingContext2D, grid: MettaGrid) {
   // Get the current transformation matrix
@@ -73,6 +82,25 @@ export class Drawer {
     return new Drawer(tileSets);
   }
 
+  drawTile({
+    ctx,
+    tile,
+    c,
+    r,
+    modulate,
+    scale = 1,
+  }: {
+    ctx: CanvasRenderingContext2D;
+    tile: string;
+    c: number;
+    r: number;
+    modulate?: { r: number; g: number; b: number };
+    scale?: number;
+  }) {
+    const bitmap = this.tileSets.bitmap(tile, modulate);
+    ctx.drawImage(bitmap, c, r, scale, scale);
+  }
+
   // Assumes that `ctx` is scaled such that the image is 1x1
   drawObject(ctx: CanvasRenderingContext2D, object: MettaObject) {
     const layers = objectDrawers[object.name];
@@ -80,30 +108,73 @@ export class Drawer {
       throw new Error(`No drawer for object ${object.name}`);
     }
     for (const layer of layers) {
-      const bitmap = this.tileSets.bitmap(layer.tile, layer.modulate);
-      ctx.drawImage(bitmap, object.c, object.r, 1, 1);
+      this.drawTile({
+        ctx,
+        tile: layer.tile,
+        c: object.c,
+        r: object.r,
+        modulate: layer.modulate,
+      });
     }
   }
 
-  drawWalls(ctx: CanvasRenderingContext2D, walls: Cell[]) {
-    // let tile = 0;
-    // if (hasWall(0, 1)) tile = tile | WALL_S;
-    // if (hasWall(1, 0)) tile = tile | WALL_E;
-    // if (hasWall(0, -1)) tile = tile | WALL_N;
-    // if (hasWall(-1, 0)) tile = tile | WALL_W;
-    // let fill = false;
-    // if ((tile & (WALL_S | WALL_E)) === (WALL_S | WALL_E) && hasWall(1, 1)) {
-    //   fill = true;
-    // }
-    // if (tile & (WALL_N | WALL_W) && hasWall(-1, -1) && hasWall(-1, 1) && hasWall(1, -1)) {
-    //         if (tile and WallNW.uint16) == WallNW.uint16 and
-    //             hasWall(- 1, - 1) and
-    //             hasWall(- 1, 1) and
-    //             hasWall(1, - 1):
-    //           continue
-    //       bxy.drawImage(wallSprites[tile], vec2(x.float32, y.float32), angle = 0, scale = 1/200)
-    // for fillPos in wallFills:
-    //   bxy.drawImage("objects/wall.fill", fillPos.vec2 + vec2(0.5, 0.3), angle = 0, scale = 1/200)
+  drawWalls(ctx: CanvasRenderingContext2D, grid: MettaGrid, walls: Cell[]) {
+    // Ported from worldmap.nim in mettascope
+    const wallsGrid: boolean[][] = Array.from({ length: grid.width }, () =>
+      Array.from({ length: grid.height }, () => false)
+    );
+    for (const wall of walls) {
+      wallsGrid[wall.c][wall.r] = true;
+    }
+
+    const wallFills: Cell[] = [];
+
+    const hasWall = (x: number, y: number) =>
+      x >= 0 && x < grid.width && y >= 0 && y < grid.height && wallsGrid[x][y];
+
+    for (let x = 0; x < grid.width; x++) {
+      for (let y = 0; y < grid.height; y++) {
+        if (!wallsGrid[x][y]) {
+          continue;
+        }
+        let tile = 0;
+        if (hasWall(x, y + 1)) tile = tile | WALL_S;
+        if (hasWall(x + 1, y)) tile = tile | WALL_E;
+        if (hasWall(x, y - 1)) tile = tile | WALL_N;
+        if (hasWall(x - 1, y)) tile = tile | WALL_W;
+        if (
+          (tile & (WALL_S | WALL_E)) === (WALL_S | WALL_E) &&
+          hasWall(x + 1, y + 1)
+        ) {
+          wallFills.push({ c: x, r: y });
+          if (
+            (tile & (WALL_N | WALL_W)) === (WALL_N | WALL_W) &&
+            hasWall(x - 1, y - 1) &&
+            hasWall(x - 1, y + 1) &&
+            hasWall(x + 1, y - 1)
+          ) {
+            continue;
+          }
+        }
+        this.drawTile({
+          ctx,
+          tile: WALL_NAMES[tile],
+          c: x,
+          r: y,
+          scale: 256 / 200,
+        });
+      }
+    }
+
+    for (const fill of wallFills) {
+      this.drawTile({
+        ctx,
+        tile: "wall.fill",
+        c: fill.c + 0.5,
+        r: fill.r + 0.3,
+        scale: 256 / 200,
+      });
+    }
   }
 
   drawGrid(ctx: CanvasRenderingContext2D, grid: MettaGrid) {
@@ -111,7 +182,7 @@ export class Drawer {
     const { minX, minY, maxX, maxY } = visibleRegion(ctx, grid);
 
     // Clear drawing area
-    ctx.fillStyle = BACKGROUND_COLOR;
+    ctx.fillStyle = BACKGROUND_MAP_COLOR;
     ctx.fillRect(minX, minY, maxX - minX, maxY - minY);
 
     // Sort objects into walls and other objects
@@ -133,7 +204,7 @@ export class Drawer {
       }
     }
 
-    this.drawWalls(ctx, walls);
+    this.drawWalls(ctx, grid, walls);
     for (const object of objects) {
       this.drawObject(ctx, object);
     }
