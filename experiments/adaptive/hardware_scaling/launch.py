@@ -15,7 +15,9 @@ import time
 from typing import List, Tuple
 
 
-def get_hardware_pairs(gpu_counts: List[int], node_counts: List[int]) -> List[Tuple[int, int]]:
+def get_hardware_pairs(
+    gpu_counts: List[int], node_counts: List[int]
+) -> List[Tuple[int, int]]:
     """Generate valid (gpu, node) pairs."""
     return [(g, n) for g in gpu_counts for n in node_counts if g <= 8 * n]
 
@@ -107,7 +109,9 @@ def main():
 
     # If running in parallel, wait for all to complete
     if not args.sequential and processes:
-        print("All sweeps launched. Waiting for completion (Ctrl+C to leave running)...")
+        print(
+            "All sweeps launched. Waiting for completion (Ctrl+C to leave running)..."
+        )
         try:
             for p in processes:
                 p.wait()

@@ -75,7 +75,9 @@ def fom_sweep(
         Configured SweepTool
     """
     # Calculate hardware-specific batch constraints
-    min_batch, max_batch, default_batch = calculate_hardware_specific_batch_range(gpus, nodes)
+    min_batch, max_batch, default_batch = calculate_hardware_specific_batch_range(
+        gpus, nodes
+    )
 
     # Define parameters to sweep - using exact ranges from optimized_sweep_config.py
     parameters = [
@@ -87,7 +89,6 @@ def fom_sweep(
             max=max_batch,
             search_center=default_batch,
         ),
-
         # Learning rate (narrowed around the default from TrainerConfig)
         SP.param(
             "trainer.optimizer.learning_rate",
@@ -96,7 +97,6 @@ def fom_sweep(
             max=2.307274e-3,  # ~2x default
             search_center=0.001153637,  # Exact default from TrainerConfig
         ),
-
         # PPO stability/efficiency parameters (narrowed ranges from optimized config)
         SP.param(
             "trainer.losses.loss_configs.ppo.clip_coef",
@@ -105,7 +105,6 @@ def fom_sweep(
             max=0.30,
             search_center=0.24,
         ),
-
         SP.param(
             "trainer.losses.loss_configs.ppo.vf_clip_coef",
             D.UNIFORM,
@@ -113,7 +112,6 @@ def fom_sweep(
             max=0.30,
             search_center=0.20,
         ),
-
         SP.param(
             "trainer.losses.loss_configs.ppo.gae_lambda",
             D.UNIFORM,
@@ -121,7 +119,6 @@ def fom_sweep(
             max=0.97,
             search_center=0.94,
         ),
-
         SP.param(
             "trainer.losses.loss_configs.ppo.ent_coef",
             D.LOG_NORMAL,
@@ -129,7 +126,6 @@ def fom_sweep(
             max=0.03,
             search_center=0.01,
         ),
-
         SP.param(
             "trainer.losses.loss_configs.ppo.vf_coef",
             D.UNIFORM,
