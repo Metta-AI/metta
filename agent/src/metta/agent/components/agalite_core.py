@@ -87,4 +87,5 @@ class AGaLiTeCore(nn.Module):
             memory[key] = encoder.initialize_memory(batch_size, device)
         return memory
 
+
 __all__ = ["AGaLiTeCore"]
