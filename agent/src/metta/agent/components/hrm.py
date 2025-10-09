@@ -120,15 +120,6 @@ class HRMReasoning(nn.Module):
             ]
         )
 
-        # Q-head for ACT halting (2 outputs: halt, continue)
-        self.q_head = nn.Linear(config.embed_dim, 2, bias=True)
-
-        # Initialize Q-head with less conservative bias for better exploration
-        # Original paper used -5.0, but this prevents multi-step reasoning
-        with torch.no_grad():
-            self.q_head.weight.zero_()
-            self.q_head.bias.fill_(-1.0)  # Reduced from -5.0 to allow more reasoning steps
-
         # Initial states (truncated normal like official implementation)
         self.register_buffer(
             "H_init", trunc_normal_init_(torch.empty(config.embed_dim), std=1.0, a=-2.0, b=2.0), persistent=True
@@ -172,9 +163,6 @@ class HRMReasoning(nn.Module):
             layer.mlp.w2.weight.register_hook(
                 lambda grad, idx=i: self._track_grad_norm(f"L_level.layer{idx}.mlp.w2", grad)
             )
-
-        # Track Q-head
-        self.q_head.weight.register_hook(lambda grad: self._track_grad_norm("q_head.weight", grad))
 
     def _track_grad_norm(self, name: str, grad: torch.Tensor) -> None:
         """Track gradient norm for a specific layer."""
@@ -272,11 +260,7 @@ class HRMReasoning(nn.Module):
         z_l = z_l.unsqueeze(1)
         z_h = z_h.unsqueeze(1)
 
-        # Track number of segments used
-        num_segments = 0
-
         for m_step in range(self.config.Mmax):
-            num_segments = m_step + 1
 
             # Run H_cycles - 1 iterations without gradients (exploration)
             with torch.no_grad():
