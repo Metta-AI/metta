@@ -118,10 +118,12 @@ def make_mission(
     ctx: typer.Context,
     base_mission: Optional[str] = typer.Argument(None, help="Base mission to start configuring from"),
     num_agents: int = typer.Option(2, "--agents", "-a", help="Number of agents", min=1),
+    test_changes: int = typer.Option(2, "--test-changes", "-d", help="Number of test changes", min=1),
     width: int = typer.Option(10, "--width", "-w", help="Map width", min=1),
     height: int = typer.Option(10, "--height", "-h", help="Map height", min=1),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (yml or json)"),  # noqa: B008
 ) -> None:
+    assert test_changes >= 3, "Test changes must be at least 2"
     try:
         resolved_mission, env_cfg = get_mission_name_and_config(ctx, base_mission)
 
