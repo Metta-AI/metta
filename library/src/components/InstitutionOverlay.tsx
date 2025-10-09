@@ -6,7 +6,6 @@ import type { AuthorDTO } from "@/posts/data/authors-client";
 import type { PaperWithUserContext } from "@/posts/data/papers";
 import { useOverlayNavigation } from "./OverlayStack";
 import { useInstitution } from "@/hooks/queries";
-import { BaseOverlay } from "@/components/overlays/BaseOverlay";
 
 interface InstitutionOverlayProps {
   institution: {
@@ -87,18 +86,14 @@ export default function InstitutionOverlay({
   );
 
   return (
-    <BaseOverlay
-      open
-      onClose={onClose}
-      title={institution.name}
-      description={
-        loading
+    <div className="flex flex-col gap-6">
+      {/* Institution description */}
+      <div className="text-sm text-gray-600">
+        {loading
           ? "Loading..."
-          : `${institutionAuthors.length} authors • ${institutionPapers.length} papers`
-      }
-      size="full"
-      contentClassName="flex flex-col gap-6"
-    >
+          : `${institutionAuthors.length} authors • ${institutionPapers.length} papers`}
+      </div>
+
       {tabButtons}
 
       <div className="flex-1 overflow-y-auto pr-1">
@@ -196,6 +191,6 @@ export default function InstitutionOverlay({
           </>
         )}
       </div>
-    </BaseOverlay>
+    </div>
   );
 }
