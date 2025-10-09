@@ -10,9 +10,9 @@ from cogames.cli.mission import get_all_missions
 @pytest.mark.parametrize("mission_name", get_all_missions())
 @pytest.mark.timeout(60)
 def test_mission_describe(mission_name):
-    """Test that 'cogames mission <mission_name>' works for all games."""
+    """Test that 'cogames mission -m <mission_name>' works for all games."""
     result = subprocess.run(
-        ["uv", "run", "cogames", "missions", mission_name],
+        ["uv", "run", "cogames", "missions", "-m", mission_name],
         capture_output=True,
         text=True,
         timeout=60,
