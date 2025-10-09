@@ -292,12 +292,8 @@ class SiteUserMap(UserMap):
         easy = bool(args.pop("easy", False))
         shaped = bool(args.pop("shaped", False))
         base_mission = args.pop("base_mission", self.default_mission)
-        map_builder_args = dict(args.pop("map_builder_args", {}))
         game = get_mission_generator(base_mission)(**args)
         game.map_builder = get_map_builder_for_site(self._site)
-        if map_builder_args:
-            for attr, value in map_builder_args.items():
-                setattr(game.map_builder, attr, value)
         cfg = MettaGridConfig(game=game)
         _apply_curriculum_modifiers(cfg, easy=easy, shaped=shaped)
         return cfg
