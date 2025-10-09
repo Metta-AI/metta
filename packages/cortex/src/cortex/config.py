@@ -75,6 +75,21 @@ class RTUCellConfig(CellConfig):
     max_phase: float = Field(default=6.28)
 
 
+class RTUStreamCellConfig(CellConfig):
+    """Configuration for the streaming RTU cell (diagonal input weights).
+
+    This variant assumes D == H (identity input map) and uses per-channel
+    diagonal input weights (w1, w2). The kernel returns a 2H activation that
+    the cell projects back to H.
+    """
+
+    hidden_size: int | None = Field(default=None)
+    activation: str = Field(default="identity")  # one of: silu|relu|tanh|identity
+    r_max: float = Field(default=1.0)
+    r_min: float = Field(default=0.0)
+    max_phase: float = Field(default=6.28)
+
+
 class BlockConfig(BaseModel):
     """Base configuration for cortex blocks."""
 
@@ -139,6 +154,7 @@ __all__ = [
     "LSTMCellConfig",
     "mLSTMCellConfig",
     "sLSTMCellConfig",
+    "RTUStreamCellConfig",
     "BlockConfig",
     "PassThroughBlockConfig",
     "PreUpBlockConfig",
