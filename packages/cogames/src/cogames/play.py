@@ -2,7 +2,8 @@
 
 import json
 import logging
-from typing import Literal, Optional
+from types import SimpleNamespace
+from typing import Any, Literal, Optional
 
 import numpy as np
 from rich.console import Console
@@ -19,6 +20,47 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger("cogames.play")
+
+DIRECTION_ACTION_NAMES: dict[int, str] = {
+    0: "move_north",
+    1: "move_south",
+    2: "move_west",
+    3: "move_east",
+    4: "move_northwest",
+    5: "move_northeast",
+    6: "move_southwest",
+    7: "move_southeast",
+}
+
+
+def _flatten_action_request(
+    action_request: Any,
+    *,
+    total_actions: int,
+    noop_action_id: int,
+    move_action_lookup: dict[int, int],
+) -> int:
+    """Translate a MettaScope ActionRequest into a flattened action index."""
+
+    raw_action_id = int(getattr(action_request, "action_id", -1))
+    if 0 <= raw_action_id < total_actions:
+        return raw_action_id
+
+    argument_value = getattr(action_request, "argument", None)
+    if argument_value is not None:
+        orientation_idx = int(argument_value)
+        flattened_move = move_action_lookup.get(orientation_idx)
+        if flattened_move is not None:
+            return flattened_move
+
+    logger.debug(
+        "Received unrecognized manual action; defaulting to noop",
+        extra={
+            "action_id": raw_action_id,
+            "argument": getattr(action_request, "argument", None),
+        },
+    )
+    return noop_action_id
 
 
 def play(
@@ -52,6 +94,13 @@ def play(
 
     policy = initialize_or_load_policy(policy_spec.policy_class_path, policy_spec.policy_data_path, env)
     agent_policies = [policy.agent_policy(agent_id) for agent_id in range(env.num_agents)]
+    action_lookup = {name: idx for idx, name in enumerate(env.action_names)}
+    noop_action_id = action_lookup.get("noop", 0)
+    move_action_lookup = {
+        orientation: action_lookup[name]
+        for orientation, name in DIRECTION_ACTION_NAMES.items()
+        if name in action_lookup
+    }
 
     # For text mode, use the interactive loop in miniscope
     if render == "text" and hasattr(env, "_renderer") and env._renderer:
@@ -73,19 +122,6 @@ def play(
             Returns:
                 Actions array for all agents
             """
-            action_lookup = {name: idx for idx, name in enumerate(env.action_names)}
-            noop_action_id = action_lookup.get("noop", 0)
-            direction_names = {
-                0: "move_north",
-                1: "move_south",
-                2: "move_west",
-                3: "move_east",
-                4: "move_northwest",
-                5: "move_northeast",
-                6: "move_southwest",
-                7: "move_southeast",
-            }
-
             actions = np.full(env.num_agents, noop_action_id, dtype=dtype_actions)
 
             for agent_id in range(env.num_agents):
@@ -97,9 +133,19 @@ def play(
                                 f"Manual action '{manual_action_value}' is not available in the action space."
                             )
                         actions[agent_id] = action_lookup[manual_action_value]
+                    elif isinstance(manual_action_value, tuple):
+                        tuple_action_id = manual_action_value[0] if manual_action_value else noop_action_id
+                        tuple_argument = manual_action_value[1] if len(manual_action_value) > 1 else 0
+                        flattened_tuple = _flatten_action_request(
+                            SimpleNamespace(action_id=tuple_action_id, argument=tuple_argument),
+                            total_actions=len(env.action_names),
+                            noop_action_id=noop_action_id,
+                            move_action_lookup=move_action_lookup,
+                        )
+                        actions[agent_id] = flattened_tuple
                     else:
                         manual_idx = int(manual_action_value)
-                        move_name = direction_names.get(manual_idx)
+                        move_name = DIRECTION_ACTION_NAMES.get(manual_idx)
                         if move_name and move_name in action_lookup:
                             actions[agent_id] = action_lookup[move_name]
                         else:
@@ -208,7 +254,13 @@ def play(
         if response.should_close:
             break
         for action in response.actions:
-            actions[action.agent_id] = action.action_id
+            flattened = _flatten_action_request(
+                action,
+                total_actions=len(env.action_names),
+                noop_action_id=noop_action_id,
+                move_action_lookup=move_action_lookup,
+            )
+            actions[action.agent_id] = flattened
 
         obs, rewards, dones, truncated, info = env.step(actions)
 
