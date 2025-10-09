@@ -35,7 +35,7 @@ def launch_sweep(
         "uv",
         "run",
         "./tools/run.py",
-        "experiments.adaptive.hardware_scaling.fom_sweep",
+        "experiments.adaptive.hardware_scaling.fom_sweep.sweep",
         f"sweep_name={sweep_name}",
         f"gpus={gpus}",
         f"nodes={nodes}",

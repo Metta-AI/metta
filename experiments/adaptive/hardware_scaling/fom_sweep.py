@@ -55,7 +55,7 @@ def calculate_hardware_specific_batch_range(
     return float(min_batch_size), float(max_batch_size), float(default_batch)
 
 
-def fom_sweep(
+def sweep(
     sweep_name: str,
     gpus: int,
     nodes: int,
