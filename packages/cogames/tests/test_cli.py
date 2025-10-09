@@ -56,7 +56,7 @@ def test_missions_nonexistent_mission():
         timeout=30,
     )
 
-    assert result.returncode == 0, "Command should fail for nonexistent mission"
+    assert result.returncode == 0, "Command should succeed but show error message for nonexistent mission"
     assert "Could not find" in result.stdout or "Could not find" in result.stderr
 
 
