@@ -54,8 +54,8 @@ foraging_curriculum_args = {
         "num_extractor_types": [1, 2, 3, 4],
         "num_chests": [1],
         "size": [6, 10, 12],
-        "assembler_positions": num_agents_to_positions[2],
-        "extractor_positions": num_agents_to_positions[2],
+        "assembler_positions": num_agents_to_positions[1] + num_agents_to_positions[2],
+        "extractor_positions": num_agents_to_positions[1] + num_agents_to_positions[2],
     },
     "assembly_lines_chests_triplets": {
         "num_cogs": [3],
@@ -64,8 +64,12 @@ foraging_curriculum_args = {
         "num_extractor_types": [1, 2, 3, 4],
         "num_chests": [1],
         "size": [6, 10, 12],
-        "assembler_positions": num_agents_to_positions[3],
-        "extractor_positions": num_agents_to_positions[3],
+        "assembler_positions": num_agents_to_positions[1]
+        + num_agents_to_positions[2]
+        + num_agents_to_positions[3],
+        "extractor_positions": num_agents_to_positions[1]
+        + num_agents_to_positions[2]
+        + num_agents_to_positions[3],
     },
     "assembly_lines_chests_quadruplets": {
         "num_cogs": [4],
@@ -74,56 +78,38 @@ foraging_curriculum_args = {
         "num_extractor_types": [1, 2, 3, 4],
         "num_chests": [1],
         "size": [6, 10, 12],
-        "assembler_positions": num_agents_to_positions[4],
-        "extractor_positions": num_agents_to_positions[4],
-    },
-    "assembly_lines_chests_combined": {
-        "num_cogs": [4],
-        "num_assemblers": [1],
-        "num_extractors": [0, 1, 2],
-        "num_extractor_types": [1, 2, 3, 4],
-        "num_chests": [1],
-        "size": [6, 10, 12],
-        "assembler_positions": num_agents_to_positions[2]
+        "assembler_positions": num_agents_to_positions[1]
+        + num_agents_to_positions[2]
         + num_agents_to_positions[3]
         + num_agents_to_positions[4],
-        "extractor_positions": [
-            num_agents_to_positions[1]
-            + num_agents_to_positions[2]
-            + num_agents_to_positions[3]
-            + num_agents_to_positions[4],
-        ],
+        "extractor_positions": num_agents_to_positions[1]
+        + num_agents_to_positions[2]
+        + num_agents_to_positions[3]
+        + num_agents_to_positions[4],
     },
     "extractor_chests_pairs": {
         "num_cogs": [2],
-        "num_assemblers": [3, 5, 8],
+        "num_assemblers": [1, 3, 5, 8],
         "num_chests": [1],
         "size": [15, 20, 30],
         "num_extractors": [0, 4, 8],
         "num_extractor_types": [1, 2, 3],
-        "assembler_positions": num_agents_to_positions[2],
+        "assembler_positions": num_agents_to_positions[1] + num_agents_to_positions[2],
     },
     "extractor_chests_triplets": {
         "num_cogs": [3],
-        "num_assemblers": [3, 5, 8],
+        "num_assemblers": [1, 3, 5, 8],
         "num_chests": [1],
         "num_extractors": [0, 4, 8],
         "num_extractor_types": [1, 2, 3],
         "size": [15, 20, 30],
-        "assembler_positions": num_agents_to_positions[3],
+        "assembler_positions": num_agents_to_positions[1]
+        + num_agents_to_positions[2]
+        + num_agents_to_positions[3],
     },
     "extractor_chests_quadruplets": {
         "num_cogs": [4],
-        "num_assemblers": [3, 5, 8],
-        "num_chests": [1],
-        "num_extractors": [0, 4, 8],
-        "num_extractor_types": [1, 2, 3],
-        "size": [15, 20, 30],
-        "assembler_positions": num_agents_to_positions[4],
-    },
-    "extractor_chests_combined": {
-        "num_cogs": [4],
-        "num_assemblers": [4, 8, 12],
+        "num_assemblers": [1, 3, 5, 8],
         "num_chests": [1],
         "num_extractors": [0, 4, 8],
         "num_extractor_types": [1, 2, 3],

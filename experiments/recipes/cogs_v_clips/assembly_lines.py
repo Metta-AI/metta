@@ -157,8 +157,8 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
             game_objects=cfg.game_objects,
             perimeter_objects=perimeter_objects,
             center_objects=center_objects,
-            resources=list(self.used_resources) + ["heart", "energy"],
             agent=agent,
+            size=10,
             inventory_regen_interval=0,
         )
 

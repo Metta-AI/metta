@@ -334,7 +334,7 @@ def experiment():
     import subprocess
     import time
 
-    for architecture in ["lstm_reset"]:
+    for architecture in ["vit_reset"]:
         for curriculum_style in foraging_curriculum_args:
             subprocess.run(
                 [
