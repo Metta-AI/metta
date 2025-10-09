@@ -12,11 +12,7 @@ license = "MIT"
 readme = "README.md"
 urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/metta" }
 
-dependencies = [
-  "pufferlib-core",
-  "einops>=0.7.0",
-  "mamba-ssm>=2.2.0; platform_system == 'Linux'",
-]
+dependencies = ["pufferlib-core"]
 
 [dependency-groups]
 dev = [
