@@ -9,12 +9,12 @@ from typing import Any, Dict, Optional, Tuple, Union
 
 import torch
 
-from cogames.aws_storage import DownloadOutcome, maybe_download_checkpoint
 from cogames.policy.interfaces import Policy, TrainablePolicy
 from mettagrid.util.module import load_symbol
 
 _POLICY_CLASS_SHORTHAND: dict[str, str] = {
     "random": "cogames.policy.random.RandomPolicy",
+    "noop": "cogames.policy.noop.NoopPolicy",
     "simple": "cogames.policy.simple.SimplePolicy",
     "token": "cogames.policy.token.TokenPolicy",
     "lstm": "cogames.policy.lstm.LSTMPolicy",
@@ -108,15 +108,6 @@ def resolve_policy_data_path(
 
     if path.exists():  # Non-pt extension but present
         return str(path)
-
-    if policy_class_path is not None:
-        outcome: DownloadOutcome = maybe_download_checkpoint(
-            policy_path=path,
-            game_name=game_name,
-            policy_class_path=policy_class_path,
-        )
-        if outcome.downloaded:
-            return str(path)
 
     raise FileNotFoundError(f"Checkpoint path not found: {path}")
 
