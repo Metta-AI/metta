@@ -14,6 +14,7 @@ Before finalizing changes (e.g. before a commit), or upon request from the user:
 
 - Run `ruff format` and `ruff check` on Python files before committing.
 - Run the unit tests with `uv run pytest` or by activating the venv and running `pytest`.
+- When pruning unused code, confirm it is referenced by production codepaths. If a symbol is only covered (or mentioned) in tests/fixtures, treat that as delete-worthy cruft and remove it rather than keeping legacy shims, unless the user explicitly requests otherwise.
 
 ## Type Annotations
 

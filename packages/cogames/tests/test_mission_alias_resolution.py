@@ -1,25 +1,12 @@
 """Lightweight checks for mission alias support."""
 
-from io import StringIO
 from typing import Iterable
 
 import pytest
-from rich.console import Console
 
-from cogames import game, utils
+from cogames import game
 from cogames.cogs_vs_clips.missions import CurriculumUserMap
-
-
-def _console() -> Console:
-    return Console(file=StringIO())
-
-
-def test_curriculum_alias_uses_registered_map() -> None:
-    resolved, cfg, user_map = utils.get_mission_config(_console(), "training_rotation_easy_shaped")
-
-    assert resolved == "training_rotation_easy_shaped"
-    assert isinstance(user_map, CurriculumUserMap)
-    assert cfg.game.num_agents > 0
+from cogames.mission_aliases import get_user_map
 
 
 @pytest.mark.parametrize(
@@ -43,3 +30,12 @@ def test_aliases_listed_in_catalog() -> None:
     required: Iterable[str] = ("training_rotation_easy_shaped", "training_facility_1:easy")
     for name in required:
         assert name in missions
+
+
+def test_curriculum_alias_resolves_to_curriculum_map() -> None:
+    cfg, map_name, mission_name = game.get_mission("training_rotation_easy_shaped")
+
+    assert mission_name == "default"
+    curriculum_map = get_user_map(map_name)
+    assert isinstance(curriculum_map, CurriculumUserMap)
+    assert cfg.game.num_agents > 0
