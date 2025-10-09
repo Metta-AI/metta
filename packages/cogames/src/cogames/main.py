@@ -188,15 +188,17 @@ def train_cmd(
 ) -> None:
     selected_missions = get_mission_names_and_configs(ctx, missions)
     if len(selected_missions) == 1:
-        resolved_mission, env_cfg = selected_missions[0]
+        _, env_cfg = selected_missions[0]
         supplier = None
-    else:
-        env_cfg, resolved_mission = None, None
+    elif len(selected_missions) > 1:
+        env_cfg = None
         supplier = make_rotation(selected_missions)
+    else:
+        # Should not get here
+        raise ValueError("Please specify at least one mission")
 
     policy_spec = get_policy_spec(ctx, policy)
     torch_device = resolve_training_device(console, device)
-
     try:
         train_module.train(
             env_cfg=env_cfg,
@@ -211,8 +213,8 @@ def train_cmd(
             vector_num_workers=num_workers,
             vector_num_envs=parallel_envs,
             vector_batch_size=vector_batch_size,
-            game_name=resolved_mission,
             env_cfg_supplier=supplier,
+            missions_arg=missions,
         )
 
     except ValueError as exc:  # pragma: no cover - user input

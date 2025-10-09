@@ -180,7 +180,7 @@ for step in range(1000):
 Evaluate one or more policies
 
 **Policy**
- Note that here, you can provide multiple `POLICY` arguments if you want to run evaluations on mixed-policy populations.
+ Note that here, you can provide multiple `-p POLICY` arguments if you want to run evaluations on mixed-policy populations.
 
 **Examples:**
 

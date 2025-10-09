@@ -112,11 +112,7 @@ def get_policy_specs(ctx: typer.Context, policy_args: Optional[list[str]]) -> li
     raise typer.Exit(0)
 
 
-def _parse_policy_spec(
-    spec: str,
-    *,
-    game_name: Optional[str] = None,
-) -> PolicySpec:
+def _parse_policy_spec(spec: str) -> PolicySpec:
     """Parse a policy CLI option into its components."""
 
     raw = spec.strip()
@@ -146,11 +142,7 @@ def _parse_policy_spec(
             raise ValueError("Policy proportion must be a positive number.")
 
     resolved_class_path = resolve_policy_class_path(raw_class_path)
-    resolved_policy_data = resolve_policy_data_path(
-        raw_policy_data or None,
-        policy_class_path=resolved_class_path,
-        game_name=game_name,
-    )
+    resolved_policy_data = resolve_policy_data_path(raw_policy_data or None)
 
     return PolicySpec(
         policy_class_path=resolved_class_path,
