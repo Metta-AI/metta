@@ -4,7 +4,6 @@ import React from "react";
 import { AuthorDTO } from "@/posts/data/authors-client";
 import { AuthorProfile } from "./AuthorProfile";
 import { useOverlayNavigation } from "./OverlayStack";
-import { BaseOverlay } from "@/components/overlays/BaseOverlay";
 
 interface NavigableAuthorOverlayProps {
   author: AuthorDTO;
@@ -35,36 +34,41 @@ export default function NavigableAuthorOverlay({
 
   // Handle paper click
   const handlePaperClick = (paper: any) => {
-    // For now, we'll need to provide minimal required props
-    // In a real implementation, you'd fetch the full paper data with user context
-    const mockUsers: any[] = [];
-    const mockInteractions: any[] = [];
-    const mockOnStarToggle = (paperId: string) =>
-      console.log("Star toggle:", paperId);
-    const mockOnQueueToggle = (paperId: string) =>
-      console.log("Queue toggle:", paperId);
+    // Convert paper from AuthorDTO.recentPapers to PaperWithUserContext format
+    const paperWithContext = {
+      id: paper.id,
+      title: paper.title,
+      abstract: paper.abstract,
+      tags: paper.tags || [],
+      link: paper.link,
+      source: null,
+      externalId: null,
+      stars: paper.stars,
+      starred: false,
+      createdAt: paper.createdAt,
+      updatedAt: paper.createdAt,
+      authors: paper.authors || [],
+      institutions: paper.institutions || [],
+      isStarredByCurrentUser: false,
+      isQueuedByCurrentUser: false,
+    };
 
-    // Note: This would need proper paper data with user context in a real implementation
-    // openPaper(paper, mockUsers, mockInteractions, mockOnStarToggle, mockOnQueueToggle);
-    console.log(
-      "Paper navigation not yet fully implemented - need PaperWithUserContext"
+    // Open paper overlay with minimal context
+    openPaper(
+      paperWithContext,
+      [], // users
+      [], // interactions
+      () => {}, // onStarToggle (noop)
+      () => {} // onQueueToggle (noop)
     );
   };
 
   return (
-    <BaseOverlay
-      open
+    <AuthorProfile
+      author={author}
       onClose={onClose}
-      title={author.name}
-      size="lg"
-      contentClassName="p-0"
-      dismissible
-    >
-      <AuthorProfile
-        author={author}
-        onClose={onClose}
-        onInstitutionClick={handleInstitutionClick}
-      />
-    </BaseOverlay>
+      onInstitutionClick={handleInstitutionClick}
+      onPaperClick={handlePaperClick}
+    />
   );
 }

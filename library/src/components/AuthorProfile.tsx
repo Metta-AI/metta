@@ -10,6 +10,7 @@ interface AuthorProfileProps {
   author: AuthorDTO;
   onClose?: () => void;
   onInstitutionClick?: (institutionName: string) => void;
+  onPaperClick?: (paper: any) => void;
 }
 
 /**
@@ -23,6 +24,7 @@ export const AuthorProfile: FC<AuthorProfileProps> = ({
   author,
   onClose,
   onInstitutionClick,
+  onPaperClick,
 }) => {
   const [activeTab, setActiveTab] = useState<"overview" | "papers" | "network">(
     "overview"
@@ -47,31 +49,6 @@ export const AuthorProfile: FC<AuthorProfileProps> = ({
       {/* Header */}
       <div className="border-b border-gray-200">
         <div className="px-6 py-6">
-          {/* Close Button */}
-          {onClose && (
-            <div className="mb-4 flex justify-end">
-              <button
-                onClick={onClose}
-                className="p-2 text-gray-400 transition-colors hover:text-gray-600"
-                aria-label="Close"
-              >
-                <svg
-                  className="h-6 w-6"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            </div>
-          )}
-
           {/* Author Info */}
           <div className="flex items-start gap-6">
             <div className="bg-primary-500 flex h-24 w-24 flex-shrink-0 items-center justify-center rounded-full text-3xl font-semibold text-white">
@@ -198,7 +175,12 @@ export const AuthorProfile: FC<AuthorProfileProps> = ({
                   {author.recentPapers.slice(0, 5).map((paper) => (
                     <div
                       key={paper.id}
-                      className="border-b border-gray-100 pb-4 last:border-b-0"
+                      onClick={() => onPaperClick?.(paper)}
+                      className={`border-b border-gray-100 pb-4 last:border-b-0 ${
+                        onPaperClick
+                          ? "-m-2 cursor-pointer rounded p-2 hover:bg-gray-50"
+                          : ""
+                      }`}
                     >
                       <h4 className="mb-1 font-medium text-gray-900">
                         {paper.title}

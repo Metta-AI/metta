@@ -9,7 +9,6 @@ import {
 import { useOverlayNavigation } from "./OverlayStack";
 import { useAuthor, useAuthors } from "@/hooks/queries";
 import { StarWidgetQuery } from "./StarWidgetQuery";
-import { BaseOverlay } from "@/components/overlays/BaseOverlay";
 
 interface NavigablePaperOverlayProps {
   paper: PaperWithUserContext;
@@ -111,38 +110,7 @@ export default function NavigablePaperOverlay({
   };
 
   return (
-    <BaseOverlay
-      open
-      onClose={onClose}
-      title={paper.title}
-      size="xl"
-      contentClassName="space-y-6"
-      footer={
-        <button
-          onClick={handleQueueToggle}
-          className={`flex items-center gap-2 rounded-lg px-4 py-2 transition-colors ${
-            localPaper.isQueuedByCurrentUser
-              ? "bg-blue-100 text-blue-800 hover:bg-blue-200"
-              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-          }`}
-        >
-          <svg
-            className="h-5 w-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-            />
-          </svg>
-          {localPaper.isQueuedByCurrentUser ? "In Queue" : "Add to Queue"}
-        </button>
-      }
-    >
+    <div className="space-y-6">
       {/* Header with star widget, title and close button */}
       <div className="flex items-start gap-3">
         <div className="mt-1 flex-shrink-0">
@@ -320,6 +288,33 @@ export default function NavigablePaperOverlay({
           </div>
         </div>
       )}
-    </BaseOverlay>
+
+      {/* Footer with queue button */}
+      <div className="border-t border-gray-200 pt-4">
+        <button
+          onClick={handleQueueToggle}
+          className={`flex items-center gap-2 rounded-lg px-4 py-2 transition-colors ${
+            localPaper.isQueuedByCurrentUser
+              ? "bg-blue-100 text-blue-800 hover:bg-blue-200"
+              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+          }`}
+        >
+          <svg
+            className="h-5 w-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+            />
+          </svg>
+          {localPaper.isQueuedByCurrentUser ? "In Queue" : "Add to Queue"}
+        </button>
+      </div>
+    </div>
   );
 }
