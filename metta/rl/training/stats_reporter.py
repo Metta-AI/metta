@@ -533,7 +533,6 @@ class StatsReporter(TrainerComponent):
             "learning_rate": learning_rate,
             "epoch_steps": timing_info.get("epoch_steps", 0),
             "num_minibatches": getattr(experience, "num_minibatches", 0),
-            "latest_saved_policy_epoch": getattr(self.context.state, "latest_saved_policy_epoch", 0),
         }
 
         # Add ScheduleFree optimizer information

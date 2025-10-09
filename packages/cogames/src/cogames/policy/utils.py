@@ -2,26 +2,38 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 import torch
 
-from cogames.aws_storage import DownloadOutcome, maybe_download_checkpoint
-from cogames.policy.policy import PolicySpec
-
-if TYPE_CHECKING:  # pragma: no cover - optional console for CLI
-    from rich.console import Console
-
+from cogames.policy.interfaces import Policy, TrainablePolicy
+from mettagrid.util.module import load_symbol
 
 _POLICY_CLASS_SHORTHAND: dict[str, str] = {
     "random": "cogames.policy.random.RandomPolicy",
+    "noop": "cogames.policy.noop.NoopPolicy",
     "simple": "cogames.policy.simple.SimplePolicy",
     "token": "cogames.policy.token.TokenPolicy",
     "lstm": "cogames.policy.lstm.LSTMPolicy",
     "claude": "cogames.policy.claude.ClaudePolicy",
 }
+
+
+def initialize_or_load_policy(
+    policy_class_path: str, policy_data_path: Optional[str], env: Any, device: "torch.device | None" = None
+) -> Policy:
+    policy_class = load_symbol(policy_class_path)
+    policy = policy_class(env, device or torch.device("cpu"))
+
+    if policy_data_path:
+        if not isinstance(policy, TrainablePolicy):
+            raise TypeError("Policy data provided, but the selected policy does not support loading checkpoints.")
+
+        policy.load_policy_data(policy_data_path)
+    return policy
 
 
 def resolve_policy_class_path(policy: str) -> str:
@@ -33,11 +45,40 @@ def resolve_policy_class_path(policy: str) -> str:
     Returns:
         Full class path to the policy.
     """
-    return _POLICY_CLASS_SHORTHAND.get(policy, policy)
+    full_path = _POLICY_CLASS_SHORTHAND.get(policy, policy)
+
+    # Will raise an error if invalid
+    _ = load_symbol(full_path)
+    return full_path
 
 
 def get_policy_class_shorthand(policy: str) -> Optional[str]:
     return {v: k for k, v in _POLICY_CLASS_SHORTHAND.items()}.get(policy)
+
+
+_NOT_CHECKPOINT_PATTERNS = (
+    r"trainer_state\.pt",  # trainer state file
+    r"model_\d{6}\.pt",  # matches model_000001.pt etc
+)
+
+
+def find_policy_checkpoints(checkpoints_path: Path, env_name: Optional[str] = None) -> list[Path]:
+    checkpoints = []
+    if env_name:
+        # Try to find the final checkpoint
+        # PufferLib saves checkpoints in data_dir/env_name/
+        checkpoint_dir = checkpoints_path / env_name
+        if checkpoint_dir.exists():
+            checkpoints = checkpoint_dir.glob("*.pt")
+
+    # Fallback: also check directly in checkpoints_path
+    if not checkpoints and checkpoints_path.exists():
+        checkpoints = checkpoints_path.glob("*.pt")
+    return [
+        p
+        for p in sorted(checkpoints, key=lambda c: c.stat().st_mtime)
+        if not any(re.fullmatch(pattern, p.name) for pattern in _NOT_CHECKPOINT_PATTERNS)
+    ]
 
 
 def resolve_policy_data_path(
@@ -45,7 +86,6 @@ def resolve_policy_data_path(
     *,
     policy_class_path: Optional[str] = None,
     game_name: Optional[str] = None,
-    console: Optional["Console"] = None,
 ) -> Optional[str]:
     """Resolve a checkpoint path if provided.
 
@@ -61,78 +101,15 @@ def resolve_policy_data_path(
         return str(path)
 
     if path.is_dir():
-        latest_checkpoint = max(
-            (candidate for candidate in path.rglob("*.pt")),
-            key=lambda candidate: candidate.stat().st_mtime,
-            default=None,
-        )
-        if latest_checkpoint is None:
+        checkpoints = find_policy_checkpoints(path)
+        if not checkpoints:
             raise FileNotFoundError(f"No checkpoint files (*.pt) found in directory: {path}")
-        return str(latest_checkpoint)
+        return str(checkpoints[-1])
 
     if path.exists():  # Non-pt extension but present
         return str(path)
 
-    if console is not None and policy_class_path is not None:
-        outcome: DownloadOutcome = maybe_download_checkpoint(
-            policy_path=path,
-            game_name=game_name,
-            policy_class_path=policy_class_path,
-            console=console,
-        )
-        if outcome.downloaded:
-            return str(path)
-
     raise FileNotFoundError(f"Checkpoint path not found: {path}")
-
-
-def parse_policy_spec(
-    spec: str,
-    *,
-    console: Optional["Console"] = None,
-    game_name: Optional[str] = None,
-) -> PolicySpec:
-    """Parse a policy CLI option into its components."""
-
-    raw = spec.strip()
-    if not raw:
-        raise ValueError("Policy specification cannot be empty.")
-
-    parts = [part.strip() for part in raw.split(":")]
-    if len(parts) > 3:
-        raise ValueError("Policy specification must include at most two ':' separated values.")
-
-    raw_class_path = parts[0]
-    raw_policy_data = parts[1] if len(parts) > 1 else None
-    raw_fraction = parts[2] if len(parts) > 2 else None
-
-    if not raw_class_path:
-        raise ValueError("Policy class path cannot be empty.")
-
-    if not raw_fraction:
-        fraction = 1.0
-    else:
-        try:
-            fraction = float(raw_fraction)
-        except ValueError as exc:
-            raise ValueError(f"Invalid proportion value '{raw_fraction}'.") from exc
-
-        if fraction <= 0:
-            raise ValueError("Policy proportion must be a positive number.")
-
-    resolved_class_path = resolve_policy_class_path(raw_class_path)
-    resolved_policy_data = resolve_policy_data_path(
-        raw_policy_data or None,
-        policy_class_path=resolved_class_path,
-        game_name=game_name,
-        console=console,
-    )
-
-    return PolicySpec(
-        policy_class_path=resolved_class_path,
-        proportion=fraction,
-        policy_data_path=resolved_policy_data,
-    )
 
 
 LSTMStateTuple = Tuple[torch.Tensor, torch.Tensor]
@@ -224,14 +201,3 @@ class LSTMState:
 
     def detach(self) -> "LSTMState":
         return LSTMState(self.hidden.detach(), self.cell.detach())
-
-
-__all__ = [
-    "PolicySpec",
-    "resolve_policy_class_path",
-    "resolve_policy_data_path",
-    "parse_policy_spec",
-    "LSTMState",
-    "LSTMStateDict",
-    "LSTMStateTuple",
-]

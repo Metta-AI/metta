@@ -152,10 +152,7 @@ class EvalTaskOrchestrator:
                 else:
                     continue
 
-                if task.retries < 3:
-                    status = "unprocessed"
-                else:
-                    status = "error"
+                status = "error"
 
                 logger.info(f"Releasing claim on task {task.id} because {reason}. Setting status to {status}")
                 await self._task_client.update_task_status(

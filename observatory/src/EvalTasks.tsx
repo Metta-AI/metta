@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Repo, EvalTask } from './repo'
+import { Repo, EvalTask, TaskFilters } from './repo'
 import { METTA_GITHUB_ORGANIZATION, METTA_GITHUB_REPO } from './constants'
 
 interface TypeaheadInputProps {
@@ -109,72 +109,239 @@ function TypeaheadInput({
   )
 }
 
-type SortField =
-  | 'policy_name'
-  | 'sim_suite'
-  | 'status'
-  | 'assignee'
-  | 'user_id'
-  | 'retries'
-  | 'created_at'
-  | 'assigned_at'
-  | 'updated_at'
-type SortDirection = 'asc' | 'desc'
+interface PaginationProps {
+  currentPage: number
+  totalPages: number
+  onPageChange: (page: number) => void
+}
+
+function Pagination({ currentPage, totalPages, onPageChange }: PaginationProps) {
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = []
+    const maxVisible = 7
+
+    if (totalPages <= maxVisible) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i)
+      }
+    } else {
+      pages.push(1)
+
+      if (currentPage > 3) {
+        pages.push('...')
+      }
+
+      const start = Math.max(2, currentPage - 1)
+      const end = Math.min(totalPages - 1, currentPage + 1)
+
+      for (let i = start; i <= end; i++) {
+        pages.push(i)
+      }
+
+      if (currentPage < totalPages - 2) {
+        pages.push('...')
+      }
+
+      pages.push(totalPages)
+    }
+
+    return pages
+  }
+
+  return (
+    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', padding: '20px 0' }}>
+      <button
+        onClick={() => onPageChange(currentPage - 1)}
+        disabled={currentPage === 1}
+        style={{
+          padding: '8px 12px',
+          border: '1px solid #d1d5db',
+          borderRadius: '4px',
+          backgroundColor: currentPage === 1 ? '#f3f4f6' : '#fff',
+          cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+          fontSize: '14px',
+        }}
+      >
+        Previous
+      </button>
+
+      {getPageNumbers().map((page, index) => {
+        if (page === '...') {
+          return (
+            <span key={`ellipsis-${index}`} style={{ padding: '0 4px' }}>
+              ...
+            </span>
+          )
+        }
+
+        const pageNum = page as number
+        return (
+          <button
+            key={pageNum}
+            onClick={() => onPageChange(pageNum)}
+            style={{
+              padding: '8px 12px',
+              border: '1px solid #d1d5db',
+              borderRadius: '4px',
+              backgroundColor: currentPage === pageNum ? '#007bff' : '#fff',
+              color: currentPage === pageNum ? '#fff' : '#000',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: currentPage === pageNum ? 600 : 400,
+            }}
+          >
+            {pageNum}
+          </button>
+        )
+      })}
+
+      <button
+        onClick={() => onPageChange(currentPage + 1)}
+        disabled={currentPage === totalPages}
+        style={{
+          padding: '8px 12px',
+          border: '1px solid #d1d5db',
+          borderRadius: '4px',
+          backgroundColor: currentPage === totalPages ? '#f3f4f6' : '#fff',
+          cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+          fontSize: '14px',
+        }}
+      >
+        Next
+      </button>
+    </div>
+  )
+}
 
 interface Props {
   repo: Repo
 }
 
 export function EvalTasks({ repo }: Props) {
-  const [tasks, setTasks] = useState<EvalTask[]>([])
+  // Active tasks state
+  const [activeTasks, setActiveTasks] = useState<EvalTask[]>([])
+  const [activeCurrentPage, setActiveCurrentPage] = useState(1)
+  const [activeTotalPages, setActiveTotalPages] = useState(1)
+  const [activeTotalCount, setActiveTotalCount] = useState(0)
+  const [activeFilters, setActiveFilters] = useState<TaskFilters>({ status: 'unprocessed' })
+
+  // History tasks state
+  const [historyTasks, setHistoryTasks] = useState<EvalTask[]>([])
+  const [historyCurrentPage, setHistoryCurrentPage] = useState(1)
+  const [historyTotalPages, setHistoryTotalPages] = useState(1)
+  const [historyTotalCount, setHistoryTotalCount] = useState(0)
+  const [historyFilters, setHistoryFilters] = useState<TaskFilters>({})
+
+  // Form state
   const [policyIdInput, setPolicyIdInput] = useState<string>('')
   const [gitHash, setGitHash] = useState<string>('')
   const [simSuite, setSimSuite] = useState<string>('all')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [activeSortField, setActiveSortField] = useState<SortField>('created_at')
-  const [activeSortDirection, setActiveSortDirection] = useState<SortDirection>('desc')
-  const [completedSortField, setCompletedSortField] = useState<SortField>('created_at')
-  const [completedSortDirection, setCompletedSortDirection] = useState<SortDirection>('desc')
+
+  // UI state
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
+  const [recentPolicies, setRecentPolicies] = useState<string[]>([])
+  const [recentSimSuites, setRecentSimSuites] = useState<string[]>([])
 
-  // Set up auto-refresh for tasks
-  useEffect(() => {
-    loadTasks()
-    const interval = setInterval(loadTasks, 5000) // Refresh every 5 seconds
+  // Track if this is the first render to avoid duplicate initial loads
+  const isFirstRender = React.useRef(true)
 
-    return () => {
-      clearInterval(interval)
+  const pageSize = 50
+
+  // Load active tasks with filters
+  const loadActiveTasks = async (page: number) => {
+    try {
+      const response = await repo.getEvalTasksPaginated(page, pageSize, activeFilters)
+      setActiveTasks(response.tasks)
+      setActiveCurrentPage(response.page)
+      setActiveTotalPages(response.total_pages)
+      setActiveTotalCount(response.total_count)
+
+      // Update suggestions from loaded tasks
+      updateSuggestionsFromTasks(response.tasks)
+    } catch (err: any) {
+      console.error('Failed to load active tasks:', err)
     }
+  }
+
+  // Load history tasks with filters
+  const loadHistoryTasks = async (page: number) => {
+    try {
+      const response = await repo.getEvalTasksPaginated(page, pageSize, historyFilters)
+      setHistoryTasks(response.tasks)
+      setHistoryCurrentPage(response.page)
+      setHistoryTotalPages(response.total_pages)
+      setHistoryTotalCount(response.total_count)
+
+      // Update suggestions from loaded tasks
+      updateSuggestionsFromTasks(response.tasks)
+    } catch (err: any) {
+      console.error('Failed to load history tasks:', err)
+    }
+  }
+
+  // Update suggestions from tasks
+  const updateSuggestionsFromTasks = (tasks: EvalTask[]) => {
+    setRecentPolicies((prev) => {
+      const policySet = new Set(prev)
+      tasks.forEach((task) => {
+        if (task.policy_name) policySet.add(task.policy_name)
+        policySet.add(task.policy_id)
+      })
+      return Array.from(policySet).sort()
+    })
+
+    setRecentSimSuites((prev) => {
+      const simSuiteSet = new Set(prev)
+      tasks.forEach((task) => {
+        if (task.sim_suite) simSuiteSet.add(task.sim_suite)
+      })
+      return Array.from(simSuiteSet).sort()
+    })
+  }
+
+  // Initial load
+  useEffect(() => {
+    loadActiveTasks(1)
+    loadHistoryTasks(1)
+    isFirstRender.current = false
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const loadTasks = async () => {
-    try {
-      const tasks = await repo.getEvalTasks()
-      setTasks(tasks)
-    } catch (err: any) {
-      console.error('Failed to refresh tasks:', err)
-    }
-  }
+  // Reload when filters change (with debouncing)
+  useEffect(() => {
+    if (isFirstRender.current) return
 
-  // Get unique policy names/IDs from recent tasks for typeahead
-  const getRecentPolicies = (): string[] => {
-    const policySet = new Set<string>()
-    tasks.forEach((task) => {
-      if (task.policy_name) policySet.add(task.policy_name)
-      policySet.add(task.policy_id)
-    })
-    return Array.from(policySet).sort()
-  }
+    const timeoutId = setTimeout(() => {
+      loadActiveTasks(1)
+    }, 300) // 300ms debounce
 
-  // Get unique sim suite values from recent tasks for autocomplete
-  const getRecentSimSuites = (): string[] => {
-    const simSuiteSet = new Set<string>()
-    tasks.forEach((task) => {
-      if (task.sim_suite) simSuiteSet.add(task.sim_suite)
-    })
-    return Array.from(simSuiteSet).sort()
-  }
+    return () => clearTimeout(timeoutId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeFilters])
+
+  useEffect(() => {
+    if (isFirstRender.current) return
+
+    const timeoutId = setTimeout(() => {
+      loadHistoryTasks(1)
+    }, 300) // 300ms debounce
+
+    return () => clearTimeout(timeoutId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [historyFilters])
+
+  // Auto-refresh every 5 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadActiveTasks(activeCurrentPage)
+      loadHistoryTasks(historyCurrentPage)
+    }, 5000)
+
+    return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeCurrentPage, historyCurrentPage, activeFilters, historyFilters])
 
   const handleCreateTask = async () => {
     if (!policyIdInput.trim()) {
@@ -219,7 +386,7 @@ export function EvalTasks({ repo }: Props) {
       setGitHash('')
 
       // Refresh tasks
-      await loadTasks()
+      await loadActiveTasks(1)
     } catch (err: any) {
       setError(`Failed to create task: ${err.message}`)
     } finally {
@@ -227,8 +394,19 @@ export function EvalTasks({ repo }: Props) {
     }
   }
 
+  const handleRetryTask = async (taskId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      await repo.retryEvalTask(taskId)
+      await loadHistoryTasks(historyCurrentPage)
+      await loadActiveTasks(activeCurrentPage)
+    } catch (err: any) {
+      setError(`Failed to retry task: ${err.message}`)
+    }
+  }
+
   const getStatusColor = (status: string, isInProgress: boolean) => {
-    if (isInProgress) return '#17a2b8' // info blue for in progress
+    if (isInProgress) return '#17a2b8'
     switch (status) {
       case 'done':
         return '#28a745'
@@ -244,7 +422,6 @@ export function EvalTasks({ repo }: Props) {
   }
 
   const getDisplayStatus = (task: EvalTask) => {
-    // Only show "in progress" for unprocessed tasks with recent assignment
     if (task.status === 'unprocessed' && task.assignee && task.assigned_at) {
       const assignedTime = new Date(task.assigned_at + 'Z').getTime()
       const now = new Date().getTime()
@@ -257,23 +434,19 @@ export function EvalTasks({ repo }: Props) {
   }
 
   const getWorkingDuration = (task: EvalTask) => {
-    // Only show duration for tasks that display as "in progress"
     if (getDisplayStatus(task) !== 'in progress') return null
-
     if (!task.assigned_at) return null
 
-    const start = new Date(task.assigned_at + 'Z') // Add Z to indicate UTC
+    const start = new Date(task.assigned_at + 'Z')
     const now = new Date()
     const diff = now.getTime() - start.getTime()
 
-    // If negative (assigned in future?), show 0
     if (diff < 0) return '00:00'
 
     const totalSeconds = Math.floor(diff / 1000)
     const minutes = Math.floor(totalSeconds / 60)
     const seconds = totalSeconds % 60
 
-    // Format as MM:SS
     const formattedMinutes = minutes.toString().padStart(2, '0')
     const formattedSeconds = seconds.toString().padStart(2, '0')
 
@@ -281,7 +454,6 @@ export function EvalTasks({ repo }: Props) {
   }
 
   const getGithubUrl = (gitHash: string) => {
-    // Assuming metta repo, adjust if needed
     return `https://github.com/${METTA_GITHUB_ORGANIZATION}/${METTA_GITHUB_REPO}/commit/${gitHash}`
   }
 
@@ -289,7 +461,6 @@ export function EvalTasks({ repo }: Props) {
     if (!workerName) return ''
     const parts = workerName.split('-')
     if (parts.length >= 3) {
-      // Get the last part (suffix) and abbreviate the middle parts
       const suffix = parts[parts.length - 1]
       return suffix
     }
@@ -299,97 +470,14 @@ export function EvalTasks({ repo }: Props) {
   const getWorkerColor = (workerName: string | null) => {
     if (!workerName) return 'transparent'
 
-    // Simple hash function to generate consistent colors
     let hash = 0
     for (let i = 0; i < workerName.length; i++) {
       hash = workerName.charCodeAt(i) + ((hash << 5) - hash)
     }
 
-    // Generate a pastel color
     const hue = hash % 360
     return `hsl(${hue}, 70%, 85%)`
   }
-
-  const sortTasks = (tasksToSort: EvalTask[], field: SortField, direction: SortDirection) => {
-    return [...tasksToSort].sort((a, b) => {
-      let aVal: any = a[field as keyof EvalTask]
-      let bVal: any = b[field as keyof EvalTask]
-
-      // Special handling for status to show in-progress correctly
-      if (field === 'status') {
-        aVal = getDisplayStatus(a)
-        bVal = getDisplayStatus(b)
-      }
-
-      // Handle git hash sorting
-      if (field === 'policy_name') {
-        // Secondary sort by git hash
-        if (aVal === bVal) {
-          aVal = a.attributes?.git_hash || ''
-          bVal = b.attributes?.git_hash || ''
-        }
-      }
-
-      if (aVal === null || aVal === undefined) aVal = ''
-      if (bVal === null || bVal === undefined) bVal = ''
-
-      if (aVal < bVal) return direction === 'asc' ? -1 : 1
-      if (aVal > bVal) return direction === 'asc' ? 1 : -1
-      return 0
-    })
-  }
-
-  const handleSort = (field: SortField, isActive: boolean) => {
-    if (isActive) {
-      setActiveSortField(field)
-      setActiveSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'))
-    } else {
-      setCompletedSortField(field)
-      setCompletedSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'))
-    }
-  }
-
-  const SortHeader = ({
-    field,
-    label,
-    isActive,
-    width,
-  }: {
-    field: SortField
-    label: string
-    isActive: boolean
-    width?: string
-  }) => {
-    const sortField = isActive ? activeSortField : completedSortField
-    const sortDirection = isActive ? activeSortDirection : completedSortDirection
-    const isCurrentSort = sortField === field
-
-    return (
-      <th
-        style={{
-          padding: '12px',
-          textAlign: 'left',
-          borderBottom: '2px solid #dee2e6',
-          cursor: 'pointer',
-          userSelect: 'none',
-          position: 'relative',
-          width: width,
-        }}
-        onClick={() => handleSort(field, isActive)}
-      >
-        {label}
-        {isCurrentSort && (
-          <span style={{ marginLeft: '5px', fontSize: '12px' }}>{sortDirection === 'asc' ? '▲' : '▼'}</span>
-        )}
-      </th>
-    )
-  }
-
-  const activeTasks = tasks.filter((t) => t.status === 'unprocessed')
-  const historyTasks = tasks.filter((t) => t.status !== 'unprocessed')
-
-  const sortedActiveTasks = sortTasks(activeTasks, activeSortField, activeSortDirection)
-  const sortedHistoryTasks = sortTasks(historyTasks, completedSortField, completedSortDirection)
 
   const toggleRowExpansion = (taskId: string) => {
     const newExpanded = new Set(expandedRows)
@@ -408,7 +496,6 @@ export function EvalTasks({ repo }: Props) {
 
     const formatValue = (value: any): React.ReactNode => {
       if (typeof value === 'string') {
-        // Split by newlines and render each line separately
         const lines = value.split('\\n')
         if (lines.length > 1) {
           return (
@@ -428,7 +515,6 @@ export function EvalTasks({ repo }: Props) {
     }
 
     const renderObject = (obj: Record<string, any>, indent: number = 0): React.ReactNode => {
-      // Filter out empty/falsy values
       const entries = Object.entries(obj).filter(([_, value]) => {
         if (value === null || value === undefined || value === '' || value === false) return false
         if (typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0) return false
@@ -479,6 +565,432 @@ export function EvalTasks({ repo }: Props) {
         >
           {renderObject(attributes)}
         </div>
+      </div>
+    )
+  }
+
+  const renderFilterInput = (value: string, onChange: (value: string) => void, placeholder: string = 'Filter...') => {
+    return (
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '100%',
+          padding: '4px 8px',
+          fontSize: '12px',
+          border: '1px solid #d1d5db',
+          borderRadius: '4px',
+          marginTop: '4px',
+        }}
+      />
+    )
+  }
+
+  const renderStatusDropdown = (value: string, onChange: (value: string) => void) => {
+    return (
+      <select
+        value={value || ''}
+        onChange={(e) => onChange(e.target.value)}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '100%',
+          padding: '4px 8px',
+          fontSize: '12px',
+          border: '1px solid #d1d5db',
+          borderRadius: '4px',
+          marginTop: '4px',
+          backgroundColor: '#fff',
+          cursor: 'pointer',
+        }}
+      >
+        <option value="">All</option>
+        <option value="unprocessed">Unprocessed</option>
+        <option value="done">Done</option>
+        <option value="error">Error</option>
+        <option value="canceled">Canceled</option>
+      </select>
+    )
+  }
+
+  const renderActiveTasksTable = () => {
+    return (
+      <div style={{ marginBottom: '30px' }}>
+        <h2 style={{ marginBottom: '20px' }}>Active ({activeTotalCount})</h2>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ backgroundColor: '#f8f9fa' }}>
+                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '25%' }}>
+                  Policy
+                  {renderFilterInput(activeFilters.policy_name || '', (value) =>
+                    setActiveFilters({ ...activeFilters, policy_name: value })
+                  )}
+                </th>
+                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '10%' }}>
+                  Suite
+                  {renderFilterInput(activeFilters.sim_suite || '', (value) =>
+                    setActiveFilters({ ...activeFilters, sim_suite: value })
+                  )}
+                </th>
+                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '12%' }}>
+                  User
+                  {renderFilterInput(activeFilters.user_id || '', (value) =>
+                    setActiveFilters({ ...activeFilters, user_id: value })
+                  )}
+                </th>
+                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '15%' }}>
+                  Assignee
+                  {renderFilterInput(activeFilters.assignee || '', (value) =>
+                    setActiveFilters({ ...activeFilters, assignee: value })
+                  )}
+                </th>
+                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '8%' }}>
+                  Tries
+                  {renderFilterInput(activeFilters.retries || '', (value) =>
+                    setActiveFilters({ ...activeFilters, retries: value })
+                  )}
+                </th>
+                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '12%' }}>
+                  Created
+                  {renderFilterInput(activeFilters.created_at || '', (value) =>
+                    setActiveFilters({ ...activeFilters, created_at: value })
+                  )}
+                </th>
+                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '12%' }}>
+                  Updated
+                  {renderFilterInput(activeFilters.updated_at || '', (value) =>
+                    setActiveFilters({ ...activeFilters, updated_at: value })
+                  )}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {activeTasks.map((task) => {
+                const workingDuration = getWorkingDuration(task)
+                const gitHash = task.attributes?.git_hash
+                const isExpanded = expandedRows.has(task.id)
+
+                return (
+                  <React.Fragment key={task.id}>
+                    <tr
+                      style={{
+                        borderBottom: '1px solid #dee2e6',
+                        cursor: 'pointer',
+                        transition: 'background-color 0.2s',
+                      }}
+                      onClick={() => toggleRowExpansion(task.id)}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f8f9fa')}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '')}
+                    >
+                      <td style={{ padding: '12px', position: 'relative' }}>
+                        <span
+                          style={{
+                            position: 'absolute',
+                            left: '12px',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            fontSize: '12px',
+                            color: '#6c757d',
+                          }}
+                        >
+                          {isExpanded ? '▼' : '▶'}
+                        </span>
+                        <div style={{ paddingLeft: '20px' }}>
+                          <span>{task.policy_name || task.policy_id}</span>
+                          {gitHash && (
+                            <div style={{ fontSize: '12px', marginTop: '2px' }}>
+                              <a
+                                href={getGithubUrl(gitHash)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  color: '#6c757d',
+                                  textDecoration: 'none',
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {gitHash.substring(0, 8)}
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{ padding: '12px' }}>{task.sim_suite}</td>
+                      <td style={{ padding: '12px' }}>{task.user_id || '-'}</td>
+                      <td style={{ padding: '12px' }}>
+                        <span
+                          style={{
+                            padding: '4px 8px',
+                            borderRadius: '4px',
+                            backgroundColor: getWorkerColor(task.assignee),
+                            fontSize: '12px',
+                            display: 'inline-block',
+                          }}
+                        >
+                          {truncateWorkerName(task.assignee)}
+                        </span>
+                        <span>{workingDuration || ''}</span>
+                      </td>
+                      <td style={{ padding: '12px' }}>{task.retries}</td>
+                      <td style={{ padding: '12px' }}>{new Date(task.created_at + 'Z').toLocaleString()}</td>
+                      <td style={{ padding: '12px' }}>{new Date(task.updated_at + 'Z').toLocaleString()}</td>
+                    </tr>
+                    {isExpanded && (
+                      <tr>
+                        <td colSpan={7} style={{ padding: 0 }}>
+                          {renderAttributes(task.attributes)}
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                )
+              })}
+            </tbody>
+          </table>
+          {activeTasks.length === 0 && (
+            <div style={{ padding: '20px', textAlign: 'center', color: '#6c757d' }}>No active tasks</div>
+          )}
+        </div>
+        {activeTotalPages > 1 && (
+          <Pagination
+            currentPage={activeCurrentPage}
+            totalPages={activeTotalPages}
+            onPageChange={(page) => {
+              setActiveCurrentPage(page)
+              loadActiveTasks(page)
+            }}
+          />
+        )}
+      </div>
+    )
+  }
+
+  const renderHistoryTasksTable = () => {
+    return (
+      <div>
+        <h2 style={{ marginBottom: '20px' }}>History ({historyTotalCount})</h2>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ backgroundColor: '#f8f9fa' }}>
+                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '18%' }}>
+                  Policy
+                  {renderFilterInput(historyFilters.policy_name || '', (value) =>
+                    setHistoryFilters({ ...historyFilters, policy_name: value })
+                  )}
+                </th>
+                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '10%' }}>
+                  Suite
+                  {renderFilterInput(historyFilters.sim_suite || '', (value) =>
+                    setHistoryFilters({ ...historyFilters, sim_suite: value })
+                  )}
+                </th>
+                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '10%' }}>
+                  User
+                  {renderFilterInput(historyFilters.user_id || '', (value) =>
+                    setHistoryFilters({ ...historyFilters, user_id: value })
+                  )}
+                </th>
+                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '12%' }}>
+                  Status
+                  {renderStatusDropdown(historyFilters.status || '', (value) =>
+                    setHistoryFilters({ ...historyFilters, status: value })
+                  )}
+                </th>
+                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '10%' }}>
+                  Logs
+                </th>
+                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '15%' }}>
+                  Created
+                  {renderFilterInput(historyFilters.created_at || '', (value) =>
+                    setHistoryFilters({ ...historyFilters, created_at: value })
+                  )}
+                </th>
+                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '15%' }}>
+                  Updated
+                  {renderFilterInput(historyFilters.updated_at || '', (value) =>
+                    setHistoryFilters({ ...historyFilters, updated_at: value })
+                  )}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {historyTasks.map((task) => {
+                const gitHash = task.attributes?.git_hash
+                const isExpanded = expandedRows.has(task.id)
+
+                return (
+                  <React.Fragment key={task.id}>
+                    <tr
+                      style={{
+                        borderBottom: '1px solid #dee2e6',
+                        cursor: 'pointer',
+                        transition: 'background-color 0.2s',
+                      }}
+                      onClick={() => toggleRowExpansion(task.id)}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f8f9fa')}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '')}
+                    >
+                      <td style={{ padding: '12px', position: 'relative' }}>
+                        <span
+                          style={{
+                            position: 'absolute',
+                            left: '12px',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            fontSize: '12px',
+                            color: '#6c757d',
+                          }}
+                        >
+                          {isExpanded ? '▼' : '▶'}
+                        </span>
+                        <div style={{ paddingLeft: '20px' }}>
+                          <span>{task.policy_name || task.policy_id}</span>
+                          {gitHash && (
+                            <div style={{ fontSize: '12px', marginTop: '2px' }}>
+                              <a
+                                href={getGithubUrl(gitHash)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  color: '#6c757d',
+                                  textDecoration: 'none',
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {gitHash.substring(0, 8)}
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{ padding: '12px' }}>{task.sim_suite}</td>
+                      <td style={{ padding: '12px' }}>{task.user_id || '-'}</td>
+                      <td style={{ padding: '12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span
+                            style={{
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              backgroundColor: getStatusColor(task.status, false),
+                              color: 'white',
+                              fontSize: '12px',
+                            }}
+                          >
+                            {task.status}
+                          </span>
+                          {task.status !== 'unprocessed' && (
+                            <button
+                              onClick={(e) => handleRetryTask(task.id, e)}
+                              style={{
+                                padding: '4px 8px',
+                                fontSize: '11px',
+                                backgroundColor: '#007bff',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                transition: 'background-color 0.2s',
+                              }}
+                              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#0056b3')}
+                              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#007bff')}
+                            >
+                              Retry
+                            </button>
+                          )}
+                        </div>
+                        {task.status === 'error' && task.attributes?.details?.error && (
+                          <div
+                            style={{
+                              fontSize: '11px',
+                              color: '#dc3545',
+                              marginTop: '4px',
+                              maxWidth: '200px',
+                              wordBreak: 'break-word',
+                            }}
+                          >
+                            {task.attributes.details.error}
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ padding: '12px' }}>
+                        {(task.attributes?.stderr_log_path || task.attributes?.stdout_log_path) && (
+                          <div style={{ display: 'flex', gap: '8px', fontSize: '13px' }}>
+                            {task.attributes?.stderr_log_path && (
+                              <a
+                                href={repo.getTaskLogUrl(task.id, 'stderr')}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                  color: '#dc3545',
+                                  textDecoration: 'none',
+                                  fontWeight: 500,
+                                }}
+                                onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+                                onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
+                              >
+                                stderr
+                              </a>
+                            )}
+                            {task.attributes?.stderr_log_path && task.attributes?.stdout_log_path && (
+                              <span style={{ color: '#6c757d' }}>|</span>
+                            )}
+                            {task.attributes?.stdout_log_path && (
+                              <a
+                                href={repo.getTaskLogUrl(task.id, 'stdout')}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                  color: '#007bff',
+                                  textDecoration: 'none',
+                                  fontWeight: 500,
+                                }}
+                                onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+                                onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
+                              >
+                                stdout
+                              </a>
+                            )}
+                          </div>
+                        )}
+                        {!task.attributes?.stderr_log_path && !task.attributes?.stdout_log_path && (
+                          <span style={{ color: '#6c757d' }}>-</span>
+                        )}
+                      </td>
+                      <td style={{ padding: '12px' }}>{new Date(task.created_at + 'Z').toLocaleString()}</td>
+                      <td style={{ padding: '12px' }}>{new Date(task.updated_at + 'Z').toLocaleString()}</td>
+                    </tr>
+                    {isExpanded && (
+                      <tr>
+                        <td colSpan={7} style={{ padding: 0 }}>
+                          {renderAttributes(task.attributes)}
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                )
+              })}
+            </tbody>
+          </table>
+          {historyTasks.length === 0 && (
+            <div style={{ padding: '20px', textAlign: 'center', color: '#6c757d' }}>No task history</div>
+          )}
+        </div>
+        {historyTotalPages > 1 && (
+          <Pagination
+            currentPage={historyCurrentPage}
+            totalPages={historyTotalPages}
+            onPageChange={(page) => {
+              setHistoryCurrentPage(page)
+              loadHistoryTasks(page)
+            }}
+          />
+        )}
       </div>
     )
   }
@@ -542,7 +1054,7 @@ export function EvalTasks({ repo }: Props) {
               value={policyIdInput}
               onChange={setPolicyIdInput}
               placeholder="Enter policy name or ID"
-              suggestions={getRecentPolicies()}
+              suggestions={recentPolicies}
               maxSuggestions={10}
               filterType="substring"
             />
@@ -596,7 +1108,7 @@ export function EvalTasks({ repo }: Props) {
               value={simSuite}
               onChange={setSimSuite}
               placeholder="Enter sim suite"
-              suggestions={getRecentSimSuites()}
+              suggestions={recentSimSuites}
               maxSuggestions={5}
               filterType="prefix"
             />
@@ -633,258 +1145,8 @@ export function EvalTasks({ repo }: Props) {
         </div>
       </div>
 
-      {/* Active Section */}
-      <div style={{ marginBottom: '30px' }}>
-        <h2 style={{ marginBottom: '20px' }}>Active ({activeTasks.length})</h2>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ backgroundColor: '#f8f9fa' }}>
-                <SortHeader field="policy_name" label="Policy" isActive={true} width="25%" />
-                <SortHeader field="sim_suite" label="Suite" isActive={true} width="8%" />
-                <SortHeader field="status" label="Status" isActive={true} width="12%" />
-                <SortHeader field="user_id" label="User" isActive={true} width="10%" />
-                <SortHeader field="assignee" label="Assignee" isActive={true} width="10%" />
-                <SortHeader field="retries" label="Tries" isActive={true} width="7%" />
-                <SortHeader field="created_at" label="Created" isActive={true} width="10%" />
-                <SortHeader field="updated_at" label="Updated" isActive={true} width="10%" />
-              </tr>
-            </thead>
-            <tbody>
-              {sortedActiveTasks.map((task) => {
-                const displayStatus = getDisplayStatus(task)
-                const isInProgress = displayStatus === 'in progress'
-                const workingDuration = getWorkingDuration(task)
-                const gitHash = task.attributes?.git_hash
-                const isExpanded = expandedRows.has(task.id)
-
-                return (
-                  <React.Fragment key={task.id}>
-                    <tr
-                      style={{
-                        borderBottom: '1px solid #dee2e6',
-                        cursor: 'pointer',
-                        transition: 'background-color 0.2s',
-                      }}
-                      onClick={() => toggleRowExpansion(task.id)}
-                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f8f9fa')}
-                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '')}
-                    >
-                      <td style={{ padding: '12px', position: 'relative' }}>
-                        <span
-                          style={{
-                            position: 'absolute',
-                            left: '12px',
-                            top: '50%',
-                            transform: 'translateY(-50%)',
-                            fontSize: '12px',
-                            color: '#6c757d',
-                          }}
-                        >
-                          {isExpanded ? '▼' : '▶'}
-                        </span>
-                        <div style={{ paddingLeft: '20px' }}>
-                          <span>{task.policy_name || task.policy_id}</span>
-                          {gitHash && (
-                            <div style={{ fontSize: '12px', marginTop: '2px' }}>
-                              <a
-                                href={getGithubUrl(gitHash)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                style={{
-                                  color: '#6c757d',
-                                  textDecoration: 'none',
-                                }}
-                              >
-                                {gitHash.substring(0, 8)}
-                              </a>
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td style={{ padding: '12px' }}>{task.sim_suite}</td>
-                      <td style={{ padding: '12px' }}>
-                        <div>
-                          <span
-                            style={{
-                              padding: '4px 8px',
-                              borderRadius: '4px',
-                              backgroundColor: getStatusColor(task.status, isInProgress),
-                              color: 'white',
-                              fontSize: '12px',
-                              fontWeight: isInProgress ? 600 : 400,
-                              textTransform: isInProgress ? 'uppercase' : 'none',
-                              letterSpacing: isInProgress ? '0.5px' : '0',
-                            }}
-                          >
-                            {displayStatus}
-                          </span>
-                          {task.status === 'error' && task.attributes?.details?.error && (
-                            <div
-                              style={{
-                                fontSize: '11px',
-                                color: '#dc3545',
-                                marginTop: '4px',
-                                maxWidth: '200px',
-                                wordBreak: 'break-word',
-                              }}
-                            >
-                              {task.attributes.details.error}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td style={{ padding: '12px' }}>{task.user_id || '-'}</td>
-                      <td style={{ padding: '12px' }}>
-                        <span
-                          style={{
-                            padding: '4px 8px',
-                            borderRadius: '4px',
-                            backgroundColor: getWorkerColor(task.assignee),
-                            fontSize: '12px',
-                            display: 'inline-block',
-                          }}
-                        >
-                          {truncateWorkerName(task.assignee)}
-                        </span>
-                        <span>{workingDuration || ''}</span>
-                      </td>
-                      <td style={{ padding: '12px' }}>{task.retries}</td>
-                      <td style={{ padding: '12px' }}>{new Date(task.created_at + 'Z').toLocaleString()}</td>
-                      <td style={{ padding: '12px' }}>{new Date(task.updated_at + 'Z').toLocaleString()}</td>
-                    </tr>
-                    {isExpanded && (
-                      <tr>
-                        <td colSpan={9} style={{ padding: 0 }}>
-                          {renderAttributes(task.attributes)}
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                )
-              })}
-            </tbody>
-          </table>
-          {sortedActiveTasks.length === 0 && (
-            <div style={{ padding: '20px', textAlign: 'center', color: '#6c757d' }}>No active tasks</div>
-          )}
-        </div>
-      </div>
-
-      {/* History Section */}
-      <div>
-        <h2 style={{ marginBottom: '20px' }}>History ({historyTasks.length})</h2>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ backgroundColor: '#f8f9fa' }}>
-                <SortHeader field="policy_name" label="Policy" isActive={false} width="20%" />
-                <SortHeader field="sim_suite" label="Suite" isActive={false} width="10%" />
-                <SortHeader field="user_id" label="User" isActive={false} width="12%" />
-                <SortHeader field="status" label="Status" isActive={false} width="15%" />
-                <SortHeader field="created_at" label="Created" isActive={false} width="19%" />
-                <SortHeader field="updated_at" label="Updated" isActive={false} width="19%" />
-              </tr>
-            </thead>
-            <tbody>
-              {sortedHistoryTasks.map((task) => {
-                const gitHash = task.attributes?.git_hash
-                const isExpanded = expandedRows.has(task.id)
-
-                return (
-                  <React.Fragment key={task.id}>
-                    <tr
-                      style={{
-                        borderBottom: '1px solid #dee2e6',
-                        cursor: 'pointer',
-                        transition: 'background-color 0.2s',
-                      }}
-                      onClick={() => toggleRowExpansion(task.id)}
-                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f8f9fa')}
-                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '')}
-                    >
-                      <td style={{ padding: '12px', position: 'relative' }}>
-                        <span
-                          style={{
-                            position: 'absolute',
-                            left: '12px',
-                            top: '50%',
-                            transform: 'translateY(-50%)',
-                            fontSize: '12px',
-                            color: '#6c757d',
-                          }}
-                        >
-                          {isExpanded ? '▼' : '▶'}
-                        </span>
-                        <div style={{ paddingLeft: '20px' }}>
-                          <span>{task.policy_name || task.policy_id}</span>
-                          {gitHash && (
-                            <div style={{ fontSize: '12px', marginTop: '2px' }}>
-                              <a
-                                href={getGithubUrl(gitHash)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                style={{
-                                  color: '#6c757d',
-                                  textDecoration: 'none',
-                                }}
-                              >
-                                {gitHash.substring(0, 8)}
-                              </a>
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td style={{ padding: '12px' }}>{task.sim_suite}</td>
-                      <td style={{ padding: '12px' }}>{task.user_id || '-'}</td>
-                      <td style={{ padding: '12px' }}>
-                        <div>
-                          <span
-                            style={{
-                              padding: '4px 8px',
-                              borderRadius: '4px',
-                              backgroundColor: getStatusColor(task.status, false),
-                              color: 'white',
-                              fontSize: '12px',
-                            }}
-                          >
-                            {task.status}
-                          </span>
-                          {task.status === 'error' && task.attributes?.details?.error && (
-                            <div
-                              style={{
-                                fontSize: '11px',
-                                color: '#dc3545',
-                                marginTop: '4px',
-                                maxWidth: '200px',
-                                wordBreak: 'break-word',
-                              }}
-                            >
-                              {task.attributes.details.error}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td style={{ padding: '12px' }}>{new Date(task.created_at + 'Z').toLocaleString()}</td>
-                      <td style={{ padding: '12px' }}>{new Date(task.updated_at + 'Z').toLocaleString()}</td>
-                    </tr>
-                    {isExpanded && (
-                      <tr>
-                        <td colSpan={6} style={{ padding: 0 }}>
-                          {renderAttributes(task.attributes)}
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                )
-              })}
-            </tbody>
-          </table>
-          {sortedHistoryTasks.length === 0 && (
-            <div style={{ padding: '20px', textAlign: 'center', color: '#6c757d' }}>No task history</div>
-          )}
-        </div>
-      </div>
+      {renderActiveTasksTable()}
+      {renderHistoryTasksTable()}
     </div>
   )
 }

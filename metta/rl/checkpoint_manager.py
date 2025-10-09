@@ -266,7 +266,7 @@ class CheckpointManager:
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
         if not trainer_file.exists():
             return None
-        state = torch.load(trainer_file, weights_only=False)
+        state = torch.load(trainer_file, map_location="cpu", weights_only=False)
         result = {
             "optimizer_state": state.get("optimizer", state.get("optimizer_state")),
             "epoch": state.get("epoch", 0),
