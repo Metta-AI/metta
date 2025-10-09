@@ -226,10 +226,10 @@ jobs:
 
   unit-tests:
     name: "Unit Tests - Python"
-    needs: [graphite-ci-optimizer, setup-checks]
-    if: |
-      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
-      (needs.setup-checks.outputs.run_test == 'true')
+    # needs: [graphite-ci-optimizer, setup-checks]
+    # if: |
+    #   (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
+    #   (needs.setup-checks.outputs.run_test == 'true')
     runs-on: ubuntu-8core
     timeout-minutes: 15
     steps:
@@ -255,8 +255,8 @@ jobs:
 
       - name: Run all package tests
         shell: bash
-        env:
-          RUN_APP_BACKEND_TESTS: ${{ needs.setup-checks.outputs.app_backend_has_changes == 'true' && 'true' || 'false' }}
+        # env:
+        #   RUN_APP_BACKEND_TESTS: ${{ needs.setup-checks.outputs.app_backend_has_changes == 'true' && 'true' || 'false' }}
         run: .github/scripts/run_package_tests.sh
 
   mettagrid-cpp-build:
