@@ -87,7 +87,7 @@ class HRMReasoningConfig(ComponentConfig):
     Mmin: int = 1  # Minimum number of reasoning segments
     Mmax: int = 4  # Maximum number of reasoning segments
     # Monitoring
-    track_gradients: bool = True  # Enable gradient tracking for debugging
+    track_gradients: bool = False  # Enable gradient tracking for debugging
 
     def make_component(self, env=None) -> "HRMReasoning":
         return HRMReasoning(self)
