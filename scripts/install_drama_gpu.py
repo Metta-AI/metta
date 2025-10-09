@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install optional CUDA extras for the Mamba/DRAMA recipes.
+"""Install optional CUDA extras for the DRAMA state-space recipes.
 
 This script best-effort installs `flash-attn` and `causal-conv1d` for the
 currently detected CUDA toolkit. It is idempotent and exits with status 0 even
@@ -79,25 +79,25 @@ def main() -> int:
 
     if shutil.which("nvidia-smi") is None:
         if not args.quiet:
-            print("[mamba-gpu] No NVIDIA GPU detected; skipping CUDA extras.")
+            print("[drama-gpu] No NVIDIA GPU detected; skipping CUDA extras.")
         return 0
 
     try:
         import torch
     except ImportError:
-        print("[mamba-gpu] PyTorch not installed yet; skipping CUDA extras.")
+        print("[drama-gpu] PyTorch not installed yet; skipping CUDA extras.")
         return 0
 
     cuda_version = torch.version.cuda
     if not cuda_version:
-        print("[mamba-gpu] PyTorch build lacks CUDA support; skipping CUDA extras.")
+        print("[drama-gpu] PyTorch build lacks CUDA support; skipping CUDA extras.")
         return 0
 
     tags = CUDA_TAG_PREFERENCES.get(cuda_version, [])
     if not tags:
         print(
-            f"[mamba-gpu] No wheel tag mapping for CUDA {cuda_version}; "
-            "install flash-attn/causal-conv1d manually if needed.",
+            f"[drama-gpu] No wheel tag mapping for CUDA {cuda_version}; "
+            "install flash-attn / causal-conv1d manually if needed.",
         )
         return 0
 
@@ -137,7 +137,7 @@ def main() -> int:
 
     if flash_installed and causal_installed:
         if not args.quiet:
-            print("[mamba-gpu] Installed flash-attn and causal-conv1d successfully.")
+            print("[drama-gpu] Installed flash-attn and causal-conv1d successfully.")
         return 0
 
     missing = []
@@ -147,7 +147,7 @@ def main() -> int:
         missing.append("causal-conv1d")
 
     print(
-        "[mamba-gpu] Unable to install %s automatically. "
+        "[drama-gpu] Unable to install %s automatically. "
         "Please install the matching CUDA wheels manually using:\n"
         "  pip install --extra-index-url https://download.pytorch.org/whl/<tag> %s"
         % (", ".join(missing), " ".join(missing)),
