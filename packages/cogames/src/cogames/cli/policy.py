@@ -50,7 +50,7 @@ def list_checkpoints():
 
 def describe_policy_arg(with_proportion: bool):
     console.print(
-        "To specify a [[bold cyan]POLICY[/bold cyan]], follow this format: "
+        "To specify a [bold cyan]-p [POLICY][/bold cyan], follow this format: "
         + (policy_arg_example if not with_proportion else policy_arg_w_proportion_example)
     )
     console.print()
@@ -68,6 +68,8 @@ def describe_policy_arg(with_proportion: bool):
 def get_policy_spec(ctx: typer.Context, policy_arg: Optional[str]) -> PolicySpec:
     if policy_arg is None:
         console.print(ctx.get_help())
+        console.print("[cyan]Missing option '--policy' / '-p'.[/cyan]")
+        console.print()
     else:
         try:
             return _parse_policy_spec(spec=policy_arg)  # type: ignore
@@ -90,6 +92,8 @@ def get_policy_spec(ctx: typer.Context, policy_arg: Optional[str]) -> PolicySpec
 def get_policy_specs(ctx: typer.Context, policy_args: Optional[list[str]]) -> list[PolicySpec]:
     if not policy_args:
         console.print(ctx.get_help())
+        console.print("[cyan]Missing option '--policy' / '-p'.[/cyan]")
+        console.print()
     else:
         try:
             return [_parse_policy_spec(spec=policy_arg) for policy_arg in policy_args]
