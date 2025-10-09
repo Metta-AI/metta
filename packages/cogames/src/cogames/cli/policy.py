@@ -53,7 +53,6 @@ def describe_policy_arg(with_proportion: bool):
         "To specify a [bold cyan]-p [POLICY][/bold cyan], follow this format: "
         + (policy_arg_example if not with_proportion else policy_arg_w_proportion_example)
     )
-    console.print()
     subcommand_parts = [
         "[blue]CLASS[/blue]: shorthand (e.g. 'simple', 'random') or fully qualified class path.",
         "[cyan]DATA[/cyan]: optional checkpoint path.",
@@ -62,38 +61,34 @@ def describe_policy_arg(with_proportion: bool):
         subcommand_parts.append(
             "[light_slate_grey]PROPORTION[/light_slate_grey]: optional float specifying the population share."
         )
-    console.print("\n".join([f"  - {part}" for part in subcommand_parts]))
+    console.print("\n" + "\n".join([f"  - {part}" for part in subcommand_parts]) + "\n")
 
 
 def get_policy_spec(ctx: typer.Context, policy_arg: Optional[str]) -> PolicySpec:
     if policy_arg is None:
         console.print(ctx.get_help())
-        console.print("[yellow]Missing: --policy / -p[/yellow]")
-        console.print()
+        console.print("[yellow]Missing: --policy / -p[/yellow]\n")
     else:
         try:
             return _parse_policy_spec(spec=policy_arg)  # type: ignore
         except ValueError as e:
             translated = str(e).replace("Invalid symbol name", "Could not find policy class")
-            console.print(f"[yellow]Error parsing policy argument: {translated}[/yellow]")
-            console.print()
+            console.print(f"[yellow]Error parsing policy argument: {translated}[/yellow]\n")
 
     list_checkpoints()
     describe_policy_arg(with_proportion=False)
-    console.print()
-    if policy_arg is not None:
-        console.print()
-        console.print(ctx.get_usage())
 
-    console.print()
+    if policy_arg is not None:
+        console.print("\n" + ctx.get_usage())
+
+    console.print("\n")
     raise typer.Exit(0)
 
 
 def get_policy_specs(ctx: typer.Context, policy_args: Optional[list[str]]) -> list[PolicySpec]:
     if not policy_args:
         console.print(ctx.get_help())
-        console.print("[yellow]Supply at least one: --policy / -p[/yellow]")
-        console.print()
+        console.print("[yellow]Supply at least one: --policy / -p[/yellow]\n")
     else:
         try:
             return [_parse_policy_spec(spec=policy_arg) for policy_arg in policy_args]
@@ -104,11 +99,10 @@ def get_policy_specs(ctx: typer.Context, policy_args: Optional[list[str]]) -> li
 
     list_checkpoints()
     describe_policy_arg(with_proportion=True)
-    console.print()
+
     if policy_args:
-        console.print()
-        console.print(ctx.get_usage())
-    console.print()
+        console.print("\n" + ctx.get_usage())
+    console.print("\n")
     raise typer.Exit(0)
 
 

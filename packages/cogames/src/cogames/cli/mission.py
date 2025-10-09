@@ -24,20 +24,17 @@ def get_all_missions() -> list[str]:
 def get_mission_name_and_config(ctx: typer.Context, mission_arg: Optional[str]) -> tuple[str, MettaGridConfig]:
     if not mission_arg:
         console.print(ctx.get_help())
-        console.print("[yellow]Missing: --mission / -m[/yellow]")
-        console.print()
+        console.print("[yellow]Missing: --mission / -m[/yellow]\n")
     else:
         try:
             return get_mission(mission_arg)
         except ValueError as e:
-            console.print(f"[yellow]{e}[/yellow]")
-            console.print()
+            console.print(f"[yellow]{e}[/yellow]\n")
     list_missions()
 
     if mission_arg is not None:
-        console.print()
-        console.print(ctx.get_usage())
-    console.print()
+        console.print("\n" + ctx.get_usage())
+    console.print("\n")
     raise typer.Exit(0)
 
 
@@ -46,20 +43,17 @@ def get_mission_names_and_configs(
 ) -> list[tuple[str, MettaGridConfig]]:
     if not missions_arg:
         console.print(ctx.get_help())
-        console.print("[yellow]Supply at least one: --mission / -m[/yellow]")
-        console.print()
+        console.print("[yellow]Supply at least one: --mission / -m[/yellow]\n")
     else:
         try:
             return [get_mission(m) for m in missions_arg]
         except ValueError as e:
-            console.print(f"[yellow]{e}[/yellow]")
-            console.print()
+            console.print(f"[yellow]{e}[/yellow]\n")
     list_missions()
 
     if missions_arg is not None:
-        console.print()
-        console.print(ctx.get_usage())
-    console.print()
+        console.print("\n" + ctx.get_usage())
+    console.print("\n")
     raise typer.Exit(0)
 
 
@@ -148,7 +142,7 @@ def list_missions() -> None:
                     map_size,
                 )
     console.print(table)
-    console.print()
+    console.print("\n")
     console.print("To specify a [bold cyan] -m [MISSION][/bold cyan], you can:")
     console.print("  • Use a mission name from above")
     console.print("  • Use a path to a mission configuration file, e.g. path/to/mission.yaml")
