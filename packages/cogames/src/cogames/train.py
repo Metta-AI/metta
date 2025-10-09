@@ -317,13 +317,13 @@ def train(
             policy_shorthand = get_policy_class_shorthand(policy_class_path)
 
             # Build the command with game name if provided
-            game_arg = f" {game_name}" if game_name else ""
+            game_arg = f"-m {game_name}" if game_name else ""
             policy_class_arg = policy_shorthand if policy_shorthand else policy_class_path
-            policy_arg = f"{policy_class_arg}{MAP_MISSION_DELIMITER}{final_checkpoint}"
+            policy_arg = f"-p {policy_class_arg}{MAP_MISSION_DELIMITER}{final_checkpoint}"
 
             console.print()
             console.print("To continue training this policy:", style="bold")
-            console.print(f"  [yellow]cogames train{game_arg} [/yellow]")
+            console.print(f"  [yellow]cogames train{game_arg} {policy_arg}[/yellow]")
             console.print()
             console.print("To play with this policy:", style="bold")
             console.print(f"  [yellow]cogames play{game_arg} {policy_arg}[/yellow]")

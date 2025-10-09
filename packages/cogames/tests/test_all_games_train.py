@@ -31,6 +31,7 @@ def test_mission_train(mission_name, temp_dir):
             "run",
             "cogames",
             "train",
+            "-m",
             mission_name,
             "--steps=200",
             f"--checkpoints={checkpoint_dir}",

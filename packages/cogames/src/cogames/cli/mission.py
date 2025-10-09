@@ -39,6 +39,26 @@ def get_mission_name_and_config(ctx: typer.Context, mission_arg: Optional[str]) 
     raise typer.Exit(0)
 
 
+def get_mission_names_and_configs(
+    ctx: typer.Context, missions_arg: Optional[list[str]]
+) -> list[tuple[str, MettaGridConfig]]:
+    if not missions_arg:
+        console.print(ctx.get_help())
+    else:
+        try:
+            return [get_mission(m) for m in missions_arg]
+        except ValueError as e:
+            console.print(f"[yellow]{e}[/yellow]")
+            console.print()
+    list_missions()
+
+    if missions_arg is not None:
+        console.print()
+        console.print(ctx.get_usage())
+    console.print()
+    raise typer.Exit(0)
+
+
 def get_mission(
     mission_arg: str,
 ) -> tuple[str, MettaGridConfig]:

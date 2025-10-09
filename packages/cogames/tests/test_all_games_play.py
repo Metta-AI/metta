@@ -16,6 +16,7 @@ def test_mission_play_non_interactive(mission_name):
             "run",
             "cogames",
             "play",
+            "-m",
             mission_name,
             "--steps",
             "10",
