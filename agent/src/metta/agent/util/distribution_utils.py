@@ -30,10 +30,15 @@ def sample_actions(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tenso
     full_log_probs = F.log_softmax(action_logits, dim=-1)  # [batch_size, num_actions]
     action_probs = torch.exp(full_log_probs)  # [batch_size, num_actions]
 
+    # Sample actions from categorical distribution (replacement=True is implicit when num_samples=1)
     actions = torch.multinomial(action_probs, num_samples=1).view(-1)  # [batch_size]
+
+    # Extract log-probabilities for sampled actions using advanced indexing
     batch_indices = torch.arange(actions.shape[0], device=actions.device)
-    act_log_prob = full_log_probs[batch_indices, actions]
-    entropy = -torch.sum(action_probs * full_log_probs, dim=-1)
+    act_log_prob = full_log_probs[batch_indices, actions]  # [batch_size]
+
+    # Compute policy entropy: H(π) = -∑π(a|s)log π(a|s)
+    entropy = -torch.sum(action_probs * full_log_probs, dim=-1)  # [batch_size]
 
     return actions, act_log_prob, entropy, full_log_probs
 
