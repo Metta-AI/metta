@@ -12,6 +12,13 @@ from cortex.cells.base import MemoryCell
 from cortex.cells.registry import register_cell
 from cortex.config import RTUCellConfig
 from cortex.kernels.pytorch.rtu import LinearRTU
+from cortex.utils import select_backend
+
+# Import Triton autograd Function directly to reuse the same Parameters
+try:
+    from cortex.kernels.triton.rtu import _LinearRTUFunctionLR_Triton  # type: ignore
+except Exception:  # pragma: no cover - Triton optional
+    _LinearRTUFunctionLR_Triton = None  # type: ignore[assignment]
 from cortex.types import MaybeState, ResetMask, Tensor
 
 
@@ -47,7 +54,7 @@ class RTUCell(MemoryCell):
 
         H = cfg.hidden_size
         act = _resolve_activation(cfg.activation)
-        # Kernel runs batch-first inside the cell
+        # Kernel runs batch-first inside the cell (PyTorch baseline)
         self.core = LinearRTU(
             input_size=H,
             hidden_size=H,
@@ -71,7 +78,37 @@ class RTUCell(MemoryCell):
         self, x_seq: torch.Tensor, hc1: torch.Tensor, hc2: torch.Tensor, *, resets: Optional[torch.Tensor] = None
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         # x_seq: [B, T, H]
-        y2h, hc1_n, hc2_n = self.core(x_seq, (hc1, hc2), resets=resets)
+        # Define backends: Triton function uses same Parameters from PyTorch module
+        def _fw_triton(x: torch.Tensor, h1: torch.Tensor, h2: torch.Tensor, rm: Optional[torch.Tensor]):
+            assert _LinearRTUFunctionLR_Triton is not None, "Triton backend not available"
+            act_name = self.core.activation.__class__.__name__
+            y2h_t, h1_n, h2_n = _LinearRTUFunctionLR_Triton.apply(
+                x,
+                self.core.nu_log,
+                self.core.theta_log,
+                self.core.U1,
+                self.core.U2,
+                self.core.V1,
+                self.core.V2,
+                act_name,
+                h1,
+                h2,
+                rm,
+                1,  # param_parallel: use fully-parallel path by default
+            )
+            return y2h_t, h1_n, h2_n
+
+        def _fw_torch(x: torch.Tensor, h1: torch.Tensor, h2: torch.Tensor, rm: Optional[torch.Tensor]):
+            return self.core(x, (h1, h2), resets=rm)
+
+        backend = select_backend(
+            triton_fn=_fw_triton if _LinearRTUFunctionLR_Triton is not None else None,
+            pytorch_fn=_fw_torch,
+            tensor=x_seq,
+            allow_triton=True,
+        )
+
+        y2h, hc1_n, hc2_n = backend(x_seq, hc1, hc2, resets)
         # Map 2H -> H (batch-first)
         B, T, _ = y2h.shape
         y = self.out_proj(y2h.reshape(B * T, -1)).reshape(B, T, self.hidden_size)
@@ -85,7 +122,37 @@ class RTUCell(MemoryCell):
         resets_bt = None
         if resets is not None:
             resets_bt = resets.view(-1, 1)
-        y2h, hc1_n, hc2_n = self.core(x_step.unsqueeze(1), (hc1, hc2), resets=resets_bt)
+        # Choose backend as in sequence path
+        def _fw_triton(x: torch.Tensor, h1: torch.Tensor, h2: torch.Tensor, rm: Optional[torch.Tensor]):
+            assert _LinearRTUFunctionLR_Triton is not None, "Triton backend not available"
+            act_name = self.core.activation.__class__.__name__
+            y2h_t, h1_n, h2_n = _LinearRTUFunctionLR_Triton.apply(
+                x,
+                self.core.nu_log,
+                self.core.theta_log,
+                self.core.U1,
+                self.core.U2,
+                self.core.V1,
+                self.core.V2,
+                act_name,
+                h1,
+                h2,
+                rm,
+                1,
+            )
+            return y2h_t, h1_n, h2_n
+
+        def _fw_torch(x: torch.Tensor, h1: torch.Tensor, h2: torch.Tensor, rm: Optional[torch.Tensor]):
+            return self.core(x, (h1, h2), resets=rm)
+
+        backend = select_backend(
+            triton_fn=_fw_triton if _LinearRTUFunctionLR_Triton is not None else None,
+            pytorch_fn=_fw_torch,
+            tensor=x_step,
+            allow_triton=True,
+        )
+
+        y2h, hc1_n, hc2_n = backend(x_step.unsqueeze(1), hc1, hc2, resets_bt)
         y = self.out_proj(y2h.squeeze(1))
         return y, hc1_n, hc2_n
 
