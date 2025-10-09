@@ -1,159 +1,141 @@
 # CoGames: Cogs vs Clips Multi-Agent RL Environment
 
 CoGames is a collection of multi-agent cooperative and competitive environments designed for reinforcement learning
-research. The primary focus is the **Cogs vs Clips** competition - a challenging multi-agent resource management and
-assembly game built on the MettagGrid framework.
+research.
 
-## 🎮 Cogs vs Clips Competition
+## The game: Cogs vs Clips
 
-In Cogs vs Clips, multiple "Cog" agents must cooperate to gather resources, operate machinery, and assemble components
-to achieve objectives. The environment features:
+Multiple "Cog" agents, controlled by user-provided policies, must cooperate to extract Hearts from the environment.
+Doing so requires gathering resources, operating machinery, and assembling components. Many steps will require
+interacting with a "station". Many such interactions will require multiple cogs working in tandem.
 
-- **Multi-agent cooperation**: Agents must coordinate to efficiently use shared resources and stations
+Your Cogs' efforts may be thwarted by Clips: NPC agents that disable stations or otherwise impede progress.
+
+<p align="middle">
+<img src="assets/showoff.gif" alt="Example Cogs vs Clips video">
+<br>
+
+There are many mission configurations available, with different map sizes, resource and station layouts, and game rules.
+Overall, Cogs vs Clips aims to present rich environments with:
+
 - **Resource management**: Energy, materials (carbon, oxygen, germanium, silicon), and crafted components
 - **Station-based interactions**: Different stations provide unique capabilities (extractors, assemblers, chargers,
   chests)
 - **Sparse rewards**: Agents receive rewards only upon successfully crafting target items (hearts)
 - **Partial observability**: Agents have limited visibility of the environment
+- **Required multi-agent cooperation**: Agents must coordinate to efficiently use shared resources and stations
 
-### Game Mechanics
+Cogs should refer to their [MISSION.md](MISSION.md) for a thorough description of the game mechanics.
 
-**Resources:**
-
-- `energy`: Consumed for movement and operating extractors
-- `carbon`, `oxygen`, `germanium`, `silicon`: Base materials extracted from stations
-- `heart`: The target objective item
-- `decoder`, `modulator`, `resonator`, `scrambler`: Advanced components
-
-**Station Types:**
-
-- **Charger**: Provides energy to agents
-- **Extractors** (Carbon/Oxygen/Geranium/Silicon): Convert energy into materials
-- **Assembler**: Combines resources to create components or objectives
-- **Chest**: Storage for resource sharing between agents
-
-## 🚀 Quick Start
-
-### Installation
+## Quick Start
 
 ```bash
-# Install the package
+# Install
 uv pip install cogames
+
+# List missions
+cogames missions
+
+# Play an episode of the machina_1 game
+cogames play training_facility_1 --interactive
+
+# Train a policy in a simple, single-agent game
+cogames train training_facility_1 --policy simple
+
+# Watch or play along side your trained policy
+cogames play training_facility_1 --policy simple --policy-data ./train_dir/policy.pt --interactive
+
+# Evaluate your policy
+cogames evaluate training_facility_1 --policy simple --policy-data ./train_dir/policy.pt
 ```
 
-### Running Your First Game
+## Commands
 
-```bash
-# List all available games
-cogames games
+### `cogames missions [mission_name]`
 
-# Play a simple single-agent assembler scenario
-cogames play assembler_1_simple --steps 100 --render
+Lists all missions and their high-level specs.
 
-# Play a multi-agent scenario
-cogames play assembler_2_complex --steps 200 --render
+If a `mission_name` is provided, it describe a specific mission in detail.
 
-# Run without rendering for faster execution
-cogames play machina_2 --no-render --steps 500
-```
+### `cogames play [mission]`
 
-## 🤖 For RL Researchers
+Play an episode of the specified mission. Cogs' actions are determined by the provided policy.
 
-### Training a Policy
+**Options:**
 
-CoGames integrates with standard RL training frameworks. Currently supports:
+- `--policy PATH`: Policy class (default: random)
+- `--policy-data PATH`: Path to weights file/dir
+- `--steps N`: Number of steps (default: 1000)
+- `--render MODE`: 'gui' or 'text' (default: gui)
+- `--interactive`: Interactive mode (default: true)
 
-- PPO (Proximal Policy Optimization)
-- A2C (Advantage Actor-Critic)
-- DQN (Deep Q-Networks)
+`cogames play` supports a gui-based and text-based game renderer, both of which support many features to inspect agents
+and manually play alongside them.
 
-```bash
-# Train a PPO agent on a single-agent scenario
-cogames train machina_1 --steps 50000
-```
+### `cogames train [mission]`
 
-### Evaluating Policies
+Train a policy on a mission.
 
-Run evaluation for one or more policies on a game. Takes a game name and one or more **policy specs**.
+**Options:**
 
-**Policy spec format**
+- `--policy PATH`: Policy class (default: SimplePolicy)
+- `--initial-weights PATH`: Starting weights
+- `--checkpoints PATH`: Save location (default: ./train_dir)
+- `--steps N`: Training steps (default: 10000)
+- `--device STR`: 'auto', 'cpu', or 'cuda' (default: auto)
+- `--batch-size N`: Batch size (default: 4096)
+- `--num-workers N`: Worker processes (default: CPU count)
 
-```
-{policy_class_path}[:policy_data_path][:proportion]
-```
+#### Training curricula
 
-- **policy_class_path**: required. Either a fully qualified path (`cogames.policy.lstm.LSTMPolicy`) or shorthand
-  (`simple`, `random`).
-- **policy_data_path**: optional. A file or directory. If a directory, the latest checkpoint is used.
-- **proportion**: optional, defaults to 1. Use when evaluating multiple policies to set the relative number of agents
-  using each policy.
+Passing one of the rotation curricula as the `mission` argument cycles training across the six training facilities and the `machina_1` and `machina_2` maps. These suppliers refresh the map each time `cogames train` requests a new environment so policies see a steady mix of layouts.
 
-**Examples**
+- `training_rotation`: Baseline rotation with the standard heart recipe and reward structure.
+- `training_rotation_easy`: Enables the "easy" heart recipe in each map and extends the episode length, reducing the component requirements so current architectures can reliably craft hearts even when the default recipe is out of reach.
+- `training_rotation_shaped`: Adds the shaped intermediate rewards and longer episodes while keeping the full recipe, providing denser feedback without altering the target objective.
+- `training_rotation_easy_shaped`: Combines the easier heart recipe and shaped rewards, plus extended episode lengths, letting agents practice end-to-end heart crafting in a forgiving setting.
 
-```bash
-# Evaluate a random policy
-cogames evaluate machina_1 random
+### Custom Policy Architectures
 
-# Evaluate a trained policy from a checkpoint file
-cogames evaluate machina_1 simple:train_dir/my_policy.pt
-
-# Evaluate the latest checkpoint in a directory
-cogames evaluate machina_1 simple:train_dir/
-
-# Compare multiple trained policies
-cogames evaluate machina_1 simple:train_dir/my_policy1.pt simple:train_dir/my_policy2.pt
-
-# Evaluate a trained policy in games in which it directs 1/3 of the agents and the rest take random actions
-cogames evaluate machina_1 simple:train_dir/my_policy.pt:1 random::2
-```
-
-### Implementing Custom Policies
-
-Create your own policy by extending the `Policy` base class:
+To get started, `cogames` supports some torch-nn-based policy architectures out of the box (such as SimplePolicy). To
+supply your own, you will want to extend `cogames.policy.Policy`.
 
 ```python
 from cogames.policy import Policy
-from typing import Any, Optional
-import torch
-import torch.nn as nn
 
-class MyCustomPolicy(Policy):
+class MyPolicy(Policy):
     def __init__(self, observation_space, action_space):
-        self.network = MyNeuralNetwork(observation_space, action_space)
+        self.network = MyNetwork(observation_space, action_space)
 
-    def get_action(self, observation: Any, agent_id: Optional[int] = None) -> Any:
-        """Compute action from observation."""
-        with torch.no_grad():
-            action_logits = self.network(observation)
-            action = torch.argmax(action_logits).item()
-        return action
+    def get_action(self, observation, agent_id=None):
+        return self.network(observation)
 
-    def reset(self) -> None:
-        """Reset any internal state (e.g., RNN hidden states)."""
+    def reset(self):
         pass
 
-    def save(self, path: str) -> None:
-        """Save model checkpoint."""
+    def save(self, path):
         torch.save(self.network.state_dict(), path)
 
     @classmethod
-    def load(cls, path: str, env=None) -> "MyCustomPolicy":
-        """Load model from checkpoint."""
+    def load(cls, path, env=None):
         policy = cls(env.observation_space, env.action_space)
         policy.network.load_state_dict(torch.load(path))
         return policy
 ```
 
-### Environment API
+To train with using your class, supply a path to it with the `--policy`argument, e.g.
+`cogames train training_facility_1 --policy path.to.MyPolicy`.
 
-The underlying MettagGrid environment follows the Gymnasium API:
+#### Environment API
+
+The underlying environment follows the Gymnasium API:
 
 ```python
-from cogames import get_game
+from cogames.game import get_mission
 from mettagrid.envs import MettaGridEnv
 
-# Load a game configuration
-config = get_game("assembler_2_complex")
+# Load a mission configuration
+config, _, __ = game_module.get_mission("assembler_2_complex", "default")
 
 # Create environment
 env = MettaGridEnv(env_cfg=config)
@@ -173,103 +155,52 @@ for step in range(1000):
         obs, info = env.reset()
 ```
 
-## 📊 Available Scenarios
+### `cogames eval [game] [policies...]`
 
-### Tutorial Scenarios
+Evaluate one or more policies.
 
-- `assembler_1_simple`: Single agent, simple assembly recipe
-- `assembler_1_complex`: Single agent, complex recipes
-- `assembler_2_simple`: 4 agents, simple cooperation
-- `assembler_2_complex`: 4 agents, complex cooperation
+To specify policies to evaluate, you can either provide `--policy` and `--policy-data` arguments as seen in other `cogames` commands, or can provide a list of policy specs:
+**Policy spec format:** `{class_path}[:data_path][:proportion]`
 
-### Competition Scenarios
-
-- `machina_1`: Single agent, full game mechanics
-- `machina_2`: 4 agents, full game mechanics
-
-Use `cogames games [scenario_name]` for detailed information about each scenario.
-
-## 🔧 Creating Custom Scenarios
-
-```python
-from cogames.cogs_vs_clips.scenarios import make_game
-
-# Create a custom game configuration
-config = make_game(
-    num_cogs=4,                    # Number of agents
-    num_assemblers=2,              # Number of assembler stations
-    num_chargers=1,                # Energy stations
-    num_carbon_extractors=1,       # Material extractors
-    num_oxygen_extractors=1,
-    num_germanium_extractors=1,
-    num_silicon_extractors=1,
-    num_chests=2,                  # Storage chests
-)
-
-# Modify map size
-config.game.map_builder.width = 15
-config.game.map_builder.height = 15
-
-# Save configuration
-cogames make-scenario --name my_scenario --agents 4 --width 15 --height 15 --output my_scenario.yaml
-```
-
-## 🏆 Competition Tips
-
-1. **Coordination is Key**: Multi-agent scenarios require effective coordination. Consider:
-   - Task allocation strategies
-   - Communication through glyph changes
-   - Resource sharing via chests
-
-2. **Energy Management**: Energy is limited and required for most actions:
-   - Plan efficient paths
-   - Use chargers strategically
-   - Balance exploration vs exploitation
-
-3. **Hierarchical Planning**: Break down the assembly task:
-   - Gathering phase (collect base materials)
-   - Processing phase (operate extractors)
-   - Assembly phase (combine at assemblers)
-
-4. **Curriculum Learning**: Start with simpler scenarios:
-   - Master single-agent tasks first
-   - Graduate to multi-agent coordination
-   - Increase complexity gradually
-
-## 🔬 Research Integration
-
-CoGames is designed to integrate with the Metta RL framework:
+**Examples:**
 
 ```bash
-# Using Metta's recipe system for advanced training
-uv run ./tools/run.py experiments.recipes.cogames.train scenario=assembler_2_complex
+# Trained policy
+cogames eval machina_1 --policy simple --policy-data train_dir/model.pt
 
-# Distributed training with Metta
-uv run ./tools/run.py experiments.recipes.cogames.distributed_train \
-    num_workers=4 \
-    scenario=machina_2
+# Or, equivalently
+cogames eval machina_1 simple:train_dir/model.pt
+
+# Mixed population of agents, 3/8 of which steered by your policy, the rest by a random-action policy
+cogames eval machina_1 simple:train_dir/model.pt:3 random::5
 ```
 
-## 📚 Additional Resources
+**Options:**
 
-- **MettagGrid Documentation**: The underlying grid world engine
-- **Metta RL Framework**: Advanced training recipes and algorithms
-- **Competition Leaderboard**: Track your progress against other researchers
+- `--episodes N`: Number of episodes (default: 10)
+- `--action-timeout-ms N`: Timeout per action (default: 250ms)
 
-## 🐛 Debugging and Visualization
+When multiple policies are provided, `cogames eval` fixes the number of agents each policy will control, but
+randomizes their assignments each episode.
 
-```bash
-# Interactive mode for debugging
-cogames play machina_1 --interactive
+### `cogames make-mission [base_mission]`
 
-# Use the text renderer
-cogames play machina_1 --interactive --render text
+Create custom mission configuration.
 
-# Non-interactive step-by-step execution
-cogames play machina_2 --steps 10
-```
+**Options:**
 
-## 📝 Citation
+- `--agents N`: Number of agents (default: 2)
+- `--width W`: Map width (default: 10)
+- `--height H`: Map height (default: 10)
+- `--output PATH`: Save to file
+
+You will be able to provide your specified `--output` path as the `mission` argument to other `cogames` commmands.
+
+### `cogames version`
+
+Show version info for mettagrid, pufferlib-core, and cogames.
+
+## Citation
 
 If you use CoGames in your research, please cite:
 
@@ -281,11 +212,3 @@ If you use CoGames in your research, please cite:
   url={https://github.com/metta-ai/metta}
 }
 ```
-
-## 💡 Support
-
-For questions about the Cogs vs Clips competition or CoGames environments:
-
-- Open an issue in the repository
-- Contact the competition organizers
-- Check the competition Discord channel

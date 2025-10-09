@@ -3,6 +3,7 @@
   "editor.formatOnSave": true,
   "files.trimTrailingWhitespace": true,
   "files.insertFinalNewline": true,
+
   // C/C++ Configuration
   "[cpp]": {
     "editor.rulers": [120],
@@ -12,6 +13,7 @@
   "C_Cpp.clang_format_fallbackStyle": "{ BasedOnStyle: Google, IndentWidth: 4 }",
   "C_Cpp.errorSquiggles": "enabled",
   "C_Cpp.intelliSenseEngine": "default",
+
   // Python Configuration
   "[python]": {
     "editor.defaultFormatter": "charliermarsh.ruff",
@@ -23,8 +25,10 @@
     "editor.rulers": [120],
     "editor.renderWhitespace": "trailing",
   },
+
   // Ruff Extension Settings
   "ruff.configurationPreference": "filesystemFirst",
+
   // YAML Configuration
   "[yaml]": {
     "editor.insertSpaces": true,
@@ -36,15 +40,55 @@
       "strings": true,
     },
   },
+
   // Terminal Configuration
   "terminal.integrated.cwd": "${workspaceFolder}",
-  // File Explorer Configuration
+
+  // File / Folder Exclusions (Explorer + Watcher)
   "files.exclude": {
+    "**/.git": true,
+    "**/.venv": true,
+    "**/.ruff_cache": true,
     "**/__pycache__": true,
     "**/.pytest_cache": true,
     "**/*.egg-info": true,
+    "**/node_modules": true,
+    "**/.bazel_output": true,
+    "**/bazel-*": true,
     "outputs": true,
     "train_dir": true,
     "wandb": true,
+    "build": true,
+    "dist": true,
+    "tmp": true,
+  },
+
+  // Exclude from text/code search
+  "search.exclude": {
+    "**/.venv": true,
+    "**/.ruff_cache": true,
+    "**/node_modules": true,
+    "**/.bazel_output": true,
+    "**/bazel-*": true,
+    "**/train_dir": true,
+    "**/wandb": true,
+    "**/outputs": true,
+    "**/tmp": true,
+  },
+
+  // Exclude from C/C++ IntelliSense indexing
+  "C_Cpp.files.exclude": {
+    "**/.venv": true,
+    "**/.ruff_cache": true,
+    "**/node_modules": true,
+    "**/.bazel_output": true,
+    "**/bazel-*": true,
+    "**/train_dir": true,
+    "**/wandb": true,
+    "**/outputs": true,
+    "**/observatory": true,
+    "**/tmp": true,
+    "build": true,
+    "dist": true,
   },
 }

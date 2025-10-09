@@ -170,11 +170,11 @@ export const SceneTreeViewer: FC<TreeProps & ContextProps> = ({
 }) => {
   return (
     <div className="h-full overflow-auto pt-2">
-      <SceneTreeViewerContext.Provider value={contextProps}>
+      <SceneTreeViewerContext value={contextProps}>
         <div className="min-w-fit">
           <InnerSceneTreeViewer sceneTree={sceneTree} />
         </div>
-      </SceneTreeViewerContext.Provider>
+      </SceneTreeViewerContext>
     </div>
   );
 };
