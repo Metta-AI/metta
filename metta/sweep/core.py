@@ -3,8 +3,6 @@
 from enum import StrEnum
 from typing import Dict, List, Optional, Union
 
-import numpy as np
-
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig, ProteinSettings
 from metta.tools.sweep import SweepSchedulerType, SweepTool
 
@@ -31,44 +29,16 @@ class SweepParameters:
         search_center: float | None = None,
         scale: str = "auto",
     ) -> Dict[str, ParameterConfig]:
-        """Create a custom parameter with sanitization.
-
-        Args:
-            name: Parameter name (e.g., "trainer.optimizer.learning_rate")
-            distribution: Distribution type
-            min: Minimum value
-            max: Maximum value
-            search_center: Center point for search (defaults to mean)
-            scale: Scale parameter
-
-        Returns:
-            Dict with single key-value pair: {name: ParameterConfig}
-        """
-        # Sanitize logit distribution bounds
-        if distribution == Distribution.LOGIT_NORMAL:
-            min = np.minimum(min, 1e-6)
-            max = np.maximum(max, 1 - 1e-6)
-
-        # Validate bounds
-        if min >= max:
-            raise ValueError(f"min ({min}) must be less than max ({max})")
-
-        # Default search center based on distribution
-        if search_center is None:
-            if distribution in [Distribution.LOG_NORMAL, Distribution.UNIFORM_POW2]:
-                search_center = (min * max) ** 0.5  # Geometric mean
-            else:
-                search_center = (min + max) / 2  # Arithmetic mean
-
-        return {
-            name: ParameterConfig(
-                min=min,
-                max=max,
-                distribution=distribution.value,
-                mean=search_center,
-                scale=scale,
-            )
+        """Create a custom parameter; ParameterConfig handles validation/defaults."""
+        kwargs: dict[str, object] = {
+            "min": min,
+            "max": max,
+            "distribution": distribution.value,
+            "scale": scale,
         }
+        if search_center is not None:
+            kwargs["mean"] = search_center
+        return {name: ParameterConfig(**kwargs)}
 
     # Learning rate
     LEARNING_RATE = {

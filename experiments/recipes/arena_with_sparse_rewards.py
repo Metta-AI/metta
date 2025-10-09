@@ -228,7 +228,7 @@ def sweep(sweep_name: str) -> SweepTool:
 
     return make_sweep(
         name=sweep_name,
-        recipe="experiments.recipes.arena_with_sparse_reward",
+        recipe="experiments.recipes.arena_with_sparse_rewards",
         train_entrypoint="train",
         # We can set global overrides for training here.
         # These are passed via the CLI

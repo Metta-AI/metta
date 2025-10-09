@@ -2,13 +2,19 @@
 
 from typing import Any, Dict, Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from mettagrid.base_config import Config
 
 
 class ParameterConfig(Config):
-    """Configuration for a single hyperparameter to optimize."""
+    """Configuration for a single hyperparameter to optimize.
+
+    Performs internal validation/sanitization:
+    - For "logit_normal", clamps bounds to (1e-6, 1 - 1e-6)
+    - If "mean" is omitted, defaults to geometric mean for log/log2 and arithmetic mean otherwise
+    - Ensures min < max
+    """
 
     min: float = Field(description="Minimum value for the parameter")
     max: float = Field(description="Maximum value for the parameter")
@@ -17,6 +23,49 @@ class ParameterConfig(Config):
     )
     mean: float = Field(description="Mean/center value for search")
     scale: float | str = Field(description="Scale for the parameter search")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _sanitize_and_default(cls, values: Any) -> Any:
+        if not isinstance(values, dict):
+            return values
+
+        v = dict(values)
+        dist = v.get("distribution")
+
+        # Clamp for logit-normal to avoid 0/1 boundary issues
+        if dist == "logit_normal":
+            eps = 1e-6
+            try:
+                v_min = float(v.get("min"))
+                v_max = float(v.get("max"))
+            except Exception:
+                return v
+            v_min = max(v_min, eps)
+            v_max = min(v_max, 1 - eps)
+            v["min"] = v_min
+            v["max"] = v_max
+
+        # Default mean if not provided
+        if v.get("mean") is None:
+            try:
+                v_min = float(v.get("min"))
+                v_max = float(v.get("max"))
+            except Exception:
+                return v
+            if dist in ("log_normal", "uniform_pow2"):
+                v["mean"] = (v_min * v_max) ** 0.5
+            else:
+                v["mean"] = (v_min + v_max) / 2.0
+
+        # Basic bound validation
+        try:
+            if float(v.get("min")) >= float(v.get("max")):
+                raise ValueError("min must be less than max")
+        except Exception:
+            return v
+
+        return v
 
 
 class ProteinSettings(Config):
