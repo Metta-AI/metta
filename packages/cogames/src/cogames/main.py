@@ -88,7 +88,7 @@ def games_cmd(
 def play_cmd(
     ctx: typer.Context,
     mission: Optional[str] = typer.Argument(None, help="Mission name"),
-    policy: Optional[str] = typer.Argument(None, help=f"Policy ({policy_arg_example})"),
+    policy: Optional[str] = typer.Argument("noop", help=f"Policy ({policy_arg_example})"),
     interactive: bool = typer.Option(True, "--interactive", "-i", help="Run in interactive mode"),
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
     render: Literal["gui", "text", "none"] = typer.Option(
@@ -148,7 +148,7 @@ def make_mission(
 def train_cmd(
     ctx: typer.Context,
     mission: Optional[str] = typer.Argument(None, help="Name of the mission to train on"),
-    policy: Optional[str] = typer.Argument(None, help=f"Policy ({policy_arg_example})"),
+    policy: Optional[str] = typer.Argument("simple", help=f"Policy ({policy_arg_example})"),
     checkpoints_path: str = typer.Option(
         "./train_dir",
         "--checkpoints",

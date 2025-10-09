@@ -36,14 +36,14 @@ uv pip install cogames
 # List missions
 cogames missions
 
-# Play an episode of the machina_1 game
-cogames play training_facility_1 --interactive
+# Play an episode of the machina_1 game.
+cogames play training_facility_1 random
 
 # Train a policy in a simple, single-agent game
 cogames train training_facility_1 simple
 
 # Watch or play along side your trained policy
-cogames play training_facility_1 simple:train_dir/policy.pt --interactive
+cogames play training_facility_1 simple:train_dir/policy.pt
 
 # Evaluate your policy
 cogames eval training_facility_1 simple:./train_dir/policy.pt
@@ -58,7 +58,7 @@ To specify a `MISSION`, you can:
 - Use a path to a mission configuration file, e.g. path/to/mission.yaml"
 
 To specify a `POLICY`, provide an argument with up to three parts `CLASS[:DATA][:PROPORTION]`:
-- `CLASS`: Policy shorthand (`simple`, `random`, `lstm`, ...) or fully qualified class path like `cogames.policy.random.RandomPolicy`.
+- `CLASS`: Policy shorthand (`noop`, `random`, `lstm`, `simple`) or fully qualified class path like `cogames.policy.random.RandomPolicy`.
 - `DATA`: Optional path to a weights file or directory. When omitted, defaults to the policy's built-in weights.
 - `PROPORTION`: Optional positive float specifying the relative share of agents that use this policy (default: 1.0).
 

@@ -15,6 +15,7 @@ from mettagrid.util.module import load_symbol
 
 _POLICY_CLASS_SHORTHAND: dict[str, str] = {
     "random": "cogames.policy.random.RandomPolicy",
+    "noop": "cogames.policy.noop.NoopPolicy",
     "simple": "cogames.policy.simple.SimplePolicy",
     "token": "cogames.policy.token.TokenPolicy",
     "lstm": "cogames.policy.lstm.LSTMPolicy",
