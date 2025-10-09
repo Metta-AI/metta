@@ -6,6 +6,7 @@
 # - Writes full logs to files and a compact Step Summary
 
 set -euo pipefail
+REPO_ROOT="$(pwd -P)"
 
 # ----------------------- Config knobs -----------------------
 : "${PKG_GLOBS:=agent common core app_backend packages/*}"
@@ -24,7 +25,7 @@ PYTEST_OPTS="${PYTEST_ADDOPTS:-$DEFAULT_PYTEST_OPTS} ${SELECT}"
 
 ART_DIR="${ART_DIR:-test-results}"
 COV_DIR="${COV_DIR:-coverage-reports}"
-mkdir -p "$ART_DIR" "$COV_DIR"
+mkdir -p "${REPO_ROOT}/$ART_DIR" "${REPO_ROOT}/$COV_DIR"
 
 # ----------------------- Colors -----------------------------
 RED=$'\e[1;31m'; GRN=$'\e[1;32m'; YEL=$'\e[1;33m'
@@ -76,10 +77,10 @@ run_pkg() {
   local pkg="$1" idx="$2"
   local name; name="$(basename "$pkg")"
   local color="${colors[$((idx % ${#colors[@]}))]}"
-  local raw="$ART_DIR/${name}.log"
-  local exitfile="$ART_DIR/${name}.exit"
-  local durfile="$ART_DIR/${name}.dur"
-  local covxml="$COV_DIR/coverage-${name}.xml"
+  local raw="${REPO_ROOT}/${ART_DIR}/${name}.log"
+  local exitfile="${REPO_ROOT}/${ART_DIR}/${name}.exit"
+  local durfile="${REPO_ROOT}/${ART_DIR}/${name}.dur"
+  local covxml="${REPO_ROOT}/${COV_DIR}/coverage-${name}.xml"
   local run_dir="."
   local covpath="$covxml"
 
@@ -119,7 +120,7 @@ run_pkg() {
   fi
 
   # Also collect per-test durations for a global top-10
-  grep -E "^[0-9]+\.[0-9]+s " "$raw" > "$ART_DIR/${name}.pytest.dur" || true
+  grep -E "^[0-9]+\.[0-9]+s " "$raw" > "${REPO_ROOT}/${ART_DIR}/${name}.pytest.dur" || true
 }
 
 # ----------------------- Main -------------------------------
@@ -153,7 +154,7 @@ END="$(date +%s)"; TOTAL="$((END-START))"
 # ----------------------- Summaries --------------------------
 echo -e "\n${WHT}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${WHT}🐌 TOP 10 SLOWEST TESTS${NC}"
-cat "$ART_DIR"/*.pytest.dur 2>/dev/null | sed 's/^/[/; s/]/] /' | sort -k2 -nr | head -10 | nl -w2 -s'. ' || echo "No duration data."
+cat "${REPO_ROOT}/${ART_DIR}"/*.pytest.dur 2>/dev/null | sort -k2 -nr | head -10 | nl -w2 -s'. ' || echo "No duration data."
 
 echo -e "\n${WHT}📊 PACKAGE RESULTS${NC}"
 printf "%-24s %-8s %s\n" "package" "result" "log"
