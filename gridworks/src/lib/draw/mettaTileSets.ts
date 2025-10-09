@@ -36,11 +36,12 @@ export const TILE_NAMES = [
   "lasery",
   "temple",
   "block",
-  // doesn't include "agent" or "wall", they're special
+  "wall",
+  // doesn't include "agent" or "wall.*", they're special
 ];
 
 export const WALL_NAMES = [
-  "wall",
+  "wall.0",
   "wall.e",
   "wall.s",
   "wall.se",
