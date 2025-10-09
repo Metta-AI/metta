@@ -3,12 +3,8 @@
 import { useQuery } from "@tanstack/react-query";
 import * as postsApi from "@/lib/api/resources/posts";
 
-export function usePosts(query?: { limit?: number; offset?: number }) {
-  return useQuery({
-    queryKey: ["posts", query],
-    queryFn: () => postsApi.listPosts(query),
-  });
-}
+// Note: usePosts() removed - use server-side data fetching with posts-server.ts instead
+// The listPosts API was intentionally removed
 
 export function usePost(id: string) {
   return useQuery({
