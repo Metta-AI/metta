@@ -72,18 +72,14 @@ class ProteinSettings(Config):
     """Settings for the Protein optimizer algorithm."""
 
     # Common settings for all methods
-    max_suggestion_cost: float = Field(
-        default=10800, description="Maximum cost for a single suggestion"
-    )
+    max_suggestion_cost: float = Field(default=10800, description="Maximum cost for a single suggestion")
     global_search_scale: float = Field(default=1.0, description="Scale factor for global search")
     random_suggestions: int = Field(default=15, description="Number of random suggestions to generate")
     suggestions_per_pareto: int = Field(default=256, description="Number of suggestions per Pareto point")
 
     # Bayesian optimization specific settings
     resample_frequency: int = Field(default=10, description="How often to resample Pareto points")
-    num_random_samples: int = Field(
-        default=0, description="Number of random samples before using GP"
-    )
+    num_random_samples: int = Field(default=0, description="Number of random samples before using GP")
     seed_with_search_center: bool = Field(default=True, description="Whether to seed with the search center")
     expansion_rate: float = Field(default=0.25, description="Rate of search space expansion")
     acquisition_fn: Literal["naive", "ei", "ucb"] = Field(
