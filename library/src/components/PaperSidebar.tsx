@@ -1,6 +1,6 @@
 "use client";
 
-import { FC, useRef, useState } from "react";
+import { FC, useRef, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Download } from "lucide-react";
 import { FeedPostDTO } from "@/posts/data/feed";
@@ -10,8 +10,7 @@ import { StarWidgetQuery } from "@/components/StarWidgetQuery";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import * as authorsApi from "@/lib/api/resources/authors";
-import type { AuthorDetail } from "@/lib/api/resources/authors";
+import { useAuthor, useAuthors } from "@/hooks/queries";
 
 interface PaperSidebarProps {
   paper: FeedPostDTO["paper"];
@@ -38,6 +37,32 @@ interface LLMAbstractViewProps {
 export const PaperSidebar: FC<PaperSidebarProps> = ({ paper, onClose }) => {
   const router = useRouter();
   const { openAuthor, openInstitution } = useOverlayNavigation();
+  const [selectedAuthorId, setSelectedAuthorId] = useState<string | null>(null);
+  const [searchName, setSearchName] = useState<string | null>(null);
+
+  // Fetch author by ID when selected
+  const { data: authorById } = useAuthor(selectedAuthorId!, {
+    enabled: !!selectedAuthorId,
+  });
+
+  // Fallback: search by name if ID fetch failed
+  const { data: authorsByName } = useAuthors(
+    { search: searchName! },
+    { enabled: !!searchName && !authorById }
+  );
+
+  // Open author when data is loaded
+  useEffect(() => {
+    if (authorById) {
+      openAuthor(authorById);
+      setSelectedAuthorId(null);
+      setSearchName(null);
+    } else if (authorsByName && authorsByName.length > 0) {
+      openAuthor(authorsByName[0]);
+      setSelectedAuthorId(null);
+      setSearchName(null);
+    }
+  }, [authorById, authorsByName, openAuthor]);
 
   // Handle tag click to navigate to papers view with tag filter
   const handleTagClick = (tag: string) => {
@@ -46,36 +71,10 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper, onClose }) => {
     router.push(`/papers?${params.toString()}`);
   };
 
-  // Handle clicking on an author
-  const handleAuthorClick = async (authorId: string, authorName: string) => {
-    try {
-      // Try to load full author data by ID first
-      let fullAuthor = await authorsApi.getAuthor(authorId);
-
-      // If that fails, try searching by name via the authors API
-      if (!fullAuthor) {
-        try {
-          const searchResponse = await fetch(
-            `/api/authors?search=${encodeURIComponent(authorName)}`
-          );
-          if (searchResponse.ok) {
-            const searchResults = await searchResponse.json();
-            if (searchResults.length > 0) {
-              // Use the first matching author
-              fullAuthor = searchResults[0];
-            }
-          }
-        } catch (searchError) {
-          console.log("Search by name failed:", searchError);
-        }
-      }
-
-      if (fullAuthor) {
-        openAuthor(fullAuthor);
-      }
-    } catch (error) {
-      console.error("Error loading author:", error);
-    }
+  // Handle clicking on an author - trigger reactive fetch
+  const handleAuthorClick = (authorId: string, authorName: string) => {
+    setSelectedAuthorId(authorId);
+    setSearchName(authorName); // Fallback if ID doesn't work
   };
 
   // Handle clicking on an institution

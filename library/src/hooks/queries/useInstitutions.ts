@@ -10,10 +10,10 @@ export function useInstitutions() {
   });
 }
 
-export function useInstitution(name: string) {
+export function useInstitution(name: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["institutions", name],
     queryFn: () => institutionsApi.getInstitutionByName(name),
-    enabled: !!name,
+    enabled: options?.enabled ?? !!name,
   });
 }
