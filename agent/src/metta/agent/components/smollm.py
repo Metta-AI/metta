@@ -139,10 +139,16 @@ class SmolLLMBackbone(nn.Module):
             "low_cpu_mem_usage": True,
         }
         dtype = self._resolve_dtype()
+        attn_impl = self.config.attn_implementation
+        dtype, attn_impl = self._harmonize_flash_attention(dtype, attn_impl)
         if dtype is not None:
             kwargs["torch_dtype"] = dtype
-        if self.config.attn_implementation is not None:
-            kwargs["attn_implementation"] = self.config.attn_implementation
+        if attn_impl is not None:
+            kwargs["attn_implementation"] = attn_impl
+        if attn_impl != self.config.attn_implementation:
+            self.config.attn_implementation = attn_impl
+        if dtype is not None and self.config.torch_dtype == "auto":
+            self.config.torch_dtype = "bfloat16" if dtype == torch.bfloat16 else "float16"
 
         logger.info("Loading SmolLLM model '%s'", self.config.model_name)
         self.llm = AutoModelForCausalLM.from_pretrained(self.config.model_name, **kwargs)
@@ -157,9 +163,47 @@ class SmolLLMBackbone(nn.Module):
             "float16": torch.float16,
             "bfloat16": torch.bfloat16,
         }
-        if self.config.torch_dtype == "auto":
-            return None
-        return mapping[self.config.torch_dtype]
+        torch_dtype = self.config.torch_dtype
+        if torch_dtype == "auto":
+            return self._resolve_auto_dtype()
+        return mapping[torch_dtype]
+
+    def _resolve_auto_dtype(self) -> Optional[torch.dtype]:
+        attn_impl = self.config.attn_implementation or ""
+        if "flash_attention" in attn_impl:
+            return self._preferred_flash_attention_dtype()
+        return None
+
+    def _preferred_flash_attention_dtype(self) -> Optional[torch.dtype]:
+        if torch.cuda.is_available():
+            is_bf16_supported = getattr(torch.cuda, "is_bf16_supported", lambda: False)
+            if is_bf16_supported():
+                return torch.bfloat16
+            return torch.float16
+        if torch.backends.mps.is_available():
+            return torch.float16
+        if torch.backends.mkldnn.is_available():
+            return torch.bfloat16
+        return None
+
+    def _harmonize_flash_attention(
+        self, dtype: Optional[torch.dtype], attn_impl: Optional[str]
+    ) -> tuple[Optional[torch.dtype], Optional[str]]:
+        if attn_impl is None or "flash_attention" not in attn_impl:
+            return dtype, attn_impl
+        if dtype in (torch.float16, torch.bfloat16):
+            return dtype, attn_impl
+
+        preferred = self._preferred_flash_attention_dtype() if dtype is None else None
+        if preferred in (torch.float16, torch.bfloat16):
+            logger.info("Setting FlashAttention dtype to %s", preferred)
+            return preferred, attn_impl
+
+        logger.warning(
+            "Disabling FlashAttention because dtype %s is incompatible.",
+            dtype if dtype is not None else "auto(float32)",
+        )
+        return dtype, None
 
     def _project_tokens(self, tokens: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         if tokens.shape[-1] != 3:

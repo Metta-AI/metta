@@ -49,6 +49,17 @@ def _fake_from_pretrained(hidden_size: int = 64):
     return _factory
 
 
+def _capturing_from_pretrained(store: dict[str, object], hidden_size: int = 64):
+    def _factory(*_: object, **kwargs: object) -> RecordingModel:
+        store.update(kwargs)
+        dtype = kwargs.get("torch_dtype", torch.float32)
+        if not isinstance(dtype, torch.dtype):
+            dtype = torch.float32
+        return RecordingModel(hidden_size=hidden_size, dtype=dtype)
+
+    return _factory
+
+
 def _make_env(num_actions: int) -> SimpleNamespace:
     return SimpleNamespace(action_space=spaces.Discrete(num_actions))
 
@@ -144,3 +155,42 @@ def test_initialize_to_environment_aligns_module_dtypes(monkeypatch: pytest.Monk
     assert backbone.embed_norm.weight.dtype == torch.float16
     assert backbone.actor_head.weight.dtype == torch.float16
     assert backbone.value_head.weight.dtype == torch.float16
+
+
+def test_flash_attn_auto_dtype_promotes_float16(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(
+        "metta.agent.components.smollm.AutoModelForCausalLM",
+        SimpleNamespace(from_pretrained=_capturing_from_pretrained(captured, hidden_size=32)),
+    )
+    monkeypatch.setattr("metta.agent.components.smollm.torch.cuda.is_available", lambda: True)
+    monkeypatch.setattr("metta.agent.components.smollm.torch.cuda.is_bf16_supported", lambda: False)
+    monkeypatch.setattr("metta.agent.components.smollm.torch.backends.mps.is_available", lambda: False)
+    monkeypatch.setattr("metta.agent.components.smollm.torch.backends.mkldnn.is_available", lambda: False)
+
+    env = _make_env(num_actions=2)
+    config = SmolLLMBackboneConfig(in_key="tokens", attn_implementation="flash_attention_2", freeze_llm=False)
+    backbone = SmolLLMBackbone(env, config)
+    assert isinstance(backbone.llm, RecordingModel)
+    assert captured["torch_dtype"] == torch.float16
+    assert captured["attn_implementation"] == "flash_attention_2"
+    assert config.torch_dtype == "float16"
+    assert config.attn_implementation == "flash_attention_2"
+
+
+def test_flash_attn_disabled_when_no_supported_dtype(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(
+        "metta.agent.components.smollm.AutoModelForCausalLM",
+        SimpleNamespace(from_pretrained=_capturing_from_pretrained(captured, hidden_size=32)),
+    )
+    monkeypatch.setattr("metta.agent.components.smollm.torch.cuda.is_available", lambda: False)
+    monkeypatch.setattr("metta.agent.components.smollm.torch.backends.mps.is_available", lambda: False)
+    monkeypatch.setattr("metta.agent.components.smollm.torch.backends.mkldnn.is_available", lambda: False)
+
+    env = _make_env(num_actions=2)
+    config = SmolLLMBackboneConfig(in_key="tokens", attn_implementation="flash_attention_2", freeze_llm=False)
+    backbone = SmolLLMBackbone(env, config)
+    assert isinstance(backbone.llm, RecordingModel)
+    assert "attn_implementation" not in captured
+    assert config.attn_implementation is None
