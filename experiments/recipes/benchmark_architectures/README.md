@@ -177,34 +177,18 @@ The benchmark suite tests 13 architecture variants:
 
 ## Benchmark Results
 
-Results are saved to `./train_dir/benchmark/benchmark_results.json` with:
-- Training duration and status
+Results are tracked in WandB under the `metta-research/metta` project with:
+- Training metrics and curves
 - Evaluation results for each run
-- Command history for reproducibility
+- Job status and metadata
+- Pixels explored metric (displayed as `env_agent/pixels_explored`)
 
-Example structure:
-```json
-{
-  "start_time": "2025-01-15T10:30:00",
-  "max_timesteps": 1000000,
-  "runs": [
-    {
-      "run_number": 1,
-      "total_runs": 65,
-      "training": {
-        "architecture": "vit",
-        "level": "level_1_basic",
-        "status": "success",
-        "duration_seconds": 450.2
-      },
-      "evaluation": {
-        "status": "success",
-        "duration_seconds": 35.1
-      }
-    }
-  ]
-}
-```
+Each run is tagged with:
+- `benchmark_architectures` - Main benchmark suite tag
+- `<experiment_id>` - Your specified experiment identifier
+- Architecture type, level, and seed metadata
+
+Training checkpoints are saved to `./train_dir/<run_id>/checkpoints/` and evaluation results to `./train_dir/eval_<run_id>/stats.db`.
 
 ## Expected Difficulty Progression
 
@@ -222,23 +206,28 @@ Good architectures should:
 
 ## Usage Examples
 
-### Quick Architecture Comparison
+### Quick Test Run
 
-Compare two architectures on the easiest level:
+Test a single architecture on a single level:
 ```bash
-uv run experiments/recipes/benchmark_architectures/run_benchmark.py \
-  --architectures vit,fast \
-  --levels level_1_basic \
-  --max-timesteps 500000
+# Train and evaluate on level 1 with fast architecture
+uv run ./tools/run.py experiments.recipes.benchmark_architectures.level_1_basic.train \
+  run=quick_test \
+  arch_type=fast \
+  trainer.total_timesteps=500000
+
+uv run ./tools/run.py experiments.recipes.benchmark_architectures.level_1_basic.evaluate \
+  policy_uri=file://./train_dir/quick_test/checkpoints
 ```
 
 ### Full Scientific Benchmark
 
-Run complete benchmark with sufficient training:
+Run complete benchmark across all architectures and levels with sufficient training:
 ```bash
-uv run experiments/recipes/benchmark_architectures/run_benchmark.py \
-  --max-timesteps 5000000 \
-  --output-dir ./results/full_benchmark_$(date +%Y%m%d)
+uv run experiments/recipes/benchmark_architectures/adaptive.py \
+  --experiment-id full_benchmark_$(date +%Y%m%d) \
+  --timesteps 5000000 \
+  --max-parallel 16
 ```
 
 ### Test New Architecture
@@ -278,19 +267,19 @@ To add a new architecture to the benchmark:
 ## Common Issues
 
 ### Training Takes Too Long
-- Reduce `--max-timesteps` for initial testing
-- Start with `--levels level_1_basic` only
-- Use `--architectures fast` for quick baseline
+- Reduce `--timesteps` for initial testing
+- Test individual levels using the recipe modules directly (e.g., `level_1_basic.train`)
+- Use `arch_type=fast` for quick baseline tests
 
 ### Out of Memory
-- The benchmark runs sequentially, so memory issues suggest a leak
+- Reduce `--max-parallel` to run fewer jobs concurrently
 - Check individual architecture memory requirements
 - Consider reducing batch sizes in architecture configs
 
 ### Evaluation Fails
 - Ensure training completed successfully (check train_dir)
 - Verify checkpoint files exist at expected paths
-- Use `--skip-training` to retry only evaluation
+- Run evaluation manually using the recipe's evaluate function
 
 ## Next Steps
 
