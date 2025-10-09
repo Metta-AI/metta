@@ -25,7 +25,7 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
 
     # Bidirectional learning progress settings (now default)
     use_bidirectional: bool = True
-    ema_timescale: float = 0.001
+    ema_timescale: float = 0.05
     exploration_bonus: float = 0.1
     progress_smoothing: float = 0.05  # For bidirectional reweighting
 

@@ -88,8 +88,8 @@ class PlayTool(Tool):
 
                 actions = np.asarray(sim.generate_actions(), dtype=dtype_actions)
                 # Just do random actions for now.
-                random_actions = np.random.randint(0, env.action_space.n, size=len(actions))
-                actions[:] = random_actions.astype(dtype_actions, copy=False)
+                # actions[:, 0] = np.random.randint(0, 5, size=len(actions))  # Random action types
+                # actions[:, 1] = np.random.randint(0, 4, size=len(actions))  # Random action args
                 for action in response.actions:
                     actions[action.agent_id] = action.action_id
 
