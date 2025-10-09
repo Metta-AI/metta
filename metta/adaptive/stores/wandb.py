@@ -24,9 +24,12 @@ class WandbStore:
     STATUS_FAILED = "failed"
     STATUS_CANCELLED = "cancelled"
 
-    def __init__(self, entity: str, project: str):
+    def __init__(self, entity: str, project: str, evaluator_prefix: Optional[str] = None):
         self.entity = entity
         self.project = project
+        # Optional evaluator metrics prefix (e.g., "evaluator/eval_sweep") used to detect eval completion
+        # If None, falls back to broad detection of any "evaluator/" metrics
+        self.evaluator_prefix = evaluator_prefix
         # Don't store api instance - create fresh one each time to avoid caching
 
     @retry_on_exception(max_retries=3, initial_delay=1.0, max_delay=30.0)
@@ -200,9 +203,12 @@ class WandbStore:
             eval_value = summary.get("has_started_eval") if "has_started_eval" in summary else "missing"
             logger.debug(f"[WandbStore] Run {run.id} has_started_eval flag not found or not True. Value: {eval_value}")
 
-        # Check for evaluator metrics (ONLY keys starting with "evaluator/")
-        # This check is independent of has_started_eval flag
-        has_evaluator_metrics = any(k.startswith("evaluator/") for k in summary.keys())  # type: ignore
+        # Check for evaluator metrics under configured namespace (if provided) to avoid false positives
+        if self.evaluator_prefix:
+            has_evaluator_metrics = any(k.startswith(self.evaluator_prefix) for k in summary.keys())  # type: ignore
+        else:
+            # Backward-compatible behavior: any evaluator/* metric counts
+            has_evaluator_metrics = any(k.startswith("evaluator/") for k in summary.keys())  # type: ignore
 
         if has_evaluator_metrics:
             has_started_eval = True
