@@ -20,6 +20,9 @@ class OptimizerConfig(Config):
     # Weight decay: Disabled by default, common practice for RL to avoid over-regularization
     weight_decay: float = Field(default=0, ge=0)
 
+    def misc_unused_thing(self) -> None:
+        pass
+
 
 class InitialPolicyConfig(Config):
     uri: str | None = None
