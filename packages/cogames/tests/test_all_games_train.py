@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from cogames.game import get_all_missions
+from cogames.cli.mission import get_all_missions
 
 
 @pytest.fixture
