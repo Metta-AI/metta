@@ -1,8 +1,9 @@
 """Simplified sweep configuration API."""
 
-import numpy as np
 from enum import StrEnum
-from typing import Dict, List, Union
+from typing import Dict, List, Optional, Union
+
+import numpy as np
 
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig, ProteinSettings
 from metta.tools.sweep import SweepSchedulerType, SweepTool
@@ -59,64 +60,79 @@ class SweepParameters:
             else:
                 search_center = (min + max) / 2  # Arithmetic mean
 
-        return {name: ParameterConfig(
-            min=min,
-            max=max,
-            distribution=distribution.value,
-            mean=search_center,
-            scale=scale,
-        )}
+        return {
+            name: ParameterConfig(
+                min=min,
+                max=max,
+                distribution=distribution.value,
+                mean=search_center,
+                scale=scale,
+            )
+        }
 
     # Learning rate
-    LEARNING_RATE = {"trainer.optimizer.learning_rate": ParameterConfig(
-        min=1e-5,
-        max=1e-2,
-        distribution="log_normal",
-        mean=1e-3,
-        scale="auto",
-    )}
+    LEARNING_RATE = {
+        "trainer.optimizer.learning_rate": ParameterConfig(
+            min=1e-5,
+            max=1e-2,
+            distribution="log_normal",
+            mean=1e-3,
+            scale="auto",
+        )
+    }
 
     # PPO specific parameters
-    PPO_CLIP_COEF = {"trainer.losses.loss_configs.ppo.clip_coef": ParameterConfig(
-        min=0.05,
-        max=0.3,
-        distribution="uniform",
-        mean=0.2,
-        scale="auto",
-    )}
+    PPO_CLIP_COEF = {
+        "trainer.losses.loss_configs.ppo.clip_coef": ParameterConfig(
+            min=0.05,
+            max=0.3,
+            distribution="uniform",
+            mean=0.2,
+            scale="auto",
+        )
+    }
 
-    PPO_ENT_COEF = {"trainer.losses.loss_configs.ppo.ent_coef": ParameterConfig(
-        min=0.0001,
-        max=0.03,
-        distribution="log_normal",
-        mean=0.01,
-        scale="auto",
-    )}
+    PPO_ENT_COEF = {
+        "trainer.losses.loss_configs.ppo.ent_coef": ParameterConfig(
+            min=0.0001,
+            max=0.03,
+            distribution="log_normal",
+            mean=0.01,
+            scale="auto",
+        )
+    }
 
-    PPO_GAE_LAMBDA = {"trainer.losses.loss_configs.ppo.gae_lambda": ParameterConfig(
-        min=0.8,
-        max=0.99,
-        distribution="uniform",
-        mean=0.95,
-        scale="auto",
-    )}
+    PPO_GAE_LAMBDA = {
+        "trainer.losses.loss_configs.ppo.gae_lambda": ParameterConfig(
+            min=0.8,
+            max=0.99,
+            distribution="uniform",
+            mean=0.95,
+            scale="auto",
+        )
+    }
 
-    PPO_VF_COEF = {"trainer.losses.loss_configs.ppo.vf_coef": ParameterConfig(
-        min=0.1,
-        max=1.0,
-        distribution="uniform",
-        mean=0.5,
-        scale="auto",
-    )}
+    PPO_VF_COEF = {
+        "trainer.losses.loss_configs.ppo.vf_coef": ParameterConfig(
+            min=0.1,
+            max=1.0,
+            distribution="uniform",
+            mean=0.5,
+            scale="auto",
+        )
+    }
 
     # Optimizer parameters
-    ADAM_EPS = {"trainer.optimizer.eps": ParameterConfig(
-        min=1e-8,
-        max=1e-4,
-        distribution="log_normal",
-        mean=1e-6,
-        scale="auto",
-    )}
+    ADAM_EPS = {
+        "trainer.optimizer.eps": ParameterConfig(
+            min=1e-8,
+            max=1e-4,
+            distribution="log_normal",
+            mean=1e-6,
+            scale="auto",
+        )
+    }
+
 
 def make_sweep(
     name: str,
@@ -127,6 +143,8 @@ def make_sweep(
     parameters: Union[Dict[str, ParameterConfig], List[Dict[str, ParameterConfig]]],
     num_trials: int = 10,
     num_parallel_trials: int = 1,
+    train_overrides: Optional[Dict] = None,
+    eval_overrides: Optional[Dict] = None,
     **advanced,
 ) -> SweepTool:
     """Create a sweep with minimal configuration.
@@ -140,6 +158,8 @@ def make_sweep(
         parameters: Parameters to sweep - either dict or list of single-item dicts
         num_trials: Number of trials
         num_parallel_trials: Max parallel jobs
+        train_overrides: Optional overrides for training configuration
+        eval_overrides: Optional overrides for evaluation configuration
         **advanced: Additional SweepTool options
 
     Returns:
@@ -184,6 +204,8 @@ def make_sweep(
         max_trials=num_trials,
         max_parallel_jobs=num_parallel_trials,
         scheduler_type=scheduler_type,
+        train_overrides=train_overrides or {},
+        eval_overrides=eval_overrides or {},
         **scheduler_config,
         **advanced,
     )
