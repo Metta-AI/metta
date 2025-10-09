@@ -9,11 +9,15 @@ from typing import TYPE_CHECKING, Any, Callable, Optional
 import psutil
 from rich.console import Console
 
-from cogames.aws_storage import maybe_upload_checkpoint
-from cogames.policy import TrainablePolicy
+from cogames.cli.mission import MAP_MISSION_DELIMITER
+from cogames.policy.interfaces import TrainablePolicy
 from cogames.policy.signal_handler import DeferSigintContextManager
-from cogames.policy.utils import get_policy_class_shorthand, resolve_policy_data_path
-from cogames.utils import initialize_or_load_policy
+from cogames.policy.utils import (
+    find_policy_checkpoints,
+    get_policy_class_shorthand,
+    initialize_or_load_policy,
+    resolve_policy_data_path,
+)
 from mettagrid import MettaGridConfig, MettaGridEnv
 from pufferlib import pufferl
 from pufferlib import vector as pvector
@@ -132,7 +136,6 @@ def train(
                 initial_weights_path,
                 policy_class_path=policy_class_path,
                 game_name=game_name,
-                console=console,
             )
         except FileNotFoundError as exc:
             console.print(f"[yellow]Initial weights not found ({exc}). Continuing with random initialization.[/yellow]")
@@ -296,17 +299,7 @@ def train(
             )
             console.print("=" * 80, style="bold green")
 
-        # Try to find the final checkpoint
-        # PufferLib saves checkpoints in data_dir/env_name/
-        checkpoint_dir = checkpoints_path / env_name
-        checkpoints = []
-
-        if checkpoint_dir.exists():
-            checkpoints = sorted(checkpoint_dir.glob("*.pt"))
-
-        # Fallback: also check directly in checkpoints_path
-        if not checkpoints and checkpoints_path.exists():
-            checkpoints = sorted(checkpoints_path.glob("*.pt"))
+        checkpoints = find_policy_checkpoints(checkpoints_path, env_name)
 
         if checkpoints and not training_diverged:
             final_checkpoint = checkpoints[-1]
@@ -320,35 +313,23 @@ def train(
                     style="yellow",
                 )
 
-            maybe_upload_checkpoint(
-                final_checkpoint=final_checkpoint,
-                game_name=game_name,
-                policy_class_path=policy_class_path,
-                console=console,
-            )
-
             # Show shorthand version if available
             policy_shorthand = get_policy_class_shorthand(policy_class_path)
 
             # Build the command with game name if provided
             game_arg = f" {game_name}" if game_name else ""
-            policy_arg = policy_shorthand if policy_shorthand else policy_class_path
+            policy_class_arg = policy_shorthand if policy_shorthand else policy_class_path
+            policy_arg = f"{policy_class_arg}{MAP_MISSION_DELIMITER}{final_checkpoint}"
 
             console.print()
             console.print("To continue training this policy:", style="bold")
-            console.print(
-                f"  [yellow]cogames train{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
-            )
+            console.print(f"  [yellow]cogames train{game_arg} [/yellow]")
             console.print()
             console.print("To play with this policy:", style="bold")
-            console.print(
-                f"  [yellow]cogames play{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
-            )
+            console.print(f"  [yellow]cogames play{game_arg} {policy_arg}[/yellow]")
             console.print()
             console.print("To evaluate this policy:", style="bold")
-            console.print(
-                f"  [yellow]cogames eval{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
-            )
+            console.print(f"  [yellow]cogames eval{game_arg} {policy_arg}[/yellow]")
         elif checkpoints and training_diverged:
             console.print()
             console.print(f"[yellow]Found {len(checkpoints)} checkpoint(s). The most recent may be corrupted.[/yellow]")

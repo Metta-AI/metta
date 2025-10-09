@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import deque
 from typing import Callable, Iterable
 
-from cogames import game
+from cogames.cli.mission import get_mission
 from cogames.cogs_vs_clips import scenarios
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
@@ -34,8 +34,7 @@ def _make_rotation_supplier(
     def _supplier() -> MettaGridConfig:
         map_name = rotation[0]
         rotation.rotate(-1)
-        cfg, _, _ = game.get_mission(map_name)
-        cfg = cfg.model_copy(deep=True)
+        _, cfg = get_mission(map_name)
         if easy:
             scenarios.add_easy_heart_recipe(cfg)
         if shaped:

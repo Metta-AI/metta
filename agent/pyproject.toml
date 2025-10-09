@@ -30,11 +30,12 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["metta.agent"]
+include = ["metta.agent", "metta.ops"]
 
 [tool.setuptools.package-data]
 "metta" = ["__init__.py"]
 "metta.agent" = ["py.typed"]
+"metta.ops" = ["agalite_kernels/*.cpp", "agalite_kernels/*.cu"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
