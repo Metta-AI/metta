@@ -10,7 +10,7 @@ def test_drama_world_model_forward_rollout() -> None:
         in_key="latent",
         out_key="core",
         action_key="actions",
-        stoch_dim=8,
+        stoch_dim=48,
         action_dim=4,
         d_model=96,
         d_intermediate=192,
@@ -20,7 +20,7 @@ def test_drama_world_model_forward_rollout() -> None:
 
     td = TensorDict(
         {
-            "latent": torch.randn(6, 8),
+            "latent": torch.randn(6, 48),
             "actions": torch.randint(0, config.action_dim, (6,)),
         },
         batch_size=[6],

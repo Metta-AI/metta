@@ -10,10 +10,10 @@ from metta.agent.components.component_config import ComponentConfig
 
 @dataclass
 class DramaMambaConfig:
-    d_model: int = 512
-    d_intermediate: int = 1024
-    n_layer: int = 4
-    stoch_dim: int = 128
+    d_model: int = 96
+    d_intermediate: int = 192
+    n_layer: int = 1
+    stoch_dim: int = 48
     action_dim: int = 1
     ssm_cfg: Dict[str, Any] = field(default_factory=dict)
     attn_layer_idx: list[int] = field(default_factory=list)
@@ -33,11 +33,11 @@ class DramaWorldModelConfig(ComponentConfig):
     out_key: str = "core"
     action_key: str = "last_actions"
 
-    stoch_dim: int = 128
+    stoch_dim: int = 48
     action_dim: int = 1
-    d_model: int = 512
-    d_intermediate: int = 1024
-    n_layer: int = 4
+    d_model: int = 96
+    d_intermediate: int = 192
+    n_layer: int = 1
     dropout_p: float = 0.0
 
     use_reward_token: bool = True
