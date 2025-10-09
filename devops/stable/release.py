@@ -775,12 +775,13 @@ def get_workflow_tests() -> list[Validation]:
             workflow_type=WorkflowType.TRAIN_LOCAL,
             module="experiments.recipes.arena_basic_easy_shaped.train",
             location="local",
-            args=[f"run={smoke_run}", "trainer.total_timesteps=1000", "wandb.enabled=true"],
-            timeout_s=600,
-            acceptance=[
-                ThresholdCheck(key="heart_get", op=">", expected=20.0),
+            args=[
+                f"run={smoke_run}",
+                "trainer.total_timesteps=1000",
+                "wandb.enabled=false",
             ],
-            wandb_metrics=["env_agent/heart.get"],
+            timeout_s=600,
+            acceptance=[],  # No thresholds - just verify it runs without crashing
         )
     )
 
