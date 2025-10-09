@@ -86,6 +86,15 @@ Train a policy on a mission.
 - `--batch-size N`: Batch size (default: 4096)
 - `--num-workers N`: Worker processes (default: CPU count)
 
+#### Training curricula
+
+Passing one of the rotation curricula as the `mission` argument cycles training across the six training facilities and the `machina_1` and `machina_2` maps. These suppliers refresh the map each time `cogames train` requests a new environment so policies see a steady mix of layouts.
+
+- `training_rotation`: Baseline rotation with the standard heart recipe and reward structure.
+- `training_rotation_easy`: Enables the "easy" heart recipe in each map and extends the episode length, reducing the component requirements so current architectures can reliably craft hearts even when the default recipe is out of reach.
+- `training_rotation_shaped`: Adds the shaped intermediate rewards and longer episodes while keeping the full recipe, providing denser feedback without altering the target objective.
+- `training_rotation_easy_shaped`: Combines the easier heart recipe and shaped rewards, plus extended episode lengths, letting agents practice end-to-end heart crafting in a forgiving setting.
+
 ### Custom Policy Architectures
 
 To get started, `cogames` supports some torch-nn-based policy architectures out of the box (such as SimplePolicy). To
