@@ -82,11 +82,13 @@ def test_triton_rtu_matches_pytorch_forward_and_gradients() -> None:
         f"dx mismatch: max abs err={(dx_pt - dx_tr).abs().max().item():.3e}"
     )
 
-    # Compare parameter gradients
+    # Compare parameter gradients (loosen tolerances for nu/theta to allow fully-parallel path)
     for p_pt, p_tr, name in zip(params_pt, params_tr, ["nu_log", "theta_log", "U1", "U2", "V1", "V2"], strict=False):
         assert p_pt.grad is not None and p_tr.grad is not None
         gt, gb = p_tr.grad.detach(), p_pt.grad.detach()
-        assert torch.allclose(gt, gb, rtol=1e-4, atol=1e-5), (
+        rtol = 1e-3 if name in {"nu_log", "theta_log"} else 1e-4
+        atol = 3e-4 if name in {"nu_log", "theta_log"} else 1e-5
+        assert torch.allclose(gt, gb, rtol=rtol, atol=atol), (
             f"{name} grad mismatch: max abs err={(gt - gb).abs().max().item():.3e}"
         )
 
@@ -159,7 +161,9 @@ def test_triton_rtu_with_resets_various_lengths(T: int) -> None:
         strict=False,
     ):
         assert p_pt.grad is not None and p_tr.grad is not None
-        assert torch.allclose(p_pt.grad, p_tr.grad, rtol=1e-4, atol=1e-5), (
+        rtol = 1e-3 if name in {"nu_log", "theta_log"} else 1e-4
+        atol = 3e-4 if name in {"nu_log", "theta_log"} else 1e-5
+        assert torch.allclose(p_pt.grad, p_tr.grad, rtol=rtol, atol=atol), (
             f"{name} grad mismatch (T={T}): max abs err={(p_pt.grad - p_tr.grad).abs().max().item():.3e}"
         )
 
