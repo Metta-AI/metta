@@ -4,6 +4,12 @@ Performance benchmarks comparing Triton-accelerated kernels against pure PyTorch
 
 ## Available Benchmarks
 
+### RTU (low‑rank)
+```bash
+uv run python benchmarks/bench_rtu_triton_vs_pytorch.py
+```
+Performance varies with sequence length and hidden size. Triton benefits most for longer sequences and when per‑timestep resets are used (segmented scan path). The script reports per‑config speed and max output difference.
+
 ### sLSTM
 ```bash
 uv run python benchmarks/bench_slstm_triton_vs_pytorch.py
