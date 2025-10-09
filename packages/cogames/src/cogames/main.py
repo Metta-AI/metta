@@ -88,7 +88,7 @@ def games_cmd(
 def play_cmd(
     ctx: typer.Context,
     mission: Optional[str] = typer.Argument(None, help="Mission name"),
-    policy: Optional[str] = typer.Argument("random", help=f"Policy ({policy_arg_example})"),
+    policy: Optional[str] = typer.Argument("noop", help=f"Policy ({policy_arg_example})"),
     interactive: bool = typer.Option(True, "--interactive", "-i", help="Run in interactive mode"),
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
     render: Literal["gui", "text", "none"] = typer.Option(
