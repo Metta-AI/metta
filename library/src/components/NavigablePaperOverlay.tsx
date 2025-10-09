@@ -7,8 +7,7 @@ import {
   UserInteraction,
 } from "@/posts/data/papers";
 import { useOverlayNavigation } from "./OverlayStack";
-import * as authorsApi from "@/lib/api/resources/authors";
-import type { AuthorDetail } from "@/lib/api/resources/authors";
+import { useAuthor, useAuthors } from "@/hooks/queries";
 import { StarWidgetQuery } from "./StarWidgetQuery";
 import { BaseOverlay } from "@/components/overlays/BaseOverlay";
 
@@ -30,9 +29,22 @@ export default function NavigablePaperOverlay({
   onQueueToggle,
 }: NavigablePaperOverlayProps) {
   const { openAuthor, openInstitution } = useOverlayNavigation();
+  const [selectedAuthorId, setSelectedAuthorId] = useState<string | null>(null);
+  const [searchName, setSearchName] = useState<string | null>(null);
 
   // Local state for optimistic updates
   const [localPaper, setLocalPaper] = useState(paper);
+
+  // Fetch author by ID when selected
+  const { data: authorById } = useAuthor(selectedAuthorId!, {
+    enabled: !!selectedAuthorId,
+  });
+
+  // Fallback: search by name if ID fetch failed
+  const { data: authorsByName } = useAuthors(
+    { search: searchName! },
+    { enabled: !!searchName && !authorById }
+  );
 
   // Update local state when paper prop changes (only if it's actually different)
   useEffect(() => {
@@ -72,57 +84,23 @@ export default function NavigablePaperOverlay({
     paperInteractions.some((i) => i.userId === user.id && i.readAt)
   );
 
-  // Handle clicking on an author
-  const handleAuthorClick = async (authorId: string, authorName: string) => {
-    try {
-      // Try to load full author data by ID first
-      let fullAuthor = await authorsApi.getAuthor(authorId);
-
-      // If that fails, try searching by name via the authors API
-      if (!fullAuthor) {
-        try {
-          const searchResults = await authorsApi.searchAuthors(authorName);
-          if (searchResults.length > 0) {
-            // Use the first matching author
-            fullAuthor = searchResults[0];
-          }
-        } catch (searchError) {
-          console.log("Search by name failed:", searchError);
-        }
-      }
-
-      if (fullAuthor) {
-        openAuthor(fullAuthor);
-      } else {
-        // Fallback: create a minimal author object if all loading attempts fail
-        const fallbackAuthor: AuthorDetail = {
-          id: authorId,
-          name: authorName,
-          username: null,
-          email: null,
-          avatar: null,
-          institution: null,
-          department: null,
-          title: null,
-          expertise: [],
-          hIndex: null,
-          totalCitations: null,
-          claimed: false,
-          isFollowing: false,
-          recentActivity: null,
-          orcid: null,
-          googleScholarId: null,
-          arxivId: null,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          paperCount: 0,
-          recentPapers: [],
-        };
-        openAuthor(fallbackAuthor);
-      }
-    } catch (error) {
-      console.error("Error loading author:", error);
+  // Open author when data is loaded
+  useEffect(() => {
+    if (authorById) {
+      openAuthor(authorById);
+      setSelectedAuthorId(null);
+      setSearchName(null);
+    } else if (authorsByName && authorsByName.length > 0) {
+      openAuthor(authorsByName[0]);
+      setSelectedAuthorId(null);
+      setSearchName(null);
     }
+  }, [authorById, authorsByName, openAuthor]);
+
+  // Handle clicking on an author - trigger reactive fetch
+  const handleAuthorClick = (authorId: string, authorName: string) => {
+    setSelectedAuthorId(authorId);
+    setSearchName(authorName); // Fallback if ID doesn't work
   };
 
   // Handle clicking on an institution

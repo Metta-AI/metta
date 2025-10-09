@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 
 import type { AuthorDTO } from "@/posts/data/authors-client";
 import type { PaperWithUserContext } from "@/posts/data/papers";
 import { useOverlayNavigation } from "./OverlayStack";
-import { loadInstitutionClient } from "@/posts/data/institutions-client";
+import { useInstitution } from "@/hooks/queries";
 import { BaseOverlay } from "@/components/overlays/BaseOverlay";
 
 interface InstitutionOverlayProps {
@@ -25,25 +25,16 @@ export default function InstitutionOverlay({
   const [activeTab, setActiveTab] = useState<"overview" | "papers" | "authors">(
     "overview"
   );
-  const [loading, setLoading] = useState(false);
-  const [fetchedData, setFetchedData] = useState<any>(null);
 
-  // Fetch institution data if not provided
-  useEffect(() => {
-    if (institution.papers.length === 0 && institution.authors.length === 0) {
-      setLoading(true);
-      loadInstitutionClient(institution.name)
-        .then((data) => {
-          setFetchedData(data);
-        })
-        .catch((error) => {
-          console.error("Error loading institution:", error);
-        })
-        .finally(() => {
-          setLoading(false);
-        });
+  // Fetch institution data if not provided - React Query handles caching and loading
+  const shouldFetch =
+    institution.papers.length === 0 && institution.authors.length === 0;
+  const { data: fetchedData, isLoading: loading } = useInstitution(
+    institution.name,
+    {
+      enabled: shouldFetch,
     }
-  }, [institution.name, institution.papers.length, institution.authors.length]);
+  );
 
   // Use fetched data if available, otherwise use provided data
   const institutionPapers = fetchedData?.recentPapers || institution.papers;
