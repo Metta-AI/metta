@@ -95,19 +95,21 @@ class BenchmarkArchScheduler(ExperimentScheduler):
                     if info is None:
                         if slots <= 0:
                             continue
-                        jobs.append(
-                            create_training_job(
-                                run_id=run_id,
-                                experiment_id=self.experiment_id,
-                                recipe_module=module,
-                                train_entrypoint=self.config.train_entrypoint,
-                                stats_server_uri=PROD_STATS_SERVER_URI,
-                                train_overrides={
-                                    "trainer.total_timesteps": self.config.total_timesteps,
-                                    "arch_type": arch_type,
-                                },
-                            ),
-                        )
+                        job = create_training_job(
+                            run_id=run_id,
+                            experiment_id=self.experiment_id,
+                            recipe_module=module,
+                            train_entrypoint=self.config.train_entrypoint,
+                            stats_server_uri=PROD_STATS_SERVER_URI,
+                            train_overrides={
+                                "trainer.total_timesteps": self.config.total_timesteps,
+                                "arch_type": arch_type,
+                            },
+                        ),
+                        job.metadata["benchmark/arch"] = arch_type
+                        job.metadata["benchmark/seed"] = f"{seed:02d}"
+                        job.metadata["benchmark/level"] = level
+                        jobs.append(job)
                         slots -= 1
                     elif info.status == JobStatus.TRAINING_DONE_NO_EVAL:
                         jobs.append(
