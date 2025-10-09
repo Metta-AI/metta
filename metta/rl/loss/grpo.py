@@ -14,7 +14,12 @@ from mettagrid.base_config import Config
 
 
 class GRPOConfig(Config):
-    """Configuration for Group Relative Policy Optimization."""
+    """Configuration for Group Relative Policy Optimization.
+
+    GRPO eliminates the value network and uses group-based advantage estimation.
+    During minibatch sampling, returns are normalized within groups of size group_size,
+    implementing GRPO's core principle of relative comparison.
+    """
 
     schedule: None = None  # TODO: Implement this
 
@@ -25,7 +30,7 @@ class GRPOConfig(Config):
     ent_coef: float = Field(default=0.05, ge=0)
     # Discount factor for returns
     gamma: float = Field(default=0.99, ge=0, le=1.0)
-    # Number of responses to sample per prompt for group comparison
+    # Group size for relative normalization (returns normalized within groups)
     group_size: int = Field(default=4, gt=1)
 
     # Training parameters
@@ -179,7 +184,12 @@ class GRPO(Loss):
         pass
 
     def _compute_group_advantages(self, context: ComponentContext) -> Tensor:
-        """Compute advantages for GRPO using discounted returns with mean baseline."""
+        """Compute discounted returns for GRPO.
+
+        Unlike traditional GRPO which normalizes raw rewards, we compute discounted
+        returns here and perform group-based normalization during minibatch sampling.
+        This maintains temporal credit assignment while applying GRPO's group comparison.
+        """
         cfg = self.loss_cfg
         with torch.no_grad():
             rewards = self.replay.buffer["rewards"]  # [B, T]
@@ -195,11 +205,8 @@ class GRPO(Loss):
                 next_return = rewards[:, t] + cfg.gamma * next_return * (1.0 - dones[:, t])
                 returns[:, t] = next_return
 
-            # Baseline = mean return across batch
-            baseline = returns.mean()
-            advantages = returns - baseline
-
-        return advantages
+        # Returns will be normalized in groups during minibatch sampling
+        return returns
 
     def _process_minibatch_update(
         self,
@@ -215,10 +222,11 @@ class GRPO(Loss):
 
         importance_sampling_ratio = self._importance_ratio(new_logprob, old_logprob)
 
-        # Get advantages from minibatch
+        # Get advantages from minibatch (already group-normalized in _sample_minibatch)
         adv = minibatch["advantages"]
 
-        # Normalize advantages
+        # Optional: apply additional normalization across entire minibatch
+        # Note: advantages are already group-normalized, this provides global normalization
         if cfg.norm_adv:
             adv = (adv - adv.mean()) / (adv.std() + 1e-8)
 
@@ -272,15 +280,61 @@ class GRPO(Loss):
         return pg_loss, entropy_loss, approx_kl, clipfrac
 
     def _sample_minibatch(self) -> tuple[TensorDict, Tensor]:
-        """Sample a minibatch uniformly from the replay buffer."""
-        # For GRPO, we use uniform sampling
+        """Sample a minibatch and compute group-normalized advantages.
+
+        This implements GRPO's core innovation: comparing returns within groups.
+        We sample uniformly, then normalize returns within groups of size group_size.
+        """
+        cfg = self.loss_cfg
         num_segments = self.replay.buffer.shape[0]
         idx = torch.randint(0, num_segments, (self.replay.minibatch_segments,), device=self.device)
 
         minibatch = self.replay.buffer[idx]
 
         with torch.no_grad():
-            minibatch["advantages"] = self.advantages[idx]
+            # Get returns for sampled indices
+            returns = self.advantages[idx]  # [minibatch_segments, bptt_horizon]
+            B, T = returns.shape
+
+            # Flatten for group processing
+            returns_flat = returns.reshape(-1)
+            advantages_flat = torch.zeros_like(returns_flat)
+
+            # Group normalization: divide samples into groups and normalize within each group
+            group_size = cfg.group_size
+            num_complete_groups = len(returns_flat) // group_size
+            remainder = len(returns_flat) % group_size
+
+            # Process complete groups
+            for g in range(num_complete_groups):
+                start_idx = g * group_size
+                end_idx = start_idx + group_size
+                group_returns = returns_flat[start_idx:end_idx]
+
+                # Normalize within group: A = (R - mean(R)) / std(R)
+                group_mean = group_returns.mean()
+                group_std = group_returns.std()
+                # Only normalize if std is meaningful (> 1e-6), otherwise just center
+                if group_std > 1e-6:
+                    advantages_flat[start_idx:end_idx] = (group_returns - group_mean) / group_std
+                else:
+                    advantages_flat[start_idx:end_idx] = group_returns - group_mean
+
+            # Handle remainder samples (if minibatch size not divisible by group_size)
+            if remainder > 0:
+                start_idx = num_complete_groups * group_size
+                remainder_returns = returns_flat[start_idx:]
+                remainder_mean = remainder_returns.mean()
+                remainder_std = remainder_returns.std()
+                # Only normalize if std is meaningful, otherwise just center
+                if remainder > 1 and remainder_std > 1e-6:
+                    advantages_flat[start_idx:] = (remainder_returns - remainder_mean) / remainder_std
+                else:
+                    # Single sample or zero variance: just center it
+                    advantages_flat[start_idx:] = remainder_returns - remainder_mean
+
+            # Reshape back to [B, T]
+            minibatch["advantages"] = advantages_flat.reshape(B, T)
 
         return minibatch.clone(), idx
 
