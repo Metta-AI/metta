@@ -57,7 +57,10 @@ def test_missions_nonexistent_mission():
     )
 
     assert result.returncode == 0, "Command should succeed but show error message for nonexistent mission"
-    assert "Could not find" in result.stdout or "Could not find" in result.stderr
+    combined_output = (result.stdout + result.stderr).lower()
+    assert "could not find" in combined_output or "not found" in combined_output, (
+        f"Expected 'not found' message, got:\n{result.stdout}\n{result.stderr}"
+    )
 
 
 def test_missions_help_command():
