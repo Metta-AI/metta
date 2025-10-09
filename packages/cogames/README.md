@@ -102,11 +102,15 @@ cogames train -m [MISSION] -p path/to/policy.py:train_dir/my_checkpoint.pt
 ```
 
 **Mission**
-Note that you can supply repeated `-m` missions to supply a training curriculum that rotates through environments:
+Note that you can supply repeated `-m` missions. This yields a training curriculum that rotates through those environments:
 
 ```
 cogames train -m training_facility_1 -m training_facility_2 -p simple
 ```
+
+You can also specify multiple missions via regex:
+- `cogames train -m 'machina_2_bigger:*'` will specify all missions on the machina_2_bigger map
+- `cogames train -m '.*:shaped' will specify all "shaped" missions across all maps
 
 **Options:**
 - `--steps N`: Training steps (default: 10000)
