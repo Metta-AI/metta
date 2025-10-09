@@ -1,5 +1,8 @@
+import pytest
 import torch
 from tensordict import TensorDict
+
+pytest.importorskip("mamba_ssm", reason="Mamba components require the mamba-ssm CUDA package.")
 
 from metta.agent.components.mamba import MambaBackboneConfig
 from metta.agent.components.mamba.backbone import MambaBackboneComponent

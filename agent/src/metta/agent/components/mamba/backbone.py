@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Dict, Literal, Optional
+from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -13,10 +13,35 @@ from torchrl.data import Composite
 from metta.rl.training import EnvironmentMetaData
 
 from .config import MambaBackboneConfig
-from .wrapper import MambaConfig as _WrapperConfig
-from .wrapper import MambaWrapperModel
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from .wrapper import MambaConfig as _WrapperConfigType
+    from .wrapper import MambaWrapperModel as _WrapperModelType
+else:
+    _WrapperConfigType = Any
+    _WrapperModelType = Any
+
+_WRAPPER_TYPES: Optional[Tuple[type, type]] = None
+
+
+def _load_wrapper_types() -> Tuple[type, type]:
+    global _WRAPPER_TYPES
+    if _WRAPPER_TYPES is not None:
+        return _WRAPPER_TYPES
+    try:
+        from .wrapper import MambaConfig as wrapper_config
+        from .wrapper import MambaWrapperModel as wrapper_model
+    except ModuleNotFoundError as exc:
+        if exc.name == "mamba_ssm":
+            raise RuntimeError(
+                "MambaBackboneComponent requires the `mamba-ssm` package; install it on a CUDA-enabled Linux host "
+                "or disable Mamba-based recipes."
+            ) from exc
+        raise
+    _WRAPPER_TYPES = (wrapper_config, wrapper_model)
+    return _WRAPPER_TYPES
 
 
 @dataclass
@@ -58,9 +83,12 @@ class MambaBackboneComponent(nn.Module):
         self.use_aux_tokens = config.use_aux_tokens
         self.last_action_dim = max(1, config.last_action_dim)
         self.max_cache_size = max(1, config.max_cache_size)
+        wrapper_config_cls, wrapper_model_cls = _load_wrapper_types()
+        self._wrapper_config_type: type = wrapper_config_cls
+        self._wrapper_model_cls: type = wrapper_model_cls
 
         self._resolved_ssm_cfg = self.config.resolved_ssm_cfg()
-        self.wrapper = MambaWrapperModel(self._build_wrapper_config(self._resolved_ssm_cfg))
+        self.wrapper = self._wrapper_model_cls(self._build_wrapper_config(self._resolved_ssm_cfg))
         self._mem_eff_enabled = bool(self._resolved_ssm_cfg.get("use_mem_eff_path", True))
 
         self.input_proj = nn.Linear(config.input_dim, config.d_model)
@@ -79,8 +107,8 @@ class MambaBackboneComponent(nn.Module):
 
         self._env_states: Dict[int, _EnvState] = {}
 
-    def _build_wrapper_config(self, ssm_cfg: dict[str, object]) -> _WrapperConfig:
-        return _WrapperConfig(
+    def _build_wrapper_config(self, ssm_cfg: dict[str, object]) -> _WrapperConfigType:
+        return self._wrapper_config_type(
             d_model=self.config.d_model,
             d_intermediate=self.config.d_intermediate,
             n_layer=self.config.n_layer,
@@ -97,7 +125,7 @@ class MambaBackboneComponent(nn.Module):
         if enable_mem_eff is not None:
             ssm_cfg["use_mem_eff_path"] = enable_mem_eff
         self._resolved_ssm_cfg = ssm_cfg
-        self.wrapper = MambaWrapperModel(self._build_wrapper_config(self._resolved_ssm_cfg))
+        self.wrapper = self._wrapper_model_cls(self._build_wrapper_config(self._resolved_ssm_cfg))
         self._mem_eff_enabled = bool(self._resolved_ssm_cfg.get("use_mem_eff_path", True))
         self.reset_memory()
 
