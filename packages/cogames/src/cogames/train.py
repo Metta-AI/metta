@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any, Callable, Optional
 import psutil
 from rich.console import Console
 
-from cogames.aws_storage import maybe_upload_checkpoint
 from cogames.cli.mission import MAP_MISSION_DELIMITER
 from cogames.policy.interfaces import TrainablePolicy
 from cogames.policy.signal_handler import DeferSigintContextManager
@@ -313,12 +312,6 @@ def train(
                     f" (epoch {checkpoint_interval}).",
                     style="yellow",
                 )
-
-            maybe_upload_checkpoint(
-                final_checkpoint=final_checkpoint,
-                game_name=game_name,
-                policy_class_path=policy_class_path,
-            )
 
             # Show shorthand version if available
             policy_shorthand = get_policy_class_shorthand(policy_class_path)
