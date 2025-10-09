@@ -52,24 +52,35 @@ discover_packages() {
   printf "%s\n" "${out[@]}" | awk 'NF' | sort -u
 }
 
-# ----------------------- Extractors -------------------------
+# ----------------------- Failure helpers --------------------
 print_fail_block() {
   # Args: <logfile>
-  # Prints only the "==== FAILURES ====" block and short test summary if present.
+  # Show only the "==== FAILURES ====" section and the short summary block.
+  local f="$1"
   awk '
-    BEGIN { in_fail=0; printed=0 }
-    /^=+ FAILURES =+/ { in_fail=1; printed=1; print; next }
-    /^=+ .* =+$/ && in_fail { in_fail=0 }   # next pytest section header
+    BEGIN { in_fail=0 }
+    /^=+ FAILURES =+/ { in_fail=1; print; next }
+    /^=+ [A-Z].* =+$/ { if (in_fail) { in_fail=0 } }
     in_fail { print }
-  ' "$1"
-
+  ' "$f"
   echo
-  echo "${YEL}-- short test summary --${NC}"
-  # Print the pytest short summary info + a few lines around it
-  grep -n "short test summary info" -n "$1" | while IFS=: read -r ln _; do
+  grep -n "short test summary info" "$f" | while IFS=: read -r ln _; do
     start=$((ln-1)); [ "$start" -lt 1 ] && start=1
-    sed -n "${start},$((ln+50))p" "$1" | sed '/^=* .* =*$/,$d'
+    sed -n "${start},$((ln+50))p" "$f" | sed '/^=* .* =*$/,$d'
   done || true
+}
+
+emit_repro_cmds() {
+  # Args: <logfile> <pkg> <outfile>
+  local f="$1" pkg="$2" out="$3"
+  : > "$out"
+  grep -E "^FAILED " "$f" | awk '{print $2}' | while read -r nodeid; do
+    if [[ "$pkg" == "core" || "$pkg" == "." ]]; then
+      echo "pytest -q ${nodeid}" >> "$out"
+    else
+      echo "(cd ${pkg} && pytest -q ${nodeid})" >> "$out"
+    fi
+  done
 }
 
 # ----------------------- Runner -----------------------------
@@ -81,6 +92,7 @@ run_pkg() {
   local exitfile="${REPO_ROOT}/${ART_DIR}/${name}.exit"
   local durfile="${REPO_ROOT}/${ART_DIR}/${name}.dur"
   local covxml="${REPO_ROOT}/${COV_DIR}/coverage-${name}.xml"
+  local repro="${REPO_ROOT}/${ART_DIR}/${name}.repro"
   local run_dir="."
   local covpath="$covxml"
 
@@ -109,13 +121,15 @@ run_pkg() {
 
   if [ "$status" -eq 0 ]; then
     echo -e "${color}[$(ts)] [${name}] ${GRN}PASS${NC}"
+    rm -f "$repro"
   else
     echo -e "${color}[$(ts)] [${name}] ${RED}FAIL${NC}"
-    # Open a collapsible group with only the failure block + summary
+    emit_repro_cmds "$raw" "$pkg" "$repro"
     group_start "failures: ${name}"
     print_fail_block "$raw" || true
     echo
-    echo "${CYN}log:${NC} ${raw}"
+    echo "${CYN}repro:${NC} ${repro}"
+    echo "${CYN}log:  ${NC} ${raw}"
     group_end
   fi
 
@@ -165,10 +179,15 @@ for pkg in "${PACKAGES[@]}"; do
   name="$(basename "$pkg")"
   exitf="$ART_DIR/${name}.exit"
   logf="$ART_DIR/${name}.log"
+  repf="$ART_DIR/${name}.repro"
   if [ -f "$exitf" ] && [ "$(cat "$exitf")" -eq 0 ]; then
     printf "%-24s %-8s %s\n" "$name" "${GRN}PASS${NC}" "$logf"
   else
-    printf "%-24s %-8s %s\n" "$name" "${RED}FAIL${NC}" "$logf"
+    if [ -f "$repf" ]; then
+      printf "%-24s %-8s %s (repro: %s)\n" "$name" "${RED}FAIL${NC}" "$logf" "$repf"
+    else
+      printf "%-24s %-8s %s\n" "$name" "${RED}FAIL${NC}" "$logf"
+    fi
     OVERALL_FAIL=1
   fi
 done
@@ -178,14 +197,20 @@ if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   {
     echo "## Unit test summary"
     echo ""
-    echo "| Package | Result | Log |"
-    echo "|---|---|---|"
+    echo "| Package | Result | Log | Repro |"
+    echo "|---|---|---|---|"
     for pkg in "${PACKAGES[@]}"; do
       name="$(basename "$pkg")"
       exitf="$ART_DIR/${name}.exit"
       logf="$ART_DIR/${name}.log"
+      repf="$ART_DIR/${name}.repro"
       res="FAIL"; [ -f "$exitf" ] && [ "$(cat "$exitf")" -eq 0 ] && res="PASS"
-      echo "| \`$name\` | $res | \`$logf\` |"
+      if [ -f "$repf" ]; then
+        repcell="\`$repf\`"
+      else
+        repcell="—"
+      fi
+      echo "| \`$name\` | $res | \`$logf\` | ${repcell} |"
     done
     echo ""
     echo "<sub>Total time: ${TOTAL}s</sub>"
