@@ -5,7 +5,7 @@ import torch
 from pydantic import Field
 from tensordict import NonTensorData, TensorDict
 from torch import Tensor
-from torchrl.data import Composite, MultiCategorical, UnboundedContinuous
+from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 from metta.agent.policy import Policy
 from metta.rl.loss import Loss
@@ -102,7 +102,6 @@ class GRPO(Loss):
     def get_experience_spec(self) -> Composite:
         """Get experience specification without value predictions."""
         act_space = self.env.single_action_space
-        nvec = act_space.nvec
         act_dtype = torch.int32 if np.issubdtype(act_space.dtype, np.integer) else torch.float32
         scalar_f32 = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
 
@@ -110,10 +109,7 @@ class GRPO(Loss):
             rewards=scalar_f32,
             dones=scalar_f32,
             truncateds=scalar_f32,
-            actions=MultiCategorical(
-                nvec=nvec,
-                dtype=act_dtype,
-            ),
+            actions=UnboundedDiscrete(shape=torch.Size([]), dtype=act_dtype),
             act_log_prob=scalar_f32,
         )
 
