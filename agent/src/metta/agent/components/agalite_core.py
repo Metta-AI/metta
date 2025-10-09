@@ -44,7 +44,7 @@ class AGaLiTeCore(nn.Module):
         self.r = r
 
         self.kernel = kernel or AGaLiTeKernelConfig()
-        logger.info("Initialising AGaLiTe core (layers=%s, heads=%s, eta=%s, r=%s)", n_layers, n_heads, eta, r)
+        logger.debug("initialising AGaLiTe core (layers=%s, heads=%s, eta=%s, r=%s)", n_layers, n_heads, eta, r)
 
         self.encoders = nn.ModuleList()
         for layer_idx in range(n_layers):

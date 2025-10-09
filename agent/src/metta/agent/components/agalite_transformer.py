@@ -11,7 +11,7 @@ from pydantic import Field
 from tensordict import NonTensorData, TensorDict
 from torchrl.data import Composite
 
-from metta.agent.components.agalite_core_enhanced import AGaLiTeCore
+from metta.agent.components.agalite_core import AGaLiTeCore
 from metta.agent.components.agalite_kernel import AGaLiTeKernelConfig
 from metta.agent.components.component_config import ComponentConfig
 

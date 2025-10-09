@@ -159,6 +159,10 @@ class AGaLiTeAttentionLayer(nn.Module):
             angles = steps.unsqueeze(-1) * self.omegas.to(device=device, dtype=dtype)
             cos_vals = torch.cos(angles)
             sin_vals = torch.sin(angles)
+            if len(self._cos_cache) > 16:
+                oldest = next(iter(self._cos_cache))
+                self._cos_cache.pop(oldest, None)
+                self._sin_cache.pop(oldest, None)
             self._cos_cache[key] = cos_vals
             self._sin_cache[key] = sin_vals
         return self._cos_cache[key], self._sin_cache[key]
@@ -238,7 +242,7 @@ class AGaLiTeTransformerLayer(nn.Module):
         self.attn_dropout = nn.Dropout(dropout)
         self.ffc = nn.Sequential(
             nn.Linear(d_model, d_ffc),
-            nn.ReLU(),
+            nn.GELU(),
             nn.Dropout(dropout),
             nn.Linear(d_ffc, d_model),
         )
@@ -250,15 +254,15 @@ class AGaLiTeTransformerLayer(nn.Module):
                 nn.init.constant_(module.bias, 0)
 
     def forward(self, inputs: torch.Tensor, terminations: torch.Tensor, memory: Tuple) -> Tuple[torch.Tensor, Tuple]:
-        x = F.relu(self.input_proj(inputs)) if self.use_input_proj else inputs
+        x = F.gelu(self.input_proj(inputs)) if self.use_input_proj else inputs
 
         ln1 = self.ln1(x)
         attn_out, new_memory = self.attention(ln1, terminations, memory)
-        attn_out = self.attn_dropout(F.relu(attn_out))
+        attn_out = self.attn_dropout(F.gelu(attn_out))
         gated = self.gate1(x, attn_out)
 
         ln2 = self.ln2(gated)
-        ffc_out = self.ff_dropout(F.relu(self.ffc(ln2)))
+        ffc_out = self.ff_dropout(F.gelu(self.ffc(ln2)))
         out = self.gate2(gated, ffc_out)
 
         return out, new_memory
