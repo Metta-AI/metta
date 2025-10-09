@@ -14,11 +14,11 @@ from metta.agent.policy import PolicyArchitecture
 class MambaSlidingConfig(PolicyArchitecture):
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
-    _latent_dim = 64
+    _latent_dim = 32
     _token_embed_dim = 8
     _fourier_freqs = 3
     _embed_dim = 16
-    _core_out_dim = 128
+    _core_out_dim = 32
 
     components: List[ComponentConfig] = [
         ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=48),
@@ -35,16 +35,16 @@ class MambaSlidingConfig(PolicyArchitecture):
             latent_dim=_latent_dim,
             num_latents=12,
             num_heads=4,
-            num_layers=2,
+            num_layers=1,
         ),
         MambaBackboneConfig(
             in_key="encoded_obs",
             out_key="core",
             input_dim=_latent_dim,
             d_model=_core_out_dim,
-            d_intermediate=_core_out_dim * 2,
-            n_layer=2,
-            max_cache_size=128,
+            d_intermediate=_core_out_dim * 4,
+            n_layer=1,
+            max_cache_size=192,
             pool="mean",
             ssm_expand=2,
             ssm_headdim=16,
@@ -56,7 +56,7 @@ class MambaSlidingConfig(PolicyArchitecture):
             name="critic",
             in_features=_core_out_dim,
             out_features=1,
-            hidden_features=[256],
+            hidden_features=[128],
         ),
         ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embed_dim),
         ActorQueryConfig(in_key="core", out_key="actor_query", hidden_size=_core_out_dim, embed_dim=_embed_dim),
