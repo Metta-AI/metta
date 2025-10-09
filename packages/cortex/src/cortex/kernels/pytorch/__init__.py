@@ -6,7 +6,7 @@ from cortex.kernels.pytorch.mlstm import (
     mlstm_chunkwise_simple,
     mlstm_recurrent_step_stabilized_simple,
 )
-from cortex.kernels.pytorch.rtu import LinearRTU
+from cortex.kernels.pytorch.rtu import rtu_sequence_pytorch
 from cortex.kernels.pytorch.slstm import slstm_sequence_pytorch
 
 __all__ = [
@@ -14,6 +14,6 @@ __all__ = [
     "mlstm_chunkwise_simple",
     "mlstm_recurrent_step_stabilized_simple",
     "lstm_sequence_pytorch",
-    "LinearRTU",
+    "rtu_sequence_pytorch",
     "slstm_sequence_pytorch",
 ]

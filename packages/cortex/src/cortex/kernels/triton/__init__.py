@@ -5,8 +5,8 @@ Exports selected kernels implemented in Triton for convenient access.
 
 from __future__ import annotations
 
-from .rtu import LinearRTU_Triton
+from .rtu import rtu_sequence_triton
 
 __all__ = [
-    "LinearRTU_Triton",
+    "rtu_sequence_triton",
 ]
