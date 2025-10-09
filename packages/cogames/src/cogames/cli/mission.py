@@ -24,7 +24,7 @@ def get_all_missions() -> list[str]:
 def get_mission_name_and_config(ctx: typer.Context, mission_arg: Optional[str]) -> tuple[str, MettaGridConfig]:
     if not mission_arg:
         console.print(ctx.get_help())
-        console.print("[cyan]Missing option '--mission' / '-m'.[/cyan]")
+        console.print("[yellow]Missing: --mission / -m[/yellow]")
         console.print()
     else:
         try:
@@ -46,7 +46,7 @@ def get_mission_names_and_configs(
 ) -> list[tuple[str, MettaGridConfig]]:
     if not missions_arg:
         console.print(ctx.get_help())
-        console.print("[cyan]Missing option '--mission' / '-m'.[/cyan]")
+        console.print("[yellow]Supply at least one: --mission / -m[/yellow]")
         console.print()
     else:
         try:

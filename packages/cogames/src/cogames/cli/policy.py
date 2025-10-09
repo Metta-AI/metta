@@ -68,7 +68,7 @@ def describe_policy_arg(with_proportion: bool):
 def get_policy_spec(ctx: typer.Context, policy_arg: Optional[str]) -> PolicySpec:
     if policy_arg is None:
         console.print(ctx.get_help())
-        console.print("[cyan]Missing option '--policy' / '-p'.[/cyan]")
+        console.print("[yellow]Missing: --policy / -p[/yellow]")
         console.print()
     else:
         try:
@@ -92,7 +92,7 @@ def get_policy_spec(ctx: typer.Context, policy_arg: Optional[str]) -> PolicySpec
 def get_policy_specs(ctx: typer.Context, policy_args: Optional[list[str]]) -> list[PolicySpec]:
     if not policy_args:
         console.print(ctx.get_help())
-        console.print("[cyan]Missing option '--policy' / '-p'.[/cyan]")
+        console.print("[yellow]Supply at least one: --policy / -p[/yellow]")
         console.print()
     else:
         try:
