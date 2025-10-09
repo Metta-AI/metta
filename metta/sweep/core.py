@@ -113,6 +113,7 @@ def make_sweep(
     parameters: Union[Dict[str, ParameterConfig], List[Dict[str, ParameterConfig]]],
     num_trials: int = 10,
     num_parallel_trials: int = 1,
+    resources: Optional[Dict[str, int]] = None,
     train_overrides: Optional[Dict] = None,
     eval_overrides: Optional[Dict] = None,
     # Catch all for un-exposed tool overrides.
@@ -164,6 +165,14 @@ def make_sweep(
         "liar_strategy": advanced.pop("liar_strategy", "best"),
     }
 
+    # Extract resources or use defaults
+    if resources:
+        gpus = resources.get("gpus", 1)
+        nodes = resources.get("nodes", 1)
+    else:
+        gpus = 1
+        nodes = 1
+
     return SweepTool(
         sweep_name=name,
         protein_config=protein_config,
@@ -173,6 +182,8 @@ def make_sweep(
         max_trials=num_trials,
         max_parallel_jobs=num_parallel_trials,
         scheduler_type=scheduler_type,
+        gpus=gpus,
+        nodes=nodes,
         train_overrides=train_overrides or {},
         eval_overrides=eval_overrides or {},
         **scheduler_config,
