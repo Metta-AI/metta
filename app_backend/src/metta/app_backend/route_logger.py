@@ -9,7 +9,7 @@ from fastapi import HTTPException, Request, Response
 
 # Logger for route performance
 route_logger = logging.getLogger("route_performance")
-route_logger.setLevel(logging.INFO)
+route_logger.setLevel(logging.DEBUG)
 
 # Threshold for slow route warnings (2 seconds)
 SLOW_ROUTE_THRESHOLD_SECONDS = 2.0
