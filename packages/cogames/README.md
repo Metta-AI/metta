@@ -105,7 +105,7 @@ cogames train -m [MISSION] -p path/to/policy.py:train_dir/my_checkpoint.pt
 Note that you can supply repeated `-m` missions to supply a training curriculum that rotates through environments:
 
 ```
-cogames train -m training_facility_1 -m training_facility_2
+cogames train -m training_facility_1 -m training_facility_2 -p simple
 ```
 
 **Options:**
@@ -151,11 +151,11 @@ To train with using your class, supply a path to it in your POLICY argument, e.g
 The underlying environment follows the Gymnasium API:
 
 ```python
-from cogames.game import get_mission
+from cogames.cli.mission import get_mission
 from mettagrid.envs import MettaGridEnv
 
 # Load a mission configuration
-config, _, __ = game_module.get_mission("assembler_2_complex", "default")
+_, config = get_mission("assembler_2_complex")
 
 # Create environment
 env = MettaGridEnv(env_cfg=config)
