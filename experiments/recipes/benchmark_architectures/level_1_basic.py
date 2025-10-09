@@ -28,9 +28,9 @@ from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from mettagrid.config import ConverterConfig
@@ -139,14 +139,10 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
 
 
 def evaluate(
-    policy_uri: str | None = None,
-    simulations: Optional[Sequence[SimulationConfig]] = None,
-) -> SimTool:
+    policy_uris: str | Sequence[str] | None = None,
+) -> EvaluateTool:
     """Evaluate a policy on Level 1 - Basic."""
-    simulations = simulations or make_evals()
-    policy_uris = [policy_uri] if policy_uri is not None else None
-
-    return SimTool(
-        simulations=simulations,
+    return EvaluateTool(
+        simulations=make_evals(),
         policy_uris=policy_uris,
     )

@@ -20,9 +20,9 @@ from metta.cogworks.curriculum.curriculum import (
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from experiments.recipes.benchmark_architectures.level_1_basic import ARCHITECTURES
@@ -132,14 +132,10 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
 
 
 def evaluate(
-    policy_uri: str | None = None,
-    simulations: Optional[Sequence[SimulationConfig]] = None,
-) -> SimTool:
+    policy_uris: str | Sequence[str] | None = None,
+) -> EvaluateTool:
     """Evaluate a policy on Level 5 - Expert."""
-    simulations = simulations or make_evals()
-    policy_uris = [policy_uri] if policy_uri is not None else None
-
-    return SimTool(
-        simulations=simulations,
+    return EvaluateTool(
+        simulations=make_evals(),
         policy_uris=policy_uris,
     )
