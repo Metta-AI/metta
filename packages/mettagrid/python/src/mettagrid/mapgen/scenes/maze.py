@@ -135,8 +135,11 @@ class Maze(Scene[MazeConfig]):
 
     def post_init(self):
         # Calculate number of maze cells and adjust overall dimensions.
-        room_size = self.config.room_size.sample(self.rng)
-        wall_size = self.config.wall_size.sample(self.rng)
+        sampled_room_size = self.config.room_size.sample(self.rng)
+        room_size = max(1, min(sampled_room_size, self.width, self.height))
+
+        sampled_wall_size = self.config.wall_size.sample(self.rng)
+        wall_size = max(1, sampled_wall_size)
 
         self.maze = MazeGrid(self.grid, room_size, wall_size)
 
