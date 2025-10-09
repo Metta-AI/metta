@@ -16,8 +16,21 @@ ParsedPolicies = list[PolicySpec]
 
 default_checkpoint_dir = Path("train_dir")
 
-policy_arg_w_proportion_example = "[blue]CLASS[/blue][cyan]:DATA[/cyan][light_slate_grey]:PROPORTION[/light_slate_grey]"
-policy_arg_example = "[blue]CLASS[/blue][cyan]:DATA[/cyan]"
+_DELIMITER = ":"
+
+policy_arg_w_proportion_example = _DELIMITER.join(
+    (
+        "[blue]CLASS[/blue]",
+        "[cyan]DATA[/cyan]",
+        "[light_slate_grey]:PROPORTION[/light_slate_grey]",
+    )
+)
+policy_arg_example = _DELIMITER.join(
+    (
+        "[blue]CLASS[/blue]",
+        "[cyan]DATA[/cyan]",
+    )
+)
 
 
 def list_checkpoints():
@@ -106,9 +119,9 @@ def _parse_policy_spec(
     if not raw:
         raise ValueError("Policy specification cannot be empty.")
 
-    parts = [part.strip() for part in raw.split(":")]
+    parts = [part.strip() for part in raw.split(_DELIMITER)]
     if len(parts) > 3:
-        raise ValueError("Policy specification must include at most two ':' separated values.")
+        raise ValueError(f"Policy specification must include at most two '{_DELIMITER}' separated values.")
 
     raw_class_path = parts[0]
     raw_policy_data = parts[1] if len(parts) > 1 else None
