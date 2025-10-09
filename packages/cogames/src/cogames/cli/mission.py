@@ -6,14 +6,13 @@ from rich.table import Table
 from cogames import game
 from cogames.cli.base import console
 from cogames.cogs_vs_clips.missions import USER_MAP_CATALOG
+from cogames.mission_aliases import MAP_MISSION_DELIMITER, list_registered_missions
 from mettagrid import MettaGridConfig
 from mettagrid.config.mettagrid_config import AssemblerConfig
 
-MAP_MISSION_DELIMITER = game.MAP_MISSION_DELIMITER
-
 
 def get_all_missions() -> list[str]:
-    return game.get_all_missions()
+    return list_registered_missions()
 
 
 def get_mission_name_and_config(ctx: typer.Context, mission_arg: Optional[str]) -> tuple[str, MettaGridConfig]:
@@ -39,10 +38,8 @@ def get_mission(mission_arg: str) -> tuple[str, MettaGridConfig]:
     config, resolved_map, resolved_mission = game.get_mission(mission_arg)
     if resolved_map is None:
         return mission_arg, config
-
-    if resolved_mission is None or resolved_mission == "default":
+    if resolved_mission in (None, "default"):
         return resolved_map, config
-
     return f"{resolved_map}{MAP_MISSION_DELIMITER}{resolved_mission}", config
 
 
