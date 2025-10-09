@@ -16,14 +16,8 @@ from metta.common.util.constants import PROD_STATS_SERVER_URI
 from metta.common.util.log_config import init_logging
 from metta.common.wandb.context import WandbConfig
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig
-from metta.sweep.schedulers.async_capped import (
-    AsyncCappedOptimizingScheduler,
-    AsyncCappedSchedulerConfig,
-)
-from metta.sweep.schedulers.batched_synced import (
-    BatchedSyncedOptimizingScheduler,
-    BatchedSyncedSchedulerConfig,
-)
+from metta.sweep.schedulers.async_capped import AsyncCappedOptimizingScheduler, AsyncCappedSchedulerConfig
+from metta.sweep.schedulers.batched_synced import BatchedSyncedOptimizingScheduler, BatchedSyncedSchedulerConfig
 from metta.tools.utils.auto_config import auto_wandb_config
 
 logger = logging.getLogger(__name__)
@@ -249,7 +243,17 @@ class SweepTool(Tool):
                 resume = False
 
         # Create components
-        store = WandbStore(entity=self.wandb.entity, project=self.wandb.project)
+        # Derive evaluator prefix from the configured optimizer metric if possible
+        # Example: metric "evaluator/eval_sweep/score" -> prefix "evaluator/eval_sweep"
+        evaluator_prefix = None
+        try:
+            metric_path = getattr(self.protein_config, "metric", None)
+            if isinstance(metric_path, str) and "/" in metric_path:
+                evaluator_prefix = metric_path.rsplit("/", 1)[0]
+        except Exception:
+            evaluator_prefix = None
+
+        store = WandbStore(entity=self.wandb.entity, project=self.wandb.project, evaluator_prefix=evaluator_prefix)
 
         # Create dispatcher based on type
         if self.dispatcher_type == DispatcherType.LOCAL:

@@ -6,6 +6,7 @@ import time
 import numpy as np
 import pytest
 
+from mettagrid import dtype_actions
 from mettagrid.config.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
@@ -16,6 +17,8 @@ from mettagrid.config.mettagrid_config import (
 )
 from mettagrid.core import MettaGridCore
 from mettagrid.map_builder.ascii import AsciiMapBuilder
+from mettagrid.test_support.actions import action_index
+from mettagrid.test_support.orientation import Orientation
 
 
 @pytest.fixture
@@ -151,7 +154,7 @@ def test_visitation_counts_enabled(env_with_visitation):
     assert initial_features == [0, 0, 0, 0, 0], f"Expected initial counts [0,0,0,0,0], got {initial_features}"
 
     # Move and check counts update
-    move_action = np.array([[0, 0]], dtype=np.int32)
+    move_action = np.array([action_index(env_with_visitation, "move", Orientation.NORTH)], dtype=dtype_actions)
     for step in range(3):
         obs, _, _, _, _ = env_with_visitation.step(move_action)
         features = extract_visitation_features(visitation_feature_id, obs)
@@ -172,7 +175,7 @@ def test_visitation_counts_disabled(env_without_visitation):
     assert len(features) == 0, f"Expected no visitation features when disabled, got {len(features)}"
 
     # Verify they stay disabled after steps
-    move_action = np.array([[0, 0]], dtype=np.int32)
+    move_action = np.array([action_index(env_without_visitation, "move", Orientation.NORTH)], dtype=dtype_actions)
     obs, _, _, _, _ = env_without_visitation.step(move_action)
     features = extract_visitation_features(visitation_feature_id, obs)
     assert len(features) == 0, "Visitation features appeared after step when disabled"
@@ -234,7 +237,7 @@ def _median_runtime(env, move_action, warmup_steps=10, test_steps=200, reps=15):
 @pytest.mark.skip(reason="Flaky performance test - timing variations on different systems")
 def test_visitation_performance_impact(performance_config):
     """Disabled visitation should not be materially slower."""
-    move_action = np.array([[0, 0]], dtype=np.int32)
+    move_action = np.array([action_index(env_default, "move", Orientation.NORTH)], dtype=dtype_actions)
 
     # enabled
     cfg_on = copy.deepcopy(performance_config)

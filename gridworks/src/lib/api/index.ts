@@ -46,6 +46,7 @@ const storableMapSchema = z.object({
     metadata: z.record(z.string(), z.unknown()),
     config: z.record(z.string(), z.unknown()),
     scene_tree: sceneTreeSchema.nullable(),
+    char_to_name: z.record(z.string(), z.string()),
   }),
   data: z.string(),
 });
@@ -58,8 +59,19 @@ async function fetchApi<T extends z.ZodTypeAny>(
 ): Promise<z.infer<T>> {
   const response = await fetch(url);
   if (response.status === 500) {
-    const data = await response.json();
-    const detail = String(data.detail) || "Unknown error";
+    let detail = "Unknown error";
+    if (response.headers.get("content-type") === "application/json") {
+      try {
+        const data = await response.json();
+        if (data.detail) {
+          detail = String(data.detail);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    } else {
+      detail = await response.text();
+    }
     throw new Error(detail);
   }
   const data = await response.json();

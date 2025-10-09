@@ -124,10 +124,9 @@ class Simulation:
             obs_height=metta_grid_env.obs_height,
             obs_features=metta_grid_env.observation_features,
             action_names=metta_grid_env.action_names,
-            max_action_args=metta_grid_env.max_action_args,
             num_agents=metta_grid_env.num_agents,
             observation_space=metta_grid_env.observation_space,
-            action_space=metta_grid_env.action_space,
+            action_space=metta_grid_env.single_action_space,
             feature_normalizations=metta_grid_env.feature_normalizations,
         )
 
@@ -171,6 +170,8 @@ class Simulation:
             policy = CheckpointManager.load_from_uri(policy_uri, device=device)
         else:
             policy = MockAgent()
+            # Set policy_uri to a valid mock URI if None
+            policy_uri = "mock://null"
 
         # Create replay directory path with simulation name
         full_replay_dir = f"{replay_dir}/{sim_config.name}"
@@ -179,7 +180,7 @@ class Simulation:
         return cls(
             sim_config,
             policy,
-            policy_uri or "mock://",
+            policy_uri,
             device=torch.device(device),
             vectorization=vectorization,
             stats_dir=stats_dir,
@@ -246,32 +247,31 @@ class Simulation:
                 )
 
         with torch.no_grad():
-            policy_actions = self._get_actions_for_agents(self._policy_idxs.cpu(), self._policy)
+            policy_actions = self._get_actions_for_agents(self._policy_idxs.cpu(), self._policy).to(dtype=torch.int32)
 
             npc_actions = None
             if self._npc_policy is not None and len(self._npc_idxs):
-                npc_actions = self._get_actions_for_agents(self._npc_idxs, self._npc_policy)
+                npc_actions = self._get_actions_for_agents(self._npc_idxs, self._npc_policy).to(dtype=torch.int32)
 
-        actions = policy_actions
         if self._npc_agents_per_env:
             policy_actions = rearrange(
                 policy_actions,
-                "(envs policy_agents) act -> envs policy_agents act",
+                "(envs policy_agents) -> envs policy_agents",
                 envs=self._num_envs,
                 policy_agents=self._policy_agents_per_env,
             )
             npc_actions = rearrange(
                 npc_actions,
-                "(envs npc_agents) act -> envs npc_agents act",
+                "(envs npc_agents) -> envs npc_agents",
                 envs=self._num_envs,
                 npc_agents=self._npc_agents_per_env,
             )
-            # Concatenate along agents dimension
             actions = torch.cat([policy_actions, npc_actions], dim=1)
-            # Flatten back to (total_agents, action_dim)
-            actions = rearrange(actions, "envs agents act -> (envs agents) act")
+            actions = rearrange(actions, "envs agents -> (envs agents)")
+        else:
+            actions = policy_actions
 
-        actions_np = actions.cpu().numpy().astype(dtype_actions)
+        actions_np = actions.to(dtype=torch.int32).cpu().numpy().astype(dtype_actions, copy=False)
         return actions_np
 
     def step_simulation(self, actions_np: np.ndarray) -> None:
