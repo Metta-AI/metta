@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 import torch
 
-from cogames import game
+from cogames.cli.mission import get_mission
 from cogames.train import train
 
 
@@ -24,8 +24,7 @@ def temp_checkpoint_dir():
 @pytest.fixture
 def test_env_config():
     """Get a small test game configuration."""
-    config, _, _ = game.get_mission("machina_1")
-    return config
+    return get_mission("machina_1")[1]
 
 
 @pytest.mark.timeout(120)  # 2 minute timeout
@@ -138,7 +137,7 @@ def test_train_and_load_policy_data(test_env_config, temp_checkpoint_dir):
         agent_policy = policy.agent_policy(int(agent_id))
         action = agent_policy.step(agent_obs)
         assert action is not None
-        assert len(action) == len(env.single_action_space.nvec)
+        assert np.isscalar(action)
 
 
 @pytest.mark.timeout(180)
@@ -188,4 +187,4 @@ def test_train_lstm_and_load_policy_data(test_env_config, temp_checkpoint_dir):
         agent_policy = policy.agent_policy(int(agent_id))
         action = agent_policy.step(agent_obs)
         assert action is not None
-        assert len(action) == len(env.single_action_space.nvec)
+        assert np.isscalar(action)
