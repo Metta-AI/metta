@@ -1,16 +1,16 @@
 """PyTorch kernel for low-rank Recurrent Trace Units (RTUs).
 
 Custom autograd uses RTRL for diagonal dynamics and a reverse-time scan for
-low-rank input maps. Exposed via ``LinearRTU`` operating on batch-first inputs.
+low-rank input maps.
+
+Public API (functional): ``rtu_sequence_pytorch``
 """
 
 from __future__ import annotations
 
-import math
-from typing import Literal, Optional, Tuple, cast
+from typing import Optional, Tuple
 
 import torch
-import torch.nn as nn
 from torch.autograd import Function
 
 
@@ -303,8 +303,10 @@ class _LinearRTUFunctionLR(Function):
         grad_V1_RH = U1.t() @ GW1_DH  # (R,D)@(D,H) -> (R,H)
         grad_V2_RH = U2.t() @ GW2_DH
 
-        grad_hc1_init = torch.zeros_like(hc1_init_bh)
-        grad_hc2_init = torch.zeros_like(hc2_init_bh)
+        # Return non-zero grads for initial state so gradients can flow
+        # across subsequences (chunked BPTT / streaming).
+        grad_hc1_init = s1_next
+        grad_hc2_init = s2_next
 
         return (
             grad_x_btd,  # x
@@ -321,120 +323,48 @@ class _LinearRTUFunctionLR(Function):
         )
 
 
-class LinearRTU(nn.Module):
-    """Linear RTU with per‑channel low‑rank maps (U1,V1) and (U2,V2)."""
-
-    def __init__(
-        self,
-        input_size: int,
-        hidden_size: int,
-        *,
-        rank: int,
-        batch_first: bool = False,
-        activation: nn.Module | None = None,
-        r_max: float = 1.0,
-        r_min: float = 0.0,
-        max_phase: float = 6.28,
-        scan_mode: Literal["sequential", "jax_scan", "jax_associative_scan"] = "sequential",
-    ) -> None:
-        super().__init__()
-        if rank < 1 or rank > min(input_size, hidden_size):
-            raise ValueError(f"rank must be in [1, min(D,H)] but got {rank}")
-        self.input_size = input_size
-        self.hidden_size = hidden_size
-        self.rank = rank
-        self.batch_first = batch_first
-        # Default to Identity to match baseline linear RTU semantics
-        self.activation = activation if activation is not None else nn.Identity()
-        self.scan_mode = scan_mode
-
-        # exp-exp parameterization (same as before)
-        u1 = torch.rand(hidden_size)
-        inner = u1 * (r_max**2 - r_min**2) + r_min**2
-        nu_log_init = torch.log(-0.5 * torch.log(inner.clamp(min=1e-12)))
-
-        u2 = torch.rand(hidden_size)
-        theta_log_init = torch.log((max_phase * u2).clamp(min=1e-12))
-
-        self.nu_log = nn.Parameter(nu_log_init)
-        self.theta_log = nn.Parameter(theta_log_init)
-
-        # ---- Low-rank factors ----
-        # Shapes: U1,U2: (D,R); V1,V2: (R,H)
-        self.U1 = nn.Parameter(torch.empty(input_size, rank))
-        self.U2 = nn.Parameter(torch.empty(input_size, rank))
-        self.V1 = nn.Parameter(torch.empty(rank, hidden_size))
-        self.V2 = nn.Parameter(torch.empty(rank, hidden_size))
-
-        # Kaiming-like uniform init
-        bound_in = 1.0 / math.sqrt(input_size)
-        bound_r = 1.0 / math.sqrt(rank)
-        with torch.no_grad():
-            self.U1.uniform_(-bound_in, bound_in)
-            self.U2.uniform_(-bound_in, bound_in)
-            self.V1.uniform_(-bound_r, bound_r)
-            self.V2.uniform_(-bound_r, bound_r)
-
-    def forward(
-        self,
-        x: torch.Tensor,
-        hx: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
-        *,
-        resets: Optional[torch.Tensor] = None,
-    ) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
-        if self.batch_first:
-            B, T, D = x.shape
-            x_btd = x
-        else:
-            T, B, D = x.shape
-            x_btd = x.transpose(0, 1)
-
-        if hx is None:
-            hc1_init_bh = x_btd.new_zeros(B, self.hidden_size)
-            hc2_init_bh = x_btd.new_zeros(B, self.hidden_size)
-        else:
-            hc1_init_bh = hx[0].contiguous()
-            hc2_init_bh = hx[1].contiguous()
-
-        act_name = self.activation.__class__.__name__
-        y_btd_2h, final_hc1_bh, final_hc2_bh = _LinearRTUFunctionLR.apply(
-            x_btd,
-            self.nu_log,
-            self.theta_log,
-            self.U1,
-            self.U2,
-            self.V1,
-            self.V2,
-            act_name,
-            hc1_init_bh,
-            hc2_init_bh,
-            resets,
-        )
-
-        output = y_btd_2h if self.batch_first else y_btd_2h.transpose(0, 1)
-        return output, (final_hc1_bh, final_hc2_bh)
-
-
-def build_compiled_rtu(
-    input_size: int,
-    hidden_size: int,
+def rtu_sequence_pytorch(
     *,
-    rank: int,
-    batch_first: bool = False,
-    activation: nn.Module | None = None,
-    scan_mode: Literal["sequential", "jax_scan", "jax_associative_scan"] = "sequential",
-    **compile_kwargs,
-) -> nn.Module:
-    """Helper: returns a torch.compile-wrapped low-rank LinearRTU."""
-    model = LinearRTU(
-        input_size,
-        hidden_size,
-        rank=rank,
-        batch_first=batch_first,
-        activation=activation if activation is not None else nn.Identity(),
-        scan_mode=scan_mode,
+    x_btd: torch.Tensor,
+    nu_log: torch.Tensor,
+    theta_log: torch.Tensor,
+    U1: torch.Tensor,
+    U2: torch.Tensor,
+    V1: torch.Tensor,
+    V2: torch.Tensor,
+    activation_name: str,
+    hc1_init_bh: torch.Tensor,
+    hc2_init_bh: torch.Tensor,
+    resets_bt: Optional[torch.Tensor] = None,
+) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+    """Functional RTU interface (PyTorch autograd).
+
+    Args:
+        x_btd: Input [B, T, D]
+        nu_log, theta_log: dynamics parameters [H]
+        U1, U2: [D, R]
+        V1, V2: [R, H]
+        activation_name: e.g., "SiLU"
+        hc1_init_bh, hc2_init_bh: initial states [B, H]
+        resets_bt: optional reset mask [B, T] or [B]
+
+    Returns:
+        y_btd_2h, (final_hc1_bh, final_hc2_bh)
+    """
+    y_btd_2h, final_hc1_bh, final_hc2_bh = _LinearRTUFunctionLR.apply(
+        x_btd,
+        nu_log,
+        theta_log,
+        U1,
+        U2,
+        V1,
+        V2,
+        activation_name,
+        hc1_init_bh,
+        hc2_init_bh,
+        resets_bt,
     )
-    return cast(nn.Module, torch.compile(model, **compile_kwargs))
+    return y_btd_2h, (final_hc1_bh, final_hc2_bh)
 
 
-__all__ = ["LinearRTU", "build_compiled_rtu"]
+__all__ = ["rtu_sequence_pytorch"]

@@ -1,7 +1,12 @@
-"""RTU cell wrapper integrating the PyTorch low-rank RTU kernel with Cortex APIs."""
+"""RTU cell wrapper with clean functional kernel interfaces.
+
+Parameters live in the cell; kernels are pure functions in
+`cortex.kernels.pytorch.rtu` and `cortex.kernels.triton.rtu`.
+"""
 
 from __future__ import annotations
 
+import math
 from typing import Optional, Tuple
 
 import torch
@@ -11,15 +16,10 @@ from tensordict import TensorDict
 from cortex.cells.base import MemoryCell
 from cortex.cells.registry import register_cell
 from cortex.config import RTUCellConfig
-from cortex.kernels.pytorch.rtu import LinearRTU
-from cortex.utils import select_backend
-
-# Import Triton autograd Function directly to reuse the same Parameters
-try:
-    from cortex.kernels.triton.rtu import _LinearRTUFunctionLR_Triton  # type: ignore
-except Exception:  # pragma: no cover - Triton optional
-    _LinearRTUFunctionLR_Triton = None  # type: ignore[assignment]
+from cortex.kernels.pytorch.rtu import rtu_sequence_pytorch
+from cortex.kernels.triton.rtu import rtu_sequence_triton  # type: ignore
 from cortex.types import MaybeState, ResetMask, Tensor
+from cortex.utils import select_backend
 
 
 def _resolve_activation(name: str) -> nn.Module:
@@ -40,8 +40,8 @@ class RTUCell(MemoryCell):
     """Cortex memory cell for the low-rank Recurrent Trace Unit (RTU).
 
     This wrapper:
-      - instantiates the PyTorch kernel (`LinearRTU`) to compute the 2H activations,
-      - adds a learned projection `2H -> H` so the cell fits Cortex block shapes,
+      - calls functional RTU kernels to compute 2H activations,
+      - projects `2H -> H` to fit Cortex block shapes,
       - manages TensorDict state with keys {"hc1", "hc2"},
       - handles step-vs-sequence inputs and reset masks.
     """
@@ -53,18 +53,29 @@ class RTUCell(MemoryCell):
         self.cfg = cfg
 
         H = cfg.hidden_size
-        act = _resolve_activation(cfg.activation)
-        # Kernel runs batch-first inside the cell (PyTorch baseline)
-        self.core = LinearRTU(
-            input_size=H,
-            hidden_size=H,
-            rank=cfg.rank,
-            batch_first=True,
-            activation=act,
-            r_max=cfg.r_max,
-            r_min=cfg.r_min,
-            max_phase=cfg.max_phase,
-        )
+        self.activation = _resolve_activation(cfg.activation)
+
+        # Parameters for RTU dynamics and low-rank maps
+        u1 = torch.rand(H)
+        inner = u1 * (cfg.r_max**2 - cfg.r_min**2) + cfg.r_min**2
+        nu_log_init = torch.log(-0.5 * torch.log(inner.clamp(min=1e-12)))
+        u2 = torch.rand(H)
+        theta_log_init = torch.log((cfg.max_phase * u2).clamp(min=1e-12))
+        self.nu_log = nn.Parameter(nu_log_init)
+        self.theta_log = nn.Parameter(theta_log_init)
+
+        self.U1 = nn.Parameter(torch.empty(H, cfg.rank))
+        self.U2 = nn.Parameter(torch.empty(H, cfg.rank))
+        self.V1 = nn.Parameter(torch.empty(cfg.rank, H))
+        self.V2 = nn.Parameter(torch.empty(cfg.rank, H))
+
+        bound_in = 1.0 / math.sqrt(H)
+        bound_r = 1.0 / math.sqrt(cfg.rank)
+        with torch.no_grad():
+            self.U1.uniform_(-bound_in, bound_in)
+            self.U2.uniform_(-bound_in, bound_in)
+            self.V1.uniform_(-bound_r, bound_r)
+            self.V2.uniform_(-bound_r, bound_r)
 
         # Project 2H -> H to retain external block shape compatibility
         self.out_proj = nn.Linear(2 * H, H)
@@ -74,88 +85,6 @@ class RTUCell(MemoryCell):
         zero = torch.zeros(batch, H, device=device, dtype=dtype)
         return TensorDict({"hc1": zero.clone(), "hc2": zero.clone()}, batch_size=[batch])
 
-    def _apply_core_sequence(
-        self, x_seq: torch.Tensor, hc1: torch.Tensor, hc2: torch.Tensor, *, resets: Optional[torch.Tensor] = None
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        # x_seq: [B, T, H]
-        # Define backends: Triton function uses same Parameters from PyTorch module
-        def _fw_triton(x: torch.Tensor, h1: torch.Tensor, h2: torch.Tensor, rm: Optional[torch.Tensor]):
-            assert _LinearRTUFunctionLR_Triton is not None, "Triton backend not available"
-            act_name = self.core.activation.__class__.__name__
-            y2h_t, h1_n, h2_n = _LinearRTUFunctionLR_Triton.apply(
-                x,
-                self.core.nu_log,
-                self.core.theta_log,
-                self.core.U1,
-                self.core.U2,
-                self.core.V1,
-                self.core.V2,
-                act_name,
-                h1,
-                h2,
-                rm,
-                1,  # param_parallel: use fully-parallel path by default
-            )
-            return y2h_t, h1_n, h2_n
-
-        def _fw_torch(x: torch.Tensor, h1: torch.Tensor, h2: torch.Tensor, rm: Optional[torch.Tensor]):
-            return self.core(x, (h1, h2), resets=rm)
-
-        backend = select_backend(
-            triton_fn=_fw_triton if _LinearRTUFunctionLR_Triton is not None else None,
-            pytorch_fn=_fw_torch,
-            tensor=x_seq,
-            allow_triton=True,
-        )
-
-        y2h, hc1_n, hc2_n = backend(x_seq, hc1, hc2, resets)
-        # Map 2H -> H (batch-first)
-        B, T, _ = y2h.shape
-        y = self.out_proj(y2h.reshape(B * T, -1)).reshape(B, T, self.hidden_size)
-        return y, hc1_n, hc2_n
-
-    def _apply_core_step(
-        self, x_step: torch.Tensor, hc1: torch.Tensor, hc2: torch.Tensor, *, resets: Optional[torch.Tensor] = None
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        # x_step: [B, H]
-        # Normalize resets to [B, 1] if provided
-        resets_bt = None
-        if resets is not None:
-            resets_bt = resets.view(-1, 1)
-        # Choose backend as in sequence path
-        def _fw_triton(x: torch.Tensor, h1: torch.Tensor, h2: torch.Tensor, rm: Optional[torch.Tensor]):
-            assert _LinearRTUFunctionLR_Triton is not None, "Triton backend not available"
-            act_name = self.core.activation.__class__.__name__
-            y2h_t, h1_n, h2_n = _LinearRTUFunctionLR_Triton.apply(
-                x,
-                self.core.nu_log,
-                self.core.theta_log,
-                self.core.U1,
-                self.core.U2,
-                self.core.V1,
-                self.core.V2,
-                act_name,
-                h1,
-                h2,
-                rm,
-                1,
-            )
-            return y2h_t, h1_n, h2_n
-
-        def _fw_torch(x: torch.Tensor, h1: torch.Tensor, h2: torch.Tensor, rm: Optional[torch.Tensor]):
-            return self.core(x, (h1, h2), resets=rm)
-
-        backend = select_backend(
-            triton_fn=_fw_triton if _LinearRTUFunctionLR_Triton is not None else None,
-            pytorch_fn=_fw_torch,
-            tensor=x_step,
-            allow_triton=True,
-        )
-
-        y2h, hc1_n, hc2_n = backend(x_step.unsqueeze(1), hc1, hc2, resets_bt)
-        y = self.out_proj(y2h.squeeze(1))
-        return y, hc1_n, hc2_n
-
     def forward(
         self,
         x: Tensor,
@@ -163,18 +92,17 @@ class RTUCell(MemoryCell):
         *,
         resets: Optional[ResetMask] = None,
     ) -> Tuple[Tensor, MaybeState]:
-        # Determine step vs sequence
-        is_step = x.dim() == 2
+        # Determine step vs sequence and normalize inputs
+        is_step = x.dim() == 2  # [B,H] vs [B,T,H]
         if is_step:
-            x_seq = x
-            B = x_seq.shape[0]
+            x_btd = x.unsqueeze(1)
         else:
-            x_seq = x  # [B, T, H]
-            B, T, _ = x_seq.shape
+            x_btd = x
+        B, T, H = x_btd.shape
 
         # Prepare/validate state
         if state is None or not all(k in state for k in ("hc1", "hc2")):
-            st = self.init_state(batch=x_seq.shape[0], device=x_seq.device, dtype=x_seq.dtype)
+            st = self.init_state(batch=B, device=x_btd.device, dtype=x_btd.dtype)
         else:
             st = state
 
@@ -182,17 +110,66 @@ class RTUCell(MemoryCell):
         hc2 = st.get("hc2")
         assert hc1 is not None and hc2 is not None
 
-        # Unified path: delegate resets handling to the kernel
-        if is_step:
-            y, hc1_n, hc2_n = self._apply_core_step(x_seq, hc1, hc2, resets=resets)
-            return y, TensorDict({"hc1": hc1_n, "hc2": hc2_n}, batch_size=[x_seq.shape[0]])
-        else:
-            # Normalize resets to [B, T] if provided
+        # Normalize resets mask
+        resets_bt: Optional[torch.Tensor]
+        if resets is None:
             resets_bt = None
-            if resets is not None:
-                resets_bt = resets if resets.dim() == 2 else resets.view(-1, 1).expand(x_seq.shape[0], x_seq.shape[1])
-            y, hc1_n, hc2_n = self._apply_core_sequence(x_seq, hc1, hc2, resets=resets_bt)
-            return y, TensorDict({"hc1": hc1_n, "hc2": hc2_n}, batch_size=[x_seq.shape[0]])
+        else:
+            if is_step:
+                resets_bt = resets.view(B, 1)
+            else:
+                resets_bt = resets if resets.dim() == 2 else resets.view(B, 1).expand(B, T)
+
+        # Backend shims
+        def _fw_triton(x_in: torch.Tensor, h1: torch.Tensor, h2: torch.Tensor, rm: Optional[torch.Tensor]):
+            act_name = self.activation.__class__.__name__
+            y2h_t, (h1_n, h2_n) = rtu_sequence_triton(
+                x_btd=x_in,
+                nu_log=self.nu_log,
+                theta_log=self.theta_log,
+                U1=self.U1,
+                U2=self.U2,
+                V1=self.V1,
+                V2=self.V2,
+                activation_name=act_name,
+                hc1_init_bh=h1,
+                hc2_init_bh=h2,
+                resets_bt=rm,
+            )
+            return y2h_t, h1_n, h2_n
+
+        def _fw_torch(x_in: torch.Tensor, h1: torch.Tensor, h2: torch.Tensor, rm: Optional[torch.Tensor]):
+            act_name = self.activation.__class__.__name__
+            y2h_t, (h1_n, h2_n) = rtu_sequence_pytorch(
+                x_btd=x_in,
+                nu_log=self.nu_log,
+                theta_log=self.theta_log,
+                U1=self.U1,
+                U2=self.U2,
+                V1=self.V1,
+                V2=self.V2,
+                activation_name=act_name,
+                hc1_init_bh=h1,
+                hc2_init_bh=h2,
+                resets_bt=rm,
+            )
+            return y2h_t, h1_n, h2_n
+
+        backend = select_backend(
+            triton_fn=_fw_triton,
+            pytorch_fn=_fw_torch,
+            tensor=x_btd,
+            allow_triton=True,
+        )
+
+        y2h, hc1_n, hc2_n = backend(x_btd, hc1, hc2, resets_bt)
+        # Project 2H -> H (batch-first)
+        if is_step:
+            y = self.out_proj(y2h.squeeze(1))
+        else:
+            y = self.out_proj(y2h.reshape(B * T, -1)).reshape(B, T, self.hidden_size)
+
+        return y, TensorDict({"hc1": hc1_n, "hc2": hc2_n}, batch_size=[B])
 
     def reset_state(self, state: MaybeState, mask: ResetMask) -> MaybeState:
         if state is None:

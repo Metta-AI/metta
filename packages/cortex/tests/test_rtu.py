@@ -1,7 +1,8 @@
-"""Finite-difference gradient check for the low-rank LinearRTU kernel (PyTorch).
+"""RTU kernel tests (functional API via cell) for PyTorch and Triton backends.
 
-This test validates that the custom autograd implementation for the RTU matches
-finite-difference gradients across all parameters on a small problem.
+Includes:
+- Triton vs PyTorch parity (forward + gradients), with and without resets
+- Finite-difference check of PyTorch autograd on a tiny problem
 """
 
 from __future__ import annotations
@@ -9,83 +10,59 @@ from __future__ import annotations
 import numpy as np
 import pytest
 import torch
-
-# Import the kernel directly from cortex package
-from cortex.kernels.pytorch.rtu import LinearRTU
-
-# Triton parity tests (skip when Triton/CUDA are unavailable)
+from cortex.cells.rtu import RTUCell
+from cortex.config import RTUCellConfig
 from cortex.utils import TRITON_AVAILABLE
 
 
 @pytest.mark.skipif(not (torch.cuda.is_available() and TRITON_AVAILABLE), reason="CUDA/Triton not available")
 def test_triton_rtu_matches_pytorch_forward_and_gradients() -> None:
-    from cortex.kernels.triton import LinearRTU_Triton
-
     torch.manual_seed(2024)
     device = torch.device("cuda")
     dtype = torch.float32
 
-    # Problem sizes kept modest to limit JIT compile time
-    B, T, D, H, R = 2, 64, 32, 24, 8
+    B, T, H, R = 2, 64, 24, 8
+    x = torch.randn(B, T, H, device=device, dtype=dtype, requires_grad=True)
 
-    x = torch.randn(B, T, D, device=device, dtype=dtype, requires_grad=True)
+    # Build cell (parameters live in the cell)
+    cell = RTUCell(RTUCellConfig(hidden_size=H, rank=R, activation="SiLU")).to(device=device, dtype=dtype)
 
-    # Construct models and align parameters
-    pt_model = LinearRTU(
-        input_size=D,
-        hidden_size=H,
-        rank=R,
-        batch_first=True,
-        activation=torch.nn.SiLU(),
-    ).to(device=device, dtype=dtype)
+    # Utility to force backend via monkeypatch of select_backend
+    import cortex.cells.rtu as cell_mod
 
-    tr_model = LinearRTU_Triton(
-        input_size=D,
-        hidden_size=H,
-        rank=R,
-        batch_first=True,
-        activation=torch.nn.SiLU(),
-    ).to(device=device, dtype=dtype)
+    def run_with_backend(which: str):
+        orig = cell_mod.select_backend
 
-    # Copy parameters from PyTorch baseline to Triton model for 1:1 parity
-    with torch.no_grad():
-        tr_model.nu_log.copy_(pt_model.nu_log)
-        tr_model.theta_log.copy_(pt_model.theta_log)
-        tr_model.U1.copy_(pt_model.U1)
-        tr_model.U2.copy_(pt_model.U2)
-        tr_model.V1.copy_(pt_model.V1)
-        tr_model.V2.copy_(pt_model.V2)
+        def chooser(*, triton_fn, pytorch_fn, tensor, allow_triton=True):  # type: ignore[override]
+            return triton_fn if which == "triton" else pytorch_fn
 
-    # Forward
-    y_pt, _ = pt_model(x)
-    y_tr, _ = tr_model(x)
+        try:
+            cell_mod.select_backend = chooser  # type: ignore[assignment]
+            y, _ = cell(x, state=None, resets=None)
+            return y
+        finally:
+            cell_mod.select_backend = orig  # type: ignore[assignment]
+
+    y_pt = run_with_backend("pytorch")
+    y_tr = run_with_backend("triton")
 
     assert torch.allclose(y_pt, y_tr, rtol=1e-5, atol=1e-6), (
         f"forward mismatch: max abs err={(y_pt - y_tr).abs().max().item():.3e}"
     )
 
-    # Backward: compare gradients for all parameters and inputs
     loss_pt = (y_pt**2).mean()
     loss_tr = (y_tr**2).mean()
 
-    params_pt = [pt_model.nu_log, pt_model.theta_log, pt_model.U1, pt_model.U2, pt_model.V1, pt_model.V2]
-    params_tr = [tr_model.nu_log, tr_model.theta_log, tr_model.U1, tr_model.U2, tr_model.V1, tr_model.V2]
+    params = [cell.nu_log, cell.theta_log, cell.U1, cell.U2, cell.V1, cell.V2, x]
+    g_pt = torch.autograd.grad(loss_pt, params, retain_graph=True, allow_unused=False)
+    g_tr = torch.autograd.grad(loss_tr, params, retain_graph=True, allow_unused=False)
 
-    # Compare input gradients first using autograd.grad before freeing graphs
-    dx_pt = torch.autograd.grad(loss_pt, x, retain_graph=True, allow_unused=False)[0]
-    dx_tr = torch.autograd.grad(loss_tr, x, retain_graph=True, allow_unused=False)[0]
-
-    # Now accumulate parameter grads via .backward on each loss
-    loss_pt.backward(retain_graph=True)
-    loss_tr.backward()
+    dx_pt, dx_tr = g_pt[-1], g_tr[-1]
     assert torch.allclose(dx_pt, dx_tr, rtol=1e-4, atol=1e-5), (
         f"dx mismatch: max abs err={(dx_pt - dx_tr).abs().max().item():.3e}"
     )
 
-    # Compare parameter gradients (loosen tolerances for nu/theta to allow fully-parallel path)
-    for p_pt, p_tr, name in zip(params_pt, params_tr, ["nu_log", "theta_log", "U1", "U2", "V1", "V2"], strict=False):
-        assert p_pt.grad is not None and p_tr.grad is not None
-        gt, gb = p_tr.grad.detach(), p_pt.grad.detach()
+    for (gt, gb, name) in zip(g_tr[:-1], g_pt[:-1], ["nu_log", "theta_log", "U1", "U2", "V1", "V2"], strict=False):
         rtol = 1e-3 if name in {"nu_log", "theta_log"} else 1e-4
         atol = 3e-4 if name in {"nu_log", "theta_log"} else 1e-5
         assert torch.allclose(gt, gb, rtol=rtol, atol=atol), (
@@ -96,85 +73,69 @@ def test_triton_rtu_matches_pytorch_forward_and_gradients() -> None:
 @pytest.mark.skipif(not (torch.cuda.is_available() and TRITON_AVAILABLE), reason="CUDA/Triton not available")
 @pytest.mark.parametrize("T", [1, 2, 3, 7, 16, 31, 64, 65, 128])
 def test_triton_rtu_with_resets_various_lengths(T: int) -> None:
-    from cortex.kernels.triton import LinearRTU_Triton
-
     torch.manual_seed(123)
     device = torch.device("cuda")
     dtype = torch.float32
 
-    B, D, H, R = 3, 16, 12, 6
-    x = torch.randn(B, T, D, device=device, dtype=dtype, requires_grad=True)
+    B, H, R = 3, 12, 6
+    x = torch.randn(B, T, H, device=device, dtype=dtype, requires_grad=True)
 
     # Random reset pattern; allow reset at t=0 too
     resets = torch.rand(B, T, device=device) < 0.25
 
-    pt_model = LinearRTU(
-        input_size=D,
-        hidden_size=H,
-        rank=R,
-        batch_first=True,
-        activation=torch.nn.SiLU(),
-    ).to(device=device, dtype=dtype)
+    cell = RTUCell(RTUCellConfig(hidden_size=H, rank=R, activation="SiLU")).to(device=device, dtype=dtype)
 
-    tr_model = LinearRTU_Triton(
-        input_size=D,
-        hidden_size=H,
-        rank=R,
-        batch_first=True,
-        activation=torch.nn.SiLU(),
-    ).to(device=device, dtype=dtype)
+    import cortex.cells.rtu as cell_mod
 
-    # Align parameters
-    with torch.no_grad():
-        tr_model.nu_log.copy_(pt_model.nu_log)
-        tr_model.theta_log.copy_(pt_model.theta_log)
-        tr_model.U1.copy_(pt_model.U1)
-        tr_model.U2.copy_(pt_model.U2)
-        tr_model.V1.copy_(pt_model.V1)
-        tr_model.V2.copy_(pt_model.V2)
+    def run_with_backend(which: str):
+        orig = cell_mod.select_backend
 
-    # Forward with resets
-    y_pt, _ = pt_model(x, resets=resets)
-    y_tr, _ = tr_model(x, resets=resets)
+        def chooser(*, triton_fn, pytorch_fn, tensor, allow_triton=True):  # type: ignore[override]
+            return triton_fn if which == "triton" else pytorch_fn
+
+        try:
+            cell_mod.select_backend = chooser  # type: ignore[assignment]
+            y, _ = cell(x, state=None, resets=resets)
+            return y
+        finally:
+            cell_mod.select_backend = orig  # type: ignore[assignment]
+
+    y_pt = run_with_backend("pytorch")
+    y_tr = run_with_backend("triton")
 
     assert torch.allclose(y_pt, y_tr, rtol=1e-5, atol=1e-6), (
         f"forward mismatch (T={T}): max abs err={(y_pt - y_tr).abs().max().item():.3e}"
     )
 
-    # Gradients (compute dx via autograd.grad first)
     loss_pt = (y_pt**2).mean()
     loss_tr = (y_tr**2).mean()
-
     dx_pt = torch.autograd.grad(loss_pt, x, retain_graph=True, allow_unused=False)[0]
     dx_tr = torch.autograd.grad(loss_tr, x, retain_graph=True, allow_unused=False)[0]
     assert torch.allclose(dx_pt, dx_tr, rtol=1e-4, atol=1e-5), (
         f"dx mismatch (T={T}): max abs err={(dx_pt - dx_tr).abs().max().item():.3e}"
     )
 
-    # Param grads
-    loss_pt.backward(retain_graph=True)
-    loss_tr.backward()
-    for p_pt, p_tr, name in zip(
-        [pt_model.nu_log, pt_model.theta_log, pt_model.U1, pt_model.U2, pt_model.V1, pt_model.V2],
-        [tr_model.nu_log, tr_model.theta_log, tr_model.U1, tr_model.U2, tr_model.V1, tr_model.V2],
-        ["nu_log", "theta_log", "U1", "U2", "V1", "V2"],
-        strict=False,
-    ):
-        assert p_pt.grad is not None and p_tr.grad is not None
+    grads_pt = torch.autograd.grad(
+        loss_pt, [cell.nu_log, cell.theta_log, cell.U1, cell.U2, cell.V1, cell.V2], retain_graph=True
+    )
+    grads_tr = torch.autograd.grad(
+        loss_tr, [cell.nu_log, cell.theta_log, cell.U1, cell.U2, cell.V1, cell.V2], retain_graph=True
+    )
+    for (gp, gt, name) in zip(grads_pt, grads_tr, ["nu_log", "theta_log", "U1", "U2", "V1", "V2"], strict=False):
         rtol = 1e-3 if name in {"nu_log", "theta_log"} else 1e-4
         atol = 3e-4 if name in {"nu_log", "theta_log"} else 1e-5
-        assert torch.allclose(p_pt.grad, p_tr.grad, rtol=rtol, atol=atol), (
-            f"{name} grad mismatch (T={T}): max abs err={(p_pt.grad - p_tr.grad).abs().max().item():.3e}"
+        assert torch.allclose(gp, gt, rtol=rtol, atol=atol), (
+            f"{name} grad mismatch (T={T}): max abs err={(gp - gt).abs().max().item():.3e}"
         )
 
 
 torch.manual_seed(7)
 
 
-def finite_diff_param(
-    model: LinearRTU, x: torch.Tensor, loss_fn, param: torch.Tensor, eps: float = 1e-4
+def finite_diff_param_fn(
+    x: torch.Tensor, loss_fn, param: torch.Tensor, *, cell: RTUCell, eps: float = 1e-4
 ) -> torch.Tensor:
-    """Full dense central-difference gradient for a single Parameter tensor."""
+    """Full dense central-difference gradient for a single tensor parameter using the cell."""
     grad = torch.zeros_like(param, dtype=torch.float64)
     with torch.no_grad():
         param_np = param.detach().cpu().numpy()
@@ -184,11 +145,11 @@ def finite_diff_param(
             orig = param[idx].item()
 
             param[idx] = orig + eps
-            y_pos, _ = model(x)
+            y_pos, _ = cell(x, state=None)
             loss_pos = loss_fn(y_pos).item()
 
             param[idx] = orig - eps
-            y_neg, _ = model(x)
+            y_neg, _ = cell(x, state=None)
             loss_neg = loss_fn(y_neg).item()
 
             param[idx] = orig  # restore
@@ -199,53 +160,48 @@ def finite_diff_param(
 
 def rtrl_sanity_case(dtype: torch.dtype = torch.float64, device: str = "cpu", verbose: bool = False):
     # Tiny but nontrivial sizes
-    B, T, D, H = 2, 5, 3, 4
+    B, T, H = 2, 5, 4
+    rank = H
 
-    model = LinearRTU(
-        input_size=D,
-        hidden_size=H,
-        rank=min(D, H),
-        batch_first=True,
-        activation=torch.nn.SiLU(),
-    ).to(device=device, dtype=dtype)
-    model.eval()  # deterministic
+    x = torch.randn(B, T, H, dtype=dtype, device=device)
 
-    # Small random input
-    x = torch.randn(B, T, D, dtype=dtype, device=device)
+    # Build cell on CPU/dtype
+    cell = RTUCell(RTUCellConfig(hidden_size=H, rank=rank, activation="SiLU")).to(device=device, dtype=dtype)
+
+    # Force PyTorch backend in this test
+    import cortex.cells.rtu as cell_mod
+
+    def chooser(*, triton_fn, pytorch_fn, tensor, allow_triton=True):  # type: ignore[override]
+        return pytorch_fn
+
+    orig = cell_mod.select_backend
+    cell_mod.select_backend = chooser  # type: ignore[assignment]
 
     # Define a smooth scalar loss of all outputs
     def loss_fn(y: torch.Tensor) -> torch.Tensor:
-        # Mean squared activation (smooth, stable in FP64)
         return (y**2).mean()
 
     # Forward + backward to get analytical grads (standard autograd)
-    for p in model.parameters():
-        if p.grad is not None:
-            p.grad.zero_()
-
-    y, _ = model(x)
+    y, _ = cell(x, state=None)
     loss = loss_fn(y)
-    loss.backward()
+    grads = torch.autograd.grad(loss, [cell.nu_log, cell.theta_log, cell.U1, cell.U2, cell.V1, cell.V2])
 
     grads_true = {
-        "nu_log": model.nu_log.grad.detach().clone(),
-        "theta_log": model.theta_log.grad.detach().clone(),
-        "U1": model.U1.grad.detach().clone(),
-        "U2": model.U2.grad.detach().clone(),
-        "V1": model.V1.grad.detach().clone(),
-        "V2": model.V2.grad.detach().clone(),
+        "nu_log": grads[0].detach().clone(),
+        "theta_log": grads[1].detach().clone(),
+        "U1": grads[2].detach().clone(),
+        "U2": grads[3].detach().clone(),
+        "V1": grads[4].detach().clone(),
+        "V2": grads[5].detach().clone(),
     }
 
-    # Numerical grads (central difference) per parameter
-    with torch.no_grad():
-        pass
-
-    num_nu = finite_diff_param(model, x, loss_fn, model.nu_log, eps=1e-4)
-    num_th = finite_diff_param(model, x, loss_fn, model.theta_log, eps=1e-4)
-    num_U1 = finite_diff_param(model, x, loss_fn, model.U1, eps=1e-4)
-    num_U2 = finite_diff_param(model, x, loss_fn, model.U2, eps=1e-4)
-    num_V1 = finite_diff_param(model, x, loss_fn, model.V1, eps=1e-4)
-    num_V2 = finite_diff_param(model, x, loss_fn, model.V2, eps=1e-4)
+    # Numerical grads (central difference)
+    num_nu = finite_diff_param_fn(x, loss_fn, cell.nu_log, cell=cell)
+    num_th = finite_diff_param_fn(x, loss_fn, cell.theta_log, cell=cell)
+    num_U1 = finite_diff_param_fn(x, loss_fn, cell.U1, cell=cell)
+    num_U2 = finite_diff_param_fn(x, loss_fn, cell.U2, cell=cell)
+    num_V1 = finite_diff_param_fn(x, loss_fn, cell.V1, cell=cell)
+    num_V2 = finite_diff_param_fn(x, loss_fn, cell.V2, cell=cell)
 
     grads_num = {
         "nu_log": num_nu,
@@ -256,26 +212,21 @@ def rtrl_sanity_case(dtype: torch.dtype = torch.float64, device: str = "cpu", ve
         "V2": num_V2,
     }
 
+    cell_mod.select_backend = orig  # restore
     return grads_true, grads_num
 
 
 @pytest.mark.parametrize("device", ["cpu"])  # Extend to cuda as needed
 def test_linear_rtu_rtrl_grad_matches_finite_difference(device: str, verbose: bool = False) -> None:
-    # Use float64 for crisp finite differences
     grads_true, grads_num = rtrl_sanity_case(dtype=torch.float64, device=device, verbose=verbose)
 
-    # Tolerances: FP64 + small eps
     atol = 2e-6
     rtol = 3e-5
 
     for k in grads_true.keys():
         gt = grads_true[k]
         gn = grads_num[k]
-
-        # Quick sanity norms
         rel_err = (gt - gn).norm() / (gn.norm() + 1e-12)
-
-        # Elementwise closeness
         assert torch.allclose(gt, gn, rtol=rtol, atol=atol), (
             f"{k} grads mismatch\nmax abs err: {(gt - gn).abs().max().item():.3e}\n"
             f"true norm: {gt.norm().item():.3e}  num norm: {gn.norm().item():.3e}"
@@ -284,7 +235,6 @@ def test_linear_rtu_rtrl_grad_matches_finite_difference(device: str, verbose: bo
 
 
 if __name__ == "__main__":
-    # Allow running as a script for quick smoke tests
     torch.set_default_dtype(torch.float64)
     test_linear_rtu_rtrl_grad_matches_finite_difference("cpu", verbose=True)
     print("✓ Linear RTU (low-rank) gradients match finite differences (CPU, float64).")

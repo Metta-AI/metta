@@ -1,15 +1,13 @@
 """Triton-based, time-parallel RTU (low-rank input maps) with segmented resets.
 
-Moved from `kernels.triton.mlstm.rtu_triton` to `kernels.triton.rtu`.
+Public API (functional): ``rtu_sequence_triton``
 """
 
 from __future__ import annotations
 
-import math
-from typing import Optional, Tuple
+from typing import Optional
 
 import torch
-import torch.nn as nn
 from torch.autograd import Function
 
 try:
@@ -583,11 +581,7 @@ class _LinearRTUFunctionLR_Triton(Function):
             B_local, H_local, T_local = B, H, T
             # Per-time arrays for M (g,p) and J (jg,jp)
             g_bht = (
-                g.view(1, H_local)
-                .expand(B_local, H_local)
-                .unsqueeze(-1)
-                .expand(B_local, H_local, T_local)
-                .contiguous()
+                g.view(1, H_local).expand(B_local, H_local).unsqueeze(-1).expand(B_local, H_local, T_local).contiguous()
             )
             p_bht = (
                 phi.view(1, H_local)
@@ -687,9 +681,7 @@ class _LinearRTUFunctionLR_Triton(Function):
             g_d = g.double()
             phi_d = phi.double()
 
-            dnu_log = (
-                -exp_nu * (dg * g_d + dphi * phi_d) + exp_nu * (r_d * r_d / gamma_d) * dgamma
-            ).to(x_btd.dtype)
+            dnu_log = (-exp_nu * (dg * g_d + dphi * phi_d) + exp_nu * (r_d * r_d / gamma_d) * dgamma).to(x_btd.dtype)
 
             # Theta via short RTRL loop (small BxH compute) for exactness
             exp_th_log = torch.exp(theta_log)
@@ -801,8 +793,9 @@ class _LinearRTUFunctionLR_Triton(Function):
             dnu_log = grad_nu_log_h
             dth_log = grad_theta_log_h
 
-        dhc1_init = torch.zeros_like(hc1_init_bh)
-        dhc2_init = torch.zeros_like(hc2_init_bh)
+        # Initial-state gradients to enable cross-subsequence BPTT
+        dhc1_init = lam1_bth[:, 0, :]
+        dhc2_init = lam2_bth[:, 0, :]
 
         return (
             dx_btd,
@@ -820,91 +813,42 @@ class _LinearRTUFunctionLR_Triton(Function):
         )
 
 
-class LinearRTU_Triton(nn.Module):
-    def __init__(
-        self,
-        input_size: int,
-        hidden_size: int,
-        *,
-        rank: int,
-        batch_first: bool = True,
-        activation: Optional[nn.Module] = None,
-        r_max: float = 1.0,
-        r_min: float = 0.0,
-        max_phase: float = 6.28,
-        param_grads_parallel: bool = True,
-    ) -> None:
-        super().__init__()
-        if not _TRITON_AVAILABLE:
-            raise RuntimeError("Triton not available. Please install `triton` and ensure CUDA is available.")
-        if rank < 1 or rank > min(input_size, hidden_size):
-            raise ValueError(f"rank must be in [1, min(D,H)] but got {rank}")
+def rtu_sequence_triton(
+    *,
+    x_btd: torch.Tensor,
+    nu_log: torch.Tensor,
+    theta_log: torch.Tensor,
+    U1: torch.Tensor,
+    U2: torch.Tensor,
+    V1: torch.Tensor,
+    V2: torch.Tensor,
+    activation_name: str,
+    hc1_init_bh: torch.Tensor,
+    hc2_init_bh: torch.Tensor,
+    resets_bt: Optional[torch.Tensor] = None,
+    param_grads_parallel: bool = True,
+) -> tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor]]:
+    """Functional RTU interface (Triton autograd).
 
-        self.input_size = input_size
-        self.hidden_size = hidden_size
-        self.rank = rank
-        self.batch_first = batch_first
-        self.activation = activation if activation is not None else nn.Identity()
-        self.param_grads_parallel = param_grads_parallel
-
-        u1 = torch.rand(hidden_size)
-        inner = u1 * (r_max**2 - r_min**2) + r_min**2
-        nu_log_init = torch.log(-0.5 * torch.log(inner.clamp(min=1e-12)))
-        u2 = torch.rand(hidden_size)
-        theta_log_init = torch.log((max_phase * u2).clamp(min=1e-12))
-        self.nu_log = nn.Parameter(nu_log_init)
-        self.theta_log = nn.Parameter(theta_log_init)
-
-        self.U1 = nn.Parameter(torch.empty(input_size, rank))
-        self.U2 = nn.Parameter(torch.empty(input_size, rank))
-        self.V1 = nn.Parameter(torch.empty(rank, hidden_size))
-        self.V2 = nn.Parameter(torch.empty(rank, hidden_size))
-
-        bound_in = 1.0 / math.sqrt(input_size)
-        bound_r = 1.0 / math.sqrt(rank)
-        with torch.no_grad():
-            self.U1.uniform_(-bound_in, bound_in)
-            self.U2.uniform_(-bound_in, bound_in)
-            self.V1.uniform_(-bound_r, bound_r)
-            self.V2.uniform_(-bound_r, bound_r)
-
-    def forward(
-        self,
-        x: torch.Tensor,
-        hx: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
-        *,
-        resets: Optional[torch.Tensor] = None,
-    ) -> tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor]]:
-        if not self.batch_first:
-            x = x.transpose(0, 1)
-        B, T, _ = x.shape
-
-        if hx is None:
-            hc1_init = x.new_zeros(B, self.hidden_size)
-            hc2_init = x.new_zeros(B, self.hidden_size)
-        else:
-            hc1_init, hc2_init = hx
-
-        act_name = self.activation.__class__.__name__
-        y_btd_2h, hc1, hc2 = _LinearRTUFunctionLR_Triton.apply(
-            x,
-            self.nu_log,
-            self.theta_log,
-            self.U1,
-            self.U2,
-            self.V1,
-            self.V2,
-            act_name,
-            hc1_init,
-            hc2_init,
-            resets,
-            int(self.param_grads_parallel),
-        )
-
-        if self.batch_first:
-            return y_btd_2h, (hc1, hc2)
-        else:
-            return y_btd_2h.transpose(0, 1), (hc1, hc2)
+    Args are identical to the PyTorch functional API.
+    """
+    if not _TRITON_AVAILABLE:
+        raise RuntimeError("Triton not available. Please install `triton` and ensure CUDA is available.")
+    y_btd_2h, hc1, hc2 = _LinearRTUFunctionLR_Triton.apply(
+        x_btd,
+        nu_log,
+        theta_log,
+        U1,
+        U2,
+        V1,
+        V2,
+        activation_name,
+        hc1_init_bh,
+        hc2_init_bh,
+        resets_bt,
+        int(param_grads_parallel),
+    )
+    return y_btd_2h, (hc1, hc2)
 
 
-__all__ = ["LinearRTU_Triton"]
+__all__ = ["rtu_sequence_triton"]

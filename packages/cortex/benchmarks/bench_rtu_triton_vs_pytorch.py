@@ -1,11 +1,9 @@
 #!/usr/bin/env -S uv run python
-"""Benchmark RTU (low-rank) Triton vs PyTorch implementations.
+"""Benchmark RTU (low-rank) Triton vs PyTorch using the RTUCell.
 
-This script compares the performance of the Triton-accelerated RTU kernel
-against the PyTorch reference across various configurations.
-
-It measures forward runtime on CUDA (with warmup to amortize JIT) and reports
-the max absolute difference between outputs for sanity.
+This compares the Triton-accelerated path vs the PyTorch path inside
+`cortex.cells.rtu.RTUCell` by forcing backend selection via a small
+monkeypatch of `select_backend`.
 """
 
 from __future__ import annotations
@@ -14,12 +12,24 @@ import time
 from typing import Optional
 
 import torch
-from cortex.kernels.pytorch.rtu import LinearRTU as LinearRTU_PT
+from cortex.cells.rtu import RTUCell
+from cortex.config import RTUCellConfig
 
-try:
-    from cortex.kernels.triton import LinearRTU_Triton as LinearRTU_TR  # type: ignore
-except Exception:  # pragma: no cover - allow running on CPU without Triton
-    LinearRTU_TR = None  # type: ignore[assignment]
+
+def _run_cell(cell: RTUCell, x: torch.Tensor, resets: Optional[torch.Tensor], which: str) -> torch.Tensor:
+    import cortex.cells.rtu as cell_mod
+
+    orig = cell_mod.select_backend
+
+    def chooser(*, triton_fn, pytorch_fn, tensor, allow_triton=True):  # type: ignore[override]
+        return triton_fn if which == "triton" else pytorch_fn
+
+    try:
+        cell_mod.select_backend = chooser  # type: ignore[assignment]
+        y, _ = cell(x, state=None, resets=resets)
+        return y
+    finally:
+        cell_mod.select_backend = orig  # type: ignore[assignment]
 
 
 @torch.inference_mode(False)
@@ -36,56 +46,32 @@ def benchmark_rtu(
     num_iterations: int = 50,
     device: str = "cuda",
 ) -> dict[str, Optional[float]]:
-    """Benchmark RTU implementations.
-
-    Args:
-        batch_size: Batch size (B)
-        seq_len: Sequence length (T)
-        hidden_size: Hidden/input size (D == H)
-        rank: Low-rank size (R)
-        activation: Activation name (e.g., "SiLU", "ReLU", "Tanh")
-        with_resets: Whether to include per-timestep resets
-        reset_prob: Probability of reset at each time step per batch element
-        num_warmup: Warmup iterations (JIT + caches)
-        num_iterations: Timed iterations
-        device: Device string; Triton path requires CUDA
-
-    Returns:
-        Dictionary with timing results and max difference
-    """
     dtype = torch.float32
     device_t = torch.device(device)
 
-    # Inputs: x in R^{B,T,H}; initial state zeros; optional resets
+    # Inputs: x in R^{B,T,H}; optional resets
     x = torch.randn(batch_size, seq_len, hidden_size, device=device_t, dtype=dtype)
-    h0 = torch.zeros(batch_size, hidden_size, device=device_t, dtype=dtype)
-    c0 = torch.zeros(batch_size, hidden_size, device=device_t, dtype=dtype)
     resets = None
     if with_resets:
         resets = torch.rand(batch_size, seq_len, device=device_t) < reset_prob
 
-    # Modules
-    act = getattr(torch.nn, activation)() if hasattr(torch.nn, activation) else torch.nn.SiLU()
-    pt = LinearRTU_PT(
-        input_size=hidden_size,
-        hidden_size=hidden_size,
-        rank=rank,
-        batch_first=True,
-        activation=act,
-    ).to(device=device_t, dtype=dtype)
+    # Build a single cell whose parameters are shared across both backends
+    cell = RTUCell(RTUCellConfig(hidden_size=hidden_size, rank=rank, activation=activation)).to(
+        device=device_t, dtype=dtype
+    )
 
     results: dict[str, Optional[float]] = {}
 
     # PyTorch baseline
     print("  Benchmarking PyTorch implementation...")
     for _ in range(num_warmup):
-        _y_pt, _ = pt(x, (h0, c0), resets=resets)
+        _ = _run_cell(cell, x, resets, which="pytorch")
 
-    if device_t.type == "cuda" and LinearRTU_TR is not None:
+    if device_t.type == "cuda":
         torch.cuda.synchronize()
     t0 = time.perf_counter()
     for _ in range(num_iterations):
-        y_pt, _ = pt(x, (h0, c0), resets=resets)
+        y_pt = _run_cell(cell, x, resets, which="pytorch")
     if device_t.type == "cuda":
         torch.cuda.synchronize()
     t1 = time.perf_counter()
@@ -95,30 +81,13 @@ def benchmark_rtu(
     # Triton accelerated
     if device_t.type == "cuda":
         print("  Benchmarking Triton implementation...")
-        tr = LinearRTU_TR(
-            input_size=hidden_size,
-            hidden_size=hidden_size,
-            rank=rank,
-            batch_first=True,
-            activation=act,
-        ).to(device=device_t, dtype=dtype)
-
-        # Align parameters for a meaningful max-diff comparison
-        with torch.no_grad():
-            tr.nu_log.copy_(pt.nu_log)
-            tr.theta_log.copy_(pt.theta_log)
-            tr.U1.copy_(pt.U1)
-            tr.U2.copy_(pt.U2)
-            tr.V1.copy_(pt.V1)
-            tr.V2.copy_(pt.V2)
-
         for _ in range(num_warmup):
-            _y_tr, _ = tr(x, (h0, c0), resets=resets)
+            _ = _run_cell(cell, x, resets, which="triton")
         torch.cuda.synchronize()
 
         t2 = time.perf_counter()
         for _ in range(num_iterations):
-            y_tr, _ = tr(x, (h0, c0), resets=resets)
+            y_tr = _run_cell(cell, x, resets, which="triton")
         torch.cuda.synchronize()
         t3 = time.perf_counter()
         triton_time = (t3 - t2) / num_iterations
