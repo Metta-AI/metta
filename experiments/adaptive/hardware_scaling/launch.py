@@ -60,7 +60,7 @@ def main():
         "--gpu-counts",
         type=int,
         nargs="+",
-        default=[1, 2, 4, 8],
+        default=[1, 4, 8],
         help="GPU counts to test",
     )
     parser.add_argument(
