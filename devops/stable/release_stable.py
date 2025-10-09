@@ -1,12 +1,16 @@
 #!/usr/bin/env -S uv run
 """Stable Release System
 
+A comprehensive release validation system that runs automated tests, training validations,
+and manual checks before creating a stable release tag.
+
 Usage:
   ./devops/stable/release_stable.py                    # Run full release flow
   ./devops/stable/release_stable.py --prepare-branch   # Create staging branch
   ./devops/stable/release_stable.py --bugs             # Check bug status
-  ./devops/stable/release_stable.py --workflow test    # Run TEST workflows
-  ./devops/stable/release_stable.py --workflow train   # Run TRAIN workflows
+  ./devops/stable/release_stable.py --workflow ci      # Run CI workflow (tests + linting)
+  ./devops/stable/release_stable.py --workflow train_local        # Run local smoke test
+  ./devops/stable/release_stable.py --workflow train_remote       # Run single-GPU remote training
   ./devops/stable/release_stable.py --summary          # Show validation summary
   ./devops/stable/release_stable.py --release          # Create release tag
 
@@ -15,24 +19,17 @@ Auto-resume:
   Use --new to force start a new release.
   Use --version X to use a specific version.
 
-Workflow filtering:
-  --workflow ci                    # Run CI workflow (metta ci - tests + linting)
-  --workflow train                 # Run all TRAIN workflows (local + remote)
-  --workflow train_local           # Run local training smoke tests
-  --workflow train_remote          # Run remote single-GPU training
-  --workflow train_remote_multigpu # Run remote multi-GPU training
-  --workflow play                  # Run all PLAY workflows (interactive testing)
-  --workflow metta_ci              # Run specific validation by name
-  --workflow arena_local_smoke     # Run specific validation by name
+Workflow types:
+  ci                    # Run CI workflow (pytest with timeout detection)
+  train_local           # Run local smoke test (1000 timesteps, no thresholds)
+  train_remote          # Run remote single-GPU training (100M timesteps, SPS + wandb metrics)
+  train_remote_multigpu # Run remote multi-GPU training (2B timesteps)
+  play                  # Run interactive testing (manual verification)
 
-Examples:
-  ./devops/stable/release_stable.py                               # Full release (auto-continue)
-  ./devops/stable/release_stable.py --new                         # Full release (force new)
-  ./devops/stable/release_stable.py --workflow ci                 # Just run CI (tests + linting)
-  ./devops/stable/release_stable.py --workflow train_local        # Run local smoke test
-  ./devops/stable/release_stable.py --workflow train_remote       # Run single-GPU remote training
-  ./devops/stable/release_stable.py --workflow train --new        # Run all train workflows (force new)
-  ./devops/stable/release_stable.py --version 2025.10.07-test1    # Use specific version
+State management:
+  - State persisted to devops/stable/state/release_*.json
+  - Atomic file updates with locking to support concurrent workflows
+  - Failed validations can be retried
 """
 
 from __future__ import annotations
@@ -41,14 +38,13 @@ import argparse
 import json
 import os
 import re
-import subprocess
 import sys
 import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal, Optional, Union
 
 import wandb
 
@@ -74,16 +70,11 @@ class WorkflowType(StrEnum):
     PLAY = "play"  # Run play recipe with manual verification
 
 
-@dataclass
-class ThresholdCheck:
-    """A single acceptance criterion (e.g., SPS >= 40000)."""
-
-    key: str
-    op: Literal[">=", ">", "<=", "<", "==", "!="] = ">="
-    expected: float = 0.0
-    actual: Optional[float] = None
-    passed: Optional[bool] = None
-    note: Optional[str] = None
+# --- Simplified acceptance rules --------------------------------------------
+# An acceptance rule is either:
+#   (key, expected)                  -> interprets as metric[key] >= expected
+#   (key, op, expected)              -> with op in {">=", ">", "<=", "<", "==", "!="}
+AcceptanceRule = Union[tuple[str, float], tuple[str, Literal[">=", ">", "<=", "<", "==", "!="], float]]
 
 
 @dataclass
@@ -96,7 +87,7 @@ class Validation:
     location: Location
     args: list[str] = field(default_factory=list)
     timeout_s: int = 900
-    acceptance: list[ThresholdCheck] = field(default_factory=list)
+    acceptance: list[AcceptanceRule] = field(default_factory=list)
     wandb_metrics: list[str] = field(default_factory=list)
 
 
@@ -442,12 +433,21 @@ def extract_metrics(log_text: str, wandb_metrics: Optional[list[str]] = None) ->
             for metric_key in wandb_metrics:
                 value = fetch_wandb_metric(entity, project, run_id, metric_key)
                 if value is not None:
-                    # Convert metric key to simpler format for storage
-                    # e.g., "env_agent/heart.get" -> "heart_get"
-                    simple_key = metric_key.split("/")[-1].replace(".", "_")
-                    metrics[simple_key] = value
+                    metrics[metric_key] = value
 
     return metrics
+
+
+def _normalize_rule(rule: AcceptanceRule) -> tuple[str, str, float]:
+    """Normalize an AcceptanceRule to (key, op, expected)."""
+    if len(rule) == 2:
+        key, expected = rule  # type: ignore[misc]
+        return key, ">=", float(expected)
+    else:
+        key, op, expected = rule  # type: ignore[misc]
+        if op not in (">=", ">", "<=", "<", "==", "!="):
+            raise ValueError(f"Unsupported operator '{op}'")
+        return key, op, float(expected)
 
 
 # Threshold operators
@@ -461,33 +461,28 @@ _OPS = {
 }
 
 
-def evaluate_thresholds(
-    metrics: dict[str, float], checks: list[ThresholdCheck]
-) -> tuple[Outcome, list[ThresholdCheck]]:
-    """Evaluate metrics against threshold checks.
+def evaluate_thresholds(metrics: dict[str, float], checks: list[AcceptanceRule]) -> tuple[Outcome, list[str]]:
+    """Evaluate metrics against acceptance rules.
 
     Returns:
-        Tuple of (outcome, failed_checks)
+        Tuple of (outcome, failed_messages)
     """
-    failed: list[ThresholdCheck] = []
-    for check in checks:
-        # Missing metrics are hard failures
-        if check.key not in metrics:
-            check.actual = None
-            check.passed = False
-            check.note = "metric missing"
-            failed.append(check)
+    failures: list[str] = []
+
+    for rule in checks:
+        key, op, expected = _normalize_rule(rule)
+
+        if key not in metrics:
+            failures.append(f"{key}: metric missing (expected {op} {expected})")
             continue
 
-        check.actual = metrics[check.key]
-        passed = _OPS[check.op](check.actual, check.expected)
-        check.passed = bool(passed)
+        actual = metrics[key]
+        ok = _OPS[op](actual, expected)
 
-        if not passed:
-            check.note = f"expected {check.op} {check.expected}, saw {check.actual}"
-            failed.append(check)
+        if not ok:
+            failures.append(f"{key}: expected {op} {expected}, saw {actual}")
 
-    return ("passed" if not failed else "failed", failed)
+    return ("passed" if not failures else "failed", failures)
 
 
 # ============================================================================
@@ -641,54 +636,84 @@ def run_validation(
 
                 print(f"     Cluster config: {nodes} nodes × {gpus} GPUs = {nodes * gpus} total GPUs")
 
-                # Check if we should resume existing job
+                # Check if we already have a completed job to evaluate
+                # Try to use existing job if it failed (likely threshold failures)
+                skip_launch = False
                 existing_job_id = None
                 if validation.name in state.validations:
                     existing_result = state.validations[validation.name]
-                    if existing_result.job_id and existing_result.outcome not in ("passed", "failed"):
-                        # Check if job still exists
-                        from devops.skypilot.utils.job_helpers import check_job_statuses
+                    if existing_result.job_id and existing_result.outcome == "failed":
+                        # We have a failed job - try to fetch its logs directly (fast path)
+                        # If log fetching succeeds, the job is complete and we can skip launching
+                        skip_launch = True
+                        existing_job_id = existing_result.job_id
+                        result.job_id = existing_job_id
+                        result.exit_code = 0  # Will be updated if we find errors in logs
+                        print(f"     📋 Re-evaluating existing job {existing_job_id}...")
 
-                        job_status = check_job_statuses([int(existing_result.job_id)])
-                        if int(existing_result.job_id) in job_status:
-                            status = job_status[int(existing_result.job_id)].get("status", "UNKNOWN")
-                            if status not in ("UNKNOWN", "ERROR"):
-                                existing_job_id = existing_result.job_id
-                                print(f"     📋 Resuming existing job {existing_job_id} (status: {status})")
+                if not skip_launch:
+                    job = run_remote(
+                        name=validation.name,
+                        module=validation.module,
+                        args=validation.args,
+                        timeout_s=validation.timeout_s,
+                        log_dir=str(LOG_DIR_REMOTE),
+                        base_args=base_args,
+                        job_id=existing_job_id,
+                    )
 
-                job = run_remote(
-                    name=validation.name,
-                    module=validation.module,
-                    args=validation.args,
-                    timeout_s=validation.timeout_s,
-                    log_dir=str(LOG_DIR_REMOTE),
-                    base_args=base_args,
-                    job_id=existing_job_id,
-                )
+                    # Save job_id to state immediately after submission
+                    result.job_id = job.job_id
+                    # Use atomic update to prevent race conditions with concurrent workflows
+                    update_validation_result(state.version, validation.name, result)
 
-                # Save job_id to state immediately after submission
-                result.job_id = job.job_id
-                # Use atomic update to prevent race conditions with concurrent workflows
-                update_validation_result(state.version, validation.name, result)
+                    result.exit_code = job.wait(timeout_s=validation.timeout_s, stream_output=True)
+                    # Extract data from RemoteJob for state persistence
+                    log_text = job.get_logs()
+                    result.logs_path = job.logs_path
+                else:
+                    # Fetch logs from already-completed job using sky logs command
+                    print(f"     📥 Fetching logs from job {existing_job_id}...")
+                    try:
+                        import subprocess
 
-                result.exit_code = job.wait(timeout_s=validation.timeout_s, stream_output=True)
-                # Extract data from RemoteJob for state persistence
-                log_text = job.get_logs()
-                result.logs_path = job.logs_path
+                        logs_result = subprocess.run(
+                            ["sky", "jobs", "logs", existing_job_id],
+                            capture_output=True,
+                            text=True,
+                            timeout=60,
+                        )
+                        log_text = logs_result.stdout + logs_result.stderr
 
-                # Extract W&B URL and ask for manual confirmation
-                wandb_url_match = re.search(r"https://wandb\.ai/[^\s]+", log_text)
-                if wandb_url_match:
-                    wandb_url = wandb_url_match.group(0)
-                    print(f"\n     📊 W&B Run: {wandb_url}")
-                    print("     Please verify:")
-                    print("       - SPS (samples per second) looks reasonable")
-                    print("       - Heartbeat is consistent")
-                    print("       - No anomalies in training curves")
-                    if not _get_user_confirmation(f"Do the metrics look good for '{validation.name}'?"):
-                        result.complete("failed", 1, error="User indicated metrics look bad")
-                        print(f"  ❌ {validation.name} - User confirmed FAILURE")
-                        return result
+                        # Save logs to file
+                        log_path = Path(LOG_DIR_REMOTE) / f"{validation.name}.{existing_job_id}.full.log"
+                        log_path.write_text(log_text)
+                        result.logs_path = str(log_path)
+                        print(f"     📄 Logs saved to: {result.logs_path}")
+
+                        # Always print W&B URL if available
+                        wandb_url_match = re.search(r"https://wandb\.ai/[^\s]+", log_text)
+                        if wandb_url_match:
+                            wandb_url = wandb_url_match.group(0)
+                            print(f"     📊 W&B Run: {wandb_url}")
+                    except Exception as e:
+                        print(f"     ⚠️  Failed to fetch logs: {e}")
+                        log_text = ""
+
+                # Extract W&B URL and ask for manual confirmation (only if no acceptance criteria)
+                if not validation.acceptance:
+                    wandb_url_match = re.search(r"https://wandb\.ai/[^\s]+", log_text)
+                    if wandb_url_match:
+                        wandb_url = wandb_url_match.group(0)
+                        print(f"\n     📊 W&B Run: {wandb_url}")
+                        print("     Please verify:")
+                        print("       - SPS (samples per second) looks reasonable")
+                        print("       - Heartbeat is consistent")
+                        print("       - No anomalies in training curves")
+                        if not _get_user_confirmation(f"Do the metrics look good for '{validation.name}'?"):
+                            result.complete("failed", 1, error="User indicated metrics look bad")
+                            print(f"  ❌ {validation.name} - User confirmed FAILURE")
+                            return result
 
         # Check exit code
         if result.exit_code == 124:
@@ -710,8 +735,11 @@ def run_validation(
 
         # Evaluate acceptance criteria
         if validation.acceptance:
-            outcome, failed_checks = evaluate_thresholds(result.metrics, validation.acceptance)
-            result.complete(outcome, result.exit_code)
+            outcome, failed_msgs = evaluate_thresholds(result.metrics, validation.acceptance)
+
+            # Build error message from failures
+            error_msg = "Threshold failures: " + "; ".join(failed_msgs) if failed_msgs else None
+            result.complete(outcome, result.exit_code, error=error_msg)
 
             if outcome == "passed":
                 print(green(f"  ✅ {validation.name} - PASSED"))
@@ -723,8 +751,8 @@ def run_validation(
                 if result.metrics:
                     metrics_str = ", ".join(f"{k}={v:.1f}" for k, v in result.metrics.items())
                     print(f"     Metrics: {metrics_str}")
-                for check in failed_checks:
-                    print(f"     Failed: {check.note}")
+                for msg in failed_msgs:
+                    print(f"     Failed: {msg}")
         else:
             # No acceptance criteria - just mark as passed
             result.complete("passed", result.exit_code)
@@ -796,8 +824,8 @@ def get_workflow_tests() -> list[Validation]:
             args=["trainer.total_timesteps=100000000"],  # 100M timesteps
             timeout_s=7200,  # 2 hours
             acceptance=[
-                ThresholdCheck(key="sps_max", op=">=", expected=40000),
-                ThresholdCheck(key="heart_get", op=">", expected=0.5),
+                ("sps_max", ">=", 40000),
+                ("env_agent/heart.get", ">", 0.5),
             ],
             wandb_metrics=["env_agent/heart.get"],
         )
@@ -812,7 +840,7 @@ def get_workflow_tests() -> list[Validation]:
             location="remote",
             args=["trainer.total_timesteps=2000000000"],  # 2B timesteps
             timeout_s=86400,  # 24 hours
-            acceptance=[ThresholdCheck(key="sps_max", op=">=", expected=40000)],
+            acceptance=[("sps_max", ">=", 40000), ("env_agent/heart.get", ">", 5.0)],
         )
     )
 
@@ -989,10 +1017,8 @@ def step_workflow_tests(version: str, workflow_filter: Optional[str] = None, **_
 
     Args:
         version: Release version
-        workflow_filter: Optional filter - can be:
-            - Workflow type: "test", "train", "play"
-            - Validation name: "metta_test", "arena_local_smoke", etc.
-            - None: run all workflows
+        workflow_filter: Workflow type to run (ci, train_local, train_remote, train_remote_multigpu, play)
+                        or None to run all workflows
     """
     print("\n" + "=" * 60)
     print(bold("STEP 3: Workflow Validation"))
@@ -1015,24 +1041,14 @@ def step_workflow_tests(version: str, workflow_filter: Optional[str] = None, **_
 
     # Filter validations if requested
     if workflow_filter:
-        # Check if filter is a workflow type
         workflow_filter_lower = workflow_filter.lower()
-        if workflow_filter_lower in ("ci", "train_local", "train_remote", "train_remote_multigpu", "play"):
-            # Exact workflow type match
-            validations = [v for v in all_validations if v.workflow_type.value == workflow_filter_lower]
-            print(f"Running {workflow_filter.upper()} workflows only\n")
-        elif workflow_filter_lower == "train":
-            # Match all training workflows
-            validations = [v for v in all_validations if v.workflow_type.value.startswith("train_")]
-            print("Running ALL TRAIN workflows\n")
-        else:
-            # Filter by validation name
-            validations = [v for v in all_validations if v.name == workflow_filter]
-            if not validations:
-                print(f"Error: Unknown workflow '{workflow_filter}'")
-                print(f"Available workflows: {', '.join(v.name for v in all_validations)}")
-                sys.exit(1)
-            print(f"Running workflow: {workflow_filter}\n")
+        if workflow_filter_lower not in ("ci", "train_local", "train_remote", "train_remote_multigpu", "play"):
+            print(f"Error: Unknown workflow type '{workflow_filter}'")
+            print("Available workflow types: ci, train_local, train_remote, train_remote_multigpu, play")
+            sys.exit(1)
+
+        validations = [v for v in all_validations if v.workflow_type.value == workflow_filter_lower]
+        print(f"Running {workflow_filter.upper()} workflows only\n")
     else:
         validations = all_validations
         print("Running all workflows\n")
@@ -1359,9 +1375,7 @@ Examples:
     parser.add_argument(
         "--workflow",
         metavar="FILTER",
-        help=(
-            "Run workflow validations (ci|train|train_local|train_remote|train_remote_multigpu|play|<validation_name>)"
-        ),
+        help="Run workflow validations (ci|train_local|train_remote|train_remote_multigpu|play)",
     )
 
     parser.add_argument(

@@ -115,6 +115,9 @@ mettagrid/MODULE.bazel.lock
 # Stable Release System
 devops/stable/state/
 devops/stable/logs/
+# skypilot testing
+recipe_test_jobs.json
+cluster_test_jobs.json
 
 # MetaScope
 packages/mettagrid/nim/mettascope/dist/
