@@ -22,7 +22,6 @@ from metta.rl.training import (
     Checkpointer,
     CheckpointerConfig,
     ContextCheckpointer,
-    ContextCheckpointerConfig,
     DistributedHelper,
     Evaluator,
     EvaluatorConfig,
@@ -82,7 +81,7 @@ class TrainTool(Tool):
     evaluator: EvaluatorConfig = Field(default_factory=EvaluatorConfig)
     torch_profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)
 
-    context_checkpointer: ContextCheckpointerConfig = Field(default_factory=ContextCheckpointerConfig)
+    context_checkpointer: dict[str, Any] = Field(default_factory=dict)
     stats_reporter: StatsReporterConfig = Field(default_factory=StatsReporterConfig)
     wandb_aborter: WandbAborterConfig = Field(default_factory=WandbAborterConfig)
 
@@ -277,8 +276,13 @@ class TrainTool(Tool):
         else:
             components.append(policy_checkpointer)
 
+        if self.context_checkpointer:
+            logger.debug(
+                "Context checkpointer configuration is ignored; checkpointing is policy-driven now: %s",
+                self.context_checkpointer,
+            )
+
         trainer_checkpointer = ContextCheckpointer(
-            config=self.context_checkpointer,
             checkpoint_manager=checkpoint_manager,
             distributed_helper=distributed_helper,
         )
@@ -378,7 +382,6 @@ class TrainTool(Tool):
         self.training_env.forward_pass_minibatch_target_size = min(
             self.training_env.forward_pass_minibatch_target_size, 4
         )
-        self.context_checkpointer.epoch_interval = min(self.context_checkpointer.epoch_interval, 10)
         self.checkpointer.epoch_interval = min(self.checkpointer.epoch_interval, 10)
         self.uploader.epoch_interval = min(self.uploader.epoch_interval, 10)
         self.evaluator.epoch_interval = min(self.evaluator.epoch_interval, 10)

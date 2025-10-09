@@ -17,14 +17,7 @@ from torch import nn
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 import pufferlib.pytorch
-from metta.agent.components.action import ActionEmbedding, ActionEmbeddingConfig
-from metta.agent.components.actor import (
-    ActionProbsConfig,
-    ActorKey,
-    ActorKeyConfig,
-    ActorQuery,
-    ActorQueryConfig,
-)
+from metta.agent.components.actor import ActionProbsConfig
 from metta.agent.components.obs_enc import ObsPerceiverLatent, ObsPerceiverLatentConfig
 from metta.agent.components.obs_shim import ObsShimTokens, ObsShimTokensConfig
 from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourier, ObsAttrEmbedFourierConfig
@@ -91,7 +84,6 @@ class TransformerPolicyConfig(PolicyArchitecture):
     # Actor / critic head dimensions
     critic_hidden_dim: int = 512
     actor_hidden_dim: int = 256
-    action_embedding_dim: int = 16
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
 
     # Implementation options
@@ -192,7 +184,7 @@ class TransformerPolicy(Policy):
         else:
             self.input_projection = nn.Identity()
 
-        self.action_dim = self._infer_action_dim()
+        self.action_dim = int(self.action_space.n)
         if self.use_aux_tokens:
             self.reward_proj = nn.Linear(1, self.hidden_size)
             self.reset_proj = nn.Linear(1, self.hidden_size)
@@ -236,25 +228,14 @@ class TransformerPolicy(Policy):
             out_keys=["values"],
         )
 
-        self.action_embeddings = ActionEmbedding(
-            ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=self.config.action_embedding_dim)
+        logits_linear = _init_linear(
+            nn.Linear(self.config.actor_hidden_dim, int(self.action_space.n)),
+            gain=0.01,
         )
-        self.actor_query = ActorQuery(
-            ActorQueryConfig(
-                in_key="actor_1",
-                out_key="actor_query",
-                hidden_size=self.config.actor_hidden_dim,
-                embed_dim=self.config.action_embedding_dim,
-            )
-        )
-        self.actor_key = ActorKey(
-            ActorKeyConfig(
-                query_key="actor_query",
-                embedding_key="action_embedding",
-                out_key="logits",
-                hidden_size=self.config.actor_hidden_dim,
-                embed_dim=self.config.action_embedding_dim,
-            )
+        self.logits_head = TensorDictModule(
+            logits_linear,
+            in_keys=["actor_1"],
+            out_keys=["logits"],
         )
         self.action_probs = self.config.action_probs_config.make_component()
 
@@ -283,14 +264,6 @@ class TransformerPolicy(Policy):
         self.obs_tokenizer(td)
         self.obs_encoder(td)
         return td
-
-    def _infer_action_dim(self) -> int:
-        space = self.action_space
-        if hasattr(space, "nvec"):
-            return int(len(space.nvec))
-        if hasattr(space, "shape") and space.shape:
-            return int(space.shape[0])
-        return 1
 
     def _build_aux_tokens(self, td: TensorDict, batch_size: int, tt: int, device: torch.device) -> torch.Tensor | None:
         if not self.use_aux_tokens:
@@ -324,25 +297,17 @@ class TransformerPolicy(Policy):
 
         last_actions = td.get("last_actions", None)
         if last_actions is not None:
-            last_actions = last_actions.view(total, -1).to(device=device, dtype=action_dtype)
+            last_actions = last_actions.reshape(total, -1)[..., : self.action_dim].to(device=device, dtype=action_dtype)
         else:
             actions = td.get("actions", None)
             if actions is not None:
-                actions = actions.view(batch_size, tt, -1).to(device=device, dtype=action_dtype)
-                prev_actions = self._get_zero_buffer((batch_size, tt, actions.size(-1)), device, action_dtype)
+                actions = actions.reshape(batch_size, tt, self.action_dim).to(device=device, dtype=action_dtype)
+                prev_actions = self._get_zero_buffer((batch_size, tt, self.action_dim), device, action_dtype)
                 if tt > 1:
                     prev_actions[:, 1:] = actions[:, :-1]
-                last_actions = prev_actions.view(total, -1)
+                last_actions = prev_actions.view(total, self.action_dim)
             else:
                 last_actions = self._get_zero_buffer((total, self.action_dim), device, action_dtype)
-
-        if last_actions.size(1) != self.action_dim:
-            action_dim = last_actions.size(1)
-            if action_dim > self.action_dim:
-                last_actions = last_actions[:, : self.action_dim]
-            else:
-                pad = self._get_zero_buffer((total, self.action_dim - action_dim), device, action_dtype)
-                last_actions = torch.cat([last_actions, pad], dim=1)
 
         aux = self.reward_proj(reward)
         aux.add_(self.reset_proj(resets))
@@ -482,11 +447,7 @@ class TransformerPolicy(Policy):
             self.critic_head(td)
             self.value_head(td)
             td["values"] = td["values"].flatten()
-
-            self.action_embeddings(td)
-            self.actor_query(td)
-            self.actor_key(td)
-
+            self.logits_head(td)
             td = self.action_probs(td, action)
         self._cast_floating_tensors(td)
         if self._diag_enabled and self._diag_counter < self._diag_limit:
@@ -795,7 +756,6 @@ class TransformerPolicy(Policy):
         self.to(device)
 
         log = self.obs_shim.initialize_to_environment(env, device)
-        self.action_embeddings.initialize_to_environment(env, device)
         self.action_probs.initialize_to_environment(env, device)
         self.clear_memory()
         return [log] if log is not None else []
