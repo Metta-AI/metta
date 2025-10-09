@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Dict, Literal, Optional
 
@@ -14,6 +15,8 @@ from metta.rl.training import EnvironmentMetaData
 from .config import MambaBackboneConfig
 from .wrapper import MambaConfig as _WrapperConfig
 from .wrapper import MambaWrapperModel
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -56,18 +59,9 @@ class MambaBackboneComponent(nn.Module):
         self.last_action_dim = max(1, config.last_action_dim)
         self.max_cache_size = max(1, config.max_cache_size)
 
-        wrapper_cfg = _WrapperConfig(
-            d_model=config.d_model,
-            d_intermediate=config.d_intermediate,
-            n_layer=config.n_layer,
-            stoch_dim=config.d_model,
-            action_dim=self.last_action_dim,
-            dropout_p=config.dropout_p,
-            ssm_cfg=config.ssm_cfg,
-            attn_layer_idx=config.attn_layer_idx,
-            attn_cfg=config.attn_cfg,
-        )
-        self.wrapper = MambaWrapperModel(wrapper_cfg)
+        self._resolved_ssm_cfg = self.config.resolved_ssm_cfg()
+        self.wrapper = MambaWrapperModel(self._build_wrapper_config(self._resolved_ssm_cfg))
+        self._mem_eff_enabled = bool(self._resolved_ssm_cfg.get("use_mem_eff_path", True))
 
         self.input_proj = nn.Linear(config.input_dim, config.d_model)
         if self.use_aux_tokens:
@@ -84,6 +78,54 @@ class MambaBackboneComponent(nn.Module):
         self.dropout = nn.Dropout(config.dropout_p)
 
         self._env_states: Dict[int, _EnvState] = {}
+
+    def _build_wrapper_config(self, ssm_cfg: dict[str, object]) -> _WrapperConfig:
+        return _WrapperConfig(
+            d_model=self.config.d_model,
+            d_intermediate=self.config.d_intermediate,
+            n_layer=self.config.n_layer,
+            stoch_dim=self.config.d_model,
+            action_dim=self.last_action_dim,
+            dropout_p=self.config.dropout_p,
+            ssm_cfg=ssm_cfg,
+            attn_layer_idx=self.config.attn_layer_idx,
+            attn_cfg=self.config.attn_cfg,
+        )
+
+    def _rebuild_wrapper(self, *, enable_mem_eff: Optional[bool] = None) -> None:
+        ssm_cfg = dict(self.config.resolved_ssm_cfg())
+        if enable_mem_eff is not None:
+            ssm_cfg["use_mem_eff_path"] = enable_mem_eff
+        self._resolved_ssm_cfg = ssm_cfg
+        self.wrapper = MambaWrapperModel(self._build_wrapper_config(self._resolved_ssm_cfg))
+        self._mem_eff_enabled = bool(self._resolved_ssm_cfg.get("use_mem_eff_path", True))
+        self.reset_memory()
+
+    def _supports_mem_eff_fallback(self) -> bool:
+        return bool(self.config.auto_align_stride)
+
+    def _handle_wrapper_runtime(
+        self,
+        exc: RuntimeError,
+        samples: torch.Tensor,
+        action: torch.Tensor,
+        inference_params=None,
+        **kwargs,
+    ) -> torch.Tensor:
+        if "causal_conv1d" not in str(exc) or not self._mem_eff_enabled or not self._supports_mem_eff_fallback():
+            raise
+        logger.warning(
+            "Disabling Mamba mem-efficient path after causal conv failure: %s",
+            exc,
+        )
+        self._rebuild_wrapper(enable_mem_eff=False)
+        return self.wrapper(samples, action, inference_params=inference_params, **kwargs)
+
+    def _run_wrapper(self, samples: torch.Tensor, action: torch.Tensor, **kwargs) -> torch.Tensor:
+        try:
+            return self.wrapper(samples, action, **kwargs)
+        except RuntimeError as exc:
+            return self._handle_wrapper_runtime(exc, samples, action, **kwargs)
 
     # ------------------------------------------------------------------
     # Token preparation
@@ -200,7 +242,7 @@ class MambaBackboneComponent(nn.Module):
                 hidden_steps = []
                 for token_idx in range(tokens_per_step):
                     token = tokens[idx : idx + 1, token_idx : token_idx + 1]
-                    hidden = self.wrapper(
+                    hidden = self._run_wrapper(
                         token,
                         dummy_action,
                         inference_params=cache,
@@ -225,7 +267,7 @@ class MambaBackboneComponent(nn.Module):
 
         # training path – no caching; reset existing caches to avoid stale state
         seq = tokens.reshape(batch * tt, tokens_per_step, -1)
-        hidden = self.wrapper(
+        hidden = self._run_wrapper(
             seq,
             self._dummy_actions(batch * tt, tokens_per_step, device),
             inference_params=None,

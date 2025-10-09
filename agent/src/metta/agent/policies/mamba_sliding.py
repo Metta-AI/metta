@@ -46,7 +46,9 @@ class MambaSlidingConfig(PolicyArchitecture):
             n_layer=2,
             max_cache_size=128,
             pool="mean",
-            ssm_cfg={"layer": "Mamba2"},
+            ssm_expand=2,
+            ssm_headdim=16,
+            use_mem_eff_path=True,
         ),
         MLPConfig(
             in_key="core",

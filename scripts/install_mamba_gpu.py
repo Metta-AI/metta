@@ -31,11 +31,16 @@ CUDA_TAG_PREFERENCES: dict[str, list[str]] = {
 }
 
 
+BUILD_ENV = os.environ.copy()
+BUILD_ENV.setdefault("UV_PIP_NO_BUILD_ISOLATION", "1")
+BUILD_ENV.setdefault("PIP_NO_BUILD_ISOLATION", "1")
+
+
 def run(cmd: Iterable[str]) -> bool:
     """Run a command returning True on success."""
 
     try:
-        subprocess.run(list(cmd), check=True)
+        subprocess.run(list(cmd), check=True, env=BUILD_ENV)
         return True
     except subprocess.CalledProcessError:
         return False
@@ -56,14 +61,20 @@ def ensure_cuda_home() -> None:
         os.environ["CUDA_HOME"] = torch_cuda_home
 
 
-def install_with_index(packages: list[str], tag: str) -> bool:
+def install_with_index(packages: list[str], tag: str, *, no_isolation: bool = False) -> bool:
     index = f"https://download.pytorch.org/whl/{tag}"
-    cmd = ["uv", "pip", "install", "--extra-index-url", index, *packages]
+    cmd = ["uv", "pip", "install", "--extra-index-url", index]
+    if no_isolation:
+        cmd.append("--no-build-isolation")
+    cmd.extend(packages)
     return run(cmd)
 
 
-def install_default(packages: list[str]) -> bool:
-    cmd = ["uv", "pip", "install", *packages]
+def install_default(packages: list[str], *, no_isolation: bool = False) -> bool:
+    cmd = ["uv", "pip", "install"]
+    if no_isolation:
+        cmd.append("--no-build-isolation")
+    cmd.extend(packages)
     return run(cmd)
 
 
@@ -104,7 +115,7 @@ def main() -> int:
     ensure_cuda_home()
 
     # Ensure build requirements that flash-attn often assumes are already present.
-    install_default(["packaging"])  # idempotent
+    install_default(["packaging"], no_isolation=True)  # idempotent
     install_default(["torch"])
 
     flash_installed = False
@@ -123,10 +134,10 @@ def main() -> int:
             break
 
     if not flash_installed:
-        flash_installed = install_default(["flash-attn"])
+        flash_installed = install_default(["flash-attn"], no_isolation=True)
     if not causal_installed:
-        for pkg in ("causal-conv1d",):
-            if install_default([pkg]):
+        for pkg in ("causal-conv1d", "causal-conv1d-cu124"):
+            if install_default([pkg], no_isolation=True):
                 causal_installed = True
                 break
 

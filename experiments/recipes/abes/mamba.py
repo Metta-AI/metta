@@ -87,11 +87,12 @@ def train(
 
     for component in policy.components:
         if isinstance(component, MambaBackboneConfig):
-            ssm_cfg = dict(component.ssm_cfg) if component.ssm_cfg else {}
-            ssm_cfg["layer"] = "Mamba2"
+            component.ssm_cfg = {**component.ssm_cfg, "layer": ssm_layer}
+            component.use_mem_eff_path = bool(
+                mem_eff_supported and component.use_mem_eff_path
+            )
             if not mem_eff_supported:
-                ssm_cfg["use_mem_eff_path"] = False
-            component.ssm_cfg = ssm_cfg
+                component.auto_align_stride = True
 
     tool = base_train(
         curriculum=curriculum,

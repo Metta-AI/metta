@@ -55,3 +55,17 @@ def test_mamba_backbone_forward_training():
 
     out = component(td)
     assert out["core"].shape == torch.Size([6, 32])
+
+
+def test_mamba_config_resolves_stride_multiple():
+    cfg = MambaBackboneConfig(
+        in_key="encoded",
+        out_key="core",
+        input_dim=8,
+        d_model=64,
+        ssm_expand=2,
+        ssm_headdim=16,
+    )
+    resolved = cfg.resolved_ssm_cfg()
+    ratio = cfg.d_model * resolved["expand"] // resolved["headdim"]
+    assert ratio % 8 == 0
