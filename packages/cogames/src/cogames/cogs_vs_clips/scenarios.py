@@ -38,6 +38,8 @@ from mettagrid.config.mettagrid_config import (
 from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.map_builder.random import RandomMapBuilder
 
+MAPS_DIR = Path(__file__).resolve().parent.parent / "maps"
+
 
 def add_easy_heart_recipe(cfg: MettaGridConfig) -> None:
     """Insert a simple energy-to-heart recipe for the assembler."""
@@ -115,6 +117,7 @@ def _base_game_config(num_cogs: int, clipping_rate: float) -> MettaGridConfig:
                 "oxygen_ex_dep": oxygen_ex_dep(),
                 "carbon_ex_dep": carbon_ex_dep(),
                 "germanium_ex_dep": germanium_ex_dep(),
+                # clipped variants
                 "clipped_carbon_extractor": clipped_carbon_extractor(),
                 "clipped_oxygen_extractor": clipped_oxygen_extractor(),
                 "clipped_germanium_extractor": clipped_germanium_extractor(),
@@ -133,12 +136,7 @@ def _base_game_config(num_cogs: int, clipping_rate: float) -> MettaGridConfig:
                     ("carbon", "oxygen", "germanium", "silicon"): 100,
                     ("scrambler", "modulator", "decoder", "resonator"): 5,
                 },
-                rewards=AgentRewards(
-                    stats={"chest.heart.amount": 1 / num_cogs},
-                    # inventory={
-                    #     "heart": 1,
-                    # },
-                ),
+                rewards=AgentRewards(stats={"chest.heart.amount": 1 / num_cogs}),
                 initial_inventory={
                     "energy": 100,
                 },
@@ -149,22 +147,10 @@ def _base_game_config(num_cogs: int, clipping_rate: float) -> MettaGridConfig:
             # Enable clipper system to allow start_clipped assemblers to work
             clipper=ClipperConfig(
                 unclipping_recipes=[
-                    RecipeConfig(
-                        input_resources={"decoder": 1},
-                        cooldown=1,
-                    ),
-                    RecipeConfig(
-                        input_resources={"modulator": 1},
-                        cooldown=1,
-                    ),
-                    RecipeConfig(
-                        input_resources={"scrambler": 1},
-                        cooldown=1,
-                    ),
-                    RecipeConfig(
-                        input_resources={"resonator": 1},
-                        cooldown=1,
-                    ),
+                    RecipeConfig(input_resources={"decoder": 1}, cooldown=1),
+                    RecipeConfig(input_resources={"modulator": 1}, cooldown=1),
+                    RecipeConfig(input_resources={"scrambler": 1}, cooldown=1),
+                    RecipeConfig(input_resources={"resonator": 1}, cooldown=1),
                 ],
                 clip_rate=clipping_rate,
             ),
@@ -232,20 +218,71 @@ def tutorial_assembler_complex(num_cogs: int = 1) -> MettaGridConfig:
     return cfg
 
 
-def make_game_from_map(map_name: str, num_cogs: int = 4, clipping_rate: float = 0.0) -> MettaGridConfig:
-    """Create a game configuration from a map file."""
+def _char_to_name_for(base_config: MettaGridConfig) -> dict[str, str]:
+    """Build a char->name map from object configs plus agent and spawn defaults."""
+    char_to_name = {obj.map_char: obj.name for obj in base_config.game.objects.values()}
+    char_to_name.setdefault("@", "agent.agent")
+    char_to_name.setdefault("%", "empty")
+    return char_to_name
 
-    # Build the full config first to get the objects
-    config = _base_game_config(num_cogs, clipping_rate)
 
-    maps_dir = Path(__file__).parent.parent / "maps"
-    map_path = maps_dir / map_name
+def _map_name_to_file() -> dict[str, tuple[str, float]]:
+    """Single source of truth for map-based scenarios."""
+    return {
+        # name: (filename, default_clip_rate)
+        "machina_1": ("cave_base_50.map", 0.0),
+        "machina_1_clipped": ("cave_base_50.map", 0.02),
+        "machina_2": ("machina_100_stations.map", 0.0),
+        "machina_3": ("machina_200_stations.map", 0.0),
+        "machina_1_big": ("canidate1_500_stations.map", 0.0),
+        "machina_2_bigger": ("canidate1_1000_stations.map", 0.0),
+        "machina_3_big": ("canidate2_500_stations.map", 0.0),
+        "machina_4_bigger": ("canidate2_1000_stations.map", 0.0),
+        "machina_5_big": ("canidate3_500_stations.map", 0.0),
+        "machina_6_bigger": ("canidate3_1000_stations.map", 0.0),
+        "machina_7_big": ("canidate4_500_stations.map", 0.0),
+        "training_facility_1": ("training_facility_open_1.map", 0.0),
+        "training_facility_2": ("training_facility_open_2.map", 0.0),
+        "training_facility_3": ("training_facility_open_3.map", 0.0),
+        "training_facility_4": ("training_facility_tight_4.map", 0.0),
+        "training_facility_5": ("training_facility_tight_5.map", 0.0),
+        "training_facility_6": ("training_facility_clipped.map", 0.0),
+    }
+
+
+def make_game_from_map(
+    map_name: str,
+    num_cogs: int = 4,
+    clipping_rate: float = 0.0,
+    dynamic_spawn: bool = False,
+) -> MettaGridConfig:
+    """Create a game configuration from a map file, optionally enabling dynamic spawn via '%'."""
+    map_path = MAPS_DIR / map_name
+    if not map_path.exists():
+        raise ValueError(f"Map '{map_name}' not found: {map_path}")
+
+    raw_lines = [line.rstrip("\n") for line in map_path.read_text(encoding="utf-8").splitlines() if line]
+    spawn_count = sum(line.count("%") for line in raw_lines)
+    agent_count = sum(line.count("@") for line in raw_lines)
+
+    use_dynamic_target = dynamic_spawn or (spawn_count > 0 and agent_count == 0)
+
+    base_config = _base_game_config(num_cogs, clipping_rate)
+    char_to_name = _char_to_name_for(base_config)
+
     map_builder = AsciiMapBuilder.Config.from_uri(
-        str(map_path), {o.map_char: o.name for o in config.game.objects.values()}
+        str(map_path),
+        char_to_name_map=char_to_name,
+        target_agents=(num_cogs if use_dynamic_target else None),
     )
-    config.game.map_builder = map_builder
 
-    return config
+    base_config.game.map_builder = map_builder
+    base_config.game.num_agents = num_cogs if use_dynamic_target else base_config.game.num_agents
+    return base_config
+
+
+def make_game_from_map_with_agents(map_name: str, num_agents: int) -> MettaGridConfig:
+    return make_game_from_map(map_name, num_cogs=num_agents, dynamic_spawn=True)
 
 
 def games() -> dict[str, MettaGridConfig]:
@@ -279,3 +316,17 @@ def games() -> dict[str, MettaGridConfig]:
         "machina_6_bigger": make_game_from_map("canidate3_1000_stations.map"),
         "machina_7_big": make_game_from_map("canidate4_500_stations.map"),
     }
+
+
+def supports_dynamic_spawn(game_name: str) -> bool:
+    """Return True if the named game is a map-based scenario that supports dynamic spawning."""
+    return game_name in _map_name_to_file()
+
+
+def make_map_game(game_name: str, num_agents: int, dynamic_spawn: bool = True) -> MettaGridConfig:
+    """Create a map-based game by name, optionally enabling dynamic spawn."""
+    catalog = _map_name_to_file()
+    if game_name not in catalog:
+        raise ValueError(f"Game '{game_name}' is not a recognized map-based scenario")
+    filename, clip_rate = catalog[game_name]
+    return make_game_from_map(filename, num_cogs=num_agents, clipping_rate=clip_rate, dynamic_spawn=dynamic_spawn)

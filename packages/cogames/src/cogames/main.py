@@ -19,6 +19,7 @@ from cogames import curricula, game, utils
 from cogames import evaluate as evaluate_module
 from cogames import play as play_module
 from cogames import train as train_module
+from cogames.cogs_vs_clips.scenarios import make_map_game, supports_dynamic_spawn
 from cogames.policy.policy import PolicySpec
 from cogames.policy.utils import parse_policy_spec, resolve_policy_class_path, resolve_policy_data_path
 from mettagrid import MettaGridConfig, MettaGridEnv
@@ -41,6 +42,71 @@ def default(ctx: typer.Context) -> None:
     if ctx.invoked_subcommand is None:
         # No command provided, show help
         print(ctx.get_help())
+
+
+def _determine_default_cogs(env_cfg) -> Optional[int]:
+    map_builder = getattr(env_cfg.game, "map_builder", None)
+    map_data = getattr(map_builder, "map_data", None)
+    if map_data is None:
+        return None
+
+    has_agents = False
+    has_spawns = False
+    for row in map_data:
+        if isinstance(row, (list, tuple)):
+            characters = row
+        else:
+            characters = list(str(row))
+        if "@" in characters:
+            has_agents = True
+        if "%" in characters:
+            has_spawns = True
+        if has_agents and has_spawns:
+            break
+
+    if not has_agents and has_spawns:
+        return 4
+    return None
+
+
+def _apply_num_cogs_override(
+    mission_name: str,
+    env_cfg,
+    num_cogs: Optional[int],
+) -> tuple[Optional[str], object]:
+    fallback_cogs = _determine_default_cogs(env_cfg)
+    user_requested = num_cogs is not None
+    effective_cogs = num_cogs if user_requested else fallback_cogs
+
+    if effective_cogs is None:
+        return None, env_cfg
+
+    warning_msg: Optional[str] = None
+    updated_env = env_cfg
+
+    if supports_dynamic_spawn(mission_name):
+        try:
+            updated_env = make_map_game(mission_name, num_agents=effective_cogs, dynamic_spawn=True)
+            return warning_msg, updated_env
+        except Exception as exc:  # pragma: no cover - log only
+            warning_msg = f"Dynamic spawn override failed: {exc}"
+            updated_env = env_cfg
+
+    map_builder = getattr(updated_env.game, "map_builder", None)
+    if hasattr(map_builder, "target_agents"):
+        try:
+            map_builder.target_agents = effective_cogs  # type: ignore[attr-defined]
+            updated_env.game.num_agents = effective_cogs
+        except Exception as exc:  # pragma: no cover - log only
+            warning_msg = f"Fallback agent override failed: {exc}"
+            updated_env = env_cfg
+    else:
+        updated_env = env_cfg
+
+    if warning_msg and not user_requested:
+        warning_msg = None
+
+    return warning_msg, updated_env
 
 
 mission_argument = typer.Argument(
@@ -113,8 +179,17 @@ def play_cmd(
     render: Literal["gui", "text", "none"] = typer.Option(
         "gui", "--render", "-r", help="Render mode: 'gui', 'text', or 'none' (no rendering)"
     ),
+    num_cogs: Optional[int] = typer.Option(
+        None,
+        "--num-cogs",
+        help="Override number of agents (uses dynamic spawning when supported)",
+    ),
 ) -> None:
     resolved_mission, env_cfg = utils.get_mission_config(console, mission_name)
+
+    warning, env_cfg = _apply_num_cogs_override(resolved_mission, env_cfg, num_cogs)
+    if warning:
+        console.print(f"[yellow]Warning: {warning}. Using default configuration for '{resolved_mission}'.[/yellow]")
 
     try:
         resolved_policy_data = resolve_policy_data_path(
