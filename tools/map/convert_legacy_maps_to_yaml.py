@@ -5,37 +5,37 @@ import argparse
 from pathlib import Path
 
 DEFAULT_CHAR_TO_NAME = {
-    "#": "wall",
-    ".": "empty",
-    "@": "agent.agent",
-    "p": "agent.prey",
-    "P": "agent.predator",
-    "_": "altar",
-    "c": "converter",
-    "C": "chest",
-    "Z": "assembler",
-    "1": "agent.team_1",
-    "2": "agent.team_2",
-    "3": "agent.team_3",
-    "4": "agent.team_4",
-    "m": "mine_red",
-    "n": "generator_red",
-    "S": "special",
-    "s": "swappable_wall",
-    "&": "altar",
-    "+": "wall",
-    "O": "altar",
-    "B": "wall",
-    "o": "altar",
-    "G": "generator",
-    "N": "generator",
-    "g": "generator",
-    "=": "wall",
-    "D": "door",
-    "H": "wall",
-    "T": "wall",
-    "F": "wall",
-    "R": "wall",
+    "#": "wall",  # Default barrier in legacy ASCII layouts (tests/mapgen/scenes/fixtures/test.map).
+    ".": "empty",  # Open floor shared by navigation maps and encoding.json.
+    "@": "agent.agent",  # Single-agent spawn kept for compatibility with early tests.
+    "p": "agent.prey",  # Prey glyph mirrored in gridworks/src/lib/encoding.json.
+    "P": "agent.predator",  # Predator partner for the 'p' tile.
+    "_": "altar",  # Altars in training facility fixtures under packages/cogames/.
+    "c": "converter",  # Converter stations defined in machina/training facility maps.
+    "C": "chest",  # Storage chests from the same object-use map legends.
+    "Z": "assembler",  # Legacy assembler symbol retained for older clients.
+    "1": "agent.team_1",  # Team-coloured agent used by rendering/miniscope tooling.
+    "2": "agent.team_2",  # Team-coloured agent used by rendering/miniscope tooling.
+    "3": "agent.team_3",  # Team-coloured agent used by rendering/miniscope tooling.
+    "4": "agent.team_4",  # Team-coloured agent used by rendering/miniscope tooling.
+    "m": "mine_red",  # Mines referenced in tests/mapgen/utils/test_storable_map.py.
+    "n": "generator_red",  # Generator paired with the mine in the same fixtures.
+    "S": "special",  # Special markers appearing in canidate*_stations maps.
+    "s": "swappable_wall",  # Swappable wall sections in cave_base_50 and machina maps.
+    "&": "altar",  # Alternate altar rune from the canidate map set.
+    "+": "wall",  # Extra wall glyph in the canidate station maps.
+    "O": "altar",  # Capital O altar pads in the canidate station layouts.
+    "B": "wall",  # Additional wall rune from training_facility_clipped.map.
+    "o": "altar",  # Lowercase altar indicator from machina/cave_base maps.
+    "G": "generator",  # Generator pads in the canidate station maps.
+    "N": "generator",  # Generator rune in training_facility_clipped.map.
+    "g": "generator",  # Generator variant seen in machina/cave_base maps.
+    "=": "wall",  # Decorative wall strip in the canidate station layouts.
+    "D": "door",  # Door tile used in cave_base_50 and training_facility_clipped maps.
+    "H": "wall",  # Supplemental wall rune from training_facility_clipped map exports.
+    "T": "wall",  # Supplemental wall rune from training_facility_clipped map exports.
+    "F": "wall",  # Supplemental wall rune from training_facility_clipped map exports.
+    "R": "wall",  # Supplemental wall rune from training_facility_clipped map exports.
 }
 
 LEGEND_PREFIX = "#:"

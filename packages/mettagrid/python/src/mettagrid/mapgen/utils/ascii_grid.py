@@ -3,19 +3,19 @@ from __future__ import annotations
 from mettagrid.mapgen.types import MapGrid
 
 DEFAULT_CHAR_TO_NAME: dict[str, str] = {
-    "#": "wall",
-    ".": "empty",
-    "@": "agent.agent",
-    "p": "agent.prey",
-    "P": "agent.predator",
-    "_": "altar",
-    "c": "converter",
-    "C": "chest",
-    "Z": "assembler",
-    "1": "agent.team_1",
-    "2": "agent.team_2",
-    "3": "agent.team_3",
-    "4": "agent.team_4",
+    "#": "wall",  # Impassable border in legacy ASCII maps (e.g. tests/mapgen/scenes/fixtures/test.map).
+    ".": "empty",  # Walkable floor tiles shared by navigation maps and gridworks/src/lib/encoding.json.
+    "@": "agent.agent",  # Default spawn in builder tests such as tests/map_builder/test_ascii.py.
+    "p": "agent.prey",  # Prey marker retained from older scenarios and the renderer encoding table.
+    "P": "agent.predator",  # Uppercase predator partner for the 'p' prey tile.
+    "_": "altar",  # Altar pads in training facility maps under packages/cogames/src/cogames/maps/.
+    "c": "converter",  # Converter stations defined in machina/training facility char_to_name_map sections.
+    "C": "chest",  # Storage chests appearing in the same object-use map legends.
+    "Z": "assembler",  # Legacy assembler symbol kept for compatibility with encoding.json clients.
+    "1": "agent.team_1",  # Team-coloured agent expected by miniscope and gridworks renderers.
+    "2": "agent.team_2",  # Team-coloured agent expected by miniscope and gridworks renderers.
+    "3": "agent.team_3",  # Team-coloured agent expected by miniscope and gridworks renderers.
+    "4": "agent.team_4",  # Team-coloured agent expected by miniscope and gridworks renderers.
 }
 
 
