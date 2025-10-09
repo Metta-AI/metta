@@ -16,7 +16,3 @@ export async function listAuthors(params?: {
 export async function getAuthor(id: string): Promise<AuthorDetail | null> {
   return getAuthorAction(id);
 }
-
-export async function searchAuthors(query: string): Promise<AuthorSummary[]> {
-  return getAuthorsAction({ search: query });
-}
