@@ -1,247 +1,202 @@
-#!/bin/bash
-# Local reproduction of the GitHub Actions run_package_tests job
+#!/usr/bin/env bash
+# ci_run_tests.sh — opinionated Python test runner for large mono-repos
+# Goals:
+# - Discover test-bearing packages automatically
+# - Run pytest per package in parallel with clear, prefixed logs
+# - Fail fast on real errors, not masked pipes
+# - Emit concise end-of-job summary (and GitHub Step Summary if available)
+# - No Codecov, no local-repro tooling, deps assumed preinstalled
 
-set -e # Exit on error
+set -euo pipefail
 
-# Colors for output
-RED='\033[1;31m'
-GREEN='\033[1;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[1;34m'
-MAGENTA='\033[1;35m'
-CYAN='\033[1;36m'
-WHITE='\033[1;37m'
-NC='\033[0m' # No Color
+########################################
+# Configurable knobs via env vars
+########################################
+# Glob(s) that identify Python packages or test roots
+: "${PKG_GLOBS:=agent common core app_backend packages/*}"
 
-# Local setup (only run when not in CI)
-if [ "${CI}" != "true" ]; then
-  echo -e "${CYAN}============================================${NC}"
-  echo -e "${CYAN}Local reproduction of run_package_tests job${NC}"
-  echo -e "${CYAN}============================================${NC}"
+# Run packages in parallel? "true" | "false"
+: "${PARALLEL:=true}"
 
-  # Check if uv is installed
-  if ! command -v uv &> /dev/null; then
-    echo -e "${RED}❌ 'uv' is not installed. Please install it first:${NC}"
-    echo "curl -LsSf https://astral.sh/uv/install.sh | sh"
-    exit 1
-  fi
+# Max concurrently running packages when PARALLEL=true
+: "${MAX_PROCS:=8}"
 
-  # Check if we're in the metta repository
-  if [ ! -f "pyproject.toml" ] || [ ! -d "packages/mettagrid" ]; then
-    echo -e "${RED}❌ This script must be run from the metta repository root${NC}"
-    exit 1
-  fi
+# Extra pytest selectors, e.g. "-k 'not slow' -m 'not integ'"
+: "${SELECT:=}"
 
-  # Setup virtual environment with testing dependencies
-  echo -e "\n${YELLOW}📦 Setting up Python environment...${NC}"
-  if [ ! -d ".venv" ]; then
-    echo "Creating virtual environment..."
-    uv venv
-  fi
+# Respect pre-set PYTEST_ADDOPTS but provide sane defaults
+DEFAULT_PYTEST_OPTS="-n auto --dist loadscope -q -rA \
+  --durations=15 --maxfail=${MAXFAIL:-1} \
+  --timeout=120 --timeout-method=thread \
+  --color=yes --benchmark-skip"
+PYTEST_OPTS="${PYTEST_ADDOPTS:-$DEFAULT_PYTEST_OPTS} ${SELECT}"
 
-  echo "Installing testing dependencies..."
-  uv sync --no-dev --group testing
-fi
+# Where to put artifacts
+ART_DIR="${ART_DIR:-test-results}"
+COV_DIR="${COV_DIR:-coverage-reports}"
+mkdir -p "$ART_DIR" "$COV_DIR"
 
-# Create directories for test results
-echo -e "\n${YELLOW}📁 Creating test result directories...${NC}"
-mkdir -p test-results coverage-reports
+########################################
+# Basic coloring (no external deps)
+########################################
+RED=$'\e[1;31m'; GRN=$'\e[1;32m'; YEL=$'\e[1;33m'
+BLU=$'\e[1;34m'; MAG=$'\e[1;35m'; CYN=$'\e[1;36m'; WHT=$'\e[1;37m'; NC=$'\e[0m'
 
-# Determine which package suites should run (defaults to true)
-RUN_APP_BACKEND_TESTS=${RUN_APP_BACKEND_TESTS:-true}
+# Assign stable colors per package index
+colors=("$BLU" "$RED" "$GRN" "$YEL" "$MAG" "$CYN" "$WHT")
 
-# Define the test runner function
-run_package_tests() {
-  local package=$1
-  local color=$2
+########################################
+# Utilities
+########################################
+ts() { date +"%H:%M:%S"; }
 
-  # Extract just the package name from paths like "packages/mettagrid"
-  local package_name=$(basename "$package")
-
-  # Determine the relative path prefix based on package depth
-  local path_prefix="../"
-  if [[ "$package" == packages/* ]]; then
-    path_prefix="../../"
-  fi
-
-  # Pytest arguments matching CI
-  # Use concise pytest output: skip per-test PASS lines, but keep failures/errors/warnings summaries.
-  PYTEST_BASE_ARGS="-n 4 --timeout=100 --timeout-method=thread --cov --cov-branch --benchmark-skip --maxfail=1 --durations=10 -r fEw"
-
-  # Save raw output for duration parsing
-  local raw_output="test-results/${package_name}_raw.log"
-
-  echo -e "${color}[${package_name}]${NC} Starting tests..."
-
-  # Skip packages when requested (currently only app_backend is gated)
-  if [[ "$package_name" == "app_backend" && "$RUN_APP_BACKEND_TESTS" != "true" ]]; then
-    echo -e "${color}[${package_name}]${NC} Skipping tests (no app_backend changes detected)"
-    echo 0 > "test-results/${package_name}.exit"
-    return
-  fi
-
-  # Run tests and prefix each line with package name and color
-  if [ "$package" == "core" ]; then
-    (
-      uv run pytest $PYTEST_BASE_ARGS \
-        --cov-report=xml:coverage-reports/coverage-${package_name}.xml \
-        2>&1
-      echo $? > test-results/${package_name}.exit
-    ) | tee "$raw_output" | while IFS= read -r line; do
-      echo -e "${color}[${package_name}]${NC} $line"
-    done
-  else
-    (
-      cd "$package" && uv run pytest $PYTEST_BASE_ARGS \
-        --cov-report=xml:${path_prefix}coverage-reports/coverage-${package_name}.xml \
-        2>&1
-      echo $? > ${path_prefix}test-results/${package_name}.exit
-    ) | tee "$raw_output" | while IFS= read -r line; do
-      echo -e "${color}[${package_name}]${NC} $line"
-    done
-  fi
-
-  # Extract duration info for later summary
-  grep -E "^[0-9]+\.[0-9]+s " "$raw_output" > "test-results/${package_name}_durations.txt" || true
+group_start() {  # Collapses logs in GitHub UI; harmless elsewhere
+  echo "::group::$*"
 }
 
-# Function to extract and display failed test stacktraces
-print_failed_test_stacktraces() {
-  local failed_packages="$1"
+group_end() {
+  echo "::endgroup::" || true
+}
 
-  echo -e "\n${RED}📋 FAILED TEST DETAILS:${NC}"
-  echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-
-  for package_name in $failed_packages; do
-    local log_file="test-results/${package_name}_raw.log"
-
-    if [ -f "$log_file" ]; then
-      echo -e "\n${RED}🔍 Failed tests in package: ${package_name}${NC}"
-      echo -e "${WHITE}─────────────────────────────────────────────${NC}"
-
-      # Extract failed test names and their stacktraces
-      # Look for FAILED lines and the context around them
-      awk '
-                /^=+ FAILURES =+/ { in_failures=1; next }
-                /^=+ short test summary info =+/ { in_failures=0 }
-                /^=+ [0-9]+ failed/ { in_failures=0 }
-                in_failures && /^_+ .*_+$/ {
-                    # Test separator line
-                    print "\n" $0
-                    next
-                }
-                in_failures && /^FAILED / {
-                    # Failed test line
-                    print "❌ " $0
-                    next
-                }
-                in_failures && /./ {
-                    # Stacktrace content
-                    print $0
-                }
-            ' "$log_file"
-
-      # Also look for short test summary
-      echo -e "\n${YELLOW}📝 Short test summary for ${package_name}:${NC}"
-      grep -C 100 "short test summary info" "$log_file" || echo "No short summary found"
-    else
-      echo -e "\n${RED}❌ Log file not found for package: ${package_name}${NC}"
-    fi
+########################################
+# Discover packages
+########################################
+discover_packages() {
+  local -a out=()
+  for g in $PKG_GLOBS; do
+    # A package is a directory that either contains tests/ or any *_test.py/test_*.py
+    for p in $(compgen -G "$g" || true); do
+      [ -d "$p" ] || continue
+      if compgen -G "$p/tests" > /dev/null \
+        || compgen -G "$p/**/test_*.py" > /dev/null \
+        || compgen -G "$p/**/*_test.py" > /dev/null; then
+        out+=("$p")
+      fi
+    done
   done
+  # De-dup and stable sort
+  printf "%s\n" "${out[@]}" | awk 'NF' | sort -u
 }
 
-# Export function for parallel execution
-export -f run_package_tests
+########################################
+# Run one package
+########################################
+run_pkg() {
+  local pkg="$1" idx="$2"
+  local name; name="$(basename "$pkg")"
+  local color="${colors[$((idx % ${#colors[@]}))]}"
+  local raw="$ART_DIR/${name}.log"
+  local exitfile="$ART_DIR/${name}.exit"
+  local covxml="$COV_DIR/coverage-${name}.xml"
 
-# Check if user wants sequential or parallel execution
-if [ "$1" == "--sequential" ]; then
-  PARALLEL=false
-  echo -e "\n${YELLOW}🔄 Running tests sequentially (use without --sequential for parallel)...${NC}"
-else
-  PARALLEL=true
-  echo -e "\n${YELLOW}⏳ Running tests in parallel (use --sequential for sequential)...${NC}"
+  # Prefer running pytest from inside the package if it is a subdir
+  local covpath="$covxml"
+  local run_dir="."
+  if [[ "$pkg" != "." && "$pkg" != "core" ]]; then
+    run_dir="$pkg"
+    # Write coverage XML relative to repo root even when cd-ing
+    # Use a relative path that escapes back to $COV_DIR
+    local depth="${pkg//[^\/]/}"
+    local up=""
+    for _ in ${depth}; do up+="../"; done
+    covpath="${up}${covxml}"
+  fi
+
+  group_start "pytest: ${pkg}"
+  echo -e "${color}[$(ts)] [${name}] Starting: pytest ${PYTEST_OPTS} ${SELECT}${NC}"
+  {
+    (
+      cd "$run_dir"
+      pytest ${PYTEST_OPTS} \
+        --cov --cov-branch --cov-report="xml:${covpath}" \
+        2>&1
+    )
+    printf "%d" $? > "$exitfile"
+  } | sed -e "s/^/[${name}] /" | tee "$raw"
+  group_end
+
+  # Collect durations for global top-10
+  grep -E "^[0-9]+\.[0-9]+s " "$raw" > "$ART_DIR/${name}.dur" || true
+}
+
+########################################
+# Main
+########################################
+START="$(date +%s)"
+mapfile -t PACKAGES < <(discover_packages)
+if [ "${#PACKAGES[@]}" -eq 0 ]; then
+  echo "No packages with tests discovered under: $PKG_GLOBS"
+  exit 0
 fi
 
-# Record start time
-START_TIME=$(date +%s)
+echo "Discovered packages:"
+printf " - %s\n" "${PACKAGES[@]}"
 
-if [ "$PARALLEL" == true ]; then
-  # Run all packages in parallel (matching CI)
-  run_package_tests "packages/mettagrid" "$BLUE" & # Bold Blue
-  sleep 2                                          # mettagrid is slowest, so give time for it to grab resources
-
-  run_package_tests "agent" "$RED" &                # Bold Red
-  run_package_tests "common" "$GREEN" &             # Bold Green
-  run_package_tests "app_backend" "$YELLOW" &       # Bold Yellow
-  run_package_tests "packages/codebot" "$MAGENTA" & # Bold Magenta
-  run_package_tests "core" "$CYAN" &                # Bold Cyan
-  run_package_tests "packages/cogames" "$WHITE" &   # Bold White
-  run_package_tests "packages/gitta" "$BLUE" &      # Bold Blue
-
-  # Wait for all background jobs to complete
-  wait
+# Run sequentially or in background with a simple concurrency gate
+pids=()
+if [ "$PARALLEL" = "true" ]; then
+  sem=${MAX_PROCS}
+  for i in "${!PACKAGES[@]}"; do
+    # Concurrency gate
+    while [ "$(jobs -rp | wc -l)" -ge "$sem" ]; do sleep 0.2; done
+    run_pkg "${PACKAGES[$i]}" "$i" &
+    pids+=("$!")
+  done
+  # Wait for all
+  code=0
+  for pid in "${pids[@]}"; do wait "$pid" || code=1; done
 else
-  # Run sequentially for easier debugging
-  run_package_tests "packages/mettagrid" "$BLUE"
-  run_package_tests "agent" "$RED"
-  run_package_tests "common" "$GREEN"
-  run_package_tests "app_backend" "$YELLOW"
-  run_package_tests "packages/codebot" "$MAGENTA"
-  run_package_tests "core" "$CYAN"
-  run_package_tests "packages/cogames" "$WHITE"
-  run_package_tests "packages/gitta" "$BLUE"
+  code=0
+  for i in "${!PACKAGES[@]}"; do
+    run_pkg "${PACKAGES[$i]}" "$i" || code=1
+  done
 fi
 
-# Calculate total time
-END_TIME=$(date +%s)
-TOTAL_TIME=$((END_TIME - START_TIME))
+END="$(date +%s)"
+TOTAL="$((END-START))"
 
-# Check results
-OVERALL_FAILED=0
-FAILED_PACKAGES=""
+########################################
+# Summaries
+########################################
+echo -e "\n${WHT}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${WHT}🐌 TOP 10 SLOWEST TESTS${NC}"
+cat "$ART_DIR"/*.dur 2>/dev/null | sed 's/^/[/; s/]/] /' | sort -k2 -nr | head -10 | nl -w2 -s'. ' || echo "No duration data."
 
-for package in agent common app_backend packages/mettagrid packages/cogames packages/codebot packages/gitta core; do
-  package_name=$(basename "$package")
-  if [ -f "test-results/${package_name}.exit" ]; then
-    EXIT_CODE=$(cat "test-results/${package_name}.exit")
-    if [ "$EXIT_CODE" -ne 0 ]; then
-      OVERALL_FAILED=1
-      FAILED_PACKAGES="$FAILED_PACKAGES $package_name"
-    fi
+echo -e "\n${WHT}📊 PACKAGE RESULTS${NC}"
+printf "%-24s %-8s %s\n" "package" "result" "log"
+printf "%-24s %-8s %s\n" "-------" "------" "---"
+
+OVERALL_FAIL=0
+for pkg in "${PACKAGES[@]}"; do
+  name="$(basename "$pkg")"
+  exitf="$ART_DIR/${name}.exit"
+  logf="$ART_DIR/${name}.log"
+  if [ -f "$exitf" ] && [ "$(cat "$exitf")" -eq 0 ]; then
+    printf "%-24s %-8s %s\n" "$name" "${GRN}PASS${NC}" "$logf"
   else
-    OVERALL_FAILED=1
-    FAILED_PACKAGES="$FAILED_PACKAGES $package_name"
+    printf "%-24s %-8s %s\n" "$name" "${RED}FAIL${NC}" "$logf"
+    OVERALL_FAIL=1
   fi
 done
+echo "Total time: ${TOTAL}s"
 
-# Show summary
-echo -e "\n${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "\n${WHITE}🐌 TOP 10 SLOWEST TESTS${NC}"
-
-# Combine all duration files and sort
-for package in agent common app_backend packages/mettagrid packages/cogames packages/codebot packages/gitta core; do
-  package_name=$(basename "$package")
-  if [ -f "test-results/${package_name}_durations.txt" ]; then
-    # Add package name to each line
-    sed "s/^/[${package_name}] /" "test-results/${package_name}_durations.txt"
-  fi
-done | sort -t' ' -k2 -rn | head -10 | nl -w2 -s'. '
-
-echo -e "\n${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-
-if [ $OVERALL_FAILED -ne 0 ]; then
-  echo -e "\n${RED}💥 Tests failed in:$FAILED_PACKAGES${NC}"
-  echo -e "Total time: ${TOTAL_TIME}s"
-
-  # Print detailed stacktraces for failed tests
-  print_failed_test_stacktraces "$FAILED_PACKAGES"
-
-  echo -e "\n${YELLOW}💡 Tips for debugging:${NC}"
-  echo "  - Check individual test logs in test-results/*_raw.log"
-  echo "  - Run with --sequential for easier debugging"
-  echo "  - Run individual package tests: cd <package> && pytest -v"
-  echo "  - Re-run specific failed tests: pytest -v <test_file>::<test_name>"
-  exit 1
-else
-  echo -e "\n${GREEN}🎉 All tests passed in ${TOTAL_TIME}s!${NC}"
+# GitHub Step Summary (compact markdown table)
+if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+  {
+    echo "## Unit test summary"
+    echo ""
+    echo "| Package | Result | Log |"
+    echo "|---|---|---|"
+    for pkg in "${PACKAGES[@]}"; do
+      name="$(basename "$pkg")"
+      exitf="$ART_DIR/${name}.exit"
+      logf="$ART_DIR/${name}.log"
+      res="FAIL"; [ -f "$exitf" ] && [ "$(cat "$exitf")" -eq 0 ] && res="PASS"
+      echo "| \`$name\` | $res | \`$logf\` |"
+    done
+    echo ""
+    echo "<sub>Total time: ${TOTAL}s</sub>"
+  } >> "$GITHUB_STEP_SUMMARY"
 fi
+
+exit "$OVERALL_FAIL"
