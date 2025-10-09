@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from metta.rl.training.checkpointer import Checkpointer, CheckpointerConfig
     from metta.rl.training.component import TrainerCallback, TrainerComponent
     from metta.rl.training.component_context import ComponentContext, TrainerState, TrainingEnvWindow
-    from metta.rl.training.context_checkpointer import ContextCheckpointer, ContextCheckpointerConfig
+    from metta.rl.training.context_checkpointer import ContextCheckpointer
     from metta.rl.training.core import CoreTrainingLoop, RolloutResult
     from metta.rl.training.distributed_helper import DistributedHelper
     from metta.rl.training.evaluator import Evaluator, EvaluatorConfig, NoOpEvaluator
@@ -47,7 +47,6 @@ _EXPORTS: dict[str, tuple[str, str | None]] = {
     "CheckpointerConfig": ("metta.rl.training.checkpointer", "CheckpointerConfig"),
     "ComponentContext": ("metta.rl.training.component_context", "ComponentContext"),
     "ContextCheckpointer": ("metta.rl.training.context_checkpointer", "ContextCheckpointer"),
-    "ContextCheckpointerConfig": ("metta.rl.training.context_checkpointer", "ContextCheckpointerConfig"),
     "CoreTrainingLoop": ("metta.rl.training.core", "CoreTrainingLoop"),
     "DistributedHelper": ("metta.rl.training.distributed_helper", "DistributedHelper"),
     "EnvironmentMetaData": ("metta.rl.training.training_environment", "EnvironmentMetaData"),
@@ -90,7 +89,6 @@ __all__ = [
     "CheckpointerConfig",
     "ComponentContext",
     "ContextCheckpointer",
-    "ContextCheckpointerConfig",
     "CoreTrainingLoop",
     "DistributedHelper",
     "EnvironmentMetaData",
