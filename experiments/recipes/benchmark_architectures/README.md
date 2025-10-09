@@ -66,32 +66,47 @@ uv run ./tools/run.py experiments.recipes.benchmark_architectures.level_1_basic.
 
 ### Run Full Benchmark Suite
 
-The `run_benchmark.py` script tests 4 transformer variants across all 5 levels (20 total combinations):
+The benchmark suite tests 13 architecture variants across all 5 levels with 3 random seeds each (195 total runs):
 
 ```bash
-# Run full benchmark (1M timesteps per run, ~20M total)
-uv run experiments/recipes/benchmark_architectures/run_benchmark.py
+# Run full benchmark with adaptive controller (recommended, configured for 4 nodes × 4 GPUs)
+uv run experiments/recipes/benchmark_architectures/adaptive.py \
+  --experiment-id benchmark_$(date +%Y%m%d) \
+  --timesteps 1000000
 
-# Run with fewer timesteps for quick testing
-uv run experiments/recipes/benchmark_architectures/run_benchmark.py --max-timesteps 100000
+# Run with custom parallelization (e.g., 2 nodes × 4 GPUs = 8 parallel jobs)
+uv run experiments/recipes/benchmark_architectures/adaptive.py \
+  --experiment-id custom_parallel \
+  --timesteps 1000000 \
+  --max-parallel 8
 
-# Test specific architectures
-uv run experiments/recipes/benchmark_architectures/run_benchmark.py \
-  --architectures vit,transformer
+# Run with different number of seeds (default is 3)
+uv run experiments/recipes/benchmark_architectures/adaptive.py \
+  --experiment-id fewer_seeds \
+  --timesteps 1000000 \
+  --seeds-per-level 1
 
-# Test specific levels
-uv run experiments/recipes/benchmark_architectures/run_benchmark.py \
-  --levels level_1_basic,level_3_medium
-
-# Custom output directory
-uv run experiments/recipes/benchmark_architectures/run_benchmark.py \
-  --output-dir ./my_benchmark_results
+# Run locally (no Skypilot)
+uv run experiments/recipes/benchmark_architectures/adaptive.py \
+  --experiment-id local_test \
+  --local \
+  --timesteps 100000 \
+  --max-parallel 4
 ```
+
+The adaptive controller automatically:
+- Runs all 13 architectures across all 5 levels with 3 random seeds (195 total runs)
+- Manages training and evaluation jobs
+- Tracks progress in WandB
+- Handles job scheduling and parallelization (default: 16 parallel jobs for 4 nodes × 4 GPUs)
+- Supports both local and remote (Skypilot) execution
+- Can be configured for different hardware setups via `--max-parallel`
 
 ## Architectures Tested
 
-The benchmark script tests 4 architecture variants:
+The benchmark suite tests 13 architecture variants:
 
+### Vision Transformer Variants
 1. **ViT** (`ViTDefaultConfig`) - Default perceiver-based vision transformer
    - Perceiver attention over observation tokens
    - LSTM for temporal processing
@@ -102,15 +117,63 @@ The benchmark script tests 4 architecture variants:
    - Sliding window transformer for memory
    - Better long-term dependencies
 
-3. **Transformer** (`TransformerPolicyConfig`) - Standard transformer
+3. **ViT + Reset** (`ViTResetConfig`) - ViT with LSTM reset mechanism
+   - ViT perception with reset-capable LSTM
+   - Handles episode boundaries better
+   - Improved temporal credit assignment
+
+### Transformer Variants
+4. **Transformer** (`TransformerPolicyConfig`) - Standard transformer
    - Full transformer architecture
    - Positional encoding
    - More parameters, potentially higher capacity
 
-4. **Fast** (`FastConfig`) - Fast LSTM baseline
+5. **GTrXL** (`gtrxl_policy_config()`) - Gated Transformer-XL
+   - Gated Transformer-XL with GRU-style gating
+   - Memory-based attention for long sequences
+   - Better gradient flow
+
+6. **TrXL** (`trxl_policy_config()`) - Transformer-XL
+   - Transformer-XL with relative positional attention
+   - Recurrence mechanism for long-term dependencies
+   - Efficient memory management
+
+7. **TrXL Nvidia** (`trxl_nvidia_policy_config()`) - NVIDIA-optimized Transformer-XL
+   - NVIDIA-specific optimizations
+   - Improved performance on GPU
+   - Same architecture as TrXL
+
+### Fast/LSTM Variants
+8. **Fast** (`FastConfig`) - Fast LSTM baseline
    - Lightweight LSTM-based architecture
    - Minimal parameters
    - Baseline for speed/performance tradeoffs
+
+9. **Fast LSTM Reset** (`FastLSTMResetConfig`) - Fast with LSTM reset
+   - Fast architecture with reset mechanism
+   - Better episode boundary handling
+   - Improved credit assignment
+
+10. **Fast Dynamics** (`FastDynamicsConfig`) - Fast with dynamics modeling
+    - Fast architecture with auxiliary dynamics prediction
+    - Learns world model alongside policy
+    - Improved sample efficiency
+
+### Specialized Architectures
+11. **Memory Free** (`MemoryFreeConfig`) - Stateless ViT variant
+    - No recurrent memory
+    - Purely feedforward processing
+    - Tests importance of temporal state
+
+12. **AGaLiTe** (`AGaLiTeConfig`) - Attention-Gated Linear Transformer
+    - Attention-Gated Linear Transformers
+    - Efficient linear attention mechanism
+    - Reduced computational complexity
+
+13. **Puffer** (`PufferPolicyConfig`) - PufferLib baseline
+    - CNN + LSTM architecture from PufferLib
+    - Industry-standard baseline
+    - Well-tested and optimized
 
 ## Benchmark Results
 
@@ -127,7 +190,7 @@ Example structure:
   "runs": [
     {
       "run_number": 1,
-      "total_runs": 20,
+      "total_runs": 65,
       "training": {
         "architecture": "vit",
         "level": "level_1_basic",
@@ -182,12 +245,12 @@ uv run experiments/recipes/benchmark_architectures/run_benchmark.py \
 
 To add a new architecture to the benchmark:
 
-1. Import it in `run_benchmark.py`:
+1. Import it in `level_1_basic.py`:
    ```python
    from metta.agent.policies.my_arch import MyArchConfig
    ```
 
-2. Add to `ARCHITECTURES` dict:
+2. Add to `ARCHITECTURES` dict in `level_1_basic.py`:
    ```python
    ARCHITECTURES = {
        "vit": ViTDefaultConfig(),
@@ -196,10 +259,12 @@ To add a new architecture to the benchmark:
    }
    ```
 
-3. Run benchmark:
+3. The architecture will automatically be available in all level modules and `adaptive.py`
+
+4. Run with adaptive controller:
    ```bash
-   uv run experiments/recipes/benchmark_architectures/run_benchmark.py \
-     --architectures my_arch
+   uv run experiments/recipes/benchmark_architectures/adaptive.py \
+     --experiment-id my_experiment_$(date +%Y%m%d)
    ```
 
 ## Tips for Interpretation

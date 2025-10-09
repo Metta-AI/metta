@@ -36,11 +36,11 @@ class BenchmarkArchSchedulerConfig:
     # Which recipe modules/levels to run
     levels: list[str] = field(
         default_factory=lambda: [
-            # "experiments.recipes.benchmark_architectures.level_1_basic",
+            "experiments.recipes.benchmark_architectures.level_1_basic",
             "experiments.recipes.benchmark_architectures.level_2_easy",
             "experiments.recipes.benchmark_architectures.level_3_medium",
-            # "experiments.recipes.benchmark_architectures.level_4_hard",
-            # "experiments.recipes.benchmark_architectures.level_5_expert",
+            "experiments.recipes.benchmark_architectures.level_4_hard",
+            "experiments.recipes.benchmark_architectures.level_5_expert",
         ],
     )
 
@@ -49,7 +49,7 @@ class BenchmarkArchSchedulerConfig:
         default_factory=lambda: [str(k) for k in ARCHITECTURES.keys()]
     )
     # One or more seeds per level
-    seeds_per_level: int = 1
+    seeds_per_level: int = 3
 
     # Training budget per run
     total_timesteps: int = 50_000
@@ -105,7 +105,7 @@ class BenchmarkArchScheduler(ExperimentScheduler):
                                 "trainer.total_timesteps": self.config.total_timesteps,
                                 "arch_type": arch_type,
                             },
-                        ),
+                        )
                         job.metadata["benchmark/arch"] = arch_type
                         job.metadata["benchmark/seed"] = f"{seed:02d}"
                         job.metadata["benchmark/level"] = level
@@ -184,11 +184,20 @@ def make_adaptive_controller(  # noqa: PLR0913
     )
 
 
-def run(experiment_id: str, local: bool = False, timesteps: int = 50_000):
+def run(
+    experiment_id: str,
+    local: bool = False,
+    timesteps: int = 50_000,
+    max_parallel: int = 16,
+    seeds_per_level: int = 3,
+):
     make_adaptive_controller(
         experiment_id=experiment_id,
-        scheduler_config=BenchmarkArchSchedulerConfig(total_timesteps=timesteps),
+        scheduler_config=BenchmarkArchSchedulerConfig(
+            total_timesteps=timesteps, seeds_per_level=seeds_per_level
+        ),
         use_skypilot=not local,
+        max_parallel=max_parallel,
     ).run()
 
 
@@ -213,6 +222,24 @@ if __name__ == "__main__":
         default=50_000,
         help="Total timesteps per training run (default: 50,000)",
     )
+    parser.add_argument(
+        "--max-parallel",
+        type=int,
+        default=16,
+        help="Maximum number of parallel jobs (default: 16, designed for 4 nodes × 4 GPUs)",
+    )
+    parser.add_argument(
+        "--seeds-per-level",
+        type=int,
+        default=3,
+        help="Number of random seeds per architecture per level (default: 3)",
+    )
     args = parser.parse_args()
 
-    run(experiment_id=args.experiment_id, local=args.local, timesteps=args.timesteps)
+    run(
+        experiment_id=args.experiment_id,
+        local=args.local,
+        timesteps=args.timesteps,
+        max_parallel=args.max_parallel,
+        seeds_per_level=args.seeds_per_level,
+    )

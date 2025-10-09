@@ -13,7 +13,6 @@ from typing import List, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
@@ -98,7 +97,7 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
 def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
-    arch_type: str = "fast",
+    arch_type: str = "fast",  # (vit | vit_sliding | vit_reset | transformer | fast | fast_lstm_reset | fast_dynamics | memory_free | agalite | gtrxl | trxl | trxl_nvidia | puffer)
 ) -> TrainTool:
     """Train on Level 5 - Expert difficulty."""
     curriculum = curriculum or make_curriculum(

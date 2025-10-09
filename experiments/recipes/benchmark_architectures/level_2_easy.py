@@ -12,7 +12,6 @@ from typing import List, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -22,6 +21,7 @@ from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from experiments.recipes.benchmark_architectures.level_1_basic import ARCHITECTURES
+
 
 def make_mettagrid(num_agents: int = 18) -> MettaGridConfig:
     """Create an easy arena environment with moderate reward shaping."""
@@ -65,9 +65,10 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
         SimulationConfig(suite="benchmark_arch", name="level_2_easy", env=basic_env),
     ]
 
+
 def train(
     curriculum: Optional[CurriculumConfig] = None,
-    arch_type: str = "fast",  # (vit | vit_sliding | transformer | fast)
+    arch_type: str = "fast",  # (vit | vit_sliding | vit_reset | transformer | fast | fast_lstm_reset | fast_dynamics | memory_free | agalite | gtrxl | trxl | trxl_nvidia | puffer)
 ) -> TrainTool:
     """Train on Level 2 - Easy difficulty."""
     if curriculum is None:
@@ -81,6 +82,7 @@ def train(
         evaluator=EvaluatorConfig(simulations=make_evals()),
         policy_architecture=architecture_config,
     )
+
 
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     """Interactive play tool."""

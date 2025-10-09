@@ -8,15 +8,22 @@ This recipe provides the most guidance through:
 - Smaller map size for faster learning
 """
 
-from enum import StrEnum, auto
 from typing import List, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from metta.agent.policy import PolicyArchitecture
+from metta.agent.policies.agalite import AGaLiTeConfig
 from metta.agent.policies.fast import FastConfig
+from metta.agent.policies.fast_dynamics import FastDynamicsConfig
+from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
+from metta.agent.policies.gtrxl import gtrxl_policy_config
+from metta.agent.policies.memory_free import MemoryFreeConfig
+from metta.agent.policies.puffer import PufferPolicyConfig
 from metta.agent.policies.transformer import TransformerPolicyConfig
+from metta.agent.policies.trxl import trxl_policy_config
+from metta.agent.policies.trxl_nvidia import trxl_nvidia_policy_config
 from metta.agent.policies.vit import ViTDefaultConfig
+from metta.agent.policies.vit_reset import ViTResetConfig
 from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
@@ -31,9 +38,19 @@ from mettagrid.config import ConverterConfig
 ARCHITECTURES = {
     "vit": ViTDefaultConfig(),
     "vit_sliding": ViTSlidingTransConfig(),
+    "vit_reset": ViTResetConfig(),
     "transformer": TransformerPolicyConfig(),
     "fast": FastConfig(),
+    "fast_lstm_reset": FastLSTMResetConfig(),
+    "fast_dynamics": FastDynamicsConfig(),
+    "memory_free": MemoryFreeConfig(),
+    "agalite": AGaLiTeConfig(),
+    "gtrxl": gtrxl_policy_config(),
+    "trxl": trxl_policy_config(),
+    "trxl_nvidia": trxl_nvidia_policy_config(),
+    "puffer": PufferPolicyConfig(),
 }
+
 
 def make_mettagrid(num_agents: int = 12) -> MettaGridConfig:
     """Create a basic arena environment with maximum reward shaping."""
@@ -89,7 +106,7 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
 
 def train(
     curriculum: Optional[CurriculumConfig] = None,
-    arch_type: str = "fast",  # (vit | vit_sliding | transformer | fast)
+    arch_type: str = "fast",  # (vit | vit_sliding | vit_reset | transformer | fast | fast_lstm_reset | fast_dynamics | memory_free | agalite | gtrxl | trxl | trxl_nvidia | puffer)
 ) -> TrainTool:
     """Train on Level 1 - Basic difficulty."""
     if curriculum is None:
