@@ -153,6 +153,7 @@ def evaluate_in_sweep(
     """
     if simulations is None:
         # Create sweep-optimized versions of the standard evaluations
+        # Use a dedicated suite name to control the metric namespace in WandB
         basic_env = mettagrid()
         basic_env.game.actions.attack.consumed_resources["laser"] = 100
 
@@ -161,14 +162,14 @@ def evaluate_in_sweep(
 
         simulations = [
             SimulationConfig(
-                suite="arena",
+                suite="sweep",
                 name="basic",
                 env=basic_env,
                 num_episodes=10,  # 10 episodes for statistical reliability
                 max_time_s=240,  # 4 minutes max per simulation
             ),
             SimulationConfig(
-                suite="arena",
+                suite="sweep",
                 name="combat",
                 env=combat_env,
                 num_episodes=10,
@@ -214,6 +215,9 @@ def sweep_async_progressive(
             )
         },
     )
+
+    # Ensure the optimizer reads from the sweep-specific metric namespace
+    protein_cfg.metric = "evaluator/eval_sweep/score"
 
     return SweepTool(
         # Protein with swept timesteps

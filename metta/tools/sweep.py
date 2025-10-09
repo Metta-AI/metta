@@ -243,7 +243,17 @@ class SweepTool(Tool):
                 resume = False
 
         # Create components
-        store = WandbStore(entity=self.wandb.entity, project=self.wandb.project)
+        # Derive evaluator prefix from the configured optimizer metric if possible
+        # Example: metric "evaluator/eval_sweep/score" -> prefix "evaluator/eval_sweep"
+        evaluator_prefix = None
+        try:
+            metric_path = getattr(self.protein_config, "metric", None)
+            if isinstance(metric_path, str) and "/" in metric_path:
+                evaluator_prefix = metric_path.rsplit("/", 1)[0]
+        except Exception:
+            evaluator_prefix = None
+
+        store = WandbStore(entity=self.wandb.entity, project=self.wandb.project, evaluator_prefix=evaluator_prefix)
 
         # Create dispatcher based on type
         if self.dispatcher_type == DispatcherType.LOCAL:
