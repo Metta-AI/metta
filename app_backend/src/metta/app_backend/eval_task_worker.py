@@ -177,7 +177,7 @@ class SimTaskExecutor(AbstractTaskExecutor):
             "tools/run.py",
             "experiments.evals.run.eval",
             f"policy_uri={normalized}",
-            f"simulations_json_base64_path={file_path}",
+            f"simulations_json_base64_path={os.path.abspath(file_path)}",
             f"eval_task_id={str(task.id)}",
             f"stats_server_uri={self._backend_url}",
             "push_metrics_to_wandb=true",
