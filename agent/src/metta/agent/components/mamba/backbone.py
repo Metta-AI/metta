@@ -9,11 +9,11 @@ from einops import rearrange
 from tensordict import TensorDict
 from torchrl.data import Composite
 
-from metta.agent.components.drama.mamba_wrapper import MambaConfig as _WrapperConfig
-from metta.agent.components.drama.mamba_wrapper import MambaWrapperModel
 from metta.rl.training import EnvironmentMetaData
 
 from .config import MambaBackboneConfig
+from .wrapper import MambaConfig as _WrapperConfig
+from .wrapper import MambaWrapperModel
 
 
 @dataclass
@@ -44,7 +44,7 @@ class _CacheWrapper:
 
 
 class MambaBackboneComponent(nn.Module):
-    """Streaming-friendly Mamba backbone that mirrors the drama wrapper contract."""
+    """Streaming-friendly Mamba backbone matching the policy wrapper contract."""
 
     def __init__(self, config: MambaBackboneConfig, env: Optional[EnvironmentMetaData] = None):
         super().__init__()

@@ -1,8 +1,6 @@
 import torch
 from tensordict import TensorDict
 
-from metta.agent.components.drama import DramaWorldModelConfig
-from metta.agent.components.drama.world_model_component import DramaWorldModelComponent
 from metta.agent.components.mamba import MambaBackboneConfig
 from metta.agent.components.mamba.backbone import MambaBackboneComponent
 
@@ -57,28 +55,3 @@ def test_mamba_backbone_forward_training():
 
     out = component(td)
     assert out["core"].shape == torch.Size([6, 32])
-
-
-def test_drama_world_model_component():
-    config = DramaWorldModelConfig(
-        in_key="latent",
-        out_key="core",
-        action_key="actions",
-        stoch_dim=8,
-        action_dim=4,
-        d_model=16,
-        d_intermediate=32,
-        n_layer=2,
-    )
-    component = DramaWorldModelComponent(config)
-
-    td = TensorDict(
-        {
-            "latent": torch.randn(5, 8),
-            "actions": torch.randint(0, 4, (5,)),
-        },
-        batch_size=[5],
-    )
-
-    out = component(td)
-    assert out["core"].shape == torch.Size([5, 16])

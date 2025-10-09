@@ -81,7 +81,7 @@ def create_block(
         mixer_cls = partial(MHA, layer_idx=layer_idx, **attn_cfg, **factory_kwargs)
     if guard_triton and rms_norm and RMSNorm is None:
         raise RuntimeError(
-            "DRAMA MambaWrapperModel requires Triton RMSNorm kernels; install torchao/triton or disable rms_norm"
+            "MambaWrapperModel requires Triton RMSNorm kernels; install torchao/triton or disable rms_norm"
         )
     norm_cls = partial(nn.LayerNorm if not rms_norm else RMSNorm, eps=norm_epsilon, **factory_kwargs)
     if d_intermediate == 0:

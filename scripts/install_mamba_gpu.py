@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install optional CUDA extras for the Mamba/DRAMA recipes.
+"""Install optional CUDA extras for the Mamba recipes.
 
 This script best-effort installs `flash-attn` and `causal-conv1d` for the
 currently detected CUDA toolkit. It is idempotent and exits with status 0 even
