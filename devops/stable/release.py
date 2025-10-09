@@ -50,6 +50,8 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Literal, Optional
 
+import wandb
+
 import gitta as git
 from devops.job_runner import run_local, run_remote
 from metta.common.util.text_styles import bold, cyan, green, red
@@ -95,6 +97,7 @@ class Validation:
     args: list[str] = field(default_factory=list)
     timeout_s: int = 900
     acceptance: list[ThresholdCheck] = field(default_factory=list)
+    wandb_metrics: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -337,15 +340,79 @@ def update_validation_result(version: str, validation_name: str, result: Validat
 _SPS_RE = re.compile(r"\bSPS[:=]\s*(\d+(?:\.\d+)?)", re.IGNORECASE)
 _KSPS_RE = re.compile(r"(\d+(?:\.\d+)?)\s*ksps", re.IGNORECASE)  # Match "87.75 ksps"
 _EVAL_RATE_RE = re.compile(r"\beval[_\s-]?success[_\s-]?rate[:=]\s*(0?\.\d+|1(?:\.0)?)", re.IGNORECASE)
+_WANDB_URL_RE = re.compile(r"https://wandb\.ai/([^/]+)/([^/]+)/runs/([^\s]+)")
 
 
-def extract_metrics(log_text: str) -> dict[str, float]:
-    """Extract metrics from log text using regex patterns.
+def extract_wandb_run_info(log_text: str) -> Optional[tuple[str, str, str]]:
+    """Extract wandb entity, project, and run_id from log text.
+
+    Returns:
+        Tuple of (entity, project, run_id) or None if not found
+    """
+    match = _WANDB_URL_RE.search(log_text)
+    if match:
+        return (match.group(1), match.group(2), match.group(3))
+    return None
+
+
+def fetch_wandb_metric(
+    entity: str, project: str, run_id: str, metric_key: str, last_n_percent: float = 0.25
+) -> Optional[float]:
+    """Fetch a metric from wandb and return average over last N% of timesteps.
+
+    Args:
+        entity: Wandb entity name
+        project: Wandb project name
+        run_id: Wandb run ID
+        metric_key: Metric key to fetch (e.g., "env_agent/heart.get")
+        last_n_percent: Percentage of timesteps to average over (default: 0.25 = 25%)
+
+    Returns:
+        Average value of metric over last N% of timesteps, or None if not found
+    """
+    try:
+        api = wandb.Api()
+        run = api.run(f"{entity}/{project}/{run_id}")
+
+        # Fetch history for the metric
+        history = run.history(keys=[metric_key], pandas=False)
+
+        if not history:
+            print(f"Warning: No history found for metric {metric_key}")
+            return None
+
+        # Extract values
+        values = [row.get(metric_key) for row in history if metric_key in row and row[metric_key] is not None]
+
+        if not values:
+            print(f"Warning: No values found for metric {metric_key}")
+            return None
+
+        # Calculate average over last N%
+        n_samples = max(1, int(len(values) * last_n_percent))
+        last_values = values[-n_samples:]
+        avg = sum(last_values) / len(last_values)
+
+        print(f"     Wandb metric {metric_key}: {avg:.2f} (avg of last {len(last_values)} samples)")
+        return avg
+
+    except Exception as e:
+        print(f"Warning: Failed to fetch wandb metric {metric_key}: {e}")
+        return None
+
+
+def extract_metrics(log_text: str, wandb_metrics: Optional[list[str]] = None) -> dict[str, float]:
+    """Extract metrics from log text using regex patterns and optionally from wandb.
 
     Supports:
     - SPS (samples per second) - max and last value
     - KSPS (kilosamples per second) - converted to SPS
     - Eval success rate
+    - Wandb metrics (if wandb_metrics list provided)
+
+    Args:
+        log_text: Log text to extract metrics from
+        wandb_metrics: Optional list of wandb metric keys to fetch (e.g., ["env_agent/heart.get"])
     """
     metrics: dict[str, float] = {}
 
@@ -365,6 +432,20 @@ def extract_metrics(log_text: str) -> dict[str, float]:
     eval_matches = _EVAL_RATE_RE.findall(log_text)
     if eval_matches:
         metrics["eval_success_rate"] = float(eval_matches[-1])
+
+    # Fetch wandb metrics if requested
+    if wandb_metrics:
+        wandb_info = extract_wandb_run_info(log_text)
+        if wandb_info:
+            entity, project, run_id = wandb_info
+            print(f"     Fetching wandb metrics from {entity}/{project}/{run_id}...")
+            for metric_key in wandb_metrics:
+                value = fetch_wandb_metric(entity, project, run_id, metric_key)
+                if value is not None:
+                    # Convert metric key to simpler format for storage
+                    # e.g., "env_agent/heart.get" -> "heart_get"
+                    simple_key = metric_key.split("/")[-1].replace(".", "_")
+                    metrics[simple_key] = value
 
     return metrics
 
@@ -623,7 +704,7 @@ def run_validation(
             WorkflowType.TRAIN_REMOTE,
             WorkflowType.TRAIN_REMOTE_MULTIGPU,
         ):
-            result.metrics = extract_metrics(log_text or "")
+            result.metrics = extract_metrics(log_text or "", wandb_metrics=validation.wandb_metrics)
 
         # Evaluate acceptance criteria
         if validation.acceptance:
@@ -694,22 +775,29 @@ def get_workflow_tests() -> list[Validation]:
             workflow_type=WorkflowType.TRAIN_LOCAL,
             module="experiments.recipes.arena_basic_easy_shaped.train",
             location="local",
-            args=[f"run={smoke_run}", "trainer.total_timesteps=1000", "wandb.enabled=false"],
+            args=[f"run={smoke_run}", "trainer.total_timesteps=1000", "wandb.enabled=true"],
             timeout_s=600,
-            acceptance=[],  # Manual validation via W&B URL
+            acceptance=[
+                ThresholdCheck(key="heart_get", op=">", expected=20.0),
+            ],
+            wandb_metrics=["env_agent/heart.get"],
         )
     )
 
     # 3. TRAIN_REMOTE - single GPU remote validation
     validations.append(
         Validation(
-            name="arena_single_gpu_10m",
+            name="arena_single_gpu_100m",
             workflow_type=WorkflowType.TRAIN_REMOTE,
             module="experiments.recipes.arena_basic_easy_shaped.train",
             location="remote",
-            args=["trainer.total_timesteps=10000000"],
-            timeout_s=3600,  # 1 hour
-            acceptance=[ThresholdCheck(key="sps_max", op=">=", expected=40000)],
+            args=["trainer.total_timesteps=100000000"],  # 100M timesteps
+            timeout_s=7200,  # 2 hours
+            acceptance=[
+                ThresholdCheck(key="sps_max", op=">=", expected=40000),
+                ThresholdCheck(key="heart_get", op=">", expected=20.0),
+            ],
+            wandb_metrics=["env_agent/heart.get"],
         )
     )
 
