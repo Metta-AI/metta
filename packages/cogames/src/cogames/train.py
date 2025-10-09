@@ -317,7 +317,7 @@ def train(
             policy_arg = f"{policy_class_arg}{MAP_MISSION_DELIMITER}{final_checkpoint}"
 
             first_mission = missions_arg[0] if missions_arg else "training_facility_1"
-            all_missions = " ".join(f"-p {m}" for m in (missions_arg or ["training_facility_1"]))
+            all_missions = " ".join(f"-m {m}" for m in (missions_arg or ["training_facility_1"]))
 
             console.print()
             console.print("To continue training this policy:", style="bold")
