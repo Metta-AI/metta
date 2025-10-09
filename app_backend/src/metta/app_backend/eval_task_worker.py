@@ -164,6 +164,11 @@ class SimTaskExecutor(AbstractTaskExecutor):
         simulations_json = json.dumps(simulations)
         simulations_base64 = base64.b64encode(simulations_json.encode()).decode()
 
+        # write simulations_json_base64 to a file
+        file_path = f"simulations_json_base64_{task.id}.json"
+        with open(file_path, "w") as f:
+            f.write(simulations_base64)
+
         normalized = CheckpointManager.normalize_uri(task.policy_uri)
 
         cmd = [
@@ -172,7 +177,7 @@ class SimTaskExecutor(AbstractTaskExecutor):
             "tools/run.py",
             "experiments.evals.run.eval",
             f"policy_uri={normalized}",
-            f"simulations_json_base64={simulations_base64}",
+            f"simulations_json_base64_path={file_path}",
             f"eval_task_id={str(task.id)}",
             f"stats_server_uri={self._backend_url}",
             "push_metrics_to_wandb=true",
