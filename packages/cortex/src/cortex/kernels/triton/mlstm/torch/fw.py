@@ -7,6 +7,7 @@ of the mLSTM chunkwise formulation. It should allow arbitrary large chunk sizes 
 """
 
 import torch
+
 from cortex.kernels.triton.mlstm.torch.fw_parallel import mlstm_chunkwise__parallel_fw_Hintra
 from cortex.kernels.triton.mlstm.torch.fw_recurrent import mlstm_chunkwise__recurrent_fw_C
 from cortex.kernels.triton.mlstm.triton.chunkwise_kernel_param_heuristics import (

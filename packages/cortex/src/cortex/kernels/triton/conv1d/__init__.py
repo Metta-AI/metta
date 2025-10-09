@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import torch
+
 from cortex.kernels.triton.conv1d.channel_mixing import (
     channelmix_causal_conv1d_with_resets_triton,
 )
