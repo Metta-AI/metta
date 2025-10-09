@@ -104,10 +104,29 @@ class AsyncCappedOptimizingScheduler:
     """Asynchronous scheduler with capped eval concurrency and CL fantasies."""
 
     def __init__(self, config: AsyncCappedSchedulerConfig, state: AsyncSchedulerState | None = None):
-        from metta.sweep.optimizer.protein import ProteinOptimizer
-
         self.config = config
-        self.optimizer = ProteinOptimizer(config.protein_config)
+
+        # Default to Protein; allow optional Nevergrad via duck-typing on config
+        optimizer = None
+        try:
+            # Optional: config may provide 'nevergrad_config' attribute
+            nevergrad_config = getattr(config, "nevergrad_config", None)
+            optimizer_type = getattr(config, "optimizer_type", None)
+            if nevergrad_config is not None or optimizer_type == "nevergrad":
+                from metta.sweep.optimizer.nevergrad import NevergradOptimizer
+
+                if nevergrad_config is None:
+                    raise ValueError("optimizer_type=nevergrad requires nevergrad_config on scheduler config")
+                optimizer = NevergradOptimizer(nevergrad_config)
+        except Exception as e:
+            logger.debug(f"[AsyncCappedOptimizingScheduler] Nevergrad init skipped: {e}")
+
+        if optimizer is None:
+            from metta.sweep.optimizer.protein import ProteinOptimizer
+
+            optimizer = ProteinOptimizer(config.protein_config)
+
+        self.optimizer = optimizer
         self.state = state or AsyncSchedulerState()
         self._state_initialized = False
         logger.info(
