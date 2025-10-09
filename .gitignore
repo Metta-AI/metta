@@ -65,7 +65,6 @@ replays/
 train_dir/
 personal/
 /mettagrid/multirun/
-agent/src/metta/ops/
 
 # Test and benchmark
 test_data/

@@ -194,7 +194,7 @@ class TestCurriculumEnv:
         if len(rewards) == 1:
             wrapper.step([1])
         else:
-            wrapper.step([0] * len(rewards))
+            wrapper.step([[0, 0]] * len(rewards))
 
         # Check that task was completed with correct mean reward
         expected_mean = np.mean(rewards)  # 0.5
@@ -284,7 +284,7 @@ class TestCurriculumEnv:
         initial_task = wrapper._current_task
 
         # Step with 2 agent actions
-        result = wrapper.step([0, 0])
+        result = wrapper.step([[0, 0], [0, 0]])
         assert len(result) == 5
 
         # Task should remain the same since no termination occurred
