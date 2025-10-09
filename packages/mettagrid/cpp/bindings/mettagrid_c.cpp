@@ -312,7 +312,8 @@ void MettaGrid::build_flat_action_catalog() {
     auto& arg_map = _action_arg_to_flat[handler_index];
     arg_map.assign(static_cast<size_t>(max_arg) + 1, -1);
 
-    for (unsigned char raw_arg = 0; raw_arg <= max_arg; ++raw_arg) {
+    const int max_arg_int = static_cast<int>(max_arg);
+    for (int raw_arg = 0; raw_arg <= max_arg_int; ++raw_arg) {
       const ActionArg arg = static_cast<ActionArg>(raw_arg);
 
       std::string base_name = handler->variant_name(arg);

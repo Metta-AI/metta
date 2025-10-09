@@ -1,8 +1,11 @@
 import uuid
 from datetime import datetime, timedelta
 from typing import Any, Optional, TypeVar
+from urllib.parse import urlparse
 
+import boto3
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 import gitta as git
@@ -44,6 +47,20 @@ class TaskFilterParams(BaseModel):
     git_hash: str | None = None
     policy_ids: list[uuid.UUID] | None = None
     sim_suites: list[str] | None = None
+
+
+class TaskPaginationParams(BaseModel):
+    page: int = Field(default=1, ge=1)
+    page_size: int = Field(default=50, ge=1, le=100)
+    policy_name: str | None = None
+    sim_suite: str | None = None
+    status: str | None = None
+    assignee: str | None = None
+    user_id: str | None = None
+    retries: str | None = None
+    created_at: str | None = None
+    assigned_at: str | None = None
+    updated_at: str | None = None
 
 
 class EvalTaskResponse(BaseModel):
@@ -127,6 +144,14 @@ class TaskUpdateResponse(BaseModel):
 
 class TasksResponse(BaseModel):
     tasks: list[EvalTaskResponse]
+
+
+class PaginatedTasksResponse(BaseModel):
+    tasks: list[EvalTaskResponse]
+    total_count: int
+    page: int
+    page_size: int
+    total_pages: int
 
 
 class GitHashesRequest(BaseModel):
@@ -254,6 +279,44 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
         task_responses = [EvalTaskResponse.from_db(task) for task in tasks]
         return TasksResponse(tasks=task_responses)
 
+    @router.get("/paginated", response_model=PaginatedTasksResponse)
+    @timed_http_handler
+    async def get_tasks_paginated(
+        page: int = Query(default=1, ge=1),
+        page_size: int = Query(default=50, ge=1, le=100),
+        policy_name: str | None = Query(default=None),
+        sim_suite: str | None = Query(default=None),
+        status: str | None = Query(default=None),
+        assignee: str | None = Query(default=None),
+        user_id: str | None = Query(default=None),
+        retries: str | None = Query(default=None),
+        created_at: str | None = Query(default=None),
+        assigned_at: str | None = Query(default=None),
+        updated_at: str | None = Query(default=None),
+    ) -> PaginatedTasksResponse:
+        tasks, total_count = await stats_repo.get_tasks_paginated(
+            page=page,
+            page_size=page_size,
+            policy_name=policy_name,
+            sim_suite=sim_suite,
+            status=status,
+            assignee=assignee,
+            user_id=user_id,
+            retries=retries,
+            created_at=created_at,
+            assigned_at=assigned_at,
+            updated_at=updated_at,
+        )
+        task_responses = [EvalTaskResponse.from_db(task) for task in tasks]
+        total_pages = (total_count + page_size - 1) // page_size
+        return PaginatedTasksResponse(
+            tasks=task_responses,
+            total_count=total_count,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+        )
+
     @router.post("/claimed/update")
     @timed_http_handler
     async def update_task_statuses(request: TaskUpdateRequest) -> TaskUpdateResponse:
@@ -273,5 +336,57 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
     @timed_http_handler
     async def get_avg_runtime(where_clause: str = Query(default="")) -> TaskAvgRuntimeResponse:
         return TaskAvgRuntimeResponse(avg_runtime=await stats_repo.get_avg_runtime(where_clause=where_clause))
+
+    @router.get("/{task_id}/logs/{log_type}")
+    @timed_http_handler
+    async def get_task_logs(task_id: uuid.UUID, log_type: str):
+        """Stream log files from S3 for a specific task.
+
+        Args:
+            task_id: The UUID of the task
+            log_type: Either "stdout" or "stderr"
+
+        Returns:
+            StreamingResponse with the log file content as text/plain
+        """
+        if log_type not in ("stdout", "stderr"):
+            raise HTTPException(status_code=400, detail="log_type must be 'stdout' or 'stderr'")
+
+        # Get the task to retrieve the log path from attributes
+        task = await stats_repo.get_task_by_id(task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
+
+        # Get the log path from task attributes
+        log_path_key = f"{log_type}_log_path"
+        log_path = task.attributes.get(log_path_key)
+
+        if not log_path:
+            raise HTTPException(status_code=404, detail=f"No {log_type} log path found for task {task_id}")
+
+        # Parse the S3 URL (format: s3://bucket/key)
+        parsed = urlparse(log_path)
+        if parsed.scheme != "s3":
+            raise HTTPException(status_code=400, detail=f"Invalid S3 URL format: {log_path}")
+
+        bucket = parsed.netloc
+        key = parsed.path.lstrip("/")
+
+        # Stream the file from S3
+
+        s3_client = boto3.client("s3")
+        try:
+            response = s3_client.get_object(Bucket=bucket, Key=key)
+
+            # Return streaming response
+            return StreamingResponse(
+                response["Body"].iter_chunks(),
+                media_type="text/plain",
+                headers={"Content-Disposition": f'inline; filename="{task_id}_{log_type}.txt"'},
+            )
+        except s3_client.exceptions.NoSuchKey as e:
+            raise HTTPException(status_code=404, detail=f"Log file not found in S3: {log_path}") from e
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to retrieve log from S3: {str(e)}") from e
 
     return router
