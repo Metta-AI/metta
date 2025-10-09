@@ -144,9 +144,13 @@ export class PaperAbstractService {
       });
 
       if (!response.ok) {
-        Logger.error(
-          `❌ Failed to fetch PDF: ${response.status} ${response.statusText}`
+        const error = new Error(
+          `Failed to fetch PDF: ${response.status} ${response.statusText}`
         );
+        Logger.error(`❌ Failed to fetch PDF`, error, {
+          status: response.status,
+          statusText: response.statusText,
+        });
         return null;
       }
 
@@ -155,10 +159,11 @@ export class PaperAbstractService {
       Logger.info(`📄 Response content-type: ${contentType}`);
 
       if (contentType.includes("text/html")) {
-        Logger.error(
-          `❌ URL returned HTML instead of PDF. URL might be incorrect: ${normalizedUrl}`
-        );
-        Logger.error(`❌ Original URL: ${paper.link}`);
+        const error = new Error("URL returned HTML instead of PDF");
+        Logger.error(`❌ URL returned HTML instead of PDF`, error, {
+          normalizedUrl,
+          originalUrl: paper.link,
+        });
         return null;
       }
 
