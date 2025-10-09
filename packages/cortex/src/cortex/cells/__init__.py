@@ -8,6 +8,7 @@ from cortex.cells.lstm import LSTMCell
 from cortex.cells.mlstm import mLSTMCell
 from cortex.cells.registry import build_cell, get_cell_class, register_cell
 from cortex.cells.rtu import RTUCell
+from cortex.cells.rtu_stream import RTUStreamCell
 from cortex.cells.slstm import sLSTMCell
 
 __all__ = [
@@ -16,6 +17,7 @@ __all__ = [
     "LSTMCell",
     "mLSTMCell",
     "RTUCell",
+    "RTUStreamCell",
     "sLSTMCell",
     "register_cell",
     "build_cell",

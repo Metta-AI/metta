@@ -1,0 +1,225 @@
+"""Streaming RTU cell wrapper (diagonal input weights, PyTorch kernel).
+
+This cell mirrors the structure of `cortex.cells.rtu.RTUCell` but uses the
+streaming diagonal PyTorch kernel from
+`cortex.kernels.pytorch.rtu_stream.rtu_sequence_pytorch_streaming_diag`.
+
+Notes
+-----
+- Assumes D == H (identity input map) as enforced by the kernel.
+- Carries compact [B,H] eligibility traces across chunks. The traces are
+  included in the returned TensorDict state and can be detached between
+  subsequences by the caller to achieve true streaming.
+- Triton backend is not implemented yet for streaming; this cell always uses
+  the PyTorch kernel.
+"""
+
+from __future__ import annotations
+
+import math
+from typing import Optional, Tuple
+
+import torch
+import torch.nn as nn
+from tensordict import TensorDict
+
+from cortex.cells.base import MemoryCell
+from cortex.cells.registry import register_cell
+from cortex.config import RTUStreamCellConfig
+from cortex.kernels.pytorch.rtu_stream import rtu_sequence_pytorch_streaming_diag
+from cortex.types import MaybeState, ResetMask, Tensor
+
+
+def _resolve_activation(name: str) -> nn.Module:
+    n = name.lower()
+    if n in ("silu", "swish"):
+        return nn.SiLU()
+    if n == "relu":
+        return nn.ReLU()
+    if n == "tanh":
+        return nn.Tanh()
+    if n in ("linear", "identity"):
+        return nn.Identity()
+    raise ValueError(f"Unsupported RTU activation: {name}")
+
+
+@register_cell(RTUStreamCellConfig)
+class RTUStreamCell(MemoryCell):
+    """Cortex memory cell for streaming RTU with diagonal input weights.
+
+    This wrapper:
+      - calls the streaming RTU PyTorch kernel (diagonal w1/w2 input weights),
+      - projects `2H -> H` to fit Cortex block shapes,
+      - manages TensorDict state with keys {"hc1", "hc2", trace tensors},
+      - handles step-vs-sequence inputs and reset masks.
+    """
+
+    def __init__(self, cfg: RTUStreamCellConfig) -> None:
+        if cfg.hidden_size is None:
+            raise ValueError("RTUStreamCellConfig.hidden_size must be set")
+        super().__init__(hidden_size=cfg.hidden_size)
+        self.cfg = cfg
+
+        H = cfg.hidden_size
+        self.activation = _resolve_activation(cfg.activation)
+
+        # Dynamics parameters (exp-exp parameterization)
+        u1 = torch.rand(H)
+        inner = u1 * (cfg.r_max**2 - cfg.r_min**2) + cfg.r_min**2
+        nu_log_init = torch.log(-0.5 * torch.log(inner.clamp(min=1e-12)))
+        u2 = torch.rand(H)
+        theta_log_init = torch.log((cfg.max_phase * u2).clamp(min=1e-12))
+        self.nu_log = nn.Parameter(nu_log_init)
+        self.theta_log = nn.Parameter(theta_log_init)
+
+        # Diagonal input weights (per-channel)
+        self.w1 = nn.Parameter(torch.empty(H))
+        self.w2 = nn.Parameter(torch.empty(H))
+        bound_in = 1.0 / math.sqrt(H)
+        with torch.no_grad():
+            self.w1.uniform_(-bound_in, bound_in)
+            self.w2.uniform_(-bound_in, bound_in)
+
+        # Project 2H -> H to retain external block shape compatibility
+        self.out_proj = nn.Linear(2 * H, H)
+
+    def _zero_traces(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> TensorDict:
+        H = self.hidden_size
+        zero = torch.zeros(batch, H, device=device, dtype=dtype)
+        return TensorDict(
+            {
+                "E_nu_c1": zero.clone(),
+                "E_nu_c2": zero.clone(),
+                "E_th_c1": zero.clone(),
+                "E_th_c2": zero.clone(),
+                "E_w1_c1": zero.clone(),
+                "E_w1_c2": zero.clone(),
+                "E_w2_c1": zero.clone(),
+                "E_w2_c2": zero.clone(),
+            },
+            batch_size=[batch],
+        )
+
+    def init_state(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> TensorDict:
+        H = self.hidden_size
+        zero = torch.zeros(batch, H, device=device, dtype=dtype)
+        traces = self._zero_traces(batch, device=device, dtype=dtype)
+        state = TensorDict({"hc1": zero.clone(), "hc2": zero.clone()}, batch_size=[batch])
+        state.update(traces)
+        return state
+
+    def _pack_trace_in(self, state: TensorDict) -> tuple[torch.Tensor, ...] | None:
+        keys = [
+            "E_nu_c1",
+            "E_nu_c2",
+            "E_th_c1",
+            "E_th_c2",
+            "E_w1_c1",
+            "E_w1_c2",
+            "E_w2_c1",
+            "E_w2_c2",
+        ]
+        if not all(k in state for k in keys):
+            return None
+        return tuple(state[k] for k in keys)  # type: ignore[return-value]
+
+    def _unpack_trace_out(self, state: TensorDict, trace_out: tuple[torch.Tensor, ...]) -> None:
+        (
+            E_nu_c1,
+            E_nu_c2,
+            E_th_c1,
+            E_th_c2,
+            E_w1_c1,
+            E_w1_c2,
+            E_w2_c1,
+            E_w2_c2,
+        ) = trace_out
+        state["E_nu_c1"] = E_nu_c1
+        state["E_nu_c2"] = E_nu_c2
+        state["E_th_c1"] = E_th_c1
+        state["E_th_c2"] = E_th_c2
+        state["E_w1_c1"] = E_w1_c1
+        state["E_w1_c2"] = E_w1_c2
+        state["E_w2_c1"] = E_w2_c1
+        state["E_w2_c2"] = E_w2_c2
+
+    def forward(
+        self,
+        x: Tensor,
+        state: MaybeState,
+        *,
+        resets: Optional[ResetMask] = None,
+    ) -> Tuple[Tensor, MaybeState]:
+        # Determine step vs sequence and normalize inputs
+        is_step = x.dim() == 2  # [B,H] vs [B,T,H]
+        if is_step:
+            x_btd = x.unsqueeze(1)
+        else:
+            x_btd = x
+        B, T, H = x_btd.shape
+
+        # Prepare/validate state
+        if state is None or not all(k in state for k in ("hc1", "hc2")):
+            st = self.init_state(batch=B, device=x_btd.device, dtype=x_btd.dtype)
+        else:
+            st = state
+
+        hc1 = st.get("hc1")
+        hc2 = st.get("hc2")
+        assert hc1 is not None and hc2 is not None
+
+        # Normalize resets mask
+        resets_bt: Optional[torch.Tensor]
+        if resets is None:
+            resets_bt = None
+        else:
+            if is_step:
+                resets_bt = resets.view(B, 1)
+            else:
+                resets_bt = resets if resets.dim() == 2 else resets.view(B, 1).expand(B, T)
+
+        # Pack carried traces (if present)
+        trace_in = self._pack_trace_in(st)
+
+        # Call PyTorch streaming kernel (diagonal)
+        act_name = self.activation.__class__.__name__
+        y2h_t, (h1_n, h2_n), trace_out = rtu_sequence_pytorch_streaming_diag(
+            x_btd=x_btd,
+            nu_log=self.nu_log,
+            theta_log=self.theta_log,
+            w1=self.w1,
+            w2=self.w2,
+            activation_name=act_name,
+            hc1_init_bh=hc1,
+            hc2_init_bh=hc2,
+            trace_in=trace_in,
+            resets_bt=resets_bt,
+        )
+
+        # Update state and traces
+        st["hc1"] = h1_n
+        st["hc2"] = h2_n
+        self._unpack_trace_out(st, trace_out)
+
+        # Project 2H -> H (batch-first)
+        if is_step:
+            y = self.out_proj(y2h_t.squeeze(1))
+        else:
+            y = self.out_proj(y2h_t.reshape(B * T, -1)).reshape(B, T, self.hidden_size)
+
+        return y, st
+
+    def reset_state(self, state: MaybeState, mask: ResetMask) -> MaybeState:
+        if state is None:
+            return None
+        # Broadcast to [B, 1]
+        m = mask.to(dtype=state["hc1"].dtype).view(-1, 1)
+        for k in list(state.keys()):
+            if state[k] is None:
+                continue
+            if state[k].dim() == 2 and state[k].shape[0] == m.shape[0]:
+                state[k] = state[k] * (1.0 - m)
+        return state
+
+
+__all__ = ["RTUStreamCell"]

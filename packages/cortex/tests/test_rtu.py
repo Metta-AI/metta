@@ -62,7 +62,7 @@ def test_triton_rtu_matches_pytorch_forward_and_gradients() -> None:
         f"dx mismatch: max abs err={(dx_pt - dx_tr).abs().max().item():.3e}"
     )
 
-    for (gt, gb, name) in zip(g_tr[:-1], g_pt[:-1], ["nu_log", "theta_log", "U1", "U2", "V1", "V2"], strict=False):
+    for gt, gb, name in zip(g_tr[:-1], g_pt[:-1], ["nu_log", "theta_log", "U1", "U2", "V1", "V2"], strict=False):
         rtol = 1e-3 if name in {"nu_log", "theta_log"} else 1e-4
         atol = 3e-4 if name in {"nu_log", "theta_log"} else 1e-5
         assert torch.allclose(gt, gb, rtol=rtol, atol=atol), (
@@ -121,7 +121,7 @@ def test_triton_rtu_with_resets_various_lengths(T: int) -> None:
     grads_tr = torch.autograd.grad(
         loss_tr, [cell.nu_log, cell.theta_log, cell.U1, cell.U2, cell.V1, cell.V2], retain_graph=True
     )
-    for (gp, gt, name) in zip(grads_pt, grads_tr, ["nu_log", "theta_log", "U1", "U2", "V1", "V2"], strict=False):
+    for gp, gt, name in zip(grads_pt, grads_tr, ["nu_log", "theta_log", "U1", "U2", "V1", "V2"], strict=False):
         rtol = 1e-3 if name in {"nu_log", "theta_log"} else 1e-4
         atol = 3e-4 if name in {"nu_log", "theta_log"} else 1e-5
         assert torch.allclose(gp, gt, rtol=rtol, atol=atol), (
