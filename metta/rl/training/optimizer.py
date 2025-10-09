@@ -29,7 +29,7 @@ def create_optimizer(cfg: OptimizerConfig, policy: Policy) -> torch.optim.Optimi
     elif optimizer_type == "adamw_schedulefree":
         optimizer = schedulefree.AdamWScheduleFree(
             policy.parameters(),
-            lr=0.3,
+            lr=cfg.learning_rate,
             betas=(cfg.beta1, cfg.beta2),
             eps=cfg.eps,
             weight_decay=cfg.weight_decay,
