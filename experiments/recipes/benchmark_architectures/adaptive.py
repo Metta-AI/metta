@@ -36,11 +36,11 @@ class BenchmarkArchSchedulerConfig:
     # Which recipe modules/levels to run
     levels: list[str] = field(
         default_factory=lambda: [
-            "experiments.recipes.benchmark_architectures.level_1_basic",
+            # "experiments.recipes.benchmark_architectures.level_1_basic",
             "experiments.recipes.benchmark_architectures.level_2_easy",
             "experiments.recipes.benchmark_architectures.level_3_medium",
-            "experiments.recipes.benchmark_architectures.level_4_hard",
-            "experiments.recipes.benchmark_architectures.level_5_expert",
+            # "experiments.recipes.benchmark_architectures.level_4_hard",
+            # "experiments.recipes.benchmark_architectures.level_5_expert",
         ],
     )
 

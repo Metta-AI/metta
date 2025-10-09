@@ -23,7 +23,7 @@ from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from experiments.recipes.benchmark_architectures.level_1_basic import ARCHITECTURES
 
-def make_mettagrid(num_agents: int = 16) -> MettaGridConfig:
+def make_mettagrid(num_agents: int = 18) -> MettaGridConfig:
     """Create an easy arena environment with moderate reward shaping."""
     arena_env = eb.make_arena(num_agents=num_agents, combat=False)
 
