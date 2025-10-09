@@ -39,7 +39,7 @@ def train(
     seed: int,
     batch_size: int,
     minibatch_size: int,
-    missions_arg: Optional[list[str]],
+    missions_arg: Optional[list[str]] = None,
     vector_num_envs: Optional[int] = None,
     vector_batch_size: Optional[int] = None,
     vector_num_workers: Optional[int] = None,
