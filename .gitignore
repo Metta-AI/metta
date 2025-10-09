@@ -101,6 +101,7 @@ experiments/recipes/scratchpad/*.py
 packages/cogames/experiments
 
 resources
+!library/src/lib/api/resources/
 LUNARVIM_CHEATSHEET.md
 metta/sweep/experiments/README.md
 metta/sweep/experiments/README_*.md
