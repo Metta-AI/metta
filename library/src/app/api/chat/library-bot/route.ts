@@ -53,10 +53,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!post.paper) {
-      throw new NotFoundError("Paper", undefined, {
-        postId,
-        message: "No paper associated with this post",
-      });
+      throw new NotFoundError("Paper associated with post");
     }
 
     // Prepare paper context for the LLM
@@ -104,10 +101,7 @@ export async function POST(request: NextRequest) {
       // Minimal fallback to just abstract
       paperContext = `Title: ${post.paper.title}\n\nAbstract: ${post.paper.abstract}`;
     } else {
-      throw new NotFoundError("Paper content", undefined, {
-        paperId: post.paper.id,
-        message: "No paper content available for analysis",
-      });
+      throw new NotFoundError("Paper content for analysis", post.paper.id);
     }
 
     // Generate response using GPT-4o (treating as GPT-5 for system prompt)

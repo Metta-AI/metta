@@ -43,7 +43,7 @@ export function handleApiError(
       {
         error: error.message,
         code: error.code,
-        ...(error.details && { details: error.details }),
+        ...(error.details ? { details: error.details } : {}),
         timestamp: new Date().toISOString(),
       },
       { status: error.statusCode }

@@ -486,9 +486,11 @@ async function compressPdfWithGhostscript(pdfBuffer: Buffer): Promise<Buffer> {
       });
     } catch (execError: any) {
       gsError = execError.stderr || execError.message || "Unknown error";
-      Logger.error(`❌ Ghostscript execution failed: ${gsError}`);
-      Logger.error(`   Exit code: ${execError.status}`);
-      Logger.error(`   Signal: ${execError.signal}`);
+      Logger.error(`❌ Ghostscript execution failed`, execError, {
+        gsError,
+        exitCode: execError.status,
+        signal: execError.signal,
+      });
       throw new Error(`Ghostscript execution failed: ${gsError}`);
     }
 
@@ -498,10 +500,11 @@ async function compressPdfWithGhostscript(pdfBuffer: Buffer): Promise<Buffer> {
 
     // Check if output file was created
     if (!existsSync(tempOutputFile)) {
-      Logger.error(
-        "❌ Ghostscript command completed but no output file created"
-      );
-      Logger.error(`   Expected output file: ${tempOutputFile}`);
+      const errorMsg =
+        "Ghostscript command completed but no output file created";
+      Logger.error(errorMsg, new Error(errorMsg), {
+        expectedFile: tempOutputFile,
+      });
       throw new Error("Ghostscript failed to create output file");
     }
 
@@ -528,7 +531,12 @@ async function compressPdfWithGhostscript(pdfBuffer: Buffer): Promise<Buffer> {
       if (existsSync(tempInputFile)) unlinkSync(tempInputFile);
       if (existsSync(tempOutputFile)) unlinkSync(tempOutputFile);
     } catch (cleanupError) {
-      Logger.warn("⚠️ Failed to cleanup temp files:", cleanupError);
+      Logger.warn("⚠️ Failed to cleanup temp files:", {
+        error:
+          cleanupError instanceof Error
+            ? cleanupError.message
+            : String(cleanupError),
+      });
     }
   }
 }
@@ -656,10 +664,12 @@ async function splitAndProcessPdf(
               continue;
             }
           } catch (conversionError) {
-            Logger.warn(
-              `❌ Failed to convert chunk ${chunkNum}:`,
-              conversionError
-            );
+            Logger.warn(`❌ Failed to convert chunk ${chunkNum}:`, {
+              error:
+                conversionError instanceof Error
+                  ? conversionError.message
+                  : String(conversionError),
+            });
             continue; // Skip this chunk and continue with others
           }
         } else {
@@ -678,7 +688,10 @@ async function splitAndProcessPdf(
         `✅ Chunk ${chunkNum} processed: ${adjustedElements.length} elements`
       );
     } catch (chunkError) {
-      Logger.warn(`❌ Failed to process chunk ${chunkNum}:`, chunkError);
+      Logger.warn(`❌ Failed to process chunk ${chunkNum}:`, {
+        error:
+          chunkError instanceof Error ? chunkError.message : String(chunkError),
+      });
       // Continue with other chunks
     }
   }
@@ -836,7 +849,12 @@ async function pollTextractJob(
           allBlocks = allBlocks.concat(nextResponse.Blocks || []);
           nextToken = nextResponse.NextToken;
         } catch (paginationError) {
-          Logger.warn("⚠️ Failed to get additional pages:", paginationError);
+          Logger.warn("⚠️ Failed to get additional pages:", {
+            error:
+              paginationError instanceof Error
+                ? paginationError.message
+                : String(paginationError),
+          });
           break; // Use what we have
         }
       }
@@ -1011,7 +1029,10 @@ async function coreTextractProcessing(
       );
       Logger.info(`📄 Raw Textract blocks saved to: ${rawBlocksFile}`);
     } catch (debugError) {
-      Logger.warn("⚠️ Failed to write debug file:", debugError);
+      Logger.warn("⚠️ Failed to write debug file:", {
+        error:
+          debugError instanceof Error ? debugError.message : String(debugError),
+      });
     }
 
     const elements: TextractElement[] = [];
@@ -1076,7 +1097,12 @@ async function coreTextractProcessing(
           })
         );
       } catch (cleanupError) {
-        Logger.warn("⚠️ Failed to cleanup S3 file:", cleanupError);
+        Logger.warn("⚠️ Failed to cleanup S3 file:", {
+          error:
+            cleanupError instanceof Error
+              ? cleanupError.message
+              : String(cleanupError),
+        });
       }
     }
 
@@ -1109,10 +1135,10 @@ async function coreTextractProcessing(
         Logger.info(`   - ${type}: ${count}`);
       });
     } catch (debugError) {
-      Logger.warn(
-        "⚠️ Failed to write processed elements debug file:",
-        debugError
-      );
+      Logger.warn("⚠️ Failed to write processed elements debug file:", {
+        error:
+          debugError instanceof Error ? debugError.message : String(debugError),
+      });
     }
 
     return elements;
@@ -1127,7 +1153,12 @@ async function coreTextractProcessing(
           })
         );
       } catch (cleanupError) {
-        Logger.warn("⚠️ Failed to cleanup S3 file after error:", cleanupError);
+        Logger.warn("⚠️ Failed to cleanup S3 file after error:", {
+          error:
+            cleanupError instanceof Error
+              ? cleanupError.message
+              : String(cleanupError),
+        });
       }
     }
 
@@ -1143,7 +1174,12 @@ async function coreTextractProcessing(
       try {
         return await splitAndProcessPdf(pdfBuffer, pdfSize, textractMaxSize);
       } catch (splitError) {
-        Logger.warn("❌ PDF splitting also failed:", splitError);
+        Logger.warn("❌ PDF splitting also failed:", {
+          error:
+            splitError instanceof Error
+              ? splitError.message
+              : String(splitError),
+        });
         // Both S3 and splitting failed - throw original error
         throw error;
       }
@@ -1538,7 +1574,9 @@ async function extractFigureFromElement(
 
     return null;
   } catch (error) {
-    Logger.info(`❌ Error extracting ${semanticLabel}:`, error);
+    Logger.info(`❌ Error extracting ${semanticLabel}:`, {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return null;
   }
 }
@@ -1852,11 +1890,14 @@ export async function extractPdfWithOpenAI(pdfBuffer: Buffer): Promise<{
     // Check PDF header
     const pdfHeader = pdfBuffer.slice(0, 8).toString();
     if (!pdfHeader.startsWith("%PDF")) {
-      Logger.error(`❌ Invalid PDF header: "${pdfHeader}"`);
-      Logger.error(
-        `❌ First 50 bytes: ${pdfBuffer.slice(0, 50).toString("hex")}`
+      const error = new Error(
+        `Invalid PDF: header is "${pdfHeader}", expected "%PDF"`
       );
-      throw new Error(`Invalid PDF: header is "${pdfHeader}", expected "%PDF"`);
+      Logger.error(`❌ Invalid PDF header`, error, {
+        pdfHeader,
+        first50Bytes: pdfBuffer.slice(0, 50).toString("hex"),
+      });
+      throw error;
     }
 
     Logger.info(`✅ Valid PDF detected (version: ${pdfHeader})`);
@@ -1907,31 +1948,15 @@ CRITICAL:
 
       Logger.info("✅ Anthropic API call successful");
     } catch (anthropicError: any) {
-      Logger.error("❌ Anthropic API call failed with detailed context:");
-      Logger.error(`   PDF size: ${pdfBuffer.length} bytes`);
-      Logger.error(`   PDF header: ${pdfHeader}`);
-      Logger.error(`   Model: claude-3-5-sonnet-20241022`);
-      Logger.error(`   Error type: ${anthropicError.constructor.name}`);
-      Logger.error(`   Status code: ${anthropicError.status || "N/A"}`);
-      Logger.error(`   Error message: ${anthropicError.message}`);
-
-      if (anthropicError.headers) {
-        Logger.error(`   Response headers:`, anthropicError.headers);
-      }
-
-      if (anthropicError.status === 500) {
-        Logger.error(
-          "   ⚠️ Internal server error from Anthropic - this may indicate:"
-        );
-        Logger.error("      - Corrupted or malformed PDF content");
-        Logger.error(
-          "      - PDF preprocessing failure (compression/conversion)"
-        );
-        Logger.error(
-          "      - Content that triggers Anthropic's internal filters"
-        );
-        Logger.error("      - Temporary service issues on Anthropic's side");
-      }
+      Logger.error("❌ Anthropic API call failed", anthropicError, {
+        pdfSize: pdfBuffer.length,
+        pdfHeader,
+        model: "claude-3-5-sonnet-20241022",
+        errorType: anthropicError.constructor.name,
+        statusCode: anthropicError.status || "N/A",
+        headers: anthropicError.headers,
+        is500Error: anthropicError.status === 500,
+      });
 
       throw anthropicError;
     }
@@ -2005,7 +2030,9 @@ CRITICAL:
             } catch (error) {
               Logger.warn(
                 "⚠️ LLM selection failed, falling back to traditional semantic mapping:",
-                error
+                {
+                  error: error instanceof Error ? error.message : String(error),
+                }
               );
               semanticMappings = createSemanticMappings(rawAdobeElements);
               Logger.info(
@@ -2039,7 +2066,12 @@ CRITICAL:
         } catch (figureError) {
           Logger.info(
             "⚠️ Image extraction failed, keeping metadata-only figures:",
-            figureError
+            {
+              error:
+                figureError instanceof Error
+                  ? figureError.message
+                  : String(figureError),
+            }
           );
           // figuresWithImages already contains metadata-only figures, so no need to recreate
         }

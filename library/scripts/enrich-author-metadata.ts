@@ -52,8 +52,16 @@ async function calculateAuthorStats(authorId: string): Promise<{
         select: {
           stars: true,
           tags: true,
-          institutions: true,
           updatedAt: true,
+          paperInstitutions: {
+            select: {
+              institution: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
         },
       },
     },
@@ -80,8 +88,10 @@ async function calculateAuthorStats(authorId: string): Promise<{
   const institutions = new Set<string>();
 
   authorPapers.forEach((pa) => {
-    pa.paper.tags.forEach((tag) => categories.add(tag));
-    pa.paper.institutions.forEach((inst) => institutions.add(inst));
+    pa.paper.tags.forEach((tag: string) => categories.add(tag));
+    pa.paper.paperInstitutions.forEach((pi) =>
+      institutions.add(pi.institution.name)
+    );
   });
 
   // Find most recent activity
