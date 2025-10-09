@@ -126,59 +126,51 @@ export const MentionInput: React.FC<MentionInputProps> = ({
 
   // Handle keyboard navigation in suggestions
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    // Handle Enter key - check if we're in a mention context
-    if (e.key === "Enter") {
-      // If suggestions are showing, complete the selected suggestion
-      if (showSuggestions && suggestions.length > 0) {
-        e.preventDefault();
-        if (selectedIndex >= 0 && selectedIndex < suggestions.length) {
-          selectSuggestion(suggestions[selectedIndex]);
-        }
-        return; // Don't call external handler
-      }
-
-      // If we're in a mention but suggestions haven't loaded yet, prevent default
-      // and wait for suggestions to load
-      if (currentMention && currentMention.match.startsWith("@")) {
-        e.preventDefault();
-        return; // Don't call external handler
-      }
-    }
-
-    // Handle Tab key for mention completion
-    if (e.key === "Tab" && showSuggestions && suggestions.length > 0) {
-      e.preventDefault();
-      if (selectedIndex >= 0 && selectedIndex < suggestions.length) {
-        selectSuggestion(suggestions[selectedIndex]);
-      }
-      return; // Don't call external handler
-    }
-
-    // Handle navigation keys when suggestions are showing
+    // If suggestions are showing, handle special keys
     if (showSuggestions && suggestions.length > 0) {
       switch (e.key) {
+        case "Enter":
+          e.preventDefault();
+          e.stopPropagation();
+          if (selectedIndex >= 0 && selectedIndex < suggestions.length) {
+            selectSuggestion(suggestions[selectedIndex]);
+          }
+          return;
+
+        case "Tab":
+          e.preventDefault();
+          e.stopPropagation();
+          if (selectedIndex >= 0 && selectedIndex < suggestions.length) {
+            selectSuggestion(suggestions[selectedIndex]);
+          }
+          return;
+
         case "ArrowDown":
           e.preventDefault();
+          e.stopPropagation();
           setSelectedIndex((prev) =>
             prev < suggestions.length - 1 ? prev + 1 : 0
           );
-          return; // Don't call external handler
+          return;
 
         case "ArrowUp":
           e.preventDefault();
+          e.stopPropagation();
           setSelectedIndex((prev) =>
             prev > 0 ? prev - 1 : suggestions.length - 1
           );
-          return; // Don't call external handler
+          return;
 
         case "Escape":
+          e.preventDefault();
+          e.stopPropagation();
           setShowSuggestions(false);
           setSuggestions([]);
-          return; // Don't call external handler
+          return;
       }
     }
 
-    // For all other keys, call the external handler if it exists
+    // For all other cases, call the external handler if it exists
     if (externalOnKeyDown) {
       externalOnKeyDown(e);
     }
@@ -186,26 +178,30 @@ export const MentionInput: React.FC<MentionInputProps> = ({
 
   // Select a suggestion and replace the mention
   const selectSuggestion = (suggestion: MentionSuggestion) => {
-    if (!currentMention || !textareaRef.current) return;
+    if (!currentMention) {
+      return;
+    }
 
     const beforeMention = value.slice(0, currentMention.start);
     const afterMention = value.slice(currentMention.end);
     const newValue = beforeMention + suggestion.value + " " + afterMention;
 
+    // Update the value first
     onChange(newValue);
 
-    // Set cursor position after the inserted mention
+    // Reset state before cursor positioning
+    setShowSuggestions(false);
+    setSuggestions([]);
+    setCurrentMention(null);
+
+    // Set cursor position after the inserted mention (with longer delay to ensure render)
     const newCursorPos = currentMention.start + suggestion.value.length + 1;
     setTimeout(() => {
       if (textareaRef.current) {
         textareaRef.current.focus();
         textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
       }
-    }, 0);
-
-    setShowSuggestions(false);
-    setSuggestions([]);
-    setCurrentMention(null);
+    }, 10); // Increased delay
   };
 
   // Close suggestions when clicking outside
