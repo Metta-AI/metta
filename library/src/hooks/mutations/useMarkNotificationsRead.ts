@@ -13,17 +13,7 @@ export function useMarkNotificationsRead() {
 
   return useMutation({
     mutationFn: async (input: MarkNotificationsReadInput) => {
-      const formData = new FormData();
-      if (input.notificationIds) {
-        formData.append(
-          "notificationIds",
-          JSON.stringify(input.notificationIds)
-        );
-      }
-      if (input.markAllRead !== undefined) {
-        formData.append("markAllRead", input.markAllRead.toString());
-      }
-      return await markNotificationsReadAction(formData);
+      return await markNotificationsReadAction(input);
     },
     onSuccess: () => {
       // Invalidate notifications queries to refetch

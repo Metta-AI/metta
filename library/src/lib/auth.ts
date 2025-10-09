@@ -5,7 +5,7 @@ import NextAuth, { NextAuthConfig, NextAuthResult, Session } from "next-auth";
 import { Provider } from "next-auth/providers";
 import Google from "next-auth/providers/google";
 import { redirect } from "next/navigation";
-import type { Adapter } from "next-auth/adapters";
+import type { Adapter, AdapterSession } from "next-auth/adapters";
 
 import { prisma } from "./db/prisma";
 import { config } from "./config";
@@ -20,9 +20,12 @@ function createSafeAdapter(): Adapter {
 
   return {
     ...baseAdapter,
-    async deleteSession(sessionToken: string) {
+    async deleteSession(
+      sessionToken: string
+    ): Promise<AdapterSession | null | undefined> {
       try {
-        return await baseAdapter.deleteSession!(sessionToken);
+        const result = await baseAdapter.deleteSession!(sessionToken);
+        return result === undefined ? null : result;
       } catch (error: any) {
         // Ignore "record not found" errors when deleting sessions
         if (error?.code === "P2025") {

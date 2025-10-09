@@ -305,7 +305,6 @@ async function importPapers(papers: PaperData[]): Promise<void> {
           source: paper.source,
           externalId: paper.externalId,
           tags: paper.tags,
-          institutions: [], // No institution data from Asana for now
         },
       });
 

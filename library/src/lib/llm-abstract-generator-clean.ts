@@ -53,7 +53,7 @@ export async function generateLLMAbstract(
     try {
       Logger.info(
         "🤖 Generating enhanced abstract with OpenAI + Adobe for paper:",
-        paperTitle
+        { paperTitle }
       );
       return await generateEnhancedAbstractWithOpenAI(
         pdfUrl,
@@ -61,15 +61,14 @@ export async function generateLLMAbstract(
         pdfBuffer
       );
     } catch (error) {
-      Logger.warn(
-        "⚠️ Enhanced Anthropic generation failed:",
-        error instanceof Error ? error.message : String(error)
-      );
+      Logger.warn("⚠️ Enhanced Anthropic generation failed:", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
   // Fallback to basic structure
-  Logger.info("🔄 Using basic fallback for paper:", paperTitle);
+  Logger.info("🔄 Using basic fallback for paper:", { paperTitle });
   return {
     title: paperTitle,
     shortExplanation: "Enhanced abstract generation not available.",

@@ -311,8 +311,6 @@ export const PostPage: FC<{
                       currentUser={currentUser}
                       isCommentsExpanded={expandedPostId === post.id}
                       onCommentToggle={() => handleCommentToggle(post.id)}
-                      onPostSelect={() => handlePostSelect(post)}
-                      isSelected={isSelected}
                       highlightedCommentId={
                         isTargetPost ? highlightedCommentId : null
                       }
