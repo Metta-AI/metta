@@ -5,10 +5,11 @@
 from collections.abc import Callable
 
 import torch
+from torch.amp import custom_bwd, custom_fwd
+
 from cortex.kernels.triton.mlstm.torch.bw import mlstm_chunkwise_bw
 from cortex.kernels.triton.mlstm.torch.fw import mlstm_chunkwise_fw
 from cortex.kernels.triton.mlstm.utils import contiguous, int_or_none, tensor_or_none
-from torch.amp import custom_bwd, custom_fwd
 
 
 ## PyTorch Autograd Function - Boilerplate

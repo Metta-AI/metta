@@ -1,13 +1,14 @@
 from typing import Optional
 
 import torch
+from torch.amp import custom_bwd, custom_fwd
+
 from cortex.kernels.triton.slstm.triton_fused.slstm_bw import (
     backward_sequence as slstm_backward_sequence,
 )
 from cortex.kernels.triton.slstm.triton_fused.slstm_fw import (
     forward_sequence as slstm_forward_sequence,
 )
-from torch.amp import custom_bwd, custom_fwd
 
 
 def _rnn_fwbw_generator(autocast_kernel_dtype: torch.dtype) -> torch.autograd.Function:

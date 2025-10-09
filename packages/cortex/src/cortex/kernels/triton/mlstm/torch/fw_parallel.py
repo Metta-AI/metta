@@ -5,6 +5,7 @@ import os
 
 import torch
 import triton
+
 from cortex.kernels.triton.mlstm.torch.chunkwise_gates import compute_chunkwise_log_gates_vecB
 from cortex.kernels.triton.mlstm.triton import mlstm_chunkwise__parallel_fw_Hintra_kernel
 from cortex.kernels.triton.mlstm.triton.kernel_param_heuristics import get_head_dim_block_size
