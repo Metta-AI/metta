@@ -88,10 +88,28 @@ class BatchedSyncedOptimizingScheduler:
         config: BatchedSyncedSchedulerConfig,
         state: SchedulerState | None = None,
     ):
-        from metta.sweep.optimizer.protein import ProteinOptimizer
-
         self.config = config
-        self.optimizer = ProteinOptimizer(config.protein_config)
+
+        # Default to Protein; allow optional Nevergrad via duck-typing on config
+        optimizer = None
+        try:
+            nevergrad_config = getattr(config, "nevergrad_config", None)
+            optimizer_type = getattr(config, "optimizer_type", None)
+            if nevergrad_config is not None or optimizer_type == "nevergrad":
+                from metta.sweep.optimizer.nevergrad import NevergradOptimizer
+
+                if nevergrad_config is None:
+                    raise ValueError("optimizer_type=nevergrad requires nevergrad_config on scheduler config")
+                optimizer = NevergradOptimizer(nevergrad_config)
+        except Exception as e:
+            logger.debug(f"[BatchedSyncedOptimizingScheduler] Nevergrad init skipped: {e}\n")
+
+        if optimizer is None:
+            from metta.sweep.optimizer.protein import ProteinOptimizer
+
+            optimizer = ProteinOptimizer(config.protein_config)
+
+        self.optimizer = optimizer
         self.state = state or SchedulerState()
         self._state_initialized = False  # Track if we've initialized state from runs
         logger.info(
