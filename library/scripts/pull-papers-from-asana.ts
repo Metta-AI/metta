@@ -9,6 +9,7 @@
 
 import { PrismaClient } from "@prisma/client";
 import * as dotenv from "dotenv";
+import { fetchArxivPaper } from "./fetch-arxiv-paper";
 
 // Load environment variables (load .env first, then .env.local for overrides)
 dotenv.config({ path: ".env", quiet: true });
@@ -48,6 +49,7 @@ interface PaperData {
   source: string;
   externalId?: string;
   tags: string[];
+  authors: string[];
   asanaId: string;
   asanaUrl: string;
 }
@@ -141,6 +143,16 @@ async function extractPaperData(task: AsanaTask): Promise<PaperData | null> {
   let paperLink: string | undefined;
   let arxivId: string | undefined;
   let customAbstract: string | undefined;
+  let authorsText: string | undefined;
+
+  // Debug: Log all custom fields (disabled by default, uncomment to debug)
+  // if (task.custom_fields && task.custom_fields.length > 0) {
+  //   console.log(`\n🔍 Custom fields for "${title}":`);
+  //   task.custom_fields.forEach((field) => {
+  //     const value = field.text_value || field.enum_value?.name;
+  //     console.log(`   - ${field.name}: ${value || "(empty)"}`);
+  //   });
+  // }
 
   for (const field of task.custom_fields || []) {
     const value = field.text_value || field.enum_value?.name;
@@ -162,6 +174,12 @@ async function extractPaperData(task: AsanaTask): Promise<PaperData | null> {
       field.name.toLowerCase().includes("abstract")
     ) {
       customAbstract = value;
+    } else if (
+      field.name.toLowerCase().includes("author") ||
+      field.name.toLowerCase().includes("researcher")
+    ) {
+      authorsText = value;
+      console.log(`   ✅ Found authors field: "${field.name}" = "${value}"`);
     }
   }
 
@@ -227,9 +245,42 @@ async function extractPaperData(task: AsanaTask): Promise<PaperData | null> {
     }
   }
 
-  // Debug: Log tasks with tags
+  // Parse authors from text field (comma-separated, semicolon-separated, or newline-separated)
+  let authors: string[] = [];
+  if (authorsText) {
+    // Split by common separators and clean up
+    const authorList = authorsText
+      .split(/[,;\n]/)
+      .map((author) => author.trim())
+      .filter((author) => author.length > 0);
+    authors.push(...authorList);
+  }
+
+  // If no authors found and this is an arXiv paper, fetch from arXiv API
+  if (authors.length === 0 && source === "arxiv" && externalId) {
+    try {
+      console.log(`   🔍 Fetching authors from arXiv for: ${title}`);
+      const arxivData = await fetchArxivPaper(externalId);
+      authors = arxivData.authors;
+      // Also update abstract if not present
+      if (!abstract && arxivData.abstract) {
+        abstract = arxivData.abstract;
+      }
+      console.log(`   ✅ Found ${authors.length} authors from arXiv`);
+    } catch (error) {
+      console.log(
+        `   ⚠️ Could not fetch arXiv data:`,
+        error instanceof Error ? error.message : String(error)
+      );
+    }
+  }
+
+  // Debug: Log tasks with tags and authors
   if (tags.length > 0) {
     console.log(`📋 Task "${title}" has category tags: ${tags.join(", ")}`);
+  }
+  if (authors.length > 0) {
+    console.log(`👥 Task "${title}" has authors: ${authors.join(", ")}`);
   }
 
   return {
@@ -239,9 +290,67 @@ async function extractPaperData(task: AsanaTask): Promise<PaperData | null> {
     source,
     externalId,
     tags,
+    authors,
     asanaId: task.gid,
     asanaUrl: task.permalink_url,
   };
+}
+
+/**
+ * Find or create an author by name
+ */
+async function findOrCreateAuthor(name: string): Promise<string> {
+  const trimmedName = name.trim();
+
+  // Check if author already exists
+  let author = await prisma.author.findUnique({
+    where: { name: trimmedName },
+  });
+
+  // Create author if not found
+  if (!author) {
+    author = await prisma.author.create({
+      data: {
+        name: trimmedName,
+      },
+    });
+    console.log(`      👤 Created new author: ${trimmedName}`);
+  }
+
+  return author.id;
+}
+
+/**
+ * Link authors to a paper
+ */
+async function linkAuthorsToPaper(
+  paperId: string,
+  authorNames: string[]
+): Promise<void> {
+  if (authorNames.length === 0) return;
+
+  for (const authorName of authorNames) {
+    try {
+      const authorId = await findOrCreateAuthor(authorName);
+
+      // Create paper-author relationship (skip if already exists)
+      await prisma.paperAuthor.upsert({
+        where: {
+          paperId_authorId: {
+            paperId,
+            authorId,
+          },
+        },
+        create: {
+          paperId,
+          authorId,
+        },
+        update: {}, // No updates needed if already exists
+      });
+    } catch (error) {
+      console.error(`      ⚠️ Error linking author "${authorName}":`, error);
+    }
+  }
 }
 
 /**
@@ -253,6 +362,7 @@ async function importPapers(papers: PaperData[]): Promise<void> {
   let imported = 0;
   let skipped = 0;
   let errors = 0;
+  let authorsCreated = 0;
 
   for (const paper of papers) {
     try {
@@ -269,6 +379,11 @@ async function importPapers(papers: PaperData[]): Promise<void> {
           id: true,
           title: true,
           tags: true,
+          paperAuthors: {
+            include: {
+              author: true,
+            },
+          },
         },
       });
 
@@ -287,17 +402,22 @@ async function importPapers(papers: PaperData[]): Promise<void> {
 
           console.log(`   🔄 Updated tags for existing paper: ${paper.title}`);
           console.log(`      New tags: [${paper.tags.join(", ")}]`);
-        } else {
-          console.log(
-            `   ⏭️  Skipping existing paper (tags unchanged): ${paper.title}`
-          );
         }
+
+        // Link authors if they're missing
+        if (paper.authors.length > 0 && existing.paperAuthors.length === 0) {
+          console.log(`   👥 Adding authors to existing paper: ${paper.title}`);
+          await linkAuthorsToPaper(existing.id, paper.authors);
+        } else {
+          console.log(`   ⏭️  Skipping existing paper: ${paper.title}`);
+        }
+
         skipped++;
         continue;
       }
 
       // Create the paper
-      await prisma.paper.create({
+      const newPaper = await prisma.paper.create({
         data: {
           title: paper.title,
           abstract: paper.abstract,
@@ -308,7 +428,16 @@ async function importPapers(papers: PaperData[]): Promise<void> {
         },
       });
 
+      // Link authors to the new paper
+      if (paper.authors.length > 0) {
+        await linkAuthorsToPaper(newPaper.id, paper.authors);
+        authorsCreated += paper.authors.length;
+      }
+
       console.log(`   ✅ Imported: ${paper.title}`);
+      if (paper.authors.length > 0) {
+        console.log(`      👥 Linked ${paper.authors.length} author(s)`);
+      }
       imported++;
     } catch (error) {
       console.error(`   ❌ Error importing "${paper.title}":`, error);
@@ -320,6 +449,7 @@ async function importPapers(papers: PaperData[]): Promise<void> {
   console.log(`   - Imported: ${imported}`);
   console.log(`   - Skipped: ${skipped}`);
   console.log(`   - Errors: ${errors}`);
+  console.log(`   - Author relationships created: ${authorsCreated}`);
 }
 
 /**
