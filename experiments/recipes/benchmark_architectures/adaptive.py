@@ -105,13 +105,12 @@ class BenchmarkArchScheduler(ExperimentScheduler):
                             recipe_module=module,
                             train_entrypoint=self.config.train_entrypoint,
                             stats_server_uri=PROD_STATS_SERVER_URI,
-                            gpus=self.config.gpus,
-                            nodes=self.nodes.nodes,
+                            gpus=4,
+                            nodes=4,
                             train_overrides={
                                 "trainer.total_timesteps": self.config.total_timesteps,
                                 "arch_type": arch_type,
                             },
-                            gpus=
                         )
                         job.metadata["benchmark/arch"] = arch_type
                         job.metadata["benchmark/seed"] = f"{seed:02d}"
