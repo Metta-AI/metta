@@ -25,38 +25,50 @@ export default function InstitutionOverlay({
     "overview"
   );
 
-  // Fetch institution data if not provided - React Query handles caching and loading
-  const shouldFetch =
-    institution.papers.length === 0 && institution.authors.length === 0;
+  // Always fetch fresh institution data from API
+  // React Query handles caching, so this won't cause unnecessary requests
   const { data: fetchedData, isLoading: loading } = useInstitution(
     institution.name,
     {
-      enabled: shouldFetch,
+      enabled: true,
     }
   );
 
-  // Use fetched data if available, otherwise use provided data
+  // Prefer fetched data, fall back to provided data if API hasn't loaded yet
   const institutionPapers = fetchedData?.recentPapers || institution.papers;
   const institutionAuthors = fetchedData?.authors || institution.authors;
 
   const handleOpenPaper = (paper: any) => {
-    // Only open paper if we have full PaperWithUserContext data
-    if ("isStarredByCurrentUser" in paper) {
-      openPaper(
-        paper,
-        [],
-        [],
-        () => {
-          /** noop for institution context */
-        },
-        () => {
-          /** noop for institution context */
-        }
-      );
-    } else {
-      // Paper data from API doesn't have full context, skip for now
-      console.log("Paper click disabled - limited data from API");
-    }
+    // Convert to PaperWithUserContext format
+    const paperWithContext: PaperWithUserContext = {
+      id: paper.id,
+      title: paper.title,
+      abstract: paper.abstract || null,
+      authors: paper.authors || [],
+      institutions: paper.institutions || [],
+      tags: paper.tags || [],
+      link: paper.link || null,
+      source: paper.source || null,
+      externalId: paper.externalId || null,
+      stars: paper.stars || 0,
+      starred: paper.starred || false,
+      createdAt: paper.createdAt ? new Date(paper.createdAt) : new Date(),
+      updatedAt: paper.updatedAt ? new Date(paper.updatedAt) : new Date(),
+      isStarredByCurrentUser: paper.isStarredByCurrentUser || false,
+      isQueuedByCurrentUser: paper.isQueuedByCurrentUser || false,
+    };
+
+    openPaper(
+      paperWithContext,
+      [],
+      [],
+      () => {
+        /** noop for institution context */
+      },
+      () => {
+        /** noop for institution context */
+      }
+    );
   };
 
   const handleOpenAuthor = (author: AuthorDTO) => {
