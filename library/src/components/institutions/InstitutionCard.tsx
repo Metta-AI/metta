@@ -94,7 +94,7 @@ export function InstitutionCard<TInstitution extends InstitutionCardData>({
           onClick?.(institution);
         }
       }}
-      className="group border-muted focus-visible:ring-primary flex h-full flex-col shadow-sm transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:outline-none"
+      className="group border-muted focus-visible:ring-primary flex h-full flex-col shadow-sm transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:outline-none cursor-pointer"
     >
       <CardHeader className="flex flex-row items-start justify-between gap-4">
         <div className="flex items-start gap-3">
