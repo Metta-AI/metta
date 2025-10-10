@@ -252,7 +252,9 @@ class MambaBackboneComponent(nn.Module):
         else:
             env_ids = training_env_ids.reshape(-1).to(device=device, dtype=torch.long)
 
-        if tt == 1:
+        use_streaming_path = not self.training and tt == 1
+
+        if use_streaming_path:
             outputs = []
             positions = torch.zeros(batch, dtype=torch.long, device=device)
             resets_step = (
@@ -293,7 +295,12 @@ class MambaBackboneComponent(nn.Module):
             td.set("transformer_position", positions)
             return td
 
-        # training path – no caching; reset existing caches to avoid stale state
+        # Batched path (training or evaluation with longer sequences)
+        for env_id in env_ids.detach().cpu().tolist():
+            state = self._env_states.get(int(env_id))
+            if state is not None:
+                state.reset()
+
         seq = tokens.reshape(batch * tt, tokens_per_step, -1)
         hidden = self._run_wrapper(
             seq,
@@ -303,11 +310,6 @@ class MambaBackboneComponent(nn.Module):
         hidden = self.norm(self.dropout(hidden))
         pooled = self._pool(hidden)
         td.set(self.out_key, pooled)
-
-        for env_id in env_ids.tolist():
-            state = self._env_states.get(env_id)
-            if state is not None:
-                state.reset()
 
         return td
 
