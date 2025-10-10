@@ -974,9 +974,9 @@ export function EvalTasks({ repo }: Props) {
                         )}
                       </td>
                       <td style={{ padding: '12px' }}>
-                        {task.attributes?.log_path ? (
+                        {task.attributes?.output_log_path ? (
                           <a
-                            href={task.attributes.log_path}
+                            href={repo.getTaskLogUrl(task.id, 'output')}
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}

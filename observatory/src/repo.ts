@@ -322,7 +322,7 @@ export interface Repo {
   getEvalTasks(): Promise<EvalTask[]>
   getEvalTasksPaginated(page: number, pageSize: number, filters: TaskFilters): Promise<PaginatedEvalTasksResponse>
   getEvalTask(taskId: string): Promise<EvalTask>
-  getTaskLogUrl(taskId: string, logType: 'stdout' | 'stderr'): string
+  getTaskLogUrl(taskId: string, logType: 'stdout' | 'stderr' | 'output'): string
   retryEvalTask(taskId: string): Promise<void>
 
   // Policy methods

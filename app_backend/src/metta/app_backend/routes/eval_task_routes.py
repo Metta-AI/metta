@@ -355,13 +355,13 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
 
         Args:
             task_id: The UUID of the task
-            log_type: Either "stdout" or "stderr"
+            log_type: Either "stdout" or "stderr" or "output"
 
         Returns:
             StreamingResponse with the log file content as text/plain
         """
-        if log_type not in ("stdout", "stderr"):
-            raise HTTPException(status_code=400, detail="log_type must be 'stdout' or 'stderr'")
+        if log_type not in ("stdout", "stderr", "output"):
+            raise HTTPException(status_code=400, detail="log_type must be 'stdout' or 'stderr' or 'output'")
 
         # Get the task to retrieve the log path from attributes
         task = await stats_repo.get_task_by_id(task_id)

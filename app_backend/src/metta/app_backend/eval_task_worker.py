@@ -232,7 +232,7 @@ class EvalTaskWorker:
                         attributes=remove_none_values(
                             {
                                 f"error_reason_{self._assignee}": error_reason,
-                                "log_path": log_path,
+                                "output_log_path": log_path,
                             }
                         ),
                     )

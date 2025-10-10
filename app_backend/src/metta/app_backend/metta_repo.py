@@ -1674,7 +1674,7 @@ class MettaRepo:
                 attributes_field = """
                     jsonb_build_object(
                         'git_hash', et.attributes->>'git_hash',
-                        'log_path', et.attributes->>'log_path',
+                        'output_log_path', et.attributes->>'output_log_path',
                         'stderr_log_path', et.attributes->>'stderr_log_path',
                         'stdout_log_path', et.attributes->>'stdout_log_path',
                         'details', et.attributes->'details'
