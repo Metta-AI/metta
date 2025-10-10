@@ -213,15 +213,15 @@ map_data: |-
 char_to_name_map:
   "#": wall
   ".": empty
-  "O": altar
-  "G": generator
-  "+": wall
-  "C": chest
-  "S": special
-  "c": converter
-  "o": altar
+  "O": oxygen_extractor
+  "G": germanium_extractor
+  "+": charger
+  "C": carbon_extractor
+  "S": silicon_extractor
+  "c": carbon_ex_dep
+  "o": oxygen_ex_dep
   "@": agent.agent
-  "&": altar
-  "=": wall
-  "g": generator
-  "s": swappable_wall
+  "&": assembler
+  "=": chest
+  "g": germanium_ex_dep
+  "s": silicon_ex_dep

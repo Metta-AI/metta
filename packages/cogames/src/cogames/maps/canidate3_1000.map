@@ -1014,4 +1014,4 @@ char_to_name_map:
   "#": wall
   ".": empty
   "@": agent.agent
-  "&": altar
+  "&": assembler

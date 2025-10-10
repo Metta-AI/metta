@@ -4,39 +4,10 @@
 import argparse
 from pathlib import Path
 
-DEFAULT_CHAR_TO_NAME = {
-    "#": "wall",  # Default barrier in legacy ASCII layouts (tests/mapgen/scenes/fixtures/test.map).
-    ".": "empty",  # Open floor shared by navigation maps and encoding.json.
-    "@": "agent.agent",  # Single-agent spawn kept for compatibility with early tests.
-    "p": "agent.prey",  # Prey glyph mirrored in gridworks/src/lib/encoding.json.
-    "P": "agent.predator",  # Predator partner for the 'p' tile.
-    "_": "altar",  # Altars in training facility fixtures under packages/cogames/.
-    "c": "converter",  # Converter stations defined in machina/training facility maps.
-    "C": "chest",  # Storage chests from the same object-use map legends.
-    "Z": "assembler",  # Legacy assembler symbol retained for older clients.
-    "1": "agent.team_1",  # Team-coloured agent used by rendering/miniscope tooling.
-    "2": "agent.team_2",  # Team-coloured agent used by rendering/miniscope tooling.
-    "3": "agent.team_3",  # Team-coloured agent used by rendering/miniscope tooling.
-    "4": "agent.team_4",  # Team-coloured agent used by rendering/miniscope tooling.
-    "m": "mine_red",  # Mines referenced in tests/mapgen/utils/test_storable_map.py.
-    "n": "generator_red",  # Generator paired with the mine in the same fixtures.
-    "S": "special",  # Special markers appearing in canidate*_stations maps.
-    "s": "swappable_wall",  # Swappable wall sections in cave_base_50 and machina maps.
-    "&": "altar",  # Alternate altar rune from the canidate map set.
-    "+": "wall",  # Extra wall glyph in the canidate station maps.
-    "O": "altar",  # Capital O altar pads in the canidate station layouts.
-    "B": "wall",  # Additional wall rune from training_facility_clipped.map.
-    "o": "altar",  # Lowercase altar indicator from machina/cave_base maps.
-    "G": "generator",  # Generator pads in the canidate station maps.
-    "N": "generator",  # Generator rune in training_facility_clipped.map.
-    "g": "generator",  # Generator variant seen in machina/cave_base maps.
-    "=": "wall",  # Decorative wall strip in the canidate station layouts.
-    "D": "door",  # Door tile used in cave_base_50 and training_facility_clipped maps.
-    "H": "wall",  # Supplemental wall rune from training_facility_clipped map exports.
-    "T": "wall",  # Supplemental wall rune from training_facility_clipped map exports.
-    "F": "wall",  # Supplemental wall rune from training_facility_clipped map exports.
-    "R": "wall",  # Supplemental wall rune from training_facility_clipped map exports.
-}
+from cogames.cogs_vs_clips.missions import _get_default_map_objects
+from mettagrid.mapgen.utils.ascii_grid import (
+    DEFAULT_CHAR_TO_NAME as ASCII_GRID_DEFAULT_CHAR_TO_NAME,
+)
 
 LEGEND_PREFIX = "#:"
 LEGEND_HEADER = "map legend:"
@@ -46,6 +17,29 @@ DEFAULT_DIRECTORIES = (
     Path("packages/mettagrid/configs/maps"),
     Path("packages/cogames/src/cogames/maps"),
 )
+DEFAULT_TYPE_LINE = "type: mettagrid.map_builder.ascii.AsciiMapBuilder"
+ASCII_GRID_LEGEND_KEY = "ascii_grid"
+COGS_VS_CLIPS_LEGEND_KEY = "cogs_vs_clips"
+COGS_VS_CLIPS_PATH_MARKER = Path("packages/cogames")
+
+
+def _build_cogs_vs_clips_char_to_name() -> dict[str, str]:
+    mapping: dict[str, str] = {}
+    for config in _get_default_map_objects().values():
+        token = getattr(config, "map_char", None)
+        name = getattr(config, "name", None)
+        if not token or not name:
+            continue
+        if len(token) != 1:
+            raise ValueError(f"Mission legend token must be single character, got {token!r}")
+        mapping[token] = name
+    return mapping
+
+
+LEGEND_PRESETS: dict[str, dict[str, str]] = {
+    ASCII_GRID_LEGEND_KEY: dict(ASCII_GRID_DEFAULT_CHAR_TO_NAME),
+    COGS_VS_CLIPS_LEGEND_KEY: _build_cogs_vs_clips_char_to_name(),
+}
 
 
 def split_legacy_sections(text: str) -> tuple[list[str], list[str]]:
@@ -103,6 +97,89 @@ def normalize_map_lines(map_lines: list[str]) -> list[str]:
     return lines
 
 
+def parse_yaml_map(text: str) -> tuple[str, list[str], dict[str, str]]:
+    type_line = DEFAULT_TYPE_LINE
+    legend: dict[str, str] = {}
+    map_lines: list[str] = []
+    section: str | None = None
+
+    for raw_line in text.splitlines():
+        line = raw_line.rstrip("\n")
+        stripped = line.strip()
+
+        if not stripped and section != "map":
+            continue
+
+        if stripped.startswith("type:") and section is None:
+            type_line = stripped
+            continue
+
+        if stripped.startswith(f"{MAP_KEY}:"):
+            section = "map"
+            continue
+
+        if stripped.startswith(f"{LEGEND_KEY}:"):
+            section = "legend"
+            continue
+
+        if section == "map":
+            if line.startswith("  "):
+                map_lines.append(line[2:])
+                continue
+            section = None
+
+        if section == "legend":
+            if not line.startswith("  "):
+                section = None
+                continue
+
+            entry = line.strip()
+            if not entry:
+                continue
+
+            token_part, _, value_part = entry.partition(":")
+            token = token_part.strip().strip("'\"")
+            value = value_part.strip()
+            if len(token) != 1:
+                raise ValueError(f"Legend token must be a single character: {line!r}")
+            legend[token] = value
+
+    if not map_lines:
+        raise ValueError("YAML map missing map_data section")
+
+    return type_line, map_lines, legend
+
+
+def legend_from_key(key: str) -> dict[str, str]:
+    try:
+        base = LEGEND_PRESETS[key]
+    except KeyError as exc:
+        raise KeyError(f"Unknown legend preset: {key}") from exc
+    return dict(base)
+
+
+def infer_default_legend_key(path: Path) -> str:
+    try:
+        relative = path.relative_to(Path.cwd())
+    except ValueError:
+        relative = path
+
+    marker_posix = COGS_VS_CLIPS_PATH_MARKER.as_posix()
+
+    def matches(candidate: Path) -> bool:
+        candidate_posix = candidate.as_posix()
+        if candidate_posix == marker_posix:
+            return True
+        if candidate_posix.startswith(f"{marker_posix}/"):
+            return True
+        return f"/{marker_posix}/" in candidate_posix
+
+    if matches(relative) or matches(path):
+        return COGS_VS_CLIPS_LEGEND_KEY
+
+    return ASCII_GRID_LEGEND_KEY
+
+
 def ordered_chars(map_lines: list[str]) -> list[str]:
     seen: set[str] = set()
     ordered: list[str] = []
@@ -114,31 +191,44 @@ def ordered_chars(map_lines: list[str]) -> list[str]:
     return ordered
 
 
-def make_yaml(map_lines: list[str], legend: dict[str, str]) -> str:
+def make_yaml(map_lines: list[str], legend: dict[str, str], type_line: str = DEFAULT_TYPE_LINE) -> str:
     map_block = "\n".join(f"  {line}" for line in map_lines)
     legend_block = "\n".join(f'  "{token}": {name}' for token, name in legend.items())
-    return f"type: mettagrid.map_builder.ascii.AsciiMapBuilder\n{MAP_KEY}: |-\n{map_block}\n{LEGEND_KEY}:\n{legend_block}\n"
+    return f"{type_line}\n{MAP_KEY}: |-\n{map_block}\n{LEGEND_KEY}:\n{legend_block}\n"
+
+
+def load_map_components(raw_text: str) -> tuple[str, list[str], dict[str, str]]:
+    if f"{MAP_KEY}:" in raw_text:
+        return parse_yaml_map(raw_text)
+
+    legend_lines, map_section = split_legacy_sections(raw_text)
+    legend_map = parse_legend(legend_lines)
+    return DEFAULT_TYPE_LINE, map_section, legend_map
 
 
 def convert_map(path: Path, dry_run: bool) -> bool:
     raw_text = path.read_text(encoding="utf-8")
-    legend_lines, map_section = split_legacy_sections(raw_text)
+    type_line, map_section, legend_map = load_map_components(raw_text)
     map_lines = normalize_map_lines(map_section)
-    legend_map = parse_legend(legend_lines)
+    default_legend_key = infer_default_legend_key(path)
+    default_legend = legend_from_key(default_legend_key)
 
     final_legend: dict[str, str] = {}
     for char in ordered_chars(map_lines):
-        if char in legend_map:
-            value = legend_map[char]
-        elif char in DEFAULT_CHAR_TO_NAME:
-            value = DEFAULT_CHAR_TO_NAME[char]
+        default_value = default_legend.get(char)
+        map_value = legend_map.get(char)
+
+        if default_value is not None:
+            value = default_value
+        elif map_value is not None:
+            value = map_value
         else:
             raise ValueError(f"Missing legend entry for character {char!r} in {path}")
         if any(ch.isspace() for ch in value):
             raise ValueError(f"Legend value contains whitespace for {char!r} in {path}")
         final_legend[char] = value
 
-    yaml_text = make_yaml(map_lines, final_legend)
+    yaml_text = make_yaml(map_lines, final_legend, type_line)
 
     if dry_run:
         if raw_text != yaml_text:

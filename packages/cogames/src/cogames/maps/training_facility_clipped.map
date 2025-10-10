@@ -34,15 +34,15 @@ map_data: |-
 char_to_name_map:
   "#": wall
   ".": empty
-  "B": wall
-  "P": agent.predator
-  "N": generator
-  "+": wall
+  "B": clipped_carbon_extractor
+  "P": chest_oxygen
+  "N": clipped_oxygen_extractor
+  "+": charger
   "@": agent.agent
-  "D": door
-  "&": altar
-  "T": wall
-  "=": wall
-  "F": wall
-  "H": wall
-  "R": wall
+  "D": chest_carbon
+  "&": assembler
+  "T": chest_silicon
+  "=": chest
+  "F": clipped_germanium_extractor
+  "H": chest_germanium
+  "R": clipped_silicon_extractor

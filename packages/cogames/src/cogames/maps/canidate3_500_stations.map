@@ -513,11 +513,11 @@ map_data: |-
 char_to_name_map:
   "#": wall
   ".": empty
-  "S": special
-  "+": wall
-  "C": chest
-  "O": altar
-  "G": generator
+  "S": silicon_extractor
+  "+": charger
+  "C": carbon_extractor
+  "O": oxygen_extractor
+  "G": germanium_extractor
   "@": agent.agent
-  "&": altar
-  "=": wall
+  "&": assembler
+  "=": chest

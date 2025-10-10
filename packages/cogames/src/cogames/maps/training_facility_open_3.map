@@ -24,11 +24,11 @@ map_data: |-
 char_to_name_map:
   "#": wall
   ".": empty
-  "c": converter
+  "c": carbon_ex_dep
   "@": agent.agent
-  "o": altar
-  "+": wall
-  "&": altar
-  "=": wall
-  "g": generator
-  "s": swappable_wall
+  "o": oxygen_ex_dep
+  "+": charger
+  "&": assembler
+  "=": chest
+  "g": germanium_ex_dep
+  "s": silicon_ex_dep
