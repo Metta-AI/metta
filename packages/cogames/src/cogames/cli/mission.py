@@ -41,7 +41,9 @@ def get_mission_names_and_configs(
         console.print("[yellow]Supply at least one: --mission / -m[/yellow]\n")
     else:
         try:
-            not_deduped = [mission for missions in missions_arg for mission in get_missions(missions)]
+            not_deduped = [
+                mission for missions in missions_arg for mission in _get_missions_by_possible_wildcard(missions)
+            ]
             name_set: set[str] = set()
             deduped = []
             for m, c in not_deduped:
@@ -59,7 +61,7 @@ def get_mission_names_and_configs(
     raise typer.Exit(0)
 
 
-def get_missions(mission_arg: str) -> list[tuple[str, MettaGridConfig]]:
+def _get_missions_by_possible_wildcard(mission_arg: str) -> list[tuple[str, MettaGridConfig]]:
     if "*" in mission_arg:
         # Convert shell-style wildcard to regex pattern
         regex_pattern = mission_arg.replace(".", "\\.").replace("*", ".*")
