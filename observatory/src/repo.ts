@@ -322,6 +322,7 @@ export interface Repo {
   getEvalTasks(): Promise<EvalTask[]>
   getEvalTasksPaginated(page: number, pageSize: number, filters: TaskFilters): Promise<PaginatedEvalTasksResponse>
   getTaskLogUrl(taskId: string, logType: 'stdout' | 'stderr'): string
+  retryEvalTask(taskId: string): Promise<void>
 
   // Policy methods
   getPolicyIds(policyNames: string[]): Promise<Record<string, string>>
@@ -527,6 +528,19 @@ export class ServerRepo implements Repo {
 
   getTaskLogUrl(taskId: string, logType: 'stdout' | 'stderr'): string {
     return `${this.baseUrl}/tasks/${taskId}/logs/${logType}`
+  }
+
+  async retryEvalTask(taskId: string): Promise<void> {
+    await this.apiCallWithBody<void>('/tasks/claimed/update', {
+      updates: {
+        [taskId]: {
+          status: 'unprocessed',
+          clear_assignee: true,
+          attributes: {},
+        },
+      },
+      require_assignee: null,
+    })
   }
 
   async getPolicyIds(policyNames: string[]): Promise<Record<string, string>> {

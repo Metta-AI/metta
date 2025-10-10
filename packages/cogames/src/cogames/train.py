@@ -9,11 +9,15 @@ from typing import TYPE_CHECKING, Any, Callable, Optional
 import psutil
 from rich.console import Console
 
-from cogames.aws_storage import maybe_upload_checkpoint
-from cogames.policy import TrainablePolicy
+from cogames.cli.mission import MAP_MISSION_DELIMITER
+from cogames.policy.interfaces import TrainablePolicy
 from cogames.policy.signal_handler import DeferSigintContextManager
-from cogames.policy.utils import get_policy_class_shorthand, resolve_policy_data_path
-from cogames.utils import initialize_or_load_policy
+from cogames.policy.utils import (
+    find_policy_checkpoints,
+    get_policy_class_shorthand,
+    initialize_or_load_policy,
+    resolve_policy_data_path,
+)
 from mettagrid import MettaGridConfig, MettaGridEnv
 from pufferlib import pufferl
 from pufferlib import vector as pvector
@@ -35,7 +39,7 @@ def train(
     seed: int,
     batch_size: int,
     minibatch_size: int,
-    game_name: Optional[str] = None,
+    missions_arg: Optional[list[str]] = None,
     vector_num_envs: Optional[int] = None,
     vector_batch_size: Optional[int] = None,
     vector_num_workers: Optional[int] = None,
@@ -128,12 +132,7 @@ def train(
     resolved_initial_weights = initial_weights_path
     if initial_weights_path is not None:
         try:
-            resolved_initial_weights = resolve_policy_data_path(
-                initial_weights_path,
-                policy_class_path=policy_class_path,
-                game_name=game_name,
-                console=console,
-            )
+            resolved_initial_weights = resolve_policy_data_path(initial_weights_path)
         except FileNotFoundError as exc:
             console.print(f"[yellow]Initial weights not found ({exc}). Continuing with random initialization.[/yellow]")
             resolved_initial_weights = None
@@ -296,17 +295,7 @@ def train(
             )
             console.print("=" * 80, style="bold green")
 
-        # Try to find the final checkpoint
-        # PufferLib saves checkpoints in data_dir/env_name/
-        checkpoint_dir = checkpoints_path / env_name
-        checkpoints = []
-
-        if checkpoint_dir.exists():
-            checkpoints = sorted(checkpoint_dir.glob("*.pt"))
-
-        # Fallback: also check directly in checkpoints_path
-        if not checkpoints and checkpoints_path.exists():
-            checkpoints = sorted(checkpoints_path.glob("*.pt"))
+        checkpoints = find_policy_checkpoints(checkpoints_path, env_name)
 
         if checkpoints and not training_diverged:
             final_checkpoint = checkpoints[-1]
@@ -320,35 +309,25 @@ def train(
                     style="yellow",
                 )
 
-            maybe_upload_checkpoint(
-                final_checkpoint=final_checkpoint,
-                game_name=game_name,
-                policy_class_path=policy_class_path,
-                console=console,
-            )
-
             # Show shorthand version if available
             policy_shorthand = get_policy_class_shorthand(policy_class_path)
 
             # Build the command with game name if provided
-            game_arg = f" {game_name}" if game_name else ""
-            policy_arg = policy_shorthand if policy_shorthand else policy_class_path
+            policy_class_arg = policy_shorthand if policy_shorthand else policy_class_path
+            policy_arg = f"{policy_class_arg}{MAP_MISSION_DELIMITER}{final_checkpoint}"
+
+            first_mission = missions_arg[0] if missions_arg else "training_facility_1"
+            all_missions = " ".join(f"-m {m}" for m in (missions_arg or ["training_facility_1"]))
 
             console.print()
             console.print("To continue training this policy:", style="bold")
-            console.print(
-                f"  [yellow]cogames train{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
-            )
+            console.print(f"  [yellow]cogames train {all_missions} {policy_arg}[/yellow]")
             console.print()
             console.print("To play with this policy:", style="bold")
-            console.print(
-                f"  [yellow]cogames play{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
-            )
+            console.print(f"  [yellow]cogames play -m {first_mission} -p {policy_arg}[/yellow]")
             console.print()
             console.print("To evaluate this policy:", style="bold")
-            console.print(
-                f"  [yellow]cogames eval{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
-            )
+            console.print(f"  [yellow]cogames eval -m {first_mission} -p {policy_arg}[/yellow]")
         elif checkpoints and training_diverged:
             console.print()
             console.print(f"[yellow]Found {len(checkpoints)} checkpoint(s). The most recent may be corrupted.[/yellow]")

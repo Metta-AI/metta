@@ -29,7 +29,7 @@ def test_missions_list_command():
 def test_missions_describe_command():
     """Test that 'cogames missions <mission_name>' describes a specific mission."""
     result = subprocess.run(
-        ["uv", "run", "cogames", "missions", "training_facility_1"],
+        ["uv", "run", "cogames", "missions", "-m", "training_facility_1"],
         cwd=cogames_root,
         capture_output=True,
         text=True,
@@ -49,15 +49,18 @@ def test_missions_describe_command():
 def test_missions_nonexistent_mission():
     """Test that describing a nonexistent game returns an error."""
     result = subprocess.run(
-        ["uv", "run", "cogames", "missions", "nonexistent_mission"],
+        ["uv", "run", "cogames", "missions", "-m", "nonexistent_mission"],
         cwd=cogames_root,
         capture_output=True,
         text=True,
         timeout=30,
     )
 
-    assert result.returncode == 1, "Command should fail for nonexistent mission"
-    assert "Error:" in result.stdout or "Error:" in result.stderr
+    assert result.returncode == 0, "Command should succeed but show error message for nonexistent mission"
+    combined_output = (result.stdout + result.stderr).lower()
+    assert "could not find" in combined_output or "not found" in combined_output, (
+        f"Expected 'not found' message, got:\n{result.stdout}\n{result.stderr}"
+    )
 
 
 def test_missions_help_command():
@@ -74,7 +77,7 @@ def test_missions_help_command():
 
     # Check that help text contains expected commands
     output = result.stdout
-    assert "games" in output
+    assert "missions" in output
     assert "play" in output
     assert "train" in output
 
@@ -92,6 +95,7 @@ def test_make_mission_command():
                 "run",
                 "cogames",
                 "make-mission",
+                "-m",
                 "random",
                 "--width",
                 "100",
@@ -109,7 +113,7 @@ def test_make_mission_command():
 
         # Run games command with the generated file
         result = subprocess.run(
-            ["uv", "run", "cogames", "missions", str(tmp_path)],
+            ["uv", "run", "cogames", "missions", "-m", str(tmp_path)],
             cwd=cogames_root,
             capture_output=True,
             text=True,
