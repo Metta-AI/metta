@@ -13,6 +13,13 @@ import pytest
 import torch
 from cortex.kernels.pytorch.rtu_stream import rtu_sequence_pytorch_streaming_diag
 
+try:  # Triton availability for GPU tests
+    from cortex.kernels.triton import rtu_stream_diag_triton as _rtu_triton_stream
+
+    _HAS_TRITON = True
+except Exception:  # pragma: no cover
+    _HAS_TRITON = False
+
 
 def _build_params(D: int, H: int, *, device, dtype):
     torch.manual_seed(1234)
@@ -97,7 +104,7 @@ def test_streaming_forward_matches_whole(with_resets: bool) -> None:
     dtype = torch.float32
 
     B, T, D, H = 2, 11, 6, 6
-    x = torch.randn(B, T, D, device=device, dtype=dtype)
+    x = torch.randn(B, T, D, device=device, dtype=dtype).requires_grad_(True)
     resets = None
     if with_resets:
         resets = torch.rand(B, T, device=device) < 0.3
@@ -226,7 +233,7 @@ def test_streaming_vs_whole_grad_parity_with_resets() -> None:
     dtype = torch.float64
 
     B, T, D, H = 2, 12, 6, 6
-    x = torch.randn(B, T, D, device=device, dtype=dtype)
+    x = torch.randn(B, T, D, device=device, dtype=dtype).requires_grad_(True)
     # Deterministic resets with multiple segments across T
     resets = torch.zeros(B, T, dtype=torch.bool, device=device)
     resets[:, 0] = False
@@ -298,3 +305,369 @@ def test_streaming_vs_whole_grad_parity_with_resets() -> None:
         assert torch.allclose(gw, gs, rtol=rtol, atol=atol), (
             f"Autograd parity failed for {name}: max diff={(gw - gs).abs().max().item():.3e}"
         )
+
+
+@pytest.mark.skipif(not _HAS_TRITON or not torch.cuda.is_available(), reason="Triton+CUDA required")
+@pytest.mark.parametrize("with_resets", [False, True])
+def test_triton_streaming_diag_forward_and_grad_parity(with_resets: bool) -> None:
+    """Compare Triton streaming diagonal kernel to PyTorch reference.
+
+    Checks both forward outputs and parameter/input gradients for a single
+    full-sequence pass (no chunking), with and without resets.
+    """
+    torch.manual_seed(101)
+    device = torch.device("cuda")
+    dtype = torch.float32
+
+    B, T, H = 2, 17, 8
+    D = H
+    x = torch.randn(B, T, D, device=device, dtype=dtype).requires_grad_(True)
+    resets = None
+    if with_resets:
+        resets = torch.rand(B, T, device=device) < 0.2
+
+    # Build shared initial params, then clone for each backend to keep graphs independent
+    nu0, th0, w10, w20 = _build_params(D, H, device=device, dtype=dtype)
+
+    # PyTorch reference params
+    nu_pt = nu0.clone().detach().requires_grad_(True)
+    th_pt = th0.clone().detach().requires_grad_(True)
+    w1_pt = w10.clone().detach().requires_grad_(True)
+    w2_pt = w20.clone().detach().requires_grad_(True)
+
+    # Triton params (copies)
+    nu_tr = nu0.clone().detach().requires_grad_(True)
+    th_tr = th0.clone().detach().requires_grad_(True)
+    w1_tr = w10.clone().detach().requires_grad_(True)
+    w2_tr = w20.clone().detach().requires_grad_(True)
+
+    # Initial states
+    hc1_0 = torch.zeros(B, H, device=device, dtype=dtype)
+    hc2_0 = torch.zeros(B, H, device=device, dtype=dtype)
+
+    # Forward (PyTorch)
+    y_pt, (h1_pt, h2_pt), tr_out_pt = rtu_sequence_pytorch_streaming_diag(
+        x_btd=x,
+        nu_log=nu_pt,
+        theta_log=th_pt,
+        w1=w1_pt,
+        w2=w2_pt,
+        activation_name="SiLU",
+        hc1_init_bh=hc1_0,
+        hc2_init_bh=hc2_0,
+        trace_in=None,
+        resets_bt=resets,
+    )
+    loss_pt = (y_pt**2).mean()
+    g_pt = torch.autograd.grad(loss_pt, (nu_pt, th_pt, w1_pt, w2_pt, x), retain_graph=True)
+
+    # Forward (Triton)
+    y_tr, (h1_tr, h2_tr), tr_out_tr = _rtu_triton_stream(
+        x_btd=x,
+        nu_log=nu_tr,
+        theta_log=th_tr,
+        w1=w1_tr,
+        w2=w2_tr,
+        activation_name="SiLU",
+        hc1_init_bh=hc1_0,
+        hc2_init_bh=hc2_0,
+        trace_in=None,
+        resets_bt=resets,
+    )
+    loss_tr = (y_tr**2).mean()
+    g_tr = torch.autograd.grad(loss_tr, (nu_tr, th_tr, w1_tr, w2_tr, x), retain_graph=True)
+
+    # Forward parity
+    assert y_pt.shape == y_tr.shape
+    assert torch.allclose(y_pt, y_tr, rtol=2e-5, atol=1e-6), (
+        f"forward y mismatch: {(y_pt - y_tr).abs().max().item():.3e}"
+    )
+    assert torch.allclose(h1_pt, h1_tr, rtol=2e-5, atol=1e-6)
+    assert torch.allclose(h2_pt, h2_tr, rtol=2e-5, atol=1e-6)
+
+    # We validate forward parity and gradients; traces are internal and may differ
+    # slightly under segmented-parallel accumulation with resets.
+
+    # Gradient parity
+    names = ["nu_log", "theta_log", "w1", "w2", "x"]
+    tolerances = {
+        "nu_log": (5e-4, 2e-5),
+        "theta_log": (5e-4, 2e-5),
+        "w1": (5e-5, 1e-6),
+        "w2": (5e-5, 1e-6),
+        "x": (5e-5, 1e-6),
+    }
+    for gp, gt, nm in zip(g_pt, g_tr, names, strict=False):
+        rtol, atol = tolerances[nm]
+        assert torch.allclose(gp, gt, rtol=rtol, atol=atol), (
+            f"grad {nm} mismatch: max diff={(gp - gt).abs().max().item():.3e}"
+        )
+
+
+@pytest.mark.skipif(not _HAS_TRITON or not torch.cuda.is_available(), reason="Triton+CUDA required")
+@pytest.mark.parametrize("with_resets", [False, True])
+def test_triton_streaming_diag_chunked_forward_and_grad_parity(with_resets: bool) -> None:
+    """Parity when processing the sequence in chunks (Triton vs whole PyTorch).
+
+    - Runs Triton streaming kernel in multiple chunks with detach between chunks.
+    - Compares forward outputs and parameter/input gradients against the
+      whole‑sequence PyTorch streaming reference.
+    """
+    torch.manual_seed(303)
+    device = torch.device("cuda")
+    dtype = torch.float32
+
+    B, T, H = 2, 23, 8
+    D = H
+    x = torch.randn(B, T, D, device=device, dtype=dtype).requires_grad_(True)
+    if with_resets:
+        # Two masks: random and deterministic (to hit chunk boundaries)
+        resets_rand = (torch.rand(B, T, device=device) < 0.25)
+        resets_det = torch.zeros(B, T, dtype=torch.bool, device=device)
+        for b in range(B):
+            resets_det[b, 0] = False
+            for t_idx in (4, 7, 15):
+                if t_idx < T:
+                    resets_det[b, t_idx] = True
+        resets_list = [resets_rand, resets_det]
+    else:
+        resets_list = [None]
+
+    # Shared base params then cloned per backend
+    nu0, th0, w10, w20 = _build_params(D, H, device=device, dtype=dtype)
+
+    for resets in resets_list:
+        # Whole‑sequence PyTorch reference (per reset mask)
+        nu_pt = nu0.clone().detach().requires_grad_(True)
+        th_pt = th0.clone().detach().requires_grad_(True)
+        w1_pt = w10.clone().detach().requires_grad_(True)
+        w2_pt = w20.clone().detach().requires_grad_(True)
+        hc1_0 = torch.zeros(B, H, device=device, dtype=dtype)
+        hc2_0 = torch.zeros(B, H, device=device, dtype=dtype)
+        y_ref, (_, _), _ = rtu_sequence_pytorch_streaming_diag(
+            x_btd=x,
+            nu_log=nu_pt,
+            theta_log=th_pt,
+            w1=w1_pt,
+            w2=w2_pt,
+            activation_name="SiLU",
+            hc1_init_bh=hc1_0,
+            hc2_init_bh=hc2_0,
+            trace_in=None,
+            resets_bt=resets,
+        )
+        loss_ref = (y_ref**2).mean()
+        g_ref = torch.autograd.grad(loss_ref, (nu_pt, th_pt, w1_pt, w2_pt, x), retain_graph=True)
+
+        # Triton streaming in chunks (per reset mask)
+        nu_tr = nu0.clone().detach().requires_grad_(True)
+        th_tr = th0.clone().detach().requires_grad_(True)
+        w1_tr = w10.clone().detach().requires_grad_(True)
+        w2_tr = w20.clone().detach().requires_grad_(True)
+
+        def run_triton_chunks(
+            chunk_sizes: tuple[int, ...],
+            nu_tr=nu_tr,
+            th_tr=th_tr,
+            w1_tr=w1_tr,
+            w2_tr=w2_tr,
+            resets=resets,
+        ) -> tuple[torch.Tensor, tuple[torch.Tensor, ...]]:
+            hc1 = torch.zeros(B, H, device=device, dtype=dtype)
+            hc2 = torch.zeros(B, H, device=device, dtype=dtype)
+            trace = None
+            ys = []
+            t0 = 0
+            for sz in chunk_sizes:
+                t1 = min(T, t0 + sz)
+                if t1 <= t0:
+                    break
+                y_blk, (hc1, hc2), trace = _rtu_triton_stream(
+                    x_btd=x[:, t0:t1, :],
+                    nu_log=nu_tr,
+                    theta_log=th_tr,
+                    w1=w1_tr,
+                    w2=w2_tr,
+                    activation_name="SiLU",
+                    hc1_init_bh=hc1,
+                    hc2_init_bh=hc2,
+                    trace_in=trace,
+                    resets_bt=None if resets is None else resets[:, t0:t1],
+                )
+                ys.append(y_blk)
+                hc1, hc2 = hc1.detach(), hc2.detach()
+                trace = tuple(t.detach() for t in trace) if trace is not None else None
+                t0 = t1
+                if t0 >= T:
+                    break
+            return torch.cat(ys, dim=1), (nu_tr, th_tr, w1_tr, w2_tr, x)
+
+        for chunks in [(T,), (7, 8, 16), (5, 9, 9)]:
+            y_t, params_t = run_triton_chunks(chunks)
+            # Forward parity
+            assert y_ref.shape == y_t.shape
+            assert torch.allclose(y_ref, y_t, rtol=2e-5, atol=1e-6), (
+                f"forward mismatch chunks={chunks}, max diff={(y_ref - y_t).abs().max().item():.3e}"
+            )
+
+            # Gradient parity
+            loss_t = (y_t**2).mean()
+            g_t = torch.autograd.grad(loss_t, params_t, retain_graph=True, allow_unused=False)
+            names = ["nu_log", "theta_log", "w1", "w2", "x"]
+            if with_resets:
+                tolerances = {
+                    "nu_log": (2e-2, 4e-3),
+                    "theta_log": (2e-2, 4e-3),
+                    "w1": (3e-2, 8e-3),
+                    "w2": (3e-2, 8e-3),
+                    "x": (3e-2, 8e-3),
+                }
+            else:
+                tolerances = {
+                    "nu_log": (5e-4, 2e-5),
+                    "theta_log": (5e-4, 2e-5),
+                    "w1": (5e-5, 1e-6),
+                    "w2": (5e-5, 1e-6),
+                    # Slightly looser absolute tol for x grads due to chunk boundaries
+                    "x": (1e-4, 6e-4),
+                }
+            for gp, gt, nm in zip(g_ref, g_t, names, strict=False):
+                rtol, atol = tolerances[nm]
+                assert torch.allclose(gp, gt, rtol=rtol, atol=atol), (
+                f"grad {nm} mismatch (chunks={chunks}): max diff={(gp - gt).abs().max().item():.3e}"
+            )
+
+
+@pytest.mark.skipif(not _HAS_TRITON or not torch.cuda.is_available(), reason="Triton+CUDA required")
+@pytest.mark.parametrize("with_resets", [False, True])
+def test_triton_streaming_diag_whole_vs_chunked_parity(with_resets: bool) -> None:
+    """Triton-vs-Triton parity: whole sequence vs chunked streaming.
+
+    Validates that running the Triton streaming kernel on the full sequence in
+    one call matches running it in multiple chunks with detach+trace carry
+    between chunks. Checks both forward outputs and gradients for
+    nu_log, theta_log, w1, w2, and x. Runs with and without resets, including
+    a deterministic pattern that hits chunk boundaries.
+    """
+    torch.manual_seed(808)
+    device = torch.device("cuda")
+    dtype = torch.float32
+
+    B, T, H = 2, 29, 8
+    D = H
+    x = torch.randn(B, T, D, device=device, dtype=dtype).requires_grad_(True)
+
+    if with_resets:
+        resets_rand = (torch.rand(B, T, device=device) < 0.2)
+        resets_det = torch.zeros(B, T, dtype=torch.bool, device=device)
+        for b in range(B):
+            resets_det[b, 0] = False
+            for t_idx in (5, 11, 17, 23):
+                if t_idx < T:
+                    resets_det[b, t_idx] = True
+        resets_list = [resets_rand, resets_det]
+    else:
+        resets_list = [None]
+
+    # Base parameters
+    nu0, th0, w10, w20 = _build_params(D, H, device=device, dtype=dtype)
+
+    for resets in resets_list:
+        # Whole-sequence parameters (Triton)
+        nu_wh = nu0.clone().detach().requires_grad_(True)
+        th_wh = th0.clone().detach().requires_grad_(True)
+        w1_wh = w10.clone().detach().requires_grad_(True)
+        w2_wh = w20.clone().detach().requires_grad_(True)
+        hc1_0 = torch.zeros(B, H, device=device, dtype=dtype)
+        hc2_0 = torch.zeros(B, H, device=device, dtype=dtype)
+        y_wh, (_, _), _ = _rtu_triton_stream(
+            x_btd=x,
+            nu_log=nu_wh,
+            theta_log=th_wh,
+            w1=w1_wh,
+            w2=w2_wh,
+            activation_name="SiLU",
+            hc1_init_bh=hc1_0,
+            hc2_init_bh=hc2_0,
+            trace_in=None,
+            resets_bt=resets,
+        )
+        loss_wh = (y_wh**2).mean()
+        g_wh = torch.autograd.grad(loss_wh, (nu_wh, th_wh, w1_wh, w2_wh, x), retain_graph=True)
+
+        # Chunked parameters (Triton)
+        nu_ch = nu0.clone().detach().requires_grad_(True)
+        th_ch = th0.clone().detach().requires_grad_(True)
+        w1_ch = w10.clone().detach().requires_grad_(True)
+        w2_ch = w20.clone().detach().requires_grad_(True)
+
+        def run_triton_chunks(
+            chunk_sizes: tuple[int, ...],
+            nu=nu_ch,
+            th=th_ch,
+            w1=w1_ch,
+            w2=w2_ch,
+            resets_local=resets,
+        ) -> tuple[torch.Tensor, tuple[torch.Tensor, ...]]:
+            hc1 = torch.zeros(B, H, device=device, dtype=dtype)
+            hc2 = torch.zeros(B, H, device=device, dtype=dtype)
+            trace = None
+            ys = []
+            t0 = 0
+            for sz in chunk_sizes:
+                t1 = min(T, t0 + sz)
+                if t1 <= t0:
+                    break
+                y_blk, (hc1, hc2), trace = _rtu_triton_stream(
+                    x_btd=x[:, t0:t1, :],
+                    nu_log=nu,
+                    theta_log=th,
+                    w1=w1,
+                    w2=w2,
+                    activation_name="SiLU",
+                    hc1_init_bh=hc1,
+                    hc2_init_bh=hc2,
+                    trace_in=trace,
+                    resets_bt=None if resets_local is None else resets_local[:, t0:t1],
+                )
+                ys.append(y_blk)
+                hc1, hc2 = hc1.detach(), hc2.detach()
+                trace = tuple(t.detach() for t in trace) if trace is not None else None
+                t0 = t1
+                if t0 >= T:
+                    break
+            return torch.cat(ys, dim=1), (nu, th, w1, w2, x)
+
+        for chunks in [(T,), (9, 10, 10), (6, 7, 8, 8)]:
+            y_ch, params_ch = run_triton_chunks(chunks)
+            # Forward parity
+            assert y_wh.shape == y_ch.shape
+            assert torch.allclose(y_wh, y_ch, rtol=2e-5, atol=1e-6), (
+                f"forward mismatch (chunks={chunks}), max diff={(y_wh - y_ch).abs().max().item():.3e}"
+            )
+
+            # Gradient parity
+            loss_ch = (y_ch**2).mean()
+            g_ch = torch.autograd.grad(loss_ch, params_ch, retain_graph=True, allow_unused=False)
+            names = ["nu_log", "theta_log", "w1", "w2", "x"]
+            if with_resets:
+                tolerances = {
+                    "nu_log": (2e-2, 4e-3),
+                    "theta_log": (2e-2, 4e-3),
+                    "w1": (3e-2, 8e-3),
+                    "w2": (3e-2, 8e-3),
+                    "x": (3e-2, 8e-3),
+                }
+            else:
+                tolerances = {
+                    "nu_log": (5e-4, 2e-5),
+                    "theta_log": (5e-4, 2e-5),
+                    "w1": (5e-5, 1e-6),
+                    "w2": (5e-5, 1e-6),
+                    "x": (1e-4, 6e-4),
+                }
+            for gw, gc, nm in zip(g_wh, g_ch, names, strict=False):
+                rtol, atol = tolerances[nm]
+                assert torch.allclose(gw, gc, rtol=rtol, atol=atol), (
+                    f"grad {nm} mismatch (chunks={chunks}): max diff={(gw - gc).abs().max().item():.3e}"
+                )
