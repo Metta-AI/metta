@@ -2,14 +2,11 @@
 """
 Doxascope Analysis Utilities
 
-Functions to load trained runs, produce predictions, and generate plots.
-Includes per-timestep accuracy heatmaps where color = accuracy and
-cell annotation = sample count for that relative location.
 """
 
 import json
 from pathlib import Path
-from typing import List, Tuple
+from typing import List
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -53,33 +50,6 @@ def load_data_and_model(
         test_results = json.load(f)
 
     return model, X_test, y_test, history, test_results
-
-
-def get_predictions(model: DoxascopeNet, X_test: np.ndarray, device: str):
-    """Generates per-head predictions and probabilities for X_test."""
-    X_test_tensor = torch.from_numpy(X_test).to(device)
-    with torch.no_grad():
-        outputs = model(X_test_tensor)
-    predicted_indices = [torch.argmax(o, dim=1).cpu().numpy() for o in outputs]
-    probabilities = [torch.softmax(o, dim=1).cpu().numpy() for o in outputs]
-    return predicted_indices, probabilities
-
-
-def _per_class_accuracy_and_counts(
-    y_true: np.ndarray, y_pred: np.ndarray, num_classes: int
-) -> Tuple[np.ndarray, np.ndarray]:
-    """Compute per-class accuracy and counts for a single head.
-
-    Returns:
-        acc_per_class: float array [num_classes]
-        count_per_class: int array [num_classes]
-    """
-    count_per_class = np.bincount(y_true, minlength=num_classes)
-    correct_mask = (y_true == y_pred).astype(np.int32)
-    correct_per_class = np.bincount(y_true, weights=correct_mask, minlength=num_classes)
-    with np.errstate(divide="ignore", invalid="ignore"):
-        acc_per_class = np.where(count_per_class > 0, correct_per_class / count_per_class, 0.0)
-    return acc_per_class.astype(np.float32), count_per_class.astype(np.int64)
 
 
 def compare_policies(policy_names: List[str], data_dir: Path, output_dir: Path):

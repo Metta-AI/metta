@@ -18,15 +18,10 @@ import numpy as np
 import torch
 from tensordict import TensorDict
 
-# from metta.agent.policy import Policy
-
 logger = logging.getLogger(__name__)
 
-
-class NoRecurrentStateError(Exception):
-    """Raised when Doxascope tries to log data for a policy with no recurrent state."""
-
-    pass
+# Maximum number of LSTM layers to consider when detecting shape format
+MAX_LSTM_LAYERS = 8
 
 
 # Coordinate Conversion Utilities
@@ -104,7 +99,6 @@ class DoxascopeLogger:
         self.agent_id_map: Optional[Dict[int, int]] = None
         self.agent_type_id: int = 0
         self.output_file: Optional[Path] = None
-        self._warned_multi_env_mismatch = False
 
     def configure(
         self,
@@ -145,11 +139,13 @@ class DoxascopeLogger:
     ):
         """Log memory vectors and positions for policy agents at current timestep.
 
-        Supports both single-env (env_grid_objects: Dict) and multi-env
-        (env_grid_objects: List[Dict]) cases. For multi-env collection,
-        provide agents_per_env to resolve (env_index, local_agent_id).
+        Note: Only supports single-environment logging. Multi-environment setups
+        are not currently supported.
 
         Args:
+            policy: The policy being evaluated
+            policy_idxs: Indices of agents controlled by the policy
+            env_grid_objects: Dictionary of grid objects from the environment
             tensordict: Optional TensorDict from the policy forward pass, containing
                        LSTM states and potentially agent indices.
         """
@@ -214,12 +210,12 @@ class DoxascopeLogger:
                 if lstm_h.ndim == 3:
                     d0, d1, _ = lstm_h.shape
                     # Treat as [B, L, H] if middle dim small
-                    if d1 <= 8 and d0 >= d1:
+                    if d1 <= MAX_LSTM_LAYERS and d0 >= d1:
                         last_h = lstm_h[:, -1, :]
                         last_c = lstm_c[:, -1, :]
                         memory_matrix = torch.cat([last_h, last_c], dim=1)
                     # Treat as [L, B, H] if first dim small
-                    elif d0 <= 8 and d1 >= d0:
+                    elif d0 <= MAX_LSTM_LAYERS and d1 >= d0:
                         last_h = lstm_h[-1, :, :]
                         last_c = lstm_c[-1, :, :]
                         memory_matrix = torch.cat([last_h, last_c], dim=1)
@@ -337,20 +333,11 @@ class DoxascopeLogger:
             self.enabled = False
             return
 
-        # On the first logging step, check if we have memory vectors. If not, fail.
-        if self.timestep == 2 and memory_matrix is None:
-            logger.error(
-                "Doxascope logging disabled: policy does not expose recurrent state (e.g., LSTM). "
-                "Skipping data collection for this simulation."
-            )
-            self.enabled = False
-            return
-
         # If memory vectors are still None after the first step, just skip logging
         if memory_matrix is None:
             return
 
-        # Single environment only
+        # Build agent ID mapping from grid objects
         agent_map = self._build_agent_id_map(env_grid_objects)
 
         timestep_data = {"timestep": self.timestep, "agents": []}

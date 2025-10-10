@@ -14,6 +14,8 @@ def evaluate(
 ) -> SimTool:
     """
     Run a specified number of single-episode simulations for Doxascope data collection.
+
+    Note: Uses single-environment configuration as required by doxascope logging.
     """
     # Use the arena recipe to get the base "basic" simulation config
     all_sims = arena.make_evals()

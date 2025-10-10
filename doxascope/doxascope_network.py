@@ -21,7 +21,7 @@ from torch.utils.data import DataLoader, Dataset
 from .doxascope_data import get_num_classes_for_manhattan_distance, preprocess_doxascope_data
 
 
-def get_activation_fn(name: str):
+def get_activation_fn(name: str) -> nn.Module:
     """Returns an activation function module based on its name."""
     if name == "relu":
         return nn.ReLU()
@@ -62,7 +62,6 @@ class DoxascopeNet(nn.Module):
     def __init__(
         self,
         input_dim: int,
-        output_dim: int,
         num_future_timesteps: int,
         num_past_timesteps: int,
         hidden_dim: int = 512,
@@ -75,7 +74,6 @@ class DoxascopeNet(nn.Module):
 
         self.config = {
             "input_dim": input_dim,
-            "output_dim": output_dim,
             "hidden_dim": hidden_dim,
             "dropout_rate": dropout_rate,
             "num_future_timesteps": num_future_timesteps,
@@ -267,9 +265,6 @@ class DoxascopeTrainer:
                 pass
         print(f"✅ Results saved to {output_dir}")
 
-        if training_result is None:
-            return None
-
         # Return artifacts needed for plotting
         return {
             "model": self.model,
@@ -341,7 +336,9 @@ class DoxascopeTrainer:
         return TrainingResult(history=history, best_checkpoint=checkpoint, final_val_acc=best_val_acc)
 
 
-def create_baseline_data(preprocessed_dir: Path, batch_size: int) -> tuple:
+def create_baseline_data(
+    preprocessed_dir: Path, batch_size: int
+) -> tuple[Optional[DataLoader], Optional[DataLoader], Optional[DataLoader], Optional[int]]:
     """Creates baseline data loaders by loading preprocessed data and randomizing inputs."""
     baseline_files = {
         "train": preprocessed_dir / "train_baseline.npz",
@@ -546,90 +543,3 @@ def prepare_data(
         print(f"  Test samples: {len(test_dataset)}")
 
     return train_loader, val_loader, test_loader, input_dim
-
-
-def run_training_pipeline(
-    policy_name: str,
-    output_dir: Path,
-    device: str,
-    data_loaders: tuple,
-    is_baseline: bool,
-    num_future_timesteps: int,
-    num_past_timesteps: int,
-    hidden_dim: int,
-    dropout_rate: float,
-    activation_fn: str,
-    main_net_depth: int,
-    processor_depth: int,
-    num_epochs: int,
-    learning_rate: float,
-    patience: int,
-):
-    """
-    Initializes and runs the training pipeline for either the main or baseline model.
-    """
-    train_loader, val_loader, test_loader, input_dim = data_loaders
-    if input_dim is None:
-        print("Error: input_dim is None. Cannot determine model input size.")
-        return
-
-    model_params = {
-        "input_dim": input_dim,
-        "num_future_timesteps": num_future_timesteps,
-        "num_past_timesteps": num_past_timesteps,
-        "hidden_dim": hidden_dim,
-        "dropout_rate": dropout_rate,
-        "activation_fn": activation_fn,
-        "main_net_depth": main_net_depth,
-        "processor_depth": processor_depth,
-    }
-
-    model = DoxascopeNet(**model_params).to(device)
-    trainer = DoxascopeTrainer(model, device=device)
-
-    print(f"\n--- Starting Training ({'Baseline' if is_baseline else 'Main'}) ---")
-    print(f"Model Parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad):,}")
-    training_result = trainer.train(
-        train_loader,
-        val_loader,
-        num_epochs=num_epochs,
-        lr=learning_rate,
-        patience=patience,
-    )
-
-    if training_result is None:
-        print(f"🏁 Training finished early for {'baseline' if is_baseline else 'main'} model with no improvement.")
-        return
-
-    # --- Evaluation ---
-    print("\n--- Evaluating on Test Set ---")
-    model.load_state_dict(training_result.best_checkpoint["state_dict"])
-    _, test_acc_per_step = trainer._run_epoch(test_loader, is_training=False)
-    timesteps = model.head_timesteps
-    test_acc_avg = sum(test_acc_per_step) / len(test_acc_per_step) if test_acc_per_step else 0.0
-
-    print(f"  - Average Test Accuracy: {test_acc_avg:.2f}%")
-    for step, acc in zip(timesteps, test_acc_per_step, strict=False):
-        print(f"    - Timestep {step}: {acc:.2f}%")
-
-    # --- Save Results ---
-    suffix = "_baseline" if is_baseline else ""
-    # Save training history
-    history_df = pd.DataFrame(training_result.history)
-    history_df.to_csv(output_dir / f"training_history{suffix}.csv", index=False)
-
-    # Save test results
-    test_results = {
-        "policy_name": policy_name,
-        "test_accuracy_avg": test_acc_avg,
-        "timesteps": timesteps,
-        "test_accuracy_per_step": test_acc_per_step,
-        "model_config": model_params,
-    }
-    with open(output_dir / f"test_results{suffix}.json", "w") as f:
-        json.dump(test_results, f, indent=2)
-
-    # Save the best model checkpoint
-    torch.save(training_result.best_checkpoint, output_dir / f"best_model{suffix}.pth")
-
-    print(f"✅ Results saved to {output_dir}")

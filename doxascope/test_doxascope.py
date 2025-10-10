@@ -167,7 +167,8 @@ def test_doxascope_end_to_end(doxascope_env):
 
     # --- 1. Run Training ---
     train_cmd = [
-        "doxascope.doxascope_train",
+        "doxascope.cli",
+        "train",
         policy_name,
         "--raw-data-dir",
         str(raw_data_dir),
@@ -191,61 +192,15 @@ def test_doxascope_end_to_end(doxascope_env):
     assert (run_dir / "training_history.csv").exists()
     assert (run_dir / "preprocessed_data" / "train.npz").exists()
 
-    # --- 3. Run Analysis ---
-    analyze_cmd = [
-        "doxascope.doxascope_analysis",
-        "analyze",
-        policy_name,
-        "test_run_1",
-        "--data-dir",
-        str(results_dir),
-    ]
-    run_command(analyze_cmd)
-
-    # --- 4. Verify Analysis Outputs ---
+    # --- 3. Verify Analysis Outputs (generated automatically during training) ---
     analysis_dir = run_dir / "analysis"
     assert analysis_dir.is_dir()
-    assert (analysis_dir / "multistep_accuracy.png").exists()
+    assert (analysis_dir / "multistep_accuracy_comparison.png").exists()
     assert (analysis_dir / "training_history.png").exists()
 
-    # --- 5. Run Comparison ---
-    # First, run training again to create a second run to compare with
-    run_command(train_cmd[:-2] + ["test_run_2"])
 
-    compare_cmd = [
-        "doxascope.doxascope_analysis",
-        "compare",
-        policy_name,
-        "--data-dir",
-        str(results_dir),
-    ]
-    run_command(compare_cmd)
-
-    # --- 6. Verify Comparison Outputs ---
-    policy_results_dir = results_dir / policy_name
-    assert (policy_results_dir / f"comparison_{policy_name}.png").exists()
-
-    # --- 7. Test analyzing the latest run (no run_name specified) ---
-    latest_run_analyze_cmd = [
-        "doxascope.doxascope_analysis",
-        "analyze",
-        policy_name,
-        "--data-dir",
-        str(results_dir),
-    ]
-    run_command(latest_run_analyze_cmd)
-
-    # --- 8. Verify Latest Run Analysis Outputs ---
-    # Should have analyzed test_run_2 as it is the latest
-    latest_run_dir = results_dir / policy_name / "test_run_2"
-    latest_analysis_dir = latest_run_dir / "analysis"
-    assert latest_analysis_dir.is_dir()
-    assert (latest_analysis_dir / "multistep_accuracy.png").exists()
-    assert (latest_analysis_dir / "training_history.png").exists()
-
-
-def test_logger_multi_env_alignment():
-    """Verify DoxascopeLogger logs per-agent memory aligned with the correct env/agent positions in multi-env setups."""
+def test_logger_agent_alignment():
+    """Verify DoxascopeLogger logs per-agent memory aligned with the correct agent positions."""
     import numpy as np
     import torch
 
@@ -253,25 +208,18 @@ def test_logger_multi_env_alignment():
     logger = DoxascopeLogger(enabled=True, simulation_id="simtest")
     logger.configure(policy_name="policy_a", object_type_names=["agent"])  # agent type id = 0
 
-    # Two envs, two agents per env
-    agents_per_env = 2
-    num_envs = 2
-    total_agents = agents_per_env * num_envs
+    # Single env with 2 agents
+    num_agents = 2
 
-    # Build grid_objects for each env with local agent_ids 0..agents_per_env-1
-    env0 = {
+    # Build grid_objects for env with agent_ids 0, 1
+    env_grid_objects = {
         1: {"type": 0, "agent_id": 0, "r": 0, "c": 0},
         2: {"type": 0, "agent_id": 1, "r": 0, "c": 1},
     }
-    env1 = {
-        1: {"type": 0, "agent_id": 0, "r": 10, "c": 10},
-        2: {"type": 0, "agent_id": 1, "r": 10, "c": 11},
-    }
-    env_grid_objects_list = [env0, env1]
 
     # Fake policy with LSTM buffers in components['lstm_reset'] matching [L, B, H]
     L, H = 1, 3
-    B = total_agents
+    B = num_agents
     lstm_h = torch.zeros((L, B, H), dtype=torch.float32)
     lstm_c = torch.zeros((L, B, H), dtype=torch.float32)
     # Give each agent a distinct constant pattern so we can validate alignment
@@ -292,19 +240,19 @@ def test_logger_multi_env_alignment():
 
     policy = FakePolicy({"lstm_reset": fake_lstm})
 
-    # Policy indices flattened by env then local agent: [0,1, 2,3]
-    policy_idxs = torch.tensor([0, 1, 2, 3], dtype=torch.long)
+    # Policy indices [0, 1]
+    policy_idxs = torch.tensor([0, 1], dtype=torch.long)
 
     # Log one timestep
-    logger.log_timestep(policy, policy_idxs, env_grid_objects_list, agents_per_env=agents_per_env)
+    logger.log_timestep(policy, policy_idxs, env_grid_objects)
 
     # Validate
     assert logger.data, "Logger produced no data entries"
     agents = logger.data[-1]["agents"]
-    assert len(agents) == total_agents
+    assert len(agents) == num_agents
 
-    # Expected positions by flatten order: env0:a0 -> (0,0), env0:a1 -> (0,1), env1:a0 -> (10,10), env1:a1 -> (10,11)
-    expected_positions = [(0, 0), (0, 1), (10, 10), (10, 11)]
+    # Expected positions: agent 0 -> (0,0), agent 1 -> (0,1)
+    expected_positions = [(0, 0), (0, 1)]
     for i, agent_entry in enumerate(agents):
         assert tuple(agent_entry["position"]) == expected_positions[i]
         # Memory vector expected: concat(h, c) for agent i, flattened

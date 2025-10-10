@@ -116,6 +116,9 @@ uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri=<path> doxas
 - Policy state buffers (`policy.state.lstm_h/lstm_c`)
 - Component buffers (`components['lstm_reset']`)
 
+**Important**: Doxascope currently only supports **single-environment logging**. The doxascope recipe defaults to
+single-environment evaluation for this reason. Multi-environment setups are not currently supported.
+
 Raw location and LSTM data is saved to `train_dir/doxascope/raw_data/<policy_name>/`. Run multiple simulations to
 accumulate data.
 
