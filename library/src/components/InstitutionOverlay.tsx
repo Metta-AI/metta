@@ -120,9 +120,10 @@ export default function InstitutionOverlay({
                   </h4>
                   <div className="space-y-3">
                     {institutionPapers.slice(0, 3).map((paper: any) => (
-                      <div
+                      <button
                         key={paper.id}
-                        className="block w-full rounded-md border border-gray-200 bg-white p-4"
+                        onClick={() => handleOpenPaper(paper)}
+                        className="block w-full rounded-md border border-gray-200 bg-white p-4 text-left transition-colors hover:border-blue-200 hover:bg-blue-50"
                       >
                         <div className="text-sm font-medium text-blue-700">
                           {paper.title}
@@ -131,7 +132,7 @@ export default function InstitutionOverlay({
                           {paper.authors?.map((a: any) => a.name).join(", ") ||
                             "No authors"}
                         </div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -146,9 +147,10 @@ export default function InstitutionOverlay({
                   </div>
                 )}
                 {institutionPapers.map((paper: any) => (
-                  <div
+                  <button
                     key={paper.id}
-                    className="block w-full rounded-md border border-gray-200 bg-white p-4"
+                    onClick={() => handleOpenPaper(paper)}
+                    className="block w-full rounded-md border border-gray-200 bg-white p-4 text-left transition-colors hover:border-blue-200 hover:bg-blue-50"
                   >
                     <div className="text-base font-semibold text-gray-900">
                       {paper.title}
@@ -157,7 +159,7 @@ export default function InstitutionOverlay({
                       {paper.authors?.map((a: any) => a.name).join(", ") ||
                         "No authors"}
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
