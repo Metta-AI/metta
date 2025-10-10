@@ -39,7 +39,7 @@ def train(
     seed: int,
     batch_size: int,
     minibatch_size: int,
-    game_name: Optional[str] = None,
+    missions_arg: Optional[list[str]] = None,
     vector_num_envs: Optional[int] = None,
     vector_batch_size: Optional[int] = None,
     vector_num_workers: Optional[int] = None,
@@ -132,11 +132,7 @@ def train(
     resolved_initial_weights = initial_weights_path
     if initial_weights_path is not None:
         try:
-            resolved_initial_weights = resolve_policy_data_path(
-                initial_weights_path,
-                policy_class_path=policy_class_path,
-                game_name=game_name,
-            )
+            resolved_initial_weights = resolve_policy_data_path(initial_weights_path)
         except FileNotFoundError as exc:
             console.print(f"[yellow]Initial weights not found ({exc}). Continuing with random initialization.[/yellow]")
             resolved_initial_weights = None
@@ -317,19 +313,21 @@ def train(
             policy_shorthand = get_policy_class_shorthand(policy_class_path)
 
             # Build the command with game name if provided
-            game_arg = f" {game_name}" if game_name else ""
             policy_class_arg = policy_shorthand if policy_shorthand else policy_class_path
             policy_arg = f"{policy_class_arg}{MAP_MISSION_DELIMITER}{final_checkpoint}"
 
+            first_mission = missions_arg[0] if missions_arg else "training_facility_1"
+            all_missions = " ".join(f"-m {m}" for m in (missions_arg or ["training_facility_1"]))
+
             console.print()
             console.print("To continue training this policy:", style="bold")
-            console.print(f"  [yellow]cogames train{game_arg} [/yellow]")
+            console.print(f"  [yellow]cogames train {all_missions} {policy_arg}[/yellow]")
             console.print()
             console.print("To play with this policy:", style="bold")
-            console.print(f"  [yellow]cogames play{game_arg} {policy_arg}[/yellow]")
+            console.print(f"  [yellow]cogames play -m {first_mission} -p {policy_arg}[/yellow]")
             console.print()
             console.print("To evaluate this policy:", style="bold")
-            console.print(f"  [yellow]cogames eval{game_arg} {policy_arg}[/yellow]")
+            console.print(f"  [yellow]cogames eval -m {first_mission} -p {policy_arg}[/yellow]")
         elif checkpoints and training_diverged:
             console.print()
             console.print(f"[yellow]Found {len(checkpoints)} checkpoint(s). The most recent may be corrupted.[/yellow]")
