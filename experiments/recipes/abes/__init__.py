@@ -5,6 +5,6 @@ __all__ = [
     "trxl",
     "trxl_nvidia",
     "vit",
+    "drama",
     "mamba",
-    "mamba2",
 ]
