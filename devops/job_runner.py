@@ -4,18 +4,38 @@ Provides a unified interface for running jobs locally via subprocess
 or remotely via SkyPilot, with support for both async and sync execution.
 
 Example usage:
-    # Local job
-    job = LocalJob(name="test", cmd=["pytest", "tests/"])
-    job.submit()
+    # Local job (sync)
+    job = LocalJob(name="test", cmd=["pytest", "tests/"], timeout_s=900)
     result = job.wait(stream_output=True)
+    print(f"Exit code: {result.exit_code}")
 
-    # Remote job
-    job = RemoteJob(name="train", module="recipe.train", args=["run=test"])
+    # Remote job (sync)
+    job = RemoteJob(
+        name="train",
+        module="experiments.recipes.arena.train",
+        args=["run=test", "trainer.total_timesteps=100000"],
+        timeout_s=3600,
+        base_args=["--no-spot", "--gpus=4"]
+    )
+    result = job.wait(stream_output=True)
+    print(f"Job ID: {result.job_id}, Exit code: {result.exit_code}")
+
+    # Remote job (async - poll for completion)
+    job = RemoteJob(name="train", module="experiments.recipes.arena.train", args=["run=test"])
     job.submit()
     while not job.is_complete():
-        print(job.get_logs())
+        print("Still running...")
         time.sleep(10)
     result = job.get_result()
+
+    # Resume existing remote job
+    job = RemoteJob(
+        name="train",
+        module="experiments.recipes.arena.train",
+        args=["run=test"],
+        job_id="12345"  # Existing SkyPilot job ID
+    )
+    result = job.wait(stream_output=True)
 """
 
 from __future__ import annotations
@@ -115,7 +135,11 @@ class Job(ABC):
             while not self.is_complete():
                 # Check timeout
                 if (time.time() - start_time) > self.timeout_s:
-                    # Job timed out - create timeout result
+                    # Job timed out - attempt to cancel and mark timed out
+                    try:
+                        self.cancel()
+                    except Exception:
+                        pass
                     self._result = JobResult(
                         name=self.name,
                         exit_code=124,
@@ -225,17 +249,22 @@ class LocalJob(Job):
     def _read_output(self) -> None:
         """Read available output from process."""
         if self._proc and self._proc.stdout:
-            # Read all available lines without blocking
-            import select
+            # Try non-blocking buffered read
+            try:
+                # read1() is non-blocking and available on BufferedReader
+                chunk = self._proc.stdout.read1(65536)  # type: ignore[attr-defined]
+            except (AttributeError, Exception):
+                # Fallback for systems without read1
+                import select
 
-            # Keep reading while data is available
-            while select.select([self._proc.stdout], [], [], 0)[0]:
-                line = self._proc.stdout.readline()
-                if line:
-                    self._log_file.write(line)
-                    self._log_file.flush()
+                if select.select([self._proc.stdout], [], [], 0)[0]:
+                    chunk = self._proc.stdout.read(4096)
                 else:
-                    break
+                    chunk = b""
+
+            if chunk:
+                self._log_file.write(chunk)
+                self._log_file.flush()
 
     def _drain_output(self) -> None:
         """Drain all remaining output from process."""
@@ -273,19 +302,25 @@ class LocalJob(Job):
         if self._proc and self._exit_code is None:
             print(f"Killing local job process (PID {self._proc.pid})...")
             try:
-                # Kill process group to ensure child processes are also killed
                 import signal
 
-                pgid = os.getpgid(self._proc.pid)
-                os.killpg(pgid, signal.SIGTERM)
-
-                # Give it a moment to terminate gracefully
-                try:
-                    self._proc.wait(timeout=2)
-                except subprocess.TimeoutExpired:
-                    # Force kill if still running
-                    os.killpg(pgid, signal.SIGKILL)
-                    self._proc.wait()
+                if os.name != "nt":
+                    # POSIX: kill the process group
+                    pgid = os.getpgid(self._proc.pid)
+                    os.killpg(pgid, signal.SIGTERM)
+                    try:
+                        self._proc.wait(timeout=2)
+                    except subprocess.TimeoutExpired:
+                        os.killpg(pgid, signal.SIGKILL)
+                        self._proc.wait()
+                else:
+                    # Windows: use terminate/kill
+                    self._proc.terminate()
+                    try:
+                        self._proc.wait(timeout=2)
+                    except subprocess.TimeoutExpired:
+                        self._proc.kill()
+                        self._proc.wait()
 
                 self._exit_code = -1  # Mark as cancelled
                 if hasattr(self, "_log_file") and self._log_file:
@@ -366,9 +401,13 @@ class RemoteJob(Job):
         if not self._is_resumed and (not self._launched_job or not self._launched_job.success):
             return True  # Failed to launch
 
-        # Check logs for completion marker
+        # Check logs for completion markers (multiple patterns for robustness)
         logs = self.get_logs()
-        return "Exit code:" in logs
+        return (
+            bool(re.search(r"(^|\n)Exit code:\s*-?\d+\s*$", logs))
+            or "Training complete" in logs
+            or "All tasks finished" in logs
+        )
 
     def get_logs(self) -> str:
         """Fetch latest logs from SkyPilot."""
@@ -378,11 +417,21 @@ class RemoteJob(Job):
         log_path = self._get_log_path()
 
         try:
-            logs = tail_job_log(self._job_id, lines=10000)
+            # Append only new content if possible
+            existing = log_path.read_text(errors="ignore") if log_path.exists() else ""
+            logs = tail_job_log(self._job_id, lines=10000) or ""
+
             if logs:
                 log_path.parent.mkdir(parents=True, exist_ok=True)
-                log_path.write_text(logs)
-                return logs
+                # If new logs start with existing content, just overwrite
+                # (tail_job_log returns full log, not incremental)
+                if logs.startswith(existing) or not existing:
+                    log_path.write_text(logs)
+                else:
+                    # Best effort: overwrite if source doesn't align
+                    log_path.write_text(logs)
+
+            return log_path.read_text(errors="ignore") if log_path.exists() else logs
         except Exception:
             pass
 
@@ -421,7 +470,7 @@ class RemoteJob(Job):
         return self.log_dir / f"{self.name}.{job_id_str}.log"
 
     def cancel(self) -> None:
-        """Note: Remote jobs cannot be cancelled from here.
+        """Note: Remote jobs aren't cancelled from here.
 
         Remote jobs continue running in the cloud. Use SkyPilot CLI to manage:
             sky cancel <job_id>
@@ -431,82 +480,3 @@ class RemoteJob(Job):
             print(f"    To cancel: sky cancel {self._job_id}")
         else:
             print(f"Remote job '{self.name}' was not successfully launched")
-
-
-# Backwards compatibility - keep old function-based API
-def run_local(
-    name: str,
-    cmd: list[str],
-    timeout_s: int = 900,
-    log_dir: str = "logs/local",
-    cwd: Optional[str] = None,
-    stream_output: bool = False,
-) -> JobResult:
-    """Run a command locally via subprocess (legacy API).
-
-    Args:
-        name: Job name (used for log filename)
-        cmd: Command to run
-        timeout_s: Timeout in seconds
-        log_dir: Directory to write logs
-        cwd: Working directory
-        stream_output: If True, stream output to console
-
-    Returns:
-        JobResult with exit code and logs path
-    """
-    job = LocalJob(name=name, cmd=cmd, timeout_s=timeout_s, log_dir=log_dir, cwd=cwd)
-    return job.wait(stream_output=stream_output)
-
-
-def run_remote(
-    name: str,
-    module: str,
-    args: list[str],
-    timeout_s: int = 3600,
-    log_dir: str = "logs/remote",
-    base_args: Optional[list[str]] = None,
-    skip_git_check: bool = False,
-    job_id: Optional[str] = None,
-) -> "RemoteJobLegacy":
-    """Run a job on SkyPilot (legacy API).
-
-    Returns:
-        RemoteJobLegacy that provides backwards-compatible API
-    """
-    job = RemoteJob(
-        name=name,
-        module=module,
-        args=args,
-        timeout_s=timeout_s,
-        log_dir=log_dir,
-        base_args=base_args,
-        skip_git_check=skip_git_check,
-        job_id=job_id,
-    )
-    job.submit()
-    return RemoteJobLegacy(job)
-
-
-class RemoteJobLegacy:
-    """Legacy wrapper for RemoteJob to maintain backwards compatibility."""
-
-    def __init__(self, job: RemoteJob):
-        self._job = job
-        self.name = job.name
-        self.logs_path = str(job._get_log_path())
-        self.job_id = job._job_id
-        self.exit_code: Optional[int] = None
-
-    def wait(self, timeout_s: Optional[int] = None, stream_output: bool = False) -> int:
-        """Wait for job to complete."""
-        if timeout_s:
-            self._job.timeout_s = timeout_s
-
-        result = self._job.wait(stream_output=stream_output)
-        self.exit_code = result.exit_code
-        return result.exit_code
-
-    def get_logs(self) -> str:
-        """Get current logs."""
-        return self._job.get_logs()

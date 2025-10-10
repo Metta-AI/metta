@@ -1,969 +1,69 @@
 #!/usr/bin/env -S uv run
-"""Stable Release System
+"""Stable Release System - CLI
 
-A comprehensive release validation system that runs automated tests, training validations,
-and manual checks before creating a stable release tag.
+Command-line interface for the release validation and deployment pipeline.
 
 Usage:
-  ./devops/stable/release_stable.py                    # Run full release flow
-  ./devops/stable/release_stable.py --prepare-branch   # Create staging branch
-  ./devops/stable/release_stable.py --bugs             # Check bug status
-  ./devops/stable/release_stable.py --workflow ci      # Run CI workflow (tests + linting)
-  ./devops/stable/release_stable.py --workflow train_local        # Run local smoke test
-  ./devops/stable/release_stable.py --workflow train_remote       # Run single-GPU remote training
-  ./devops/stable/release_stable.py --summary          # Show validation summary
-  ./devops/stable/release_stable.py --release          # Create release tag
+  ./devops/stable/release_stable.py                        # Run full release pipeline
+  ./devops/stable/release_stable.py all                    # Run full release pipeline (explicit)
+  ./devops/stable/release_stable.py prepare-tag            # Create staging tag
+  ./devops/stable/release_stable.py bugs                   # Check bug status
+  ./devops/stable/release_stable.py task-validation --task ci  # Run CI task
+  ./devops/stable/release_stable.py task-validation        # Run all validation tasks
+  ./devops/stable/release_stable.py summary                # Show validation summary
+  ./devops/stable/release_stable.py release                # Create release tag
+  ./devops/stable/release_stable.py announce               # Show announcement template
 
-Auto-resume:
-  By default, continues the most recent in-progress release.
-  Use --new to force start a new release.
-  Use --version X to use a specific version.
+Global options:
+  --version X           # Use specific version
+  --new                 # Force start a new release (ignore in-progress state)
 
-Workflow types:
-  ci                    # Run CI workflow (pytest with timeout detection)
-  train_local           # Run local smoke test (1000 timesteps, no thresholds)
-  train_remote          # Run remote single-GPU training (100M timesteps, SPS + wandb metrics)
-  train_remote_multigpu # Run remote multi-GPU training (2B timesteps)
-  play                  # Run interactive testing (manual verification)
-
-State management:
-  - State persisted to devops/stable/state/release_*.json
-  - Atomic file updates with locking to support concurrent workflows
-  - Failed validations can be retried
+Examples:
+  ./devops/stable/release_stable.py --new all              # Start new release and run full pipeline
+  ./devops/stable/release_stable.py --version 2025.10.09-1030 summary  # Show summary for specific version
+  ./devops/stable/release_stable.py task-validation --task ci  # Run only CI tests
 """
 
 from __future__ import annotations
 
-import argparse
-import json
-import os
-import re
+import subprocess
 import sys
-import time
-from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from enum import StrEnum
 from pathlib import Path
-from typing import Literal, Optional, Union
+from typing import Optional
 
-import wandb
+import typer
 
 import gitta as git
-from devops.job_runner import run_local, run_remote
-from metta.common.util.text_styles import bold, cyan, green, red
+from devops.stable import asana
+from devops.stable.runner import ValidationRunner
+from devops.stable.state import (
+    ReleaseState,
+    get_commit_sha,
+    get_git_log_since_stable,
+    get_most_recent_state,
+    load_state,
+    save_state,
+)
+from devops.stable.tasks import get_all_tasks
+from metta.common.util.text_styles import bold, cyan, green
 
 # ============================================================================
-# Data Models
+# Constants
 # ============================================================================
 
-Location = Literal["local", "remote"]
-Outcome = Literal["passed", "failed", "skipped", "inconclusive"]
-
-
-class WorkflowType(StrEnum):
-    """Types of workflow validations."""
-
-    CI = "ci"  # Run metta ci locally (tests + linting)
-    TRAIN_LOCAL = "train_local"  # Local smoke test with manual validation
-    TRAIN_REMOTE = "train_remote"  # Remote single-GPU training with strict thresholds
-    TRAIN_REMOTE_MULTIGPU = "train_remote_multigpu"  # Remote multi-GPU/multi-node training
-    PLAY = "play"  # Run play recipe with manual verification
-
-
-# --- Simplified acceptance rules --------------------------------------------
-# An acceptance rule is either:
-#   (key, expected)                  -> interprets as metric[key] >= expected
-#   (key, op, expected)              -> with op in {">=", ">", "<=", "<", "==", "!="}
-AcceptanceRule = Union[tuple[str, float], tuple[str, Literal[">=", ">", "<=", "<", "==", "!="], float]]
-
-
-@dataclass
-class Validation:
-    """Configuration for a validation run."""
-
-    name: str
-    workflow_type: WorkflowType
-    module: str
-    location: Location
-    args: list[str] = field(default_factory=list)
-    timeout_s: int = 900
-    acceptance: list[AcceptanceRule] = field(default_factory=list)
-    wandb_metrics: list[str] = field(default_factory=list)
-
-
-@dataclass
-class ValidationResult:
-    """State record for a validation run (aggregates job execution + validation outcome)."""
-
-    name: str
-    workflow_type: WorkflowType
-    location: Location
-    started_at: str
-    ended_at: Optional[str] = None
-    exit_code: int = 0
-    metrics: dict[str, float] = field(default_factory=dict)
-    logs_path: Optional[str] = None
-    job_id: Optional[str] = None
-    outcome: Optional[Outcome] = None
-    error: Optional[str] = None
-
-    def complete(
-        self,
-        outcome: Outcome,
-        exit_code: Optional[int] = None,
-        error: Optional[str] = None,
-    ) -> None:
-        """Mark this validation as completed."""
-        if exit_code is not None:
-            self.exit_code = exit_code
-        self.outcome = outcome
-        self.ended_at = datetime.utcnow().isoformat(timespec="seconds")
-        if error:
-            self.error = error
-
-
-@dataclass
-class ReleaseState:
-    """State of a release qualification run."""
-
-    version: str
-    created_at: str
-    commit_sha: Optional[str] = None
-    validations: dict[str, ValidationResult] = field(default_factory=dict)
-    gates: list[dict] = field(default_factory=list)
-    released: bool = False
-
-
-# ============================================================================
-# State Persistence
-# ============================================================================
-
-STATE_DIR = Path("devops/stable/state")
-LOG_DIR_LOCAL = Path("devops/stable/logs/local")
-LOG_DIR_REMOTE = Path("devops/stable/logs/remote")
-
-# Contacts
 CONTACTS = [
     "Release Manager: @Robb",
     "Technical Lead: @Jack Heart",
     "Bug Triage: @Nishad Singh",
 ]
 
-# Create directories
-STATE_DIR.mkdir(parents=True, exist_ok=True)
-LOG_DIR_LOCAL.mkdir(parents=True, exist_ok=True)
-LOG_DIR_REMOTE.mkdir(parents=True, exist_ok=True)
-
-
-def _get_commit_sha() -> Optional[str]:
-    """Get current git commit SHA."""
-    try:
-        return git.get_current_commit()
-    except git.GitError:
-        return None
-
-
-def _get_git_log_since_stable() -> str:
-    """Get git log since the last stable release tag."""
-    try:
-        # Find the latest stable tag
-        last_tag = git.run_git("describe", "--tags", "--abbrev=0", "--match=v*", "stable")
-
-        # Get git log from that tag to HEAD
-        return git.run_git("log", f"{last_tag}..HEAD", "--oneline")
-    except git.GitError:
-        # If no stable tag found, just return recent commits
-        try:
-            return git.run_git("log", "--oneline", "-20")
-        except git.GitError:
-            return "Unable to retrieve git log"
-
-
-def _recursive_asdict(obj):
-    """Recursively convert dataclasses to dicts for JSON serialization."""
-    if hasattr(obj, "__dataclass_fields__"):
-        return {k: _recursive_asdict(v) for k, v in asdict(obj).items()}
-    elif isinstance(obj, dict):
-        return {k: _recursive_asdict(v) for k, v in obj.items()}
-    elif isinstance(obj, (list, tuple)):
-        return [_recursive_asdict(item) for item in obj]
-    return obj
-
-
-def load_state(version: str) -> Optional[ReleaseState]:
-    """Load release state from JSON file.
-
-    Args:
-        version: Version string (with or without 'release_' prefix)
-    """
-    # Ensure version has release_ prefix for filename
-    if not version.startswith("release_"):
-        version = f"release_{version}"
-
-    path = STATE_DIR / f"{version}.json"
-    if not path.exists():
-        return None
-
-    try:
-        data = json.loads(path.read_text())
-
-        # Reconstruct nested dataclasses
-        validations = {}
-        for name, val_data in data.get("validations", {}).items():
-            if not isinstance(val_data, dict):
-                raise ValueError(f"Invalid validation data for {name}")
-            validations[name] = ValidationResult(**val_data)
-
-        state = ReleaseState(
-            version=data["version"],
-            created_at=data["created_at"],
-            commit_sha=data.get("commit_sha"),
-            validations=validations,
-            gates=data.get("gates", []),
-            released=data.get("released", False),
-        )
-        return state
-    except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
-        print(f"Failed to load state from {path}: {e}")
-        return None
-
-
-def get_most_recent_state() -> Optional[tuple[str, ReleaseState]]:
-    """Get the most recent release state.
-
-    Returns:
-        Tuple of (version, state) or None if no state files exist
-    """
-    state_files = sorted(STATE_DIR.glob("release_*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
-
-    if not state_files:
-        return None
-
-    # Try to load the most recent state
-    most_recent = state_files[0]
-    version = most_recent.stem.replace("release_", "")
-    state = load_state(version)
-
-    if state:
-        return (version, state)
-    return None
-
-
-def save_state(state: ReleaseState) -> Path:
-    """Save release state to JSON file with atomic write.
-
-    Uses atomic write pattern to prevent corruption from concurrent writes.
-    """
-    version = state.version
-    # Ensure version has release_ prefix for filename
-    if not version.startswith("release_"):
-        version = f"release_{version}"
-
-    path = STATE_DIR / f"{version}.json"
-    temp_path = path.with_suffix(".json.tmp")
-
-    serialized = _recursive_asdict(state)
-
-    # Write to temp file first
-    temp_path.write_text(json.dumps(serialized, indent=2))
-
-    # Atomic rename (on POSIX systems this is atomic)
-    temp_path.replace(path)
-
-    return path
-
-
-def update_validation_result(version: str, validation_name: str, result: ValidationResult) -> None:
-    """Atomically update a single validation result in the state file.
-
-    This prevents race conditions when multiple processes are running different validations.
-    Uses a simple retry loop with file locking via exclusive creation.
-    """
-    # Ensure version has release_ prefix for lock filename
-    lock_version = version if version.startswith("release_") else f"release_{version}"
-    lock_path = STATE_DIR / f"{lock_version}.lock"
-    max_retries = 10
-    retry_delay = 0.5  # seconds
-
-    for attempt in range(max_retries):
-        try:
-            # Try to acquire lock by creating lock file exclusively
-            # This fails if file already exists (another process has the lock)
-            lock_fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-
-            try:
-                # We have the lock - reload state, update, and save
-                state = load_state(version)
-                if not state:
-                    # State was deleted or doesn't exist - this is unexpected
-                    print(f"Warning: State file not found during update for {validation_name}")
-                    return
-
-                state.validations[validation_name] = result
-                save_state(state)
-
-            finally:
-                # Release lock
-                os.close(lock_fd)
-                lock_path.unlink()
-
-            return  # Success
-
-        except FileExistsError:
-            # Lock is held by another process - retry after delay
-            if attempt < max_retries - 1:
-                time.sleep(retry_delay)
-            else:
-                # Give up after max retries
-                print(f"Warning: Could not acquire lock after {max_retries} attempts for {validation_name}")
-                # Fall back to direct save (may cause race condition)
-                state = load_state(version)
-                if state:
-                    state.validations[validation_name] = result
-                    save_state(state)
-
-
 # ============================================================================
-# Metrics Extraction & Acceptance Criteria
-# ============================================================================
-
-# Regex patterns for extracting metrics from logs
-_SPS_RE = re.compile(r"\bSPS[:=]\s*(\d+(?:\.\d+)?)", re.IGNORECASE)
-_KSPS_RE = re.compile(r"(\d+(?:\.\d+)?)\s*ksps", re.IGNORECASE)  # Match "87.75 ksps"
-_EVAL_RATE_RE = re.compile(r"\beval[_\s-]?success[_\s-]?rate[:=]\s*(0?\.\d+|1(?:\.0)?)", re.IGNORECASE)
-_WANDB_URL_RE = re.compile(r"https://wandb\.ai/([^/]+)/([^/]+)/runs/([^\s]+)")
-
-
-def extract_wandb_run_info(log_text: str) -> Optional[tuple[str, str, str]]:
-    """Extract wandb entity, project, and run_id from log text.
-
-    Returns:
-        Tuple of (entity, project, run_id) or None if not found
-    """
-    match = _WANDB_URL_RE.search(log_text)
-    if match:
-        return (match.group(1), match.group(2), match.group(3))
-    return None
-
-
-def fetch_wandb_metric(
-    entity: str, project: str, run_id: str, metric_key: str, last_n_percent: float = 0.25
-) -> Optional[float]:
-    """Fetch a metric from wandb and return average over last N% of timesteps.
-
-    Args:
-        entity: Wandb entity name
-        project: Wandb project name
-        run_id: Wandb run ID
-        metric_key: Metric key to fetch (e.g., "env_agent/heart.get")
-        last_n_percent: Percentage of timesteps to average over (default: 0.25 = 25%)
-
-    Returns:
-        Average value of metric over last N% of timesteps, or None if not found
-    """
-    try:
-        api = wandb.Api()
-        run = api.run(f"{entity}/{project}/{run_id}")
-
-        # Fetch history for the metric
-        history = run.history(keys=[metric_key], pandas=False)
-
-        if not history:
-            print(f"Warning: No history found for metric {metric_key}")
-            return None
-
-        # Extract values
-        values = [row.get(metric_key) for row in history if metric_key in row and row[metric_key] is not None]
-
-        if not values:
-            print(f"Warning: No values found for metric {metric_key}")
-            return None
-
-        # Calculate average over last N%
-        n_samples = max(1, int(len(values) * last_n_percent))
-        last_values = values[-n_samples:]
-        avg = sum(last_values) / len(last_values)
-
-        print(f"     Wandb metric {metric_key}: {avg:.2f} (avg of last {len(last_values)} samples)")
-        return avg
-
-    except Exception as e:
-        print(f"Warning: Failed to fetch wandb metric {metric_key}: {e}")
-        return None
-
-
-def extract_metrics(log_text: str, wandb_metrics: Optional[list[str]] = None) -> dict[str, float]:
-    """Extract metrics from log text using regex patterns and optionally from wandb.
-
-    Supports:
-    - SPS (samples per second) - max and last value
-    - KSPS (kilosamples per second) - converted to SPS
-    - Eval success rate
-    - Wandb metrics (if wandb_metrics list provided)
-
-    Args:
-        log_text: Log text to extract metrics from
-        wandb_metrics: Optional list of wandb metric keys to fetch (e.g., ["env_agent/heart.get"])
-    """
-    metrics: dict[str, float] = {}
-
-    # Extract SPS values (plain format: "SPS: 1234" or "SPS=1234")
-    sps_matches = [float(x) for x in _SPS_RE.findall(log_text)]
-
-    # Extract KSPS values (progress logger format: "87.75 ksps")
-    ksps_matches = [float(x) * 1000 for x in _KSPS_RE.findall(log_text)]
-
-    # Combine both formats
-    all_sps = sps_matches + ksps_matches
-    if all_sps:
-        metrics["sps_max"] = max(all_sps)
-        metrics["sps_last"] = all_sps[-1]
-
-    # Extract eval success rate
-    eval_matches = _EVAL_RATE_RE.findall(log_text)
-    if eval_matches:
-        metrics["eval_success_rate"] = float(eval_matches[-1])
-
-    # Fetch wandb metrics if requested
-    if wandb_metrics:
-        wandb_info = extract_wandb_run_info(log_text)
-        if wandb_info:
-            entity, project, run_id = wandb_info
-            print(f"     Fetching wandb metrics from {entity}/{project}/{run_id}...")
-            for metric_key in wandb_metrics:
-                value = fetch_wandb_metric(entity, project, run_id, metric_key)
-                if value is not None:
-                    metrics[metric_key] = value
-
-    return metrics
-
-
-def _normalize_rule(rule: AcceptanceRule) -> tuple[str, str, float]:
-    """Normalize an AcceptanceRule to (key, op, expected)."""
-    if len(rule) == 2:
-        key, expected = rule  # type: ignore[misc]
-        return key, ">=", float(expected)
-    else:
-        key, op, expected = rule  # type: ignore[misc]
-        if op not in (">=", ">", "<=", "<", "==", "!="):
-            raise ValueError(f"Unsupported operator '{op}'")
-        return key, op, float(expected)
-
-
-# Threshold operators
-_OPS = {
-    ">=": lambda a, b: a >= b,
-    ">": lambda a, b: a > b,
-    "<=": lambda a, b: a <= b,
-    "<": lambda a, b: a < b,
-    "==": lambda a, b: a == b,
-    "!=": lambda a, b: a != b,
-}
-
-
-def evaluate_thresholds(metrics: dict[str, float], checks: list[AcceptanceRule]) -> tuple[Outcome, list[str]]:
-    """Evaluate metrics against acceptance rules.
-
-    Returns:
-        Tuple of (outcome, failed_messages)
-    """
-    failures: list[str] = []
-
-    for rule in checks:
-        key, op, expected = _normalize_rule(rule)
-
-        if key not in metrics:
-            failures.append(f"{key}: metric missing (expected {op} {expected})")
-            continue
-
-        actual = metrics[key]
-        ok = _OPS[op](actual, expected)
-
-        if not ok:
-            failures.append(f"{key}: expected {op} {expected}, saw {actual}")
-
-    return ("passed" if not failures else "failed", failures)
-
-
-# ============================================================================
-# Validation Execution
+# Helper Functions
 # ============================================================================
 
 
-def run_validation(
-    state: ReleaseState, validation: Validation, cluster_config: Optional[dict] = None
-) -> ValidationResult:
-    """Run a single validation based on workflow type.
-
-    Args:
-        state: Current release state
-        validation: Validation configuration
-        cluster_config: Optional cluster configuration (nodes, gpus, etc.)
-
-    Returns:
-        ValidationResult with outcome and metrics
-    """
-    # Skip if already passed or skipped (allow retrying failed validations)
-    if validation.name in state.validations:
-        existing = state.validations[validation.name]
-        if existing.outcome in ("passed", "skipped"):
-            print(f"  ⏭️  {validation.name} - already completed ({existing.outcome})")
-            return existing
-        elif existing.outcome == "failed":
-            print(f"  🔄 {validation.name} - retrying previous failure...")
-
-    # Create new result record (for state persistence)
-    result = ValidationResult(
-        name=validation.name,
-        workflow_type=validation.workflow_type,
-        location=validation.location,
-        started_at=datetime.utcnow().isoformat(timespec="seconds"),
-    )
-
-    try:
-        print(f"  🔄 {validation.name} [{validation.workflow_type.value}] - starting...")
-
-        # Handle different workflow types
-        if validation.workflow_type == WorkflowType.CI:
-            # Run pytest directly with verbose output to show hanging tests
-            # Using pytest directly instead of `metta ci` for better visibility
-            cmd = [
-                "uv",
-                "run",
-                "pytest",
-                "tests",
-                "mettascope/tests",
-                "agent/tests",
-                "app_backend/tests",
-                "common/tests",
-                "packages/codebot/tests",
-                "packages/cogames/tests",
-                "packages/gitta/tests",
-                "packages/mettagrid/tests",
-                "--benchmark-disable",
-                "-n",
-                "auto",
-                "-v",  # Verbose: show test names
-                "--timeout=60",  # Fail tests that hang for more than 60s
-                "--timeout-method=thread",  # Use thread-based timeout
-            ]
-            job = run_local(
-                name=validation.name,
-                cmd=cmd,
-                timeout_s=validation.timeout_s,
-                log_dir=str(LOG_DIR_LOCAL),
-                stream_output=True,
-            )
-            # Extract data from job_runner result for state persistence
-            log_text = job.get_logs()
-            result.exit_code = job.exit_code
-            result.logs_path = job.logs_path
-
-        elif validation.workflow_type == WorkflowType.PLAY:
-            # Run play recipe locally via job_runner
-            cmd = ["uv", "run", "./tools/run.py", validation.module, *validation.args]
-            print("     Launching play window for manual verification...")
-            print(f"     Command: {' '.join(cmd)}")
-
-            job = run_local(
-                name=validation.name,
-                cmd=cmd,
-                timeout_s=validation.timeout_s,
-                log_dir=str(LOG_DIR_LOCAL),
-                stream_output=True,
-            )
-            # Extract data from job_runner result for state persistence
-            result.exit_code = job.exit_code
-            result.logs_path = job.logs_path
-            log_text = job.get_logs()
-
-            # Always require manual confirmation for PLAY workflows
-            if result.exit_code == 0:
-                print("     Play window launched successfully")
-                if not _get_user_confirmation(f"Did the play workflow '{validation.name}' work correctly?"):
-                    result.complete("failed", 1, error="User indicated play workflow failed")
-                    print(f"  ❌ {validation.name} - User confirmed FAILURE")
-                    return result
-
-        elif validation.workflow_type in (
-            WorkflowType.TRAIN_LOCAL,
-            WorkflowType.TRAIN_REMOTE,
-            WorkflowType.TRAIN_REMOTE_MULTIGPU,
-        ):
-            # Run training job via job_runner (local or remote)
-            if validation.location == "local":
-                cmd = ["uv", "run", "./tools/run.py", validation.module, *validation.args]
-                job = run_local(
-                    name=validation.name,
-                    cmd=cmd,
-                    timeout_s=validation.timeout_s,
-                    log_dir=str(LOG_DIR_LOCAL),
-                    stream_output=True,
-                )
-                # Extract data from LocalJobResult for state persistence
-                log_text = job.get_logs()
-                result.exit_code = job.exit_code
-                result.logs_path = job.logs_path
-
-                # Only ask for manual confirmation if there are no acceptance criteria
-                if not validation.acceptance:
-                    # Extract W&B URL and ask for manual confirmation
-                    wandb_url_match = re.search(r"https://wandb\.ai/[^\s]+", log_text)
-                    if wandb_url_match:
-                        wandb_url = wandb_url_match.group(0)
-                        print(f"\n     📊 W&B Run: {wandb_url}")
-                        print("     Please verify:")
-                        print("       - SPS (samples per second) looks reasonable for local")
-                        print("       - Training completed successfully")
-                        print("       - No errors in logs")
-                        if not _get_user_confirmation(f"Do the metrics look good for '{validation.name}'?"):
-                            result.complete("failed", 1, error="User indicated metrics look bad")
-                            print(f"  ❌ {validation.name} - User confirmed FAILURE")
-                            return result
-            else:
-                # Build base_args for SkyPilot
-                config = cluster_config or {}
-                nodes = config.get("nodes", 1)
-                gpus = config.get("gpus", 4)
-                cloud = config.get("cloud", None)
-                region = config.get("region", None)
-
-                base_args = ["--no-spot", f"--gpus={gpus}", "--nodes", str(nodes)]
-                if cloud:
-                    base_args.extend(["--cloud", cloud])
-                if region:
-                    base_args.extend(["--region", region])
-
-                print(f"     Cluster config: {nodes} nodes × {gpus} GPUs = {nodes * gpus} total GPUs")
-
-                # Check if we already have a completed job to evaluate
-                # Try to use existing job if it failed (likely threshold failures)
-                skip_launch = False
-                existing_job_id = None
-                if validation.name in state.validations:
-                    existing_result = state.validations[validation.name]
-                    if existing_result.job_id and existing_result.outcome == "failed":
-                        # We have a failed job - try to fetch its logs directly (fast path)
-                        # If log fetching succeeds, the job is complete and we can skip launching
-                        skip_launch = True
-                        existing_job_id = existing_result.job_id
-                        result.job_id = existing_job_id
-                        result.exit_code = 0  # Will be updated if we find errors in logs
-                        print(f"     📋 Re-evaluating existing job {existing_job_id}...")
-
-                if not skip_launch:
-                    job = run_remote(
-                        name=validation.name,
-                        module=validation.module,
-                        args=validation.args,
-                        timeout_s=validation.timeout_s,
-                        log_dir=str(LOG_DIR_REMOTE),
-                        base_args=base_args,
-                        job_id=existing_job_id,
-                    )
-
-                    # Save job_id to state immediately after submission
-                    result.job_id = job.job_id
-                    # Use atomic update to prevent race conditions with concurrent workflows
-                    update_validation_result(state.version, validation.name, result)
-
-                    result.exit_code = job.wait(timeout_s=validation.timeout_s, stream_output=True)
-                    # Extract data from RemoteJob for state persistence
-                    log_text = job.get_logs()
-                    result.logs_path = job.logs_path
-                else:
-                    # Fetch logs from already-completed job using sky logs command
-                    print(f"     📥 Fetching logs from job {existing_job_id}...")
-                    try:
-                        import subprocess
-
-                        logs_result = subprocess.run(
-                            ["sky", "jobs", "logs", existing_job_id],
-                            capture_output=True,
-                            text=True,
-                            timeout=60,
-                        )
-                        log_text = logs_result.stdout + logs_result.stderr
-
-                        # Save logs to file
-                        log_path = Path(LOG_DIR_REMOTE) / f"{validation.name}.{existing_job_id}.full.log"
-                        log_path.write_text(log_text)
-                        result.logs_path = str(log_path)
-                        print(f"     📄 Logs saved to: {result.logs_path}")
-
-                        # Always print W&B URL if available
-                        wandb_url_match = re.search(r"https://wandb\.ai/[^\s]+", log_text)
-                        if wandb_url_match:
-                            wandb_url = wandb_url_match.group(0)
-                            print(f"     📊 W&B Run: {wandb_url}")
-                    except Exception as e:
-                        print(f"     ⚠️  Failed to fetch logs: {e}")
-                        log_text = ""
-
-                # Extract W&B URL and ask for manual confirmation (only if no acceptance criteria)
-                if not validation.acceptance:
-                    wandb_url_match = re.search(r"https://wandb\.ai/[^\s]+", log_text)
-                    if wandb_url_match:
-                        wandb_url = wandb_url_match.group(0)
-                        print(f"\n     📊 W&B Run: {wandb_url}")
-                        print("     Please verify:")
-                        print("       - SPS (samples per second) looks reasonable")
-                        print("       - Heartbeat is consistent")
-                        print("       - No anomalies in training curves")
-                        if not _get_user_confirmation(f"Do the metrics look good for '{validation.name}'?"):
-                            result.complete("failed", 1, error="User indicated metrics look bad")
-                            print(f"  ❌ {validation.name} - User confirmed FAILURE")
-                            return result
-
-        # Check exit code
-        if result.exit_code == 124:
-            result.complete("failed", result.exit_code, error="Timeout exceeded")
-            print(red(f"  ❌ {validation.name} - TIMEOUT"))
-            return result
-        elif result.exit_code != 0:
-            result.complete("failed", result.exit_code, error=f"Exit code {result.exit_code}")
-            print(f"  ❌ {validation.name} - FAILED (exit {result.exit_code})")
-            return result
-
-        # Extract metrics (only for TRAIN workflows)
-        if validation.workflow_type in (
-            WorkflowType.TRAIN_LOCAL,
-            WorkflowType.TRAIN_REMOTE,
-            WorkflowType.TRAIN_REMOTE_MULTIGPU,
-        ):
-            result.metrics = extract_metrics(log_text or "", wandb_metrics=validation.wandb_metrics)
-
-        # Evaluate acceptance criteria
-        if validation.acceptance:
-            outcome, failed_msgs = evaluate_thresholds(result.metrics, validation.acceptance)
-
-            # Build error message from failures
-            error_msg = "Threshold failures: " + "; ".join(failed_msgs) if failed_msgs else None
-            result.complete(outcome, result.exit_code, error=error_msg)
-
-            if outcome == "passed":
-                print(green(f"  ✅ {validation.name} - PASSED"))
-                if result.metrics:
-                    metrics_str = ", ".join(f"{k}={v:.1f}" for k, v in result.metrics.items())
-                    print(f"     Metrics: {metrics_str}")
-            else:
-                print(f"  ❌ {validation.name} - FAILED acceptance criteria")
-                if result.metrics:
-                    metrics_str = ", ".join(f"{k}={v:.1f}" for k, v in result.metrics.items())
-                    print(f"     Metrics: {metrics_str}")
-                for msg in failed_msgs:
-                    print(f"     Failed: {msg}")
-        else:
-            # No acceptance criteria - just mark as passed
-            result.complete("passed", result.exit_code)
-            print(f"  ✅ {validation.name} - PASSED")
-
-        return result
-
-    except subprocess.TimeoutExpired as e:
-        result.complete("failed", 124, error=f"Timeout: {e}")
-        print(f"  ❌ {validation.name} - TIMEOUT")
-        return result
-    except Exception as e:
-        result.complete("failed", 1, error=f"Unexpected error: {e}")
-        print(f"  ❌ {validation.name} - ERROR: {e}")
-        return result
-
-
-# ============================================================================
-# Release Plans
-# ============================================================================
-
-
-def get_workflow_tests() -> list[Validation]:
-    """Get the validation plan for this release.
-
-    Returns:
-        List of validations to run (CI, TRAIN single-GPU, TRAIN multi-GPU, PLAY)
-    """
-    validations = []
-
-    # 1. CI workflow - run metta ci locally (tests + linting)
-    validations.append(
-        Validation(
-            name="metta_ci",
-            workflow_type=WorkflowType.CI,
-            module="",  # Not used for CI workflow
-            location="local",
-            timeout_s=1800,  # 30 minutes
-        )
-    )
-
-    # 2. TRAIN_LOCAL - local smoke test
-    # Use timestamp-based run name to avoid resuming completed runs
-    from datetime import datetime
-
-    smoke_run = f"stable.smoke.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    validations.append(
-        Validation(
-            name="arena_local_smoke",
-            workflow_type=WorkflowType.TRAIN_LOCAL,
-            module="experiments.recipes.arena_basic_easy_shaped.train",
-            location="local",
-            args=[
-                f"run={smoke_run}",
-                "trainer.total_timesteps=1000",
-            ],
-            timeout_s=600,
-            acceptance=[],  # No thresholds - just verify it runs without crashing
-        )
-    )
-
-    # 3. TRAIN_REMOTE - single GPU remote validation
-    validations.append(
-        Validation(
-            name="arena_single_gpu_100m",
-            workflow_type=WorkflowType.TRAIN_REMOTE,
-            module="experiments.recipes.arena_basic_easy_shaped.train",
-            location="remote",
-            args=["trainer.total_timesteps=100000000"],  # 100M timesteps
-            timeout_s=7200,  # 2 hours
-            acceptance=[
-                ("sps_max", ">=", 40000),
-                ("env_agent/heart.get", ">", 0.5),
-            ],
-            wandb_metrics=["env_agent/heart.get"],
-        )
-    )
-
-    # 4. TRAIN_REMOTE_MULTIGPU - multi-GPU/multi-node remote validation
-    validations.append(
-        Validation(
-            name="arena_multi_gpu_2b",
-            workflow_type=WorkflowType.TRAIN_REMOTE_MULTIGPU,
-            module="experiments.recipes.arena_basic_easy_shaped.train",
-            location="remote",
-            args=["trainer.total_timesteps=2000000000"],  # 2B timesteps
-            timeout_s=86400,  # 24 hours
-            acceptance=[("sps_max", ">=", 40000), ("env_agent/heart.get", ">", 5.0)],
-        )
-    )
-
-    # 5. PLAY workflow - manual interactive testing
-    # This launches the mettascope server and browser for manual gameplay testing
-    validations.append(
-        Validation(
-            name="arena_play",
-            workflow_type=WorkflowType.PLAY,
-            module="experiments.recipes.arena.play",
-            location="local",
-            args=[
-                "policy_uri=mock://play",  # Use mock policy for testing
-            ],
-            timeout_s=600,  # 10 minutes for manual testing
-        )
-    )
-
-    return validations
-
-
-# ============================================================================
-# Release Steps
-# ============================================================================
-
-
-def _ensure_git_repo() -> None:
-    """Ensure we're in a git repository."""
-    try:
-        git.run_git("rev-parse", "--git-dir")
-    except git.GitError:
-        print("Not in a git repository. Aborting.")
-        sys.exit(1)
-
-
-def step_prepare_branch(version: str, **_kwargs) -> None:
-    """Step 1: Create and push staging branch."""
-    _ensure_git_repo()
-
-    branch_name = f"staging/v{version}-rc1"
-
-    print("\n" + "=" * 60)
-    print(bold(f"STEP 1: Prepare Staging Branch (v{version})"))
-    print("=" * 60 + "\n")
-
-    print(f"Creating branch: {branch_name}")
-    try:
-        git.run_git("checkout", "-b", branch_name)
-        git.run_git("push", "-u", "origin", branch_name)
-        print(green(f"✅ Branch {branch_name} created and pushed successfully"))
-    except git.GitError as e:
-        print(f"Failed to create/push branch: {e}")
-        sys.exit(1)
-
-
-def _check_asana_blockers() -> Optional[bool]:
-    """Check for blocking bugs in Asana Active section.
-
-    Returns:
-        True if no blockers (clear to ship)
-        False if blockers exist
-        None if check is inconclusive (Asana unavailable)
-    """
-    token = os.getenv("ASANA_TOKEN")
-    project_id = os.getenv("ASANA_PROJECT_ID")
-
-    if not (token and project_id):
-        return None  # Asana not configured
-
-    try:
-        import asana
-    except ImportError:
-        print("Asana library not installed (pip install asana)")
-        return None
-
-    try:
-        # Initialize Asana client
-        config = asana.Configuration()
-        config.access_token = token
-        client = asana.ApiClient(config)
-
-        # Get user info to verify auth
-        users_api = asana.UsersApi(client)
-        user = users_api.get_user("me", {})
-        print(f"✓ Authenticated as {user.get('name', '?')}")
-
-        # Get project sections
-        sections_api = asana.SectionsApi(client)
-        sections = sections_api.get_sections_for_project(project_id, {})
-
-        # Find "Active" section
-        active_section = next((s for s in sections if s["name"].lower() == "active"), None)
-        if not active_section:
-            print("No 'Active' section found in Asana project")
-            return None
-
-        # Get tasks in Active section
-        tasks_api = asana.TasksApi(client)
-        tasks = tasks_api.get_tasks_for_section(
-            active_section["gid"],
-            {"opt_fields": "name,completed,permalink_url"},
-        )
-
-        # Filter for incomplete tasks
-        open_tasks = [t for t in tasks if not t.get("completed", False)]
-
-        if not open_tasks:
-            print(green("✅ No blocking bugs in Asana Active section"))
-            return True
-
-        print(f"❌ Found {len(open_tasks)} blocking task(s) in Active:")
-        for task in open_tasks[:10]:  # Show first 10
-            print(f"  • {task['name']}")
-            if task.get("permalink_url"):
-                print(f"    {task['permalink_url']}")
-        return False
-
-    except Exception as e:
-        print(f"Asana API error: {e}")
-        return None
-
-
-def _get_user_confirmation(prompt: str) -> bool:
+def get_user_confirmation(prompt: str) -> bool:
     """Get yes/no confirmation from user."""
     while True:
         try:
@@ -978,6 +78,46 @@ def _get_user_confirmation(prompt: str) -> bool:
             return False
 
 
+# ============================================================================
+# Release Pipeline Steps
+# ============================================================================
+
+
+def step_prepare_tag(version: str, **_kwargs) -> None:
+    """Step 1: Create staging tag to mark commit for validation."""
+    tag_name = f"v{version}-rc"
+
+    print("\n" + "=" * 60)
+    print(bold(f"STEP 1: Prepare Staging Tag (v{version})"))
+    print("=" * 60 + "\n")
+
+    commit_sha = get_commit_sha()
+    print(f"Current commit: {commit_sha}")
+    print(f"Creating staging tag: {tag_name}")
+
+    try:
+        # Check if tag already exists
+        existing = git.run_git("tag", "-l", tag_name)
+        if existing.strip():
+            print(f"Tag {tag_name} already exists")
+            if not get_user_confirmation("Delete existing tag and continue?"):
+                sys.exit(1)
+            git.run_git("tag", "-d", tag_name)
+            # Try to delete from remote too (may fail if doesn't exist there)
+            try:
+                git.run_git("push", "origin", f":refs/tags/{tag_name}")
+            except git.GitError:
+                pass
+
+        # Create lightweight tag
+        git.run_git("tag", tag_name)
+        git.run_git("push", "origin", tag_name)
+        print(green(f"✅ Staging tag {tag_name} created and pushed successfully"))
+    except git.GitError as e:
+        print(f"Failed to create/push tag: {e}")
+        sys.exit(1)
+
+
 def step_bug_check(**_kwargs) -> None:
     """Step 2: Check for blocking bugs."""
     print("\n" + "=" * 60)
@@ -985,7 +125,7 @@ def step_bug_check(**_kwargs) -> None:
     print("=" * 60 + "\n")
 
     # Try automated Asana check
-    result = _check_asana_blockers()
+    result = asana.check_blockers()
 
     if result is True:
         print("✅ Bug check PASSED - clear for release")
@@ -1005,23 +145,29 @@ def step_bug_check(**_kwargs) -> None:
     print("3. Update bug statuses as needed in consultation with bug owners")
     print("")
 
-    if not _get_user_confirmation("Have you completed the bug status check and is it PASSED?"):
+    if not get_user_confirmation("Have you completed the bug status check and is it PASSED?"):
         print("❌ Bug check FAILED - user indicated issues remain")
         sys.exit(1)
 
     print("✅ Bug check PASSED - user confirmed")
 
 
-def step_workflow_tests(version: str, workflow_filter: Optional[str] = None, **_kwargs) -> None:
-    """Step 3: Run validation workflows.
+def step_task_validation(
+    version: str,
+    task_filter: Optional[str] = None,
+    reeval: bool = False,
+    **_kwargs,
+) -> None:
+    """Step 3: Run validation tasks.
 
     Args:
         version: Release version
-        workflow_filter: Workflow type to run (ci, train_local, train_remote, train_remote_multigpu, play)
-                        or None to run all workflows
+        task_filter: Task name to run (metta_ci, arena_local_smoke, arena_single_gpu_100m, etc.)
+                    or None to run all tasks
+        reeval: If True, re-evaluate failed runs from existing logs instead of re-launching
     """
     print("\n" + "=" * 60)
-    print(bold("STEP 3: Workflow Validation"))
+    print(bold("STEP 3: Task Validation"))
     print("=" * 60 + "\n")
 
     # Load or create state
@@ -1031,60 +177,45 @@ def step_workflow_tests(version: str, workflow_filter: Optional[str] = None, **_
         state = ReleaseState(
             version=state_version,
             created_at=datetime.utcnow().isoformat(timespec="seconds"),
-            commit_sha=_get_commit_sha(),
+            commit_sha=get_commit_sha(),
         )
-        # Save initial state to disk so update_validation_result() can reload it
+        # Save initial state to disk
         save_state(state)
 
-    # Get all validations
-    all_validations = get_workflow_tests()
+    # Get all tasks
+    all_tasks = get_all_tasks()
 
-    # Filter validations if requested
-    if workflow_filter:
-        workflow_filter_lower = workflow_filter.lower()
-        if workflow_filter_lower not in ("ci", "train_local", "train_remote", "train_remote_multigpu", "play"):
-            print(f"Error: Unknown workflow type '{workflow_filter}'")
-            print("Available workflow types: ci, train_local, train_remote, train_remote_multigpu, play")
+    # Filter tasks if requested
+    if task_filter:
+        tasks = [t for t in all_tasks if task_filter in t.name]
+        if not tasks:
+            print(f"Error: No tasks found matching '{task_filter}'")
+            print(f"Available tasks: {', '.join(t.name for t in all_tasks)}")
             sys.exit(1)
-
-        validations = [v for v in all_validations if v.workflow_type.value == workflow_filter_lower]
-        print(f"Running {workflow_filter.upper()} workflows only\n")
+        print(f"Running tasks matching '{task_filter}'\n")
     else:
-        validations = all_validations
-        print("Running all workflows\n")
+        tasks = all_tasks
+        print("Running all tasks\n")
 
-    # Run validations sequentially
-    for validation in validations:
-        # Determine cluster config based on workflow type
-        if validation.workflow_type == WorkflowType.TRAIN_REMOTE_MULTIGPU:
-            cluster_config = {"nodes": 4, "gpus": 4}
-        elif validation.workflow_type == WorkflowType.TRAIN_REMOTE:
-            cluster_config = {"nodes": 1, "gpus": 1}
-        else:
-            cluster_config = None
-
-        result = run_validation(state, validation, cluster_config=cluster_config)
-        # Use atomic update to prevent race conditions with concurrent workflows
-        update_validation_result(state.version, validation.name, result)
-
-    # Reload state to get latest results from all concurrent workflows
-    state = load_state(state_version) or state
+    # Create runner and run all tasks
+    runner = ValidationRunner(state)
+    runner.run_all(tasks)
 
     # Print summary
-    passed = sum(1 for r in state.validations.values() if r.outcome == "passed")
-    failed = sum(1 for r in state.validations.values() if r.outcome == "failed")
+    passed = sum(1 for r in state.results.values() if r.outcome == "passed")
+    failed = sum(1 for r in state.results.values() if r.outcome == "failed")
 
     print("\n" + "=" * 80)
-    print("Validation Summary")
+    print("Task Summary")
     print("=" * 80)
     print("\nResults:")
     print(f"  ✅ Passed:  {passed}")
     print(f"  ❌ Failed:  {failed}")
 
     print("\nDetailed Results:")
-    for result in state.validations.values():
+    for result in state.results.values():
         icon = {"passed": "✅", "failed": "❌", "skipped": "⏸️"}.get(result.outcome or "", "❓")
-        print(f"  {icon} {result.name:24} loc={result.location:6} exit={result.exit_code:>3}")
+        print(f"  {icon} {result.name:24} exit={result.exit_code:>3}")
         if result.metrics:
             metrics_str = "  ".join(f"{k}={v:.1f}" for k, v in result.metrics.items())
             print(f"       Metrics: {metrics_str}")
@@ -1096,12 +227,12 @@ def step_workflow_tests(version: str, workflow_filter: Optional[str] = None, **_
     print("=" * 80)
 
     if failed:
-        print(f"\nState saved to: {STATE_DIR / f'{state_version}.json'}")
-        print("❌ Workflow validation FAILED")
+        print(f"\nState saved to: devops/stable/state/{state_version}.json")
+        print("❌ Task validation FAILED")
         sys.exit(1)
 
-    print("\n✅ All workflow validations PASSED")
-    print(f"State saved to: {STATE_DIR / f'{state_version}.json'}")
+    print("\n✅ All task validations PASSED")
+    print(f"State saved to: devops/stable/state/{state_version}.json")
 
 
 def step_summary(version: str, **_kwargs) -> None:
@@ -1116,13 +247,13 @@ def step_summary(version: str, **_kwargs) -> None:
 
     if not state:
         print(f"No state found for version {version}")
-        print("Run --step workflow-tests first")
+        print("Run task-validation first")
         sys.exit(1)
 
-    # Extract training metrics from TRAIN validations
+    # Extract training metrics from TRAIN tasks
     training_metrics = {}
     training_job_id = None
-    for name, result in state.validations.items():
+    for name, result in state.results.items():
         if "train" in name.lower() and result.metrics:
             training_metrics.update(result.metrics)
             if result.job_id:
@@ -1133,11 +264,11 @@ def step_summary(version: str, **_kwargs) -> None:
     sps_last = training_metrics.get("sps_last", "N/A")
 
     # Get git log since last stable release
-    git_log = _get_git_log_since_stable()
+    git_log = get_git_log_since_stable()
 
-    # Print validation summary
-    print("Validation Results:")
-    for name, result in state.validations.items():
+    # Print task results summary
+    print("Task Results:")
+    for name, result in state.results.items():
         icon = {"passed": "✅", "failed": "❌", "skipped": "⏸️"}.get(result.outcome or "", "❓")
         print(f"  {icon} {name}")
         if result.metrics:
@@ -1183,21 +314,19 @@ def step_release(version: str, **_kwargs) -> None:
     print(bold("STEP 5: Create Release"))
     print("=" * 60 + "\n")
 
-    _ensure_git_repo()
-
     # Load state to get validation results
     state_version = f"release_{version}"
     state = load_state(state_version)
 
     if not state:
         print(f"No state found for version {version}")
-        print("Run --step workflow-tests first")
+        print("Run task-validation first")
         sys.exit(1)
 
-    # Verify all validations passed
-    failed = [name for name, result in state.validations.items() if result.outcome == "failed"]
+    # Verify all tasks passed
+    failed = [name for name, result in state.results.items() if result.outcome == "failed"]
     if failed:
-        print("Cannot release with failed validations:")
+        print("Cannot release with failed tasks:")
         for name in failed:
             print(f"  ❌ {name}")
         sys.exit(1)
@@ -1205,15 +334,13 @@ def step_release(version: str, **_kwargs) -> None:
     # Extract metrics for release notes
     training_metrics = {}
     training_job_id = None
-    for name, result in state.validations.items():
+    for name, result in state.results.items():
         if "train" in name.lower() and result.metrics:
             training_metrics.update(result.metrics)
             if result.job_id:
                 training_job_id = result.job_id
 
-    sps_max = training_metrics.get("sps_max", "N/A")
-    sps_last = training_metrics.get("sps_last", "N/A")
-    git_log = _get_git_log_since_stable()
+    git_log = get_git_log_since_stable()
 
     # Create release notes
     release_notes_dir = Path("devops/stable/release-notes")
@@ -1222,10 +349,10 @@ def step_release(version: str, **_kwargs) -> None:
 
     release_notes_content = f"""# Release Notes - Version {version}
 
-## Validation Summary
+## Task Results Summary
 
 """
-    for name, result in state.validations.items():
+    for name, result in state.results.items():
         icon = {"passed": "✅", "failed": "❌", "skipped": "⏸️"}.get(result.outcome or "", "❓")
         release_notes_content += f"- {icon} {name}\n"
         if result.metrics:
@@ -1245,13 +372,6 @@ def step_release(version: str, **_kwargs) -> None:
         release_notes_content += f"- View logs: `sky logs {training_job_id}`\n"
     else:
         release_notes_content += "- No remote training jobs\n"
-
-    release_notes_content += f"""
-## Key Metrics
-
-- Training throughput (SPS max): {sps_max}
-- Training throughput (SPS last): {sps_last}
-"""
 
     # Write release notes
     release_notes_path.write_text(release_notes_content)
@@ -1282,42 +402,54 @@ def step_release(version: str, **_kwargs) -> None:
     state.released = True
     save_state(state)
 
+    # Create GitHub release using gh CLI
+    print("\nCreating GitHub release...")
+    try:
+        # Check if gh CLI is available
+        subprocess.run(["gh", "--version"], capture_output=True, check=True)
+
+        # Create GitHub release from tag with release notes
+        result = subprocess.run(
+            [
+                "gh",
+                "release",
+                "create",
+                tag_name,
+                "--title",
+                f"Release {version}",
+                "--notes-file",
+                str(release_notes_path),
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        print(f"✅ Created GitHub release: {tag_name}")
+        print(f"   {result.stdout.strip()}")
+    except FileNotFoundError:
+        print("⚠️  GitHub CLI (gh) not installed - skipping GitHub release creation")
+        print("   Install: https://cli.github.com/")
+        print("   Or create release manually from tag")
+    except subprocess.CalledProcessError as e:
+        print(f"⚠️  Failed to create GitHub release: {e.stderr}")
+        print("   You may need to authenticate: gh auth login")
+        print("   Or create release manually from tag")
+
     print("\n" + "=" * 60)
     print("Release Complete!")
     print("=" * 60)
     print(f"\nRelease notes: {release_notes_path}")
     print(f"Git tag: {tag_name}")
     print("\nNext steps:")
-    print("  1. Create GitHub release from tag")
-    print("  2. Run --step announce to notify team")
-
-
-def step_announce(version: str, **_kwargs) -> None:
-    """Step 6: Print announcement instructions."""
-    print("\n" + "=" * 60)
-    print(bold("STEP 6: Announce"))
-    print("=" * 60 + "\n")
-
-    print("Post release completion to Discord in #eng-process")
-    print("\nSuggested message:")
-    print(f"Released stable version v{version}")
-    print(f"Release notes: devops/stable/release-notes/v{version}.md")
+    print("  1. Run announce to notify team")
 
 
 # ============================================================================
-# CLI
+# CLI Setup
 # ============================================================================
 
-
-class Step:
-    """Step identifiers for the release process."""
-
-    PREPARE = "prepare-branch"
-    BUG = "bug-check"
-    TESTS = "workflow-tests"
-    SUMMARY = "summary"
-    RELEASE = "release"
-    ANNOUNCE = "announce"
+app = typer.Typer(add_completion=False)
+_VERSION: str | None = None  # Set by callback
 
 
 def generate_version() -> str:
@@ -1328,176 +460,113 @@ def generate_version() -> str:
     return datetime.now().strftime("%Y.%m.%d-%H%M")
 
 
-def main() -> None:
-    """Main CLI entrypoint."""
-    parser = argparse.ArgumentParser(
-        description="Stable Release System",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  %(prog)s                           # Run full release flow
-  %(prog)s --new                     # Start new release
-  %(prog)s --prepare-branch          # Only create staging branch
-  %(prog)s --bugs                    # Only check bugs
-  %(prog)s --workflow test           # Run TEST workflows only
-  %(prog)s --workflow train          # Run TRAIN workflows only
-  %(prog)s --workflow metta_test     # Run specific validation
-  %(prog)s --summary                 # Show validation summary
-  %(prog)s --release                 # Create release tag
-""",
-    )
+def resolve_version(explicit: Optional[str], force_new: bool) -> str:
+    """Determine version based on args and state."""
+    if explicit:
+        print(f"Using explicit version: {explicit}")
+        return explicit
+    if force_new:
+        v = generate_version()
+        print(f"Starting new release: {v}")
+        return v
+    recent = get_most_recent_state()
+    if recent:
+        recent_version, recent_state = recent
+        if recent_state.released:
+            v = generate_version()
+            print(f"Previous release ({recent_version}) completed. Starting new: {v}")
+            return v
+        print(f"Continuing in-progress release: {recent_version}")
+        return recent_version
+    v = generate_version()
+    print(f"Starting new release: {v}")
+    return v
 
-    parser.add_argument(
-        "--version",
-        help="Version number (overrides auto-continue behavior)",
-        default=None,
-    )
 
-    parser.add_argument(
-        "--new",
-        action="store_true",
-        help="Force start a new release (ignore existing in-progress state)",
-    )
+app = typer.Typer(add_completion=False)
+_VERSION: str | None = None  # Set by callback
 
-    # Step flags
-    parser.add_argument(
-        "--prepare-branch",
-        action="store_true",
-        help="Create and push staging branch",
-    )
 
-    parser.add_argument(
-        "--bugs",
-        action="store_true",
-        help="Check bug status in Asana",
-    )
+@app.callback()
+def common(
+    version: Optional[str] = typer.Option(None, "--version", help="Version number (overrides auto-continue behavior)"),
+    new: bool = typer.Option(False, "--new", help="Force start a new release (ignore in-progress state)"),
+):
+    """Stable Release System - automated release validation and deployment."""
+    global _VERSION
+    _VERSION = resolve_version(version, new)
 
-    parser.add_argument(
-        "--workflow",
-        metavar="FILTER",
-        help="Run workflow validations (ci|train_local|train_remote|train_remote_multigpu|play)",
-    )
-
-    parser.add_argument(
-        "--summary",
-        action="store_true",
-        help="Show validation summary and release notes template",
-    )
-
-    parser.add_argument(
-        "--release",
-        action="store_true",
-        help="Create release tag and notes",
-    )
-
-    parser.add_argument(
-        "--announce",
-        action="store_true",
-        help="Show announcement message template",
-    )
-
-    # Deprecated --step flag (for backwards compatibility)
-    parser.add_argument(
-        "--step",
-        choices=[Step.PREPARE, Step.BUG, Step.TESTS, Step.SUMMARY, Step.RELEASE, Step.ANNOUNCE],
-        help=argparse.SUPPRESS,  # Hide from help
-    )
-
-    args = parser.parse_args()
-
-    # Determine version to use
-    if args.version:
-        # Explicit version specified - use it
-        version = args.version
-        print(f"Using explicit version: {version}")
-    elif args.new:
-        # Force new release
-        version = generate_version()
-        print(f"Starting new release: {version}")
-    else:
-        # Smart default: continue if in progress, new if last was released
-        recent = get_most_recent_state()
-        if recent:
-            recent_version, recent_state = recent
-            if recent_state.released:
-                # Last release was completed, start new one
-                version = generate_version()
-                print(f"Previous release ({recent_version}) completed. Starting new: {version}")
-            else:
-                # Continue in-progress release
-                version = recent_version
-                print(f"Continuing in-progress release: {version}")
-        else:
-            # No existing state, start new
-            version = generate_version()
-            print(f"Starting new release: {version}")
-
-    # Print header with version and contacts
     print("=" * 80)
-    print(bold(cyan(f"Stable Release System - Version {version}")))
+    print(bold(cyan(f"Stable Release System - Version {_VERSION}")))
     print("=" * 80)
     print("\nContacts:")
     for contact in CONTACTS:
         print(f"  - {contact}")
     print("")
 
-    # Determine which steps to run
-    steps_to_run = []
 
-    # Check for new flag-based args
-    if args.prepare_branch:
-        steps_to_run.append(("prepare-branch", {}))
-    if args.bugs:
-        steps_to_run.append(("bugs", {}))
-    if args.workflow is not None:  # Can be empty string for "run all workflows"
-        steps_to_run.append(("workflow", {"workflow_filter": args.workflow or None}))
-    if args.summary:
-        steps_to_run.append(("summary", {}))
-    if args.release:
-        steps_to_run.append(("release", {}))
-    if args.announce:
-        steps_to_run.append(("announce", {}))
+@app.command("prepare-tag")
+def cmd_prepare_tag():
+    """Create and push staging tag."""
+    step_prepare_tag(version=_VERSION)
 
-    # Handle deprecated --step flag for backwards compatibility
-    if args.step:
-        step_map = {
-            Step.PREPARE: ("prepare-branch", {}),
-            Step.BUG: ("bugs", {}),
-            Step.TESTS: ("workflow", {"workflow_filter": None}),
-            Step.SUMMARY: ("summary", {}),
-            Step.RELEASE: ("release", {}),
-            Step.ANNOUNCE: ("announce", {}),
-        }
-        steps_to_run.append(step_map[args.step])
 
-    # If no steps specified, run full release flow
-    if not steps_to_run:
-        steps_to_run = [
-            ("prepare-branch", {}),
-            ("bugs", {}),
-            ("workflow", {"workflow_filter": None}),
-            ("summary", {}),
-            ("release", {}),
-            ("announce", {}),
-        ]
+@app.command("bugs")
+def cmd_bugs():
+    """Check bug status in Asana."""
+    step_bug_check()
 
-    # Map step names to functions
-    step_functions = {
-        "prepare-branch": step_prepare_branch,
-        "bugs": step_bug_check,
-        "workflow": step_workflow_tests,
-        "summary": step_summary,
-        "release": step_release,
-        "announce": step_announce,
-    }
 
-    # Execute steps
-    for step_name, step_kwargs in steps_to_run:
-        func = step_functions[step_name]
-        # Merge version with step-specific kwargs
-        all_kwargs = {"version": version, **step_kwargs}
-        func(**all_kwargs)
+@app.command("task-validation")
+def cmd_task_validation(
+    task: Optional[str] = typer.Option(
+        None,
+        "--task",
+        help="Validation filter: ci | train_local | train_remote | train_remote_multigpu | evaluate",
+    ),
+    reeval: bool = typer.Option(
+        False,
+        "--reeval",
+        help="Re-evaluate failed runs from existing logs instead of re-launching",
+    ),
+):
+    """Run validation tasks."""
+    step_task_validation(version=_VERSION, task_filter=task, reeval=reeval)
+
+
+@app.command("summary")
+def cmd_summary():
+    """Show validation summary and release notes template."""
+    step_summary(version=_VERSION)
+
+
+@app.command("release")
+def cmd_release():
+    """Create release tag and notes."""
+    step_release(version=_VERSION)
+
+
+def cmd_all(
+    task: Optional[str] = typer.Option(
+        None,
+        "--task",
+        help="Optional validation filter (applies to task-validation step in the full pipeline)",
+    ),
+    reeval: bool = typer.Option(
+        False,
+        "--reeval",
+        help="Re-evaluate failed runs from existing logs instead of re-launching",
+    ),
+):
+    """Run full release pipeline."""
+    step_prepare_tag(version=_VERSION)
+    step_bug_check()
+    step_task_validation(version=_VERSION, task_filter=task, reeval=reeval)
+    step_summary(version=_VERSION)
 
 
 if __name__ == "__main__":
-    main()
+    # Default to 'all' if no subcommand was provided
+    if len(sys.argv) == 1:
+        sys.argv.append("all")
+    app()
