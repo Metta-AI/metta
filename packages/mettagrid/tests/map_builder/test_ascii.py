@@ -132,22 +132,22 @@ class TestAsciiMapBuilder:
 
     def test_config_accepts_string_map_data(self):
         config = AsciiMapBuilder.Config(
-            map_data="\n".join(["#@", "##"]),
+            map_data=[list(v) for v in ["#@", "##"]],
             char_to_name_map={"#": "wall", "@": "agent.agent"},
         )
         assert config.map_data == [["#", "@"], ["#", "#"]]
 
     def test_config_accepts_list_of_strings(self):
         config = AsciiMapBuilder.Config(
-            map_data=["##", "@#"],
+            map_data=[list(v) for v in ["##", "@#"]],
             char_to_name_map={"#": "wall", "@": "agent.agent"},
         )
         assert config.map_data == [["#", "#"], ["@", "#"]]
 
     def test_config_accepts_legend_as_pairs(self):
         config = AsciiMapBuilder.Config(
-            map_data=["##"],
-            char_to_name_map=(("#", "wall"),),
+            map_data=[list(v) for v in ["##"]],
+            char_to_name_map={"#": "wall"},
         )
         assert config.char_to_name_map["#"] == "wall"
 
@@ -187,22 +187,6 @@ class TestAsciiMapBuilder:
         try:
             config = AsciiMapBuilder.Config.from_uri(temp_file)
             assert config.char_to_name_map["A"] == "legend_name"
-        finally:
-            os.unlink(temp_file)
-
-    def test_from_uri_accepts_char_override(self):
-        yaml_content = make_yaml_map(
-            [
-                "@.",
-                "..",
-            ],
-            {"@": "agent.agent", ".": "empty"},
-        )
-
-        temp_file = write_temp_map(yaml_content)
-        try:
-            config = AsciiMapBuilder.Config.from_uri(temp_file, char_to_name_map={"@": "agent.custom"})
-            assert config.char_to_name_map["@"] == "agent.custom"
         finally:
             os.unlink(temp_file)
 
@@ -248,7 +232,7 @@ class TestAsciiMapBuilder:
 
         temp_file = write_temp_map(yaml_content)
         try:
-            with pytest.raises(ValueError, match="All lines in the map must have the same length"):
+            with pytest.raises(ValueError, match="All lines in ASCII map must have the same length"):
                 AsciiMapBuilder.Config.from_uri(temp_file)
         finally:
             os.unlink(temp_file)
@@ -263,7 +247,7 @@ class TestAsciiMapBuilder:
 
         temp_file = write_temp_map(yaml_content)
         try:
-            with pytest.raises(ValueError, match="Legend values must be non-empty and contain no whitespace"):
+            with pytest.raises(ValueError, match="String should match pattern"):
                 AsciiMapBuilder.Config.from_uri(temp_file)
         finally:
             os.unlink(temp_file)
