@@ -71,8 +71,8 @@ def _apply_lora_defaults(tool: TrainTool) -> TrainTool:
         trainer_updates["compile"] = False
     if tool.trainer.batch_size > 16_384:
         trainer_updates["batch_size"] = 16_384
-    if tool.trainer.minibatch_size > 512:
-        trainer_updates["minibatch_size"] = 512
+    if tool.trainer.minibatch_size > 768:
+        trainer_updates["minibatch_size"] = 768
     if tool.trainer.bptt_horizon > 6:
         trainer_updates["bptt_horizon"] = 6
     if trainer_updates:
