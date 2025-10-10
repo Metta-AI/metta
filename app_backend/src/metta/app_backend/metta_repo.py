@@ -1606,6 +1606,7 @@ class MettaRepo:
         created_at: str | None = None,
         assigned_at: str | None = None,
         updated_at: str | None = None,
+        include_attributes: bool = False,
     ) -> tuple[list[EvalTaskWithPolicyName], int]:
         async with self.connect() as con:
             where_conditions = []
@@ -1665,11 +1666,26 @@ class MettaRepo:
             offset = (page - 1) * page_size
             params.extend([page_size, offset])
 
+            # Conditionally include attributes field
+            # When not including full attributes, return minimal subset for UI display
+            if include_attributes:
+                attributes_field = "et.attributes"
+            else:
+                attributes_field = """
+                    jsonb_build_object(
+                        'git_hash', et.attributes->>'git_hash',
+                        'output_log_path', et.attributes->>'output_log_path',
+                        'stderr_log_path', et.attributes->>'stderr_log_path',
+                        'stdout_log_path', et.attributes->>'stdout_log_path',
+                        'details', et.attributes->'details'
+                    ) as attributes
+                """.strip()
+
             async with con.cursor(row_factory=class_row(EvalTaskWithPolicyName)) as cur:
                 await cur.execute(
                     f"""
                     SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
-                           et.assignee, et.created_at, et.attributes, et.retries,
+                           et.assignee, et.created_at, {attributes_field}, et.retries,
                            p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
                     FROM eval_tasks et
                     LEFT JOIN policies p ON et.policy_id = p.id
