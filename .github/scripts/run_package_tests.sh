@@ -65,7 +65,7 @@ run_package_tests() {
   fi
 
   # Pytest arguments matching CI
-  PYTEST_BASE_ARGS="-n 4 --timeout=100 --timeout-method=thread --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v"
+  PYTEST_BASE_ARGS="-n auto --timeout=100 --timeout-method=thread --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v"
 
   # Save raw output for duration parsing
   local raw_output="test-results/${package_name}_raw.log"
@@ -149,47 +149,15 @@ print_failed_test_stacktraces() {
   done
 }
 
-# Export function for parallel execution
-export -f run_package_tests
-
-# Check if user wants sequential or parallel execution
-if [ "$1" == "--sequential" ]; then
-  PARALLEL=false
-  echo -e "\n${YELLOW}🔄 Running tests sequentially (use without --sequential for parallel)...${NC}"
-else
-  PARALLEL=true
-  echo -e "\n${YELLOW}⏳ Running tests in parallel (use --sequential for sequential)...${NC}"
-fi
+PACKAGES="packages/mettagrid agent common app_backend packages/codebot core packages/cogames packages/gitta"
 
 # Record start time
 START_TIME=$(date +%s)
 
-if [ "$PARALLEL" == true ]; then
-  # Run all packages in parallel (matching CI)
-  run_package_tests "packages/mettagrid" "$BLUE" & # Bold Blue
-  sleep 2                                          # mettagrid is slowest, so give time for it to grab resources
-
-  run_package_tests "agent" "$RED" &                # Bold Red
-  run_package_tests "common" "$GREEN" &             # Bold Green
-  run_package_tests "app_backend" "$YELLOW" &       # Bold Yellow
-  run_package_tests "packages/codebot" "$MAGENTA" & # Bold Magenta
-  run_package_tests "core" "$CYAN" &                # Bold Cyan
-  run_package_tests "packages/cogames" "$WHITE" &   # Bold White
-  run_package_tests "packages/gitta" "$BLUE" &      # Bold Blue
-
-  # Wait for all background jobs to complete
-  wait
-else
-  # Run sequentially for easier debugging
-  run_package_tests "packages/mettagrid" "$BLUE"
-  run_package_tests "agent" "$RED"
-  run_package_tests "common" "$GREEN"
-  run_package_tests "app_backend" "$YELLOW"
-  run_package_tests "packages/codebot" "$MAGENTA"
-  run_package_tests "core" "$CYAN"
-  run_package_tests "packages/cogames" "$WHITE"
-  run_package_tests "packages/gitta" "$BLUE"
-fi
+# Run sequentially for easier debugging
+for package in $PACKAGES; do
+  run_package_tests "$package" "$BLUE"
+done
 
 # Calculate total time
 END_TIME=$(date +%s)
@@ -199,7 +167,7 @@ TOTAL_TIME=$((END_TIME - START_TIME))
 OVERALL_FAILED=0
 FAILED_PACKAGES=""
 
-for package in agent common app_backend packages/mettagrid packages/cogames packages/codebot packages/gitta core; do
+for package in $PACKAGES; do
   package_name=$(basename "$package")
   if [ -f "test-results/${package_name}.exit" ]; then
     EXIT_CODE=$(cat "test-results/${package_name}.exit")
@@ -237,7 +205,6 @@ if [ $OVERALL_FAILED -ne 0 ]; then
 
   echo -e "\n${YELLOW}💡 Tips for debugging:${NC}"
   echo "  - Check individual test logs in test-results/*_raw.log"
-  echo "  - Run with --sequential for easier debugging"
   echo "  - Run individual package tests: cd <package> && pytest -v"
   echo "  - Re-run specific failed tests: pytest -v <test_file>::<test_name>"
   exit 1
