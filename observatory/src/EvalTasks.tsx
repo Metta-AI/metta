@@ -991,7 +991,7 @@ export function EvalTasks({ repo }: Props) {
                           >
                             Logs
                           </a>
-                        ) : (task.attributes?.stderr_log_path || task.attributes?.stdout_log_path) ? (
+                        ) : task.attributes?.stderr_log_path || task.attributes?.stdout_log_path ? (
                           <div style={{ display: 'flex', gap: '8px', fontSize: '13px' }}>
                             {task.attributes?.stderr_log_path && (
                               <a
