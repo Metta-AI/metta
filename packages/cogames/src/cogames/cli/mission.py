@@ -1,3 +1,4 @@
+import re
 from typing import Optional
 
 import typer
@@ -40,7 +41,18 @@ def get_mission_names_and_configs(
         console.print("[yellow]Supply at least one: --mission / -m[/yellow]\n")
     else:
         try:
-            return [get_mission(m) for m in missions_arg]
+            not_deduped = [
+                mission for missions in missions_arg for mission in _get_missions_by_possible_wildcard(missions)
+            ]
+            name_set: set[str] = set()
+            deduped = []
+            for m, c in not_deduped:
+                if m not in name_set:
+                    name_set.add(m)
+                    deduped.append((m, c))
+            if not deduped:
+                raise ValueError(f"No missions found for {missions_arg}")
+            return deduped
         except ValueError as e:
             console.print(f"[yellow]{e}[/yellow]\n")
     list_missions()
@@ -49,6 +61,15 @@ def get_mission_names_and_configs(
         console.print("\n" + ctx.get_usage())
     console.print("\n")
     raise typer.Exit(0)
+
+
+def _get_missions_by_possible_wildcard(mission_arg: str) -> list[tuple[str, MettaGridConfig]]:
+    if "*" in mission_arg:
+        # Convert shell-style wildcard to regex pattern
+        regex_pattern = mission_arg.replace(".", "\\.").replace("*", ".*")
+        missions = [m for m in get_all_missions() if re.search(regex_pattern, m)]
+        return [get_mission(m) for m in missions]
+    return [get_mission(mission_arg)]
 
 
 def get_mission(mission_arg: str) -> tuple[str, MettaGridConfig]:

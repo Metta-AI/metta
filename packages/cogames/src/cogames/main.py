@@ -190,17 +190,20 @@ def train_cmd(
 ) -> None:
     selected_missions = get_mission_names_and_configs(ctx, missions)
     if len(selected_missions) == 1:
-        _, env_cfg = selected_missions[0]
+        mission_name, env_cfg = selected_missions[0]
         supplier = None
+        console.print(f"Training on mission: {mission_name}\n")
     elif len(selected_missions) > 1:
         env_cfg = None
         supplier = make_rotation(selected_missions)
+        console.print("Training on missions:\n" + "\n".join(f"- {m}" for m, _ in selected_missions) + "\n")
     else:
         # Should not get here
         raise ValueError("Please specify at least one mission")
 
     policy_spec = get_policy_spec(ctx, policy)
     torch_device = resolve_training_device(console, device)
+
     try:
         train_module.train(
             env_cfg=env_cfg,
