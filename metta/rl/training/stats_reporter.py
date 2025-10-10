@@ -538,7 +538,7 @@ class StatsReporter(TrainerComponent):
         # Add ScheduleFree optimizer information
         if optimizer and optimizer.param_groups:
             param_group = optimizer.param_groups[0]
-            is_schedulefree = 'train_mode' in param_group
+            is_schedulefree = "train_mode" in param_group
 
             if is_schedulefree:
                 scheduled_lr = param_group.get("scheduled_lr")
@@ -569,8 +569,6 @@ class StatsReporter(TrainerComponent):
                     warmup_steps = getattr(optimizer_cfg, "warmup_steps", None)
                     if warmup_steps is not None:
                         hyperparameters["schedulefree_warmup_steps"] = warmup_steps
-
-                        
 
         losses = getattr(trainer_cfg, "losses", None)
         loss_configs = getattr(losses, "loss_configs", {}) if losses else {}

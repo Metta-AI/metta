@@ -88,6 +88,7 @@ class Trainer:
 
         self.optimizer = create_optimizer(self._cfg.optimizer, self._policy)
         self._is_schedulefree = is_schedulefree_optimizer(self.optimizer)
+        self._schedulefree_initialized = False  # Track if optimizer has run at least one step
 
         self._state = TrainerState()
 
@@ -160,6 +161,12 @@ class Trainer:
 
         # Rollout phase
         with self.timer("_rollout"):
+            # Ensure ScheduleFree optimizer is in eval mode during rollout
+            # (but skip on first epoch before any training has occurred)
+            if self._is_schedulefree and self._schedulefree_initialized:
+                logger.info("Setting ScheduleFree optimizer to eval mode for rollout")
+                self.optimizer.eval()
+
             rollout_result = self.core_loop.rollout_phase(self._env, self._context)
             self._context.training_env_id = rollout_result.training_env_id
             world_size = self._distributed_helper.get_world_size()
@@ -177,8 +184,8 @@ class Trainer:
 
             # Ensure ScheduleFree optimizer is in train mode before training
             if self._is_schedulefree:
+                logger.info("Setting ScheduleFree optimizer to train mode for training phase")
                 self.optimizer.train()
-                logger.info("ScheduleFree optimizer set to train mode for training phase")
 
             losses_stats, epochs_trained = self.core_loop.training_phase(
                 context=self._context,
@@ -186,6 +193,10 @@ class Trainer:
                 max_grad_norm=0.5,
             )
             self._context.advance_epoch(epochs_trained)
+
+            # Mark that we've completed at least one training step
+            if self._is_schedulefree and not self._schedulefree_initialized:
+                self._schedulefree_initialized = True
 
         # Synchronize before proceeding
         self._distributed_helper.synchronize()

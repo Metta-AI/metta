@@ -57,12 +57,15 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
     # Get the base shaped training tool
     base_tool = base_train_shaped(rewards=rewards, converters=converters)
 
-    # Configure ScheduleFree AdamW optimizer
+    # Configure ScheduleFree AdamW optimizer (using native implementation)
     optimizer_config = OptimizerConfig(
-        type="sgd_schedulefree",
-        learning_rate=0.01,
-        momentum=0.9,
-        weight_decay=0.01,
+        type="adam_schedulefree",
+        learning_rate=0.001153637,  # Same as default
+        beta1=0.9,
+        beta2=0.999,
+        eps=3.186531e-07,
+        weight_decay=0.01,  # Small weight decay for AdamW
+        warmup_steps=1000,  # Warmup steps for ScheduleFree
     )
 
     trainer_config = TrainerConfig(

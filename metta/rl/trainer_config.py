@@ -8,7 +8,7 @@ from mettagrid.base_config import Config
 
 
 class OptimizerConfig(Config):
-    type: Literal["adam", "muon", "adamw_schedulefree", "sgd_schedulefree"] = "adam"
+    type: Literal["adam", "muon", "adamw_schedulefree", "sgd_schedulefree", "adam_schedulefree"] = "adam"
     # Learning rate: Type 2 default chosen by sweep
     learning_rate: float = Field(default=0.001153637, gt=0, le=1.0)
     # Beta1: Standard Adam default from Kingma & Ba (2014) "Adam: A Method for Stochastic Optimization"

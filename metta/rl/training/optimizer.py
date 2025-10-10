@@ -1,9 +1,13 @@
+import logging
+
+import schedulefree
 import torch
 from heavyball import ForeachMuon
-import schedulefree
 
 from metta.agent.policy import Policy
 from metta.rl.trainer_config import OptimizerConfig
+
+logger = logging.getLogger(__name__)
 
 
 def create_optimizer(cfg: OptimizerConfig, policy: Policy) -> torch.optim.Optimizer:
@@ -43,8 +47,22 @@ def create_optimizer(cfg: OptimizerConfig, policy: Policy) -> torch.optim.Optimi
             weight_decay=cfg.weight_decay,
             warmup_steps=cfg.warmup_steps,
         )
+    elif optimizer_type == "adam_schedulefree":
+        optimizer = torch.optim.Adam(
+            policy.parameters(),
+            lr=cfg.learning_rate,
+            betas=(cfg.beta1, cfg.beta2),
+            eps=cfg.eps,
+            weight_decay=cfg.weight_decay,
+        )
+        optimizer = schedulefree.ScheduleFreeWrapper(optimizer)
+        print("Type of optimizer:", type(optimizer))
+
     else:
-        raise ValueError(f"Optimizer type must be one of 'adam', 'muon', 'adamw_schedulefree', 'sgd_schedulefree', got {optimizer_type}")
+        raise ValueError(
+            f"Optimizer type must be one of 'adam', 'muon', 'adamw_schedulefree', "
+            f"'sgd_schedulefree', got {optimizer_type}"
+        )
 
     # # Load optimizer state if available
     # if trainer_state and "optimizer_state" in trainer_state:
@@ -54,13 +72,27 @@ def create_optimizer(cfg: OptimizerConfig, policy: Policy) -> torch.optim.Optimi
     #     except ValueError:
     #         logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
 
-    # For ScheduleFree optimizers, put them in train mode immediately
+    # Note: For ScheduleFree optimizers, we don't call train() here.
+    # The trainer will call train() before the first training phase.
+    # Calling train() too early can interfere with optimizer state initialization.
 
     return optimizer
 
 
 def is_schedulefree_optimizer(optimizer: torch.optim.Optimizer) -> bool:
     """Check if optimizer is a ScheduleFree optimizer that requires train()/eval() calls."""
-    # ScheduleFree optimizers have 'train_mode' in their param_groups
-    return (hasattr(optimizer, 'train') and hasattr(optimizer, 'eval') and
-            len(optimizer.param_groups) > 0 and 'train_mode' in optimizer.param_groups[0])
+    # ScheduleFree optimizers have train()/eval() methods and train_mode either as:
+    # - A direct attribute (ScheduleFreeWrapper)
+    # - In param_groups[0] (native AdamWScheduleFree, SGDScheduleFree)
+    if not (hasattr(optimizer, "train") and hasattr(optimizer, "eval")):
+        return False
+
+    # Check for direct attribute (wrapper)
+    if hasattr(optimizer, "train_mode"):
+        return True
+
+    # Check for param_groups entry (native implementations)
+    if len(optimizer.param_groups) > 0 and "train_mode" in optimizer.param_groups[0]:
+        return True
+
+    return False
