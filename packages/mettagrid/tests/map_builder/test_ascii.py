@@ -4,7 +4,7 @@ import tempfile
 import numpy as np
 import pytest
 
-from mettagrid.map_builder.ascii import AsciiMapBuilder, ascii_map_config_from_str, ensure_ascii_yaml
+from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.map_builder.map_builder import GameMap
 from mettagrid.mapgen.types import map_grid_dtype
 
@@ -12,14 +12,15 @@ from mettagrid.mapgen.types import map_grid_dtype
 def make_yaml_map(map_lines: list[str], legend: dict[str, str]) -> str:
     legend_block = "\n".join(f'  "{token}": {name}' for token, name in legend.items())
     map_block = "\n".join(f"  {line}" for line in map_lines)
-    content = f"map_data: |-\n{map_block}\nchar_to_name_map:\n{legend_block}\n"
-    return ensure_ascii_yaml(content)
+    return (
+        "type: mettagrid.map_builder.ascii.AsciiMapBuilder\n"
+        f"map_data: |-\n{map_block}\nchar_to_name_map:\n{legend_block}\n"
+    )
 
 
 def write_temp_map(content: str) -> str:
-    serialized = ensure_ascii_yaml(content)
     temp = tempfile.NamedTemporaryFile(mode="w", suffix=".map", delete=False, encoding="utf-8")
-    temp.write(serialized)
+    temp.write(content)
     temp.flush()
     temp.close()
     return temp.name
@@ -190,7 +191,15 @@ class TestAsciiMapBuilder:
             os.unlink(temp_file)
 
     def test_from_uri_accepts_char_override(self):
-        temp_file = write_temp_map("@.\n..\n")
+        yaml_content = make_yaml_map(
+            [
+                "@.",
+                "..",
+            ],
+            {"@": "agent.agent", ".": "empty"},
+        )
+
+        temp_file = write_temp_map(yaml_content)
         try:
             config = AsciiMapBuilder.Config.from_uri(temp_file, char_to_name_map={"@": "agent.custom"})
             assert config.char_to_name_map["@"] == "agent.custom"
@@ -198,8 +207,14 @@ class TestAsciiMapBuilder:
             os.unlink(temp_file)
 
     def test_from_ascii_map_string(self):
-        ascii_map = "#@\n.#"
-        config = ascii_map_config_from_str(ascii_map)
+        ascii_yaml = make_yaml_map(
+            [
+                "#@",
+                ".#",
+            ],
+            self.BASE_LEGEND,
+        )
+        config = AsciiMapBuilder.Config.from_str(ascii_yaml)
         assert config.map_data == [["#", "@"], [".", "#"]]
         assert config.char_to_name_map["#"] == "wall"
 

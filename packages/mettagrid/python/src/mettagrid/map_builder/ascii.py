@@ -1,89 +1,11 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 import numpy as np
-import yaml
 from pydantic import Field, field_validator, model_validator
 
 from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
-from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME
-
-MAP_KEY = "map_data"
-LEGEND_KEY = "char_to_name_map"
-COGS_VS_CLIPS_PATH_MARKER = Path("packages") / "cogames"
-TYPE_FQN = "mettagrid.map_builder.ascii.AsciiMapBuilder"
-
-
-def ascii_map_config_from_str(text: str) -> "AsciiMapBuilder.Config":
-    """Load an ASCII map builder config from a string that may lack the type header."""
-
-    serialized = ensure_ascii_yaml(text)
-    return AsciiMapBuilder.Config.from_str(serialized)
-
-
-def ensure_ascii_yaml(text: str) -> str:
-    stripped = text.strip()
-    if not stripped:
-        raise ValueError("Map string must be non-empty")
-
-    if "type:" in stripped:
-        return text
-
-    try:
-        parsed = yaml.safe_load(stripped)
-    except yaml.YAMLError:
-        parsed = None
-
-    if isinstance(parsed, dict):
-        data = dict(parsed)
-        data.setdefault("type", TYPE_FQN)
-        return yaml.safe_dump(data, sort_keys=False)
-
-    lines = AsciiMapBuilder.Config._map_lines_from_yaml(stripped)
-    legend: dict[str, str] = {}
-    for line in lines:
-        for char in line:
-            if char in legend:
-                continue
-            if char not in DEFAULT_CHAR_TO_NAME:
-                raise ValueError(f"No default legend entry for character {char!r}")
-            legend[char] = DEFAULT_CHAR_TO_NAME[char]
-
-    data: dict[str, Any] = {
-        "type": TYPE_FQN,
-        "map_data": lines,
-    }
-    if legend:
-        data[LEGEND_KEY] = legend
-
-    return yaml.safe_dump(data, sort_keys=False)
-
-
-try:  # pragma: no cover - optional dependency in consumers outside cogames
-    from cogames.cogs_vs_clips.missions import _get_default_map_objects as _get_cogs_vs_clips_defaults
-except ImportError:  # pragma: no cover
-    _get_cogs_vs_clips_defaults = None
-
-
-def _build_cogs_vs_clips_char_map() -> dict[str, str]:
-    if _get_cogs_vs_clips_defaults is None:
-        return {}
-
-    mapping: dict[str, str] = {}
-    for config in _get_cogs_vs_clips_defaults().values():  # type: ignore[operator]
-        token = getattr(config, "map_char", None)
-        name = getattr(config, "name", None)
-        if not token or not name:
-            continue
-        if len(token) != 1:
-            raise ValueError(f"Legend token must be a single character: {token!r}")
-        mapping[token] = name
-    return mapping
-
-
-COGS_VS_CLIPS_CHAR_MAP: dict[str, str] = _build_cogs_vs_clips_char_map()
 
 
 class AsciiMapBuilder(MapBuilder):
@@ -136,20 +58,6 @@ class AsciiMapBuilder(MapBuilder):
                 return cls._legend_from_yaml(dict(value))
             raise TypeError("char_to_name_map must be a mapping of characters to names")
 
-        @staticmethod
-        def _validate_token(token: str) -> str:
-            token = token.strip().strip("'\"")
-            if len(token) != 1 or any(ch.isspace() for ch in token):
-                raise ValueError(f"Legend token must be a single non-whitespace character: {token!r}")
-            return token
-
-        @staticmethod
-        def _validate_value(value: str) -> str:
-            value = value.strip()
-            if not value or any(ch.isspace() for ch in value):
-                raise ValueError(f"Legend values must be non-empty and contain no whitespace: {value!r}")
-            return value
-
         @classmethod
         def _map_lines_from_yaml(cls, value: Any) -> list[str]:
             if isinstance(value, str):
@@ -180,13 +88,23 @@ class AsciiMapBuilder(MapBuilder):
             for token_raw, name_raw in value.items():
                 if not isinstance(token_raw, str) or not isinstance(name_raw, str):
                     raise ValueError("Legend keys and values must be strings")
-                token = cls._validate_token(token_raw)
-                legend[token] = cls._validate_value(name_raw)
+                token = token_raw.strip().strip("'\"")
+                if len(token) != 1 or any(ch.isspace() for ch in token):
+                    raise ValueError(
+                        f"Legend token must be a single non-whitespace character: {token_raw!r}"
+                    )
+                value_stripped = name_raw.strip()
+                if not value_stripped or any(ch.isspace() for ch in value_stripped):
+                    raise ValueError(
+                        f"Legend values must be non-empty and contain no whitespace: {name_raw!r}"
+                    )
+                legend[token] = value_stripped
             return legend
 
         @model_validator(mode="after")
         def validate_char_to_name_map(self) -> "AsciiMapBuilder.Config":
-            self.char_to_name_map = DEFAULT_CHAR_TO_NAME | self.char_to_name_map
+            if not self.char_to_name_map:
+                raise ValueError("Ascii maps must define a non-empty char_to_name_map")
             return self
 
         @property
@@ -203,46 +121,7 @@ class AsciiMapBuilder(MapBuilder):
 
             if char_to_name_map:
                 config.char_to_name_map |= cls._legend_from_yaml(char_to_name_map)
-
-            return cls._apply_path_char_map(config, Path(uri))
-
-        @classmethod
-        def _apply_path_char_map(cls, config: "AsciiMapBuilder.Config", path: Path) -> "AsciiMapBuilder.Config":
-            preset = cls._legend_for_path(path)
-            if not preset:
-                return config
-
-            char_map = dict(config.char_to_name_map)
-            for char in char_map:
-                if char in preset:
-                    char_map[char] = preset[char]
-
-            config.char_to_name_map = char_map
             return config
-
-        @classmethod
-        def _legend_for_path(cls, path: Path) -> dict[str, str]:
-            if cls._path_contains_marker(path) and COGS_VS_CLIPS_CHAR_MAP:
-                return COGS_VS_CLIPS_CHAR_MAP
-            return {}
-
-        @staticmethod
-        def _path_contains_marker(path: Path) -> bool:
-            marker_parts = COGS_VS_CLIPS_PATH_MARKER.parts
-
-            def matches(candidate: Path) -> bool:
-                parts = candidate.parts
-                for idx in range(len(parts) - len(marker_parts) + 1):
-                    if parts[idx : idx + len(marker_parts)] == marker_parts:
-                        return True
-                return False
-
-            try:
-                relative = path.relative_to(Path.cwd())
-            except ValueError:
-                relative = path
-
-            return matches(relative) or matches(path)
 
     def __init__(self, config: Config):
         self.config = config

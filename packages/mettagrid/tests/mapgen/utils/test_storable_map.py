@@ -1,6 +1,6 @@
 import textwrap
 
-from mettagrid.map_builder.ascii import ascii_map_config_from_str
+from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.map_builder.map_builder import validate_any_map_builder
 from mettagrid.mapgen.utils.storable_map import StorableMap
 
@@ -26,6 +26,7 @@ LEGEND = {
 def test_serializes_map_from_yaml_string():
     ascii_yaml = textwrap.dedent(
         """
+        type: mettagrid.map_builder.ascii.AsciiMapBuilder
         map_data: |-
           ####
           #.m#
@@ -41,7 +42,7 @@ def test_serializes_map_from_yaml_string():
         """
     )
 
-    config = ascii_map_config_from_str(ascii_yaml)
+    config = AsciiMapBuilder.Config.from_str(ascii_yaml)
     assert ["".join(row) for row in config.map_data] == MAP_LINE_STRINGS
     for token, name in LEGEND.items():
         assert config.char_to_name_map[token] == name
