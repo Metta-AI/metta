@@ -61,13 +61,7 @@ def create_optimizer(cfg: OptimizerConfig, policy: Policy) -> torch.optim.Optimi
 def is_schedulefree_optimizer(optimizer: torch.optim.Optimizer) -> bool:
     """Check if optimizer is a ScheduleFree optimizer that requires train()/eval() calls."""
     # ScheduleFree optimizers have train()/eval() methods and train_mode either as:
-    # - A direct attribute (ScheduleFreeWrapper)
-    # - In param_groups[0] (native AdamWScheduleFree, SGDScheduleFree)
     if not (hasattr(optimizer, "train") and hasattr(optimizer, "eval")):
         return False
-
-    # Check for param_groups entry (native implementations)
-    if len(optimizer.param_groups) > 0 and "train_mode" in optimizer.param_groups[0]:
-        return True
 
     return False
