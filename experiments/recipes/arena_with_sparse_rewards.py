@@ -138,6 +138,7 @@ def train(
         trainer=trainer_config,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=EvaluatorConfig(simulations=simulations(), evaluate_local=False, evaluate_remote=True),
+        stats_server_uri="https://api.observatory.softmax-research.net",
     )
 
 
