@@ -41,7 +41,7 @@ def create_optimizer(cfg: OptimizerConfig, policy: Policy) -> torch.optim.Optimi
         )
 
     else:
-        raise ValueError(f"Optimizer type must be one of 'adam', 'muon', 'adamw_schedulefree', , got {optimizer_type}")
+        raise ValueError(f"Optimizer type must be one of 'adam', 'muon', 'adamw_schedulefree', got {optimizer_type}")
 
     # # Load optimizer state if available
     # if trainer_state and "optimizer_state" in trainer_state:
