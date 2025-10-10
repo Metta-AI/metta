@@ -66,10 +66,6 @@ def is_schedulefree_optimizer(optimizer: torch.optim.Optimizer) -> bool:
     if not (hasattr(optimizer, "train") and hasattr(optimizer, "eval")):
         return False
 
-    # Check for direct attribute (wrapper)
-    if hasattr(optimizer, "train_mode"):
-        return True
-
     # Check for param_groups entry (native implementations)
     if len(optimizer.param_groups) > 0 and "train_mode" in optimizer.param_groups[0]:
         return True
