@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Dict, List, Tuple
+from typing import TYPE_CHECKING, Callable, Dict, List, Mapping, Tuple
 
 if TYPE_CHECKING:  # pragma: no cover
     from mettagrid.core import MettaGridCore
@@ -77,3 +77,14 @@ def build_action_mapping(env: "MettaGridCore") -> Tuple[Dict[int, Tuple[int, int
             base_names.append(name)
 
     return mapping, base_names
+
+
+def make_decode_fn(mapping: Mapping[int, Tuple[int, int]]) -> Callable[[int], Tuple[int, int]]:
+    """Return a callable that converts flattened indices using the provided mapping."""
+
+    def decode(flat_index: int) -> Tuple[int, int]:
+        if flat_index < 0:
+            return (0, 0)
+        return mapping.get(flat_index, (flat_index, 0))
+
+    return decode

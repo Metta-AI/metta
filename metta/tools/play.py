@@ -13,7 +13,7 @@ from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_wandb_config
 from mettagrid import dtype_actions
-from mettagrid.util.action_catalog import build_action_mapping
+from mettagrid.util.action_catalog import build_action_mapping, make_decode_fn
 from mettagrid.util.grid_object_formatter import format_grid_object
 
 logger = logging.getLogger(__name__)
@@ -55,11 +55,7 @@ class PlayTool(Tool):
             initial_replay = sim.get_replay()
 
             flat_mapping, _ = build_action_mapping(env)
-
-            def decode_flat_action(flat_index: int) -> tuple[int, int]:
-                if flat_index < 0:
-                    return (0, 0)
-                return flat_mapping.get(flat_index, (flat_index, 0))
+            decode_flat_action = make_decode_fn(flat_mapping)
 
             current_step = 0
             actions = np.zeros(env.num_agents, dtype=dtype_actions)

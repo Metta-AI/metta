@@ -5,12 +5,12 @@ from __future__ import annotations
 import json
 import logging
 import zlib
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from metta.utils.file import http_url, write_data
-from mettagrid.util.action_catalog import build_action_mapping
+from mettagrid.util.action_catalog import build_action_mapping, make_decode_fn
 from mettagrid.util.grid_object_formatter import format_grid_object
 from mettagrid.util.replay_writer import ReplayWriter
 
@@ -62,6 +62,7 @@ class EpisodeReplay:
         self.objects = []
         self.total_rewards = np.zeros(env.num_agents)
         self._flat_action_mapping, self._base_action_names = build_action_mapping(env)
+        self._decode_flat_action = make_decode_fn(self._flat_action_mapping)
 
         self._validate_non_empty_string_list(env.action_names, "action_names")
         self._validate_non_empty_string_list(env.resource_names, "item_names")
@@ -135,12 +136,6 @@ class EpisodeReplay:
         compressed_data = zlib.compress(replay_bytes)  # Compress the bytes
 
         write_data(path, compressed_data, content_type="application/x-compress")
-
-    def _decode_flat_action(self, flat_index: int) -> Tuple[int, int]:
-        """Convert flattened action index to action id/parameter pair."""
-        if flat_index < 0:
-            return 0, 0
-        return self._flat_action_mapping.get(flat_index, (flat_index, 0))
 
     @staticmethod
     def _validate_non_empty_string_list(values: list[str], field_name: str) -> None:
