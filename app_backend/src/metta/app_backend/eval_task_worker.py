@@ -15,6 +15,7 @@ import logging
 import os
 import shutil
 import subprocess
+import sys
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -34,7 +35,6 @@ from metta.common.datadog.tracing import init_tracing, trace
 from metta.common.util.collections import remove_none_values
 from metta.common.util.constants import SOFTMAX_S3_BASE, SOFTMAX_S3_BUCKET
 from metta.common.util.git_repo import REPO_URL
-from metta.common.util.log_config import init_logging
 from metta.rl.checkpoint_manager import CheckpointManager
 
 logger = logging.getLogger(__name__)
@@ -286,6 +286,17 @@ class EvalTaskWorker:
             except Exception as e:
                 logger.error(f"Error in worker loop: {e}", exc_info=True)
                 await asyncio.sleep(10)
+
+
+def init_logging():
+    # Configure root logger
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+        handlers=[logging.StreamHandler(sys.stdout)],
+    )
+
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 async def main() -> None:
