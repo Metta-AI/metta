@@ -39,12 +39,43 @@ class RecordingModel(torch.nn.Module):
         return DummyOutput((inputs_embeds, hidden))
 
 
+class RecordingModelNoHidden(RecordingModel):
+    def forward(
+        self,
+        *,
+        inputs_embeds: torch.Tensor,
+        attention_mask: torch.Tensor,
+        output_hidden_states: bool,
+        return_dict: bool,
+        use_cache: bool,
+    ) -> DummyOutput:
+        base = super().forward(
+            inputs_embeds=inputs_embeds,
+            attention_mask=attention_mask,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+            use_cache=use_cache,
+        )
+        hidden = base.hidden_states[-1]
+        return SimpleNamespace(hidden_states=None, last_hidden_state=hidden)
+
+
 def _fake_from_pretrained(hidden_size: int = 64):
     def _factory(*_: object, **kwargs: object) -> RecordingModel:
         dtype = kwargs.get("torch_dtype", torch.float32)
         if not isinstance(dtype, torch.dtype):
             dtype = torch.float32
         return RecordingModel(hidden_size=hidden_size, dtype=dtype)
+
+    return _factory
+
+
+def _fake_no_hidden_from_pretrained(hidden_size: int = 64):
+    def _factory(*_: object, **kwargs: object) -> RecordingModelNoHidden:
+        dtype = kwargs.get("torch_dtype", torch.float32)
+        if not isinstance(dtype, torch.dtype):
+            dtype = torch.float32
+        return RecordingModelNoHidden(hidden_size=hidden_size, dtype=dtype)
 
     return _factory
 
@@ -231,6 +262,30 @@ def test_initialize_to_environment_aligns_module_dtypes(monkeypatch: pytest.Monk
     assert backbone.embed_norm.weight.dtype == torch.float16
     assert backbone.actor_head.weight.dtype == torch.float16
     assert backbone.value_head.weight.dtype == torch.float16
+
+
+def test_forward_uses_last_hidden_state_when_hidden_states_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "metta.agent.components.smollm.AutoModelForCausalLM",
+        SimpleNamespace(from_pretrained=_fake_no_hidden_from_pretrained(hidden_size=32)),
+    )
+
+    env = _make_env(num_actions=3)
+    config = SmolLLMBackboneConfig(in_key="tokens", freeze_llm=False, torch_dtype="float16")
+    backbone = SmolLLMBackbone(env, config)
+
+    tokens = torch.tensor(
+        [
+            [[1, 2, 3], [4, 5, 6], [7, 8, 9], [255, 255, 255]],
+        ],
+        dtype=torch.uint8,
+    )
+    td = _make_tensordict(tokens)
+
+    result = backbone(td)
+    assert result is td
+    assert "smollm_logits" in td
+    assert "values" in td
 
 
 def test_flash_attn_auto_dtype_promotes_float16(monkeypatch: pytest.MonkeyPatch) -> None:

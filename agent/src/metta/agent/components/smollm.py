@@ -129,7 +129,13 @@ class SmolLLMBackbone(nn.Module):
             return_dict=True,
             use_cache=False,
         )
-        final_hidden = outputs.hidden_states[-1]
+        hidden_states = getattr(outputs, "hidden_states", None)
+        if hidden_states:
+            final_hidden = hidden_states[-1]
+        else:
+            final_hidden = getattr(outputs, "last_hidden_state", None)
+            if final_hidden is None:
+                raise RuntimeError("SmolLLM backbone expected hidden states but model returned none")
 
         pooled = self._pool_hidden_states(final_hidden, attention_mask)
         pooled = pooled.to(dtype=self.actor_head.weight.dtype)
