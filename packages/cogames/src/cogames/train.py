@@ -228,15 +228,19 @@ def train(
 
     env_name = "cogames.cogs_vs_clips"
 
+    min_policy_horizon = getattr(policy, "min_bptt_horizon", 1)
     if use_rnn:
         learning_rate = 0.0003
-        bptt_horizon = 1
+        bptt_horizon = max(1, min_policy_horizon)
         optimizer = "adam"
         adam_eps = 1e-8
-        logger.info("Using RNN-specific hyperparameters: lr=0.0003, bptt=1, optimizer=adam")
+        logger.info(
+            "Using RNN-specific hyperparameters: lr=0.0003, bptt=%s, optimizer=adam",
+            bptt_horizon,
+        )
     else:
         learning_rate = 0.015
-        bptt_horizon = 1
+        bptt_horizon = max(1, min_policy_horizon)
         optimizer = "muon"
         adam_eps = 1e-12
 

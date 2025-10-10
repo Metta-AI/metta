@@ -118,6 +118,7 @@ class PuffeRL:
         self.ep_lengths = torch.zeros(total_agents, device=device, dtype=torch.int32)
         self.ep_indices = torch.arange(total_agents, device=device, dtype=torch.int32)
         self.free_idx = total_agents
+        self._flat_obs_dim = int(np.prod(obs_space.shape))
 
         # LSTM
         if config["use_rnn"]:
@@ -269,7 +270,12 @@ class PuffeRL:
                     state["lstm_h"] = self.lstm_h[env_id.start]
                     state["lstm_c"] = self.lstm_c[env_id.start]
 
-                logits, value = self.policy.forward_eval(o_device, state)
+                policy_outputs = self.policy.forward_eval(o_device, state)
+                if isinstance(policy_outputs, (tuple, list)):
+                    logits = policy_outputs[0]
+                    value = policy_outputs[1]
+                else:
+                    logits, value = policy_outputs
                 action, logprob, _ = pufferlib.pytorch.sample_logits(logits)
                 r = torch.clamp(r, -1, 1)
 
@@ -369,7 +375,7 @@ class PuffeRL:
             prio_probs = (prio_weights + 1e-6) / (prio_weights.sum() + 1e-6)
             idx = torch.multinomial(prio_probs, self.minibatch_segments)
             mb_prio = (self.segments * prio_probs[idx, None]) ** -anneal_beta
-            mb_obs = self.observations[idx]
+            mb_obs_seq = self.observations[idx]
             mb_actions = self.actions[idx]
             mb_logprobs = self.logprobs[idx]
             mb_rewards = self.rewards[idx]
@@ -380,9 +386,11 @@ class PuffeRL:
             mb_returns = advantages[idx] + mb_values
             mb_advantages = advantages[idx]
 
+            mb_obs = mb_obs_seq
+
             profile("train_forward", epoch)
             if not config["use_rnn"]:
-                mb_obs = mb_obs.reshape(-1, *self.vecenv.single_observation_space.shape)
+                mb_obs = mb_obs_seq.reshape(-1, *self.vecenv.single_observation_space.shape)
 
             state = dict(
                 action=mb_actions,
@@ -391,7 +399,15 @@ class PuffeRL:
             )
 
             # TODO: Currently only returning traj shaped value as a hack
-            logits, newvalue = self.policy(mb_obs, state)
+            policy_outputs = self.policy(mb_obs, state)
+            world_model_pred = None
+            if isinstance(policy_outputs, tuple) or isinstance(policy_outputs, list):
+                logits = policy_outputs[0]
+                newvalue = policy_outputs[1]
+                if len(policy_outputs) > 2:
+                    world_model_pred = policy_outputs[2]
+            else:
+                raise TypeError("Policy forward must return logits and value tensors")
             # TODO: Redundant actions?
             actions, newlogprob, entropy = pufferlib.pytorch.sample_logits(logits, action=mb_actions)
 
@@ -438,6 +454,28 @@ class PuffeRL:
             entropy_loss = entropy.mean()
 
             loss = pg_loss + config["vf_coef"] * v_loss - config["ent_coef"] * entropy_loss
+
+            if world_model_pred is not None:
+                aux_coef = config.get("world_model_coef", 1.0)
+                if aux_coef != 0:
+                    pred = world_model_pred.reshape(-1, self._flat_obs_dim)
+                    next_obs_seq = mb_obs_seq[:, 1:].to(pred.device)
+                    pad_frame = mb_obs_seq[:, -1:].to(pred.device)
+                    next_obs_seq = torch.cat([next_obs_seq, pad_frame], dim=1)
+                    target_obs = next_obs_seq.reshape(-1, self._flat_obs_dim).to(pred.dtype) / 255.0
+
+                    mask = torch.ones_like(mb_rewards, dtype=pred.dtype, device=pred.device)
+                    mask[:, -1] = 0
+                    mask *= (1.0 - mb_terminals.to(pred.device).float()) * (
+                        1.0 - mb_truncations.to(pred.device).float()
+                    )
+                    mask = mask.reshape(-1, 1)
+
+                    valid = mask.sum()
+                    if valid.item() > 0:
+                        world_model_loss = (((pred - target_obs) ** 2) * mask).sum() / valid
+                        loss = loss + aux_coef * world_model_loss
+                        losses["world_model_loss"] += world_model_loss.item() / self.total_minibatches
             self.amp_context.__enter__()  # TODO: Debug
 
             # This breaks vloss clipping?

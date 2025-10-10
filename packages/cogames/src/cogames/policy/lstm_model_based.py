@@ -137,7 +137,8 @@ class LSTMModelBasedPolicyNet(torch.nn.Module):
         logits = self._action_head(hidden)
 
         values = self._value_head(hidden)
-        return logits, values
+        next_obs = self._next_obs_head(hidden)
+        return logits, values, next_obs
 
     # We use this to work around a major torch perf issue
     def forward(
@@ -189,7 +190,11 @@ class LSTMModelBasedAgentPolicy(StatefulAgentPolicy[LSTMState]):
             if torch.isinf(obs_tensor).any():
                 logger.error(f"Inf in observation! obs shape: {obs_tensor.shape}")
 
-            logits, _ = self._net.forward_eval(obs_tensor, state_dict)
+            outputs = self._net.forward_eval(obs_tensor, state_dict)
+            if isinstance(outputs, (tuple, list)):
+                logits = outputs[0]
+            else:
+                logits = outputs
 
             # Debug: check logits
             if torch.isnan(logits).any():
@@ -226,6 +231,7 @@ class LSTMModelBasedPolicy(TrainablePolicy):
         self._device = device
         self._num_actions = int(env.single_action_space.n)
         self._agent_policy = LSTMModelBasedAgentPolicy(self._net, device, self._num_actions)
+        self.min_bptt_horizon = 2
 
     def network(self) -> nn.Module:
         return self._net

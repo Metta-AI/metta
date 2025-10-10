@@ -146,5 +146,33 @@
       "python": "${workspaceFolder}/.venv/bin/python",
       "preLaunchTask": "${defaultBuildTask}",
     },
+    {
+      "name": "Train Cogames LSTM Model-Based (random)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "cogames.main",
+      "args": [
+        "train",
+        "-m",
+        "random",
+        "-p",
+        "lstm_model_based",
+        "--steps",
+        "5000",
+        "--batch-size",
+        "512",
+        "--minibatch-size",
+        "256",
+        "--num-workers",
+        "1"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
+      },
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "preLaunchTask": "${defaultBuildTask}",
+    },
   ],
 }
