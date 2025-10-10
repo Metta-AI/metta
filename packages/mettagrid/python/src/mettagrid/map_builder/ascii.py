@@ -13,6 +13,53 @@ from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME
 MAP_KEY = "map_data"
 LEGEND_KEY = "char_to_name_map"
 COGS_VS_CLIPS_PATH_MARKER = Path("packages") / "cogames"
+TYPE_FQN = "mettagrid.map_builder.ascii.AsciiMapBuilder"
+
+
+def ascii_map_config_from_str(text: str) -> "AsciiMapBuilder.Config":
+    """Load an ASCII map builder config from a string that may lack the type header."""
+
+    serialized = ensure_ascii_yaml(text)
+    return AsciiMapBuilder.Config.from_str(serialized)
+
+
+def ensure_ascii_yaml(text: str) -> str:
+    stripped = text.strip()
+    if not stripped:
+        raise ValueError("Map string must be non-empty")
+
+    if "type:" in stripped:
+        return text
+
+    try:
+        parsed = yaml.safe_load(stripped)
+    except yaml.YAMLError:
+        parsed = None
+
+    if isinstance(parsed, dict):
+        data = dict(parsed)
+        data.setdefault("type", TYPE_FQN)
+        return yaml.safe_dump(data, sort_keys=False)
+
+    lines = AsciiMapBuilder.Config._map_lines_from_yaml(stripped)
+    legend: dict[str, str] = {}
+    for line in lines:
+        for char in line:
+            if char in legend:
+                continue
+            if char not in DEFAULT_CHAR_TO_NAME:
+                raise ValueError(f"No default legend entry for character {char!r}")
+            legend[char] = DEFAULT_CHAR_TO_NAME[char]
+
+    data: dict[str, Any] = {
+        "type": TYPE_FQN,
+        "map_data": lines,
+    }
+    if legend:
+        data[LEGEND_KEY] = legend
+
+    return yaml.safe_dump(data, sort_keys=False)
+
 
 try:  # pragma: no cover - optional dependency in consumers outside cogames
     from cogames.cogs_vs_clips.missions import _get_default_map_objects as _get_cogs_vs_clips_defaults
@@ -37,23 +84,6 @@ def _build_cogs_vs_clips_char_map() -> dict[str, str]:
 
 
 COGS_VS_CLIPS_CHAR_MAP: dict[str, str] = _build_cogs_vs_clips_char_map()
-
-
-def _parse_ascii_map(text: str) -> tuple[list[list[str]], dict[str, str]]:
-    try:
-        data = yaml.safe_load(text)
-    except yaml.YAMLError as exc:
-        raise ValueError("Map file must be valid YAML") from exc
-
-    if not isinstance(data, dict):
-        raise ValueError("Map file must be a YAML mapping with 'map' and 'legend'")
-
-    if MAP_KEY not in data or LEGEND_KEY not in data:
-        raise ValueError("Map YAML must include both 'map' and 'legend'")
-
-    map_rows = AsciiMapBuilder.Config._normalize_map_data(data[MAP_KEY])
-    legend_map = AsciiMapBuilder.Config._normalize_char_map(data[LEGEND_KEY])
-    return map_rows, legend_map
 
 
 class AsciiMapBuilder(MapBuilder):
@@ -154,29 +184,6 @@ class AsciiMapBuilder(MapBuilder):
                 legend[token] = cls._validate_value(name_raw)
             return legend
 
-        @classmethod
-        def _build_from_ascii(cls, ascii_map: str, char_to_name_map: dict[str, str] | None = None) -> dict[str, Any]:
-            try:
-                map_rows, legend_map = _parse_ascii_map(ascii_map)
-                map_lines = ["".join(row) for row in map_rows]
-            except ValueError:
-                if "map_data" in ascii_map and "char_to_name_map" in ascii_map:
-                    raise
-                map_lines = cls._map_lines_from_yaml(ascii_map)
-                legend_map = {}
-
-            merged = legend_map.copy()
-            if char_to_name_map:
-                merged |= char_to_name_map
-
-            data: dict[str, Any] = {
-                "map_data": [list(line) for line in map_lines],
-            }
-            if merged:
-                data["char_to_name_map"] = merged
-
-            return data
-
         @model_validator(mode="after")
         def validate_char_to_name_map(self) -> "AsciiMapBuilder.Config":
             self.char_to_name_map = DEFAULT_CHAR_TO_NAME | self.char_to_name_map
@@ -198,13 +205,6 @@ class AsciiMapBuilder(MapBuilder):
                 config.char_to_name_map |= cls._legend_from_yaml(char_to_name_map)
 
             return cls._apply_path_char_map(config, Path(uri))
-
-        @classmethod
-        def from_ascii_map(
-            cls, ascii_map: str, char_to_name_map: dict[str, str] | None = None
-        ) -> "AsciiMapBuilder.Config":
-            data = cls._build_from_ascii(ascii_map, char_to_name_map)
-            return cls.model_validate(data)
 
         @classmethod
         def _apply_path_char_map(cls, config: "AsciiMapBuilder.Config", path: Path) -> "AsciiMapBuilder.Config":

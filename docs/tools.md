@@ -21,7 +21,6 @@ development workflows.
 |                   | `dashboard.py`                       | Generate dashboard data for web visualization | ✗            |
 | **Map Tools**     | `map/gen.py`                         | Generate maps from configuration files        | ✗            |
 |                   | `map/view.py`                        | View stored maps in various formats           | ✗            |
-|                   | `map/check_maps_load.py`             | Validate all ASCII map files can be loaded    | ✗            |
 |                   | `map/convert_legacy_maps_to_yaml.py` | Convert legacy ASCII maps to YAML format      | ✗            |
 | **Utilities**     | `stats_duckdb_cli.py`                | Interactive DuckDB CLI for stats analysis     | ✗            |
 |                   | `validate_config.py`                 | Validate and print Hydra configurations       | ✗            |
@@ -134,9 +133,6 @@ The runner supports flexible invocation syntax:
 
 # 4. Test with renderer
 ./tools/renderer.py env.game.map=@file://./my_map.yaml
-
-# 5. Validate all maps load correctly
-./tools/map/check_maps_load.py
 ```
 
 ## Training Tools
@@ -332,35 +328,6 @@ View stored maps from various sources (local files, S3, etc.).
 ./packages/mettagrid/python/src/mettagrid/mapgen/tools/view.py s3://bucket/maps/
 ```
 
-### map/check_maps_load.py
-
-Validate that all ASCII map files can be loaded successfully with the current map builder system. This tool is essential
-for ensuring map compatibility after system updates.
-
-**Usage**:
-
-```bash
-# Check all default map directories
-./tools/map/check_maps_load.py
-
-# Check specific files or directories
-./tools/map/check_maps_load.py packages/mettagrid/configs/maps/navigation_sequence/
-
-# Verbose output showing each file as it's checked
-./tools/map/check_maps_load.py --verbose
-
-# Check specific map files
-./tools/map/check_maps_load.py packages/cogames/src/cogames/maps/training_facility_clipped.map
-```
-
-**Key Features**:
-
-- Validates map loading without building the actual game map
-- Checks both MettaGrid and CoGames map directories by default
-- Provides clear error messages for failed maps
-- Supports verbose output for debugging
-- Exit code 1 if any maps fail to load
-
 ### map/convert_legacy_maps_to_yaml.py
 
 Convert legacy ASCII map files (plain text with legend footer) to the new YAML format with proper type annotations and
@@ -495,9 +462,6 @@ Key environment variables used by tools:
 ### Map Loading Issues
 
 ```bash
-# Validate all maps load correctly
-./tools/map/check_maps_load.py
-
 # Convert legacy maps to new format
 ./tools/map/convert_legacy_maps_to_yaml.py legacy_map.txt --output=new_map.yaml
 ```
@@ -511,8 +475,7 @@ Key environment variables used by tools:
 5. **Use sweep tools** for systematic hyperparameter search
 6. **Generate replays** for debugging unexpected behaviors
 7. **Document custom configurations** in version control
-8. **Validate map compatibility** after system updates using `check_maps_load.py`
-9. **Convert legacy maps** to YAML format for better maintainability
+8. **Convert legacy maps** to YAML format for better maintainability
 
 ## CLI Cheat Sheet
 
@@ -524,7 +487,6 @@ Key environment variables used by tools:
 | Replay (policy)       | `./tools/run.py replay arena policy_uri=s3://bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`         |
 | Evaluate (arena)      | `./tools/run.py evaluate arena policy_uris=s3://bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`      |
 | Evaluate (navigation) | `./tools/run.py evaluate navigation policy_uris=s3://bucket/checkpoints/local.alice.1/local.alice.1:v10.pt` |
-| Check map loading     | `./tools/map/check_maps_load.py`                                                                            |
 | Convert legacy map    | `./tools/map/convert_legacy_maps_to_yaml.py legacy_map.txt --output=new_map.yaml`                           |
 
 Running these commands mirrors our CI configuration and helps keep the codebase consistent.
