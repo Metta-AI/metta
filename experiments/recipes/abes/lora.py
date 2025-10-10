@@ -72,14 +72,6 @@ def _apply_lora_defaults(tool: TrainTool) -> TrainTool:
     if trainer_updates:
         tool.trainer = tool.trainer.model_copy(update=trainer_updates)
 
-    env_updates = {}
-    if tool.training_env.auto_workers:
-        env_updates["auto_workers"] = False
-    if tool.training_env.num_workers > 2:
-        env_updates["num_workers"] = 2
-    if env_updates:
-        tool.training_env = tool.training_env.model_copy(update=env_updates)
-
     return tool
 
 
