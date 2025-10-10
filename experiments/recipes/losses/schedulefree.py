@@ -79,6 +79,7 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
 
     trainer_config = TrainerConfig(
         optimizer=optimizer_config,
+        total_timesteps=50_000_000_000,
     )
 
     # Return a new TrainTool with the shaped environment but ScheduleFree optimizer
