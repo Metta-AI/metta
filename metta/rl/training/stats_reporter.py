@@ -561,14 +561,14 @@ class StatsReporter(TrainerComponent):
             hyperparameters["learning_rate"] = parameters["learning_rate"]
 
         optimizer_cfg = getattr(trainer_cfg, "optimizer", None)
-        if optimizer_cfg is not None:
+        if optimizer_cfg:
             optimizer_type = getattr(optimizer_cfg, "type", None)
             if optimizer_type:
                 hyperparameters["optimizer_type"] = optimizer_type
-                if "schedulefree" in optimizer_type:
-                    warmup_steps = getattr(optimizer_cfg, "warmup_steps", None)
-                    if warmup_steps is not None:
-                        hyperparameters["schedulefree_warmup_steps"] = warmup_steps
+            if optimizer_type and "schedulefree" in optimizer_type:
+                warmup_steps = getattr(optimizer_cfg, "warmup_steps", None)
+                if warmup_steps is not None:
+                    hyperparameters["schedulefree_warmup_steps"] = warmup_steps
 
         losses = getattr(trainer_cfg, "losses", None)
         loss_configs = getattr(losses, "loss_configs", {}) if losses else {}
