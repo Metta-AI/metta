@@ -47,6 +47,9 @@ def train(
         config_kwargs = {
             "freeze_llm": freeze_llm,
             "attn_implementation": _select_attn_implementation(attn_implementation),
+            "token_stride": 2,
+            "actor_head_rank": 64,
+            "value_head_rank": 8,
         }
         config_kwargs["model_name"] = model_name or "HuggingFaceTB/SmolLM2-135M"
         policy_architecture = SmolLLMConfig(**config_kwargs)
@@ -64,10 +67,10 @@ def _apply_smollm_defaults(tool: TrainTool) -> TrainTool:
     """Clamp heavy training defaults to keep SmolLLM within memory limits."""
 
     trainer_updates = {}
-    if tool.trainer.batch_size > 4096:
-        trainer_updates["batch_size"] = 4096
-    if tool.trainer.minibatch_size > 1024:
-        trainer_updates["minibatch_size"] = 1024
+    if tool.trainer.batch_size > 1024:
+        trainer_updates["batch_size"] = 1024
+    if tool.trainer.minibatch_size > 256:
+        trainer_updates["minibatch_size"] = 256
     if tool.trainer.bptt_horizon > 4:
         trainer_updates["bptt_horizon"] = (
             4  # keep segments >= agents without inflating batch size
@@ -78,8 +81,8 @@ def _apply_smollm_defaults(tool: TrainTool) -> TrainTool:
         tool.trainer = tool.trainer.model_copy(update=trainer_updates)
 
     env_updates = {}
-    if tool.training_env.forward_pass_minibatch_target_size > 1024:
-        env_updates["forward_pass_minibatch_target_size"] = 1024
+    if tool.training_env.forward_pass_minibatch_target_size > 256:
+        env_updates["forward_pass_minibatch_target_size"] = 256
     if tool.training_env.async_factor > 1:
         env_updates["async_factor"] = 1
     if tool.training_env.auto_workers:

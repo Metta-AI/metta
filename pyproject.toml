@@ -37,6 +37,7 @@ dependencies = [
   "omegaconf>=2.3.0",
   "pandas>=2.3.0",
   "pettingzoo>=1.25",
+  "peft>=0.12.0",
   "pixie-python>=4.3.0",
   "plotly>=6.1.1",
   "psycopg[binary]>=3.2.9",

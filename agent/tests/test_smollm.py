@@ -7,7 +7,7 @@ import torch
 from gymnasium import spaces
 from tensordict import TensorDict
 
-from metta.agent.components.smollm import SmolLLMBackbone, SmolLLMBackboneConfig
+from metta.agent.components.smollm import LowRankLinear, SmolLLMBackbone, SmolLLMBackboneConfig
 
 
 class DummyOutput:
@@ -137,6 +137,38 @@ def test_forward_adds_token_for_all_padding(monkeypatch: pytest.MonkeyPatch) -> 
     assert torch.equal(model.last_attention_mask, expected_mask)
 
 
+def test_token_stride_downsamples_tokens(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(
+        "metta.agent.components.smollm.AutoModelForCausalLM",
+        SimpleNamespace(from_pretrained=_capturing_from_pretrained(captured, hidden_size=32)),
+    )
+
+    env = _make_env(num_actions=3)
+    config = SmolLLMBackboneConfig(
+        in_key="tokens",
+        max_sequence_length=6,
+        freeze_llm=False,
+        torch_dtype="float16",
+        token_stride=2,
+    )
+    backbone = SmolLLMBackbone(env, config)
+
+    tokens = torch.tensor(
+        [
+            [[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12], [13, 14, 15], [16, 17, 18]],
+        ],
+        dtype=torch.uint8,
+    )
+    td = _make_tensordict(tokens)
+    backbone(td)
+
+    model = backbone.llm
+    assert isinstance(model, RecordingModel)
+    assert model.last_inputs_embeds is not None
+    assert model.last_inputs_embeds.shape[1] == 3
+
+
 def test_initialize_to_environment_aligns_module_dtypes(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "metta.agent.components.smollm.AutoModelForCausalLM",
@@ -194,3 +226,22 @@ def test_flash_attn_disabled_when_no_supported_dtype(monkeypatch: pytest.MonkeyP
     assert isinstance(backbone.llm, RecordingModel)
     assert "attn_implementation" not in captured
     assert config.attn_implementation is None
+
+
+def test_low_rank_actor_head(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "metta.agent.components.smollm.AutoModelForCausalLM",
+        SimpleNamespace(from_pretrained=_fake_from_pretrained(hidden_size=64)),
+    )
+
+    env = _make_env(num_actions=20)
+    config = SmolLLMBackboneConfig(
+        in_key="tokens",
+        freeze_llm=False,
+        torch_dtype="float16",
+        actor_head_rank=4,
+        value_head_rank=1,
+    )
+    backbone = SmolLLMBackbone(env, config)
+
+    assert isinstance(backbone.actor_head, LowRankLinear)

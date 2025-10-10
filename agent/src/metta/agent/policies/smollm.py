@@ -18,6 +18,7 @@ class SmolLLMConfig(PolicyArchitecture):
 
     model_name: str = "HuggingFaceTB/SmolLM2-135M"
     max_sequence_length: int = 32
+    token_stride: int = 1
     freeze_llm: bool = True
     torch_dtype: Literal["auto", "float32", "float16", "bfloat16"] = "auto"
     attn_implementation: Optional[str] = "flash_attention_2"
@@ -26,6 +27,9 @@ class SmolLLMConfig(PolicyArchitecture):
     logits_key: str = "smollm_logits"
     values_key: str = "values"
     hidden_key: Optional[str] = None
+
+    actor_head_rank: Optional[int] = None
+    value_head_rank: Optional[int] = None
 
     components: List[ComponentConfig] = []
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="smollm_logits")
@@ -52,5 +56,8 @@ class SmolLLMConfig(PolicyArchitecture):
                 freeze_llm=self.freeze_llm,
                 torch_dtype=self.torch_dtype,
                 attn_implementation=self.attn_implementation,
+                token_stride=self.token_stride,
+                actor_head_rank=self.actor_head_rank,
+                value_head_rank=self.value_head_rank,
             ),
         ]

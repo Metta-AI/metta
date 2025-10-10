@@ -40,9 +40,24 @@ class SmolLLMBackboneConfig(ComponentConfig):
     torch_dtype: Literal["auto", "float32", "float16", "bfloat16"] = "auto"
     attn_implementation: Optional[str] = "flash_attention_2"
     pad_value: int = 255
+    token_stride: int = 1
+    actor_head_rank: Optional[int] = None
+    value_head_rank: Optional[int] = None
 
     def make_component(self, env: EnvironmentMetaData):
         return SmolLLMBackbone(env, self)
+
+
+class LowRankLinear(nn.Module):
+    """Factorised linear layer to reduce parameters and activation memory."""
+
+    def __init__(self, in_features: int, out_features: int, rank: int, bias: bool = True) -> None:
+        super().__init__()
+        self.left = nn.Linear(in_features, rank, bias=bias)
+        self.right = nn.Linear(rank, out_features, bias=bias)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.right(self.left(x))
 
 
 class SmolLLMBackbone(nn.Module):
@@ -61,6 +76,7 @@ class SmolLLMBackbone(nn.Module):
         self.hidden_key = config.hidden_key
         self.max_sequence_length = config.max_sequence_length
         self.pad_value = config.pad_value
+        self.token_stride = max(1, config.token_stride)
 
         self._load_model()
 
@@ -79,8 +95,8 @@ class SmolLLMBackbone(nn.Module):
 
         self.total_actions = int(action_space.n)
 
-        self.actor_head = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, self.total_actions), std=0.01)
-        self.value_head = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 1), std=1.0)
+        self.actor_head = self._make_actor_head()
+        self.value_head = self._make_value_head()
 
     def forward(self, td: TensorDict) -> TensorDict:
         flat_td = td.reshape(td.batch_size.numel()) if td.batch_dims > 1 else td
@@ -221,6 +237,8 @@ class SmolLLMBackbone(nn.Module):
 
         max_len = min(seq_len, self.max_sequence_length)
         tokens = tokens[:, :max_len]
+        if self.token_stride > 1 and tokens.shape[1] > 1:
+            tokens = tokens[:, :: self.token_stride]
 
         valid_mask = (tokens != self.pad_value).any(dim=-1)
 
@@ -239,6 +257,26 @@ class SmolLLMBackbone(nn.Module):
             attention_mask[empty_rows, 0] = 1
 
         return embeds, attention_mask
+
+    def _make_actor_head(self) -> nn.Module:
+        rank = self.config.actor_head_rank
+        if rank is None or rank >= min(self.hidden_size, self.total_actions):
+            return pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, self.total_actions), std=0.01)
+        layer = LowRankLinear(self.hidden_size, self.total_actions, rank)
+        self._init_low_rank(layer, std=0.01)
+        return layer
+
+    def _make_value_head(self) -> nn.Module:
+        rank = self.config.value_head_rank
+        if rank is None or rank >= min(self.hidden_size, 1):
+            return pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 1), std=1.0)
+        layer = LowRankLinear(self.hidden_size, 1, rank)
+        self._init_low_rank(layer, std=1.0)
+        return layer
+
+    def _init_low_rank(self, layer: LowRankLinear, *, std: float) -> None:
+        pufferlib.pytorch.layer_init(layer.left, std=std)
+        pufferlib.pytorch.layer_init(layer.right, std=std)
 
     def _pool_hidden_states(self, hidden: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
         mask = attention_mask.unsqueeze(-1).to(dtype=hidden.dtype)
