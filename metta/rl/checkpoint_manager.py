@@ -12,6 +12,7 @@ from metta.agent.mocks import MockAgent
 from metta.agent.policy import Policy
 from metta.rl.puffer_policy import _is_puffer_state_dict, load_pufferlib_checkpoint
 from metta.rl.system_config import SystemConfig
+from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
 from metta.utils.file import local_copy, write_file
 from metta.utils.uri import ParsedURI
@@ -311,6 +312,12 @@ class CheckpointManager:
     ):
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
+
+        # For ScheduleFree optimizers, ensure we save in eval mode
+        is_schedulefree = is_schedulefree_optimizer(optimizer)
+        if is_schedulefree:
+            optimizer.eval()
+
         state = {"optimizer": optimizer.state_dict(), "epoch": epoch, "agent_step": agent_step}
         if stopwatch_state:
             state["stopwatch_state"] = stopwatch_state
@@ -319,6 +326,10 @@ class CheckpointManager:
         if loss_states is not None:
             state["loss_states"] = loss_states
         torch.save(state, trainer_file)
+
+        # Restore train mode after saving for ScheduleFree optimizers
+        if is_schedulefree:
+            optimizer.train()
 
     def get_latest_checkpoint(self) -> str | None:
         local_max_checkpoint = _latest_checkpoint(f"file://{self.checkpoint_dir}")
