@@ -1,0 +1,63 @@
+"""Tests for automatic alignment of vectorized environment configuration."""
+
+from cogames.train import _align_envs_and_workers
+
+
+def test_align_defaults_prefers_divisor_reduction() -> None:
+    aligned_envs, aligned_workers = _align_envs_and_workers(
+        256,
+        10,
+        envs_user_supplied=False,
+        workers_user_supplied=False,
+    )
+
+    assert aligned_envs == 256
+    assert aligned_workers == 8
+
+
+def test_align_respects_user_envs_by_shrinking_workers() -> None:
+    aligned_envs, aligned_workers = _align_envs_and_workers(
+        150,
+        16,
+        envs_user_supplied=True,
+        workers_user_supplied=False,
+    )
+
+    assert aligned_envs == 150
+    assert aligned_workers == 15
+
+
+def test_align_respects_user_workers_by_growing_envs() -> None:
+    aligned_envs, aligned_workers = _align_envs_and_workers(
+        256,
+        12,
+        envs_user_supplied=False,
+        workers_user_supplied=True,
+    )
+
+    assert aligned_envs == 264
+    assert aligned_workers == 12
+
+
+def test_align_adjusts_both_user_values() -> None:
+    aligned_envs, aligned_workers = _align_envs_and_workers(
+        50,
+        12,
+        envs_user_supplied=True,
+        workers_user_supplied=True,
+    )
+
+    assert aligned_envs == 60
+    assert aligned_workers == 12
+
+
+def test_align_reduces_workers_when_more_workers_than_envs() -> None:
+    aligned_envs, aligned_workers = _align_envs_and_workers(
+        4,
+        8,
+        envs_user_supplied=True,
+        workers_user_supplied=True,
+    )
+
+    assert aligned_envs == 4
+    assert aligned_workers == 4
