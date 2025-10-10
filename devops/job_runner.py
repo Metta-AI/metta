@@ -9,24 +9,26 @@ Example usage:
     result = job.wait(stream_output=True)
     print(f"Exit code: {result.exit_code}")
 
-    # Remote job (sync)
+    # Remote job (sync) - same API as LocalJob!
     job = RemoteJob(
         name="train",
-        task_yaml="sky_tasks/arena_train.yaml",
+        cmd=["uv", "run", "./tools/run.py", "train", "arena"],
         timeout_s=3600,
+        resources={"accelerators": "V100:4", "use_spot": True},
+        num_nodes=2,
     )
     result = job.wait(stream_output=True)
     print(f"Job ID: {result.job_id}, Exit code: {result.exit_code}")
 
     # Remote job (async - poll for completion)
-    job = RemoteJob(name="train", task_yaml="sky_tasks/arena_train.yaml")
+    job = RemoteJob(name="train", cmd=["uv", "run", "./tools/run.py", "train", "arena"])
     job.submit()
     while not job.is_complete():
         time.sleep(10)
     result = job.get_result()
 
     # Attach to existing remote job
-    job = RemoteJob(name="train", task_yaml="sky_tasks/arena_train.yaml", job_id=12345)
+    job = RemoteJob(name="train", cmd=["echo", "dummy"], job_id=12345)
     result = job.wait(stream_output=True)
 """
 
@@ -323,32 +325,35 @@ class RemoteJob(Job):
     def __init__(
         self,
         name: str,
-        task_yaml: Optional[str] = None,
-        task: Optional[sky.Task] = None,
-        cluster_name: Optional[str] = None,
+        cmd: Optional[list[str]] = None,
         timeout_s: int = 3600,
         log_dir: str = "logs/remote",
+        cluster_name: Optional[str] = None,
+        resources: Optional[dict] = None,
+        num_nodes: int = 1,
         job_id: Optional[int] = None,
     ):
         """Initialize a remote job.
 
         Args:
             name: Job name for logging/display
-            task_yaml: Path to a SkyPilot task YAML file
-            task: A sky.Task object (alternative to task_yaml)
-            cluster_name: Name of the cluster to run on (will be auto-generated if None)
+            cmd: Command to run (similar to LocalJob API)
             timeout_s: Job timeout in seconds
             log_dir: Directory to store logs
+            cluster_name: Name of the cluster to run on (will be auto-generated if None)
+            resources: Resource requirements dict (e.g., {"accelerators": "V100:4", "use_spot": True})
+            num_nodes: Number of nodes to use (default: 1)
             job_id: Existing job ID to resume (if provided, skips launch)
         """
         super().__init__(name, log_dir, timeout_s)
 
-        if not task_yaml and not task and not job_id:
-            raise ValueError("Must provide either task_yaml, task, or job_id")
+        if not cmd and not job_id:
+            raise ValueError("Must provide either cmd or job_id")
 
-        self.task_yaml = task_yaml
-        self.task = task
+        self.cmd = cmd
         self.cluster_name = cluster_name or f"job-{name}"
+        self.resources = resources or {}
+        self.num_nodes = num_nodes
         self._job_id: Optional[int] = job_id
         self._request_id: Optional[str] = None
         self._start_time: Optional[float] = None
@@ -367,11 +372,26 @@ class RemoteJob(Job):
             return
 
         try:
-            # Load task from YAML or use provided task
-            if self.task_yaml:
-                task = sky.Task.from_yaml(self.task_yaml)
-            else:
-                task = self.task
+            # Create task from command
+            cmd_str = " ".join(self.cmd) if self.cmd else ""
+            task = sky.Task(run=cmd_str, name=self.name)
+
+            # Configure resources if provided
+            if self.resources:
+                # Extract resource parameters
+                accelerators = self.resources.get("accelerators")
+                use_spot = self.resources.get("use_spot", True)
+
+                # Create Resources object
+                sky_resources = sky.Resources(
+                    accelerators=accelerators,
+                    use_spot=use_spot,
+                )
+                task.set_resources(sky_resources)
+
+            # Set number of nodes if > 1
+            if self.num_nodes > 1:
+                task.set_num_nodes(self.num_nodes)
 
             # Launch the job using managed jobs
             self._request_id = sky.jobs.launch(task, name=self.cluster_name)

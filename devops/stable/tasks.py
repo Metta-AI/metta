@@ -1,23 +1,17 @@
-"""Task execution for release validation.
-
-This module provides:
-1. Task base classes that execute and produce results
-2. Specific task implementations (CI, Training, Evaluation)
-3. Helper functions for creating tasks declaratively
-
-The helper functions eliminate boilerplate while maintaining flexibility.
-"""
+"""Defines the actual tasks that are run when validating a release."""
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
 from datetime import datetime
 from operator import ge, gt
 from typing import Callable, Literal, Optional
 
+from pydantic import BaseModel
+
 from devops.job_runner import JobResult, LocalJob, RemoteJob
 from devops.stable.metrics import extract_metrics, extract_wandb_run_info
+from metta.common.util.text_styles import blue, cyan, green, magenta, red, yellow
 
 # Type definitions
 Outcome = Literal["passed", "failed", "skipped", "inconclusive"]
@@ -37,8 +31,7 @@ def _evaluate_thresholds(metrics: dict[str, float], checks: list[AcceptanceRule]
     return ("passed" if not failures else "failed", failures)
 
 
-@dataclass
-class TaskResult:
+class TaskResult(BaseModel):
     """Result of running a validation task.
 
     Artifacts provide explicit data flow between tasks:
@@ -51,15 +44,14 @@ class TaskResult:
     ended_at: str
     outcome: Outcome  # "passed", "failed", "skipped"
     exit_code: int = 0
-    metrics: dict[str, float] = field(default_factory=dict)
-    artifacts: dict[str, str] = field(default_factory=dict)  # checkpoint_uri, wandb_run_id, etc.
+    metrics: dict[str, float] = {}
+    artifacts: dict[str, str] = {}  # checkpoint_uri, wandb_run_id, etc.
     logs_path: Optional[str] = None
     job_id: Optional[str] = None
     error: Optional[str] = None
 
     def display_detailed(self) -> None:
         """Print detailed verification information with highlighted artifacts."""
-        from metta.common.util.text_styles import blue, cyan, green, magenta, red, yellow
 
         print(f"\n{'=' * 80}")
         print(blue(f"📋 TASK VERIFICATION: {self.name}"))
@@ -184,17 +176,22 @@ class Task(ABC):
 class LocalCommandTask(Task):
     """Task that runs a local command."""
 
-    def __init__(self, name: str, cmd: list[str], timeout_s: int = 900):
+    def __init__(self, name: str, cmd: list[str], timeout_s: int = 900, log_dir: Optional[str] = None):
         super().__init__(name)
         self.cmd = cmd
         self.timeout_s = timeout_s
+        self.log_dir = log_dir
 
     def execute(self) -> JobResult:
+        # log_dir must be set by runner before execution
+        if not self.log_dir:
+            raise ValueError(f"log_dir not set for task {self.name}")
+
         job = LocalJob(
             name=self.name,
             cmd=self.cmd,
             timeout_s=self.timeout_s,
-            log_dir="devops/stable/logs/local",
+            log_dir=self.log_dir,
         )
         return job.wait(stream_output=True)
 
@@ -210,6 +207,7 @@ class TrainingTask(Task):
         timeout_s: int = 3600,
         acceptance: list[AcceptanceRule] | None = None,
         wandb_metrics: list[str] | None = None,
+        log_dir: Optional[str] = None,
     ):
         super().__init__(name)
         self.module = module
@@ -217,6 +215,7 @@ class TrainingTask(Task):
         self.timeout_s = timeout_s
         self.acceptance = acceptance or []
         self.wandb_metrics = wandb_metrics or []
+        self.log_dir = log_dir
 
     def _convert_result(self, job_result: JobResult) -> TaskResult:
         """Override to add metrics extraction and acceptance checking."""
@@ -283,12 +282,16 @@ class LocalTrainingTask(TrainingTask):
     """Local training task."""
 
     def execute(self) -> JobResult:
+        # log_dir must be set by runner before execution
+        if not self.log_dir:
+            raise ValueError(f"log_dir not set for task {self.name}")
+
         cmd = ["uv", "run", "./tools/run.py", self.module, *self.args]
         job = LocalJob(
             name=self.name,
             cmd=cmd,
             timeout_s=self.timeout_s,
-            log_dir="devops/stable/logs/local",
+            log_dir=self.log_dir,
         )
         return job.wait(stream_output=True)
 
@@ -301,13 +304,41 @@ class RemoteTrainingTask(TrainingTask):
         self.base_args = base_args or []
 
     def execute(self) -> JobResult:
+        # log_dir must be set by runner before execution
+        if not self.log_dir:
+            raise ValueError(f"log_dir not set for task {self.name}")
+
+        # Build the command to run
+        cmd = ["uv", "run", "./tools/run.py", self.module, *self.args]
+
+        # Parse base_args to configure resources
+        # base_args example: ["--no-spot", "--gpus=4", "--nodes=2"]
+        gpus = None
+        nodes = None
+        use_spot = True  # Default to spot instances
+
+        for arg in self.base_args:
+            if arg == "--no-spot":
+                use_spot = False
+            elif arg.startswith("--gpus="):
+                gpus = arg.split("=")[1]
+            elif arg.startswith("--nodes="):
+                nodes = int(arg.split("=")[1])
+
+        # Build resources dict for RemoteJob
+        resources = {}
+        if gpus:
+            resources["accelerators"] = gpus
+            resources["use_spot"] = use_spot
+
+        # Create RemoteJob with the same API as LocalJob
         job = RemoteJob(
             name=self.name,
-            module=self.module,
-            args=self.args,
+            cmd=cmd,
             timeout_s=self.timeout_s,
-            log_dir="devops/stable/logs/remote",
-            base_args=self.base_args,
+            log_dir=self.log_dir,
+            resources=resources,
+            num_nodes=nodes if nodes and nodes > 1 else 1,
         )
         return job.wait(stream_output=True)
 

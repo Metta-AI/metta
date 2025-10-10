@@ -39,9 +39,8 @@ from devops.stable.asana_bugs import check_blockers
 from devops.stable.runner import TaskRunner
 from devops.stable.state import (
     ReleaseState,
-    get_commit_sha,
-    get_git_log_since_stable,
     get_most_recent_state,
+    load_or_create_state,
     load_state,
     save_state,
 )
@@ -97,7 +96,7 @@ def step_prepare_tag(version: str, state: Optional[ReleaseState] = None, **_kwar
         print(f"   Tag {tag_name} was created in previous run")
         return
 
-    commit_sha = get_commit_sha()
+    commit_sha = git.get_current_commit()
     print(f"Current commit: {commit_sha}")
 
     try:
@@ -225,15 +224,7 @@ def step_task_validation(
 
     # Load or create state
     state_version = f"release_{version}"
-    state = load_state(state_version)
-    if not state:
-        state = ReleaseState(
-            version=state_version,
-            created_at=datetime.utcnow().isoformat(timespec="seconds"),
-            commit_sha=get_commit_sha(),
-        )
-        # Save initial state to disk
-        save_state(state)
+    state = load_or_create_state(state_version, git.get_current_commit())
 
     # Get all tasks
     all_tasks = get_all_tasks()
@@ -317,7 +308,7 @@ def step_summary(version: str, **_kwargs) -> None:
     sps_last = training_metrics.get("sps_last", "N/A")
 
     # Get git log since last stable release
-    git_log = get_git_log_since_stable()
+    git_log = git.git_log_since("origin/stable")
 
     # Print task results summary
     print("Task Results:")
@@ -393,7 +384,7 @@ def step_release(version: str, **_kwargs) -> None:
             if result.job_id:
                 training_job_id = result.job_id
 
-    git_log = get_git_log_since_stable()
+    git_log = git.git_log_since("origin/stable")
 
     # Create release notes
     release_notes_dir = Path("devops/stable/release-notes")
@@ -561,32 +552,16 @@ def common(
 @app.command("prepare-tag")
 def cmd_prepare_tag():
     """Create and push staging tag."""
-    # Load existing state if it exists
     state_version = f"release_{_VERSION}"
-    state = load_state(state_version)
-    if not state:
-        state = ReleaseState(
-            version=state_version,
-            created_at=datetime.utcnow().isoformat(timespec="seconds"),
-            commit_sha=get_commit_sha(),
-        )
-        save_state(state)
+    state = load_or_create_state(state_version, git.get_current_commit())
     step_prepare_tag(version=_VERSION, state=state)
 
 
 @app.command("bugs")
 def cmd_bugs():
     """Check bug status in Asana."""
-    # Load existing state if it exists
     state_version = f"release_{_VERSION}"
-    state = load_state(state_version)
-    if not state:
-        state = ReleaseState(
-            version=state_version,
-            created_at=datetime.utcnow().isoformat(timespec="seconds"),
-            commit_sha=get_commit_sha(),
-        )
-        save_state(state)
+    state = load_or_create_state(state_version, git.get_current_commit())
     step_bug_check(state=state)
 
 
@@ -633,16 +608,8 @@ def cmd_all(
     ),
 ):
     """Run full release pipeline."""
-    # Load or create state
     state_version = f"release_{_VERSION}"
-    state = load_state(state_version)
-    if not state:
-        state = ReleaseState(
-            version=state_version,
-            created_at=datetime.utcnow().isoformat(timespec="seconds"),
-            commit_sha=get_commit_sha(),
-        )
-        save_state(state)
+    state = load_or_create_state(state_version, git.get_current_commit())
 
     # Run steps with state tracking
     step_prepare_tag(version=_VERSION, state=state)

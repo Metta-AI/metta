@@ -8,28 +8,46 @@ This module handles:
 
 from __future__ import annotations
 
-import json
-from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
-import gitta as git
+from pydantic import BaseModel
 
-if TYPE_CHECKING:
-    from devops.stable.tasks import TaskResult
+from devops.stable.tasks import TaskResult
+from metta.common.util.fs import get_repo_root
 
 # ============================================================================
 # Constants
 # ============================================================================
 
-STATE_DIR = Path("devops/stable/state")
-LOG_DIR_LOCAL = Path("devops/stable/logs/local")
-LOG_DIR_REMOTE = Path("devops/stable/logs/remote")
+REPO_ROOT = get_repo_root()
+STATE_DIR = REPO_ROOT / "devops/stable/state"
 
-# Create directories
+# Create state directory
 STATE_DIR.mkdir(parents=True, exist_ok=True)
-LOG_DIR_LOCAL.mkdir(parents=True, exist_ok=True)
-LOG_DIR_REMOTE.mkdir(parents=True, exist_ok=True)
+
+
+# ============================================================================
+# Helper Functions
+# ============================================================================
+
+
+def get_log_dir(version: str, job_type: str) -> Path:
+    """Get log directory for a specific release version and job type.
+
+    Args:
+        version: Version string (with or without 'release_' prefix)
+        job_type: Type of job ("local" or "remote")
+
+    Returns:
+        Path to log directory, relative to repo root
+    """
+    # Strip 'release_' prefix if present
+    version_clean = version.replace("release_", "")
+
+    log_dir = REPO_ROOT / "devops/stable/logs" / version_clean / job_type
+    log_dir.mkdir(parents=True, exist_ok=True)
+    return log_dir
 
 
 # ============================================================================
@@ -37,45 +55,15 @@ LOG_DIR_REMOTE.mkdir(parents=True, exist_ok=True)
 # ============================================================================
 
 
-@dataclass
-class ReleaseState:
+class ReleaseState(BaseModel):
     """State of a release qualification run."""
 
     version: str
     created_at: str
     commit_sha: Optional[str] = None
-    results: dict[str, TaskResult] = field(default_factory=dict)
-    gates: list[dict] = field(default_factory=list)
+    results: dict[str, "TaskResult"] = {}
+    gates: list[dict] = []
     released: bool = False
-
-
-# ============================================================================
-# Git Utilities
-# ============================================================================
-
-
-def get_commit_sha() -> Optional[str]:
-    """Get current git commit SHA."""
-    try:
-        return git.get_current_commit()
-    except git.GitError:
-        return None
-
-
-def get_git_log_since_stable() -> str:
-    """Get git log since the last stable release tag."""
-    try:
-        # Find the latest tag matching v* from HEAD
-        last_tag = git.run_git("describe", "--tags", "--abbrev=0", "--match", "v*")
-
-        # Get git log from that tag to HEAD
-        return git.run_git("log", f"{last_tag}..HEAD", "--oneline")
-    except git.GitError:
-        # If no tag found, just return recent commits
-        try:
-            return git.run_git("log", "--oneline", "-20")
-        except git.GitError:
-            return "Unable to retrieve git log"
 
 
 # ============================================================================
@@ -88,9 +76,10 @@ def load_state(version: str) -> Optional[ReleaseState]:
 
     Args:
         version: Version string (with or without 'release_' prefix)
-    """
-    from devops.stable.tasks import TaskResult
 
+    Returns:
+        ReleaseState if found, None otherwise
+    """
     # Ensure version has release_ prefix for filename
     if not version.startswith("release_"):
         version = f"release_{version}"
@@ -100,29 +89,40 @@ def load_state(version: str) -> Optional[ReleaseState]:
         return None
 
     try:
-        data = json.loads(path.read_text())
-
-        # Reconstruct TaskResults
-        results = {}
-        for name, result_data in data.get("results", {}).items():
-            if not isinstance(result_data, dict):
-                raise ValueError(f"Invalid result data for {name}")
-            # TaskResult doesn't have task_type - remove it if present
-            result_data.pop("task_type", None)
-            results[name] = TaskResult(**result_data)
-
-        state = ReleaseState(
-            version=data["version"],
-            created_at=data["created_at"],
-            commit_sha=data.get("commit_sha"),
-            results=results,
-            gates=data.get("gates", []),
-            released=data.get("released", False),
-        )
-        return state
-    except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
+        return ReleaseState.model_validate_json(path.read_text())
+    except Exception as e:
         print(f"Failed to load state from {path}: {e}")
         return None
+
+
+def load_or_create_state(version: str, commit_sha: str) -> ReleaseState:
+    """Load existing state or create new one.
+
+    Args:
+        version: Version string (with or without 'release_' prefix)
+        commit_sha: Git commit SHA to use when creating new state
+
+    Returns:
+        ReleaseState (either loaded or newly created)
+    """
+    from datetime import datetime
+
+    state = load_state(version)
+    if state:
+        return state
+
+    # Ensure version has release_ prefix
+    if not version.startswith("release_"):
+        version = f"release_{version}"
+
+    # Create new state
+    state = ReleaseState(
+        version=version,
+        created_at=datetime.utcnow().isoformat(timespec="seconds"),
+        commit_sha=commit_sha,
+    )
+    save_state(state)
+    return state
 
 
 def get_most_recent_state() -> Optional[tuple[str, ReleaseState]]:
@@ -160,10 +160,18 @@ def save_state(state: ReleaseState) -> Path:
 
     path = STATE_DIR / f"{version}.json"
 
-    # Convert to dict and serialize
-    data = asdict(state)
-
     # Simple write - no atomicity needed for sequential execution
-    path.write_text(json.dumps(data, indent=2, default=str))
+    path.write_text(state.model_dump_json(indent=2))
 
     return path
+
+
+# Rebuild model after TaskResult is imported to resolve forward references
+def _rebuild_models():
+    """Rebuild Pydantic models to resolve forward references."""
+    from devops.stable.tasks import TaskResult  # noqa: F401
+
+    ReleaseState.model_rebuild()
+
+
+_rebuild_models()

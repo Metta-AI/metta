@@ -14,8 +14,8 @@ from __future__ import annotations
 import sys
 from datetime import datetime
 
-from devops.stable.state import ReleaseState, save_state
-from devops.stable.tasks import Task, TaskResult
+from devops.stable.state import ReleaseState, get_log_dir, save_state
+from devops.stable.tasks import LocalCommandTask, LocalTrainingTask, Task, TaskResult
 from metta.common.util.text_styles import blue, green, red, yellow
 
 
@@ -115,6 +115,16 @@ class TaskRunner:
         print(f"\n{'=' * 80}")
         print(f"🔄 Running: {task.name}")
         print(f"{'=' * 80}")
+
+        # Inject log directory based on task type
+        if hasattr(task, "log_dir") and not task.log_dir:
+            version_clean = self.state.version.replace("release_", "")
+            # Determine if task is local or remote
+            if isinstance(task, (LocalCommandTask, LocalTrainingTask)):
+                task.log_dir = str(get_log_dir(version_clean, "local"))
+            else:
+                task.log_dir = str(get_log_dir(version_clean, "remote"))
+
         try:
             result = task.run()
             if self.interactive:

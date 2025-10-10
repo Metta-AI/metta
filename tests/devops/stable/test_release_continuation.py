@@ -110,8 +110,8 @@ def test_step_prepare_tag_skips_when_gate_passed(monkeypatch, tmp_path, capsys):
     )
 
     # Mock git operations so they don't actually run
-    with patch("devops.stable.release_stable.get_commit_sha", return_value="abc123"):
-        with patch("devops.stable.release_stable.git.run_git"):
+    with patch("gitta.get_current_commit", return_value="abc123"):
+        with patch("gitta.run_git"):
             step_prepare_tag(version="2025.10.09-1430", state=state)
 
     captured = capsys.readouterr()
@@ -161,8 +161,8 @@ def test_step_prepare_tag_marks_gate_when_complete(monkeypatch, tmp_path):
     )
 
     # Mock git operations
-    with patch("devops.stable.release_stable.get_commit_sha", return_value="abc123"):
-        with patch("devops.stable.release_stable.git.run_git") as mock_git:
+    with patch("gitta.get_current_commit", return_value="abc123"):
+        with patch("gitta.run_git") as mock_git:
             # Mock tag doesn't exist
             mock_git.return_value = ""
             step_prepare_tag(version="2025.10.09-1430", state=state)
@@ -208,7 +208,7 @@ def test_cmd_all_creates_state_once(monkeypatch, tmp_path):
             with patch("devops.stable.release_stable.step_task_validation") as mock_task:
                 with patch("devops.stable.release_stable.step_summary") as mock_summary:
                     with patch("devops.stable.release_stable._VERSION", "2025.10.09-1430"):
-                        with patch("devops.stable.release_stable.get_commit_sha", return_value="abc123"):
+                        with patch("gitta.get_current_commit", return_value="abc123"):
                             cmd_all(task=None, reeval=False)
 
     # Verify all steps were called
@@ -259,7 +259,7 @@ def test_continuation_skips_completed_steps(monkeypatch, tmp_path, capsys):
                 with patch("devops.stable.release_stable.step_summary") as mock_summary:
                     with patch("devops.stable.release_stable._VERSION", "2025.10.09-1430"):
                         with patch("devops.stable.release_stable.load_state", return_value=state):
-                            with patch("devops.stable.release_stable.get_commit_sha", return_value="abc123"):
+                            with patch("gitta.get_current_commit", return_value="abc123"):
                                 cmd_all(task=None, reeval=False)
 
     # Verify all steps were called (they handle skipping internally)
