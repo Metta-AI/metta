@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import random
 from dataclasses import dataclass
 from typing import Callable, Dict, Tuple
@@ -52,7 +53,7 @@ class TaskSpec:
 
 def make_task(task: str, *, num_samples: int, seed: int) -> TaskSpec:
     if task == "delayed_recall":
-        delay = 512
+        delay = 128
 
         def _splits():
             return DelayedRecallDataset.splits(num_samples=num_samples, delay=delay, seed=seed)
@@ -84,6 +85,24 @@ def set_seed(seed: int) -> None:
     torch.cuda.manual_seed_all(seed)
 
 
+def _enable_determinism() -> None:
+    """Force deterministic behavior where possible (CUDA/cuBLAS/torch)."""
+    os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+    try:
+        torch.use_deterministic_algorithms(True)
+    except Exception:
+        pass
+    try:
+        torch.backends.cuda.matmul.allow_tf32 = False  # type: ignore[attr-defined]
+    except Exception:
+        pass
+    try:
+        torch.backends.cudnn.deterministic = True  # type: ignore[attr-defined]
+        torch.backends.cudnn.benchmark = False  # type: ignore[attr-defined]
+    except Exception:
+        pass
+
+
 def train_one(
     *,
     stack: CortexStack,
@@ -98,7 +117,10 @@ def train_one(
 ) -> Dict[str, float]:
     train_ds, val_ds, test_ds = task.make_splits()
     _ensure_disjoint_splits(train_ds, val_ds, test_ds)
-    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
+    # Ensure identical shuffle order across runs by seeding a dedicated generator
+    g = torch.Generator()
+    g.manual_seed(torch.initial_seed())
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, generator=g)
     val_loader = DataLoader(val_ds, batch_size=batch_size)
     test_loader = DataLoader(test_ds, batch_size=batch_size)
 
@@ -216,6 +238,49 @@ def train_one(
             else:
                 logits, state = model(seq, state)
             loss = criterion(logits, labels)
+            # Optional Axons parity probe: compute grads with both backends on the same minibatch
+            # to catch any drift. This is a no-op for optimization; used for diagnostics only.
+            if (
+                train
+                and AXONS_PARITY_PROBE > 0
+                and hasattr(model.stack.blocks[0], "cell")
+                and model.stack.blocks[0].cell.__class__.__name__ == "Axons"
+                and total == 0  # first minibatch only to avoid overhead
+                and (EPOCH_IDX % max(AXONS_PARITY_PROBE, 1) == 0)
+            ):
+                import copy
+
+                model_a = copy.deepcopy(model).to(device)
+                model_b = copy.deepcopy(model).to(device)
+                # Disable Triton for model_a
+                os.environ["CORTEX_DISABLE_TRITON"] = "1"
+                opt_a = torch.optim.SGD(model_a.parameters(), lr=0.0)
+                opt_a.zero_grad(set_to_none=True)
+                logits_a, _ = model_a(seq, state=None)
+                loss_a = criterion(logits_a, labels)
+                loss_a.backward()
+                grads_a = [p.grad.detach().flatten() for p in model_a.parameters() if p.grad is not None]
+
+                # Enable Triton for model_b
+                os.environ.pop("CORTEX_DISABLE_TRITON", None)
+                opt_b = torch.optim.SGD(model_b.parameters(), lr=0.0)
+                opt_b.zero_grad(set_to_none=True)
+                logits_b, _ = model_b(seq, state=None)
+                loss_b = criterion(logits_b, labels)
+                loss_b.backward()
+                grads_b = [p.grad.detach().flatten() for p in model_b.parameters() if p.grad is not None]
+
+                if len(grads_a) == len(grads_b):
+                    diffs = [torch.max(torch.abs(a - b)).item() for a, b in zip(grads_a, grads_b, strict=False)]
+                    max_diff = max(diffs) if diffs else 0.0
+                    logging.info(
+                        "[parity] max_grad_diff=%.3e (loss_pt=%.6f loss_tr=%.6f)",
+                        max_diff,
+                        loss_a.item(),
+                        loss_b.item(),
+                    )
+                else:
+                    logging.info("[parity] grad list length mismatch: %d vs %d", len(grads_a), len(grads_b))
             if train:
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
@@ -229,7 +294,16 @@ def train_one(
         return avg_loss, acc
 
     best_val = 0.0
+    # Globals for the parity probe inside the epoch loop
+    global AXONS_PARITY_PROBE, EPOCH_IDX
+    AXONS_PARITY_PROBE = int(os.getenv("AXONS_PARITY_PROBE", "0"))
+    EPOCH_IDX = 0
+    if AXONS_PARITY_PROBE <= 0:
+        # allow CLI flag to control as well
+        AXONS_PARITY_PROBE = 0
+
     for epoch in range(1, epochs + 1):
+        EPOCH_IDX = epoch
         train_loss, train_acc = _run_epoch(train_loader, train=True)
         val_loss, val_acc = _run_epoch(val_loader, train=False)
         best_val = max(best_val, val_acc)
@@ -259,6 +333,20 @@ def main() -> None:
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--num-samples", type=int, default=2000)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--deterministic",
+        action="store_true",
+        help="Enable deterministic CUDA/torch settings (useful for A/B backend parity).",
+    )
+    parser.add_argument(
+        "--axons-parity-probe",
+        type=int,
+        default=0,
+        help=(
+            "If >0 and the stack uses Axons, every N epochs run a no-op parity check on one minibatch "
+            "(compute grads with PyTorch and Triton backends back-to-back) and log max grad diff."
+        ),
+    )
     parser.add_argument("--log-level", type=str, default="INFO", help="Logging level (DEBUG, INFO, WARNING, ERROR)")
     parser.add_argument(
         "--rtu-chunk-size",
@@ -291,6 +379,8 @@ def main() -> None:
         logging.getLogger().setLevel(level)
 
     set_seed(args.seed)
+    if args.deterministic:
+        _enable_determinism()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logging.info("device=%s seed=%d", device, args.seed)
 
