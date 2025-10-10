@@ -31,100 +31,39 @@ logger = logging.getLogger("cogames.pufferlib")
 
 
 def _largest_divisor_at_most(value: int, limit: int) -> int:
-    """Return the largest divisor of ``value`` that does not exceed ``limit``."""
-
     for candidate in range(min(value, limit), 0, -1):
         if value % candidate == 0:
             return candidate
     return 1
 
 
-def _align_envs_and_workers(
+def _resolve_vector_counts(
     num_envs: int,
     num_workers: int,
     *,
     envs_user_supplied: bool,
     workers_user_supplied: bool,
 ) -> tuple[int, int]:
-    """Ensure ``num_envs`` and ``num_workers`` are compatible for vectorized execution."""
+    """Adjust counts so num_envs stays divisible by num_workers."""
 
     num_envs = max(1, num_envs)
     num_workers = max(1, num_workers)
 
     if num_envs < num_workers:
         if workers_user_supplied:
-            logger.info(
-                "Reducing num_workers from %s to %s to match available envs",
-                num_workers,
-                num_envs,
-            )
             num_workers = num_envs
         else:
-            logger.info(
-                "Raising num_envs from %s to %s to give each worker at least one env",
-                num_envs,
-                num_workers,
-            )
             num_envs = num_workers
 
     if num_envs % num_workers == 0:
         return num_envs, num_workers
 
-    rounded_envs = num_workers * math.ceil(num_envs / num_workers)
-
-    if envs_user_supplied and workers_user_supplied:
-        if rounded_envs != num_envs:
-            logger.info(
-                "Adjusting num_envs from %s to %s to satisfy user-specified num_workers=%s",
-                num_envs,
-                rounded_envs,
-                num_workers,
-            )
-            num_envs = rounded_envs
-        return num_envs, num_workers
-
-    if envs_user_supplied:
+    if envs_user_supplied and not workers_user_supplied:
         adjusted_workers = _largest_divisor_at_most(num_envs, num_workers)
-        if adjusted_workers != num_workers:
-            logger.info(
-                "Adjusting num_workers from %s to %s to evenly divide user-specified envs=%s",
-                num_workers,
-                adjusted_workers,
-                num_envs,
-            )
-            num_workers = adjusted_workers
-        return num_envs, num_workers
-
-    if workers_user_supplied:
-        if rounded_envs != num_envs:
-            logger.info(
-                "Adjusting num_envs from %s to %s to evenly divide user-specified num_workers=%s",
-                num_envs,
-                rounded_envs,
-                num_workers,
-            )
-            num_envs = rounded_envs
-        return num_envs, num_workers
-
-    adjusted_workers = _largest_divisor_at_most(num_envs, num_workers)
-    if adjusted_workers not in (num_workers, 1):
-        logger.info(
-            "Adjusting num_workers from %s to %s to evenly divide num_envs=%s",
-            num_workers,
-            adjusted_workers,
-            num_envs,
-        )
         return num_envs, adjusted_workers
 
-    if rounded_envs != num_envs:
-        logger.info(
-            "Adjusting num_envs from %s to %s to satisfy scheduler requirements",
-            num_envs,
-            rounded_envs,
-        )
-        num_envs = rounded_envs
-
-    return num_envs, num_workers
+    adjusted_envs = num_workers * math.ceil(num_envs / num_workers)
+    return adjusted_envs, num_workers
 
 
 def train(
@@ -179,12 +118,30 @@ def train(
 
     num_envs = vector_num_envs or 256
 
-    num_envs, num_workers = _align_envs_and_workers(
+    adjusted_envs, adjusted_workers = _resolve_vector_counts(
         num_envs,
         num_workers,
         envs_user_supplied=vector_num_envs is not None,
         workers_user_supplied=vector_num_workers is not None,
     )
+
+    if adjusted_envs != num_envs:
+        logger.info(
+            "Adjusting num_envs from %s to %s to evenly divide num_workers=%s",
+            num_envs,
+            adjusted_envs,
+            adjusted_workers,
+        )
+        num_envs = adjusted_envs
+
+    if adjusted_workers != num_workers:
+        logger.info(
+            "Adjusting num_workers from %s to %s to match num_envs=%s",
+            num_workers,
+            adjusted_workers,
+            num_envs,
+        )
+        num_workers = adjusted_workers
 
     envs_per_worker = max(1, num_envs // num_workers)
     base_batch_size = vector_batch_size or 128
