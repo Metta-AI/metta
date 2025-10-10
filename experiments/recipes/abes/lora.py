@@ -69,12 +69,23 @@ def _apply_lora_defaults(tool: TrainTool) -> TrainTool:
     trainer_updates = {}
     if tool.trainer.compile:
         trainer_updates["compile"] = False
-    if tool.trainer.batch_size > 16_384:
-        trainer_updates["batch_size"] = 16_384
-    if tool.trainer.minibatch_size > 768:
-        trainer_updates["minibatch_size"] = 768
-    if tool.trainer.bptt_horizon > 6:
-        trainer_updates["bptt_horizon"] = 6
+
+    max_bptt = 6
+    bptt_horizon = min(tool.trainer.bptt_horizon, max_bptt)
+    if bptt_horizon != tool.trainer.bptt_horizon:
+        trainer_updates["bptt_horizon"] = bptt_horizon
+
+    minibatch_cap = 768
+    raw_minibatch = min(tool.trainer.minibatch_size, minibatch_cap)
+    minibatch_size = max(bptt_horizon, raw_minibatch - raw_minibatch % bptt_horizon)
+    if minibatch_size != tool.trainer.minibatch_size:
+        trainer_updates["minibatch_size"] = minibatch_size
+
+    batch_cap = 15_360
+    raw_batch = min(tool.trainer.batch_size, batch_cap)
+    batch_size = max(minibatch_size, raw_batch - raw_batch % minibatch_size)
+    if batch_size != tool.trainer.batch_size:
+        trainer_updates["batch_size"] = batch_size
     if trainer_updates:
         tool.trainer = tool.trainer.model_copy(update=trainer_updates)
 
