@@ -59,7 +59,7 @@ def _prompt_user_verification(result: TaskResult) -> bool:
             print(yellow("Please enter 'y' (yes), 'n' (no), 'f' (fail), or 'a' (accept)"))
 
 
-class ValidationRunner:
+class TaskRunner:
     """Orchestrates task execution with dependency resolution."""
 
     def __init__(self, state: ReleaseState, interactive: bool = True):

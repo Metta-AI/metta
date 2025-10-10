@@ -36,7 +36,7 @@ import typer
 
 import gitta as git
 from devops.stable.asana_bugs import check_blockers
-from devops.stable.runner import ValidationRunner
+from devops.stable.runner import TaskRunner
 from devops.stable.state import (
     ReleaseState,
     get_commit_sha,
@@ -251,7 +251,7 @@ def step_task_validation(
         print("Running all tasks\n")
 
     # Create runner and run all tasks
-    runner = ValidationRunner(state)
+    runner = TaskRunner(state)
     runner.run_all(tasks)
 
     # Print summary
