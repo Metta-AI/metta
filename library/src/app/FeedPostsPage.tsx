@@ -1,7 +1,6 @@
 "use client";
 
-import { FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { FC, useEffect, useRef, useState } from "react";
 
 import { useMathJax } from "@/components/MathJaxProvider";
 import { usePaginator } from "@/lib/hooks/usePaginator";
@@ -101,24 +100,29 @@ export const FeedPostsPage: FC<{
   };
 
   const feedScrollRef = useRef<HTMLDivElement>(null);
-  const rowVirtualizer = useVirtualizer({
-    count: page.items.length + (page.loadNext ? 1 : 0),
-    getScrollElement: () => feedScrollRef.current,
-    estimateSize: () => 360,
-    overscan: 6,
-  });
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
-  const virtualItems = rowVirtualizer.getVirtualItems();
-
+  // Infinite scroll with IntersectionObserver
   useEffect(() => {
     if (!page.loadNext || page.loading) return;
-    const lastItem = virtualItems[virtualItems.length - 1];
-    if (!lastItem) return;
-    if (lastItem.index >= page.items.length) {
-      page.loadNext(10);
-    }
-  }, [page.loadNext, page.loading, page.items.length, virtualItems]);
 
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && page.loadNext) {
+          page.loadNext(10);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [page.loadNext, page.loading]);
+
+  // MathJax rendering
   useEffect(() => {
     if (mathJaxLoaded && feedScrollRef.current) {
       const renderMathContent = async () => {
@@ -135,80 +139,40 @@ export const FeedPostsPage: FC<{
     }
   }, [mathJaxLoaded, page.items, renderMath]);
 
-  const renderLoader = useMemo(
-    () => (
-      <div className="flex items-center justify-center gap-2 py-6 text-gray-500">
-        <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" />
-        <span>Loading more posts...</span>
-      </div>
-    ),
-    []
-  );
-
-  const measureElement = useCallback(
-    (node: HTMLElement | null) => {
-      if (node) {
-        rowVirtualizer.measureElement(node);
-      }
-    },
-    [rowVirtualizer]
-  );
-
   return (
     <div className="flex h-auto w-full flex-col md:flex-row">
       {/* Main feed area */}
       <div ref={feedScrollRef} className="h-full flex-1 overflow-y-auto">
         {/* Post Composition */}
         <NewPostForm />
-        {/* Feed (virtualized) */}
+        {/* Feed */}
         <div className="mx-4 mt-6 max-w-2xl md:mr-4 md:ml-6">
           {page.items.length > 0 ? (
-            <div
-              style={{
-                height: rowVirtualizer.getTotalSize(),
-                width: "100%",
-                position: "relative",
-              }}
-            >
-              {virtualItems.map((virtualRow) => {
-                const isLoaderRow = virtualRow.index >= page.items.length;
-                const post = page.items[virtualRow.index];
+            <div className="space-y-3">
+              {page.items.map((post) => (
+                <FeedPost
+                  key={post.id}
+                  post={post}
+                  onPaperClick={handlePaperClick}
+                  onUserClick={handleUserClick}
+                  currentUser={currentUser}
+                  isCommentsExpanded={false}
+                  onCommentToggle={() => {}}
+                  highlightedCommentId={null}
+                />
+              ))}
 
-                const style = {
-                  position: "absolute" as const,
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  transform: `translateY(${virtualRow.start}px)`,
-                  paddingBottom: "1rem",
-                };
-
-                if (isLoaderRow) {
-                  return (
-                    <div
-                      key={virtualRow.key}
-                      ref={measureElement}
-                      style={style}
-                    >
-                      {page.loading ? renderLoader : null}
+              {/* Load more trigger */}
+              {page.loadNext && (
+                <div ref={loadMoreRef} className="py-6">
+                  {page.loading && (
+                    <div className="flex items-center justify-center gap-2 text-gray-500">
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" />
+                      <span>Loading more posts...</span>
                     </div>
-                  );
-                }
-
-                return (
-                  <div key={virtualRow.key} ref={measureElement} style={style}>
-                    <FeedPost
-                      post={post}
-                      onPaperClick={handlePaperClick}
-                      onUserClick={handleUserClick}
-                      currentUser={currentUser}
-                      isCommentsExpanded={false}
-                      onCommentToggle={() => {}}
-                      highlightedCommentId={null}
-                    />
-                  </div>
-                );
-              })}
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             <div className="rounded-lg border border-gray-200 bg-white p-8 text-center">
