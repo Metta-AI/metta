@@ -60,6 +60,7 @@ def train(
         policy_architecture=policy_architecture,
     )
 
+    tool = smollm_recipe._apply_smollm_defaults(tool)
     return _apply_lora_defaults(tool)
 
 
