@@ -1,9 +1,8 @@
 "use client";
 
-import { FC, useCallback, useEffect, useRef, useState } from "react";
+import { FC, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { useVirtualizer } from "@tanstack/react-virtual";
 import { useMathJax } from "@/components/MathJaxProvider";
 import { usePaginator } from "@/lib/hooks/usePaginator";
 import { Paginated } from "@/lib/paginated";
@@ -201,32 +200,27 @@ export const PostPage: FC<{
   }, [postId]);
 
   const feedScrollRef = useRef<HTMLDivElement>(null);
-  const rowVirtualizer = useVirtualizer({
-    count: page.items.length + (page.loadNext ? 1 : 0),
-    getScrollElement: () => feedScrollRef.current,
-    estimateSize: () => 360,
-    overscan: 6,
-  });
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
-  const virtualItems = rowVirtualizer.getVirtualItems();
-
+  // Infinite scroll with IntersectionObserver
   useEffect(() => {
     if (!page.loadNext || page.loading) return;
-    const lastItem = virtualItems[virtualItems.length - 1];
-    if (!lastItem) return;
-    if (lastItem.index >= page.items.length) {
-      page.loadNext(10);
-    }
-  }, [page.loadNext, page.loading, page.items.length, virtualItems]);
 
-  const measureElement = useCallback(
-    (node: HTMLElement | null) => {
-      if (node) {
-        rowVirtualizer.measureElement(node);
-      }
-    },
-    [rowVirtualizer]
-  );
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && page.loadNext) {
+          page.loadNext(10);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [page.loadNext, page.loading]);
 
   return (
     <div className="flex h-[calc(97vh-53px)] w-full flex-col md:flex-row">
@@ -253,56 +247,18 @@ export const PostPage: FC<{
         {/* Feed with Infinite Scroll */}
         <div className="mx-4 mt-6 max-w-2xl md:mr-4 md:ml-6">
           {page.items.length > 0 ? (
-            <div
-              style={{
-                height: rowVirtualizer.getTotalSize(),
-                position: "relative",
-                width: "100%",
-              }}
-            >
-              {virtualItems.map((virtualRow) => {
-                const isLoaderRow = virtualRow.index >= page.items.length;
-                const post = page.items[virtualRow.index];
-                const isTargetPost = post?.id === postId;
-
-                const style = {
-                  position: "absolute" as const,
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  transform: `translateY(${virtualRow.start}px)`,
-                };
-
-                if (isLoaderRow) {
-                  return (
-                    <div
-                      key={virtualRow.key}
-                      ref={measureElement}
-                      style={style}
-                    >
-                      {page.loading ? (
-                        <div className="flex items-center justify-center gap-2 py-6 text-gray-500">
-                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" />
-                          <span>Loading more posts...</span>
-                        </div>
-                      ) : null}
-                    </div>
-                  );
-                }
-
-                const isSelected = selectedPostForPaper?.id === post.id;
+            <div className="space-y-3">
+              {page.items.map((post) => {
+                const isTargetPost = post.id === postId;
 
                 return (
                   <div
-                    key={virtualRow.key}
+                    key={post.id}
                     ref={(node) => {
-                      measureElement(node);
                       if (isTargetPost) {
                         targetPostRef.current = node as HTMLDivElement | null;
                       }
                     }}
-                    style={style}
-                    className="pb-4"
                   >
                     <FeedPost
                       post={post}
@@ -318,6 +274,18 @@ export const PostPage: FC<{
                   </div>
                 );
               })}
+
+              {/* Load more trigger */}
+              {page.loadNext && (
+                <div ref={loadMoreRef} className="py-6">
+                  {page.loading && (
+                    <div className="flex items-center justify-center gap-2 text-gray-500">
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" />
+                      <span>Loading more posts...</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             <div className="rounded-lg border border-gray-200 bg-white p-8 text-center">
