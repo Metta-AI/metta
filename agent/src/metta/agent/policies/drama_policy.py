@@ -25,7 +25,7 @@ class DramaPolicyConfig(PolicyArchitecture):
     _core_out_dim = 96
 
     components: List[ComponentConfig] = [
-        ObsShimTokensConfig(in_key="env_obs", out_key="obs_tokens", max_tokens=32),
+        ObsShimTokensConfig(in_key="env_obs", out_key="obs_tokens", max_tokens=48),
         ObsAttrEmbedFourierConfig(
             in_key="obs_tokens",
             out_key="obs_attr_embed",
