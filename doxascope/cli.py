@@ -14,19 +14,12 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 import torch
 
-# It's better to import functions directly from the modules
-# to make the CLI script the single source of truth for argument parsing.
-from .doxascope_network import (
-    DoxascopeNet,
-    DoxascopeTrainer,
-    create_baseline_data,
-    prepare_data,
-)
+from .doxascope_analysis import compare_policies, compare_runs
+from .doxascope_network import DoxascopeNet, DoxascopeTrainer, create_baseline_data, prepare_data
+from .doxascope_plots import generate_all_plots
 
 
 def _prompt_for_value(prompt: str, target_type: type, default: Any) -> Any:
@@ -37,7 +30,7 @@ def _prompt_for_value(prompt: str, target_type: type, default: Any) -> Any:
             if not user_input:
                 return default
 
-            if target_type == bool:
+            if target_type is bool:
                 return user_input.lower() in ["y", "yes", "true", "1"]
             return target_type(user_input)
         except ValueError:
@@ -83,7 +76,7 @@ def _interactive_prediction_config(args: argparse.Namespace) -> Optional[argpars
     print(f"  - Past Timesteps to Predict   : {args.num_past_timesteps}")
     print("-" * 39)
 
-    proceed = input("Proceed with these settings? (Y/n): ").lower()
+    proceed = input("Proceed with these settings? (y/n): ").lower()
     if proceed in ["", "y", "yes"]:
         return args
 
@@ -110,19 +103,36 @@ def handle_collect_command(args: argparse.Namespace):
         print("No policy URI provided. Aborting collection.")
         return
 
+    while True:
+        try:
+            user_input = input("  -> Enter number of simulations to run (default: 10): ")
+            if not user_input:
+                num_simulations = 10
+                break
+            num_simulations = int(user_input)
+            if num_simulations < 1:
+                print("  !! Number of simulations must be at least 1.")
+                continue
+            if num_simulations < 5:
+                print("  -> Warning: For decent training, at least 5 simulations are recommended.")
+            break
+        except ValueError:
+            print("  !! Invalid input. Please enter an integer.")
+        except (KeyboardInterrupt, EOFError):
+            print("\nCollection cancelled.")
+            return
+
     command_str = (
-        f"uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri={policy_uri} doxascope_enabled=true"
+        f"uv run ./tools/run.py experiments.recipes.doxascope.evaluate "
+        f"policy_uri={policy_uri} num_simulations={num_simulations}"
     )
 
     print("\nHanding off to evaluation tool...")
     print(f"  Command: {command_str}\n")
 
-    # Use os.execvp to replace the current process with the new command.
-    # This will stream the output directly to the user's terminal.
-    # shlex.split is used to handle quoted arguments correctly.
     try:
-        args = shlex.split(command_str)
-        os.execvp(args[0], args)
+        argv = shlex.split(command_str)
+        os.execvp(argv[0], argv)  # type: ignore[arg-type]
     except FileNotFoundError:
         print(f"\nError: Command '{args[0]}' not found.")
         print("Please ensure 'uv' is installed and you are running from the repository root.")
@@ -154,7 +164,6 @@ def _interactive_train_config(args: argparse.Namespace) -> Optional[argparse.Nam
         "Other Settings": [
             ("run_name", "Run Name (leave blank for auto)", str),
             ("train_random_baseline", "Train Random Baseline (y/n)", bool),
-            ("force_reprocess", "Force Data Reprocessing (y/n)", bool),
         ],
     }
 
@@ -167,7 +176,7 @@ def _interactive_train_config(args: argparse.Namespace) -> Optional[argparse.Nam
     print("-" * 36)
 
     # Ask if the user wants to proceed
-    proceed = input("Proceed with these settings? (Y/n): ").lower()
+    proceed = input("Proceed with these settings? (y/n): ").lower()
     if proceed in ["", "y", "yes"]:
         return args
 
@@ -227,6 +236,69 @@ def _select_string_from_list(items: List[str], item_type: str) -> Optional[str]:
             return None
 
 
+def _select_multiple_from_list(items: List[Path], item_type: str) -> Optional[List[Path]]:
+    """Displays a list of items and prompts the user to select one or more."""
+    if not items:
+        print(f"No {item_type}s found.")
+        return None
+
+    print(f"Please select {item_type}s to compare (e.g., '1 3 4', 'all'):")
+    for i, item in enumerate(items):
+        print(f"  [{i + 1}] {item.name}")
+
+    while True:
+        try:
+            choice_str = input(f"Enter numbers or 'all' (1-{len(items)}): ")
+            if not choice_str:
+                return None
+
+            if choice_str.lower() == "all":
+                return items
+
+            indices = [int(i) - 1 for i in choice_str.split()]
+            if all(0 <= idx < len(items) for idx in indices):
+                return [items[idx] for idx in indices]
+            else:
+                print("Invalid number(s), please try again.")
+        except (ValueError, IndexError):
+            print("Invalid input, please enter space-separated numbers or 'all'.")
+        except (KeyboardInterrupt, EOFError):
+            print("\nSelection cancelled.")
+            return None
+
+
+def _interactive_sweep_config(args: argparse.Namespace) -> Optional[argparse.Namespace]:
+    """Shows current sweep settings and allows the user to change them interactively."""
+    print("\n--- Sweep Configuration ---")
+    print(f"  - Number of configurations to test: {args.num_configs}")
+    print(f"  - Max epochs per trial: {args.max_epochs}")
+    print(f"  - Early stopping patience per trial: {args.patience}")
+    print("-" * 39)
+
+    proceed = input("Proceed with these settings? (y/n): ").lower()
+    if proceed in ["", "y", "yes"]:
+        return args
+
+    print("Enter new values or press Enter to keep the default.")
+    new_num_configs = _prompt_for_value("Number of configs", int, args.num_configs)
+    if new_num_configs is None:
+        return None
+    args.num_configs = new_num_configs
+
+    new_max_epochs = _prompt_for_value("Max epochs", int, args.max_epochs)
+    if new_max_epochs is None:
+        return None
+    args.max_epochs = new_max_epochs
+
+    new_patience = _prompt_for_value("Patience", int, args.patience)
+    if new_patience is None:
+        return None
+    args.patience = new_patience
+
+    print("\nSweep settings updated.")
+    return args
+
+
 def get_search_space(sweep_type: str) -> Dict[str, list]:
     """Defines the search space for hyperparameters or architecture."""
     if sweep_type == "arch":
@@ -244,7 +316,7 @@ def get_search_space(sweep_type: str) -> Dict[str, list]:
         "hidden_dim": [128, 256, 512],
         "dropout_rate": [0.2, 0.4, 0.6],
         "lr": [0.0001, 0.0005, 0.001],
-        "activation_fn": ["silu"],
+        "activation_fn": ["gelu"],
         "main_net_depth": [3],
         "processor_depth": [1],
     }
@@ -271,18 +343,22 @@ def run_sweep_trial(
     train_loader, val_loader, test_loader, input_dim = data_loaders
     assert input_dim is not None, "Input dimension cannot be None for sweep trial."
 
+    # Separate model params from training params (like learning rate)
+    model_config = config.copy()
+    trial_lr = model_config.pop("lr", 0.001)
+
     model_params = {
         "input_dim": input_dim,
         "num_future_timesteps": args.num_future_timesteps,
         "num_past_timesteps": args.num_past_timesteps,
-        **config,
+        **model_config,
     }
     model = DoxascopeNet(**model_params).to(device)
     trainer = DoxascopeTrainer(model, device=device)
 
     start_time = time.time()
     training_result = trainer.train(
-        train_loader, val_loader, num_epochs=args.max_epochs, lr=config.get("lr", 0.001), patience=args.patience
+        train_loader, val_loader, num_epochs=args.max_epochs, lr=trial_lr, patience=args.patience
     )
     train_time = time.time() - start_time
 
@@ -356,223 +432,9 @@ def find_latest_run(policy_dir: Path) -> Optional[Path]:
     return max(run_dirs, key=lambda d: d.name)
 
 
-# --- Analysis Functions (from doxascope_analysis.py) ---
-
-
-def load_data_and_model(
-    policy_dir: Path,
-    device: str,
-    model_filename: str = "best_model.pth",
-    results_filename: str = "test_results.json",
-    history_filename: str = "training_history.csv",
-):
-    """Loads the model, data, and results for a given policy."""
-    model_path = policy_dir / model_filename
-    test_data_path = policy_dir / "preprocessed_data" / "test.npz"
-    history_path = policy_dir / history_filename
-    test_results_path = policy_dir / results_filename
-
-    # Load model
-    checkpoint = torch.load(model_path, map_location=device)
-    model = DoxascopeNet(**checkpoint["config"])
-    model.load_state_dict(checkpoint["state_dict"])
-    model.to(device)
-    model.eval()
-
-    # Load test data
-    test_data = np.load(test_data_path)
-    X_test, y_test = test_data["X"], test_data["y"]
-
-    # Load history and test results
-    history = pd.read_csv(history_path).to_dict(orient="list")
-    with open(test_results_path, "r") as f:
-        test_results = json.load(f)
-
-    return model, X_test, y_test, history, test_results
-
-
-def get_predictions(model: DoxascopeNet, X_test: np.ndarray, device: str):
-    """Generates predictions from the model."""
-    X_test_tensor = torch.from_numpy(X_test).to(device)
-    with torch.no_grad():
-        outputs = model(X_test_tensor)
-
-    predicted_indices = [torch.argmax(o, dim=1).cpu().numpy() for o in outputs]
-    probabilities = [torch.softmax(o, dim=1).cpu().numpy() for o in outputs]
-
-    return predicted_indices, probabilities
-
-
-def plot_training_history(history: dict, output_path: Path):
-    """Plots and saves the training and validation loss and accuracy."""
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
-
-    # Plot Loss
-    ax1.plot(history["train_loss"], label="Train Loss")
-    ax1.plot(history["val_loss"], label="Validation Loss")
-    ax1.set_title("Training and Validation Loss")
-    ax1.set_xlabel("Epoch")
-    ax1.set_ylabel("Loss")
-    ax1.legend()
-
-    # Plot Accuracy
-    ax2.plot(history["train_acc"], label="Train Accuracy")
-    ax2.plot(history["val_acc"], label="Validation Accuracy")
-    ax2.set_title("Training and Validation Accuracy")
-    ax2.set_xlabel("Epoch")
-    ax2.set_ylabel("Accuracy (%)")
-    ax2.legend()
-
-    fig.suptitle("Training History")
-    plt.tight_layout(rect=(0, 0.03, 1, 0.95))
-    plt.savefig(output_path)
-    plt.close()
-
-
-def plot_multistep_accuracy(test_results: dict, output_path: Path, baseline_results: Optional[dict] = None):
-    """Plots the test accuracy for each predicted timestep."""
-    timesteps = test_results["timesteps"]
-    accuracies = test_results["test_accuracy_per_step"]
-
-    plt.figure(figsize=(10, 6))
-    plt.plot(timesteps, accuracies, marker="o", linestyle="-", label="Doxascope")
-
-    if baseline_results:
-        baseline_accuracies = baseline_results["test_accuracy_per_step"]
-        plt.plot(timesteps, baseline_accuracies, marker="x", linestyle="--", label="Random Baseline")
-
-    plt.title("Test Accuracy per Timestep")
-    plt.xlabel("Timestep Relative to Present")
-    plt.ylabel("Accuracy (%)")
-    plt.grid(True, which="both", linestyle="--", linewidth=0.5)
-    plt.legend()
-
-    # Ensure all timestep labels are shown
-    if timesteps:
-        plt.xticks(timesteps)
-
-    plt.savefig(output_path)
-    plt.close()
-
-
-def generate_all_plots(policy_dir: Path, device: str):
-    """
-    Loads all necessary data for a single run and generates all standard analysis plots.
-    """
-    analysis_dir = policy_dir / "analysis"
-    analysis_dir.mkdir(parents=True, exist_ok=True)
-    print(f"Generating analysis plots in: {analysis_dir}")
-
-    try:
-        model, X_test, y_test, history, test_results = load_data_and_model(policy_dir, device)
-        predicted_indices, _ = get_predictions(model, X_test, device)
-    except FileNotFoundError as e:
-        print(f"Skipping plot generation for {policy_dir.name}: {e}")
-        return
-
-    # Generate standard plots
-    plot_training_history(history, analysis_dir / "training_history.png")
-    plot_multistep_accuracy(test_results, analysis_dir / "multistep_accuracy.png")
-
-    # Handle baseline comparison if data exists
-    baseline_results_path = policy_dir / "test_results_baseline.json"
-    if baseline_results_path.exists():
-        with open(baseline_results_path, "r") as f:
-            baseline_results = json.load(f)
-        plot_multistep_accuracy(
-            test_results,
-            analysis_dir / "multistep_accuracy_comparison.png",
-            baseline_results=baseline_results,
-        )
-    print(f"Successfully generated plots for run {policy_dir.name}")
-
-
-def compare_policies(policy_names: List[str], data_dir: Path, output_dir: Path):
-    """
-    Compares the latest runs of multiple policies against each other.
-    """
-    latest_run_results = {}
-    for name in policy_names:
-        policy_dir = data_dir / name
-        latest_run = find_latest_run(policy_dir)
-        if latest_run is None:
-            print(f"Warning: No runs found for policy '{name}'. Skipping.")
-            continue
-        results_path = latest_run / "test_results.json"
-        if results_path.exists():
-            print(f"Using latest run for {name}: {latest_run.name}")
-            with open(results_path, "r") as f:
-                latest_run_results[name] = json.load(f)
-        else:
-            print(f"Warning: 'test_results.json' not found in latest run for '{name}'. Skipping.")
-
-    if not latest_run_results:
-        print("No valid runs found to compare.")
-        return
-
-    plt.figure(figsize=(12, 8))
-    for policy_name, results in latest_run_results.items():
-        if "timesteps" in results and "test_accuracy_per_step" in results:
-            plt.plot(
-                results["timesteps"],
-                results["test_accuracy_per_step"],
-                marker="o",
-                linestyle="-",
-                label=f"Policy: {policy_name}",
-            )
-
-    plt.title("Latest Run Accuracy Comparison")
-    plt.xlabel("Timestep Relative to Present")
-    plt.ylabel("Accuracy (%)")
-    plt.grid(True, which="both", linestyle="--", linewidth=0.5)
-    plt.legend()
-    plt.tight_layout()
-
-    # Create a filename-safe name for the plot
-    safe_name = "_vs_".join(p.replace("/", "_") for p in policy_names)
-    comparison_plot_path = output_dir / f"comparison_{safe_name}.png"
-    plt.savefig(comparison_plot_path)
-    plt.close()
-    print(f"Policy comparison plot saved to {comparison_plot_path}")
-
-
-def compare_runs(policy_dir: Path, output_dir: Path):
-    """Compares the multistep accuracy of all runs for a single policy."""
-    run_results = {}
-    for run_dir in sorted(policy_dir.iterdir()):
-        if not run_dir.is_dir():
-            continue
-        results_path = run_dir / "test_results.json"
-        if results_path.exists():
-            with open(results_path, "r") as f:
-                run_results[run_dir.name] = json.load(f)
-
-    if not run_results:
-        print(f"No completed runs found in {policy_dir}")
-        return
-
-    plt.figure(figsize=(12, 8))
-    for run_name, results in sorted(run_results.items()):
-        if "timesteps" in results and "test_accuracy_per_step" in results:
-            plt.plot(
-                results["timesteps"],
-                results["test_accuracy_per_step"],
-                marker="o",
-                linestyle="-",
-                label=f"Run: {run_name}",
-            )
-
-    plt.title(f"Multistep Accuracy Comparison for Policy: {policy_dir.name}")
-    plt.xlabel("Timestep Relative to Present")
-    plt.ylabel("Accuracy (%)")
-    plt.grid(True, which="both", linestyle="--", linewidth=0.5)
-    plt.legend()
-    plt.tight_layout()
-
-    comparison_plot_path = output_dir / f"comparison_{policy_dir.name}.png"
-    plt.savefig(comparison_plot_path)
-    plt.close()
-    print(f"Comparison plot saved to {comparison_plot_path}")
+"""
+# Analysis functions moved to doxascope_analysis.py
+"""
 
 
 # --- Command Handlers ---
@@ -612,9 +474,7 @@ def handle_train_command(args: argparse.Namespace):
     policy_data_dir = args.raw_data_dir / policy_name
     if not policy_data_dir.is_dir():
         print(f"Error: Raw data directory for policy '{policy_name}' not found at {policy_data_dir}")
-        print(
-            "Please ensure you have collected data for this policy by running an evaluation with 'doxascope_enabled=true'."
-        )
+        print("Please ensure data exists or collect it via 'doxascope collect' (doxascope_enabled=true).")
         return
 
     run_name = args.run_name or time.strftime("%Y%m%d-%H%M%S")
@@ -633,7 +493,6 @@ def handle_train_command(args: argparse.Namespace):
         num_future_timesteps=args.num_future_timesteps,
         num_past_timesteps=args.num_past_timesteps,
         data_split_seed=42,
-        force_reprocess=args.force_reprocess,
     )
 
     if data_loaders[0] is None:
@@ -641,12 +500,36 @@ def handle_train_command(args: argparse.Namespace):
         return
 
     # Run the main training pipeline
-    run_training_pipeline(
-        policy_name=policy_name,
+    train_loader, val_loader, test_loader, input_dim = data_loaders
+    if input_dim is None:
+        print("Error: input_dim is None. Cannot determine model input size.")
+        return
+
+    model_params = {
+        "input_dim": input_dim,
+        "num_future_timesteps": args.num_future_timesteps,
+        "num_past_timesteps": args.num_past_timesteps,
+        "hidden_dim": args.hidden_dim,
+        "dropout_rate": args.dropout_rate,
+        "activation_fn": args.activation_fn,
+        "main_net_depth": args.main_net_depth,
+        "processor_depth": args.processor_depth,
+    }
+
+    model = DoxascopeNet(**model_params).to(device)
+    trainer = DoxascopeTrainer(model, device=device)
+    print("\n--- Starting Training (Main) ---")
+    print(f"Model Parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad):,}")
+
+    main_run_artifacts = trainer.train_and_evaluate(
+        train_loader=train_loader,
+        val_loader=val_loader,
+        test_loader=test_loader,
+        num_epochs=args.num_epochs,
+        lr=args.learning_rate,
+        patience=args.patience,
         output_dir=output_dir,
-        device=device,
-        args=args,
-        data_loaders=data_loaders,
+        policy_name=policy_name,
         is_baseline=False,
     )
 
@@ -661,55 +544,94 @@ def handle_train_command(args: argparse.Namespace):
             print("Failed to create data loaders for the baseline model. Aborting baseline training.")
             return
 
-        run_training_pipeline(
-            policy_name=policy_name,
+        train_loader_base, val_loader_base, test_loader_base, input_dim_base = baseline_data_loaders
+        if input_dim_base is None:
+            print("Error: input_dim is None for baseline. Cannot determine model input size.")
+            return
+
+        model_base = DoxascopeNet(**model_params).to(device)
+        trainer_base = DoxascopeTrainer(model_base, device=device)
+        print("\n--- Starting Training (Baseline) ---")
+        print(f"Model Parameters: {sum(p.numel() for p in model_base.parameters() if p.requires_grad):,}")
+
+        trainer_base.train_and_evaluate(
+            train_loader=train_loader_base,
+            val_loader=val_loader_base,
+            test_loader=test_loader_base,
+            num_epochs=args.num_epochs,
+            lr=args.learning_rate,
+            patience=args.patience,
             output_dir=output_dir,
-            device=device,
-            args=args,
-            data_loaders=baseline_data_loaders,
+            policy_name=policy_name,
             is_baseline=True,
         )
 
-
-def handle_analyze_command(args: argparse.Namespace):
-    """Handles the 'analyze' command."""
-    policy_dir = args.data_dir / args.policy_name if args.policy_name else None
-
-    # --- Interactive Selection ---
-    if not policy_dir:
-        policies = get_available_policies(args.data_dir)
-        selected_policy = select_from_list(policies, "policy")
-        if not selected_policy:
-            return
-        policy_dir = selected_policy
-
-    if not policy_dir.is_dir():
-        print(f"Error: Policy directory not found at {policy_dir}")
-        return
-
-    if args.run_name:
-        policy_run_dir = policy_dir / args.run_name
-        if not policy_run_dir.is_dir():
-            print(f"Error: Run directory not found at {policy_run_dir}")
-            return
-    else:
-        print(f"No run name specified, finding the latest run for policy '{policy_dir.name}'...")
-        runs = get_available_runs(policy_dir)
-        policy_run_dir = select_from_list(runs, f"run for policy '{policy_dir.name}'")
-        if not policy_run_dir:
-            return
-
-    print(f"Analyzing run: {policy_run_dir.name}")
-    generate_all_plots(policy_run_dir, args.device)
+    # --- Generate Analysis Plots ---
+    # This is now done after the baseline run to ensure baseline results are available.
+    if main_run_artifacts and main_run_artifacts["test_loader"]:
+        print("\n--- Generating Analysis Plots ---")
+        generate_all_plots(
+            output_dir=output_dir,
+            device=device,
+            model=main_run_artifacts["model"],
+            history=main_run_artifacts["history"],
+            test_results=main_run_artifacts["test_results"],
+            test_loader=main_run_artifacts["test_loader"],
+            is_baseline=False,  # Always generate plots for the main model
+        )
 
 
 def handle_compare_command(args: argparse.Namespace):
     """Handles the 'compare' command."""
+    # If no policies are specified, enter fully interactive mode
+    if not args.policy_names:
+        print("\nPlease select a comparison type:")
+        choices = [
+            "Compare runs within a single policy",
+            "Compare latest runs across multiple policies",
+        ]
+        choice = _select_string_from_list(choices, "comparison type")
+
+        if not choice:
+            return
+
+        if "single policy" in choice:
+            available_policies = get_available_policies(args.data_dir)
+            if not available_policies:
+                print("No policies with completed runs found.")
+                return
+            policy_path = select_from_list(available_policies, "policy to compare")
+            if not policy_path:
+                return
+            args.policy_names = [policy_path.name]
+            # Fall through to the single-policy logic below
+
+        elif "multiple policies" in choice:
+            available_policies = get_available_policies(args.data_dir)
+            if not available_policies:
+                print("No policies with completed runs found.")
+                return
+            selected_policies = _select_multiple_from_list(available_policies, "policy")
+            if not selected_policies or len(selected_policies) < 2:
+                print("Please select at least two policies to compare.")
+                return
+            args.policy_names = [p.name for p in selected_policies]
+            # Fall through to the multi-policy logic below
+        else:
+            return  # Should not happen
+
     if len(args.policy_names) == 1:
-        # Compare all runs for a single policy
+        # Compare selected runs for a single policy
         policy_name = args.policy_names[0]
         policy_dir = args.data_dir / policy_name
-        compare_runs(policy_dir, policy_dir)
+        available_runs = get_available_runs(policy_dir)
+
+        selected_runs = _select_multiple_from_list(available_runs, "run")
+        if not selected_runs:
+            print("No runs selected for comparison.")
+            return
+
+        compare_runs(selected_runs, policy_name, policy_dir)
     else:
         # Compare the latest run of multiple policies
         compare_policies(args.policy_names, args.data_dir, args.data_dir)
@@ -717,6 +639,12 @@ def handle_compare_command(args: argparse.Namespace):
 
 def handle_sweep_command(args: argparse.Namespace):
     """Handles the 'sweep' command."""
+    if args.device == "auto":
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+    else:
+        device = args.device
+    print(f"Using device: {device}")
+
     policy_name = args.policy_name
 
     # --- Interactive Mode ---
@@ -772,18 +700,21 @@ def handle_sweep_command(args: argparse.Namespace):
         args.val_split,
         args.num_future_timesteps,
         args.num_past_timesteps,
-        force_reprocess=args.force_reprocess,
     )
     if data_loaders[0] is None:
         print("❌ Failed to prepare data. Aborting sweep.")
         return
+
+    # Unpack data loaders
+    train_loader, val_loader, test_loader, input_dim = data_loaders
+    data_loaders_for_sweep = (train_loader, val_loader, test_loader, input_dim)
 
     search_space = get_search_space(args.sweep_type)
     all_results = []
 
     for i in range(args.num_configs):
         config = sample_config(search_space)
-        result = run_sweep_trial(i, args.num_configs, config, args, args.device, data_loaders)
+        result = run_sweep_trial(i, args.num_configs, config, args, device, data_loaders_for_sweep)
         all_results.append(result)
 
     # Save final results
@@ -816,6 +747,7 @@ def main():
         help="Collect training data by running a policy evaluation.",
         description="Collect training data by running a policy evaluation.",
     )
+    # Navigation data collection removed; always uses arena
     parser_collect.set_defaults(func=handle_collect_command)
 
     # --- Train Command ---
@@ -867,36 +799,10 @@ def main():
     )
     parser_train.add_argument("--hidden_dim", type=int, default=512, help="Hidden dimension for the model.")
     parser_train.add_argument("--dropout_rate", type=float, default=0.4, help="Dropout rate for the model.")
-    parser_train.add_argument("--activation_fn", type=str, default="silu", help="Activation function for the model.")
+    parser_train.add_argument("--activation_fn", type=str, default="gelu", help="Activation function for the model.")
     parser_train.add_argument("--main_net_depth", type=int, default=3, help="Depth of the main network.")
     parser_train.add_argument("--processor_depth", type=int, default=1, help="Depth of the state processors.")
-    parser_train.add_argument(
-        "--force-reprocess", action="store_true", help="Force reprocessing of raw data even if cache exists."
-    )
     parser_train.set_defaults(func=handle_train_command)
-
-    # --- Analyze Command (placeholder) ---
-    parser_analyze = subparsers.add_parser(
-        "analyze",
-        help="Analyze a trained network's performance and generate plots.",
-        description="Analyze a trained network's performance and generate plots.",
-    )
-    parser_analyze.add_argument(
-        "policy_name", type=str, nargs="?", default=None, help="Name of the policy to analyze (optional)."
-    )
-    parser_analyze.add_argument(
-        "run_name", type=str, nargs="?", default=None, help="Name of the run to analyze (optional)."
-    )
-    parser_analyze.add_argument(
-        "--data-dir",
-        type=Path,
-        default=Path("train_dir/doxascope/results"),
-        help="Directory containing policy results.",
-    )
-    parser_analyze.add_argument(
-        "--device", type=str, default="auto", help="Device to use for analysis (e.g., 'cpu', 'cuda')."
-    )
-    parser_analyze.set_defaults(func=handle_analyze_command)
 
     # --- Compare Command ---
     parser_compare = subparsers.add_parser(
@@ -904,7 +810,9 @@ def main():
         help="Compare the performance of different policies or training runs.",
         description="Compare the performance of different policies or training runs.",
     )
-    parser_compare.add_argument("policy_names", nargs="+", help="Name(s) of the policy/policies to compare.")
+    parser_compare.add_argument(
+        "policy_names", nargs="*", help="Name(s) of the policy/policies to compare (interactive if omitted)."
+    )
     parser_compare.add_argument(
         "--data-dir",
         type=Path,
@@ -953,15 +861,9 @@ def main():
         "--device", type=str, default="auto", help="Device to use for training (e.g., 'cpu', 'cuda')."
     )
     parser_sweep.add_argument("--batch-size", type=int, default=32, help="Batch size for training.")
-    parser_sweep.add_argument(
-        "--force-reprocess", action="store_true", help="Force reprocessing of raw data even if cache exists."
-    )
     parser_sweep.set_defaults(func=handle_sweep_command)
 
     args = parser.parse_args()
-    # Auto-detect device if not specified
-    if hasattr(args, "device") and args.device == "auto":
-        args.device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # If no command is given, prompt the user to select one
     if args.command is None:
@@ -974,7 +876,24 @@ def main():
         # which is why we made policy_name optional.
         args = parser.parse_args([command_name])
 
-    args.func(args)
+    if hasattr(args, "func"):
+        args.func(args)
+    else:
+        # Fallback for interactive mode if func is not set
+        if args.command:
+            # Manually map command to function if not set by argparse
+            command_map = {
+                "collect": handle_collect_command,
+                "train": handle_train_command,
+                "compare": handle_compare_command,
+                "sweep": handle_sweep_command,
+            }
+            if args.command in command_map:
+                command_map[args.command](args)
+            else:
+                print(f"Unknown command: {args.command}")
+        else:
+            parser.print_help()
 
 
 if __name__ == "__main__":

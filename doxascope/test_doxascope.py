@@ -5,6 +5,7 @@ import sys
 import pytest
 
 from doxascope.doxascope_data import (
+    DoxascopeLogger,
     class_id_to_pos,
     get_num_classes_for_manhattan_distance,
     get_positions_for_manhattan_distance,
@@ -241,3 +242,76 @@ def test_doxascope_end_to_end(doxascope_env):
     assert latest_analysis_dir.is_dir()
     assert (latest_analysis_dir / "multistep_accuracy.png").exists()
     assert (latest_analysis_dir / "training_history.png").exists()
+
+
+def test_logger_multi_env_alignment():
+    """Verify DoxascopeLogger logs per-agent memory aligned with the correct env/agent positions in multi-env setups."""
+    import numpy as np
+    import torch
+
+    # Setup logger
+    logger = DoxascopeLogger(enabled=True, simulation_id="simtest")
+    logger.configure(policy_name="policy_a", object_type_names=["agent"])  # agent type id = 0
+
+    # Two envs, two agents per env
+    agents_per_env = 2
+    num_envs = 2
+    total_agents = agents_per_env * num_envs
+
+    # Build grid_objects for each env with local agent_ids 0..agents_per_env-1
+    env0 = {
+        1: {"type": 0, "agent_id": 0, "r": 0, "c": 0},
+        2: {"type": 0, "agent_id": 1, "r": 0, "c": 1},
+    }
+    env1 = {
+        1: {"type": 0, "agent_id": 0, "r": 10, "c": 10},
+        2: {"type": 0, "agent_id": 1, "r": 10, "c": 11},
+    }
+    env_grid_objects_list = [env0, env1]
+
+    # Fake policy with LSTM buffers in components['lstm_reset'] matching [L, B, H]
+    L, H = 1, 3
+    B = total_agents
+    lstm_h = torch.zeros((L, B, H), dtype=torch.float32)
+    lstm_c = torch.zeros((L, B, H), dtype=torch.float32)
+    # Give each agent a distinct constant pattern so we can validate alignment
+    for i in range(B):
+        lstm_h[:, i, :] = (i + 1) * 1.0
+        lstm_c[:, i, :] = (i + 1) * 10.0
+
+    class FakeLSTM:
+        def __init__(self, h, c):
+            self.lstm_h = h
+            self.lstm_c = c
+
+    fake_lstm = FakeLSTM(lstm_h, lstm_c)
+
+    class FakePolicy:
+        def __init__(self, components):
+            self.components = components
+
+    policy = FakePolicy({"lstm_reset": fake_lstm})
+
+    # Policy indices flattened by env then local agent: [0,1, 2,3]
+    policy_idxs = torch.tensor([0, 1, 2, 3], dtype=torch.long)
+
+    # Log one timestep
+    logger.log_timestep(policy, policy_idxs, env_grid_objects_list, agents_per_env=agents_per_env)
+
+    # Validate
+    assert logger.data, "Logger produced no data entries"
+    agents = logger.data[-1]["agents"]
+    assert len(agents) == total_agents
+
+    # Expected positions by flatten order: env0:a0 -> (0,0), env0:a1 -> (0,1), env1:a0 -> (10,10), env1:a1 -> (10,11)
+    expected_positions = [(0, 0), (0, 1), (10, 10), (10, 11)]
+    for i, agent_entry in enumerate(agents):
+        assert tuple(agent_entry["position"]) == expected_positions[i]
+        # Memory vector expected: concat(h, c) for agent i, flattened
+        expected_vec = np.concatenate(
+            [(i + 1) * np.ones(H, dtype=np.float32), (i + 1) * 10.0 * np.ones(H, dtype=np.float32)]
+        )
+        mv = np.array(agent_entry["memory_vector"], dtype=np.float32)
+        # The flattened shape is [L*2H] == [2H] since L=1
+        assert mv.shape[0] == 2 * H
+        assert np.allclose(mv, expected_vec)

@@ -12,13 +12,13 @@ import json
 import logging
 from functools import lru_cache
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
 from tensordict import TensorDict
 
-from metta.agent.policy import Policy
+# from metta.agent.policy import Policy
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +104,8 @@ class DoxascopeLogger:
         self.agent_id_map: Optional[Dict[int, int]] = None
         self.agent_type_id: int = 0
         self.output_file: Optional[Path] = None
+        self._warned_multi_env_mismatch = False
+        self._last_td: Optional[TensorDict] = None
 
     def configure(
         self,
@@ -125,6 +127,12 @@ class DoxascopeLogger:
 
         logger.info("Doxascope logging enabled.")
 
+    def set_last_td(self, td: TensorDict) -> None:
+        """Capture the most recent per-forward TensorDict to preserve agent batch ordering for logging."""
+        if not self.enabled:
+            return
+        self._last_td = td
+
     def _build_agent_id_map(self, env_grid_objects: Dict) -> Dict[int, int]:
         """Builds a mapping from agent IDs to grid object IDs."""
         agent_id_map = {}
@@ -137,94 +145,255 @@ class DoxascopeLogger:
 
     def log_timestep(
         self,
-        policy: Policy,
+        policy: Any,
         policy_idxs: torch.Tensor,
         env_grid_objects: Dict,
     ):
-        """Log memory vectors and positions for policy agents at current timestep."""
+        """Log memory vectors and positions for policy agents at current timestep.
+
+        Supports both single-env (env_grid_objects: Dict) and multi-env
+        (env_grid_objects: List[Dict]) cases. For multi-env collection,
+        provide agents_per_env to resolve (env_index, local_agent_id).
+        """
         if not self.enabled:
             return
 
         self.timestep += 1
 
-        # The policy passed in may be a PufferPolicy wrapper. The actual model is inside.
-        inner_policy = getattr(policy, "policy", policy)
+        # The policy passed in may be a wrapper. The actual model is inside.
+        # Keep compatibility with wrapped policies if needed in future
+        _ = getattr(policy, "policy", policy)
 
-        policy_state = None
-        # Standard policies expose a .state attribute on the wrapper
-        if hasattr(policy, "state") and policy.state is not None:
-            policy_state = policy.state
-        # AutoBuilder policies have internal stateful components in a dictionary
-        elif hasattr(inner_policy, "components") and "lstm_reset" in inner_policy.components:
-            lstm_component = inner_policy.components["lstm_reset"]
-            if hasattr(lstm_component, "lstm_h") and hasattr(lstm_component, "lstm_c"):
-                # Reconstruct the state tensordict that doxascope expects
-                policy_state = TensorDict(
-                    {
-                        "lstm_h": lstm_component.lstm_h,
-                        "lstm_c": lstm_component.lstm_c,
-                    },
-                    batch_size=[],
+        # Try to extract recurrent state from multiple possible sources
+        memory_matrix: Optional[torch.Tensor] = None
+        batch_pos_to_global: Optional[Dict[int, int]] = None
+
+        # 1) Preferred: from per-forward TensorDict (direct keys or nested)
+        if isinstance(self._last_td, TensorDict):
+            # Direct keys
+            td_lstm_h = self._last_td.get("lstm_h") if "lstm_h" in self._last_td.keys() else None
+            td_lstm_c = self._last_td.get("lstm_c") if "lstm_c" in self._last_td.keys() else None
+            td_batch_idxs = self._last_td.get("__agent_indices") if "__agent_indices" in self._last_td.keys() else None
+
+            # Or nested recurrent state
+            recurrent_source: Any = None
+            if "recurrent_state" in self._last_td.keys():
+                recurrent_source = self._last_td.get("recurrent_state")
+
+            lstm_h = (
+                td_lstm_h if td_lstm_h is not None else (recurrent_source.get("lstm_h") if recurrent_source else None)
+            )
+            lstm_c = (
+                td_lstm_c if td_lstm_c is not None else (recurrent_source.get("lstm_c") if recurrent_source else None)
+            )
+            batch_indices = (
+                td_batch_idxs
+                if td_batch_idxs is not None
+                else (
+                    recurrent_source.get("__agent_indices")
+                    if recurrent_source and "__agent_indices" in recurrent_source.keys()
+                    else None
                 )
-
-        memory_vectors = None
-        if policy_state is not None:
-            # Policies can have different nesting structures for recurrent state.
-            # Try to find the source of the LSTM states.
-            recurrent_state_source = policy_state
-            if "recurrent_state" in policy_state:
-                recurrent_state_source = policy_state.get("recurrent_state")
-
-            if recurrent_state_source is not None:
-                lstm_h = recurrent_state_source.get("lstm_h")
-                lstm_c = recurrent_state_source.get("lstm_c")
-                if lstm_h is not None and lstm_c is not None:
-                    memory_vectors = torch.cat([lstm_h, lstm_c], dim=0)
-
-        # On the first logging step, check if we have memory vectors. If not, fail.
-        if self.timestep == 2 and memory_vectors is None:
-            raise NoRecurrentStateError(
-                "The target policy does not have a recurrent state (e.g., LSTM). "
-                "Doxascope requires memory vectors to analyze."
             )
 
-        # If memory vectors are still None after the first step, just skip logging
-        if memory_vectors is None:
+            if (
+                lstm_h is not None
+                and lstm_c is not None
+                and isinstance(lstm_h, torch.Tensor)
+                and isinstance(lstm_c, torch.Tensor)
+            ):
+                if lstm_h.ndim == 3:
+                    d0, d1, _ = lstm_h.shape
+                    # Treat as [B, L, H] if middle dim small
+                    if d1 <= 8 and d0 >= d1:
+                        last_h = lstm_h[:, -1, :]
+                        last_c = lstm_c[:, -1, :]
+                        memory_matrix = torch.cat([last_h, last_c], dim=1)
+                    # Treat as [L, B, H] if first dim small
+                    elif d0 <= 8 and d1 >= d0:
+                        last_h = lstm_h[-1, :, :]
+                        last_c = lstm_c[-1, :, :]
+                        memory_matrix = torch.cat([last_h, last_c], dim=1)
+                elif lstm_h.ndim == 2 and lstm_c.ndim == 2 and lstm_h.shape[0] == lstm_c.shape[0]:
+                    # Already [B, H]
+                    memory_matrix = torch.cat([lstm_h, lstm_c], dim=1)
+
+                if memory_matrix is not None and batch_indices is not None:
+                    try:
+                        batch_indices = batch_indices.reshape(-1).to(torch.long)
+                        batch_pos_to_global = {int(i): int(g) for i, g in enumerate(batch_indices.tolist())}
+                    except Exception:
+                        batch_pos_to_global = None
+
+        # 2) Fallback: from policy.state (supports LxBxH or LxAxH or AxH)
+        if memory_matrix is None:
+            st = getattr(policy, "state", None)
+            h_attr = getattr(st, "lstm_h", None) if st is not None else None
+            c_attr = getattr(st, "lstm_c", None) if st is not None else None
+            if h_attr is not None and c_attr is not None:
+                try:
+                    if h_attr.ndim == 3:
+                        # Assume [L, A, H] or [L, B, H] → take last layer
+                        last_h = h_attr[-1, :, :]
+                        last_c = c_attr[-1, :, :]
+                    elif h_attr.ndim == 2:
+                        # Already [A, H]
+                        last_h = h_attr
+                        last_c = c_attr
+                    else:
+                        last_h = None
+                        last_c = None
+
+                    if last_h is not None and last_c is not None:
+                        mm = torch.cat([last_h, last_c], dim=1)  # [A, 2H]
+                        # Reorder rows to match this step's policy agent ordering
+                        try:
+                            select_rows = policy_idxs.to(torch.long)
+                            memory_matrix = mm.index_select(0, select_rows)
+                        except Exception:
+                            memory_matrix = mm
+                        batch_pos_to_global = None
+                except Exception:
+                    pass
+
+        # 3) Fallback: inspect policy components (handles ViT/LSTM and LSTMReset)
+        if memory_matrix is None:
+            try:
+                # PolicyAutoBuilder exposes components on either `components` or `network.components`
+                components_dict = getattr(policy, "components", None)
+                if components_dict is None and hasattr(policy, "network"):
+                    components_dict = getattr(policy.network, "components", None)
+
+                if components_dict is not None:
+                    # Try LSTMReset first (buffers `lstm_h`/`lstm_c` with shape [L, A, H])
+                    for comp in components_dict.values():
+                        h_buf = getattr(comp, "lstm_h", None)
+                        c_buf = getattr(comp, "lstm_c", None)
+                        if isinstance(h_buf, torch.Tensor) and isinstance(c_buf, torch.Tensor) and h_buf.ndim == 3:
+                            # Take the last layer and map current agent batch rows
+                            last_h = h_buf[-1, :, :]
+                            last_c = c_buf[-1, :, :]
+                            # Map to current policy batch ordering when possible
+                            try:
+                                select_rows = policy_idxs.to(torch.long)
+                                # Guard against selecting beyond available rows
+                                max_row = min(last_h.shape[0], int(select_rows.max().item() + 1))
+                                clipped = torch.clamp(select_rows, 0, max_row - 1)
+                                memory_matrix = torch.cat(
+                                    [last_h.index_select(0, clipped), last_c.index_select(0, clipped)], dim=1
+                                )
+                            except Exception:
+                                memory_matrix = torch.cat([last_h, last_c], dim=1)
+                            batch_pos_to_global = None
+                            break
+
+                    # If not found, try LSTM component with dict memory
+                    if memory_matrix is None:
+                        for comp in components_dict.values():
+                            get_mem = getattr(comp, "get_memory", None)
+                            if callable(get_mem):
+                                try:
+                                    lstm_h_dict, lstm_c_dict = get_mem()
+                                    if isinstance(lstm_h_dict, dict) and isinstance(lstm_c_dict, dict) and lstm_h_dict:
+                                        # Use the first available key
+                                        any_key = sorted(lstm_h_dict.keys())[0]
+                                        h_t = lstm_h_dict[any_key]
+                                        c_t = lstm_c_dict[any_key]
+                                        if isinstance(h_t, torch.Tensor) and h_t.ndim == 3:
+                                            last_h = h_t[-1, :, :]
+                                            last_c = c_t[-1, :, :]
+                                            try:
+                                                select_rows = policy_idxs.to(torch.long)
+                                                max_row = min(last_h.shape[0], int(select_rows.max().item() + 1))
+                                                clipped = torch.clamp(select_rows, 0, max_row - 1)
+                                                memory_matrix = torch.cat(
+                                                    [last_h.index_select(0, clipped), last_c.index_select(0, clipped)],
+                                                    dim=1,
+                                                )
+                                            except Exception:
+                                                memory_matrix = torch.cat([last_h, last_c], dim=1)
+                                            batch_pos_to_global = None
+                                            break
+                                except Exception:
+                                    continue
+            except Exception:
+                pass
+
+        # If we still don't have memory, disable after first step with a clear message
+        if self.timestep == 2 and memory_matrix is None:
+            logger.error(
+                "Doxascope logging disabled: could not locate recurrent state (e.g., LSTM) "
+                "in TensorDict or policy.state. Skipping data collection for this simulation."
+            )
+            self.enabled = False
             return
 
-        if self.agent_id_map is None:
-            self.agent_id_map = self._build_agent_id_map(env_grid_objects)
+        # On the first logging step, check if we have memory vectors. If not, fail.
+        if self.timestep == 2 and memory_matrix is None:
+            logger.error(
+                "Doxascope logging disabled: policy does not expose recurrent state (e.g., LSTM). "
+                "Skipping data collection for this simulation."
+            )
+            self.enabled = False
+            return
+
+        # If memory vectors are still None after the first step, just skip logging
+        if memory_matrix is None:
+            return
+
+        # Single environment only
+        agent_map = self._build_agent_id_map(env_grid_objects)
 
         timestep_data = {"timestep": self.timestep, "agents": []}
 
         for i, agent_idx in enumerate(policy_idxs):
-            agent_idx_int = int(agent_idx.item())
-            memory_vector = memory_vectors[:, i].flatten().cpu()
-
-            if agent_idx_int in self.agent_id_map:
-                grid_obj_id = self.agent_id_map[agent_idx_int]
-                grid_obj = env_grid_objects[grid_obj_id]
-                position = (grid_obj["r"], grid_obj["c"])
+            flat_idx = int(agent_idx.item())
+            # Determine batch row for this global index
+            if "batch_pos_to_global" in locals() and batch_pos_to_global:
+                # find batch position whose global id equals flat_idx
+                try:
+                    # Reverse map once lazily
+                    if "global_to_batch" not in locals():
+                        global_to_batch = {g: b for b, g in batch_pos_to_global.items()}
+                    row = global_to_batch.get(flat_idx, None)
+                except Exception:
+                    row = i
             else:
-                logger.warning(f"Agent {agent_idx_int} not found in grid objects")
+                row = i
+            if row is None or row < 0 or row >= memory_matrix.shape[0]:
                 continue
+            memory_vector = memory_matrix[row].flatten().detach().cpu()
+            mv_np = memory_vector.numpy().astype(np.float32)
 
-            timestep_data["agents"].append(
-                {
-                    "agent_id": agent_idx_int,
-                    "memory_vector": memory_vector.tolist(),
-                    "position": position,
-                }
-            )
+            # Single env; agent_idx corresponds directly to agent_id
+            agent_id = flat_idx
+            if agent_id not in agent_map:
+                logger.warning(f"Agent {agent_id} not found in grid objects")
+                continue
+            grid_obj_id = agent_map[agent_id]
+            grid_obj = env_grid_objects[grid_obj_id]  # type: ignore[index]
+            position = (grid_obj["r"], grid_obj["c"])
+            agent_id_record = {"agent_id": agent_id}
+
+            record = {
+                **agent_id_record,
+                "memory_vector": mv_np.tolist(),
+                "position": position,
+            }
+            timestep_data["agents"].append(record)
 
         self.data.append(timestep_data)
 
     def save(self):
         """Save logged data to JSON file."""
-        if not self.enabled or not self.data or self.output_file is None:
+        if not self.enabled or self.output_file is None:
             return
 
         try:
+            if not self.data:
+                logger.warning("Doxascope: no data was logged for this simulation; nothing to save.")
+                return
+            # Write plain JSON
             with open(self.output_file, "w") as f:
                 json.dump(self.data, f)
             file_size_bytes = self.output_file.stat().st_size
@@ -234,20 +403,28 @@ class DoxascopeLogger:
             logger.error(f"Failed to save doxascope data: {e}")
 
 
-def _extract_agent_trajectories(files: list) -> Dict[int, list]:
-    """Loads raw data from JSON files and organizes it into per-agent trajectories."""
-    agent_trajectories: Dict[int, list] = {}
-    expected_dim = None
+def _extract_agent_trajectories(files: list) -> List[List[Tuple[np.ndarray, Tuple[int, int]]]]:
+    """Load raw data (single-env) and return per-file, per-agent trajectories.
+
+    Each trajectory is a list of (memory_vector, position) tuples from a single
+    file for a single agent. Assumes single environment collection. Older logs
+    that include an 'env' field are treated as single-env by ignoring that field.
+    """
+    trajectories: List[List[Tuple[np.ndarray, Tuple[int, int]]]] = []
 
     for json_file in files:
         with open(json_file, "r") as f:
             data = json.load(f)
 
+        # Key by agent_id (single-env assumption)
+        file_agent_trajs: Dict[int, List[Tuple[np.ndarray, Tuple[int, int]]]] = {}
+        expected_dim = None
+
         for timestep_data in data:
             for agent_data in timestep_data["agents"]:
-                agent_id = agent_data["agent_id"]
-                if agent_id not in agent_trajectories:
-                    agent_trajectories[agent_id] = []
+                agent_id = agent_data.get("agent_id")
+                if agent_id is None:
+                    continue
 
                 memory = np.array(agent_data["memory_vector"], dtype=np.float32)
 
@@ -261,28 +438,39 @@ def _extract_agent_trajectories(files: list) -> Dict[int, list]:
                     continue
 
                 position = tuple(agent_data["position"])
-                agent_trajectories[agent_id].append((memory, position))
+                key = int(agent_id)
+                file_agent_trajs.setdefault(key, []).append((memory, position))
 
-    return agent_trajectories
+        # Append per-agent trajectories for this file
+        for traj in file_agent_trajs.values():
+            trajectories.append(traj)
+
+    return trajectories
 
 
 def _create_training_samples(
-    agent_trajectories: Dict[int, list], num_future: int, num_past: int
+    trajectories: List[List[Tuple[np.ndarray, Tuple[int, int]]]], num_future: int, num_past: int
 ) -> Tuple[List[np.ndarray], List[List[int]]]:
-    """Generates training samples (X, y) from agent trajectories."""
-    all_memory_vectors = []
-    all_labels = []
+    """Generate training samples (X, y) from per-agent trajectories.
 
-    for trajectory in agent_trajectories.values():
+    Args:
+        trajectories: List of trajectories, each a list of (memory, position)
+        num_future: Number of future timesteps to predict
+        num_past: Number of past timesteps to predict
+    """
+    all_memory_vectors: List[np.ndarray] = []
+    all_labels: List[List[int]] = []
+
+    for trajectory in trajectories:
         if len(trajectory) < num_future + num_past + 1:
             continue
 
         for i in range(num_past, len(trajectory) - num_future):
             current_memory, current_pos = trajectory[i]
-            timestep_labels = []
+            timestep_labels: List[int] = []
             valid_sample = True
 
-            # Create labels for past and future timesteps
+            # Create labels for past and future timesteps (Manhattan metric, no diagonals allowed)
             for k in list(range(-num_past, 0)) + list(range(1, num_future + 1)):
                 pos_k = trajectory[i + k][1]
                 dr, dc = pos_k[0] - current_pos[0], pos_k[1] - current_pos[1]
@@ -290,7 +478,7 @@ def _create_training_samples(
 
                 if abs(dr) + abs(dc) > max_dist:
                     valid_sample = False
-                    break  # Skip sample if any position is out of bounds
+                    break
 
                 label = pos_to_class_id(dr, dc, max_dist)
                 timestep_labels.append(label)
@@ -318,14 +506,12 @@ def preprocess_doxascope_data(
 
     logger.info(f"Processing {len(json_files)} simulation log(s)...")
 
-    agent_trajectories = _extract_agent_trajectories(json_files)
-    if not agent_trajectories:
+    trajectories = _extract_agent_trajectories(json_files)
+    if not trajectories:
         logger.warning("No valid agent trajectories found in the provided files.")
         return None, None
 
-    all_memory_vectors, all_labels = _create_training_samples(
-        agent_trajectories, num_future_timesteps, num_past_timesteps
-    )
+    all_memory_vectors, all_labels = _create_training_samples(trajectories, num_future_timesteps, num_past_timesteps)
 
     if not all_memory_vectors:
         logger.warning("No training samples could be created from the trajectories.")
