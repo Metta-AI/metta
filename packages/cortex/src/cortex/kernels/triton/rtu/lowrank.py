@@ -42,6 +42,7 @@ def _act_and_deriv(z: torch.Tensor, activation: str) -> tuple[torch.Tensor, torc
 
 # (imports grouped at top to satisfy ruff)
 
+
 class _LinearRTUFunctionLR_Triton(Function):
     @staticmethod
     def forward(

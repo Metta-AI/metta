@@ -11,7 +11,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 import torch
-from cortex.kernels.pytorch.rtu_stream import rtu_sequence_pytorch_streaming_diag
+from cortex.kernels.pytorch.rtu_stream import rtu_stream_diag_pytorch
 
 try:  # Triton availability for GPU tests
     from cortex.kernels.triton import rtu_stream_diag_triton as _rtu_triton_stream
@@ -41,7 +41,7 @@ def _forward_whole(x, params, activation: str, resets_bt=None):
     H = params[0].shape[0]
     hc1_0 = torch.zeros(B, H, device=x.device, dtype=x.dtype)
     hc2_0 = torch.zeros(B, H, device=x.device, dtype=x.dtype)
-    y, (h1, h2), _trace = rtu_sequence_pytorch_streaming_diag(
+    y, (h1, h2), _trace = rtu_stream_diag_pytorch(
         x_btd=x,
         nu_log=nu_log,
         theta_log=theta_log,
@@ -72,7 +72,7 @@ def _forward_stream_chunks(x, params, activation: str, resets_bt=None, chunks=(3
             break
         x_blk = x[:, t0:t1, :]
         res_blk = None if resets_bt is None else resets_bt[:, t0:t1]
-        y_blk, (hc1, hc2), trace = rtu_sequence_pytorch_streaming_diag(
+        y_blk, (hc1, hc2), trace = rtu_stream_diag_pytorch(
             x_btd=x_blk,
             nu_log=nu_log,
             theta_log=theta_log,
@@ -247,7 +247,7 @@ def test_streaming_vs_whole_grad_parity_with_resets() -> None:
     # Whole sequence (autograd)
     hc1_0 = torch.zeros(B, H, device=device, dtype=dtype)
     hc2_0 = torch.zeros(B, H, device=device, dtype=dtype)
-    y_w, _state, _trace = rtu_sequence_pytorch_streaming_diag(
+    y_w, _state, _trace = rtu_stream_diag_pytorch(
         x_btd=x,
         nu_log=nu_log,
         theta_log=theta_log,
@@ -271,7 +271,7 @@ def test_streaming_vs_whole_grad_parity_with_resets() -> None:
         t0 = 0
         for sz in chunks:
             t1 = min(T, t0 + sz)
-            y_blk, (hc1, hc2), trace = rtu_sequence_pytorch_streaming_diag(
+            y_blk, (hc1, hc2), trace = rtu_stream_diag_pytorch(
                 x_btd=x[:, t0:t1, :],
                 nu_log=nu_log,
                 theta_log=theta_log,
@@ -346,7 +346,7 @@ def test_triton_streaming_diag_forward_and_grad_parity(with_resets: bool) -> Non
     hc2_0 = torch.zeros(B, H, device=device, dtype=dtype)
 
     # Forward (PyTorch)
-    y_pt, (h1_pt, h2_pt), tr_out_pt = rtu_sequence_pytorch_streaming_diag(
+    y_pt, (h1_pt, h2_pt), tr_out_pt = rtu_stream_diag_pytorch(
         x_btd=x,
         nu_log=nu_pt,
         theta_log=th_pt,
@@ -422,7 +422,7 @@ def test_triton_streaming_diag_chunked_forward_and_grad_parity(with_resets: bool
     x = torch.randn(B, T, D, device=device, dtype=dtype).requires_grad_(True)
     if with_resets:
         # Two masks: random and deterministic (to hit chunk boundaries)
-        resets_rand = (torch.rand(B, T, device=device) < 0.25)
+        resets_rand = torch.rand(B, T, device=device) < 0.25
         resets_det = torch.zeros(B, T, dtype=torch.bool, device=device)
         for b in range(B):
             resets_det[b, 0] = False
@@ -444,7 +444,7 @@ def test_triton_streaming_diag_chunked_forward_and_grad_parity(with_resets: bool
         w2_pt = w20.clone().detach().requires_grad_(True)
         hc1_0 = torch.zeros(B, H, device=device, dtype=dtype)
         hc2_0 = torch.zeros(B, H, device=device, dtype=dtype)
-        y_ref, (_, _), _ = rtu_sequence_pytorch_streaming_diag(
+        y_ref, (_, _), _ = rtu_stream_diag_pytorch(
             x_btd=x,
             nu_log=nu_pt,
             theta_log=th_pt,
@@ -534,8 +534,8 @@ def test_triton_streaming_diag_chunked_forward_and_grad_parity(with_resets: bool
             for gp, gt, nm in zip(g_ref, g_t, names, strict=False):
                 rtol, atol = tolerances[nm]
                 assert torch.allclose(gp, gt, rtol=rtol, atol=atol), (
-                f"grad {nm} mismatch (chunks={chunks}): max diff={(gp - gt).abs().max().item():.3e}"
-            )
+                    f"grad {nm} mismatch (chunks={chunks}): max diff={(gp - gt).abs().max().item():.3e}"
+                )
 
 
 @pytest.mark.skipif(not _HAS_TRITON or not torch.cuda.is_available(), reason="Triton+CUDA required")
@@ -558,7 +558,7 @@ def test_triton_streaming_diag_whole_vs_chunked_parity(with_resets: bool) -> Non
     x = torch.randn(B, T, D, device=device, dtype=dtype).requires_grad_(True)
 
     if with_resets:
-        resets_rand = (torch.rand(B, T, device=device) < 0.2)
+        resets_rand = torch.rand(B, T, device=device) < 0.2
         resets_det = torch.zeros(B, T, dtype=torch.bool, device=device)
         for b in range(B):
             resets_det[b, 0] = False

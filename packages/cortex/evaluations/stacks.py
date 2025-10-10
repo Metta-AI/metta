@@ -17,11 +17,11 @@ from dataclasses import dataclass
 from typing import Callable, Dict
 
 from cortex.config import (
+    AxonsConfig,
     CortexStackConfig,
     PassThroughBlockConfig,
     PostUpBlockConfig,
     PreUpBlockConfig,
-    RTUStreamCellConfig,
     mLSTMCellConfig,
     sLSTMCellConfig,
 )
@@ -69,12 +69,12 @@ def build_mlstm_preup(*, d_hidden: int = 128, proj_factor: float = 2.0, num_head
     return build_cortex(cfg)
 
 
-def build_rtu_stream_preup(*, d_hidden: int = 128, proj_factor: float = 2.0) -> CortexStack:
-    """Streaming RTU cell (diagonal) wrapped in a PreUp block.
+def build_axons_preup(*, d_hidden: int = 128, proj_factor: float = 2.0) -> CortexStack:
+    """Axons (streaming RTU, diagonal) wrapped in a PreUp block.
 
     - The PreUp block projects inputs to an inner dim of ``proj_factor*d_hidden``
-      before applying the RTUStream cell.
-    - RTUStream cell assumes D == H internally and projects its 2H activation
+      before applying the Axons cell.
+    - Axons assumes D == H internally and projects its 2H activation
       back to H, keeping the external hidden size consistent.
     """
     cfg = CortexStackConfig(
@@ -83,12 +83,12 @@ def build_rtu_stream_preup(*, d_hidden: int = 128, proj_factor: float = 2.0) -> 
         blocks=[
             PassThroughBlockConfig(
                 # hidden_size is inferred from PreUp: int(proj_factor * d_hidden)
-                cell=RTUStreamCellConfig(hidden_size=None, activation="silu"),
+                cell=AxonsConfig(hidden_size=None, activation="silu"),
             ),
             PreUpBlockConfig(
                 proj_factor=proj_factor,
                 # hidden_size is inferred from PreUp: int(proj_factor * d_hidden)
-                cell=RTUStreamCellConfig(hidden_size=None, activation="silu"),
+                cell=AxonsConfig(hidden_size=None, activation="silu"),
             ),
         ],
     )
@@ -100,7 +100,7 @@ STACKS: Dict[str, StackSpec] = {
     # Single‑block templates
     "slstm_postup": StackSpec(name="slstm_postup", builder=lambda: build_slstm_postup(), d_hidden=128),
     "mlstm_preup": StackSpec(name="mlstm_preup", builder=lambda: build_mlstm_preup(), d_hidden=128),
-    "rtu_stream_preup": StackSpec(name="rtu_stream_preup", builder=lambda: build_rtu_stream_preup(), d_hidden=128),
+    "axons_preup": StackSpec(name="axons_preup", builder=lambda: build_axons_preup(), d_hidden=128),
     # Composite templates
     # xLSTM: alternates mLSTM (PreUp) and sLSTM (PostUp)
     "xlstm": StackSpec(name="xlstm", builder=lambda: build_xlstm_stack(d_hidden=128, num_blocks=3), d_hidden=128),
@@ -119,4 +119,5 @@ __all__ = [
     "STACKS",
     "build_slstm_postup",
     "build_mlstm_preup",
+    "build_axons_preup",
 ]

@@ -1,8 +1,10 @@
-"""Streaming RTU cell wrapper (diagonal input weights, PyTorch kernel).
+"""Axons cell: streaming RTU (diagonal input weights, PyTorch/Triton).
 
-This cell mirrors the structure of `cortex.cells.rtu.RTUCell` but uses the
-streaming diagonal PyTorch kernel from
-`cortex.kernels.pytorch.rtu_stream.rtu_sequence_pytorch_streaming_diag`.
+This cell mirrors the structure of `cortex.cells.rtu.RTUCell` and can run on
+either the PyTorch or Triton backend. For streaming diagonal RTU it uses:
+
+- PyTorch: `cortex.kernels.pytorch.rtu_stream.rtu_stream_diag_pytorch`
+- Triton:  `cortex.kernels.triton.rtu.stream_diag.rtu_stream_diag_triton` (CUDA)
 
 Notes
 -----
@@ -10,8 +12,8 @@ Notes
 - Carries compact [B,H] eligibility traces across chunks. The traces are
   included in the returned TensorDict state and can be detached between
   subsequences by the caller to achieve true streaming.
-- Triton backend is not implemented yet for streaming; this cell always uses
-  the PyTorch kernel.
+- Backend selection follows `cortex.utils.select_backend`: Triton is used when
+  available on CUDA unless disabled; otherwise falls back to PyTorch.
 """
 
 from __future__ import annotations
@@ -25,9 +27,11 @@ from tensordict import TensorDict
 
 from cortex.cells.base import MemoryCell
 from cortex.cells.registry import register_cell
-from cortex.config import RTUStreamCellConfig
-from cortex.kernels.pytorch.rtu_stream import rtu_sequence_pytorch_streaming_diag
+from cortex.config import AxonsConfig
+from cortex.kernels.pytorch.rtu_stream import rtu_stream_diag_pytorch
+from cortex.kernels.triton.rtu import rtu_stream_diag_triton  # type: ignore
 from cortex.types import MaybeState, ResetMask, Tensor
+from cortex.utils import select_backend
 
 
 def _resolve_activation(name: str) -> nn.Module:
@@ -43,8 +47,8 @@ def _resolve_activation(name: str) -> nn.Module:
     raise ValueError(f"Unsupported RTU activation: {name}")
 
 
-@register_cell(RTUStreamCellConfig)
-class RTUStreamCell(MemoryCell):
+@register_cell(AxonsConfig)
+class Axons(MemoryCell):
     """Cortex memory cell for streaming RTU with diagonal input weights.
 
     This wrapper:
@@ -54,9 +58,9 @@ class RTUStreamCell(MemoryCell):
       - handles step-vs-sequence inputs and reset masks.
     """
 
-    def __init__(self, cfg: RTUStreamCellConfig) -> None:
+    def __init__(self, cfg: AxonsConfig) -> None:
         if cfg.hidden_size is None:
-            raise ValueError("RTUStreamCellConfig.hidden_size must be set")
+            raise ValueError("AxonsConfig.hidden_size must be set")
         super().__init__(hidden_size=cfg.hidden_size)
         self.cfg = cfg
 
@@ -181,20 +185,51 @@ class RTUStreamCell(MemoryCell):
         # Pack carried traces (if present)
         trace_in = self._pack_trace_in(st)
 
-        # Call PyTorch streaming kernel (diagonal)
-        act_name = self.activation.__class__.__name__
-        y2h_t, (h1_n, h2_n), trace_out = rtu_sequence_pytorch_streaming_diag(
-            x_btd=x_btd,
-            nu_log=self.nu_log,
-            theta_log=self.theta_log,
-            w1=self.w1,
-            w2=self.w2,
-            activation_name=act_name,
-            hc1_init_bh=hc1,
-            hc2_init_bh=hc2,
-            trace_in=trace_in,
-            resets_bt=resets_bt,
+        # Backend shims: both return (y2h_t, h1_n, h2_n, trace_out)
+        def _fw_triton(
+            x_in: torch.Tensor, h1: torch.Tensor, h2: torch.Tensor, rm: Optional[torch.Tensor], tr: Optional[tuple]
+        ):
+            act_name = self.activation.__class__.__name__
+            y2h_t_, (h1_n_, h2_n_), trace_out_ = rtu_stream_diag_triton(
+                x_btd=x_in,
+                nu_log=self.nu_log,
+                theta_log=self.theta_log,
+                w1=self.w1,
+                w2=self.w2,
+                activation_name=act_name,
+                hc1_init_bh=h1,
+                hc2_init_bh=h2,
+                trace_in=tr,
+                resets_bt=rm,
+            )
+            return y2h_t_, h1_n_, h2_n_, trace_out_
+
+        def _fw_torch(
+            x_in: torch.Tensor, h1: torch.Tensor, h2: torch.Tensor, rm: Optional[torch.Tensor], tr: Optional[tuple]
+        ):
+            act_name = self.activation.__class__.__name__
+            y2h_t_, (h1_n_, h2_n_), trace_out_ = rtu_stream_diag_pytorch(
+                x_btd=x_in,
+                nu_log=self.nu_log,
+                theta_log=self.theta_log,
+                w1=self.w1,
+                w2=self.w2,
+                activation_name=act_name,
+                hc1_init_bh=h1,
+                hc2_init_bh=h2,
+                trace_in=tr,
+                resets_bt=rm,
+            )
+            return y2h_t_, h1_n_, h2_n_, trace_out_
+
+        backend = select_backend(
+            triton_fn=_fw_triton,
+            pytorch_fn=_fw_torch,
+            tensor=x_btd,
+            allow_triton=True,
         )
+
+        y2h_t, h1_n, h2_n, trace_out = backend(x_btd, hc1, hc2, resets_bt, trace_in)
 
         # Update state and traces
         st["hc1"] = h1_n
@@ -222,4 +257,4 @@ class RTUStreamCell(MemoryCell):
         return state
 
 
-__all__ = ["RTUStreamCell"]
+__all__ = ["Axons"]
