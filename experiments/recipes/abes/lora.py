@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
+from experiments.recipes.abes import _train_clamp
 from experiments.recipes.abes import smollm as smollm_recipe
 from experiments.recipes.arena_basic_easy_shaped import (
     evaluate,
@@ -22,6 +23,13 @@ from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.tools.train import TrainTool
 
 DEFAULT_LORA_TARGETS = ["q_proj", "k_proj", "v_proj", "o_proj"]
+
+LORA_LIMITS = _train_clamp.ClampLimits(
+    batch_cap=15_360,
+    minibatch_cap=768,
+    bptt_cap=6,
+    forward_pass_cap=384,
+)
 
 
 def train(
@@ -60,42 +68,7 @@ def train(
         policy_architecture=policy_architecture,
     )
 
-    return _apply_lora_defaults(tool)
-
-
-def _apply_lora_defaults(tool: TrainTool) -> TrainTool:
-    """Adjust training defaults for LoRA fine-tuning."""
-
-    trainer_updates = {}
-    if tool.trainer.compile:
-        trainer_updates["compile"] = False
-
-    max_bptt = 6
-    bptt_horizon = min(tool.trainer.bptt_horizon, max_bptt)
-    if bptt_horizon != tool.trainer.bptt_horizon:
-        trainer_updates["bptt_horizon"] = bptt_horizon
-
-    minibatch_cap = 768
-    raw_minibatch = min(tool.trainer.minibatch_size, minibatch_cap)
-    minibatch_size = max(bptt_horizon, raw_minibatch - raw_minibatch % bptt_horizon)
-    if minibatch_size != tool.trainer.minibatch_size:
-        trainer_updates["minibatch_size"] = minibatch_size
-
-    batch_cap = 15_360
-    raw_batch = min(tool.trainer.batch_size, batch_cap)
-    batch_size = max(minibatch_size, raw_batch - raw_batch % minibatch_size)
-    if batch_size != tool.trainer.batch_size:
-        trainer_updates["batch_size"] = batch_size
-    if trainer_updates:
-        tool.trainer = tool.trainer.model_copy(update=trainer_updates)
-
-    env_updates = {}
-    if tool.training_env.forward_pass_minibatch_target_size > 384:
-        env_updates["forward_pass_minibatch_target_size"] = 384
-    if env_updates:
-        tool.training_env = tool.training_env.model_copy(update=env_updates)
-
-    return tool
+    return _train_clamp.clamp_training_resources(tool, LORA_LIMITS)
 
 
 __all__ = [

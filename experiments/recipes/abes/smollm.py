@@ -16,6 +16,7 @@ from experiments.recipes.arena_basic_easy_shaped import (
     sweep_async_progressive,
     train as base_train,
 )
+from experiments.recipes.abes import _train_clamp
 from metta.agent.policies.smollm import SmolLLMConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
@@ -63,30 +64,22 @@ def train(
     return _apply_smollm_defaults(tool)
 
 
+SMOLLM_LIMITS = _train_clamp.ClampLimits(
+    batch_cap=131_072,
+    minibatch_cap=4_096,
+    bptt_cap=4,
+    forward_pass_cap=2_048,
+    disable_compile=True,
+    auto_workers=False,
+    num_workers_cap=1,
+    async_factor_cap=1,
+)
+
+
 def _apply_smollm_defaults(tool: TrainTool) -> TrainTool:
     """Clamp heavy training defaults to keep SmolLLM within memory limits."""
 
-    trainer_updates = {}
-    if tool.trainer.batch_size > 131_072:
-        trainer_updates["batch_size"] = 131_072
-    if tool.trainer.minibatch_size > 4_096:
-        trainer_updates["minibatch_size"] = 4_096
-    if tool.trainer.bptt_horizon > 4:
-        trainer_updates["bptt_horizon"] = (
-            4  # keep segments >= agents without inflating batch size
-        )
-    if tool.trainer.compile:
-        trainer_updates["compile"] = False
-    if trainer_updates:
-        tool.trainer = tool.trainer.model_copy(update=trainer_updates)
-
-    env_updates = {}
-    if tool.training_env.forward_pass_minibatch_target_size > 2_048:
-        env_updates["forward_pass_minibatch_target_size"] = 2_048
-    if env_updates:
-        tool.training_env = tool.training_env.model_copy(update=env_updates)
-
-    return tool
+    return _train_clamp.clamp_training_resources(tool, SMOLLM_LIMITS)
 
 
 __all__ = [
