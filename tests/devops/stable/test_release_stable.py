@@ -3,7 +3,7 @@
 from datetime import datetime
 
 from devops.job_runner import JobResult
-from devops.stable.runner import ValidationRunner
+from devops.stable.runner import TaskRunner
 from devops.stable.state import ReleaseState, load_state, save_state
 from devops.stable.tasks import Task, TaskResult
 
@@ -87,7 +87,7 @@ def test_run_task_skips_completed(tmp_path, monkeypatch):
 
     task = FakeTask(name="already_passed")
 
-    runner = ValidationRunner(state)
+    runner = TaskRunner(state)
     result = runner._run_with_deps(task)
 
     # Should return existing result without re-running
@@ -113,7 +113,7 @@ def test_run_task_retries_failed(tmp_path, monkeypatch):
 
     task = FakeTask(name="failed_task", exit_code=0)
 
-    runner = ValidationRunner(state, interactive=False)
+    runner = TaskRunner(state, interactive=False)
     result = runner._run_with_deps(task)
 
     # Should have retried and passed
@@ -131,7 +131,7 @@ def test_run_task_skips_missing_dependencies(tmp_path, monkeypatch):
     dependency = FakeTask(name="missing_dependency")
     dependent_task.dependencies = [dependency]
 
-    runner = ValidationRunner(state, interactive=False)
+    runner = TaskRunner(state, interactive=False)
     result = runner._run_with_deps(dependent_task)
 
     # Dependency will run and pass, so dependent task should also run
@@ -151,7 +151,7 @@ def test_run_task_skips_failed_dependencies(tmp_path, monkeypatch):
     dependent_task = FakeTask(name="eval_after_train")
     dependent_task.dependencies = [failed_dep]
 
-    runner = ValidationRunner(state, interactive=False)
+    runner = TaskRunner(state, interactive=False)
     result = runner._run_with_deps(dependent_task)
 
     assert result.outcome == "skipped"
@@ -214,7 +214,7 @@ def test_run_task_handles_exceptions(tmp_path, monkeypatch):
 
     task = ErrorTask(name="error_task")
 
-    runner = ValidationRunner(state, interactive=False)
+    runner = TaskRunner(state, interactive=False)
     result = runner._run_with_deps(task)
 
     assert result.outcome == "failed"

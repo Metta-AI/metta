@@ -12,45 +12,38 @@ Example usage:
     # Remote job (sync)
     job = RemoteJob(
         name="train",
-        module="experiments.recipes.arena.train",
-        args=["run=test", "trainer.total_timesteps=100000"],
+        task_yaml="sky_tasks/arena_train.yaml",
         timeout_s=3600,
-        base_args=["--no-spot", "--gpus=4"]
     )
     result = job.wait(stream_output=True)
     print(f"Job ID: {result.job_id}, Exit code: {result.exit_code}")
 
     # Remote job (async - poll for completion)
-    job = RemoteJob(name="train", module="experiments.recipes.arena.train", args=["run=test"])
+    job = RemoteJob(name="train", task_yaml="sky_tasks/arena_train.yaml")
     job.submit()
     while not job.is_complete():
-        print("Still running...")
         time.sleep(10)
     result = job.get_result()
 
-    # Resume existing remote job
-    job = RemoteJob(
-        name="train",
-        module="experiments.recipes.arena.train",
-        args=["run=test"],
-        job_id="12345"  # Existing SkyPilot job ID
-    )
+    # Attach to existing remote job
+    job = RemoteJob(name="train", task_yaml="sky_tasks/arena_train.yaml", job_id=12345)
     result = job.wait(stream_output=True)
 """
 
 from __future__ import annotations
 
 import os
-import re
+import signal
 import subprocess
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from io import StringIO
 from pathlib import Path
 from typing import Optional
 
-from devops.skypilot.utils.job_helpers import tail_job_log
-from devops.skypilot.utils.testing_helpers import LaunchedJob, SkyPilotTestLauncher
+import sky
+
 from metta.common.util.fs import get_repo_root
 
 
@@ -165,8 +158,13 @@ class Job(ABC):
 
         except KeyboardInterrupt:
             print(f"\n\n⚠️  Interrupted! Cleaning up job '{self.name}'...")
-            self.cancel()
+            self._handle_interrupt()
             raise
+
+    @abstractmethod
+    def _handle_interrupt(self) -> None:
+        """Handle job interruption (Ctrl+C). Subclasses can choose different behavior."""
+        pass
 
     @abstractmethod
     def cancel(self) -> None:
@@ -213,14 +211,13 @@ class LocalJob(Job):
         env["CLICOLOR_FORCE"] = "1"
 
         # Start process in new process group (for clean cancellation)
-        self._log_file = open(log_path, "wb")
         self._proc = subprocess.Popen(
             self.cmd,
             cwd=self.cwd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             env=env,
-            preexec_fn=os.setpgrp if os.name != "nt" else None,  # Unix only
+            preexec_fn=os.setpgrp,
         )
         self._submitted = True
         self._start_time = time.time()
@@ -239,7 +236,6 @@ class LocalJob(Job):
             # Process finished - drain remaining output
             self._drain_output()
             self._exit_code = exit_code
-            self._log_file.close()
             return True
 
         # Still running - read available output
@@ -247,31 +243,26 @@ class LocalJob(Job):
         return False
 
     def _read_output(self) -> None:
-        """Read available output from process."""
-        if self._proc and self._proc.stdout:
-            # Try non-blocking buffered read
-            try:
-                # read1() is non-blocking and available on BufferedReader
-                chunk = self._proc.stdout.read1(65536)  # type: ignore[attr-defined]
-            except (AttributeError, Exception):
-                # Fallback for systems without read1
-                import select
+        """Read available output from process and append to log file."""
+        if not (self._proc and self._proc.stdout):
+            return
 
-                if select.select([self._proc.stdout], [], [], 0)[0]:
-                    chunk = self._proc.stdout.read(4096)
-                else:
-                    chunk = b""
-
-            if chunk:
-                self._log_file.write(chunk)
-                self._log_file.flush()
+        # Non-blocking buffered read
+        chunk = self._proc.stdout.read1(65536)  # type: ignore[attr-defined]
+        if chunk:
+            log_path = self._get_log_path()
+            with open(log_path, "ab") as f:
+                f.write(chunk)
 
     def _drain_output(self) -> None:
-        """Drain all remaining output from process."""
-        if self._proc and self._proc.stdout:
+        """Drain all remaining output from process and append to log file."""
+        if not (self._proc and self._proc.stdout):
+            return
+
+        log_path = self._get_log_path()
+        with open(log_path, "ab") as f:
             for line in self._proc.stdout:
-                self._log_file.write(line)
-            self._log_file.flush()
+                f.write(line)
 
     def get_logs(self) -> str:
         """Get current logs."""
@@ -297,117 +288,136 @@ class LocalJob(Job):
         """Get path to log file."""
         return self.log_dir / f"{self.name}.log"
 
+    def _handle_interrupt(self) -> None:
+        """Handle Ctrl+C by killing the local process."""
+        self.cancel()
+
     def cancel(self) -> None:
         """Cancel/kill the running job."""
-        if self._proc and self._exit_code is None:
-            print(f"Killing local job process (PID {self._proc.pid})...")
+        if not (self._proc and self._exit_code is None):
+            return
+
+        print(f"Killing local job process (PID {self._proc.pid})...")
+        try:
+            # Kill the process group
+            pgid = os.getpgid(self._proc.pid)
+            os.killpg(pgid, signal.SIGTERM)
             try:
-                import signal
+                self._proc.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                os.killpg(pgid, signal.SIGKILL)
+                self._proc.wait()
 
-                if os.name != "nt":
-                    # POSIX: kill the process group
-                    pgid = os.getpgid(self._proc.pid)
-                    os.killpg(pgid, signal.SIGTERM)
-                    try:
-                        self._proc.wait(timeout=2)
-                    except subprocess.TimeoutExpired:
-                        os.killpg(pgid, signal.SIGKILL)
-                        self._proc.wait()
-                else:
-                    # Windows: use terminate/kill
-                    self._proc.terminate()
-                    try:
-                        self._proc.wait(timeout=2)
-                    except subprocess.TimeoutExpired:
-                        self._proc.kill()
-                        self._proc.wait()
+            self._exit_code = -1  # Mark as cancelled
 
-                self._exit_code = -1  # Mark as cancelled
-                if hasattr(self, "_log_file") and self._log_file:
-                    self._log_file.close()
-
-            except (ProcessLookupError, PermissionError) as e:
-                # Process already terminated or permission denied
-                print(f"Could not kill process: {e}")
+        except (ProcessLookupError, PermissionError) as e:
+            print(f"Could not kill process: {e}")
 
 
 class RemoteJob(Job):
-    """Job that runs remotely via SkyPilot."""
+    """Job that runs remotely via SkyPilot using the Python SDK.
+
+    Can be used individually or with class methods for batch operations.
+    """
 
     def __init__(
         self,
         name: str,
-        module: str,
-        args: list[str],
+        task_yaml: Optional[str] = None,
+        task: Optional[sky.Task] = None,
+        cluster_name: Optional[str] = None,
         timeout_s: int = 3600,
         log_dir: str = "logs/remote",
-        base_args: Optional[list[str]] = None,
-        skip_git_check: bool = False,
-        job_id: Optional[str] = None,
+        job_id: Optional[int] = None,
     ):
+        """Initialize a remote job.
+
+        Args:
+            name: Job name for logging/display
+            task_yaml: Path to a SkyPilot task YAML file
+            task: A sky.Task object (alternative to task_yaml)
+            cluster_name: Name of the cluster to run on (will be auto-generated if None)
+            timeout_s: Job timeout in seconds
+            log_dir: Directory to store logs
+            job_id: Existing job ID to resume (if provided, skips launch)
+        """
         super().__init__(name, log_dir, timeout_s)
-        self.module = module
-        self.args = args
-        self.base_args = base_args or ["--no-spot", "--gpus=4", "--nodes", "1"]
-        self.skip_git_check = skip_git_check
-        self._job_id: Optional[str] = job_id  # Can resume existing job
-        self._launched_job: Optional[LaunchedJob] = None
+
+        if not task_yaml and not task and not job_id:
+            raise ValueError("Must provide either task_yaml, task, or job_id")
+
+        self.task_yaml = task_yaml
+        self.task = task
+        self.cluster_name = cluster_name or f"job-{name}"
+        self._job_id: Optional[int] = job_id
+        self._request_id: Optional[str] = None
         self._start_time: Optional[float] = None
-        self._is_resumed = bool(job_id)  # Track if this is a resumed job
+        self._is_resumed = bool(job_id)
+        self._job_status: Optional[sky.JobStatus] = None
 
     def submit(self) -> None:
-        """Submit job to SkyPilot."""
+        """Submit job to SkyPilot using the SDK."""
         if self._submitted:
             return
 
-        # If resuming existing job, skip launch
+        # If resuming existing job, just mark as submitted
         if self._is_resumed:
             self._submitted = True
             self._start_time = time.time()
             return
 
-        launcher = SkyPilotTestLauncher(base_name="job", skip_git_check=self.skip_git_check)
-        run_name = launcher.generate_run_name(self.name)
+        try:
+            # Load task from YAML or use provided task
+            if self.task_yaml:
+                task = sky.Task.from_yaml(self.task_yaml)
+            else:
+                task = self.task
 
-        self._launched_job = launcher.launch_job(
-            module=self.module,
-            run_name=run_name,
-            base_args=self.base_args,
-            extra_args=self.args,
-            test_config={"name": self.name},
-            enable_ci_tests=False,
-        )
+            # Launch the job using managed jobs
+            self._request_id = sky.jobs.launch(task, name=self.cluster_name)
+            self._submitted = True
+            self._start_time = time.time()
 
-        self._job_id = self._launched_job.job_id
-        self._submitted = True
-        self._start_time = time.time()
+            # Wait for the request to complete and get the job ID
+            job_id, _controller_handle = sky.get(self._request_id)
+            self._job_id = job_id
 
-        # Write initial log if launch failed
-        if not self._launched_job.success:
+        except Exception as e:
+            # Log launch failure
             log_path = self._get_log_path()
             log_path.parent.mkdir(parents=True, exist_ok=True)
-            log_path.write_text(f"SkyPilot launch failed\nRequest ID: {self._launched_job.request_id}\n")
+            log_path.write_text(f"SkyPilot launch failed: {e}\n")
+            self._submitted = True  # Mark as submitted even if failed
+            self._job_id = None
 
     def is_complete(self) -> bool:
         """Check if remote job has completed."""
         if not self._submitted:
             return False
 
-        # For resumed jobs or failed launches, check if we have a job_id
         if not self._job_id:
             return True  # No job to track (launch failed)
 
-        # If not resumed, check if launch succeeded
-        if not self._is_resumed and (not self._launched_job or not self._launched_job.success):
-            return True  # Failed to launch
+        try:
+            # Get job status from SkyPilot
+            status_dict = sky.get(sky.job_status(self.cluster_name, job_ids=[self._job_id]))
+            self._job_status = status_dict.get(self._job_id)
 
-        # Check logs for completion markers (multiple patterns for robustness)
-        logs = self.get_logs()
-        return (
-            bool(re.search(r"(^|\n)Exit code:\s*-?\d+\s*$", logs))
-            or "Training complete" in logs
-            or "All tasks finished" in logs
-        )
+            if self._job_status is None:
+                return True  # Job not found
+
+            # Check if job is in a terminal state
+            return self._job_status in (
+                sky.JobStatus.SUCCEEDED,
+                sky.JobStatus.FAILED,
+                sky.JobStatus.FAILED_SETUP,
+                sky.JobStatus.FAILED_DRIVER,
+                sky.JobStatus.CANCELLED,
+            )
+
+        except Exception:
+            # If we can't get status, assume not complete
+            return False
 
     def get_logs(self) -> str:
         """Fetch latest logs from SkyPilot."""
@@ -417,40 +427,47 @@ class RemoteJob(Job):
         log_path = self._get_log_path()
 
         try:
-            # Append only new content if possible
-            existing = log_path.read_text(errors="ignore") if log_path.exists() else ""
-            logs = tail_job_log(self._job_id, lines=10000) or ""
+            # Use StringIO to capture logs
+            log_buffer = StringIO()
+
+            # Get logs without following
+            sky.jobs.tail_logs(
+                job_id=self._job_id,
+                follow=False,
+                tail=10000,
+                output_stream=log_buffer,  # type: ignore
+            )
+
+            logs = log_buffer.getvalue()
 
             if logs:
                 log_path.parent.mkdir(parents=True, exist_ok=True)
-                # If new logs start with existing content, just overwrite
-                # (tail_job_log returns full log, not incremental)
-                if logs.startswith(existing) or not existing:
-                    log_path.write_text(logs)
-                else:
-                    # Best effort: overwrite if source doesn't align
-                    log_path.write_text(logs)
+                log_path.write_text(logs)
 
-            return log_path.read_text(errors="ignore") if log_path.exists() else logs
+            return logs
+
         except Exception:
-            pass
-
-        # Return existing logs if fetch fails
-        if log_path.exists():
-            return log_path.read_text(errors="ignore")
-        return ""
+            # Return existing logs if fetch fails
+            if log_path.exists():
+                return log_path.read_text(errors="ignore")
+            return ""
 
     def _fetch_result(self) -> JobResult:
         """Fetch result from completed job."""
-        logs = self.get_logs()
-
-        # Extract exit code from logs
-        exit_code = 1  # Default to failure
-        match = re.search(r"Exit code: (\d+)", logs)
-        if match:
-            exit_code = int(match.group(1))
-        elif not self._is_resumed and (not self._launched_job or not self._launched_job.success):
-            exit_code = 1  # Launch failure (only for new jobs, not resumed)
+        # Determine exit code from job status
+        exit_code = 0
+        if self._job_status == sky.JobStatus.SUCCEEDED:
+            exit_code = 0
+        elif self._job_status in (
+            sky.JobStatus.FAILED,
+            sky.JobStatus.FAILED_SETUP,
+            sky.JobStatus.FAILED_DRIVER,
+        ):
+            exit_code = 1
+        elif self._job_status == sky.JobStatus.CANCELLED:
+            exit_code = 130  # Interrupted
+        elif not self._job_id:
+            exit_code = 1  # Launch failure
 
         duration = None
         if self._start_time:
@@ -460,23 +477,35 @@ class RemoteJob(Job):
             name=self.name,
             exit_code=exit_code,
             logs_path=str(self._get_log_path()),
-            job_id=self._job_id,
+            job_id=str(self._job_id) if self._job_id else None,
             duration_s=duration,
         )
 
     def _get_log_path(self) -> Path:
         """Get path to log file."""
-        job_id_str = self._job_id or "unknown"
+        job_id_str = str(self._job_id) if self._job_id else "unknown"
         return self.log_dir / f"{self.name}.{job_id_str}.log"
 
-    def cancel(self) -> None:
-        """Note: Remote jobs aren't cancelled from here.
-
-        Remote jobs continue running in the cloud. Use SkyPilot CLI to manage:
-            sky cancel <job_id>
-        """
+    def _handle_interrupt(self) -> None:
+        """Handle Ctrl+C by warning about running remote job (does not cancel)."""
         if self._job_id:
-            print(f"⚠️  Remote job '{self.name}' (Job ID: {self._job_id}) is still running in the cloud")
-            print(f"    To cancel: sky cancel {self._job_id}")
+            print(
+                f"\n⚠️  Remote job '{self.name}' (Job ID: {self._job_id}) "
+                f"is still running on cluster '{self.cluster_name}'"
+            )
+            print(f"    To cancel it later, run: sky jobs cancel {self._job_id}")
+        else:
+            print(f"\n⚠️  Remote job '{self.name}' was not successfully launched")
+
+    def cancel(self) -> None:
+        """Cancel the running job using the SkyPilot SDK."""
+        if self._job_id:
+            try:
+                print(f"Cancelling remote job '{self.name}' (Job ID: {self._job_id})...")
+                sky.jobs.cancel(job_ids=[self._job_id])
+                print(f"✅ Job {self._job_id} cancelled successfully")
+            except Exception as e:
+                print(f"⚠️  Failed to cancel job {self._job_id}: {e}")
+                print(f"    Try manually: sky jobs cancel {self._job_id}")
         else:
             print(f"Remote job '{self.name}' was not successfully launched")

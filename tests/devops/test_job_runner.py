@@ -154,100 +154,71 @@ def test_localjob_writes_logs(tmp_path, monkeypatch, fake_popen):
         assert line in log_content
 
 
-def test_remotejob_completion_by_exit_marker(tmp_path, monkeypatch):
-    """Test that remote job completion is detected via exit code marker."""
-    logs = ["Job started", "Processing data", "Job finished", "Exit code: 0"]
-
-    def fake_tail_job_log(job_id, lines=10000):
-        return "\n".join(logs)
-
-    # Mock tail_job_log where it's imported (in job_runner module)
-    monkeypatch.setattr(
-        "devops.job_runner.tail_job_log",
-        fake_tail_job_log,
-    )
-
+def test_remotejob_initialization(tmp_path):
+    """Test that RemoteJob can be initialized with task_yaml."""
     job = RemoteJob(
         name="remote_test",
-        module="test.module",
-        args=["arg=value"],
+        task_yaml="fake.yaml",
+        cluster_name="test-cluster",
         log_dir=str(tmp_path),
-        job_id="sky-job-123",
     )
 
-    # Mark as submitted to bypass launch
-    job._submitted = True
-
-    assert job.is_complete() is True
-
-    result = job.get_result()
-    assert result is not None
-    assert result.exit_code == 0
-    assert result.success
+    assert job.name == "remote_test"
+    assert job.task_yaml == "fake.yaml"
+    assert job.cluster_name == "test-cluster"
+    assert not job._submitted
 
 
-def test_remotejob_not_complete_without_marker(tmp_path, monkeypatch):
-    """Test that remote job without exit marker is not considered complete."""
-    logs = ["Job started", "Still running..."]
+def test_remotejob_requires_task_or_job_id(tmp_path):
+    """Test that RemoteJob requires either task_yaml, task, or job_id."""
+    with pytest.raises(ValueError, match="Must provide either task_yaml, task, or job_id"):
+        RemoteJob(
+            name="invalid_job",
+            cluster_name="test-cluster",
+            log_dir=str(tmp_path),
+        )
 
-    def fake_tail_job_log(job_id, lines=10000):
-        return "\n".join(logs)
 
-    monkeypatch.setattr(
-        "devops.job_runner.tail_job_log",
-        fake_tail_job_log,
-    )
-
+def test_remotejob_resume_with_job_id(tmp_path):
+    """Test that RemoteJob can resume an existing job by job_id."""
     job = RemoteJob(
-        name="remote_running",
-        module="test.module",
-        args=[],
+        name="resumed_job",
+        cluster_name="existing-cluster",
         log_dir=str(tmp_path),
-        job_id="sky-job-456",
+        job_id=12345,
     )
 
-    job._submitted = True
+    assert job._job_id == 12345
+    assert job._is_resumed is True
+    assert not job._submitted
 
-    assert job.is_complete() is False
+    # Submit should just mark as submitted for resumed jobs
+    job.submit()
+    assert job._submitted is True
 
 
-def test_remotejob_get_logs_accumulates(tmp_path, monkeypatch):
-    """Test that remote job logs accumulate correctly."""
-    log_sequence = ["Line 1", "Line 1\nLine 2", "Line 1\nLine 2\nLine 3"]
-    call_count = [0]
-
-    def fake_tail_job_log(job_id, lines=10000):
-        result = log_sequence[min(call_count[0], len(log_sequence) - 1)]
-        call_count[0] += 1
-        return result
-
-    monkeypatch.setattr(
-        "devops.job_runner.tail_job_log",
-        fake_tail_job_log,
-    )
-
+def test_remotejob_log_path_includes_job_id(tmp_path):
+    """Test that log path includes job ID for differentiation."""
     job = RemoteJob(
-        name="log_accumulate",
-        module="test.module",
-        args=[],
+        name="test_job",
+        task_yaml="fake.yaml",
         log_dir=str(tmp_path),
-        job_id="sky-job-789",
+        job_id=999,
     )
 
-    job._submitted = True
+    log_path = job._get_log_path()
+    assert "test_job.999.log" in str(log_path)
 
-    # Get logs multiple times - should accumulate
-    logs1 = job.get_logs()
-    assert "Line 1" in logs1
 
-    logs2 = job.get_logs()
-    assert "Line 1" in logs2
-    assert "Line 2" in logs2
+def test_remotejob_default_cluster_name(tmp_path):
+    """Test that cluster name defaults to job-{name} if not provided."""
+    job = RemoteJob(
+        name="my_task",
+        task_yaml="fake.yaml",
+        log_dir=str(tmp_path),
+    )
 
-    logs3 = job.get_logs()
-    assert "Line 1" in logs3
-    assert "Line 2" in logs3
-    assert "Line 3" in logs3
+    assert job.cluster_name == "job-my_task"
 
 
 def test_jobresult_success_property():
@@ -294,32 +265,3 @@ def test_localjob_cancel_terminates_process(tmp_path, monkeypatch, fake_popen):
     # Verify the fake process was terminated
     assert len(instances) > 0
     assert instances[0]._terminated
-
-
-def test_remotejob_handles_nonzero_exit(tmp_path, monkeypatch):
-    """Test that remote job correctly reports non-zero exit codes."""
-    logs = ["Job started", "Error occurred", "Exit code: 42"]
-
-    def fake_tail_job_log(job_id, lines=10000):
-        return "\n".join(logs)
-
-    monkeypatch.setattr(
-        "devops.job_runner.tail_job_log",
-        fake_tail_job_log,
-    )
-
-    job = RemoteJob(
-        name="remote_fail",
-        module="test.module",
-        args=[],
-        log_dir=str(tmp_path),
-        job_id="sky-job-fail",
-    )
-
-    job._submitted = True
-
-    assert job.is_complete() is True
-
-    result = job.get_result()
-    assert result.exit_code == 42
-    assert not result.success
