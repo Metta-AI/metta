@@ -14,7 +14,6 @@ Notes
 
 from __future__ import annotations
 
-import argparse
 from dataclasses import dataclass, field
 
 from experiments.recipes.benchmark_architectures.level_1_basic import ARCHITECTURES
@@ -48,19 +47,12 @@ class BenchmarkArchSchedulerConfig:
     architecture_types: list[str] = field(
         default_factory=lambda: [str(k) for k in ARCHITECTURES.keys()]
     )
-    # One or more seeds per level
-    seeds_per_level: int = 3
 
-    # Training budget per run
-    total_timesteps: int = 50_000
+    seeds_per_level: int = 3
 
     # CLI entrypoints in each recipe module
     train_entrypoint: str = "train"
     eval_entrypoint: str = "evaluate"
-
-    # Resources
-    gpus: int = 1
-    nodes: int = 1
 
 
 class BenchmarkArchScheduler(ExperimentScheduler):
@@ -193,11 +185,11 @@ def make_adaptive_controller(  # noqa: PLR0913
 def run(
     experiment_id: str,
     local: bool = False,
-    timesteps: int = 50_000,
+    timesteps: int = 2000000000,
     max_parallel: int = 16,
     seeds_per_level: int = 3,
-    gpus: int = 1,
-    nodes: int = 1,
+    gpus: int = 4,
+    nodes: int = 4,
 ):
     make_adaptive_controller(
         experiment_id=experiment_id,
@@ -205,7 +197,7 @@ def run(
             total_timesteps=timesteps,
             seeds_per_level=seeds_per_level,
             gpus=gpus,
-            nodes=nodes
+            nodes=nodes,
         ),
         use_skypilot=not local,
         max_parallel=max_parallel,
@@ -213,58 +205,12 @@ def run(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Run benchmark architecture experiments across all levels and architectures"
-    )
-    parser.add_argument(
-        "--experiment-id",
-        type=str,
-        required=True,
-        help="Unique identifier for this experiment run",
-    )
-    parser.add_argument(
-        "--local",
-        action="store_true",
-        help="Run locally instead of using Skypilot",
-    )
-    parser.add_argument(
-        "--timesteps",
-        type=int,
-        default=50_000,
-        help="Total timesteps per training run (default: 50,000)",
-    )
-    parser.add_argument(
-        "--max-parallel",
-        type=int,
-        default=16,
-        help="Maximum number of parallel jobs (default: 16, designed for 4 nodes × 4 GPUs)",
-    )
-    parser.add_argument(
-        "--seeds-per-level",
-        type=int,
-        default=3,
-        help="Number of random seeds per architecture per level (default: 3)",
-    )
-    parser.add_argument(
-        "--gpus",
-        type=int,
-        default=1,
-        help="Number of GPUs per run"
-    )
-    parser.add_argument(
-        "--nodes",
-        type=int,
-        default=1,
-        help="Number of nodes per run"
-    )
-    args = parser.parse_args()
-
     run(
-        experiment_id=args.experiment_id,
-        local=args.local,
-        timesteps=args.timesteps,
-        max_parallel=args.max_parallel,
-        seeds_per_level=args.seeds_per_level,
-        gpus=args.gpus,
-        nodes=args.nodes
+        experiment_id="benchmark_arch_sweep",
+        local=False,
+        timesteps=2_000_000_000,
+        max_parallel=16,
+        seeds_per_level=3,
+        gpus=4,
+        nodes=4,
     )
