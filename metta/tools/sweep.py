@@ -54,23 +54,37 @@ def create_on_eval_completed_hook(metric_path: str):
         cost = run.cost
 
         # Update the run summary with sweep data for the optimizer
-        sweep_data = {
-            "sweep/score": float(score),
-            "sweep/cost": float(cost),
-        }
-
-        # Update remote store (WandB)
-        store.update_run_summary(run.run_id, sweep_data)
-
-        # CRITICAL: Also update the local run object so scheduler sees the data immediately
-        # Without this, the scheduler won't see the scores until the next WandB fetch
-        if run.summary is None:
-            run.summary = {}
-        run.summary.update(sweep_data)
-
+        store.update_run_summary(
+            run.run_id,
+            {
+                "sweep/score": float(score),
+                "sweep/cost": float(cost),
+            },
+        )
         logger.info(f"[SweepTool] Updated sweep observation for {run.run_id}: score={score:.6f}, cost={cost:.2f}")
 
     return on_eval_completed
+
+
+def on_job_dispatch_hook(job, store):
+    """Record the suggestion that was used for this training job.
+
+    Only training jobs have suggestions in their metadata. Eval jobs
+    reuse the same run_id and don't have new suggestions.
+    """
+    from metta.adaptive.models import JobTypes
+
+    # Only process training jobs - eval jobs don't have suggestions
+    if job.type == JobTypes.LAUNCH_TRAINING:
+        # Get the suggestion from job metadata (set by the scheduler)
+        suggestion = job.metadata.get("adaptive/suggestion", {})
+
+        if suggestion:
+            # Store the suggestion in the run summary for the optimizer to read later
+            store.update_run_summary(job.run_id, {"sweep/suggestion": suggestion})
+            logger.info(f"[SweepTool] Recorded suggestion for {job.run_id}: {suggestion}")
+        else:
+            logger.warning(f"[SweepTool] Training job {job.run_id} dispatched without suggestion metadata")
 
 
 class DispatcherType(StrEnum):
@@ -128,7 +142,7 @@ class SweepTool(Tool):
     liar_strategy: str = "best"  # one of: best | mean | worst
 
     # Controller settings
-    max_parallel_jobs: int = 6
+    max_parallel_jobs: int = 1
     monitoring_interval: int = 60
     sweep_server_uri: str = PROD_STATS_SERVER_URI
     gpus: int = 1  # Number of GPUs per training job
@@ -324,9 +338,10 @@ class SweepTool(Tool):
             # Create the on_eval_completed hook with the specific metric we're optimizing
             on_eval_completed = create_on_eval_completed_hook(self.protein_config.metric)
 
-            # Pass on_eval_completed hook to run method for sweep-specific observation tracking
+            # Pass hooks to run method for sweep-specific observation tracking
             controller.run(
                 on_eval_completed=on_eval_completed,
+                on_job_dispatch=on_job_dispatch_hook,
             )
 
         except KeyboardInterrupt:
