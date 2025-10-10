@@ -58,6 +58,10 @@ class BenchmarkArchSchedulerConfig:
     train_entrypoint: str = "train"
     eval_entrypoint: str = "evaluate"
 
+    # Resources
+    gpus: int = 1
+    nodes: int = 1
+
 
 class BenchmarkArchScheduler(ExperimentScheduler):
     """Straightforward training → evaluation scheduler for benchmark levels."""
@@ -101,10 +105,13 @@ class BenchmarkArchScheduler(ExperimentScheduler):
                             recipe_module=module,
                             train_entrypoint=self.config.train_entrypoint,
                             stats_server_uri=PROD_STATS_SERVER_URI,
+                            gpus=self.config.gpus,
+                            nodes=self.nodes.nodes,
                             train_overrides={
                                 "trainer.total_timesteps": self.config.total_timesteps,
                                 "arch_type": arch_type,
                             },
+                            gpus=
                         )
                         job.metadata["benchmark/arch"] = arch_type
                         job.metadata["benchmark/seed"] = f"{seed:02d}"
@@ -190,11 +197,16 @@ def run(
     timesteps: int = 50_000,
     max_parallel: int = 16,
     seeds_per_level: int = 3,
+    gpus: int = 1,
+    nodes: int = 1,
 ):
     make_adaptive_controller(
         experiment_id=experiment_id,
         scheduler_config=BenchmarkArchSchedulerConfig(
-            total_timesteps=timesteps, seeds_per_level=seeds_per_level
+            total_timesteps=timesteps,
+            seeds_per_level=seeds_per_level,
+            gpus=gpus,
+            nodes=nodes
         ),
         use_skypilot=not local,
         max_parallel=max_parallel,
@@ -234,6 +246,18 @@ if __name__ == "__main__":
         default=3,
         help="Number of random seeds per architecture per level (default: 3)",
     )
+    parser.add_argument(
+        "--gpus",
+        type=int,
+        default=1,
+        help="Number of GPUs per run"
+    )
+    parser.add_argument(
+        "--nodes",
+        type=int,
+        default=1,
+        help="Number of nodes per run"
+    )
     args = parser.parse_args()
 
     run(
@@ -242,4 +266,6 @@ if __name__ == "__main__":
         timesteps=args.timesteps,
         max_parallel=args.max_parallel,
         seeds_per_level=args.seeds_per_level,
+        gpus=args.gpus,
+        nodes=args.nodes
     )
