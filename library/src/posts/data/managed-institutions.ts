@@ -598,7 +598,10 @@ export async function loadInstitutionByName(
   }
 
   return mapToUnifiedInstitution(
-    { ...institution, authors: authorsForInstitution } as InstitutionWithRelations,
+    {
+      ...institution,
+      authors: authorsForInstitution,
+    } as InstitutionWithRelations,
     {
       sessionUserId: session?.user?.id,
       includeMembers: false,
