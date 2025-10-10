@@ -61,7 +61,9 @@ def get_mission_names_and_configs(
 
 def get_missions(mission_arg: str) -> list[tuple[str, MettaGridConfig]]:
     if "*" in mission_arg:
-        missions = [m for m in get_all_missions() if re.match(mission_arg, m)]
+        # Convert shell-style wildcard to regex pattern
+        regex_pattern = mission_arg.replace(".", "\\.").replace("*", ".*")
+        missions = [m for m in get_all_missions() if re.search(regex_pattern, m)]
         return [get_mission(m) for m in missions]
     return [get_mission(mission_arg)]
 
