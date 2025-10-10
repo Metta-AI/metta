@@ -69,8 +69,6 @@ def _apply_lora_defaults(tool: TrainTool) -> TrainTool:
     trainer_updates = {}
     if tool.trainer.compile:
         trainer_updates["compile"] = False
-    if tool.trainer.grad_clip is None or tool.trainer.grad_clip > 1.0:
-        trainer_updates["grad_clip"] = 1.0
     if trainer_updates:
         tool.trainer = tool.trainer.model_copy(update=trainer_updates)
 
