@@ -84,8 +84,19 @@ class Axons(MemoryCell):
             self.w1.uniform_(-bound_in, bound_in)
             self.w2.uniform_(-bound_in, bound_in)
 
-        # Project 2H -> H to retain external block shape compatibility
-        self.out_proj = nn.Linear(2 * H, H)
+        # Low-rank output projection: 2H -> r -> out_dim (defaults to H).
+        out_dim = cfg.out_dim if getattr(cfg, "out_dim", None) not in (None, 0) else H
+        # Rank rule: if specified, use it; otherwise use maximum possible rank for (2H -> out_dim)
+        if getattr(cfg, "out_rank", None) is None:
+            r = min(2 * H, out_dim)
+        else:
+            r = int(cfg.out_rank)
+        if r < 1:
+            raise ValueError(f"Axons out_rank must be >= 1, got {r}")
+        self._out_dim = out_dim
+        self._out_rank = r
+        self.out_lr1 = nn.Linear(2 * H, r, bias=False)
+        self.out_lr2 = nn.Linear(r, out_dim, bias=True)
 
     def _zero_traces(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> TensorDict:
         H = self.hidden_size
@@ -238,9 +249,20 @@ class Axons(MemoryCell):
 
         # Project 2H -> H (batch-first)
         if is_step:
-            y = self.out_proj(y2h_t.squeeze(1))
+            y2h = y2h_t.squeeze(1)
+            y = self.out_lr2(self.out_lr1(y2h))
         else:
-            y = self.out_proj(y2h_t.reshape(B * T, -1)).reshape(B, T, self.hidden_size)
+            y2h_flat = y2h_t.reshape(B * T, -1)
+            y = self.out_lr2(self.out_lr1(y2h_flat)).reshape(B, T, self._out_dim)
+
+        # For compatibility with blocks, enforce output feature = hidden_size.
+        # If a user overrides out_dim != H, raise a helpful error.
+        if y.shape[-1] != self.hidden_size:
+            raise ValueError(
+                f"Axons out_dim={self._out_dim} != hidden_size={self.hidden_size}. "
+                "Blocks expect the cell to return tensors with feature dim == hidden_size. "
+                "Set AxonsConfig.out_dim to None (default) or to hidden_size."
+            )
 
         return y, st
 

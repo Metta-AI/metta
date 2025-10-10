@@ -88,6 +88,12 @@ class AxonsConfig(CellConfig):
     r_max: float = Field(default=1.0)
     r_min: float = Field(default=0.0)
     max_phase: float = Field(default=6.28)
+    # Low‑rank output projection settings: maps 2H -> out_dim via rank `out_rank`.
+    # out_dim defaults to H (cell.hidden_size) for compatibility with blocks.
+    out_dim: int | None = Field(default=None, ge=1)
+    # If None, use the maximum possible rank for a (2H -> out_dim) map, i.e. min(2H, out_dim).
+    # If set, the exact value is used.
+    out_rank: int | None = Field(default=None)
 
 
 class BlockConfig(BaseModel):
