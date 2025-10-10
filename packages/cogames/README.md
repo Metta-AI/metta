@@ -81,7 +81,7 @@ If not specified, this command will use the `noop`-policy agent -- do not be sur
 
 - `--steps N`: Number of steps (default: 1000)
 - `--render MODE`: 'gui' or 'text' (default: gui)
-- `--interactive`: Interactive mode (default: true)
+- `--non-interactive`: Non-interactive mode (default: false)
 
 `cogames play` supports a gui-based and text-based game renderer, both of which support many features to inspect agents
 and manually play alongside them.

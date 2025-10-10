@@ -35,12 +35,36 @@ export const TILE_NAMES = [
   "lab",
   "lasery",
   "temple",
-  "wall",
   "block",
-  // doesn't include "agent", it's special
+  "wall",
+  // doesn't include "agent" or "wall.*", they're special
 ];
 
-const sources = [...TILE_NAMES, "agent"].map(
+export const WALL_NAMES = [
+  "wall.0",
+  "wall.e",
+  "wall.s",
+  "wall.se",
+  "wall.w",
+  "wall.we",
+  "wall.ws",
+  "wall.wse",
+  "wall.n",
+  "wall.ne",
+  "wall.ns",
+  "wall.nse",
+  "wall.nw",
+  "wall.nwe",
+  "wall.nws",
+  "wall.nwse",
+];
+
+export const WALL_E = 1;
+export const WALL_S = 2;
+export const WALL_W = 4;
+export const WALL_N = 8;
+
+const sources = [...TILE_NAMES, ...WALL_NAMES, "wall.fill", "agent"].map(
   (name) =>
     ({
       src: `/mettascope-assets/objects/${name}.png`,

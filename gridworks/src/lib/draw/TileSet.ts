@@ -1,15 +1,18 @@
+// One tile in an image atlas
 type TileInfo = {
   name: string;
   x: number;
   y: number;
 };
 
+// A collection of tiles in a single image atlas
 export type TileSetSource = {
   src: string;
   tileSize: number;
   tiles: TileInfo[];
 };
 
+// A single loaded tile
 type Tile = {
   info: TileInfo;
   image: ImageBitmap;
