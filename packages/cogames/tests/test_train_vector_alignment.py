@@ -39,7 +39,7 @@ def test_align_respects_user_workers_by_growing_envs() -> None:
     assert aligned_workers == 12
 
 
-def test_align_adjusts_both_user_values() -> None:
+def test_align_leaves_user_pair_unchanged() -> None:
     aligned_envs, aligned_workers = _resolve_vector_counts(
         50,
         12,
@@ -47,11 +47,11 @@ def test_align_adjusts_both_user_values() -> None:
         workers_user_supplied=True,
     )
 
-    assert aligned_envs == 60
+    assert aligned_envs == 50
     assert aligned_workers == 12
 
 
-def test_align_reduces_workers_when_more_workers_than_envs() -> None:
+def test_align_leaves_underfilled_worker_pair() -> None:
     aligned_envs, aligned_workers = _resolve_vector_counts(
         4,
         8,
@@ -60,4 +60,4 @@ def test_align_reduces_workers_when_more_workers_than_envs() -> None:
     )
 
     assert aligned_envs == 4
-    assert aligned_workers == 4
+    assert aligned_workers == 8

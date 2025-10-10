@@ -49,21 +49,26 @@ def _resolve_vector_counts(
     num_envs = max(1, num_envs)
     num_workers = max(1, num_workers)
 
-    if num_envs < num_workers:
-        if workers_user_supplied:
-            num_workers = num_envs
-        else:
-            num_envs = num_workers
-
-    if num_envs % num_workers == 0:
+    if envs_user_supplied and workers_user_supplied:
         return num_envs, num_workers
 
-    if envs_user_supplied and not workers_user_supplied:
-        adjusted_workers = _largest_divisor_at_most(num_envs, num_workers)
-        return num_envs, adjusted_workers
+    if envs_user_supplied:
+        adjusted_workers = _largest_divisor_at_most(num_envs, min(num_workers, num_envs))
+        return num_envs, max(1, adjusted_workers)
 
-    adjusted_envs = num_workers * math.ceil(num_envs / num_workers)
-    return adjusted_envs, num_workers
+    if workers_user_supplied:
+        num_envs = max(num_envs, num_workers)
+        if num_envs % num_workers != 0:
+            num_envs = num_workers * math.ceil(num_envs / num_workers)
+        return num_envs, num_workers
+
+    if num_envs < num_workers:
+        num_envs = num_workers
+
+    if num_envs % num_workers != 0:
+        num_envs = num_workers * math.ceil(num_envs / num_workers)
+
+    return num_envs, num_workers
 
 
 def train(
@@ -118,6 +123,9 @@ def train(
 
     num_envs = vector_num_envs or 256
 
+    original_envs = num_envs
+    original_workers = num_workers
+
     adjusted_envs, adjusted_workers = _resolve_vector_counts(
         num_envs,
         num_workers,
@@ -125,19 +133,21 @@ def train(
         workers_user_supplied=vector_num_workers is not None,
     )
 
-    if adjusted_envs != num_envs:
-        logger.info(
-            "Adjusting num_envs from %s to %s to evenly divide num_workers=%s",
-            num_envs,
+    if adjusted_envs != original_envs:
+        log_fn = logger.warning if vector_num_envs is not None else logger.info
+        log_fn(
+            "Auto-adjusting num_envs from %s to %s so num_workers=%s divides evenly",
+            original_envs,
             adjusted_envs,
             adjusted_workers,
         )
         num_envs = adjusted_envs
 
-    if adjusted_workers != num_workers:
-        logger.info(
-            "Adjusting num_workers from %s to %s to match num_envs=%s",
-            num_workers,
+    if adjusted_workers != original_workers:
+        log_fn = logger.warning if vector_num_workers is not None else logger.info
+        log_fn(
+            "Auto-adjusting num_workers from %s to %s to evenly divide num_envs=%s",
+            original_workers,
             adjusted_workers,
             num_envs,
         )
