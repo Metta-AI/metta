@@ -118,6 +118,10 @@ def main() -> int:
     install_default(["packaging"], no_isolation=True)  # idempotent
     install_default(["torch"])
 
+    mamba_installed = install_default(["mamba-ssm"], no_isolation=True)
+    if not mamba_installed:
+        mamba_installed = install_no_isolation(["mamba-ssm"])
+
     flash_installed = False
     causal_installed = False
 
@@ -146,12 +150,14 @@ def main() -> int:
     if not causal_installed:
         causal_installed = install_no_isolation(["causal-conv1d"])
 
-    if flash_installed and causal_installed:
+    if mamba_installed and flash_installed and causal_installed:
         if not args.quiet:
-            print("[cuda-extras] Installed flash-attn and causal-conv1d successfully.")
+            print("[cuda-extras] Installed mamba-ssm, flash-attn and causal-conv1d successfully.")
         return 0
 
     missing = []
+    if not mamba_installed:
+        missing.append("mamba-ssm")
     if not flash_installed:
         missing.append("flash-attn")
     if not causal_installed:
