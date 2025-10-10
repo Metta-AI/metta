@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
+from collections import deque
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Iterable
 
-from cogames.cogs_vs_clips import glyphs
+from cogames.cogs_vs_clips import glyphs, scenarios
 from cogames.cogs_vs_clips.stations import (
     assembler,
     carbon_ex_dep,
@@ -213,6 +214,15 @@ def get_random_map_builder(
     )
 
 
+def _apply_curriculum_modifiers(cfg: MettaGridConfig, *, easy: bool = False, shaped: bool = False) -> None:
+    if easy:
+        scenarios.add_easy_heart_recipe(cfg)
+    if shaped:
+        scenarios.add_shaped_rewards(cfg)
+    if easy or shaped:
+        scenarios.extend_max_steps(cfg)
+
+
 class UserMap(ABC):
     name: str
 
@@ -251,11 +261,15 @@ class RandomUserMap(UserMap):
         return list(self._mission_args.keys())
 
     def _generate_env(self, mission_name: str) -> MettaGridConfig:
-        args = self._mission_args.get(mission_name, {})
+        args = dict(self._mission_args.get(mission_name, {}))
+        easy = bool(args.pop("easy", False))
+        shaped = bool(args.pop("shaped", False))
         base_mission = args.pop("base_mission", self.default_mission)
         game = get_mission_generator(base_mission)(**args)
         game.map_builder = get_random_map_builder(**args)
-        return MettaGridConfig(game=game)
+        cfg = MettaGridConfig(game=game)
+        _apply_curriculum_modifiers(cfg, easy=easy, shaped=shaped)
+        return cfg
 
 
 class SiteUserMap(UserMap):
@@ -274,11 +288,57 @@ class SiteUserMap(UserMap):
         return list(self._mission_args.keys())
 
     def _generate_env(self, mission_name: str) -> MettaGridConfig:
-        args = self._mission_args.get(mission_name, {})
+        args = dict(self._mission_args.get(mission_name, {}))
+        easy = bool(args.pop("easy", False))
+        shaped = bool(args.pop("shaped", False))
         base_mission = args.pop("base_mission", self.default_mission)
         game = get_mission_generator(base_mission)(**args)
         game.map_builder = get_map_builder_for_site(self._site)
-        return MettaGridConfig(game=game)
+        cfg = MettaGridConfig(game=game)
+        _apply_curriculum_modifiers(cfg, easy=easy, shaped=shaped)
+        return cfg
+
+
+class CurriculumUserMap(UserMap):
+    def __init__(
+        self,
+        name: str,
+        rotation: Iterable[str],
+        map_lookup: dict[str, UserMap],
+        *,
+        easy: bool = False,
+        shaped: bool = False,
+    ) -> None:
+        rotation_tuple = tuple(rotation)
+        if not rotation_tuple:
+            raise ValueError("Curriculum rotation must include at least one map name")
+
+        missing = [map_name for map_name in rotation_tuple if map_name not in map_lookup]
+        if missing:
+            missing_str = ", ".join(missing)
+            raise ValueError(f"Unknown map names for curriculum '{name}': {missing_str}")
+
+        self.name = name
+        self._rotation = deque(rotation_tuple)
+        self._map_lookup = map_lookup
+        self._easy = easy
+        self._shaped = shaped
+
+    @property
+    def available_missions(self) -> list[str]:
+        return ["default"]
+
+    def _generate_env(self, mission_name: str) -> MettaGridConfig:
+        if mission_name != "default":
+            raise ValueError(f"Curriculum '{self.name}' only supports the 'default' mission")
+
+        map_name = self._rotation[0]
+        self._rotation.rotate(-1)
+
+        source_map = self._map_lookup[map_name]
+        cfg = source_map.generate_env(source_map.default_mission).model_copy(deep=True)
+        _apply_curriculum_modifiers(cfg, easy=self._easy, shaped=self._shaped)
+        return cfg
 
 
 def make_game(
@@ -312,37 +372,99 @@ def make_game(
     return RandomUserMap(name="random", mission_args=mission_args).generate_env("default")
 
 
-USER_MAP_CATALOG: tuple[UserMap, ...] = (
+def _with_easy_shaped_variants(
+    extra: Iterable[tuple[str, dict[str, Any]]] | None = None,
+) -> dict[str, dict[str, Any]]:
+    missions: list[tuple[str, dict[str, Any]]] = [("default", {})]
+    if extra is not None:
+        missions.extend((name, dict(values)) for name, values in extra)
+    missions.append(("easy", {"easy": True}))
+    missions.append(("shaped", {"shaped": True}))
+    missions.append(("easy_shaped", {"easy": True, "shaped": True}))
+    return {name: dict(values) for name, values in missions}
+
+
+_BASE_USER_MAPS: tuple[UserMap, ...] = (
     SiteUserMap(
         name="training_facility_1",
         site="training_facility_open_1.map",
-        mission_args={
-            "default": dict(),
-            "energy_intensive": dict(base_mission="energy_intensive"),
-        },
+        mission_args=_with_easy_shaped_variants(extra=[("energy_intensive", {"base_mission": "energy_intensive"})]),
     ),
-    SiteUserMap(name="training_facility_2", site="training_facility_open_2.map"),
-    SiteUserMap(name="training_facility_3", site="training_facility_open_3.map"),
-    SiteUserMap(name="training_facility_4", site="training_facility_tight_4.map"),
-    SiteUserMap(name="training_facility_5", site="training_facility_tight_5.map"),
-    SiteUserMap(name="training_facility_6", site="training_facility_clipped.map"),
+    SiteUserMap(
+        name="training_facility_2",
+        site="training_facility_open_2.map",
+        mission_args=_with_easy_shaped_variants(),
+    ),
+    SiteUserMap(
+        name="training_facility_3",
+        site="training_facility_open_3.map",
+        mission_args=_with_easy_shaped_variants(),
+    ),
+    SiteUserMap(
+        name="training_facility_4",
+        site="training_facility_tight_4.map",
+        mission_args=_with_easy_shaped_variants(),
+    ),
+    SiteUserMap(
+        name="training_facility_5",
+        site="training_facility_tight_5.map",
+        mission_args=_with_easy_shaped_variants(),
+    ),
+    SiteUserMap(
+        name="training_facility_6",
+        site="training_facility_clipped.map",
+        mission_args=_with_easy_shaped_variants(),
+    ),
     SiteUserMap(
         name="machina_1",
         site="cave_base_50.map",
-        mission_args={
-            "default": dict(),
-            "clipped": dict(map_builder_args=dict(clip_rate=0.02)),
-        },
+        mission_args=_with_easy_shaped_variants(extra=[("clipped", {"map_builder_args": {"clip_rate": 0.02}})]),
     ),
-    SiteUserMap(name="machina_2", site="machina_100_stations.map"),
-    SiteUserMap(name="machina_3", site="machina_200_stations.map"),
-    SiteUserMap(name="machina_1_big", site="canidate1_500_stations.map"),
-    SiteUserMap(name="machina_2_bigger", site="canidate1_1000_stations.map"),
-    SiteUserMap(name="machina_3_big", site="canidate2_500_stations.map"),
-    SiteUserMap(name="machina_4_bigger", site="canidate2_1000_stations.map"),
-    SiteUserMap(name="machina_5_big", site="canidate3_500_stations.map"),
-    SiteUserMap(name="machina_6_bigger", site="canidate3_1000_stations.map"),
-    SiteUserMap(name="machina_7_big", site="canidate4_500_stations.map"),
+    SiteUserMap(
+        name="machina_2",
+        site="machina_100_stations.map",
+        mission_args=_with_easy_shaped_variants(),
+    ),
+    SiteUserMap(
+        name="machina_3",
+        site="machina_200_stations.map",
+        mission_args=_with_easy_shaped_variants(),
+    ),
+    SiteUserMap(
+        name="machina_1_big",
+        site="canidate1_500_stations.map",
+        mission_args=_with_easy_shaped_variants(),
+    ),
+    SiteUserMap(
+        name="machina_2_bigger",
+        site="canidate1_1000_stations.map",
+        mission_args=_with_easy_shaped_variants(),
+    ),
+    SiteUserMap(
+        name="machina_3_big",
+        site="canidate2_500_stations.map",
+        mission_args=_with_easy_shaped_variants(),
+    ),
+    SiteUserMap(
+        name="machina_4_bigger",
+        site="canidate2_1000_stations.map",
+        mission_args=_with_easy_shaped_variants(),
+    ),
+    SiteUserMap(
+        name="machina_5_big",
+        site="canidate3_500_stations.map",
+        mission_args=_with_easy_shaped_variants(),
+    ),
+    SiteUserMap(
+        name="machina_6_bigger",
+        site="canidate3_1000_stations.map",
+        mission_args=_with_easy_shaped_variants(),
+    ),
+    SiteUserMap(
+        name="machina_7_big",
+        site="canidate4_500_stations.map",
+        mission_args=_with_easy_shaped_variants(),
+    ),
     RandomUserMap(
         name="random",
         mission_args=dict(
@@ -352,3 +474,43 @@ USER_MAP_CATALOG: tuple[UserMap, ...] = (
         ),
     ),
 )
+
+
+_BASE_MAP_LOOKUP: dict[str, UserMap] = {user_map.name: user_map for user_map in _BASE_USER_MAPS}
+
+
+_TRAINING_ROTATION_SEQUENCE: tuple[str, ...] = (
+    "training_facility_1",
+    "training_facility_2",
+    "training_facility_3",
+    "training_facility_4",
+    "training_facility_5",
+    "training_facility_6",
+    "machina_1",
+    "machina_2",
+)
+
+
+_CURRICULUM_SPECS: tuple[tuple[str, bool, bool], ...] = (
+    ("training_rotation", False, False),
+    ("training_cycle", False, False),
+    ("training_facility_rotation", False, False),
+    ("training_rotation_easy", True, False),
+    ("training_rotation_shaped", False, True),
+    ("training_rotation_easy_shaped", True, True),
+)
+
+
+_CURRICULUM_MAPS: tuple[UserMap, ...] = tuple(
+    CurriculumUserMap(
+        name=alias,
+        rotation=_TRAINING_ROTATION_SEQUENCE,
+        map_lookup=_BASE_MAP_LOOKUP,
+        easy=easy,
+        shaped=shaped,
+    )
+    for alias, easy, shaped in _CURRICULUM_SPECS
+)
+
+
+USER_MAP_CATALOG: tuple[UserMap, ...] = _BASE_USER_MAPS + _CURRICULUM_MAPS

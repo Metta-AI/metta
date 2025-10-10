@@ -7,22 +7,23 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import Callable, Literal, Optional
+from typing import Literal, Optional, TypeVar
 
 import typer
 import yaml
 from packaging.version import Version
 from rich.table import Table
 
-from cogames import curricula, game
 from cogames import evaluate as evaluate_module
+from cogames import game
 from cogames import play as play_module
 from cogames import train as train_module
 from cogames.cli.base import console
-from cogames.cli.mission import describe_mission, get_mission_name_and_config
+from cogames.cli.mission import describe_mission, get_mission_name_and_config, get_mission_names_and_configs
 from cogames.cli.policy import get_policy_spec, get_policy_specs, policy_arg_example, policy_arg_w_proportion_example
+from cogames.curricula import make_rotation
 from cogames.device import resolve_training_device
-from mettagrid import MettaGridConfig, MettaGridEnv
+from mettagrid import MettaGridEnv
 
 # Always add current directory to Python path
 sys.path.insert(0, ".")
@@ -30,11 +31,15 @@ sys.path.insert(0, ".")
 logger = logging.getLogger("cogames.main")
 
 
+T = TypeVar("T")
+
+
 app = typer.Typer(
     help="CoGames - Multi-agent cooperative and competitive games",
     context_settings={"help_option_names": ["-h", "--help"]},
     no_args_is_help=True,
     rich_markup_mode="rich",
+    pretty_exceptions_show_locals=False,
 )
 
 
@@ -43,7 +48,7 @@ app = typer.Typer(
 @app.command("mission", hidden=True)
 def games_cmd(
     ctx: typer.Context,
-    mission: Optional[str] = typer.Argument(None, help="Name of the mission"),
+    mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Name of the mission"),
     format_: Optional[Literal["yaml", "json"]] = typer.Option(
         None, "--format", help="Output mission configuration in YAML or JSON."
     ),
@@ -87,15 +92,16 @@ def games_cmd(
 @app.command(name="play", help="Play a game")
 def play_cmd(
     ctx: typer.Context,
-    mission: Optional[str] = typer.Argument(None, help="Mission name"),
-    policy: Optional[str] = typer.Argument(None, help=f"Policy ({policy_arg_example})"),
-    interactive: bool = typer.Option(True, "--interactive", "-i", help="Run in interactive mode"),
+    mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Name of the mission"),
+    policy: str = typer.Option("noop", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
+    non_interactive: bool = typer.Option(False, "--non-interactive", "-ni", help="Run in non-interactive mode"),
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
     render: Literal["gui", "text", "none"] = typer.Option(
         "gui", "--render", "-r", help="Render mode: 'gui', 'text', or 'none' (no rendering)"
     ),
 ) -> None:
     resolved_mission, env_cfg = get_mission_name_and_config(ctx, mission)
+    interactive = not non_interactive
     policy_spec = get_policy_spec(ctx, policy)
     console.print(f"[cyan]Playing {resolved_mission}[/cyan]")
     console.print(f"Max Steps: {steps}, Interactive: {interactive}, Render: {render}")
@@ -116,7 +122,7 @@ def play_cmd(
 @app.command("make-game", hidden=True)
 def make_mission(
     ctx: typer.Context,
-    base_mission: Optional[str] = typer.Argument(None, help="Base mission to start configuring from"),
+    base_mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Base mission to start configuring from"),
     num_agents: int = typer.Option(2, "--agents", "-a", help="Number of agents", min=1),
     width: int = typer.Option(10, "--width", "-w", help="Map width", min=1),
     height: int = typer.Option(10, "--height", "-h", help="Map height", min=1),
@@ -135,7 +141,7 @@ def make_mission(
 
         if output:
             game.save_mission_config(env_cfg, output)
-            console.print(f"[green]Game configuration saved to: {output}[/green]")
+            console.print(f"[green]Modified {resolved_mission} configuration saved to: {output}[/green]")
         else:
             console.print("\n[yellow]To save this configuration, use the --output option.[/yellow]")
 
@@ -147,8 +153,8 @@ def make_mission(
 @app.command(name="train", help="Train a policy on a mission")
 def train_cmd(
     ctx: typer.Context,
-    mission: Optional[str] = typer.Argument(None, help="Name of the mission to train on"),
-    policy: Optional[str] = typer.Argument(None, help=f"Policy ({policy_arg_example})"),
+    missions: Optional[list[str]] = typer.Option(None, "--mission", "-m", help="Missions to train on"),  # noqa B008
+    policy: str = typer.Option("simple", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
     checkpoints_path: str = typer.Option(
         "./train_dir",
         "--checkpoints",
@@ -182,25 +188,18 @@ def train_cmd(
         min=1,
     ),
 ) -> None:
-    rotation_aliases = {"training_rotation", "training_facility_rotation", "training_cycle"}
-    rotation_easy_aliases = {"training_rotation_easy"}
-    rotation_shaped_aliases = {"training_rotation_shaped"}
-    rotation_easy_shaped_aliases = {"training_rotation_easy_shaped"}
-
-    env_cfg: Optional[MettaGridConfig] = None
-    curriculum_supplier: Optional[Callable[[], MettaGridConfig]] = None
-    resolved_mission = mission
-
-    if mission in rotation_aliases:
-        curriculum_supplier = curricula.training_rotation()
-    elif mission in rotation_easy_aliases:
-        curriculum_supplier = curricula.training_rotation_easy()
-    elif mission in rotation_shaped_aliases:
-        curriculum_supplier = curricula.training_rotation_shaped()
-    elif mission in rotation_easy_shaped_aliases:
-        curriculum_supplier = curricula.training_rotation_easy_shaped()
+    selected_missions = get_mission_names_and_configs(ctx, missions)
+    if len(selected_missions) == 1:
+        mission_name, env_cfg = selected_missions[0]
+        supplier = None
+        console.print(f"Training on mission: {mission_name}\n")
+    elif len(selected_missions) > 1:
+        env_cfg = None
+        supplier = make_rotation(selected_missions)
+        console.print("Training on missions:\n" + "\n".join(f"- {m}" for m, _ in selected_missions) + "\n")
     else:
-        resolved_mission, env_cfg = get_mission_name_and_config(ctx, mission)
+        # Should not get here
+        raise ValueError("Please specify at least one mission")
 
     policy_spec = get_policy_spec(ctx, policy)
     torch_device = resolve_training_device(console, device)
@@ -219,8 +218,8 @@ def train_cmd(
             vector_num_workers=num_workers,
             vector_num_envs=parallel_envs,
             vector_batch_size=vector_batch_size,
-            game_name=resolved_mission,
-            env_cfg_supplier=curriculum_supplier,
+            env_cfg_supplier=supplier,
+            missions_arg=missions,
         )
 
     except ValueError as exc:  # pragma: no cover - user input
@@ -237,9 +236,12 @@ def train_cmd(
 @app.command("evaluate", hidden=True)
 def evaluate_cmd(
     ctx: typer.Context,
-    mission: Optional[str] = typer.Argument(None, help="Name of the mission"),
-    policies: Optional[list[str]] = typer.Argument(  # noqa: B008
-        None, help=f"Policies to evaluate: ({policy_arg_w_proportion_example}...)"
+    mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Name of the mission"),
+    policies: Optional[list[str]] = typer.Option(  # noqa: B008
+        None,
+        "--policy",
+        "-p",
+        help=f"Policies to evaluate: ({policy_arg_w_proportion_example}...)",
     ),
     episodes: int = typer.Option(10, "--episodes", "-e", help="Number of evaluation episodes", min=1),
     action_timeout_ms: int = typer.Option(

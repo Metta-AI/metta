@@ -394,6 +394,17 @@ export function EvalTasks({ repo }: Props) {
     }
   }
 
+  const handleRetryTask = async (taskId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      await repo.retryEvalTask(taskId)
+      await loadHistoryTasks(historyCurrentPage)
+      await loadActiveTasks(activeCurrentPage)
+    } catch (err: any) {
+      setError(`Failed to retry task: ${err.message}`)
+    }
+  }
+
   const getStatusColor = (status: string, isInProgress: boolean) => {
     if (isInProgress) return '#17a2b8'
     switch (status) {
@@ -859,7 +870,7 @@ export function EvalTasks({ repo }: Props) {
                       <td style={{ padding: '12px' }}>{task.sim_suite}</td>
                       <td style={{ padding: '12px' }}>{task.user_id || '-'}</td>
                       <td style={{ padding: '12px' }}>
-                        <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <span
                             style={{
                               padding: '4px 8px',
@@ -871,20 +882,39 @@ export function EvalTasks({ repo }: Props) {
                           >
                             {task.status}
                           </span>
-                          {task.status === 'error' && task.attributes?.details?.error && (
-                            <div
+                          {task.status !== 'unprocessed' && (
+                            <button
+                              onClick={(e) => handleRetryTask(task.id, e)}
                               style={{
+                                padding: '4px 8px',
                                 fontSize: '11px',
-                                color: '#dc3545',
-                                marginTop: '4px',
-                                maxWidth: '200px',
-                                wordBreak: 'break-word',
+                                backgroundColor: '#007bff',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                transition: 'background-color 0.2s',
                               }}
+                              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#0056b3')}
+                              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#007bff')}
                             >
-                              {task.attributes.details.error}
-                            </div>
+                              Retry
+                            </button>
                           )}
                         </div>
+                        {task.status === 'error' && task.attributes?.details?.error && (
+                          <div
+                            style={{
+                              fontSize: '11px',
+                              color: '#dc3545',
+                              marginTop: '4px',
+                              maxWidth: '200px',
+                              wordBreak: 'break-word',
+                            }}
+                          >
+                            {task.attributes.details.error}
+                          </div>
+                        )}
                       </td>
                       <td style={{ padding: '12px' }}>
                         {(task.attributes?.stderr_log_path || task.attributes?.stdout_log_path) && (
