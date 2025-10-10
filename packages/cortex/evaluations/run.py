@@ -8,6 +8,7 @@ from typing import Callable, Dict, Tuple
 
 import torch
 import torch.nn as nn
+from cortex.cells.rtu_stream import RTUStreamCell  # runtime type check for gating
 from cortex.stacks import CortexStack
 from model import SequenceClassifier
 from stacks import STACKS, StackSpec
@@ -92,6 +93,7 @@ def train_one(
     epochs: int,
     batch_size: int,
     lr: float,
+    rtu_chunk_size: int | None = None,
 ) -> Dict[str, float]:
     train_ds, val_ds, test_ds = task.make_splits()
     _ensure_disjoint_splits(train_ds, val_ds, test_ds)
@@ -110,6 +112,19 @@ def train_one(
     opt = torch.optim.AdamW(model.parameters(), lr=lr)
     criterion = nn.CrossEntropyLoss()
 
+    def _stack_uses_rtu_stream(s: CortexStack) -> bool:
+        """Return True if any block in the stack uses RTUStreamCell."""
+        for blk in s.blocks:
+            # Adapter blocks wrap another block; in our templates we use PreUp directly
+            cell = getattr(blk, "cell", None)
+            if isinstance(cell, RTUStreamCell):
+                return True
+        return False
+
+    rtu_enabled = bool(rtu_chunk_size and rtu_chunk_size > 0 and _stack_uses_rtu_stream(stack))
+    if rtu_chunk_size and rtu_chunk_size > 0 and not rtu_enabled:
+        logging.warning("--rtu-chunk-size provided but current stack has no RTUStream cell; ignoring chunked streaming")
+
     def _run_epoch(loader: DataLoader, train: bool) -> Tuple[float, float]:
         model.train(train)
         total_loss = 0.0
@@ -121,7 +136,39 @@ def train_one(
             labels = labels.to(device)
             if train:
                 opt.zero_grad(set_to_none=True)
-            logits, state = model(seq, state)
+            if rtu_enabled:
+                # Stream in chunks; detach state between chunks (TBPTT on last chunk)
+                T = seq.size(1)
+                C = int(rtu_chunk_size)  # type: ignore[arg-type]
+                assert C > 0
+                logits = None  # type: ignore[assignment]
+
+                n_full = T // C
+                tail = T % C
+
+                # Process preceding chunks without gradients
+                if n_full > 0:
+                    last_full_to_process = n_full if tail > 0 else max(n_full - 1, 0)
+                    for i in range(last_full_to_process):
+                        start = i * C
+                        end = start + C
+                        with torch.no_grad():
+                            _out, state = model(seq[:, start:end], state)
+                            if state is not None:
+                                try:
+                                    state = state.detach()
+                                except Exception:
+                                    state = state.apply(lambda t: t.detach() if torch.is_tensor(t) else t)
+
+                # Final chunk with gradients (tail if present, else last full chunk)
+                if tail > 0:
+                    start = n_full * C
+                    logits, state = model(seq[:, start:], state)
+                else:
+                    start = (n_full - 1) * C if n_full > 0 else 0
+                    logits, state = model(seq[:, start : start + C], state)
+            else:
+                logits, state = model(seq, state)
             loss = criterion(logits, labels)
             if train:
                 loss.backward()
@@ -167,6 +214,15 @@ def main() -> None:
     parser.add_argument("--num-samples", type=int, default=2000)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--log-level", type=str, default="INFO", help="Logging level (DEBUG, INFO, WARNING, ERROR)")
+    parser.add_argument(
+        "--rtu-chunk-size",
+        type=int,
+        default=0,
+        help=(
+            "If >0, enable streaming in RTU stacks by chunking sequences into this many tokens and detaching state "
+            "between chunks (TBPTT on last chunk only). Ignored for non-RTU stacks."
+        ),
+    )
     args = parser.parse_args()
 
     # Configure logging once
@@ -204,6 +260,7 @@ def main() -> None:
             epochs=args.epochs,
             batch_size=args.batch_size,
             lr=args.lr,
+            rtu_chunk_size=args.rtu_chunk_size if args.rtu_chunk_size > 0 else None,
         )
         results[name] = metrics
         logging.info(
