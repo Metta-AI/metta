@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -11,6 +12,31 @@ from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME
 
 MAP_KEY = "map_data"
 LEGEND_KEY = "char_to_name_map"
+COGS_VS_CLIPS_PATH_MARKER = Path("packages") / "cogames"
+
+try:  # pragma: no cover - optional dependency in consumers outside cogames
+    from cogames.cogs_vs_clips.missions import _get_default_map_objects as _get_cogs_vs_clips_defaults
+except ImportError:  # pragma: no cover
+    _get_cogs_vs_clips_defaults = None
+
+
+def _build_cogs_vs_clips_char_map() -> dict[str, str]:
+    if _get_cogs_vs_clips_defaults is None:
+        return {}
+
+    mapping: dict[str, str] = {}
+    for config in _get_cogs_vs_clips_defaults().values():  # type: ignore[operator]
+        token = getattr(config, "map_char", None)
+        name = getattr(config, "name", None)
+        if not token or not name:
+            continue
+        if len(token) != 1:
+            raise ValueError(f"Legend token must be a single character: {token!r}")
+        mapping[token] = name
+    return mapping
+
+
+COGS_VS_CLIPS_CHAR_MAP: dict[str, str] = _build_cogs_vs_clips_char_map()
 
 
 def _parse_ascii_map(text: str) -> tuple[list[list[str]], dict[str, str]]:
@@ -166,11 +192,12 @@ class AsciiMapBuilder(MapBuilder):
 
         @classmethod
         def from_uri(cls, uri: str, char_to_name_map: dict[str, str] | None = None) -> "AsciiMapBuilder.Config":
-            with open(uri, "r", encoding="utf-8") as f:
-                ascii_map = f.read()
+            config: AsciiMapBuilder.Config = super().from_uri(uri)  # type: ignore[return-value]
 
-            data = cls._build_from_ascii(ascii_map, char_to_name_map)
-            return cls.model_validate(data)
+            if char_to_name_map:
+                config.char_to_name_map |= cls._legend_from_yaml(char_to_name_map)
+
+            return cls._apply_path_char_map(config, Path(uri))
 
         @classmethod
         def from_ascii_map(
@@ -178,6 +205,44 @@ class AsciiMapBuilder(MapBuilder):
         ) -> "AsciiMapBuilder.Config":
             data = cls._build_from_ascii(ascii_map, char_to_name_map)
             return cls.model_validate(data)
+
+        @classmethod
+        def _apply_path_char_map(cls, config: "AsciiMapBuilder.Config", path: Path) -> "AsciiMapBuilder.Config":
+            preset = cls._legend_for_path(path)
+            if not preset:
+                return config
+
+            char_map = dict(config.char_to_name_map)
+            for char in char_map:
+                if char in preset:
+                    char_map[char] = preset[char]
+
+            config.char_to_name_map = char_map
+            return config
+
+        @classmethod
+        def _legend_for_path(cls, path: Path) -> dict[str, str]:
+            if cls._path_contains_marker(path) and COGS_VS_CLIPS_CHAR_MAP:
+                return COGS_VS_CLIPS_CHAR_MAP
+            return {}
+
+        @staticmethod
+        def _path_contains_marker(path: Path) -> bool:
+            marker_parts = COGS_VS_CLIPS_PATH_MARKER.parts
+
+            def matches(candidate: Path) -> bool:
+                parts = candidate.parts
+                for idx in range(len(parts) - len(marker_parts) + 1):
+                    if parts[idx : idx + len(marker_parts)] == marker_parts:
+                        return True
+                return False
+
+            try:
+                relative = path.relative_to(Path.cwd())
+            except ValueError:
+                relative = path
+
+            return matches(relative) or matches(path)
 
     def __init__(self, config: Config):
         self.config = config

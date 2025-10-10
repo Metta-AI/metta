@@ -71,11 +71,13 @@ class MapBuilderConfig(Config, Generic[TBuilder]):
         """Load a builder config from a serialized string or mapping."""
 
         parsed = yaml.safe_load(data)
+        builder_config = validate_any_map_builder(parsed)
 
-        if not isinstance(parsed, dict):
-            raise ValueError("Map builder config file must contain a mapping")
+        # Runtime type check to ensure we return the correct type
+        if not isinstance(builder_config, cls):
+            raise TypeError(f"Expected {cls.__name__} instance, got {type(builder_config).__name__}")
 
-        return validate_any_map_builder(parsed)  # type: ignore[return-value]
+        return builder_config
 
     @model_validator(mode="before")
     @classmethod

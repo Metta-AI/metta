@@ -10,6 +10,7 @@ from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
     WallConfig,
 )
+from mettagrid.map_builder.map_builder import MapBuilder
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.scenes.mean_distance import MeanDistance
 
@@ -71,8 +72,8 @@ def make_object_use_ascii_env(
 ) -> MettaGridConfig:
     """Create an object use evaluation environment from ASCII map."""
 
-    instance_config = MapGen.Config.with_map_url(
-        f"packages/mettagrid/configs/maps/object_use/{ascii_map}.map", border_width=1
+    instance_config = MapBuilder.Config.from_uri(
+        f"packages/mettagrid/configs/maps/object_use/{ascii_map}.map"
     )
 
     env = MettaGridConfig(

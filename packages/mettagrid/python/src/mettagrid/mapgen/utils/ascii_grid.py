@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from mettagrid.map_builder.utils import create_grid
 from mettagrid.mapgen.types import MapGrid
 
 DEFAULT_CHAR_TO_NAME: dict[str, str] = {
@@ -69,3 +70,20 @@ def char_grid_to_lines(text: str) -> tuple[list[str], int, int]:
         raise ValueError("All lines must be the same width")
 
     return (lines, width, height)
+
+
+def print_grid(grid: MapGrid, name_to_char: dict[str, str], border: bool = True):
+    """Print a grid using the provided name-to-char mapping."""
+    lines = grid_to_lines(grid, name_to_char, border=border)
+    for line in lines:
+        print(line)
+
+
+def lines_to_grid(lines: list[str], char_to_name: dict[str, str]) -> MapGrid:
+    """Convert lines of text to a grid using the provided char-to-name mapping."""
+
+    grid = create_grid(len(lines), len(lines[0]))
+    for r, line in enumerate(lines):
+        for c, char in enumerate(line):
+            grid[r, c] = char_to_name.get(char, char)
+    return grid

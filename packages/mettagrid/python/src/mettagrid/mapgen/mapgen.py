@@ -6,7 +6,6 @@ import numpy as np
 from pydantic import Field, ValidatorFunctionWrapHandler, field_validator, model_validator
 
 from mettagrid.map_builder import AnyMapBuilderConfig, GameMap, MapBuilder, MapBuilderConfig, MapGrid
-from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.map_builder.map_builder import validate_any_map_builder
 from mettagrid.map_builder.utils import create_grid
 from mettagrid.mapgen.area import Area, AreaWhere
@@ -147,24 +146,6 @@ class MapGen(MapBuilder):
             # could be valid, if the scene has an intrinsic size.
 
             return self
-
-        @classmethod
-        def with_map_url(cls, map_url: str, **kwargs) -> MapGen.Config:
-            """Create a MapGenConfig from a map file on disk."""
-
-            char_map = kwargs.pop("char_to_name_map", None)
-            ascii_config = AsciiMapBuilder.Config.from_uri(map_url, char_to_name_map=char_map)
-            kwargs["instance"] = ascii_config
-            return cls(**kwargs)
-
-        @classmethod
-        def with_str_map(cls, map_str: str, **kwargs) -> MapGen.Config:
-            """Create a MapGenConfig with an ASCII map as instance."""
-
-            char_map = kwargs.pop("char_to_name_map", None)
-            ascii_config = AsciiMapBuilder.Config.from_ascii_map(map_str, char_to_name_map=char_map)
-            kwargs["instance"] = ascii_config
-            return cls(**kwargs)
 
     def __init__(self, config: Config):
         self.config = config
