@@ -14,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.sim.simulation import Simulation
 from mettagrid import dtype_actions
-from mettagrid.util.action_catalog import build_action_mapping, make_decode_fn
+from mettagrid.util.action_catalog import build_action_mapping, make_decode_fn, make_encode_fn
 from mettagrid.util.grid_object_formatter import format_grid_object
 
 if TYPE_CHECKING:
@@ -172,6 +172,7 @@ def make_app(cfg: "PlayTool"):
 
         flat_mapping, _ = build_action_mapping(env)
         decode_flat_action = make_decode_fn(flat_mapping)
+        encode_flat_action = make_encode_fn(flat_mapping)
 
         await send_message(type="replay", replay=replay)
 
@@ -246,7 +247,9 @@ def make_app(cfg: "PlayTool"):
                 actions = sim.generate_actions()
                 if action_message is not None:
                     agent_id = action_message["agent_id"]
-                    actions[agent_id] = int(action_message["action_id"])
+                    action_id = int(action_message["action_id"])
+                    action_param = int(action_message.get("action_param", 0))
+                    actions[agent_id] = encode_flat_action(action_id, action_param)
                 sim.step_simulation(actions)
 
                 await send_replay_step()

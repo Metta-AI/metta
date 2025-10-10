@@ -83,8 +83,17 @@ def make_decode_fn(mapping: Mapping[int, Tuple[int, int]]) -> Callable[[int], Tu
     """Return a callable that converts flattened indices using the provided mapping."""
 
     def decode(flat_index: int) -> Tuple[int, int]:
-        if flat_index < 0:
-            return (0, 0)
-        return mapping.get(flat_index, (flat_index, 0))
+        return mapping[flat_index]
 
     return decode
+
+
+def make_encode_fn(mapping: Mapping[int, Tuple[int, int]]) -> Callable[[int, int], int]:
+    """Return a callable that converts (action_id, action_param) into flattened indices."""
+
+    inverse: Dict[Tuple[int, int], int] = {pair: flat_index for flat_index, pair in mapping.items()}
+
+    def encode(action_id: int, action_param: int) -> int:
+        return inverse[(int(action_id), int(action_param))]
+
+    return encode
