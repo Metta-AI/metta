@@ -70,9 +70,13 @@ def _ensure_cuda_extras_installed() -> None:
     if platform.system() != "Linux":
         return
 
-    script_path = Path(__file__).resolve().parents[4] / "scripts" / "install_cuda_extras.py"
+    script_path = (
+        Path(__file__).resolve().parents[4] / "scripts" / "install_cuda_extras.py"
+    )
     if not script_path.exists():
-        logger.warning("Could not locate install_cuda_extras.py; skipping CUDA extras installation.")
+        logger.warning(
+            "Could not locate install_cuda_extras.py; skipping CUDA extras installation."
+        )
         return
 
     env = os.environ.copy()
