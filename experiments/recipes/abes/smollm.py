@@ -67,10 +67,10 @@ def _apply_smollm_defaults(tool: TrainTool) -> TrainTool:
     """Clamp heavy training defaults to keep SmolLLM within memory limits."""
 
     trainer_updates = {}
-    if tool.trainer.batch_size > 1024:
-        trainer_updates["batch_size"] = 1024
-    if tool.trainer.minibatch_size > 256:
-        trainer_updates["minibatch_size"] = 256
+    if tool.trainer.batch_size > 131_072:
+        trainer_updates["batch_size"] = 131_072
+    if tool.trainer.minibatch_size > 4_096:
+        trainer_updates["minibatch_size"] = 4_096
     if tool.trainer.bptt_horizon > 4:
         trainer_updates["bptt_horizon"] = (
             4  # keep segments >= agents without inflating batch size
@@ -81,14 +81,8 @@ def _apply_smollm_defaults(tool: TrainTool) -> TrainTool:
         tool.trainer = tool.trainer.model_copy(update=trainer_updates)
 
     env_updates = {}
-    if tool.training_env.forward_pass_minibatch_target_size > 256:
-        env_updates["forward_pass_minibatch_target_size"] = 256
-    if tool.training_env.async_factor > 1:
-        env_updates["async_factor"] = 1
-    if tool.training_env.auto_workers:
-        env_updates["auto_workers"] = False
-    if tool.training_env.num_workers > 1:
-        env_updates["num_workers"] = 1
+    if tool.training_env.forward_pass_minibatch_target_size > 2_048:
+        env_updates["forward_pass_minibatch_target_size"] = 2_048
     if env_updates:
         tool.training_env = tool.training_env.model_copy(update=env_updates)
 
