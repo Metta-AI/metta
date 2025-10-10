@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Dict, Iterable, List, Tuple
+from typing import TYPE_CHECKING, Dict, List, Tuple
 
 if TYPE_CHECKING:  # pragma: no cover
     from mettagrid.core import MettaGridCore
@@ -20,9 +20,9 @@ def build_action_mapping(env: "MettaGridCore") -> Tuple[Dict[int, Tuple[int, int
 
     c_env = getattr(env, "c_env", None)
     if c_env is not None and hasattr(c_env, "action_catalog"):
-        catalog: Iterable[dict] = c_env.action_catalog()
+        catalog_entries = list(c_env.action_catalog())
         max_index = -1
-        for entry in catalog:
+        for entry in catalog_entries:
             action_id = int(entry["action_id"])
             flat_index = int(entry["flat_index"])
             param = int(entry["param"])
@@ -32,8 +32,7 @@ def build_action_mapping(env: "MettaGridCore") -> Tuple[Dict[int, Tuple[int, int
 
         if mapping and max_index >= 0:
             base_names = ["" for _ in range(max_index + 1)]
-            catalog = c_env.action_catalog()
-            for entry in catalog:
+            for entry in catalog_entries:
                 action_id = int(entry["action_id"])
                 if base_names[action_id] == "":
                     base_names[action_id] = str(entry["base_name"])
