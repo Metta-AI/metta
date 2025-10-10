@@ -459,13 +459,6 @@ Key environment variables used by tools:
 ./tools/run.py train arena run=local_test wandb.enabled=false system.device=cpu
 ```
 
-### Map Loading Issues
-
-```bash
-# Convert legacy maps to new format
-./tools/map/convert_legacy_maps_to_yaml.py legacy_map.txt --output=new_map.yaml
-```
-
 ## Best Practices
 
 1. **Always validate configs** before long-running experiments
