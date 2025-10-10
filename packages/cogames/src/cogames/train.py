@@ -64,6 +64,7 @@ def _resolve_vector_counts(
 
     if num_envs < num_workers:
         num_envs = num_workers
+        return num_envs, num_workers
 
     if num_envs % num_workers != 0:
         num_envs = num_workers * math.ceil(num_envs / num_workers)
