@@ -293,6 +293,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
         created_at: str | None = Query(default=None),
         assigned_at: str | None = Query(default=None),
         updated_at: str | None = Query(default=None),
+        include_attributes: bool = Query(default=False),
     ) -> PaginatedTasksResponse:
         tasks, total_count = await stats_repo.get_tasks_paginated(
             page=page,
@@ -306,6 +307,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
             created_at=created_at,
             assigned_at=assigned_at,
             updated_at=updated_at,
+            include_attributes=include_attributes,
         )
         task_responses = [EvalTaskResponse.from_db(task) for task in tasks]
         total_pages = (total_count + page_size - 1) // page_size
@@ -336,6 +338,15 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
     @timed_http_handler
     async def get_avg_runtime(where_clause: str = Query(default="")) -> TaskAvgRuntimeResponse:
         return TaskAvgRuntimeResponse(avg_runtime=await stats_repo.get_avg_runtime(where_clause=where_clause))
+
+    @router.get("/{task_id}", response_model=EvalTaskResponse)
+    @timed_http_handler
+    async def get_task(task_id: uuid.UUID) -> EvalTaskResponse:
+        """Get a single task by ID with full details including attributes."""
+        task = await stats_repo.get_task_by_id(task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
+        return EvalTaskResponse.from_db(task)
 
     @router.get("/{task_id}/logs/{log_type}")
     @timed_http_handler

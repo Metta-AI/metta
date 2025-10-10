@@ -241,6 +241,8 @@ export function EvalTasks({ repo }: Props) {
 
   // UI state
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
+  const [taskAttributes, setTaskAttributes] = useState<Map<string, Record<string, any>>>(new Map())
+  const [loadingAttributes, setLoadingAttributes] = useState<Set<string>>(new Set())
   const [recentPolicies, setRecentPolicies] = useState<string[]>([])
   const [recentSimSuites, setRecentSimSuites] = useState<string[]>([])
 
@@ -489,7 +491,30 @@ export function EvalTasks({ repo }: Props) {
     setExpandedRows(newExpanded)
   }
 
-  const renderAttributes = (attributes: Record<string, any>) => {
+  const loadFullAttributes = async (taskId: string) => {
+    if (loadingAttributes.has(taskId)) return
+
+    setLoadingAttributes((prev) => new Set(prev).add(taskId))
+    try {
+      const task = await repo.getEvalTask(taskId)
+      setTaskAttributes((prev) => new Map(prev).set(taskId, task.attributes))
+    } catch (err) {
+      console.error('Failed to load full attributes:', err)
+    } finally {
+      setLoadingAttributes((prev) => {
+        const next = new Set(prev)
+        next.delete(taskId)
+        return next
+      })
+    }
+  }
+
+  const renderAttributes = (taskId: string, minimalAttributes: Record<string, any>) => {
+    // Check if we have full attributes cached
+    const fullAttributes = taskAttributes.get(taskId)
+    const attributes = fullAttributes || minimalAttributes
+    const isFullView = !!fullAttributes
+
     if (!attributes || Object.keys(attributes).length === 0) {
       return <div style={{ padding: '10px', color: '#6c757d' }}>No attributes</div>
     }
@@ -565,6 +590,38 @@ export function EvalTasks({ repo }: Props) {
         >
           {renderObject(attributes)}
         </div>
+        {!isFullView && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              loadFullAttributes(taskId)
+            }}
+            disabled={loadingAttributes.has(taskId)}
+            style={{
+              marginTop: '12px',
+              padding: '6px 12px',
+              fontSize: '12px',
+              backgroundColor: loadingAttributes.has(taskId) ? '#9ca3af' : '#007bff',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: loadingAttributes.has(taskId) ? 'not-allowed' : 'pointer',
+              transition: 'background-color 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              if (!loadingAttributes.has(taskId)) {
+                e.currentTarget.style.backgroundColor = '#0056b3'
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!loadingAttributes.has(taskId)) {
+                e.currentTarget.style.backgroundColor = '#007bff'
+              }
+            }}
+          >
+            {loadingAttributes.has(taskId) ? 'Loading...' : 'See Full Attributes'}
+          </button>
+        )}
       </div>
     )
   }
@@ -741,7 +798,7 @@ export function EvalTasks({ repo }: Props) {
                     {isExpanded && (
                       <tr>
                         <td colSpan={7} style={{ padding: 0 }}>
-                          {renderAttributes(task.attributes)}
+                          {renderAttributes(task.id, task.attributes)}
                         </td>
                       </tr>
                     )}
@@ -968,7 +1025,7 @@ export function EvalTasks({ repo }: Props) {
                     {isExpanded && (
                       <tr>
                         <td colSpan={7} style={{ padding: 0 }}>
-                          {renderAttributes(task.attributes)}
+                          {renderAttributes(task.id, task.attributes)}
                         </td>
                       </tr>
                     )}
