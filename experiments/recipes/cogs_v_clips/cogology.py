@@ -29,6 +29,18 @@ from cogames.cogs_vs_clips.scenarios import (
     games,
     make_game_from_map,
 )
+from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
+from metta.cogworks.curriculum.curriculum import CurriculumConfig
+from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
+from metta.rl.loss import LossConfig
+from metta.rl.trainer_config import TrainerConfig
+from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.training.component import TrainerComponent
+from metta.sim.simulation_config import SimulationConfig
+from metta.tools.eval_remote import EvalRemoteTool
+from metta.tools.play import PlayTool
+from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import (
     AgentConfig,
     AgentRewards,
@@ -36,20 +48,10 @@ from mettagrid.config.mettagrid_config import (
     ChestConfig,
     MettaGridConfig,
     RecipeConfig,
+)
+from mettagrid.config.mettagrid_config import (
     Field as ConfigField,
 )
-from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
-from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
-from metta.rl.loss import LossConfig
-from metta.rl.training.component import TrainerComponent
-from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-from metta.sim.simulation_config import SimulationConfig
-from metta.tools.play import PlayTool
-from metta.tools.train import TrainTool
-
 
 # =============================================================================
 # Stage Configuration
@@ -1317,7 +1319,7 @@ def train(
 ) -> TrainTool:
     """
     Train agents with automatic curriculum progression using LSTM reset policy.
-    
+
     Args:
         stage: "all" for automatic progression, or "stage_1" through "stage_9"
         speed_reward_coef: Coefficient for speed-to-3-hearts reward
@@ -1325,14 +1327,14 @@ def train(
         learning_rate: Learning rate for optimizer
         stochastic_shaping: Enable stochastic reward shaping (Stages 4-5)
         run_name: Optional run name for tracking
-    
+
     Example:
         # Automatic progression (recommended)
         uv run ./tools/run.py experiments.recipes.cogs_v_clips.cogology.train \\
             run=cogology_full_auto \\
             stage=all \\
             speed_reward_coef=0.01
-        
+
         # Single stage testing
         uv run ./tools/run.py experiments.recipes.cogs_v_clips.cogology.train \\
             run=cogology_stage3 \\
@@ -1453,6 +1455,14 @@ def make_eval_suite() -> list[SimulationConfig]:
             )
 
     return eval_sims
+
+
+def evaluate_remote() -> EvalRemoteTool:
+    policy_uri = "s3://softmax-public/policies/msb_cogology_heartlost2_all_speed0.0050_ent0.0100_20251003/msb_cogology_heartlost2_all_speed0.0050_ent0.0100_20251003:v18150.pt"
+    return EvalRemoteTool(
+        simulations=make_eval_suite(),
+        policy_uri=policy_uri,
+    )
 
 
 def play(
