@@ -105,7 +105,9 @@ class PlayTool(Tool):
                     action_id = getattr(action, "action_id", None)
                     if action_id is None:
                         continue
-                    action_param = getattr(action, "action_param", None)
+                    action_param = getattr(action, "argument", None)
+                    if action_param is None:
+                        action_param = getattr(action, "action_param", None)
                     if action_param is None:
                         action_param = getattr(action, "param", 0)
                     flat_index = encode_flat_action(int(action_id), int(action_param))
