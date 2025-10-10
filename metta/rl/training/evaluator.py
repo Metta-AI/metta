@@ -18,6 +18,7 @@ from metta.rl.evaluate import (
     upload_replay_html,
 )
 from metta.rl.training import TrainerComponent
+from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.base_config import Config
@@ -269,9 +270,6 @@ class Evaluator(TrainerComponent):
             epoch,
             attributes={"source": "evaluation", "agent_step": self.context.agent_step},
         )
-
-        # For ScheduleFree optimizers, switch to eval mode before evaluation
-        from metta.rl.training.optimizer import is_schedulefree_optimizer
 
         optimizer = getattr(self.context, "optimizer", None)
         is_schedulefree = optimizer is not None and is_schedulefree_optimizer(optimizer)
