@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import zlib
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict, List, Tuple
 
 import numpy as np
 
@@ -60,6 +60,7 @@ class EpisodeReplay:
         self.step = 0
         self.objects = []
         self.total_rewards = np.zeros(env.num_agents)
+        self._flat_action_mapping, self._base_action_names = self._build_action_mapping(env)
 
         self._validate_non_empty_string_list(env.action_names, "action_names")
         self._validate_non_empty_string_list(env.resource_names, "item_names")
@@ -67,7 +68,7 @@ class EpisodeReplay:
 
         self.replay_data = {
             "version": 2,
-            "action_names": env.action_names,
+            "action_names": self._base_action_names,
             "item_names": env.resource_names,
             "type_names": env.object_type_names,
             "map_size": [env.map_width, env.map_height],
@@ -85,7 +86,12 @@ class EpisodeReplay:
                 self.objects.append({})
 
             update_object = format_grid_object(
-                grid_object, actions, self.env.action_success, rewards, self.total_rewards
+                grid_object,
+                actions,
+                self.env.action_success,
+                rewards,
+                self.total_rewards,
+                decode_flat_action=self._decode_flat_action,
             )
 
             self._seq_key_merge(self.objects[i], self.step, update_object)
@@ -128,6 +134,57 @@ class EpisodeReplay:
         compressed_data = zlib.compress(replay_bytes)  # Compress the bytes
 
         write_data(path, compressed_data, content_type="application/x-compress")
+
+    def _build_action_mapping(self, env: "MettaGridCore") -> Tuple[Dict[int, Tuple[int, int]], List[str]]:
+        """Build mapping from flattened action index to (action_id, action_param) pairs."""
+        flat_names = list(env.action_names)
+        if not flat_names:
+            return {}, []
+
+        max_args: List[int] | None
+        max_args = None
+        if hasattr(env, "c_env") and hasattr(env.c_env, "max_action_args"):
+            try:
+                max_args = list(env.c_env.max_action_args())
+            except Exception:
+                max_args = None
+
+        mapping: Dict[int, Tuple[int, int]] = {}
+        base_names: List[str] = []
+
+        if max_args:
+            cursor = 0
+            for base_id, max_arg in enumerate(max_args):
+                count = max(1, max_arg + 1)
+                if cursor >= len(flat_names):
+                    break
+                base_name = (
+                    flat_names[cursor].rsplit("_", 1)[0] if max_arg > 0 and "_" in flat_names[cursor] else flat_names[cursor]
+                )
+                base_names.append(base_name)
+                for param in range(count):
+                    if cursor >= len(flat_names):
+                        break
+                    mapping[cursor] = (base_id, param if max_arg > 0 else 0)
+                    cursor += 1
+
+            while cursor < len(flat_names):
+                base_id = len(base_names)
+                base_names.append(flat_names[cursor])
+                mapping[cursor] = (base_id, 0)
+                cursor += 1
+        else:
+            for idx, name in enumerate(flat_names):
+                mapping[idx] = (idx, 0)
+                base_names.append(name)
+
+        return mapping, base_names
+
+    def _decode_flat_action(self, flat_index: int) -> Tuple[int, int]:
+        """Convert flattened action index to action id/parameter pair."""
+        if flat_index < 0:
+            return 0, 0
+        return self._flat_action_mapping.get(flat_index, (flat_index, 0))
 
     @staticmethod
     def _validate_non_empty_string_list(values: list[str], field_name: str) -> None:
