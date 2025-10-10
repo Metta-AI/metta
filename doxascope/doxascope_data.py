@@ -105,7 +105,6 @@ class DoxascopeLogger:
         self.agent_type_id: int = 0
         self.output_file: Optional[Path] = None
         self._warned_multi_env_mismatch = False
-        self._last_td: Optional[TensorDict] = None
 
     def configure(
         self,
@@ -127,12 +126,6 @@ class DoxascopeLogger:
 
         logger.info("Doxascope logging enabled.")
 
-    def set_last_td(self, td: TensorDict) -> None:
-        """Capture the most recent per-forward TensorDict to preserve agent batch ordering for logging."""
-        if not self.enabled:
-            return
-        self._last_td = td
-
     def _build_agent_id_map(self, env_grid_objects: Dict) -> Dict[int, int]:
         """Builds a mapping from agent IDs to grid object IDs."""
         agent_id_map = {}
@@ -148,17 +141,33 @@ class DoxascopeLogger:
         policy: Any,
         policy_idxs: torch.Tensor,
         env_grid_objects: Dict,
+        tensordict: Optional[TensorDict] = None,
     ):
         """Log memory vectors and positions for policy agents at current timestep.
 
         Supports both single-env (env_grid_objects: Dict) and multi-env
         (env_grid_objects: List[Dict]) cases. For multi-env collection,
         provide agents_per_env to resolve (env_index, local_agent_id).
+
+        Args:
+            tensordict: Optional TensorDict from the policy forward pass, containing
+                       LSTM states and potentially agent indices.
         """
         if not self.enabled:
             return
 
         self.timestep += 1
+
+        # Add agent indices to tensordict if provided and not already present
+        if tensordict is not None and "__agent_indices" not in tensordict.keys():
+            try:
+                tensordict["__agent_indices"] = (
+                    policy_idxs.detach()
+                    .clone()
+                    .to(tensordict.device if hasattr(tensordict, "device") else policy_idxs.device)
+                )
+            except Exception:
+                pass
 
         # The policy passed in may be a wrapper. The actual model is inside.
         # Keep compatibility with wrapped policies if needed in future
@@ -169,16 +178,16 @@ class DoxascopeLogger:
         batch_pos_to_global: Optional[Dict[int, int]] = None
 
         # 1) Preferred: from per-forward TensorDict (direct keys or nested)
-        if isinstance(self._last_td, TensorDict):
+        if isinstance(tensordict, TensorDict):
             # Direct keys
-            td_lstm_h = self._last_td.get("lstm_h") if "lstm_h" in self._last_td.keys() else None
-            td_lstm_c = self._last_td.get("lstm_c") if "lstm_c" in self._last_td.keys() else None
-            td_batch_idxs = self._last_td.get("__agent_indices") if "__agent_indices" in self._last_td.keys() else None
+            td_lstm_h = tensordict.get("lstm_h") if "lstm_h" in tensordict.keys() else None
+            td_lstm_c = tensordict.get("lstm_c") if "lstm_c" in tensordict.keys() else None
+            td_batch_idxs = tensordict.get("__agent_indices") if "__agent_indices" in tensordict.keys() else None
 
             # Or nested recurrent state
             recurrent_source: Any = None
-            if "recurrent_state" in self._last_td.keys():
-                recurrent_source = self._last_td.get("recurrent_state")
+            if "recurrent_state" in tensordict.keys():
+                recurrent_source = tensordict.get("recurrent_state")
 
             lstm_h = (
                 td_lstm_h if td_lstm_h is not None else (recurrent_source.get("lstm_h") if recurrent_source else None)

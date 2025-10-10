@@ -95,7 +95,7 @@ class Simulation:
             vectorization,
             num_envs=num_envs,
             stats_writer=self._stats_writer,
-            replay_writer=self._replay_writer,
+            replay_writer=None if cfg.doxascope_enabled else self._replay_writer,
         )
 
         self._num_envs = num_envs
@@ -157,6 +157,7 @@ class Simulation:
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
 
         # doxascope setup
+        self._last_policy_td = None
         self._doxascope_logger = DoxascopeLogger(enabled=cfg.doxascope_enabled, simulation_id=self._id)
         if self._doxascope_logger.enabled:
             base_policy_name = Path(self._policy_uri).stem.split(":")[0]
@@ -220,6 +221,10 @@ class Simulation:
             agent_obs = agent_obs[None, ...]  # Add back the agent dimension
         td = obs_to_td(agent_obs, self._device)
         policy(td)
+
+        if self._doxascope_logger.enabled and policy is self._policy:
+            self._last_policy_td = td
+
         return td["actions"]
 
     def generate_actions(self) -> np.ndarray:
@@ -286,6 +291,18 @@ class Simulation:
         return actions_np
 
     def step_simulation(self, actions_np: np.ndarray) -> None:
+        # doxascope logging
+        if self._doxascope_logger.enabled:
+            metta_grid_env: MettaGridEnv = self._vecenv.driver_env  # type: ignore
+            assert isinstance(metta_grid_env, MettaGridEnv)
+            env_grid_objects = metta_grid_env.grid_objects
+            self._doxascope_logger.log_timestep(
+                self._policy,
+                self._policy_idxs,
+                env_grid_objects,
+                tensordict=self._last_policy_td,
+            )
+
         obs, rewards, dones, trunc, infos = self._vecenv.step(actions_np)
 
         done_now = np.logical_or(
@@ -298,13 +315,6 @@ class Simulation:
                 self._episode_counters[e] += 1
             elif not done_now[e] and self._env_done_flags[e]:
                 self._env_done_flags[e] = False
-
-        # ---------------- doxascope logging -------------------- #
-        if self._doxascope_logger.enabled:
-            metta_grid_env: MettaGridEnv = self._vecenv.driver_env  # type: ignore
-            assert isinstance(metta_grid_env, MettaGridEnv)
-            grid_objects = metta_grid_env.grid_objects
-            self._doxascope_logger.log_timestep(self._policy, self._policy_idxs, grid_objects)
 
     def _maybe_generate_thumbnail(self) -> str | None:
         """Generate thumbnail if this is the first run for this eval_name."""
@@ -345,9 +355,9 @@ class Simulation:
 
         db = self._from_shards_and_context()
 
-        # Generate thumbnail before writing to database so we can include the URL
-        thumbnail_url = self._maybe_generate_thumbnail()
-        self._write_remote_stats(db, thumbnail_url=thumbnail_url)
+        if not self._config.doxascope_enabled:
+            thumbnail_url = self._maybe_generate_thumbnail()
+            self._write_remote_stats(db, thumbnail_url=thumbnail_url)
 
         logger.info(
             "Sim '%s' finished: %d episodes in %.1fs",
