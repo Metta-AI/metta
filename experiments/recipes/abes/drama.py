@@ -57,20 +57,6 @@ def _apply_overrides(
     tool.torch_profiler = TorchProfilerConfig(interval_epochs=0)
 
 
-def _load_drama_policy_config() -> "DramaPolicyConfig":
-    try:
-        from metta.agent.policies.drama_policy import DramaPolicyConfig
-    except ModuleNotFoundError as exc:
-        if exc.name == "mamba_ssm":
-            raise RuntimeError(
-                "DRAMA recipes require the `mamba-ssm` package (Linux + CUDA)."
-                " Install it on a supported system before running this recipe."
-            ) from exc
-        raise
-
-    return DramaPolicyConfig
-
-
 def train(
     *,
     curriculum: Optional[CurriculumConfig] = None,
@@ -81,8 +67,16 @@ def train(
     minibatch_size: int = DEFAULT_MINIBATCH_SIZE,
     forward_pass_minibatch_target_size: int = DEFAULT_FORWARD_PASS_MINIBATCH_TARGET_SIZE,
 ) -> TrainTool:
-    DramaPolicyConfig = _load_drama_policy_config()
-    from metta.agent.components.drama import DramaWorldModelConfig
+    try:
+        from metta.agent.policies.drama_policy import DramaPolicyConfig
+        from metta.agent.components.drama import DramaWorldModelConfig
+    except ModuleNotFoundError as exc:
+        if exc.name == "mamba_ssm":
+            raise RuntimeError(
+                "DRAMA recipes require the `mamba-ssm` package (Linux + CUDA)."
+                " Install it on a supported system before running this recipe."
+            ) from exc
+        raise
 
     policy = policy_architecture or DramaPolicyConfig()
 

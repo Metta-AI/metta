@@ -63,34 +63,26 @@ class DramaWorldModelComponent(nn.Module):
             actions = torch.zeros(batch_size, seq_len, dtype=torch.long, device=samples.device)
         else:
             actions = actions.to(device=samples.device)
-            if actions.dim() == 1:
-                actions = actions.unsqueeze(-1)
-            if actions.dim() >= 3:
+            # Collapse one-hot or singleton action dimensions to scalars.
+            if actions.dim() > 1:
                 if actions.size(-1) > 1:
                     actions = actions.argmax(dim=-1)
                 else:
                     actions = actions.squeeze(-1)
-            if actions.dim() == 2 and actions.size(-1) > seq_len:
-                actions = actions[..., :seq_len]
-            actions = actions.reshape(-1)
-            required = batch_size * seq_len
-            if actions.numel() < required:
-                pad = torch.zeros(required - actions.numel(), dtype=actions.dtype, device=samples.device)
-                actions = torch.cat([actions, pad], dim=0)
-            else:
-                actions = actions[:required]
-            actions = actions.view(batch_size, -1)
-            if actions.size(1) == 1 and seq_len > 1:
+
+            actions = actions.reshape(batch_size, -1)
+
+            if actions.size(1) == 1:
                 actions = actions.expand(-1, seq_len)
-            elif actions.size(1) != seq_len:
-                if actions.numel() == batch_size * seq_len:
-                    actions = actions.reshape(batch_size, seq_len)
-                elif actions.size(1) == 0:
-                    actions = torch.zeros(batch_size, seq_len, dtype=torch.long, device=samples.device)
-                elif actions.size(1) == 1:
-                    actions = actions.expand(batch_size, seq_len)
-                else:
-                    actions = actions[:, :seq_len]
+            elif actions.size(1) < seq_len:
+                pad = torch.zeros(
+                    (batch_size, seq_len - actions.size(1)),
+                    dtype=actions.dtype,
+                    device=samples.device,
+                )
+                actions = torch.cat([actions, pad], dim=1)
+            elif actions.size(1) > seq_len:
+                actions = actions[:, :seq_len]
 
         hidden = self.backbone(samples, actions.long())
         hidden = self.output_norm(hidden)

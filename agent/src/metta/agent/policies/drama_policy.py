@@ -71,10 +71,4 @@ class DramaPolicyConfig(PolicyArchitecture):
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
 
 
-def drama_policy_config() -> DramaPolicyConfig:
-    """Return a default DRAMA policy configuration."""
-
-    return DramaPolicyConfig()
-
-
-__all__ = ["DramaPolicyConfig", "drama_policy_config"]
+__all__ = ["DramaPolicyConfig"]
