@@ -37,6 +37,7 @@ from __future__ import annotations
 import os
 import signal
 import subprocess
+import tempfile
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -50,10 +51,14 @@ import sky
 from metta.common.util.fs import get_repo_root
 
 
-# Define JobStatus enum values to avoid circular import issues with SkyPilot
+# Define JobStatus enum values for runtime comparison (avoids import issues)
 class _JobStatus(str, Enum):
-    """Subset of SkyPilot JobStatus enum for type checking."""
+    """SkyPilot JobStatus enum values for runtime comparison."""
 
+    INIT = "INIT"
+    PENDING = "PENDING"
+    SETTING_UP = "SETTING_UP"
+    RUNNING = "RUNNING"
     SUCCEEDED = "SUCCEEDED"
     FAILED = "FAILED"
     FAILED_SETUP = "FAILED_SETUP"
@@ -384,35 +389,52 @@ class RemoteJob(Job):
             return
 
         try:
-            # Create task from command
-            cmd_str = " ".join(self.cmd) if self.cmd else ""
-            task = sky.Task(run=cmd_str, name=self.name)
+            # Create a YAML task file for the job
+            task_yaml = {
+                "name": self.name,
+                "run": " ".join(self.cmd) if self.cmd else "",
+            }
 
             # Configure resources if provided
             if self.resources:
-                # Extract resource parameters
-                accelerators = self.resources.get("accelerators")
-                use_spot = self.resources.get("use_spot", True)
-
-                # Create Resources object
-                sky_resources = sky.Resources(
-                    accelerators=accelerators,
-                    use_spot=use_spot,
-                )
-                task.set_resources(sky_resources)
+                resources_dict = {}
+                if "accelerators" in self.resources:
+                    resources_dict["accelerators"] = self.resources["accelerators"]
+                if "use_spot" in self.resources:
+                    resources_dict["use_spot"] = self.resources["use_spot"]
+                task_yaml["resources"] = resources_dict
 
             # Set number of nodes if > 1
             if self.num_nodes > 1:
-                task.set_num_nodes(self.num_nodes)
+                task_yaml["num_nodes"] = self.num_nodes
 
-            # Launch the job using managed jobs
-            self._request_id = sky.jobs.launch(task, name=self.cluster_name)
-            self._submitted = True
-            self._start_time = time.time()
+            # Write task to temporary YAML file
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+                import yaml
 
-            # Wait for the request to complete and get the job ID
-            job_id, _controller_handle = sky.get(self._request_id)
-            self._job_id = job_id
+                yaml.dump(task_yaml, f)
+                task_file = f.name
+
+            try:
+                # Create task from YAML
+                task = sky.Task.from_yaml(task_file)
+
+                # Launch using sky.launch (client API)
+                request_id = sky.launch(
+                    task=task,
+                    cluster_name=self.cluster_name,
+                    dryrun=False,
+                )
+                self._submitted = True
+                self._start_time = time.time()
+
+                # Get the result (job_id and handle)
+                job_id, _handle = sky.get(request_id)
+                self._job_id = job_id
+
+            finally:
+                # Clean up temp file
+                os.unlink(task_file)
 
         except Exception as e:
             # Log launch failure
@@ -431,12 +453,27 @@ class RemoteJob(Job):
             return True  # No job to track (launch failed)
 
         try:
-            # Get job status from SkyPilot
-            status_dict = sky.get(sky.job_status(self.cluster_name, job_ids=[self._job_id]))
-            self._job_status = status_dict.get(self._job_id)
+            # Use sky.queue client API to get job status
+            request_id = sky.queue(cluster_name=self.cluster_name, skip_finished=False)
+            queue_records = sky.get(request_id)
 
-            if self._job_status is None:
+            # Find our job in the queue
+            our_job = None
+            for record in queue_records:
+                if record.get("job_id") == self._job_id:
+                    our_job = record
+                    break
+
+            if our_job is None:
                 return True  # Job not found
+
+            # Get the status (it's a JobStatus enum object)
+            job_status_obj = our_job.get("status")
+            if job_status_obj is None:
+                return True
+
+            # Get the status value
+            self._job_status = job_status_obj.value if hasattr(job_status_obj, "value") else str(job_status_obj)
 
             # Check if job is in a terminal state
             return self._job_status in (
@@ -462,12 +499,13 @@ class RemoteJob(Job):
             # Use StringIO to capture logs
             log_buffer = StringIO()
 
-            # Get logs without following
-            sky.jobs.tail_logs(
+            # Use sky.tail_logs client API
+            sky.tail_logs(
+                cluster_name=self.cluster_name,
                 job_id=self._job_id,
                 follow=False,
                 tail=10000,
-                output_stream=log_buffer,  # type: ignore
+                output_stream=log_buffer,
             )
 
             logs = log_buffer.getvalue()
@@ -534,7 +572,9 @@ class RemoteJob(Job):
         if self._job_id:
             try:
                 print(f"Cancelling remote job '{self.name}' (Job ID: {self._job_id})...")
-                sky.jobs.cancel(job_ids=[self._job_id])
+                # Use sky.cancel client API
+                request_id = sky.cancel(cluster_name=self.cluster_name, job_ids=[self._job_id])
+                sky.get(request_id)
                 print(f"✅ Job {self._job_id} cancelled successfully")
             except Exception as e:
                 print(f"⚠️  Failed to cancel job {self._job_id}: {e}")
