@@ -30,6 +30,11 @@ class SmolLLMConfig(PolicyArchitecture):
 
     actor_head_rank: Optional[int] = None
     value_head_rank: Optional[int] = None
+    use_lora: bool = False
+    lora_rank: int = 8
+    lora_alpha: int = 16
+    lora_dropout: float = 0.05
+    lora_target_modules: Optional[List[str]] = None
 
     components: List[ComponentConfig] = []
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="smollm_logits")
@@ -59,5 +64,10 @@ class SmolLLMConfig(PolicyArchitecture):
                 token_stride=self.token_stride,
                 actor_head_rank=self.actor_head_rank,
                 value_head_rank=self.value_head_rank,
+                use_lora=self.use_lora,
+                lora_rank=self.lora_rank,
+                lora_alpha=self.lora_alpha,
+                lora_dropout=self.lora_dropout,
+                lora_target_modules=self.lora_target_modules,
             ),
         ]

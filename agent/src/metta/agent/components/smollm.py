@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 
 import torch
 from gymnasium.spaces import Discrete
@@ -24,6 +24,13 @@ except ImportError as exc:  # pragma: no cover - import error path exercised in 
 else:  # pragma: no cover - exercised when dependency is installed
     _IMPORT_ERROR = None
 
+try:
+    from peft import LoraConfig, TaskType, get_peft_model
+except ImportError:  # pragma: no cover - optional dependency
+    LoraConfig = None
+    TaskType = None
+    get_peft_model = None
+
 
 class SmolLLMBackboneConfig(ComponentConfig):
     """Configuration for the SmolLLM backbone component."""
@@ -43,6 +50,11 @@ class SmolLLMBackboneConfig(ComponentConfig):
     token_stride: int = 1
     actor_head_rank: Optional[int] = None
     value_head_rank: Optional[int] = None
+    use_lora: bool = False
+    lora_rank: int = 8
+    lora_alpha: int = 16
+    lora_dropout: float = 0.05
+    lora_target_modules: Optional[List[str]] = None
 
     def make_component(self, env: EnvironmentMetaData):
         return SmolLLMBackbone(env, self)
@@ -169,8 +181,14 @@ class SmolLLMBackbone(nn.Module):
         logger.info("Loading SmolLLM model '%s'", self.config.model_name)
         self.llm = AutoModelForCausalLM.from_pretrained(self.config.model_name, **kwargs)
 
+        if self.config.use_lora:
+            self._apply_lora()
+
         if self.config.freeze_llm:
-            for param in self.llm.parameters():
+            for name, param in self.llm.named_parameters():
+                if self.config.use_lora and "lora_" in name:
+                    param.requires_grad = True
+                    continue
                 param.requires_grad = False
 
     def _resolve_dtype(self) -> Optional[torch.dtype]:
@@ -220,6 +238,36 @@ class SmolLLMBackbone(nn.Module):
             dtype if dtype is not None else "auto(float32)",
         )
         return dtype, None
+
+    def _apply_lora(self) -> None:
+        if LoraConfig is None or get_peft_model is None or TaskType is None:
+            raise ImportError("peft is required for LoRA support. Please install peft>=0.12.0")
+
+        target_modules = self.config.lora_target_modules or [
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+        ]
+
+        lora_config = LoraConfig(
+            r=self.config.lora_rank,
+            lora_alpha=self.config.lora_alpha,
+            lora_dropout=self.config.lora_dropout,
+            bias="none",
+            target_modules=target_modules,
+            task_type=TaskType.CAUSAL_LM,
+        )
+
+        logger.info(
+            "Applying LoRA adapters (r=%d, alpha=%d, dropout=%.2f) to modules: %s",
+            self.config.lora_rank,
+            self.config.lora_alpha,
+            self.config.lora_dropout,
+            ", ".join(target_modules),
+        )
+
+        self.llm = get_peft_model(self.llm, lora_config)
 
     def _project_tokens(self, tokens: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         if tokens.shape[-1] != 3:

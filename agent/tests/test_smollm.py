@@ -169,6 +169,50 @@ def test_token_stride_downsamples_tokens(monkeypatch: pytest.MonkeyPatch) -> Non
     assert model.last_inputs_embeds.shape[1] == 3
 
 
+def test_lora_applies_and_keeps_adapter_grad(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    class DummyLoraConfig:
+        def __init__(self, **kwargs: object) -> None:
+            captured.update(kwargs)
+
+    def _dummy_get_peft_model(model: RecordingModel, _: object) -> RecordingModel:
+        model.lora_weight = torch.nn.Parameter(torch.ones(1, dtype=model.scale.dtype))
+        return model
+
+    monkeypatch.setattr(
+        "metta.agent.components.smollm.AutoModelForCausalLM",
+        SimpleNamespace(from_pretrained=_fake_from_pretrained(hidden_size=32)),
+    )
+    monkeypatch.setattr("metta.agent.components.smollm.LoraConfig", DummyLoraConfig)
+    monkeypatch.setattr("metta.agent.components.smollm.get_peft_model", _dummy_get_peft_model)
+    monkeypatch.setattr(
+        "metta.agent.components.smollm.TaskType",
+        SimpleNamespace(CAUSAL_LM="causal_lm"),
+    )
+
+    env = _make_env(num_actions=3)
+    config = SmolLLMBackboneConfig(
+        in_key="tokens",
+        freeze_llm=True,
+        torch_dtype="float16",
+        use_lora=True,
+        lora_rank=4,
+        lora_alpha=32,
+        lora_dropout=0.1,
+        lora_target_modules=["foo", "bar"],
+    )
+
+    backbone = SmolLLMBackbone(env, config)
+
+    assert isinstance(backbone.llm, RecordingModel)
+    assert hasattr(backbone.llm, "lora_weight")
+    assert not backbone.llm.scale.requires_grad
+    assert backbone.llm.lora_weight.requires_grad
+    assert captured["r"] == 4
+    assert captured["target_modules"] == ["foo", "bar"]
+
+
 def test_initialize_to_environment_aligns_module_dtypes(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "metta.agent.components.smollm.AutoModelForCausalLM",
