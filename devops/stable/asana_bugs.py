@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 from typing import Optional
 
-import asana
+import asana as asana_sdk
 
 
 def check_blockers() -> Optional[bool]:
@@ -28,17 +28,17 @@ def check_blockers() -> Optional[bool]:
 
     try:
         # Initialize Asana client
-        config = asana.Configuration()
+        config = asana_sdk.Configuration()
         config.access_token = token
-        client = asana.ApiClient(config)
+        client = asana_sdk.ApiClient(config)
 
         # Get user info to verify auth
-        users_api = asana.UsersApi(client)
+        users_api = asana_sdk.UsersApi(client)
         user = users_api.get_user("me", {})
         print(f"✓ Authenticated as {user.get('name', '?')}")
 
         # Get project sections
-        sections_api = asana.SectionsApi(client)
+        sections_api = asana_sdk.SectionsApi(client)
         sections = sections_api.get_sections_for_project(project_id, {})
 
         # Find "Active" section
@@ -48,7 +48,7 @@ def check_blockers() -> Optional[bool]:
             return None
 
         # Get tasks in Active section
-        tasks_api = asana.TasksApi(client)
+        tasks_api = asana_sdk.TasksApi(client)
         tasks = tasks_api.get_tasks_for_section(
             active_section["gid"],
             {"opt_fields": "name,completed,permalink_url"},

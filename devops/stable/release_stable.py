@@ -1,4 +1,4 @@
-#!/usr/bin/env -S uv run
+#!/usr/bin/env python3
 """Stable Release System - CLI
 
 Command-line interface for the release validation and deployment pipeline.
@@ -35,7 +35,7 @@ from typing import Optional
 import typer
 
 import gitta as git
-from devops.stable import asana
+from devops.stable.asana_bugs import check_blockers
 from devops.stable.runner import ValidationRunner
 from devops.stable.state import (
     ReleaseState,
@@ -83,7 +83,7 @@ def get_user_confirmation(prompt: str) -> bool:
 # ============================================================================
 
 
-def step_prepare_tag(version: str, **_kwargs) -> None:
+def step_prepare_tag(version: str, state: Optional[ReleaseState] = None, **_kwargs) -> None:
     """Step 1: Create staging tag to mark commit for validation."""
     tag_name = f"v{version}-rc"
 
@@ -91,15 +91,33 @@ def step_prepare_tag(version: str, **_kwargs) -> None:
     print(bold(f"STEP 1: Prepare Staging Tag (v{version})"))
     print("=" * 60 + "\n")
 
+    # Check if already completed
+    if state and any(g.get("step") == "prepare_tag" and g.get("passed") for g in state.gates):
+        print(green("✅ Staging tag step already completed (skipping)"))
+        print(f"   Tag {tag_name} was created in previous run")
+        return
+
     commit_sha = get_commit_sha()
     print(f"Current commit: {commit_sha}")
-    print(f"Creating staging tag: {tag_name}")
 
     try:
         # Check if tag already exists
         existing = git.run_git("tag", "-l", tag_name)
         if existing.strip():
-            print(f"Tag {tag_name} already exists")
+            print(f"⚠️  Tag {tag_name} already exists")
+            # If state exists and this is a continuation, mark as complete and continue
+            if state:
+                print(green("   Tag exists from previous run - marking step as complete"))
+                state.gates.append(
+                    {
+                        "step": "prepare_tag",
+                        "passed": True,
+                        "timestamp": datetime.utcnow().isoformat(timespec="seconds"),
+                    }
+                )
+                save_state(state)
+                return
+            # Otherwise, ask if we should recreate it
             if not get_user_confirmation("Delete existing tag and continue?"):
                 sys.exit(1)
             git.run_git("tag", "-d", tag_name)
@@ -109,26 +127,52 @@ def step_prepare_tag(version: str, **_kwargs) -> None:
             except git.GitError:
                 pass
 
+        print(f"Creating staging tag: {tag_name}")
         # Create lightweight tag
         git.run_git("tag", tag_name)
         git.run_git("push", "origin", tag_name)
         print(green(f"✅ Staging tag {tag_name} created and pushed successfully"))
+
+        # Mark as completed
+        if state:
+            state.gates.append(
+                {
+                    "step": "prepare_tag",
+                    "passed": True,
+                    "timestamp": datetime.utcnow().isoformat(timespec="seconds"),
+                }
+            )
+            save_state(state)
     except git.GitError as e:
         print(f"Failed to create/push tag: {e}")
         sys.exit(1)
 
 
-def step_bug_check(**_kwargs) -> None:
+def step_bug_check(state: Optional[ReleaseState] = None, **_kwargs) -> None:
     """Step 2: Check for blocking bugs."""
     print("\n" + "=" * 60)
     print(bold("STEP 2: Bug Status Check"))
     print("=" * 60 + "\n")
 
+    # Check if already completed
+    if state and any(g.get("step") == "bug_check" and g.get("passed") for g in state.gates):
+        print(green("✅ Bug check step already completed (skipping)"))
+        return
+
     # Try automated Asana check
-    result = asana.check_blockers()
+    result = check_blockers()
 
     if result is True:
         print("✅ Bug check PASSED - clear for release")
+        if state:
+            state.gates.append(
+                {
+                    "step": "bug_check",
+                    "passed": True,
+                    "timestamp": datetime.utcnow().isoformat(timespec="seconds"),
+                }
+            )
+            save_state(state)
         return
     elif result is False:
         print("❌ Bug check FAILED - resolve blocking issues before release")
@@ -150,6 +194,15 @@ def step_bug_check(**_kwargs) -> None:
         sys.exit(1)
 
     print("✅ Bug check PASSED - user confirmed")
+    if state:
+        state.gates.append(
+            {
+                "step": "bug_check",
+                "passed": True,
+                "timestamp": datetime.utcnow().isoformat(timespec="seconds"),
+            }
+        )
+        save_state(state)
 
 
 def step_task_validation(
@@ -508,13 +561,33 @@ def common(
 @app.command("prepare-tag")
 def cmd_prepare_tag():
     """Create and push staging tag."""
-    step_prepare_tag(version=_VERSION)
+    # Load existing state if it exists
+    state_version = f"release_{_VERSION}"
+    state = load_state(state_version)
+    if not state:
+        state = ReleaseState(
+            version=state_version,
+            created_at=datetime.utcnow().isoformat(timespec="seconds"),
+            commit_sha=get_commit_sha(),
+        )
+        save_state(state)
+    step_prepare_tag(version=_VERSION, state=state)
 
 
 @app.command("bugs")
 def cmd_bugs():
     """Check bug status in Asana."""
-    step_bug_check()
+    # Load existing state if it exists
+    state_version = f"release_{_VERSION}"
+    state = load_state(state_version)
+    if not state:
+        state = ReleaseState(
+            version=state_version,
+            created_at=datetime.utcnow().isoformat(timespec="seconds"),
+            commit_sha=get_commit_sha(),
+        )
+        save_state(state)
+    step_bug_check(state=state)
 
 
 @app.command("task-validation")
@@ -546,6 +619,7 @@ def cmd_release():
     step_release(version=_VERSION)
 
 
+@app.command("all")
 def cmd_all(
     task: Optional[str] = typer.Option(
         None,
@@ -559,8 +633,20 @@ def cmd_all(
     ),
 ):
     """Run full release pipeline."""
-    step_prepare_tag(version=_VERSION)
-    step_bug_check()
+    # Load or create state
+    state_version = f"release_{_VERSION}"
+    state = load_state(state_version)
+    if not state:
+        state = ReleaseState(
+            version=state_version,
+            created_at=datetime.utcnow().isoformat(timespec="seconds"),
+            commit_sha=get_commit_sha(),
+        )
+        save_state(state)
+
+    # Run steps with state tracking
+    step_prepare_tag(version=_VERSION, state=state)
+    step_bug_check(state=state)
     step_task_validation(version=_VERSION, task_filter=task, reeval=reeval)
     step_summary(version=_VERSION)
 
