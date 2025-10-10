@@ -1,94 +1,85 @@
-from pathlib import Path
+import re
 from typing import Optional
 
 import typer
 from rich.table import Table
 
+from cogames import game
 from cogames.cli.base import console
 from cogames.cogs_vs_clips.missions import USER_MAP_CATALOG
-from cogames.game import load_mission_config, load_mission_config_from_python
+from cogames.mission_aliases import MAP_MISSION_DELIMITER, list_registered_missions
 from mettagrid import MettaGridConfig
 from mettagrid.config.mettagrid_config import AssemblerConfig
 
-MAP_MISSION_DELIMITER = ":"
-
 
 def get_all_missions() -> list[str]:
-    return [
-        f"{user_map.name}{MAP_MISSION_DELIMITER}{mission_name}"
-        for user_map in USER_MAP_CATALOG
-        for mission_name in user_map.available_missions
-    ]
+    return list_registered_missions()
 
 
 def get_mission_name_and_config(ctx: typer.Context, mission_arg: Optional[str]) -> tuple[str, MettaGridConfig]:
-    if mission_arg is None:
+    if not mission_arg:
         console.print(ctx.get_help())
+        console.print("[yellow]Missing: --mission / -m[/yellow]\n")
     else:
         try:
             return get_mission(mission_arg)
         except ValueError as e:
-            console.print(f"[yellow]{e}[/yellow]")
-            console.print()
+            console.print(f"[yellow]{e}[/yellow]\n")
     list_missions()
 
     if mission_arg is not None:
-        console.print()
-        console.print(ctx.get_usage())
-    console.print()
+        console.print("\n" + ctx.get_usage())
+    console.print("\n")
     raise typer.Exit(0)
 
 
-def get_mission(
-    mission_arg: str,
-) -> tuple[str, MettaGridConfig]:
-    """Get a specific mission configuration by name or file path.
-
-    Args:
-        map_name: Name of the map or path to config file (.yaml, .json, or .py)
-        mission_name: Name of the mission. If unspecified, will use the default mission for the map.
-
-    Returns:
-        Environment configuration, map name, mission name
-
-    Raises:
-        ValueError: If mission not found or file cannot be loaded
-    """
-    # Check if it's a file path
-    if any(mission_arg.endswith(ext) for ext in [".yaml", ".yml", ".json", ".py"]):
-        path = Path(mission_arg)
-        if not path.exists():
-            raise ValueError(f"File not found: {mission_arg}")
-        if not path.is_file():
-            raise ValueError(f"Not a file: {mission_arg}")
-
-        # Load config based on file extension
-        if path.suffix == ".py":
-            return mission_arg, load_mission_config_from_python(path)
-        elif path.suffix in [".yaml", ".yml", ".json"]:
-            return mission_arg, load_mission_config(path)
-        else:
-            raise ValueError(f"Unsupported file format: {path.suffix}")
-
-    # Otherwise, treat it as a mission name
-    if (delim_count := mission_arg.count(MAP_MISSION_DELIMITER)) == 0:
-        map_name, mission_name = mission_arg, None
-    elif delim_count > 1:
-        raise ValueError(f"Mission name can contain at most one `{MAP_MISSION_DELIMITER}` delimiter")
+def get_mission_names_and_configs(
+    ctx: typer.Context, missions_arg: Optional[list[str]]
+) -> list[tuple[str, MettaGridConfig]]:
+    if not missions_arg:
+        console.print(ctx.get_help())
+        console.print("[yellow]Supply at least one: --mission / -m[/yellow]\n")
     else:
-        map_name, mission_name = mission_arg.split(MAP_MISSION_DELIMITER)
-    matching_maps = [user_map for user_map in USER_MAP_CATALOG if user_map.name == map_name]
-    if not matching_maps:
-        raise ValueError(f"Could not find map {map_name}")
-    elif len(matching_maps) > 1:
-        raise ValueError(f"Invalid map catalog: more than one map named {map_name}")
-    matching_map = matching_maps[0]
-    effective_mission = mission_name if mission_name is not None else matching_map.default_mission
-    if effective_mission not in matching_map.available_missions:
-        raise ValueError(f"Mission {effective_mission} not available on map {map_name}")
-    return f"{matching_map.name}{MAP_MISSION_DELIMITER}{effective_mission}", matching_map.generate_env(
-        effective_mission
-    )
+        try:
+            not_deduped = [
+                mission for missions in missions_arg for mission in _get_missions_by_possible_wildcard(missions)
+            ]
+            name_set: set[str] = set()
+            deduped = []
+            for m, c in not_deduped:
+                if m not in name_set:
+                    name_set.add(m)
+                    deduped.append((m, c))
+            if not deduped:
+                raise ValueError(f"No missions found for {missions_arg}")
+            return deduped
+        except ValueError as e:
+            console.print(f"[yellow]{e}[/yellow]\n")
+    list_missions()
+
+    if missions_arg is not None:
+        console.print("\n" + ctx.get_usage())
+    console.print("\n")
+    raise typer.Exit(0)
+
+
+def _get_missions_by_possible_wildcard(mission_arg: str) -> list[tuple[str, MettaGridConfig]]:
+    if "*" in mission_arg:
+        # Convert shell-style wildcard to regex pattern
+        regex_pattern = mission_arg.replace(".", "\\.").replace("*", ".*")
+        missions = [m for m in get_all_missions() if re.search(regex_pattern, m)]
+        return [get_mission(m) for m in missions]
+    return [get_mission(mission_arg)]
+
+
+def get_mission(mission_arg: str) -> tuple[str, MettaGridConfig]:
+    """Resolve a mission argument into a canonical mission name and configuration."""
+    config, resolved_map, resolved_mission = game.get_mission(mission_arg)
+    if resolved_map is None:
+        return mission_arg, config
+    if resolved_mission in (None, "default"):
+        return resolved_map, config
+    return f"{resolved_map}{MAP_MISSION_DELIMITER}{resolved_mission}", config
 
 
 def list_missions() -> None:
@@ -124,8 +115,8 @@ def list_missions() -> None:
                     map_size,
                 )
     console.print(table)
-    console.print()
-    console.print("To specify a [[bold cyan]MISSION[/bold cyan]], you can:")
+    console.print("\n")
+    console.print("To specify a [bold cyan] -m [MISSION][/bold cyan], you can:")
     console.print("  • Use a mission name from above")
     console.print("  • Use a path to a mission configuration file, e.g. path/to/mission.yaml")
 
