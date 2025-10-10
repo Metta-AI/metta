@@ -93,6 +93,7 @@ def games_cmd(
 @app.command(name="play", help="Play a game")
 def play_cmd(
     ctx: typer.Context,
+    mission_: Optional[str] = typer.Argument(None, hidden=True),
     mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Name of the mission"),
     policy: str = typer.Option("noop", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
     non_interactive: bool = typer.Option(False, "--non-interactive", "-ni", help="Run in non-interactive mode"),
@@ -101,7 +102,7 @@ def play_cmd(
         "gui", "--render", "-r", help="Render mode: 'gui', 'unicode' (interactive terminal), or 'none'"
     ),
 ) -> None:
-    resolved_mission, env_cfg = get_mission_name_and_config(ctx, mission)
+    resolved_mission, env_cfg = get_mission_name_and_config(ctx, mission_ or mission)
     interactive = not non_interactive
     policy_spec = get_policy_spec(ctx, policy)
     console.print(f"[cyan]Playing {resolved_mission}[/cyan]")
@@ -130,6 +131,7 @@ def play_cmd(
 @app.command("make-game", hidden=True)
 def make_mission(
     ctx: typer.Context,
+    base_mission_: Optional[str] = typer.Argument(None, hidden=True),
     base_mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Base mission to start configuring from"),
     num_agents: int = typer.Option(2, "--agents", "-a", help="Number of agents", min=1),
     width: int = typer.Option(10, "--width", "-w", help="Map width", min=1),
@@ -137,7 +139,7 @@ def make_mission(
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (yml or json)"),  # noqa: B008
 ) -> None:
     try:
-        resolved_mission, env_cfg = get_mission_name_and_config(ctx, base_mission)
+        resolved_mission, env_cfg = get_mission_name_and_config(ctx, base_mission_ or base_mission)
 
         # Update map dimensions
         env_cfg.game.map_builder.width = width  # type: ignore[attr-defined]
@@ -161,6 +163,7 @@ def make_mission(
 @app.command(name="train", help="Train a policy on a mission")
 def train_cmd(
     ctx: typer.Context,
+    mission_: Optional[str] = typer.Argument(None, hidden=True),
     missions: Optional[list[str]] = typer.Option(None, "--mission", "-m", help="Missions to train on"),  # noqa B008
     policy: str = typer.Option("simple", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
     checkpoints_path: str = typer.Option(
@@ -196,7 +199,7 @@ def train_cmd(
         min=1,
     ),
 ) -> None:
-    selected_missions = get_mission_names_and_configs(ctx, missions)
+    selected_missions = get_mission_names_and_configs(ctx, [mission_] if mission_ else missions)
     if len(selected_missions) == 1:
         mission_name, env_cfg = selected_missions[0]
         supplier = None
@@ -244,6 +247,7 @@ def train_cmd(
 @app.command("evaluate", hidden=True)
 def evaluate_cmd(
     ctx: typer.Context,
+    mission_: Optional[str] = typer.Argument(None, hidden=True),
     mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Name of the mission"),
     policies: Optional[list[str]] = typer.Option(  # noqa: B008
         None,
@@ -259,7 +263,7 @@ def evaluate_cmd(
         min=1,
     ),
 ) -> None:
-    resolved_mission, env_cfg = get_mission_name_and_config(ctx, mission)
+    resolved_mission, env_cfg = get_mission_name_and_config(ctx, mission_ or mission)
     policy_specs = get_policy_specs(ctx, policies)
 
     console.print(
