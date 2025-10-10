@@ -11,6 +11,7 @@ from typing import Literal, Optional, TypeVar
 
 import typer
 import yaml
+from click.core import ParameterSource
 from packaging.version import Version
 from rich.table import Table
 
@@ -105,6 +106,13 @@ def play_cmd(
     policy_spec = get_policy_spec(ctx, policy)
     console.print(f"[cyan]Playing {resolved_mission}[/cyan]")
     console.print(f"Max Steps: {steps}, Interactive: {interactive}, Render: {render}")
+
+    if ctx.get_parameter_source("steps") in (
+        ParameterSource.COMMANDLINE,
+        ParameterSource.ENVIRONMENT,
+        ParameterSource.PROMPT,
+    ):
+        env_cfg.game.max_steps = steps
 
     play_module.play(
         console,
