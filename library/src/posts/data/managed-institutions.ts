@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db/prisma";
 import { auth } from "@/lib/auth";
 import type {
+  Author,
   Institution,
   InstitutionType,
   Paper,
@@ -107,14 +108,30 @@ type InstitutionWithRelations = Institution & {
             author: { id: string; name: string };
           }
         >;
+        paperInstitutions: Array<{
+          institution: { name: string };
+        }>;
       };
     }
   >;
-  authors: Array<{
-    id: string;
-    name: string;
-    paperAuthors: PaperAuthor[];
-  }>;
+  authors: Array<
+    Author & {
+      paperAuthors: Array<
+        PaperAuthor & {
+          paper: Paper & {
+            paperAuthors: Array<
+              PaperAuthor & {
+                author: { id: string; name: string };
+              }
+            >;
+            paperInstitutions: Array<{
+              institution: { name: string };
+            }>;
+          };
+        }
+      >;
+    }
+  >;
 };
 
 function mapToUnifiedInstitution(
@@ -192,7 +209,7 @@ function mapToUnifiedInstitution(
         name: pa.author.name,
       })),
       institutions:
-        "paperInstitutions" in paper
+        "paperInstitutions" in paper && paper.paperInstitutions
           ? paper.paperInstitutions.map((pi: any) => pi.institution.name)
           : [],
     })),
@@ -304,7 +321,7 @@ export async function loadUserInstitutions(): Promise<UnifiedInstitutionDTO[]> {
   });
 
   return institutions.map((institution) =>
-    mapToUnifiedInstitution(institution, {
+    mapToUnifiedInstitution(institution as InstitutionWithRelations, {
       sessionUserId: session.user?.id,
       includeMembers: true,
     })
@@ -381,7 +398,7 @@ export async function loadAllInstitutions(): Promise<UnifiedInstitutionDTO[]> {
   });
 
   return institutions.map((institution) =>
-    mapToUnifiedInstitution(institution, {
+    mapToUnifiedInstitution(institution as InstitutionWithRelations, {
       sessionUserId: session?.user?.id,
       includeMembers: false,
       includePending: true,
@@ -581,7 +598,7 @@ export async function loadInstitutionByName(
   }
 
   return mapToUnifiedInstitution(
-    { ...institution, authors: authorsForInstitution },
+    { ...institution, authors: authorsForInstitution } as InstitutionWithRelations,
     {
       sessionUserId: session?.user?.id,
       includeMembers: false,
