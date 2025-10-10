@@ -1,15 +1,13 @@
-"""Streaming (chunk-wise) PyTorch kernels for RTUs.
+"""Streaming (chunk-wise) PyTorch kernel for low-rank RTUs.
 
-This module provides a streaming variant that supports processing long
-sequences in chunks while allowing detached hidden states between chunks
-without losing cross-boundary credit assignment. It does so by carrying compact
-forward-mode traces ("eligibility" traces) across subsequences, and adding a
-single boundary correction in the autograd backward using the chunk-head
-adjoint.
+This variant supports processing long sequences in chunks while allowing
+detached hidden states between chunks without losing cross-boundary credit
+assignment. It does so by carrying compact forward-mode traces ("eligibility"
+traces) across subsequences, and adding a single boundary correction in the
+autograd backward using the chunk-head adjoint.
 
-Diagonal input maps (lightweight): ``rtu_sequence_pytorch_streaming_diag``.
-
-Return values: outputs, final state, and ``trace_out``. For streaming, call per
+Public API (functional): ``rtu_sequence_pytorch_streaming``
+Returns outputs, final state, and ``trace_out``. For streaming, call this per
 chunk, detach ``(hc1,hc2)`` and the returned ``trace_out``, and feed both back
 as inputs for the next chunk.
 """
@@ -24,71 +22,82 @@ from torch.autograd import Function
 # Reuse the activation from the baseline kernel to keep parity
 from cortex.kernels.pytorch.rtu import _act_and_deriv
 
-# ------------------------------------------------------------
-# Diagonal input-map streaming RTU (new, lightweight variant)
-# ------------------------------------------------------------
 
-
-def _zeros_like_traces_diag(B: int, H: int, *, device, dtype) -> tuple[torch.Tensor, ...]:
-    """Allocate zero eligibility traces for diagonal streaming.
-
-    Traces carried across chunk boundaries (all [B, H]):
-      - Dynamics: E_nu^{c1}, E_nu^{c2}, E_th^{c1}, E_th^{c2}
-      - Input w1:  E_w1^{c1}, E_w1^{c2}
-      - Input w2:  E_w2^{c1}, E_w2^{c2}
-    """
+# ---- Packing helpers ----
+def _zeros_like_traces(B: int, T: int, D: int, H: int, R: int, *, device, dtype) -> tuple[torch.Tensor, ...]:
+    # Diagonal (nu/theta) traces (B,H)
     E_nu_c1 = torch.zeros(B, H, device=device, dtype=dtype)
     E_nu_c2 = torch.zeros(B, H, device=device, dtype=dtype)
     E_th_c1 = torch.zeros(B, H, device=device, dtype=dtype)
     E_th_c2 = torch.zeros(B, H, device=device, dtype=dtype)
-    E_w1_c1 = torch.zeros(B, H, device=device, dtype=dtype)
-    E_w1_c2 = torch.zeros(B, H, device=device, dtype=dtype)
-    E_w2_c1 = torch.zeros(B, H, device=device, dtype=dtype)
-    E_w2_c2 = torch.zeros(B, H, device=device, dtype=dtype)
+    # U-base traces (B,D,H)
+    A_U1_c1 = torch.zeros(B, D, H, device=device, dtype=dtype)
+    A_U1_c2 = torch.zeros(B, D, H, device=device, dtype=dtype)
+    A_U2_c1 = torch.zeros(B, D, H, device=device, dtype=dtype)
+    A_U2_c2 = torch.zeros(B, D, H, device=device, dtype=dtype)
+    # V traces (B,R,H)
+    C_V1_c1 = torch.zeros(B, R, H, device=device, dtype=dtype)
+    C_V1_c2 = torch.zeros(B, R, H, device=device, dtype=dtype)
+    C_V2_c1 = torch.zeros(B, R, H, device=device, dtype=dtype)
+    C_V2_c2 = torch.zeros(B, R, H, device=device, dtype=dtype)
     return (
         E_nu_c1,
         E_nu_c2,
         E_th_c1,
         E_th_c2,
-        E_w1_c1,
-        E_w1_c2,
-        E_w2_c1,
-        E_w2_c2,
+        A_U1_c1,
+        A_U1_c2,
+        A_U2_c1,
+        A_U2_c2,
+        C_V1_c1,
+        C_V1_c2,
+        C_V2_c1,
+        C_V2_c2,
     )
 
 
-def _unpack_traces_diag(trace: tuple[torch.Tensor, ...]):
+def _unpack_traces(trace: tuple[torch.Tensor, ...]):
     (
         E_nu_c1,
         E_nu_c2,
         E_th_c1,
         E_th_c2,
-        E_w1_c1,
-        E_w1_c2,
-        E_w2_c1,
-        E_w2_c2,
+        A_U1_c1,
+        A_U1_c2,
+        A_U2_c1,
+        A_U2_c2,
+        C_V1_c1,
+        C_V1_c2,
+        C_V2_c1,
+        C_V2_c2,
     ) = trace
     return (
         E_nu_c1,
         E_nu_c2,
         E_th_c1,
         E_th_c2,
-        E_w1_c1,
-        E_w1_c2,
-        E_w2_c1,
-        E_w2_c2,
+        A_U1_c1,
+        A_U1_c2,
+        A_U2_c1,
+        A_U2_c2,
+        C_V1_c1,
+        C_V1_c2,
+        C_V2_c1,
+        C_V2_c2,
     )
 
 
-class _LinearRTUFunctionDiag_Streaming(Function):
+class _LinearRTUFunctionLR_Streaming(Function):
     @staticmethod
     def forward(
         ctx,
         x_btd: torch.Tensor,  # (B,T,D)
         nu_log: torch.Tensor,  # (H,)
         theta_log: torch.Tensor,  # (H,)
-        w1: torch.Tensor,  # (H,)
-        w2: torch.Tensor,  # (H,)
+        U1: torch.Tensor,  # (D,R)
+        U2: torch.Tensor,  # (D,R)
+        V1: torch.Tensor,  # (R,H)
+        V2: torch.Tensor,  # (R,H)
         activation_name: str,
         hc1_init_bh: torch.Tensor,  # (B,H)
         hc2_init_bh: torch.Tensor,  # (B,H)
@@ -97,14 +106,10 @@ class _LinearRTUFunctionDiag_Streaming(Function):
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, tuple[torch.Tensor, ...]]:
         B, T, D = x_btd.shape
         H = nu_log.shape[0]
+        R = U1.shape[1]
 
         device = x_btd.device
         dtype = x_btd.dtype
-
-        if D != H:
-            raise ValueError(f"Diagonal RTU: expected D==H for identity input map, got D={D}, H={H}.")
-        # Identity input map
-        xhat_bth = x_btd
 
         # Decode diagonal dynamics
         r = torch.exp(-torch.exp(nu_log))  # (H,)
@@ -126,11 +131,11 @@ class _LinearRTUFunctionDiag_Streaming(Function):
                 resets_bt = resets_bt.view(B, 1).expand(B, T)
             resets_bt = resets_bt.to(dtype=torch.bool, device=device)
 
-        # Input injections (diagonal per-channel weights)
-        w1_1h = w1.view(1, 1, H)
-        w2_1h = w2.view(1, 1, H)
-        u1_bth = xhat_bth * w1_1h
-        u2_bth = xhat_bth * w2_1h
+        # Projections
+        a1_btr = torch.einsum("btd,dr->btr", x_btd, U1)  # (B,T,R)
+        a2_btr = torch.einsum("btd,dr->btr", x_btd, U2)
+        u1_bth = torch.einsum("btr,rh->bth", a1_btr, V1)  # (B,T,H)
+        u2_bth = torch.einsum("btr,rh->bth", a2_btr, V2)
 
         # Initialize carried traces
         if trace_in is None:
@@ -139,22 +144,30 @@ class _LinearRTUFunctionDiag_Streaming(Function):
                 E_nu_c2,
                 E_th_c1,
                 E_th_c2,
-                E_w1_c1,
-                E_w1_c2,
-                E_w2_c1,
-                E_w2_c2,
-            ) = _zeros_like_traces_diag(B, H, device=device, dtype=dtype)
+                A_U1_c1,
+                A_U1_c2,
+                A_U2_c1,
+                A_U2_c2,
+                C_V1_c1,
+                C_V1_c2,
+                C_V2_c1,
+                C_V2_c2,
+            ) = _zeros_like_traces(B, T, D, H, R, device=device, dtype=dtype)
         else:
             (
                 E_nu_c1,
                 E_nu_c2,
                 E_th_c1,
                 E_th_c2,
-                E_w1_c1,
-                E_w1_c2,
-                E_w2_c1,
-                E_w2_c2,
-            ) = _unpack_traces_diag(trace_in)
+                A_U1_c1,
+                A_U1_c2,
+                A_U2_c1,
+                A_U2_c2,
+                C_V1_c1,
+                C_V1_c2,
+                C_V2_c1,
+                C_V2_c2,
+            ) = _unpack_traces(trace_in)
 
         # Precompute derivatives wrt (nu_log, theta_log) for diag traces
         exp_nu_log = torch.exp(nu_log)
@@ -180,11 +193,16 @@ class _LinearRTUFunctionDiag_Streaming(Function):
         for t in range(T):
             if resets_bt.any():
                 m_b11 = resets_bt[:, t].view(B, 1, 1).to(dtype=dtype)
+                one_minus_b11 = 1.0 - m_b11
                 # Zero traces and states on resets (row-wise)
-                E_w1_c1 = E_w1_c1 * (1.0 - m_b11.view(B, 1))
-                E_w1_c2 = E_w1_c2 * (1.0 - m_b11.view(B, 1))
-                E_w2_c1 = E_w2_c1 * (1.0 - m_b11.view(B, 1))
-                E_w2_c2 = E_w2_c2 * (1.0 - m_b11.view(B, 1))
+                A_U1_c1 = A_U1_c1 * one_minus_b11
+                A_U1_c2 = A_U1_c2 * one_minus_b11
+                A_U2_c1 = A_U2_c1 * one_minus_b11
+                A_U2_c2 = A_U2_c2 * one_minus_b11
+                C_V1_c1 = C_V1_c1 * one_minus_b11
+                C_V1_c2 = C_V1_c2 * one_minus_b11
+                C_V2_c1 = C_V2_c1 * one_minus_b11
+                C_V2_c2 = C_V2_c2 * one_minus_b11
 
                 m_b1 = resets_bt[:, t].view(B, 1).to(dtype=dtype)
                 one_minus_b1 = 1.0 - m_b1
@@ -205,20 +223,37 @@ class _LinearRTUFunctionDiag_Streaming(Function):
             pre2_bth[:, t, :] = c2_t
             hc1, hc2 = c1_t, c2_t
 
-            # Update carried traces
-            xhat_t = xhat_bth[:, t, :]  # (B,H)
+            # Update carried traces (base/compact form)
+            x_t = x_btd[:, t, :]  # (B,D)
+            a1_t = a1_btr[:, t, :]  # (B,R)
+            a2_t = a2_btr[:, t, :]
 
-            # w1 traces (input injected to c1)
-            Ew11, Ew12 = E_w1_c1, E_w1_c2
-            E_w1_c1 = g_1h.squeeze(1) * Ew11 - phi_1h.squeeze(1) * Ew12 + gamma_1h.squeeze(1) * xhat_t
-            E_w1_c2 = g_1h.squeeze(1) * Ew12 + phi_1h.squeeze(1) * Ew11
+            Au11, Au12 = A_U1_c1, A_U1_c2
+            Au21, Au22 = A_U2_c1, A_U2_c2
+            Cv11, Cv12 = C_V1_c1, C_V1_c2
+            Cv21, Cv22 = C_V2_c1, C_V2_c2
 
-            # w2 traces (input injected to c2)
-            Ew21, Ew22 = E_w2_c1, E_w2_c2
-            E_w2_c2 = g_1h.squeeze(1) * Ew22 + phi_1h.squeeze(1) * Ew21 + gamma_1h.squeeze(1) * xhat_t
-            E_w2_c1 = g_1h.squeeze(1) * Ew21 - phi_1h.squeeze(1) * Ew22
+            # U1 base traces (B,D,H)
+            X_bdh = x_t.unsqueeze(-1)  # (B,D,1)
+            A_U1_c1 = g_1h * Au11 - phi_1h * Au12 + gamma_1h * X_bdh
+            A_U1_c2 = g_1h * Au12 + phi_1h * Au11
 
-            # Diagonal parameter traces (nu/theta)
+            # U2 base traces (B,D,H)
+            A_U2_c2 = g_1h * Au22 + phi_1h * Au21 + gamma_1h * X_bdh
+            A_U2_c1 = g_1h * Au21 - phi_1h * Au22
+
+            # V1 traces (B,R,H)
+            A1_br1 = a1_t.unsqueeze(-1)  # (B,R,1)
+            C_V1_c1 = g_1h * Cv11 - phi_1h * Cv12 + gamma_1h * A1_br1
+            C_V1_c2 = g_1h * Cv12 + phi_1h * Cv11
+
+            # V2 traces (B,R,H)
+            A2_br1 = a2_t.unsqueeze(-1)
+            C_V2_c2 = g_1h * Cv22 + phi_1h * Cv21 + gamma_1h * A2_br1
+            C_V2_c1 = g_1h * Cv21 - phi_1h * Cv22
+
+            # Diagonal parameter traces (B,H)
+            # Using previous state before update is correct per RTRL recurrence
             hc1_prev = pre1_bth[:, t - 1, :] if t > 0 else hc1_init_bh
             hc2_prev = pre2_bth[:, t - 1, :] if t > 0 else hc2_init_bh
 
@@ -256,21 +291,27 @@ class _LinearRTUFunctionDiag_Streaming(Function):
             E_nu_c2,
             E_th_c1,
             E_th_c2,
-            E_w1_c1,
-            E_w1_c2,
-            E_w2_c1,
-            E_w2_c2,
+            A_U1_c1,
+            A_U1_c2,
+            A_U2_c1,
+            A_U2_c2,
+            C_V1_c1,
+            C_V1_c2,
+            C_V2_c1,
+            C_V2_c2,
         )
 
         # Save for backward
         if trace_in is None:
-            trace_in = _zeros_like_traces_diag(B, H, device=device, dtype=dtype)
+            trace_in = _zeros_like_traces(B, T, D, H, R, device=device, dtype=dtype)
         ctx.save_for_backward(
             x_btd,
             nu_log,
             theta_log,
-            w1,
-            w2,
+            U1,
+            U2,
+            V1,
+            V2,
             pre1_bth,
             pre2_bth,
             g,
@@ -293,15 +334,17 @@ class _LinearRTUFunctionDiag_Streaming(Function):
         grad_y_btd_2h: torch.Tensor,  # (B,T,2H)
         grad_final_hc1: torch.Tensor,  # unused
         grad_final_hc2: torch.Tensor,  # unused
-        grad_trace_out: Optional[tuple[torch.Tensor, ...]],  # None; no grads through traces
+        grad_trace_out: Optional[tuple[torch.Tensor, ...]],  # None; we don't backprop into traces
     ) -> tuple[Optional[torch.Tensor], ...]:
         saved = ctx.saved_tensors
         (
             x_btd,
             nu_log,
             theta_log,
-            w1,
-            w2,
+            U1,
+            U2,
+            V1,
+            V2,
             pre1_bth,
             pre2_bth,
             g,
@@ -313,10 +356,14 @@ class _LinearRTUFunctionDiag_Streaming(Function):
             E_nu_c2_in,
             E_th_c1_in,
             E_th_c2_in,
-            E_w1_c1_in,
-            E_w1_c2_in,
-            E_w2_c1_in,
-            E_w2_c2_in,
+            A_U1_c1_in,
+            A_U1_c2_in,
+            A_U2_c1_in,
+            A_U2_c2_in,
+            C_V1_c1_in,
+            C_V1_c2_in,
+            C_V2_c1_in,
+            C_V2_c2_in,
             resets_bt,
         ) = saved
         activation_name = ctx.activation_name
@@ -332,14 +379,16 @@ class _LinearRTUFunctionDiag_Streaming(Function):
         eta1 = d1 * gy1
         eta2 = d2 * gy2
 
-        # Precompute direct drives
-        # Identity map: xhat = x
-        xhat_bth = x_btd
+        # Precompute direct drives for diag/gamma contributions
+        a1_btr = torch.einsum("btd,dr->btr", x_btd, U1)
+        a2_btr = torch.einsum("btd,dr->btr", x_btd, U2)
+        u1_bth = torch.einsum("btr,rh->bth", a1_btr, V1)
+        u2_bth = torch.einsum("btr,rh->bth", a2_btr, V2)
 
         # Reverse-time suffix scan for adjoints
         grad_x_btd = torch.zeros_like(x_btd)
-        grad_w1_h = torch.zeros(H, device=x_btd.device, dtype=x_btd.dtype)
-        grad_w2_h = torch.zeros(H, device=x_btd.device, dtype=x_btd.dtype)
+        GW1_DH = torch.zeros(D, H, device=x_btd.device, dtype=x_btd.dtype)
+        GW2_DH = torch.zeros(D, H, device=x_btd.device, dtype=x_btd.dtype)
         # Accumulators for diag gradients in reverse-mode form
         dg_sum = torch.zeros(H, device=x_btd.device, dtype=x_btd.dtype)
         dphi_sum = torch.zeros(H, device=x_btd.device, dtype=x_btd.dtype)
@@ -364,19 +413,19 @@ class _LinearRTUFunctionDiag_Streaming(Function):
                 s1 = d1_t + g_bh * s1_next + phi_bh * s2_next
                 s2 = d2_t + g_bh * s2_next - phi_bh * s1_next
 
+            # Reverse-mode contributions to low-rank and input grads
             s1g = s1 * gamma_bh
             s2g = s2 * gamma_bh
 
-            xhat_t = xhat_bth[:, t, :]
-            # Local param grads for w1/w2
-            grad_w1_h += torch.sum(s1g * xhat_t, dim=0)
-            grad_w2_h += torch.sum(s2g * xhat_t, dim=0)
+            X_t = x_btd[:, t, :]
+            GW1_DH += X_t.t() @ s1g
+            GW2_DH += X_t.t() @ s2g
 
-            # Input gradients
-            grad_xhat_t = s1g * w1.view(1, H) + s2g * w2.view(1, H)  # (B,H)
-            grad_x_btd[:, t, :] += grad_xhat_t
+            tmp1_BR = s1g @ V1.t()
+            tmp2_BR = s2g @ V2.t()
+            grad_x_btd[:, t, :] += tmp1_BR @ U1.t() + tmp2_BR @ U2.t()
 
-            # Diagonal grads accumulators using c_prev and u_t
+            # Reverse-mode contributions to diag grads using c_prev and u_t
             if t == 0:
                 cprev1 = hc1_init_bh
                 cprev2 = hc2_init_bh
@@ -389,12 +438,9 @@ class _LinearRTUFunctionDiag_Streaming(Function):
                 cprev1 = cprev1 * one_minus
                 cprev2 = cprev2 * one_minus
 
-            u1_t = xhat_t * w1.view(1, H)
-            u2_t = xhat_t * w2.view(1, H)
-
             dg_sum += torch.sum(s1 * cprev1 + s2 * cprev2, dim=0)
             dphi_sum += torch.sum(-s1 * cprev2 + s2 * cprev1, dim=0)
-            dgamma_sum += torch.sum(s1 * u1_t + s2 * u2_t, dim=0)
+            dgamma_sum += torch.sum(s1 * u1_bth[:, t, :] + s2 * u2_bth[:, t, :], dim=0)
 
             s1_next, s2_next = s1, s2
 
@@ -408,7 +454,12 @@ class _LinearRTUFunctionDiag_Streaming(Function):
             lam_prev_c1 = lam_prev_c1 * head_mask
             lam_prev_c2 = lam_prev_c2 * head_mask
 
-        # Diagonal dynamics parameter grads via reverse-mode accumulators
+        # Low-rank parameter grads (local)
+        grad_U1_DR = GW1_DH @ V1.t()
+        grad_U2_DR = GW2_DH @ V2.t()
+        grad_V1_RH = U1.t() @ GW1_DH
+        grad_V2_RH = U2.t() @ GW2_DH
+        # Diagonal parameter grads via reverse-mode accumulators
         exp_nu_log = torch.exp(nu_log)
         exp_th_log = torch.exp(theta_log)
         r_val = torch.exp(-torch.exp(nu_log))
@@ -416,79 +467,83 @@ class _LinearRTUFunctionDiag_Streaming(Function):
         grad_nu_log_h = -exp_nu_log * (dg_sum * g + dphi_sum * phi) + exp_nu_log * (r_val * r_val / gamma_) * dgamma_sum
         grad_theta_log_h = exp_th_log * (-dg_sum * phi + dphi_sum * g)
 
-        # ---- Boundary corrections ----
-        # Add cross-chunk boundary terms for parameters whose effects prior to
-        # the chunk head influence the chunk via the carried state. For diagonal
-        # input weights (w1, w2), the parameter appears at every timestep; the
-        # local per-timestep gradient uses the reverse-time suffix s_t, but when
-        # chunking we detach the state at the head, which removes the influence
-        # of pre-chunk injections on post-chunk losses. We restore that missing
-        # contribution with a single boundary addition using the carried-in
-        # traces and the head-adjoint at the previous state.
-        grad_w1_h = grad_w1_h + torch.sum(
-            lam_prev_c1 * E_w1_c1_in + lam_prev_c2 * E_w1_c2_in,
+        # ---- Boundary corrections using carried-in traces ----
+        # U1 correction (B,D,H) -> (D,H) -> (D,R)
+        S_U1_DH = torch.sum(
+            A_U1_c1_in * lam_prev_c1.unsqueeze(1) + A_U1_c2_in * lam_prev_c2.unsqueeze(1),
             dim=0,
         )
-        grad_w2_h = grad_w2_h + torch.sum(
-            lam_prev_c1 * E_w2_c1_in + lam_prev_c2 * E_w2_c2_in,
+        grad_U1_DR = grad_U1_DR + S_U1_DH @ V1.t()
+
+        # U2
+        S_U2_DH = torch.sum(
+            A_U2_c1_in * lam_prev_c1.unsqueeze(1) + A_U2_c2_in * lam_prev_c2.unsqueeze(1),
+            dim=0,
+        )
+        grad_U2_DR = grad_U2_DR + S_U2_DH @ V2.t()
+
+        # V1, V2 corrections
+        grad_V1_RH = grad_V1_RH + torch.sum(
+            C_V1_c1_in * lam_prev_c1.unsqueeze(1) + C_V1_c2_in * lam_prev_c2.unsqueeze(1),
+            dim=0,
+        )
+        grad_V2_RH = grad_V2_RH + torch.sum(
+            C_V2_c1_in * lam_prev_c1.unsqueeze(1) + C_V2_c2_in * lam_prev_c2.unsqueeze(1),
             dim=0,
         )
 
+        # Diagonal corrections
         grad_nu_log_h = grad_nu_log_h + torch.sum(lam_prev_c1 * E_nu_c1_in + lam_prev_c2 * E_nu_c2_in, dim=0)
         grad_theta_log_h = grad_theta_log_h + torch.sum(lam_prev_c1 * E_th_c1_in + lam_prev_c2 * E_th_c2_in, dim=0)
 
         # Initial-state grads (to enable gradient flow across chunks if not detached)
-        grad_hc1_init = lam_prev_c1
-        grad_hc2_init = lam_prev_c2
+        grad_hc1_init = lambda0_c1
+        grad_hc2_init = lambda0_c2
 
-        # No grads for activation name, P, trace_in, resets
         return (
-            grad_x_btd,  # x
-            grad_nu_log_h,  # nu_log
-            grad_theta_log_h,  # theta_log
-            grad_w1_h,  # w1
-            grad_w2_h,  # w2
+            grad_x_btd,
+            grad_nu_log_h,
+            grad_theta_log_h,
+            grad_U1_DR,
+            grad_U2_DR,
+            grad_V1_RH,
+            grad_V2_RH,
             None,  # activation_name
             grad_hc1_init,
             grad_hc2_init,
-            None,  # trace_in
+            None,  # trace_in (no grad)
             None,  # resets
         )
 
 
-def rtu_sequence_pytorch_streaming_diag(
+def rtu_sequence_pytorch_streaming(
     *,
     x_btd: torch.Tensor,
     nu_log: torch.Tensor,
     theta_log: torch.Tensor,
-    w1: torch.Tensor,
-    w2: torch.Tensor,
+    U1: torch.Tensor,
+    U2: torch.Tensor,
+    V1: torch.Tensor,
+    V2: torch.Tensor,
     activation_name: str,
     hc1_init_bh: torch.Tensor,
     hc2_init_bh: torch.Tensor,
     trace_in: Optional[tuple[torch.Tensor, ...]] = None,
     resets_bt: Optional[torch.Tensor] = None,
 ) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor], tuple[torch.Tensor, ...]]:
-    """Streaming functional RTU (diagonal input maps) that carries traces across chunks.
-
-    Args:
-        x_btd: [B, T, D] input (assumes D == H; identity input map)
-        nu_log, theta_log: dynamics parameters [H]
-        w1, w2: per-channel input weights [H]
-        activation_name: e.g., "SiLU"
-        hc1_init_bh, hc2_init_bh: initial states [B, H]
-        trace_in: optional carried traces (E_*) as returned previously
-        resets_bt: optional reset mask [B, T] or [B]
+    """Streaming functional RTU (PyTorch) that carries compact traces across chunks.
 
     Returns:
         y_btd_2h, (final_hc1_bh, final_hc2_bh), trace_out
     """
-    y, h1, h2, trace_out = _LinearRTUFunctionDiag_Streaming.apply(
+    y, h1, h2, trace_out = _LinearRTUFunctionLR_Streaming.apply(
         x_btd,
         nu_log,
         theta_log,
-        w1,
-        w2,
+        U1,
+        U2,
+        V1,
+        V2,
         activation_name,
         hc1_init_bh,
         hc2_init_bh,
@@ -498,4 +553,4 @@ def rtu_sequence_pytorch_streaming_diag(
     return y, (h1, h2), trace_out
 
 
-__all__ = ["rtu_sequence_pytorch_streaming_diag"]
+__all__ = ["rtu_sequence_pytorch_streaming"]
