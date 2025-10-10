@@ -75,8 +75,8 @@ class RTUCellConfig(CellConfig):
     max_phase: float = Field(default=6.28)
 
 
-class RTUStreamCellConfig(CellConfig):
-    """Configuration for the streaming RTU cell (diagonal input weights).
+class AxonsConfig(CellConfig):
+    """Configuration for the Axons cell (streaming RTU, diagonal input weights).
 
     This variant assumes D == H (identity input map) and uses per-channel
     diagonal input weights (w1, w2). The kernel returns a 2H activation that
@@ -154,7 +154,7 @@ __all__ = [
     "LSTMCellConfig",
     "mLSTMCellConfig",
     "sLSTMCellConfig",
-    "RTUStreamCellConfig",
+    "AxonsConfig",
     "BlockConfig",
     "PassThroughBlockConfig",
     "PreUpBlockConfig",

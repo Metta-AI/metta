@@ -8,7 +8,7 @@ from typing import Callable, Dict, Tuple
 
 import torch
 import torch.nn as nn
-from cortex.cells.rtu_stream import RTUStreamCell  # runtime type check for gating
+from cortex.cells.axons import Axons  # runtime type check for gating
 from cortex.stacks import CortexStack
 from model import SequenceClassifier
 from stacks import STACKS, StackSpec
@@ -114,11 +114,11 @@ def train_one(
     criterion = nn.CrossEntropyLoss()
 
     def _stack_uses_rtu_stream(s: CortexStack) -> bool:
-        """Return True if any block in the stack uses RTUStreamCell."""
+        """Return True if any block in the stack uses Axons (RTU stream)."""
         for blk in s.blocks:
             # Adapter blocks wrap another block; in our templates we use PreUp directly
             cell = getattr(blk, "cell", None)
-            if isinstance(cell, RTUStreamCell):
+            if isinstance(cell, Axons):
                 return True
         return False
 
@@ -144,10 +144,10 @@ def train_one(
                 bstate = None
             if bstate is None or not hasattr(bstate, "keys"):
                 continue
-            # RTUStreamCell state (if present) lives under this key
-            if "RTUStreamCell" in bstate.keys():
+            # Axons state (if present) lives under this key
+            if "Axons" in bstate.keys():
                 try:
-                    cstate = bstate.get("RTUStreamCell")
+                    cstate = bstate.get("Axons")
                 except Exception:
                     cstate = None
                 if cstate is None or not hasattr(cstate, "keys"):

@@ -7,7 +7,7 @@ forward-mode traces ("eligibility" traces) across subsequences, and adding a
 single boundary correction in the autograd backward using the chunk-head
 adjoint.
 
-Diagonal input maps (lightweight): ``rtu_sequence_pytorch_streaming_diag``.
+Diagonal input maps (lightweight): ``rtu_stream_diag_pytorch``.
 
 Return values: outputs, final state, and ``trace_out``. For streaming, call per
 chunk, detach ``(hc1,hc2)`` and the returned ``trace_out``, and feed both back
@@ -456,7 +456,7 @@ class _LinearRTUFunctionDiag_Streaming(Function):
         )
 
 
-def rtu_sequence_pytorch_streaming_diag(
+def rtu_stream_diag_pytorch(
     *,
     x_btd: torch.Tensor,
     nu_log: torch.Tensor,
@@ -498,4 +498,4 @@ def rtu_sequence_pytorch_streaming_diag(
     return y, (h1, h2), trace_out
 
 
-__all__ = ["rtu_sequence_pytorch_streaming_diag"]
+__all__ = ["rtu_stream_diag_pytorch"]

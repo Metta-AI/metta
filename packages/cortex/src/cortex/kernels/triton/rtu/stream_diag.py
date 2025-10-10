@@ -7,6 +7,7 @@ from torch.autograd import Function
 
 try:
     import triton as _triton  # type: ignore  # noqa: F401
+
     _TRITON_AVAILABLE = True
 except Exception:  # pragma: no cover
     _TRITON_AVAILABLE = False
@@ -151,12 +152,8 @@ class _RTUStreamDiagFunction(Function):
         ):
             g_bht_local = g.view(1, H).expand(B, H).unsqueeze(-1).expand(B, H, T).contiguous()
             p_bht_local = phi.view(1, H).expand(B, H).unsqueeze(-1).expand(B, H, T).contiguous()
-            jg_bht = (
-                jg_param.view(1, H).expand(B, H).unsqueeze(-1).expand(B, H, T).contiguous()
-            )
-            jp_bht = (
-                jp_param.view(1, H).expand(B, H).unsqueeze(-1).expand(B, H, T).contiguous()
-            )
+            jg_bht = jg_param.view(1, H).expand(B, H).unsqueeze(-1).expand(B, H, T).contiguous()
+            jp_bht = jp_param.view(1, H).expand(B, H).unsqueeze(-1).expand(B, H, T).contiguous()
             Be_x = Bex_inj.permute(0, 2, 1).contiguous()
             Be_y = Bey_inj.permute(0, 2, 1).contiguous()
 
@@ -342,9 +339,9 @@ class _RTUStreamDiagFunction(Function):
         g = r_val * torch.cos(torch.exp(theta_log))
         phi = r_val * torch.sin(torch.exp(theta_log))
         gamma = torch.sqrt(torch.clamp(1.0 - r_val * r_val, min=0.0))
-        grad_nu_log_h = -exp_nu_log * (dg_sum * g + dphi_sum * phi) + exp_nu_log * (
-            r_val * r_val / sqrt_1_minus_r2
-        ) * dgamma_sum
+        grad_nu_log_h = (
+            -exp_nu_log * (dg_sum * g + dphi_sum * phi) + exp_nu_log * (r_val * r_val / sqrt_1_minus_r2) * dgamma_sum
+        )
         grad_theta_log_h = exp_th_log * (-dg_sum * phi + dphi_sum * g)
 
         lambda0_c1 = lam1_bth[:, 0, :] if T > 0 else torch.zeros(B, H, device=x_btd.device, dtype=x_btd.dtype)
@@ -406,5 +403,6 @@ def rtu_stream_diag_triton(
         resets_bt,
     )
     return y, (h1, h2), trace_out
+
 
 __all__ = ["rtu_stream_diag_triton"]
