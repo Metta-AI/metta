@@ -39,7 +39,22 @@ def create_optimizer(cfg: OptimizerConfig, policy: Policy) -> torch.optim.Optimi
             weight_decay=cfg.weight_decay,
             warmup_steps=cfg.warmup_steps,
         )
-
+    elif optimizer_type == "adam_schedulefree":
+        optimizer = schedulefree.AdamScheduleFree(
+            policy.parameters(),
+            lr=cfg.learning_rate,
+            betas=(cfg.beta1, cfg.beta2),
+            eps=cfg.eps,
+            warmup_steps=cfg.warmup_steps,
+        )
+    elif optimizer_type == "sgd_schedulefree":
+        optimizer = schedulefree.SGDScheduleFree(
+            policy.parameters(),
+            lr=cfg.learning_rate,
+            momentum=cfg.momentum,
+            weight_decay=cfg.weight_decay,
+            warmup_steps=cfg.warmup_steps,
+        )
     else:
         raise ValueError(f"Optimizer type must be one of 'adam', 'muon', 'adamw_schedulefree', got {optimizer_type}")
 
