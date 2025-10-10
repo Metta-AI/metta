@@ -14,9 +14,9 @@
 
 #include "core/grid.hpp"
 #include "core/grid_object.hpp"
+#include "core/types.hpp"
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
-#include "core/types.hpp"
 
 struct ActionConfig {
   std::map<InventoryItem, InventoryQuantity> required_resources;
@@ -42,17 +42,15 @@ public:
     // Validate consumed_resources values are non-negative and finite
     for (const auto& [item, probability] : _consumed_resources) {
       if (!std::isfinite(probability) || probability < 0.0f) {
-        throw std::runtime_error(
-            "Consumed resources must be non-negative and finite. Item: " +
-            std::to_string(item) + " has invalid value: " + std::to_string(probability));
+        throw std::runtime_error("Consumed resources must be non-negative and finite. Item: " + std::to_string(item) +
+                                 " has invalid value: " + std::to_string(probability));
       }
 
       // Guard against overflow when casting to uint8_t
       float ceiled = std::ceil(probability);
       if (ceiled > 255.0f) {
-        throw std::runtime_error(
-            "Consumed resources ceiling exceeds uint8_t max (255). Item: " +
-            std::to_string(item) + " has ceiling: " + std::to_string(ceiled));
+        throw std::runtime_error("Consumed resources ceiling exceeds uint8_t max (255). Item: " + std::to_string(item) +
+                                 " has ceiling: " + std::to_string(ceiled));
       }
     }
 
@@ -60,18 +58,15 @@ public:
     for (const auto& [item, probability] : _consumed_resources) {
       auto required_it = _required_resources.find(item);
       if (required_it == _required_resources.end()) {
-        throw std::runtime_error(
-            "Consumed resource item " + std::to_string(item) +
-            " not found in required resources");
+        throw std::runtime_error("Consumed resource item " + std::to_string(item) + " not found in required resources");
       }
 
       // Validate required >= ceil(consumed)
       InventoryQuantity max_consumption = static_cast<InventoryQuantity>(std::ceil(probability));
       if (required_it->second < max_consumption) {
-        throw std::runtime_error(
-            "Required resources must be >= ceil(consumed resources). Item: " +
-            std::to_string(item) + " required: " + std::to_string(required_it->second) +
-            " < ceil(consumed): " + std::to_string(max_consumption));
+        throw std::runtime_error("Required resources must be >= ceil(consumed resources). Item: " +
+                                 std::to_string(item) + " required: " + std::to_string(required_it->second) +
+                                 " < ceil(consumed): " + std::to_string(max_consumption));
       }
     }
   }
@@ -83,22 +78,20 @@ public:
     _rng = rng;
   }
 
-  bool handle_action(GridObjectId actor_object_id, ActionArg arg) {
-    Agent* actor = static_cast<Agent*>(_grid->object(actor_object_id));
-
+  bool handle_action(Agent& actor, ActionArg arg) {
     // Handle frozen status
-    if (actor->frozen != 0) {
-      actor->stats.incr("status.frozen.ticks");
-      actor->stats.incr("status.frozen.ticks." + actor->group_name);
-      if (actor->frozen > 0) {
-        actor->frozen -= 1;
+    if (actor.frozen != 0) {
+      actor.stats.incr("status.frozen.ticks");
+      actor.stats.incr("status.frozen.ticks." + actor.group_name);
+      if (actor.frozen > 0) {
+        actor.frozen -= 1;
       }
       return false;
     }
 
     bool has_needed_resources = true;
     for (const auto& [item, amount] : _required_resources) {
-      if (actor->inventory[item] < amount) {
+      if (actor.inventory.amount(item) < amount) {
         has_needed_resources = false;
         break;
       }
@@ -109,35 +102,35 @@ public:
 
     // The intention here is to provide a metric that reports when an agent has stayed in one location for a long
     // period, perhaps spinning in circles. We think this could be a good indicator that a policy has collapsed.
-    if (actor->location == actor->prev_location) {
-      actor->steps_without_motion += 1;
-      if (actor->steps_without_motion > actor->stats.get("status.max_steps_without_motion")) {
-        actor->stats.set("status.max_steps_without_motion", actor->steps_without_motion);
+    if (actor.location == actor.prev_location) {
+      actor.steps_without_motion += 1;
+      if (actor.steps_without_motion > actor.stats.get("status.max_steps_without_motion")) {
+        actor.stats.set("status.max_steps_without_motion", actor.steps_without_motion);
       }
     } else {
-      actor->steps_without_motion = 0;
+      actor.steps_without_motion = 0;
     }
 
     // Update tracking for this agent
-    actor->prev_action_name = _action_name;
-    actor->prev_location = actor->location;
+    actor.prev_action_name = _action_name;
+    actor.prev_location = actor.location;
 
     // Track success/failure
     if (success) {
-      actor->stats.incr("action." + _action_name + ".success");
+      actor.stats.incr("action." + _action_name + ".success");
       for (const auto& [item, amount] : _consumed_resources) {
         InventoryDelta delta = compute_probabilistic_delta(-amount);
         if (delta != 0) {
-          [[maybe_unused]] InventoryDelta actual_delta = actor->update_inventory(item, delta);
+          [[maybe_unused]] InventoryDelta actual_delta = actor.update_inventory(item, delta);
           // We consume resources after the action succeeds, but in the future we might have an action that uses the
           // resource. This check will catch that.
           assert(actual_delta == delta);
         }
       }
     } else {
-      actor->stats.incr("action." + _action_name + ".failed");
-      actor->stats.incr("action.failure_penalty");
-      *actor->reward -= actor->action_failure_penalty;
+      actor.stats.incr("action." + _action_name + ".failed");
+      actor.stats.incr("action.failure_penalty");
+      *actor.reward -= actor.action_failure_penalty;
     }
 
     return success;
@@ -151,13 +144,19 @@ public:
     return _action_name;
   }
 
+  virtual std::string variant_name(ActionArg arg) const {
+    if (max_arg() == 0) {
+      return _action_name;
+    }
+    return _action_name + "_" + std::to_string(static_cast<int>(arg));
+  }
+
 protected:
-  virtual bool _handle_action(Agent* actor, ActionArg arg) = 0;
+  virtual bool _handle_action(Agent& actor, ActionArg arg) = 0;
 
   InventoryDelta compute_probabilistic_delta(InventoryProbability amount) const {
     if (_rng == nullptr) {
-      throw std::runtime_error(
-          "RNG not initialized. Call init() before using compute_probabilistic_delta");
+      throw std::runtime_error("RNG not initialized. Call init() before using compute_probabilistic_delta");
     }
     InventoryProbability magnitude = std::fabs(amount);
     InventoryQuantity integer_part = static_cast<InventoryQuantity>(std::floor(magnitude));

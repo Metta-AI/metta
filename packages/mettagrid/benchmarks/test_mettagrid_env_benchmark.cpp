@@ -55,38 +55,13 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
   actions_cfg.push_back({"swap", action_cfg});
   actions_cfg.push_back({"put_items", action_cfg});
   actions_cfg.push_back({"get_items", action_cfg});
-  actions_cfg.push_back({"change_color", action_cfg});
   actions_cfg.push_back({"change_glyph", change_glyph_cfg});
 
   std::map<std::string, std::shared_ptr<GridObjectConfig>> objects_cfg;
 
   objects_cfg["wall"] = std::make_shared<WallConfig>(1, "wall", false);
-  objects_cfg["agent.team1"] = std::make_shared<AgentConfig>(0,
-                                                             "agent",
-                                                             0,
-                                                             "team1",
-                                                             0,
-                                                             0.0f,
-                                                             std::map<InventoryItem, InventoryQuantity>(),
-                                                             std::map<InventoryItem, RewardType>(),
-                                                             std::map<InventoryItem, RewardType>(),
-                                                             std::map<std::string, RewardType>(),
-                                                             std::map<std::string, RewardType>(),
-                                                             0.0f,
-                                                             std::map<InventoryItem, InventoryQuantity>());
-  objects_cfg["agent.team2"] = std::make_shared<AgentConfig>(0,
-                                                             "agent",
-                                                             1,
-                                                             "team2",
-                                                             0,
-                                                             0.0f,
-                                                             std::map<InventoryItem, InventoryQuantity>(),
-                                                             std::map<InventoryItem, RewardType>(),
-                                                             std::map<InventoryItem, RewardType>(),
-                                                             std::map<std::string, RewardType>(),
-                                                             std::map<std::string, RewardType>(),
-                                                             0.0f,
-                                                             std::map<InventoryItem, InventoryQuantity>());
+  objects_cfg["agent.team1"] = std::make_shared<AgentConfig>(0, "agent", 0, "team1");
+  objects_cfg["agent.team2"] = std::make_shared<AgentConfig>(0, "agent", 1, "team2");
 
   // Create default global observation config
   GlobalObsConfig global_obs_config;

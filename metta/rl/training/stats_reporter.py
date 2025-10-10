@@ -16,7 +16,7 @@ from metta.eval.eval_request_config import EvalRewardSummary
 from metta.rl.stats import accumulate_rollout_stats, compute_timing_stats, process_training_stats
 from metta.rl.training.component import TrainerComponent
 from metta.rl.utils import should_run
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -272,12 +272,6 @@ class StatsReporter(TrainerComponent):
                 self._wandb_run.log(payload, step=agent_step)
 
             self._latest_payload = payload.copy() if payload else None
-
-            if payload and self._stats_client and self._config.report_to_stats_client:
-                run_id = self._state.stats_run_id
-                if run_id is not None:
-                    attributes: dict[str, Any] = {"metrics": payload, "agent_step": agent_step}
-                    self.create_epoch(run_id, epoch, epoch, attributes=attributes)
 
             # Clear stats after processing
             self.clear_rollout_stats()
@@ -539,7 +533,6 @@ class StatsReporter(TrainerComponent):
             "learning_rate": learning_rate,
             "epoch_steps": timing_info.get("epoch_steps", 0),
             "num_minibatches": getattr(experience, "num_minibatches", 0),
-            "latest_saved_policy_epoch": getattr(self.context.state, "latest_saved_policy_epoch", 0),
         }
         return parameters
 

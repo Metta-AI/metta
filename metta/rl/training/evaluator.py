@@ -20,7 +20,7 @@ from metta.rl.evaluate import (
 from metta.rl.training import TrainerComponent
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -265,9 +265,9 @@ class Evaluator(TrainerComponent):
 
         stats_epoch_id = stats_reporter.create_epoch(
             stats_run_id,  # Now the type checker knows this is not None
+            epoch,  # Technically this is wrong, but we're not actually using this field
             epoch,
-            epoch,
-            attributes={"source": "evaluation"},
+            attributes={"source": "evaluation", "agent_step": self.context.agent_step},
         )
 
         scores = self.evaluate(

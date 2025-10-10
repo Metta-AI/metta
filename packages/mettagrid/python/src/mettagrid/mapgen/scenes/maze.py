@@ -3,10 +3,9 @@ from typing import Literal, TypeAlias, Union
 
 import numpy as np
 
-from mettagrid.config.config import Config
+from mettagrid.map_builder import MapGrid
 from mettagrid.mapgen.random.int import IntConstantDistribution, IntDistribution
-from mettagrid.mapgen.scene import Scene
-from mettagrid.mapgen.types import MapGrid
+from mettagrid.mapgen.scene import Scene, SceneConfig
 
 Anchor = Union[
     Literal["top-left"],
@@ -100,13 +99,13 @@ class MazeGrid:
             self.grid[y : y + self.wall_size, :] = "wall"
 
 
-class MazeParams(Config):
+class MazeConfig(SceneConfig):
     algorithm: Literal["kruskal", "dfs"] = "kruskal"
     room_size: IntDistribution = IntConstantDistribution(value=1)
     wall_size: IntDistribution = IntConstantDistribution(value=1)
 
 
-class Maze(Scene[MazeParams]):
+class Maze(Scene[MazeConfig]):
     """
     Maze generation scene.
 
@@ -136,8 +135,11 @@ class Maze(Scene[MazeParams]):
 
     def post_init(self):
         # Calculate number of maze cells and adjust overall dimensions.
-        room_size = self.params.room_size.sample(self.rng)
-        wall_size = self.params.wall_size.sample(self.rng)
+        sampled_room_size = self.config.room_size.sample(self.rng)
+        room_size = max(1, min(sampled_room_size, self.width, self.height))
+
+        sampled_wall_size = self.config.wall_size.sample(self.rng)
+        wall_size = max(1, sampled_wall_size)
 
         self.maze = MazeGrid(self.grid, room_size, wall_size)
 
@@ -199,12 +201,12 @@ class Maze(Scene[MazeParams]):
         carve_passages_from(0, 0)
 
     def render(self):
-        if self.params.algorithm == "kruskal":
+        if self.config.algorithm == "kruskal":
             self._render_kruskal()
-        elif self.params.algorithm == "dfs":
+        elif self.config.algorithm == "dfs":
             self._render_dfs()
         else:
-            raise ValueError(f"Unknown algorithm: {self.params.algorithm}")
+            raise ValueError(f"Unknown algorithm: {self.config.algorithm}")
 
         for anchor in ALL_ANCHORS:
             i, j = anchor_to_position(anchor, self.maze.cols, self.maze.rows)

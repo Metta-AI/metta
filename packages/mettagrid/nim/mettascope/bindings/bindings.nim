@@ -1,19 +1,33 @@
 import
   genny, fidget2, openGL, jsony, vmath,
-  ../src/mettascope, ../src/mettascope/[replays, common, worldmap]
+  ../src/mettascope, ../src/mettascope/[replays, common, worldmap, timeline,
+  envconfig]
 
 type
-  RenderResponse* = object
+  ActionRequest* = object
+    agentId*: int
+    actionId*: int
+    argument*: int
+
+  RenderResponse* = ref object
     shouldClose*: bool
-    action*: bool
-    actionAgentId*: int
-    actionActionId*: int
-    actionArgument*: int
+    actions*: seq[ActionRequest]
+
+proc ctrlCHandler() {.noconv.} =
+  ## Handle ctrl-c signal to exit cleanly.
+  echo "\nNim DLL caught ctrl-c, exiting..."
+  if not window.isNil:
+    window.close()
+  quit(0)
+
 
 proc init(dataDir: string, replay: string): RenderResponse =
   try:
+    setControlCHook(ctrlCHandler)
+    result = RenderResponse(shouldClose: false, actions: @[])
     #echo "Replay from python: ", replay
     echo "Data dir: ", dataDir
+    playMode = Realtime
     initFidget(
       figmaUrl = "https://www.figma.com/design/hHmLTy7slXTOej6opPqWpz/MetaScope-V2-Rig",
       windowTitle = "MetaScope V2",
@@ -21,8 +35,8 @@ proc init(dataDir: string, replay: string): RenderResponse =
       windowStyle = DecoratedResizable,
       dataDir = dataDir
     )
-    buildAtlas()
     common.replay = loadReplayString(replay, "MettaScope")
+    updateEnvConfig()
     return
   except Exception:
     echo "############ Error initializing Mettascope #################"
@@ -38,7 +52,10 @@ proc render(currentStep: int, replayStep: string): RenderResponse =
     common.replay.apply(replayStep)
     step = currentStep
     stepFloat = currentStep.float32
+    previousStep = currentStep
+    onStepChanged()
     requestPython = false
+    result = RenderResponse(shouldClose: false, actions: @[])
     while true:
       if window.closeRequested:
         window.close()
@@ -46,18 +63,15 @@ proc render(currentStep: int, replayStep: string): RenderResponse =
         return
       mainLoop()
       if requestPython:
-        if requestAction:
-          result.action = true
-          result.actionAgentId = requestActionAgentId
-          result.actionActionId = requestActionActionId
-          result.actionArgument = requestActionArgument
-          requestAction = false
-          requestActionAgentId = 0
-          requestActionActionId = 0
-          requestActionArgument = 0
-          return
-        else:
-          return
+        onRequestPython()
+        for action in requestActions:
+          result.actions.add(ActionRequest(
+            agentId: action.agentId,
+            actionId: action.actionId,
+            argument: action.argument
+          ))
+        requestActions.setLen(0)
+        return
   except Exception:
     echo "############## Error rendering Mettascope ##################"
     echo getCurrentException().getStackTrace()
@@ -66,8 +80,13 @@ proc render(currentStep: int, replayStep: string): RenderResponse =
     result.shouldClose = true
     return
 
-exportObject RenderResponse:
+exportObject ActionRequest:
   discard
+
+exportRefObject RenderResponse:
+  fields:
+    shouldClose
+    actions
 
 exportProcs:
   init

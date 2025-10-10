@@ -27,6 +27,8 @@ from setuptools.dist import Distribution
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 METTASCOPE_DIR = PROJECT_ROOT / "nim" / "mettascope"
+PYTHON_PACKAGE_DIR = PROJECT_ROOT / "python" / "src" / "mettagrid"
+METTASCOPE_PACKAGE_DIR = PYTHON_PACKAGE_DIR / "nim" / "mettascope"
 
 
 def _run_bazel_build() -> None:
@@ -47,9 +49,26 @@ def _run_bazel_build() -> None:
     else:
         config = "dbg" if debug else "opt"
 
+    # Align Bazel's registered Python toolchain with the active interpreter.
+    py_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+
+    env = os.environ.copy()
+    env.setdefault("METTAGRID_BAZEL_PYTHON_VERSION", py_version)
+
+    # Provide a writable output root for environments with restricted /var/tmp access.
+    output_user_root = env.get(
+        "METTAGRID_BAZEL_OUTPUT_ROOT",
+        str(PROJECT_ROOT / ".bazel_output"),
+    )
+
+    # Ensure the output root exists before invoking Bazel.
+    Path(output_user_root).mkdir(parents=True, exist_ok=True)
+
     # Build the Python extension with auto-detected parallelism
     cmd = [
         "bazel",
+        "--batch",
+        f"--output_user_root={output_user_root}",
         "build",
         f"--config={config}",
         "--jobs=auto",
@@ -58,7 +77,7 @@ def _run_bazel_build() -> None:
     ]
 
     print(f"Running Bazel build: {' '.join(cmd)}")
-    result = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True)
+    result = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True, env=env)
 
     if result.returncode != 0:
         print("Bazel build failed. STDERR:", file=sys.stderr)
@@ -108,43 +127,89 @@ def _run_bazel_build() -> None:
             print(f"Copied {extension_file} to {dest}")
 
 
-def _run_mettascope_build() -> None:
-    """Run mettascope build script to compile the Nim library."""
-    build_script = METTASCOPE_DIR / "build.sh"
+def _nim_artifacts_up_to_date() -> bool:
+    """Check whether Nim outputs are still current."""
 
-    if not build_script.exists():
-        print(f"Warning: Mettascope build script not found at {build_script}")
+    force_rebuild = os.environ.get("METTAGRID_FORCE_NIM_BUILD", "").lower() in {"1", "true", "yes"}
+    if force_rebuild:
+        return False
+
+    generated_dir = METTASCOPE_DIR / "bindings" / "generated"
+    if not generated_dir.exists():
+        return False
+
+    existing_outputs = {
+        generated_dir / name
+        for name in (
+            "mettascope2.py",
+            "libmettascope2.dylib",
+            "libmettascope2.so",
+            "libmettascope2.dll",
+        )
+        if (generated_dir / name).exists()
+    }
+    if not existing_outputs:
+        return False
+
+    source_files = [path for pattern in ("*.nim", "*.nims") for path in METTASCOPE_DIR.rglob(pattern) if path.is_file()]
+    if not source_files:
+        return False
+
+    latest_source_mtime = max(path.stat().st_mtime for path in source_files)
+    oldest_output_mtime = min(path.stat().st_mtime for path in existing_outputs)
+
+    return oldest_output_mtime >= latest_source_mtime
+
+
+def _sync_mettascope_package_data() -> None:
+    """Ensure Nim artifacts are vendored inside the Python package."""
+
+    destination_root = METTASCOPE_PACKAGE_DIR
+    destination_root.parent.mkdir(parents=True, exist_ok=True)
+
+    if destination_root.exists():
+        shutil.rmtree(destination_root)
+
+    shutil.copytree(
+        METTASCOPE_DIR,
+        destination_root,
+        dirs_exist_ok=True,
+        ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "nimbledeps", "dist", "build"),
+    )
+
+
+def _run_mettascope_build() -> None:
+    """Build Nim artifacts when cache misses."""
+
+    if _nim_artifacts_up_to_date():
+        print("Skipping Nim build; artifacts up to date.")
+        _sync_mettascope_package_data()
         return
 
     # Check if nim and nimble are available
     if shutil.which("nim") is None:
         print("Warning: Nim compiler not found. Skipping mettascope build.")
         print("To build mettascope, install Nim: https://nim-lang.org/install.html")
-        return
+        raise RuntimeError("Nim compiler not found")
 
     if shutil.which("nimble") is None:
         print("Warning: Nimble package manager not found. Skipping mettascope build.")
         print("To build mettascope, install Nim: https://nim-lang.org/install.html")
-        return
+        raise RuntimeError("Nimble package manager not found")
 
     print(f"Building mettascope from {METTASCOPE_DIR}")
 
-    # Make the build script executable
-    build_script.chmod(0o755)
-
     # Run the build script
-    result = subprocess.run(["./build.sh"], cwd=METTASCOPE_DIR, capture_output=True, text=True, shell=True)
-
-    if result.returncode != 0:
-        print("Warning: Mettascope build failed. STDERR:", file=sys.stderr)
+    for cmd in ["update", "install", "bindings"]:
+        result = subprocess.run(["nimble", cmd, "-y"], cwd=METTASCOPE_DIR, capture_output=True, text=True)
         print(result.stderr, file=sys.stderr)
-        print("Mettascope build STDOUT:", file=sys.stderr)
         print(result.stdout, file=sys.stderr)
-        print("Continuing without mettascope...", file=sys.stderr)
-    else:
-        print("Successfully built mettascope")
-        if result.stdout:
-            print("Build output:", result.stdout)
+        if result.returncode != 0:
+            print(f"Warning: Mettascope build failed. {cmd} failed. STDERR:", file=sys.stderr)
+            print(f"Mettascope build {cmd} STDOUT:", file=sys.stderr)
+            raise RuntimeError("Mettascope build failed")
+    print("Successfully built mettascope")
+    _sync_mettascope_package_data()
 
 
 def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):

@@ -101,7 +101,7 @@ env_dict["game"]["obs_height"] = 11  # type: ignore
 env_dict["game"]["map_builder"] = {
     "_target_": "mettagrid.mapgen.mapgen.MapGen",
     "border_width": 0,
-    "root": {
+    "instance": {
         "type": "mettagrid.mapgen.scenes.inline_ascii.InlineAscii",
         "params": {"data": hallway_map},
     },

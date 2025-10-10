@@ -2,17 +2,17 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
 
-import yaml
+import numpy as np
 from typing_extensions import TypedDict
 
-from mettagrid.map_builder.map_builder import MapBuilderConfig
+from mettagrid.map_builder import MapBuilder, MapBuilderConfig
+from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.types import MapGrid
-from mettagrid.mapgen.utils.ascii_grid import grid_to_lines, lines_to_grid
+from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME, grid_to_lines
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +21,7 @@ class FrontmatterDict(TypedDict):
     metadata: dict
     config: dict
     scene_tree: dict | None
+    char_to_name: dict[str, str]
 
 
 class StorableMapDict(TypedDict):
@@ -31,25 +32,14 @@ class StorableMapDict(TypedDict):
 @dataclass
 class StorableMap:
     """
-    Wrapper around a MapGrid that includes information about the config that
-    produces the map and can be saved to a file or S3.
+    Wrapper around a MapGrid that includes information about the config that produced the map.
     """
 
     grid: MapGrid
     metadata: dict
     config: MapBuilderConfig  # config that was used to generate the map
-    scene_tree: dict | None = None
-
-    def __str__(self) -> str:
-        frontmatter = yaml.safe_dump(
-            {
-                "metadata": self.metadata,
-                "config": self.config.model_dump(),
-                "scene_tree": self.scene_tree,
-            }
-        )
-        content = frontmatter + "\n---\n" + "\n".join(grid_to_lines(self.grid)) + "\n"
-        return content
+    scene_tree: dict | None = None  # defined for mapgen maps
+    char_to_name: dict[str, str] = field(default_factory=dict)
 
     def width(self) -> int:
         return self.grid.shape[1]
@@ -57,27 +47,12 @@ class StorableMap:
     def height(self) -> int:
         return self.grid.shape[0]
 
-    @staticmethod
-    def from_uri(uri: str) -> StorableMap:
-        logger.info(f"Loading map from {uri}")
-        # Only supports local files
-        content = Path(uri).read_text()
-
-        # TODO - validate content in a more principled way
-        (frontmatter, content) = content.split("---\n", 1)
-
-        frontmatter = yaml.safe_load(frontmatter)
-        metadata = frontmatter["metadata"]
-        config = frontmatter["config"]
-        lines = content.split("\n")
-
-        # make sure we didn't add extra lines because of newlines in the content
-        lines = [line for line in lines if line]
-
-        return StorableMap(lines_to_grid(lines), metadata=metadata, config=config)
+    @property
+    def name_to_char(self) -> dict[str, str]:
+        return {name: char for char, name in self.char_to_name.items()}
 
     @staticmethod
-    def from_cfg(cfg: MapBuilderConfig) -> StorableMap:
+    def from_cfg(cfg: MapBuilderConfig[MapBuilder]) -> StorableMap:
         # Generate and measure time taken
         start = time.time()
         map_builder = cfg.create()
@@ -89,6 +64,23 @@ class StorableMap:
         if isinstance(map_builder, MapGen):
             scene_tree = map_builder.get_scene_tree()
 
+        # Extract char_to_name_map from config if available
+        char_to_name: dict[str, str] = DEFAULT_CHAR_TO_NAME
+        if isinstance(cfg, AsciiMapBuilder.Config):
+            char_to_name = cfg.char_to_name_map
+
+        char_to_name = char_to_name.copy()
+
+        # Assign unique chars to unknown names
+        known_names = set(char_to_name.values())
+        names = np.unique(level.grid)
+        next_char = "A"
+        for name in names:
+            if name not in known_names:
+                while next_char in char_to_name:
+                    next_char = chr(ord(next_char) + 1)
+                char_to_name[next_char] = name
+
         storable_map = StorableMap(
             grid=level.grid,
             metadata={
@@ -97,16 +89,9 @@ class StorableMap:
             },
             config=cfg,
             scene_tree=scene_tree,
+            char_to_name=char_to_name,
         )
         return storable_map
-
-    def save(self, uri: str):
-        content = str(self)
-        # Only supports local files
-        path = Path(uri)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content)
-        logger.info(f"Saved map to {uri}")
 
     # Useful in API responses
     def to_dict(self) -> StorableMapDict:
@@ -117,6 +102,7 @@ class StorableMap:
                 "metadata": self.metadata,
                 "config": config_dict,
                 "scene_tree": self.scene_tree,
+                "char_to_name": self.char_to_name,
             },
-            "data": "\n".join(grid_to_lines(self.grid)),
+            "data": "\n".join(grid_to_lines(self.grid, self.name_to_char)),
         }

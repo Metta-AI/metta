@@ -20,7 +20,7 @@ from metta.cogworks.curriculum import env_curriculum
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import CheckpointerConfig, ContextCheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
 from metta.tools.train import TrainTool
 from mettagrid.builder.envs import make_arena
 
@@ -82,7 +82,6 @@ class TestTrainerCheckpointIntegration:
             policy_architecture=policy_cfg.model_copy(deep=True),
             stats_server_uri=None,
             checkpointer=CheckpointerConfig(epoch_interval=1),
-            context_checkpointer=ContextCheckpointerConfig(epoch_interval=1),
             evaluator=EvaluatorConfig(epoch_interval=0, evaluate_local=False, evaluate_remote=False),
         )
         tool.invoke({})
@@ -115,8 +114,12 @@ class TestTrainerCheckpointIntegration:
         assert trainer_state["agent_step"] > 0
         assert trainer_state["epoch"] > 0
 
-        policy_files = [f for f in Path(checkpoint_manager.checkpoint_dir).glob("*.pt") if f.name != "trainer_state.pt"]
-        assert policy_files, "No policy files found in checkpoint directory"
+        latest_policy_uri = checkpoint_manager.get_latest_checkpoint()
+        assert latest_policy_uri, "No policy files found in checkpoint directory"
+        latest_policy_meta = CheckpointManager.get_policy_metadata(latest_policy_uri)
+        assert latest_policy_meta["epoch"] == trainer_state["epoch"], (
+            "Trainer state epoch is not aligned with latest policy checkpoint"
+        )
 
         first_run_agent_step = trainer_state["agent_step"]
         first_run_epoch = trainer_state["epoch"]
@@ -140,10 +143,12 @@ class TestTrainerCheckpointIntegration:
         assert trainer_state_2["agent_step"] > first_run_agent_step
         assert trainer_state_2["epoch"] >= first_run_epoch
 
-        policy_files_2 = [
-            f for f in Path(checkpoint_manager_2.checkpoint_dir).glob("*.pt") if f.name != "trainer_state.pt"
-        ]
-        assert len(policy_files_2) >= len(policy_files)
+        latest_policy_uri = checkpoint_manager_2.get_latest_checkpoint()
+        assert latest_policy_uri, "No policy checkpoints found after resume"
+        latest_policy_meta = CheckpointManager.get_policy_metadata(latest_policy_uri)
+        assert latest_policy_meta["epoch"] == trainer_state_2["epoch"], (
+            "Trainer state epoch is not aligned with latest policy checkpoint after resume"
+        )
 
     def test_checkpoint_fields_are_preserved(self) -> None:
         run_name = "test_checkpoint_fields"
@@ -165,8 +170,8 @@ class TestTrainerCheckpointIntegration:
         assert trainer_state["epoch"] > 0
         assert isinstance(trainer_state.get("optimizer_state"), dict)
 
-        policy_uris = checkpoint_manager.select_checkpoints()
-        assert policy_uris, "No policy checkpoints found"
+        policy_uri = checkpoint_manager.get_latest_checkpoint()
+        assert policy_uri, "No policy checkpoints found"
 
     def test_policy_loading_from_checkpoint(self) -> None:
         run_name = "test_policy_loading"
@@ -185,11 +190,11 @@ class TestTrainerCheckpointIntegration:
         trainer_state = checkpoint_manager.load_trainer_state()
         assert trainer_state is not None
 
-        policy_uris = checkpoint_manager.select_checkpoints()
-        assert policy_uris, "Expected at least one policy checkpoint"
+        policy_uri = checkpoint_manager.get_latest_checkpoint()
+        assert policy_uri, "Expected at least one policy checkpoint"
 
         # Load the latest policy to ensure it is valid
-        policy = checkpoint_manager.load_agent()
+        policy = checkpoint_manager.load_from_uri(policy_uri)
         assert policy is not None
         assert hasattr(policy, "state_dict"), "Loaded policy should be a torch.nn.Module"
 

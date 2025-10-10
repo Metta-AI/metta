@@ -1,10 +1,9 @@
 [build-system]
-requires = ["setuptools>=45", "wheel", "numpy<2.0", "torch"]
+requires = ["setuptools>=45", "wheel", "numpy>=2", "torch", "setuptools_scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "pufferlib-core"
-version = "3.0.10"
 description = "PufferLib core functionality with vectorized environments and reinforcement learning"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -38,6 +37,7 @@ dependencies = [
   "setuptools",
   "pyro-ppl",
 ]
+dynamic = ["version"]
 
 [project.urls]
 Homepage = "https://github.com/PufferAI/PufferLib"
@@ -48,6 +48,25 @@ Issues = "https://github.com/PufferAI/PufferLib/issues"
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["pufferlib", "pufferlib_core.egg-info"]
+
+[tool.setuptools_scm]
+tag_regex = "^pufferlib-core-v(?P<version>\\d+\\.\\d+\\.\\d+(?:\\.\\d+)?)$"
+version_scheme = "no-guess-dev"
+local_scheme = "node-and-date"
+root = "../.."
+fallback_version = "0.0.0"
+
+# Provide a specific git command to be used in order to find the correct versioning tags
+[tool.setuptools_scm.scm.git]
+describe_command = [
+  "git",
+  "describe",
+  "--dirty",
+  "--tags",
+  "--long",
+  "--match",
+  "pufferlib-core-v*",
+]
 
 [tool.setuptools.package-data]
 pufferlib = ["*.py", "*.so", "*.pyd"]

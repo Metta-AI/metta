@@ -1,6 +1,29 @@
 from mettagrid.map_builder.utils import create_grid
 from mettagrid.mapgen.types import MapGrid
-from mettagrid.util.char_encoder import char_to_grid_object, grid_object_to_char
+
+DEFAULT_CHAR_TO_NAME: dict[str, str] = {
+    "#": "wall",
+    ".": "empty",
+    "@": "agent.agent",
+    "p": "agent.prey",
+    "P": "agent.predator",
+    "_": "altar",
+    "c": "converter",
+    "C": "chest",
+    "Z": "assembler",
+    "1": "agent.team_1",
+    "2": "agent.team_2",
+    "3": "agent.team_3",
+    "4": "agent.team_4",
+}
+
+
+def default_char_to_name() -> dict[str, str]:
+    """Default character-to-name mapping for common test scenarios.
+
+    Deprecated: Use DEFAULT_CHAR_TO_NAME constant directly instead.
+    """
+    return DEFAULT_CHAR_TO_NAME.copy()
 
 
 def add_pretty_border(lines: list[str]) -> list[str]:
@@ -13,12 +36,18 @@ def add_pretty_border(lines: list[str]) -> list[str]:
     return lines
 
 
-def grid_to_lines(grid: MapGrid, border: bool = False) -> list[str]:
+def grid_to_lines(grid: MapGrid, name_to_char: dict[str, str] | None = None, border: bool = False) -> list[str]:
+    """Convert a grid to lines of text using the provided name-to-char mapping."""
+    if name_to_char is None:
+        # Reverse the default char_to_name mapping to get name_to_char
+        name_to_char = {name: char for char, name in DEFAULT_CHAR_TO_NAME.items()}
+
     lines: list[str] = []
     for r in range(grid.shape[0]):
         row = []
         for c in range(grid.shape[1]):
-            row.append(grid_object_to_char(grid[r, c]))
+            obj_name = grid[r, c]
+            row.append(name_to_char.get(obj_name, obj_name[0] if obj_name else "?"))
         lines.append("".join(row))
 
     if border:
@@ -27,17 +56,20 @@ def grid_to_lines(grid: MapGrid, border: bool = False) -> list[str]:
     return lines
 
 
-def print_grid(grid: MapGrid, border=True):
-    lines = grid_to_lines(grid, border=border)
+def print_grid(grid: MapGrid, name_to_char: dict[str, str], border: bool = True):
+    """Print a grid using the provided name-to-char mapping."""
+    lines = grid_to_lines(grid, name_to_char, border=border)
     for line in lines:
         print(line)
 
 
-def lines_to_grid(lines: list[str]) -> MapGrid:
+def lines_to_grid(lines: list[str], char_to_name: dict[str, str]) -> MapGrid:
+    """Convert lines of text to a grid using the provided char-to-name mapping."""
+
     grid = create_grid(len(lines), len(lines[0]))
     for r, line in enumerate(lines):
         for c, char in enumerate(line):
-            grid[r, c] = char_to_grid_object(char)
+            grid[r, c] = char_to_name.get(char, char)
     return grid
 
 

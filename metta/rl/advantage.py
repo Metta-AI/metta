@@ -1,5 +1,6 @@
 """Advantage computation functions for Metta training."""
 
+import importlib
 from contextlib import nullcontext
 
 import einops
@@ -7,7 +8,11 @@ import torch
 from torch import Tensor
 
 from metta.rl import mps
-from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
+
+try:
+    importlib.import_module("pufferlib._C")
+except ImportError:
+    raise ImportError("Failed to import C/CUDA kernel. Try: pip install --no-build-isolation") from None
 
 
 def compute_advantage(

@@ -4,14 +4,12 @@ from mettagrid.test_support.mapgen import render_scene
 
 def test_basic():
     scene = render_scene(
-        WFC.factory(
-            WFC.Params(
-                pattern="""
-                    .#...
-                    ###..
-                    ###..
-                """
-            )
+        WFC.Config(
+            pattern="""
+                .#...
+                ###..
+                ###..
+            """
         ),
         (20, 20),
     )

@@ -12,6 +12,7 @@ from metta.common.wandb.context import WandbConfig
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_wandb_config
+from mettagrid import dtype_actions
 from mettagrid.util.grid_object_formatter import format_grid_object
 
 logger = logging.getLogger(__name__)
@@ -53,7 +54,7 @@ class PlayTool(Tool):
             initial_replay = sim.get_replay()
 
             current_step = 0
-            actions = np.zeros((env.num_agents, 2))
+            actions = np.zeros(env.num_agents, dtype=dtype_actions)
             total_rewards = np.zeros(env.num_agents)
 
             response = mettascope2.init(replay=json.dumps(initial_replay))
@@ -62,7 +63,7 @@ class PlayTool(Tool):
 
             def send_replay_step():
                 grid_objects = []
-                for i, grid_object in enumerate(env.grid_objects.values()):
+                for i, grid_object in enumerate(env.grid_objects().values()):
                     if len(grid_objects) <= i:
                         grid_objects.append({})
 
@@ -85,16 +86,12 @@ class PlayTool(Tool):
                 if response.should_close:
                     break
 
-                actions = sim.generate_actions()
-
+                actions = np.asarray(sim.generate_actions(), dtype=dtype_actions)
                 # Just do random actions for now.
-                actions[:, 0] = np.random.randint(0, 5, size=len(actions))  # Random action types
-                actions[:, 1] = np.random.randint(0, 4, size=len(actions))  # Random action args
-
-                # Get actions from mettascope.
-                if response.action:
-                    actions[response.action_agent_id, 0] = response.action_action_id
-                    actions[response.action_agent_id, 1] = response.action_argument
+                random_actions = np.random.randint(0, env.action_space.n, size=len(actions))
+                actions[:] = random_actions.astype(dtype_actions, copy=False)
+                for action in response.actions:
+                    actions[action.agent_id] = action.action_id
 
                 sim.step_simulation(actions)
                 current_step += 1

@@ -4,21 +4,26 @@
 from typing import List, Optional
 
 import metta.cogworks.curriculum as cc
-
-# import mettagrid.builder.envs as eb
 import mettagrid.builder.envs as eb
 from experiments.recipes import arena
-from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
-from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.rl.loss import LossConfig
+from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
+from metta.agent.policy import PolicyArchitecture
+from metta.cogworks.curriculum.curriculum import (
+    CurriculumAlgorithmConfig,
+    CurriculumConfig,
+)
+from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.rl.loss.loss_config import LossConfig
+from metta.rl.loss.ppo import PPOConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
+from mettagrid.config import ConverterConfig
 
 
 def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
@@ -42,22 +47,27 @@ def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
     }
 
     # Easy converter: 1 battery_red to 1 heart (instead of 3 to 1)
-    arena_env.game.objects["altar"].input_resources = {"battery_red": 1}
+    altar = arena_env.game.objects.get("altar")
+    if isinstance(altar, ConverterConfig) and hasattr(altar, "input_resources"):
+        altar.input_resources["battery_red"] = 1
 
     return arena_env
 
 
-def make_curriculum(arena_env: Optional[MettaGridConfig] = None) -> CurriculumConfig:
+def make_curriculum(
+    arena_env: Optional[MettaGridConfig] = None,
+    enable_detailed_slice_logging: bool = False,
+    algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
+) -> CurriculumConfig:
     arena_env = arena_env or make_mettagrid()
 
-    # make a set of training tasks for the arena
     arena_tasks = cc.bucketed(arena_env)
 
     for item in ["ore_red", "battery_red", "laser", "armor"]:
         arena_tasks.add_bucket(
             f"game.agent.rewards.inventory.{item}", [0, 0.1, 0.5, 0.9, 1.0]
         )
-        arena_tasks.add_bucket(f"game.agent.rewards.inventory.{item}_max", [1, 2])
+        arena_tasks.add_bucket(f"game.agent.rewards.inventory_max.{item}", [1, 2])
 
     # enable or disable attacks. we use cost instead of 'enabled'
     # to maintain action space consistency.
@@ -67,7 +77,17 @@ def make_curriculum(arena_env: Optional[MettaGridConfig] = None) -> CurriculumCo
     for obj in ["mine_red", "generator_red", "altar", "lasery", "armory"]:
         arena_tasks.add_bucket(f"game.objects.{obj}.initial_resource_count", [0, 1])
 
-    return CurriculumConfig(task_generator=arena_tasks)
+    if algorithm_config is None:
+        algorithm_config = LearningProgressConfig(
+            use_bidirectional=True,  # Enable bidirectional learning progress by default
+            ema_timescale=0.001,
+            exploration_bonus=0.1,
+            max_memory_tasks=1000,
+            max_slice_axes=5,  # More slices for arena complexity
+            enable_detailed_slice_logging=enable_detailed_slice_logging,
+        )
+
+    return arena_tasks.to_curriculum(algorithm_config=algorithm_config)
 
 
 def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
@@ -83,17 +103,26 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
     ]
 
 
-def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
+def train(
+    curriculum: Optional[CurriculumConfig] = None,
+    enable_detailed_slice_logging: bool = False,
+    policy_architecture: Optional[PolicyArchitecture] = None,
+) -> TrainTool:
+    curriculum = curriculum or make_curriculum(
+        enable_detailed_slice_logging=enable_detailed_slice_logging
     )
+
+    eval_simulations = make_evals()
+    trainer_cfg = TrainerConfig(
+        losses=LossConfig(loss_configs={"ppo": PPOConfig()}),
+    )
+    # policy_config = FastDynamicsConfig()
+    # policy_config = FastLSTMResetConfig()
     # policy_config = FastConfig()
     # policy_config = ViTSmallConfig()
-    # policy_config = CNNTransConfig()
-    policy_config = FastLSTMResetConfig()
-    curriculum = curriculum or make_curriculum()
+    policy_config = ViTSlidingTransConfig()
     training_env = TrainingEnvironmentConfig(curriculum=curriculum)
-    evaluator = EvaluatorConfig(simulations=make_evals())
+    evaluator = EvaluatorConfig(simulations=eval_simulations)
 
     return TrainTool(
         trainer=trainer_cfg,
@@ -118,8 +147,8 @@ def replay() -> ReplayTool:
     return cfg
 
 
-def evaluate(run: str = "local.alex.1") -> SimTool:
-    cfg = arena.evaluate(policy_uri=f"wandb://run/{run}")
+def evaluate(run: str = "local.alex.1") -> EvaluateTool:
+    cfg = arena.evaluate(policy_uris=[f"wandb://run/{run}"])
 
     # If your run doesn't exist, try this:
     # cfg = arena.evaluate(policy_uri="wandb://run/daveey.combat.lpsm.8x4")

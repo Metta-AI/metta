@@ -1,17 +1,12 @@
-import numpy as np
-
 from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.mapgen.utils.storable_map import StorableMap
 
 
-def simple_map():
-    return StorableMap.from_cfg(AsciiMapBuilder.Config(map_data=[[".", "#"], ["#", "."]]))
-
-
-def test_save_and_load_local(tmp_path):
-    path = tmp_path / "map.yaml"
-    m = simple_map()
-    m.save(str(path))
-
-    loaded = StorableMap.from_uri(str(path))
-    assert np.array_equal(loaded.grid, m.grid)
+def test_simple_map():
+    storable_map = StorableMap.from_cfg(
+        AsciiMapBuilder.Config(
+            map_data=[[".", "#"], ["#", "."]],
+        ),
+    )
+    assert storable_map.width() == 2
+    assert storable_map.height() == 2

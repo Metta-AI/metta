@@ -1,6 +1,17 @@
 import numpy as np
 
 from mettagrid.config.mettagrid_c_config import from_mettagrid_config
+from mettagrid.config.mettagrid_config import (
+    ActionConfig,
+    ActionsConfig,
+    AgentConfig,
+    AgentRewards,
+    AttackActionConfig,
+    ChangeGlyphActionConfig,
+    ConverterConfig,
+    GameConfig,
+    WallConfig,
+)
 from mettagrid.mettagrid_c import (
     MettaGrid,
     dtype_actions,
@@ -34,49 +45,50 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
         ["wall", "wall", "wall", "wall", "wall", "wall"],
     ]
 
-    game_config = {
-        "max_steps": max_steps,
-        "num_agents": num_agents,
-        "obs_width": OBS_WIDTH,
-        "obs_height": OBS_HEIGHT,
-        "num_observation_tokens": NUM_OBS_TOKENS,
-        "resource_names": ["laser", "armor", "heart"],
-        "actions": {
-            "noop": {"enabled": True},
-            "get_items": {"enabled": True},
-            "move": {"enabled": True},
-            "rotate": {"enabled": True},
-            "put_items": {"enabled": True},
-            "attack": {"enabled": True, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
-            "swap": {"enabled": True},
-            "change_color": {"enabled": True},
-            "change_glyph": {"enabled": False, "number_of_glyphs": 4},
+    game_config = GameConfig(
+        max_steps=max_steps,
+        num_agents=num_agents,
+        obs_width=OBS_WIDTH,
+        obs_height=OBS_HEIGHT,
+        num_observation_tokens=NUM_OBS_TOKENS,
+        resource_names=["laser", "armor", "heart"],
+        actions=ActionsConfig(
+            noop=ActionConfig(enabled=True),
+            get_items=ActionConfig(enabled=True),
+            move=ActionConfig(enabled=True),
+            rotate=ActionConfig(enabled=True),
+            put_items=ActionConfig(enabled=True),
+            attack=AttackActionConfig(
+                enabled=True,
+                consumed_resources={"laser": 1},
+                defense_resources={"armor": 1},
+            ),
+            swap=ActionConfig(enabled=True),
+            change_glyph=ChangeGlyphActionConfig(enabled=False, number_of_glyphs=4),
+        ),
+        objects={
+            "wall": WallConfig(type_id=1),
+            "altar": ConverterConfig(
+                type_id=8,
+                output_resources={"heart": 1},
+                initial_resource_count=5,
+                max_output=50,
+                conversion_ticks=1,
+                cooldown=10,
+            ),
         },
-        "objects": {
-            "wall": {"type_id": 1},
-            "altar": {
-                "type_id": 8,
-                "output_resources": {"heart": 1},
-                "initial_resource_count": 5,  # Start with some hearts
-                "max_output": 50,
-                "conversion_ticks": 1,  # Faster conversion
-                "cooldown": 10,
-            },
-        },
-        "agent": {
-            "default_resource_limit": 10,
-            "rewards": {
-                "inventory": {
-                    "heart": 1.0  # This gives 1.0 reward per heart collected
-                }
-            },
-        },
-    }
+        agent=AgentConfig(
+            default_resource_limit=10,
+            rewards=AgentRewards(
+                inventory={"heart": 1.0},
+            ),
+        ),
+    )
 
     return MettaGrid(from_mettagrid_config(game_config), game_map, 42)
 
 
-def perform_action(env, action_name, arg=0):
+def perform_action(env, action_name):
     """Perform a single action and return results."""
     available_actions = env.action_names()
 
@@ -84,8 +96,7 @@ def perform_action(env, action_name, arg=0):
         raise ValueError(f"Unknown action '{action_name}'. Available actions: {available_actions}")
 
     action_idx = available_actions.index(action_name)
-    action = np.zeros((NUM_AGENTS, 2), dtype=dtype_actions)
-    action[0] = [action_idx, arg]
+    action = np.full((NUM_AGENTS,), action_idx, dtype=dtype_actions)
     obs, rewards, _terminals, _truncations, _info = env.step(action)
     return obs, float(rewards[0]), env.action_success()[0]
 
@@ -111,7 +122,7 @@ def collect_heart_from_altar(env):
             return False, 0.0
 
     # Collect heart from adjacent altar
-    _obs, reward, success = perform_action(env, "get_items", 0)
+    _obs, reward, success = perform_action(env, "get_items")
     return success, reward
 
 

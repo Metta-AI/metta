@@ -15,8 +15,8 @@ from torch import Tensor
 from metta.cogworks.curriculum import Curriculum, CurriculumConfig, env_curriculum
 from metta.rl.vecenv import make_vecenv
 from metta.utils.batch import calculate_batch_sizes
+from mettagrid.base_config import Config
 from mettagrid.builder.envs import make_arena
-from mettagrid.config import Config
 from mettagrid.core import ObsFeature
 from mettagrid.mettagrid_c import dtype_actions
 
@@ -63,7 +63,6 @@ class EnvironmentMetaData:
     obs_height: int
     obs_features: dict[str, ObsFeature]
     action_names: List[str]
-    max_action_args: List[int]
     num_agents: int
     observation_space: Any
     action_space: Any
@@ -177,10 +176,9 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
             obs_height=self._vecenv.driver_env.obs_height,
             obs_features=self._vecenv.driver_env.observation_features,
             action_names=self._vecenv.driver_env.action_names,
-            max_action_args=self._vecenv.driver_env.max_action_args,
             num_agents=self._num_agents,
             observation_space=self._vecenv.driver_env.observation_space,
-            action_space=self._vecenv.driver_env.action_space,
+            action_space=self._vecenv.driver_env.single_action_space,
             feature_normalizations=self._vecenv.driver_env.feature_normalizations,
         )
 
@@ -218,7 +216,8 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
 
     @property
     def single_action_space(self) -> Any:
-        return self._vecenv.single_action_space
+        # Use the underlying driver environment's action space, which remains single-agent Discrete
+        return self._vecenv.driver_env.single_action_space
 
     @property
     def single_observation_space(self) -> Any:

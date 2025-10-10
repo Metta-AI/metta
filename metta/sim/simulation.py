@@ -71,7 +71,7 @@ class Simulation:
         self._replay_writer = S3ReplayWriter(replay_dir)
         self._device = device
 
-        self._display_name = f"{cfg.suite}/{cfg.name}"
+        self._full_name = f"{cfg.suite}/{cfg.name}"
 
         # Calculate number of parallel environments and episodes per environment
         # to achieve the target total number of episodes
@@ -125,10 +125,9 @@ class Simulation:
             obs_height=metta_grid_env.obs_height,
             obs_features=metta_grid_env.observation_features,
             action_names=metta_grid_env.action_names,
-            max_action_args=metta_grid_env.max_action_args,
             num_agents=metta_grid_env.num_agents,
             observation_space=metta_grid_env.observation_space,
-            action_space=metta_grid_env.action_space,
+            action_space=metta_grid_env.single_action_space,
             feature_normalizations=metta_grid_env.feature_normalizations,
         )
 
@@ -183,6 +182,8 @@ class Simulation:
             policy = CheckpointManager.load_from_uri(policy_uri, device=device)
         else:
             policy = MockAgent()
+            # Set policy_uri to a valid mock URI if None
+            policy_uri = "mock://null"
 
         # Create replay directory path with simulation name
         full_replay_dir = f"{replay_dir}/{sim_config.name}"
@@ -191,7 +192,7 @@ class Simulation:
         return cls(
             sim_config,
             policy,
-            policy_uri or "mock://",
+            policy_uri,
             device=torch.device(device),
             vectorization=vectorization,
             stats_dir=stats_dir,
@@ -202,7 +203,7 @@ class Simulation:
         """Start the simulation."""
         logger.info(
             "Sim '%s': %d env × %d agents (%.0f%% candidate)",
-            self._display_name,
+            self._full_name,
             self._num_envs,
             self._agents_per_env,
             100 * self._policy_agents_per_env / self._agents_per_env,
@@ -262,32 +263,31 @@ class Simulation:
                 )
 
         with torch.no_grad():
-            policy_actions = self._get_actions_for_agents(self._policy_idxs.cpu(), self._policy)
+            policy_actions = self._get_actions_for_agents(self._policy_idxs.cpu(), self._policy).to(dtype=torch.int32)
 
             npc_actions = None
             if self._npc_policy is not None and len(self._npc_idxs):
-                npc_actions = self._get_actions_for_agents(self._npc_idxs, self._npc_policy)
+                npc_actions = self._get_actions_for_agents(self._npc_idxs, self._npc_policy).to(dtype=torch.int32)
 
-        actions = policy_actions
         if self._npc_agents_per_env:
             policy_actions = rearrange(
                 policy_actions,
-                "(envs policy_agents) act -> envs policy_agents act",
+                "(envs policy_agents) -> envs policy_agents",
                 envs=self._num_envs,
                 policy_agents=self._policy_agents_per_env,
             )
             npc_actions = rearrange(
                 npc_actions,
-                "(envs npc_agents) act -> envs npc_agents act",
+                "(envs npc_agents) -> envs npc_agents",
                 envs=self._num_envs,
                 npc_agents=self._npc_agents_per_env,
             )
-            # Concatenate along agents dimension
             actions = torch.cat([policy_actions, npc_actions], dim=1)
-            # Flatten back to (total_agents, action_dim)
-            actions = rearrange(actions, "envs agents act -> (envs agents) act")
+            actions = rearrange(actions, "envs agents -> (envs agents)")
+        else:
+            actions = policy_actions
 
-        actions_np = actions.cpu().numpy().astype(dtype_actions)
+        actions_np = actions.to(dtype=torch.int32).cpu().numpy().astype(dtype_actions, copy=False)
         return actions_np
 
     def step_simulation(self, actions_np: np.ndarray) -> None:
@@ -321,12 +321,12 @@ class Simulation:
         try:
             # Skip synthetic evaluation framework simulations
             if self._config.suite == SYNTHETIC_EVAL_SUITE:
-                logger.debug(f"Skipping thumbnail generation for synthetic simulation: {self._display_name}")
+                logger.debug(f"Skipping thumbnail generation for synthetic simulation: {self._full_name}")
                 return None
 
             # Get any replay data from this simulation
             if not self._replay_writer.episodes:
-                logger.warning(f"No replay data available for thumbnail generation: {self._display_name}")
+                logger.warning(f"No replay data available for thumbnail generation: {self._full_name}")
                 return None
 
             # Use first available episode replay and get its ID
@@ -344,7 +344,7 @@ class Simulation:
                 return None
 
         except Exception as e:
-            logger.error(f"Thumbnail generation failed for {self._display_name}: {e}")
+            logger.error(f"Thumbnail generation failed for {self._full_name}: {e}")
             return None
 
     def end_simulation(self) -> SimulationResults:
@@ -361,7 +361,7 @@ class Simulation:
 
         logger.info(
             "Sim '%s' finished: %d episodes in %.1fs",
-            self._display_name,
+            self._full_name,
             int(self._episode_counters.sum()),
             time.time() - self._t0,
         )
@@ -496,8 +496,8 @@ class Simulation:
         return None
 
     @property
-    def name(self) -> str:
-        return self._display_name
+    def full_name(self) -> str:
+        return self._full_name
 
     def get_envs(self):
         """Returns a list of all envs in the simulation."""

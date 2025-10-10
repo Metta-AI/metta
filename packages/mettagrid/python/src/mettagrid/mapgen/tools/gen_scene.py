@@ -3,12 +3,11 @@ import logging
 from typing import Annotated, Optional
 
 import typer
-from omegaconf import OmegaConf
+import yaml
 
 from mettagrid.mapgen.mapgen import MapGen
-from mettagrid.mapgen.scene import SceneConfig
-from mettagrid.mapgen.utils.show import ShowMode, show_map
-from mettagrid.mapgen.utils.storable_map import StorableMap
+from mettagrid.mapgen.scene import validate_any_scene_config
+from mettagrid.mapgen.utils.show import ShowMode, show_game_map
 
 logger = logging.getLogger(__name__)
 
@@ -25,26 +24,21 @@ def main(
     """
     Generate a map from a scene config and display it.
     """
-    scene_omega_cfg = OmegaConf.load(scene)
+    with open(scene, "r") as fh:
+        yaml_cfg = yaml.safe_load(fh)
 
-    if not OmegaConf.is_dict(scene_omega_cfg):
-        raise ValueError(f"Invalid config type: {type(scene_omega_cfg)}")
-
-    # Apply overrides if any
-    if scene_override:
-        for override in scene_override:
-            key, value = override.split("=", 1)
-            OmegaConf.update(scene_omega_cfg, key, value)
-
-    scene_cfg = SceneConfig.model_validate(scene_omega_cfg)
+    scene_cfg = validate_any_scene_config(yaml_cfg)
+    for override in scene_override or []:
+        key, value = override.split("=", 1)
+        scene_cfg.override(key, value)
 
     mapgen_cfg = MapGen.Config(
         width=width,
         height=height,
-        root=scene_cfg,
+        instance=scene_cfg,
     )
-    storable_map = StorableMap.from_cfg(mapgen_cfg)
-    show_map(storable_map, show_mode)
+    game_map = mapgen_cfg.create().build()
+    show_game_map(game_map, show_mode)
 
 
 if __name__ == "__main__":

@@ -6,6 +6,7 @@ import time
 from typing import Any, Dict, Optional
 
 from metta.adaptive.models import JobDefinition, JobTypes, RunInfo
+from metta.common.util.constants import PROD_STATS_SERVER_URI, SOFTMAX_S3_POLICY_PREFIX
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +105,7 @@ def get_display_id(run_id: str) -> str:
 def build_eval_overrides(
     run_id: str,
     experiment_id: str,
-    stats_server_uri: Optional[str] = None,
+    stats_server_uri: Optional[str] = PROD_STATS_SERVER_URI,
     additional_overrides: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Build evaluation override parameters.
@@ -161,7 +162,7 @@ def create_eval_job(
     experiment_id: str,
     recipe_module: str,
     eval_entrypoint: str,
-    stats_server_uri: Optional[str] = None,
+    stats_server_uri: Optional[str] = PROD_STATS_SERVER_URI,
     eval_overrides: Optional[Dict[str, Any]] = None,
 ) -> "JobDefinition":
     """Create an evaluation job definition.
@@ -178,7 +179,6 @@ def create_eval_job(
     Returns:
         JobDefinition for evaluation
     """
-    from metta.adaptive.models import JobDefinition, JobTypes
 
     overrides = build_eval_overrides(
         run_id=run_id,
@@ -191,7 +191,7 @@ def create_eval_job(
         run_id=run_id,
         cmd=f"{recipe_module}.{eval_entrypoint}",
         type=JobTypes.LAUNCH_EVAL,
-        args={"run": run_id},
+        args={"policy_uri": f"{SOFTMAX_S3_POLICY_PREFIX}/{run_id}:latest"},
         overrides=overrides,
         metadata={},
     )

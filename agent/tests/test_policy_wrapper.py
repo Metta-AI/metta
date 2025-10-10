@@ -7,6 +7,7 @@ from torch import nn
 
 from metta.agent.policy import ExternalPolicyWrapper
 from metta.rl.training import EnvironmentMetaData
+from mettagrid import dtype_actions
 
 
 class _DummyPolicy(nn.Module):
@@ -24,10 +25,9 @@ def _make_env_metadata() -> EnvironmentMetaData:
         obs_height=4,
         obs_features={},
         action_names=["noop"],
-        max_action_args=[0],
         num_agents=1,
         observation_space=SimpleNamespace(),
-        action_space=SimpleNamespace(),
+        action_space=SimpleNamespace(n=1, dtype=dtype_actions),
         feature_normalizations={0: 1.0},
     )
 

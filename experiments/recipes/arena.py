@@ -1,4 +1,4 @@
-from typing import List, Optional, Sequence
+from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
@@ -9,10 +9,9 @@ from metta.cogworks.curriculum.curriculum import (
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.eval_remote import EvalRemoteTool
+from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from mettagrid.config import ConverterConfig
@@ -21,7 +20,7 @@ from mettagrid.config import ConverterConfig
 # it's possible the maps are now different
 
 
-def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
+def mettagrid(num_agents: int = 24) -> MettaGridConfig:
     arena_env = eb.make_arena(num_agents=num_agents)
     return arena_env
 
@@ -31,11 +30,11 @@ def make_curriculum(
     enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
 ) -> CurriculumConfig:
-    arena_env = arena_env or make_mettagrid()
+    arena_env = arena_env or mettagrid()
 
     arena_tasks = cc.bucketed(arena_env)
 
-    # arena_tasks.add_bucket("game.map_builder.root.params.agents", [1, 2, 3, 4, 6])
+    # arena_tasks.add_bucket("game.map_builder.instance.params.agents", [1, 2, 3, 4, 6])
     # arena_tasks.add_bucket("game.map_builder.width", [10, 20, 30, 40])
     # arena_tasks.add_bucket("game.map_builder.height", [10, 20, 30, 40])
     # arena_tasks.add_bucket("game.map_builder.instance_border_width", [0, 6])
@@ -67,8 +66,8 @@ def make_curriculum(
     return arena_tasks.to_curriculum(algorithm_config=algorithm_config)
 
 
-def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
-    basic_env = env or make_mettagrid()
+def simulations(env: Optional[MettaGridConfig] = None) -> list[SimulationConfig]:
+    basic_env = env or mettagrid()
     basic_env.game.actions.attack.consumed_resources["laser"] = 100
 
     combat_env = basic_env.model_copy()
@@ -90,12 +89,12 @@ def train(
 
     return TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        evaluator=EvaluatorConfig(simulations=make_evals()),
+        evaluator=EvaluatorConfig(simulations=simulations()),
     )
 
 
 def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
-    env_cfg = make_mettagrid()
+    env_cfg = mettagrid()
     env_cfg.game.agent.rewards.inventory["heart"] = 1
     env_cfg.game.agent.rewards.inventory_max["heart"] = 100
 
@@ -126,35 +125,22 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
 
     return TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=cc.env_curriculum(env_cfg)),
-        evaluator=EvaluatorConfig(simulations=make_evals()),
+        evaluator=EvaluatorConfig(simulations=simulations()),
     )
-
-
-def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
-    eval_env = env or make_mettagrid()
-    return PlayTool(sim=SimulationConfig(suite="arena", env=eval_env, name="eval"))
-
-
-def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
-    eval_env = env or make_mettagrid()
-    return ReplayTool(sim=SimulationConfig(suite="arena", env=eval_env, name="eval"))
 
 
 def evaluate(
-    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
-) -> SimTool:
-    simulations = simulations or make_evals()
-    return SimTool(
-        simulations=simulations,
-        policy_uris=[policy_uri],
+    policy_uris: str | Sequence[str] | None = None,
+) -> EvaluateTool:
+    return EvaluateTool(
+        simulations=simulations(),
+        policy_uris=policy_uris,
     )
 
 
-def evaluate_remote(
-    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
-) -> EvalRemoteTool:
-    simulations = simulations or make_evals()
-    return EvalRemoteTool(
-        simulations=simulations,
-        policy_uri=policy_uri,
-    )
+def replay(policy_uri: Optional[str] = None) -> ReplayTool:
+    return ReplayTool(sim=simulations()[0], policy_uri=policy_uri)
+
+
+def play(policy_uri: Optional[str] = None) -> PlayTool:
+    return PlayTool(sim=simulations()[0], policy_uri=policy_uri)

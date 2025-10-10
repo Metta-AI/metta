@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Literal, Optional
 
+import einops
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -126,7 +127,7 @@ class WindowAttention(nn.Module):
             # mask shape: (num_windows, N, N)
             nW = mask.shape[0]
             attn = attn.view(b // nW, nW, self.num_heads, n, n)
-            attn = attn + mask.unsqueeze(1).unsqueeze(0)
+            attn = attn + einops.rearrange(mask, "nw n1 n2 -> 1 nw 1 n1 n2")
             attn = attn.view(-1, self.num_heads, n, n)
 
         attn = F.softmax(attn, dim=-1, dtype=torch.float32).to(q.dtype)
@@ -182,7 +183,7 @@ class SwinBlock(nn.Module):
         shifted_mask = torch.roll(img_mask, shifts=(-self.shift_size, -self.shift_size), dims=(1, 2))
         mask_windows = window_partition(shifted_mask, self.window_size)
         mask_windows = mask_windows.view(-1, self.window_size * self.window_size)
-        attn_mask = mask_windows.unsqueeze(1) - mask_windows.unsqueeze(2)
+        attn_mask = einops.rearrange(mask_windows, "nw n -> nw n 1") - einops.rearrange(mask_windows, "nw n -> nw 1 n")
         attn_mask = attn_mask.masked_fill(attn_mask != 0, float(-100.0)).masked_fill(attn_mask == 0, 0.0)
         self._attn_mask = attn_mask
         self._mask_hw = (h, w)
@@ -302,7 +303,7 @@ class ObsSwinEncoder(nn.Module):
         elif self.config.pool == "first":
             x = x[:, 0]
         elif self.config.pool == "flatten":
-            x = x.reshape(x.shape[0], -1)
+            x = einops.rearrange(x, "b n d -> b (n d)")
         else:
             raise ValueError(f"Unsupported pool mode: {self.config.pool}")
 
@@ -344,16 +345,15 @@ class ObsSwinEncoder(nn.Module):
         agg = torch.zeros(B * num_patches, self.config.embed_dim, device=device, dtype=projected.dtype)
         counts = torch.zeros(B * num_patches, 1, device=device, dtype=projected.dtype)
 
-        batch_idx = torch.arange(B, device=device).unsqueeze(1).expand(B, M)
-        flat_indices = (batch_idx * num_patches + patch_ids).reshape(-1)
-        flat_valid = valid.reshape(-1)
+        batch_idx = einops.repeat(torch.arange(B, device=device), "b -> b m", m=M)
+        flat_indices = einops.rearrange(batch_idx * num_patches + patch_ids, "b m -> (b m)")
+        flat_valid = einops.rearrange(valid, "b m -> (b m)")
 
         if flat_valid.any():
             patch_indices = flat_indices[flat_valid]
-            flat_feats = projected.reshape(-1, self.config.embed_dim)[flat_valid]
+            flat_feats = einops.rearrange(projected, "b m d -> (b m) d")[flat_valid]
             agg.index_add_(0, patch_indices, flat_feats)
-
-            ones = torch.ones_like(patch_indices, dtype=projected.dtype, device=device).unsqueeze(1)
+            ones = einops.rearrange(torch.ones_like(patch_indices, dtype=projected.dtype, device=device), "n -> n 1")
             counts.index_add_(0, patch_indices, ones)
 
         counts = counts.clamp_min(1.0)

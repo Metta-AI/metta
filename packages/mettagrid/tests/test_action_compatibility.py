@@ -13,7 +13,8 @@ from mettagrid.config.mettagrid_config import (
     WallConfig,
 )
 from mettagrid.mettagrid_c import MettaGrid, dtype_actions
-from mettagrid.test_support.actions import get_agent_position, get_current_observation
+from mettagrid.test_support.actions import action_index, get_agent_position, get_current_observation
+from mettagrid.test_support.orientation import Orientation
 
 
 def create_basic_config() -> GameConfig:
@@ -29,9 +30,7 @@ def create_basic_config() -> GameConfig:
             freeze_duration=0,
             resource_limits={"ore": 10, "wood": 10},
         ),
-        actions=ActionsConfig(
-            move=ActionConfig(enabled=True), noop=ActionConfig(enabled=True), rotate=ActionConfig(enabled=True)
-        ),
+        actions=ActionsConfig(move=ActionConfig(), noop=ActionConfig(), rotate=ActionConfig()),
         objects={"wall": WallConfig(type_id=1, swappable=False)},
         allow_diagonals=True,
     )
@@ -97,9 +96,7 @@ class TestActionOrdering:
             obs_height=basic_config.obs_height,
             num_observation_tokens=basic_config.num_observation_tokens,
             agent=basic_config.agent,
-            actions=ActionsConfig(
-                rotate=ActionConfig(enabled=True), noop=ActionConfig(enabled=True), move=ActionConfig(enabled=True)
-            ),
+            actions=ActionsConfig(rotate=ActionConfig(), noop=ActionConfig(), move=ActionConfig()),
             objects=basic_config.objects,
             allow_diagonals=basic_config.allow_diagonals,
         )
@@ -110,20 +107,25 @@ class TestActionOrdering:
         # Action order should remain the same despite different config order
         assert action_names1 == action_names2, "Action order should be deterministic"
 
-        # Verify the expected order (noop is always first when enabled, put_items is now enabled by default)
-        assert action_names1 == ["noop", "move", "rotate", "put_items", "get_items"]
+        # Verify the expected order (noop is always first when enabled)
+        orientation_labels = ["north", "south", "west", "east"]
+        if basic_config.allow_diagonals:
+            orientation_labels.extend(["northwest", "northeast", "southwest", "southeast"])
+
+        expected = ["noop"]
+        expected.extend([f"move_{label}" for label in orientation_labels])
+        expected.extend([f"rotate_{label}" for label in orientation_labels])
+        assert action_names1 == expected
 
     def test_action_indices_consistency(self, basic_config, simple_map):
         """Test that action indices remain consistent."""
         env = MettaGrid(from_mettagrid_config(basic_config), simple_map, 42)
         action_names = env.action_names()
 
-        # Verify indices (noop is first when enabled, put_items is now enabled by default)
-        assert action_names.index("noop") == 0
-        assert action_names.index("move") == 1
-        assert action_names.index("rotate") == 2
-        assert action_names.index("put_items") == 3
-        assert action_names.index("get_items") == 4
+        # Verify ordering (noop first, followed by move and rotate variants)
+        assert action_names[0] == "noop"
+        assert action_names[1].startswith("move")
+        assert any(name.startswith("rotate") for name in action_names)
 
 
 class TestActionValidation:
@@ -134,45 +136,24 @@ class TestActionValidation:
         env = MettaGrid(from_mettagrid_config(basic_config), simple_map, 42)
         env.reset()
 
-        # Try invalid action type
-        invalid_action = np.array([[99, 0]], dtype=dtype_actions)
+        # Try invalid flattened index
+        invalid_action = np.array([env.action_space.n + 99], dtype=dtype_actions)
         env.step(invalid_action)
 
         # Action should fail
         assert not env.action_success()[0], "Invalid action type should fail"
 
-    def test_invalid_action_argument(self, basic_config, simple_map):
-        """Test that invalid action arguments are handled properly."""
+    def test_invalid_action_index(self, basic_config, simple_map):
+        """Test that invalid action indices are handled properly."""
         env = MettaGrid(from_mettagrid_config(basic_config), simple_map, 42)
         env.reset()
 
-        move_idx = env.action_names().index("move")
-        max_args = env.max_action_args()
-
-        # Try argument exceeding max_arg
-        invalid_arg = max_args[move_idx] + 10
-        invalid_action = np.array([[move_idx, invalid_arg]], dtype=dtype_actions)
+        # Use an out-of-range flattened index to simulate invalid input
+        invalid_action = np.array([env.action_space.n + 1], dtype=dtype_actions)
         env.step(invalid_action)
 
         # Action should fail
         assert not env.action_success()[0], "Invalid action argument should fail"
-
-    def test_max_action_args(self, basic_config, simple_map):
-        """Test max_action_args for different actions."""
-        env = MettaGrid(from_mettagrid_config(basic_config), simple_map, 42)
-
-        action_names = env.action_names()
-        max_args = env.max_action_args()
-
-        # Check expected max args
-        move_idx = action_names.index("move")
-        noop_idx = action_names.index("noop")
-        rotate_idx = action_names.index("rotate")
-
-        assert basic_config.allow_diagonals, "tests assume diagonals are allowed"
-        assert max_args[move_idx] == 7, "Move should have max_arg=7 (8 orientations)"
-        assert max_args[noop_idx] == 0, "Noop should have max_arg=0"
-        assert max_args[rotate_idx] == 7, "Rotate should have max_arg=7 (8 orientations)"
 
 
 class TestResourceRequirements:
@@ -191,8 +172,8 @@ class TestResourceRequirements:
             agent=basic_config.agent,
             actions=ActionsConfig(
                 move=ActionConfig(enabled=True, required_resources={"ore": 1}),
-                noop=ActionConfig(enabled=True),
-                rotate=ActionConfig(enabled=True),
+                noop=ActionConfig(),
+                rotate=ActionConfig(),
             ),
             objects=basic_config.objects,
             allow_diagonals=basic_config.allow_diagonals,
@@ -201,8 +182,12 @@ class TestResourceRequirements:
         env = MettaGrid(from_mettagrid_config(config), simple_map, 42)
         env.reset()
 
-        move_idx = env.action_names().index("move")
-        move_action = np.array([[move_idx, 0]], dtype=dtype_actions)
+        move_action_idx = next(
+            (idx for idx, name in enumerate(env.action_names()) if name.startswith("move")),
+            None,
+        )
+        assert move_action_idx is not None, "Expected move action in action names"
+        move_action = np.array([move_action_idx], dtype=dtype_actions)
 
         # Agent starts with no resources, so move should fail
         env.step(move_action)
@@ -224,8 +209,8 @@ class TestResourceRequirements:
             ),
             actions=ActionsConfig(
                 move=ActionConfig(enabled=True, consumed_resources={"ore": 1}),
-                noop=ActionConfig(enabled=True),
-                rotate=ActionConfig(enabled=True),
+                noop=ActionConfig(),
+                rotate=ActionConfig(),
             ),
             objects=basic_config.objects,
             allow_diagonals=basic_config.allow_diagonals,
@@ -258,9 +243,9 @@ class TestResourceRequirements:
         # Get agent position
         agent_pos = get_agent_position(env, 0)
 
-        # Move east (direction 2)
-        move_idx = env.action_names().index("move")
-        move_action = np.array([[move_idx, 2]], dtype=dtype_actions)
+        # Move east
+        move_action_idx = action_index(env, "move", Orientation.EAST)
+        move_action = np.array([move_action_idx], dtype=dtype_actions)
 
         obs_after, _rewards, _dones, _truncs, _infos = env.step(move_action)
         action_success = env.action_success()[0]
@@ -298,19 +283,14 @@ class TestActionSpace:
 
         action_space = env.action_space
 
-        # Should be MultiDiscrete with 2 dimensions
-        assert hasattr(action_space, "nvec"), "Action space should be MultiDiscrete"
-        assert len(action_space.nvec) == 2, "Action space should have 2 dimensions"
+        # Should be Discrete with one dimension
+        from gymnasium import spaces
 
-        num_actions = action_space.nvec[0]
-        max_arg_plus_one = action_space.nvec[1]
+        assert isinstance(action_space, spaces.Discrete), "Action space should be Discrete"
 
-        # Should match our configuration
-        assert num_actions == len(env.action_names())
-
-        # Max arg is the maximum across all actions
-        max_args = env.max_action_args()
-        assert max_arg_plus_one == max(max_args) + 1
+        action_names = env.action_names()
+        assert action_space.n == len(action_names)
+        assert len(set(action_names)) == len(action_names)
 
     def test_single_action_space(self, basic_config, multi_agent_map):
         """Test action space for multi-agent environment."""
@@ -335,25 +315,20 @@ class TestActionSpace:
         action_space = env.action_space
         assert action_space is not None
 
-        # The action space should be MultiDiscrete for each agent's action
-        assert hasattr(action_space, "nvec"), "Action space should be MultiDiscrete"
-        assert len(action_space.nvec) == 2, "Action space should have 2 dimensions (action_type, action_arg)"
+        from gymnasium import spaces
 
-        # First dimension is number of action types
-        num_actions = action_space.nvec[0]
-        assert num_actions == len(env.action_names())
-
-        # Second dimension is max action argument + 1
-        max_arg_plus_one = action_space.nvec[1]
-        max_args = env.max_action_args()
-        assert max_arg_plus_one == max(max_args) + 1
+        # The action space should be Discrete for each agent's action
+        assert isinstance(action_space, spaces.Discrete)
+        action_names = env.action_names()
+        assert action_space.n == len(action_names)
+        assert len(set(action_names)) == len(action_names)
 
         # When stepping, we need to provide actions for all agents
         env.reset()
 
-        # Create actions for all 3 agents (noop for each)
-        noop_idx = env.action_names().index("noop")
-        actions = np.array([[noop_idx, 0]] * 3, dtype=dtype_actions)
+        # Create actions for all 3 agents using the noop label
+        noop_idx = action_names.index("noop")
+        actions = np.full(env.num_agents, noop_idx, dtype=dtype_actions)
 
         # This should work without error
         env.step(actions)
@@ -379,9 +354,9 @@ class TestSpecialActions:
                 attack=AttackActionConfig(
                     enabled=True, required_resources={}, consumed_resources={}, defense_resources={}
                 ),
-                move=ActionConfig(enabled=True),
-                noop=ActionConfig(enabled=True),
-                rotate=ActionConfig(enabled=True),
+                move=ActionConfig(),
+                noop=ActionConfig(),
+                rotate=ActionConfig(),
             ),
             objects=basic_config.objects,
             allow_diagonals=basic_config.allow_diagonals,
@@ -390,12 +365,20 @@ class TestSpecialActions:
         env = MettaGrid(from_mettagrid_config(config), simple_map, 42)
         action_names = env.action_names()
 
-        # Attack should be present
-        assert "attack" in action_names
+        # Attack variants should be present
+        attack_actions = [name for name in action_names if name.startswith("attack_")]
+        assert len(attack_actions) == 9, f"Expected 9 attack variants, found {attack_actions}"
 
-        # Check the expected order (noop is first when enabled, attack comes after noop)
-        expected_actions = ["noop", "move", "rotate", "put_items", "get_items", "attack"]
-        assert action_names == expected_actions
+        orientations = ["north", "south", "west", "east"]
+        if basic_config.allow_diagonals:
+            orientations.extend(["northwest", "northeast", "southwest", "southeast"])
+
+        expected = ["noop"]
+        expected.extend([f"move_{name}" for name in orientations])
+        expected.extend([f"rotate_{name}" for name in orientations])
+        expected.extend([f"attack_{i}" for i in range(9)])
+
+        assert action_names == expected
 
     def test_swap_action_registration(self, basic_config, simple_map):
         """Test that swap action is properly registered when enabled."""
@@ -408,10 +391,10 @@ class TestSpecialActions:
             num_observation_tokens=basic_config.num_observation_tokens,
             agent=basic_config.agent,
             actions=ActionsConfig(
-                swap=ActionConfig(enabled=True),
-                move=ActionConfig(enabled=True),
-                noop=ActionConfig(enabled=True),
-                rotate=ActionConfig(enabled=True),
+                swap=ActionConfig(),
+                move=ActionConfig(),
+                noop=ActionConfig(),
+                rotate=ActionConfig(),
             ),
             objects=basic_config.objects,
             allow_diagonals=basic_config.allow_diagonals,
