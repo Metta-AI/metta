@@ -162,7 +162,6 @@ class Trainer:
         # Rollout phase
         with self.timer("_rollout"):
             # Ensure ScheduleFree optimizer is in eval mode during rollout
-            # (but skip on first epoch before any training has occurred)
             if self._is_schedulefree and self._schedulefree_initialized:
                 logger.info("Setting ScheduleFree optimizer to eval mode for rollout")
                 self.optimizer.eval()
