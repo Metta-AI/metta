@@ -47,7 +47,7 @@ def train(
             "lora_alpha": lora_alpha,
             "lora_dropout": lora_dropout,
             "lora_target_modules": lora_target_modules or DEFAULT_LORA_TARGETS,
-            "token_stride": 1,
+            "token_stride": 2,
             "actor_head_rank": None,
             "value_head_rank": None,
         }
@@ -60,7 +60,6 @@ def train(
         policy_architecture=policy_architecture,
     )
 
-    tool = smollm_recipe._apply_smollm_defaults(tool)
     return _apply_lora_defaults(tool)
 
 
@@ -70,16 +69,18 @@ def _apply_lora_defaults(tool: TrainTool) -> TrainTool:
     trainer_updates = {}
     if tool.trainer.compile:
         trainer_updates["compile"] = False
-    if tool.trainer.batch_size > 65_536:
-        trainer_updates["batch_size"] = 65_536
-    if tool.trainer.minibatch_size > 2_048:
-        trainer_updates["minibatch_size"] = 2_048
+    if tool.trainer.batch_size > 32_768:
+        trainer_updates["batch_size"] = 32_768
+    if tool.trainer.minibatch_size > 1_024:
+        trainer_updates["minibatch_size"] = 1_024
+    if tool.trainer.bptt_horizon > 8:
+        trainer_updates["bptt_horizon"] = 8
     if trainer_updates:
         tool.trainer = tool.trainer.model_copy(update=trainer_updates)
 
     env_updates = {}
-    if tool.training_env.forward_pass_minibatch_target_size > 1_024:
-        env_updates["forward_pass_minibatch_target_size"] = 1_024
+    if tool.training_env.forward_pass_minibatch_target_size > 512:
+        env_updates["forward_pass_minibatch_target_size"] = 512
     if env_updates:
         tool.training_env = tool.training_env.model_copy(update=env_updates)
 
