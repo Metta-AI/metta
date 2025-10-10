@@ -94,6 +94,7 @@ def train_one(
     batch_size: int,
     lr: float,
     rtu_chunk_size: int | None = None,
+    rtu_disable_traces_last_chunk: bool = False,
 ) -> Dict[str, float]:
     train_ds, val_ds, test_ds = task.make_splits()
     _ensure_disjoint_splits(train_ds, val_ds, test_ds)
@@ -124,6 +125,48 @@ def train_one(
     rtu_enabled = bool(rtu_chunk_size and rtu_chunk_size > 0 and _stack_uses_rtu_stream(stack))
     if rtu_chunk_size and rtu_chunk_size > 0 and not rtu_enabled:
         logging.warning("--rtu-chunk-size provided but current stack has no RTUStream cell; ignoring chunked streaming")
+
+    def _zero_rtu_traces_in_state(state) -> None:
+        """Zero carried streaming traces inside RTUStream cell states in-place.
+
+        This disables boundary-correction terms for the next chunk.
+        """
+        if state is None:
+            return
+        try:
+            keys = list(state.keys()) if hasattr(state, "keys") else []
+        except Exception:
+            keys = []
+        for bk in keys:
+            try:
+                bstate = state.get(bk)
+            except Exception:
+                bstate = None
+            if bstate is None or not hasattr(bstate, "keys"):
+                continue
+            # RTUStreamCell state (if present) lives under this key
+            if "RTUStreamCell" in bstate.keys():
+                try:
+                    cstate = bstate.get("RTUStreamCell")
+                except Exception:
+                    cstate = None
+                if cstate is None or not hasattr(cstate, "keys"):
+                    continue
+                for name in (
+                    "E_nu_c1",
+                    "E_nu_c2",
+                    "E_th_c1",
+                    "E_th_c2",
+                    "E_w1_c1",
+                    "E_w1_c2",
+                    "E_w2_c1",
+                    "E_w2_c2",
+                ):
+                    if name in cstate.keys():
+                        t = cstate.get(name)
+                        if torch.is_tensor(t):
+                            with torch.no_grad():
+                                cstate[name] = torch.zeros_like(t)
 
     def _run_epoch(loader: DataLoader, train: bool) -> Tuple[float, float]:
         model.train(train)
@@ -161,6 +204,9 @@ def train_one(
                                     state = state.apply(lambda t: t.detach() if torch.is_tensor(t) else t)
 
                 # Final chunk with gradients (tail if present, else last full chunk)
+                # Optionally disable traces at last chunk for sanity checks
+                if rtu_disable_traces_last_chunk and state is not None:
+                    _zero_rtu_traces_in_state(state)
                 if tail > 0:
                     start = n_full * C
                     logits, state = model(seq[:, start:], state)
@@ -223,6 +269,14 @@ def main() -> None:
             "between chunks (TBPTT on last chunk only). Ignored for non-RTU stacks."
         ),
     )
+    parser.add_argument(
+        "--rtu-disable-traces-last-chunk",
+        action="store_true",
+        help=(
+            "Sanity check: zero carried RTU streaming traces right before the final gradient-bearing chunk. "
+            "Disables boundary-correction terms so delayed_recall should degrade under chunking."
+        ),
+    )
     args = parser.parse_args()
 
     # Configure logging once
@@ -261,6 +315,7 @@ def main() -> None:
             batch_size=args.batch_size,
             lr=args.lr,
             rtu_chunk_size=args.rtu_chunk_size if args.rtu_chunk_size > 0 else None,
+            rtu_disable_traces_last_chunk=args.rtu_disable_traces_last_chunk,
         )
         results[name] = metrics
         logging.info(

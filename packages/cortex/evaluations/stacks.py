@@ -23,6 +23,7 @@ from cortex.config import (
     RTUStreamCellConfig,
     mLSTMCellConfig,
     sLSTMCellConfig,
+    PassThroughBlockConfig
 )
 from cortex.factory import build_cortex
 from cortex.stacks import CortexStack
@@ -80,11 +81,15 @@ def build_rtu_stream_preup(*, d_hidden: int = 128, proj_factor: float = 2.0) -> 
         d_hidden=d_hidden,
         post_norm=True,
         blocks=[
+            PassThroughBlockConfig(
+                # hidden_size is inferred from PreUp: int(proj_factor * d_hidden)
+                cell=RTUStreamCellConfig(hidden_size=None, activation="silu"),
+            ),
             PreUpBlockConfig(
                 proj_factor=proj_factor,
                 # hidden_size is inferred from PreUp: int(proj_factor * d_hidden)
                 cell=RTUStreamCellConfig(hidden_size=None, activation="silu"),
-            ),
+            )
         ],
     )
     return build_cortex(cfg)
