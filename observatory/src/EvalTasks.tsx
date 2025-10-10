@@ -974,7 +974,24 @@ export function EvalTasks({ repo }: Props) {
                         )}
                       </td>
                       <td style={{ padding: '12px' }}>
-                        {(task.attributes?.stderr_log_path || task.attributes?.stdout_log_path) && (
+                        {task.attributes?.log_path ? (
+                          <a
+                            href={task.attributes.log_path}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                              color: '#007bff',
+                              textDecoration: 'none',
+                              fontWeight: 500,
+                              fontSize: '13px',
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+                            onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
+                          >
+                            Logs
+                          </a>
+                        ) : (task.attributes?.stderr_log_path || task.attributes?.stdout_log_path) ? (
                           <div style={{ display: 'flex', gap: '8px', fontSize: '13px' }}>
                             {task.attributes?.stderr_log_path && (
                               <a
@@ -1014,8 +1031,7 @@ export function EvalTasks({ repo }: Props) {
                               </a>
                             )}
                           </div>
-                        )}
-                        {!task.attributes?.stderr_log_path && !task.attributes?.stdout_log_path && (
+                        ) : (
                           <span style={{ color: '#6c757d' }}>-</span>
                         )}
                       </td>
