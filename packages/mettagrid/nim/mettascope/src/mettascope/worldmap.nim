@@ -3,7 +3,7 @@ import
   boxy, vmath, windy, fidget2/[hybridrender, common],
   common, panels, actions, utils, replays, objectinfo, pathfinding
 
-const TS = 1.0 / 64.0 # Tile scale
+const TS = 1.0 / 256.0 # Tile scale
 
 proc buildAtlas*() =
   ## Build the atlas.
@@ -111,10 +111,9 @@ proc useSelections*(panel: Panel) =
 
 proc drawFloor*() =
   # Draw the floor tiles.
-  discard
-  # for x in 0 ..< replay.mapSize[0]:
-  #   for y in 0 ..< replay.mapSize[1]:
-  #     bxy.drawImage("objects/floor1", ivec2(x.int32, y.int32).vec2, angle = 0, scale = TS)
+  for x in 0 ..< replay.mapSize[0]:
+    for y in 0 ..< replay.mapSize[1]:
+      bxy.drawImage("objects/floor1", ivec2(x.int32, y.int32).vec2, angle = 0, scale = TS)
 
 const wallSprites = @[
   "objects/wall.0",
@@ -154,11 +153,9 @@ proc drawWalls*() =
       grid[pos.x][pos.y] = true
 
   template hasWall(x: int, y: int): bool =
-    if x >= 0 and x < replay.mapSize[0] and
-      y >= 0 and y < replay.mapSize[1]:
-        grid[x][y]
-    else:
-      true
+    x >= 0 and x < replay.mapSize[0] and
+    y >= 0 and y < replay.mapSize[1] and
+    grid[x][y]
 
   var wallFills: seq[IVec2]
   for x in 0 ..< replay.mapSize[0]:
@@ -179,12 +176,9 @@ proc drawWalls*() =
               hasWall(x + 1, y - 1):
             continue
         bxy.drawImage(wallSprites[tile], vec2(x.float32, y.float32), angle = 0, scale = TS)
-      else:
-        # Draw floor tile.
-        bxy.drawImage("objects/floor1", vec2(x.float32, y.float32), angle = 0, scale = TS)
 
   for fillPos in wallFills:
-    bxy.drawImage("objects/void.fill", fillPos.vec2 + vec2(0.5, 0.8), angle = 0, scale = TS)
+    bxy.drawImage("objects/wall.fill", fillPos.vec2 + vec2(0.5, 0.3), angle = 0, scale = TS)
 
 proc drawObjects*() =
   ## Draw the objects on the map.
