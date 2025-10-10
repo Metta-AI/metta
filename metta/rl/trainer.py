@@ -88,7 +88,6 @@ class Trainer:
 
         self.optimizer = create_optimizer(self._cfg.optimizer, self._policy)
         self._is_schedulefree = is_schedulefree_optimizer(self.optimizer)
-        self._schedulefree_initialized = False  # Track if optimizer has run at least one step
 
         self._state = TrainerState()
 
@@ -162,8 +161,7 @@ class Trainer:
         # Rollout phase
         with self.timer("_rollout"):
             # Ensure ScheduleFree optimizer is in eval mode during rollout
-            if self._is_schedulefree and self._schedulefree_initialized:
-                logger.info("Setting ScheduleFree optimizer to eval mode for rollout")
+            if self._is_schedulefree:
                 self.optimizer.eval()
 
             rollout_result = self.core_loop.rollout_phase(self._env, self._context)
@@ -181,9 +179,8 @@ class Trainer:
             if self._context.training_env_id is None:
                 raise RuntimeError("Training environment slice unavailable for training phase")
 
-            # Ensure ScheduleFree optimizer is in train mode before training
+            # ScheduleFree optimizer is in train mode for training phase
             if self._is_schedulefree:
-                logger.info("Setting ScheduleFree optimizer to train mode for training phase")
                 self.optimizer.train()
 
             losses_stats, epochs_trained = self.core_loop.training_phase(
@@ -192,11 +189,6 @@ class Trainer:
                 max_grad_norm=0.5,
             )
             self._context.advance_epoch(epochs_trained)
-
-            # Mark that we've completed at least one training step
-            if self._is_schedulefree and not self._schedulefree_initialized:
-                self._schedulefree_initialized = True
-
         # Synchronize before proceeding
         self._distributed_helper.synchronize()
 
