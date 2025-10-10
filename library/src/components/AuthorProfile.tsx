@@ -276,7 +276,13 @@ export const AuthorProfile: FC<AuthorProfileProps> = ({
             </div>
             <div className="divide-y divide-gray-200">
               {author.recentPapers.map((paper) => (
-                <div key={paper.id} className="p-6">
+                <div
+                  key={paper.id}
+                  onClick={() => onPaperClick?.(paper)}
+                  className={`p-6 ${
+                    onPaperClick ? "cursor-pointer hover:bg-gray-50" : ""
+                  }`}
+                >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <h4 className="mb-2 text-lg font-medium text-gray-900">
@@ -300,6 +306,7 @@ export const AuthorProfile: FC<AuthorProfileProps> = ({
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-primary-500 hover:text-primary-600 ml-4"
+                        onClick={(e) => e.stopPropagation()}
                       >
                         <svg
                           className="h-5 w-5"
