@@ -122,10 +122,7 @@ def handle_collect_command(args: argparse.Namespace):
             print("\nCollection cancelled.")
             return
 
-    command_str = (
-        f"uv run ./tools/run.py experiments.recipes.doxascope.evaluate "
-        f"policy_uri={policy_uri} num_simulations={num_simulations}"
-    )
+    command_str = f"uv run ./tools/run.py doxascope.evaluate policy_uri={policy_uri} num_simulations={num_simulations}"
 
     print("\nHanding off to evaluation tool...")
     print(f"  Command: {command_str}\n")

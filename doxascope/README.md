@@ -99,7 +99,7 @@ This will prompt you for:
 Alternatively, use the doxascope recipe directly:
 
 ```bash
-uv run ./tools/run.py experiments.recipes.doxascope.evaluate policy_uri=<path> num_simulations=10
+uv run ./tools/run.py doxascope.evaluate policy_uri=<path> num_simulations=10
 ```
 
 #### Manual Collection
@@ -107,7 +107,7 @@ uv run ./tools/run.py experiments.recipes.doxascope.evaluate policy_uri=<path> n
 Enable doxascope during any evaluation by adding `doxascope_enabled=true`:
 
 ```bash
-uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri=<path> doxascope_enabled=true
+uv run ./tools/run.py arena.evaluate policy_uri=<path> doxascope_enabled=true
 ```
 
 **Data Logging**: The `DoxascopeLogger` automatically detects LSTM states from:

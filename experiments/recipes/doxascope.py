@@ -1,7 +1,7 @@
 from typing import Optional, Sequence
 
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.sim import SimTool
+from metta.tools.eval import EvaluateTool
 
 from experiments.recipes import arena
 
@@ -11,14 +11,14 @@ def evaluate(
     max_steps: int = 100,
     num_simulations: int = 10,
     simulations: Optional[Sequence[SimulationConfig]] = None,
-) -> SimTool:
+) -> EvaluateTool:
     """
     Run a specified number of single-episode simulations for Doxascope data collection.
 
     Note: Uses single-environment configuration as required by doxascope logging.
     """
     # Use the arena recipe to get the base "basic" simulation config
-    all_sims = arena.make_evals()
+    all_sims = arena.simulations()
     basic_sim = next((s for s in all_sims if s.name == "basic"), None)
 
     if not basic_sim:
@@ -39,7 +39,7 @@ def evaluate(
         sim_config.name = f"{basic_sim.name}_{i + 1}"
         all_sim_configs.append(sim_config)
 
-    return SimTool(
+    return EvaluateTool(
         simulations=all_sim_configs,
         policy_uris=[policy_uri],
     )

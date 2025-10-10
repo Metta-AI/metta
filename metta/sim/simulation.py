@@ -295,7 +295,7 @@ class Simulation:
         if self._doxascope_logger.enabled:
             metta_grid_env: MettaGridEnv = self._vecenv.driver_env  # type: ignore
             assert isinstance(metta_grid_env, MettaGridEnv)
-            env_grid_objects = metta_grid_env.grid_objects
+            env_grid_objects = metta_grid_env.grid_objects()
             self._doxascope_logger.log_timestep(
                 self._policy,
                 self._policy_idxs,
