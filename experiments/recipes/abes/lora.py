@@ -70,8 +70,18 @@ def _apply_lora_defaults(tool: TrainTool) -> TrainTool:
     trainer_updates = {}
     if tool.trainer.compile:
         trainer_updates["compile"] = False
+    if tool.trainer.batch_size > 65_536:
+        trainer_updates["batch_size"] = 65_536
+    if tool.trainer.minibatch_size > 2_048:
+        trainer_updates["minibatch_size"] = 2_048
     if trainer_updates:
         tool.trainer = tool.trainer.model_copy(update=trainer_updates)
+
+    env_updates = {}
+    if tool.training_env.forward_pass_minibatch_target_size > 1_024:
+        env_updates["forward_pass_minibatch_target_size"] = 1_024
+    if env_updates:
+        tool.training_env = tool.training_env.model_copy(update=env_updates)
 
     return tool
 
