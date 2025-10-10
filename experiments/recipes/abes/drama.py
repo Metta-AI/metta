@@ -20,7 +20,7 @@ from metta.tools.train import TrainTool
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:  # pragma: no cover
-    pass
+    from metta.agent.policies.drama_policy import DramaPolicyConfig
 
 
 def _supports_mem_eff_path() -> bool:
