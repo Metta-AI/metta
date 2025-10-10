@@ -50,6 +50,8 @@ def get_mission_names_and_configs(
                 if m not in name_set:
                     name_set.add(m)
                     deduped.append((m, c))
+            if not deduped:
+                raise ValueError(f"No missions found for {missions_arg}")
             return deduped
         except ValueError as e:
             console.print(f"[yellow]{e}[/yellow]\n")
