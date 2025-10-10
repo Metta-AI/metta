@@ -64,7 +64,7 @@ dependencies = [
   "transformers>=4.46.0",
   "torchrl>=0.8.1",
   "tqdm>=4.67.1",
-  "typer>=0.16.0",
+  "typer>=0.19.2",
   "uvicorn[standard]>=0.34.2",
   "wandb>=0.19.11",
   "wandb-core>=0.17.0b11",
@@ -88,11 +88,7 @@ testing = [
   "testcontainers>=4.10.0",
   "pyright>=1.1.401",
 ]
-lint = [
-  "cpplint>=2.0.2",
-  "mypy>=1.18.2",
-  "ruff>=0.11.13",
-]
+lint = ["cpplint>=2.0.2", "mypy>=1.18.2", "ruff>=0.11.13"]
 interactive = [
   "anywidget>=0.9.18",
   "ipykernel>=6.29.5",
