@@ -15,6 +15,6 @@ map_data: |-
 char_to_name_map:
   "#": wall
   ".": empty
-  "s": swappable_wall
+  "s": block
   "@": agent.agent
   "_": altar

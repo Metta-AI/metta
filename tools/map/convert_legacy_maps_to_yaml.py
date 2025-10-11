@@ -36,13 +36,13 @@ def _build_cogs_vs_clips_char_to_name() -> dict[str, str]:
         if len(token) != 1:
             raise ValueError(f"Mission legend token must be single character, got {token!r}")
         mapping[token] = name
+
+    # Add common characters that are used in cogames maps
+    mapping["."] = "empty"
+    mapping["#"] = "wall"
+    mapping["@"] = "agent.agent"
+
     return mapping
-
-
-LEGEND_PRESETS: dict[str, dict[str, str]] = {
-    ASCII_GRID_LEGEND_KEY: dict(ASCII_GRID_DEFAULT_CHAR_TO_NAME),
-    COGS_VS_CLIPS_LEGEND_KEY: _build_cogs_vs_clips_char_to_name(),
-}
 
 
 def _collect_additional_char_mappings(modules: Iterable[ModuleType]) -> dict[str, list[str]]:
@@ -59,9 +59,15 @@ def _collect_additional_char_mappings(modules: Iterable[ModuleType]) -> dict[str
 
 # These mappings are compiled for future use when reconciling diverse legend sources.
 # They are not consumed today so downstream behavior remains unchanged.
-ADDITIONAL_CHAR_MAPPINGS = _collect_additional_char_mappings(
-    modules=(building, empty_converters, stations, missions)
-)
+ADDITIONAL_CHAR_MAPPINGS = _collect_additional_char_mappings(modules=(building, empty_converters, stations, missions))
+
+
+LEGEND_PRESETS: dict[str, dict[str, str]] = {
+    ASCII_GRID_LEGEND_KEY: (
+        dict(ASCII_GRID_DEFAULT_CHAR_TO_NAME) | {token: names[0] for token, names in ADDITIONAL_CHAR_MAPPINGS.items()}
+    ),
+    COGS_VS_CLIPS_LEGEND_KEY: _build_cogs_vs_clips_char_to_name(),
+}
 
 
 def split_legacy_sections(text: str) -> tuple[list[str], list[str]]:
@@ -230,7 +236,7 @@ def load_map_components(raw_text: str) -> tuple[str, list[str], dict[str, str]]:
 
 def convert_map(path: Path, dry_run: bool) -> bool:
     raw_text = path.read_text(encoding="utf-8")
-    type_line, map_section, legend_map = load_map_components(raw_text)
+    type_line, map_section, _ = load_map_components(raw_text)
     map_lines = normalize_map_lines(map_section)
     default_legend_key = infer_default_legend_key(path)
     default_legend = legend_from_key(default_legend_key)
@@ -238,12 +244,9 @@ def convert_map(path: Path, dry_run: bool) -> bool:
     final_legend: dict[str, str] = {}
     for char in ordered_chars(map_lines):
         default_value = default_legend.get(char)
-        map_value = legend_map.get(char)
 
         if default_value is not None:
             value = default_value
-        elif map_value is not None:
-            value = map_value
         else:
             raise ValueError(f"Missing legend entry for character {char!r} in {path}")
         if any(ch.isspace() for ch in value):
@@ -277,12 +280,18 @@ def collect_targets(paths: list[Path]) -> list[Path]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Convert legacy ASCII maps to YAML format.")
-    parser.add_argument("paths", nargs="*", type=Path, help="Files or directories to convert")
+    parser.add_argument("files", nargs="*", type=Path, help="Specific map files to convert")
+    parser.add_argument("--all", action="store_true", help="Convert all map files in default directories")
     parser.add_argument("--dry-run", action="store_true", help="Report files that would change")
     args = parser.parse_args()
 
-    search_roots = args.paths or list(DEFAULT_DIRECTORIES)
-    files = collect_targets(search_roots)
+    if args.all:
+        search_roots = list(DEFAULT_DIRECTORIES)
+        files = collect_targets(search_roots)
+    elif args.files:
+        files = collect_targets(args.files)
+    else:
+        parser.error("Must specify either individual files or --all")
 
     updated = 0
     for file in files:
