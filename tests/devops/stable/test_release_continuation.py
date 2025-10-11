@@ -26,7 +26,7 @@ def test_resolve_version_continues_unreleased_state(monkeypatch, tmp_path):
 
     # Create an unreleased state
     state = ReleaseState(
-        version="release_2025.10.09-1430",
+        version="v2025.10.09-1430",
         created_at=datetime.utcnow().isoformat(),
         commit_sha="abc123",
         released=False,
@@ -36,7 +36,7 @@ def test_resolve_version_continues_unreleased_state(monkeypatch, tmp_path):
     from devops.stable.release_stable import resolve_version
 
     version = resolve_version(explicit=None, force_new=False)
-    assert version == "release_2025.10.09-1430"
+    assert version == "2025.10.09-1430"
 
 
 def test_resolve_version_starts_new_when_previous_released(monkeypatch, tmp_path):
@@ -45,7 +45,7 @@ def test_resolve_version_starts_new_when_previous_released(monkeypatch, tmp_path
 
     # Create a released state
     state = ReleaseState(
-        version="release_2025.10.09-1430",
+        version="v2025.10.09-1430",
         created_at=datetime.utcnow().isoformat(),
         commit_sha="abc123",
         released=True,
@@ -55,7 +55,7 @@ def test_resolve_version_starts_new_when_previous_released(monkeypatch, tmp_path
     from devops.stable.release_stable import resolve_version
 
     version = resolve_version(explicit=None, force_new=False)
-    assert version != "release_2025.10.09-1430"  # Should be a new version
+    assert version != "2025.10.09-1430"  # Should be a new version
     assert version.startswith("2025.")
 
 
@@ -75,7 +75,7 @@ def test_resolve_version_respects_force_new(monkeypatch, tmp_path):
 
     # Create an unreleased state
     state = ReleaseState(
-        version="release_2025.10.09-1430",
+        version="v2025.10.09-1430",
         created_at=datetime.utcnow().isoformat(),
         commit_sha="abc123",
         released=False,
@@ -85,7 +85,7 @@ def test_resolve_version_respects_force_new(monkeypatch, tmp_path):
     from devops.stable.release_stable import resolve_version
 
     version = resolve_version(explicit=None, force_new=True)
-    assert version != "release_2025.10.09-1430"  # Should be different
+    assert version != "2025.10.09-1430"  # Should be different
     assert version.startswith("2025.")
 
 
@@ -97,7 +97,7 @@ def test_step_prepare_tag_skips_when_gate_passed(monkeypatch, tmp_path, capsys):
 
     # Create state with completed prepare_tag gate
     state = ReleaseState(
-        version="release_2025.10.09-1430",
+        version="v2025.10.09-1430",
         created_at=datetime.utcnow().isoformat(),
         commit_sha="abc123",
     )
@@ -127,7 +127,7 @@ def test_step_bug_check_skips_when_gate_passed(monkeypatch, tmp_path, capsys):
 
     # Create state with completed bug_check gate
     state = ReleaseState(
-        version="release_2025.10.09-1430",
+        version="v2025.10.09-1430",
         created_at=datetime.utcnow().isoformat(),
         commit_sha="abc123",
     )
@@ -155,7 +155,7 @@ def test_step_prepare_tag_marks_gate_when_complete(monkeypatch, tmp_path):
 
     # Create state without gates
     state = ReleaseState(
-        version="release_2025.10.09-1430",
+        version="v2025.10.09-1430",
         created_at=datetime.utcnow().isoformat(),
         commit_sha="abc123",
     )
@@ -181,7 +181,7 @@ def test_step_bug_check_marks_gate_when_complete(monkeypatch, tmp_path):
 
     # Create state without gates
     state = ReleaseState(
-        version="release_2025.10.09-1430",
+        version="v2025.10.09-1430",
         created_at=datetime.utcnow().isoformat(),
         commit_sha="abc123",
     )
@@ -229,7 +229,7 @@ def test_continuation_skips_completed_steps(monkeypatch, tmp_path, capsys):
 
     # Create a partially completed release
     state = ReleaseState(
-        version="release_2025.10.09-1430",
+        version="v2025.10.09-1430",
         created_at=datetime.utcnow().isoformat(),
         commit_sha="abc123",
         released=False,
