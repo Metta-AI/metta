@@ -5,8 +5,8 @@ from typing import Any
 import numpy as np
 from pydantic import Field, ValidatorFunctionWrapHandler, field_validator, model_validator
 
-from mettagrid.map_builder import AnyMapBuilderConfig, GameMap, MapBuilder, MapBuilderConfig, MapGrid
-from mettagrid.map_builder.map_builder import validate_any_map_builder
+from mettagrid.map_builder import GameMap, MapBuilder, MapBuilderConfig, MapGrid
+from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 from mettagrid.map_builder.utils import create_grid
 from mettagrid.mapgen.area import Area, AreaWhere
 from mettagrid.mapgen.scene import ChildrenAction, Scene, SceneConfig, load_symbol, validate_any_scene_config
@@ -71,7 +71,7 @@ class MapGen(MapBuilder):
 
         @field_validator("instance", mode="wrap")
         @classmethod
-        def _validate_instance(cls, v: Any, handler: ValidatorFunctionWrapHandler) -> SceneConfig | AnyMapBuilderConfig:
+        def _validate_instance(cls, v: Any, handler: ValidatorFunctionWrapHandler) -> SceneConfig | MapBuilderConfig:
             if isinstance(v, SceneConfig):
                 return v
             elif isinstance(v, MapBuilderConfig):
@@ -86,7 +86,7 @@ class MapGen(MapBuilder):
                 if isinstance(target, type) and issubclass(target, Scene):
                     return validate_any_scene_config(v)
                 elif isinstance(target, type) and issubclass(target, MapBuilder):
-                    return validate_any_map_builder(v)
+                    return MapBuilderConfig.model_validate(v)
                 else:
                     raise ValueError(f"Invalid instance type: {target!r}")
             else:
