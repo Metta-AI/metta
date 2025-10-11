@@ -24,6 +24,7 @@ from mettagrid.envs.gym_env import MettaGridGymEnv
 from mettagrid.envs.mettagrid_env import MettaGridEnv
 from mettagrid.envs.pettingzoo_env import MettaGridPettingZooEnv
 from mettagrid.map_builder.ascii import AsciiMapBuilder
+from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME
 
 
 def test_puffer_env():
@@ -96,6 +97,7 @@ def test_gym_env():
                     ["#", ".", ".", ".", "#"],
                     ["#", "#", "#", "#", "#"],
                 ],
+                char_to_name_map=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
@@ -162,6 +164,7 @@ def test_pettingzoo_env():
                     ["#", ".", ".", ".", ".", ".", "#"],
                     ["#", "#", "#", "#", "#", "#", "#"],
                 ],
+                char_to_name_map=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
