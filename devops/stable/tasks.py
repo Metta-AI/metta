@@ -645,11 +645,11 @@ def get_all_tasks() -> list[Task]:
         wandb_metrics=["overview/sps", "env_agent/heart.get"],
     )
 
-    # Multi-GPU training - 500M timesteps
-    train_500m = remote_train(
-        name="arena_multi_gpu_500m",
+    # Multi-GPU training - 1B timesteps
+    train_1b = remote_train(
+        name="arena_multi_gpu_1b",
         module="experiments.recipes.arena_basic_easy_shaped.train",
-        args=["trainer.total_timesteps=500000000"],
+        args=["trainer.total_timesteps=1000000000"],
         timeout_s=86400,
         gpus=4,
         nodes=4,
@@ -668,4 +668,4 @@ def get_all_tasks() -> list[Task]:
         timeout_s=1800,
     )
 
-    return [ci_task, smoke, train_100m, train_500m, eval_task]
+    return [ci_task, smoke, train_100m, train_1b, eval_task]
