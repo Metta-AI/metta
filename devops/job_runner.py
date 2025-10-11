@@ -35,35 +35,22 @@ Example usage:
 from __future__ import annotations
 
 import os
+import re
 import signal
 import subprocess
-import tempfile
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from enum import Enum
-from io import StringIO
+from datetime import datetime
+from io import StringIO, TextIOBase
 from pathlib import Path
-from typing import Optional
+from typing import Optional, cast
 
 import sky
+import sky.exceptions
+import sky.jobs
 
 from metta.common.util.fs import get_repo_root
-
-
-# Define JobStatus enum values for runtime comparison (avoids import issues)
-class _JobStatus(str, Enum):
-    """SkyPilot JobStatus enum values for runtime comparison."""
-
-    INIT = "INIT"
-    PENDING = "PENDING"
-    SETTING_UP = "SETTING_UP"
-    RUNNING = "RUNNING"
-    SUCCEEDED = "SUCCEEDED"
-    FAILED = "FAILED"
-    FAILED_SETUP = "FAILED_SETUP"
-    FAILED_DRIVER = "FAILED_DRIVER"
-    CANCELLED = "CANCELLED"
 
 
 @dataclass
@@ -376,9 +363,11 @@ class RemoteJob(Job):
         self._start_time: Optional[float] = None
         self._is_resumed = bool(job_id)
         self._job_status: Optional[str] = None
+        # Generate timestamp-based identifier for failed jobs
+        self._timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
 
     def submit(self) -> None:
-        """Submit job to SkyPilot using the SDK."""
+        """Submit job to SkyPilot using devops/skypilot/launch.py."""
         if self._submitted:
             return
 
@@ -389,53 +378,69 @@ class RemoteJob(Job):
             return
 
         try:
-            # Create a YAML task file for the job
-            task_yaml = {
-                "name": self.name,
-                "run": " ".join(self.cmd) if self.cmd else "",
-            }
+            # Use the existing launch.py infrastructure which handles all SkyPilot complexity
+            # Build the launch command - cmd should be a module path + args format
+            # e.g., ["uv", "run", "./tools/run.py", "train", "arena", "run=test_123"]
 
-            # Configure resources if provided
-            if self.resources:
-                resources_dict = {}
-                if "accelerators" in self.resources:
-                    resources_dict["accelerators"] = self.resources["accelerators"]
-                if "use_spot" in self.resources:
-                    resources_dict["use_spot"] = self.resources["use_spot"]
-                task_yaml["resources"] = resources_dict
+            # Extract module path and args from self.cmd
+            # The cmd format is expected to be: ["uv", "run", "./tools/run.py", <module_path>, ...args]
+            if not self.cmd or len(self.cmd) < 4:
+                raise ValueError(f"Invalid cmd format for remote job: {self.cmd}")
 
-            # Set number of nodes if > 1
-            if self.num_nodes > 1:
-                task_yaml["num_nodes"] = self.num_nodes
+            # Find the module path (first arg after ./tools/run.py)
+            module_path = None
+            extra_args = []
 
-            # Write task to temporary YAML file
-            with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-                import yaml
+            for i, arg in enumerate(self.cmd):
+                if "run.py" in arg:
+                    if i + 1 < len(self.cmd):
+                        module_path = self.cmd[i + 1]
+                        extra_args = self.cmd[i + 2 :]
+                    break
 
-                yaml.dump(task_yaml, f)
-                task_file = f.name
+            if not module_path:
+                raise ValueError(f"Could not find module path in cmd: {self.cmd}")
 
-            try:
-                # Create task from YAML
-                task = sky.Task.from_yaml(task_file)
+            # Build launch.py command
+            launch_cmd = [
+                "uv",
+                "run",
+                "--active",
+                "./devops/skypilot/launch.py",
+                module_path,
+            ]
 
-                # Launch using sky.launch (client API)
-                request_id = sky.launch(
-                    task=task,
-                    cluster_name=self.cluster_name,
-                    dryrun=False,
-                )
-                self._submitted = True
-                self._start_time = time.time()
+            # Add extra arguments
+            if extra_args:
+                launch_cmd.extend(extra_args)
 
-                # Get the result (job_id and handle)
-                job_id, _handle = sky.get(request_id)
-                self._job_id = job_id
+            # Run the launch command
+            result = subprocess.run(
+                launch_cmd,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
 
-            finally:
-                # Clean up temp file
-                os.unlink(task_file)
+            self._submitted = True
+            self._start_time = time.time()
 
+            request_match = re.search(r"Submitted sky\.jobs\.launch request:\s*([a-f0-9-]+)", result.stdout)
+            if request_match:
+                self._request_id = request_match.group(1)
+
+            # Try to extract job ID from output (may appear later in the output)
+            job_id_match = re.search(r"Job ID:\s*(\d+)", result.stdout)
+            if job_id_match:
+                self._job_id = int(job_id_match.group(1))
+
+        except subprocess.CalledProcessError as e:
+            # Log launch failure
+            log_path = self._get_log_path()
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            log_path.write_text(f"SkyPilot launch failed: {e.stderr}\n{e.stdout}\n")
+            self._submitted = True  # Mark as submitted even if failed
+            self._job_id = None
         except Exception as e:
             # Log launch failure
             log_path = self._get_log_path()
@@ -445,7 +450,7 @@ class RemoteJob(Job):
             self._job_id = None
 
     def is_complete(self) -> bool:
-        """Check if remote job has completed."""
+        """Check if remote job has completed using SkyPilot SDK."""
         if not self._submitted:
             return False
 
@@ -453,69 +458,62 @@ class RemoteJob(Job):
             return True  # No job to track (launch failed)
 
         try:
-            # Use sky.queue client API to get job status
-            request_id = sky.queue(cluster_name=self.cluster_name, skip_finished=False)
-            queue_records = sky.get(request_id)
+            # Use SDK to get job queue
+            job_records = sky.get(sky.jobs.queue(refresh=True, all_users=False))
 
             # Find our job in the queue
-            our_job = None
-            for record in queue_records:
-                if record.get("job_id") == self._job_id:
-                    our_job = record
-                    break
+            for job in job_records:
+                if job["job_id"] == self._job_id:
+                    # Get status from job record
+                    # Status is an enum, extract just the name
+                    status = str(job["status"]).split(".")[-1]
+                    self._job_status = status
 
-            if our_job is None:
-                return True  # Job not found
+                    # Check if job is in a terminal state
+                    return status in (
+                        "SUCCEEDED",
+                        "FAILED",
+                        "FAILED_SETUP",
+                        "FAILED_DRIVER",
+                        "CANCELLED",
+                    )
 
-            # Get the status (it's a JobStatus enum object)
-            job_status_obj = our_job.get("status")
-            if job_status_obj is None:
-                return True
+            # If job not found in queue, consider it complete
+            return True
 
-            # Get the status value
-            self._job_status = job_status_obj.value if hasattr(job_status_obj, "value") else str(job_status_obj)
-
-            # Check if job is in a terminal state
-            return self._job_status in (
-                _JobStatus.SUCCEEDED.value,
-                _JobStatus.FAILED.value,
-                _JobStatus.FAILED_SETUP.value,
-                _JobStatus.FAILED_DRIVER.value,
-                _JobStatus.CANCELLED.value,
-            )
-
+        except sky.exceptions.ClusterNotUpError:
+            # Jobs controller not up - can't check status
+            return False
         except Exception:
             # If we can't get status, assume not complete
             return False
 
     def get_logs(self) -> str:
-        """Fetch latest logs from SkyPilot."""
+        """Fetch latest logs from SkyPilot using SDK."""
         if not self._job_id:
             return ""
 
         log_path = self._get_log_path()
 
         try:
-            # Use StringIO to capture logs
-            log_buffer = StringIO()
+            # Use SDK to get job logs
+            output = StringIO()
+            sky.jobs.tail_logs(job_id=self._job_id, follow=False, output_stream=cast(TextIOBase, output))
 
-            # Use sky.tail_logs client API
-            sky.tail_logs(
-                cluster_name=self.cluster_name,
-                job_id=self._job_id,
-                follow=False,
-                tail=10000,
-                output_stream=log_buffer,
-            )
-
-            logs = log_buffer.getvalue()
+            logs = output.getvalue()
 
             if logs:
                 log_path.parent.mkdir(parents=True, exist_ok=True)
                 log_path.write_text(logs)
+                return logs
 
-            return logs
+            return ""
 
+        except sky.exceptions.ClusterNotUpError:
+            # Jobs controller not up - return cached logs if available
+            if log_path.exists():
+                return log_path.read_text(errors="ignore")
+            return ""
         except Exception:
             # Return existing logs if fetch fails
             if log_path.exists():
@@ -526,15 +524,11 @@ class RemoteJob(Job):
         """Fetch result from completed job."""
         # Determine exit code from job status
         exit_code = 0
-        if self._job_status == _JobStatus.SUCCEEDED.value:
+        if self._job_status == "SUCCEEDED":
             exit_code = 0
-        elif self._job_status in (
-            _JobStatus.FAILED.value,
-            _JobStatus.FAILED_SETUP.value,
-            _JobStatus.FAILED_DRIVER.value,
-        ):
+        elif self._job_status in ("FAILED", "FAILED_SETUP", "FAILED_DRIVER", "UNKNOWN", "ERROR"):
             exit_code = 1
-        elif self._job_status == _JobStatus.CANCELLED.value:
+        elif self._job_status == "CANCELLED":
             exit_code = 130  # Interrupted
         elif not self._job_id:
             exit_code = 1  # Launch failure
@@ -553,7 +547,7 @@ class RemoteJob(Job):
 
     def _get_log_path(self) -> Path:
         """Get path to log file."""
-        job_id_str = str(self._job_id) if self._job_id else "unknown"
+        job_id_str = str(self._job_id) if self._job_id else self._timestamp
         return self.log_dir / f"{self.name}.{job_id_str}.log"
 
     def _handle_interrupt(self) -> None:
@@ -568,16 +562,23 @@ class RemoteJob(Job):
             print(f"\n⚠️  Remote job '{self.name}' was not successfully launched")
 
     def cancel(self) -> None:
-        """Cancel the running job using the SkyPilot SDK."""
+        """Cancel the running job using SkyPilot SDK."""
         if self._job_id:
             try:
                 print(f"Cancelling remote job '{self.name}' (Job ID: {self._job_id})...")
-                # Use sky.cancel client API
-                request_id = sky.cancel(cluster_name=self.cluster_name, job_ids=[self._job_id])
-                sky.get(request_id)
+                # Use SDK to cancel job
+                sky.jobs.cancel(job_ids=[self._job_id])
                 print(f"✅ Job {self._job_id} cancelled successfully")
+            except sky.exceptions.ClusterNotUpError:
+                print(f"⚠️  Jobs controller not up - cannot cancel job {self._job_id}")
+                print(f"    Try manually later: sky jobs cancel {self._job_id}")
             except Exception as e:
-                print(f"⚠️  Failed to cancel job {self._job_id}: {e}")
-                print(f"    Try manually: sky jobs cancel {self._job_id}")
+                error_msg = str(e).lower()
+                # Check if already terminated
+                if "already in terminal state" in error_msg or "terminal state" in error_msg:
+                    print(f"ℹ️  Job {self._job_id} is already in a terminal state")
+                else:
+                    print(f"⚠️  Failed to cancel job {self._job_id}: {e}")
+                    print(f"    Try manually: sky jobs cancel {self._job_id}")
         else:
             print(f"Remote job '{self.name}' was not successfully launched")
