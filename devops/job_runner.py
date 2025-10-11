@@ -49,8 +49,8 @@ from typing import Optional, cast
 import sky
 import sky.exceptions
 import sky.jobs
-from sky.api import RequestId
 
+from devops.skypilot.utils.job_helpers import get_job_id_from_request_id, get_request_id_from_launch_output
 from metta.common.util.fs import get_repo_root
 
 
@@ -466,19 +466,13 @@ class RemoteJob(Job):
             # Launch succeeded - extract job info from log
             log_content = log_path.read_text()
 
-            # Extract run ID (most important for job matching)
+            # Extract run ID (for display purposes)
             run_id_match = re.search(r"Using auto-generated run ID:\s*(\S+)", log_content)
             if run_id_match:
                 self._run_id = run_id_match.group(1)
 
-            request_match = re.search(r"Submitted sky\.jobs\.launch request:\s*([a-f0-9-]+)", log_content)
-            if request_match:
-                self._request_id = request_match.group(1)
-
-            # Try to extract job ID from output (may appear later in the output)
-            job_id_match = re.search(r"Job ID:\s*(\d+)", log_content)
-            if job_id_match:
-                self._job_id = int(job_id_match.group(1))
+            # Use library function to extract request_id
+            self._request_id = get_request_id_from_launch_output(log_content)
 
             self._submitted = True
             self._start_time = time.time()
@@ -505,13 +499,12 @@ class RemoteJob(Job):
         try:
             # If we don't have a job_id yet, try to get it from request_id
             if not self._job_id and self._request_id:
-                try:
-                    # Use SkyPilot SDK to map request_id to job_id
-                    job_id, _ = sky.get(RequestId(self._request_id))
-                    if job_id is not None:
-                        self._job_id = job_id
-                        print(f"✓ Mapped request {self._request_id[:8]}... to job ID: {self._job_id}")
-                except Exception:
+                # Use library function to map request_id to job_id
+                job_id_str = get_job_id_from_request_id(self._request_id, wait_seconds=0.5)
+                if job_id_str:
+                    self._job_id = int(job_id_str)
+                    print(f"✓ Mapped request {self._request_id[:8]}... to job ID: {self._job_id}")
+                else:
                     # Request not mapped to job yet - keep waiting
                     return False
 
