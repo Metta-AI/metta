@@ -1,8 +1,45 @@
 # Architecture Benchmark Suite
 
-This directory contains 5 progressively difficult benchmark recipes for testing agent architectures, plus a script to automate testing across all combinations.
+This directory contains a comprehensive 2-axis benchmark grid for testing agent architectures across 12 distinct conditions (4 reward shaping levels × 3 task complexity levels), plus automated scripts to run the full suite.
 
-## Difficulty Levels
+## Design Note: Two Axes of Difficulty
+
+**Status**: The benchmark now uses a 2-axis grid design that separates two independent variables for rigorous scientific comparison:
+
+1. **Reward Shaping Axis** (holding task complexity constant)
+   - Dense: High intermediate rewards for all resources (0.5-0.9)
+   - Moderate: Medium intermediate rewards (0.2-0.5)
+   - Sparse: Minimal intermediate rewards (0.01-0.1)
+   - Terminal-only: Only final heart reward
+
+2. **Task Complexity Axis** (holding reward structure constant)
+   - Easy: Small map (15x15), few agents (12), no combat
+   - Medium: Standard map (20x20), standard agents (16-20), optional combat
+   - Hard: Large map (25x25), many agents (24), full combat
+
+This 2-axis design would enable answering:
+- How sensitive is architecture X to reward shaping?
+- How does architecture X scale with task complexity?
+- Are there interaction effects between the two?
+
+### Complete Grid Structure (All Implemented)
+
+|                    | Easy Map (15×15, 12 agents) | Medium Map (20×20, 20 agents) | Hard Map (25×25, 24 agents) |
+|--------------------|----------------------------|-------------------------------|----------------------------|
+| **Dense Rewards**  | Quick sanity check (✓)     | Standard benchmark (✓)        | Capacity test (✓)          |
+| **Moderate Rewards** | Credit assignment (✓)    | Balanced difficulty (✓)       | Realistic challenge (✓)    |
+| **Sparse Rewards** | Exploration baseline (✓)   | Reduced guidance (✓)          | Expert challenge (✓)       |
+| **Terminal Only**  | Pure exploration (✓)       | Sparse + scaling (✓)          | Maximum difficulty (✓)     |
+
+This provides **12 distinct conditions** for comprehensive architecture evaluation.
+
+**Benefits for Scientific Publication**:
+- Clear ablation: "Architecture X outperforms Y on sparse rewards across all task complexities"
+- Falsifiable hypotheses: "Transformer architectures scale better than LSTMs to hard tasks"
+- Interaction analysis: "Memory mechanisms help most when rewards are sparse AND tasks are complex"
+- Standard factorial design enables ANOVA and other statistical analysis
+
+## Current Difficulty Levels (Legacy)
 
 ### Level 1 - Basic (`level_1_basic.py`)
 **Easiest difficulty with maximum reward shaping**
@@ -66,41 +103,51 @@ uv run ./tools/run.py experiments.recipes.benchmark_architectures.level_1_basic.
 
 ### Run Full Benchmark Suite
 
-The benchmark suite tests 13 architecture variants across all 5 levels with 3 random seeds each (195 total runs):
+The benchmark suite tests 13 architecture variants across all 12 grid cells with 3 random seeds each (468 total runs):
 
 ```bash
-# Run full benchmark with adaptive controller (recommended, configured for 4 nodes × 4 GPUs)
-uv run experiments/recipes/benchmark_architectures/adaptive.py \
-  --experiment-id benchmark_$(date +%Y%m%d) \
-  --timesteps 1000000
+# Run full benchmark with adaptive controller (configured in the script)
+uv run experiments/recipes/benchmark_architectures/adaptive.py
+```
 
-# Run with custom parallelization (e.g., 2 nodes × 4 GPUs = 8 parallel jobs)
-uv run experiments/recipes/benchmark_architectures/adaptive.py \
-  --experiment-id custom_parallel \
-  --timesteps 1000000 \
-  --max-parallel 8
+To customize the benchmark, edit the `if __name__ == "__main__"` section in `adaptive.py`:
 
-# Run with different number of seeds (default is 3)
-uv run experiments/recipes/benchmark_architectures/adaptive.py \
-  --experiment-id fewer_seeds \
-  --timesteps 1000000 \
-  --seeds-per-level 1
+```python
+# Full grid sweep (all 12 cells)
+run(
+    experiment_id="benchmark_2axis_sweep",
+    local=False,
+    timesteps=2_000_000_000,
+    max_parallel=16,
+    seeds_per_cell=3,
+    gpus=4,
+    nodes=4,
+)
 
-# Run locally (no Skypilot)
-uv run experiments/recipes/benchmark_architectures/adaptive.py \
-  --experiment-id local_test \
-  --local \
-  --timesteps 100000 \
-  --max-parallel 4
+# Test only reward shaping axis (holding complexity constant)
+run(
+    experiment_id="reward_shaping_sweep",
+    grid=create_custom_grid(complexity_levels=["medium"]),
+    timesteps=1_000_000,
+    seeds_per_cell=3,
+)
+
+# Test only task complexity axis (holding rewards constant)
+run(
+    experiment_id="complexity_sweep",
+    grid=create_custom_grid(reward_levels=["moderate"]),
+    timesteps=1_000_000,
+    seeds_per_cell=3,
+)
 ```
 
 The adaptive controller automatically:
-- Runs all 13 architectures across all 5 levels with 3 random seeds (195 total runs)
+- Runs all 13 architectures across all 12 grid cells with 3 random seeds (468 total runs)
 - Manages training and evaluation jobs
-- Tracks progress in WandB
+- Tracks progress in WandB with 2-axis metadata
 - Handles job scheduling and parallelization (default: 16 parallel jobs for 4 nodes × 4 GPUs)
 - Supports both local and remote (Skypilot) execution
-- Can be configured for different hardware setups via `--max-parallel`
+- Can be configured for selective grid cell testing
 
 ## Architectures Tested
 
@@ -204,6 +251,13 @@ Good architectures should:
 - Show stable learning on Level 3-4
 - Demonstrate some learning progress on Level 5
 
+**Note**: Because reward shaping and task complexity are conflated in the current design, it's difficult to determine whether performance differences are due to:
+- Sensitivity to sparse rewards (credit assignment, exploration)
+- Inability to scale to complex tasks (capacity, memory)
+- Both factors interacting
+
+The proposed 2-axis design would disambiguate these effects.
+
 ## Usage Examples
 
 ### Quick Test Run
@@ -222,12 +276,10 @@ uv run ./tools/run.py experiments.recipes.benchmark_architectures.level_1_basic.
 
 ### Full Scientific Benchmark
 
-Run complete benchmark across all architectures and levels with sufficient training:
+Run complete 2-axis benchmark across all architectures and grid cells:
 ```bash
-uv run experiments/recipes/benchmark_architectures/adaptive.py \
-  --experiment-id full_benchmark_$(date +%Y%m%d) \
-  --timesteps 5000000 \
-  --max-parallel 16
+# Edit adaptive.py to configure experiment settings
+uv run experiments/recipes/benchmark_architectures/adaptive.py
 ```
 
 ### Test New Architecture
@@ -252,17 +304,35 @@ To add a new architecture to the benchmark:
 
 4. Run with adaptive controller:
    ```bash
-   uv run experiments/recipes/benchmark_architectures/adaptive.py \
-     --experiment-id my_experiment_$(date +%Y%m%d)
+   # Architecture will automatically be included in the grid sweep
+   uv run experiments/recipes/benchmark_architectures/adaptive.py
    ```
 
 ## Tips for Interpretation
 
+### Current (Legacy) Interpretation
 1. **Level 1 performance**: Indicates basic learning capability and code correctness
-2. **Level 1-3 progression**: Measures sensitivity to reward shaping
-3. **Level 3-4 gap**: Tests exploration and credit assignment
+2. **Level 1-3 progression**: Measures sensitivity to reward shaping (but also task complexity!)
+3. **Level 3-4 gap**: Tests exploration and credit assignment (but also scaling!)
 4. **Level 5 performance**: Indicates ability to learn complex behaviors from sparse feedback
 5. **Speed vs Performance**: Compare Fast baseline to understand parameter efficiency
+
+### Proposed 2-Axis Interpretation
+With the grid design, you could isolate:
+
+**Reward Shaping Sensitivity** (fixing task complexity):
+- Compare Dense → Sparse along any column
+- Architectures with good credit assignment show graceful degradation
+- Large performance drops indicate need for dense rewards
+
+**Task Scaling** (fixing reward structure):
+- Compare Easy → Hard along any row
+- Architectures with sufficient capacity maintain performance
+- Degradation indicates capacity/memory limitations
+
+**Interaction Effects**:
+- Some architectures may excel at sparse rewards on easy tasks but fail on hard tasks
+- Others may need dense rewards but scale well to complex environments
 
 ## Common Issues
 
