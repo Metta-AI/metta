@@ -77,28 +77,26 @@ class MCPolicyAutoBuilder(nn.Module):
                 component.mc_initialize_to_environment(self.mc_action_names)
 
     def forward(self, td: TensorDict, action: torch.Tensor = None, mc_actions: torch.Tensor = None):
-        input_td = td.clone()
+        mc_td = td.clone()
+        self.network(mc_td)
+        self.mc_action_probs(mc_td, mc_actions)
+        td["mc_act_log_prob"] = mc_td["mc_act_log_prob"]
+        td["mc_full_log_probs"] = mc_td["mc_full_log_probs"]
+
+        if action is None: # in rollout or eval
+            td["mc_actions"] = mc_td["mc_actions"]
+        else: # in training
+            td["mc_entropy"] = mc_td["mc_entropy"]
+
+        self.apply_mc_actions(mc_td, td["mc_actions"])
+
         self.network(td)
-        self.mc_action_probs(td, mc_actions)
-        if self.config.think_first:
-            self.apply_mc_actions(td)
-
-            mc_actions = td["mc_actions"]
-            mc_act_log_prob = td["mc_act_log_prob"]
-            mc_full_log_probs = td["mc_full_log_probs"]
-
-            self.network(input_td)
-            td = input_td
-            td["mc_actions"] = mc_actions
-            td["mc_act_log_prob"] = mc_act_log_prob
-            td["mc_full_log_probs"] = mc_full_log_probs
         self.action_probs(td, action)
+
         td["values"] = td["values"].flatten()  # could update Experience to not need this line but need to update ppo.py
         return td
 
-    def apply_mc_actions(self, td: TensorDict):
-        mc_actions = td["mc_actions"]
-
+    def apply_mc_actions(self, td: TensorDict, mc_actions: torch.Tensor):
         env_ids = td.get("env_ids", None)
         if env_ids is None:
             env_ids = torch.arange(td.batch_size.numel(), device=mc_actions.device)
