@@ -165,6 +165,8 @@ class PPO(Loss):
 
         # On the first minibatch of the update epoch, compute advantages and sampling params
         if mb_idx == 0:
+            # Update MC action curriculum at the start of each epoch
+            self._maybe_update_mc_action_curriculum(context)
             self.advantages, self.anneal_beta = self._on_first_mb(context)
 
         # Then sample from the buffer (this happens at every minibatch)
@@ -430,3 +432,58 @@ class PPO(Loss):
 
     def _track(self, key: str, value: Tensor) -> None:
         self.loss_tracker[key].append(float(value.item()))
+
+    # ------------------- MC action curriculum helpers -------------------
+
+    def _mc_curriculum_allowed_actions(self, epoch: int) -> list[str]:
+        """Return the list of allowed MC action names for the given epoch.
+
+        Curriculum schedule:
+        - start: ["noop_1", "noop_2", "focus_1"]
+        - >=100: add "focus_2"
+        - >=200: add "lstm_noise_1"
+        - >=300: add "lstm_clear"
+        - >=500: add "lstm_noise_2"
+        """
+        allowed: list[str] = ["noop_1", "noop_2", "focus_1"]
+        if epoch >= 100:
+            allowed.append("focus_2")
+        if epoch >= 200:
+            allowed.append("lstm_noise_1")
+        if epoch >= 300:
+            allowed.append("lstm_clear")
+        if epoch >= 500:
+            allowed.append("lstm_noise_2")
+        return allowed
+
+    def _maybe_update_mc_action_curriculum(self, context: ComponentContext) -> None:
+        """Update MC action activation only on threshold epochs and only for MC action embedding.
+
+        Looks up the MC `ActionEmbedding` component by name ("mc_action_embedding") and calls
+        its `mc_initialize_to_environment` method with the allowed MC action names when the
+        epoch matches one of the curriculum thresholds.
+        """
+        policy_obj = self.policy
+        if not hasattr(policy_obj, "components"):
+            return
+
+        epoch = int(getattr(context, "epoch", 0) or 0)
+        # Call only when we cross a threshold epoch to avoid redundant resets
+        threshold_epochs = {0, 100, 200, 300, 500}
+        if epoch not in threshold_epochs:
+            return
+
+        desired = self._mc_curriculum_allowed_actions(epoch)
+        # Filter against actual discovered MC actions if available
+        all_mc_names = getattr(policy_obj, "mc_action_names", None)
+        if isinstance(all_mc_names, list) and all_mc_names:
+            desired = [name for name in desired if name in all_mc_names]
+
+        try:
+            # Prefer explicit component name used in MC policies. It's okay to hardcode.
+            mc_embed = getattr(policy_obj, "components", {}).get("mc_action_embedding", None)
+            if mc_embed is not None and hasattr(mc_embed, "mc_initialize_to_environment"):
+                mc_embed.mc_initialize_to_environment(desired)
+        except Exception:
+            # Fail-safe: curriculum should never break training if structure differs
+            pass
