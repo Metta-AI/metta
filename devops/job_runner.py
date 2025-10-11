@@ -353,8 +353,8 @@ class RemoteJob(Job):
     def __init__(
         self,
         name: str,
-        module: str,
-        args: list[str],
+        module: Optional[str] = None,
+        args: Optional[list[str]] = None,
         timeout_s: int = 3600,
         log_dir: str = "logs/remote",
         base_args: Optional[list[str]] = None,
@@ -372,11 +372,18 @@ class RemoteJob(Job):
             base_args: Base arguments for launch (e.g., ["--gpus=4", "--no-spot"])
             job_id: Existing job ID to resume (if provided, skips launch)
             skip_git_check: Skip git state validation (default: False)
+
+        Raises:
+            ValueError: If neither module nor job_id is provided
         """
         super().__init__(name, log_dir, timeout_s)
 
+        # Either module or job_id must be provided
+        if not module and not job_id:
+            raise ValueError("Must provide either module or job_id")
+
         self.module = module
-        self.args = args
+        self.args = args or []
         self.base_args = base_args or ["--no-spot", "--gpus=4", "--nodes", "1"]
         self.skip_git_check = skip_git_check
         self._job_id: Optional[int] = job_id

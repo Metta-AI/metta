@@ -155,26 +155,25 @@ def test_localjob_writes_logs(tmp_path, monkeypatch, fake_popen):
 
 
 def test_remotejob_initialization(tmp_path):
-    """Test that RemoteJob can be initialized with cmd."""
+    """Test that RemoteJob can be initialized with module and args."""
     job = RemoteJob(
         name="remote_test",
-        cmd=["echo", "hello"],
-        cluster_name="test-cluster",
+        module="experiments.recipes.arena.train",
+        args=["run=test", "trainer.total_timesteps=100000"],
         log_dir=str(tmp_path),
     )
 
     assert job.name == "remote_test"
-    assert job.cmd == ["echo", "hello"]
-    assert job.cluster_name == "test-cluster"
+    assert job.module == "experiments.recipes.arena.train"
+    assert job.args == ["run=test", "trainer.total_timesteps=100000"]
     assert not job._submitted
 
 
-def test_remotejob_requires_cmd_or_job_id(tmp_path):
-    """Test that RemoteJob requires either cmd or job_id."""
-    with pytest.raises(ValueError, match="Must provide either cmd or job_id"):
+def test_remotejob_requires_module_or_job_id(tmp_path):
+    """Test that RemoteJob requires either module or job_id."""
+    with pytest.raises(ValueError, match="Must provide either module or job_id"):
         RemoteJob(
             name="invalid_job",
-            cluster_name="test-cluster",
             log_dir=str(tmp_path),
         )
 
@@ -183,7 +182,6 @@ def test_remotejob_resume_with_job_id(tmp_path):
     """Test that RemoteJob can resume an existing job by job_id."""
     job = RemoteJob(
         name="resumed_job",
-        cluster_name="existing-cluster",
         log_dir=str(tmp_path),
         job_id=12345,
     )
@@ -201,24 +199,12 @@ def test_remotejob_log_path_includes_job_id(tmp_path):
     """Test that log path includes job ID for differentiation."""
     job = RemoteJob(
         name="test_job",
-        cmd=["echo", "test"],
         log_dir=str(tmp_path),
         job_id=999,
     )
 
     log_path = job._get_log_path()
     assert "test_job.999.log" in str(log_path)
-
-
-def test_remotejob_default_cluster_name(tmp_path):
-    """Test that cluster name defaults to job-{name} if not provided."""
-    job = RemoteJob(
-        name="my_task",
-        cmd=["echo", "test"],
-        log_dir=str(tmp_path),
-    )
-
-    assert job.cluster_name == "job-my_task"
 
 
 def test_jobresult_success_property():
