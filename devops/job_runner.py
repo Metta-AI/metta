@@ -62,6 +62,7 @@ class JobResult:
     logs_path: str
     job_id: Optional[str] = None
     duration_s: Optional[float] = None
+    error: Optional[str] = None  # Launch error (if launch.py failed before job submission)
 
     def get_logs(self) -> str:
         """Read logs from file."""
@@ -84,10 +85,15 @@ class Job(ABC):
         self.timeout_s = timeout_s
         self._submitted = False
         self._result: Optional[JobResult] = None
+        self._launch_error: Optional[str] = None
 
     @abstractmethod
-    def submit(self) -> None:
-        """Submit job for execution (async - returns immediately)."""
+    def submit(self) -> Optional[str]:
+        """Submit job for execution (async - returns immediately).
+
+        Returns:
+            Launch error message if submission failed, None if successful.
+        """
         pass
 
     @abstractmethod
@@ -125,7 +131,7 @@ class Job(ABC):
             KeyboardInterrupt: If interrupted by user (after cleanup)
         """
         if not self._submitted:
-            self.submit()
+            self._launch_error = self.submit()
 
         start_time = time.time()
         printed_bytes = 0
@@ -201,10 +207,14 @@ class LocalJob(Job):
         self._exit_code: Optional[int] = None
         self._start_time: Optional[float] = None
 
-    def submit(self) -> None:
-        """Submit job for execution."""
+    def submit(self) -> Optional[str]:
+        """Submit job for execution.
+
+        Returns:
+            Launch error message if submission failed, None if successful.
+        """
         if self._submitted:
-            return
+            return None
 
         # Prepare log file
         log_path = self._get_log_path()
@@ -227,6 +237,7 @@ class LocalJob(Job):
         )
         self._submitted = True
         self._start_time = time.time()
+        return None
 
     def is_complete(self) -> bool:
         """Check if job has completed."""
@@ -366,16 +377,20 @@ class RemoteJob(Job):
         # Generate timestamp-based identifier for failed jobs
         self._timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
 
-    def submit(self) -> None:
-        """Submit job to SkyPilot using devops/skypilot/launch.py."""
+    def submit(self) -> Optional[str]:
+        """Submit job to SkyPilot using devops/skypilot/launch.py.
+
+        Returns:
+            Launch error message if submission failed, None if successful.
+        """
         if self._submitted:
-            return
+            return None
 
         # If resuming existing job, just mark as submitted
         if self._is_resumed:
             self._submitted = True
             self._start_time = time.time()
-            return
+            return None
 
         try:
             # Use the existing launch.py infrastructure which handles all SkyPilot complexity
@@ -434,20 +449,20 @@ class RemoteJob(Job):
             if job_id_match:
                 self._job_id = int(job_id_match.group(1))
 
+            return None
+
         except subprocess.CalledProcessError as e:
-            # Log launch failure
-            log_path = self._get_log_path()
-            log_path.parent.mkdir(parents=True, exist_ok=True)
-            log_path.write_text(f"SkyPilot launch failed: {e.stderr}\n{e.stdout}\n")
+            # Capture launch failure error
+            error_msg = f"SkyPilot launch failed: {e.stderr}\n{e.stdout}\n"
             self._submitted = True  # Mark as submitted even if failed
             self._job_id = None
+            return error_msg
         except Exception as e:
-            # Log launch failure
-            log_path = self._get_log_path()
-            log_path.parent.mkdir(parents=True, exist_ok=True)
-            log_path.write_text(f"SkyPilot launch failed: {e}\n")
+            # Capture launch failure error
+            error_msg = f"SkyPilot launch failed: {e}\n"
             self._submitted = True  # Mark as submitted even if failed
             self._job_id = None
+            return error_msg
 
     def is_complete(self) -> bool:
         """Check if remote job has completed using SkyPilot SDK."""
@@ -524,6 +539,7 @@ class RemoteJob(Job):
         """Fetch result from completed job."""
         # Determine exit code from job status
         exit_code = 0
+
         if self._job_status == "SUCCEEDED":
             exit_code = 0
         elif self._job_status in ("FAILED", "FAILED_SETUP", "FAILED_DRIVER", "UNKNOWN", "ERROR"):
@@ -531,7 +547,8 @@ class RemoteJob(Job):
         elif self._job_status == "CANCELLED":
             exit_code = 130  # Interrupted
         elif not self._job_id:
-            exit_code = 1  # Launch failure
+            # Launch failure
+            exit_code = 1
 
         duration = None
         if self._start_time:
@@ -543,6 +560,7 @@ class RemoteJob(Job):
             logs_path=str(self._get_log_path()),
             job_id=str(self._job_id) if self._job_id else None,
             duration_s=duration,
+            error=self._launch_error,
         )
 
     def _get_log_path(self) -> Path:

@@ -151,6 +151,14 @@ class Task(ABC):
                 error="Timeout exceeded",
             )
         elif job_result.exit_code != 0:
+            # Differentiate between launch errors and job execution errors
+            if job_result.error:
+                # Launch error - show the launch.py output
+                error_msg = f"Launch failed:\n{job_result.error}"
+            else:
+                # Job execution error - point to logs
+                error_msg = f"Job failed with exit code {job_result.exit_code}"
+
             return TaskResult(
                 name=self.name,
                 started_at=started,
@@ -158,7 +166,7 @@ class Task(ABC):
                 exit_code=job_result.exit_code,
                 logs_path=job_result.logs_path,
                 outcome="failed",
-                error=f"Exit code {job_result.exit_code}",
+                error=error_msg,
             )
 
         # Success
@@ -234,6 +242,14 @@ class TrainingTask(Task):
                 error="Timeout exceeded",
             )
         elif job_result.exit_code != 0:
+            # Differentiate between launch errors and job execution errors
+            if job_result.error:
+                # Launch error - show the launch.py output
+                error_msg = f"Launch failed:\n{job_result.error}"
+            else:
+                # Job execution error - point to logs
+                error_msg = f"Job failed with exit code {job_result.exit_code}"
+
             return TaskResult(
                 name=self.name,
                 started_at=started,
@@ -241,7 +257,7 @@ class TrainingTask(Task):
                 exit_code=job_result.exit_code,
                 logs_path=job_result.logs_path,
                 outcome="failed",
-                error=f"Exit code {job_result.exit_code}",
+                error=error_msg,
             )
 
         # Extract WandB metrics
