@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from devops.job_runner import JobResult, LocalJob, RemoteJob
 from devops.stable.metrics import extract_metrics, extract_wandb_run_info
+from devops.stable.state import load_state, save_state
 from metta.common.util.text_styles import blue, cyan, green, magenta, red, yellow
 
 # Type definitions
@@ -293,9 +294,21 @@ class RemoteTrainingTask(TrainingTask):
         self.base_args = base_args or []
 
     def execute(self) -> JobResult:
+        """Execute remote training task.
+
+        Saves partial state with job_id as soon as job is submitted,
+        so the job can be reattached if interrupted.
+        """
         # log_dir must be set by runner before execution
         if not self.log_dir:
             raise ValueError(f"log_dir not set for task {self.name}")
+
+        # Check if we have a cached result with a job_id
+        # If so, attach to the existing job instead of launching a new one
+        existing_job_id = None
+        if self.result and self.result.job_id:
+            existing_job_id = int(self.result.job_id)
+            print(f"✓ Found existing job ID: {existing_job_id} - attaching to it")
 
         # Build the command to run
         cmd = ["uv", "run", "./tools/run.py", self.module, *self.args]
@@ -321,15 +334,56 @@ class RemoteTrainingTask(TrainingTask):
             resources["use_spot"] = use_spot
 
         # Create RemoteJob with the same API as LocalJob
+        # If we have an existing job_id, pass it to reuse the job
         job = RemoteJob(
             name=self.name,
-            cmd=cmd,
+            cmd=cmd if not existing_job_id else None,
             timeout_s=self.timeout_s,
             log_dir=self.log_dir,
             resources=resources,
             num_nodes=nodes if nodes and nodes > 1 else 1,
+            job_id=existing_job_id,
         )
-        return job.wait(stream_output=True)
+
+        # Submit first to get job_id
+        if not existing_job_id:
+            job.submit()
+
+            # Save partial state with job_id immediately after submission
+            # This allows recovery if the process is interrupted
+            if job._job_id:
+                # Try to load state and save job_id
+                try:
+                    # Get state version from log_dir path
+                    # log_dir format: devops/stable/logs/{version}/remote
+                    log_dir_parts = self.log_dir.split("/")
+                    if "logs" in log_dir_parts:
+                        version_idx = log_dir_parts.index("logs") + 1
+                        if version_idx < len(log_dir_parts):
+                            state_version = log_dir_parts[version_idx]
+                            state = load_state(state_version)
+                            if state:
+                                # Create partial result with just job_id
+                                partial_result = TaskResult(
+                                    name=self.name,
+                                    started_at=datetime.utcnow().isoformat(timespec="seconds"),
+                                    ended_at=datetime.utcnow().isoformat(timespec="seconds"),
+                                    outcome="inconclusive",
+                                    exit_code=0,
+                                    job_id=str(job._job_id),
+                                )
+                                state.results[self.name] = partial_result
+                                save_state(state)
+                                print(f"💾 Saved job ID {job._job_id} to state (can be resumed if interrupted)")
+                except Exception as e:
+                    # Don't fail the job if state save fails
+                    print(f"⚠️  Could not save job ID to state: {e}")
+
+            # Now wait for completion
+            return job.wait(stream_output=True)
+        else:
+            # Existing job - just wait
+            return job.wait(stream_output=True)
 
 
 class EvaluationTask(LocalCommandTask):

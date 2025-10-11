@@ -86,12 +86,12 @@ class TaskRunner:
     def _run_with_deps(self, task: Task) -> TaskResult:
         """Run task after ensuring dependencies complete."""
 
-        # Check cache
+        # Check cache and restore result to task (needed for job_id reuse)
         if task.name in self.state.results:
             cached = self.state.results[task.name]
+            task.result = cached  # Restore to task FIRST so execute() can access it
             if cached.outcome in ("passed", "skipped"):
                 print(f"⏭️  {task.name} - cached ({cached.outcome})")
-                task.result = cached  # Restore to task for downstream dependencies
                 return cached
             print(yellow(f"🔄 {task.name} - retrying previous failure"))
 
