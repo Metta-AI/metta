@@ -49,6 +49,7 @@ from typing import Optional, cast
 import sky
 import sky.exceptions
 import sky.jobs
+from sky.api import RequestId
 
 from metta.common.util.fs import get_repo_root
 
@@ -374,6 +375,7 @@ class RemoteJob(Job):
         self.num_nodes = num_nodes
         self._job_id: Optional[int] = job_id
         self._request_id: Optional[str] = None
+        self._run_id: Optional[str] = None  # Run ID from launch.py (e.g., "jack.20251010.175808")
         self._start_time: Optional[float] = None
         self._is_resumed = bool(job_id)
         self._job_status: Optional[str] = None
@@ -464,6 +466,11 @@ class RemoteJob(Job):
             # Launch succeeded - extract job info from log
             log_content = log_path.read_text()
 
+            # Extract run ID (most important for job matching)
+            run_id_match = re.search(r"Using auto-generated run ID:\s*(\S+)", log_content)
+            if run_id_match:
+                self._run_id = run_id_match.group(1)
+
             request_match = re.search(r"Submitted sky\.jobs\.launch request:\s*([a-f0-9-]+)", log_content)
             if request_match:
                 self._request_id = request_match.group(1)
@@ -496,31 +503,24 @@ class RemoteJob(Job):
             return True
 
         try:
-            # Use SDK to get job queue
-            job_records = sky.get(sky.jobs.queue(refresh=True, all_users=False))
-
-            # If we don't have a job_id yet, try to find it by matching name
-            # ONLY match jobs that are NOT in terminal state (to avoid matching old completed jobs)
-            if not self._job_id:
-                terminal_states = ("SUCCEEDED", "FAILED", "FAILED_SETUP", "FAILED_DRIVER", "CANCELLED")
-
-                # Look for the most recent NON-TERMINAL job matching our name
-                for job in sorted(job_records, key=lambda j: j.get("job_id", 0), reverse=True):
-                    # Check if job is in a terminal state
-                    job_status = str(job.get("status", "")).split(".")[-1]
-                    if job_status in terminal_states:
-                        continue  # Skip completed jobs
-
-                    # Check if name matches
-                    job_name = job.get("job_name", "")
-                    if self.name in job_name or self.cluster_name in job_name:
-                        self._job_id = job["job_id"]
-                        print(f"Found running job: {job_name} (ID: {self._job_id}, status: {job_status})")
-                        break
-
-                # Still no job ID - job hasn't appeared in queue yet
-                if not self._job_id:
+            # If we don't have a job_id yet, try to get it from request_id
+            if not self._job_id and self._request_id:
+                try:
+                    # Use SkyPilot SDK to map request_id to job_id
+                    job_id, _ = sky.get(RequestId(self._request_id))
+                    if job_id is not None:
+                        self._job_id = job_id
+                        print(f"✓ Mapped request {self._request_id[:8]}... to job ID: {self._job_id}")
+                except Exception:
+                    # Request not mapped to job yet - keep waiting
                     return False
+
+            # Still no job ID - job hasn't been assigned yet
+            if not self._job_id:
+                return False
+
+            # Check job status
+            job_records = sky.get(sky.jobs.queue(refresh=True, all_users=False))
 
             # Find our job in the queue
             for job in job_records:
