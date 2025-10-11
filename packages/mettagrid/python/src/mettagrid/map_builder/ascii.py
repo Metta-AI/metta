@@ -6,6 +6,7 @@ import numpy as np
 from pydantic import StringConstraints, field_validator
 
 from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
+from mettagrid.mapgen.utils.ascii_grid import merge_with_global_defaults
 
 
 class AsciiMapBuilder(MapBuilder):
@@ -45,9 +46,7 @@ class AsciiMapBuilder(MapBuilder):
         @field_validator("char_to_name_map", mode="after")
         @classmethod
         def _validate_char_to_name_map(cls, value: dict[str, str]):
-            if not value:
-                raise ValueError("Ascii maps must define a non-empty char_to_name_map")
-            return value
+            return merge_with_global_defaults(value)
 
         @property
         def width(self) -> int:

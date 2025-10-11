@@ -3,8 +3,11 @@
 
 import argparse
 from pathlib import Path
+from types import ModuleType
+from typing import Iterable
 
-from cogames.cogs_vs_clips.missions import _get_default_map_objects
+from cogames.cogs_vs_clips import missions, stations
+from mettagrid.builder import building, empty_converters
 from mettagrid.mapgen.utils.ascii_grid import (
     DEFAULT_CHAR_TO_NAME as ASCII_GRID_DEFAULT_CHAR_TO_NAME,
 )
@@ -25,7 +28,7 @@ COGS_VS_CLIPS_PATH_MARKER = Path("packages/cogames")
 
 def _build_cogs_vs_clips_char_to_name() -> dict[str, str]:
     mapping: dict[str, str] = {}
-    for config in _get_default_map_objects().values():
+    for config in missions._get_default_map_objects().values():
         token = getattr(config, "map_char", None)
         name = getattr(config, "name", None)
         if not token or not name:
@@ -40,6 +43,25 @@ LEGEND_PRESETS: dict[str, dict[str, str]] = {
     ASCII_GRID_LEGEND_KEY: dict(ASCII_GRID_DEFAULT_CHAR_TO_NAME),
     COGS_VS_CLIPS_LEGEND_KEY: _build_cogs_vs_clips_char_to_name(),
 }
+
+
+def _collect_additional_char_mappings(modules: Iterable[ModuleType]) -> dict[str, list[str]]:
+    mapping: dict[str, set[str]] = {}
+    for module in modules:
+        for attr_name in dir(module):
+            attr = getattr(module, attr_name, None)
+            token = getattr(attr, "map_char", None)
+            name = getattr(attr, "name", None)
+            if isinstance(token, str) and len(token) == 1 and isinstance(name, str):
+                mapping.setdefault(token, set()).add(name)
+    return {token: sorted(names) for token, names in mapping.items()}
+
+
+# These mappings are compiled for future use when reconciling diverse legend sources.
+# They are not consumed today so downstream behavior remains unchanged.
+ADDITIONAL_CHAR_MAPPINGS = _collect_additional_char_mappings(
+    modules=(building, empty_converters, stations, missions)
+)
 
 
 def split_legacy_sections(text: str) -> tuple[list[str], list[str]]:

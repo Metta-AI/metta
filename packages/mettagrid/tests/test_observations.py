@@ -14,6 +14,7 @@ from mettagrid.config.mettagrid_config import (
 from mettagrid.core import MettaGridCore
 from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.map_builder.utils import create_grid
+from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME
 from mettagrid.mettagrid_c import PackedCoordinate, dtype_actions
 from mettagrid.test_support import ObservationHelper, Orientation, TokenTypes
 from mettagrid.test_support.actions import action_index
@@ -45,7 +46,8 @@ def basic_env() -> MettaGridCore:
                     ["#", "@", ".", ".", ".", ".", ".", "#"],
                     ["#", ".", ".", ".", "@", ".", ".", "#"],
                     ["#", "#", "#", "#", "#", "#", "#", "#"],
-                ]
+                ],
+                char_to_name_map=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
@@ -78,7 +80,8 @@ def adjacent_agents_env() -> MettaGridCore:
                     ["#", "@", "@", ".", "#"],
                     ["#", ".", ".", ".", "#"],
                     ["#", "#", "#", "#", "#"],
-                ]
+                ],
+                char_to_name_map=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
@@ -288,7 +291,10 @@ class TestGlobalTokens:
                     last_reward=True,
                 ),
                 resource_names=["laser", "armor", "heart"],
-                map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist()),
+                map_builder=AsciiMapBuilder.Config(
+                    map_data=game_map.tolist(),
+                    char_to_name_map=DEFAULT_CHAR_TO_NAME,
+                ),
             )
         )
         env = MettaGridCore(cfg)
@@ -369,7 +375,10 @@ class TestGlobalTokens:
                 ),
                 objects={"wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID)},
                 resource_names=["laser", "armor"],
-                map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist()),
+                map_builder=AsciiMapBuilder.Config(
+                    map_data=game_map.tolist(),
+                    char_to_name_map=DEFAULT_CHAR_TO_NAME,
+                ),
             )
         )
         env = MettaGridCore(cfg)
@@ -493,7 +502,10 @@ class TestEdgeObservations:
                     ),
                 },
                 resource_names=["laser", "resource1", "resource2"],  # laser required for attack action
-                map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist()),
+                map_builder=AsciiMapBuilder.Config(
+                    map_data=game_map.tolist(),
+                    char_to_name_map=DEFAULT_CHAR_TO_NAME,
+                ),
             )
         )
         env = MettaGridCore(cfg)

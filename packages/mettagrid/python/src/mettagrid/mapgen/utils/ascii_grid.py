@@ -1,12 +1,32 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from mettagrid.map_builder.utils import create_grid
 from mettagrid.mapgen.types import MapGrid
 
-DEFAULT_CHAR_TO_NAME: dict[str, str] = {
+GLOBAL_DEFAULT_MAPPINGS: dict[str, str] = {
     "#": "wall",
     ".": "empty",
     "@": "agent.agent",
+}
+
+
+def merge_with_global_defaults(char_to_name: Mapping[str, str]) -> dict[str, str]:
+    """Merge a legend with the immutable global defaults."""
+    merged: dict[str, str] = {**GLOBAL_DEFAULT_MAPPINGS}
+    for char, name in char_to_name.items():
+        default_name = GLOBAL_DEFAULT_MAPPINGS.get(char)
+        if default_name is not None and default_name != name:
+            raise ValueError(
+                f"Cannot override global default mapping for '{char}': expected '{default_name}', received '{name}'."
+            )
+        merged[char] = name
+    return merged
+
+
+DEFAULT_CHAR_TO_NAME: dict[str, str] = {
+    **GLOBAL_DEFAULT_MAPPINGS,
     "p": "agent.prey",
     "P": "agent.predator",
     "_": "altar",

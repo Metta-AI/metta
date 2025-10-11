@@ -3,6 +3,7 @@ import tempfile
 
 import numpy as np
 import pytest
+from pydantic import ValidationError
 
 from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.map_builder.map_builder import GameMap
@@ -170,6 +171,15 @@ class TestAsciiMapBuilder:
         finally:
             os.unlink(temp_file)
 
+    def test_empty_legend_allowed(self):
+        config = AsciiMapBuilder.Config(
+            map_data=[list(v) for v in ["#@."]],
+            char_to_name_map={},
+        )
+        assert config.char_to_name_map["#"] == "wall"
+        assert config.char_to_name_map["@"] == "agent.agent"
+        assert config.char_to_name_map["."] == "empty"
+
     def test_file_not_found(self):
         with pytest.raises(FileNotFoundError):
             config = AsciiMapBuilder.Config.from_uri("nonexistent_file.txt")
@@ -189,6 +199,31 @@ class TestAsciiMapBuilder:
             assert config.char_to_name_map["A"] == "legend_name"
         finally:
             os.unlink(temp_file)
+
+    def test_global_defaults_merge_into_legend(self):
+        yaml_content = make_yaml_map(
+            [
+                "#@.",
+            ],
+            {"X": "custom_tile"},
+        )
+
+        config = AsciiMapBuilder.Config.from_str(yaml_content)
+        assert config.char_to_name_map["#"] == "wall"
+        assert config.char_to_name_map["."] == "empty"
+        assert config.char_to_name_map["@"] == "agent.agent"
+        assert config.char_to_name_map["X"] == "custom_tile"
+
+    def test_global_defaults_cannot_be_overridden(self):
+        yaml_content = make_yaml_map(
+            [
+                "#",
+            ],
+            {"#": "lava"},
+        )
+
+        with pytest.raises(ValidationError, match=r"Cannot override global default mapping for '#'.*"):
+            AsciiMapBuilder.Config.from_str(yaml_content)
 
     def test_from_ascii_map_string(self):
         ascii_yaml = make_yaml_map(
