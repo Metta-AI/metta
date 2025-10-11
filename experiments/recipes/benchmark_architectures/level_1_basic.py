@@ -1,0 +1,148 @@
+"""Level 1 - Basic: Easiest difficulty with maximum reward shaping.
+
+This recipe provides the most guidance through:
+- High intermediate rewards for all resources
+- Easy converter ratios (1:1 instead of 3:1)
+- Combat disabled (high laser cost)
+- Initial resources in buildings
+- Smaller map size for faster learning
+"""
+
+from typing import List, Optional, Sequence
+
+import metta.cogworks.curriculum as cc
+import mettagrid.builder.envs as eb
+from metta.agent.policies.agalite import AGaLiTeConfig
+from metta.agent.policies.fast import FastConfig
+from metta.agent.policies.fast_dynamics import FastDynamicsConfig
+from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
+from metta.agent.policies.gtrxl import gtrxl_policy_config
+from metta.agent.policies.memory_free import MemoryFreeConfig
+from metta.agent.policies.puffer import PufferPolicyConfig
+from metta.agent.policies.transformer import TransformerPolicyConfig
+from metta.agent.policies.trxl import trxl_policy_config
+from metta.agent.policies.trxl_nvidia import trxl_nvidia_policy_config
+from metta.agent.policies.vit import ViTDefaultConfig
+from metta.agent.policies.vit_reset import ViTResetConfig
+from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
+from metta.cogworks.curriculum.curriculum import CurriculumConfig
+from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.sim.simulation_config import SimulationConfig
+from metta.tools.eval import EvaluateTool
+from metta.tools.play import PlayTool
+from metta.tools.replay import ReplayTool
+from metta.tools.train import TrainTool
+from mettagrid import MettaGridConfig
+from mettagrid.config import ConverterConfig
+
+ARCHITECTURES = {
+    "vit": ViTDefaultConfig(),
+    "vit_sliding": ViTSlidingTransConfig(),
+    "vit_reset": ViTResetConfig(),
+    "transformer": TransformerPolicyConfig(),
+    "fast": FastConfig(),
+    "fast_lstm_reset": FastLSTMResetConfig(),
+    "fast_dynamics": FastDynamicsConfig(),
+    "memory_free": MemoryFreeConfig(),
+    "agalite": AGaLiTeConfig(),
+    "gtrxl": gtrxl_policy_config(),
+    "trxl": trxl_policy_config(),
+    "trxl_nvidia": trxl_nvidia_policy_config(),
+    "puffer": PufferPolicyConfig(),
+}
+
+
+def make_mettagrid(num_agents: int = 12) -> MettaGridConfig:
+    """Create a basic arena environment with maximum reward shaping."""
+    arena_env = eb.make_arena(num_agents=num_agents, combat=False)
+
+    # Small map for faster learning
+    arena_env.game.map_builder.width = 15
+    arena_env.game.map_builder.height = 15
+
+    # High rewards for all intermediate items
+    arena_env.game.agent.rewards.inventory = {
+        "heart": 1,
+        "ore_red": 0.5,  # High reward for mining
+        "battery_red": 0.9,  # High reward for conversion
+        "laser": 0.7,
+        "armor": 0.7,
+        "blueprint": 0.5,
+    }
+    arena_env.game.agent.rewards.inventory_max = {
+        "heart": 100,
+        "ore_red": 2,
+        "battery_red": 2,
+        "laser": 2,
+        "armor": 2,
+        "blueprint": 2,
+    }
+
+    # Easy converter: 1 battery_red to 1 heart
+    altar = arena_env.game.objects.get("altar")
+    if isinstance(altar, ConverterConfig) and hasattr(altar, "input_resources"):
+        altar.input_resources["battery_red"] = 1
+        altar.initial_resource_count = 2  # Start with resources
+
+    # Add initial resources to all buildings
+    for obj_name in ["mine_red", "generator_red", "lasery", "armory"]:
+        obj = arena_env.game.objects.get(obj_name)
+        if obj and hasattr(obj, "initial_resource_count"):
+            obj.initial_resource_count = 2
+
+    # Combat disabled
+    arena_env.game.actions.attack.consumed_resources["laser"] = 100
+
+    return arena_env
+
+
+def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
+    """Create evaluation configurations."""
+    basic_env = env or make_mettagrid()
+    return [
+        SimulationConfig(suite="benchmark_arch", name="level_1_basic", env=basic_env),
+    ]
+
+
+def train(
+    curriculum: Optional[CurriculumConfig] = None,
+    arch_type: str = "fast",  # (vit | vit_sliding | vit_reset | transformer | fast | fast_lstm_reset | fast_dynamics | memory_free | agalite | gtrxl | trxl | trxl_nvidia | puffer)
+) -> TrainTool:
+    """Train on Level 1 - Basic difficulty."""
+    if curriculum is None:
+        env = make_mettagrid()
+        curriculum = cc.env_curriculum(env)
+
+    architecture_config = ARCHITECTURES[arch_type]
+
+    return TrainTool(
+        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
+        evaluator=EvaluatorConfig(simulations=make_evals()),
+        policy_architecture=architecture_config,
+    )
+
+
+def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
+    """Interactive play tool."""
+    eval_env = env or make_mettagrid()
+    return PlayTool(
+        sim=SimulationConfig(suite="benchmark_arch", env=eval_env, name="level_1_basic")
+    )
+
+
+def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
+    """Replay tool for recorded games."""
+    eval_env = env or make_mettagrid()
+    return ReplayTool(
+        sim=SimulationConfig(suite="benchmark_arch", env=eval_env, name="level_1_basic")
+    )
+
+
+def evaluate(
+    policy_uris: str | Sequence[str] | None = None,
+) -> EvaluateTool:
+    """Evaluate a policy on Level 1 - Basic."""
+    return EvaluateTool(
+        simulations=make_evals(),
+        policy_uris=policy_uris,
+    )
