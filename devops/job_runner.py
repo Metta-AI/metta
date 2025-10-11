@@ -495,12 +495,22 @@ class RemoteJob(Job):
         if self._exit_code is not None:
             return True
 
-        if not self._job_id:
-            return True  # No job to track (launch failed)
-
         try:
             # Use SDK to get job queue
             job_records = sky.get(sky.jobs.queue(refresh=True, all_users=False))
+
+            # If we don't have a job_id yet, try to find it by request_id or cluster name
+            if not self._job_id:
+                # Look for the most recent job matching our name
+                for job in sorted(job_records, key=lambda j: j.get("job_id", 0), reverse=True):
+                    job_name = job.get("job_name", "")
+                    if self.name in job_name or self.cluster_name in job_name:
+                        self._job_id = job["job_id"]
+                        break
+
+                # Still no job ID - job hasn't appeared in queue yet
+                if not self._job_id:
+                    return False
 
             # Find our job in the queue
             for job in job_records:
