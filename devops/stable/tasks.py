@@ -139,45 +139,26 @@ class Task(ABC):
         started = datetime.utcnow().isoformat(timespec="seconds")
         ended = datetime.utcnow().isoformat(timespec="seconds")
 
-        # Check exit code
+        # Determine outcome and error message based on exit code
         if job_result.exit_code == 124:
-            return TaskResult(
-                name=self.name,
-                started_at=started,
-                ended_at=ended,
-                exit_code=124,
-                logs_path=job_result.logs_path,
-                outcome="failed",
-                error="Timeout exceeded",
-            )
+            outcome = "failed"
+            error = "Timeout exceeded"
         elif job_result.exit_code != 0:
-            # Differentiate between launch errors and job execution errors
-            if job_result.error:
-                # Launch error - show the launch.py output
-                error_msg = f"Launch failed:\n{job_result.error}"
-            else:
-                # Job execution error - point to logs
-                error_msg = f"Job failed with exit code {job_result.exit_code}"
+            outcome = "failed"
+            error = f"Job failed with exit code {job_result.exit_code}"
+        else:
+            outcome = "passed"
+            error = None
 
-            return TaskResult(
-                name=self.name,
-                started_at=started,
-                ended_at=ended,
-                exit_code=job_result.exit_code,
-                logs_path=job_result.logs_path,
-                outcome="failed",
-                error=error_msg,
-            )
-
-        # Success
         return TaskResult(
             name=self.name,
             started_at=started,
             ended_at=ended,
-            exit_code=0,
+            exit_code=job_result.exit_code,
             logs_path=job_result.logs_path,
             job_id=job_result.job_id,
-            outcome="passed",
+            outcome=outcome,
+            error=error,
         )
 
 
@@ -242,14 +223,6 @@ class TrainingTask(Task):
                 error="Timeout exceeded",
             )
         elif job_result.exit_code != 0:
-            # Differentiate between launch errors and job execution errors
-            if job_result.error:
-                # Launch error - show the launch.py output
-                error_msg = f"Launch failed:\n{job_result.error}"
-            else:
-                # Job execution error - point to logs
-                error_msg = f"Job failed with exit code {job_result.exit_code}"
-
             return TaskResult(
                 name=self.name,
                 started_at=started,
@@ -257,10 +230,10 @@ class TrainingTask(Task):
                 exit_code=job_result.exit_code,
                 logs_path=job_result.logs_path,
                 outcome="failed",
-                error=error_msg,
+                error=f"Job failed with exit code {job_result.exit_code}",
             )
 
-        # Extract WandB metrics
+        # Job succeeded - extract metrics and check acceptance
         log_text = job_result.get_logs()
         metrics = extract_metrics(log_text, wandb_metrics=self.wandb_metrics)
 
