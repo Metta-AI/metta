@@ -9,33 +9,41 @@ Example usage:
     result = job.wait(stream_output=True)
     print(f"Exit code: {result.exit_code}")
 
-    # Remote job (sync) - same API as LocalJob!
+    # Remote job (sync)
     job = RemoteJob(
         name="train",
-        cmd=["uv", "run", "./tools/run.py", "train", "arena"],
+        module="experiments.recipes.arena.train",
+        args=["run=test", "trainer.total_timesteps=100000"],
         timeout_s=3600,
-        resources={"accelerators": "V100:4", "use_spot": True},
-        num_nodes=2,
+        base_args=["--gpus=4", "--no-spot"]
     )
     result = job.wait(stream_output=True)
     print(f"Job ID: {result.job_id}, Exit code: {result.exit_code}")
 
     # Remote job (async - poll for completion)
-    job = RemoteJob(name="train", cmd=["uv", "run", "./tools/run.py", "train", "arena"])
+    job = RemoteJob(
+        name="train",
+        module="experiments.recipes.arena.train",
+        args=["run=test"]
+    )
     job.submit()
     while not job.is_complete():
         time.sleep(10)
     result = job.get_result()
 
     # Attach to existing remote job
-    job = RemoteJob(name="train", cmd=["echo", "dummy"], job_id=12345)
+    job = RemoteJob(
+        name="train",
+        module="experiments.recipes.arena.train",
+        args=["run=test"],
+        job_id=12345
+    )
     result = job.wait(stream_output=True)
 """
 
 from __future__ import annotations
 
 import os
-import re
 import signal
 import subprocess
 import time
@@ -49,12 +57,8 @@ import sky
 import sky.exceptions
 import sky.jobs
 
-from devops.skypilot.utils.job_helpers import (
-    check_job_statuses,
-    get_job_id_from_request_id,
-    get_request_id_from_launch_output,
-    tail_job_log,
-)
+from devops.skypilot.utils.job_helpers import check_job_statuses, tail_job_log
+from devops.skypilot.utils.testing_helpers import LaunchedJob, SkyPilotTestLauncher
 from metta.common.util.fs import get_repo_root
 
 
@@ -127,18 +131,12 @@ class Job(ABC):
         self,
         stream_output: bool = False,
         poll_interval_s: float = 0.5,
-        on_job_id_ready: Optional[callable] = None,
-        output_filter: Optional[callable] = None,
     ) -> JobResult:
         """Wait for job to complete (sync).
 
         Args:
             stream_output: Stream logs to console as they arrive
             poll_interval_s: Seconds between status checks (default: 0.5s)
-            on_job_id_ready: Optional callback called when job_id becomes available.
-                           Signature: callback(job_id: int) -> None
-            output_filter: Optional function to filter/highlight output text.
-                         Signature: filter(text: str) -> str
 
         Returns:
             JobResult when complete
@@ -174,9 +172,6 @@ class Job(ABC):
                     logs = self.get_logs()
                     if logs and len(logs) > printed_bytes:
                         new_content = logs[printed_bytes:]
-                        # Apply output filter if provided
-                        if output_filter:
-                            new_content = output_filter(new_content)
                         print(new_content, end="", flush=True)
                         printed_bytes = len(logs)
 
@@ -187,9 +182,6 @@ class Job(ABC):
                 logs = self.get_logs()
                 if logs and len(logs) > printed_bytes:
                     new_content = logs[printed_bytes:]
-                    # Apply output filter if provided
-                    if output_filter:
-                        new_content = output_filter(new_content)
                     print(new_content, end="", flush=True)
 
             # Get final result
@@ -356,46 +348,39 @@ class LocalJob(Job):
 
 
 class RemoteJob(Job):
-    """Job that runs remotely via SkyPilot using the Python SDK.
-
-    Can be used individually or with class methods for batch operations.
-    """
+    """Job that runs remotely via SkyPilot using SkyPilotTestLauncher."""
 
     def __init__(
         self,
         name: str,
-        cmd: Optional[list[str]] = None,
+        module: str,
+        args: list[str],
         timeout_s: int = 3600,
         log_dir: str = "logs/remote",
-        cluster_name: Optional[str] = None,
-        resources: Optional[dict] = None,
-        num_nodes: int = 1,
+        base_args: Optional[list[str]] = None,
         job_id: Optional[int] = None,
+        skip_git_check: bool = False,
     ):
         """Initialize a remote job.
 
         Args:
             name: Job name for logging/display
-            cmd: Command to run (similar to LocalJob API)
+            module: Module path to run (e.g., "experiments.recipes.arena.train")
+            args: Arguments to pass to module (e.g., ["run=test", "trainer.total_timesteps=100000"])
             timeout_s: Job timeout in seconds
             log_dir: Directory to store logs
-            cluster_name: Name of the cluster to run on (will be auto-generated if None)
-            resources: Resource requirements dict (e.g., {"accelerators": "V100:4", "use_spot": True})
-            num_nodes: Number of nodes to use (default: 1)
+            base_args: Base arguments for launch (e.g., ["--gpus=4", "--no-spot"])
             job_id: Existing job ID to resume (if provided, skips launch)
+            skip_git_check: Skip git state validation (default: False)
         """
         super().__init__(name, log_dir, timeout_s)
 
-        if not cmd and not job_id:
-            raise ValueError("Must provide either cmd or job_id")
-
-        self.cmd = cmd
-        self.cluster_name = cluster_name or f"job-{name}"
-        self.resources = resources or {}
-        self.num_nodes = num_nodes
+        self.module = module
+        self.args = args
+        self.base_args = base_args or ["--no-spot", "--gpus=4", "--nodes", "1"]
+        self.skip_git_check = skip_git_check
         self._job_id: Optional[int] = job_id
-        self._request_id: Optional[str] = None
-        self._run_id: Optional[str] = None  # Run ID from launch.py (e.g., "jack.20251010.175808")
+        self._launched_job: Optional["LaunchedJob"] = None
         self._start_time: Optional[float] = None
         self._is_resumed = bool(job_id)
         self._job_status: Optional[str] = None
@@ -406,7 +391,7 @@ class RemoteJob(Job):
         self._full_logs_fetched = False
 
     def submit(self) -> None:
-        """Submit job to SkyPilot using devops/skypilot/launch.py.
+        """Submit job to SkyPilot using SkyPilotTestLauncher.
 
         Any launch errors are written to the log file immediately.
         """
@@ -424,109 +409,27 @@ class RemoteJob(Job):
         log_path.parent.mkdir(parents=True, exist_ok=True)
 
         try:
-            # Use the existing launch.py infrastructure which handles all SkyPilot complexity
-            # Build the launch command - cmd should be a module path + args format
-            # e.g., ["uv", "run", "./tools/run.py", "train", "arena", "run=test_123"]
+            # Use SkyPilotTestLauncher - handles all launch complexity
+            launcher = SkyPilotTestLauncher(base_name="job", skip_git_check=self.skip_git_check)
+            run_name = launcher.generate_run_name(self.name)
 
-            # Extract module path and args from self.cmd
-            # The cmd format is expected to be: ["uv", "run", "./tools/run.py", <module_path>, ...args]
-            if not self.cmd or len(self.cmd) < 4:
-                raise ValueError(f"Invalid cmd format for remote job: {self.cmd}")
+            self._launched_job = launcher.launch_job(
+                module=self.module,
+                run_name=run_name,
+                base_args=self.base_args,
+                extra_args=self.args,
+                test_config={"name": self.name},
+                enable_ci_tests=False,
+            )
 
-            # Find the module path (first arg after ./tools/run.py)
-            module_path = None
-            extra_args = []
-
-            for i, arg in enumerate(self.cmd):
-                if "run.py" in arg:
-                    if i + 1 < len(self.cmd):
-                        module_path = self.cmd[i + 1]
-                        extra_args = self.cmd[i + 2 :]
-                    break
-
-            if not module_path:
-                raise ValueError(f"Could not find module path in cmd: {self.cmd}")
-
-            # Build launch.py command
-            launch_cmd = [
-                "uv",
-                "run",
-                "--active",
-                "./devops/skypilot/launch.py",
-                module_path,
-            ]
-
-            # Add resource flags (GPUs, nodes, spot)
-            if self.resources:
-                # Extract GPU count from accelerators string (e.g., "V100:4" or "4")
-                accelerators = self.resources.get("accelerators")
-                if accelerators:
-                    # Extract GPU count - format can be "V100:4" or just "4"
-                    if ":" in str(accelerators):
-                        gpu_count = str(accelerators).split(":")[-1]
-                    else:
-                        gpu_count = str(accelerators)
-                    launch_cmd.extend(["--gpus", gpu_count])
-
-                # Add --no-spot flag if use_spot is False
-                if not self.resources.get("use_spot", True):
-                    launch_cmd.append("--no-spot")
-
-            # Add nodes flag if multi-node
-            if self.num_nodes > 1:
-                launch_cmd.extend(["--nodes", str(self.num_nodes)])
-
-            # Inject a run ID that includes the task name for better job identification
-            # Format: <task_name>_<timestamp> (e.g., arena_multi_gpu_2b_20251010_201234)
-            # Check if run= is already in extra_args
-            has_run_param = any(arg.startswith("run=") for arg in extra_args)
-            if not has_run_param:
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                run_id = f"{self.name}_{timestamp}"
-                extra_args = [f"run={run_id}"] + extra_args
-
-            # Add extra arguments
-            if extra_args:
-                launch_cmd.extend(extra_args)
-
-            # Run the launch command - stream output to log file in real-time
-            with open(log_path, "w") as log_file:
-                proc = subprocess.Popen(
-                    launch_cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    bufsize=1,  # Line buffered
-                )
-
-                # Stream output to log file line by line
-                for line in proc.stdout:
-                    log_file.write(line)
-                    log_file.flush()
-
-                proc.wait()
-
-                if proc.returncode != 0:
-                    # Launch failed - mark as submitted but with no job ID
-                    # The error details are already in the log file
-                    self._submitted = True
-                    self._job_id = None
-                    self._exit_code = proc.returncode
-                    return
-
-            # Launch succeeded - extract job info from log
-            log_content = log_path.read_text()
-
-            # Extract run ID (for display purposes)
-            run_id_match = re.search(r"Using auto-generated run ID:\s*(\S+)", log_content)
-            if run_id_match:
-                self._run_id = run_id_match.group(1)
-
-            # Use library function to extract request_id
-            self._request_id = get_request_id_from_launch_output(log_content)
-
+            self._job_id = int(self._launched_job.job_id) if self._launched_job.job_id else None
             self._submitted = True
             self._start_time = time.time()
+
+            # Write initial log if launch failed
+            if not self._launched_job.success:
+                log_path.write_text(f"SkyPilot launch failed\nRequest ID: {self._launched_job.request_id}\n")
+                self._exit_code = 1
 
         except Exception as e:
             # Write error to log file
@@ -543,7 +446,6 @@ class RemoteJob(Job):
         stream_output: bool = False,
         poll_interval_s: float = 0.5,
         on_job_id_ready: Optional[callable] = None,
-        output_filter: Optional[callable] = None,
     ) -> JobResult:
         """Override wait() to call callback when job_id becomes available."""
         if not self._submitted:
@@ -579,9 +481,6 @@ class RemoteJob(Job):
                     logs = self.get_logs()
                     if logs and len(logs) > printed_bytes:
                         new_content = logs[printed_bytes:]
-                        # Apply output filter if provided
-                        if output_filter:
-                            new_content = output_filter(new_content)
                         print(new_content, end="", flush=True)
                         printed_bytes = len(logs)
 
@@ -592,9 +491,6 @@ class RemoteJob(Job):
                 logs = self.get_logs()
                 if logs and len(logs) > printed_bytes:
                     new_content = logs[printed_bytes:]
-                    # Apply output filter if provided
-                    if output_filter:
-                        new_content = output_filter(new_content)
                     print(new_content, end="", flush=True)
 
             # Get final result
@@ -616,22 +512,11 @@ class RemoteJob(Job):
         if self._exit_code is not None:
             return True
 
+        # No job ID means launch failed
+        if not self._job_id:
+            return True
+
         try:
-            # If we don't have a job_id yet, try to get it from request_id
-            if not self._job_id and self._request_id:
-                # Use library function to map request_id to job_id
-                job_id_str = get_job_id_from_request_id(self._request_id, wait_seconds=0.5)
-                if job_id_str:
-                    self._job_id = int(job_id_str)
-                    print(f"✓ Mapped request {self._request_id[:8]}... to job ID: {self._job_id}")
-                else:
-                    # Request not mapped to job yet - keep waiting
-                    return False
-
-            # Still no job ID - job hasn't been assigned yet
-            if not self._job_id:
-                return False
-
             # Use library function to check job status
             job_statuses = check_job_statuses([self._job_id])
             job_info = job_statuses.get(self._job_id)
@@ -779,10 +664,7 @@ class RemoteJob(Job):
     def _handle_interrupt(self) -> None:
         """Handle Ctrl+C by warning about running remote job (does not cancel)."""
         if self._job_id:
-            print(
-                f"\n⚠️  Remote job '{self.name}' (Job ID: {self._job_id}) "
-                f"is still running on cluster '{self.cluster_name}'"
-            )
+            print(f"\n⚠️  Remote job '{self.name}' (Job ID: {self._job_id}) is still running in the cloud")
             print(f"    To cancel it later, run: sky jobs cancel {self._job_id}")
         else:
             print(f"\n⚠️  Remote job '{self.name}' was not successfully launched")

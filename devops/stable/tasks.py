@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import re
 from abc import ABC, abstractmethod
 from datetime import datetime
 from operator import ge, gt
@@ -13,28 +12,7 @@ from pydantic import BaseModel
 
 from devops.job_runner import JobResult, LocalJob, RemoteJob
 from devops.stable.metrics import extract_metrics, extract_wandb_run_info
-from metta.common.util.text_styles import blue, bold, cyan, green, magenta, red, yellow
-
-
-def _highlight_wandb_links(text: str) -> str:
-    """Highlight wandb URLs in text output.
-
-    Args:
-        text: Text that may contain wandb URLs
-
-    Returns:
-        Text with wandb URLs highlighted in cyan and bold
-    """
-    # Pattern to match wandb URLs
-    # Matches: https://wandb.ai/... or http://wandb.ai/... or wandb.ai/...
-    wandb_pattern = r"(https?://)?wandb\.ai/[^\s\)\]>]+"
-
-    def highlight_match(match):
-        url = match.group(0)
-        return bold(cyan(f"🔗 {url}"))
-
-    return re.sub(wandb_pattern, highlight_match, text)
-
+from metta.common.util.text_styles import blue, cyan, green, magenta, red, yellow
 
 # Type definitions
 Outcome = Literal["passed", "failed", "skipped", "inconclusive"]
@@ -349,51 +327,27 @@ class RemoteTrainingTask(TrainingTask):
             # Show catch-up logs from existing log file
             log_path = os.path.join(self.log_dir, f"{self.name}.{existing_job_id}.log")
             if os.path.exists(log_path):
-                print(blue("📜 Catch-up logs (existing log file):"))
+                print(blue("📜 Catch-up logs (last 50 lines):"))
                 print(f"{'─' * 80}")
                 with open(log_path, "r") as f:
                     existing_logs = f.read()
-                    # Show last 50 lines of existing logs with wandb highlighting
+                    # Show last 50 lines of existing logs
                     lines = existing_logs.splitlines()
                     tail_lines = lines[-50:] if len(lines) > 50 else lines
                     for line in tail_lines:
-                        print(_highlight_wandb_links(line))
+                        print(line)
                 print(f"{'─' * 80}")
                 print(blue(f"📡 Now streaming live output from job {existing_job_id}..."))
                 print(f"{'═' * 80}\n")
 
-        # Build the command to run
-        cmd = ["uv", "run", "./tools/run.py", self.module, *self.args]
-
-        # Parse base_args to configure resources
-        # base_args example: ["--no-spot", "--gpus=4", "--nodes=2"]
-        gpus = None
-        nodes = None
-        use_spot = True  # Default to spot instances
-
-        for arg in self.base_args:
-            if arg == "--no-spot":
-                use_spot = False
-            elif arg.startswith("--gpus="):
-                gpus = arg.split("=")[1]
-            elif arg.startswith("--nodes="):
-                nodes = int(arg.split("=")[1])
-
-        # Build resources dict for RemoteJob
-        resources = {}
-        if gpus:
-            resources["accelerators"] = gpus
-            resources["use_spot"] = use_spot
-
-        # Create RemoteJob with the same API as LocalJob
-        # If we have an existing job_id, pass it to reuse the job
+        # Create RemoteJob with module-oriented API (simpler!)
         job = RemoteJob(
             name=self.name,
-            cmd=cmd if not existing_job_id else None,
+            module=self.module,
+            args=self.args,
             timeout_s=self.timeout_s,
             log_dir=self.log_dir,
-            resources=resources,
-            num_nodes=nodes if nodes and nodes > 1 else 1,
+            base_args=self.base_args,
             job_id=existing_job_id,
         )
 
@@ -450,11 +404,9 @@ class RemoteTrainingTask(TrainingTask):
                 print(f"⚠️  Could not save job ID to state: {e}")
 
         # Wait for job completion, with callback to save job_id when available
-        # and output filter to highlight wandb links
         return job.wait(
             stream_output=True,
             on_job_id_ready=on_job_id_ready if not existing_job_id else None,
-            output_filter=_highlight_wandb_links,
         )
 
 
