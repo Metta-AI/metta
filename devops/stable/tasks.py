@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from abc import ABC, abstractmethod
 from datetime import datetime
 from operator import ge, gt
@@ -11,7 +12,28 @@ from pydantic import BaseModel
 
 from devops.job_runner import JobResult, LocalJob, RemoteJob
 from devops.stable.metrics import extract_metrics, extract_wandb_run_info
-from metta.common.util.text_styles import blue, cyan, green, magenta, red, yellow
+from metta.common.util.text_styles import blue, bold, cyan, green, magenta, red, yellow
+
+
+def _highlight_wandb_links(text: str) -> str:
+    """Highlight wandb URLs in text output.
+
+    Args:
+        text: Text that may contain wandb URLs
+
+    Returns:
+        Text with wandb URLs highlighted in cyan and bold
+    """
+    # Pattern to match wandb URLs
+    # Matches: https://wandb.ai/... or http://wandb.ai/... or wandb.ai/...
+    wandb_pattern = r"(https?://)?wandb\.ai/[^\s\)\]>]+"
+
+    def highlight_match(match):
+        url = match.group(0)
+        return bold(cyan(f"🔗 {url}"))
+
+    return re.sub(wandb_pattern, highlight_match, text)
+
 
 # Type definitions
 Outcome = Literal["passed", "failed", "skipped", "inconclusive"]
@@ -378,7 +400,12 @@ class RemoteTrainingTask(TrainingTask):
                 print(f"⚠️  Could not save job ID to state: {e}")
 
         # Wait for job completion, with callback to save job_id when available
-        return job.wait(stream_output=True, on_job_id_ready=on_job_id_ready if not existing_job_id else None)
+        # and output filter to highlight wandb links
+        return job.wait(
+            stream_output=True,
+            on_job_id_ready=on_job_id_ready if not existing_job_id else None,
+            output_filter=_highlight_wandb_links,
+        )
 
 
 class EvaluationTask(LocalCommandTask):
