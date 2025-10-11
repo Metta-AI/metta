@@ -37,6 +37,9 @@ class LatentDynamicsConfig(ComponentConfig):
     # Training
     use_auxiliary: bool = True
 
+    # Performance
+    use_triton: bool = True  # Use Triton kernels if available for faster computation
+
     def make_component(self, env: Optional[Any] = None):  # type: ignore[override]
         """Create LatentDynamicsModelComponent instance."""
         from .latent_dynamics_component import LatentDynamicsModelComponent

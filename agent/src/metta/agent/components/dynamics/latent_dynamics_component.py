@@ -14,6 +14,7 @@ from torchrl.data import Composite
 from metta.rl.training import EnvironmentMetaData
 
 from .config import LatentDynamicsConfig
+from .triton_kernels import reparameterize as triton_reparameterize
 
 
 class LatentDynamicsModelComponent(nn.Module):
@@ -54,6 +55,27 @@ class LatentDynamicsModelComponent(nn.Module):
 
         # Flag to track if output layer is initialized
         self._decoder_output_initialized = False
+
+        # Per-environment latent state for multi-agent gridworld rollouts
+        # Each environment maintains its own latent mean and logvar during inference
+        self.register_buffer("latent_mean_state", torch.empty(0, self._latent_dim))
+        self.register_buffer("latent_logvar_state", torch.empty(0, self._latent_dim))
+        self.max_num_envs = 0
+
+    def __setstate__(self, state):
+        """Ensure latent states are properly initialized after loading from checkpoint.
+
+        This is important for multi-agent gridworld environments to avoid batch size
+        mismatches when loading a saved model.
+        """
+        self.__dict__.update(state)
+        # Reset hidden states when loading from checkpoint
+        if not hasattr(self, "latent_mean_state"):
+            self.latent_mean_state = torch.empty(0, self._latent_dim)
+        if not hasattr(self, "latent_logvar_state"):
+            self.latent_logvar_state = torch.empty(0, self._latent_dim)
+        if not hasattr(self, "max_num_envs"):
+            self.max_num_envs = 0
 
     def _build_encoder(self):
         """Build encoder network: q(z | s_t, a_t, s_{t+1})."""
@@ -157,6 +179,8 @@ class LatentDynamicsModelComponent(nn.Module):
     def reparameterize(self, z_mean: torch.Tensor, z_logvar: torch.Tensor):
         """Sample from latent distribution using reparameterization trick.
 
+        Uses Triton-optimized kernel when available and enabled for better performance.
+
         Args:
             z_mean: Mean of latent distribution (batch, latent_dim)
             z_logvar: Log variance of latent distribution (batch, latent_dim)
@@ -164,11 +188,8 @@ class LatentDynamicsModelComponent(nn.Module):
         Returns:
             z: Sampled latent variable (batch, latent_dim)
         """
-        # Compute std: σ = exp(0.5 * log(σ²))
-        std = torch.exp(0.5 * z_logvar)
-        eps = torch.randn_like(std)
-        # Reparameterization: z = μ + ε * σ
-        return z_mean + eps * std
+        # Use Triton kernel if enabled and available
+        return triton_reparameterize(z_mean, z_logvar, use_triton=self.config.use_triton)
 
     def decode(self, obs_t: torch.Tensor, action_t: torch.Tensor, z: torch.Tensor):
         """Decode latent to predict next observation.
@@ -233,12 +254,15 @@ class LatentDynamicsModelComponent(nn.Module):
     def forward(self, td: TensorDict) -> TensorDict:
         """Forward pass through the dynamics model.
 
+        Handles multi-agent gridworld environments by maintaining separate latent
+        states for each environment during rollouts.
+
         During training, expects:
         - obs_t: Current observation
         - action_t: Action taken
         - obs_next: Next observation (for encoding)
 
-        During inference, can generate predictions from obs_t and action_t.
+        During inference (rollout), maintains per-environment latent states.
         """
         obs_t = td[self._in_key]
 
@@ -251,6 +275,22 @@ class LatentDynamicsModelComponent(nn.Module):
 
         # Check if we have next observation for encoding
         obs_next = td.get(f"{self._in_key}_next")
+
+        # Get environment IDs for per-environment state management
+        training_env_ids = td.get("training_env_ids", None)
+        batch_size = obs_t.shape[0]
+
+        if training_env_ids is None:
+            # No env IDs provided - use sequential IDs
+            training_env_ids = torch.arange(batch_size, device=obs_t.device)
+        else:
+            training_env_ids = training_env_ids.reshape(batch_size)
+
+        # Ensure we have allocated state for all environments
+        if training_env_ids.numel() > 0:
+            max_env_id = int(training_env_ids.max().item()) + 1
+            if max_env_id > self.max_num_envs:
+                self._ensure_capacity(max_env_id, obs_t.device)
 
         if obs_next is not None:
             # Training mode: encode the transition
@@ -271,12 +311,18 @@ class LatentDynamicsModelComponent(nn.Module):
                 future_pred = self.predict_future(z)
                 td.set("future_pred", future_pred)
         else:
-            # Inference mode: sample from prior
-            batch_size = obs_t.shape[0]
-            device = obs_t.device
-            z_mean = torch.zeros(batch_size, self._latent_dim, device=device)
-            z_logvar = torch.zeros(batch_size, self._latent_dim, device=device)
+            # Inference mode: use per-environment latent states for rollouts
+            # This maintains separate latent dynamics for each parallel environment
+            z_mean = self.latent_mean_state[training_env_ids]
+            z_logvar = self.latent_logvar_state[training_env_ids]
+
+            # Sample latent variable
             z = self.reparameterize(z_mean, z_logvar)
+
+            # Update the latent state for next step (simple persistence model)
+            # In a full implementation, this could predict the next latent state
+            self.latent_mean_state[training_env_ids] = z_mean.detach()
+            self.latent_logvar_state[training_env_ids] = z_logvar.detach()
 
             td.set("latent", z)
 
@@ -289,22 +335,58 @@ class LatentDynamicsModelComponent(nn.Module):
 
         return td
 
+    def _ensure_capacity(self, num_envs: int, device: torch.device) -> None:
+        """Ensure we have allocated latent states for the specified number of environments.
+
+        This is critical for multi-agent gridworld rollouts where each environment
+        maintains its own hidden state.
+        """
+        if num_envs > self.max_num_envs:
+            num_to_add = num_envs - self.max_num_envs
+
+            # Allocate new states (initialized from prior N(0, 1))
+            new_mean = torch.zeros(num_to_add, self._latent_dim, device=device)
+            new_logvar = torch.zeros(num_to_add, self._latent_dim, device=device)
+
+            # Concatenate with existing states
+            self.latent_mean_state = torch.cat([self.latent_mean_state, new_mean.detach()], dim=0).to(device)
+            self.latent_logvar_state = torch.cat([self.latent_logvar_state, new_logvar.detach()], dim=0).to(device)
+
+            self.max_num_envs = num_envs
+
     def get_agent_experience_spec(self) -> Composite:
         """Return empty spec since this is an internal component."""
         return Composite({})
 
     def initialize_to_environment(self, env: EnvironmentMetaData, device: torch.device) -> Optional[str]:
-        """Initialize the component for a specific environment."""
+        """Initialize the component for a specific multi-agent gridworld environment."""
         # Update action dimension if available
         if hasattr(env, "action_space") and hasattr(env.action_space, "n"):
             self._action_dim = int(env.action_space.n)
+
+        # Reset memory for new environment
+        self.reset_memory()
+
+        # Allocate states for parallel environments
+        num_envs = getattr(env, "num_envs", None)
+        if num_envs is None:
+            num_envs = getattr(env, "num_agents", 0)
+
+        if isinstance(num_envs, int) and num_envs > 0:
+            self._ensure_capacity(num_envs, device)
 
         self.to(device)
         return None
 
     def reset_memory(self) -> None:
-        """Reset any recurrent state (none for this component)."""
-        pass
+        """Reset per-environment latent states.
+
+        This is called when starting a new training run or evaluation,
+        ensuring each environment starts with a clean latent state.
+        """
+        if self.latent_mean_state.numel() > 0:
+            self.latent_mean_state.fill_(0.0)
+            self.latent_logvar_state.fill_(0.0)
 
     @property
     def device(self) -> torch.device:

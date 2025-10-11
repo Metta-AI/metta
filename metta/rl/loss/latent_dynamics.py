@@ -14,6 +14,12 @@ from metta.rl.loss import Loss
 from metta.rl.training import ComponentContext
 from mettagrid.base_config import Config
 
+try:
+    from metta.agent.components.dynamics.triton_kernels import compute_kl_divergence
+except ImportError:
+    # Fallback if triton_kernels not available
+    compute_kl_divergence = None
+
 
 class LatentDynamicsLossConfig(Config):
     """Configuration for latent dynamics loss.
@@ -37,6 +43,9 @@ class LatentDynamicsLossConfig(Config):
     # Training
     use_auxiliary: bool = Field(default=True, description="Whether to use auxiliary task")
     reconstruction_coef: float = Field(default=1.0, ge=0, le=1.0, description="Reconstruction loss weight")
+
+    # Performance
+    use_triton: bool = Field(default=True, description="Use Triton kernels if available")
 
     def create(
         self,
@@ -98,8 +107,13 @@ class LatentDynamicsLoss(Loss):
 
         # 1. KL Divergence Loss (regularization to N(0,1) prior)
         # KL(q(z|x) || p(z)) = -0.5 * sum(1 + log(sigma^2) - mu^2 - sigma^2)
-        kl_loss = -0.5 * torch.sum(1 + z_logvar - z_mean.pow(2) - z_logvar.exp(), dim=-1)
-        kl_loss = kl_loss.mean() * self.loss_cfg.beta_kl
+        # Use Triton kernel if available for better performance
+        if self.loss_cfg.use_triton and compute_kl_divergence is not None:
+            kl_loss = compute_kl_divergence(z_mean, z_logvar, use_triton=True)
+        else:
+            kl_loss = -0.5 * torch.sum(1 + z_logvar - z_mean.pow(2) - z_logvar.exp(), dim=-1)
+            kl_loss = kl_loss.mean()
+        kl_loss = kl_loss * self.loss_cfg.beta_kl
 
         # 2. Reconstruction Loss (next state prediction)
         recon_loss = torch.tensor(0.0, device=context.device)
