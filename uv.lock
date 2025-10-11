@@ -2154,7 +2154,7 @@ requires-dist = [
     { name = "scipy", specifier = ">=1.15.3" },
     { name = "setuptools", specifier = ">=80.9.0" },
     { name = "simple-term-menu", specifier = ">=1.6.4" },
-    { name = "skypilot", specifier = "==0.10.3" },
+    { name = "skypilot", specifier = "==0.10.3.post2" },
     { name = "softmax", editable = "softmax" },
     { name = "sympy", specifier = ">=1.13.3" },
     { name = "tabulate", specifier = ">=0.9.0" },
@@ -4083,7 +4083,7 @@ wheels = [
 
 [[package]]
 name = "skypilot"
-version = "0.10.3"
+version = "0.10.3.post2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiofiles" },
@@ -4131,9 +4131,9 @@ dependencies = [
     { name = "uvicorn", extra = ["standard"] },
     { name = "wheel" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a4/ac/2a6df456faa6bfde9873e92626731cb37f1cf25854c1fbd72d55ede00635/skypilot-0.10.3.tar.gz", hash = "sha256:0b28e579f3d1917bfc287c1a04d1fc1effcffb86e219ddd78dcee3343a105ed4", size = 2482585, upload-time = "2025-09-09T23:00:49.054Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/44/fe/3f260479835005a5468db41a92ef1de0c38c051da9d7b6c29cc2dc68ff98/skypilot-0.10.3.post2.tar.gz", hash = "sha256:5480dba07f95cb26b4da5fe7b842e975f99f706d33b6a78be2744f897160ebf8", size = 2483457, upload-time = "2025-10-10T21:12:18.657Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b8/62/a9851aa708620a1bfe82d72779129b674d105e28d44e5a657ee8fc534237/skypilot-0.10.3-py3-none-any.whl", hash = "sha256:06d523e9f499b8134901e9b3fd933a9f1f441e42f8f0d3fb16df18a847a91b21", size = 2714815, upload-time = "2025-09-09T23:00:46.169Z" },
+    { url = "https://files.pythonhosted.org/packages/27/37/f7494f1734a012fdc66b8808c56764f21e5b583c9e7f22c1c0badb72bdd2/skypilot-0.10.3.post2-py3-none-any.whl", hash = "sha256:7d9b3f3367382bf50a57c189ad20c812f20c2c18ea58e69b868275769dd5ca88", size = 2715498, upload-time = "2025-10-10T21:12:16.559Z" },
 ]
 
 [[package]]
@@ -4640,15 +4640,15 @@ wheels = [
 
 [[package]]
 name = "uvicorn"
-version = "0.37.0"
+version = "0.35.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
     { name = "h11" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/71/57/1616c8274c3442d802621abf5deb230771c7a0fec9414cb6763900eb3868/uvicorn-0.37.0.tar.gz", hash = "sha256:4115c8add6d3fd536c8ee77f0e14a7fd2ebba939fed9b02583a97f80648f9e13", size = 80367, upload-time = "2025-09-23T13:33:47.486Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5e/42/e0e305207bb88c6b8d3061399c6a961ffe5fbb7e2aa63c9234df7259e9cd/uvicorn-0.35.0.tar.gz", hash = "sha256:bc662f087f7cf2ce11a1d7fd70b90c9f98ef2e2831556dd078d131b96cc94a01", size = 78473, upload-time = "2025-06-28T16:15:46.058Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/85/cd/584a2ceb5532af99dd09e50919e3615ba99aa127e9850eafe5f31ddfdb9a/uvicorn-0.37.0-py3-none-any.whl", hash = "sha256:913b2b88672343739927ce381ff9e2ad62541f9f8289664fa1d1d3803fa2ce6c", size = 67976, upload-time = "2025-09-23T13:33:45.842Z" },
+    { url = "https://files.pythonhosted.org/packages/d2/e2/dc81b1bd1dcfe91735810265e9d26bc8ec5da45b4c0f6237e286819194c3/uvicorn-0.35.0-py3-none-any.whl", hash = "sha256:197535216b25ff9b785e29a0b79199f55222193d47f820816e7da751e9bc8d4a", size = 66406, upload-time = "2025-06-28T16:15:44.816Z" },
 ]
 
 [package.optional-dependencies]
