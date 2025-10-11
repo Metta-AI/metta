@@ -120,20 +120,30 @@ def load_or_create_state(version: str, commit_sha: str) -> ReleaseState:
 def get_most_recent_state() -> Optional[tuple[str, ReleaseState]]:
     """Get the most recent release state.
 
+    Only considers state files with valid timestamp-based version format:
+    v{YYYY.MM.DD-HHMM}.json (e.g., v2025.10.10-1801.json)
+
     Returns:
         Tuple of (version, state) or None if no state files exist
     """
+    import re
+
     state_base = get_repo_root() / "devops/stable/state"
     if not state_base.exists():
         return None
 
-    # Find all .json files
+    # Pattern for valid timestamp-based versions: vYYYY.MM.DD-HHMM
+    version_pattern = re.compile(r"^v\d{4}\.\d{2}\.\d{2}-\d{4}$")
+
+    # Find all .json files with valid version format
     state_files = []
     for state_file in state_base.glob("*.json"):
         if state_file.is_file():
             # Extract version from filename (remove .json extension)
             version = state_file.stem
-            state_files.append((version, state_file))
+            # Only include files with valid timestamp-based version format
+            if version_pattern.match(version):
+                state_files.append((version, state_file))
 
     if not state_files:
         return None
