@@ -12,7 +12,7 @@ from psycopg.sql import Composable
 
 # Logger for database query performance
 query_logger = logging.getLogger("db_performance")
-query_logger.setLevel(logging.INFO)
+query_logger.setLevel(logging.DEBUG)
 
 # Threshold for slow query warnings (1 second)
 SLOW_QUERY_THRESHOLD_SECONDS = 1.0

@@ -23,6 +23,9 @@ class OptimizerConfig(Config):
     momentum: float = Field(default=0.9, ge=0, le=1.0)  # Beta parameter for ScheduleFree
     warmup_steps: int = Field(default=0, ge=0)  # Number of warmup steps for ScheduleFree
 
+    def misc_unused_thing(self) -> None:
+        pass
+
 
 class InitialPolicyConfig(Config):
     uri: str | None = None
