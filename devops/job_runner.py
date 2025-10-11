@@ -499,13 +499,23 @@ class RemoteJob(Job):
             # Use SDK to get job queue
             job_records = sky.get(sky.jobs.queue(refresh=True, all_users=False))
 
-            # If we don't have a job_id yet, try to find it by request_id or cluster name
+            # If we don't have a job_id yet, try to find it by matching name
+            # ONLY match jobs that are NOT in terminal state (to avoid matching old completed jobs)
             if not self._job_id:
-                # Look for the most recent job matching our name
+                terminal_states = ("SUCCEEDED", "FAILED", "FAILED_SETUP", "FAILED_DRIVER", "CANCELLED")
+
+                # Look for the most recent NON-TERMINAL job matching our name
                 for job in sorted(job_records, key=lambda j: j.get("job_id", 0), reverse=True):
+                    # Check if job is in a terminal state
+                    job_status = str(job.get("status", "")).split(".")[-1]
+                    if job_status in terminal_states:
+                        continue  # Skip completed jobs
+
+                    # Check if name matches
                     job_name = job.get("job_name", "")
                     if self.name in job_name or self.cluster_name in job_name:
                         self._job_id = job["job_id"]
+                        print(f"Found running job: {job_name} (ID: {self._job_id}, status: {job_status})")
                         break
 
                 # Still no job ID - job hasn't appeared in queue yet
