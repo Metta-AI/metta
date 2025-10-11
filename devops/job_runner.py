@@ -456,6 +456,26 @@ class RemoteJob(Job):
                 module_path,
             ]
 
+            # Add resource flags (GPUs, nodes, spot)
+            if self.resources:
+                # Extract GPU count from accelerators string (e.g., "V100:4" or "4")
+                accelerators = self.resources.get("accelerators")
+                if accelerators:
+                    # Extract GPU count - format can be "V100:4" or just "4"
+                    if ":" in str(accelerators):
+                        gpu_count = str(accelerators).split(":")[-1]
+                    else:
+                        gpu_count = str(accelerators)
+                    launch_cmd.extend(["--gpus", gpu_count])
+
+                # Add --no-spot flag if use_spot is False
+                if not self.resources.get("use_spot", True):
+                    launch_cmd.append("--no-spot")
+
+            # Add nodes flag if multi-node
+            if self.num_nodes > 1:
+                launch_cmd.extend(["--nodes", str(self.num_nodes)])
+
             # Inject a run ID that includes the task name for better job identification
             # Format: <task_name>_<timestamp> (e.g., arena_multi_gpu_2b_20251010_201234)
             # Check if run= is already in extra_args
