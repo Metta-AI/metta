@@ -1,0 +1,131 @@
+"""Configuration classes for Cortex cells, blocks, and stacks."""
+
+from __future__ import annotations
+
+from pydantic import BaseModel, Field
+
+
+class CellConfig(BaseModel):
+    """Base configuration for memory cells with optional hidden size inference."""
+
+    hidden_size: int | None = Field(default=None)
+
+    class Config:
+        extra = "allow"  # Allow additional fields for extensibility
+
+
+class LSTMCellConfig(CellConfig):
+    """Configuration for standard LSTM cell (batch-first, single layer default)."""
+
+    hidden_size: int | None = Field(default=None)
+    num_layers: int = Field(default=1, ge=1)
+    bias: bool = Field(default=True)
+    dropout: float = Field(default=0.0, ge=0.0)
+    proj_size: int = Field(default=0, ge=0)
+
+
+class CausalConv1dConfig(CellConfig):
+    """Configuration for causal 1D convolution with optional channel mixing."""
+
+    kernel_size: int = Field(default=4, ge=0)
+    causal_conv_bias: bool = Field(default=True)
+    channel_mixing: bool = Field(default=False)
+
+    @property
+    def feature_dim(self) -> int:
+        """Alias for hidden_size for compatibility."""
+        return self.hidden_size
+
+
+class mLSTMCellConfig(CellConfig):
+    """Configuration for Matrix LSTM cell with parallel chunk processing."""
+
+    hidden_size: int | None = Field(default=None)
+    num_heads: int = Field(default=4, ge=1)
+    chunk_size: int = Field(default=64, ge=1)
+    # Always apply conv-in inside the cell (depthwise causal conv)
+    conv1d_kernel_size: int = Field(default=4, ge=1)
+
+
+class sLSTMCellConfig(CellConfig):
+    """Configuration for Structured LSTM cell with per-head recurrence."""
+
+    hidden_size: int | None = Field(default=None)
+    num_heads: int = Field(default=4, ge=1)  # Must be power of 2 for triton to work.
+    # Optional depthwise causal conv to precondition inputs (0 disables)
+    conv1d_kernel_size: int = Field(default=4, ge=0)
+    # Dropout applied to the cell output prior to normalization
+    dropout: float = Field(default=0.0, ge=0.0)
+
+
+class BlockConfig(BaseModel):
+    """Base configuration for cortex blocks."""
+
+    cell: CellConfig  # Any cell config type
+
+    class Config:
+        extra = "allow"  # Allow additional fields for extensibility
+
+    def get_cell_hidden_size(self, d_hidden: int) -> int:
+        """Compute cell hidden size from stack's external dimension."""
+        return d_hidden
+
+
+class PassThroughBlockConfig(BlockConfig):
+    """Configuration for a passthrough block (no projections)."""
+
+    pass
+
+
+class PreUpBlockConfig(BlockConfig):
+    """Configuration for pre-upsampling blocks (projects before cell)."""
+
+    proj_factor: float = Field(default=2.0, gt=0.0)
+
+    def get_cell_hidden_size(self, d_hidden: int) -> int:
+        """Cell operates on expanded inner dimension."""
+        return int(self.proj_factor * d_hidden)
+
+
+class PostUpBlockConfig(BlockConfig):
+    """Configuration for post-processing blocks (cell then FFN)."""
+
+    proj_factor: float = Field(default=1.5, gt=0.0)
+
+
+class AdapterBlockConfig(BlockConfig):
+    """Configuration for adapter blocks with identity-initialized residual paths."""
+
+    base_block: BlockConfig  # The block to wrap
+    cell: CellConfig | None = None  # Not used for adapters, delegated to base_block
+    bottleneck: int = Field(default=64, ge=1)
+    dropout: float = Field(default=0.0, ge=0.0, le=1.0)
+    per_channel_gate: bool = Field(default=False)
+    activation: str = Field(default="gelu")
+
+    def get_cell_hidden_size(self, d_hidden: int) -> int:
+        """Delegate to wrapped block."""
+        return self.base_block.get_cell_hidden_size(d_hidden)
+
+
+class CortexStackConfig(BaseModel):
+    """Configuration for building a sequential stack of blocks."""
+
+    blocks: list[BlockConfig]  # Accept any BlockConfig subclass
+    d_hidden: int = Field(ge=1)
+    post_norm: bool = Field(default=True)
+
+
+__all__ = [
+    "CellConfig",
+    "CausalConv1dConfig",
+    "LSTMCellConfig",
+    "mLSTMCellConfig",
+    "sLSTMCellConfig",
+    "BlockConfig",
+    "PassThroughBlockConfig",
+    "PreUpBlockConfig",
+    "PostUpBlockConfig",
+    "AdapterBlockConfig",
+    "CortexStackConfig",
+]
