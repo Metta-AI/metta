@@ -42,15 +42,19 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
-from io import StringIO, TextIOBase
 from pathlib import Path
-from typing import Optional, cast
+from typing import Optional
 
 import sky
 import sky.exceptions
 import sky.jobs
 
-from devops.skypilot.utils.job_helpers import get_job_id_from_request_id, get_request_id_from_launch_output
+from devops.skypilot.utils.job_helpers import (
+    check_job_statuses,
+    get_job_id_from_request_id,
+    get_request_id_from_launch_output,
+    tail_job_log,
+)
 from metta.common.util.fs import get_repo_root
 
 
@@ -512,28 +516,27 @@ class RemoteJob(Job):
             if not self._job_id:
                 return False
 
-            # Check job status
-            job_records = sky.get(sky.jobs.queue(refresh=True, all_users=False))
+            # Use library function to check job status
+            job_statuses = check_job_statuses([self._job_id])
+            job_info = job_statuses.get(self._job_id)
 
-            # Find our job in the queue
-            for job in job_records:
-                if job["job_id"] == self._job_id:
-                    # Get status from job record
-                    # Status is an enum, extract just the name
-                    status = str(job["status"]).split(".")[-1]
-                    self._job_status = status
+            if not job_info:
+                # Job not found - consider it complete
+                return True
 
-                    # Check if job is in a terminal state
-                    return status in (
-                        "SUCCEEDED",
-                        "FAILED",
-                        "FAILED_SETUP",
-                        "FAILED_DRIVER",
-                        "CANCELLED",
-                    )
+            # Update our cached status
+            self._job_status = job_info["status"]
 
-            # If job not found in queue, consider it complete
-            return True
+            # Check if job is in a terminal state
+            return self._job_status in (
+                "SUCCEEDED",
+                "FAILED",
+                "FAILED_SETUP",
+                "FAILED_DRIVER",
+                "CANCELLED",
+                "UNKNOWN",
+                "ERROR",
+            )
 
         except sky.exceptions.ClusterNotUpError:
             # Jobs controller not up - can't check status
@@ -552,30 +555,20 @@ class RemoteJob(Job):
                 return log_path.read_text(errors="ignore")
             return ""
 
-        try:
-            # Use SDK to get job logs
-            output = StringIO()
-            sky.jobs.tail_logs(job_id=self._job_id, follow=False, output_stream=cast(TextIOBase, output))
+        # Use library function to get job logs
+        logs = tail_job_log(str(self._job_id))
 
-            logs = output.getvalue()
+        if logs:
+            # Cache logs to file
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            log_path.write_text(logs)
+            return logs
 
-            if logs:
-                log_path.parent.mkdir(parents=True, exist_ok=True)
-                log_path.write_text(logs)
-                return logs
+        # If library function returned None/empty, try reading cached logs
+        if log_path.exists():
+            return log_path.read_text(errors="ignore")
 
-            return ""
-
-        except sky.exceptions.ClusterNotUpError:
-            # Jobs controller not up - return cached logs if available
-            if log_path.exists():
-                return log_path.read_text(errors="ignore")
-            return ""
-        except Exception:
-            # Return existing logs if fetch fails
-            if log_path.exists():
-                return log_path.read_text(errors="ignore")
-            return ""
+        return ""
 
     def _fetch_result(self) -> JobResult:
         """Fetch result from completed job."""
