@@ -57,10 +57,17 @@ class PackedCoordinate:
 class GridObjectConfig: ...
 
 class WallConfig(GridObjectConfig):
-    def __init__(self, type_id: int, type_name: str, swappable: bool = False): ...
+    def __init__(
+        self,
+        type_id: int,
+        type_name: str,
+        swappable: bool = False,
+        tag_ids: list[int] = ...,
+    ): ...
     type_id: int
     type_name: str
     swappable: bool
+    tag_ids: list[int]
 
 class AgentConfig(GridObjectConfig):
     def __init__(
@@ -71,11 +78,15 @@ class AgentConfig(GridObjectConfig):
         group_name: str = ...,
         freeze_duration: int = 0,
         action_failure_penalty: float = 0,
-        resource_limits: dict[int, int] = {},
+        inventory_config: "InventoryConfig" = ...,
         stat_rewards: dict[str, float] = {},
         stat_reward_max: dict[str, float] = {},
         group_reward_pct: float = 0,
         initial_inventory: dict[int, int] = {},
+        tag_ids: list[int] = ...,
+        soul_bound_resources: list[int] = ...,
+        shareable_resources: list[int] = ...,
+        inventory_regen_amounts: dict[int, int] = {},
     ) -> None: ...
     type_id: int
     type_name: str
@@ -83,11 +94,15 @@ class AgentConfig(GridObjectConfig):
     group_name: str
     freeze_duration: int
     action_failure_penalty: float
-    resource_limits: dict[int, int]
-    stat_rewards: dict[str, float]  # Added this
-    stat_reward_max: dict[str, float]  # Added this
+    inventory_config: "InventoryConfig"
+    stat_rewards: dict[str, float]
+    stat_reward_max: dict[str, float]
     group_reward_pct: float
     initial_inventory: dict[int, int]
+    tag_ids: list[int]
+    soul_bound_resources: list[int]
+    shareable_resources: list[int]
+    inventory_regen_amounts: dict[int, int]
 
 class ConverterConfig(GridObjectConfig):
     def __init__(
@@ -102,6 +117,7 @@ class ConverterConfig(GridObjectConfig):
         cooldown: int,
         initial_resource_count: int = 0,
         recipe_details_obs: bool = False,
+        tag_ids: list[int] = ...,
     ) -> None: ...
     type_id: int
     type_name: str
@@ -113,15 +129,7 @@ class ConverterConfig(GridObjectConfig):
     cooldown: int
     initial_resource_count: int
     recipe_details_obs: bool
-
-class ActionConfig:
-    def __init__(
-        self,
-        required_resources: dict[int, int] = {},
-        consumed_resources: dict[int, float] = {},
-    ) -> None: ...
-    required_resources: dict[int, int]
-    consumed_resources: dict[int, float]
+    tag_ids: list[int]
 
 class Recipe:
     def __init__(
@@ -133,6 +141,52 @@ class Recipe:
     input_resources: dict[int, int]
     output_resources: dict[int, int]
     cooldown: int
+
+class AssemblerConfig(GridObjectConfig):
+    def __init__(
+        self,
+        type_id: int,
+        type_name: str,
+        tag_ids: list[int] = ...,
+    ) -> None: ...
+    type_id: int
+    type_name: str
+    tag_ids: list[int]
+    recipes: list[Recipe | None]
+    recipe_details_obs: bool
+    allow_partial_usage: bool
+    max_uses: int
+    exhaustion: float
+    clip_immune: bool
+    start_clipped: bool
+
+class ChestConfig(GridObjectConfig):
+    def __init__(
+        self,
+        type_id: int,
+        type_name: str,
+        resource_type: int,
+        position_deltas: dict[int, int],
+        initial_inventory: int = ...,
+        max_inventory: int = ...,
+        tag_ids: list[int] = ...,
+    ) -> None: ...
+    type_id: int
+    type_name: str
+    resource_type: int
+    position_deltas: dict[int, int]
+    initial_inventory: int
+    max_inventory: int
+    tag_ids: list[int]
+
+class ActionConfig:
+    def __init__(
+        self,
+        required_resources: dict[int, int] = {},
+        consumed_resources: dict[int, float] = {},
+    ) -> None: ...
+    required_resources: dict[int, int]
+    consumed_resources: dict[int, float]
 
 class ClipperConfig:
     def __init__(
@@ -207,12 +261,11 @@ class GameConfig:
         actions: dict[str, ActionConfig],
         objects: dict[str, GridObjectConfig],
         resource_loss_prob: float = 0.0,
-        tag_id_map: dict[int, str] | None = None,
+        tag_id_map: dict[int, str] = {},
         track_movement_metrics: bool = False,
         recipe_details_obs: bool = False,
         allow_diagonals: bool = False,
         reward_estimates: Optional[dict[str, float]] = None,
-        inventory_regen_amounts: dict[int, int] | None = None,
         inventory_regen_interval: int = 0,
         clipper: Optional[ClipperConfig] = None,
     ) -> None: ...
@@ -224,6 +277,7 @@ class GameConfig:
     resource_names: list[str]
     num_observation_tokens: int
     global_obs: GlobalObsConfig
+    objects: dict[str, GridObjectConfig]  # Readonly - for inspection only
     resource_loss_prob: float
     # FEATURE FLAGS
     track_movement_metrics: bool
@@ -231,9 +285,15 @@ class GameConfig:
     allow_diagonals: bool
     reward_estimates: Optional[dict[str, float]]
     tag_id_map: dict[int, str]
-    inventory_regen_amounts: dict[int, int]
     inventory_regen_interval: int
     clipper: Optional[ClipperConfig]
+
+class InventoryConfig:
+    def __init__(
+        self,
+        limits: list[tuple[list[int], int]] = ...,
+    ) -> None: ...
+    limits: list[tuple[list[int], int]]
 
 class MettaGrid:
     obs_width: int

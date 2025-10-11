@@ -23,6 +23,44 @@ FixedPosition = Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE"]
 Position = FixedPosition | Literal["Any"]
 
 
+class PropertyModifier(Config):
+    """Defines how a property is modified by a tag."""
+
+    property_path: str = Field(
+        description=(
+            "Path to the property to modify, e.g., 'freeze_duration' or "
+            "'resource_limits.ore_red'. List/tuple indexing is not supported; "
+            "override entire lists if needed."
+        )
+    )
+    operation: Literal["add", "multiply", "override", "max", "min"] = Field(
+        description="How to apply the modification: add, multiply, override, max (take larger), min (take smaller)"
+    )
+    value: Union[float, int, bool, dict, list] = Field(description="The value to apply with the operation")
+
+
+class TagDefinition(Config):
+    """Defines what properties a tag modifies when applied to objects."""
+
+    name: str = Field(description="The tag name")
+    modifiers: list[PropertyModifier] = Field(
+        default_factory=list, description="Property modifications this tag applies"
+    )
+
+
+class StatsRewards(Config):
+    """Agent stats-based reward configuration.
+
+    Maps stat names to reward values. Stats are tracked by the StatsTracker
+    and can include things like 'action.attack.agent', 'inventory.armor.gained', etc.
+    Each entry can have:
+    - stat_name: reward_per_unit
+    - stat_name_max: maximum cumulative reward for this stat
+    """
+
+    model_config = ConfigDict(extra="allow")  # Allow any stat names to be added dynamically
+
+
 class AgentRewards(Config):
     """Agent reward configuration with separate inventory and stats rewards."""
 
@@ -310,6 +348,12 @@ class GameConfig(Config):
     allow_diagonals: bool = Field(default=False, description="Enable actions to be aware of diagonal orientations")
 
     reward_estimates: Optional[dict[str, float]] = Field(default=None)
+
+    # Tag definitions that specify property modifications
+    tag_definitions: dict[str, TagDefinition] = Field(
+        default_factory=dict,
+        description="Definitions of tags and their property modifications. Tags apply in order on objects.",
+    )
 
 
 class MettaGridConfig(Config):
