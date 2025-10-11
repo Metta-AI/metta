@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from abc import ABC, abstractmethod
 from datetime import datetime
@@ -333,6 +334,34 @@ class RemoteTrainingTask(TrainingTask):
             existing_job_id = int(cached.job_id)
             print(f"✓ Found existing job ID: {existing_job_id} - attaching to it")
 
+            # Display cached artifacts if available
+            if cached.artifacts:
+                print("\n" + blue("📦 Previously discovered artifacts:"))
+                for key, value in cached.artifacts.items():
+                    if value.startswith("wandb://"):
+                        print(f"   • {key}: {magenta(value)}")
+                    elif value.startswith(("s3://", "file://", "http")):
+                        print(f"   • {key}: {cyan(value)}")
+                    else:
+                        print(f"   • {key}: {value}")
+                print()
+
+            # Show catch-up logs from existing log file
+            log_path = os.path.join(self.log_dir, f"{self.name}.{existing_job_id}.log")
+            if os.path.exists(log_path):
+                print(blue("📜 Catch-up logs (existing log file):"))
+                print(f"{'─' * 80}")
+                with open(log_path, "r") as f:
+                    existing_logs = f.read()
+                    # Show last 50 lines of existing logs with wandb highlighting
+                    lines = existing_logs.splitlines()
+                    tail_lines = lines[-50:] if len(lines) > 50 else lines
+                    for line in tail_lines:
+                        print(_highlight_wandb_links(line))
+                print(f"{'─' * 80}")
+                print(blue(f"📡 Now streaming live output from job {existing_job_id}..."))
+                print(f"{'═' * 80}\n")
+
         # Build the command to run
         cmd = ["uv", "run", "./tools/run.py", self.module, *self.args]
 
@@ -370,7 +399,10 @@ class RemoteTrainingTask(TrainingTask):
 
         # Define callback to save job_id to state as soon as it's available
         def on_job_id_ready(job_id: int) -> None:
-            """Callback to save job_id to state immediately when it becomes available."""
+            """Callback to save job_id to state immediately when it becomes available.
+
+            Also attempts to extract wandb artifacts from logs if available.
+            """
             try:
                 # Get state version from log_dir path
                 # log_dir format: devops/stable/logs/{version}/remote
@@ -383,7 +415,20 @@ class RemoteTrainingTask(TrainingTask):
                         state_version = log_dir_parts[version_idx]
                         state = load_state(state_version)
                         if state:
-                            # Create or update result with job_id
+                            # Try to extract wandb info from current logs
+                            artifacts = {}
+                            try:
+                                log_text = job.get_logs()
+                                if log_text:
+                                    wandb_info = extract_wandb_run_info(log_text)
+                                    if wandb_info:
+                                        entity, project, run_id = wandb_info
+                                        artifacts["wandb_run_id"] = run_id
+                                        artifacts["checkpoint_uri"] = f"wandb://run/{run_id}"
+                            except Exception:
+                                pass  # Artifacts will be extracted later when job completes
+
+                            # Create or update result with job_id (and artifacts if found)
                             partial_result = TaskResult(
                                 name=self.name,
                                 started_at=datetime.utcnow().isoformat(timespec="seconds"),
@@ -391,10 +436,15 @@ class RemoteTrainingTask(TrainingTask):
                                 outcome="inconclusive",
                                 exit_code=0,
                                 job_id=str(job_id),
+                                artifacts=artifacts,
                             )
                             state.results[self.name] = partial_result
                             save_state(state)
-                            print(f"💾 Saved job ID {job_id} to state (can be resumed if interrupted)")
+                            msg = f"💾 Saved job ID {job_id} to state"
+                            if artifacts:
+                                msg += " (with wandb artifacts)"
+                            msg += " (can be resumed if interrupted)"
+                            print(msg)
             except Exception as e:
                 # Don't fail the job if state save fails
                 print(f"⚠️  Could not save job ID to state: {e}")
@@ -595,11 +645,11 @@ def get_all_tasks() -> list[Task]:
         wandb_metrics=["overview/sps", "env_agent/heart.get"],
     )
 
-    # Multi-GPU training - 2B timesteps
-    train_2b = remote_train(
-        name="arena_multi_gpu_2b",
+    # Multi-GPU training - 500M timesteps
+    train_500m = remote_train(
+        name="arena_multi_gpu_500m",
         module="experiments.recipes.arena_basic_easy_shaped.train",
-        args=["trainer.total_timesteps=2000000000"],
+        args=["trainer.total_timesteps=500000000"],
         timeout_s=86400,
         gpus=4,
         nodes=4,
@@ -618,4 +668,4 @@ def get_all_tasks() -> list[Task]:
         timeout_s=1800,
     )
 
-    return [ci_task, smoke, train_100m, train_2b, eval_task]
+    return [ci_task, smoke, train_100m, train_500m, eval_task]

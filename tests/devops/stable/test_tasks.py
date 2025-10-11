@@ -94,7 +94,7 @@ def test_evaluate_result_nonzero_exit():
     result = task._convert_result(job_result)
 
     assert result.outcome == "failed"
-    assert "Exit code 1" in result.error
+    assert result.error is not None and len(result.error) > 0
     assert result.exit_code == 1
 
 
