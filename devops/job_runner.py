@@ -56,6 +56,27 @@ from devops.skypilot.utils.job_helpers import (
     tail_job_log,
 )
 from metta.common.util.fs import get_repo_root
+from metta.common.util.text_styles import bold, cyan
+
+
+def _highlight_wandb_links(text: str) -> str:
+    """Highlight wandb URLs in text output.
+
+    Args:
+        text: Text that may contain wandb URLs
+
+    Returns:
+        Text with wandb URLs highlighted in cyan and bold
+    """
+    # Pattern to match wandb URLs
+    # Matches: https://wandb.ai/... or http://wandb.ai/... or wandb.ai/...
+    wandb_pattern = r"(https?://)?wandb\.ai/[^\s\)\]>]+"
+
+    def highlight_match(match):
+        url = match.group(0)
+        return bold(cyan(f"🔗 {url}"))
+
+    return re.sub(wandb_pattern, highlight_match, text)
 
 
 @dataclass
@@ -171,7 +192,9 @@ class Job(ABC):
                     logs = self.get_logs()
                     if logs and len(logs) > printed_bytes:
                         new_content = logs[printed_bytes:]
-                        print(new_content, end="", flush=True)
+                        # Highlight wandb links in the output
+                        highlighted_content = _highlight_wandb_links(new_content)
+                        print(highlighted_content, end="", flush=True)
                         printed_bytes = len(logs)
 
                 time.sleep(poll_interval_s)
@@ -181,7 +204,9 @@ class Job(ABC):
                 logs = self.get_logs()
                 if logs and len(logs) > printed_bytes:
                     new_content = logs[printed_bytes:]
-                    print(new_content, end="", flush=True)
+                    # Highlight wandb links in the output
+                    highlighted_content = _highlight_wandb_links(new_content)
+                    print(highlighted_content, end="", flush=True)
 
             # Get final result
             result = self.get_result()
@@ -538,7 +563,9 @@ class RemoteJob(Job):
                     logs = self.get_logs()
                     if logs and len(logs) > printed_bytes:
                         new_content = logs[printed_bytes:]
-                        print(new_content, end="", flush=True)
+                        # Highlight wandb links in the output
+                        highlighted_content = _highlight_wandb_links(new_content)
+                        print(highlighted_content, end="", flush=True)
                         printed_bytes = len(logs)
 
                 time.sleep(poll_interval_s)
@@ -548,7 +575,9 @@ class RemoteJob(Job):
                 logs = self.get_logs()
                 if logs and len(logs) > printed_bytes:
                     new_content = logs[printed_bytes:]
-                    print(new_content, end="", flush=True)
+                    # Highlight wandb links in the output
+                    highlighted_content = _highlight_wandb_links(new_content)
+                    print(highlighted_content, end="", flush=True)
 
             # Get final result
             result = self.get_result()
