@@ -140,8 +140,8 @@ class ActionProbs(nn.Module):
             return self.forward_training(td, action)
 
     def forward_inference(self, td: TensorDict) -> TensorDict:
-        logits = td[self.config.in_key]
         """Forward pass for inference mode with action sampling."""
+        logits = td[self.config.in_key]
         action_logit_index, selected_log_probs, _, full_log_probs = sample_actions(logits)
 
         td["actions"] = action_logit_index.to(dtype=torch.int32)
