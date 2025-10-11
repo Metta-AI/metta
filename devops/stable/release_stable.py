@@ -576,7 +576,7 @@ def cmd_task_validation(
     task: Optional[str] = typer.Option(
         None,
         "--task",
-        help="Validation filter: ci | train_local | train_remote | train_remote_multigpu | evaluate",
+        help=f"Task name filter (available: {', '.join(t.name for t in get_all_tasks())})",
     ),
     reeval: bool = typer.Option(
         False,
