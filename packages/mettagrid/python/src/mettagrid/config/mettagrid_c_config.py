@@ -265,7 +265,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 max_output=object_config.max_output,
                 max_conversions=object_config.max_conversions,
                 conversion_ticks=object_config.conversion_ticks,
-                cooldown=object_config.cooldown,
+                cooldown_time=list(object_config.cooldown),
                 initial_resource_count=object_config.initial_resource_count,
                 recipe_details_obs=game_config.recipe_details_obs,
                 tag_ids=tag_ids,

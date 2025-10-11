@@ -582,7 +582,7 @@ function loadReplayJson(url: string, replayJson: any) {
       object.productionProgress.expand(gridObject.production_progress, replayData.max_steps, 0)
       object.productionTime = gridObject.production_time
       object.cooldownProgress.expand(gridObject.cooldown_progress, replayData.max_steps, 0)
-      object.cooldownTime = gridObject.cooldown_time
+      object.cooldownTime = gridObject.cooldown_duration
     }
 
     state.replay.objects.push(object)
