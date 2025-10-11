@@ -39,7 +39,6 @@ from mettagrid.config.mettagrid_config import (
     RecipeConfig,
     WallConfig,
 )
-from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 from mettagrid.map_builder.random import RandomMapBuilder
 
@@ -173,14 +172,12 @@ def _get_default_map_objects() -> dict[str, AnyGridObjectConfig]:
     }
 
 
-def get_map_builder_for_site(site: str) -> MapBuilderConfig[AsciiMapBuilder]:
+def get_map_builder_for_site(site: str) -> MapBuilderConfig:
     """Get the map builder for a site. Site is the name of the site file in the maps directory."""
     maps_dir = Path(__file__).parent.parent / "maps"
     map_path = maps_dir / site
 
-    return AsciiMapBuilder.Config.from_uri(
-        str(map_path), {o.map_char: o.name for o in _get_default_map_objects().values()}
-    )
+    return MapBuilderConfig.from_uri(str(map_path))
 
 
 def get_random_map_builder(
