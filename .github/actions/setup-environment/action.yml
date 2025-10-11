@@ -126,7 +126,7 @@ runs:
 
           "testing")
             # Install main dependencies + testing group, excluding interactive and dev
-            uv sync --no-group interactive --no-group dev --group testing
+            uv sync -v --no-group interactive --no-group dev --group testing
             ;;
 
           "linting")
