@@ -4,7 +4,7 @@ import subprocess
 
 import pytest
 
-from cogames.game import get_all_missions
+from cogames.cli.mission import get_all_missions
 
 
 @pytest.mark.parametrize("mission_name", get_all_missions())
@@ -17,8 +17,11 @@ def test_mission_eval(mission_name):
             "run",
             "cogames",
             "eval",
+            "-m",
             mission_name,
+            "-p",
             "cogames.policy.random.RandomPolicy::2",
+            "-p",
             "cogames.policy.random.RandomPolicy::5",
             "--episodes",
             "1",
@@ -44,8 +47,9 @@ def test_alternate_eval_format(mission_name):
             "run",
             "cogames",
             "eval",
+            "-m",
             mission_name,
-            "--policy",
+            "-p",
             "random",
             "--episodes",
             "1",

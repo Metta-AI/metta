@@ -7,7 +7,7 @@ import torch.nn as nn
 from einops import rearrange
 
 import pufferlib.pytorch
-from cogames.policy.policy import AgentPolicy, StatefulAgentPolicy, TrainablePolicy
+from cogames.policy.interfaces import AgentPolicy, StatefulAgentPolicy, TrainablePolicy
 from cogames.policy.utils import LSTMState, LSTMStateDict
 from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation, dtype_actions
 
