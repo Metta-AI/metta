@@ -123,12 +123,19 @@ class Job(ABC):
         """Internal method to fetch result when job completes."""
         pass
 
-    def wait(self, stream_output: bool = False, poll_interval_s: float = 0.5) -> JobResult:
+    def wait(
+        self,
+        stream_output: bool = False,
+        poll_interval_s: float = 0.5,
+        on_job_id_ready: Optional[callable] = None,
+    ) -> JobResult:
         """Wait for job to complete (sync).
 
         Args:
             stream_output: Stream logs to console as they arrive
             poll_interval_s: Seconds between status checks (default: 0.5s)
+            on_job_id_ready: Optional callback called when job_id becomes available.
+                           Signature: callback(job_id: int) -> None
 
         Returns:
             JobResult when complete
@@ -490,6 +497,68 @@ class RemoteJob(Job):
             self._submitted = True
             self._job_id = None
             self._exit_code = 1
+
+    def wait(
+        self,
+        stream_output: bool = False,
+        poll_interval_s: float = 0.5,
+        on_job_id_ready: Optional[callable] = None,
+    ) -> JobResult:
+        """Override wait() to call callback when job_id becomes available."""
+        if not self._submitted:
+            self.submit()
+
+        start_time = time.time()
+        printed_bytes = 0
+        job_id_reported = False  # Track if we've called the callback
+
+        try:
+            while not self.is_complete():
+                # Call callback when job_id first becomes available
+                if not job_id_reported and self._job_id and on_job_id_ready:
+                    on_job_id_ready(self._job_id)
+                    job_id_reported = True
+
+                # Check timeout
+                if (time.time() - start_time) > self.timeout_s:
+                    try:
+                        self.cancel()
+                    except Exception:
+                        pass
+                    self._result = JobResult(
+                        name=self.name,
+                        exit_code=124,
+                        logs_path=str(self._get_log_path()),
+                        duration_s=time.time() - start_time,
+                    )
+                    return self._result
+
+                # Stream output if requested
+                if stream_output:
+                    logs = self.get_logs()
+                    if logs and len(logs) > printed_bytes:
+                        new_content = logs[printed_bytes:]
+                        print(new_content, end="", flush=True)
+                        printed_bytes = len(logs)
+
+                time.sleep(poll_interval_s)
+
+            # Job complete - stream any remaining output
+            if stream_output:
+                logs = self.get_logs()
+                if logs and len(logs) > printed_bytes:
+                    new_content = logs[printed_bytes:]
+                    print(new_content, end="", flush=True)
+
+            # Get final result
+            result = self.get_result()
+            assert result is not None
+            return result
+
+        except KeyboardInterrupt:
+            print(f"\n\n⚠️  Interrupted! Cleaning up job '{self.name}'...")
+            self._handle_interrupt()
+            raise
 
     def is_complete(self) -> bool:
         """Check if remote job has completed using SkyPilot SDK."""

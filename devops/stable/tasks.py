@@ -344,24 +344,39 @@ class RemoteTrainingTask(TrainingTask):
             job_id=existing_job_id,
         )
 
-        # Submit first, then wait for job_id to be mapped and save it
-        if not existing_job_id:
-            job.submit()
+        # Define callback to save job_id to state as soon as it's available
+        def on_job_id_ready(job_id: int) -> None:
+            """Callback to save job_id to state immediately when it becomes available."""
+            try:
+                # Get state version from log_dir path
+                # log_dir format: devops/stable/logs/{version}/remote
+                log_dir_parts = self.log_dir.split("/")
+                if "logs" in log_dir_parts:
+                    version_idx = log_dir_parts.index("logs") + 1
+                    if version_idx < len(log_dir_parts):
+                        from devops.stable.state import load_state, save_state
 
-            # Note: After submit(), we have request_id but not job_id yet.
-            # job_id is only available after the first is_complete() call
-            # which maps request_id -> job_id. The wait() method will call
-            # is_complete() which will get the job_id.
-            #
-            # We could poll for job_id here, but it's simpler to let wait()
-            # handle it and save state in a callback. For now, the state will
-            # be saved when the job completes (in the runner).
+                        state_version = log_dir_parts[version_idx]
+                        state = load_state(state_version)
+                        if state:
+                            # Create or update result with job_id
+                            partial_result = TaskResult(
+                                name=self.name,
+                                started_at=datetime.utcnow().isoformat(timespec="seconds"),
+                                ended_at=datetime.utcnow().isoformat(timespec="seconds"),
+                                outcome="inconclusive",
+                                exit_code=0,
+                                job_id=str(job_id),
+                            )
+                            state.results[self.name] = partial_result
+                            save_state(state)
+                            print(f"💾 Saved job ID {job_id} to state (can be resumed if interrupted)")
+            except Exception as e:
+                # Don't fail the job if state save fails
+                print(f"⚠️  Could not save job ID to state: {e}")
 
-            # Now wait for completion
-            return job.wait(stream_output=True)
-        else:
-            # Existing job - just wait
-            return job.wait(stream_output=True)
+        # Wait for job completion, with callback to save job_id when available
+        return job.wait(stream_output=True, on_job_id_ready=on_job_id_ready if not existing_job_id else None)
 
 
 class EvaluationTask(LocalCommandTask):
