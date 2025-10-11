@@ -130,13 +130,13 @@ class LatentDynamicsModelComponent(nn.Module):
         """Encode transition into latent distribution.
 
         Args:
-            obs_t: Current observation (B, obs_dim)
-            action_t: Action taken (B,) or (B, action_dim)
-            obs_next: Next observation (B, obs_dim)
+            obs_t: Current observation (batch, obs_dim)
+            action_t: Action taken (batch,) or (batch, action_dim)
+            obs_next: Next observation (batch, obs_dim)
 
         Returns:
-            z_mean: Mean of latent distribution (B, latent_dim)
-            z_logvar: Log variance of latent distribution (B, latent_dim)
+            z_mean: Mean of latent distribution (batch, latent_dim)
+            z_logvar: Log variance of latent distribution (batch, latent_dim)
         """
         # Convert action to one-hot if needed
         if action_t.dim() == 1:
@@ -144,7 +144,7 @@ class LatentDynamicsModelComponent(nn.Module):
         else:
             action_onehot = action_t.float()
 
-        # Concatenate inputs
+        # Concatenate inputs: [obs_t, action, obs_next]
         encoder_input = torch.cat([obs_t, action_onehot, obs_next], dim=-1)
 
         # Pass through encoder
@@ -158,26 +158,28 @@ class LatentDynamicsModelComponent(nn.Module):
         """Sample from latent distribution using reparameterization trick.
 
         Args:
-            z_mean: Mean of latent distribution
-            z_logvar: Log variance of latent distribution
+            z_mean: Mean of latent distribution (batch, latent_dim)
+            z_logvar: Log variance of latent distribution (batch, latent_dim)
 
         Returns:
-            z: Sampled latent variable
+            z: Sampled latent variable (batch, latent_dim)
         """
+        # Compute std: σ = exp(0.5 * log(σ²))
         std = torch.exp(0.5 * z_logvar)
         eps = torch.randn_like(std)
+        # Reparameterization: z = μ + ε * σ
         return z_mean + eps * std
 
     def decode(self, obs_t: torch.Tensor, action_t: torch.Tensor, z: torch.Tensor):
         """Decode latent to predict next observation.
 
         Args:
-            obs_t: Current observation (B, obs_dim)
-            action_t: Action taken (B,) or (B, action_dim)
-            z: Latent variable (B, latent_dim)
+            obs_t: Current observation (batch, obs_dim)
+            action_t: Action taken (batch,) or (batch, action_dim)
+            z: Latent variable (batch, latent_dim)
 
         Returns:
-            obs_next_pred: Predicted next observation (B, obs_dim)
+            obs_next_pred: Predicted next observation (batch, obs_dim)
         """
         # Infer obs_dim on first call
         if self._obs_dim is None:
@@ -189,7 +191,7 @@ class LatentDynamicsModelComponent(nn.Module):
         else:
             action_onehot = action_t.float()
 
-        # Concatenate inputs
+        # Concatenate inputs: [obs_t, action, z]
         decoder_input = torch.cat([obs_t, action_onehot, z], dim=-1)
 
         # Pass through decoder

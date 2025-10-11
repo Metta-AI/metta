@@ -2,6 +2,7 @@
 
 from typing import Any
 
+import einops
 import torch
 import torch.nn.functional as F
 from pydantic import Field
@@ -127,10 +128,10 @@ class LatentDynamicsLoss(Loss):
                     if len(returns) > look_ahead:
                         future_returns = returns[look_ahead:]
                         future_pred_aligned = future_pred[:-look_ahead]
-                        # Reshape if needed
+                        # Reshape if needed using einops
                         if future_pred_aligned.shape != future_returns.shape:
                             if future_pred_aligned.dim() > future_returns.dim():
-                                future_pred_aligned = future_pred_aligned.squeeze(-1)
+                                future_pred_aligned = einops.rearrange(future_pred_aligned, "... 1 -> ...")
                         aux_loss = F.mse_loss(future_pred_aligned, future_returns) * self.loss_cfg.gamma_auxiliary
 
             elif self.loss_cfg.future_type == "rewards":
@@ -140,10 +141,10 @@ class LatentDynamicsLoss(Loss):
                     if len(rewards) > 1:
                         future_rewards = rewards[1:]
                         future_pred_aligned = future_pred[:-1]
-                        # Reshape if needed
+                        # Reshape if needed using einops
                         if future_pred_aligned.shape != future_rewards.shape:
                             if future_pred_aligned.dim() > future_rewards.dim():
-                                future_pred_aligned = future_pred_aligned.squeeze(-1)
+                                future_pred_aligned = einops.rearrange(future_pred_aligned, "... 1 -> ...")
                         aux_loss = F.mse_loss(future_pred_aligned, future_rewards) * self.loss_cfg.gamma_auxiliary
 
         # Track individual losses
