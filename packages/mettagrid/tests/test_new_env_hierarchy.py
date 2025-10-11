@@ -18,6 +18,7 @@ from mettagrid.config.mettagrid_config import (
     WallConfig,
 )
 from mettagrid.map_builder.ascii import AsciiMapBuilder
+from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME
 
 
 class TestNewEnvironmentHierarchy:
@@ -55,6 +56,7 @@ class TestNewEnvironmentHierarchy:
                         ["#", ".", ".", ".", "#"],
                         ["#", "#", "#", "#", "#"],
                     ],
+                    char_to_name_map=DEFAULT_CHAR_TO_NAME,
                 ),
             )
         )
@@ -84,6 +86,7 @@ class TestNewEnvironmentHierarchy:
                         ["#", ".", ".", ".", "#"],
                         ["#", "#", "#", "#", "#"],
                     ],
+                    char_to_name_map=DEFAULT_CHAR_TO_NAME,
                 ),
             )
         )
@@ -133,6 +136,7 @@ class TestNewEnvironmentHierarchy:
                         ["#", ".", ".", ".", ".", ".", "#"],
                         ["#", "#", "#", "#", "#", "#", "#"],
                     ],
+                    char_to_name_map=DEFAULT_CHAR_TO_NAME,
                 ),
             )
         )
@@ -169,6 +173,7 @@ class TestNewEnvironmentHierarchy:
                         ["#", ".", ".", ".", ".", ".", "#"],
                         ["#", "#", "#", "#", "#", "#", "#"],
                     ],
+                    char_to_name_map=DEFAULT_CHAR_TO_NAME,
                 ),
             )
         )

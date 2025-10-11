@@ -2,7 +2,9 @@ import numpy as np
 
 from mettagrid.mapgen.area import AreaQuery
 from mettagrid.mapgen.scenes.room_grid import RoomGrid
-from mettagrid.test_support.mapgen import assert_grid, render_scene
+from mettagrid.test_support.mapgen import render_scene
+
+from .test_utils import assert_grid
 
 
 def test_exact():
