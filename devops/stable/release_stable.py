@@ -223,7 +223,7 @@ def step_task_validation(
     print("=" * 60 + "\n")
 
     # Load or create state
-    state_version = f"release_{version}"
+    state_version = f"v{version}"
     state = load_or_create_state(state_version, git.get_current_commit())
 
     # Get all tasks
@@ -286,7 +286,7 @@ def step_summary(version: str, **_kwargs) -> None:
     print("=" * 60 + "\n")
 
     # Load state to extract metrics
-    state_version = f"release_{version}"
+    state_version = f"v{version}"
     state = load_state(state_version)
 
     if not state:
@@ -359,7 +359,7 @@ def step_release(version: str, **_kwargs) -> None:
     print("=" * 60 + "\n")
 
     # Load state to get validation results
-    state_version = f"release_{version}"
+    state_version = f"v{version}"
     state = load_state(state_version)
 
     if not state:
@@ -505,7 +505,11 @@ def generate_version() -> str:
 
 
 def resolve_version(explicit: Optional[str], force_new: bool) -> str:
-    """Determine version based on args and state."""
+    """Determine version based on args and state.
+
+    Returns version string (bare version without any prefix).
+    State files are named "v{version}.json".
+    """
     if explicit:
         print(f"Using explicit version: {explicit}")
         return explicit
@@ -516,12 +520,14 @@ def resolve_version(explicit: Optional[str], force_new: bool) -> str:
     recent = get_most_recent_state()
     if recent:
         recent_version, recent_state = recent
+        # Strip 'v' prefix from state filename to get bare version
+        bare_version = recent_version.removeprefix("v")
         if recent_state.released:
             v = generate_version()
-            print(f"Previous release ({recent_version}) completed. Starting new: {v}")
+            print(f"Previous release ({bare_version}) completed. Starting new: {v}")
             return v
-        print(f"Continuing in-progress release: {recent_version}")
-        return recent_version
+        print(f"Continuing in-progress release: {bare_version}")
+        return bare_version
     v = generate_version()
     print(f"Starting new release: {v}")
     return v
@@ -552,7 +558,7 @@ def common(
 @app.command("prepare-tag")
 def cmd_prepare_tag():
     """Create and push staging tag."""
-    state_version = f"release_{_VERSION}"
+    state_version = f"v{_VERSION}"
     state = load_or_create_state(state_version, git.get_current_commit())
     step_prepare_tag(version=_VERSION, state=state)
 
@@ -560,7 +566,7 @@ def cmd_prepare_tag():
 @app.command("bugs")
 def cmd_bugs():
     """Check bug status in Asana."""
-    state_version = f"release_{_VERSION}"
+    state_version = f"v{_VERSION}"
     state = load_or_create_state(state_version, git.get_current_commit())
     step_bug_check(state=state)
 
@@ -608,7 +614,7 @@ def cmd_all(
     ),
 ):
     """Run full release pipeline."""
-    state_version = f"release_{_VERSION}"
+    state_version = f"v{_VERSION}"
     state = load_or_create_state(state_version, git.get_current_commit())
 
     # Run steps with state tracking
