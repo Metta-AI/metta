@@ -402,6 +402,8 @@ class RemoteJob(Job):
         self._exit_code: Optional[int] = None  # Set if launch fails
         # Generate timestamp-based identifier for failed jobs
         self._timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        # Track whether we've fetched full history yet
+        self._full_logs_fetched = False
 
     def submit(self) -> None:
         """Submit job to SkyPilot using devops/skypilot/launch.py.
@@ -453,6 +455,15 @@ class RemoteJob(Job):
                 "./devops/skypilot/launch.py",
                 module_path,
             ]
+
+            # Inject a run ID that includes the task name for better job identification
+            # Format: <task_name>_<timestamp> (e.g., arena_multi_gpu_2b_20251010_201234)
+            # Check if run= is already in extra_args
+            has_run_param = any(arg.startswith("run=") for arg in extra_args)
+            if not has_run_param:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                run_id = f"{self.name}_{timestamp}"
+                extra_args = [f"run={run_id}"] + extra_args
 
             # Add extra arguments
             if extra_args:
@@ -631,7 +642,14 @@ class RemoteJob(Job):
             return False
 
     def get_logs(self) -> str:
-        """Fetch latest logs from SkyPilot using SDK or return local launch logs."""
+        """Fetch logs from SkyPilot and maintain complete log history in local cache.
+
+        Strategy:
+        - First call: Fetch all available logs (very large tail) to capture everything including wandb links
+        - Subsequent calls: Fetch recent logs and append only new content by comparing with cached logs
+        - Local cache file always contains complete log history for artifact extraction
+        - The wait() method tracks printed_bytes offset for streaming output
+        """
         log_path = self._get_log_path()
 
         # If we have no job ID (launch failed), return launch logs
@@ -640,18 +658,66 @@ class RemoteJob(Job):
                 return log_path.read_text(errors="ignore")
             return ""
 
-        # Use library function to get job logs
-        logs = tail_job_log(str(self._job_id))
-
-        if logs:
-            # Cache logs to file
-            log_path.parent.mkdir(parents=True, exist_ok=True)
-            log_path.write_text(logs)
-            return logs
-
-        # If library function returned None/empty, try reading cached logs
+        # Read existing cached logs to determine what we already have
+        existing_logs = ""
         if log_path.exists():
-            return log_path.read_text(errors="ignore")
+            existing_logs = log_path.read_text(errors="ignore")
+            existing_len = len(existing_logs)
+        else:
+            existing_len = 0
+
+        # Determine how many lines to fetch
+        if not self._full_logs_fetched:
+            # First fetch: Get all available logs (use very large tail)
+            # This captures wandb links and early output for artifact extraction
+            lines = 1000000
+        else:
+            # Subsequent fetches: Get enough recent lines to overlap with cached content
+            # This allows us to detect where new content starts
+            lines = 500
+
+        # Fetch logs from remote job
+        fetched_logs = tail_job_log(str(self._job_id), lines=lines)
+
+        if fetched_logs:
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+
+            if not self._full_logs_fetched:
+                # First fetch: Write all logs to cache
+                log_path.write_text(fetched_logs)
+                self._full_logs_fetched = True
+                return fetched_logs
+            else:
+                # Subsequent fetches: Append only new content
+                # If fetched logs are longer than cached, there's new content
+                if len(fetched_logs) > existing_len:
+                    # New content exists - find where it starts
+                    # Strategy: Find overlap by checking if end of cached logs appears in fetched logs
+                    overlap_found = False
+                    if existing_logs:
+                        # Take last 500 chars from existing logs as overlap marker
+                        overlap_marker = existing_logs[-min(500, len(existing_logs)) :]
+                        if overlap_marker in fetched_logs:
+                            # Find where the overlap marker appears in fetched logs
+                            marker_pos = fetched_logs.rfind(overlap_marker)
+                            # New content is everything before the marker
+                            new_content = fetched_logs[:marker_pos]
+                            if new_content:
+                                # Prepend new content to cache file
+                                log_path.write_text(new_content + existing_logs)
+                                overlap_found = True
+
+                    if not overlap_found:
+                        # No clear overlap - just use the fetched logs as they're longer
+                        # This handles cases where logs rotated or we're far behind
+                        log_path.write_text(fetched_logs)
+
+                # Return updated cache content
+                return log_path.read_text(errors="ignore")
+
+        # If fetch returned nothing, return cached logs
+        if existing_logs:
+            return existing_logs
 
         return ""
 
