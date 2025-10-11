@@ -620,6 +620,35 @@ def diff(repo_root: Path, base_ref: str) -> str:
         return ""
 
 
+def git_log_since(ref: str, max_count: int = 20, oneline: bool = True) -> str:
+    """Get git log since a given reference.
+
+    Args:
+        ref: Git reference (branch, tag, or commit) to get logs since
+        max_count: Maximum number of commits to return if ref is not found (default: 20)
+        oneline: Use --oneline format (default: True)
+
+    Returns:
+        Git log output as string
+    """
+    try:
+        # Get git log from ref to HEAD
+        args = ["log", f"{ref}..HEAD"]
+        if oneline:
+            args.append("--oneline")
+        return run_git(*args)
+    except GitError:
+        # If ref not found, return recent commits instead
+        try:
+            args = ["log"]
+            if oneline:
+                args.append("--oneline")
+            args.extend(["-" + str(max_count)])
+            return run_git(*args)
+        except GitError:
+            return "Unable to retrieve git log"
+
+
 # ============================================================================
 # GitHub API functionality
 # ============================================================================

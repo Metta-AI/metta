@@ -148,6 +148,18 @@ class TrainTool(Tool):
 
                 trainer.restore()
                 trainer.train()
+
+            # Training completed successfully
+            return 0
+
+        except KeyboardInterrupt:
+            logger.warning("Training interrupted by user")
+            return 130  # Standard exit code for Ctrl+C
+
+        except Exception as e:
+            logger.error(f"Training failed with exception: {e}")
+            return 1
+
         finally:
             env.close()
             if stats_client and hasattr(stats_client, "close"):
