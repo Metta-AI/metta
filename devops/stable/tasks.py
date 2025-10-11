@@ -304,9 +304,11 @@ class RemoteTrainingTask(TrainingTask):
 
         # Check if we have a cached result with a job_id
         # If so, attach to the existing job instead of launching a new one
+        # Note: Runner stores cached result in _cached_result to avoid short-circuiting run()
         existing_job_id = None
-        if self.result and self.result.job_id:
-            existing_job_id = int(self.result.job_id)
+        cached = getattr(self, "_cached_result", None) or self.result
+        if cached and cached.job_id:
+            existing_job_id = int(cached.job_id)
             print(f"✓ Found existing job ID: {existing_job_id} - attaching to it")
 
         # Build the command to run

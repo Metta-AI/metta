@@ -89,11 +89,14 @@ class TaskRunner:
         # Check cache and restore result to task (needed for job_id reuse)
         if task.name in self.state.results:
             cached = self.state.results[task.name]
-            task.result = cached  # Restore to task FIRST so execute() can access it
             if cached.outcome in ("passed", "skipped"):
                 print(f"⏭️  {task.name} - cached ({cached.outcome})")
+                task.result = cached  # Restore for downstream dependencies
                 return cached
             print(yellow(f"🔄 {task.name} - retrying previous failure"))
+            # Restore cached result so execute() can access job_id,
+            # but we'll clear it before run() so it actually executes
+            task.result = cached
 
         # Run dependencies first
         for dep in task.dependencies:
@@ -123,6 +126,12 @@ class TaskRunner:
                 task.log_dir = str(get_log_dir(self.state.version, "local"))
             else:
                 task.log_dir = str(get_log_dir(self.state.version, "remote"))
+
+        # Save cached result to _cached_result so execute() can still access job_id
+        # but clear task.result so run() doesn't short-circuit
+        if hasattr(task, "result") and task.result:
+            task._cached_result = task.result
+            task.result = None
 
         try:
             result = task.run()
