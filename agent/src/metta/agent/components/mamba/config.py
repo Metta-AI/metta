@@ -67,6 +67,7 @@ class MambaBackboneConfig(ComponentConfig):
                 raise ValueError(
                     f"d_model * expand must be divisible by headdim (got {self.d_model} * {expand} vs {headdim})"
                 )
+            # Auto-align expand so the SSM hidden size fits the convolution stride requirements.
             multiplier = math.lcm(numerator, denominator) // numerator
             expand *= multiplier
             cfg["expand"] = expand
@@ -79,6 +80,7 @@ class MambaBackboneConfig(ComponentConfig):
                     f"d_model * expand / headdim must be divisible by 8 (got ratio {ratio}). "
                     "Increase expand or adjust headdim."
                 )
+            # Flash-conv kernels expect stride to be a multiple of 8; stretch expand to satisfy that constraint.
             align_multiplier = math.lcm(ratio, 8) // ratio
             expand *= align_multiplier
             cfg["expand"] = expand

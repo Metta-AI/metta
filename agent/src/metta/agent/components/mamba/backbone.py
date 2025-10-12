@@ -106,6 +106,7 @@ class MambaBackboneComponent(nn.Module):
         self.dropout = nn.Dropout(config.dropout_p)
 
         self._env_states: Dict[int, _EnvState] = {}
+        self._init_parameters()
 
     def _build_wrapper_config(self, ssm_cfg: dict[str, object]) -> _WrapperConfigType:
         return self._wrapper_config_type(
@@ -131,6 +132,22 @@ class MambaBackboneComponent(nn.Module):
 
     def _supports_mem_eff_fallback(self) -> bool:
         return bool(self.config.auto_align_stride)
+
+    def _init_parameters(self) -> None:
+        """Initialize projection layers for stable SSM training."""
+
+        nn.init.xavier_uniform_(self.input_proj.weight)
+        if self.input_proj.bias is not None:
+            nn.init.zeros_(self.input_proj.bias)
+
+        if self.use_aux_tokens:
+            for proj in (self.reward_proj, self.reset_proj, self.action_proj):
+                if proj is not None:
+                    nn.init.xavier_uniform_(proj.weight)
+                    if proj.bias is not None:
+                        nn.init.zeros_(proj.bias)
+
+        nn.init.normal_(self.cls_token, mean=0.0, std=1.0 / self.config.d_model**0.5)
 
     def _handle_wrapper_runtime(
         self,
@@ -159,6 +176,13 @@ class MambaBackboneComponent(nn.Module):
     # Token preparation
     # ------------------------------------------------------------------
     def _build_tokens(self, td: TensorDict) -> tuple[torch.Tensor, torch.Tensor]:
+        """Return (tokens, reset_flags) prepared for the Mamba wrapper.
+
+        tokens has shape [batch, time, num_tokens, d_model] with sequence
+        [CLS token, observation embeddings..., reward+reset token, action token].
+        reset_flags has shape [batch, time] marking episode boundaries (done|truncated).
+        """
+
         x = td[self.in_key]
         device = x.device
 
@@ -207,7 +231,9 @@ class MambaBackboneComponent(nn.Module):
         return tokens, reset_flags
 
     def _dummy_actions(self, batch: int, seq_len: int, device: torch.device) -> torch.Tensor:
-        return torch.zeros(batch, seq_len, dtype=torch.long, device=device)
+        actions = torch.empty(batch, seq_len, dtype=torch.long, device=device)
+        actions.fill_(0)
+        return actions
 
     def _pool(self, hidden: torch.Tensor) -> torch.Tensor:
         if self.pool == "cls":
