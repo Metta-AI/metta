@@ -130,11 +130,12 @@ class Experience:
         """Get mean values of all tracked buffers."""
         stats = {
             "rewards": self.buffer["rewards"].mean().item(),
-            "values": self.buffer["values"].mean().item(),
             "act_log_prob": self.buffer["act_log_prob"].mean().item(),
             "dones": self.buffer["dones"].mean().item(),
             "truncateds": self.buffer["truncateds"].mean().item(),
         }
+        if "values" in self.buffer.keys():
+            stats["values"] = self.buffer["values"].mean().item()
         if "ratio" in self.buffer.keys():
             stats["ratio"] = self.buffer["ratio"].mean().item()
 
