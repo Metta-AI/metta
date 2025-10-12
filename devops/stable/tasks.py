@@ -246,12 +246,13 @@ class TrainingTask(Task):
             outcome = "passed"
             error = None
 
-        # Extract WandB info and construct checkpoint URI
+        # Extract WandB info and construct checkpoint URI and URL
         artifacts = {}
         wandb_info = extract_wandb_run_info(log_text)
         if wandb_info:
             entity, project, run_id = wandb_info
             artifacts["wandb_run_id"] = run_id
+            artifacts["wandb_url"] = f"https://wandb.ai/{entity}/{project}/runs/{run_id}"
             artifacts["checkpoint_uri"] = f"wandb://run/{run_id}"
 
         return TaskResult(
@@ -378,6 +379,7 @@ class RemoteTrainingTask(TrainingTask):
                                     if wandb_info:
                                         entity, project, run_id = wandb_info
                                         artifacts["wandb_run_id"] = run_id
+                                        artifacts["wandb_url"] = f"https://wandb.ai/{entity}/{project}/runs/{run_id}"
                                         artifacts["checkpoint_uri"] = f"wandb://run/{run_id}"
                             except Exception:
                                 pass  # Artifacts will be extracted later when job completes
@@ -597,17 +599,17 @@ def get_all_tasks() -> list[Task]:
         wandb_metrics=["overview/sps", "env_agent/heart.get"],
     )
 
-    # Multi-GPU training - 1B timesteps
-    train_1b = remote_train(
-        name="arena_multi_gpu_1b",
+    # Multi-GPU training - 2B timesteps
+    train_2b = remote_train(
+        name="arena_multi_gpu_2b",
         module="experiments.recipes.arena_basic_easy_shaped.train",
-        args=["trainer.total_timesteps=1000000000"],
-        timeout_s=86400,
+        args=["trainer.total_timesteps=2000000000"],
+        timeout_s=172800,  # 48 hours
         gpus=4,
         nodes=4,
         acceptance=[
             ("overview/sps", ge, 40000),
-            ("env_agent/heart.get", gt, 5.0),
+            ("env_agent/heart.get", gt, 10.0),
         ],
         wandb_metrics=["overview/sps", "env_agent/heart.get"],
     )
@@ -620,4 +622,4 @@ def get_all_tasks() -> list[Task]:
         timeout_s=1800,
     )
 
-    return [ci_task, smoke, train_100m, train_1b, eval_task]
+    return [ci_task, smoke, train_100m, train_2b, eval_task]
