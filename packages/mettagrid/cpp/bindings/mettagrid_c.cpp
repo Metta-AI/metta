@@ -989,7 +989,8 @@ py::list MettaGrid::resource_names_py() {
   return py::cast(resource_names);
 }
 
-py::none MettaGrid::set_inventory(GridObjectId agent_id, const std::map<InventoryItem, InventoryQuantity>& inventory) {
+py::none MettaGrid::set_inventory(GridObjectId agent_id,
+                                  const std::unordered_map<InventoryItem, InventoryQuantity>& inventory) {
   if (agent_id < num_agents()) {
     this->_agents[agent_id]->set_inventory(inventory);
   }

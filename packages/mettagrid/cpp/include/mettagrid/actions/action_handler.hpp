@@ -7,9 +7,9 @@
 
 #include <cassert>
 #include <cmath>
-#include <map>
 #include <random>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "core/grid.hpp"
@@ -19,11 +19,11 @@
 #include "objects/constants.hpp"
 
 struct ActionConfig {
-  std::map<InventoryItem, InventoryQuantity> required_resources;
-  std::map<InventoryItem, InventoryProbability> consumed_resources;
+  std::unordered_map<InventoryItem, InventoryQuantity> required_resources;
+  std::unordered_map<InventoryItem, InventoryProbability> consumed_resources;
 
-  ActionConfig(const std::map<InventoryItem, InventoryQuantity>& required_resources = {},
-               const std::map<InventoryItem, InventoryProbability>& consumed_resources = {})
+  ActionConfig(const std::unordered_map<InventoryItem, InventoryQuantity>& required_resources = {},
+               const std::unordered_map<InventoryItem, InventoryProbability>& consumed_resources = {})
       : required_resources(required_resources), consumed_resources(consumed_resources) {}
 
   virtual ~ActionConfig() {}
@@ -172,8 +172,8 @@ protected:
   }
 
   std::string _action_name;
-  std::map<InventoryItem, InventoryQuantity> _required_resources;
-  std::map<InventoryItem, InventoryProbability> _consumed_resources;
+  std::unordered_map<InventoryItem, InventoryQuantity> _required_resources;
+  std::unordered_map<InventoryItem, InventoryProbability> _consumed_resources;
   std::mt19937* _rng{};
 };
 
@@ -181,10 +181,10 @@ namespace py = pybind11;
 
 inline void bind_action_config(py::module& m) {
   py::class_<ActionConfig, std::shared_ptr<ActionConfig>>(m, "ActionConfig")
-      .def(py::init<const std::map<InventoryItem, InventoryQuantity>&,
-                    const std::map<InventoryItem, InventoryProbability>&>(),
-           py::arg("required_resources") = std::map<InventoryItem, InventoryQuantity>(),
-           py::arg("consumed_resources") = std::map<InventoryItem, InventoryProbability>())
+      .def(py::init<const std::unordered_map<InventoryItem, InventoryQuantity>&,
+                    const std::unordered_map<InventoryItem, InventoryProbability>&>(),
+           py::arg("required_resources") = std::unordered_map<InventoryItem, InventoryQuantity>(),
+           py::arg("consumed_resources") = std::unordered_map<InventoryItem, InventoryProbability>())
       .def_readwrite("required_resources", &ActionConfig::required_resources)
       .def_readwrite("consumed_resources", &ActionConfig::consumed_resources);
 }
