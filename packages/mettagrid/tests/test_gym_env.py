@@ -7,6 +7,7 @@ This module tests the MettaGridGymEnv with Gymnasium's standard environment inte
 from mettagrid.config.mettagrid_config import ActionConfig, ActionsConfig, GameConfig, MettaGridConfig, WallConfig
 from mettagrid.envs.gym_env import MettaGridGymEnv
 from mettagrid.map_builder.ascii import AsciiMapBuilder
+from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME
 
 
 def test_single_agent_gym_env():
@@ -30,6 +31,7 @@ def test_single_agent_gym_env():
                     ["#", ".", ".", ".", "#"],
                     ["#", "#", "#", "#", "#"],
                 ],
+                char_to_name_map=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
@@ -83,6 +85,7 @@ def test_gym_env_episode_termination():
                     ["#", ".", ".", ".", "#"],
                     ["#", "#", "#", "#", "#"],
                 ],
+                char_to_name_map=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
