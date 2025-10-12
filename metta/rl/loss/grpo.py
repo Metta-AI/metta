@@ -247,9 +247,6 @@ class GRPO(Loss):
         new_logprob = policy_td["act_log_prob"].reshape(old_logprob.shape)
         entropy = policy_td["entropy"]
 
-        # Extract values if present (needed for DDP even though GRPO doesn't use them)
-        newvalue = policy_td.get("values", None)
-
         importance_sampling_ratio = self._importance_ratio(new_logprob, old_logprob)
 
         # Get advantages from minibatch
@@ -270,12 +267,14 @@ class GRPO(Loss):
 
         loss = pg_loss - cfg.ent_coef * entropy_loss
 
-        # Add dummy value loss term with zero coefficient to ensure value head parameters
+        # Add dummy loss terms for any unused outputs to ensure all parameters
         # participate in backward pass for DDP. This prevents "unused parameter" errors.
-        if newvalue is not None:
-            # Compute a dummy value loss (not used in GRPO algorithm, just for DDP)
-            dummy_value_loss = (newvalue**2).mean()
-            loss = loss + 0.0 * dummy_value_loss
+        for key in policy_td.keys():
+            if key not in ["act_log_prob", "entropy"] and isinstance(policy_td[key], Tensor):
+                value = policy_td[key]
+                if value.requires_grad:
+                    # Add zero-weighted term to ensure gradient flow
+                    loss = loss + 0.0 * value.sum()
 
         # Update loss tracking
         self._track("policy_loss", pg_loss)
