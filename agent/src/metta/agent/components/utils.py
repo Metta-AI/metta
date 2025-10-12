@@ -9,4 +9,3 @@ def zero_long(shape: tuple[int, ...], device: torch.device) -> torch.Tensor:
     tensor = torch.empty(*shape, dtype=torch.long, device=device)
     tensor.fill_(0)
     return tensor
-
