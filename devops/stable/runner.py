@@ -71,6 +71,7 @@ class TaskRunner:
         """
         self.state = state
         self.interactive = interactive
+        self._current_task_names: set[str] = set()
 
     def run_all(self, tasks: list[Task]) -> None:
         """Run all tasks, respecting dependencies.
@@ -78,6 +79,21 @@ class TaskRunner:
         Tasks are executed in order, with each task waiting for its dependencies to complete.
         State is saved after each task completion.
         """
+        # Build set of current task names for filtering
+        self._current_task_names = {task.name for task in tasks}
+
+        # Filter out stale results from state (tasks that no longer exist in current run)
+        stale_tasks = [name for name in self.state.results if name not in self._current_task_names]
+        if stale_tasks:
+            print(
+                yellow(
+                    f"🧹 Filtering out {len(stale_tasks)} stale task(s) from previous runs: {', '.join(stale_tasks)}"
+                )
+            )
+            for name in stale_tasks:
+                del self.state.results[name]
+            save_state(self.state)
+
         for task in tasks:
             result = self._run_with_deps(task)
             self.state.results[task.name] = result
