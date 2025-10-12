@@ -35,12 +35,65 @@ from mettagrid.config.mettagrid_config import (
     RecipeConfig,
     WallConfig,
 )
-from mettagrid.map_builder.ascii import AsciiMapBuilder
+from mettagrid.map_builder.map_builder import MapBuilderConfig
 from mettagrid.map_builder.random import RandomMapBuilder
+
+
+def add_easy_heart_recipe(cfg: MettaGridConfig) -> None:
+    """Insert a simple energy-to-heart recipe for the assembler."""
+
+    assembler_cfg = cfg.game.objects.get("assembler")
+    if assembler_cfg is None:
+        return
+
+    for _, recipe in assembler_cfg.recipes:
+        if recipe.output_resources.get("heart") and recipe.input_resources == {"energy": 1}:
+            return
+
+    easy_recipe = RecipeConfig(
+        input_resources={"energy": 1},
+        output_resources={"heart": 1},
+        cooldown=1,
+    )
+    assembler_cfg.recipes.insert(0, (["Any"], easy_recipe))
+
+
+def add_shaped_rewards(cfg: MettaGridConfig) -> None:
+    """Augment agent rewards with additional heart-centric shaped rewards."""
+
+    agent_cfg = cfg.game.agent
+    stats = dict(agent_cfg.rewards.stats or {})
+
+    stats["heart.gained"] = 5.0
+    stats["heart.put"] = 7.5
+    stats["chest.heart.amount"] = 2.5
+
+    shaped_reward = 0.25
+    stats.update(
+        {
+            "carbon.gained": shaped_reward,
+            "oxygen.gained": shaped_reward,
+            "germanium.gained": shaped_reward,
+            "silicon.gained": shaped_reward,
+            "energy.gained": shaped_reward / 5,
+        }
+    )
+
+    agent_cfg.rewards.stats = stats
+
+
+def extend_max_steps(cfg: MettaGridConfig, multiplier: float = 20.0) -> None:
+    """Scale the episode length to support longer training runs."""
+
+    current = cfg.game.max_steps
+    if current is None:
+        return
+    cfg.game.max_steps = int(current * multiplier)
 
 
 def _base_game_config(num_cogs: int, clipping_rate: float) -> MettaGridConfig:
     """Shared base configuration for all game types."""
+
     return MettaGridConfig(
         game=GameConfig(
             resource_names=resources,
@@ -187,11 +240,7 @@ def make_game_from_map(map_name: str, num_cogs: int = 4, clipping_rate: float = 
 
     maps_dir = Path(__file__).parent.parent / "maps"
     map_path = maps_dir / map_name
-    map_builder = AsciiMapBuilder.Config.from_uri(
-        str(map_path), {o.map_char: o.name for o in config.game.objects.values()}
-    )
-    config.game.map_builder = map_builder
-
+    config.game.map_builder = MapBuilderConfig.from_uri(str(map_path))
     return config
 
 

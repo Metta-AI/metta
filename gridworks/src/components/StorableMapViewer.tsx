@@ -5,7 +5,6 @@ import { SceneTree, StorableMap } from "@/lib/api";
 import { MettaGrid } from "@/lib/MettaGrid";
 
 import { ConfigViewer } from "./ConfigViewer";
-import { CopyToClipboardButton } from "./CopyToClipboardButton";
 import { MapViewer } from "./MapViewer";
 import { SceneTreeViewer } from "./SceneTreeViewer";
 import { Tabs } from "./Tabs";
@@ -49,7 +48,7 @@ export const StorableMapViewer: FC<{
   );
 
   return (
-    <div className="grid min-h-[600px] grid-cols-[400px_1fr_250px] gap-8">
+    <div className="grid min-h-[600px] grid-cols-[400px_1fr] gap-8">
       <div className="max-h-[80vh] overflow-auto">
         <Tabs
           tabs={[
@@ -59,11 +58,7 @@ export const StorableMapViewer: FC<{
               content: (
                 <ConfigViewer
                   value={map.frontmatter.config}
-                  kind={
-                    String(map.frontmatter.config.type).endsWith("MapGen")
-                      ? "mettagrid__mapgen__mapgen__MapGen__Config"
-                      : undefined
-                  }
+                  kind="MapBuilderConfig_Any_"
                 />
               ),
             },
@@ -94,11 +89,6 @@ export const StorableMapViewer: FC<{
       </div>
       <div className="flex flex-col items-center justify-start overflow-auto">
         <MapViewer grid={grid} drawExtra={drawExtra} />
-      </div>
-      <div className="flex flex-col gap-2">
-        <CopyToClipboardButton text={map.data}>
-          Copy Map Data to Clipboard
-        </CopyToClipboardButton>
       </div>
     </div>
   );

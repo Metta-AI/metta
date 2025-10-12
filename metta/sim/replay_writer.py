@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from metta.utils.file import http_url, write_data
+from mettagrid.util.action_catalog import build_action_mapping, make_decode_fn
 from mettagrid.util.grid_object_formatter import format_grid_object
 from mettagrid.util.replay_writer import ReplayWriter
 
@@ -60,6 +61,8 @@ class EpisodeReplay:
         self.step = 0
         self.objects = []
         self.total_rewards = np.zeros(env.num_agents)
+        self._flat_action_mapping, self._base_action_names = build_action_mapping(env)
+        self._decode_flat_action = make_decode_fn(self._flat_action_mapping)
 
         self._validate_non_empty_string_list(env.action_names, "action_names")
         self._validate_non_empty_string_list(env.resource_names, "item_names")
@@ -67,7 +70,7 @@ class EpisodeReplay:
 
         self.replay_data = {
             "version": 2,
-            "action_names": env.action_names,
+            "action_names": self._base_action_names,
             "item_names": env.resource_names,
             "type_names": env.object_type_names,
             "map_size": [env.map_width, env.map_height],
@@ -85,7 +88,12 @@ class EpisodeReplay:
                 self.objects.append({})
 
             update_object = format_grid_object(
-                grid_object, actions, self.env.action_success, rewards, self.total_rewards
+                grid_object,
+                actions,
+                self.env.action_success,
+                rewards,
+                self.total_rewards,
+                decode_flat_action=self._decode_flat_action,
             )
 
             self._seq_key_merge(self.objects[i], self.step, update_object)

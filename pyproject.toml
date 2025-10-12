@@ -10,6 +10,7 @@ py-modules = []
 dependencies = [
   "altair>=5.5.0",
   "anywidget>=0.9.18",
+  "asana>=5.2.2",
   "bidict>=0.23.1",
   "boto3>=1.38.32",
   "codebot",
@@ -46,13 +47,13 @@ dependencies = [
   "pydantic>=2.11.5",
   "pydantic-settings>=2.10.1",
   "pyro-ppl>=1.9.1",
-  "python-dotenv>=1.1.0",
   "pyyaml>=6.0.2",
+  "schedulefree>=1.4.0",
   "rich>=13.9.4",
   "scipy>=1.15.3",
   "setuptools>=80.9.0",
   "simple-term-menu>=1.6.4",
-  "skypilot==0.10.3",
+  "skypilot==0.10.3.post2",
   "softmax",
   "sympy>=1.13.3",
   "tabulate>=0.9.0",
@@ -62,7 +63,7 @@ dependencies = [
   "torch>=2.7.1",
   "torchrl>=0.8.1",
   "tqdm>=4.67.1",
-  "typer>=0.16.0",
+  "typer>=0.19.2",
   "uvicorn[standard]>=0.34.2",
   "wandb>=0.19.11",
   "wandb-core>=0.17.0b11",
@@ -86,11 +87,7 @@ testing = [
   "testcontainers>=4.10.0",
   "pyright>=1.1.401",
 ]
-lint = [
-  "cpplint>=2.0.2",
-  "mypy>=1.18.2",
-  "ruff>=0.11.13",
-]
+lint = ["cpplint>=2.0.2", "mypy>=1.18.2", "ruff>=0.11.13"]
 interactive = [
   "anywidget>=0.9.18",
   "ipykernel>=6.29.5",

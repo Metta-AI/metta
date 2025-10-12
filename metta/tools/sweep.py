@@ -167,11 +167,6 @@ class SweepTool(Tool):
             self.protein_config.parameters.pop("trainer.minibatch_size", None)
             self.protein_config.parameters.pop("trainer.total_timesteps", None)
 
-        # Handle sweep_name being passed via cmd line
-        if "sweep_name" in args:
-            assert self.sweep_name is None, "sweep_name cannot be set via args and config"
-            self.sweep_name = args["sweep_name"]
-
         # Handle run parameter from dispatcher (ignored - only consumed to prevent unused args error)
         if "run" in args:
             # The run parameter is added by dispatchers for training jobs
@@ -243,7 +238,17 @@ class SweepTool(Tool):
                 resume = False
 
         # Create components
-        store = WandbStore(entity=self.wandb.entity, project=self.wandb.project)
+        # Derive evaluator prefix from the configured optimizer metric if possible
+        # Example: metric "evaluator/eval_sweep/score" -> prefix "evaluator/eval_sweep"
+        evaluator_prefix = None
+        try:
+            metric_path = getattr(self.protein_config, "metric", None)
+            if isinstance(metric_path, str) and "/" in metric_path:
+                evaluator_prefix = metric_path.rsplit("/", 1)[0]
+        except Exception:
+            evaluator_prefix = None
+
+        store = WandbStore(entity=self.wandb.entity, project=self.wandb.project, evaluator_prefix=evaluator_prefix)
 
         # Create dispatcher based on type
         if self.dispatcher_type == DispatcherType.LOCAL:
