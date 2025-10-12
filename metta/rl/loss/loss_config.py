@@ -4,6 +4,7 @@ import torch
 from pydantic import Field
 
 from metta.agent.policy import Policy
+from metta.rl.loss import ContrastiveConfig
 from mettagrid.base_config import Config
 
 if TYPE_CHECKING:
@@ -17,6 +18,13 @@ class LossSchedule(Config):
 
 class LossConfig(Config):
     loss_configs: Dict[str, Any] = Field(default_factory=dict)
+    enable_contrastive: bool = Field(default=False, description="Whether to enable contrastive loss")
+
+    # Contrastive loss hyperparameters (only used when enable_contrastive=True)
+    contrastive_temperature: float = Field(default=0.07, gt=0, description="Temperature for contrastive learning")
+    contrastive_coef: float = Field(default=0.1, ge=0, description="Coefficient for contrastive loss")
+    contrastive_embedding_dim: int = Field(default=128, gt=0, description="Dimension of contrastive embeddings")
+    contrastive_use_projection_head: bool = Field(default=True, description="Whether to use projection head")
 
     def model_post_init(self, __context: Any) -> None:
         """Called after the model is initialized."""
@@ -31,6 +39,15 @@ class LossConfig(Config):
             # self.loss_configs = {"ppo": PPOConfig()}
             self.loss_configs = {"grpo": GRPOConfig()}
 
+        # Add contrastive config only if enabled to avoid inconsistent behavior
+        if self.enable_contrastive and "contrastive" not in self.loss_configs:
+            self.loss_configs["contrastive"] = ContrastiveConfig(
+                temperature=self.contrastive_temperature,
+                contrastive_coef=self.contrastive_coef,
+                embedding_dim=self.contrastive_embedding_dim,
+                use_projection_head=self.contrastive_use_projection_head,
+            )
+
     def init_losses(
         self,
         policy: Policy,
@@ -38,7 +55,12 @@ class LossConfig(Config):
         env: "TrainingEnvironment",
         device: torch.device,
     ):
-        return {
-            loss_name: loss_config.create(policy, trainer_cfg, env, device, loss_name, loss_config)
-            for loss_name, loss_config in self.loss_configs.items()
-        }
+        losses = {}
+        for loss_name, loss_config in self.loss_configs.items():
+            # Explicit check for inconsistent config
+            if loss_name == "contrastive":
+                if not self.enable_contrastive:
+                    continue
+
+            losses[loss_name] = loss_config.create(policy, trainer_cfg, env, device, loss_name, loss_config)
+        return losses

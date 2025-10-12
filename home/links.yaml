@@ -95,3 +95,6 @@ links:
   - name: Job Application Form
     url: https://form.asana.com/?k=Bud764ZSBAtkdcbfkI-fHQ&d=1209016784099267
     short_urls: [jobs]
+  - name: Mercury
+    url: https://mercury.com
+    short_urls: [mercury]

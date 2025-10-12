@@ -2,11 +2,13 @@
 
 import json
 import tempfile
+import textwrap
 from pathlib import Path
 
 import pytest
 
 from mettagrid.map_builder.ascii import AsciiMapBuilder
+from mettagrid.map_builder.map_builder import MapBuilderConfig
 from mettagrid.map_builder.maze import MazeKruskalMapBuilder, MazePrimMapBuilder
 from mettagrid.map_builder.random import RandomMapBuilder
 
@@ -81,12 +83,23 @@ class TestPolymorphicSerialization:
 
     def test_ascii_config_serialization(self):
         """Test serialization and deserialization of AsciiMapBuilderConfig."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-            f.write("###\n#.#\n###")
+        yaml_content = """\
+type: mettagrid.map_builder.ascii.AsciiMapBuilder
+map_data: |-
+  ###
+  #.#
+  ###
+char_to_name_map:
+  "#": wall
+  ".": empty
+"""
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".map", delete=False, encoding="utf-8") as f:
+            f.write(yaml_content)
             temp_path = f.name
 
         try:
-            config = AsciiMapBuilder.Config.from_uri(temp_path, {})
+            config = AsciiMapBuilder.Config.from_uri(temp_path)
 
             # Test serialization
             serialized = config.model_dump()
@@ -100,6 +113,67 @@ class TestPolymorphicSerialization:
 
         finally:
             Path(temp_path).unlink()
+
+    def test_random_config_from_uri(self):
+        """Random builder config loads via MapBuilderConfig.from_uri."""
+
+        yaml_content = textwrap.dedent(
+            """
+            type: mettagrid.map_builder.random.RandomMapBuilder
+            width: 4
+            height: 3
+            seed: 99
+            objects:
+              wall: 2
+            agents: 1
+            border_width: 1
+            border_object: wall
+            """
+        )
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".map", delete=False, encoding="utf-8") as tmp:
+            tmp.write(yaml_content)
+            tmp_path = Path(tmp.name)
+
+        try:
+            config = MapBuilderConfig.from_uri(tmp_path)
+            assert isinstance(config, RandomMapBuilder.Config)
+            assert config.width == 4
+            assert config.height == 3
+            assert config.seed == 99
+
+            builder = config.create()
+            assert isinstance(builder, RandomMapBuilder)
+
+            game_map = builder.build()
+            assert game_map.grid.shape == (3, 4)
+        finally:
+            tmp_path.unlink(missing_ok=True)
+
+    def test_random_config_from_str(self):
+        """Random builder config loads via MapBuilderConfig.from_str."""
+
+        yaml_content = textwrap.dedent(
+            """
+            type: mettagrid.map_builder.random.RandomMapBuilder
+            width: 5
+            height: 2
+            objects:
+              altar: 1
+            agents: 2
+            """
+        )
+
+        config = MapBuilderConfig.from_str(yaml_content)
+        assert isinstance(config, RandomMapBuilder.Config)
+        assert config.width == 5
+        assert config.height == 2
+        assert config.objects == {"altar": 1}
+        assert config.agents == 2
+
+        builder = config.create()
+        game_map = builder.build()
+        assert game_map.grid.shape == (2, 5)
 
     def test_json_round_trip(self):
         """Test that configs can be serialized to JSON and back."""

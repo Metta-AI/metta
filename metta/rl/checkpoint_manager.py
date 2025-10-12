@@ -12,6 +12,7 @@ from metta.agent.mocks import MockAgent
 from metta.agent.policy import Policy
 from metta.rl.puffer_policy import _is_puffer_state_dict, load_pufferlib_checkpoint
 from metta.rl.system_config import SystemConfig
+from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
 from metta.utils.file import local_copy, write_file
 from metta.utils.uri import ParsedURI
@@ -36,6 +37,9 @@ def key_and_version(uri: str) -> tuple[str, int] | None:
         "mock://test_agent" -> ("test_agent", 0)
     """
     parsed = ParsedURI.parse(uri)
+    if parsed.scheme == "mock":
+        # For mock URIs, extract the agent name from the path
+        return (parsed.path, 0)
     if parsed.scheme == "file" and parsed.local_path:
         file_path = Path(parsed.local_path)
     elif parsed.scheme == "s3" and parsed.key:
@@ -263,7 +267,7 @@ class CheckpointManager:
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
         if not trainer_file.exists():
             return None
-        state = torch.load(trainer_file, weights_only=False)
+        state = torch.load(trainer_file, map_location="cpu", weights_only=False)
         result = {
             "optimizer_state": state.get("optimizer", state.get("optimizer_state")),
             "epoch": state.get("epoch", 0),
@@ -308,6 +312,12 @@ class CheckpointManager:
     ):
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
+
+        # For ScheduleFree optimizers, ensure we save in eval mode
+        is_schedulefree = is_schedulefree_optimizer(optimizer)
+        if is_schedulefree:
+            optimizer.eval()
+
         state = {"optimizer": optimizer.state_dict(), "epoch": epoch, "agent_step": agent_step}
         if stopwatch_state:
             state["stopwatch_state"] = stopwatch_state
@@ -316,6 +326,10 @@ class CheckpointManager:
         if loss_states is not None:
             state["loss_states"] = loss_states
         torch.save(state, trainer_file)
+
+        # Restore train mode after saving for ScheduleFree optimizers
+        if is_schedulefree:
+            optimizer.train()
 
     def get_latest_checkpoint(self) -> str | None:
         local_max_checkpoint = _latest_checkpoint(f"file://{self.checkpoint_dir}")

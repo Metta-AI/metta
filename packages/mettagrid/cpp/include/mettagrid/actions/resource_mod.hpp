@@ -63,6 +63,13 @@ public:
   }
 
 protected:
+  std::string variant_name(ActionArg arg) const override {
+    if (arg == 0) {
+      return action_name();
+    }
+    return ActionHandler::variant_name(arg);
+  }
+
   bool _handle_action(Agent& actor, ActionArg /* arg */) override {
     // Center AoE on actor's position
     int center_row = static_cast<int>(actor.location.r);

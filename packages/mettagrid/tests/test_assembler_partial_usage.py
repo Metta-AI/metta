@@ -3,6 +3,8 @@ import numpy as np
 from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig, RecipeConfig
 from mettagrid.core import MettaGridCore
 from mettagrid.mettagrid_c import dtype_actions
+from mettagrid.test_support.actions import action_index
+from mettagrid.test_support.orientation import Orientation
 
 
 class TestAssemblerPartialUsage:
@@ -10,13 +12,7 @@ class TestAssemblerPartialUsage:
 
     def test_partial_usage_disabled(self):
         """Test that assemblers cannot be used during cooldown when allow_partial_usage is False."""
-        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
-            [
-                ["#", "#", "#", "#"],
-                ["#", "@", "Z", "#"],
-                ["#", "#", "#", "#"],
-            ]
-        )
+        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True)
 
         cfg.game.resource_names = ["iron", "steel"]
         cfg.game.agent.initial_inventory = {"iron": 100, "steel": 0}
@@ -24,9 +20,18 @@ class TestAssemblerPartialUsage:
         # Configure assembler with partial usage disabled
         cfg.game.objects["assembler"] = AssemblerConfig(
             type_id=20,
-            name="no_partial_assembler",
+            name="assembler",
+            map_char="Z",
             recipes=[(["W"], RecipeConfig(input_resources={"iron": 10}, output_resources={"steel": 5}, cooldown=10))],
             allow_partial_usage=False,  # Disable partial usage
+        )
+
+        cfg = cfg.with_ascii_map(
+            [
+                ["#", "#", "#", "#"],
+                ["#", "@", "Z", "#"],
+                ["#", "#", "#", "#"],
+            ]
         )
 
         cfg.game.actions.move.enabled = True
@@ -37,11 +42,10 @@ class TestAssemblerPartialUsage:
 
         iron_idx = env.resource_names.index("iron")
         steel_idx = env.resource_names.index("steel")
-        move_idx = env.action_names.index("move")
         noop_idx = env.action_names.index("noop")
 
         # First usage
-        actions = np.array([[move_idx, 3]], dtype=dtype_actions)
+        actions = np.array([action_index(env, "move", Orientation.EAST)], dtype=dtype_actions)
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         grid_objects = env.grid_objects()
@@ -52,11 +56,11 @@ class TestAssemblerPartialUsage:
 
         # Wait 5 ticks (50% cooldown)
         for _ in range(5):
-            actions = np.array([[noop_idx, 0]], dtype=dtype_actions)
+            actions = np.array([noop_idx], dtype=dtype_actions)
             obs, rewards, terminals, truncations, info = env.step(actions)
 
         # Try to use during cooldown (should fail)
-        actions = np.array([[move_idx, 1]], dtype=dtype_actions)
+        actions = np.array([action_index(env, "move", Orientation.SOUTH)], dtype=dtype_actions)
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         grid_objects = env.grid_objects()
@@ -72,13 +76,7 @@ class TestAssemblerPartialUsage:
 
     def test_partial_usage_scaling(self):
         """Test resource scaling at different cooldown progress levels."""
-        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
-            [
-                ["#", "#", "#", "#"],
-                ["#", "@", "Z", "#"],
-                ["#", "#", "#", "#"],
-            ]
-        )
+        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True)
 
         cfg.game.resource_names = ["iron", "steel"]
         cfg.game.agent.initial_inventory = {"iron": 100, "steel": 0}
@@ -86,9 +84,18 @@ class TestAssemblerPartialUsage:
         # Recipe: 20 iron -> 10 steel, 100 tick cooldown
         cfg.game.objects["assembler"] = AssemblerConfig(
             type_id=20,
-            name="scaling_assembler",
+            name="assembler",
+            map_char="Z",
             recipes=[(["W"], RecipeConfig(input_resources={"iron": 20}, output_resources={"steel": 10}, cooldown=100))],
             allow_partial_usage=True,
+        )
+
+        cfg = cfg.with_ascii_map(
+            [
+                ["#", "#", "#", "#"],
+                ["#", "@", "Z", "#"],
+                ["#", "#", "#", "#"],
+            ]
         )
 
         cfg.game.actions.move.enabled = True
@@ -99,11 +106,10 @@ class TestAssemblerPartialUsage:
 
         iron_idx = env.resource_names.index("iron")
         steel_idx = env.resource_names.index("steel")
-        move_idx = env.action_names.index("move")
         noop_idx = env.action_names.index("noop")
 
         # First full usage
-        actions = np.array([[move_idx, 3]], dtype=dtype_actions)
+        actions = np.array([action_index(env, "move", Orientation.EAST)], dtype=dtype_actions)
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         grid_objects = env.grid_objects()
@@ -123,7 +129,7 @@ class TestAssemblerPartialUsage:
 
         # Test at 12% progress (12 ticks into 100 tick cooldown)
         for _ in range(12):
-            actions = np.array([[noop_idx, 0]], dtype=dtype_actions)
+            actions = np.array([noop_idx], dtype=dtype_actions)
             obs, rewards, terminals, truncations, info = env.step(actions)
 
         # Verify cooldown has decreased to 88 ticks remaining
@@ -136,13 +142,13 @@ class TestAssemblerPartialUsage:
         iron_before = agent["inventory"][iron_idx]
         steel_before = agent["inventory"][steel_idx]
 
-        actions = np.array([[move_idx, 3]], dtype=dtype_actions)
+        actions = np.array([action_index(env, "move", Orientation.EAST)], dtype=dtype_actions)
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         grid_objects = env.grid_objects()
         agent = next(obj for _obj_id, obj in grid_objects.items() if "agent_id" in obj)
 
-        # At 10% progress:
+        # At 12% progress:
         # Input: 20 * 0.12 = 2.4, rounded up = 3
         # Output: 10 * 0.12 = 1.2, rounded down = 1
         iron_consumed_12 = iron_before - agent["inventory"][iron_idx]
@@ -153,4 +159,23 @@ class TestAssemblerPartialUsage:
         )
         assert steel_produced_12 == 1, (
             f"Should produce 1 steel at 12% progress (10*0.12 rounded down), produced {steel_produced_12}"
+        )
+
+        # Verify that assembler does not trigger when partial usage would yield no output
+        iron_before = agent["inventory"][iron_idx]
+        steel_before = agent["inventory"][steel_idx]
+        # At 1% progress:
+        # Input: 20 * 0.01 = 0.2, rounded up = 1
+        # Output: 10 * 0.01 = 0.1, rounded down = 0
+
+        actions = np.array([action_index(env, "move", Orientation.EAST)], dtype=dtype_actions)
+        obs, rewards, terminals, truncations, info = env.step(actions)
+
+        grid_objects = env.grid_objects()
+        agent = next(obj for _obj_id, obj in grid_objects.items() if "agent_id" in obj)
+        iron_consumed_01 = iron_before - agent["inventory"][iron_idx]
+        steel_produced_01 = agent["inventory"][steel_idx] - steel_before
+
+        assert iron_consumed_01 == 0 and steel_produced_01 == 0, (
+            "Assembler should not activate when partial-usage output would be zero"
         )

@@ -1,18 +1,28 @@
 "use client";
 import clsx from "clsx";
-import { FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  FC,
+  use,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { usePanZoom } from "@/hooks/use-pan-and-zoom";
 import { useIsMouseDown } from "@/hooks/useIsMouseDown";
-import { drawGrid } from "@/lib/draw/drawGrid";
 import { Cell, MettaGrid } from "@/lib/MettaGrid";
 
+import { DebugInfo } from "./DebugInfo";
 import {
   useCallOnElementResize,
   useCallOnWindowResize,
   useDrawer,
   useSpacePressed,
 } from "./hooks";
+import { MapViewerContext, MapViewerContextProvider } from "./MapViewerContext";
+import { MapViewerCornerMenu } from "./MapViewerCornerMenu";
 
 type CellHandler = (cell: Cell | undefined) => void;
 
@@ -49,7 +59,7 @@ const MapViewerBrowserOnly: FC<Props> = ({
     usePanZoom({
       minZoom: 1,
       maxZoom: 10,
-      zoomSensitivity: 0.007,
+      zoomSensitivity: 0.004,
       enablePan,
     });
 
@@ -125,11 +135,7 @@ const MapViewerBrowserOnly: FC<Props> = ({
     context.setTransform(transform);
 
     try {
-      drawGrid({
-        grid,
-        context,
-        drawer,
-      });
+      drawer.drawGrid(context, grid);
 
       drawExtra?.(context);
     } catch (e) {
@@ -213,6 +219,8 @@ const MapViewerBrowserOnly: FC<Props> = ({
     [zoom, grid, onCellSelect, cellFromMouseEvent]
   );
 
+  const { showDebugInfo, showHoverInfo } = use(MapViewerContext);
+
   return (
     <div
       className="relative flex h-full w-full overflow-hidden"
@@ -234,7 +242,24 @@ const MapViewerBrowserOnly: FC<Props> = ({
         }}
         onClick={onMouseClick}
       />
-      {/* <DebugInfo canvas={canvasRef.current} pan={pan} zoom={zoom} /> */}
+      <div
+        className="absolute top-2 right-2"
+        onClick={(e) => e.stopPropagation()}
+        onMouseMove={(e) => e.stopPropagation()}
+      >
+        <MapViewerCornerMenu />
+      </div>
+      {showDebugInfo && canvasRef.current && (
+        <DebugInfo canvas={canvasRef.current} pan={pan} zoom={zoom} />
+      )}
+      {showHoverInfo && hoveredCell && (
+        <div className="absolute right-0 bottom-0 z-10 bg-white/80 p-1 text-xs">
+          <div>
+            Hovered: {hoveredCell.r},{hoveredCell.c}
+          </div>
+          <div>Object: {grid.object(hoveredCell)?.name ?? "empty"}</div>
+        </div>
+      )}
     </div>
   );
 };
@@ -248,5 +273,9 @@ export const MapViewer: FC<Props> = (props) => {
     );
   }
 
-  return <MapViewerBrowserOnly {...props} />;
+  return (
+    <MapViewerContextProvider>
+      <MapViewerBrowserOnly {...props} />
+    </MapViewerContextProvider>
+  );
 };
