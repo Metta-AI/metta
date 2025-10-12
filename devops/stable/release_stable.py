@@ -77,6 +77,44 @@ def get_user_confirmation(prompt: str) -> bool:
             return False
 
 
+def verify_on_rc_commit(version: str, step_name: str) -> str:
+    """Verify we're on the commit that the RC tag points to.
+
+    Args:
+        version: Release version
+        step_name: Name of current step (for error messages)
+
+    Returns:
+        RC commit SHA
+
+    Raises:
+        SystemExit: If not on RC commit or RC tag doesn't exist
+    """
+    rc_tag_name = f"v{version}-rc"
+
+    # Get current commit
+    current_commit = git.get_current_commit()
+
+    # Get RC tag commit
+    try:
+        rc_commit = git.run_git("rev-list", "-n", "1", rc_tag_name).strip()
+    except git.GitError:
+        print(f"❌ RC tag {rc_tag_name} not found")
+        print("   Run 'prepare-tag' step first to create the RC tag")
+        sys.exit(1)
+
+    # Verify we're on the RC commit
+    if current_commit != rc_commit:
+        print(f"❌ ERROR: Not on RC commit for {step_name}")
+        print(f"   Current commit:  {current_commit}")
+        print(f"   RC tag commit:   {rc_commit} ({rc_tag_name})")
+        print("\n   To fix, checkout the RC commit:")
+        print(f"   git checkout {rc_tag_name}")
+        sys.exit(1)
+
+    return rc_commit
+
+
 # ============================================================================
 # Release Pipeline Steps
 # ============================================================================
@@ -147,11 +185,15 @@ def step_prepare_tag(version: str, state: Optional[ReleaseState] = None, **_kwar
         sys.exit(1)
 
 
-def step_bug_check(state: Optional[ReleaseState] = None, **_kwargs) -> None:
+def step_bug_check(version: str, state: Optional[ReleaseState] = None, **_kwargs) -> None:
     """Step 2: Check for blocking bugs."""
     print("\n" + "=" * 60)
     print(bold("STEP 2: Bug Status Check"))
     print("=" * 60 + "\n")
+
+    # Verify we're on the RC commit
+    rc_commit = verify_on_rc_commit(version, "bug check")
+    print(f"✅ Verified on RC commit: {rc_commit}\n")
 
     # Check if already completed
     if state and any(g.get("step") == "bug_check" and g.get("passed") for g in state.gates):
@@ -222,6 +264,10 @@ def step_task_validation(
     print(bold("STEP 3: Task Validation"))
     print("=" * 60 + "\n")
 
+    # Verify we're on the RC commit
+    rc_commit = verify_on_rc_commit(version, "task validation")
+    print(f"✅ Verified on RC commit: {rc_commit}\n")
+
     # Load or create state
     state_version = f"v{version}"
     state = load_or_create_state(state_version, git.get_current_commit())
@@ -284,6 +330,10 @@ def step_summary(version: str, **_kwargs) -> None:
     print("\n" + "=" * 60)
     print(bold("STEP 4: Release Summary"))
     print("=" * 60 + "\n")
+
+    # Verify we're on the RC commit
+    rc_commit = verify_on_rc_commit(version, "summary")
+    print(f"✅ Verified on RC commit: {rc_commit}\n")
 
     # Load state to extract metrics
     state_version = f"v{version}"
@@ -358,6 +408,10 @@ def step_release(version: str, **_kwargs) -> None:
     print(bold("STEP 5: Create Release"))
     print("=" * 60 + "\n")
 
+    # Verify we're on the RC commit
+    rc_commit = verify_on_rc_commit(version, "release")
+    print(f"✅ Verified on RC commit: {rc_commit}\n")
+
     # Load state to get validation results
     state_version = f"v{version}"
     state = load_state(state_version)
@@ -421,7 +475,18 @@ def step_release(version: str, **_kwargs) -> None:
     release_notes_path.write_text(release_notes_content)
     print(f"✅ Created release notes: {release_notes_path}")
 
-    # Create git tag
+    # Get the commit SHA from the RC tag (validation was run against this)
+    rc_tag_name = f"v{version}-rc"
+    try:
+        # Get commit SHA that RC tag points to
+        rc_commit = git.run_git("rev-list", "-n", "1", rc_tag_name).strip()
+        print(f"RC tag {rc_tag_name} points to commit: {rc_commit}")
+    except git.GitError as e:
+        print(f"❌ Failed to find RC tag {rc_tag_name}: {e}")
+        print("   Run prepare-tag step first")
+        sys.exit(1)
+
+    # Create git tag pointing to the same commit as RC tag
     tag_name = f"v{version}"
     try:
         # Check if tag already exists
@@ -430,9 +495,9 @@ def step_release(version: str, **_kwargs) -> None:
             print(f"Tag {tag_name} already exists")
             sys.exit(1)
 
-        # Create annotated tag
-        git.run_git("tag", "-a", tag_name, "-m", f"Release version {version}")
-        print(f"✅ Created git tag: {tag_name}")
+        # Create annotated tag at the RC commit
+        git.run_git("tag", "-a", tag_name, rc_commit, "-m", f"Release version {version}")
+        print(f"✅ Created git tag: {tag_name} at {rc_commit}")
 
         # Push tag
         git.run_git("push", "origin", tag_name)
@@ -441,6 +506,25 @@ def step_release(version: str, **_kwargs) -> None:
     except git.GitError as e:
         print(f"Failed to create/push tag: {e}")
         sys.exit(1)
+
+    # Update stable branch to point to this tag
+    print("\nUpdating stable branch...")
+    try:
+        # Fetch latest to ensure we have all tags
+        git.run_git("fetch", "origin")
+
+        # Update local stable branch to the new tag
+        git.run_git("branch", "-f", "stable", tag_name)
+
+        # Push stable branch to origin (force update)
+        git.run_git("push", "origin", "stable", "--force-with-lease")
+
+        print(f"✅ Updated origin/stable branch to {tag_name}")
+    except git.GitError as e:
+        print(f"⚠️  Failed to update stable branch: {e}")
+        print("   You may need to update it manually:")
+        print(f"   git branch -f stable {tag_name}")
+        print("   git push origin stable --force-with-lease")
 
     # Mark state as released
     state.released = True
@@ -484,6 +568,7 @@ def step_release(version: str, **_kwargs) -> None:
     print("=" * 60)
     print(f"\nRelease notes: {release_notes_path}")
     print(f"Git tag: {tag_name}")
+    print(f"Stable branch: origin/stable -> {tag_name}")
     print("\nNext steps:")
     print("  1. Run announce to notify team")
 
@@ -568,7 +653,7 @@ def cmd_bugs():
     """Check bug status in Asana."""
     state_version = f"v{_VERSION}"
     state = load_or_create_state(state_version, git.get_current_commit())
-    step_bug_check(state=state)
+    step_bug_check(version=_VERSION, state=state)
 
 
 @app.command("task-validation")
@@ -619,7 +704,7 @@ def cmd_all(
 
     # Run steps with state tracking
     step_prepare_tag(version=_VERSION, state=state)
-    step_bug_check(state=state)
+    step_bug_check(version=_VERSION, state=state)
     step_task_validation(version=_VERSION, task_filter=task, reeval=reeval)
     step_summary(version=_VERSION)
 
