@@ -41,7 +41,7 @@ class PolicyArchitecture(Config):
         """Create an agent instance from configuration."""
 
         AgentClass = load_symbol(self.class_path)
-        return AgentClass(env_metadata)
+        return AgentClass(env_metadata, config=self)
 
 
 class Policy(ABC, nn.Module):
