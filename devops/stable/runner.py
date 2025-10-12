@@ -89,12 +89,14 @@ class TaskRunner:
         # Check cache and restore result to task (needed for job_id reuse)
         if task.name in self.state.results:
             cached = self.state.results[task.name]
+            # Skip if already passed or explicitly skipped
             if cached.outcome in ("passed", "skipped"):
                 print(f"⏭️  {task.name} - cached ({cached.outcome})")
                 task.result = cached  # Restore for downstream dependencies
                 return cached
-            print(yellow(f"🔄 {task.name} - retrying previous failure"))
-            # Restore cached result so execute() can access job_id,
+            # Retry if failed or inconclusive
+            print(yellow(f"🔄 {task.name} - retrying previous {cached.outcome}"))
+            # Restore cached result so execute() can access job_id for remote jobs,
             # but we'll clear it before run() so it actually executes
             task.result = cached
 

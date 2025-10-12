@@ -233,9 +233,11 @@ class LocalJob(Job):
         if self._submitted:
             return
 
-        # Prepare log file
+        # Prepare log file (clear any existing content from previous runs)
         log_path = self._get_log_path()
         log_path.parent.mkdir(parents=True, exist_ok=True)
+        if log_path.exists():
+            log_path.unlink()  # Delete old log file to avoid showing stale output
 
         # Set up environment for color output
         env = os.environ.copy()
