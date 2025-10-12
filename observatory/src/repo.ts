@@ -321,7 +321,8 @@ export interface Repo {
   createEvalTask(request: EvalTaskCreateRequest): Promise<EvalTask>
   getEvalTasks(): Promise<EvalTask[]>
   getEvalTasksPaginated(page: number, pageSize: number, filters: TaskFilters): Promise<PaginatedEvalTasksResponse>
-  getTaskLogUrl(taskId: string, logType: 'stdout' | 'stderr'): string
+  getEvalTask(taskId: string): Promise<EvalTask>
+  getTaskLogUrl(taskId: string, logType: 'stdout' | 'stderr' | 'output'): string
   retryEvalTask(taskId: string): Promise<void>
 
   // Policy methods
@@ -524,6 +525,10 @@ export class ServerRepo implements Repo {
     if (filters.updated_at?.trim()) params.append('updated_at', filters.updated_at.trim())
 
     return this.apiCall<PaginatedEvalTasksResponse>(`/tasks/paginated?${params}`)
+  }
+
+  async getEvalTask(taskId: string): Promise<EvalTask> {
+    return this.apiCall<EvalTask>(`/tasks/${taskId}`)
   }
 
   getTaskLogUrl(taskId: string, logType: 'stdout' | 'stderr'): string {

@@ -92,6 +92,7 @@ public:
   py::object observation_space();
   py::list action_success_py();
   py::list max_action_args();
+  py::list action_catalog();
   py::list object_type_names_py();
   py::list resource_names_py();
 
