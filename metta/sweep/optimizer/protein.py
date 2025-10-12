@@ -172,6 +172,11 @@ class ProteinOptimizer:
                 else:
                     if full_key in self._categorical_maps:
                         value_to_index, _ = self._categorical_maps[full_key]
+                        if v not in value_to_index:
+                            logger.warning(f"Unknown categorical value '{v}' for parameter '{full_key}', defaulting to first choice")
+                            out[k] = 0
+                        else:
+                            out[k] = int(value_to_index[v])
                         out[k] = int(value_to_index.get(v, 0))
                     else:
                         out[k] = v

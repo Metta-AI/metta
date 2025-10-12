@@ -132,13 +132,14 @@ class SweepParameters:
         Args:
             name: Parameter name (e.g., "model.color").
             choices: Ordered list of allowed categorical values.
-            choices: Ordered list of allowed categorical values.
 
         Returns:
             Dict with single key-value pair: {name: CategoricalParameterConfig}
         """
         if not choices:
             raise ValueError("Categorical choices must be a non-empty list")
+        if len(set(choices)) != len(choices):
+            raise ValueError("Categorical choices must be unique")
         return {name: CategoricalParameterConfig(choices=choices)}
 
     # Learning rate
