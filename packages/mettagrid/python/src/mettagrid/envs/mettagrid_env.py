@@ -160,13 +160,14 @@ class MettaGridEnv(MettaGridPufferBase):
             stats = self.get_episode_stats()
 
         # Process agent stats
+        infos["game"] = {}
         # always insert hearts.get first so they are shown in the PufferLib train UI
         if "hearts.get" in stats["game"]:
             print("hearts.get in stats")
             infos["game"]["hearts.get"] = stats["game"]["hearts.get"]
             del stats["game"]["hearts.get"]
         print("stats", stats)
-        infos["game"] = stats["game"]
+        infos["game"].update(stats["game"])
         infos["agent"] = {}
         for agent_stats in stats["agent"]:
             for n, v in agent_stats.items():
