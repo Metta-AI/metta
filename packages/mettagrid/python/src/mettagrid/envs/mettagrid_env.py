@@ -165,19 +165,6 @@ class MettaGridEnv(MettaGridPufferBase):
         mean_episode_reward = float(episode_rewards.mean())
         infos["game"]["reward.mean"] = mean_episode_reward
         infos["game"]["reward.sum"] = float(episode_rewards.sum())
-        # keep hearts.get near the top for backwards compatibility with older dashboards
-        if "hearts.get" in stats["game"]:
-            print("hearts.get in stats")
-            infos["game"]["hearts.get"] = stats["game"]["hearts.get"]
-            del stats["game"]["hearts.get"]
-        heart_game_stats = {name: value for name, value in stats["game"].items() if "heart" in name}
-        heart_agent_stats = [
-            {name: value for name, value in agent_stat.items() if "heart" in name}
-            for agent_stat in stats["agent"]
-            if any("heart" in name for name in agent_stat)
-        ]
-        if heart_game_stats or heart_agent_stats:
-            print("heart stats", {"game": heart_game_stats, "agent": heart_agent_stats})
         infos["game"].update(stats["game"])
         infos["agent"] = {}
         for agent_stats in stats["agent"]:
