@@ -119,6 +119,11 @@ devops/stable/state/
 devops/stable/logs/
 devops/stable/release-notes/
 
+# Experiment System
+experiments/state/
+experiments/logs/
+experiments/reports/
+
 # skypilot testing
 recipe_test_jobs.json
 cluster_test_jobs.json
