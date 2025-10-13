@@ -2031,6 +2031,7 @@ dependencies = [
     { name = "numpy" },
     { name = "nvidia-ml-py" },
     { name = "omegaconf" },
+    { name = "packaging" },
     { name = "pandas" },
     { name = "pettingzoo" },
     { name = "pixie-python" },
@@ -2137,6 +2138,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=2" },
     { name = "nvidia-ml-py" },
     { name = "omegaconf", specifier = ">=2.3.0" },
+    { name = "packaging", specifier = ">=23.2" },
     { name = "pandas", specifier = ">=2.3.0" },
     { name = "pettingzoo", specifier = ">=1.25" },
     { name = "pixie-python", specifier = ">=4.3.0" },
@@ -2218,6 +2220,7 @@ name = "metta-agent"
 version = "0.1.0"
 source = { editable = "agent" }
 dependencies = [
+    { name = "einops" },
     { name = "pufferlib-core" },
 ]
 
@@ -2232,7 +2235,10 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "pufferlib-core", editable = "packages/pufferlib-core" }]
+requires-dist = [
+    { name = "einops", specifier = ">=0.7.0" },
+    { name = "pufferlib-core", editable = "packages/pufferlib-core" },
+]
 
 [package.metadata.requires-dev]
 dev = [
