@@ -4,7 +4,8 @@ import io
 
 import pytest
 
-from devops.job_runner import JobResult, LocalJob, RemoteJob
+from metta.jobs.job_config import JobConfig
+from metta.jobs.job_runner import JobResult, LocalJob, RemoteJob
 
 
 class FakePopen:
@@ -76,7 +77,13 @@ def test_localjob_success(tmp_path, monkeypatch, fake_popen):
     output_lines = ["Starting job", "Processing...", "Complete", "Exit code: 0"]
     monkeypatch.setattr("subprocess.Popen", factory(output_lines=output_lines, exit_code=0))
 
-    job = LocalJob(name="test_job", cmd=["echo", "hello"], timeout_s=10, log_dir=str(tmp_path), cwd=str(tmp_path))
+    config = JobConfig(
+        name="test_job",
+        module="test",
+        timeout_s=10,
+        metadata={"cmd": ["echo", "hello"]},
+    )
+    job = LocalJob(config, log_dir=str(tmp_path), cwd=str(tmp_path))
 
     result = job.wait(stream_output=False)
 
@@ -92,7 +99,13 @@ def test_localjob_failure(tmp_path, monkeypatch, fake_popen):
     output_lines = ["Error occurred", "Exit code: 1"]
     monkeypatch.setattr("subprocess.Popen", factory(output_lines=output_lines, exit_code=1))
 
-    job = LocalJob(name="failing_job", cmd=["false"], timeout_s=10, log_dir=str(tmp_path), cwd=str(tmp_path))
+    config = JobConfig(
+        name="failing_job",
+        module="test",
+        timeout_s=10,
+        metadata={"cmd": ["false"]},
+    )
+    job = LocalJob(config, log_dir=str(tmp_path), cwd=str(tmp_path))
 
     result = job.wait(stream_output=False)
 
@@ -126,7 +139,13 @@ def test_localjob_timeout(tmp_path, monkeypatch, fake_popen):
 
     monkeypatch.setattr(LocalJob, "cancel", track_cancel)
 
-    job = LocalJob(name="timeout_job", cmd=["sleep", "1000"], timeout_s=2, log_dir=str(tmp_path), cwd=str(tmp_path))
+    config = JobConfig(
+        name="timeout_job",
+        module="test",
+        timeout_s=2,
+        metadata={"cmd": ["sleep", "1000"]},
+    )
+    job = LocalJob(config, log_dir=str(tmp_path), cwd=str(tmp_path))
 
     result = job.wait(stream_output=False)
 
@@ -141,7 +160,13 @@ def test_localjob_writes_logs(tmp_path, monkeypatch, fake_popen):
     output_lines = ["Line 1", "Line 2", "Line 3"]
     monkeypatch.setattr("subprocess.Popen", factory(output_lines=output_lines, exit_code=0))
 
-    job = LocalJob(name="log_test", cmd=["echo"], timeout_s=10, log_dir=str(tmp_path), cwd=str(tmp_path))
+    config = JobConfig(
+        name="log_test",
+        module="test",
+        timeout_s=10,
+        metadata={"cmd": ["echo"]},
+    )
+    job = LocalJob(config, log_dir=str(tmp_path), cwd=str(tmp_path))
 
     job.wait(stream_output=False)
 
@@ -156,35 +181,43 @@ def test_localjob_writes_logs(tmp_path, monkeypatch, fake_popen):
 
 def test_remotejob_initialization(tmp_path):
     """Test that RemoteJob can be initialized with module and args."""
-    job = RemoteJob(
+    from metta.jobs.job_config import RemoteConfig
+
+    config = JobConfig(
         name="remote_test",
         module="experiments.recipes.arena.train",
-        args=["run=test", "trainer.total_timesteps=100000"],
-        log_dir=str(tmp_path),
+        args={"run": "test"},
+        overrides={"trainer.total_timesteps": "100000"},
+        remote=RemoteConfig(gpus=1, nodes=1, spot=True),
     )
+    job = RemoteJob(config, log_dir=str(tmp_path))
 
     assert job.name == "remote_test"
     assert job.module == "experiments.recipes.arena.train"
-    assert job.args == ["run=test", "trainer.total_timesteps=100000"]
+    assert "run=test" in job.args
+    assert "trainer.total_timesteps=100000" in job.args
     assert not job._submitted
 
 
 def test_remotejob_requires_module_or_job_id(tmp_path):
     """Test that RemoteJob requires either module or job_id."""
-    with pytest.raises(ValueError, match="Must provide either module or job_id"):
-        RemoteJob(
-            name="invalid_job",
-            log_dir=str(tmp_path),
-        )
+    config = JobConfig(
+        name="invalid_job",
+        module="test.module",
+        # remote=None means no remote config
+    )
+    with pytest.raises(ValueError, match="requires config.remote"):
+        RemoteJob(config, log_dir=str(tmp_path))
 
 
 def test_remotejob_resume_with_job_id(tmp_path):
     """Test that RemoteJob can resume an existing job by job_id."""
-    job = RemoteJob(
+    config = JobConfig(
         name="resumed_job",
-        log_dir=str(tmp_path),
-        job_id=12345,
+        module="test.module",
+        # remote=None but we're resuming with job_id
     )
+    job = RemoteJob(config, log_dir=str(tmp_path), job_id=12345)
 
     assert job._job_id == 12345
     assert job._is_resumed is True
@@ -197,8 +230,15 @@ def test_remotejob_resume_with_job_id(tmp_path):
 
 def test_remotejob_log_path_includes_job_id(tmp_path):
     """Test that log path includes job ID for differentiation."""
-    job = RemoteJob(
+    from metta.jobs.job_config import RemoteConfig
+
+    config = JobConfig(
         name="test_job",
+        module="test.module",
+        remote=RemoteConfig(gpus=1, nodes=1, spot=True),
+    )
+    job = RemoteJob(
+        config,
         log_dir=str(tmp_path),
         job_id=999,
     )
@@ -240,7 +280,13 @@ def test_localjob_cancel_terminates_process(tmp_path, monkeypatch, fake_popen):
     monkeypatch.setattr("os.getpgid", fake_getpgid)
     monkeypatch.setattr("os.killpg", fake_killpg)
 
-    job = LocalJob(name="cancel_test", cmd=["sleep", "100"], timeout_s=10, log_dir=str(tmp_path), cwd=str(tmp_path))
+    config = JobConfig(
+        name="cancel_test",
+        module="test",
+        timeout_s=10,
+        metadata={"cmd": ["sleep", "100"]},
+    )
+    job = LocalJob(config, log_dir=str(tmp_path), cwd=str(tmp_path))
 
     # Submit the job (in real code this happens in wait(), but we need the process)
     job.submit()
