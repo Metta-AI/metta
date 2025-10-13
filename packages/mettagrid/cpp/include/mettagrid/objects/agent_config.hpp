@@ -5,8 +5,8 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
-#include <map>
 #include <string>
+#include <unordered_map>
 
 #include "core/grid_object.hpp"
 #include "core/types.hpp"
@@ -20,14 +20,14 @@ struct AgentConfig : public GridObjectConfig {
               unsigned char freeze_duration = 0,
               float action_failure_penalty = 0,
               const InventoryConfig& inventory_config = InventoryConfig(),
-              const std::map<std::string, RewardType>& stat_rewards = {},
-              const std::map<std::string, RewardType>& stat_reward_max = {},
+              const std::unordered_map<std::string, RewardType>& stat_rewards = {},
+              const std::unordered_map<std::string, RewardType>& stat_reward_max = {},
               float group_reward_pct = 0,
-              const std::map<InventoryItem, InventoryQuantity>& initial_inventory = {},
+              const std::unordered_map<InventoryItem, InventoryQuantity>& initial_inventory = {},
               const std::vector<int>& tag_ids = {},
               const std::vector<InventoryItem>& soul_bound_resources = {},
               const std::vector<InventoryItem>& shareable_resources = {},
-              const std::map<InventoryItem, InventoryQuantity>& inventory_regen_amounts = {})
+              const std::unordered_map<InventoryItem, InventoryQuantity>& inventory_regen_amounts = {})
       : GridObjectConfig(type_id, type_name, tag_ids),
         group_id(group_id),
         group_name(group_name),
@@ -47,13 +47,13 @@ struct AgentConfig : public GridObjectConfig {
   short freeze_duration;
   float action_failure_penalty;
   InventoryConfig inventory_config;
-  std::map<std::string, RewardType> stat_rewards;
-  std::map<std::string, RewardType> stat_reward_max;
+  std::unordered_map<std::string, RewardType> stat_rewards;
+  std::unordered_map<std::string, RewardType> stat_reward_max;
   float group_reward_pct;
-  std::map<InventoryItem, InventoryQuantity> initial_inventory;
+  std::unordered_map<InventoryItem, InventoryQuantity> initial_inventory;
   std::vector<InventoryItem> soul_bound_resources;
   std::vector<InventoryItem> shareable_resources;
-  std::map<InventoryItem, InventoryQuantity> inventory_regen_amounts;
+  std::unordered_map<InventoryItem, InventoryQuantity> inventory_regen_amounts;
 };
 
 namespace py = pybind11;
@@ -67,14 +67,14 @@ inline void bind_agent_config(py::module& m) {
                     unsigned char,
                     float,
                     const InventoryConfig&,
-                    const std::map<std::string, RewardType>&,
-                    const std::map<std::string, RewardType>&,
+                    const std::unordered_map<std::string, RewardType>&,
+                    const std::unordered_map<std::string, RewardType>&,
                     float,
-                    const std::map<InventoryItem, InventoryQuantity>&,
+                    const std::unordered_map<InventoryItem, InventoryQuantity>&,
                     const std::vector<int>&,
                     const std::vector<InventoryItem>&,
                     const std::vector<InventoryItem>&,
-                    const std::map<InventoryItem, InventoryQuantity>&>(),
+                    const std::unordered_map<InventoryItem, InventoryQuantity>&>(),
            py::arg("type_id"),
            py::arg("type_name") = "agent",
            py::arg("group_id"),
@@ -82,14 +82,14 @@ inline void bind_agent_config(py::module& m) {
            py::arg("freeze_duration") = 0,
            py::arg("action_failure_penalty") = 0,
            py::arg("inventory_config") = InventoryConfig(),
-           py::arg("stat_rewards") = std::map<std::string, RewardType>(),
-           py::arg("stat_reward_max") = std::map<std::string, RewardType>(),
+           py::arg("stat_rewards") = std::unordered_map<std::string, RewardType>(),
+           py::arg("stat_reward_max") = std::unordered_map<std::string, RewardType>(),
            py::arg("group_reward_pct") = 0,
-           py::arg("initial_inventory") = std::map<InventoryItem, InventoryQuantity>(),
+           py::arg("initial_inventory") = std::unordered_map<InventoryItem, InventoryQuantity>(),
            py::arg("tag_ids") = std::vector<int>(),
            py::arg("soul_bound_resources") = std::vector<InventoryItem>(),
            py::arg("shareable_resources") = std::vector<InventoryItem>(),
-           py::arg("inventory_regen_amounts") = std::map<InventoryItem, InventoryQuantity>())
+           py::arg("inventory_regen_amounts") = std::unordered_map<InventoryItem, InventoryQuantity>())
       .def_readwrite("type_id", &GridObjectConfig::type_id)
       .def_readwrite("type_name", &GridObjectConfig::type_name)
       .def_readwrite("group_name", &AgentConfig::group_name)

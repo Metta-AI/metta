@@ -2,8 +2,8 @@
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_INVENTORY_HPP_
 
 #include <algorithm>
-#include <map>
 #include <string>
+#include <unordered_map>
 
 #include "core/types.hpp"
 #include "objects/constants.hpp"
@@ -16,8 +16,8 @@ struct SharedInventoryLimit {
 
 class Inventory {
 private:
-  std::map<InventoryItem, InventoryQuantity> _inventory;
-  std::map<InventoryItem, SharedInventoryLimit*> _limits;
+  std::unordered_map<InventoryItem, InventoryQuantity> _inventory;
+  std::unordered_map<InventoryItem, SharedInventoryLimit*> _limits;
 
 public:
   explicit Inventory(const InventoryConfig& cfg) : _inventory(), _limits() {
@@ -80,7 +80,7 @@ public:
     return this->_inventory.at(item);
   }
 
-  std::map<InventoryItem, InventoryQuantity> get() const {
+  std::unordered_map<InventoryItem, InventoryQuantity> get() const {
     return this->_inventory;
   }
 };

@@ -2,8 +2,8 @@
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_HAS_INVENTORY_HPP_
 
 #include <algorithm>
-#include <map>
 #include <string>
+#include <unordered_map>
 
 #include "objects/constants.hpp"
 #include "objects/inventory.hpp"
