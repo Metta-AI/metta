@@ -124,8 +124,8 @@ def evaluate(
 
 
 def play(policy_uri: Optional[str] = None) -> PlayTool:
-    return PlayTool(simulations=simulations(), policy_uri=policy_uri)
+    return PlayTool(sim=simulations()[0], policy_uri=policy_uri)
 
 
 def replay(policy_uri: Optional[str] = None) -> ReplayTool:
-    return ReplayTool(simulations=simulations(), policy_uri=policy_uri)
+    return ReplayTool(sim=simulations()[0], policy_uri=policy_uri)

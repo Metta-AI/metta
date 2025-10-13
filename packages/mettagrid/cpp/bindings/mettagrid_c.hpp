@@ -13,10 +13,10 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
-#include <map>
 #include <memory>
 #include <random>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "config/mettagrid_config.hpp"
@@ -85,7 +85,7 @@ public:
   py::dict feature_normalizations();
   py::dict feature_spec();
   size_t num_agents() const;
-  py::none set_inventory(GridObjectId agent_id, const std::map<InventoryItem, InventoryQuantity>& inventory);
+  py::none set_inventory(GridObjectId agent_id, const std::unordered_map<InventoryItem, InventoryQuantity>& inventory);
   py::array_t<float> get_episode_rewards();
   py::dict get_episode_stats();
   py::object action_space();
@@ -125,8 +125,8 @@ private:
   GameConfig _game_config;
 
   std::vector<ObservationType> _resource_rewards;  // Packed inventory rewards for each agent
-  std::map<unsigned int, float> _group_reward_pct;
-  std::map<unsigned int, unsigned int> _group_sizes;
+  std::unordered_map<unsigned int, float> _group_reward_pct;
+  std::unordered_map<unsigned int, unsigned int> _group_sizes;
   std::vector<RewardType> _group_rewards;
 
   std::unique_ptr<Grid> _grid;
@@ -156,7 +156,7 @@ private:
   py::array_t<float> _rewards;
   py::array_t<float> _episode_rewards;
 
-  std::map<uint8_t, float> _feature_normalizations;
+  std::unordered_map<uint8_t, float> _feature_normalizations;
 
   ActionSuccess _action_success;
 
