@@ -101,17 +101,23 @@ proc recomputePath*(agentId: int, currentPos: IVec2) =
     agentPaths.del(agentId)
     return
   
-  # Compute path through all destinations.
-  var fullPath: seq[IVec2] = @[]
+  # Compute path actions through all destinations.
+  var pathActions: seq[PathAction] = @[]
   var lastPos = currentPos
   
-  for i, dest in agentDestinations[agentId]:
-    var segmentPath: seq[IVec2] = @[]
-    
+  for destIdx, dest in agentDestinations[agentId]:
     case dest.destinationType
     of Move:
       # For moving, path directly to the destination.
-      segmentPath = findPath(lastPos, dest.pos)
+      let movePath = findPath(lastPos, dest.pos)
+      if movePath.len == 0:
+        clearPath(agentId)
+        return
+      # Convert positions to PathMove actions.
+      for pos in movePath:
+        if pos != lastPos:
+          pathActions.add(PathAction(actionType: PathMove, pos: pos))
+      lastPos = dest.pos
     of Bump:
       # For bumping, path to the specified approach position.
       let approachPos = ivec2(dest.pos.x + dest.approachDir.x, dest.pos.y + dest.approachDir.y)
@@ -119,30 +125,25 @@ proc recomputePath*(agentId: int, currentPos: IVec2) =
         # Approach position is not walkable, clear path.
         clearPath(agentId)
         return
-      if lastPos == approachPos:
-        # Already at the approach position, use current position.
-        segmentPath = @[lastPos]
-      else:
+      if lastPos != approachPos:
         # Path to the approach position.
-        segmentPath = findPath(lastPos, approachPos)
-    
-    if segmentPath.len == 0:
-      clearPath(agentId)
-      return
-    
-    if i == 0:
-      fullPath = segmentPath
-    else:
-      if segmentPath.len > 1:
-        for j in 1 ..< segmentPath.len:
-          fullPath.add(segmentPath[j])
-      elif segmentPath.len == 1 and segmentPath[0] != fullPath[fullPath.len - 1]:
-        fullPath.add(segmentPath[0])
-    
-    lastPos = dest.pos
+        let movePath = findPath(lastPos, approachPos)
+        if movePath.len == 0:
+          clearPath(agentId)
+          return
+        for pos in movePath:
+          if pos != lastPos:
+            pathActions.add(PathAction(actionType: PathMove, pos: pos))
+      # Add the bump action.
+      pathActions.add(PathAction(
+        actionType: PathBump,
+        pos: dest.pos,
+        bumpDir: ivec2(dest.pos.x - approachPos.x, dest.pos.y - approachPos.y),
+      ))
+      lastPos = approachPos
   
-  if fullPath.len > 0:
-    agentPaths[agentId] = fullPath
+  if pathActions.len > 0:
+    agentPaths[agentId] = pathActions
   else:
     clearPath(agentId)
 

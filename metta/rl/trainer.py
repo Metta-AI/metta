@@ -17,7 +17,7 @@ from metta.rl.training import (
     TrainerState,
     TrainingEnvironment,
 )
-from metta.rl.training.optimizer import create_optimizer
+from metta.rl.training.optimizer import create_optimizer, is_schedulefree_optimizer
 from mettagrid.profiling.stopwatch import Stopwatch
 
 try:
@@ -87,6 +87,7 @@ class Trainer:
         )
 
         self.optimizer = create_optimizer(self._cfg.optimizer, self._policy)
+        self._is_schedulefree = is_schedulefree_optimizer(self.optimizer)
 
         self._state = TrainerState()
 
@@ -159,6 +160,10 @@ class Trainer:
 
         # Rollout phase
         with self.timer("_rollout"):
+            # Ensure ScheduleFree optimizer is in eval mode during rollout
+            if self._is_schedulefree:
+                self.optimizer.eval()
+
             rollout_result = self.core_loop.rollout_phase(self._env, self._context)
             self._context.training_env_id = rollout_result.training_env_id
             world_size = self._distributed_helper.get_world_size()
@@ -173,13 +178,17 @@ class Trainer:
         with self.timer("_train"):
             if self._context.training_env_id is None:
                 raise RuntimeError("Training environment slice unavailable for training phase")
+
+            # ScheduleFree optimizer is in train mode for training phase
+            if self._is_schedulefree:
+                self.optimizer.train()
+
             losses_stats, epochs_trained = self.core_loop.training_phase(
                 context=self._context,
                 update_epochs=self._cfg.update_epochs,
                 max_grad_norm=0.5,
             )
             self._context.advance_epoch(epochs_trained)
-
         # Synchronize before proceeding
         self._distributed_helper.synchronize()
 

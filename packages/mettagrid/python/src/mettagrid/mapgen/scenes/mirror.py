@@ -2,10 +2,23 @@ from typing import Literal
 
 from pydantic import ConfigDict, Field
 
+from mettagrid.mapgen.area import Area, AreaWhere
 from mettagrid.mapgen.scene import ChildrenAction, Scene, SceneConfig
-from mettagrid.mapgen.types import AreaWhere
 
 Symmetry = Literal["horizontal", "vertical", "x4"]
+
+
+def _make_area_if_positive(
+    scene: Scene,
+    x: int,
+    y: int,
+    width: int,
+    height: int,
+    tags: list[str],
+) -> Area | None:
+    if width <= 0 or height <= 0:
+        return None
+    return scene.make_area(x, y, width, height, tags=tags)
 
 
 class MirrorConfig(SceneConfig):
@@ -55,8 +68,11 @@ class HorizontalMirror(Scene[HorizontalMirrorConfig]):
 
     def render(self):
         left_width = (self.width + 1) // 2  # take half, plus one for odd width
-        self._original_mirror_area = self.make_area(0, 0, left_width, self.height, tags=["original"])
-        self.make_area(left_width, 0, self.width - left_width, self.height, tags=["mirrored"])
+        original_area = _make_area_if_positive(self, 0, 0, left_width, self.height, ["original"])
+        self._original_mirror_area = original_area or self.area
+
+        mirrored_width = self.width - left_width
+        _make_area_if_positive(self, left_width, 0, mirrored_width, self.height, ["mirrored"])
 
 
 class VerticalMirrorConfig(InnerMirrorConfig):
@@ -78,8 +94,11 @@ class VerticalMirror(Scene[VerticalMirrorConfig]):
 
     def render(self):
         top_height = (self.height + 1) // 2  # take half, plus one for odd width
-        self._original_mirror_area = self.make_area(0, 0, self.width, top_height, tags=["original"])
-        self.make_area(0, top_height, self.width, self.height - top_height, tags=["mirrored"])
+        original_area = _make_area_if_positive(self, 0, 0, self.width, top_height, ["original"])
+        self._original_mirror_area = original_area or self.area
+
+        mirrored_height = self.height - top_height
+        _make_area_if_positive(self, 0, top_height, self.width, mirrored_height, ["mirrored"])
 
 
 class X4MirrorConfig(InnerMirrorConfig):
@@ -107,10 +126,15 @@ class X4Mirror(Scene[X4MirrorConfig]):
     def render(self):
         sub_width = (self.width + 1) // 2  # take half, plus one for odd width
         sub_height = (self.height + 1) // 2  # take half, plus one for odd width
-        self._original_mirror_area = self.make_area(0, 0, sub_width, sub_height, tags=["original"])
-        self.make_area(sub_width, 0, self.width - sub_width, sub_height, tags=["mirrored_x"])
-        self.make_area(0, sub_height, sub_width, self.height - sub_height, tags=["mirrored_y"])
-        self.make_area(sub_width, sub_height, self.width - sub_width, self.height - sub_height, tags=["mirrored_xy"])
+        original_area = _make_area_if_positive(self, 0, 0, sub_width, sub_height, ["original"])
+        self._original_mirror_area = original_area or self.area
+
+        mirrored_width = self.width - sub_width
+        mirrored_height = self.height - sub_height
+
+        _make_area_if_positive(self, sub_width, 0, mirrored_width, sub_height, ["mirrored_x"])
+        _make_area_if_positive(self, 0, sub_height, sub_width, mirrored_height, ["mirrored_y"])
+        _make_area_if_positive(self, sub_width, sub_height, mirrored_width, mirrored_height, ["mirrored_xy"])
 
 
 class MirroredConfig(SceneConfig):

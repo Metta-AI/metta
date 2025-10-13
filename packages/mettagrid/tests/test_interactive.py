@@ -10,6 +10,7 @@ import time
 
 import numpy as np
 
+from mettagrid import dtype_actions
 from mettagrid.builder.envs import make_arena
 from mettagrid.config.mettagrid_config import (
     ActionConfig,
@@ -23,6 +24,7 @@ from mettagrid.envs.gym_env import MettaGridGymEnv
 from mettagrid.envs.mettagrid_env import MettaGridEnv
 from mettagrid.envs.pettingzoo_env import MettaGridPettingZooEnv
 from mettagrid.map_builder.ascii import AsciiMapBuilder
+from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME
 
 
 def test_puffer_env():
@@ -49,9 +51,7 @@ def test_puffer_env():
     total_reward = 0
     for step in range(20):
         # Random actions - in a real game these would be from policies
-        actions = np.random.randint(
-            0, min(3, env.single_action_space.nvec.max()), size=(env.num_agents, 2), dtype=np.int32
-        )
+        actions = np.random.randint(0, env.single_action_space.n, size=env.num_agents).astype(dtype_actions, copy=False)
 
         obs, rewards, terminals, truncations, _ = env.step(actions)
         total_reward += rewards.sum()
@@ -97,6 +97,7 @@ def test_gym_env():
                     ["#", ".", ".", ".", "#"],
                     ["#", "#", "#", "#", "#"],
                 ],
+                char_to_name_map=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
@@ -116,7 +117,7 @@ def test_gym_env():
     total_reward = 0.0
     for step in range(20):
         # Random action - in a real game this would be from a policy
-        action = np.random.randint(0, min(3, env.action_space.nvec.max()), size=2, dtype=np.int32)
+        action = int(np.random.randint(0, env.action_space.n))
 
         obs, reward, terminated, truncated, _ = env.step(action)
         total_reward += reward
@@ -163,6 +164,7 @@ def test_pettingzoo_env():
                     ["#", ".", ".", ".", ".", ".", "#"],
                     ["#", "#", "#", "#", "#", "#", "#"],
                 ],
+                char_to_name_map=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
@@ -184,7 +186,8 @@ def test_pettingzoo_env():
         # Random actions for all active agents
         actions = {}
         for agent in env.agents:
-            actions[agent] = np.random.randint(0, min(3, env.action_space(agent).nvec.max()), size=2, dtype=np.int32)
+            action_space = env.action_space(agent)
+            actions[agent] = int(np.random.randint(0, action_space.n))
 
         observations, rewards, _, _, _ = env.step(actions)
 

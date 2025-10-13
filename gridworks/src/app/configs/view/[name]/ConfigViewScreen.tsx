@@ -4,6 +4,7 @@ import { ConfigViewer } from "@/components/ConfigViewer";
 import { Tab, Tabs } from "@/components/Tabs";
 import { Config } from "@/lib/api";
 
+import { ExploreNamedMettaGridConfigs } from "./ExploreNamedMettaGridConfigs";
 import { ExploreSimulations } from "./ExploreSimulations";
 import { MapSection } from "./MapSection";
 import { RunToolSection } from "./RunToolSection";
@@ -23,6 +24,18 @@ export const ConfigViewScreen: FC<{ cfg: Config }> = ({ cfg }) => {
     });
   }
 
+  if (cfg.maker.kind === "Dict[str, MettaGridConfig]") {
+    tabs.push({
+      id: "explore",
+      label: "Explore",
+      content: (
+        <div className="pt-4">
+          <ExploreNamedMettaGridConfigs cfg={cfg} />
+        </div>
+      ),
+    });
+  }
+
   tabs.push({
     id: "config",
     label: "Config",
@@ -31,6 +44,7 @@ export const ConfigViewScreen: FC<{ cfg: Config }> = ({ cfg }) => {
         <ConfigViewer
           value={cfg.config.value}
           unsetFields={cfg.config.unset_fields}
+          kind={cfg.maker.kind}
         />
       </div>
     ),

@@ -5,8 +5,8 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
-#include <map>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "core/grid_object.hpp"
@@ -20,9 +20,10 @@ struct AssemblerConfig : public GridObjectConfig {
         input_recipe_offset(0),
         output_recipe_offset(0),
         allow_partial_usage(false),
-        max_uses(0),           // 0 means unlimited uses
-        exhaustion(0.0f),      // 0 means no exhaustion
-        clip_immune(false) {}  // Not immune by default
+        max_uses(0),             // 0 means unlimited uses
+        exhaustion(0.0f),        // 0 means no exhaustion
+        clip_immune(false),      // Not immune by default
+        start_clipped(false) {}  // Not clipped at start by default
 
   // Recipes will be set separately via initialize_recipes()
   std::vector<std::shared_ptr<Recipe>> recipes;
@@ -42,6 +43,9 @@ struct AssemblerConfig : public GridObjectConfig {
 
   // Clip immunity - if true, this assembler cannot be clipped
   bool clip_immune;
+
+  // Start clipped - if true, this assembler starts in a clipped state
+  bool start_clipped;
 };
 
 namespace py = pybind11;
@@ -60,7 +64,8 @@ inline void bind_assembler_config(py::module& m) {
       .def_readwrite("allow_partial_usage", &AssemblerConfig::allow_partial_usage)
       .def_readwrite("max_uses", &AssemblerConfig::max_uses)
       .def_readwrite("exhaustion", &AssemblerConfig::exhaustion)
-      .def_readwrite("clip_immune", &AssemblerConfig::clip_immune);
+      .def_readwrite("clip_immune", &AssemblerConfig::clip_immune)
+      .def_readwrite("start_clipped", &AssemblerConfig::start_clipped);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_ASSEMBLER_CONFIG_HPP_

@@ -35,7 +35,7 @@ run: |
   fi
   . .venv/bin/activate
 
-  echo "[SETUP] Setting up Python environment..."
+  echo "Setting up Python environment..."
   uv sync
 
   bash ./devops/skypilot/config/lifecycle/configure_environment.sh
@@ -43,8 +43,7 @@ run: |
   METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
   source "$METTA_ENV_FILE"
 
-  echo "Starting bash shell..."
-  exec bash
+  echo "Sandbox setup complete. Ready for SSH."
 
 envs:
   GITHUB_REPOSITORY: Metta-AI/metta

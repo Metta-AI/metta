@@ -23,15 +23,14 @@ public:
   // inventory is a map of item to amount.
   // keys should be deleted when the amount is 0, to keep iteration faster.
   // however, this should not be relied on for correctness.
-  std::map<std::string, RewardType> stat_rewards;
-  std::map<std::string, RewardType> stat_reward_max;
+  std::unordered_map<std::string, RewardType> stat_rewards;
+  std::unordered_map<std::string, RewardType> stat_reward_max;
   float action_failure_penalty;
   std::string group_name;
   // We expect only a small number (single-digit) of soul-bound resources.
   std::vector<InventoryItem> soul_bound_resources;
   // Resources that this agent will try to share when it uses another agent.
   std::vector<InventoryItem> shareable_resources;
-  ObservationType color;
   ObservationType glyph;
   // Despite being a GridObjectId, this is different from the `id` property.
   // This is the index into MettaGrid._agents (std::vector<Agent*>)
@@ -46,7 +45,7 @@ public:
   std::string prev_action_name;
   unsigned int steps_without_motion;
   // Inventory regeneration amounts (per-agent)
-  std::map<InventoryItem, InventoryQuantity> inventory_regen_amounts;
+  std::unordered_map<InventoryItem, InventoryQuantity> inventory_regen_amounts;
 
   Agent(GridCoord r, GridCoord c, const AgentConfig& config, const std::vector<std::string>* resource_names)
       : GridObject(),
@@ -61,7 +60,6 @@ public:
         group_name(config.group_name),
         soul_bound_resources(config.soul_bound_resources),
         shareable_resources(config.shareable_resources),
-        color(0),
         glyph(0),
         agent_id(0),
         stats(resource_names),
@@ -79,7 +77,7 @@ public:
     this->reward = reward_ptr;
   }
 
-  void populate_initial_inventory(const std::map<InventoryItem, InventoryQuantity>& initial_inventory) {
+  void populate_initial_inventory(const std::unordered_map<InventoryItem, InventoryQuantity>& initial_inventory) {
     for (const auto& [item, amount] : initial_inventory) {
       this->update_inventory(item, amount);
     }
@@ -123,7 +121,7 @@ public:
     return counts;
   }
 
-  void set_inventory(const std::map<InventoryItem, InventoryQuantity>& inventory) {
+  void set_inventory(const std::unordered_map<InventoryItem, InventoryQuantity>& inventory) {
     // First, remove items that are not present in the provided inventory map
     // Make a copy of current item keys to avoid iterator invalidation
     std::vector<InventoryItem> existing_items;
@@ -216,7 +214,6 @@ public:
     features.push_back({ObservationFeature::Group, static_cast<ObservationType>(group)});
     features.push_back({ObservationFeature::Frozen, static_cast<ObservationType>(frozen != 0 ? 1 : 0)});
     features.push_back({ObservationFeature::Orientation, static_cast<ObservationType>(orientation)});
-    features.push_back({ObservationFeature::Color, static_cast<ObservationType>(color)});
     if (glyph != 0) features.push_back({ObservationFeature::Glyph, static_cast<ObservationType>(glyph)});
 
     for (const auto& [item, amount] : this->inventory.get()) {

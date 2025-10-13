@@ -5,7 +5,8 @@ import Link from "next/link";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { FC, PropsWithChildren, Suspense } from "react";
 
-import { RepoRootProvider } from "@/components/RepoRootContext";
+import { JsonSchemasProvider } from "@/components/global-contexts/JsonSchemasContext";
+import { RepoRootProvider } from "@/components/global-contexts/RepoRootContext";
 import { getRepoRoot } from "@/lib/api";
 import { configsRoute, mapEditorRoute } from "@/lib/routes";
 
@@ -19,9 +20,11 @@ const GlobalProviders: FC<PropsWithChildren> = async ({ children }) => {
   const repoRoot = await getRepoRoot();
   return (
     <RepoRootProvider root={repoRoot}>
-      <Suspense>
-        <NuqsAdapter>{children}</NuqsAdapter>
-      </Suspense>
+      <JsonSchemasProvider>
+        <Suspense>
+          <NuqsAdapter>{children}</NuqsAdapter>
+        </Suspense>
+      </JsonSchemasProvider>
     </RepoRootProvider>
   );
 };

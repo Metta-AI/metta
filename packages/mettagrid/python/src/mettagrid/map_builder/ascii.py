@@ -1,8 +1,12 @@
+from __future__ import annotations
+
+from typing import Annotated, Any
+
 import numpy as np
-from pydantic import Field, model_validator
+from pydantic import StringConstraints, field_validator
 
 from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
-from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME
+from mettagrid.mapgen.utils.ascii_grid import merge_with_global_defaults
 
 
 class AsciiMapBuilder(MapBuilder):
@@ -12,12 +16,37 @@ class AsciiMapBuilder(MapBuilder):
 
     class Config(MapBuilderConfig["AsciiMapBuilder"]):
         map_data: list[list[str]]
-        char_to_name_map: dict[str, str] = Field(default_factory=dict)
+        char_to_name_map: dict[
+            Annotated[str, StringConstraints(min_length=1, max_length=1)],  # keys are single characters
+            Annotated[str, StringConstraints(pattern=r"^[\w\.]+$")],  # values are object names
+        ]
 
-        @model_validator(mode="after")
-        def validate_char_to_name_map(self) -> "AsciiMapBuilder.Config":
-            self.char_to_name_map = DEFAULT_CHAR_TO_NAME | self.char_to_name_map
-            return self
+        @field_validator("map_data", mode="before")
+        @classmethod
+        def _validate_multiline_map_data(cls, value: Any):
+            # coerce single multi-line string -> list[list[str]]
+            if isinstance(value, str):
+                return [list(line) for line in value.splitlines()]
+            # coerce list[str] -> list[list[str]]
+            if isinstance(value, list) and isinstance(value[0], str):
+                return [list(line) for line in value]
+            return value
+
+        @field_validator("map_data", mode="after")
+        @classmethod
+        def _validate_map_data_lines(cls, map_data: list[str]):
+            width = len(map_data[0])
+            for i, line in enumerate(map_data):
+                assert len(line) == width, (
+                    f"Line {i} has length {len(line)}, expected {width}. "
+                    f"All lines in ASCII map must have the same length."
+                )
+            return map_data
+
+        @field_validator("char_to_name_map", mode="after")
+        @classmethod
+        def _validate_char_to_name_map(cls, value: dict[str, str]):
+            return merge_with_global_defaults(value)
 
         @property
         def width(self) -> int:
@@ -27,27 +56,8 @@ class AsciiMapBuilder(MapBuilder):
         def height(self) -> int:
             return len(self.map_data)
 
-        @classmethod
-        def from_uri(cls, uri: str, char_to_name_map: dict[str, str] | None = None) -> "AsciiMapBuilder.Config":
-            with open(uri, "r", encoding="utf-8") as f:
-                ascii_map = f.read()
-            lines = ascii_map.strip().splitlines()
-            return cls(
-                map_data=[list(line) for line in lines],
-                char_to_name_map=char_to_name_map or {},
-            )
-
     def __init__(self, config: Config):
         self.config = config
-
-        # Assert all lines are the same length
-        if config.map_data:
-            expected_length = len(config.map_data[0])
-            for i, line in enumerate(config.map_data):
-                assert len(line) == expected_length, (
-                    f"Line {i} has length {len(line)}, expected {expected_length}. "
-                    f"All lines in ASCII map must have the same length."
-                )
 
         self._level = np.array([list(line) for line in config.map_data], dtype="U6")
         self._level = np.vectorize(self._char_to_object_name)(self._level)

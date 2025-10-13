@@ -112,6 +112,11 @@ identified-figures/
 # TODO - remove after troubleshooting stability and re-add to keys in .github/workflows/checks.yml
 mettagrid/MODULE.bazel.lock
 
+# Stable Release System
+devops/stable/state/
+devops/stable/logs/
+devops/stable/release-notes/
+
 # skypilot testing
 recipe_test_jobs.json
 cluster_test_jobs.json
@@ -123,6 +128,10 @@ mettascope.out
 !packages/mettagrid/nim/mettascope/data/resources/
 tmp/
 packages/mettagrid/python/src/mettagrid/nim/mettascope/
+agent/src/metta/ops/agalite_kernels/_build/
 
 # Nim runtime
 .nim_runtime
+
+.terraform*
+terraform.tfstate

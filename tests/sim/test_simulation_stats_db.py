@@ -442,7 +442,8 @@ def test_sequential_policy_merges(tmp_path: Path):
     assert policy_b_found, "Policy B not found in result database"
 
     # Verify policy count
-    all_policies = result_db.get_all_policy_uris()
+    rows = result_db.con.execute("SELECT DISTINCT policy_key, policy_version FROM simulations").fetchall()
+    all_policies = [f"{row[0]}:v{row[1]}" for row in rows]
     assert len(all_policies) == 2, f"Expected 2 policies, got {len(all_policies)}: {all_policies}"
 
     result_db.close()
@@ -468,7 +469,8 @@ def test_export_preserves_all_policies(tmp_path: Path):
 
     # Check exported database
     exported_db = SimulationStatsDB(export_path)
-    policies = exported_db.get_all_policy_uris()
+    rows = exported_db.con.execute("SELECT DISTINCT policy_key, policy_version FROM simulations").fetchall()
+    policies = [f"{row[0]}:v{row[1]}" for row in rows]
 
     # Should have both policies
     assert "policy_X:v1" in policies, f"policy_X:v1 not found in {policies}"
@@ -494,7 +496,8 @@ def test_export_preserves_all_policies(tmp_path: Path):
 
     # Check the updated export - should contain all three policies
     final_db = SimulationStatsDB(export_path)
-    final_policies = final_db.get_all_policy_uris()
+    rows = final_db.con.execute("SELECT DISTINCT policy_key, policy_version FROM simulations").fetchall()
+    final_policies = [f"{row[0]}:v{row[1]}" for row in rows]
 
     # Should have all three policies
     assert "policy_X:v1" in final_policies, f"policy_X:v1 not found in {final_policies}"

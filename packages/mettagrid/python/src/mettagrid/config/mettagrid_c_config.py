@@ -267,7 +267,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 conversion_ticks=object_config.conversion_ticks,
                 cooldown=object_config.cooldown,
                 initial_resource_count=object_config.initial_resource_count,
-                color=object_config.color,
                 recipe_details_obs=game_config.recipe_details_obs,
                 tag_ids=tag_ids,
             )
@@ -319,6 +318,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_assembler_config.max_uses = object_config.max_uses
             cpp_assembler_config.exhaustion = object_config.exhaustion
             cpp_assembler_config.clip_immune = object_config.clip_immune
+            cpp_assembler_config.start_clipped = object_config.start_clipped
             objects_cpp_params[object_type] = cpp_assembler_config
         elif isinstance(object_config, ChestConfig):
             # Convert resource type name to ID

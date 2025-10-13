@@ -1,9 +1,9 @@
 #ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_ASSEMBLER_HPP_
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_ASSEMBLER_HPP_
 
-#include <map>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "core/grid.hpp"
@@ -33,6 +33,7 @@ private:
         }
       }
     }
+
     return positions;
   }
 
@@ -62,7 +63,7 @@ private:
 
   // Check if agents have sufficient resources for the given recipe
   bool can_afford_recipe(const Recipe& recipe, const std::vector<Agent*>& surrounding_agents) const {
-    std::map<InventoryItem, InventoryQuantity> total_resources;
+    std::unordered_map<InventoryItem, InventoryQuantity> total_resources;
     for (Agent* agent : surrounding_agents) {
       for (const auto& [item, amount] : agent->inventory.get()) {
         total_resources[item] = static_cast<InventoryQuantity>(total_resources[item] + amount);
@@ -81,6 +82,16 @@ private:
     for (const auto& [item, amount] : recipe.output_resources) {
       agent.update_inventory(item, static_cast<InventoryDelta>(amount));
     }
+  }
+
+  // Returns true if the recipe yields any positive output amount (legacy name retained for compatibility)
+  bool recipe_has_positive_output(const Recipe& recipe) const {
+    for (const auto& [item, amount] : recipe.output_resources) {
+      if (amount > 0) {
+        return true;
+      }
+    }
+    return false;
   }
 
 public:
@@ -110,6 +121,9 @@ public:
 
   // Clip immunity - if true, cannot be clipped
   bool clip_immune;
+
+  // Start clipped - if true, starts in clipped state
+  bool start_clipped;
 
   // Current cooldown state
   unsigned int cooldown_end_timestep;
@@ -145,6 +159,7 @@ public:
         unclip_recipes(),
         is_clipped(false),
         clip_immune(cfg.clip_immune),
+        start_clipped(cfg.start_clipped),
         cooldown_end_timestep(0),
         cooldown_duration(0),
         uses_count(0),
@@ -294,6 +309,14 @@ public:
     Recipe recipe_to_use = *original_recipe;
     if (progress < 1.0f && allow_partial_usage) {
       recipe_to_use = scale_recipe_for_partial_usage(*original_recipe, progress);
+
+      // Prevent usage that would yield no outputs (and would only serve to burn inputs and increment uses_count)
+      // Do not prevent usage if:
+      // - the unscaled recipe does not have outputs
+      // - usage would unclip the assembler; the unscaled unclipping recipe may happen to include outputs
+      if (!recipe_has_positive_output(recipe_to_use) && recipe_has_positive_output(*original_recipe) && !is_clipped) {
+        return false;
+      }
     }
 
     std::vector<Agent*> surrounding_agents = get_surrounding_agents();

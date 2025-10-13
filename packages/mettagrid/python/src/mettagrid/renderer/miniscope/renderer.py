@@ -41,6 +41,7 @@ class MiniscopeRenderer:
         map_width: int = 0,
     ):
         self._object_type_names = object_type_names
+        self._resource_names = game_config.resource_names
         self._symbol_map = DEFAULT_SYMBOL_MAP | {
             **{o.name: o.render_symbol for o in game_config.objects.values()},
         }
@@ -103,10 +104,19 @@ class MiniscopeRenderer:
         resource_names: List[str],
         panel_height: int,
         total_rewards: np.ndarray,
+        glyphs: list[str] | None = None,
     ) -> List[str]:
         """Build info panel (for backward compatibility with tests)."""
         return build_agent_info_panel(
-            grid_objects, self._object_type_names, selected_agent, resource_names, panel_height, total_rewards
+            grid_objects,
+            self._object_type_names,
+            selected_agent,
+            resource_names,
+            panel_height,
+            total_rewards,
+            glyphs,
+            self._symbol_map,
+            None,  # manual_agents not available in this context
         )
 
     def _build_object_info_panel(
@@ -188,6 +198,7 @@ class MiniscopeRenderer:
         get_actions_fn: Callable[[np.ndarray, Optional[int], Optional[int | tuple]], np.ndarray],
         max_steps: Optional[int] = None,
         target_fps: int = 4,
+        glyphs: list[str] | None = None,
     ) -> Dict[str, any]:
         """Run interactive rendering loop with keyboard controls.
 
@@ -197,10 +208,18 @@ class MiniscopeRenderer:
                            and returns actions for all agents
             max_steps: Maximum steps to run (None for unlimited)
             target_fps: Target frames per second when playing
+            glyphs: Optional list of glyph symbols for display
 
         Returns:
             Dict with final statistics
         """
         return run_interactive_loop(
-            env, self._object_type_names, self._symbol_map, get_actions_fn, max_steps, target_fps
+            env,
+            self._object_type_names,
+            self._symbol_map,
+            get_actions_fn,
+            max_steps,
+            target_fps,
+            glyphs,
+            self._resource_names,
         )

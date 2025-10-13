@@ -40,7 +40,6 @@ class TestConverterObservations:
                 get_items=ActionConfig(enabled=True),
                 attack=AttackActionConfig(enabled=False),
                 swap=ActionConfig(enabled=False),
-                change_color=ActionConfig(enabled=False),
                 change_glyph=ChangeGlyphActionConfig(enabled=False, number_of_glyphs=0),
             ),
             objects={
@@ -66,7 +65,6 @@ class TestConverterObservations:
             conversion_ticks=5,
             cooldown=10,
             initial_resource_count=0,
-            color=1,
         )
         game_config.objects["altar"] = ConverterConfig(
             type_id=3,
@@ -76,7 +74,6 @@ class TestConverterObservations:
             conversion_ticks=10,
             cooldown=20,
             initial_resource_count=0,
-            color=2,
         )
 
         # Create a simple map with agent and converters

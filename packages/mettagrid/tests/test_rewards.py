@@ -64,7 +64,6 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
                 defense_resources={"armor": 1},
             ),
             swap=ActionConfig(enabled=True),
-            change_color=ActionConfig(enabled=True),
             change_glyph=ChangeGlyphActionConfig(enabled=False, number_of_glyphs=4),
         ),
         objects={
@@ -89,7 +88,7 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
     return MettaGrid(from_mettagrid_config(game_config), game_map, 42)
 
 
-def perform_action(env, action_name, arg=0):
+def perform_action(env, action_name):
     """Perform a single action and return results."""
     available_actions = env.action_names()
 
@@ -97,8 +96,7 @@ def perform_action(env, action_name, arg=0):
         raise ValueError(f"Unknown action '{action_name}'. Available actions: {available_actions}")
 
     action_idx = available_actions.index(action_name)
-    action = np.zeros((NUM_AGENTS, 2), dtype=dtype_actions)
-    action[0] = [action_idx, arg]
+    action = np.full((NUM_AGENTS,), action_idx, dtype=dtype_actions)
     obs, rewards, _terminals, _truncations, _info = env.step(action)
     return obs, float(rewards[0]), env.action_success()[0]
 
@@ -124,7 +122,7 @@ def collect_heart_from_altar(env):
             return False, 0.0
 
     # Collect heart from adjacent altar
-    _obs, reward, success = perform_action(env, "get_items", 0)
+    _obs, reward, success = perform_action(env, "get_items")
     return success, reward
 
 

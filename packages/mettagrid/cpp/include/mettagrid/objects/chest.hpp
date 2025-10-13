@@ -1,8 +1,8 @@
 #ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_CHEST_HPP_
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_CHEST_HPP_
 
-#include <map>
 #include <set>
+#include <unordered_map>
 #include <vector>
 
 #include "core/event.hpp"
@@ -76,7 +76,8 @@ private:
       InventoryDelta deposited = update_inventory(resource_type, transfer_amount);
       agent.update_inventory(resource_type, -transfer_amount);
       stats_tracker->add("chest." + stats_tracker->resource_name(resource_type) + ".deposited", transfer_amount);
-      stats_tracker->set("chest." + stats_tracker->resource_name(resource_type) + ".amount", inventory.amount(resource_type));
+      stats_tracker->set("chest." + stats_tracker->resource_name(resource_type) + ".amount",
+                         inventory.amount(resource_type));
 
       // If we couldn't transfer the full delta due to max_inventory, destroy the rest
       int destroyed = delta - transfer_amount;
@@ -98,7 +99,8 @@ private:
       if (withdrawn > 0) {
         update_inventory(resource_type, -withdrawn);
         stats_tracker->add("chest." + stats_tracker->resource_name(resource_type) + ".withdrawn", withdrawn);
-        stats_tracker->set("chest." + stats_tracker->resource_name(resource_type) + ".amount", inventory.amount(resource_type));
+        stats_tracker->set("chest." + stats_tracker->resource_name(resource_type) + ".amount",
+                           inventory.amount(resource_type));
         return true;
       }
       return false;
@@ -109,8 +111,8 @@ private:
 public:
   // Configuration
   InventoryItem resource_type;
-  std::map<int, int> position_deltas;  // position_index -> delta
-  int max_inventory;                   // Maximum inventory (-1 = unlimited)
+  std::unordered_map<int, int> position_deltas;  // position_index -> delta
+  int max_inventory;                             // Maximum inventory (-1 = unlimited)
 
   // Grid access for finding agent positions
   class Grid* grid;
@@ -163,7 +165,6 @@ public:
     features.reserve(2 + this->inventory.get().size() + this->tag_ids.size());
 
     features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
-    features.push_back({ObservationFeature::Color, static_cast<ObservationType>(this->resource_type)});
 
     // Add current inventory (inv:resource)
     for (const auto& [item, amount] : this->inventory.get()) {

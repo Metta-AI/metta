@@ -34,7 +34,7 @@ def evaluate_policy(
     stats_dir = stats_dir or "/tmp/stats"
 
     logger.info(f"Evaluating checkpoint {checkpoint_uri}")
-    if not is_unique([sim.name for sim in simulations]):
+    if not is_unique([sim.full_name for sim in simulations]):
         raise ValueError("Simulation names must be unique")
 
     sims = [
