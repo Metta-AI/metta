@@ -1,30 +1,23 @@
-"""Level 1 - Basic: Easiest difficulty with maximum reward shaping.
+"""Dense rewards × Easy task complexity.
 
-This recipe provides the most guidance through:
+2-Axis Grid Position:
+- Reward Shaping: Dense (high intermediate rewards 0.5-0.9)
+- Task Complexity: Easy (15×15 map, 12 agents, no combat)
+
+This configuration provides the most guidance through:
 - High intermediate rewards for all resources
 - Easy converter ratios (1:1 instead of 3:1)
 - Combat disabled (high laser cost)
 - Initial resources in buildings
 - Smaller map size for faster learning
+
+Use case: Test basic learning capabilities and fast prototyping
 """
 
 from typing import List, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from metta.agent.policies.agalite import AGaLiTeConfig
-from metta.agent.policies.fast import FastConfig
-from metta.agent.policies.fast_dynamics import FastDynamicsConfig
-from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
-from metta.agent.policies.gtrxl import gtrxl_policy_config
-from metta.agent.policies.memory_free import MemoryFreeConfig
-from metta.agent.policies.puffer import PufferPolicyConfig
-from metta.agent.policies.transformer import TransformerPolicyConfig
-from metta.agent.policies.trxl import trxl_policy_config
-from metta.agent.policies.trxl_nvidia import trxl_nvidia_policy_config
-from metta.agent.policies.vit import ViTDefaultConfig
-from metta.agent.policies.vit_reset import ViTResetConfig
-from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -35,25 +28,11 @@ from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from mettagrid.config import ConverterConfig
 
-ARCHITECTURES = {
-    "vit": ViTDefaultConfig(),
-    "vit_sliding": ViTSlidingTransConfig(),
-    "vit_reset": ViTResetConfig(),
-    "transformer": TransformerPolicyConfig(),
-    "fast": FastConfig(),
-    "fast_lstm_reset": FastLSTMResetConfig(),
-    "fast_dynamics": FastDynamicsConfig(),
-    "memory_free": MemoryFreeConfig(),
-    "agalite": AGaLiTeConfig(),
-    "gtrxl": gtrxl_policy_config(),
-    "trxl": trxl_policy_config(),
-    "trxl_nvidia": trxl_nvidia_policy_config(),
-    "puffer": PufferPolicyConfig(),
-}
+from experiments.recipes.benchmark_architectures.adaptive import ARCHITECTURES
 
 
 def make_mettagrid(num_agents: int = 12) -> MettaGridConfig:
-    """Create a basic arena environment with maximum reward shaping."""
+    """Create a basic arena environment with dense reward shaping."""
     arena_env = eb.make_arena(num_agents=num_agents, combat=False)
 
     # Small map for faster learning
@@ -100,15 +79,15 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
     """Create evaluation configurations."""
     basic_env = env or make_mettagrid()
     return [
-        SimulationConfig(suite="benchmark_arch", name="level_1_basic", env=basic_env),
+        SimulationConfig(suite="benchmark_arch", name="dense_easy", env=basic_env),
     ]
 
 
 def train(
     curriculum: Optional[CurriculumConfig] = None,
-    arch_type: str = "fast",  # (vit | vit_sliding | vit_reset | transformer | fast | fast_lstm_reset | fast_dynamics | memory_free | agalite | gtrxl | trxl | trxl_nvidia | puffer)
+    arch_type: str = "fast",
 ) -> TrainTool:
-    """Train on Level 1 - Basic difficulty."""
+    """Train on dense rewards × easy complexity."""
     if curriculum is None:
         env = make_mettagrid()
         curriculum = cc.env_curriculum(env)
@@ -126,7 +105,7 @@ def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     """Interactive play tool."""
     eval_env = env or make_mettagrid()
     return PlayTool(
-        sim=SimulationConfig(suite="benchmark_arch", env=eval_env, name="level_1_basic")
+        sim=SimulationConfig(suite="benchmark_arch", env=eval_env, name="dense_easy")
     )
 
 
@@ -134,14 +113,14 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     """Replay tool for recorded games."""
     eval_env = env or make_mettagrid()
     return ReplayTool(
-        sim=SimulationConfig(suite="benchmark_arch", env=eval_env, name="level_1_basic")
+        sim=SimulationConfig(suite="benchmark_arch", env=eval_env, name="dense_easy")
     )
 
 
 def evaluate(
     policy_uris: str | Sequence[str] | None = None,
 ) -> EvaluateTool:
-    """Evaluate a policy on Level 1 - Basic."""
+    """Evaluate a policy on dense rewards × easy complexity."""
     return EvaluateTool(
         simulations=make_evals(),
         policy_uris=policy_uris,

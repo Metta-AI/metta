@@ -1,11 +1,17 @@
-"""Level 2 - Easy: Reduced reward shaping, still beginner-friendly.
+"""Sparse rewards × Medium task complexity.
 
-This recipe reduces some guidance while maintaining accessibility:
-- Moderate intermediate rewards (lower than Level 1)
-- Standard converter ratios (3:1)
-- Combat still disabled
-- No initial resources in buildings
-- Standard map size
+2-Axis Grid Position:
+- Reward Shaping: Sparse (minimal intermediate rewards 0.01-0.3)
+- Task Complexity: Medium (20×20 map, 20 agents, optional combat)
+
+This configuration tests:
+- Sparse reward shaping for exploration and credit assignment
+- Standard map size and agent count
+- Combat can be enabled/disabled
+- Low intermediate rewards require good credit assignment
+- Dual evaluation: basic (no combat) and combat modes
+
+Use case: Test exploration and credit assignment at medium complexity
 """
 
 from typing import List, Optional, Sequence
@@ -20,57 +26,65 @@ from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
-from experiments.recipes.benchmark_architectures.level_1_basic import ARCHITECTURES
+
+from experiments.recipes.benchmark_architectures.adaptive import ARCHITECTURES
 
 
-def make_mettagrid(num_agents: int = 18) -> MettaGridConfig:
-    """Create an easy arena environment with moderate reward shaping."""
-    arena_env = eb.make_arena(num_agents=num_agents, combat=False)
+def make_mettagrid(num_agents: int = 20) -> MettaGridConfig:
+    """Create a medium complexity arena with sparse reward shaping."""
+    arena_env = eb.make_arena(num_agents=num_agents, combat=True)
 
     # Standard map size
     arena_env.game.map_builder.width = 20
     arena_env.game.map_builder.height = 20
 
-    # Moderate rewards for intermediate items
+    # Sparse intermediate rewards
     arena_env.game.agent.rewards.inventory = {
         "heart": 1,
-        "ore_red": 0.2,  # Moderate reward for mining
-        "battery_red": 0.7,  # Moderate reward for conversion
-        "laser": 0.4,
-        "armor": 0.4,
-        "blueprint": 0.3,
+        "ore_red": 0.1,
+        "battery_red": 0.3,
+        "laser": 0.2,
+        "armor": 0.2,
+        "blueprint": 0.1,
     }
     arena_env.game.agent.rewards.inventory_max = {
         "heart": 100,
         "ore_red": 1,
-        "battery_red": 2,
+        "battery_red": 1,
         "laser": 1,
         "armor": 1,
         "blueprint": 1,
     }
 
-    # Standard converter ratios (3:1) - no modification needed
-    # No initial resources in buildings - default behavior
-
-    # Combat disabled
-    arena_env.game.actions.attack.consumed_resources["laser"] = 100
+    # Combat enabled with normal cost
+    arena_env.game.actions.attack.consumed_resources["laser"] = 1
 
     return arena_env
 
 
 def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
-    """Create evaluation configurations."""
+    """Create evaluation configurations with both basic and combat modes."""
     basic_env = env or make_mettagrid()
+    basic_env.game.actions.attack.consumed_resources["laser"] = 100
+
+    combat_env = basic_env.model_copy()
+    combat_env.game.actions.attack.consumed_resources["laser"] = 1
+
     return [
-        SimulationConfig(suite="benchmark_arch", name="level_2_easy", env=basic_env),
+        SimulationConfig(
+            suite="benchmark_arch", name="sparse_medium_basic", env=basic_env
+        ),
+        SimulationConfig(
+            suite="benchmark_arch", name="sparse_medium_combat", env=combat_env
+        ),
     ]
 
 
 def train(
     curriculum: Optional[CurriculumConfig] = None,
-    arch_type: str = "fast",  # (vit | vit_sliding | vit_reset | transformer | fast | fast_lstm_reset | fast_dynamics | memory_free | agalite | gtrxl | trxl | trxl_nvidia | puffer)
+    arch_type: str = "fast",
 ) -> TrainTool:
-    """Train on Level 2 - Easy difficulty."""
+    """Train on sparse rewards × medium complexity."""
     if curriculum is None:
         env = make_mettagrid()
         curriculum = cc.env_curriculum(env)
@@ -88,7 +102,7 @@ def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     """Interactive play tool."""
     eval_env = env or make_mettagrid()
     return PlayTool(
-        sim=SimulationConfig(suite="benchmark_arch", env=eval_env, name="level_2_easy")
+        sim=SimulationConfig(suite="benchmark_arch", env=eval_env, name="sparse_medium")
     )
 
 
@@ -96,14 +110,14 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     """Replay tool for recorded games."""
     eval_env = env or make_mettagrid()
     return ReplayTool(
-        sim=SimulationConfig(suite="benchmark_arch", env=eval_env, name="level_2_easy")
+        sim=SimulationConfig(suite="benchmark_arch", env=eval_env, name="sparse_medium")
     )
 
 
 def evaluate(
     policy_uris: str | Sequence[str] | None = None,
 ) -> EvaluateTool:
-    """Evaluate a policy on Level 2 - Easy."""
+    """Evaluate a policy on sparse rewards × medium complexity."""
     return EvaluateTool(
         simulations=make_evals(),
         policy_uris=policy_uris,

@@ -1,12 +1,17 @@
-"""Level 4 - Hard: Sparse rewards with combat and more agents.
+"""Sparse rewards × Hard task complexity.
 
-This recipe significantly reduces reward shaping:
+2-Axis Grid Position:
+- Reward Shaping: Sparse (very sparse intermediate rewards 0.01-0.05)
+- Task Complexity: Hard (25×25 map, 24 agents, full combat)
+
+This configuration tests:
 - Very sparse intermediate rewards
 - Only heart reward is substantial
+- Large map with many agents for increased competition
 - Combat enabled
-- More agents for increased competition
-- Larger map with more complexity
 - Agents must discover effective strategies with minimal guidance
+
+Use case: Test exploration and credit assignment at high complexity
 """
 
 from typing import List, Optional, Sequence
@@ -21,14 +26,15 @@ from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
-from experiments.recipes.benchmark_architectures.level_1_basic import ARCHITECTURES
+
+from experiments.recipes.benchmark_architectures.adaptive import ARCHITECTURES
 
 
 def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
-    """Create a hard difficulty arena with sparse rewards."""
+    """Create a hard complexity arena with sparse rewards."""
     arena_env = eb.make_arena(num_agents=num_agents, combat=True)
 
-    # Standard map size
+    # Large map for complex multi-agent interactions
     arena_env.game.map_builder.width = 25
     arena_env.game.map_builder.height = 25
 
@@ -57,7 +63,7 @@ def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
 
 
 def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
-    """Create evaluation configurations."""
+    """Create evaluation configurations with both basic and combat modes."""
     basic_env = env or make_mettagrid()
     basic_env.game.actions.attack.consumed_resources["laser"] = 100
 
@@ -65,16 +71,20 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
     combat_env.game.actions.attack.consumed_resources["laser"] = 1
 
     return [
-        SimulationConfig(suite="benchmark_arch", name="level_4_basic", env=basic_env),
-        SimulationConfig(suite="benchmark_arch", name="level_4_combat", env=combat_env),
+        SimulationConfig(
+            suite="benchmark_arch", name="sparse_hard_basic", env=basic_env
+        ),
+        SimulationConfig(
+            suite="benchmark_arch", name="sparse_hard_combat", env=combat_env
+        ),
     ]
 
 
 def train(
     curriculum: Optional[CurriculumConfig] = None,
-    arch_type: str = "fast",  # (vit | vit_sliding | vit_reset | transformer | fast | fast_lstm_reset | fast_dynamics | memory_free | agalite | gtrxl | trxl | trxl_nvidia | puffer)
+    arch_type: str = "fast",
 ) -> TrainTool:
-    """Train on Level 4: Hard difficulty."""
+    """Train on sparse rewards × hard complexity."""
     if curriculum is None:
         env = make_mettagrid()
         curriculum = cc.env_curriculum(env)
@@ -92,7 +102,7 @@ def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     """Interactive play tool."""
     eval_env = env or make_mettagrid()
     return PlayTool(
-        sim=SimulationConfig(suite="benchmark_arch", env=eval_env, name="level_4_hard")
+        sim=SimulationConfig(suite="benchmark_arch", env=eval_env, name="sparse_hard")
     )
 
 
@@ -100,14 +110,14 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     """Replay tool for recorded games."""
     eval_env = env or make_mettagrid()
     return ReplayTool(
-        sim=SimulationConfig(suite="benchmark_arch", env=eval_env, name="level_4_hard")
+        sim=SimulationConfig(suite="benchmark_arch", env=eval_env, name="sparse_hard")
     )
 
 
 def evaluate(
     policy_uris: str | Sequence[str] | None = None,
 ) -> EvaluateTool:
-    """Evaluate a policy on Level 4 - Hard."""
+    """Evaluate a policy on sparse rewards × hard complexity."""
     return EvaluateTool(
         simulations=make_evals(),
         policy_uris=policy_uris,

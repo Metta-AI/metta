@@ -1,13 +1,17 @@
-"""Terminal-only rewards × Easy task complexity.
+"""Moderate rewards × Medium task complexity.
 
 2-Axis Grid Position:
-- Reward Shaping: Terminal-only (only heart reward, no intermediate rewards)
-- Task Complexity: Easy (15×15 map, 12 agents, no combat)
+- Reward Shaping: Moderate (medium intermediate rewards 0.2-0.7)
+- Task Complexity: Medium (20×20 map, 20 agents, no combat)
 
-This configuration tests architecture performance with:
-- No intermediate reward guidance
-- Minimal task complexity
-- Pure exploration test on simple tasks
+This configuration tests:
+- Moderate reward shaping for credit assignment
+- Standard map size and agent count
+- Combat disabled
+- No initial resources in buildings
+- Standard converter ratios (3:1)
+
+Use case: Test learning efficiency with moderate guidance
 """
 
 from typing import List, Optional, Sequence
@@ -26,30 +30,30 @@ from mettagrid import MettaGridConfig
 from experiments.recipes.benchmark_architectures.adaptive import ARCHITECTURES
 
 
-def make_mettagrid(num_agents: int = 12) -> MettaGridConfig:
-    """Create easy complexity arena with terminal-only rewards."""
+def make_mettagrid(num_agents: int = 20) -> MettaGridConfig:
+    """Create a medium complexity arena with moderate reward shaping."""
     arena_env = eb.make_arena(num_agents=num_agents, combat=False)
 
-    # Small map for easier learning
-    arena_env.game.map_builder.width = 15
-    arena_env.game.map_builder.height = 15
+    # Standard map size
+    arena_env.game.map_builder.width = 20
+    arena_env.game.map_builder.height = 20
 
-    # Terminal-only rewards - only heart matters
+    # Moderate rewards for intermediate items
     arena_env.game.agent.rewards.inventory = {
         "heart": 1,
-        "ore_red": 0,
-        "battery_red": 0,
-        "laser": 0,
-        "armor": 0,
-        "blueprint": 0,
+        "ore_red": 0.2,  # Moderate reward for mining
+        "battery_red": 0.7,  # Moderate reward for conversion
+        "laser": 0.4,
+        "armor": 0.4,
+        "blueprint": 0.3,
     }
     arena_env.game.agent.rewards.inventory_max = {
         "heart": 100,
-        "ore_red": 0,
-        "battery_red": 0,
-        "laser": 0,
-        "armor": 0,
-        "blueprint": 0,
+        "ore_red": 1,
+        "battery_red": 2,
+        "laser": 1,
+        "armor": 1,
+        "blueprint": 1,
     }
 
     # Standard converter ratios (3:1) - no modification needed
@@ -65,7 +69,7 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
     """Create evaluation configurations."""
     basic_env = env or make_mettagrid()
     return [
-        SimulationConfig(suite="benchmark_arch", name="terminal_easy", env=basic_env),
+        SimulationConfig(suite="benchmark_arch", name="moderate_medium", env=basic_env),
     ]
 
 
@@ -73,7 +77,7 @@ def train(
     curriculum: Optional[CurriculumConfig] = None,
     arch_type: str = "fast",
 ) -> TrainTool:
-    """Train on terminal-only rewards × easy complexity."""
+    """Train on moderate rewards × medium complexity."""
     if curriculum is None:
         env = make_mettagrid()
         curriculum = cc.env_curriculum(env)
@@ -91,7 +95,9 @@ def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     """Interactive play tool."""
     eval_env = env or make_mettagrid()
     return PlayTool(
-        sim=SimulationConfig(suite="benchmark_arch", env=eval_env, name="terminal_easy")
+        sim=SimulationConfig(
+            suite="benchmark_arch", env=eval_env, name="moderate_medium"
+        )
     )
 
 
@@ -99,14 +105,16 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     """Replay tool for recorded games."""
     eval_env = env or make_mettagrid()
     return ReplayTool(
-        sim=SimulationConfig(suite="benchmark_arch", env=eval_env, name="terminal_easy")
+        sim=SimulationConfig(
+            suite="benchmark_arch", env=eval_env, name="moderate_medium"
+        )
     )
 
 
 def evaluate(
     policy_uris: str | Sequence[str] | None = None,
 ) -> EvaluateTool:
-    """Evaluate a policy on terminal-only rewards × easy complexity."""
+    """Evaluate a policy on moderate rewards × medium complexity."""
     return EvaluateTool(
         simulations=make_evals(),
         policy_uris=policy_uris,

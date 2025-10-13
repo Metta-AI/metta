@@ -38,7 +38,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import NamedTuple
 
-from experiments.recipes.benchmark_architectures.level_1_basic import ARCHITECTURES
 from metta.adaptive.adaptive_config import AdaptiveConfig
 from metta.adaptive.adaptive_controller import AdaptiveController
 from metta.adaptive.dispatcher.local import LocalDispatcher
@@ -47,7 +46,37 @@ from metta.adaptive.models import JobDefinition, JobStatus, RunInfo
 from metta.adaptive.protocols import Dispatcher, ExperimentScheduler
 from metta.adaptive.stores.wandb import WandbStore
 from metta.adaptive.utils import create_eval_job, create_training_job
+from metta.agent.policies.agalite import AGaLiTeConfig
+from metta.agent.policies.fast import FastConfig
+from metta.agent.policies.fast_dynamics import FastDynamicsConfig
+from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
+from metta.agent.policies.gtrxl import gtrxl_policy_config
+from metta.agent.policies.memory_free import MemoryFreeConfig
+from metta.agent.policies.puffer import PufferPolicyConfig
+from metta.agent.policies.transformer import TransformerPolicyConfig
+from metta.agent.policies.trxl import trxl_policy_config
+from metta.agent.policies.trxl_nvidia import trxl_nvidia_policy_config
+from metta.agent.policies.vit import ViTDefaultConfig
+from metta.agent.policies.vit_reset import ViTResetConfig
+from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
 from metta.common.util.constants import PROD_STATS_SERVER_URI
+
+# Architecture configurations for benchmark testing
+ARCHITECTURES = {
+    "vit": ViTDefaultConfig(),
+    "vit_sliding": ViTSlidingTransConfig(),
+    "vit_reset": ViTResetConfig(),
+    "transformer": TransformerPolicyConfig(),
+    "fast": FastConfig(),
+    "fast_lstm_reset": FastLSTMResetConfig(),
+    "fast_dynamics": FastDynamicsConfig(),
+    "memory_free": MemoryFreeConfig(),
+    "agalite": AGaLiTeConfig(),
+    "gtrxl": gtrxl_policy_config(),
+    "trxl": trxl_policy_config(),
+    "trxl_nvidia": trxl_nvidia_policy_config(),
+    "puffer": PufferPolicyConfig(),
+}
 
 
 class GridCell(NamedTuple):
@@ -71,12 +100,11 @@ class GridCell(NamedTuple):
 # Moderate Rewards   │     ✓      │     ✓      │     ✓      │
 # Sparse Rewards     │     ✓      │     ✓      │     ✓      │
 # Terminal Only      │     ✓      │     ✓      │     ✓      │
+# Adaptive Curriculum│     ✓      │     ✓      │     ✓      │
 #
 DEFAULT_GRID: list[GridCell] = [
     # Row 1: Dense rewards (high intermediate rewards 0.5-0.9)
-    GridCell(
-        "dense", "easy", "experiments.recipes.benchmark_architectures.level_1_basic"
-    ),
+    GridCell("dense", "easy", "experiments.recipes.benchmark_architectures.dense_easy"),
     GridCell(
         "dense", "medium", "experiments.recipes.benchmark_architectures.dense_medium"
     ),
@@ -88,7 +116,7 @@ DEFAULT_GRID: list[GridCell] = [
     GridCell(
         "moderate",
         "medium",
-        "experiments.recipes.benchmark_architectures.level_2_easy",
+        "experiments.recipes.benchmark_architectures.moderate_medium",
     ),
     GridCell(
         "moderate", "hard", "experiments.recipes.benchmark_architectures.moderate_hard"
@@ -98,10 +126,10 @@ DEFAULT_GRID: list[GridCell] = [
         "sparse", "easy", "experiments.recipes.benchmark_architectures.sparse_easy"
     ),
     GridCell(
-        "sparse", "medium", "experiments.recipes.benchmark_architectures.level_3_medium"
+        "sparse", "medium", "experiments.recipes.benchmark_architectures.sparse_medium"
     ),
     GridCell(
-        "sparse", "hard", "experiments.recipes.benchmark_architectures.level_4_hard"
+        "sparse", "hard", "experiments.recipes.benchmark_architectures.sparse_hard"
     ),
     # Row 4: Terminal only (only heart reward, no intermediate rewards)
     GridCell(
@@ -117,7 +145,23 @@ DEFAULT_GRID: list[GridCell] = [
     GridCell(
         "terminal_only",
         "hard",
-        "experiments.recipes.benchmark_architectures.level_5_expert",
+        "experiments.recipes.benchmark_architectures.terminal_hard",
+    ),
+    # Row 5: Adaptive curriculum (learning progress-guided task selection)
+    GridCell(
+        "adaptive",
+        "easy",
+        "experiments.recipes.benchmark_architectures.adaptive_easy",
+    ),
+    GridCell(
+        "adaptive",
+        "medium",
+        "experiments.recipes.benchmark_architectures.adaptive_medium",
+    ),
+    GridCell(
+        "adaptive",
+        "hard",
+        "experiments.recipes.benchmark_architectures.adaptive_hard",
     ),
 ]
 
