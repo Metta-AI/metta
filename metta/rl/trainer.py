@@ -1,8 +1,13 @@
 import importlib
-from typing import Any, Callable, Optional
+import subprocess
+import threading
+import traceback
+from typing import Any, Callable, Dict, Optional
 
 import torch
+import yaml
 
+from metta.agent.migration.model_compatibility import ModelCompatibilityReport
 from metta.agent.policy import Policy
 from metta.common.util.log_config import getRankAwareLogger
 from metta.rl.trainer_config import TrainerConfig
@@ -111,6 +116,18 @@ class Trainer:
 
         self._train_epoch_callable: Callable[[], None] = self._run_epoch
 
+        self._model_compatibility_lock = threading.Lock()
+        self._model_compatibility_ready = threading.Event()
+        self._model_compatibility_result: Optional[Dict[str, Any]] = None
+        self._model_compatibility_error: Optional[Dict[str, Any]] = None
+        self._model_compatibility_thread: Optional[threading.Thread] = None
+        self._model_compatibility_enabled = self._distributed_helper.should_checkpoint()
+        self._context.get_model_compatibility_metadata = self._get_model_compatibility_metadata
+        if self._model_compatibility_enabled:
+            self._start_model_compatibility_worker()
+        else:
+            self._model_compatibility_ready.set()
+
         self.core_loop = CoreTrainingLoop(
             policy=self._policy,
             experience=self._experience,
@@ -150,6 +167,70 @@ class Trainer:
 
     def _set_train_epoch_callable(self, fn: Callable[[], None]) -> None:
         self._train_epoch_callable = fn
+
+    def _start_model_compatibility_worker(self) -> None:
+        self._model_compatibility_thread = threading.Thread(
+            target=self._run_model_compatibility_worker,
+            name="model_compatibility_report",
+            daemon=True,
+        )
+        self._model_compatibility_thread.start()
+
+    def _run_model_compatibility_worker(self) -> None:
+        report = ModelCompatibilityReport(base_refs=("origin/main", "main"), path="agent/src/metta/agent")
+        try:
+            result = report.to_dict()
+        except Exception as exc:  # pragma: no cover - defensive guard
+            error_info = self._serialize_model_compatibility_error(exc)
+            with self._model_compatibility_lock:
+                self._model_compatibility_result = None
+                self._model_compatibility_error = error_info
+        else:
+            with self._model_compatibility_lock:
+                self._model_compatibility_result = dict(result)
+                self._model_compatibility_error = None
+        finally:
+            self._model_compatibility_ready.set()
+
+    def _serialize_model_compatibility_error(self, exc: Exception) -> Dict[str, Any]:
+        error_info: Dict[str, Any] = {
+            "message": str(exc),
+            "exception_type": exc.__class__.__name__,
+        }
+        if isinstance(exc, subprocess.CalledProcessError):
+            error_info["returncode"] = exc.returncode
+            error_info["cmd"] = [str(item) for item in exc.cmd] if exc.cmd else None
+            if exc.stdout:
+                error_info["stdout"] = exc.stdout
+            if exc.stderr:
+                error_info["stderr"] = exc.stderr
+        error_info["traceback"] = traceback.format_exc()
+        return error_info
+
+    def _get_model_compatibility_metadata(self) -> Optional[Dict[str, Any]]:
+        if not self._model_compatibility_enabled:
+            return None
+        if not self._model_compatibility_ready.is_set():
+            return None
+
+        with self._model_compatibility_lock:
+            if self._model_compatibility_result is not None:
+                base_payload: Dict[str, Any] = {
+                    "status": "ready",
+                    "report": dict(self._model_compatibility_result),
+                }
+            elif self._model_compatibility_error is not None:
+                base_payload = {
+                    "status": "error",
+                    "error": dict(self._model_compatibility_error),
+                }
+            else:
+                return None
+
+        yaml_text = yaml.safe_dump(base_payload, sort_keys=False)
+        payload_with_yaml = dict(base_payload)
+        payload_with_yaml["yaml"] = yaml_text
+        return {"model_compatibility": payload_with_yaml}
 
     def _run_epoch(self) -> None:
         """Run a single training epoch."""

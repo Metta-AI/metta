@@ -116,7 +116,10 @@ class Checkpointer(TrainerComponent):
     def _save_policy(self, epoch: int) -> None:
         policy = self._policy_to_save()
 
-        uri = self._checkpoint_manager.save_agent(policy, epoch)
+        metadata_provider = getattr(self.context, "get_model_compatibility_metadata", None)
+        metadata = metadata_provider() if callable(metadata_provider) else None
+
+        uri = self._checkpoint_manager.save_agent(policy, epoch, metadata=metadata)
         self._latest_policy_uri = uri
         self.context.latest_policy_uri_value = uri
         try:

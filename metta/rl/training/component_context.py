@@ -95,6 +95,7 @@ class ComponentContext:
 
         self.get_train_epoch_fn: Callable[[], Callable[[], None]] | None = None
         self.set_train_epoch_fn: Callable[[Callable[[], None]], None] | None = None
+        self.get_model_compatibility_metadata: Callable[[], Optional[Dict[str, Any]]] | None = None
 
         self._training_env_id: slice | None = (
             self.state.training_env_window.to_slice() if self.state.training_env_window else None

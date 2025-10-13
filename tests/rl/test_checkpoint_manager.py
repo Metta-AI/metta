@@ -157,3 +157,17 @@ class TestErrorHandling:
         for invalid_name in invalid_names:
             with pytest.raises(ValueError):
                 CheckpointManager(run=invalid_name, system_cfg=test_system_cfg)
+
+    def test_save_agent_with_metadata(self, checkpoint_manager, mock_agent):
+        metadata = {"model_compatibility": {"status": "ready", "yaml": "stub"}}
+        checkpoint_manager.save_agent(mock_agent, epoch=2, metadata=metadata)
+
+        checkpoint_file = checkpoint_manager.checkpoint_dir / "test_run:v2.pt"
+        assert checkpoint_file.exists()
+
+        raw_contents = torch.load(checkpoint_file)
+        assert isinstance(raw_contents, dict)
+        assert raw_contents["metadata"] == metadata
+
+        loaded_agent = checkpoint_manager.load_from_uri(checkpoint_file.as_uri())
+        assert isinstance(loaded_agent, MockAgent)
