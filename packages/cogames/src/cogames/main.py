@@ -162,7 +162,7 @@ def make_mission(
 def train_cmd(
     ctx: typer.Context,
     missions: Optional[list[str]] = typer.Option(None, "--mission", "-m", help="Missions to train on"),  # noqa B008
-    policy: str = typer.Option("simple", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
+    policy: str = typer.Option("lstm", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
     checkpoints_path: str = typer.Option(
         "./train_dir",
         "--checkpoints",
