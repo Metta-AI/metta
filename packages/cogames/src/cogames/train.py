@@ -258,29 +258,6 @@ def train(
         )
 
     amended_minibatch_size = min(minibatch_size, amended_batch_size)
-    if amended_minibatch_size != minibatch_size:
-        logger.info(
-            "Reducing minibatch_size from %s to %s to keep it <= batch_size",
-            minibatch_size,
-            amended_minibatch_size,
-        )
-    if amended_minibatch_size < bptt_horizon:
-        logger.info(
-            "Raising minibatch_size from %s to %s to satisfy bptt horizon requirements",
-            amended_minibatch_size,
-            bptt_horizon,
-        )
-        amended_minibatch_size = bptt_horizon
-    if amended_batch_size % amended_minibatch_size != 0:
-        adjusted_batch = amended_minibatch_size * math.ceil(amended_batch_size / amended_minibatch_size)
-        if adjusted_batch != amended_batch_size:
-            logger.info(
-                "Further adjusting batch_size from %s to %s so it divides evenly by minibatch_size=%s",
-                amended_batch_size,
-                adjusted_batch,
-                amended_minibatch_size,
-            )
-        amended_batch_size = adjusted_batch
 
     effective_timesteps = max(num_steps, amended_batch_size)
     if effective_timesteps != num_steps:
