@@ -166,7 +166,14 @@ class MettaGridEnv(MettaGridPufferBase):
             print("hearts.get in stats")
             infos["game"]["hearts.get"] = stats["game"]["hearts.get"]
             del stats["game"]["hearts.get"]
-        print("stats", stats)
+        heart_game_stats = {name: value for name, value in stats["game"].items() if "heart" in name}
+        heart_agent_stats = [
+            {name: value for name, value in agent_stat.items() if "heart" in name}
+            for agent_stat in stats["agent"]
+            if any("heart" in name for name in agent_stat)
+        ]
+        if heart_game_stats or heart_agent_stats:
+            print("heart stats", {"game": heart_game_stats, "agent": heart_agent_stats})
         infos["game"].update(stats["game"])
         infos["agent"] = {}
         for agent_stats in stats["agent"]:
