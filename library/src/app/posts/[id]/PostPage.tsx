@@ -129,6 +129,15 @@ export const PostPage: FC<{
     }
   };
 
+  // Handle post deletion - optimistically remove from list
+  const handlePostDeleted = (deletedPostId: string) => {
+    page.remove((post) => post.id === deletedPostId);
+    // If we're deleting the target post, navigate home
+    if (deletedPostId === postId) {
+      router.push("/");
+    }
+  };
+
   // Scroll to the target post when the page loads
   useEffect(() => {
     if (!hasScrolledToPost && targetPostRef.current) {
@@ -270,6 +279,7 @@ export const PostPage: FC<{
                       highlightedCommentId={
                         isTargetPost ? highlightedCommentId : null
                       }
+                      onPostDeleted={handlePostDeleted}
                     />
                   </div>
                 );
