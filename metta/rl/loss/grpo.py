@@ -135,17 +135,14 @@ class GRPO(Loss):
             if avg_kl > config.target_kl:
                 stop_update_epoch = True
 
-        # On the first minibatch, compute group-based advantages
         if mb_idx == 0:
             self.advantages = self._compute_group_advantages(context)
 
-        # Sample from the buffer
         minibatch, indices = self._sample_minibatch()
 
         shared_loss_data["sampled_mb"] = minibatch
         shared_loss_data["indices"] = NonTensorData(indices)
 
-        # Forward the policy using the sampled minibatch
         policy_td = minibatch.select(*self.policy_experience_spec.keys(include_nested=True))
         B, TT = policy_td.batch_size
         policy_td = policy_td.reshape(B * TT)
@@ -157,7 +154,6 @@ class GRPO(Loss):
         policy_td = self.policy.forward(policy_td, action=flat_actions)
         shared_loss_data["policy_td"] = policy_td.reshape(B, TT)
 
-        # Calculate the loss
         loss = self._process_minibatch_update(
             minibatch=minibatch,
             policy_td=policy_td,
