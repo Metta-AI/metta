@@ -5,8 +5,8 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
-#include <map>
 #include <string>
+#include <unordered_map>
 
 #include "core/grid_object.hpp"
 #include "core/types.hpp"
@@ -14,8 +14,8 @@
 struct ConverterConfig : public GridObjectConfig {
   ConverterConfig(TypeId type_id,
                   const std::string& type_name,
-                  const std::map<InventoryItem, InventoryQuantity>& input_resources,
-                  const std::map<InventoryItem, InventoryQuantity>& output_resources,
+                  const std::unordered_map<InventoryItem, InventoryQuantity>& input_resources,
+                  const std::unordered_map<InventoryItem, InventoryQuantity>& output_resources,
                   short max_output,
                   short max_conversions,
                   unsigned short conversion_ticks,
@@ -35,8 +35,8 @@ struct ConverterConfig : public GridObjectConfig {
         input_recipe_offset(0),
         output_recipe_offset(0) {}
 
-  std::map<InventoryItem, InventoryQuantity> input_resources;
-  std::map<InventoryItem, InventoryQuantity> output_resources;
+  std::unordered_map<InventoryItem, InventoryQuantity> input_resources;
+  std::unordered_map<InventoryItem, InventoryQuantity> output_resources;
   short max_output;
   short max_conversions;
   unsigned short conversion_ticks;
@@ -53,8 +53,8 @@ inline void bind_converter_config(py::module& m) {
   py::class_<ConverterConfig, GridObjectConfig, std::shared_ptr<ConverterConfig>>(m, "ConverterConfig")
       .def(py::init<TypeId,
                     const std::string&,
-                    const std::map<InventoryItem, InventoryQuantity>&,
-                    const std::map<InventoryItem, InventoryQuantity>&,
+                    const std::unordered_map<InventoryItem, InventoryQuantity>&,
+                    const std::unordered_map<InventoryItem, InventoryQuantity>&,
                     short,
                     short,
                     unsigned short,

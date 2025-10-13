@@ -17,6 +17,7 @@ from mettagrid.config.mettagrid_config import (
 )
 from mettagrid.core import MettaGridCore
 from mettagrid.map_builder.ascii import AsciiMapBuilder
+from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME
 from mettagrid.test_support.actions import action_index
 from mettagrid.test_support.orientation import Orientation
 
@@ -52,7 +53,8 @@ def env_with_visitation():
                     [".", ".", ".", ".", ".", ".", "."],
                     [".", ".", ".", ".", ".", ".", "."],
                     [".", ".", ".", ".", ".", ".", "."],
-                ]
+                ],
+                char_to_name_map=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
@@ -91,7 +93,8 @@ def env_without_visitation():
                     [".", ".", ".", ".", ".", ".", "."],
                     [".", ".", ".", ".", ".", ".", "."],
                     [".", ".", ".", ".", ".", ".", "."],
-                ]
+                ],
+                char_to_name_map=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
@@ -125,7 +128,8 @@ def env_default():
                     [".", ".", ".", ".", ".", ".", "."],
                     [".", ".", ".", ".", ".", ".", "."],
                     [".", ".", ".", ".", ".", ".", "."],
-                ]
+                ],
+                char_to_name_map=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
@@ -214,7 +218,10 @@ def performance_config():
             resource_names=["wood", "stone"],
             actions=ActionsConfig(move=ActionConfig()),
             objects={"wall": WallConfig(type_id=1)},
-            map_builder=AsciiMapBuilder.Config(map_data=simple_map),
+            map_builder=AsciiMapBuilder.Config(
+                map_data=simple_map,
+                char_to_name_map=DEFAULT_CHAR_TO_NAME,
+            ),
         )
     )
     return config
