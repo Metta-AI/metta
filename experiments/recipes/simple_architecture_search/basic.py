@@ -199,6 +199,7 @@ def evaluate_in_sweep(policy_uri: str) -> EvaluateTool:
     )
 
 def sweep_architecture(sweep_name: str) -> SweepTool:
+    # NB: arch_type matches the corresponding input to "train", the train_entrypoint.
     architecture_parameter = SP.categorical("arch_type", list(ARCHITECTURES.keys()) )
     return grid_search(
         name=sweep_name,
