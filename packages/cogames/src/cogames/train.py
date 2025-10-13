@@ -220,30 +220,21 @@ def train(
         f"Policy class {policy_class_path} must implement TrainablePolicy interface"
     )
 
-    use_rnn = True
-    is_recurrent = getattr(policy, "is_recurrent", None)
-    if callable(is_recurrent) and not is_recurrent():
-        logger.warning(
-            "Policy %s reports is_recurrent()=False but training assumes recurrent policies; "
-            "ensure the policy implements recurrent interfaces.",
-            policy_class_path,
-        )
+    use_rnn = getattr(policy, "is_recurrent", lambda: False)()
+    if not use_rnn:
+        lowered = policy_class_path.lower()
+        if "lstm" in lowered or "rnn" in lowered:
+            use_rnn = True
 
     env_name = "cogames.cogs_vs_clips"
 
-    if use_rnn:
-        learning_rate = 0.001153637
-        bptt_horizon = 64
-        optimizer = "adam"
-        adam_eps = 3.186531e-07
-        logger.info(
-            "Using RNN hyperparameters aligned with TrainerConfig defaults: lr=0.001153637, bptt=64, optimizer=adam"
-        )
-    else:
-        learning_rate = 0.001153637
-        bptt_horizon = 64
-        optimizer = "adam"
-        adam_eps = 3.186531e-07
+    learning_rate = 0.001153637
+    bptt_horizon = 64
+    optimizer = "adam"
+    adam_eps = 3.186531e-07
+    logger.info(
+        "Using default hyperparameters aligned with TrainerConfig: lr=0.001153637, bptt=64, optimizer=adam"
+    )
 
     total_agents = max(1, getattr(vecenv, "num_agents", 1))
     num_envs = max(1, getattr(vecenv, "num_envs", 1))
