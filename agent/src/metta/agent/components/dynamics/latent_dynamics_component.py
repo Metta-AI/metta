@@ -354,6 +354,10 @@ class LatentDynamicsModelComponent(nn.Module):
 
             td.set("latent", z)
 
+            # Still decode to predict next observation (useful for model-based planning)
+            obs_next_pred = self.decode(obs_t, action_t, z)
+            td.set("obs_next_pred", obs_next_pred)
+
         # Output latent representation
         td.set(self._out_key, z)
 
