@@ -9,74 +9,37 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 def build_action_mapping(env: "MettaGridCore") -> Tuple[Dict[int, Tuple[int, int]], List[str]]:
-    """Return mapping from flattened action index to (action_id, action_param) and base action names.
-
-    This prefers the canonical catalog exposed by the C++ bindings and falls back to legacy heuristics
-    when running against an older engine.
-    """
-
-    mapping: Dict[int, Tuple[int, int]] = {}
-    base_names: List[str] = []
+    """Return mapping from flattened action index to (action_id, action_param) plus base action names."""
 
     c_env = getattr(env, "c_env", None)
-    if c_env is not None and hasattr(c_env, "action_catalog"):
-        catalog_entries = list(c_env.action_catalog())
-        max_index = -1
-        for entry in catalog_entries:
-            action_id = int(entry["action_id"])
-            flat_index = int(entry["flat_index"])
-            param = int(entry["param"])
-            mapping[flat_index] = (action_id, param)
-            if action_id > max_index:
-                max_index = action_id
+    if c_env is None or not hasattr(c_env, "action_catalog"):
+        raise RuntimeError("MettaGrid environment does not expose action_catalog; rebuild bindings.")
 
-        if mapping and max_index >= 0:
-            base_names = ["" for _ in range(max_index + 1)]
-            for entry in catalog_entries:
-                action_id = int(entry["action_id"])
-                if base_names[action_id] == "":
-                    base_names[action_id] = str(entry["base_name"])
-            if all(name != "" for name in base_names):
-                return mapping, base_names
+    catalog_entries = list(c_env.action_catalog())
+    if not catalog_entries:
+        raise ValueError("MettaGrid action catalog is empty; cannot build action mapping.")
 
-    # Fallback: derive mapping using flat names and max args (older bindings).
-    flat_names = list(env.action_names)
-    if not flat_names:
-        return mapping, base_names
+    mapping: Dict[int, Tuple[int, int]] = {}
+    base_names: Dict[int, str] = {}
 
-    max_args: List[int] | None = None
-    if c_env is not None and hasattr(c_env, "max_action_args"):
-        try:
-            max_args = list(c_env.max_action_args())
-        except Exception:  # pragma: no cover - protective
-            max_args = None
+    for entry in catalog_entries:
+        flat_index = int(entry["flat_index"])
+        action_id = int(entry["action_id"])
+        param = int(entry["param"])
+        mapping[flat_index] = (action_id, param)
+        base_name = str(entry["base_name"])
+        base_names.setdefault(action_id, base_name)
 
-    if max_args:
-        cursor = 0
-        for base_id, max_arg in enumerate(max_args):
-            count = max(1, max_arg + 1)
-            if cursor >= len(flat_names):
-                break
-            raw_name = flat_names[cursor]
-            base_name = raw_name.rsplit("_", 1)[0] if max_arg > 0 and "_" in raw_name else raw_name
-            base_names.append(base_name)
-            for param in range(count):
-                if cursor >= len(flat_names):
-                    break
-                mapping[cursor] = (base_id, param if max_arg > 0 else 0)
-                cursor += 1
+    max_action_id = max(base_names.keys())
+    ordered_base_names: List[str] = [""] * (max_action_id + 1)
+    for action_id, name in base_names.items():
+        ordered_base_names[action_id] = name
 
-        while cursor < len(flat_names):
-            base_id = len(base_names)
-            base_names.append(flat_names[cursor])
-            mapping[cursor] = (base_id, 0)
-            cursor += 1
-    else:
-        for idx, name in enumerate(flat_names):
-            mapping[idx] = (idx, 0)
-            base_names.append(name)
+    if "" in ordered_base_names:
+        missing = [idx for idx, name in enumerate(ordered_base_names) if name == ""]
+        raise ValueError(f"Missing base action names for ids: {missing}")
 
-    return mapping, base_names
+    return mapping, ordered_base_names
 
 
 def make_decode_fn(mapping: Mapping[int, Tuple[int, int]]) -> Callable[[int], Tuple[int, int]]:
