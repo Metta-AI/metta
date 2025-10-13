@@ -88,6 +88,9 @@ export const InstitutionManagementModal: FC<
   const [localMembers, setLocalMembers] = useState<InstitutionMember[]>(
     institution.members || []
   );
+  const [localRequiresApproval, setLocalRequiresApproval] = useState<boolean>(
+    institution.requiresApproval || false
+  );
   const pendingMembershipActionRef = useRef<"add" | "remove" | null>(null);
   const pendingMemberEmailRef = useRef<string | null>(null);
   const pendingApprovalRef = useRef<boolean | null>(null);
@@ -107,7 +110,8 @@ export const InstitutionManagementModal: FC<
 
   useEffect(() => {
     setLocalMembers(institution.members || []);
-  }, [institution.members]);
+    setLocalRequiresApproval(institution.requiresApproval || false);
+  }, [institution.members, institution.requiresApproval]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -173,6 +177,7 @@ export const InstitutionManagementModal: FC<
       onSuccess: () => {
         const requiresApproval = pendingApprovalRef.current;
         if (requiresApproval !== null) {
+          setLocalRequiresApproval(requiresApproval);
           toast.success(
             requiresApproval
               ? "Membership approval now required"
@@ -479,7 +484,7 @@ export const InstitutionManagementModal: FC<
                         Membership Approval
                       </h4>
                       <p className="mt-1 text-sm text-gray-600">
-                        {institution.requiresApproval
+                        {localRequiresApproval
                           ? "New members require admin approval before they can join"
                           : "Users can join this institution automatically"}
                       </p>
@@ -488,7 +493,7 @@ export const InstitutionManagementModal: FC<
                       <input
                         type="checkbox"
                         className="peer sr-only"
-                        checked={institution.requiresApproval || false}
+                        checked={localRequiresApproval}
                         onChange={(e) => handleApprovalToggle(e.target.checked)}
                         disabled={isTogglingApproval}
                       />
