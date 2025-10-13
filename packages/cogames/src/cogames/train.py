@@ -220,11 +220,14 @@ def train(
         f"Policy class {policy_class_path} must implement TrainablePolicy interface"
     )
 
-    use_rnn = getattr(policy, "is_recurrent", lambda: False)()
-    if not use_rnn:
-        lowered = policy_class_path.lower()
-        if "lstm" in lowered or "rnn" in lowered:
-            use_rnn = True
+    use_rnn = True
+    is_recurrent = getattr(policy, "is_recurrent", None)
+    if callable(is_recurrent) and not is_recurrent():
+        logger.warning(
+            "Policy %s reports is_recurrent()=False but training assumes recurrent policies; "
+            "ensure the policy implements recurrent interfaces.",
+            policy_class_path,
+        )
 
     env_name = "cogames.cogs_vs_clips"
 
