@@ -161,7 +161,11 @@ class MettaGridEnv(MettaGridPufferBase):
 
         # Process agent stats
         infos["game"] = {}
-        # always insert hearts.get first so they are shown in the PufferLib train UI
+        # Make reward metrics the first entries so they show up prominently in the training UI
+        mean_episode_reward = float(episode_rewards.mean())
+        infos["game"]["reward.mean"] = mean_episode_reward
+        infos["game"]["reward.sum"] = float(episode_rewards.sum())
+        # keep hearts.get near the top for backwards compatibility with older dashboards
         if "hearts.get" in stats["game"]:
             print("hearts.get in stats")
             infos["game"]["hearts.get"] = stats["game"]["hearts.get"]
