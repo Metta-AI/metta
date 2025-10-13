@@ -22,6 +22,36 @@ from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from mettagrid.config import ConverterConfig
 
+from metta.agent.policies.agalite import AGaLiTeConfig
+from metta.agent.policies.fast import FastConfig
+from metta.agent.policies.fast_dynamics import FastDynamicsConfig
+from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
+from metta.agent.policies.gtrxl import gtrxl_policy_config
+from metta.agent.policies.memory_free import MemoryFreeConfig
+from metta.agent.policies.puffer import PufferPolicyConfig
+from metta.agent.policies.transformer import TransformerPolicyConfig
+from metta.agent.policies.trxl import trxl_policy_config
+from metta.agent.policies.trxl_nvidia import trxl_nvidia_policy_config
+from metta.agent.policies.vit import ViTDefaultConfig
+from metta.agent.policies.vit_reset import ViTResetConfig
+from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
+
+# Architecture configurations for benchmark testing
+ARCHITECTURES = {
+    "vit": ViTDefaultConfig(),
+    "vit_sliding": ViTSlidingTransConfig(),
+    "vit_reset": ViTResetConfig(),
+    "transformer": TransformerPolicyConfig(),
+    "fast": FastConfig(),
+    "fast_lstm_reset": FastLSTMResetConfig(),
+    "fast_dynamics": FastDynamicsConfig(),
+    "memory_free": MemoryFreeConfig(),
+    "agalite": AGaLiTeConfig(),
+    "gtrxl": gtrxl_policy_config(),
+    "trxl": trxl_policy_config(),
+    "trxl_nvidia": trxl_nvidia_policy_config(),
+    "puffer": PufferPolicyConfig(),
+}
 
 def mettagrid(num_agents: int = 24) -> MettaGridConfig:
     arena_env = eb.make_arena(num_agents=num_agents)
@@ -103,7 +133,7 @@ def simulations(env: Optional[MettaGridConfig] = None) -> list[SimulationConfig]
 def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
-    policy_architecture: Optional[PolicyArchitecture] = None,
+    arch_type: str = "fast"
 ) -> TrainTool:
     curriculum = curriculum or make_curriculum(
         enable_detailed_slice_logging=enable_detailed_slice_logging
@@ -114,8 +144,7 @@ def train(
         losses=LossConfig(),
     )
 
-    if policy_architecture is None:
-        policy_architecture = ViTDefaultConfig()
+    policy_architecture = ARCHITECTURES[arch_type]
 
     return TrainTool(
         trainer=trainer_cfg,
@@ -169,68 +198,8 @@ def evaluate_in_sweep(policy_uri: str) -> EvaluateTool:
         policy_uris=[policy_uri],
     )
 
-
-def sweep(sweep_name: str) -> SweepTool:
-    """
-    Prototypical sweep function.
-    In your own recipe, you likely only every need this. You can override other SweepTool parameters in the CLI.
-
-    Example usage:
-        `uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.sweep sweep_name="ak.baes.10081528" -- gpus=4 nodes=2`
-
-    We recommend running using local_test=True before running the sweep on the remote:
-        `uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.sweep sweep_name="ak.baes.10081528.local_test" -- local_test=True`
-    This will run a quick local sweep and allow you to catch configuration bugs (NB: Unless those bugs are related to batch_size, minibatch_size, or hardware configuration).
-    If this runs smoothly, you must launch the sweep on a remote sandbox (otherwise sweep progress will halt when you close your computer).
-
-    Running on the remote:
-        1 - Start a sweep controller sandbox: `./devops/skypilot/sandbox.py --sweep-controller`, and ssh into it.
-        2 - Clean git pollution: `git clean -df && git stash`
-        3 - Ensure your sky credentials are present: `sky status` -- if not, follow the instructions on screen.
-        4 - Install tmux on the sandbox `apt install tmux`
-        5 - Launch tmux session: `tmux new -s sweep`
-        6 - Launch the sweep: `uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.sweep sweep_name="ak.baes.10081528" -- gpus=4 nodes=2`
-        7 - Detach when you want: CTRL+B then d
-        8 - Attach to look at status/output: `tmux attach -t sweep_configs`
-
-    Please tag Axel (akerbec@softmax.ai) on any bug report.
-    """
-
-    # Common parameters are accessible via SP (SweepParameters).
-    parameters = [
-        SP.LEARNING_RATE,
-        SP.PPO_CLIP_COEF,
-        SP.PPO_GAE_LAMBDA,
-        SP.PPO_VF_COEF,
-        SP.ADAM_EPS,
-        SP.param(
-            "trainer.total_timesteps",
-            D.INT_UNIFORM,
-            min=5e8,
-            max=2e9,
-            search_center=7.5e8,
-        ),
-    ]
-
-    return make_sweep(
-        name=sweep_name,
-        recipe="experiments.recipes.arena_basic_easy_shaped",
-        train_entrypoint="train",
-        # NB: You MUST use a specific sweep eval suite, different than those in training.
-        # Besides this being a recommended practice, using the same eval suite in both
-        # training and scoring will lead to key conflicts that will lock the sweep.
-        eval_entrypoint="evaluate_in_sweep",
-        # Typically, "evaluator/eval_{suite}/score"
-        objective="evaluator/eval_sweep/score",
-        parameters=parameters,
-        num_trials=80,
-        # Default value is 1. We don't recommend going higher than 4.
-        # The faster each individual trial, the lower you should set this number.
-        num_parallel_trials=4,
-    )
-
 def sweep_architecture(sweep_name: str) -> SweepTool:
-    architecture_parameter = SP.categorical("arch", ["vit", "fast", "xlstm"])
+    architecture_parameter = SP.categorical("arch_type", list(ARCHITECTURES.keys()) )
     return grid_search(
         name=sweep_name,
         recipe="experiments.recipes.simple_architecture_search.basic",
