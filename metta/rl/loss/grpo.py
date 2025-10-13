@@ -35,8 +35,7 @@ class GRPOConfig(Config):
     l2_reg_loss_coef: float = Field(default=0, ge=0)
     l2_init_loss_coef: float = Field(default=0, ge=0)
 
-    # Normalization
-    # Advantage normalization toggle
+    # Advantage normalization
     norm_adv: bool = True
     # Target KL for early stopping (None disables)
     target_kl: float | None = None
@@ -249,14 +248,12 @@ class GRPO(Loss):
 
         importance_sampling_ratio = self._importance_ratio(new_logprob, old_logprob)
 
-        # Get advantages from minibatch
         adv = minibatch["advantages"]
 
         # Normalize advantages
         if cfg.norm_adv:
             adv = (adv - adv.mean()) / (adv.std() + 1e-8)
 
-        # Compute GRPO loss (policy only, no value loss)
         pg_loss, entropy_loss, approx_kl, clipfrac = self.compute_grpo_loss(
             new_logprob,
             old_logprob,
@@ -267,8 +264,10 @@ class GRPO(Loss):
 
         loss = pg_loss - cfg.ent_coef * entropy_loss
 
+        # This is a hack to ensure all parameters participate in the backward pass for DDP.
         # Add dummy loss terms for any unused outputs to ensure all parameters
         # participate in backward pass for DDP. This prevents "unused parameter" errors.
+        # TODO: Find a better way to do this.
         for key in policy_td.keys():
             if key not in ["act_log_prob", "entropy"] and isinstance(policy_td[key], Tensor):
                 value = policy_td[key]
@@ -276,7 +275,6 @@ class GRPO(Loss):
                     # Add zero-weighted term to ensure gradient flow
                     loss = loss + 0.0 * value.sum()
 
-        # Update loss tracking
         self._track("policy_loss", pg_loss)
         self._track("entropy", entropy_loss)
         self._track("approx_kl", approx_kl)
