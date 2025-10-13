@@ -29,7 +29,6 @@ export const AuthorProfile: FC<AuthorProfileProps> = ({
   const [activeTab, setActiveTab] = useState<"overview" | "papers" | "network">(
     "overview"
   );
-  const [isFollowing, setIsFollowing] = useState(false);
 
   const getInitials = (name: string) => {
     return name
@@ -38,10 +37,6 @@ export const AuthorProfile: FC<AuthorProfileProps> = ({
       .join("")
       .toUpperCase()
       .slice(0, 2);
-  };
-
-  const toggleFollow = () => {
-    setIsFollowing(!isFollowing);
   };
 
   return (
@@ -99,16 +94,6 @@ export const AuthorProfile: FC<AuthorProfileProps> = ({
                     <span className="ml-1">papers</span>
                   </div>
                 </div>
-                <button
-                  onClick={toggleFollow}
-                  className={`rounded-full px-6 py-2 font-medium transition-colors ${
-                    isFollowing
-                      ? "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                      : "bg-primary-500 hover:bg-primary-600 text-white"
-                  }`}
-                >
-                  {isFollowing ? "Following" : "Follow"}
-                </button>
                 <span
                   className={`rounded-full px-3 py-1 text-sm font-semibold ${
                     author.claimed
