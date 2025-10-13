@@ -15,7 +15,7 @@ from experiments.recipes.arena_basic_easy_shaped import (
     play,
     replay,
     simulations,
-    sweep,
+    sweep_async_progressive,
     train as base_train,
 )
 from metta.agent.policy import PolicyArchitecture
@@ -29,19 +29,22 @@ if TYPE_CHECKING:  # pragma: no cover
     pass
 
 
+DEFAULT_LEARNING_RATE = 8e-4
+DEFAULT_BATCH_SIZE = 131_072
+DEFAULT_MINIBATCH_SIZE = 4_096
+DEFAULT_FORWARD_PASS_MINIBATCH_TARGET_SIZE = 1_024
+DEFAULT_SSM_LAYER = "Mamba2"
+
+
 def _supports_mem_eff_path() -> bool:
+    """Return True if the fused causal-conv1d kernels are available."""
+
     try:
         from causal_conv1d import causal_conv1d_fn  # type: ignore[attr-defined]
     except ModuleNotFoundError:
         return False
 
     return callable(causal_conv1d_fn)
-
-
-DEFAULT_LEARNING_RATE = 8e-4
-DEFAULT_BATCH_SIZE = 131_072
-DEFAULT_MINIBATCH_SIZE = 4_096
-DEFAULT_FORWARD_PASS_MINIBATCH_TARGET_SIZE = 1_024
 
 
 def _apply_overrides(
@@ -94,6 +97,7 @@ def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
     policy_architecture: PolicyArchitecture | None = None,
+    ssm_layer: str = DEFAULT_SSM_LAYER,
     learning_rate: float = DEFAULT_LEARNING_RATE,
     batch_size: int = DEFAULT_BATCH_SIZE,
     minibatch_size: int = DEFAULT_MINIBATCH_SIZE,
@@ -102,31 +106,37 @@ def train(
     _ensure_cuda_extras_installed()
 
     try:
-        from metta.agent.policies.drama_policy import DramaPolicyConfig
-        from metta.agent.components.drama import DramaWorldModelConfig
+        from metta.agent.components.mamba import MambaBackboneConfig
+        from metta.agent.policies.mamba_sliding import MambaSlidingConfig
     except ModuleNotFoundError as exc:
         if exc.name == "mamba_ssm":
             raise RuntimeError(
-                "DRAMA recipes require the `mamba-ssm` package (Linux + CUDA)."
+                "Mamba recipes require the `mamba-ssm` package (available on Linux with CUDA)."
                 " Install it on a supported system before running this recipe."
             ) from exc
         raise
 
-    policy = policy_architecture or DramaPolicyConfig()
+    if ssm_layer != DEFAULT_SSM_LAYER:
+        msg = f"Unsupported SSM layer '{ssm_layer}'. Only '{DEFAULT_SSM_LAYER}' is available."
+        raise ValueError(msg)
+
+    policy = policy_architecture or MambaSlidingConfig()
 
     mem_eff_supported = _supports_mem_eff_path()
     if not mem_eff_supported:
         logger.warning(
-            "[ABES Drama] Detected missing causal-conv1d CUDA kernels; disabling memory-efficient path."
+            "[ABES Mamba] Detected missing causal-conv1d CUDA kernels; disabling memory-efficient path."
             " Install `flash-attn` and `causal-conv1d` for best performance."
         )
 
     for component in policy.components:
-        if isinstance(component, DramaWorldModelConfig):
-            ssm_cfg = dict(component.ssm_cfg) if component.ssm_cfg else {}
+        if isinstance(component, MambaBackboneConfig):
+            component.ssm_cfg = {**component.ssm_cfg, "layer": ssm_layer}
+            component.use_mem_eff_path = bool(
+                mem_eff_supported and component.use_mem_eff_path
+            )
             if not mem_eff_supported:
-                ssm_cfg["use_mem_eff_path"] = False
-            component.ssm_cfg = ssm_cfg
+                component.auto_align_stride = True
 
     tool = base_train(
         curriculum=curriculum,
@@ -153,6 +163,6 @@ __all__ = [
     "replay",
     "evaluate",
     "evaluate_in_sweep",
-    "sweep",
+    "sweep_async_progressive",
     "train",
 ]
