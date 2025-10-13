@@ -232,9 +232,6 @@ def train(
     bptt_horizon = 64
     optimizer = "adam"
     adam_eps = 3.186531e-07
-    logger.info(
-        "Using default hyperparameters aligned with TrainerConfig: lr=0.001153637, bptt=64, optimizer=adam"
-    )
 
     total_agents = max(1, getattr(vecenv, "num_agents", 1))
     num_envs = max(1, getattr(vecenv, "num_envs", 1))
