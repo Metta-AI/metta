@@ -1,9 +1,9 @@
 #ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_ASSEMBLER_HPP_
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_ASSEMBLER_HPP_
 
-#include <map>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "core/grid.hpp"
@@ -63,7 +63,7 @@ private:
 
   // Check if agents have sufficient resources for the given recipe
   bool can_afford_recipe(const Recipe& recipe, const std::vector<Agent*>& surrounding_agents) const {
-    std::map<InventoryItem, InventoryQuantity> total_resources;
+    std::unordered_map<InventoryItem, InventoryQuantity> total_resources;
     for (Agent* agent : surrounding_agents) {
       for (const auto& [item, amount] : agent->inventory.get()) {
         total_resources[item] = static_cast<InventoryQuantity>(total_resources[item] + amount);

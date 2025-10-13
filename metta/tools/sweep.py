@@ -167,11 +167,6 @@ class SweepTool(Tool):
             self.protein_config.parameters.pop("trainer.minibatch_size", None)
             self.protein_config.parameters.pop("trainer.total_timesteps", None)
 
-        # Handle sweep_name being passed via cmd line
-        if "sweep_name" in args:
-            assert self.sweep_name is None, "sweep_name cannot be set via args and config"
-            self.sweep_name = args["sweep_name"]
-
         # Handle run parameter from dispatcher (ignored - only consumed to prevent unused args error)
         if "run" in args:
             # The run parameter is added by dispatchers for training jobs

@@ -26,7 +26,7 @@ static std::unique_ptr<py::scoped_interpreter> g_python_guard;
 // wrapper layer. When that refactoring is complete, we should be able to:
 // 1. Remove all pybind11 includes from this benchmark
 // 2. Remove the Python interpreter initialization
-// 3. Work directly with C++ types (std::vector, std::map, etc.)
+// 3. Work directly with C++ types (std::vector, std::unordered_map, etc.)
 //
 // We'll know we've succeeded when this file has zero references to pybind11!
 
@@ -34,16 +34,19 @@ static std::unique_ptr<py::scoped_interpreter> g_python_guard;
 GameConfig CreateBenchmarkConfig(size_t num_agents) {
   std::vector<std::string> resource_names = {"ore", "heart"};
 
-  std::shared_ptr<ActionConfig> action_cfg = std::make_shared<ActionConfig>(
-      std::map<InventoryItem, InventoryQuantity>(), std::map<InventoryItem, InventoryProbability>());
+  std::shared_ptr<ActionConfig> action_cfg =
+      std::make_shared<ActionConfig>(std::unordered_map<InventoryItem, InventoryQuantity>(),
+                                     std::unordered_map<InventoryItem, InventoryProbability>());
 
   std::shared_ptr<AttackActionConfig> attack_cfg =
-      std::make_shared<AttackActionConfig>(std::map<InventoryItem, InventoryQuantity>(),
-                                           std::map<InventoryItem, InventoryProbability>(),
-                                           std::map<InventoryItem, InventoryQuantity>());
+      std::make_shared<AttackActionConfig>(std::unordered_map<InventoryItem, InventoryQuantity>(),
+                                           std::unordered_map<InventoryItem, InventoryProbability>(),
+                                           std::unordered_map<InventoryItem, InventoryQuantity>());
 
-  std::shared_ptr<ChangeGlyphActionConfig> change_glyph_cfg = std::make_shared<ChangeGlyphActionConfig>(
-      std::map<InventoryItem, InventoryQuantity>(), std::map<InventoryItem, InventoryProbability>(), 4);
+  std::shared_ptr<ChangeGlyphActionConfig> change_glyph_cfg =
+      std::make_shared<ChangeGlyphActionConfig>(std::unordered_map<InventoryItem, InventoryQuantity>(),
+                                                std::unordered_map<InventoryItem, InventoryProbability>(),
+                                                4);
 
   // GameConfig expects a vector of pairs for actions (ordered list)
   std::vector<std::pair<std::string, std::shared_ptr<ActionConfig>>> actions_cfg;
@@ -57,7 +60,7 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
   actions_cfg.push_back({"get_items", action_cfg});
   actions_cfg.push_back({"change_glyph", change_glyph_cfg});
 
-  std::map<std::string, std::shared_ptr<GridObjectConfig>> objects_cfg;
+  std::unordered_map<std::string, std::shared_ptr<GridObjectConfig>> objects_cfg;
 
   objects_cfg["wall"] = std::make_shared<WallConfig>(1, "wall", false);
   objects_cfg["agent.team1"] = std::make_shared<AgentConfig>(0, "agent", 0, "team1");
