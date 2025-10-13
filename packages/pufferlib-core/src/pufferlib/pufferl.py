@@ -658,7 +658,7 @@ class PuffeRL:
         filtered_stats = [
             (metric, value)
             for metric, value in stats_items
-            if metric.startswith("agent/") and "heart" not in metric.lower()
+            if metric.startswith("agent/") or "heart" in metric.lower()
         ]
 
         for metric, value in filtered_stats:
