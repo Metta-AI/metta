@@ -29,12 +29,36 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("cogames.pufferlib")
 
+DEFAULT_LEARNING_RATE = 0.001153637
+DEFAULT_OPTIMIZER = "adam"
+DEFAULT_ADAM_BETA1 = 0.9
+DEFAULT_ADAM_BETA2 = 0.999
+DEFAULT_ADAM_EPS = 3.186531e-07
+DEFAULT_BPTT_HORIZON = 64
+DEFAULT_GAMMA = 0.977
+DEFAULT_GAE_LAMBDA = 0.891477
+DEFAULT_CLIP_COEF = 0.264407
+DEFAULT_VF_COEF = 0.897619
+DEFAULT_VF_CLIP_COEF = 0.1
+DEFAULT_ENT_COEF = 0.01
+DEFAULT_MAX_GRAD_NORM = 0.5
+DEFAULT_PRIO_ALPHA = 0.0
+DEFAULT_PRIO_BETA0 = 0.6
+
 
 def _largest_divisor_at_most(value: int, limit: int) -> int:
     for candidate in range(min(value, limit), 0, -1):
         if value % candidate == 0:
             return candidate
     return 1
+
+
+def _ceil_to_multiple(value: int, multiple: int) -> int:
+    if multiple <= 0:
+        raise ValueError("multiple must be positive")
+    if value % multiple == 0:
+        return value
+    return multiple * math.ceil(value / multiple)
 
 
 def _resolve_vector_counts(
@@ -228,17 +252,29 @@ def train(
 
     env_name = "cogames.cogs_vs_clips"
 
-    if use_rnn:
-        learning_rate = 0.0003
-        bptt_horizon = 1
-        optimizer = "adam"
-        adam_eps = 1e-8
-        logger.info("Using RNN-specific hyperparameters: lr=0.0003, bptt=1, optimizer=adam")
-    else:
-        learning_rate = 0.015
-        bptt_horizon = 1
-        optimizer = "muon"
-        adam_eps = 1e-12
+    learning_rate = DEFAULT_LEARNING_RATE
+    bptt_horizon = DEFAULT_BPTT_HORIZON
+    optimizer = DEFAULT_OPTIMIZER
+    adam_eps = DEFAULT_ADAM_EPS
+    adam_beta1 = DEFAULT_ADAM_BETA1
+    adam_beta2 = DEFAULT_ADAM_BETA2
+    gamma = DEFAULT_GAMMA
+    gae_lambda = DEFAULT_GAE_LAMBDA
+    clip_coef = DEFAULT_CLIP_COEF
+    vf_coef = DEFAULT_VF_COEF
+    vf_clip_coef = DEFAULT_VF_CLIP_COEF
+    ent_coef = DEFAULT_ENT_COEF
+    max_grad_norm = DEFAULT_MAX_GRAD_NORM
+    prio_alpha = DEFAULT_PRIO_ALPHA
+    prio_beta0 = DEFAULT_PRIO_BETA0
+
+    logger.info(
+        "Using %s hyperparameters aligned with TrainerConfig defaults: lr=%s, bptt=%s, optimizer=%s",
+        "RNN" if use_rnn else "feedforward",
+        learning_rate,
+        bptt_horizon,
+        optimizer,
+    )
 
     total_agents = max(1, getattr(vecenv, "num_agents", 1))
     num_envs = max(1, getattr(vecenv, "num_envs", 1))
@@ -246,10 +282,9 @@ def train(
     envs_per_worker = max(1, num_envs // num_workers)
 
     original_batch_size = batch_size
+    batch_multiple = math.lcm(bptt_horizon, envs_per_worker, total_agents)
     amended_batch_size = max(original_batch_size, total_agents * bptt_horizon)
-    remainder = amended_batch_size % envs_per_worker
-    if remainder:
-        amended_batch_size += envs_per_worker - remainder
+    amended_batch_size = _ceil_to_multiple(amended_batch_size, batch_multiple)
 
     if amended_batch_size != original_batch_size:
         logger.info(
@@ -261,10 +296,25 @@ def train(
             envs_per_worker,
         )
 
-    amended_minibatch_size = min(minibatch_size, amended_batch_size)
+    requested_minibatch_size = min(minibatch_size, amended_batch_size)
+    amended_minibatch_size = max(requested_minibatch_size, bptt_horizon)
+    remainder = amended_minibatch_size % bptt_horizon
+    if remainder:
+        amended_minibatch_size += bptt_horizon - remainder
+        if amended_minibatch_size > amended_batch_size:
+            amended_minibatch_size = amended_batch_size
+
+    if amended_batch_size % amended_minibatch_size != 0:
+        amended_batch_size = _ceil_to_multiple(amended_batch_size, amended_minibatch_size)
+        logger.info(
+            "Adjusted batch_size further to %s so it divides evenly by minibatch_size=%s",
+            amended_batch_size,
+            amended_minibatch_size,
+        )
+
     if amended_minibatch_size != minibatch_size:
         logger.info(
-            "Reducing minibatch_size from %s to %s to keep it <= batch_size",
+            "Adjusted minibatch_size from %s to %s to satisfy BPTT divisibility",
             minibatch_size,
             amended_minibatch_size,
         )
@@ -295,23 +345,23 @@ def train(
         anneal_lr=True,
         precision="float32",
         learning_rate=learning_rate,
-        gamma=0.995,
-        gae_lambda=0.90,
+        gamma=gamma,
+        gae_lambda=gae_lambda,
         update_epochs=1,
-        clip_coef=0.2,
-        vf_coef=2.0,
-        vf_clip_coef=0.2,
-        max_grad_norm=1.5,
-        ent_coef=0.001,
-        adam_beta1=0.95,
-        adam_beta2=0.999,
+        clip_coef=clip_coef,
+        vf_coef=vf_coef,
+        vf_clip_coef=vf_clip_coef,
+        max_grad_norm=max_grad_norm,
+        ent_coef=ent_coef,
+        adam_beta1=adam_beta1,
+        adam_beta2=adam_beta2,
         adam_eps=adam_eps,
         max_minibatch_size=32768,
         compile=False,
         vtrace_rho_clip=1.0,
         vtrace_c_clip=1.0,
-        prio_alpha=0.8,
-        prio_beta0=0.2,
+        prio_alpha=prio_alpha,
+        prio_beta0=prio_beta0,
     )
 
     trainer = pufferl.PuffeRL(train_args, vecenv, policy.network())
