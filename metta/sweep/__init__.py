@@ -12,6 +12,10 @@ from .schedulers.batched_synced import (
     BatchedSyncedOptimizingScheduler,
     BatchedSyncedSchedulerConfig,
 )
+from .schedulers.grid_search import (
+    GridSearchScheduler,
+    GridSearchSchedulerConfig,
+)
 
 __all__ = [
     # Core components
@@ -25,4 +29,7 @@ __all__ = [
     "BatchedSyncedSchedulerConfig",
     "AsyncCappedOptimizingScheduler",
     "AsyncCappedSchedulerConfig",
+    # Grid search
+    "GridSearchScheduler",
+    "GridSearchSchedulerConfig",
 ]

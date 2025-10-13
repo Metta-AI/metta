@@ -290,3 +290,86 @@ def make_sweep(
         **scheduler_config,
         **advanced,
     )
+
+
+def grid_search(
+    name: str,
+    recipe: str,
+    train_entrypoint: str,
+    eval_entrypoint: str,
+    objective: str,
+    parameters: Union[Dict[str, ParameterSpec], List[Dict[str, ParameterSpec]]],
+    num_trials: int = 10,
+    num_parallel_trials: int = 1,
+    train_overrides: Optional[Dict] = None,
+    eval_overrides: Optional[Dict] = None,
+    # Catch all for un-exposed tool overrides.
+    # See SweepTool definition for details.
+    **advanced,
+) -> "SweepTool":
+    """Create a grid-search sweep with minimal configuration.
+
+    Mirrors `make_sweep` but selects the grid-search scheduler. Parameters should
+    be categorical (CategoricalParameterConfig or lists). Numeric ParameterConfig
+    entries in the provided parameters are ignored by the grid scheduler.
+
+    Args (all passed as tool overrides downstream):
+        Tool overrides:
+            name: Sweep identifier
+            recipe: Recipe module path
+            train_entrypoint: Training entrypoint function
+            eval_entrypoint: Evaluation entrypoint function
+            num_trials: Maximum number of trials to schedule (cap on grid size)
+            num_parallel_trials: Max parallel jobs
+            train_overrides: Optional overrides for training configuration
+            eval_overrides: Optional overrides for evaluation configuration
+            **advanced: Additional SweepTool options
+
+        Protein config args:
+            objective: Metric to optimize (used for evaluation hooks)
+            parameters: Categorical parameters to sweep
+
+    Returns:
+        Configured SweepTool
+    """
+    # Convert list of single-item dicts to flat dict
+    if isinstance(parameters, list):
+        flat_params: Dict[str, ParameterSpec] = {}
+        for item in parameters:
+            if not isinstance(item, dict):
+                raise ValueError(f"List items must be dicts, got {type(item)}")
+            if len(item) != 1:
+                raise ValueError(f"Each dict in list must have exactly one key-value pair, got {len(item)} keys")
+            flat_params.update(item)
+        parameters = flat_params
+
+    # Local imports to avoid circular dependencies
+    from metta.sweep.protein_config import ProteinConfig, ProteinSettings
+    from metta.tools.sweep import SweepSchedulerType, SweepTool
+
+    protein_config = ProteinConfig(
+        metric=objective,
+        goal=advanced.pop("goal", "maximize"),
+        parameters=parameters,
+        settings=ProteinSettings(),
+    )
+
+    scheduler_type = SweepSchedulerType.GRID_SEARCH
+
+    # No additional scheduler-config knobs for grid search beyond tool kwargs
+    scheduler_config: Dict[str, Any] = {}
+
+    return SweepTool(
+        sweep_name=name,
+        protein_config=protein_config,
+        recipe_module=recipe,
+        train_entrypoint=train_entrypoint,
+        eval_entrypoint=eval_entrypoint,
+        max_trials=num_trials,
+        max_parallel_jobs=num_parallel_trials,
+        scheduler_type=scheduler_type,
+        train_overrides=train_overrides or {},
+        eval_overrides=eval_overrides or {},
+        **scheduler_config,
+        **advanced,
+    )
