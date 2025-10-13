@@ -144,18 +144,15 @@ class LatentDynamicsModelComponent(nn.Module):
         if self.config.future_type in ["returns", "rewards"]:
             out_dim = 1
         else:
-            out_dim = None  # Will use LazyLinear for observations
+            raise ValueError(
+                f"future_type='{self.config.future_type}' is not supported. "
+                f"Only 'returns' and 'rewards' are currently implemented."
+            )
 
         if self.config.auxiliary_hidden:
-            if out_dim is not None:
-                layers.append(nn.Linear(self.config.auxiliary_hidden[-1], out_dim))
-            else:
-                layers.append(nn.LazyLinear(out_dim))
+            layers.append(nn.Linear(self.config.auxiliary_hidden[-1], out_dim))
         else:
-            if out_dim is not None:
-                layers.append(nn.Linear(self._latent_dim, out_dim))
-            else:
-                layers.append(nn.LazyLinear(out_dim))
+            layers.append(nn.Linear(self._latent_dim, out_dim))
 
         self._auxiliary_net = nn.Sequential(*layers)
 
@@ -306,6 +303,12 @@ class LatentDynamicsModelComponent(nn.Module):
             # No env IDs provided - use sequential IDs
             training_env_ids = torch.arange(batch_size, device=obs_t.device)
         else:
+            # Validate that training_env_ids has the correct number of elements
+            if training_env_ids.numel() != batch_size:
+                raise ValueError(
+                    f"training_env_ids has {training_env_ids.numel()} elements but batch_size is {batch_size}. "
+                    f"These must match. Shape of training_env_ids: {training_env_ids.shape}"
+                )
             training_env_ids = training_env_ids.reshape(batch_size)
 
         # Ensure we have allocated state for all environments

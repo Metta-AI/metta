@@ -248,3 +248,36 @@ def test_no_auxiliary(config):
     future_pred = component.predict_future(z)
 
     assert future_pred is None
+
+
+def test_unsupported_future_type(config):
+    """Test that unsupported future_type raises an error."""
+    config.future_type = "observations"
+
+    with pytest.raises(ValueError, match="future_type='observations' is not supported"):
+        LatentDynamicsModelComponent(config=config, env=None)
+
+
+def test_training_env_ids_size_mismatch(component):
+    """Test that mismatched training_env_ids size raises a clear error."""
+    batch_size = 4
+    obs_dim = 64
+    action_dim = 8
+
+    component._action_dim = action_dim
+
+    # Create TensorDict first without training_env_ids
+    td = TensorDict(
+        {
+            "obs": torch.randn(batch_size, obs_dim),
+            "actions": torch.randint(0, action_dim, (batch_size,)),
+        },
+        batch_size=batch_size,
+    )
+
+    # Manually set mismatched training_env_ids (bypassing TensorDict validation)
+    # This simulates a bug where training_env_ids doesn't match batch size
+    td._tensordict["training_env_ids"] = torch.tensor([[0], [1]])
+
+    with pytest.raises(ValueError, match="training_env_ids has 2 elements but batch_size is 4"):
+        component.forward(td)

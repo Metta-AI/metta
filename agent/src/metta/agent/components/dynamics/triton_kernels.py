@@ -112,8 +112,10 @@ def triton_kl_divergence(z_mean: torch.Tensor, z_logvar: torch.Tensor) -> torch.
         BLOCK_SIZE=BLOCK_SIZE,
     )
 
-    # Sum and return
-    return output.sum()
+    # Sum over all elements, then take mean over batch dimension
+    # This matches the PyTorch fallback which does kl.mean()
+    batch_size = z_mean.shape[0]
+    return output.sum() / batch_size
 
 
 def triton_reparameterize(z_mean: torch.Tensor, z_logvar: torch.Tensor) -> torch.Tensor:

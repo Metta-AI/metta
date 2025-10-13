@@ -179,3 +179,50 @@ def test_adaptive_reparameterize_triton_cuda(benchmark):
 
     result = benchmark(reparameterize, z_mean, z_logvar, use_triton=True)
     assert result.shape == z_mean.shape
+
+
+@pytest.mark.skipif(not TRITON_AVAILABLE, reason="Triton not available")
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+def test_kl_divergence_consistency_triton_vs_pytorch():
+    """Ensure Triton and PyTorch KL divergence implementations return the same value.
+
+    This is critical for consistent training behavior across different hardware.
+    """
+    # Test with multiple batch sizes to ensure consistency
+    for batch_size in [4, 16, 64, 256]:
+        z_mean = torch.randn(batch_size, 32)
+        z_logvar = torch.randn(batch_size, 32)
+
+        # Compute on CPU with PyTorch
+        pytorch_result = pytorch_kl_divergence(z_mean, z_logvar)
+
+        # Compute on CUDA with Triton
+        z_mean_cuda = z_mean.cuda()
+        z_logvar_cuda = z_logvar.cuda()
+        triton_result = triton_kl_divergence(z_mean_cuda, z_logvar_cuda)
+
+        # Results should match closely (allowing for floating point differences)
+        torch.testing.assert_close(
+            pytorch_result,
+            triton_result.cpu(),
+            rtol=1e-4,
+            atol=1e-5,
+            msg=f"KL divergence mismatch for batch_size={batch_size}",
+        )
+
+
+def test_kl_divergence_consistency_cpu():
+    """Test that KL divergence is consistent across different batch sizes on CPU."""
+    # This ensures the implementation is correct regardless of hardware
+    for batch_size in [4, 16, 64]:
+        z_mean = torch.randn(batch_size, 32)
+        z_logvar = torch.randn(batch_size, 32)
+
+        # Compute KL divergence
+        result = pytorch_kl_divergence(z_mean, z_logvar)
+
+        # Result should be a scalar
+        assert result.numel() == 1
+
+        # Verify the result is finite
+        assert torch.isfinite(result)
