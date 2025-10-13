@@ -288,18 +288,6 @@ def train(
             )
         amended_batch_size = adjusted_batch
 
-    gamma = 0.977
-    gae_lambda = 0.891477
-    clip_coef = 0.264407
-    vf_coef = 0.897619
-    vf_clip_coef = 0.1
-    max_grad_norm = 0.5
-    ent_coef = 0.01
-    adam_beta1 = 0.9
-    adam_beta2 = 0.999
-    prio_alpha = 0.0
-    prio_beta0 = 0.6
-
     effective_timesteps = max(num_steps, amended_batch_size)
     if effective_timesteps != num_steps:
         logger.info(
@@ -326,23 +314,23 @@ def train(
         anneal_lr=True,
         precision="float32",
         learning_rate=learning_rate,
-        gamma=gamma,
-        gae_lambda=gae_lambda,
+        gamma=0.977,
+        gae_lambda=0.891477,
         update_epochs=1,
-        clip_coef=clip_coef,
-        vf_coef=vf_coef,
-        vf_clip_coef=vf_clip_coef,
-        max_grad_norm=max_grad_norm,
-        ent_coef=ent_coef,
-        adam_beta1=adam_beta1,
-        adam_beta2=adam_beta2,
+        clip_coef=0.264407,
+        vf_coef=0.897619,
+        vf_clip_coef=0.1,
+        max_grad_norm=0.5,
+        ent_coef=0.01,
+        adam_beta1=0.9,
+        adam_beta2=0.999,
         adam_eps=adam_eps,
         max_minibatch_size=32768,
         compile=False,
         vtrace_rho_clip=1.0,
         vtrace_c_clip=1.0,
-        prio_alpha=prio_alpha,
-        prio_beta0=prio_beta0,
+        prio_alpha=0.0,
+        prio_beta0=0.6,
     )
 
     trainer = pufferl.PuffeRL(train_args, vecenv, policy.network())
