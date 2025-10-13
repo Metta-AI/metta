@@ -654,7 +654,14 @@ class PuffeRL:
         if self.stats:
             self.last_stats = self.stats
 
-        for metric, value in (self.stats or self.last_stats).items():
+        stats_items = (self.stats or self.last_stats).items()
+        filtered_stats = [
+            (metric, value)
+            for metric, value in stats_items
+            if metric.startswith("agent/") and "heart" not in metric.lower()
+        ]
+
+        for metric, value in filtered_stats:
             try:  # Discard non-numeric values
                 int(value)
             except:
