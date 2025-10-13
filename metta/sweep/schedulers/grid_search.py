@@ -1,15 +1,15 @@
 """Grid-search scheduler for categorical parameter sweeps.
 
-This scheduler enumerates the Cartesian product of provided categorical
-parameter choices and schedules training/eval jobs while respecting resource
-constraints. It does not use an optimizer.
+Minimal design: enumerate the Cartesian product of categorical parameters,
+schedule evals for runs with training complete, and issue new training jobs
+for the next unseen combinations while respecting slot limits. No optimizer
+or complex state; we infer progress from the runs' recorded suggestions.
 """
 
 from __future__ import annotations
 
 import itertools
 import logging
-from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Tuple
 
 from pydantic import Field
@@ -44,44 +44,11 @@ class GridSearchSchedulerConfig(Config):
     parameters: Dict[str, Any] = Field(default_factory=dict)
 
 
-@dataclass
-class GridSearchState:
-    """State for grid search scheduling."""
-
-    runs_in_training: set[str] = field(default_factory=set)
-    runs_in_eval: set[str] = field(default_factory=set)
-    runs_completed: set[str] = field(default_factory=set)
-    # Index of next suggestion to dispatch
-    next_index: int = 0
-    # Mapping run_id -> suggestion dict
-    in_progress_suggestions: dict[str, dict[str, Any]] = field(default_factory=dict)
-
-    def model_dump(self) -> dict[str, Any]:
-        return {
-            "runs_in_training": list(self.runs_in_training),
-            "runs_in_eval": list(self.runs_in_eval),
-            "runs_completed": list(self.runs_completed),
-            "next_index": self.next_index,
-            "in_progress_suggestions": self.in_progress_suggestions,
-        }
-
-    @classmethod
-    def model_validate(cls, data: dict[str, Any]) -> "GridSearchState":
-        return cls(
-            runs_in_training=set(data.get("runs_in_training", [])),
-            runs_in_eval=set(data.get("runs_in_eval", [])),
-            runs_completed=set(data.get("runs_completed", [])),
-            next_index=int(data.get("next_index", 0)),
-            in_progress_suggestions=dict(data.get("in_progress_suggestions", {})),
-        )
-
-
 class GridSearchScheduler:
     """Scheduler that enumerates a fixed grid of categorical suggestions."""
 
-    def __init__(self, config: GridSearchSchedulerConfig, state: GridSearchState | None = None):
+    def __init__(self, config: GridSearchSchedulerConfig):
         self.config = config
-        self.state = state or GridSearchState()
         # Precompute full grid suggestions
         dims = self._flatten_dims(config.parameters)
         self._dim_names: list[str] = list(dims.keys())
@@ -91,52 +58,47 @@ class GridSearchScheduler:
     # ---------- Scheduling API ----------
     def schedule(self, runs: list[RunInfo], available_training_slots: int) -> list[JobDefinition]:
         jobs: list[JobDefinition] = []
-        run_status = {r.run_id: r.status for r in runs}
 
-        # Schedule evals for any runs that completed training
-        eval_candidates = [r for r in runs if r.status == JobStatus.TRAINING_DONE_NO_EVAL]
-        for run in eval_candidates:
-            job = create_eval_job(
-                run_id=run.run_id,
-                experiment_id=self.config.experiment_id,
-                recipe_module=self.config.recipe_module,
-                eval_entrypoint=self.config.eval_entrypoint,
-                stats_server_uri=self.config.stats_server_uri,
-                eval_overrides=self.config.eval_overrides,
-            )
-            jobs.append(job)
-            self.state.runs_in_training.discard(run.run_id)
-            self.state.runs_in_eval.add(run.run_id)
-            logger.info("[GridSearchScheduler] Scheduling evaluation for %s", run.run_id)
+        # 1) Schedule evals for any runs with training done
+        for run in runs:
+            if run.status == JobStatus.TRAINING_DONE_NO_EVAL:
+                job = create_eval_job(
+                    run_id=run.run_id,
+                    experiment_id=self.config.experiment_id,
+                    recipe_module=self.config.recipe_module,
+                    eval_entrypoint=self.config.eval_entrypoint,
+                    stats_server_uri=self.config.stats_server_uri,
+                    eval_overrides=self.config.eval_overrides,
+                )
+                jobs.append(job)
+                logger.info("[GridSearchScheduler] Scheduling evaluation for %s", run.run_id)
 
-        # Update state transitions for eval completions/failures
-        for run_id in list(self.state.runs_in_eval):
-            st = run_status.get(run_id)
-            if st in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.STALE):
-                self.state.runs_in_eval.discard(run_id)
-                self.state.runs_completed.add(run_id)
-
-        # Respect training capacity
+        # 2) Respect training capacity
         remaining_capacity = max(0, available_training_slots)
         if remaining_capacity <= 0:
             return jobs
 
-        # Determine remaining suggestions to launch
-        max_total = len(self._grid) if self.config.max_trials is None else min(self.config.max_trials, len(self._grid))
-        already_created = len(runs)
-        remaining_to_create = max_total - already_created
+        # 3) Determine remaining suggestions to launch based on used suggestions
+        target_total = (
+            len(self._grid) if self.config.max_trials is None else min(self.config.max_trials, len(self._grid))
+        )
+        used_keys = self._collect_used_suggestion_keys(runs)
+        used_count = min(len(used_keys), target_total)
+        remaining_to_create = target_total - used_count
         if remaining_to_create <= 0:
             return jobs
 
         to_launch = min(remaining_capacity, remaining_to_create)
-        base_trial_num = already_created
+        base_trial_num = len(runs)
 
-        # Launch next chunk of suggestions
-        for i in range(to_launch):
-            if self.state.next_index >= max_total:
+        # 4) Launch next unseen suggestions in grid order
+        launched = 0
+        for suggestion in self._grid:
+            if launched >= to_launch:
                 break
-            suggestion = dict(self._grid[self.state.next_index])
-            trial_num = base_trial_num + i + 1
+            if self._suggestion_key(suggestion) in used_keys:
+                continue
+            trial_num = base_trial_num + launched + 1
             run_id = generate_run_id(self.config.experiment_id, trial_num)
 
             merged_overrides = dict(self.config.train_overrides)
@@ -151,14 +113,9 @@ class GridSearchScheduler:
                 stats_server_uri=self.config.stats_server_uri,
                 train_overrides=merged_overrides,
             )
-            # Persist suggestion for store consumers
             job.metadata["sweep/suggestion"] = suggestion
             jobs.append(job)
-
-            # Update state
-            self.state.runs_in_training.add(run_id)
-            self.state.in_progress_suggestions[run_id] = suggestion
-            self.state.next_index += 1
+            launched += 1
             logger.info("[GridSearchScheduler] Scheduling training %s", run_id)
 
         return jobs
@@ -178,6 +135,30 @@ class GridSearchScheduler:
         return is_done
 
     # ---------- Helpers ----------
+    def _extract_suggestion(self, run: RunInfo) -> dict[str, Any] | None:
+        if run.summary and isinstance(run.summary, dict):
+            sg = run.summary.get("sweep/suggestion")
+            if isinstance(sg, dict):
+                return dict(sg)
+        return None
+
+    def _suggestion_key(self, suggestion: dict[str, Any]) -> Tuple[Any, ...]:
+        # Build a key tuple ordered by dimension names
+        return tuple(suggestion.get(name) for name in self._dim_names)
+
+    def _collect_used_suggestion_keys(self, runs: list[RunInfo]) -> set[Tuple[Any, ...]]:
+        keys: set[Tuple[Any, ...]] = set()
+        for r in runs:
+            sg = self._extract_suggestion(r)
+            if not sg:
+                continue
+            try:
+                key = self._suggestion_key(sg)
+            except Exception:
+                continue
+            keys.add(key)
+        return keys
+
     def _flatten_dims(self, params: Dict[str, Any], prefix: str = "") -> Dict[str, List[Any]]:
         """Extract flattened categorical dimensions from nested params.
 

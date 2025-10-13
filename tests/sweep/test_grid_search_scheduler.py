@@ -174,3 +174,48 @@ def test_grid_scheduler_accepts_list_and_nested_config():
     s = jobs[0].metadata.get("sweep/suggestion", {})
     assert s["trainer.optimizer.device"] in {"cpu", "cuda"}
     assert s["model.color"] in {"red", "blue"}
+
+
+def test_grid_scheduler_resume_hydrates_from_runs():
+    params = {
+        "model": {"color": CategoricalParameterConfig(choices=["red", "blue"])},
+        "trainer": {"device": ["cpu", "cuda"]},
+    }
+    cfg = GridSearchSchedulerConfig(experiment_id="grid_resume", parameters=params)
+
+    # Pretend two runs already completed with specific suggestions
+    completed_runs = []
+    suggs = [
+        {"model.color": "red", "trainer.device": "cpu"},
+        {"model.color": "red", "trainer.device": "cuda"},
+    ]
+    for i, sugg in enumerate(suggs, start=1):
+        completed_runs.append(
+            RunInfo(
+                run_id=f"grid_resume_trial_{i:04d}",
+                created_at=_now(),
+                last_updated_at=_now(),
+                has_started_training=True,
+                has_completed_training=True,
+                has_started_eval=True,
+                has_been_evaluated=True,
+                has_failed=False,
+                summary={"sweep/suggestion": sugg},
+            )
+        )
+
+    # New scheduler instance (simulating restart)
+    scheduler = GridSearchScheduler(cfg)
+
+    # Ask to schedule up to 2 trainings; should skip used suggestions and launch remaining grid points
+    jobs = scheduler.schedule(completed_runs, available_training_slots=2)
+    assert len(jobs) == 2
+    new_suggs = [{**j.metadata.get("sweep/suggestion", {})} for j in jobs]
+    for ns in new_suggs:
+        # Should be the remaining blue-cpu and blue-cuda in some order
+        assert ns["model.color"] == "blue"
+        assert ns["trainer.device"] in {"cpu", "cuda"}
+    # Ensure no duplicates of the already-completed suggestions
+    used = {(s["model.color"], s["trainer.device"]) for s in suggs}
+    launched = {(s["model.color"], s["trainer.device"]) for s in new_suggs}
+    assert used.isdisjoint(launched)
