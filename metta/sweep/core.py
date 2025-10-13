@@ -282,7 +282,7 @@ def make_sweep(
         recipe_module=recipe,
         train_entrypoint=train_entrypoint,
         eval_entrypoint=eval_entrypoint,
-        max_trials=num_trials,
+        max_trials=max_trials,
         max_parallel_jobs=num_parallel_trials,
         scheduler_type=scheduler_type,
         train_overrides=train_overrides or {},

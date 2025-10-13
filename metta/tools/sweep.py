@@ -330,10 +330,13 @@ class SweepTool(Tool):
                 return recurse(params)
 
             # Prefer explicit grid parameters provided on the tool; otherwise extract from protein_config
-            grid_params = self.grid_parameters or _extract_categorical_params(getattr(self.protein_config, "parameters", {}))
+            grid_params = self.grid_parameters or _extract_categorical_params(
+                getattr(self.protein_config, "parameters", {})
+            )
             if not grid_params:
                 raise ValueError(
-                    "GRID_SEARCH scheduler requires categorical parameters (provide tool.grid_parameters or set them in protein_config.parameters)"
+                    "GRID_SEARCH scheduler requires categorical parameters "
+                    "(provide tool.grid_parameters or set them in protein_config.parameters)"
                 )
 
             scheduler_config = GridSearchSchedulerConfig(

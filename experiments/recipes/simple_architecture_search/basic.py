@@ -3,7 +3,6 @@ from typing import Optional, Sequence
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
 from metta.agent.policies.vit import ViTDefaultConfig
-from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
@@ -13,10 +12,11 @@ from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.sweep.core import make_sweep, grid_search, SweepParameters as SP, Distribution as D
+from metta.sweep.core import (
+    grid_search,
+    SweepParameters as SP,
+)
 from metta.tools.eval import EvaluateTool
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
 from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
@@ -32,7 +32,6 @@ from metta.agent.policies.puffer import PufferPolicyConfig
 from metta.agent.policies.transformer import TransformerPolicyConfig
 from metta.agent.policies.trxl import trxl_policy_config
 from metta.agent.policies.trxl_nvidia import trxl_nvidia_policy_config
-from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policies.vit_reset import ViTResetConfig
 from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
 
@@ -52,6 +51,7 @@ ARCHITECTURES = {
     "trxl_nvidia": trxl_nvidia_policy_config(),
     "puffer": PufferPolicyConfig(),
 }
+
 
 def mettagrid(num_agents: int = 24) -> MettaGridConfig:
     arena_env = eb.make_arena(num_agents=num_agents)
@@ -133,7 +133,7 @@ def simulations(env: Optional[MettaGridConfig] = None) -> list[SimulationConfig]
 def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
-    arch_type: str = "fast"
+    arch_type: str = "fast",
 ) -> TrainTool:
     curriculum = curriculum or make_curriculum(
         enable_detailed_slice_logging=enable_detailed_slice_logging
@@ -158,6 +158,7 @@ def train(
 def evaluate(policy_uris: Optional[Sequence[str]] = None) -> EvaluateTool:
     """Evaluate policies on arena simulations."""
     return EvaluateTool(simulations=simulations(), policy_uris=policy_uris or [])
+
 
 def evaluate_in_sweep(policy_uri: str) -> EvaluateTool:
     """Evaluation tool for sweep runs.
@@ -198,16 +199,17 @@ def evaluate_in_sweep(policy_uri: str) -> EvaluateTool:
         policy_uris=[policy_uri],
     )
 
+
 def sweep_architecture(sweep_name: str) -> SweepTool:
     # NB: arch_type matches the corresponding input to "train", the train_entrypoint.
-    architecture_parameter = SP.categorical("arch_type", list(ARCHITECTURES.keys()) )
+    architecture_parameter = SP.categorical("arch_type", list(ARCHITECTURES.keys()))
     return grid_search(
         name=sweep_name,
         recipe="experiments.recipes.simple_architecture_search.basic",
         train_entrypoint="train",
         eval_entrypoint="evaluate_in_sweep",
         objective="evaluator/eval_sweep/score",
-        parameters = [architecture_parameter],
-        max_trials = 200,
-        num_parallel_trials = 8,
+        parameters=[architecture_parameter],
+        max_trials=200,
+        num_parallel_trials=8,
     )
