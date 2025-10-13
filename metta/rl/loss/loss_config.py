@@ -4,8 +4,7 @@ import torch
 from pydantic import Field
 
 from metta.agent.policy import Policy
-from metta.rl.loss import ContrastiveConfig
-from metta.rl.loss.ppo import PPOConfig
+from metta.rl.loss import ContrastiveConfig, PPOConfig
 from mettagrid.base_config import Config
 
 if TYPE_CHECKING:
