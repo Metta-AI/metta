@@ -241,6 +241,8 @@ export function EvalTasks({ repo }: Props) {
 
   // UI state
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
+  const [taskAttributes, setTaskAttributes] = useState<Map<string, Record<string, any>>>(new Map())
+  const [loadingAttributes, setLoadingAttributes] = useState<Set<string>>(new Set())
   const [recentPolicies, setRecentPolicies] = useState<string[]>([])
   const [recentSimSuites, setRecentSimSuites] = useState<string[]>([])
 
@@ -394,6 +396,17 @@ export function EvalTasks({ repo }: Props) {
     }
   }
 
+  const handleRetryTask = async (taskId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      await repo.retryEvalTask(taskId)
+      await loadHistoryTasks(historyCurrentPage)
+      await loadActiveTasks(activeCurrentPage)
+    } catch (err: any) {
+      setError(`Failed to retry task: ${err.message}`)
+    }
+  }
+
   const getStatusColor = (status: string, isInProgress: boolean) => {
     if (isInProgress) return '#17a2b8'
     switch (status) {
@@ -478,7 +491,30 @@ export function EvalTasks({ repo }: Props) {
     setExpandedRows(newExpanded)
   }
 
-  const renderAttributes = (attributes: Record<string, any>) => {
+  const loadFullAttributes = async (taskId: string) => {
+    if (loadingAttributes.has(taskId)) return
+
+    setLoadingAttributes((prev) => new Set(prev).add(taskId))
+    try {
+      const task = await repo.getEvalTask(taskId)
+      setTaskAttributes((prev) => new Map(prev).set(taskId, task.attributes))
+    } catch (err) {
+      console.error('Failed to load full attributes:', err)
+    } finally {
+      setLoadingAttributes((prev) => {
+        const next = new Set(prev)
+        next.delete(taskId)
+        return next
+      })
+    }
+  }
+
+  const renderAttributes = (taskId: string, minimalAttributes: Record<string, any>) => {
+    // Check if we have full attributes cached
+    const fullAttributes = taskAttributes.get(taskId)
+    const attributes = fullAttributes || minimalAttributes
+    const isFullView = !!fullAttributes
+
     if (!attributes || Object.keys(attributes).length === 0) {
       return <div style={{ padding: '10px', color: '#6c757d' }}>No attributes</div>
     }
@@ -554,6 +590,38 @@ export function EvalTasks({ repo }: Props) {
         >
           {renderObject(attributes)}
         </div>
+        {!isFullView && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              loadFullAttributes(taskId)
+            }}
+            disabled={loadingAttributes.has(taskId)}
+            style={{
+              marginTop: '12px',
+              padding: '6px 12px',
+              fontSize: '12px',
+              backgroundColor: loadingAttributes.has(taskId) ? '#9ca3af' : '#007bff',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: loadingAttributes.has(taskId) ? 'not-allowed' : 'pointer',
+              transition: 'background-color 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              if (!loadingAttributes.has(taskId)) {
+                e.currentTarget.style.backgroundColor = '#0056b3'
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!loadingAttributes.has(taskId)) {
+                e.currentTarget.style.backgroundColor = '#007bff'
+              }
+            }}
+          >
+            {loadingAttributes.has(taskId) ? 'Loading...' : 'See Full Attributes'}
+          </button>
+        )}
       </div>
     )
   }
@@ -730,7 +798,7 @@ export function EvalTasks({ repo }: Props) {
                     {isExpanded && (
                       <tr>
                         <td colSpan={7} style={{ padding: 0 }}>
-                          {renderAttributes(task.attributes)}
+                          {renderAttributes(task.id, task.attributes)}
                         </td>
                       </tr>
                     )}
@@ -859,7 +927,7 @@ export function EvalTasks({ repo }: Props) {
                       <td style={{ padding: '12px' }}>{task.sim_suite}</td>
                       <td style={{ padding: '12px' }}>{task.user_id || '-'}</td>
                       <td style={{ padding: '12px' }}>
-                        <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <span
                             style={{
                               padding: '4px 8px',
@@ -871,23 +939,59 @@ export function EvalTasks({ repo }: Props) {
                           >
                             {task.status}
                           </span>
-                          {task.status === 'error' && task.attributes?.details?.error && (
-                            <div
+                          {task.status !== 'unprocessed' && (
+                            <button
+                              onClick={(e) => handleRetryTask(task.id, e)}
                               style={{
+                                padding: '4px 8px',
                                 fontSize: '11px',
-                                color: '#dc3545',
-                                marginTop: '4px',
-                                maxWidth: '200px',
-                                wordBreak: 'break-word',
+                                backgroundColor: '#007bff',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                transition: 'background-color 0.2s',
                               }}
+                              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#0056b3')}
+                              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#007bff')}
                             >
-                              {task.attributes.details.error}
-                            </div>
+                              Retry
+                            </button>
                           )}
                         </div>
+                        {task.status === 'error' && task.attributes?.details?.error && (
+                          <div
+                            style={{
+                              fontSize: '11px',
+                              color: '#dc3545',
+                              marginTop: '4px',
+                              maxWidth: '200px',
+                              wordBreak: 'break-word',
+                            }}
+                          >
+                            {task.attributes.details.error}
+                          </div>
+                        )}
                       </td>
                       <td style={{ padding: '12px' }}>
-                        {(task.attributes?.stderr_log_path || task.attributes?.stdout_log_path) && (
+                        {task.attributes?.output_log_path ? (
+                          <a
+                            href={repo.getTaskLogUrl(task.id, 'output')}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                              color: '#007bff',
+                              textDecoration: 'none',
+                              fontWeight: 500,
+                              fontSize: '13px',
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+                            onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
+                          >
+                            Logs
+                          </a>
+                        ) : task.attributes?.stderr_log_path || task.attributes?.stdout_log_path ? (
                           <div style={{ display: 'flex', gap: '8px', fontSize: '13px' }}>
                             {task.attributes?.stderr_log_path && (
                               <a
@@ -927,8 +1031,7 @@ export function EvalTasks({ repo }: Props) {
                               </a>
                             )}
                           </div>
-                        )}
-                        {!task.attributes?.stderr_log_path && !task.attributes?.stdout_log_path && (
+                        ) : (
                           <span style={{ color: '#6c757d' }}>-</span>
                         )}
                       </td>
@@ -938,7 +1041,7 @@ export function EvalTasks({ repo }: Props) {
                     {isExpanded && (
                       <tr>
                         <td colSpan={7} style={{ padding: 0 }}>
-                          {renderAttributes(task.attributes)}
+                          {renderAttributes(task.id, task.attributes)}
                         </td>
                       </tr>
                     )}

@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 import torch
 
-from cogames import game
+from cogames.cli.mission import get_mission
 from cogames.train import train
 
 
@@ -24,8 +24,7 @@ def temp_checkpoint_dir():
 @pytest.fixture
 def test_env_config():
     """Get a small test game configuration."""
-    config, _, _ = game.get_mission("machina_1")
-    return config
+    return get_mission("machina_1")[1]
 
 
 @pytest.mark.timeout(120)  # 2 minute timeout

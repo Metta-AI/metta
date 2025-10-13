@@ -1,37 +1,44 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { Config, getConfigMap, StorableMap } from "@/lib/api";
 
 type MapState =
   | {
-      type: "loading";
+      type: "init";
+      loading: true;
     }
   | {
       type: "error";
       error: Error;
+      loading: boolean;
     }
   | {
       type: "map";
       map: StorableMap;
+      loading: boolean;
     };
 
 export function useMapFromConfig(cfg: Config, name?: string) {
-  const [id, setId] = useState(0);
+  const [state, setState] = useState<MapState>({ type: "loading" });
 
-  const [map, setMap] = useState<MapState>({ type: "loading" });
+  const reload = useCallback(async () => {
+    setState((state) => ({
+      ...state,
+      loading: true,
+    }));
+
+    try {
+      const map = await getConfigMap(cfg.maker.path, name);
+      setState({ type: "map", map, loading: false });
+    } catch (e) {
+      console.error(e);
+      setState({ type: "error", error: e as Error, loading: false });
+    }
+  }, [cfg.maker.path, name]);
+
   useEffect(() => {
-    setMap({ type: "loading" });
-    getConfigMap(cfg.maker.path, name)
-      .then((map) => setMap({ type: "map", map }))
-      .catch((e) => {
-        console.error(e);
-        setMap({ type: "error", error: e });
-      });
-  }, [cfg.maker.path, id]);
+    reload();
+  }, [reload]);
 
-  const reload = () => {
-    setId(id + 1);
-  };
-
-  return { map, reload };
+  return { mapState: state, reload };
 }
