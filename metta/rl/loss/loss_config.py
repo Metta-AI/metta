@@ -5,6 +5,7 @@ from pydantic import Field
 
 from metta.agent.policy import Policy
 from metta.rl.loss import ContrastiveConfig
+from metta.rl.loss.ppo import PPOConfig
 from mettagrid.base_config import Config
 
 if TYPE_CHECKING:
@@ -32,11 +33,7 @@ class LossConfig(Config):
 
         # If loss_configs is empty, add default PPO config
         if not self.loss_configs:
-            # Import here to avoid circular dependency
-            from metta.rl.loss.grpo import GRPOConfig
-
-            self.loss_configs = {"grpo": GRPOConfig()}
-            # self.loss_configs = {"ppo": PPOConfig()}
+            self.loss_configs = {"ppo": PPOConfig()}
 
         # Add contrastive config only if enabled to avoid inconsistent behavior
         if self.enable_contrastive and "contrastive" not in self.loss_configs:
