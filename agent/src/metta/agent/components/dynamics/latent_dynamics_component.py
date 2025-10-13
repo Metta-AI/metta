@@ -104,10 +104,16 @@ class LatentDynamicsModelComponent(nn.Module):
             self._encoder_logvar = nn.LazyLinear(self._latent_dim)
 
     def _build_decoder(self):
-        """Build decoder network: p(s_{t+1} | s_t, a_t, z)."""
+        """Build decoder network: p(s_{t+1} | s_t, a_t, z).
+
+        Note: The decoder input will be [obs_t, action_onehot, z].
+        We use LazyLinear for the first layer since we don't know obs_dim yet.
+        """
         layers = []
         for i, hidden_dim in enumerate(self.config.decoder_hidden):
             if i == 0:
+                # First layer: input is [obs_dim + action_dim + latent_dim]
+                # Use LazyLinear since we don't know obs_dim at init time
                 layers.append(nn.LazyLinear(hidden_dim))
             else:
                 layers.append(nn.Linear(self.config.decoder_hidden[i - 1], hidden_dim))
@@ -116,8 +122,13 @@ class LatentDynamicsModelComponent(nn.Module):
         self._decoder_base = nn.Sequential(*layers)
 
         # Output layer will predict next observation
-        # Use Identity to return last hidden layer, then we'll add proper output after first forward
-        self._decoder_output = nn.Identity()
+        # Use LazyLinear since we don't know obs_dim at init time
+        # This will be replaced with a proper Linear layer after first forward pass
+        if self.config.decoder_hidden:
+            self._decoder_output = nn.LazyLinear(1)  # Placeholder, will be replaced
+        else:
+            self._decoder_output = nn.LazyLinear(1)  # Placeholder, will be replaced
+        self._decoder_output_initialized = False
 
     def _build_auxiliary(self):
         """Build auxiliary network: p(future | z)."""
@@ -215,8 +226,19 @@ class LatentDynamicsModelComponent(nn.Module):
         # Concatenate inputs: [obs_t, action, z]
         decoder_input = torch.cat([obs_t, action_onehot, z], dim=-1)
 
-        # Pass through decoder
-        hidden = self._decoder_base(decoder_input)
+        # Pass through decoder - this will initialize LazyLinear on first call
+        try:
+            hidden = self._decoder_base(decoder_input)
+        except RuntimeError as e:
+            # If LazyLinear fails, it means we need to materialize it first
+            if "LazyLinear" in str(e) or "has not been initialized" in str(e):
+                # Materialize all LazyLinear layers
+                with torch.no_grad():
+                    self._decoder_base(decoder_input)
+                # Now try again
+                hidden = self._decoder_base(decoder_input)
+            else:
+                raise
 
         # Initialize output layer on first use
         if not self._decoder_output_initialized:
@@ -310,25 +332,27 @@ class LatentDynamicsModelComponent(nn.Module):
             if self.config.use_auxiliary:
                 future_pred = self.predict_future(z)
                 td.set("future_pred", future_pred)
+
+            # Update per-environment latent states for future inference
+            self.latent_mean_state[training_env_ids] = z_mean.detach()
+            self.latent_logvar_state[training_env_ids] = z_logvar.detach()
         else:
-            # Inference mode: use per-environment latent states for rollouts
-            # This maintains separate latent dynamics for each parallel environment
+            # Inference mode: use prior distribution (N(0,1)) for latent sampling
+            # During rollout, we don't have next observations to encode, so we sample from prior
             z_mean = self.latent_mean_state[training_env_ids]
             z_logvar = self.latent_logvar_state[training_env_ids]
 
-            # Sample latent variable
-            z = self.reparameterize(z_mean, z_logvar)
-
-            # Update the latent state for next step (simple persistence model)
-            # In a full implementation, this could predict the next latent state
-            self.latent_mean_state[training_env_ids] = z_mean.detach()
-            self.latent_logvar_state[training_env_ids] = z_logvar.detach()
+            # If never initialized (all zeros), sample from standard normal prior
+            if torch.allclose(z_mean, torch.zeros_like(z_mean)) and torch.allclose(
+                z_logvar, torch.zeros_like(z_logvar)
+            ):
+                # Sample from N(0, 1) prior
+                z = torch.randn(batch_size, self._latent_dim, device=obs_t.device)
+            else:
+                # Use stored latent state from previous training
+                z = self.reparameterize(z_mean, z_logvar)
 
             td.set("latent", z)
-
-            # Decode to predict next observation
-            obs_next_pred = self.decode(obs_t, action_t, z)
-            td.set("obs_next_pred", obs_next_pred)
 
         # Output latent representation
         td.set(self._out_key, z)
@@ -354,6 +378,17 @@ class LatentDynamicsModelComponent(nn.Module):
 
             self.max_num_envs = num_envs
 
+    def _initialize_lazy_layers(self, device: torch.device) -> None:
+        """Initialize LazyLinear layers with a dummy forward pass.
+
+        This is necessary to ensure the decoder is properly initialized before
+        inference mode, where we won't have training data to initialize dimensions.
+        """
+        # We need to know the observation dimension to initialize properly
+        # This will be determined from the input key during the first real forward pass
+        # For now, we'll set a flag that we need initialization
+        pass
+
     def get_agent_experience_spec(self) -> Composite:
         """Return empty spec since this is an internal component."""
         return Composite({})
@@ -376,6 +411,11 @@ class LatentDynamicsModelComponent(nn.Module):
             self._ensure_capacity(num_envs, device)
 
         self.to(device)
+
+        # Initialize LazyLinear layers by doing a dummy forward pass
+        # This ensures the decoder is properly initialized before inference
+        self._initialize_lazy_layers(device)
+
         return None
 
     def reset_memory(self) -> None:

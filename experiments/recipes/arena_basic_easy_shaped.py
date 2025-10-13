@@ -2,8 +2,6 @@ from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from metta.agent.policies.vit import ViTDefaultConfig
-from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
@@ -105,7 +103,6 @@ def simulations(env: Optional[MettaGridConfig] = None) -> list[SimulationConfig]
 def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
-    policy_architecture: Optional[PolicyArchitecture] = None,
 ) -> TrainTool:
     curriculum = curriculum or make_curriculum(
         enable_detailed_slice_logging=enable_detailed_slice_logging
@@ -116,14 +113,10 @@ def train(
         losses=LossConfig(),
     )
 
-    if policy_architecture is None:
-        policy_architecture = ViTDefaultConfig()
-
     return TrainTool(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=EvaluatorConfig(simulations=eval_simulations),
-        policy_architecture=policy_architecture,
         torch_profiler=TorchProfilerConfig(),
     )
 
