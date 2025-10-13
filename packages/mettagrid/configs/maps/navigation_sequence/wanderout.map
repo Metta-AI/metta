@@ -1,4 +1,4 @@
-type: mettagrid.map_builder.ascii.AsciiMapBuilder
+type: mettagrid.map_builder.ascii.AsciiMapBuilder.Config
 map_data: |-
   ##############################
   #.@..........................#
