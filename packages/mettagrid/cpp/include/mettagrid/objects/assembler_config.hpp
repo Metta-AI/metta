@@ -5,8 +5,8 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
-#include <map>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "core/grid_object.hpp"
@@ -20,9 +20,9 @@ struct AssemblerConfig : public GridObjectConfig {
         input_recipe_offset(0),
         output_recipe_offset(0),
         allow_partial_usage(false),
-        max_uses(0),           // 0 means unlimited uses
-        exhaustion(0.0f),      // 0 means no exhaustion
-        clip_immune(false),    // Not immune by default
+        max_uses(0),             // 0 means unlimited uses
+        exhaustion(0.0f),        // 0 means no exhaustion
+        clip_immune(false),      // Not immune by default
         start_clipped(false) {}  // Not clipped at start by default
 
   // Recipes will be set separately via initialize_recipes()
