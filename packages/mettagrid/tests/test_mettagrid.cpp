@@ -1,6 +1,10 @@
 #include <gtest/gtest.h>
 
+#include <unordered_map>
 #include <random>
+#include <stdexcept>
+#include <string>
+#include <vector>
 
 #include "actions/attack.hpp"
 #include "actions/change_glyph.hpp"
@@ -11,6 +15,7 @@
 #include "config/mettagrid_config.hpp"
 #include "core/event.hpp"
 #include "core/grid.hpp"
+#include "core/probability.hpp"
 #include "core/types.hpp"
 #include "objects/agent.hpp"
 #include "objects/assembler.hpp"
@@ -19,6 +24,7 @@
 #include "objects/converter.hpp"
 #include "objects/inventory_config.hpp"
 #include "objects/wall.hpp"
+#include "systems/observation_encoder.hpp"
 
 // Test-specific inventory item type constants
 namespace TestItems {
@@ -98,6 +104,37 @@ protected:
                        {});                             // initial_inventory
   }
 };
+
+TEST_F(MettaGridCppTest, ObservationEncoderRejectsResourceOverflowWithRecipeDetails) {
+  const size_t resource_count = 60;
+  std::vector<std::string> resource_names;
+  resource_names.reserve(resource_count);
+  for (size_t i = 0; i < resource_count; i++) {
+    resource_names.push_back("resource_" + std::to_string(i));
+  }
+
+  try {
+    ObservationEncoder encoder(resource_names, true);
+    FAIL() << "Expected std::invalid_argument when feature ids exceed uint8 capacity";
+  } catch (const std::invalid_argument& err) {
+    const std::string message = err.what();
+    EXPECT_NE(message.find("ObservationEncoder"), std::string::npos);
+    EXPECT_NE(message.find("resource count"), std::string::npos);
+  } catch (...) {
+    FAIL() << "Expected std::invalid_argument when feature ids exceed uint8 capacity";
+  }
+}
+
+TEST_F(MettaGridCppTest, ObservationEncoderAllowsLargeResourceCountWithoutRecipeDetails) {
+  const size_t resource_count = 60;
+  std::vector<std::string> resource_names;
+  resource_names.reserve(resource_count);
+  for (size_t i = 0; i < resource_count; i++) {
+    resource_names.push_back("resource_" + std::to_string(i));
+  }
+
+  EXPECT_NO_THROW({ ObservationEncoder encoder(resource_names, false); });
+}
 
 // ==================== Agent Tests ====================
 
@@ -398,6 +435,7 @@ TEST_F(MettaGridCppTest, GridCreation) {
 }
 
 TEST_F(MettaGridCppTest, GridObjectManagement) {
+  std::mt19937 rng(9);
   Grid grid(10, 10);
 
   // Create and add an agent
@@ -516,7 +554,8 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
                                 0,                        // initial_resource_count
                                 false);                   // recipe_details_obs
   EventManager event_manager;
-  Converter* generator = new Converter(0, 0, generator_cfg);
+  std::mt19937 rng(42);
+  Converter* generator = new Converter(0, 0, generator_cfg, rng);
   grid.add_object(generator);
   generator->set_event_manager(&event_manager);
 
@@ -527,7 +566,6 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
   // Create put_items action handler
   ActionConfig put_cfg({}, {});
   PutRecipeItems put(put_cfg);
-  std::mt19937 rng(42);
   put.init(&grid, &rng);
 
   // Test putting matching items
@@ -569,7 +607,8 @@ TEST_F(MettaGridCppTest, GetOutput) {
                                 1,                        // initial_items
                                 false);                   // recipe_details_obs
   EventManager event_manager;
-  Converter* generator = new Converter(0, 0, generator_cfg);
+  std::mt19937 rng(42);
+  Converter* generator = new Converter(0, 0, generator_cfg, rng);
   grid.add_object(generator);
   generator->set_event_manager(&event_manager);
 
@@ -579,7 +618,6 @@ TEST_F(MettaGridCppTest, GetOutput) {
   // Create get_output action handler
   ActionConfig get_cfg({}, {});
   GetOutput get(get_cfg);
-  std::mt19937 rng(42);
   get.init(&grid, &rng);
 
   // Test getting output
@@ -1073,6 +1111,161 @@ TEST_F(MettaGridCppTest, FractionalConsumptionDeterministicWithSameSeed) {
   EXPECT_EQ(agent1->inventory.amount(TestItems::ORE), agent2->inventory.amount(TestItems::ORE));
 }
 
+TEST_F(MettaGridCppTest, FractionalProductionAssembler) {
+  Grid grid(5, 5);
+  unsigned int current_timestep = 0;
+  std::mt19937 rng(42);
+
+  AssemblerConfig config(1, "prob_assembler", std::vector<int>{});
+  auto recipe = std::make_shared<Recipe>();
+  recipe->input_resources[TestItems::ORE] = 1;
+  const InventoryProbability heart_output = 1.2f;
+  recipe->output_resources[TestItems::HEART] = heart_output;
+  recipe->cooldown = 0;
+
+  config.recipes.resize(256);
+  for (int i = 0; i < 256; i++) {
+    config.recipes[i] = recipe;
+  }
+
+  Assembler assembler(2, 2, config, rng);
+  assembler.set_grid(&grid);
+  assembler.set_current_timestep_ptr(&current_timestep);
+
+  auto resource_names = create_test_resource_names();
+  AgentConfig agent_cfg = create_test_agent_config();
+  agent_cfg.inventory_config.limits = {
+      {{TestItems::ORE}, 200},
+      {{TestItems::LASER}, 200},
+      {{TestItems::ARMOR}, 200},
+      {{TestItems::HEART}, 200},
+  };
+  agent_cfg.initial_inventory[TestItems::ORE] = 100;
+  Agent* agent = new Agent(1, 2, agent_cfg, &resource_names);
+  float agent_reward = 0.0f;
+  agent->init(&agent_reward);
+  grid.add_object(agent);
+
+  std::mt19937 expected_rng = rng;
+  const int uses = 40;
+  for (int i = 0; i < uses; i++) {
+    bool success = assembler.onUse(*agent, 0);
+    EXPECT_TRUE(success);
+  }
+
+  int expected_hearts = 0;
+  for (int i = 0; i < uses; i++) {
+    InventoryDelta delta = probabilistic_delta(heart_output, expected_rng);
+    if (delta > 0) {
+      expected_hearts += delta;
+    }
+  }
+
+  InventoryQuantity final_ore = agent->inventory.amount(TestItems::ORE);
+  InventoryQuantity final_hearts = agent->inventory.amount(TestItems::HEART);
+  EXPECT_EQ(final_hearts, expected_hearts);
+  EXPECT_EQ(final_ore, static_cast<InventoryQuantity>(100 - uses));
+}
+
+TEST_F(MettaGridCppTest, ConverterRecipeObservationEmitsFractionalOutputs) {
+  std::unordered_map<InventoryItem, InventoryProbability> outputs = {
+      {TestItems::LASER, 0.25f},
+      {TestItems::HEART, 1.8f},
+  };
+
+  ConverterConfig converter_cfg(TestItems::CONVERTER,
+                                "fractional_converter",
+                                {},
+                                outputs,
+                                -1,
+                                -1,
+                                0,
+                                0,
+                                0,
+                                true);
+  converter_cfg.input_recipe_offset = 90;
+  converter_cfg.output_recipe_offset = 100;
+  converter_cfg.output_recipe_fraction_offset = 120;
+
+  std::mt19937 converter_rng(1337);
+  Converter converter(1, 1, converter_cfg, converter_rng);
+
+  auto features = converter.obs_features();
+
+  ObservationType fractional_id =
+      converter_cfg.output_recipe_fraction_offset + TestItems::LASER;
+  ObservationType integral_id =
+      converter_cfg.output_recipe_offset + TestItems::HEART;
+  bool fractional_found = false;
+  bool integral_found = false;
+  ObservationType fractional_value = 0;
+  for (const auto& feature : features) {
+    if (feature.feature_id == fractional_id) {
+      fractional_found = true;
+      fractional_value = feature.value;
+    }
+    if (feature.feature_id == integral_id) {
+      EXPECT_EQ(feature.value, 1);
+      integral_found = true;
+    }
+  }
+
+  EXPECT_TRUE(fractional_found)
+      << "Converter observations should emit fractional-only outputs as output_frac";
+  // For 0.25 we expect ceil(0.25*255)=64
+  EXPECT_EQ(fractional_value, static_cast<ObservationType>(64))
+      << "Converter fractional output bucket should be ceil(amount*255)";
+  EXPECT_TRUE(integral_found)
+      << "Converter observations should include integral outputs";
+}
+
+TEST_F(MettaGridCppTest, FractionalProductionConverter) {
+  Grid grid(4, 4);
+  EventManager event_manager;
+  event_manager.init(&grid);
+  std::mt19937 rng(99);
+
+  std::unordered_map<InventoryItem, InventoryProbability> outputs = {
+      {TestItems::HEART, 0.75f},
+      {TestItems::LASER, 1.5f},
+  };
+  const int conversions = 30;
+  ConverterConfig converter_cfg(TestItems::CONVERTER,
+                                "prob_converter",
+                                {},
+                                outputs,
+                                -1,
+                                conversions,
+                                0,
+                                0,
+                                0,
+                                false);
+  Converter* converter = new Converter(1, 1, converter_cfg, rng);
+  grid.add_object(converter);
+  converter->set_event_manager(&event_manager);
+
+  std::mt19937 expected_rng = rng;
+  for (int i = 0; i < conversions; i++) {
+    converter->finish_converting();
+  }
+
+  std::unordered_map<InventoryItem, int> expected_totals;
+  for (int i = 0; i < conversions; i++) {
+    for (const auto& [item, amount] : converter->output_resources) {
+      InventoryDelta delta = probabilistic_delta(amount, expected_rng);
+      if (delta > 0) {
+        expected_totals[item] += delta;
+      }
+    }
+  }
+
+  for (const auto& [item, _] : converter->output_resources) {
+    InventoryQuantity actual = converter->inventory.amount(item);
+    EXPECT_EQ(actual, static_cast<InventoryQuantity>(expected_totals[item]));
+  }
+  EXPECT_EQ(converter->conversions_completed, conversions);
+}
+
 // ==================== Event System Tests ====================
 
 TEST_F(MettaGridCppTest, EventManager) {
@@ -1088,7 +1281,8 @@ TEST_F(MettaGridCppTest, EventManager) {
 
 TEST_F(MettaGridCppTest, AssemblerBasicObservationFeatures) {
   AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
-  Assembler assembler(5, 5, config);
+  std::mt19937 assembler_rng(1001);
+  Assembler assembler(5, 5, config, assembler_rng);
 
   unsigned int current_timestep = 0;
   assembler.set_current_timestep_ptr(&current_timestep);
@@ -1123,7 +1317,8 @@ TEST_F(MettaGridCppTest, AssemblerBasicObservationFeatures) {
 
 TEST_F(MettaGridCppTest, AssemblerNoCooldownObservation) {
   AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
-  Assembler assembler(5, 5, config);
+  std::mt19937 assembler_rng(1002);
+  Assembler assembler(5, 5, config, assembler_rng);
 
   unsigned int current_timestep = 0;
   assembler.set_current_timestep_ptr(&current_timestep);
@@ -1144,7 +1339,8 @@ TEST_F(MettaGridCppTest, AssemblerNoCooldownObservation) {
 
 TEST_F(MettaGridCppTest, AssemblerCooldownRemainingCalculation) {
   AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
-  Assembler assembler(5, 5, config);
+  std::mt19937 assembler_rng(1003);
+  Assembler assembler(5, 5, config, assembler_rng);
 
   unsigned int current_timestep = 0;
   assembler.set_current_timestep_ptr(&current_timestep);
@@ -1176,7 +1372,8 @@ TEST_F(MettaGridCppTest, AssemblerCooldownRemainingCalculation) {
 
 TEST_F(MettaGridCppTest, AssemblerCooldownObservationWithRemainingTime) {
   AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
-  Assembler assembler(5, 5, config);
+  std::mt19937 assembler_rng(1004);
+  Assembler assembler(5, 5, config, assembler_rng);
 
   unsigned int current_timestep = 0;
   assembler.set_current_timestep_ptr(&current_timestep);
@@ -1201,7 +1398,8 @@ TEST_F(MettaGridCppTest, AssemblerCooldownObservationWithRemainingTime) {
 
 TEST_F(MettaGridCppTest, AssemblerCooldownObservationCappedAt255) {
   AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
-  Assembler assembler(5, 5, config);
+  std::mt19937 assembler_rng(1005);
+  Assembler assembler(5, 5, config, assembler_rng);
 
   unsigned int current_timestep = 0;
   assembler.set_current_timestep_ptr(&current_timestep);
@@ -1225,10 +1423,11 @@ TEST_F(MettaGridCppTest, AssemblerCooldownObservationCappedAt255) {
 
 TEST_F(MettaGridCppTest, AssemblerGetAgentPatternByte) {
   // Create a grid to test with
+  std::mt19937 rng(5);
   std::unique_ptr<Grid> grid = std::make_unique<Grid>(10, 10);
 
   AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
-  Assembler* assembler = new Assembler(5, 5, config);  // Assembler at position (5,5)
+  Assembler* assembler = new Assembler(5, 5, config, rng);  // Assembler at position (5,5)
 
   // Set up the assembler with grid
   assembler->set_grid(grid.get());
@@ -1277,7 +1476,8 @@ TEST_F(MettaGridCppTest, AssemblerGetCurrentRecipe) {
   config.recipes.push_back(recipe0);
   config.recipes.push_back(recipe1);
 
-  Assembler* assembler = new Assembler(5, 5, config);
+  std::mt19937 assembler_rng(2001);
+  Assembler* assembler = new Assembler(5, 5, config, assembler_rng);
 
   // Set up the assembler with grid and timestep
   unsigned int current_timestep = 0;
@@ -1303,6 +1503,7 @@ TEST_F(MettaGridCppTest, AssemblerGetCurrentRecipe) {
 
 TEST_F(MettaGridCppTest, AssemblerRecipeObservationsEnabled) {
   // Create a grid to test with
+  std::mt19937 rng(11);
   Grid grid(10, 10);
 
   AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
@@ -1322,7 +1523,7 @@ TEST_F(MettaGridCppTest, AssemblerRecipeObservationsEnabled) {
   config.recipes.push_back(recipe0);  // Index 0: pattern 0
   config.recipes.push_back(recipe1);  // Index 1: pattern 1
 
-  Assembler* assembler = new Assembler(5, 5, config);
+  Assembler* assembler = new Assembler(5, 5, config, rng);
 
   // Set up the assembler with grid and timestep
   unsigned int current_timestep = 0;
@@ -1355,20 +1556,196 @@ TEST_F(MettaGridCppTest, AssemblerRecipeObservationsEnabled) {
   EXPECT_EQ(current_recipe, recipe0.get());
 }
 
+TEST_F(MettaGridCppTest, AssemblerRecipeObservationEmitsFractionalOutputs) {
+  std::mt19937 rng(13);
+  Grid grid(5, 5);
+
+  AssemblerConfig config(1, "fractional_assembler", std::vector<int>{});
+  config.recipe_details_obs = true;
+  config.input_recipe_offset = 50;
+  config.output_recipe_offset = 60;
+  config.output_recipe_fraction_offset = 80;
+
+  auto recipe = std::make_shared<Recipe>();
+  recipe->output_resources[TestItems::LASER] = 0.5f;
+  recipe->output_resources[TestItems::HEART] = 1.3f;
+  config.recipes.push_back(recipe);
+
+  Assembler* assembler = new Assembler(2, 2, config, rng);
+  assembler->set_grid(&grid);
+  grid.add_object(assembler);
+
+  auto features = assembler->obs_features();
+
+  bool fractional_found = false;
+  ObservationType fractional_value = 0;
+  bool integral_found = false;
+  for (const auto& feature : features) {
+    if (feature.feature_id == config.output_recipe_fraction_offset + TestItems::LASER) {
+      fractional_found = true;
+      fractional_value = feature.value;
+    }
+    if (feature.feature_id == config.output_recipe_offset + TestItems::HEART) {
+      EXPECT_EQ(feature.value, 1);
+      integral_found = true;
+    }
+  }
+
+  EXPECT_TRUE(fractional_found)
+      << "Assembler observations should emit fractional-only outputs as output_frac";
+  // For 0.5 we expect ceil(0.5*255)=128
+  EXPECT_EQ(fractional_value, static_cast<ObservationType>(128))
+      << "Assembler fractional output bucket should be ceil(amount*255)";
+  EXPECT_TRUE(integral_found)
+      << "Assembler observations should include integral outputs";
+}
+
+TEST_F(MettaGridCppTest, AssemblerPartialUsageProbabilisticScaling) {
+  Grid grid(6, 6);
+  unsigned int current_timestep = 0;
+  std::mt19937 rng(123);
+
+  // Configure assembler to allow partial usage with a non-zero cooldown
+  AssemblerConfig config(1, "partial_prob_assembler", std::vector<int>{});
+  config.allow_partial_usage = true;
+
+  auto recipe = std::make_shared<Recipe>();
+  recipe->input_resources[TestItems::ORE] = 1;         // 1 ore per full use
+  const InventoryProbability heart_output = 1.0f;      // base output per full use
+  recipe->output_resources[TestItems::HEART] = heart_output;
+  recipe->cooldown = 10;                               // 10 ticks cooldown
+
+  // Use same recipe for all patterns
+  config.recipes.resize(256);
+  for (int i = 0; i < 256; i++) {
+    config.recipes[i] = recipe;
+  }
+
+  Assembler assembler(3, 3, config, rng);
+  assembler.set_grid(&grid);
+  assembler.set_current_timestep_ptr(&current_timestep);
+
+  // Create adjacent agent as the actor with ample ORE capacity
+  auto resource_names = create_test_resource_names();
+  AgentConfig agent_cfg = create_test_agent_config();
+  agent_cfg.inventory_config.limits = {
+      {{TestItems::ORE}, 200},
+      {{TestItems::LASER}, 200},
+      {{TestItems::ARMOR}, 200},
+      {{TestItems::HEART}, 200},
+  };
+  agent_cfg.initial_inventory[TestItems::ORE] = 100;
+  Agent* agent = new Agent(2, 3, agent_cfg, &resource_names);  // North of assembler
+  float agent_reward = 0.0f;
+  agent->init(&agent_reward);
+  grid.add_object(agent);
+
+  // We will perform one full use at t=0, then a series of partial uses at specific progress points.
+  // Track expected hearts using a copy of the RNG.
+  std::mt19937 expected_rng = rng;
+  std::vector<float> progresses = {1.0f, 0.2f, 0.6f, 0.4f, 0.9f, 0.1f};
+  std::vector<unsigned int> times;
+  times.reserve(progresses.size());
+
+  // Drive the assembler through the sequence.
+  unsigned int last_t = 0;
+  for (size_t i = 0; i < progresses.size(); i++) {
+    float p = progresses[i];
+    if (i == 0) {
+      // First call at t=0 -> full use
+      current_timestep = 0;
+      last_t = 0;
+    } else {
+      // For subsequent uses, set time to achieve desired progress relative to the last use start.
+      unsigned int elapsed = static_cast<unsigned int>(p * recipe->cooldown);
+      current_timestep = static_cast<unsigned int>(last_t + elapsed);
+      last_t = current_timestep;
+    }
+
+    bool success = assembler.onUse(*agent, 0);
+    EXPECT_TRUE(success) << "onUse should succeed at progress " << p;
+    times.push_back(current_timestep);
+  }
+
+  // Compute expected hearts by replicating probabilistic rounding per use with the same RNG.
+  int expected_hearts = 0;
+  for (float p : progresses) {
+    InventoryProbability amt = heart_output * p;
+    InventoryDelta delta = probabilistic_delta(amt, expected_rng);
+    if (delta > 0) {
+      expected_hearts += delta;
+    }
+  }
+
+  // Verify actual matches expected exactly with deterministic RNG and sequence.
+  EXPECT_EQ(agent->inventory.amount(TestItems::HEART), expected_hearts);
+
+  // Verify we consumed one ore per use (ceil(1 * p) == 1 for all p>0, and 1 for the full use).
+  int uses = static_cast<int>(progresses.size());
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 100 - uses);
+}
+
+TEST_F(MettaGridCppTest, AssemblerPartialUsageZeroOutputGuard) {
+  Grid grid(6, 6);
+  unsigned int current_timestep = 0;
+  std::mt19937 rng(77);
+
+  AssemblerConfig config(1, "partial_guard_assembler", std::vector<int>{});
+  config.allow_partial_usage = true;
+
+  auto recipe = std::make_shared<Recipe>();
+  recipe->input_resources[TestItems::ORE] = 1;
+  recipe->output_resources[TestItems::HEART] = 1.0f;
+  recipe->cooldown = 10;
+
+  config.recipes.resize(256);
+  for (int i = 0; i < 256; i++) {
+    config.recipes[i] = recipe;
+  }
+
+  Assembler assembler(3, 3, config, rng);
+  assembler.set_grid(&grid);
+  assembler.set_current_timestep_ptr(&current_timestep);
+
+  auto resource_names = create_test_resource_names();
+  AgentConfig agent_cfg = create_test_agent_config();
+  agent_cfg.initial_inventory[TestItems::ORE] = 10;
+  Agent* agent = new Agent(2, 3, agent_cfg, &resource_names);
+  float agent_reward = 0.0f;
+  agent->init(&agent_reward);
+  grid.add_object(agent);
+
+  // First, do one full use at t=0 to start cooldown
+  current_timestep = 0;
+  bool first = assembler.onUse(*agent, 0);
+  EXPECT_TRUE(first);
+
+  // Immediately attempt another use at progress=0.0 -> should be blocked by zero-output guard
+  current_timestep = 0;  // cooldown just started; progress == 0.0
+  bool blocked = assembler.onUse(*agent, 0);
+  EXPECT_FALSE(blocked);
+
+  // Advance to a small progress and confirm partial use succeeds
+  current_timestep = 1;  // progress = 0.1
+  bool partial = assembler.onUse(*agent, 0);
+  EXPECT_TRUE(partial);
+}
+
 TEST_F(MettaGridCppTest, AssemblerConsumeResourcesAcrossAgents) {
   // Create a recipe that requires 10 ore
   std::unordered_map<InventoryItem, InventoryQuantity> input_resources;
   input_resources[TestItems::ORE] = 10;
 
-  std::unordered_map<InventoryItem, InventoryQuantity> output_resources;
-  output_resources[TestItems::LASER] = 1;
+  std::unordered_map<InventoryItem, InventoryProbability> output_resources;
+  output_resources[TestItems::LASER] = 1.0f;
 
   auto recipe = std::make_shared<Recipe>(input_resources, output_resources, 0);
 
   // Create assembler with the recipe
   AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
   config.recipes = {recipe};
-  Assembler assembler(5, 5, config);
+  std::mt19937 assembler_rng(1006);
+  Assembler assembler(5, 5, config, assembler_rng);
   // Create agents
   AgentConfig agent_config(0,         // type_id
                            "agent",   // type_name
@@ -1434,7 +1811,7 @@ TEST_F(MettaGridCppTest, AssemblerClippingAndUnclipping) {
     config.recipes[i] = normal_recipe;
   }
 
-  Assembler assembler(5, 5, config);
+  Assembler assembler(5, 5, config, rng);
   assembler.set_grid(&grid);
   assembler.set_current_timestep_ptr(&current_timestep);
 
@@ -1513,6 +1890,7 @@ TEST_F(MettaGridCppTest, AssemblerClippingAndUnclipping) {
 TEST_F(MettaGridCppTest, AssemblerMaxUses) {
   // Create a simple grid
   Grid grid(10, 10);
+  std::mt19937 rng(42);
   unsigned int current_timestep = 0;
 
   // Create an assembler with max_uses set to 3
@@ -1530,7 +1908,7 @@ TEST_F(MettaGridCppTest, AssemblerMaxUses) {
     config.recipes[i] = recipe;
   }
 
-  Assembler assembler(5, 5, config);
+  Assembler assembler(5, 5, config, rng);
   assembler.set_grid(&grid);
   assembler.set_current_timestep_ptr(&current_timestep);
 
@@ -1608,6 +1986,7 @@ TEST_F(MettaGridCppTest, AssemblerMaxUses) {
 TEST_F(MettaGridCppTest, AssemblerExhaustion) {
   // Create a simple grid
   Grid grid(10, 10);
+  std::mt19937 rng(42);
   unsigned int current_timestep = 0;
 
   // Create an assembler with exhaustion enabled
@@ -1625,7 +2004,7 @@ TEST_F(MettaGridCppTest, AssemblerExhaustion) {
     config.recipes[i] = recipe;
   }
 
-  Assembler assembler(5, 5, config);
+  Assembler assembler(5, 5, config, rng);
   assembler.set_grid(&grid);
   assembler.set_current_timestep_ptr(&current_timestep);
 
@@ -1804,7 +2183,7 @@ TEST_F(MettaGridCppTest, ResourceModConverter) {
                                 0,                     // cooldown
                                 0,                     // initial_items
                                 false);                // recipe_details_obs
-  Converter* converter = new Converter(3, 2, converter_cfg);
+  Converter* converter = new Converter(3, 2, converter_cfg, rng);
   grid.add_object(converter);
   converter->set_event_manager(&event_manager);
 
@@ -1825,4 +2204,115 @@ TEST_F(MettaGridCppTest, ResourceModConverter) {
 
   // Check that converter gained 1 ore
   EXPECT_EQ(converter->inventory.amount(TestItems::ORE), 1);
+}
+
+TEST_F(MettaGridCppTest, ConverterDoesNotExceedMaxOutputOnFinish) {
+  // Set up a converter that would normally add 2 items per conversion
+  std::unordered_map<InventoryItem, InventoryProbability> outputs = {
+      {TestItems::HEART, 2.0f},
+  };
+
+  // Configure max_output to 10 and initialize with 9 so a +2 would overshoot without clamping
+  ConverterConfig converter_cfg(
+      TestItems::CONVERTER,  // type_id
+      "converter_cap_test",  // type_name
+      {},                     // input_resources
+      outputs,                // output_resources
+      10,                     // max_output
+      -1,                     // max_conversions
+      0,                      // conversion_ticks
+      0,                      // cooldown
+      9,                      // initial_resource_count (preload HEART to 9)
+      false);                 // recipe_details_obs
+
+  std::mt19937 rng(123);
+  Grid grid(2, 2);
+  EventManager event_manager;
+  event_manager.init(&grid);
+
+  Converter* converter = new Converter(0, 0, converter_cfg, rng);
+  grid.add_object(converter);
+  converter->set_event_manager(&event_manager);
+
+  // Finishing a conversion attempts to add 2 HEART, but should clamp to remaining capacity 1
+  converter->finish_converting();
+
+  EXPECT_EQ(converter->inventory.amount(TestItems::HEART), 10)
+      << "Converter should not exceed max_output when applying a single conversion";
+}
+
+TEST_F(MettaGridCppTest, ConverterPerTypeCapMultiOutputClamp) {
+  // Set up a converter with two outputs and a per-type cap of 3
+  std::unordered_map<InventoryItem, InventoryProbability> outputs = {
+      {TestItems::HEART, 2.0f},
+      {TestItems::LASER, 2.0f},
+  };
+
+  ConverterConfig converter_cfg(
+      TestItems::CONVERTER,  // type_id
+      "converter_multi_cap",  // type_name
+      {},                     // input_resources
+      outputs,                // output_resources
+      3,                      // max_output (per-type)
+      -1,                     // max_conversions
+      0,                      // conversion_ticks
+      0,                      // cooldown
+      0,                      // initial_resource_count
+      false);                 // recipe_details_obs
+
+  std::mt19937 rng(321);
+  Grid grid(2, 2);
+  EventManager event_manager;
+  event_manager.init(&grid);
+  Converter* converter = new Converter(0, 0, converter_cfg, rng);
+  grid.add_object(converter);
+  converter->set_event_manager(&event_manager);
+
+  // Preload inventory so each output type is below the cap by 1 (2 of each)
+  converter->inventory.update(TestItems::HEART, 2);
+  converter->inventory.update(TestItems::LASER, 2);
+
+  // A conversion would try to add 2 of each, but should clamp to +1 for each type
+  converter->finish_converting();
+
+  EXPECT_EQ(converter->inventory.amount(TestItems::HEART), 3) << "HEART should clamp at per-type cap";
+  EXPECT_EQ(converter->inventory.amount(TestItems::LASER), 3) << "LASER should clamp at per-type cap";
+}
+
+TEST_F(MettaGridCppTest, ConverterPerTypeCapSkipsCappedAllowsOthers) {
+  // Two outputs, cap 3; one type already capped, the other below
+  std::unordered_map<InventoryItem, InventoryProbability> outputs = {
+      {TestItems::HEART, 2.0f},
+      {TestItems::LASER, 1.0f},
+  };
+
+  ConverterConfig converter_cfg(
+      TestItems::CONVERTER,   // type_id
+      "converter_skip_capped",  // type_name
+      {},                      // input_resources
+      outputs,                 // output_resources
+      3,                       // max_output (per-type)
+      -1,                      // max_conversions
+      0,                       // conversion_ticks
+      0,                       // cooldown
+      0,                       // initial_resource_count
+      false);                  // recipe_details_obs
+
+  std::mt19937 rng(654);
+  Grid grid(2, 2);
+  EventManager event_manager;
+  event_manager.init(&grid);
+  Converter* converter = new Converter(0, 0, converter_cfg, rng);
+  grid.add_object(converter);
+  converter->set_event_manager(&event_manager);
+
+  // HEART already at cap, LASER below cap by 1
+  converter->inventory.update(TestItems::HEART, 3);
+  converter->inventory.update(TestItems::LASER, 2);
+
+  converter->finish_converting();
+
+  // HEART should remain capped, LASER should increase by 1 to the cap
+  EXPECT_EQ(converter->inventory.amount(TestItems::HEART), 3) << "HEART remains at cap";
+  EXPECT_EQ(converter->inventory.amount(TestItems::LASER), 3) << "LASER reaches per-type cap";
 }

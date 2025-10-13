@@ -15,6 +15,7 @@ from mettagrid.base_config import Config
 from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 from mettagrid.map_builder.random import RandomMapBuilder
+from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME
 
 # ===== Python Configuration Models =====
 
@@ -139,22 +140,75 @@ class WallConfig(GridObjectConfig):
 
 
 class ConverterConfig(GridObjectConfig):
-    """Python converter configuration."""
+    """Python converter configuration.
+
+    Notes on limits:
+    - max_output applies per output type. When multiple resources are produced,
+      each resource is capped individually at max_output; the converter only
+      stops converting due to caps when all produced types are at or above the cap.
+    """
 
     type: Literal["converter"] = Field(default="converter")
     input_resources: dict[str, int] = Field(default_factory=dict)
-    output_resources: dict[str, int] = Field(default_factory=dict)
+    output_resources: dict[str, float] = Field(default_factory=dict)
     max_output: int = Field(ge=-1, default=5)
     max_conversions: int = Field(default=-1)
     conversion_ticks: int = Field(ge=0, default=1)
     cooldown: int = Field(ge=0)
     initial_resource_count: int = Field(ge=0, default=0)
 
+    @model_validator(mode="after")
+    def _validate_outputs(self) -> "ConverterConfig":
+        # outputs must be finite and >= 0, and ceil(amount) <= 255 (uint8 bound)
+        import math
+        import numbers
+
+        for k, v in self.output_resources.items():
+            if not isinstance(v, numbers.Real):
+                raise ValueError(
+                    f"ConverterConfig.output_resources[{k}] must be a real number, got {type(v).__name__}: {v}"
+                )
+
+            fv = float(v)
+
+            if math.isnan(fv) or math.isinf(fv):
+                raise ValueError(f"ConverterConfig.output_resources[{k}] must be finite, got {v}")
+            if fv < 0:
+                raise ValueError(f"ConverterConfig.output_resources[{k}] must be >= 0, got {v}")
+            if math.ceil(fv) > 255:
+                raise ValueError(
+                    f"ConverterConfig.output_resources[{k}] ceil({v}) exceeds 255 which would overflow inventory"
+                )
+        return self
+
 
 class RecipeConfig(Config):
     input_resources: dict[str, int] = Field(default_factory=dict)
-    output_resources: dict[str, int] = Field(default_factory=dict)
+    output_resources: dict[str, float] = Field(default_factory=dict)
     cooldown: int = Field(ge=0, default=0)
+
+    @model_validator(mode="after")
+    def _validate_outputs(self) -> "RecipeConfig":
+        import math
+        import numbers
+
+        for k, v in self.output_resources.items():
+            if not isinstance(v, numbers.Real):
+                raise ValueError(
+                    f"RecipeConfig.output_resources[{k}] must be a real number, got {type(v).__name__}: {v}"
+                )
+
+            fv = float(v)
+
+            if math.isnan(fv) or math.isinf(fv):
+                raise ValueError(f"RecipeConfig.output_resources[{k}] must be finite, got {v}")
+            if fv < 0:
+                raise ValueError(f"RecipeConfig.output_resources[{k}] must be >= 0, got {v}")
+            if math.ceil(fv) > 255:
+                raise ValueError(
+                    f"RecipeConfig.output_resources[{k}] ceil({v}) exceeds 255 which would overflow inventory"
+                )
+        return self
 
 
 class AssemblerConfig(GridObjectConfig):
@@ -324,10 +378,12 @@ class MettaGridConfig(Config):
         return self
 
     def with_ascii_map(self, map_data: list[list[str]]) -> "MettaGridConfig":
-        self.game.map_builder = AsciiMapBuilder.Config(
-            map_data=map_data,
-            char_to_name_map={o.map_char: o.name for o in self.game.objects.values()},
-        )
+        # Start from sensible defaults (e.g., '#', '.', '@', 'Z', etc.) so ASCII scenes work even
+        # when objects are added to the config after this call. User/object-provided entries override defaults.
+        legend: dict[str, str] = {**DEFAULT_CHAR_TO_NAME}
+        for o in self.game.objects.values():
+            legend[o.map_char] = o.name
+        self.game.map_builder = AsciiMapBuilder.Config(map_data=map_data, char_to_name_map=legend)
         return self
 
     @staticmethod

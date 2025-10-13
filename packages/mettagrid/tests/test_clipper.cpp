@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <unordered_map>
 #include <memory>
 #include <random>
 
@@ -22,10 +23,10 @@ protected:
   void SetUp() override {
     grid = std::make_unique<Grid>(10, 10);
     current_timestep = 0;
-    unclip_recipe =
-        std::make_shared<Recipe>(std::unordered_map<InventoryItem, InventoryQuantity>{{TestItems::ORE, 1}},
-                                 std::unordered_map<InventoryItem, InventoryQuantity>{{TestItems::BATTERY, 1}},
-                                 10);
+    assembler_rng.seed(123);
+    unclip_recipe = std::make_shared<Recipe>(std::unordered_map<InventoryItem, InventoryQuantity>{{TestItems::ORE, 1}},
+                                             std::unordered_map<InventoryItem, InventoryProbability>{{TestItems::BATTERY, 1.0f}},
+                                             10);
   }
 
   void TearDown() override {}
@@ -33,6 +34,7 @@ protected:
   std::unique_ptr<Grid> grid;
   std::shared_ptr<Recipe> unclip_recipe;
   unsigned int current_timestep;
+  std::mt19937 assembler_rng;
 
   // Helper to create an assembler at a specific location
   Assembler* create_assembler(GridCoord r, GridCoord c) {
@@ -40,7 +42,7 @@ protected:
     AssemblerConfig cfg(1, "test_assembler");
     cfg.recipes = recipes;
 
-    Assembler* assembler = new Assembler(r, c, cfg);
+    Assembler* assembler = new Assembler(r, c, cfg, assembler_rng);
     grid->add_object(assembler);
     assembler->set_current_timestep_ptr(&current_timestep);
     return assembler;
@@ -244,10 +246,10 @@ protected:
   void SetUp() override {
     current_timestep = 0;
     rng.seed(42);
-    unclip_recipe =
-        std::make_shared<Recipe>(std::unordered_map<InventoryItem, InventoryQuantity>{{TestItems::ORE, 1}},
-                                 std::unordered_map<InventoryItem, InventoryQuantity>{{TestItems::BATTERY, 1}},
-                                 10);
+    assembler_rng.seed(321);
+    unclip_recipe = std::make_shared<Recipe>(std::unordered_map<InventoryItem, InventoryQuantity>{{TestItems::ORE, 1}},
+                                             std::unordered_map<InventoryItem, InventoryProbability>{{TestItems::BATTERY, 1.0f}},
+                                             10);
   }
 
   void TearDown() override {}
@@ -255,6 +257,7 @@ protected:
   std::shared_ptr<Recipe> unclip_recipe;
   unsigned int current_timestep;
   std::mt19937 rng;
+  std::mt19937 assembler_rng;
 
   // Helper to create an assembler at a specific location
   Assembler* create_assembler(Grid& grid, GridCoord r, GridCoord c, bool clip_immune = false) {
@@ -263,7 +266,7 @@ protected:
     cfg.recipes = recipes;
     cfg.clip_immune = clip_immune;
 
-    Assembler* assembler = new Assembler(r, c, cfg);
+    Assembler* assembler = new Assembler(r, c, cfg, assembler_rng);
     grid.add_object(assembler);
     assembler->set_current_timestep_ptr(&current_timestep);
     return assembler;

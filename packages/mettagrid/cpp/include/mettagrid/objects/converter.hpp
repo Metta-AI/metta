@@ -2,10 +2,15 @@
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_CONVERTER_HPP_
 
 #include <cassert>
+#include <cmath>
+#include <random>
+#include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "core/event.hpp"
+#include "core/probability.hpp"
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
 #include "objects/converter_config.hpp"
@@ -29,15 +34,19 @@ private:
     if (this->max_conversions >= 0 && this->conversions_completed >= this->max_conversions) {
       return;
     }
-    // Check if the converter is already at max output.
-    unsigned short total_output = 0;
-    for (const auto& [item, amount] : this->inventory.get()) {
-      if (this->output_resources.count(item) > 0) {
-        total_output += amount;
+    // Check if all output types are already at the per-type max_output.
+    if (this->max_output >= 0) {
+      bool all_outputs_capped = true;
+      for (const auto& [item, _] : this->output_resources) {
+        unsigned int have = this->inventory.amount(item);
+        if (have < static_cast<unsigned int>(this->max_output)) {
+          all_outputs_capped = false;
+          break;
+        }
       }
-    }
-    if (this->max_output >= 0 && total_output >= this->max_output) {
-      return;
+      if (all_outputs_capped) {
+        return;
+      }
     }
     // Check if the converter has enough input.
     for (const auto& [item, input_amount] : this->input_resources) {
@@ -66,10 +75,10 @@ private:
 
 public:
   std::unordered_map<InventoryItem, InventoryQuantity> input_resources;
-  std::unordered_map<InventoryItem, InventoryQuantity> output_resources;
-  // The converter won't convert if its output already has this many things of
-  // the type it produces. This may be clunky in some cases, but the main usage
-  // is to make Mines (etc) have a maximum output.
+  std::unordered_map<InventoryItem, InventoryProbability> output_resources;
+  // The converter won't convert if all of its output types already have this
+  // many things (per-type cap). This may be clunky in some cases, but the main
+  // usage is to make Mines (etc) have a maximum output per produced resource.
   // -1 means no limit
   short max_output;
   short max_conversions;
@@ -81,9 +90,11 @@ public:
   EventManager* event_manager;
   ObservationType input_recipe_offset;
   ObservationType output_recipe_offset;
+  ObservationType output_recipe_fraction_offset;
   unsigned short conversions_completed;
+  std::mt19937& rng;
 
-  Converter(GridCoord r, GridCoord c, const ConverterConfig& cfg)
+  Converter(GridCoord r, GridCoord c, const ConverterConfig& cfg, std::mt19937& rng_engine)
       : GridObject(),
         HasInventory(InventoryConfig()),  // Converts have nothing to configure in their inventory. Yet.
         input_resources(cfg.input_resources),
@@ -98,7 +109,9 @@ public:
         event_manager(nullptr),
         input_recipe_offset(cfg.input_recipe_offset),
         output_recipe_offset(cfg.output_recipe_offset),
-        conversions_completed(0) {
+        output_recipe_fraction_offset(cfg.output_recipe_fraction_offset),
+        conversions_completed(0),
+        rng(rng_engine) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids);
 
     // Initialize inventory with initial_resource_count for all output types
@@ -120,9 +133,28 @@ public:
       this->conversions_completed++;
     }
 
-    // Add output to inventory
     for (const auto& [item, amount] : this->output_resources) {
-      this->inventory.update(item, amount);
+      if (amount <= 0.0f) {
+        continue;
+      }
+      InventoryDelta delta = probabilistic_delta(amount, this->rng);
+      if (delta <= 0) {
+        continue;
+      }
+      // Clamp delta to per-type remaining capacity if a cap is enforced
+      if (this->max_output >= 0) {
+        unsigned int have = this->inventory.amount(item);
+        int type_remaining = static_cast<int>(this->max_output) - static_cast<int>(have);
+        if (type_remaining <= 0) {
+          continue;
+        }
+        if (delta > type_remaining) {
+          delta = static_cast<InventoryDelta>(type_remaining);
+        }
+      }
+      if (delta > 0) {
+        this->inventory.update(item, delta);
+      }
     }
 
     if (this->cooldown > 0) {
@@ -150,10 +182,13 @@ public:
     std::vector<PartialObservationToken> features;
 
     // Calculate the capacity needed
-    // We push 3 fixed features + inventory items + (optionally) recipe inputs and outputs + tags
-    size_t capacity = 3 + this->inventory.get().size() + this->tag_ids.size();
+    // We push 2 fixed features + inventory items + (optionally) recipe inputs and outputs + tags
+    size_t capacity = 2 + this->inventory.get().size() + this->tag_ids.size();
     if (this->recipe_details_obs) {
-      capacity += this->input_resources.size() + this->output_resources.size();
+      capacity += this->input_resources.size();
+      capacity += this->output_resources.size();
+      // Fractional outputs are encoded in a separate pass that can emit up to one token per resource.
+      capacity += this->output_resources.size();
     }
     features.reserve(capacity);
 
@@ -179,12 +214,35 @@ public:
         }
       }
 
-      // Add recipe outputs (output:resource) - only non-zero values
+      // Add recipe outputs (output:resource) - integral part only
       for (const auto& [item, amount] : this->output_resources) {
-        if (amount > 0) {
-          features.push_back(
-              {static_cast<ObservationType>(output_recipe_offset + item), static_cast<ObservationType>(amount)});
+        if (amount >= 1.0f) {
+          unsigned int floored_amount = static_cast<unsigned int>(amount);
+          if (floored_amount > 0) {
+            ObservationType encoded_amount =
+                static_cast<ObservationType>(std::min(floored_amount, 255u));
+            ObservationType feature_id =
+                static_cast<ObservationType>(output_recipe_offset + item);
+            features.push_back({feature_id, encoded_amount});
+          }
         }
+      }
+
+      // Add recipe fractional outputs (output_frac:resource) for fractional remainders
+      for (const auto& [item, amount] : this->output_resources) {
+        if (amount <= 0.0f) {
+          continue;
+        }
+        float fractional_part = amount - static_cast<float>(std::floor(amount));
+        if (fractional_part <= 0.0f) {
+          continue;
+        }
+        float scaled = std::ceil(fractional_part * 255.0f);
+        unsigned int bucket = static_cast<unsigned int>(std::min(std::max(scaled, 1.0f), 255.0f));
+        ObservationType encoded_amount = static_cast<ObservationType>(bucket);
+        ObservationType feature_id =
+            static_cast<ObservationType>(output_recipe_fraction_offset + item);
+        features.push_back({feature_id, encoded_amount});
       }
     }
 

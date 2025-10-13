@@ -393,12 +393,24 @@ proc drawInventory*() =
     let inventory = obj.inventory.at
     var numItems = 0
     for itemAmount in inventory:
-      numItems += itemAmount.count
-    let widthItems = (numItems.float32 * 0.1).clamp(0.0, 1.0)
+      let countRaw = int(itemAmount.count)
+      let count = if countRaw < 0: 0 else: countRaw
+      numItems += count
+    let widthItems: float32 =
+      if numItems == 0:
+        0.0'f32
+      else:
+        (numItems.float32 * 0.1'f32).clamp(0.0'f32, 1.0'f32)
     var x = -widthItems / 2
-    var xAdvance = widthItems / numItems.float32
+    var xAdvance: float32 =
+      if numItems == 0:
+        0.0'f32
+      else:
+        widthItems / numItems.float32
     for itemAmount in inventory:
-      for i in 0 ..< itemAmount.count:
+      let iconCountRaw = int(itemAmount.count)
+      let iconCount = if iconCountRaw < 0: 0 else: iconCountRaw
+      for i in 0 ..< iconCount:
         bxy.drawImage(
           replay.itemImages[itemAmount.itemId],
           obj.location.at.xy.vec2 + vec2(x.float32, -0.5),

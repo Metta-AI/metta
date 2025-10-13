@@ -19,6 +19,7 @@ struct AssemblerConfig : public GridObjectConfig {
         recipe_details_obs(false),
         input_recipe_offset(0),
         output_recipe_offset(0),
+        output_recipe_fraction_offset(0),
         allow_partial_usage(false),
         max_uses(0),             // 0 means unlimited uses
         exhaustion(0.0f),        // 0 means no exhaustion
@@ -32,6 +33,7 @@ struct AssemblerConfig : public GridObjectConfig {
   bool recipe_details_obs;
   ObservationType input_recipe_offset;
   ObservationType output_recipe_offset;
+  ObservationType output_recipe_fraction_offset;
 
   // Allow partial usage during cooldown
   bool allow_partial_usage;

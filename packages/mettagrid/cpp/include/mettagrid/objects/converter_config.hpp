@@ -7,6 +7,8 @@
 
 #include <string>
 #include <unordered_map>
+#include <cmath>
+#include <stdexcept>
 
 #include "core/grid_object.hpp"
 #include "core/types.hpp"
@@ -15,7 +17,7 @@ struct ConverterConfig : public GridObjectConfig {
   ConverterConfig(TypeId type_id,
                   const std::string& type_name,
                   const std::unordered_map<InventoryItem, InventoryQuantity>& input_resources,
-                  const std::unordered_map<InventoryItem, InventoryQuantity>& output_resources,
+                  const std::unordered_map<InventoryItem, InventoryProbability>& output_resources,
                   short max_output,
                   short max_conversions,
                   unsigned short conversion_ticks,
@@ -33,10 +35,26 @@ struct ConverterConfig : public GridObjectConfig {
         initial_resource_count(initial_resource_count),
         recipe_details_obs(recipe_details_obs),
         input_recipe_offset(0),
-        output_recipe_offset(0) {}
+        output_recipe_offset(0),
+        output_recipe_fraction_offset(0) {
+    // Validate converter outputs: must be finite, >= 0, and ceil(amount) <= 255 to align with InventoryDelta bounds
+    for (const auto& [item, amount] : this->output_resources) {
+      if (!std::isfinite(amount) || amount < 0.0f) {
+        throw std::runtime_error(
+            "ConverterConfig.output_resources must be non-negative and finite. Item: " + std::to_string(item) +
+            " value: " + std::to_string(amount));
+      }
+      float ceiled = std::ceil(amount);
+      if (ceiled > 255.0f) {
+        throw std::runtime_error(
+            "ConverterConfig.output_resources ceil(amount) must be <= 255. Item: " + std::to_string(item) +
+            " ceil: " + std::to_string(ceiled));
+      }
+    }
+  }
 
   std::unordered_map<InventoryItem, InventoryQuantity> input_resources;
-  std::unordered_map<InventoryItem, InventoryQuantity> output_resources;
+  std::unordered_map<InventoryItem, InventoryProbability> output_resources;
   short max_output;
   short max_conversions;
   unsigned short conversion_ticks;
@@ -45,6 +63,7 @@ struct ConverterConfig : public GridObjectConfig {
   bool recipe_details_obs;
   ObservationType input_recipe_offset;
   ObservationType output_recipe_offset;
+  ObservationType output_recipe_fraction_offset;
 };
 
 namespace py = pybind11;
@@ -54,7 +73,7 @@ inline void bind_converter_config(py::module& m) {
       .def(py::init<TypeId,
                     const std::string&,
                     const std::unordered_map<InventoryItem, InventoryQuantity>&,
-                    const std::unordered_map<InventoryItem, InventoryQuantity>&,
+                    const std::unordered_map<InventoryItem, InventoryProbability>&,
                     short,
                     short,
                     unsigned short,

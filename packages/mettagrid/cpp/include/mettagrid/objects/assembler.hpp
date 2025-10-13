@@ -1,6 +1,8 @@
 #ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_ASSEMBLER_HPP_
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_ASSEMBLER_HPP_
 
+#include <cmath>
+#include <random>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -8,6 +10,7 @@
 
 #include "core/grid.hpp"
 #include "core/grid_object.hpp"
+#include "core/probability.hpp"
 #include "core/types.hpp"
 #include "objects/agent.hpp"
 #include "objects/assembler_config.hpp"
@@ -80,14 +83,20 @@ private:
   // Give output resources to the triggering agent
   void give_output_to_agent(const Recipe& recipe, Agent& agent) {
     for (const auto& [item, amount] : recipe.output_resources) {
-      agent.update_inventory(item, static_cast<InventoryDelta>(amount));
+      if (amount <= 0.0f) {
+        continue;
+      }
+      InventoryDelta delta = probabilistic_delta(amount, rng);
+      if (delta != 0) {
+        agent.update_inventory(item, delta);
+      }
     }
   }
 
   // Returns true if the recipe yields any positive output amount (legacy name retained for compatibility)
   bool recipe_has_positive_output(const Recipe& recipe) const {
     for (const auto& [item, amount] : recipe.output_resources) {
-      if (amount > 0) {
+      if (amount > 0.0f) {
         return true;
       }
     }
@@ -150,11 +159,13 @@ public:
   bool recipe_details_obs;
   ObservationType input_recipe_offset;
   ObservationType output_recipe_offset;
+  ObservationType output_recipe_fraction_offset;
 
   // Allow partial usage during cooldown
   bool allow_partial_usage;
+  std::mt19937& rng;
 
-  Assembler(GridCoord r, GridCoord c, const AssemblerConfig& cfg)
+  Assembler(GridCoord r, GridCoord c, const AssemblerConfig& cfg, std::mt19937& rng_engine)
       : recipes(cfg.recipes),
         unclip_recipes(),
         is_clipped(false),
@@ -171,8 +182,10 @@ public:
         recipe_details_obs(cfg.recipe_details_obs),
         input_recipe_offset(cfg.input_recipe_offset),
         output_recipe_offset(cfg.output_recipe_offset),
+        output_recipe_fraction_offset(cfg.output_recipe_fraction_offset),
         allow_partial_usage(cfg.allow_partial_usage),
-        clipper_ptr(nullptr) {
+        clipper_ptr(nullptr),
+        rng(rng_engine) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids);
   }
   virtual ~Assembler() = default;
@@ -274,9 +287,10 @@ public:
       scaled_recipe.input_resources[resource] = scaled_amount;
     }
 
-    // Scale output resources (multiply by progress and round down)
+    // Scale output resources proportionally and preserve fractional amounts.
+    // Fractional parts are resolved probabilistically at grant time.
     for (const auto& [resource, amount] : original_recipe.output_resources) {
-      InventoryQuantity scaled_amount = static_cast<InventoryQuantity>(std::floor(amount * progress));
+      InventoryProbability scaled_amount = static_cast<InventoryProbability>(amount * progress);
       scaled_recipe.output_resources[resource] = scaled_amount;
     }
 
@@ -310,7 +324,8 @@ public:
     if (progress < 1.0f && allow_partial_usage) {
       recipe_to_use = scale_recipe_for_partial_usage(*original_recipe, progress);
 
-      // Prevent usage that would yield no outputs (and would only serve to burn inputs and increment uses_count)
+      // Prevent usage when the scaled recipe's expected output is zero (and would only serve to burn inputs and
+      // increment uses_count). Probabilistic rounding may still yield zero actual outputs even when this guard passes.
       // Do not prevent usage if:
       // - the unscaled recipe does not have outputs
       // - usage would unclip the assembler; the unscaled unclipping recipe may happen to include outputs
@@ -344,10 +359,35 @@ public:
   }
 
   virtual std::vector<PartialObservationToken> obs_features() const override {
+    const Recipe* current_recipe = nullptr;
+    if (this->recipe_details_obs) {
+      current_recipe = get_current_recipe();
+    }
+
+    unsigned int raw_cooldown = cooldown_remaining();
+    unsigned int remaining = std::min(raw_cooldown, 255u);
+
+    size_t capacity = 1 + this->tag_ids.size();
+    if (raw_cooldown > 0) {
+      capacity++;
+    }
+    if (is_clipped) {
+      capacity++;
+    }
+    if (max_uses > 0) {
+      capacity++;
+    }
+    if (this->recipe_details_obs && current_recipe) {
+      capacity += current_recipe->input_resources.size();
+      capacity += current_recipe->output_resources.size();
+      // Fractional outputs are encoded separately, so reserve space for those tokens as well.
+      capacity += current_recipe->output_resources.size();
+    }
+
     std::vector<PartialObservationToken> features;
+    features.reserve(capacity);
     features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
 
-    unsigned int remaining = std::min(cooldown_remaining(), 255u);
     if (remaining > 0) {
       features.push_back({ObservationFeature::CooldownRemaining, static_cast<ObservationType>(remaining)});
     }
@@ -365,24 +405,44 @@ public:
     }
 
     // Add recipe details if configured to do so
-    if (this->recipe_details_obs) {
-      const Recipe* current_recipe = get_current_recipe();
-      if (current_recipe) {
-        // Add recipe inputs (input:resource) - only non-zero values
-        for (const auto& [item, amount] : current_recipe->input_resources) {
-          if (amount > 0) {
-            features.push_back(
-                {static_cast<ObservationType>(input_recipe_offset + item), static_cast<ObservationType>(amount)});
-          }
+    if (this->recipe_details_obs && current_recipe) {
+      // Add recipe inputs (input:resource) - only non-zero values
+      for (const auto& [item, amount] : current_recipe->input_resources) {
+        if (amount > 0) {
+          features.push_back(
+              {static_cast<ObservationType>(input_recipe_offset + item), static_cast<ObservationType>(amount)});
         }
+      }
 
-        // Add recipe outputs (output:resource) - only non-zero values
-        for (const auto& [item, amount] : current_recipe->output_resources) {
-          if (amount > 0) {
-            features.push_back(
-                {static_cast<ObservationType>(output_recipe_offset + item), static_cast<ObservationType>(amount)});
+      // Add recipe outputs (output:resource) - integral part only
+      for (const auto& [item, amount] : current_recipe->output_resources) {
+        if (amount >= 1.0f) {
+          unsigned int floored_amount = static_cast<unsigned int>(amount);
+          if (floored_amount > 0) {
+            ObservationType encoded_amount =
+                static_cast<ObservationType>(std::min(floored_amount, 255u));
+            ObservationType feature_id =
+                static_cast<ObservationType>(output_recipe_offset + item);
+            features.push_back({feature_id, encoded_amount});
           }
         }
+      }
+
+      // Add recipe fractional outputs (output_frac:resource) for fractional remainders
+      for (const auto& [item, amount] : current_recipe->output_resources) {
+        if (amount <= 0.0f) {
+          continue;
+        }
+        float fractional_part = amount - std::floor(amount);
+        if (fractional_part <= 0.0f) {
+          continue;
+        }
+        float scaled = std::ceil(fractional_part * 255.0f);
+        unsigned int bucket = static_cast<unsigned int>(std::min(std::max(scaled, 1.0f), 255.0f));
+        ObservationType encoded_amount = static_cast<ObservationType>(bucket);
+        ObservationType feature_id =
+            static_cast<ObservationType>(output_recipe_fraction_offset + item);
+        features.push_back({feature_id, encoded_amount});
       }
     }
 

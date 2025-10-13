@@ -14,6 +14,7 @@
 
 #include "core/grid.hpp"
 #include "core/grid_object.hpp"
+#include "core/probability.hpp"
 #include "core/types.hpp"
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
@@ -158,24 +159,7 @@ protected:
     if (_rng == nullptr) {
       throw std::runtime_error("RNG not initialized. Call init() before using compute_probabilistic_delta");
     }
-    InventoryProbability magnitude = std::fabs(amount);
-    InventoryQuantity integer_part = static_cast<InventoryQuantity>(std::floor(magnitude));
-    InventoryProbability fractional_part = magnitude - static_cast<InventoryProbability>(integer_part);
-    InventoryDelta delta = static_cast<InventoryDelta>(integer_part);
-    if (fractional_part > 0.0f) {
-      // use 10 bits of randomness for better performance
-      float sample = std::generate_canonical<float, 10>(*_rng);
-      if (sample < fractional_part) {
-        // a non-zero fractional component means there is a chance to increase the delta by 1. for example an
-        // amount of 4.1 means that the delta will be 4 90% of the time and 5 10% of the time.
-        delta = static_cast<InventoryDelta>(delta + 1);
-      }
-    }
-    if (amount < 0.0f) {
-      // restore the original sign if needed
-      delta = static_cast<InventoryDelta>(-delta);
-    }
-    return delta;
+    return probabilistic_delta(amount, *_rng);
   }
 
   std::string _action_name;

@@ -5,7 +5,7 @@ import std/[json],
 type
   ItemAmount* = object
     itemId*: int
-    count*: int
+    count*: float
 
   Entity* = ref object
     # Common keys.
@@ -145,9 +145,9 @@ proc parseHook*(s: string, i: var int, v: var IVec3) =
   v = ivec3(arr[0], arr[1], arr[2])
 
 proc parseHook*(s: string, i: var int, v: var ItemAmount) =
-  var arr: array[2, int32]
+  var arr: array[2, float64]
   parseHook(s, i, arr)
-  v = ItemAmount(itemId: arr[0], count: arr[1])
+  v = ItemAmount(itemId: arr[0].int, count: arr[1])
 
 proc expand[T](data: JsonNode, numSteps: int, defaultValue: T): seq[T] =
   if data == nil:
@@ -392,8 +392,8 @@ proc convertReplayV1ToV2(replayData: JsonNode): JsonNode =
 proc computeGainMap(replay: Replay) =
   ## Compute gain/loss for agents.
   var items = [
-    newSeq[int](replay.itemNames.len),
-    newSeq[int](replay.itemNames.len)
+    newSeq[float](replay.itemNames.len),
+    newSeq[float](replay.itemNames.len)
   ]
   for agent in replay.agents:
     agent.gainMap = newSeq[seq[ItemAmount]](replay.maxSteps)
@@ -404,7 +404,7 @@ proc computeGainMap(replay: Replay) =
       var gainMap = newSeq[ItemAmount]()
       if inventory.len > 0:
         for i in 0 ..< items[0].len:
-          items[0][i] = 0
+          items[0][i] = 0.0
         for item in inventory:
           gainMap.add(item)
           items[0][item.itemId] = item.count
@@ -417,7 +417,7 @@ proc computeGainMap(replay: Replay) =
         let inventory = agent.inventory[i]
         let n = i mod 2
         for j in 0 ..< items[n].len:
-          items[n][j] = 0
+          items[n][j] = 0.0
         for item in inventory:
           items[n][item.itemId] = item.count
         let m = 1 - n
@@ -497,8 +497,9 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
     for i in 0 ..< inventoryRaw.len:
       var itemAmounts: seq[ItemAmount]
       for j in 0 ..< inventoryRaw[i].len:
-        itemAmounts.add(ItemAmount(itemId: inventoryRaw[i][j][0],
-            count: inventoryRaw[i][j][1]))
+        itemAmounts.add(ItemAmount(
+            itemId: inventoryRaw[i][j][0],
+            count: inventoryRaw[i][j][1].float))
       inventory.add(itemAmounts)
 
     let locationRaw = expand[seq[int]](obj["location"], replay.maxSteps, @[0, 0, 0])
@@ -545,10 +546,10 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
     if "input_resources" in obj:
       for pair in obj["input_resources"]:
         entity.inputResources.add(ItemAmount(itemId: pair[0].getInt,
-            count: pair[1].getInt))
+            count: pair[1].getFloat))
       for pair in obj["output_resources"]:
         entity.outputResources.add(ItemAmount(itemId: pair[0].getInt,
-            count: pair[1].getInt))
+            count: pair[1].getFloat))
       if "recipe_max" in obj:
         entity.recipeMax = obj["recipe_max"].getInt
       else:

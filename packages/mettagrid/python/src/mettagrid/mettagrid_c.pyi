@@ -95,7 +95,7 @@ class ConverterConfig(GridObjectConfig):
         type_id: int,
         type_name: str,
         input_resources: dict[int, int],
-        output_resources: dict[int, int],
+        output_resources: dict[int, float],
         max_output: int,
         max_conversions: int,
         conversion_ticks: int,
@@ -106,7 +106,7 @@ class ConverterConfig(GridObjectConfig):
     type_id: int
     type_name: str
     input_resources: dict[int, int]
-    output_resources: dict[int, int]
+    output_resources: dict[int, float]
     max_output: int
     max_conversions: int
     conversion_ticks: int
@@ -127,11 +127,11 @@ class Recipe:
     def __init__(
         self,
         input_resources: dict[int, int] = {},
-        output_resources: dict[int, int] = {},
+        output_resources: dict[int, float] = {},
         cooldown: int = 0,
     ) -> None: ...
     input_resources: dict[int, int]
-    output_resources: dict[int, int]
+    output_resources: dict[int, float]
     cooldown: int
 
 class ClipperConfig:

@@ -1,7 +1,9 @@
 #ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_SYSTEMS_OBSERVATION_ENCODER_HPP_
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_SYSTEMS_OBSERVATION_ENCODER_HPP_
 
+#include <limits>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -20,6 +22,18 @@ public:
     _feature_names = FeatureNames;
     assert(_feature_names.size() == InventoryFeatureOffset);
     assert(_feature_names.size() == _feature_normalizations.size());
+
+    const size_t per_resource_feature_count = this->recipe_details_obs ? 4u : 1u;
+    const size_t max_feature_id = static_cast<size_t>(InventoryFeatureOffset) +
+                                  per_resource_feature_count * resource_count - 1;
+    const size_t max_observation_id = static_cast<size_t>(std::numeric_limits<ObservationType>::max());
+    if (max_feature_id > max_observation_id) {
+      const std::string k_str = this->recipe_details_obs ? "4" : "1";
+      throw std::invalid_argument(
+          "ObservationEncoder: resource count " + std::to_string(resource_count) +
+          " exceeds ObservationType id capacity (InventoryFeatureOffset + " + k_str +
+          "*resource_count - 1 must be <= " + std::to_string(max_observation_id) + ")");
+    }
 
     // Add inventory features
     for (size_t i = 0; i < resource_names.size(); i++) {
@@ -45,6 +59,16 @@ public:
         auto output_feature = output_recipe_offset + static_cast<ObservationType>(i);
         _feature_normalizations.insert({output_feature, DEFAULT_INVENTORY_NORMALIZATION});
         _feature_names.insert({output_feature, "output:" + resource_names[i]});
+      }
+
+      // Add fractional output recipe features. These encode fractional expected
+      // outputs in the open interval (0,1), bucketized to uint8 with K=255.
+      const ObservationType output_fraction_offset =
+          output_recipe_offset + static_cast<ObservationType>(resource_count);
+      for (size_t i = 0; i < resource_names.size(); i++) {
+        auto output_frac_feature = output_fraction_offset + static_cast<ObservationType>(i);
+        _feature_normalizations.insert({output_frac_feature, 255.0f});
+        _feature_names.insert({output_frac_feature, "output_frac:" + resource_names[i]});
       }
     }
   }
@@ -85,6 +109,11 @@ public:
 
   ObservationType get_output_recipe_offset() const {
     return InventoryFeatureOffset + static_cast<ObservationType>(2 * resource_count);
+  }
+
+  ObservationType get_output_fraction_offset() const {
+    // Fractional outputs are appended after integer output features
+    return InventoryFeatureOffset + static_cast<ObservationType>(3 * resource_count);
   }
 
   bool recipe_details_obs;
