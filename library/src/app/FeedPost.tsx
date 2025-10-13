@@ -41,6 +41,7 @@ export const FeedPost: FC<{
   isCommentsExpanded: boolean;
   onCommentToggle: () => void;
   highlightedCommentId?: string | null;
+  onPostDeleted?: (postId: string) => void;
 }> = ({
   post,
   onPaperClick,
@@ -49,6 +50,7 @@ export const FeedPost: FC<{
   isCommentsExpanded,
   onCommentToggle,
   highlightedCommentId,
+  onPostDeleted,
 }) => {
   const router = useRouter();
 
@@ -205,7 +207,15 @@ export const FeedPost: FC<{
   };
 
   const handleConfirmDelete = () => {
-    deletePostMutation.mutate({ postId: post.id });
+    deletePostMutation.mutate(
+      { postId: post.id },
+      {
+        onSuccess: () => {
+          // Optimistically remove post from feed
+          onPostDeleted?.(post.id);
+        },
+      }
+    );
     setShowDeleteModal(false);
   };
 
