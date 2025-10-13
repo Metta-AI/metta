@@ -99,6 +99,11 @@ export const FeedPostsPage: FC<{
     }
   };
 
+  // Handle post deletion - optimistically remove from list
+  const handlePostDeleted = (postId: string) => {
+    page.remove((post) => post.id === postId);
+  };
+
   const feedScrollRef = useRef<HTMLDivElement>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
@@ -159,6 +164,7 @@ export const FeedPostsPage: FC<{
                   isCommentsExpanded={false}
                   onCommentToggle={() => {}}
                   highlightedCommentId={null}
+                  onPostDeleted={handlePostDeleted}
                 />
               ))}
 
