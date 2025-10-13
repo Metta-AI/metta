@@ -9,6 +9,7 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, MutableMapping
+from zipfile import BadZipFile
 
 import torch
 from safetensors.torch import load as load_safetensors
@@ -349,7 +350,7 @@ def load_policy_artifact(path: str | Path) -> PolicyArtifact:
             legacy_payload = torch.load(input_path, map_location="cpu", weights_only=False)
         except FileNotFoundError:
             raise
-        except (pickle.UnpicklingError, RuntimeError, OSError, TypeError) as err:
+        except (pickle.UnpicklingError, RuntimeError, OSError, TypeError, BadZipFile) as err:
             raise FileNotFoundError(f"Invalid or corrupted checkpoint file: {input_path}") from err
 
         if _is_puffer_state_dict(legacy_payload):

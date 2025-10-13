@@ -19,7 +19,7 @@ from metta.rl.policy_artifact import (
     save_policy_artifact_safetensors,
 )
 from metta.rl.training import EnvironmentMetaData
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 
 class DummyActionComponentConfig(Config):
@@ -57,7 +57,6 @@ def _env_metadata() -> EnvironmentMetaData:
         obs_height=1,
         obs_features={},
         action_names=[],
-        max_action_args=[],
         num_agents=1,
         observation_space=None,
         action_space=None,

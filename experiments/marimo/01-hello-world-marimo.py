@@ -90,7 +90,11 @@ def _():
     import logging
     from metta.tools.train import TrainTool
     from metta.rl.trainer_config import TrainerConfig
-    from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+    from metta.rl.training import (
+        EvaluatorConfig,
+        TrainingEnvironmentConfig,
+        EnvironmentMetaData,
+    )
 
     from metta.cogworks.curriculum import (
         env_curriculum,
@@ -1001,10 +1005,28 @@ def _(
 
             print(f"Evaluating checkpoint: {latest_ckpt.name}")
 
+            # Create evaluation environment first to get metadata
+            with contextlib.redirect_stdout(io.StringIO()):
+                eval_env = MettaGridEnv(mg_config, render_mode="human")
+
+            env_metadata = EnvironmentMetaData(
+                obs_width=eval_env.obs_width,
+                obs_height=eval_env.obs_height,
+                obs_features=eval_env.observation_features,
+                action_names=eval_env.action_names,
+                num_agents=eval_env.num_agents,
+                observation_space=eval_env.observation_space,
+                action_space=eval_env.single_action_space,
+                feature_normalizations=eval_env.feature_normalizations,
+            )
+
             trained_artifact = CheckpointManager.load_artifact_from_uri(
                 str(latest_ckpt)
             )
-            trained_policy = trained_artifact.policy
+
+            trained_policy = trained_artifact.instantiate(
+                env_metadata, torch.device("cpu")
+            )
             if trained_policy is None:
                 raise RuntimeError(
                     "Expected serialized policy in artifact for evaluation demo"

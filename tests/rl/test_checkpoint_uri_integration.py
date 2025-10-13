@@ -14,7 +14,7 @@ from metta.agent.policy import PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager, key_and_version
 from metta.rl.policy_artifact import save_policy_artifact_pt
 from metta.rl.system_config import SystemConfig
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 
 def checkpoint_filename(run: str, epoch: int) -> str:
