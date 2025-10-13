@@ -1,11 +1,12 @@
 """Policy checkpoint management component."""
 
 import logging
-from typing import Optional
+from typing import Dict, Optional
 
 import torch
 from pydantic import Field
 
+from metta.agent.migration.model_compatibility import AgentCodebase, AgentCodebaseFuture
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training import DistributedHelper, EnvironmentMetaData, TrainerComponent
@@ -38,6 +39,7 @@ class Checkpointer(TrainerComponent):
         self._distributed = distributed_helper
         self._policy_architecture: PolicyArchitecture = policy_architecture
         self._latest_policy_uri: Optional[str] = None
+        self._model_report_future: Optional[AgentCodebaseFuture] = None
 
     # ------------------------------------------------------------------
     # Registration helpers
@@ -46,6 +48,15 @@ class Checkpointer(TrainerComponent):
         super().register(context)
         context.latest_policy_uri_fn = self.get_latest_policy_uri
         context.latest_policy_uri_value = self.get_latest_policy_uri()
+        if self._distributed.should_checkpoint():
+            report = AgentCodebase(
+                base_refs=("origin/main", "main"),
+                path="agent/src/metta/agent",
+            )
+            self._model_report_future = report.start_async()
+        else:
+            self._model_report_future = None
+        context.get_checkpoint_extra_files = self._get_checkpoint_extra_files
 
     # ------------------------------------------------------------------
     # Public helpers
@@ -116,13 +127,26 @@ class Checkpointer(TrainerComponent):
             return policy.module  # type: ignore[return-value]
         return policy
 
+    def _get_checkpoint_extra_files(self) -> Dict[str, bytes]:
+        if self._model_report_future is None:
+            return {}
+        return self._model_report_future.files()
+
     def _save_policy(self, epoch: int, *, force: bool = False) -> None:
         policy = self._policy_to_save()
+
+        extra_files: Optional[dict[str, bytes]] = None
+        metadata_provider = getattr(self.context, "get_checkpoint_extra_files", None)
+        if callable(metadata_provider):
+            files = metadata_provider()
+            if files:
+                extra_files = dict(files)
 
         uri = self._checkpoint_manager.save_agent(
             policy,
             epoch,
             policy_architecture=self._policy_architecture,
+            extra_files=extra_files,
         )
         self._latest_policy_uri = uri
         self.context.latest_policy_uri_value = uri

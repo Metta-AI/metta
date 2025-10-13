@@ -2,7 +2,7 @@ import logging
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, Optional, TypedDict
+from typing import Any, Dict, Mapping, Optional, TypedDict
 from zipfile import BadZipFile
 
 import boto3
@@ -281,6 +281,7 @@ class CheckpointManager:
         epoch: int,
         *,
         policy_architecture: PolicyArchitecture,
+        extra_files: Optional[Mapping[str, bytes]] = None,
     ) -> str:
         """Save agent checkpoint to disk and upload to remote storage if configured.
 
@@ -296,6 +297,7 @@ class CheckpointManager:
             checkpoint_path,
             policy_architecture=policy_architecture,
             state_dict=agent.state_dict(),
+            extra_files=extra_files,
         )
 
         remote_uri = None

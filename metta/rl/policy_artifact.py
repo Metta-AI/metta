@@ -187,6 +187,7 @@ class PolicyArtifact:
     policy_architecture: PolicyArchitecture | None = None
     state_dict: MutableMapping[str, torch.Tensor] | None = None
     policy: Policy | None = None
+    extra_files: dict[str, bytes] | None = None
 
     def __post_init__(self) -> None:
         has_arch = self.policy_architecture is not None
@@ -240,6 +241,7 @@ def save_policy_artifact_safetensors(
     policy_architecture: PolicyArchitecture,
     state_dict: Mapping[str, torch.Tensor],
     detach_buffers: bool = True,
+    extra_files: Mapping[str, bytes] | None = None,
 ) -> PolicyArtifact:
     """Persist weights + architecture using the safetensors format."""
     return _save_policy_artifact(
@@ -247,6 +249,7 @@ def save_policy_artifact_safetensors(
         policy_architecture=policy_architecture,
         state_dict=state_dict,
         detach_buffers=detach_buffers,
+        extra_files=extra_files,
     )
 
 
@@ -267,6 +270,7 @@ def _save_policy_artifact(
     state_dict: Mapping[str, torch.Tensor] | None = None,
     include_policy: bool = False,
     detach_buffers: bool = True,
+    extra_files: Mapping[str, bytes] | None = None,
 ) -> PolicyArtifact:
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -323,6 +327,10 @@ def _save_policy_artifact(
                 if policy_payload is not None:
                     archive.writestr("policy.pt", policy_payload)
 
+                if extra_files:
+                    for name, content in extra_files.items():
+                        archive.writestr(name, content)
+
             # Atomic move: this operation is atomic on most filesystems
             temp_path.replace(output_path)
 
@@ -335,6 +343,7 @@ def _save_policy_artifact(
         policy_architecture=policy_architecture if artifact_state is not None else None,
         state_dict=artifact_state,
         policy=policy if include_policy else None,
+        extra_files=dict(extra_files) if extra_files else None,
     )
 
 
@@ -366,6 +375,8 @@ def load_policy_artifact(path: str | Path) -> PolicyArtifact:
     state_dict: MutableMapping[str, torch.Tensor] | None = None
     policy: Policy | None = None
 
+    extra_files: dict[str, bytes] = {}
+
     with zipfile.ZipFile(input_path, mode="r") as archive:
         names = set(archive.namelist())
 
@@ -392,8 +403,19 @@ def load_policy_artifact(path: str | Path) -> PolicyArtifact:
                     raise TypeError(msg)
                 policy = loaded_policy
 
+        known_entries = {"modelarchitecture.txt", "weights.safetensors", "policy.pt"}
+        for name in names - known_entries:
+            if name.endswith("/"):
+                continue
+            extra_files[name] = archive.read(name)
+
     if architecture is None and state_dict is None and policy is None:
         msg = f"Policy artifact {input_path} contained no usable payload"
         raise ValueError(msg)
 
-    return PolicyArtifact(policy_architecture=architecture, state_dict=state_dict, policy=policy)
+    return PolicyArtifact(
+        policy_architecture=architecture,
+        state_dict=state_dict,
+        policy=policy,
+        extra_files=extra_files or None,
+    )
