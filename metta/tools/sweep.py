@@ -326,9 +326,7 @@ class SweepTool(Tool):
             # Prefer explicit grid parameters if provided via eval/train overrides (advanced users)
             grid_params = _extract_categorical_params(getattr(self.protein_config, "parameters", {}))
             if not grid_params:
-                raise ValueError(
-                    "GRID_SEARCH scheduler requires categorical parameters in protein_config.parameters"
-                )
+                raise ValueError("GRID_SEARCH scheduler requires categorical parameters in protein_config.parameters")
 
             scheduler_config = GridSearchSchedulerConfig(
                 max_trials=self.max_trials,

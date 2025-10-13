@@ -212,8 +212,7 @@ class GridSearchScheduler:
         suggestions: list[dict[str, Any]] = []
         for combo in values:
             s: dict[str, Any] = {}
-            for name, val in zip(names, combo):
+            for name, val in zip(names, combo, strict=False):
                 s[name] = val
             suggestions.append(s)
         return suggestions
-

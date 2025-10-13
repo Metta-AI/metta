@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from metta.adaptive.models import JobStatus, JobTypes, RunInfo
+from metta.adaptive.models import JobTypes, RunInfo
 from metta.sweep.core import CategoricalParameterConfig
 from metta.sweep.schedulers.grid_search import GridSearchScheduler, GridSearchSchedulerConfig
 
@@ -174,4 +174,3 @@ def test_grid_scheduler_accepts_list_and_nested_config():
     s = jobs[0].metadata.get("sweep/suggestion", {})
     assert s["trainer.optimizer.device"] in {"cpu", "cuda"}
     assert s["model.color"] in {"red", "blue"}
-
