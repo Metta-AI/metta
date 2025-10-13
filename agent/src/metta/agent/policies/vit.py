@@ -116,20 +116,7 @@ class ViTGRPOConfig(PolicyArchitecture):
             hidden_features=[_actor_hidden],
             out_features=_actor_hidden,
         ),
-        # Note: No critic network for GRPO!
-        ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embedding_dim),
-        ActorQueryConfig(
-            in_key="actor_hidden",
-            out_key="actor_query",
-            hidden_size=_actor_hidden,
-            embed_dim=_embedding_dim,
-        ),
-        ActorKeyConfig(
-            query_key="actor_query",
-            embedding_key="action_embedding",
-            out_key="logits",
-            embed_dim=_embedding_dim,
-        ),
+        ActorHeadConfig(in_key="actor_hidden", out_key="logits", input_dim=_actor_hidden),
     ]
 
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
