@@ -29,22 +29,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("cogames.pufferlib")
 
-DEFAULT_LEARNING_RATE = 0.001153637
-DEFAULT_OPTIMIZER = "adam"
-DEFAULT_ADAM_BETA1 = 0.9
-DEFAULT_ADAM_BETA2 = 0.999
-DEFAULT_ADAM_EPS = 3.186531e-07
-DEFAULT_BPTT_HORIZON = 64
-DEFAULT_GAMMA = 0.977
-DEFAULT_GAE_LAMBDA = 0.891477
-DEFAULT_CLIP_COEF = 0.264407
-DEFAULT_VF_COEF = 0.897619
-DEFAULT_VF_CLIP_COEF = 0.1
-DEFAULT_ENT_COEF = 0.01
-DEFAULT_MAX_GRAD_NORM = 0.5
-DEFAULT_PRIO_ALPHA = 0.0
-DEFAULT_PRIO_BETA0 = 0.6
-
 
 def _largest_divisor_at_most(value: int, limit: int) -> int:
     for candidate in range(min(value, limit), 0, -1):
@@ -53,12 +37,43 @@ def _largest_divisor_at_most(value: int, limit: int) -> int:
     return 1
 
 
-def _ceil_to_multiple(value: int, multiple: int) -> int:
-    if multiple <= 0:
-        raise ValueError("multiple must be positive")
-    if value % multiple == 0:
-        return value
-    return multiple * math.ceil(value / multiple)
+def _validate_batch_params(
+    *,
+    batch_size: int,
+    minibatch_size: int,
+    bptt_horizon: int,
+    total_agents: int,
+    envs_per_worker: int,
+) -> None:
+    errors: list[str] = []
+
+    if batch_size < total_agents * bptt_horizon:
+        errors.append(
+            f"batch_size ({batch_size}) must be >= total_agents * bptt_horizon ({total_agents * bptt_horizon})"
+        )
+
+    if batch_size % bptt_horizon != 0:
+        errors.append(f"batch_size ({batch_size}) must be divisible by bptt_horizon ({bptt_horizon})")
+
+    if batch_size % envs_per_worker != 0:
+        errors.append(f"batch_size ({batch_size}) must be divisible by envs_per_worker ({envs_per_worker})")
+
+    if minibatch_size > batch_size:
+        errors.append(f"minibatch_size ({minibatch_size}) must be <= batch_size ({batch_size})")
+
+    if minibatch_size % bptt_horizon != 0:
+        errors.append(f"minibatch_size ({minibatch_size}) must be divisible by bptt_horizon ({bptt_horizon})")
+
+    if batch_size % minibatch_size != 0:
+        errors.append(f"batch_size ({batch_size}) must be divisible by minibatch_size ({minibatch_size})")
+
+    if errors:
+        message = (
+            "Invalid batch configuration. The following constraints must be satisfied for pufferlib:\n- "
+            + "\n- ".join(errors)
+        )
+        logger.error(message)
+        raise ValueError(message)
 
 
 def _resolve_vector_counts(
@@ -252,21 +267,21 @@ def train(
 
     env_name = "cogames.cogs_vs_clips"
 
-    learning_rate = DEFAULT_LEARNING_RATE
-    bptt_horizon = DEFAULT_BPTT_HORIZON
-    optimizer = DEFAULT_OPTIMIZER
-    adam_eps = DEFAULT_ADAM_EPS
-    adam_beta1 = DEFAULT_ADAM_BETA1
-    adam_beta2 = DEFAULT_ADAM_BETA2
-    gamma = DEFAULT_GAMMA
-    gae_lambda = DEFAULT_GAE_LAMBDA
-    clip_coef = DEFAULT_CLIP_COEF
-    vf_coef = DEFAULT_VF_COEF
-    vf_clip_coef = DEFAULT_VF_CLIP_COEF
-    ent_coef = DEFAULT_ENT_COEF
-    max_grad_norm = DEFAULT_MAX_GRAD_NORM
-    prio_alpha = DEFAULT_PRIO_ALPHA
-    prio_beta0 = DEFAULT_PRIO_BETA0
+    learning_rate = 0.001153637
+    bptt_horizon = 64
+    optimizer = "adam"
+    adam_eps = 3.186531e-07
+    adam_beta1 = 0.9
+    adam_beta2 = 0.999
+    gamma = 0.977
+    gae_lambda = 0.891477
+    clip_coef = 0.264407
+    vf_coef = 0.897619
+    vf_clip_coef = 0.1
+    ent_coef = 0.01
+    max_grad_norm = 0.5
+    prio_alpha = 0.0
+    prio_beta0 = 0.6
 
     logger.info(
         "Using %s hyperparameters aligned with TrainerConfig defaults: lr=%s, bptt=%s, optimizer=%s",
@@ -281,45 +296,42 @@ def train(
     num_workers = max(1, getattr(vecenv, "num_workers", 1))
     envs_per_worker = max(1, num_envs // num_workers)
 
-    original_batch_size = batch_size
-    batch_multiple = math.lcm(bptt_horizon, envs_per_worker, total_agents)
-    amended_batch_size = max(original_batch_size, total_agents * bptt_horizon)
-    amended_batch_size = _ceil_to_multiple(amended_batch_size, batch_multiple)
-
-    if amended_batch_size != original_batch_size:
-        logger.info(
-            "Adjusted batch_size from %s to %s (agents=%s, horizon=%s, envs/worker=%s)",
-            original_batch_size,
-            amended_batch_size,
-            total_agents,
-            bptt_horizon,
-            envs_per_worker,
+    if not use_rnn:
+        bptt_horizon = 1
+    else:
+        bptt_horizon = 64
+        constraints_ok = (
+            batch_size >= total_agents * bptt_horizon
+            and batch_size % bptt_horizon == 0
+            and minibatch_size % bptt_horizon == 0
         )
+        if not constraints_ok:
+            max_by_agents = max(1, batch_size // max(1, total_agents))
+            candidate = math.gcd(batch_size, minibatch_size)
+            candidate = max(1, min(candidate, max_by_agents))
+            if candidate < 1:
+                candidate = 1
+            if candidate != bptt_horizon:
+                logger.warning(
+                    "Reducing bptt_horizon from %s to %s to satisfy batch/minibatch constraints "
+                    "(batch=%s, minibatch=%s, agents=%s)",
+                    bptt_horizon,
+                    candidate,
+                    batch_size,
+                    minibatch_size,
+                    total_agents,
+                )
+            bptt_horizon = candidate
 
-    requested_minibatch_size = min(minibatch_size, amended_batch_size)
-    amended_minibatch_size = max(requested_minibatch_size, bptt_horizon)
-    remainder = amended_minibatch_size % bptt_horizon
-    if remainder:
-        amended_minibatch_size += bptt_horizon - remainder
-        if amended_minibatch_size > amended_batch_size:
-            amended_minibatch_size = amended_batch_size
+    _validate_batch_params(
+        batch_size=batch_size,
+        minibatch_size=minibatch_size,
+        bptt_horizon=bptt_horizon,
+        total_agents=total_agents,
+        envs_per_worker=envs_per_worker,
+    )
 
-    if amended_batch_size % amended_minibatch_size != 0:
-        amended_batch_size = _ceil_to_multiple(amended_batch_size, amended_minibatch_size)
-        logger.info(
-            "Adjusted batch_size further to %s so it divides evenly by minibatch_size=%s",
-            amended_batch_size,
-            amended_minibatch_size,
-        )
-
-    if amended_minibatch_size != minibatch_size:
-        logger.info(
-            "Adjusted minibatch_size from %s to %s to satisfy BPTT divisibility",
-            minibatch_size,
-            amended_minibatch_size,
-        )
-
-    effective_timesteps = max(num_steps, amended_batch_size)
+    effective_timesteps = max(num_steps, batch_size)
     if effective_timesteps != num_steps:
         logger.info(
             "Raising total_timesteps from %s to %s to keep it >= batch_size",
@@ -332,8 +344,8 @@ def train(
         env=env_name,
         device=device.type,
         total_timesteps=effective_timesteps,
-        minibatch_size=amended_minibatch_size,
-        batch_size=amended_batch_size,
+        minibatch_size=minibatch_size,
+        batch_size=batch_size,
         data_dir=str(checkpoints_path),
         checkpoint_interval=checkpoint_interval,
         bptt_horizon=bptt_horizon,
