@@ -267,7 +267,10 @@ def train(
 
     env_name = "cogames.cogs_vs_clips"
 
-    learning_rate = 0.001153637
+    if use_rnn:
+        learning_rate = 0.0003
+    else:
+        learning_rate = 0.015
     bptt_horizon = 64
     optimizer = "adam"
     adam_eps = 3.186531e-07
@@ -295,33 +298,6 @@ def train(
     num_envs = max(1, getattr(vecenv, "num_envs", 1))
     num_workers = max(1, getattr(vecenv, "num_workers", 1))
     envs_per_worker = max(1, num_envs // num_workers)
-
-    if not use_rnn:
-        bptt_horizon = 1
-    else:
-        bptt_horizon = 64
-        constraints_ok = (
-            batch_size >= total_agents * bptt_horizon
-            and batch_size % bptt_horizon == 0
-            and minibatch_size % bptt_horizon == 0
-        )
-        if not constraints_ok:
-            max_by_agents = max(1, batch_size // max(1, total_agents))
-            candidate = math.gcd(batch_size, minibatch_size)
-            candidate = max(1, min(candidate, max_by_agents))
-            if candidate < 1:
-                candidate = 1
-            if candidate != bptt_horizon:
-                logger.warning(
-                    "Reducing bptt_horizon from %s to %s to satisfy batch/minibatch constraints "
-                    "(batch=%s, minibatch=%s, agents=%s)",
-                    bptt_horizon,
-                    candidate,
-                    batch_size,
-                    minibatch_size,
-                    total_agents,
-                )
-            bptt_horizon = candidate
 
     _validate_batch_params(
         batch_size=batch_size,

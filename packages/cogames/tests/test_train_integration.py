@@ -29,17 +29,17 @@ def test_env_config():
 
 @pytest.mark.timeout(120)  # 2 minute timeout
 def test_train_simple_policy(test_env_config, temp_checkpoint_dir):
-    """Test training with SimplePolicy for 1000 steps."""
+    """Test training with SimplePolicy for 1024 steps."""
     train(
         env_cfg=test_env_config,
         policy_class_path="cogames.policy.simple.SimplePolicy",
         device=torch.device("cpu"),
         initial_weights_path=None,
-        num_steps=1000,
+        num_steps=1024,
         checkpoints_path=temp_checkpoint_dir,
         seed=42,
-        batch_size=4,
-        minibatch_size=4,
+        batch_size=512,
+        minibatch_size=64,
         vector_num_envs=1,
         vector_batch_size=1,
         vector_num_workers=1,
@@ -59,17 +59,17 @@ def test_train_simple_policy(test_env_config, temp_checkpoint_dir):
 
 @pytest.mark.timeout(120)
 def test_train_lstm_policy(test_env_config, temp_checkpoint_dir):
-    """Test training with LSTMPolicy for 1000 steps."""
+    """Test training with LSTMPolicy for 1024 steps."""
     train(
         env_cfg=test_env_config,
         policy_class_path="cogames.policy.lstm.LSTMPolicy",
         device=torch.device("cpu"),
         initial_weights_path=None,
-        num_steps=1000,
+        num_steps=1024,
         checkpoints_path=temp_checkpoint_dir,
         seed=42,
-        batch_size=4,
-        minibatch_size=4,
+        batch_size=512,
+        minibatch_size=64,
         vector_num_envs=1,
         vector_batch_size=1,
         vector_num_workers=1,
@@ -101,11 +101,11 @@ def test_train_and_load_policy_data(test_env_config, temp_checkpoint_dir):
         policy_class_path="cogames.policy.simple.SimplePolicy",
         device=torch.device("cpu"),
         initial_weights_path=None,
-        num_steps=1000,
+        num_steps=1024,
         checkpoints_path=temp_checkpoint_dir,
         seed=42,
-        batch_size=4,
-        minibatch_size=4,
+        batch_size=512,
+        minibatch_size=64,
         vector_num_envs=1,
         vector_batch_size=1,
         vector_num_workers=1,
@@ -152,11 +152,11 @@ def test_train_lstm_and_load_policy_data(test_env_config, temp_checkpoint_dir):
         policy_class_path="cogames.policy.lstm.LSTMPolicy",
         device=torch.device("cpu"),
         initial_weights_path=None,
-        num_steps=1000,
+        num_steps=1024,
         checkpoints_path=temp_checkpoint_dir,
         seed=42,
-        batch_size=4,
-        minibatch_size=4,
+        batch_size=512,
+        minibatch_size=64,
         vector_num_envs=1,
         vector_batch_size=1,
         vector_num_workers=1,
