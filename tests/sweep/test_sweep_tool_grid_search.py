@@ -64,7 +64,7 @@ def test_sweep_tool_grid_search_builds_scheduler(monkeypatch, tmp_path) -> None:
         eval_entrypoint="evaluate",
         objective="test/metric",
         parameters=params,
-        num_trials=3,
+        max_trials=3,
         num_parallel_trials=2,
     )
 

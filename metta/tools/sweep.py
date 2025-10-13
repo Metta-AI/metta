@@ -154,6 +154,10 @@ class SweepTool(Tool):
     dispatcher_type: DispatcherType = DispatcherType.SKYPILOT  # SKYPILOT or LOCAL
     capture_output: bool = True  # Capture and stream subprocess output (local only)
 
+    # Grid-search specific configuration (used when scheduler_type == GRID_SEARCH)
+    grid_parameters: dict[str, Any] = {}
+    grid_metric: Optional[str] = None
+
     def invoke(self, args: dict[str, str]) -> int | None:
         """Execute the sweep."""
 
@@ -240,11 +244,13 @@ class SweepTool(Tool):
                 resume = False
 
         # Create components
-        # Derive evaluator prefix from the configured optimizer metric if possible
+        # Derive evaluator prefix from the configured metric if possible
         # Example: metric "evaluator/eval_sweep/score" -> prefix "evaluator/eval_sweep"
         evaluator_prefix = None
         try:
             metric_path = getattr(self.protein_config, "metric", None)
+            if self.scheduler_type == SweepSchedulerType.GRID_SEARCH and not metric_path:
+                metric_path = self.grid_metric
             if isinstance(metric_path, str) and "/" in metric_path:
                 evaluator_prefix = metric_path.rsplit("/", 1)[0]
         except Exception:
@@ -323,10 +329,12 @@ class SweepTool(Tool):
 
                 return recurse(params)
 
-            # Prefer explicit grid parameters if provided via eval/train overrides (advanced users)
-            grid_params = _extract_categorical_params(getattr(self.protein_config, "parameters", {}))
+            # Prefer explicit grid parameters provided on the tool; otherwise extract from protein_config
+            grid_params = self.grid_parameters or _extract_categorical_params(getattr(self.protein_config, "parameters", {}))
             if not grid_params:
-                raise ValueError("GRID_SEARCH scheduler requires categorical parameters in protein_config.parameters")
+                raise ValueError(
+                    "GRID_SEARCH scheduler requires categorical parameters (provide tool.grid_parameters or set them in protein_config.parameters)"
+                )
 
             scheduler_config = GridSearchSchedulerConfig(
                 max_trials=self.max_trials,
@@ -365,10 +373,13 @@ class SweepTool(Tool):
 
         try:
             logger.info("[SweepTool] Starting adaptive controller with sweep hooks...")
-            logger.info(f"[SweepTool] Optimizing metric: {self.protein_config.metric}")
+            metric_for_hook = getattr(self.protein_config, "metric", None)
+            if self.scheduler_type == SweepSchedulerType.GRID_SEARCH and not metric_for_hook:
+                metric_for_hook = self.grid_metric
+            logger.info(f"[SweepTool] Optimizing metric: {metric_for_hook}")
 
             # Create the on_eval_completed hook with the specific metric we're optimizing
-            on_eval_completed = create_on_eval_completed_hook(self.protein_config.metric)
+            on_eval_completed = create_on_eval_completed_hook(metric_for_hook)
 
             # Pass on_eval_completed hook to run method for sweep-specific observation tracking
             controller.run(
