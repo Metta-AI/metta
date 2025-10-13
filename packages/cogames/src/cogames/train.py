@@ -228,10 +228,10 @@ def train(
 
     env_name = "cogames.cogs_vs_clips"
 
-    learning_rate = 0.001153637
+    learning_rate = 0.0003
     bptt_horizon = 64
     optimizer = "adam"
-    adam_eps = 3.186531e-07
+    adam_eps = 1e-8
 
     total_agents = max(1, getattr(vecenv, "num_agents", 1))
     num_envs = max(1, getattr(vecenv, "num_envs", 1))
@@ -255,6 +255,12 @@ def train(
         )
 
     amended_minibatch_size = min(minibatch_size, amended_batch_size)
+    if amended_minibatch_size != minibatch_size:
+        logger.info(
+            "Reducing minibatch_size from %s to %s to keep it <= batch_size",
+            minibatch_size,
+            amended_minibatch_size,
+        )
 
     effective_timesteps = max(num_steps, amended_batch_size)
     if effective_timesteps != num_steps:
@@ -282,23 +288,23 @@ def train(
         anneal_lr=True,
         precision="float32",
         learning_rate=learning_rate,
-        gamma=0.977,
-        gae_lambda=0.891477,
+        gamma=0.995,
+        gae_lambda=0.90,
         update_epochs=1,
-        clip_coef=0.264407,
-        vf_coef=0.897619,
-        vf_clip_coef=0.1,
-        max_grad_norm=0.5,
-        ent_coef=0.01,
-        adam_beta1=0.9,
+        clip_coef=0.2,
+        vf_coef=2.0,
+        vf_clip_coef=0.2,
+        max_grad_norm=1.5,
+        ent_coef=0.001,
+        adam_beta1=0.95,
         adam_beta2=0.999,
         adam_eps=adam_eps,
         max_minibatch_size=32768,
         compile=False,
         vtrace_rho_clip=1.0,
         vtrace_c_clip=1.0,
-        prio_alpha=0.0,
-        prio_beta0=0.6,
+        prio_alpha=0.8,
+        prio_beta0=0.2,
     )
 
     trainer = pufferl.PuffeRL(train_args, vecenv, policy.network())
