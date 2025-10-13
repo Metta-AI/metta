@@ -1,13 +1,17 @@
-"""Dense rewards × Hard task complexity.
+"""Sparse rewards × Hard task complexity.
 
 2-Axis Grid Position:
-- Reward Shaping: Dense (high intermediate rewards 0.5-0.9)
-- Task Complexity: Hard (25×25 map, 24 agents, combat enabled)
+- Reward Shaping: Sparse (very sparse intermediate rewards 0.01-0.05)
+- Task Complexity: Hard (25×25 map, 24 agents, full combat)
 
-This configuration tests architecture performance with:
-- Maximum reward guidance
-- Maximum task complexity
-- Tests capacity and scaling with strong reward signal
+This configuration tests:
+- Very sparse intermediate rewards
+- Only heart reward is substantial
+- Large map with many agents for increased competition
+- Combat enabled
+- Agents must discover effective strategies with minimal guidance
+
+Use case: Test exploration and credit assignment at high complexity
 """
 
 from typing import List, Optional, Sequence
@@ -22,48 +26,35 @@ from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
-from mettagrid.config import ConverterConfig
 
-from experiments.recipes.benchmark_architectures.adaptive import ARCHITECTURES
+from experiments.recipes.benchmark_architectures.benchmark import ARCHITECTURES
 
 
 def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
-    """Create hard complexity arena with dense reward shaping."""
+    """Create a hard complexity arena with sparse rewards."""
     arena_env = eb.make_arena(num_agents=num_agents, combat=True)
 
-    # Large map size
+    # Large map for complex multi-agent interactions
     arena_env.game.map_builder.width = 25
     arena_env.game.map_builder.height = 25
 
-    # Dense rewards for all intermediate items
+    # Very sparse intermediate rewards - mostly just heart
     arena_env.game.agent.rewards.inventory = {
         "heart": 1,
-        "ore_red": 0.5,  # High reward for mining
-        "battery_red": 0.9,  # High reward for conversion
-        "laser": 0.7,
-        "armor": 0.7,
-        "blueprint": 0.5,
+        "ore_red": 0.01,  # Minimal reward
+        "battery_red": 0.05,  # Minimal reward
+        "laser": 0.05,
+        "armor": 0.05,
+        "blueprint": 0.01,
     }
     arena_env.game.agent.rewards.inventory_max = {
         "heart": 100,
-        "ore_red": 2,
-        "battery_red": 2,
-        "laser": 2,
-        "armor": 2,
-        "blueprint": 2,
+        "ore_red": 1,
+        "battery_red": 1,
+        "laser": 1,
+        "armor": 1,
+        "blueprint": 1,
     }
-
-    # Easy converter: 1 battery_red to 1 heart
-    altar = arena_env.game.objects.get("altar")
-    if isinstance(altar, ConverterConfig) and hasattr(altar, "input_resources"):
-        altar.input_resources["battery_red"] = 1
-        altar.initial_resource_count = 2
-
-    # Add initial resources to all buildings
-    for obj_name in ["mine_red", "generator_red", "lasery", "armory"]:
-        obj = arena_env.game.objects.get(obj_name)
-        if obj and hasattr(obj, "initial_resource_count"):
-            obj.initial_resource_count = 2
 
     # Combat enabled
     arena_env.game.actions.attack.consumed_resources["laser"] = 1
@@ -81,10 +72,10 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
 
     return [
         SimulationConfig(
-            suite="benchmark_arch", name="dense_hard_basic", env=basic_env
+            suite="benchmark_arch", name="sparse_hard_basic", env=basic_env
         ),
         SimulationConfig(
-            suite="benchmark_arch", name="dense_hard_combat", env=combat_env
+            suite="benchmark_arch", name="sparse_hard_combat", env=combat_env
         ),
     ]
 
@@ -93,7 +84,7 @@ def train(
     curriculum: Optional[CurriculumConfig] = None,
     arch_type: str = "fast",
 ) -> TrainTool:
-    """Train on dense rewards × hard complexity."""
+    """Train on sparse rewards × hard complexity."""
     if curriculum is None:
         env = make_mettagrid()
         curriculum = cc.env_curriculum(env)
@@ -111,7 +102,7 @@ def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     """Interactive play tool."""
     eval_env = env or make_mettagrid()
     return PlayTool(
-        sim=SimulationConfig(suite="benchmark_arch", env=eval_env, name="dense_hard")
+        sim=SimulationConfig(suite="benchmark_arch", env=eval_env, name="sparse_hard")
     )
 
 
@@ -119,14 +110,14 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     """Replay tool for recorded games."""
     eval_env = env or make_mettagrid()
     return ReplayTool(
-        sim=SimulationConfig(suite="benchmark_arch", env=eval_env, name="dense_hard")
+        sim=SimulationConfig(suite="benchmark_arch", env=eval_env, name="sparse_hard")
     )
 
 
 def evaluate(
     policy_uris: str | Sequence[str] | None = None,
 ) -> EvaluateTool:
-    """Evaluate a policy on dense rewards × hard complexity."""
+    """Evaluate a policy on sparse rewards × hard complexity."""
     return EvaluateTool(
         simulations=make_evals(),
         policy_uris=policy_uris,

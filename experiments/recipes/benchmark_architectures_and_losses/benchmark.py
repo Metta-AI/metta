@@ -33,8 +33,6 @@ Notes
 
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 from typing import NamedTuple
 
@@ -182,7 +180,7 @@ class BenchmarkArchSchedulerConfig:
     seeds_per_cell: int = 3
 
     # Total training timesteps per run
-    total_timesteps: int = 50_000
+    total_timesteps: int = 2000000000
 
     # Hardware allocation per job
     gpus: int = 4

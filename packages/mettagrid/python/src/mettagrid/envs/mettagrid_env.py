@@ -120,14 +120,11 @@ class MettaGridEnv(MettaGridPufferBase):
         # Track pixels explored
         with self.timer("_track_pixels_explored"):
             grid_objects = self.grid_objects()
-            for _obj_id, obj_data in grid_objects.items():
-                if obj_data.get("type") == 0:  # Agent type
-                    agent_id = obj_data.get("agent_id")
-                    if agent_id is not None:
-                        pos = (obj_data["r"], obj_data["c"])
-                        if agent_id not in self._visited_positions:
-                            self._visited_positions[agent_id] = set()
-                        self._visited_positions[agent_id].add(pos)
+            for obj_data in grid_objects.values():
+                if obj_data["type"] == 0:  # Agent type
+                    agent_id = obj_data["agent_id"]
+                    pos = (obj_data["r"], obj_data["c"])
+                    self._visited_positions.setdefault(agent_id, set()).add(pos)
 
         # Handle early reset for #DesyncEpisodes
         if self._early_reset is not None and self._steps >= self._early_reset:

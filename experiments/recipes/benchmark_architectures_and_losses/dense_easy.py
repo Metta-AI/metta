@@ -1,13 +1,17 @@
-"""Dense rewards × Medium task complexity.
+"""Dense rewards × Easy task complexity.
 
 2-Axis Grid Position:
 - Reward Shaping: Dense (high intermediate rewards 0.5-0.9)
-- Task Complexity: Medium (20×20 map, 20 agents, no combat)
+- Task Complexity: Easy (15×15 map, 12 agents, no combat)
 
-This configuration tests architecture performance with:
-- Maximum reward guidance
-- Standard task complexity
-- Ideal for validating architecture capabilities
+This configuration provides the most guidance through:
+- High intermediate rewards for all resources
+- Easy converter ratios (1:1 instead of 3:1)
+- Combat disabled (high laser cost)
+- Initial resources in buildings
+- Smaller map size for faster learning
+
+Use case: Test basic learning capabilities and fast prototyping
 """
 
 from typing import List, Optional, Sequence
@@ -24,18 +28,18 @@ from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from mettagrid.config import ConverterConfig
 
-from experiments.recipes.benchmark_architectures.adaptive import ARCHITECTURES
+from experiments.recipes.benchmark_architectures.benchmark import ARCHITECTURES
 
 
-def make_mettagrid(num_agents: int = 20) -> MettaGridConfig:
-    """Create medium complexity arena with dense reward shaping."""
+def make_mettagrid(num_agents: int = 12) -> MettaGridConfig:
+    """Create a basic arena environment with dense reward shaping."""
     arena_env = eb.make_arena(num_agents=num_agents, combat=False)
 
-    # Medium map size
-    arena_env.game.map_builder.width = 20
-    arena_env.game.map_builder.height = 20
+    # Small map for faster learning
+    arena_env.game.map_builder.width = 15
+    arena_env.game.map_builder.height = 15
 
-    # Dense rewards for all intermediate items
+    # High rewards for all intermediate items
     arena_env.game.agent.rewards.inventory = {
         "heart": 1,
         "ore_red": 0.5,  # High reward for mining
@@ -57,7 +61,7 @@ def make_mettagrid(num_agents: int = 20) -> MettaGridConfig:
     altar = arena_env.game.objects.get("altar")
     if isinstance(altar, ConverterConfig) and hasattr(altar, "input_resources"):
         altar.input_resources["battery_red"] = 1
-        altar.initial_resource_count = 2
+        altar.initial_resource_count = 2  # Start with resources
 
     # Add initial resources to all buildings
     for obj_name in ["mine_red", "generator_red", "lasery", "armory"]:
@@ -75,7 +79,7 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
     """Create evaluation configurations."""
     basic_env = env or make_mettagrid()
     return [
-        SimulationConfig(suite="benchmark_arch", name="dense_medium", env=basic_env),
+        SimulationConfig(suite="benchmark_arch", name="dense_easy", env=basic_env),
     ]
 
 
@@ -83,7 +87,7 @@ def train(
     curriculum: Optional[CurriculumConfig] = None,
     arch_type: str = "fast",
 ) -> TrainTool:
-    """Train on dense rewards × medium complexity."""
+    """Train on dense rewards × easy complexity."""
     if curriculum is None:
         env = make_mettagrid()
         curriculum = cc.env_curriculum(env)
@@ -101,7 +105,7 @@ def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     """Interactive play tool."""
     eval_env = env or make_mettagrid()
     return PlayTool(
-        sim=SimulationConfig(suite="benchmark_arch", env=eval_env, name="dense_medium")
+        sim=SimulationConfig(suite="benchmark_arch", env=eval_env, name="dense_easy")
     )
 
 
@@ -109,14 +113,14 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     """Replay tool for recorded games."""
     eval_env = env or make_mettagrid()
     return ReplayTool(
-        sim=SimulationConfig(suite="benchmark_arch", env=eval_env, name="dense_medium")
+        sim=SimulationConfig(suite="benchmark_arch", env=eval_env, name="dense_easy")
     )
 
 
 def evaluate(
     policy_uris: str | Sequence[str] | None = None,
 ) -> EvaluateTool:
-    """Evaluate a policy on dense rewards × medium complexity."""
+    """Evaluate a policy on dense rewards × easy complexity."""
     return EvaluateTool(
         simulations=make_evals(),
         policy_uris=policy_uris,

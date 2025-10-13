@@ -27,7 +27,7 @@ from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 
-from experiments.recipes.benchmark_architectures.adaptive import ARCHITECTURES
+from experiments.recipes.benchmark_architectures.benchmark import ARCHITECTURES
 
 
 def make_mettagrid(num_agents: int = 12) -> MettaGridConfig:

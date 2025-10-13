@@ -206,7 +206,6 @@ def create_training_job(
     nodes: int = 1,
     stats_server_uri: Optional[str] = None,
     train_overrides: Optional[Dict[str, Any]] = None,
-    initial_summary_data: Optional[Dict[str, Any]] = None,
 ) -> "JobDefinition":
     """Create a training job definition.
 
