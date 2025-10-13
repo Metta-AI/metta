@@ -16,10 +16,10 @@ class Clipper {
 public:
   std::vector<std::shared_ptr<Recipe>> unclipping_recipes;
   // A map from assembler to its adjacent assemblers. This should be constant once computed.
-  std::map<Assembler*, std::vector<Assembler*>> adjacent_assemblers;
+  std::unordered_map<Assembler*, std::vector<Assembler*>> adjacent_assemblers;
   // A map of all assemblers to their current infection weight. This is the weight at which they'll be selected
   // for clipping (if currently unclipped).
-  std::map<Assembler*, float> assembler_infection_weight;
+  std::unordered_map<Assembler*, float> assembler_infection_weight;
   // A set of assemblers that are adjacent to the set of clipped assemblers. Any unclipped assembler with
   // non-zero infection weight will be in this set.
   std::set<Assembler*> border_assemblers;

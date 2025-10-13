@@ -23,8 +23,8 @@ public:
   // inventory is a map of item to amount.
   // keys should be deleted when the amount is 0, to keep iteration faster.
   // however, this should not be relied on for correctness.
-  std::map<std::string, RewardType> stat_rewards;
-  std::map<std::string, RewardType> stat_reward_max;
+  std::unordered_map<std::string, RewardType> stat_rewards;
+  std::unordered_map<std::string, RewardType> stat_reward_max;
   float action_failure_penalty;
   std::string group_name;
   // We expect only a small number (single-digit) of soul-bound resources.
@@ -45,7 +45,7 @@ public:
   std::string prev_action_name;
   unsigned int steps_without_motion;
   // Inventory regeneration amounts (per-agent)
-  std::map<InventoryItem, InventoryQuantity> inventory_regen_amounts;
+  std::unordered_map<InventoryItem, InventoryQuantity> inventory_regen_amounts;
 
   Agent(GridCoord r, GridCoord c, const AgentConfig& config, const std::vector<std::string>* resource_names)
       : GridObject(),
@@ -77,7 +77,7 @@ public:
     this->reward = reward_ptr;
   }
 
-  void populate_initial_inventory(const std::map<InventoryItem, InventoryQuantity>& initial_inventory) {
+  void populate_initial_inventory(const std::unordered_map<InventoryItem, InventoryQuantity>& initial_inventory) {
     for (const auto& [item, amount] : initial_inventory) {
       this->update_inventory(item, amount);
     }
@@ -121,7 +121,7 @@ public:
     return counts;
   }
 
-  void set_inventory(const std::map<InventoryItem, InventoryQuantity>& inventory) {
+  void set_inventory(const std::unordered_map<InventoryItem, InventoryQuantity>& inventory) {
     // First, remove items that are not present in the provided inventory map
     // Make a copy of current item keys to avoid iterator invalidation
     std::vector<InventoryItem> existing_items;

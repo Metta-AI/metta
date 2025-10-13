@@ -15,7 +15,7 @@ from experiments.recipes.arena_basic_easy_shaped import (
     play,
     replay,
     simulations,
-    sweep_async_progressive,
+    sweep,
     train as base_train,
 )
 from metta.agent.policy import PolicyArchitecture
@@ -153,6 +153,6 @@ __all__ = [
     "replay",
     "evaluate",
     "evaluate_in_sweep",
-    "sweep_async_progressive",
+    "sweep",
     "train",
 ]

@@ -62,8 +62,8 @@ protected:
     return inventory_config;
   }
 
-  std::map<std::string, RewardType> create_test_stats_rewards() {
-    std::map<std::string, RewardType> rewards;
+  std::unordered_map<std::string, RewardType> create_test_stats_rewards() {
+    std::unordered_map<std::string, RewardType> rewards;
     rewards[std::string(TestItemStrings::ORE) + ".amount"] = TestRewards::ORE;
     rewards[std::string(TestItemStrings::LASER) + ".amount"] = TestRewards::LASER;
     rewards[std::string(TestItemStrings::ARMOR) + ".amount"] = TestRewards::ARMOR;
@@ -72,8 +72,8 @@ protected:
   }
 
   // Helper function to create test stats_reward_max map
-  std::map<std::string, RewardType> create_test_stats_reward_max() {
-    std::map<std::string, RewardType> stats_reward_max;
+  std::unordered_map<std::string, RewardType> create_test_stats_reward_max() {
+    std::unordered_map<std::string, RewardType> stats_reward_max;
     stats_reward_max[std::string(TestItemStrings::ORE) + ".amount"] = 10.0f;
     stats_reward_max[std::string(TestItemStrings::LASER) + ".amount"] = 10.0f;
     stats_reward_max[std::string(TestItemStrings::ARMOR) + ".amount"] = 10.0f;
@@ -202,7 +202,7 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_RewardCappingBehavior) {
   auto rewards = create_test_stats_rewards();
 
   // Set a lower cap for ORE so we can actually test capping
-  std::map<std::string, RewardType> stats_reward_max;
+  std::unordered_map<std::string, RewardType> stats_reward_max;
   stats_reward_max[std::string(TestItemStrings::ORE) + ".amount"] = 2.0f;  // Cap at 2.0 instead of 10.0
 
   AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0.0f, inventory_config, rewards, stats_reward_max, 0.0f, {});
@@ -267,7 +267,7 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_MultipleItemCaps) {
   auto rewards = create_test_stats_rewards();
 
   // Set different caps for different items
-  std::map<std::string, RewardType> stats_reward_max;
+  std::unordered_map<std::string, RewardType> stats_reward_max;
   stats_reward_max[std::string(TestItemStrings::ORE) + ".amount"] = 2.0f;     // Low cap for ORE
   stats_reward_max[std::string(TestItemStrings::HEART) + ".amount"] = 30.0f;  // Cap for HEART
   // LASER and ARMOR have no caps
@@ -903,11 +903,12 @@ TEST_F(MettaGridCppTest, FractionalConsumptionMultipleResources) {
   int laser_left = agent->inventory.amount(TestItems::LASER);
   int armor_left = agent->inventory.amount(TestItems::ARMOR);
 
-  EXPECT_EQ(ore_left, 33);
+  // Since it's random, it's okay if these values change during a refactor, as long as they stay reasonable.
+  EXPECT_EQ(ore_left, 35);  // on average expect 35
 
-  EXPECT_EQ(laser_left, 48);
+  EXPECT_EQ(laser_left, 48);  // on average expect 47.5
 
-  EXPECT_EQ(armor_left, 24);
+  EXPECT_EQ(armor_left, 21);  // on average expect 22.5
 }
 
 TEST_F(MettaGridCppTest, FractionalConsumptionAttackAction) {
@@ -1356,10 +1357,10 @@ TEST_F(MettaGridCppTest, AssemblerRecipeObservationsEnabled) {
 
 TEST_F(MettaGridCppTest, AssemblerConsumeResourcesAcrossAgents) {
   // Create a recipe that requires 10 ore
-  std::map<InventoryItem, InventoryQuantity> input_resources;
+  std::unordered_map<InventoryItem, InventoryQuantity> input_resources;
   input_resources[TestItems::ORE] = 10;
 
-  std::map<InventoryItem, InventoryQuantity> output_resources;
+  std::unordered_map<InventoryItem, InventoryQuantity> output_resources;
   output_resources[TestItems::LASER] = 1;
 
   auto recipe = std::make_shared<Recipe>(input_resources, output_resources, 0);
