@@ -16,9 +16,6 @@ from mettagrid.base_config import Config
 class GRPOConfig(Config):
     """Configuration for Group Relative Policy Optimization."""
 
-    schedule: None = None  # TODO: Implement this
-
-    # GRPO hyperparameters
     # Clip coefficient for policy gradient
     clip_coef: float = Field(default=0.2, gt=0, le=1.0)
     # Entropy regularization weight
