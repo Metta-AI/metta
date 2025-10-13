@@ -251,11 +251,19 @@ def test_no_auxiliary(config):
 
 
 def test_unsupported_future_type(config):
-    """Test that unsupported future_type raises an error."""
-    config.future_type = "observations"
+    """Test that unsupported future_type raises an error during config validation."""
+    from pydantic import ValidationError
 
-    with pytest.raises(ValueError, match="future_type='observations' is not supported"):
-        LatentDynamicsModelComponent(config=config, env=None)
+    # Test 1: Setting an invalid future_type raises a Pydantic ValidationError
+    with pytest.raises(ValidationError, match="future_type='observations' is not supported"):
+        config.future_type = "observations"
+
+    # Test 2: Creating a config with invalid future_type also raises an error
+    with pytest.raises(ValidationError, match="future_type='observations' is not supported"):
+        LatentDynamicsConfig(
+            name="test_invalid",
+            future_type="observations",
+        )
 
 
 def test_training_env_ids_size_mismatch(component):

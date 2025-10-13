@@ -5,7 +5,7 @@ from typing import Any
 import einops
 import torch
 import torch.nn.functional as F
-from pydantic import Field
+from pydantic import ConfigDict, Field, field_validator
 from tensordict import TensorDict
 from torch import Tensor
 
@@ -30,6 +30,8 @@ class LatentDynamicsLossConfig(Config):
     - Auxiliary loss (long-term future prediction)
     """
 
+    model_config = ConfigDict(validate_assignment=True)
+
     # Loss weights
     beta_kl: float = Field(default=0.01, ge=0, le=1.0, description="KL divergence weight")
     gamma_auxiliary: float = Field(default=1.0, ge=0, le=10.0, description="Auxiliary task weight")
@@ -37,8 +39,18 @@ class LatentDynamicsLossConfig(Config):
     # Future prediction
     future_horizon: int = Field(default=5, ge=1, le=100, description="Steps ahead to predict")
     future_type: str = Field(
-        default="returns", description="Type of future to predict: returns, rewards, or observations"
+        default="returns",
+        description="Type of future to predict: returns or rewards (observations not yet implemented)",
     )
+
+    @field_validator("future_type")
+    @classmethod
+    def validate_future_type(cls, v: str) -> str:
+        """Validate that future_type is a supported value."""
+        supported_types = ["returns", "rewards"]
+        if v not in supported_types:
+            raise ValueError(f"future_type='{v}' is not supported. Only {supported_types} are currently implemented.")
+        return v
 
     # Training
     use_auxiliary: bool = Field(default=True, description="Whether to use auxiliary task")

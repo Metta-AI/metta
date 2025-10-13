@@ -2,6 +2,8 @@
 
 from typing import Any, Optional
 
+from pydantic import ConfigDict, field_validator
+
 from metta.agent.components.component_config import ComponentConfig
 
 
@@ -12,6 +14,8 @@ class LatentDynamicsConfig(ComponentConfig):
     stochastic latent variables. An auxiliary task forces the latents to
     carry long-term future information.
     """
+
+    model_config = ConfigDict(validate_assignment=True)
 
     name: str = "latent_dynamics"
 
@@ -32,7 +36,16 @@ class LatentDynamicsConfig(ComponentConfig):
 
     # Future prediction
     future_horizon: int = 5
-    future_type: str = "returns"  # "returns", "rewards", or "observations"
+    future_type: str = "returns"  # "returns" or "rewards" (observations not yet implemented)
+
+    @field_validator("future_type")
+    @classmethod
+    def validate_future_type(cls, v: str) -> str:
+        """Validate that future_type is a supported value."""
+        supported_types = ["returns", "rewards"]
+        if v not in supported_types:
+            raise ValueError(f"future_type='{v}' is not supported. Only {supported_types} are currently implemented.")
+        return v
 
     # Training
     use_auxiliary: bool = True
