@@ -2,7 +2,6 @@
 
 from metta.agent.policies.hrm import HRMTinyConfig
 from metta.agent.policy import PolicyArchitecture
-from metta.rl.loss.hrm_ppo import HRMPPOConfig
 
 from experiments.recipes import arena as base
 
@@ -29,8 +28,6 @@ def train(
     tool = tool.model_copy(
         update={"policy_architecture": policy_architecture or HRMTinyConfig()}
     )
-    # Update loss config to use HRMPPO
-    tool.trainer.losses.loss_configs = {"hrm_ppo": HRMPPOConfig()}
     return tool
 
 
@@ -45,8 +42,6 @@ def train_shaped(
     tool = tool.model_copy(
         update={"policy_architecture": policy_architecture or HRMTinyConfig()}
     )
-    # Update loss config to use HRMPPO
-    # tool.trainer.losses.loss_configs = {"hrm_ppo": HRMPPOConfig()}
     return tool
 
 
