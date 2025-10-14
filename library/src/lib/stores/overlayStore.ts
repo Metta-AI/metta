@@ -14,7 +14,6 @@ export type PaperOverlayData = {
   users: User[];
   interactions: UserInteraction[];
   onStarToggle: (paperId: string) => void;
-  onQueueToggle: (paperId: string) => void;
 };
 
 export type AuthorOverlayData = {
