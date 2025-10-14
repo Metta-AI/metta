@@ -65,9 +65,10 @@ def describe_policy_arg(with_proportion: bool):
 
 
 def _translate_error(e: Exception) -> str:
+    translated = str(e).replace("Invalid symbol name", "Could not find policy class")
     if isinstance(e, ModuleNotFoundError):
-        return "Could not find policy class"
-    return str(e).replace("Invalid symbol name", "Could not find policy class")
+        translated += ". Please make sure to specify your policy class."
+    return translated
 
 
 def get_policy_spec(ctx: typer.Context, policy_arg: Optional[str]) -> PolicySpec:
