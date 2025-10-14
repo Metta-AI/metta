@@ -97,8 +97,8 @@ def play_cmd(
     policy: str = typer.Option("noop", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
     non_interactive: bool = typer.Option(False, "--non-interactive", "-ni", help="Run in non-interactive mode"),
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
-    render: Literal["gui", "text", "none"] = typer.Option(
-        "gui", "--render", "-r", help="Render mode: 'gui', 'text', or 'none' (no rendering)"
+    render: Literal["gui", "unicode", "none"] = typer.Option(
+        "gui", "--render", "-r", help="Render mode: 'gui', 'unicode' (interactive terminal), or 'none'"
     ),
 ) -> None:
     resolved_mission, env_cfg = get_mission_name_and_config(ctx, mission)

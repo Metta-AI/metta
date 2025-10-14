@@ -1,62 +1,84 @@
-"""Replay writer implementations for different storage backends."""
+"""ReplayLogRenderer - A renderer that writes replay logs for game episodes."""
 
 from __future__ import annotations
 
 import json
 import logging
+import uuid
 import zlib
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict
 
 import numpy as np
 
 from metta.utils.file import http_url, write_data
+from mettagrid.renderer.renderer import Renderer
 from mettagrid.util.action_catalog import build_action_mapping, make_decode_fn
 from mettagrid.util.grid_object_formatter import format_grid_object
-from mettagrid.util.replay_writer import ReplayWriter
 
 if TYPE_CHECKING:
-    from mettagrid.core import MettaGridCore
+    from mettagrid import MettaGridEnv
 
-logger = logging.getLogger("S3ReplayWriter")
+logger = logging.getLogger("ReplayLogRenderer")
 
 
-class S3ReplayWriter(ReplayWriter):
-    """ReplayWriter implementation that uploads replays to S3."""
+class ReplayLogRenderer(Renderer):
+    """Renderer that writes replay logs to storage (S3 or local files)."""
 
-    def __init__(self, replay_dir: str | None = None):
-        """Initialize S3ReplayWriter.
+    def __init__(self, replay_dir: str):
+        """Initialize ReplayLogRenderer.
 
         Args:
             replay_dir: S3 path or local directory where replays will be written.
                        If None, replay writing is disabled.
+            episode_id: Unique identifier for the episode
         """
-        self.replay_dir = replay_dir
-        self.episodes = {}
+        self._replay_dir = replay_dir
+        self._episode_id = None
+        self._episode_replay = None
+        self._should_continue = True
+        self.episodes: Dict[str, EpisodeReplay] = {}
 
-    def start_episode(self, episode_id: str, env: MettaGridCore) -> None:
+    def on_episode_start(self, env: MettaGridEnv) -> None:
         """Start recording a new episode."""
-        self.episodes[episode_id] = EpisodeReplay(env)
+        self._episode_id = str(uuid.uuid4())
+        self._episode_replay = EpisodeReplay(env)
+        self.episodes[self._episode_id] = self._episode_replay
+        logger.info("Started recording episode %s", self._episode_id)
 
-    def log_step(self, episode_id: str, actions: np.ndarray, rewards: np.ndarray) -> None:
-        """Log a single step in an episode."""
-        self.episodes[episode_id].log_step(actions, rewards)
+    def on_step(
+        self,
+        current_step: int,
+        observations: np.ndarray,
+        actions: np.ndarray,
+        rewards: np.ndarray,
+        infos: Dict[str, Any],
+    ) -> None:
+        """Log a single step in the replay."""
+        assert self._episode_replay is not None
+        self._episode_replay.log_step(actions, rewards)
 
-    def write_replay(self, episode_id: str) -> str | None:
-        """Write the replay to the replay directory and return the URL."""
-        if self.replay_dir is None:
-            return None
-        episode_replay = self.episodes[episode_id]
-        if episode_replay is None:
-            raise ValueError(f"Episode {episode_id} not found")
-        replay_path = f"{self.replay_dir}/{episode_id}.json.z"
-        episode_replay.write_replay(replay_path)
-        return http_url(replay_path)
+    def should_continue(self) -> bool:
+        """Check if rendering should continue."""
+        return self._should_continue
+
+    def on_episode_end(self, infos: Dict[str, Any]) -> None:
+        """Write the replay to storage and clean up."""
+        assert self._episode_replay is not None
+        replay_path = f"{self._replay_dir}/{self._episode_id}.json.z"
+        self._episode_replay.write_replay(replay_path)
+        url = http_url(replay_path)
+        infos["replay_url"] = url
+        logger.info("Wrote replay for episode %s to %s", self._episode_id, url)
+
+    def render(self) -> None:
+        """Render the current state."""
+        pass
 
 
 class EpisodeReplay:
     """Helper class for managing replay data for a single episode."""
 
-    def __init__(self, env: MettaGridCore):
+    def __init__(self, env: MettaGridEnv):
         self.env = env
         self.step = 0
         self.objects = []
@@ -66,7 +88,6 @@ class EpisodeReplay:
 
         self._validate_non_empty_string_list(env.action_names, "action_names")
         self._validate_non_empty_string_list(env.resource_names, "item_names")
-        # self._validate_non_empty_string_list(env.object_type_names, "type_names")
 
         self.replay_data = {
             "version": 2,
