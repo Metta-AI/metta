@@ -141,14 +141,6 @@ function CommentComposer({
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       handleSubmit();
-    } else if (
-      e.key === "Tab" &&
-      value.endsWith("@library") &&
-      !containsBotMention(value)
-    ) {
-      e.preventDefault();
-      const newValue = value + "_bot ";
-      handleContentChange(newValue);
     }
     // Allow Enter to create newlines by not preventing default
   };
@@ -165,11 +157,7 @@ function CommentComposer({
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         className={`min-h-[64px] resize-none border-0 p-2 text-[14px] leading-[1.5] placeholder-gray-400 focus:ring-0 focus:outline-none ${
-          containsBotMention(value)
-            ? "bg-green-50"
-            : value.endsWith("@library")
-              ? "bg-blue-50/30"
-              : ""
+          containsBotMention(value) ? "bg-green-50" : ""
         }`}
         rows={3}
         autoFocus

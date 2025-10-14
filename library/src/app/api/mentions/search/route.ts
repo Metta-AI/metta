@@ -10,6 +10,7 @@ const searchParamsSchema = z.object({
   q: z.string().min(0).max(50), // Query string
   type: z.enum([
     "user",
+    "bot",
     "institution",
     "group-relative",
     "group-absolute",
@@ -44,6 +45,20 @@ export async function GET(request: NextRequest) {
     });
 
     const suggestions: MentionSuggestion[] = [];
+
+    // Check for bot mention - show if query matches "lib" or "library"
+    if (params.type === "user" || params.type === "bot") {
+      const botQuery = params.q.toLowerCase();
+      if ("library_bot".includes(botQuery) && botQuery.length > 0) {
+        suggestions.push({
+          type: "bot",
+          id: "library_bot",
+          value: "@library_bot",
+          display: "Library Bot",
+          subtitle: "Ask questions about papers",
+        });
+      }
+    }
 
     if (params.type === "user") {
       // Search for users and institutions since they both use @name syntax
