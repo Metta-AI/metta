@@ -26,36 +26,47 @@ from mettagrid import MettaGridConfig
 from experiments.recipes.benchmark_architectures.benchmark import ARCHITECTURES
 
 
-def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
-    """Create hard complexity arena with moderate reward shaping."""
+def make_mettagrid(num_agents: int = 20) -> MettaGridConfig:
+    """Create arena with moderate reward shaping and hard task complexity.
+
+    Task Complexity (Hard):
+    - 3:1 converter ratio (complex resource chain - default)
+    - No initial resources (standard start)
+
+    Reward Shaping (Moderate):
+    - Medium intermediate rewards (0.2-0.5)
+    """
     arena_env = eb.make_arena(num_agents=num_agents, combat=True)
 
-    # Large map size
-    arena_env.game.map_builder.width = 25
-    arena_env.game.map_builder.height = 25
+    # Standard map size across all recipes
+    arena_env.game.map_builder.width = 20
+    arena_env.game.map_builder.height = 20
 
-    # Moderate rewards for intermediate items
+    # Moderate reward shaping
     arena_env.game.agent.rewards.inventory = {
         "heart": 1,
-        "ore_red": 0.2,  # Moderate reward for mining
-        "battery_red": 0.7,  # Moderate reward for conversion
-        "laser": 0.4,
-        "armor": 0.4,
-        "blueprint": 0.3,
+        "ore_red": 0.2,
+        "battery_red": 0.5,
+        "laser": 0.3,
+        "armor": 0.3,
+        "blueprint": 0.2,
     }
     arena_env.game.agent.rewards.inventory_max = {
         "heart": 100,
-        "ore_red": 1,
+        "ore_red": 2,
         "battery_red": 2,
-        "laser": 1,
-        "armor": 1,
-        "blueprint": 1,
+        "laser": 2,
+        "armor": 2,
+        "blueprint": 2,
     }
 
-    # Standard converter ratios (3:1) - no modification needed
-    # No initial resources in buildings - default behavior
+    # Hard task complexity: 3:1 converter (3 battery_red → 1 heart - default)
+    # No need to modify - this is the default converter ratio
 
-    # Combat enabled
+    # Hard task complexity: No initial resources in buildings
+    # (buildings start empty - default behavior)
+
+    # Combat enabled (standard across all)
     arena_env.game.actions.attack.consumed_resources["laser"] = 1
 
     return arena_env

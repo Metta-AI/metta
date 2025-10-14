@@ -26,15 +26,24 @@ from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
+from mettagrid.config import ConverterConfig
 
 from experiments.recipes.benchmark_architectures.benchmark import ARCHITECTURES
 
 
 def make_mettagrid(num_agents: int = 20) -> MettaGridConfig:
-    """Create medium complexity arena as baseline for adaptive curriculum."""
+    """Create arena with adaptive curriculum and medium task complexity baseline.
+
+    Baseline (Medium):
+    - 2:1 converter ratio (fixed for medium)
+    - No initial resources
+    - Standard 20×20 map, 20 agents
+
+    Curriculum will vary parameters around this baseline.
+    """
     arena_env = eb.make_arena(num_agents=num_agents, combat=True)
 
-    # Standard map size
+    # Standard map size (will be varied by curriculum)
     arena_env.game.map_builder.width = 20
     arena_env.game.map_builder.height = 20
 
@@ -49,14 +58,19 @@ def make_mettagrid(num_agents: int = 20) -> MettaGridConfig:
     }
     arena_env.game.agent.rewards.inventory_max = {
         "heart": 100,
-        "ore_red": 1,
+        "ore_red": 2,
         "battery_red": 2,
-        "laser": 1,
-        "armor": 1,
-        "blueprint": 1,
+        "laser": 2,
+        "armor": 2,
+        "blueprint": 2,
     }
 
-    # Combat will be toggled by curriculum
+    # Medium task complexity: 2:1 converter (fixed for medium, not varied)
+    altar = arena_env.game.objects.get("altar")
+    if isinstance(altar, ConverterConfig) and hasattr(altar, "input_resources"):
+        altar.input_resources["battery_red"] = 2
+
+    # Combat enabled (standard)
     arena_env.game.actions.attack.consumed_resources["laser"] = 1
 
     return arena_env

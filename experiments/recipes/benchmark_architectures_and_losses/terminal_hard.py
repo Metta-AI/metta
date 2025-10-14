@@ -30,15 +30,23 @@ from mettagrid import MettaGridConfig
 from experiments.recipes.benchmark_architectures.benchmark import ARCHITECTURES
 
 
-def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
-    """Create hard complexity arena with terminal-only rewards."""
+def make_mettagrid(num_agents: int = 20) -> MettaGridConfig:
+    """Create arena with terminal-only rewards and hard task complexity.
+
+    Task Complexity (Hard):
+    - 3:1 converter ratio (complex resource chain - default)
+    - No initial resources (standard start)
+
+    Reward Shaping (Terminal):
+    - Only terminal reward (heart=1.0, all intermediates=0.0)
+    """
     arena_env = eb.make_arena(num_agents=num_agents, combat=True)
 
-    # Large map for complex multi-agent interactions
-    arena_env.game.map_builder.width = 25
-    arena_env.game.map_builder.height = 25
+    # Standard map size across all recipes
+    arena_env.game.map_builder.width = 20
+    arena_env.game.map_builder.height = 20
 
-    # Only reward for heart - no intermediate rewards
+    # Terminal reward shaping: Only heart reward
     arena_env.game.agent.rewards.inventory = {
         "heart": 1,
     }
@@ -46,7 +54,13 @@ def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
         "heart": 100,
     }
 
-    # Combat enabled
+    # Hard task complexity: 3:1 converter (3 battery_red → 1 heart - default)
+    # No need to modify - this is the default converter ratio
+
+    # Hard task complexity: No initial resources in buildings
+    # (buildings start empty - default behavior)
+
+    # Combat enabled (standard across all)
     arena_env.game.actions.attack.consumed_resources["laser"] = 1
 
     return arena_env

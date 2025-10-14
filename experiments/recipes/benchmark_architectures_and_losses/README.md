@@ -5,8 +5,8 @@ A comprehensive 2-axis benchmark grid for testing agent architectures across **1
 ## Complete Grid Structure
 
 ```
-                    │  Easy Map  │ Medium Map │  Hard Map  │
-                    │ (15×15,12) │ (20×20,20) │ (25×25,24) │
+                    │  Easy      │ Medium     │  Hard      │
+                    │ (1:1, init)│ (2:1, none)│ (3:1, none)│
 ────────────────────┼────────────┼────────────┼────────────┤
 Dense Rewards       │     ✓      │     ✓      │     ✓      │
 Moderate Rewards    │     ✓      │     ✓      │     ✓      │
@@ -15,56 +15,73 @@ Terminal Only       │     ✓      │     ✓      │     ✓      │
 Adaptive Curriculum │     ✓      │     ✓      │     ✓      │
 ```
 
+**Standardized across all recipes:**
+- Map size: 20×20
+- Num agents: 20
+- Combat: Enabled
+
 **Total: 15 conditions × 13 architectures × 3 seeds = 585 runs**
 
 ## Design: Two Independent Axes
 
-### 1. Reward Shaping Axis (holding task complexity constant)
-- **Dense**: High intermediate rewards (0.5-0.9) - maximum guidance
-- **Moderate**: Medium intermediate rewards (0.2-0.7) - balanced guidance
-- **Sparse**: Minimal intermediate rewards (0.01-0.1) - limited guidance
-- **Terminal-only**: Only heart reward - no guidance
-- **Adaptive**: Learning progress-guided curriculum with task variations
+### 1. Task Complexity Axis (Easy/Medium/Hard)
+**What makes the problem intrinsically harder:**
 
-### 2. Task Complexity Axis (holding reward structure constant)
-- **Easy**: Small map (15×15), 12 agents, no combat
-- **Medium**: Standard map (20×20), 20 agents, optional combat
-- **Hard**: Large map (25×25), 24 agents, full combat
+| Complexity | Converter Ratio | Initial Resources | Description |
+|------------|----------------|-------------------|-------------|
+| **Easy**   | 1:1 | Yes (2 in all buildings) | Simple resource chain, easier start |
+| **Medium** | 2:1 | No | Moderate resource chain, standard start |
+| **Hard**   | 3:1 (default) | No | Complex resource chain, standard start |
+
+**Key insight:** Task complexity isolates how difficult the resource management problem is, independent of reward guidance.
+
+### 2. Reward Shaping Axis (Dense/Moderate/Sparse/Terminal/Adaptive)
+**How much guidance the agent gets:**
+
+| Shaping | ore_red | battery_red | laser/armor | Description |
+|---------|---------|-------------|-------------|-------------|
+| **Dense** | 0.5 | 0.9 | 0.7 | High intermediate rewards - maximum guidance |
+| **Moderate** | 0.2 | 0.5 | 0.3 | Medium intermediate rewards - balanced guidance |
+| **Sparse** | 0.01 | 0.05 | 0.05 | Minimal intermediate rewards - limited guidance |
+| **Terminal** | 0.0 | 0.0 | 0.0 | Only heart=1.0 - no intermediate guidance |
+| **Adaptive** | Varies | Varies | Varies | Learning progress-guided curriculum |
+
+**Note:** Converter ratios do NOT vary with reward shaping - they're fixed by task complexity.
 
 ## Scientific Benefits
 
 This factorial design enables:
-- **Clear ablations**: "Architecture X outperforms Y on sparse rewards across all complexities"
-- **Falsifiable hypotheses**: "Transformers scale better than LSTMs to hard tasks"
-- **Interaction analysis**: "Memory helps most when rewards are sparse AND tasks are complex"
-- **Statistical rigor**: Standard factorial design for ANOVA and other analyses
+- **Isolate credit assignment**: Compare sparse vs dense on same task complexity
+- **Isolate capacity/planning**: Compare easy vs hard on same reward shaping
+- **Interaction effects**: "Does architecture X need dense rewards more on hard tasks?"
+- **Statistical rigor**: Standard 2-factor ANOVA design
 
 ## Recipe Files
 
-### Dense Rewards
-- `dense_easy.py` - Maximum guidance, minimal complexity
-- `dense_medium.py` - High guidance, standard complexity
-- `dense_hard.py` - High guidance, maximum complexity
+### Dense Rewards (0.5-0.9)
+- `dense_easy.py` - High guidance, simple chain (1:1), initial resources
+- `dense_medium.py` - High guidance, moderate chain (2:1)
+- `dense_hard.py` - High guidance, complex chain (3:1)
 
-### Moderate Rewards
-- `moderate_easy.py` - Balanced guidance, minimal complexity
-- `moderate_medium.py` - Balanced guidance, standard complexity
-- `moderate_hard.py` - Balanced guidance, maximum complexity
+### Moderate Rewards (0.2-0.5)
+- `moderate_easy.py` - Balanced guidance, simple chain (1:1), initial resources
+- `moderate_medium.py` - Balanced guidance, moderate chain (2:1)
+- `moderate_hard.py` - Balanced guidance, complex chain (3:1)
 
-### Sparse Rewards
-- `sparse_easy.py` - Limited guidance, minimal complexity
-- `sparse_medium.py` - Limited guidance, standard complexity
-- `sparse_hard.py` - Limited guidance, maximum complexity
+### Sparse Rewards (0.01-0.05)
+- `sparse_easy.py` - Limited guidance, simple chain (1:1), initial resources
+- `sparse_medium.py` - Limited guidance, moderate chain (2:1)
+- `sparse_hard.py` - Limited guidance, complex chain (3:1)
 
-### Terminal Only
-- `terminal_easy.py` - No guidance, minimal complexity
-- `terminal_medium.py` - No guidance, standard complexity
-- `terminal_hard.py` - No guidance, maximum complexity
+### Terminal Only (heart=1.0)
+- `terminal_easy.py` - No guidance, simple chain (1:1), initial resources
+- `terminal_medium.py` - No guidance, moderate chain (2:1)
+- `terminal_hard.py` - No guidance, complex chain (3:1)
 
 ### Adaptive Curriculum
-- `adaptive_easy.py` - Task variations, minimal complexity
-- `adaptive_medium.py` - Task variations, standard complexity
-- `adaptive_hard.py` - Task variations, maximum complexity
+- `adaptive_easy.py` - Task variations around easy baseline
+- `adaptive_medium.py` - Task variations around medium baseline
+- `adaptive_hard.py` - Task variations around hard baseline
 
 ## Quick Start
 
@@ -72,14 +89,14 @@ This factorial design enables:
 
 ```bash
 # Train with default architecture
-uv run ./tools/run.py experiments.recipes.benchmark_architectures.dense_easy.train
+uv run ./tools/run.py experiments.recipes.benchmark_architectures_and_losses.dense_easy.train
 
 # Train with specific architecture
-uv run ./tools/run.py experiments.recipes.benchmark_architectures.sparse_hard.train \
+uv run ./tools/run.py experiments.recipes.benchmark_architectures_and_losses.sparse_hard.train \
   arch_type=vit_sliding
 
 # Evaluate a trained policy
-uv run ./tools/run.py experiments.recipes.benchmark_architectures.dense_easy.evaluate \
+uv run ./tools/run.py experiments.recipes.benchmark_architectures_and_losses.dense_easy.evaluate \
   policy_uris=file://./checkpoints/my_policy
 ```
 
@@ -87,12 +104,12 @@ uv run ./tools/run.py experiments.recipes.benchmark_architectures.dense_easy.eva
 
 ```bash
 # Run complete benchmark sweep with all architectures
-cd experiments/recipes/benchmark_architectures
-uv run python -c "from adaptive import run; run('my_experiment', local=False)"
+cd experiments/recipes/benchmark_architectures_and_losses
+uv run python -c "from benchmark import run; run('my_experiment', local=False)"
 
 # Or customize the sweep
 uv run python -c "
-from adaptive import run, create_custom_grid
+from benchmark import run, create_custom_grid
 grid = create_custom_grid(
     reward_levels=['dense', 'moderate'],
     complexity_levels=['easy', 'medium']
@@ -119,20 +136,33 @@ run('focused_experiment', grid=grid, architecture_types=['vit', 'fast'])
 
 ## Adaptive Curriculum Details
 
-The adaptive curriculum recipes use learning progress-guided task selection:
+The adaptive curriculum recipes use learning progress-guided task selection with variations around each complexity baseline:
 
-**What varies:**
-- Map size (±2-3 from baseline)
-- Number of agents (±2-4 from baseline)
-- Reward values (creating different credit assignment challenges)
-- Combat on/off
-- Initial resources in buildings
+**adaptive_easy** (baseline: 20×20, 20 agents, 1:1 converter):
+- Map size: 17-23×17-23
+- Agents: 16-24
+- Rewards: 0.1-0.7 (moderate range)
+- Converter: 1:1 (fixed for easy)
+- Initial resources: 0-1
+- Pool: 32 tasks, 25% random
 
-**Learning progress algorithm:**
-- Maintains pool of 32-128 active tasks (depends on complexity)
-- Scores tasks based on learning progress (EMA of performance)
-- 25-30% random exploration rate
-- Automatically focuses on tasks where agent is making progress
+**adaptive_medium** (baseline: 20×20, 20 agents, 2:1 converter):
+- Map size: 17-23×17-23
+- Agents: 16-24
+- Rewards: 0.05-0.6 (wider range)
+- Converter: 2:1 (fixed for medium)
+- Initial resources: 0-1
+- Combat: on/off toggle
+- Pool: 64 tasks, 25% random
+
+**adaptive_hard** (baseline: 20×20, 20 agents, 3:1 converter):
+- Map size: 17-28×17-28
+- Agents: 16-28
+- Rewards: 0.0-0.3 (terminal to sparse)
+- Converter: 3:1 (fixed for hard)
+- Initial resources: 0-1-2
+- Combat: on/off toggle
+- Pool: 128 tasks, 30% random
 
 **Benefits:**
 - Tests generalization across task variations

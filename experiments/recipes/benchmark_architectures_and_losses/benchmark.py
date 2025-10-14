@@ -1,9 +1,10 @@
-"""Adaptive controller for 2-axis benchmark architectures.
+"""Benchmark controller for 2-axis architecture testing.
 
 This module provides:
 - A 2-axis grid scheduler (reward shaping × task complexity)
 - Adaptive controller with store/dispatcher
 - Convenience function to run the benchmark sweep
+- Shared architecture configurations
 
 Design
 ------
@@ -12,22 +13,28 @@ The benchmark tests architectures across two independent axes:
 1. Reward Shaping (vertical axis):
    - dense: High intermediate rewards (0.5-0.9)
    - moderate: Medium intermediate rewards (0.2-0.5)
-   - sparse: Minimal intermediate rewards (0.01-0.1)
-   - terminal_only: Only heart reward
+   - sparse: Minimal intermediate rewards (0.01-0.05)
+   - terminal_only: Only heart reward (all intermediates=0.0)
+   - adaptive: Learning progress-guided curriculum
 
 2. Task Complexity (horizontal axis):
-   - easy: Small map (15×15), 12 agents, no combat
-   - medium: Standard map (20×20), 20 agents, optional combat
-   - hard: Large map (25×25), 24 agents, full combat
+   - easy: 1:1 converter ratio, initial resources in buildings
+   - medium: 2:1 converter ratio, no initial resources
+   - hard: 3:1 converter ratio (default), no initial resources
 
-This enables isolating:
-- Credit assignment & exploration (reward axis)
-- Capacity & scaling (task complexity axis)
-- Interaction effects
+Standardized across all recipes:
+   - Map size: 20×20
+   - Num agents: 20
+   - Combat: Enabled
+
+This design cleanly separates:
+- Credit assignment & exploration (reward shaping axis)
+- Resource chain complexity & planning (task complexity axis)
+- Interaction effects between the two
 
 Notes
 -----
-- Training commands reference the per-level recipe modules in this folder.
+- Training commands reference the recipe modules in this folder.
 - Evaluation uses the latest available checkpoint via the ":latest" selector.
 - Grid cells can be selectively enabled/disabled for focused experiments.
 

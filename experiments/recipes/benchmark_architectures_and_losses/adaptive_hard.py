@@ -30,13 +30,21 @@ from mettagrid import MettaGridConfig
 from experiments.recipes.benchmark_architectures.benchmark import ARCHITECTURES
 
 
-def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
-    """Create hard complexity arena as baseline for adaptive curriculum."""
+def make_mettagrid(num_agents: int = 20) -> MettaGridConfig:
+    """Create arena with adaptive curriculum and hard task complexity baseline.
+
+    Baseline (Hard):
+    - 3:1 converter ratio (fixed for hard)
+    - No initial resources
+    - Standard 20×20 map, 20 agents
+
+    Curriculum will vary parameters around this baseline.
+    """
     arena_env = eb.make_arena(num_agents=num_agents, combat=True)
 
-    # Large map for complex multi-agent interactions
-    arena_env.game.map_builder.width = 25
-    arena_env.game.map_builder.height = 25
+    # Standard map size (will be varied by curriculum)
+    arena_env.game.map_builder.width = 20
+    arena_env.game.map_builder.height = 20
 
     # Sparse baseline rewards (will be varied by curriculum)
     arena_env.game.agent.rewards.inventory = {
@@ -49,14 +57,17 @@ def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
     }
     arena_env.game.agent.rewards.inventory_max = {
         "heart": 100,
-        "ore_red": 1,
+        "ore_red": 2,
         "battery_red": 2,
-        "laser": 1,
-        "armor": 1,
-        "blueprint": 1,
+        "laser": 2,
+        "armor": 2,
+        "blueprint": 2,
     }
 
-    # Combat enabled
+    # Hard task complexity: 3:1 converter (fixed for hard, not varied)
+    # No need to modify - this is the default converter ratio
+
+    # Combat enabled (standard)
     arena_env.game.actions.attack.consumed_resources["laser"] = 1
 
     return arena_env
@@ -80,12 +91,12 @@ def make_curriculum(
     # Create bucketed task generator
     arena_tasks = cc.bucketed(arena_env)
 
-    # Vary map size around hard baseline (25x25 ±3)
-    arena_tasks.add_bucket("game.map_builder.width", [22, 25, 28])
-    arena_tasks.add_bucket("game.map_builder.height", [22, 25, 28])
+    # Vary map size around standard baseline (20x20 ±3)
+    arena_tasks.add_bucket("game.map_builder.width", [17, 20, 23])
+    arena_tasks.add_bucket("game.map_builder.height", [17, 20, 23])
 
-    # Vary number of agents (24 ±4)
-    arena_tasks.add_bucket("game.agent.num_agents", [20, 24, 28])
+    # Vary number of agents (20 ±4)
+    arena_tasks.add_bucket("game.agent.num_agents", [16, 20, 24])
 
     # Vary reward values - from terminal-only to sparse to moderate
     # This creates different levels of credit assignment difficulty

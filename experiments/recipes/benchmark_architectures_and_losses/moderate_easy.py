@@ -22,41 +22,59 @@ from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
+from mettagrid.config import ConverterConfig
 
 from experiments.recipes.benchmark_architectures.benchmark import ARCHITECTURES
 
 
-def make_mettagrid(num_agents: int = 12) -> MettaGridConfig:
-    """Create easy complexity arena with moderate reward shaping."""
-    arena_env = eb.make_arena(num_agents=num_agents, combat=False)
+def make_mettagrid(num_agents: int = 20) -> MettaGridConfig:
+    """Create arena with moderate reward shaping and easy task complexity.
 
-    # Small map for easier learning
-    arena_env.game.map_builder.width = 15
-    arena_env.game.map_builder.height = 15
+    Task Complexity (Easy):
+    - 1:1 converter ratio (simple resource chain)
+    - Initial resources in buildings (easier start)
 
-    # Moderate rewards for intermediate items
+    Reward Shaping (Moderate):
+    - Medium intermediate rewards (0.2-0.5)
+    """
+    arena_env = eb.make_arena(num_agents=num_agents, combat=True)
+
+    # Standard map size across all recipes
+    arena_env.game.map_builder.width = 20
+    arena_env.game.map_builder.height = 20
+
+    # Moderate reward shaping
     arena_env.game.agent.rewards.inventory = {
         "heart": 1,
-        "ore_red": 0.2,  # Moderate reward for mining
-        "battery_red": 0.7,  # Moderate reward for conversion
-        "laser": 0.4,
-        "armor": 0.4,
-        "blueprint": 0.3,
+        "ore_red": 0.2,
+        "battery_red": 0.5,
+        "laser": 0.3,
+        "armor": 0.3,
+        "blueprint": 0.2,
     }
     arena_env.game.agent.rewards.inventory_max = {
         "heart": 100,
-        "ore_red": 1,
+        "ore_red": 2,
         "battery_red": 2,
-        "laser": 1,
-        "armor": 1,
-        "blueprint": 1,
+        "laser": 2,
+        "armor": 2,
+        "blueprint": 2,
     }
 
-    # Standard converter ratios (3:1) - no modification needed
-    # No initial resources in buildings - default behavior
+    # Easy task complexity: 1:1 converter (1 battery_red → 1 heart)
+    altar = arena_env.game.objects.get("altar")
+    if isinstance(altar, ConverterConfig) and hasattr(altar, "input_resources"):
+        altar.input_resources["battery_red"] = 1
+        altar.initial_resource_count = 2
 
-    # Combat disabled
-    arena_env.game.actions.attack.consumed_resources["laser"] = 100
+    # Easy task complexity: Initial resources in all buildings
+    for obj_name in ["mine_red", "generator_red", "lasery", "armory"]:
+        obj = arena_env.game.objects.get(obj_name)
+        if obj and hasattr(obj, "initial_resource_count"):
+            obj.initial_resource_count = 2
+
+    # Combat enabled (standard across all)
+    arena_env.game.actions.attack.consumed_resources["laser"] = 1
 
     return arena_env
 

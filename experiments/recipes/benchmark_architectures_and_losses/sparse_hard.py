@@ -30,33 +30,47 @@ from mettagrid import MettaGridConfig
 from experiments.recipes.benchmark_architectures.benchmark import ARCHITECTURES
 
 
-def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
-    """Create a hard complexity arena with sparse rewards."""
+def make_mettagrid(num_agents: int = 20) -> MettaGridConfig:
+    """Create arena with sparse reward shaping and hard task complexity.
+
+    Task Complexity (Hard):
+    - 3:1 converter ratio (complex resource chain - default)
+    - No initial resources (standard start)
+
+    Reward Shaping (Sparse):
+    - Minimal intermediate rewards (0.01-0.05)
+    """
     arena_env = eb.make_arena(num_agents=num_agents, combat=True)
 
-    # Large map for complex multi-agent interactions
-    arena_env.game.map_builder.width = 25
-    arena_env.game.map_builder.height = 25
+    # Standard map size across all recipes
+    arena_env.game.map_builder.width = 20
+    arena_env.game.map_builder.height = 20
 
-    # Very sparse intermediate rewards - mostly just heart
+    # Sparse reward shaping
     arena_env.game.agent.rewards.inventory = {
         "heart": 1,
-        "ore_red": 0.01,  # Minimal reward
-        "battery_red": 0.05,  # Minimal reward
+        "ore_red": 0.01,
+        "battery_red": 0.05,
         "laser": 0.05,
         "armor": 0.05,
         "blueprint": 0.01,
     }
     arena_env.game.agent.rewards.inventory_max = {
         "heart": 100,
-        "ore_red": 1,
-        "battery_red": 1,
-        "laser": 1,
-        "armor": 1,
-        "blueprint": 1,
+        "ore_red": 2,
+        "battery_red": 2,
+        "laser": 2,
+        "armor": 2,
+        "blueprint": 2,
     }
 
-    # Combat enabled
+    # Hard task complexity: 3:1 converter (3 battery_red → 1 heart - default)
+    # No need to modify - this is the default converter ratio
+
+    # Hard task complexity: No initial resources in buildings
+    # (buildings start empty - default behavior)
+
+    # Combat enabled (standard across all)
     arena_env.game.actions.attack.consumed_resources["laser"] = 1
 
     return arena_env

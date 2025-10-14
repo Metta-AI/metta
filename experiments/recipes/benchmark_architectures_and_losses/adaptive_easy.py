@@ -26,17 +26,26 @@ from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
+from mettagrid.config import ConverterConfig
 
 from experiments.recipes.benchmark_architectures.benchmark import ARCHITECTURES
 
 
-def make_mettagrid(num_agents: int = 12) -> MettaGridConfig:
-    """Create easy complexity arena as baseline for adaptive curriculum."""
-    arena_env = eb.make_arena(num_agents=num_agents, combat=False)
+def make_mettagrid(num_agents: int = 20) -> MettaGridConfig:
+    """Create arena with adaptive curriculum and easy task complexity baseline.
 
-    # Small map for easier learning
-    arena_env.game.map_builder.width = 15
-    arena_env.game.map_builder.height = 15
+    Baseline (Easy):
+    - 1:1 converter ratio
+    - Initial resources in buildings
+    - Standard 20×20 map, 20 agents
+
+    Curriculum will vary parameters around this baseline.
+    """
+    arena_env = eb.make_arena(num_agents=num_agents, combat=True)
+
+    # Standard map size (will be varied by curriculum)
+    arena_env.game.map_builder.width = 20
+    arena_env.game.map_builder.height = 20
 
     # Moderate baseline rewards (will be varied by curriculum)
     arena_env.game.agent.rewards.inventory = {
@@ -49,15 +58,21 @@ def make_mettagrid(num_agents: int = 12) -> MettaGridConfig:
     }
     arena_env.game.agent.rewards.inventory_max = {
         "heart": 100,
-        "ore_red": 1,
+        "ore_red": 2,
         "battery_red": 2,
-        "laser": 1,
-        "armor": 1,
-        "blueprint": 1,
+        "laser": 2,
+        "armor": 2,
+        "blueprint": 2,
     }
 
-    # Combat disabled
-    arena_env.game.actions.attack.consumed_resources["laser"] = 100
+    # Easy task complexity: 1:1 converter (fixed for easy, not varied by curriculum)
+    altar = arena_env.game.objects.get("altar")
+    if isinstance(altar, ConverterConfig) and hasattr(altar, "input_resources"):
+        altar.input_resources["battery_red"] = 1
+        altar.initial_resource_count = 2
+
+    # Combat enabled (standard)
+    arena_env.game.actions.attack.consumed_resources["laser"] = 1
 
     return arena_env
 
@@ -79,12 +94,12 @@ def make_curriculum(
     # Create bucketed task generator
     arena_tasks = cc.bucketed(arena_env)
 
-    # Vary map size around easy baseline (15x15 ±2)
-    arena_tasks.add_bucket("game.map_builder.width", [13, 15, 17])
-    arena_tasks.add_bucket("game.map_builder.height", [13, 15, 17])
+    # Vary map size around standard baseline (20x20 ±3)
+    arena_tasks.add_bucket("game.map_builder.width", [17, 20, 23])
+    arena_tasks.add_bucket("game.map_builder.height", [17, 20, 23])
 
-    # Vary number of agents (12 ±2)
-    arena_tasks.add_bucket("game.agent.num_agents", [10, 12, 14])
+    # Vary number of agents (20 ±4)
+    arena_tasks.add_bucket("game.agent.num_agents", [16, 20, 24])
 
     # Vary reward values for different items to create different credit assignment challenges
     arena_tasks.add_bucket("game.agent.rewards.inventory.ore_red", [0.1, 0.2, 0.3, 0.4])

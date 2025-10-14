@@ -22,24 +22,31 @@ from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
-from mettagrid.config import ConverterConfig
 
 from experiments.recipes.benchmark_architectures.benchmark import ARCHITECTURES
 
 
-def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
-    """Create hard complexity arena with dense reward shaping."""
+def make_mettagrid(num_agents: int = 20) -> MettaGridConfig:
+    """Create arena with dense reward shaping and hard task complexity.
+
+    Task Complexity (Hard):
+    - 3:1 converter ratio (complex resource chain - default)
+    - No initial resources (standard start)
+
+    Reward Shaping (Dense):
+    - High intermediate rewards (0.5-0.9)
+    """
     arena_env = eb.make_arena(num_agents=num_agents, combat=True)
 
-    # Large map size
-    arena_env.game.map_builder.width = 25
-    arena_env.game.map_builder.height = 25
+    # Standard map size across all recipes
+    arena_env.game.map_builder.width = 20
+    arena_env.game.map_builder.height = 20
 
-    # Dense rewards for all intermediate items
+    # Dense reward shaping: High rewards for all intermediate items
     arena_env.game.agent.rewards.inventory = {
         "heart": 1,
-        "ore_red": 0.5,  # High reward for mining
-        "battery_red": 0.9,  # High reward for conversion
+        "ore_red": 0.5,
+        "battery_red": 0.9,
         "laser": 0.7,
         "armor": 0.7,
         "blueprint": 0.5,
@@ -53,19 +60,13 @@ def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
         "blueprint": 2,
     }
 
-    # Easy converter: 1 battery_red to 1 heart
-    altar = arena_env.game.objects.get("altar")
-    if isinstance(altar, ConverterConfig) and hasattr(altar, "input_resources"):
-        altar.input_resources["battery_red"] = 1
-        altar.initial_resource_count = 2
+    # Hard task complexity: 3:1 converter (3 battery_red → 1 heart - default)
+    # No need to modify - this is the default converter ratio
 
-    # Add initial resources to all buildings
-    for obj_name in ["mine_red", "generator_red", "lasery", "armory"]:
-        obj = arena_env.game.objects.get(obj_name)
-        if obj and hasattr(obj, "initial_resource_count"):
-            obj.initial_resource_count = 2
+    # Hard task complexity: No initial resources in buildings
+    # (buildings start empty - default behavior)
 
-    # Combat enabled
+    # Combat enabled (standard across all)
     arena_env.game.actions.attack.consumed_resources["laser"] = 1
 
     return arena_env
