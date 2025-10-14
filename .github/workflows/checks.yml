@@ -321,7 +321,7 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: Summarize test results (red / grey / green)
+      - name: Check test results
         uses: actions/github-script@v7
         with:
           script: |
