@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
-from cogames.cogs_vs_clips import glyphs, scenarios
+from cogames.cogs_vs_clips import glyphs, mission_modifications
 from cogames.cogs_vs_clips.stations import (
     assembler,
     carbon_ex_dep,
@@ -42,6 +42,32 @@ from mettagrid.map_builder.map_builder import MapBuilderConfig
 from mettagrid.map_builder.random import RandomMapBuilder
 
 
+def _get_default_map_objects() -> dict[str, AnyGridObjectConfig]:
+    return {
+        "wall": WallConfig(name="wall", type_id=1, map_char="#", render_symbol="⬛"),
+        "charger": charger(),
+        "carbon_extractor": carbon_extractor(),
+        "oxygen_extractor": oxygen_extractor(),
+        "germanium_extractor": germanium_extractor(),
+        "silicon_extractor": silicon_extractor(),
+        # depleted variants
+        "silicon_ex_dep": silicon_ex_dep(),
+        "oxygen_ex_dep": oxygen_ex_dep(),
+        "carbon_ex_dep": carbon_ex_dep(),
+        "germanium_ex_dep": germanium_ex_dep(),
+        "clipped_carbon_extractor": clipped_carbon_extractor(),
+        "clipped_oxygen_extractor": clipped_oxygen_extractor(),
+        "clipped_germanium_extractor": clipped_germanium_extractor(),
+        "clipped_silicon_extractor": clipped_silicon_extractor(),
+        "chest": chest(),
+        "chest_carbon": chest_carbon(),
+        "chest_oxygen": chest_oxygen(),
+        "chest_germanium": chest_germanium(),
+        "chest_silicon": chest_silicon(),
+        "assembler": assembler(),
+    }
+
+
 def _default_mission(*, num_cogs: int = 4, clip_rate: float = 0.0, **kwargs: dict[str, Any]) -> GameConfig:
     game = GameConfig(
         resource_names=resources,
@@ -51,29 +77,7 @@ def _default_mission(*, num_cogs: int = 4, clip_rate: float = 0.0, **kwargs: dic
             noop=ActionConfig(),
             change_glyph=ChangeGlyphActionConfig(number_of_glyphs=len(glyphs.GLYPHS)),
         ),
-        objects={
-            "wall": WallConfig(name="wall", type_id=1, map_char="#", render_symbol="⬛"),
-            "charger": charger(),
-            "carbon_extractor": carbon_extractor(),
-            "oxygen_extractor": oxygen_extractor(),
-            "germanium_extractor": germanium_extractor(),
-            "silicon_extractor": silicon_extractor(),
-            # depleted variants
-            "silicon_ex_dep": silicon_ex_dep(),
-            "oxygen_ex_dep": oxygen_ex_dep(),
-            "carbon_ex_dep": carbon_ex_dep(),
-            "germanium_ex_dep": germanium_ex_dep(),
-            "clipped_carbon_extractor": clipped_carbon_extractor(),
-            "clipped_oxygen_extractor": clipped_oxygen_extractor(),
-            "clipped_germanium_extractor": clipped_germanium_extractor(),
-            "clipped_silicon_extractor": clipped_silicon_extractor(),
-            "chest": chest(),
-            "chest_carbon": chest_carbon(),
-            "chest_oxygen": chest_oxygen(),
-            "chest_germanium": chest_germanium(),
-            "chest_silicon": chest_silicon(),
-            "assembler": assembler(),
-        },
+        objects=_get_default_map_objects(),
         agent=AgentConfig(
             resource_limits={
                 "heart": 1,
@@ -145,32 +149,6 @@ def get_mission_generator(mission: str = "default") -> Callable[..., GameConfig]
     return index[mission]
 
 
-def _get_default_map_objects() -> dict[str, AnyGridObjectConfig]:
-    return {
-        "wall": WallConfig(name="wall", type_id=1, map_char="#", render_symbol="⬛"),
-        "charger": charger(),
-        "carbon_extractor": carbon_extractor(),
-        "oxygen_extractor": oxygen_extractor(),
-        "germanium_extractor": germanium_extractor(),
-        "silicon_extractor": silicon_extractor(),
-        # depleted variants
-        "silicon_ex_dep": silicon_ex_dep(),
-        "oxygen_ex_dep": oxygen_ex_dep(),
-        "carbon_ex_dep": carbon_ex_dep(),
-        "germanium_ex_dep": germanium_ex_dep(),
-        "clipped_carbon_extractor": clipped_carbon_extractor(),
-        "clipped_oxygen_extractor": clipped_oxygen_extractor(),
-        "clipped_germanium_extractor": clipped_germanium_extractor(),
-        "clipped_silicon_extractor": clipped_silicon_extractor(),
-        "chest": chest(),
-        "chest_carbon": chest_carbon(),
-        "chest_oxygen": chest_oxygen(),
-        "chest_germanium": chest_germanium(),
-        "chest_silicon": chest_silicon(),
-        "assembler": assembler(),
-    }
-
-
 def get_map_builder_for_site(site: str) -> MapBuilderConfig:
     """Get the map builder for a site. Site is the name of the site file in the maps directory."""
     maps_dir = Path(__file__).parent.parent / "maps"
@@ -208,15 +186,6 @@ def get_random_map_builder(
         },
         seed=42,
     )
-
-
-def _apply_curriculum_modifiers(cfg: MettaGridConfig, *, easy: bool = False, shaped: bool = False) -> None:
-    if easy:
-        scenarios.add_easy_heart_recipe(cfg)
-    if shaped:
-        scenarios.add_shaped_rewards(cfg)
-    if easy or shaped:
-        scenarios.extend_max_steps(cfg)
 
 
 class UserMap(ABC):
@@ -264,7 +233,9 @@ class RandomUserMap(UserMap):
         game = get_mission_generator(base_mission)(**args)
         game.map_builder = get_random_map_builder(**args)
         cfg = MettaGridConfig(game=game)
-        _apply_curriculum_modifiers(cfg, easy=easy, shaped=shaped)
+        mission_modifications.apply_modifications(
+            cfg, {"easy": easy, "shaped": shaped, "extend_max_steps": easy or shaped}
+        )
         return cfg
 
 
@@ -291,7 +262,9 @@ class SiteUserMap(UserMap):
         game = get_mission_generator(base_mission)(**args)
         game.map_builder = get_map_builder_for_site(self._site)
         cfg = MettaGridConfig(game=game)
-        _apply_curriculum_modifiers(cfg, easy=easy, shaped=shaped)
+        mission_modifications.apply_modifications(
+            cfg, {"easy": easy, "shaped": shaped, "extend_max_steps": easy or shaped}
+        )
         return cfg
 
 
