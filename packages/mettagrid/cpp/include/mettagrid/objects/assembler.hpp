@@ -1,6 +1,8 @@
 #ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_ASSEMBLER_HPP_
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_ASSEMBLER_HPP_
 
+#include <algorithm>
+#include <cassert>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -96,17 +98,54 @@ private:
 
 public:
   // Consume resources from surrounding agents for the given recipe
+  // Uses a balanced approach: sorts agents by resource amount and takes evenly from them
   // Intended to be private, but made public for testing. We couldn't get `friend` to work as expected.
   void consume_resources_for_recipe(const Recipe& recipe, const std::vector<Agent*>& surrounding_agents) {
     for (const auto& [item, required_amount] : recipe.input_resources) {
-      InventoryQuantity remaining = required_amount;
-      for (Agent* agent : surrounding_agents) {
-        if (remaining == 0) break;
-        InventoryQuantity available = agent->inventory.amount(item);
-        InventoryQuantity to_consume = static_cast<InventoryQuantity>(std::min<int>(available, remaining));
-        agent->update_inventory(item, static_cast<InventoryDelta>(-to_consume));
-        remaining -= to_consume;
+      if (required_amount == 0) {
+        // We don't expect to have recipes with 0 required resources, but just in case.
+        continue;
       }
+      // Create a vector of agents with their resource amounts
+      std::vector<std::pair<Agent*, InventoryQuantity>> agents_with_amounts;
+      for (Agent* agent : surrounding_agents) {
+        InventoryQuantity amount = agent->inventory.amount(item);
+        if (amount > 0) {
+          agents_with_amounts.push_back({agent, amount});
+        }
+      }
+
+      // This should never happen since can_afford_recipe was already checked
+      assert(!agents_with_amounts.empty() &&
+             "No agents have required resource - can_afford_recipe should have caught this");
+
+      // Sort agents by how much of the resource they have (ascending order)
+      // This ensures we take from agents with less first, promoting balance
+      std::sort(agents_with_amounts.begin(), agents_with_amounts.end(), [](const auto& a, const auto& b) {
+        return a.second < b.second;
+      });
+
+      // Consume resources from agents in sorted order
+      InventoryQuantity remaining = required_amount;
+      size_t agents_left = agents_with_amounts.size();
+
+      for (auto& [agent, available] : agents_with_amounts) {
+        // Calculate fair share for this agent (remaining / agents_left)
+        // Integer division rounds down, which is fine since the last agent will get remaining/1
+        InventoryQuantity fair_share = remaining / agents_left;
+        InventoryQuantity to_consume = static_cast<InventoryQuantity>(std::min<int>(available, fair_share));
+
+        if (to_consume > 0) {
+          agent->update_inventory(item, static_cast<InventoryDelta>(-to_consume));
+          remaining -= to_consume;
+        }
+
+        agents_left--;
+        if (remaining == 0) break;
+      }
+
+      // Should have consumed everything
+      assert(remaining == 0 && "Failed to consume all required resources");
     }
   }
 
