@@ -1,5 +1,7 @@
 """Agent control component for miniscope renderer."""
 
+from typing import Dict, Optional
+
 from rich.table import Table
 from rich.text import Text
 
@@ -22,6 +24,33 @@ class AgentControlComponent(MiniscopeComponent):
         """Initialize the agent control component."""
         super().__init__(env=env, state=state, panels=panels)
         self._set_panel(panels.footer)
+        self._action_lookup: Dict[str, int] = {name: idx for idx, name in enumerate(self._env.action_names)}
+        self._noop_action_id: Optional[int] = self._action_lookup.get("noop")
+        self._move_action_lookup: Dict[int, Optional[int]] = {
+            0: self._action_lookup.get("move_north"),
+            1: self._action_lookup.get("move_south"),
+            2: self._action_lookup.get("move_west"),
+            3: self._action_lookup.get("move_east"),
+        }
+
+    def _set_move_action(self, orientation_idx: int) -> None:
+        """Set a movement action for the selected agent."""
+        move_action_id = self._move_action_lookup.get(orientation_idx)
+        if move_action_id is not None:
+            self._state.user_action = (move_action_id, 0)
+        else:
+            # Fall back to legacy verb/argument pairs if the flattened action is unavailable.
+            self._state.user_action = (-1, orientation_idx)
+        self._state.should_step = True
+
+    def _set_rest_action(self) -> None:
+        """Set a rest/no-op action for the selected agent."""
+        if self._noop_action_id is not None:
+            self._state.user_action = (self._noop_action_id, 0)
+        else:
+            # Default to noop when explicit action name is missing.
+            self._state.user_action = (-1, -1)
+        self._state.should_step = True
 
     def handle_input(self, ch: str) -> bool:
         """Handle agent control inputs.
@@ -32,6 +61,7 @@ class AgentControlComponent(MiniscopeComponent):
         Returns:
             True if the input was handled
         """
+        ch_lower = ch.lower()
         # Handle agent selection
         if ch == "[":
             self._state.select_previous_agent(self._env.num_agents)
@@ -46,25 +76,20 @@ class AgentControlComponent(MiniscopeComponent):
             return True
 
         # Handle agent movement commands (only when an agent is selected)
-        elif ch in ["w", "W"] and self._state.selected_agent is not None:
-            self._state.user_action = (1, 0)  # NORTH
-            self._state.should_step = True
+        elif ch_lower == "w" and self._state.selected_agent is not None:
+            self._set_move_action(0)  # NORTH
             return True
-        elif ch in ["s", "S"] and self._state.selected_agent is not None:
-            self._state.user_action = (1, 1)  # SOUTH
-            self._state.should_step = True
+        elif ch_lower == "s" and self._state.selected_agent is not None:
+            self._set_move_action(1)  # SOUTH
             return True
-        elif ch in ["a", "A"] and self._state.selected_agent is not None:
-            self._state.user_action = (1, 2)  # WEST
-            self._state.should_step = True
+        elif ch_lower == "a" and self._state.selected_agent is not None:
+            self._set_move_action(2)  # WEST
             return True
-        elif ch in ["d", "D"] and self._state.selected_agent is not None:
-            self._state.user_action = (1, 3)  # EAST
-            self._state.should_step = True
+        elif ch_lower == "d" and self._state.selected_agent is not None:
+            self._set_move_action(3)  # EAST
             return True
-        elif ch in ["r", "R"] and self._state.selected_agent is not None:
-            self._state.user_action = (1, 4)  # REST/NOOP
-            self._state.should_step = True
+        elif ch_lower == "r" and self._state.selected_agent is not None:
+            self._set_rest_action()
             return True
 
         # Handle glyph picker
