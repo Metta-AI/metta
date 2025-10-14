@@ -126,6 +126,48 @@ def train(
     )
 
 
+def train_4gpu(
+    curriculum: Optional[CurriculumConfig] = None,
+    enable_detailed_slice_logging: bool = False,
+    policy_architecture: Optional[PolicyArchitecture] = None,
+) -> TrainTool:
+    """Train configured for 4-GPU runs with world-size scaling.
+
+    - Keeps the global batch size consistent with the single-GPU default
+      by enabling per-rank scaling (``scale_batches_by_world_size=True``).
+    - Sets an appropriate global batch size (same as default recipe), which
+      will be divided across ranks at runtime by the TrainTool helper.
+    - Uses the default learning rate (no change needed when global batch is
+      kept constant via world-size scaling).
+    """
+
+    curriculum = curriculum or make_curriculum(
+        enable_detailed_slice_logging=enable_detailed_slice_logging
+    )
+
+    eval_simulations = simulations()
+
+    # Global batch size: keep the single-GPU default so that enabling
+    # scale-by-world-size maintains a constant global batch across 4 GPUs.
+    # Learning rate: unchanged when global batch is constant.
+    trainer_cfg = TrainerConfig(
+        losses=LossConfig(),
+        batch_size=524_288,
+        scale_batches_by_world_size=True,
+    )
+
+    if policy_architecture is None:
+        policy_architecture = ViTDefaultConfig()
+
+    return TrainTool(
+        trainer=trainer_cfg,
+        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
+        evaluator=EvaluatorConfig(simulations=eval_simulations),
+        policy_architecture=policy_architecture,
+        torch_profiler=TorchProfilerConfig(),
+    )
+
+
 def evaluate(policy_uris: Optional[Sequence[str]] = None) -> EvaluateTool:
     """Evaluate policies on arena simulations."""
     return EvaluateTool(simulations=simulations(), policy_uris=policy_uris or [])
