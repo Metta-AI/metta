@@ -21,12 +21,31 @@ from typing import Optional, Tuple
 import torch
 from torch.autograd import Function
 
-# Reuse the activation from the baseline kernel to keep parity
-from cortex.kernels.pytorch.rtu import _act_and_deriv
 
 # ------------------------------------------------------------
 # Diagonal input-map streaming RTU (new, lightweight variant)
 # ------------------------------------------------------------
+
+# ---- Activation + derivative (SiLU, ReLU, Tanh, Identity) ----
+def _act_and_deriv(z: torch.Tensor, activation: str) -> tuple[torch.Tensor, torch.Tensor]:
+    name = activation.lower()
+    if name in ["silu", "swish"]:
+        y = torch.nn.functional.silu(z)
+        s = torch.sigmoid(z)
+        dy = s * (1.0 + z * (1.0 - s))  # d/dz [z*sigmoid(z)]
+        return y, dy
+    elif name == "relu":
+        y = torch.relu(z)
+        dy = (z > 0).to(z.dtype)
+        return y, dy
+    elif name == "tanh":
+        y = torch.tanh(z)
+        dy = 1.0 - y * y
+        return y, dy
+    elif name in ["linear", "identity"]:
+        return z, torch.ones_like(z)
+    else:
+        raise ValueError(f"Unsupported activation for RTU: {activation}")
 
 
 def _zeros_like_traces_diag(B: int, H: int, *, device, dtype) -> tuple[torch.Tensor, ...]:

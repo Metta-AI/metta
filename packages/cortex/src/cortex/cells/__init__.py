@@ -8,7 +8,6 @@ from cortex.cells.core import AxonCell, AxonLayer
 from cortex.cells.lstm import LSTMCell
 from cortex.cells.mlstm import mLSTMCell
 from cortex.cells.registry import build_cell, get_cell_class, register_cell
-from cortex.cells.rtu import RTUCell
 from cortex.cells.slstm import sLSTMCell
 
 __all__ = [
@@ -16,7 +15,6 @@ __all__ = [
     "CausalConv1d",
     "LSTMCell",
     "mLSTMCell",
-    "RTUCell",
     "AxonCell",
     "AxonLayer",
     "sLSTMCell",
