@@ -174,7 +174,7 @@ class Experience:
         minibatch_size: int,
         max_minibatch_size: int,
         policy_experience_spec: Composite,
-        losses: Dict[str, Any],  # av fix circular import issue when setting value to Loss
+        losses: Dict[str, Any],
         device: torch.device | str,
     ) -> "Experience":
         """Create experience buffer with merged specs from policy and losses."""

@@ -5,7 +5,6 @@ from typing import List, Optional
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from experiments.recipes import arena
 from metta.agent.meta_cog.mc_vit_reset import MCViTResetConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
@@ -13,8 +12,11 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.common.wandb.context import WandbConfig
 from metta.rl.loss.loss_config import LossConfig
-from metta.rl.loss.ppo import PPOConfig
+from metta.rl.loss.mc_ppo import MCPPOConfig
+
+# from metta.rl.loss.ppo import PPOConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -24,6 +26,8 @@ from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from mettagrid.config import ConverterConfig
+
+from experiments.recipes import arena
 
 
 def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
@@ -114,7 +118,7 @@ def train(
 
     eval_simulations = make_evals()
     trainer_cfg = TrainerConfig(
-        losses=LossConfig(loss_configs={"ppo": PPOConfig()}),
+        losses=LossConfig(loss_configs={"mc_ppo": MCPPOConfig()}),
     )
     # policy_config = FastDynamicsConfig()
     # policy_config = FastLSTMResetConfig()
@@ -130,6 +134,7 @@ def train(
         training_env=training_env,
         evaluator=evaluator,
         policy_architecture=policy_config,
+        wandb=WandbConfig.Off(),
     )
 
 

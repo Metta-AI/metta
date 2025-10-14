@@ -28,7 +28,7 @@ class VTraceConfig(Config):
     c_clip: float = Field(default=1.0, gt=0)
 
 
-class PPOConfig(Config):
+class MCPPOConfig(Config):
     schedule: None = None  # TODO: Implement this
     # PPO hyperparameters
     # Clip coefficient (0.1-0.3 typical; Schulman et al. 2017)
@@ -78,7 +78,7 @@ class PPOConfig(Config):
         loss_config: Any,
     ):
         """Points to the PPO class for initialization."""
-        return PPO(
+        return MCPPO(
             policy,
             trainer_cfg,
             env,
@@ -88,7 +88,7 @@ class PPOConfig(Config):
         )
 
 
-class PPO(Loss):
+class MCPPO(Loss):
     """PPO loss with prioritized replay and V-trace tweaks."""
 
     __slots__ = (
@@ -145,7 +145,7 @@ class PPO(Loss):
         # Store experience
         env_slice = context.training_env_id
         if env_slice is None:
-            raise RuntimeError("ComponentContext.training_env_id is required for PPO rollout")
+            raise RuntimeError("ComponentContext.training_env_id is required for MCPPO rollout")
         self.replay.store(data_td=td, env_id=env_slice)
 
         return
@@ -187,8 +187,9 @@ class PPO(Loss):
         policy_td.set("batch", torch.full((B * TT,), B, device=policy_td.device, dtype=torch.long))
 
         flat_actions = minibatch["actions"].reshape(B * TT, -1)
+        mc_flat_actions = minibatch["mc_actions"].reshape(B * TT, -1)
 
-        policy_td = self.policy.forward(policy_td, action=flat_actions)
+        policy_td = self.policy.forward(policy_td, action=flat_actions, mc_actions=mc_flat_actions)
         shared_loss_data["policy_td"] = policy_td.reshape(B, TT)
 
         # Finally, calculate the loss!

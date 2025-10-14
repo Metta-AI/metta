@@ -57,7 +57,9 @@ class MCPolicyAutoBuilder(nn.Module):
 
         # init top noop mc action
         self.noop_mc_action_1 = MetaCogAction("noop_1")
+        self.noop_mc_action_1.attach_apply_method(self.noop)
         self.noop_mc_action_2 = MetaCogAction("noop_2")
+        self.noop_mc_action_2.attach_apply_method(self.noop)
 
         # collect all mc actions from components
         self.mc_actions = [self.noop_mc_action_1, self.noop_mc_action_2]
@@ -76,22 +78,29 @@ class MCPolicyAutoBuilder(nn.Module):
             if hasattr(component, "mc_initialize_to_environment"):
                 component.mc_initialize_to_environment(self.mc_action_names)
 
+    def noop(self, env_ids):
+        return
+
     def forward(self, td: TensorDict, action: torch.Tensor = None, mc_actions: torch.Tensor = None):
         mc_td = td.clone()
         self.network(mc_td)
         self.mc_action_probs(mc_td, mc_actions)
-        td["mc_act_log_prob"] = mc_td["mc_act_log_prob"]
-        td["mc_full_log_probs"] = mc_td["mc_full_log_probs"]
 
-        if action is None: # in rollout or eval
-            td["mc_actions"] = mc_td["mc_actions"]
-        else: # in training
-            td["mc_entropy"] = mc_td["mc_entropy"]
-
-        self.apply_mc_actions(mc_td, td["mc_actions"])
+        if action is None:  # in rollout or eval
+            self.apply_mc_actions(mc_td, mc_td["mc_actions"])
+        else:
+            self.apply_mc_actions(mc_td, mc_actions.reshape(-1))
 
         self.network(td)
         self.action_probs(td, action)
+
+        # move mc tensors from the first inference step's tensordict into the outgoing, second-step's tensordict
+        td["mc_act_log_prob"] = mc_td["mc_act_log_prob"]
+        td["mc_full_log_probs"] = mc_td["mc_full_log_probs"]
+        if action is None:  # in rollout or eval
+            td["mc_actions"] = mc_td["mc_actions"]
+        else:  # in training
+            td["mc_entropy"] = mc_td["mc_entropy"]
 
         td["values"] = td["values"].flatten()  # could update Experience to not need this line but need to update ppo.py
         return td

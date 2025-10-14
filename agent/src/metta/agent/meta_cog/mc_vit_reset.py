@@ -74,10 +74,11 @@ class MCViTResetConfig(PolicyArchitecture):
             out_features=1,
             hidden_features=[_critic_hidden],
         ),
-        ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embedding_dim),
+        ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embedding_dim, name="actor_embeds"),
         ActorQueryConfig(
             in_key="actor_hidden",
             out_key="actor_query",
+            name="actor_query",
             hidden_size=_actor_hidden,
             embed_dim=_embedding_dim,
         ),
@@ -85,6 +86,7 @@ class MCViTResetConfig(PolicyArchitecture):
             query_key="actor_query",
             embedding_key="action_embedding",
             out_key="logits",
+            name="actor_key",
             embed_dim=_embedding_dim,
         ),
         MLPConfig(
@@ -95,10 +97,11 @@ class MCViTResetConfig(PolicyArchitecture):
             hidden_features=[_mc_actor_hidden],
             out_features=_mc_actor_hidden,
         ),
-        ActionEmbeddingConfig(out_key="mc_action_embedding", embedding_dim=_mc_embedding_dim),
+        ActionEmbeddingConfig(out_key="mc_action_embedding", embedding_dim=_mc_embedding_dim, name="mc_actor_embeds"),
         MCActorQueryConfig(
             in_key="mc_actor_hidden",
             out_key="mc_actor_query",
+            name="mc_actor_query",
             hidden_size=_mc_actor_hidden,
             embed_dim=_mc_embedding_dim,
         ),
@@ -106,9 +109,10 @@ class MCViTResetConfig(PolicyArchitecture):
             query_key="mc_actor_query",
             embedding_key="mc_action_embedding",
             out_key="mc_logits",
+            name="mc_actor_key",
             embed_dim=_mc_embedding_dim,
         ),
     ]
 
-    action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
+    action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits", name="action_probs")
     mc_action_probs_config: MCActionProbsConfig = MCActionProbsConfig(in_key="mc_logits", name="mc_action_probs")
