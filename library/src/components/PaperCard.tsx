@@ -50,7 +50,6 @@ export const PaperCard: FC<PaperCardProps> = ({ paper, onPaperClick }) => {
             initialTotalStars={paper.stars}
             initialIsStarredByCurrentUser={paper.starred}
             size="sm"
-            readonly={true}
           />
         </div>
         <div className="min-w-0 flex-1">
