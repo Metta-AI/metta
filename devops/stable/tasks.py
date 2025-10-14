@@ -10,9 +10,9 @@ from typing import Callable, Literal, Optional
 
 from pydantic import BaseModel
 
-from devops.job_runner import JobResult, LocalJob, RemoteJob
 from devops.stable.metrics import extract_metrics, extract_wandb_run_info
 from metta.common.util.text_styles import blue, cyan, green, magenta, red, yellow
+from metta.jobs.runner import JobResult, LocalJob, RemoteJob
 
 # Type definitions
 Outcome = Literal["passed", "failed", "skipped", "inconclusive"]
