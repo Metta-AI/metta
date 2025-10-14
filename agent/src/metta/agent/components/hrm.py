@@ -86,8 +86,6 @@ class HRMReasoningConfig(ComponentConfig):
     L_cycles: int = 5  # Number of low-level processing cycles per H-cycle
     Mmin: int = 1  # Minimum number of reasoning segments
     Mmax: int = 4  # Maximum number of reasoning segments
-    # Monitoring
-    track_gradients: bool = False  # Enable gradient tracking for debugging
 
     def make_component(self, env=None) -> "HRMReasoning":
         return HRMReasoning(self)
@@ -102,9 +100,6 @@ class HRMReasoning(nn.Module):
 
         # Initialize memory dictionary (env_id -> {z_l, z_h})
         self.carry: dict[int, dict[str, torch.Tensor]] = {}
-
-        # Gradient tracking storage
-        self._grad_norms: dict[str, list[float]] = {}
 
         # Reasoning modules (H and L levels)
         self.H_level = HRMReasoningModule(
@@ -128,10 +123,6 @@ class HRMReasoning(nn.Module):
             "L_init", trunc_normal_init_(torch.empty(config.embed_dim), std=1.0, a=-2.0, b=2.0), persistent=True
         )
 
-        # Register gradient hooks for all layers if tracking enabled
-        if self.config.track_gradients:
-            self._register_gradient_hooks()
-
     def __setstate__(self, state):
         """Ensure HRM hidden states are properly initialized after loading from checkpoint."""
         self.__dict__.update(state)
@@ -140,51 +131,6 @@ class HRMReasoning(nn.Module):
             self.carry = {}
         # Clear any existing states to handle batch size mismatches
         self.carry.clear()
-        # Reset gradient tracking
-        if not hasattr(self, "_grad_norms"):
-            self._grad_norms = {}
-
-    def _register_gradient_hooks(self):
-        """Register gradient hooks on all layers to track gradient norms."""
-        # Track H-level layers
-        for i, layer in enumerate(self.H_level.layers):
-            layer.self_attn.out_proj.weight.register_hook(
-                lambda grad, idx=i: self._track_grad_norm(f"H_level.layer{idx}.attn.out_proj", grad)
-            )
-            layer.mlp.w2.weight.register_hook(
-                lambda grad, idx=i: self._track_grad_norm(f"H_level.layer{idx}.mlp.w2", grad)
-            )
-
-        # Track L-level layers
-        for i, layer in enumerate(self.L_level.layers):
-            layer.self_attn.out_proj.weight.register_hook(
-                lambda grad, idx=i: self._track_grad_norm(f"L_level.layer{idx}.attn.out_proj", grad)
-            )
-            layer.mlp.w2.weight.register_hook(
-                lambda grad, idx=i: self._track_grad_norm(f"L_level.layer{idx}.mlp.w2", grad)
-            )
-
-    def _track_grad_norm(self, name: str, grad: torch.Tensor) -> None:
-        """Track gradient norm for a specific layer."""
-        if grad is not None:
-            grad_norm = grad.norm().item()
-            if name not in self._grad_norms:
-                self._grad_norms[name] = []
-            self._grad_norms[name].append(grad_norm)
-
-    def get_grad_norms(self) -> dict[str, float]:
-        """Get average gradient norms since last call and reset."""
-        result = {}
-        for name, norms in self._grad_norms.items():
-            if norms:
-                result[f"grad_norm/{name}"] = sum(norms) / len(norms)
-
-        # Debug: Always return at least one metric to verify this is being called
-        if not result:
-            result["grad_norm/debug_called"] = 1.0
-
-        self._grad_norms.clear()
-        return result
 
     @torch._dynamo.disable
     def forward(self, td: TensorDict) -> TensorDict:
@@ -202,17 +148,6 @@ class HRMReasoning(nn.Module):
 
         batch_size = x.shape[0]
         device = x.device
-
-        # Track gradient statistics if enabled (stored in _grad_norms, not TensorDict)
-        if self.config.track_gradients and x.requires_grad:
-
-            def input_grad_hook(grad):
-                if grad is not None:
-                    if "input" not in self._grad_norms:
-                        self._grad_norms["input"] = []
-                    self._grad_norms["input"].append(grad.norm().item())
-
-            x.register_hook(input_grad_hook)
 
         # Unsqueeze to add sequence dimension for transformer: (B, D) -> (B, 1, D)
         if x.ndim == 2:
@@ -260,7 +195,7 @@ class HRMReasoning(nn.Module):
         z_l = z_l.unsqueeze(1)
         z_h = z_h.unsqueeze(1)
 
-        for m_step in range(self.config.Mmax):
+        for _ in range(self.config.Mmax):
             # Run H_cycles - 1 iterations without gradients (exploration)
             with torch.no_grad():
                 for _ in range(self.config.H_cycles - 1):
@@ -272,19 +207,6 @@ class HRMReasoning(nn.Module):
             for _ in range(self.config.L_cycles):
                 z_l = self.L_level(z_l, z_h + x)
             z_h = self.H_level(z_h, z_l)
-
-            # Track gradients on z_h if enabled (stored in _grad_norms, not TensorDict)
-            if self.config.track_gradients and z_h.requires_grad:
-
-                def grad_hook(grad, step=m_step):
-                    if grad is not None:
-                        grad_norm = grad.norm().item()
-                        key = f"z_h_m{step}"
-                        if key not in self._grad_norms:
-                            self._grad_norms[key] = []
-                        self._grad_norms[key].append(grad_norm)
-
-                z_h.register_hook(grad_hook)
 
         self.carry[training_env_id_start] = {
             "z_l": z_l.squeeze(1).detach(),
