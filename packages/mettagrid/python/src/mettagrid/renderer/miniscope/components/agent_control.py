@@ -43,6 +43,7 @@ class AgentControlComponent(MiniscopeComponent):
         Returns:
             True if the input was handled
         """
+        ch = ch.upper()
         # Handle agent selection
         if ch == "[":
             self._state.select_previous_agent(self._env.num_agents)
@@ -54,16 +55,16 @@ class AgentControlComponent(MiniscopeComponent):
         # Handle manual mode toggle
         elif self._state.selected_agent is not None:
             # Handle movement actions
-            if (action_id := self._move_action_lookup.get(ch.upper())) is not None:
+            if (action_id := self._move_action_lookup.get(ch)) is not None:
                 self._state.user_action = (action_id, 0)
                 self._state.should_step = True
                 return True
             # Handle glyph picker
-            elif ch in ["e", "E"]:
+            elif ch == "E":
                 self._state.enter_glyph_picker()
                 return True
             # Handle manual mode toggle
-            elif ch in ["m", "M"]:
+            elif ch == "M":
                 self._state.toggle_manual_control(self._state.selected_agent)
                 return True
 
