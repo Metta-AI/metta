@@ -33,27 +33,43 @@ def select_backend(
     tensor: torch.Tensor,
     *,
     allow_triton: bool = True,
+    cuda_fn: Callable | None = None,
+    allow_cuda: bool = False,
 ) -> Callable:
-    """Select Triton or PyTorch backend based on device and availability."""
-    use_triton = TRITON_AVAILABLE and triton_fn is not None and allow_triton and tensor.is_cuda
+    """Select CUDA, Triton, or PyTorch backend.
 
+    Order of preference:
+    1) CUDA (if ``allow_cuda`` and ``cuda_fn`` and tensor on CUDA)
+    2) Triton (if available, ``allow_triton``, and tensor on CUDA)
+    3) PyTorch (fallback)
+    """
+    if allow_cuda and cuda_fn is not None and tensor.is_cuda:
+        logger.debug(
+            "Using CUDA backend for %s (device=%s, dtype=%s)",
+            getattr(cuda_fn, "__name__", "cuda_fn"),
+            tensor.device,
+            tensor.dtype,
+        )
+        return cuda_fn  # type: ignore[return-value]
+
+    use_triton = TRITON_AVAILABLE and triton_fn is not None and allow_triton and tensor.is_cuda
     if use_triton:
         logger.debug(f"Using Triton backend for {triton_fn.__name__} (device={tensor.device}, dtype={tensor.dtype})")
         return triton_fn  # type: ignore[return-value]
-    else:
-        reasons = []
-        if not TRITON_AVAILABLE:
-            reasons.append("Triton not available")
-        elif triton_fn is None:
-            reasons.append("no Triton implementation")
-        elif not allow_triton:
-            reasons.append("Triton not allowed for this call")
-        elif not tensor.is_cuda:
-            reasons.append(f"tensor on {tensor.device}")
 
-        reason_str = ", ".join(reasons) if reasons else "unknown reason"
-        logger.debug(f"Using PyTorch backend for {pytorch_fn.__name__} ({reason_str})")
-        return pytorch_fn
+    reasons = []
+    if not TRITON_AVAILABLE:
+        reasons.append("Triton not available")
+    elif triton_fn is None:
+        reasons.append("no Triton implementation")
+    elif not allow_triton:
+        reasons.append("Triton not allowed for this call")
+    elif not tensor.is_cuda:
+        reasons.append(f"tensor on {tensor.device}")
+
+    reason_str = ", ".join(reasons) if reasons else "unknown reason"
+    logger.debug(f"Using PyTorch backend for {pytorch_fn.__name__} ({reason_str})")
+    return pytorch_fn
 
 
 __all__ = ["TRITON_AVAILABLE", "select_backend"]

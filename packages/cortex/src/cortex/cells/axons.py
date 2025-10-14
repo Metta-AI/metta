@@ -1,10 +1,11 @@
-"""Axons cell: streaming RTU (diagonal input weights, PyTorch/Triton).
+"""Axons cell: streaming RTU (diagonal input weights, PyTorch/Triton/CUDA).
 
 This cell mirrors the structure of `cortex.cells.rtu.RTUCell` and can run on
 either the PyTorch or Triton backend. For streaming diagonal RTU it uses:
 
 - PyTorch: `cortex.kernels.pytorch.rtu_stream.rtu_stream_diag_pytorch`
 - Triton:  `cortex.kernels.triton.rtu.stream_diag.rtu_stream_diag_triton` (CUDA)
+- CUDA (seq-allin, short-T): `cortex.kernels.cuda.rtu_stream_diag_cuda_seq_allin` (CUDA)
 
 Notes
 -----
@@ -25,6 +26,7 @@ import torch
 import torch.nn as nn
 from tensordict import TensorDict
 
+from cortex.backends import load_cuda_stream_diag, want_cuda_seq_allin
 from cortex.cells.base import MemoryCell
 from cortex.cells.registry import register_cell
 from cortex.config import AxonsConfig
@@ -196,7 +198,7 @@ class Axons(MemoryCell):
         # Pack carried traces (if present)
         trace_in = self._pack_trace_in(st)
 
-        # Backend shims: both return (y2h_t, h1_n, h2_n, trace_out)
+        # Backend shims: all return (y2h_t, h1_n, h2_n, trace_out)
         def _fw_triton(
             x_in: torch.Tensor, h1: torch.Tensor, h2: torch.Tensor, rm: Optional[torch.Tensor], tr: Optional[tuple]
         ):
@@ -233,11 +235,35 @@ class Axons(MemoryCell):
             )
             return y2h_t_, h1_n_, h2_n_, trace_out_
 
+        def _fw_cuda(
+            x_in: torch.Tensor, h1: torch.Tensor, h2: torch.Tensor, rm: Optional[torch.Tensor], tr: Optional[tuple]
+        ):
+            act_name = self.activation.__class__.__name__
+            cu_fn = load_cuda_stream_diag()
+            assert cu_fn is not None, "CUDA stream-diag kernel not available"
+            y2h_t_, (h1_n_, h2_n_), trace_out_ = cu_fn(
+                x_btd=x_in,
+                nu_log=self.nu_log,
+                theta_log=self.theta_log,
+                w1=self.w1,
+                w2=self.w2,
+                activation_name=act_name,
+                hc1_init_bh=h1,
+                hc2_init_bh=h2,
+                trace_in=tr,
+                resets_bt=rm,
+            )
+            return y2h_t_, h1_n_, h2_n_, trace_out_
+
+        # Prefer CUDA for short sequences (<= threshold), else Triton (if available), else PyTorch.
+        prefer_cuda = want_cuda_seq_allin(tensor=x_btd, seq_len=T, threshold=int(self.cfg.cuda_seq_threshold))
         backend = select_backend(
             triton_fn=_fw_triton,
             pytorch_fn=_fw_torch,
             tensor=x_btd,
             allow_triton=True,
+            cuda_fn=_fw_cuda,
+            allow_cuda=prefer_cuda,
         )
 
         y2h_t, h1_n, h2_n, trace_out = backend(x_btd, hc1, hc2, resets_bt, trace_in)
