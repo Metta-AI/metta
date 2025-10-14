@@ -120,7 +120,8 @@ public:
              "No agents have required resource - can_afford_recipe should have caught this");
 
       // Sort agents by how much of the resource they have (ascending order)
-      // This ensures we take from agents with less first, promoting balance
+      // This ensures we take from agents with less first, so we'll learn about deficits early, and can consume
+      // more from agents with more later.
       std::sort(agents_with_amounts.begin(), agents_with_amounts.end(), [](const auto& a, const auto& b) {
         return a.second < b.second;
       });
