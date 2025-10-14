@@ -1,6 +1,6 @@
 """Agent control component for miniscope renderer."""
 
-from typing import Dict, Optional
+from typing import Dict
 
 from rich.table import Table
 from rich.text import Text
@@ -28,13 +28,13 @@ class AgentControlComponent(MiniscopeComponent):
         action_lookup: Dict[str, int] = {name: idx for idx, name in enumerate(self._env.action_names)}
 
         # Assumes move_{cardinal_direction} named actions exist
-        # If not found, fall back to 0: north, 1: south, 2: west, 3: east
-        self._move_action_lookup: Dict[str, Optional[int]] = {
+        # If not found, fall back to 0: north, 1: south, 2: west, 3: east, 4: rest/noop
+        self._move_action_lookup: Dict[str, int] = {
             "W": action_lookup.get("move_north", 0),
             "S": action_lookup.get("move_south", 1),
             "A": action_lookup.get("move_west", 2),
             "D": action_lookup.get("move_east", 3),
-            "R": action_lookup.get("noop"),
+            "R": action_lookup.get("noop", 4),
         }
 
     def handle_input(self, ch: str) -> bool:
