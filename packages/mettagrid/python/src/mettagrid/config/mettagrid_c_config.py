@@ -304,7 +304,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                     if bit_pattern not in recipe_map:
                         recipe_map[bit_pattern] = cpp_recipe
                         recipe_has_active_pattern = True
-                if not recipe_has_active_pattern:
+                if not recipe_has_active_pattern and not object_config.fully_overlapping_recipes_allowed:
                     raise ValueError(
                         f"Recipe {recipe_config} has no valid cog patterns not already claimed by other recipes."
                     )

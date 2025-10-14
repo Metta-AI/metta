@@ -40,7 +40,7 @@ def test_assembler_config_allows_partially_overlapping_patterns() -> None:
     )
 
 
-def test_assembler_config_rejects_fully_overlapping_patterns() -> None:
+def test_assembler_config_rejects_fully_overlapping_patterns_unless_explicitly_allowed() -> None:
     with pytest.raises(ValueError, match="has no valid cog patterns"):
         make_env_cfg_from_assembler_config(
             AssemblerConfig(
@@ -51,3 +51,13 @@ def test_assembler_config_rejects_fully_overlapping_patterns() -> None:
                 ],
             )
         )
+    make_env_cfg_from_assembler_config(
+        AssemblerConfig(
+            type_id=7,
+            recipes=[
+                (["N", "Any"], RecipeConfig()),
+                (["Any", "Any"], RecipeConfig()),
+            ],
+            fully_overlapping_recipes_allowed=True,
+        )
+    )
