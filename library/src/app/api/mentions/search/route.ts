@@ -115,10 +115,12 @@ export async function GET(request: NextRequest) {
 
       // Add institution suggestions
       institutions.forEach((institution) => {
+        // Use domain if available, otherwise fall back to name
+        const mentionValue = institution.domain || institution.name;
         suggestions.push({
           type: "institution",
           id: institution.id,
-          value: `@${institution.name}`,
+          value: `@${mentionValue}`,
           display: institution.name,
           subtitle: `${institution.type} • ${institution._count.userInstitutions} members`,
           memberCount: institution._count.userInstitutions,
@@ -258,10 +260,12 @@ export async function GET(request: NextRequest) {
       });
 
       institutions.forEach((institution) => {
+        // Use domain if available, otherwise fall back to name
+        const mentionValue = institution.domain || institution.name;
         suggestions.push({
           type: "institution",
           id: institution.id,
-          value: `@${institution.name}`,
+          value: `@${mentionValue}`,
           display: institution.name,
           subtitle: `${institution.type} • ${institution._count.userInstitutions} members`,
           memberCount: institution._count.userInstitutions,
