@@ -53,9 +53,6 @@ runs:
 
     - name: Set up nim
       uses: treeform/setup-nim-action@v2
-      with:
-        nim-version: 2.2.4
-        repo-token: ${{ github.token }}
 
     - name: Cache Bazel binary
       if: inputs.install-mode != 'minimal'

@@ -20,8 +20,6 @@ runs:
 
     - name: Setup Nim
       uses: treeform/setup-nim-action@v2
-      with:
-        repo-token: ${{ inputs.repo-token }}
 
     - name: Setup Emscripten
       uses: mymindstorm/setup-emsdk@v14
