@@ -84,8 +84,7 @@ def get_mission(
     """Get a specific mission configuration by name or file path.
 
     Args:
-        map_name: Name of the map or path to config file (.yaml, .json, or .py)
-        mission_name: Name of the mission. If unspecified, will use the default mission for the map.
+        mission_arg: Name of the map or path to config file (.yaml, .json, or .py)
 
     Returns:
         Environment configuration, map name, mission name
