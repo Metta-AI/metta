@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { toggleQueueAction } from "@/posts/actions/toggleQueueAction";
 import { useStarMutation } from "@/hooks/useStarMutation";
 import { PapersTable } from "@/components/PapersTable";
 import type { PaperSummary } from "@/lib/api/resources/papers";
@@ -129,12 +128,6 @@ export function PapersView({
     [starMutation]
   );
 
-  const handleToggleQueue = useCallback(async (paperId: string) => {
-    const formData = new FormData();
-    formData.append("paperId", paperId);
-    await toggleQueueAction(formData);
-  }, []);
-
   const handleRowClick = useCallback(
     (summary: PaperSummary) => {
       const fullPaper = papersById.get(summary.id);
@@ -142,22 +135,9 @@ export function PapersView({
         return;
       }
 
-      openPaper(
-        fullPaper,
-        users,
-        interactions,
-        handleToggleStar,
-        handleToggleQueue
-      );
+      openPaper(fullPaper, users, interactions, handleToggleStar);
     },
-    [
-      handleToggleQueue,
-      handleToggleStar,
-      interactions,
-      openPaper,
-      papersById,
-      users,
-    ]
+    [handleToggleStar, interactions, openPaper, papersById, users]
   );
 
   const handleTagClick = useCallback((tag: string) => {

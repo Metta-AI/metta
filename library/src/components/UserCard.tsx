@@ -7,7 +7,6 @@ import {
   UserInteraction,
 } from "@/posts/data/papers";
 import { useStarMutation } from "@/hooks/useStarMutation";
-import { toggleQueueAction } from "@/posts/actions/toggleQueueAction";
 import { getUserInitials } from "@/lib/utils/user";
 import NavigablePaperOverlay from "./NavigablePaperOverlay";
 
@@ -41,14 +40,6 @@ export default function UserCard({
     return userInteraction !== undefined;
   });
 
-  // Get papers queued by this user
-  const queuedPapers = allPapers.filter((paper) => {
-    const userInteraction = interactions.find(
-      (i) => i.userId === user.id && i.paperId === paper.id && i.queued
-    );
-    return userInteraction !== undefined;
-  });
-
   // Handle paper overlay close
   const handlePaperOverlayClose = () => {
     setSelectedPaper(null);
@@ -57,28 +48,6 @@ export default function UserCard({
   // Handle toggle star
   const handleToggleStar = (paperId: string) => {
     starMutation.mutate({ paperId });
-  };
-
-  // Handle toggle queue
-  const handleToggleQueue = async (paperId: string) => {
-    try {
-      const formData = new FormData();
-      formData.append("paperId", paperId);
-      await toggleQueueAction(formData);
-
-      // Update local state immediately for better UX
-      setSelectedPaper((prev) => {
-        if (prev && prev.id === paperId) {
-          return {
-            ...prev,
-            isQueuedByCurrentUser: !prev.isQueuedByCurrentUser,
-          };
-        }
-        return prev;
-      });
-    } catch (error) {
-      console.error("Error toggling queue:", error);
-    }
   };
 
   // Handle paper click
@@ -165,40 +134,6 @@ export default function UserCard({
               </div>
             )}
           </div>
-
-          {/* Queued Papers Section */}
-          <div>
-            <h2 className="mb-3 text-xl font-bold text-gray-900">
-              Queued ({queuedPapers.length})
-            </h2>
-            {queuedPapers.length > 0 ? (
-              <div className="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-gray-50">
-                {queuedPapers.map((paper) => (
-                  <div key={paper.id} className="p-3 hover:bg-gray-100">
-                    <button
-                      onClick={() => handlePaperClick(paper)}
-                      className="w-full text-left transition-colors hover:text-blue-600"
-                    >
-                      <h3 className="truncate text-base font-medium text-gray-900">
-                        {paper.title}
-                      </h3>
-                      {paper.authors && paper.authors.length > 0 && (
-                        <p className="mt-1 text-sm text-gray-600">
-                          {paper.authors
-                            .map((author) => author.name)
-                            .join(", ")}
-                        </p>
-                      )}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-center">
-                <p className="text-gray-500">No queued papers yet.</p>
-              </div>
-            )}
-          </div>
         </div>
       </div>
 
@@ -210,7 +145,6 @@ export default function UserCard({
           interactions={interactions}
           onClose={handlePaperOverlayClose}
           onStarToggle={handleToggleStar}
-          onQueueToggle={handleToggleQueue}
         />
       )}
     </div>

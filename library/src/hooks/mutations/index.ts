@@ -8,7 +8,6 @@
 
 // Core user mutations
 export { useStarMutation } from "../useStarMutation";
-export { useQueuePaper } from "./useQueuePaper";
 export { useDeletePost } from "./useDeletePost";
 export { useCreateComment } from "./useCreateComment";
 export { useDeleteComment } from "./useDeleteComment";

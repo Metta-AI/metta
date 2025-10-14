@@ -33,7 +33,6 @@ export interface UserInteraction {
   paperId: string;
   starred: boolean | null;
   readAt: Date | null;
-  queued: boolean | null;
   notes: string | null;
 }
 
@@ -52,7 +51,6 @@ export interface User {
  */
 export interface PaperWithUserContext extends Paper {
   isStarredByCurrentUser: boolean;
-  isQueuedByCurrentUser: boolean;
 }
 
 /**
@@ -132,7 +130,6 @@ export async function loadPapersWithUserContext(): Promise<{
         })),
         institutions: paper.paperInstitutions.map((pi) => pi.institution.name),
         isStarredByCurrentUser: userInteraction?.starred || false,
-        isQueuedByCurrentUser: userInteraction?.queued || false,
       };
     });
 
