@@ -1,5 +1,5 @@
 import std/[os, strutils, parseopt, json],
-  boxy, windy, windy/http, vmath, fidget2, fidget2/hybridrender,
+  boxy, windy, vmath, fidget2, fidget2/hybridrender,
   mettascope/[replays, common, panels, utils, timeline,
   worldmap, minimap, agenttraces, footer, objectinfo, envconfig]
 
@@ -170,7 +170,7 @@ when isMainModule:
 
   parseArgs()
 
-  initFidget(
+  startFidget(
     figmaUrl = "https://www.figma.com/design/hHmLTy7slXTOej6opPqWpz/MetaScope-V2-Rig",
     windowTitle = "MetaScope V2",
     entryFrame = "UI/Main",
@@ -178,12 +178,6 @@ when isMainModule:
     dataDir = dataDir
   )
 
-  when defined(emscripten):
-    # Emscripten can't block so it will call this callback instead.
-    window.run(mainLoop)
-  else:
-    # When running native code we can block in an infinite loop.
-    while not window.closeRequested:
-      mainLoop()
-    # Destroy the window.
-    window.close()
+  while isRunning():
+    tickFidget()
+  closeFidget()
