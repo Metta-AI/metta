@@ -255,6 +255,7 @@ def evaluate_cmd(
         help="Max milliseconds afforded to generate each action before noop is used by default",
         min=1,
     ),
+    steps: Optional[int] = typer.Option(1000, "--steps", "-s", help="Max steps per episode", min=1),
 ) -> None:
     resolved_mission, env_cfg = get_mission_name_and_config(ctx, mission)
     policy_specs = get_policy_specs(ctx, policies)
@@ -270,6 +271,7 @@ def evaluate_cmd(
         policy_specs=policy_specs,
         action_timeout_ms=action_timeout_ms,
         episodes=episodes,
+        max_steps=steps,
     )
 
 
