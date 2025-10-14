@@ -41,7 +41,6 @@ proc parseUrlParams() =
   ## Parse URL parameters.
   let url = parseUrl(window.url)
   commandLineReplay = url.query["replay"]
-  echo "Command line replay: ", commandLineReplay
 
 find "/UI/Main":
 
