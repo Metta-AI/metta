@@ -96,7 +96,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     pagination: {
       page,
       limit,
-      totalCount,
+      total: totalCount,
       totalPages,
       hasNextPage: page < totalPages,
       hasPrevPage: page > 1,
