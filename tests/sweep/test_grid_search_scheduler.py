@@ -219,3 +219,47 @@ def test_grid_scheduler_resume_hydrates_from_runs():
     used = {(s["model.color"], s["trainer.device"]) for s in suggs}
     launched = {(s["model.color"], s["trainer.device"]) for s in new_suggs}
     assert used.isdisjoint(launched)
+
+
+def test_grid_scheduler_eval_throttling():
+    params = {
+        "model": {"color": CategoricalParameterConfig(choices=["red", "blue"])},
+        "trainer": {"device": ["cpu", "cuda"]},
+    }
+    cfg = GridSearchSchedulerConfig(experiment_id="grid_throttle", parameters=params, max_concurrent_evals=1)
+    scheduler = GridSearchScheduler(cfg)
+
+    # Two runs finished training => only 1 eval should be scheduled due to throttle
+    runs_train_done = [
+        RunInfo(
+            run_id="r1",
+            created_at=_now(),
+            last_updated_at=_now(),
+            has_started_training=True,
+            has_completed_training=True,
+            has_started_eval=False,
+            has_been_evaluated=False,
+            has_failed=False,
+        ),
+        RunInfo(
+            run_id="r2",
+            created_at=_now(),
+            last_updated_at=_now(),
+            has_started_training=True,
+            has_completed_training=True,
+            has_started_eval=False,
+            has_been_evaluated=False,
+            has_failed=False,
+        ),
+    ]
+    jobs = scheduler.schedule(runs_train_done, available_training_slots=5)
+    from metta.adaptive.models import JobTypes
+
+    # Exactly one eval should be scheduled due to throttle
+    eval_jobs = [j for j in jobs if j.type == JobTypes.LAUNCH_EVAL]
+    assert len(eval_jobs) == 1
+
+    # Grid search does not block training on eval backlog: training may be scheduled simultaneously
+    train_jobs = [j for j in jobs if j.type == JobTypes.LAUNCH_TRAINING]
+    assert len(train_jobs) >= 1
+    assert len(train_jobs) <= 5

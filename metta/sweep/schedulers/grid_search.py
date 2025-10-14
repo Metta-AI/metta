@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import itertools
 import logging
-from typing import Any, Dict, Iterable, List, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from pydantic import Field
 
@@ -40,6 +40,8 @@ class GridSearchSchedulerConfig(Config):
     experiment_id: str = "grid_search"
     # Optional cap; if None, runs through entire grid
     max_trials: int | None = None
+    # Max concurrent evaluations; None means unlimited
+    max_concurrent_evals: Optional[int] = None
     # Nested dict of categorical parameters
     parameters: Dict[str, Any] = Field(default_factory=dict)
 
@@ -59,9 +61,17 @@ class GridSearchScheduler:
     def schedule(self, runs: list[RunInfo], available_training_slots: int) -> list[JobDefinition]:
         jobs: list[JobDefinition] = []
 
-        # 1) Schedule evals for any runs with training done
-        for run in runs:
-            if run.status == JobStatus.TRAINING_DONE_NO_EVAL:
+        # 1) Schedule evals for any runs with training done (throttled)
+        in_eval = [r for r in runs if r.status == JobStatus.IN_EVAL]
+        eval_candidates = [r for r in runs if r.status == JobStatus.TRAINING_DONE_NO_EVAL]
+
+        eval_capacity: Optional[int] = None
+        if self.config.max_concurrent_evals is not None:
+            eval_capacity = max(0, self.config.max_concurrent_evals - len(in_eval))
+
+        if eval_candidates:
+            to_schedule = eval_candidates if eval_capacity is None else eval_candidates[:eval_capacity]
+            for run in to_schedule:
                 job = create_eval_job(
                     run_id=run.run_id,
                     experiment_id=self.config.experiment_id,
@@ -77,6 +87,8 @@ class GridSearchScheduler:
         remaining_capacity = max(0, available_training_slots)
         if remaining_capacity <= 0:
             return jobs
+
+        # Grid search does not block training on eval backlog; proceed to schedule training as slots allow.
 
         # 3) Determine remaining suggestions to launch based on used suggestions
         target_total = (

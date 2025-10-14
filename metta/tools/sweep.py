@@ -350,6 +350,7 @@ class SweepTool(Tool):
                 gpus=self.gpus,
                 nodes=self.nodes,
                 experiment_id=self.sweep_name,
+                max_concurrent_evals=self.max_concurrent_evals,
                 parameters=grid_params,
             )
             scheduler = GridSearchScheduler(scheduler_config)
