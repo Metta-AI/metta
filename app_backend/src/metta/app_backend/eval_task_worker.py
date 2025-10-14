@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 class TaskResult:
     success: bool
     log_path: str | None = None
-    warnings: list[str] = []
+    warnings: list[str] | None = None
     error: str | None = None
 
 
@@ -249,7 +249,7 @@ class EvalTaskWorker:
         status: TaskStatus,
         error_reason: str | None = None,
         log_path: str | None = None,
-        warnings: list[str] = [],
+        warnings: list[str] | None = None,
     ) -> None:
         await self._client.update_task_status(
             TaskUpdateRequest(
@@ -290,12 +290,16 @@ class EvalTaskWorker:
                         status = "done" if task_result.success else "error"
 
                         logger.info(f"Task {task.id} completed with status {status}")
+                        warnings = None
+                        if task_result.warnings is not None and len(task_result.warnings) > 0:
+                            warnings = task_result.warnings
+
                         await self._update_task_status(
                             task.id,
                             status,
                             error_reason=task_result.error,
                             log_path=task_result.log_path,
-                            warnings=task_result.warnings,
+                            warnings=warnings,
                         )
                         logger.info(f"Task {task.id} updated to {status}")
                     except Exception as e:
