@@ -41,14 +41,7 @@ class PolicyArchitecture(Config):
         """Create an agent instance from configuration."""
 
         AgentClass = load_symbol(self.class_path)
-
-        # PolicyAutoBuilder expects (env, config), but subclasses like HRMPolicy
-        # build their own config internally and expect only (env_metadata)
-        from metta.agent.policy_auto_builder import PolicyAutoBuilder
-
-        if AgentClass is PolicyAutoBuilder:
-            return AgentClass(env_metadata, self)
-        return AgentClass(env_metadata)
+        return AgentClass(env_metadata, self)
 
 
 class Policy(ABC, nn.Module):
