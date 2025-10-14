@@ -14,7 +14,6 @@ import {
 } from "@/posts/data/papers";
 import { useOverlayNavigation } from "@/components/OverlayStack";
 import { useStarMutation } from "@/hooks/useStarMutation";
-import { toggleQueueAction } from "@/posts/actions/toggleQueueAction";
 import UserCard from "@/components/UserCard";
 import { PaperSidebar } from "@/components/PaperSidebar";
 
@@ -73,8 +72,7 @@ export const PostPage: FC<{
         paper,
         papersData.users,
         papersData.interactions,
-        handleToggleStar,
-        handleToggleQueue
+        handleToggleStar
       );
     }
   };
@@ -114,19 +112,6 @@ export const PostPage: FC<{
   // Handle toggle star
   const handleToggleStar = (paperId: string) => {
     starMutation.mutate({ paperId });
-  };
-
-  // Handle toggle queue
-  const handleToggleQueue = async (paperId: string) => {
-    try {
-      const formData = new FormData();
-      formData.append("paperId", paperId);
-      await toggleQueueAction(formData);
-
-      // The overlay stack handles its own state updates
-    } catch (error) {
-      console.error("Error toggling queue:", error);
-    }
   };
 
   // Handle post deletion - optimistically remove from list
