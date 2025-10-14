@@ -256,6 +256,8 @@ export const MentionInput: React.FC<MentionInputProps> = ({
     switch (suggestion.type) {
       case "user":
         return <User className="h-4 w-4 text-blue-500" />;
+      case "bot":
+        return <span className="text-base">🤖</span>;
       case "group-relative":
       case "group-absolute":
         return <Users className="h-4 w-4 text-green-500" />;
