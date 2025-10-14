@@ -11,6 +11,7 @@
 
 export type MentionType =
   | "user"
+  | "bot"
   | "institution"
   | "group-relative"
   | "group-absolute"
