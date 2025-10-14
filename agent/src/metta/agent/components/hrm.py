@@ -186,7 +186,7 @@ class HRMReasoning(nn.Module):
         self._grad_norms.clear()
         return result
 
-    @torch._dynamo.disable  # Exclude HRM forward from Dynamo to avoid graph breaks with stateful memory
+    @torch._dynamo.disable
     def forward(self, td: TensorDict) -> TensorDict:
         x = td[self.config.in_key]
 
@@ -261,7 +261,6 @@ class HRMReasoning(nn.Module):
         z_h = z_h.unsqueeze(1)
 
         for m_step in range(self.config.Mmax):
-
             # Run H_cycles - 1 iterations without gradients (exploration)
             with torch.no_grad():
                 for _ in range(self.config.H_cycles - 1):
@@ -287,12 +286,10 @@ class HRMReasoning(nn.Module):
 
                 z_h.register_hook(grad_hook)
 
-        # Store hidden states (squeeze seq dim and detach)
         self.carry[training_env_id_start] = {
             "z_l": z_l.squeeze(1).detach(),
             "z_h": z_h.squeeze(1).detach(),
         }
 
-        # Output final state (squeeze seq dimension)
         td[self.config.out_key] = z_h.squeeze(1)
         return td
