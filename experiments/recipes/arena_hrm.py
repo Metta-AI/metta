@@ -6,9 +6,9 @@ from metta.rl.loss.hrm_ppo import HRMPPOConfig
 
 from experiments.recipes import arena as base
 
-make_mettagrid = base.make_mettagrid
+mettagrid = base.mettagrid
 make_curriculum = base.make_curriculum
-make_evals = base.make_evals
+simulations = base.simulations
 play = base.play
 replay = base.replay
 evaluate = base.evaluate
@@ -51,9 +51,9 @@ def train_shaped(
 
 
 __all__ = [
-    "make_mettagrid",
+    "mettagrid",
     "make_curriculum",
-    "make_evals",
+    "simulations",
     "play",
     "replay",
     "evaluate",
