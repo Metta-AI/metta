@@ -52,10 +52,12 @@ from metta.adaptive.protocols import Dispatcher, ExperimentScheduler
 from metta.adaptive.stores.wandb import WandbStore
 from metta.adaptive.utils import create_eval_job, create_training_job
 from metta.agent.policies.agalite import AGaLiTeConfig
+from metta.agent.policies.drama_policy import DramaPolicyConfig
 from metta.agent.policies.fast import FastConfig
 from metta.agent.policies.fast_dynamics import FastDynamicsConfig
 from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
 from metta.agent.policies.gtrxl import gtrxl_policy_config
+from metta.agent.policies.mamba_sliding import MambaSlidingConfig
 from metta.agent.policies.memory_free import MemoryFreeConfig
 from metta.agent.policies.puffer import PufferPolicyConfig
 from metta.agent.policies.transformer import TransformerPolicyConfig
@@ -77,6 +79,8 @@ ARCHITECTURES = {
     "fast_dynamics": FastDynamicsConfig(),
     "memory_free": MemoryFreeConfig(),
     "agalite": AGaLiTeConfig(),
+    "drama": DramaPolicyConfig(),
+    "mamba_sliding": MambaSlidingConfig(),
     "gtrxl": gtrxl_policy_config(),
     "trxl": trxl_policy_config(),
     "trxl_nvidia": trxl_nvidia_policy_config(),

@@ -1,4 +1,9 @@
 # Architecture Benchmark Suite
+My goal is to find conclusions like this:
+"All our architectures fail on sparse+easy but succeed on sparse+hard → The problem isn't credit assignment, it's exploration"
+"Architecture X dominates dense rewards but collapses on moderate → Over-reliance on reward shaping"
+"Transformer scales better than LSTM but both fail on sparse → Need better exploration, not just capacity"
+"This architecture has promising learning but the set of hyper parameters and the size and number of layers we've chosen is incorrect / insufficient"
 
 A comprehensive 2-axis benchmark grid for testing agent architectures across **15 distinct conditions** (5 reward shaping levels × 3 task complexity levels).
 
