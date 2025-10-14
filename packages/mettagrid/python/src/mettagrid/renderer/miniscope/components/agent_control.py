@@ -43,6 +43,7 @@ class AgentControlComponent(MiniscopeComponent):
         Returns:
             True if the input was handled
         """
+        # Handle agent selection
         if ch == "[":
             self._state.select_previous_agent(self._env.num_agents)
             return True
