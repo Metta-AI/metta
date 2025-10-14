@@ -19,7 +19,7 @@ runs:
           ${{ runner.os }}-nimble-
 
     - name: Setup Nim
-      uses: jiro4989/setup-nim-action@v2
+      uses: treeform/setup-nim-action@v2
       with:
         repo-token: ${{ inputs.repo-token }}
 
