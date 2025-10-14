@@ -22,6 +22,7 @@ class Clipper;
 class Assembler : public GridObject, public Usable {
 private:
   // Surrounding positions in deterministic order: NW, N, NE, W, E, SW, S, SE
+  // This order is important for get_agent_pattern_byte which uses bit positions
   std::vector<std::pair<GridCoord, GridCoord>> get_surrounding_positions() const {
     GridCoord r = location.r;
     GridCoord c = location.c;
@@ -30,7 +31,7 @@ private:
       for (int j = -1; j <= 1; ++j) {
         if (i == 0 && j == 0) continue;  // skip center
         GridLocation position = {static_cast<GridCoord>(r + i), static_cast<GridCoord>(c + j)};
-        if (grid->is_valid_location(position)) {
+        if (grid && grid->is_valid_location(position)) {
           positions.emplace_back(static_cast<GridCoord>(r + i), static_cast<GridCoord>(c + j));
         }
       }
@@ -39,13 +40,31 @@ private:
     return positions;
   }
 
-  // Get surrounding agents in a deterministic order (clockwise from NW)
-  std::vector<Agent*> get_surrounding_agents() const {
+  // Get surrounding agents in upper-left-to-lower-right order starting from the given agent's position
+  std::vector<Agent*> get_surrounding_agents(const Agent* starting_agent) const {
     std::vector<Agent*> agents;
     if (!grid) return agents;
 
     std::vector<std::pair<GridCoord, GridCoord>> positions = get_surrounding_positions();
 
+    // Find the starting agent's position in the surrounding positions
+    int start_index = -1;
+    if (starting_agent) {
+      for (size_t i = 0; i < positions.size(); i++) {
+        if (positions[i].first == starting_agent->location.r && positions[i].second == starting_agent->location.c) {
+          start_index = i;
+          break;
+        }
+      }
+    }
+
+    // If starting agent was found in surrounding positions, reorder to start from there
+    if (start_index >= 0) {
+      // Rotate the positions vector to start from the starting_agent's position
+      std::rotate(positions.begin(), positions.begin() + start_index, positions.end());
+    }
+
+    // Collect agents from the reordered positions
     for (const auto& pos : positions) {
       GridCoord check_r = pos.first;
       GridCoord check_c = pos.second;
@@ -358,7 +377,7 @@ public:
       }
     }
 
-    std::vector<Agent*> surrounding_agents = get_surrounding_agents();
+    std::vector<Agent*> surrounding_agents = get_surrounding_agents(&actor);
     if (!can_afford_recipe(recipe_to_use, surrounding_agents)) {
       return false;
     }
