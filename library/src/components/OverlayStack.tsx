@@ -114,7 +114,7 @@ const OverlayContent: React.FC<{
     }
   };
 
-  return <div className="max-h-full overflow-hidden">{renderContent()}</div>;
+  return <div className="h-full">{renderContent()}</div>;
 };
 
 export const useOverlayNavigation = () => {
