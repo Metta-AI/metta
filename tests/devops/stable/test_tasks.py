@@ -2,8 +2,8 @@
 
 from operator import ge
 
-from devops.job_runner import JobResult
 from devops.stable.tasks import Task, TrainingTask
+from metta.jobs.runner import JobResult
 
 
 class FakeJob:

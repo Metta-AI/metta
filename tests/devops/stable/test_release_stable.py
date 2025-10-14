@@ -2,10 +2,10 @@
 
 from datetime import datetime
 
-from devops.job_runner import JobResult
 from devops.stable.runner import TaskRunner
 from devops.stable.state import ReleaseState, load_state, save_state
 from devops.stable.tasks import Task, TaskResult
+from metta.jobs.runner import JobResult
 
 
 class FakeTask(Task):
