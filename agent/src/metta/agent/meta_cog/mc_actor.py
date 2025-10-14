@@ -11,19 +11,19 @@ from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 # from metta.rl.training import EnvironmentMetaData
 
 
-class ActorQueryConfig(ComponentConfig):
+class MCActorQueryConfig(ComponentConfig):
     in_key: str
     out_key: str
-    name: str = "actor_query"
+    name: str = "mc_actor_query"
     hidden_size: int = 512
     embed_dim: int = 16
 
     def make_component(self, env=None):
-        return ActorQuery(config=self)
+        return MCActorQuery(config=self)
 
 
-class ActorQuery(nn.Module):
-    def __init__(self, config: ActorQueryConfig):
+class MCActorQuery(nn.Module):
+    def __init__(self, config: MCActorQueryConfig):
         super().__init__()
         self.config = config
         self.hidden_size = self.config.hidden_size  # input_1 dim
@@ -50,24 +50,24 @@ class ActorQuery(nn.Module):
         return td
 
 
-class ActorKeyConfig(ComponentConfig):
+class MCActorKeyConfig(ComponentConfig):
     query_key: str
     embedding_key: str
     out_key: str
-    name: str = "actor_key"
+    name: str = "mc_actor_key"
     hidden_size: int = 128
     embed_dim: int = 16
 
     def make_component(self, env=None):
-        return ActorKey(config=self)
+        return MCActorKey(config=self)
 
 
-class ActorKey(nn.Module):
+class MCActorKey(nn.Module):
     """
     Computes action scores based on a query and action embeddings (keys).
     """
 
-    def __init__(self, config: ActorKeyConfig):
+    def __init__(self, config: MCActorKeyConfig):
         super().__init__()
         self.config = config
         self.hidden_size = self.config.hidden_size
@@ -100,20 +100,20 @@ class ActorKey(nn.Module):
         return td
 
 
-class ActionProbsConfig(ComponentConfig):
+class MCActionProbsConfig(ComponentConfig):
     in_key: str
     name: str = "mc_action_probs"
 
     def make_component(self, env=None):
-        return ActionProbs(config=self)
+        return MCActionProbs(config=self)
 
 
-class ActionProbs(nn.Module):
+class MCActionProbs(nn.Module):
     """
     Computes action scores based on a query and action embeddings (keys).
     """
 
-    def __init__(self, config: ActionProbsConfig):
+    def __init__(self, config: MCActionProbsConfig):
         super().__init__()
         self.config = config
         self.num_actions = 0

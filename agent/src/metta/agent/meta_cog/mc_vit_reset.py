@@ -7,6 +7,11 @@ from metta.agent.components.misc import MLPConfig
 from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
 from metta.agent.components.obs_shim import ObsShimTokensConfig
 from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourierConfig
+from metta.agent.meta_cog.mc_actor import (
+    MCActionProbsConfig,
+    MCActorKeyConfig,
+    MCActorQueryConfig,
+)
 from metta.agent.meta_cog.mc_lstm_reset import MCLSTMResetConfig
 from metta.agent.policy import PolicyArchitecture
 
@@ -91,13 +96,13 @@ class MCViTResetConfig(PolicyArchitecture):
             out_features=_mc_actor_hidden,
         ),
         ActionEmbeddingConfig(out_key="mc_action_embedding", embedding_dim=_mc_embedding_dim),
-        ActorQueryConfig(
+        MCActorQueryConfig(
             in_key="mc_actor_hidden",
             out_key="mc_actor_query",
             hidden_size=_mc_actor_hidden,
             embed_dim=_mc_embedding_dim,
         ),
-        ActorKeyConfig(
+        MCActorKeyConfig(
             query_key="mc_actor_query",
             embedding_key="mc_action_embedding",
             out_key="mc_logits",
@@ -106,4 +111,4 @@ class MCViTResetConfig(PolicyArchitecture):
     ]
 
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
-    mc_action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="mc_logits", name="mc_action_probs")
+    mc_action_probs_config: MCActionProbsConfig = MCActionProbsConfig(in_key="mc_logits", name="mc_action_probs")
