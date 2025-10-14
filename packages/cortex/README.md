@@ -10,6 +10,7 @@
 - [Supported Components](#supported-components)
   - [Memory Cells](#memory-cells)
   - [Blocks](#blocks)
+- [Axons (Streaming RTU)](#axons-streaming-rtu)
 - [Quick Start](#quick-start)
 - [Template Architectures](#template-architectures)
 - [Metta Framework Integration](#metta-framework-integration)
@@ -93,12 +94,13 @@ This uniformity means you can treat a complex multi-layer stack exactly like a s
 
 Core computational units implementing recurrent logic. All cells follow batch-first convention: `[B, T, H]` for sequences, `[B, H]` for single-step.
 
-| Cell            | Description | Triton Accelerated |
-|-----------------|-------------|-------------------|
-| `LSTMCell`      | Stateless LSTM wrapper with TensorDict state (`h`, `c`); step and sequence parity; optional resets. | Yes |
-| `mLSTMCell`     | Matrix-LSTM with per-head state, chunkwise closed-form updates, and optional causal Conv1D pre-activation. | Yes |
-| `sLSTMCell`     | Structured LSTM with per-head gating, stabilized accumulators (`c`, `n`, `m`), and optional causal Conv1D. | Yes |
-| `CausalConv1d`  | Depthwise causal Conv1D cell (ring-buffer state); supports optional channel-mixing mode. | Yes (channel-mixing only) |
+| Cell            | Description | Triton Accelerated | CUDA Accelerated |
+|-----------------|-------------|--------------------|------------------|
+| `LSTMCell`      | Stateless LSTM wrapper with TensorDict state (`h`, `c`); step and sequence parity; optional resets. | Yes | No |
+| `mLSTMCell`     | Matrix-LSTM with per-head state, chunkwise closed-form updates, and optional causal Conv1D pre-activation. | Yes | No |
+| `sLSTMCell`     | Structured LSTM with per-head gating, stabilized accumulators (`c`, `n`, `m`), and optional causal Conv1D. | Yes | No |
+| `CausalConv1d`  | Depthwise causal Conv1D cell (ring-buffer state); supports optional channel-mixing mode. | Yes (channel-mixing only) | No |
+| `Axons`         | Streaming RTU with diagonal input weights (per-channel local recurrence, 2H→H projection). | Yes | Yes (seq‑allin, short‑T) |
 
 **Notes:**
 - Triton kernels are selected automatically on CUDA when constraints are met; otherwise PyTorch fallback is used
@@ -190,6 +192,77 @@ output, new_state = stack(x, state, resets=resets)
 x_step = torch.randn(batch_size, 256)  # [B, H]
 output_step, state = stack.step(x_step, state)
 ```
+
+## Axons - Locally Recurrent Gradient Propagating alternative to Linear Layers
+
+The Axons cell (`packages/cortex/src/cortex/cells/axons.py`) is the new
+fundamental building block in Cortex. It is designed as a drop‑in replacement
+for a linear layer that makes the projection locally recurrent and enables
+gradients to propagate across an arbitrary horizon.
+
+Key properties
+
+- Linear→Recurrent: Wraps a diagonal RTU update around each channel and returns
+  a 2H activation that is projected back to H. This effectively turns a
+  `Linear(H→H)` into a locally recurrent layer with minimal parameter overhead.
+- Optional SRHT mixer: Before the kernel, Axons can apply a fast Subsampled
+  Randomized Hadamard Transform (SRHT) that orthonormally mixes features along
+  H. This improves conditioning and lets diagonal per‑channel weights behave
+  more like a dense map. Implementations:
+  - CUDA FWHT path (power‑of‑two H), with custom backward.
+  - PyTorch FWHT fallback (any H) with autograd support.
+  Configure via `AxonsConfig.use_srht` (default True; set False to disable) and `AxonsConfig.srht_permute`
+  (random permutation on/off). The SRHT is normalized by 1/√H, so it preserves
+  feature scale and gradient norms.
+- Streaming traces: Carries compact eligibility traces across subsequences and
+  applies a single boundary correction at chunk heads. This preserves
+  cross‑chunk credit assignment, allowing learning beyond the TBPTT truncation
+  length without storing full activations.
+- Backend auto‑selection: Three aligned implementations are provided and chosen
+  at runtime:
+  - CUDA short‑T fused sequential kernel — preferred when `T ≤ cuda_seq_threshold`.
+  - Triton streaming kernel (GPU, long‑T fast path).
+  - PyTorch reference (portable baseline).
+- Tunable policy: Control the short‑T cutoff via
+  `AxonsConfig.cuda_seq_threshold` (default 1000).
+
+Usage example
+
+```python
+import torch
+from cortex.config import AxonsConfig
+from cortex.cells.axons import Axons
+
+B, T, H = 8, 512, 256
+x = torch.randn(B, T, H, device='cuda')
+
+cell = Axons(
+    AxonsConfig(
+        hidden_size=H,
+        activation='SiLU',
+        cuda_seq_threshold=1000,
+        # use_srht is True by default; set to False to disable
+        use_srht=True,
+        srht_permute=True       # random permutation in SRHT
+    )
+).to(x.device)
+state = cell.init_state(batch=B, device=x.device, dtype=x.dtype)
+
+# Optional per‑timestep resets: shape [B, T] (bool)
+resets = torch.zeros(B, T, dtype=torch.bool, device=x.device)
+
+y, state = cell(x, state=state, resets=resets)  # y: [B, T, H]
+```
+
+Why it matters
+
+- Axons generalizes the ubiquitous linear layer to be locally recurrent and
+  streaming, improving temporal expressivity with low memory cost.
+- It enables learning signals to flow beyond TBPTT by preserving
+  cross‑boundary credit via compact traces rather than full activation history.
+- It is intended as the default “linear” building block in future Cortex
+  architectures: replacing feed‑forward linear projections with Axons imbues
+  networks with long‑horizon temporal inductive bias.
 
 ## Template Architectures
 
@@ -421,4 +494,3 @@ python packages/cortex/evaluations/run.py --task majority --stack all   # runs a
 - Prefer batch‑first shapes `[B, T, H]` and pass state explicitly.
 - Use `PreUpBlock` when a cell benefits from a larger inner width; use `PostUpBlock` to stabilize depth with a cell at `d_hidden`.
 - Let the stack infer `cell.hidden_size=None` inside `PreUpBlock`/`PostUpBlock` unless you're composing blocks manually.
-

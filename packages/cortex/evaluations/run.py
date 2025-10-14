@@ -53,7 +53,7 @@ class TaskSpec:
 
 def make_task(task: str, *, num_samples: int, seed: int) -> TaskSpec:
     if task == "delayed_recall":
-        delay = 128
+        delay = 1024
 
         def _splits():
             return DelayedRecallDataset.splits(num_samples=num_samples, delay=delay, seed=seed)

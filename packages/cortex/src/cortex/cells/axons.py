@@ -30,7 +30,9 @@ from cortex.backends import load_cuda_stream_diag, want_cuda_seq_allin
 from cortex.cells.base import MemoryCell
 from cortex.cells.registry import register_cell
 from cortex.config import AxonsConfig
+from cortex.kernels.cuda.srht_cuda import srht_cuda  # type: ignore
 from cortex.kernels.pytorch.rtu_stream import rtu_stream_diag_pytorch
+from cortex.kernels.pytorch.srht import srht_pytorch
 from cortex.kernels.triton.rtu import rtu_stream_diag_triton  # type: ignore
 from cortex.types import MaybeState, ResetMask, Tensor
 from cortex.utils import select_backend
@@ -99,6 +101,22 @@ class Axons(MemoryCell):
         self._out_rank = r
         self.out_lr1 = nn.Linear(2 * H, r, bias=False)
         self.out_lr2 = nn.Linear(r, out_dim, bias=True)
+
+        # SRHT mixer parameters (fixed buffers)
+        self._use_srht = bool(getattr(cfg, "use_srht", False))
+        if self._use_srht:
+            rng = torch.Generator(device="cpu")
+            rng.manual_seed(0)
+            signs = torch.empty(H, dtype=torch.float32).bernoulli_(0.5, generator=rng) * 2 - 1
+            self.register_buffer("srht_signs", signs)
+            if bool(getattr(cfg, "srht_permute", True)):
+                perm = torch.randperm(H, generator=rng, dtype=torch.int64)
+                self.register_buffer("srht_perm", perm)
+            else:
+                self.register_buffer("srht_perm", torch.arange(H, dtype=torch.int64))
+        else:
+            self.register_buffer("srht_signs", torch.empty(0))
+            self.register_buffer("srht_perm", torch.empty(0, dtype=torch.int64))
 
     def _zero_traces(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> TensorDict:
         H = self.hidden_size
@@ -197,6 +215,16 @@ class Axons(MemoryCell):
 
         # Pack carried traces (if present)
         trace_in = self._pack_trace_in(st)
+
+        # Optional SRHT mixer before kernel
+        if getattr(self, "_use_srht", False):
+            Hh = self.hidden_size
+            perm = None if self.srht_perm.numel() == 0 else self.srht_perm.to(device=x_btd.device)
+            signs = self.srht_signs.to(device=x_btd.device, dtype=x_btd.dtype)
+            if x_btd.is_cuda and (Hh & (Hh - 1)) == 0:
+                x_btd = srht_cuda(x_btd, signs, perm, normalize=True)
+            else:
+                x_btd = srht_pytorch(x_btd, signs, perm, normalize=True)
 
         # Backend shims: all return (y2h_t, h1_n, h2_n, trace_out)
         def _fw_triton(

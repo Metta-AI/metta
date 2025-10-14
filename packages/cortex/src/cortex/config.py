@@ -96,6 +96,9 @@ class AxonsConfig(CellConfig):
     out_rank: int | None = Field(default=None)
     # Prefer CUDA seq-allin kernel for short sequences (<= threshold)
     cuda_seq_threshold: int = Field(default=1000, ge=1)
+    # Optional SRHT mixer before the kernel (diagonal input map remains in mixed basis)
+    use_srht: bool = Field(default=True)
+    srht_permute: bool = Field(default=True)
 
 
 class BlockConfig(BaseModel):
