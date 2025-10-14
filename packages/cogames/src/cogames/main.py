@@ -95,17 +95,15 @@ def play_cmd(
     ctx: typer.Context,
     mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Name of the mission"),
     policy: str = typer.Option("noop", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
-    non_interactive: bool = typer.Option(False, "--non-interactive", "-ni", help="Run in non-interactive mode"),
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
     render: Literal["gui", "unicode", "none"] = typer.Option(
         "gui", "--render", "-r", help="Render mode: 'gui', 'unicode' (interactive terminal), or 'none'"
     ),
 ) -> None:
     resolved_mission, env_cfg = get_mission_name_and_config(ctx, mission)
-    interactive = not non_interactive
     policy_spec = get_policy_spec(ctx, policy)
     console.print(f"[cyan]Playing {resolved_mission}[/cyan]")
-    console.print(f"Max Steps: {steps}, Interactive: {interactive}, Render: {render}")
+    console.print(f"Max Steps: {steps}, Render: {render}")
 
     if ctx.get_parameter_source("steps") in (
         ParameterSource.COMMANDLINE,
@@ -121,7 +119,6 @@ def play_cmd(
         max_steps=steps,
         seed=42,
         render=render,
-        verbose=interactive,
         game_name=resolved_mission,
     )
 
