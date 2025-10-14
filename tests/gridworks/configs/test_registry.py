@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+
 from metta.gridworks.configs.registry import ConfigMakerRegistry
 
 
