@@ -16,7 +16,6 @@ interface NavigablePaperOverlayProps {
   interactions: UserInteraction[];
   onClose: () => void;
   onStarToggle: (paperId: string) => void;
-  onQueueToggle: (paperId: string) => void;
 }
 
 export default function NavigablePaperOverlay({
@@ -25,7 +24,6 @@ export default function NavigablePaperOverlay({
   interactions,
   onClose,
   onStarToggle,
-  onQueueToggle,
 }: NavigablePaperOverlayProps) {
   const { openAuthor, openInstitution } = useOverlayNavigation();
   const [selectedAuthorId, setSelectedAuthorId] = useState<string | null>(null);
@@ -52,18 +50,6 @@ export default function NavigablePaperOverlay({
     }
   }, [paper, localPaper.id]);
 
-  // Handle optimistic queue toggle
-  const handleQueueToggle = () => {
-    // Optimistically update local state
-    setLocalPaper((prev) => ({
-      ...prev,
-      isQueuedByCurrentUser: !prev.isQueuedByCurrentUser,
-    }));
-
-    // Call the parent handler
-    onQueueToggle(paper.id);
-  };
-
   // Get interactions for this paper
   const paperInteractions = interactions.filter((i) => i.paperId === paper.id);
 
@@ -75,9 +61,6 @@ export default function NavigablePaperOverlay({
   // Get users by interaction type
   const starredUsers = usersWithInteractions.filter((user) =>
     paperInteractions.some((i) => i.userId === user.id && i.starred)
-  );
-  const queuedUsers = usersWithInteractions.filter((user) =>
-    paperInteractions.some((i) => i.userId === user.id && i.queued)
   );
   const readUsers = usersWithInteractions.filter((user) =>
     paperInteractions.some((i) => i.userId === user.id && i.readAt)
@@ -220,15 +203,13 @@ export default function NavigablePaperOverlay({
       )}
 
       {/* User interactions */}
-      {(starredUsers.length > 0 ||
-        queuedUsers.length > 0 ||
-        readUsers.length > 0) && (
+      {(starredUsers.length > 0 || readUsers.length > 0) && (
         <div className="border-t border-gray-200 pt-4">
           <h3 className="mb-3 text-sm font-medium text-gray-700">
             Community Activity
           </h3>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {/* Starred by */}
             {starredUsers.length > 0 && (
               <div>
@@ -240,25 +221,6 @@ export default function NavigablePaperOverlay({
                     <span
                       key={user.id}
                       className="rounded bg-yellow-100 px-2 py-1 text-xs text-yellow-800"
-                    >
-                      {user.name || user.email}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Queued by */}
-            {queuedUsers.length > 0 && (
-              <div>
-                <h4 className="mb-1 text-xs font-medium text-gray-600">
-                  Queued by
-                </h4>
-                <div className="flex flex-wrap gap-1">
-                  {queuedUsers.map((user) => (
-                    <span
-                      key={user.id}
-                      className="rounded bg-blue-100 px-2 py-1 text-xs text-blue-800"
                     >
                       {user.name || user.email}
                     </span>
@@ -288,33 +250,6 @@ export default function NavigablePaperOverlay({
           </div>
         </div>
       )}
-
-      {/* Footer with queue button */}
-      <div className="border-t border-gray-200 pt-4">
-        <button
-          onClick={handleQueueToggle}
-          className={`flex items-center gap-2 rounded-lg px-4 py-2 transition-colors ${
-            localPaper.isQueuedByCurrentUser
-              ? "bg-blue-100 text-blue-800 hover:bg-blue-200"
-              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-          }`}
-        >
-          <svg
-            className="h-5 w-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-            />
-          </svg>
-          {localPaper.isQueuedByCurrentUser ? "In Queue" : "Add to Queue"}
-        </button>
-      </div>
     </div>
   );
 }
