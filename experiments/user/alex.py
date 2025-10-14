@@ -26,6 +26,7 @@ from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from mettagrid.config import ConverterConfig
+from metta.rl.system_config import SystemConfig
 
 from experiments.recipes import arena
 
@@ -135,6 +136,8 @@ def train(
         evaluator=evaluator,
         policy_architecture=policy_config,
         wandb=WandbConfig.Off(),
+        stats_server_uri=None,
+        system=SystemConfig(local_only=True),
     )
 
 
