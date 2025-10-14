@@ -392,6 +392,16 @@ USER_MAP_CATALOG: tuple[UserMap, ...] = (
         site="canidate4_500_stations.map",
         mission_args=_with_easy_shaped_variants(),
     ),
+    SiteUserMap(
+        name="vanilla",
+        site="vanilla_small.map",
+        mission_args={"default": {"easy": True}},
+    ),
+    SiteUserMap(
+        name="vanilla_large",
+        site="vanilla_large.map",
+        mission_args={"default": {"easy": True}},
+    ),
     RandomUserMap(
         name="random",
         mission_args=dict(
