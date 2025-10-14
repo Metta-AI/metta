@@ -61,6 +61,7 @@ jobs:
           cd ../../../..
           mkdir -p packages/mettagrid/nim/mettascope/dist
           nim c -d:emscripten packages/mettagrid/nim/mettascope/src/mettascope.nim
+          ls -la packages/mettagrid/nim/mettascope/dist
 
       - name: Build Observatory
         run: |
