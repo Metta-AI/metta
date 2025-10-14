@@ -197,40 +197,6 @@ export const AdminInstitutionsDashboard: React.FC<
           </span>
         ),
       },
-      {
-        id: "actions",
-        header: "Actions",
-        enableSorting: false,
-        cell: ({ row }) => {
-          const institution = row.original;
-          return (
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  const formData = new FormData();
-                  formData.append("institutionId", institution.id);
-                  formData.append(
-                    "requiresApproval",
-                    (!institution.requiresApproval).toString()
-                  );
-                  toggleApproval(formData);
-                }}
-                disabled={isTogglingApproval}
-              >
-                {institution.requiresApproval ? "Disable" : "Require"} approval
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => setSelectedInstitutionId(institution.id)}
-              >
-                Manage
-              </Button>
-            </div>
-          );
-        },
-      },
     ],
     [isTogglingApproval, toggleApproval]
   );
