@@ -6,7 +6,7 @@ from experiments.recipes.arena_basic_easy_shaped import (
     play,
     replay,
     simulations,
-    sweep_async_progressive,
+    sweep,
     train as base_train,
 )
 from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
@@ -47,6 +47,6 @@ __all__ = [
     "replay",
     "evaluate",
     "evaluate_in_sweep",
-    "sweep_async_progressive",
+    "sweep",
     "train",
 ]
