@@ -172,6 +172,7 @@ function CommentComposer({
               : ""
         }`}
         rows={3}
+        autoFocus
       />
 
       {containsBotMention(value) && (
