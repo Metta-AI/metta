@@ -285,6 +285,23 @@ class TestAssemblerProperties:
             assert isinstance(recipe["outputs"], dict)
             assert isinstance(recipe["cooldown"], int)
 
+    def test_grid_objects_emits_float_outputs(self, env_with_assembler):
+        """Ensure float-valued assembler fields remain floats."""
+        env_with_assembler.reset()
+
+        objects = env_with_assembler.grid_objects()
+        assembler = next((obj for obj in objects.values() if obj.get("type_name") == "assembler"), None)
+
+        assert assembler is not None, "Expected an assembler to validate float fields"
+
+        cooldown_progress = assembler["cooldown_progress"]
+        cooldown_multiplier = assembler["cooldown_multiplier"]
+        exhaustion = assembler["exhaustion"]
+
+        assert isinstance(cooldown_progress, float), "cooldown_progress should be a float"
+        assert isinstance(cooldown_multiplier, float), "cooldown_multiplier should be a float"
+        assert isinstance(exhaustion, float), "exhaustion should be a float"
+
 
 class TestChestProperties:
     """Test chest-specific properties in grid_objects."""

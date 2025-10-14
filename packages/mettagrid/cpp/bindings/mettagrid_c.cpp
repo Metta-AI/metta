@@ -178,8 +178,9 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
         ConverterConfig config_with_offsets(*converter_config);
         config_with_offsets.input_recipe_offset = _obs_encoder->get_input_recipe_offset();
         config_with_offsets.output_recipe_offset = _obs_encoder->get_output_recipe_offset();
+        config_with_offsets.output_recipe_fraction_offset = _obs_encoder->get_output_fraction_offset();
 
-        Converter* converter = new Converter(r, c, config_with_offsets);
+        Converter* converter = new Converter(r, c, config_with_offsets, _rng);
         _grid->add_object(converter);
         _stats->incr("objects." + cell);
         converter->set_event_manager(_event_manager.get());
@@ -209,9 +210,10 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
         AssemblerConfig config_with_offsets(*assembler_config);
         config_with_offsets.input_recipe_offset = _obs_encoder->get_input_recipe_offset();
         config_with_offsets.output_recipe_offset = _obs_encoder->get_output_recipe_offset();
+        config_with_offsets.output_recipe_fraction_offset = _obs_encoder->get_output_fraction_offset();
         config_with_offsets.recipe_details_obs = _obs_encoder->recipe_details_obs;
 
-        Assembler* assembler = new Assembler(r, c, config_with_offsets);
+        Assembler* assembler = new Assembler(r, c, config_with_offsets, _rng);
         _grid->add_object(assembler);
         _stats->incr("objects." + cell);
         assembler->set_grid(_grid.get());
@@ -904,7 +906,7 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
       obj_dict["input_resources"] = input_resources_dict;
       py::dict output_resources_dict;
       for (const auto& [resource, quantity] : converter->output_resources) {
-        output_resources_dict[py::int_(resource)] = quantity;
+        output_resources_dict[py::int_(resource)] = py::float_(quantity);
       }
       obj_dict["output_resources"] = output_resources_dict;
     }
@@ -936,7 +938,7 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
 
         py::dict output_resources_dict;
         for (const auto& [resource, quantity] : current_recipe->output_resources) {
-          output_resources_dict[py::int_(resource)] = quantity;
+          output_resources_dict[py::int_(resource)] = py::float_(quantity);
         }
         obj_dict["current_recipe_outputs"] = output_resources_dict;
         obj_dict["current_recipe_cooldown"] = current_recipe->cooldown;
@@ -959,7 +961,7 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
 
           py::dict output_resources_dict;
           for (const auto& [resource, quantity] : active_recipes[i]->output_resources) {
-            output_resources_dict[py::int_(resource)] = quantity;
+            output_resources_dict[py::int_(resource)] = py::float_(quantity);
           }
           recipe_dict["outputs"] = output_resources_dict;
           recipe_dict["cooldown"] = active_recipes[i]->cooldown;

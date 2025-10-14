@@ -38,7 +38,7 @@ class TestAssemblerPartialUsage:
         cfg.game.actions.noop.enabled = True
 
         env = MettaGridCore(cfg)
-        obs, info = env.reset()
+        obs, info = env.reset(seed=0)
 
         iron_idx = env.resource_names.index("iron")
         steel_idx = env.resource_names.index("steel")
@@ -102,7 +102,7 @@ class TestAssemblerPartialUsage:
         cfg.game.actions.noop.enabled = True
 
         env = MettaGridCore(cfg)
-        obs, info = env.reset()
+        obs, info = env.reset(seed=0)
 
         iron_idx = env.resource_names.index("iron")
         steel_idx = env.resource_names.index("steel")
@@ -150,7 +150,7 @@ class TestAssemblerPartialUsage:
 
         # At 12% progress:
         # Input: 20 * 0.12 = 2.4, rounded up = 3
-        # Output: 10 * 0.12 = 1.2, rounded down = 1
+        # Output: 10 * 0.12 = 1.2, deterministic for seed=0 and yields 1
         iron_consumed_12 = iron_before - agent["inventory"][iron_idx]
         steel_produced_12 = agent["inventory"][steel_idx] - steel_before
 
@@ -158,7 +158,7 @@ class TestAssemblerPartialUsage:
             f"Should consume 3 iron at 12% progress (20*0.12 rounded up), consumed {iron_consumed_12}"
         )
         assert steel_produced_12 == 1, (
-            f"Should produce 1 steel at 12% progress (10*0.12 rounded down), produced {steel_produced_12}"
+            f"Should produce 1 steel at 12% progress for seed=0, produced {steel_produced_12}"
         )
 
         # Verify that assembler does not trigger when partial usage would yield no output
@@ -176,6 +176,87 @@ class TestAssemblerPartialUsage:
         iron_consumed_01 = iron_before - agent["inventory"][iron_idx]
         steel_produced_01 = agent["inventory"][steel_idx] - steel_before
 
-        assert iron_consumed_01 == 0 and steel_produced_01 == 0, (
-            "Assembler should not activate when partial-usage output would be zero"
+        assert iron_consumed_01 == 1, "Partial usage should consume 1 iron at very low progress"
+        assert steel_produced_01 == 0, "Should produce 0 steel at very low progress for seed=0"
+
+    def test_partial_usage_fractional_probabilistic_yields(self):
+        """Test probabilistic fractional outputs during partial usage."""
+        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
+            [
+                ["#", "#", "#", "#"],
+                ["#", "@", "Z", "#"],
+                ["#", "#", "#", "#"],
+            ]
         )
+
+        cfg.game.resource_names = ["iron", "steel"]
+        cfg.game.agent.initial_inventory = {"iron": 100, "steel": 0}
+
+        cfg.game.objects["assembler"] = AssemblerConfig(
+            type_id=21,
+            name="probabilistic_partial",
+            recipes=[
+                (
+                    ["W"],
+                    RecipeConfig(
+                        input_resources={"iron": 8},
+                        output_resources={"steel": 3},
+                        cooldown=10,
+                    ),
+                )
+            ],
+            allow_partial_usage=True,
+        )
+
+        cfg.game.actions.move.enabled = True
+        cfg.game.actions.noop.enabled = True
+
+        env = MettaGridCore(cfg)
+        env.reset(seed=0)
+
+        move_east_idx = action_index(env, "move", Orientation.EAST)
+        noop_idx = env.action_names.index("noop")
+        iron_idx = env.resource_names.index("iron")
+        steel_idx = env.resource_names.index("steel")
+
+        def get_inventory_value(agent_obj: dict, resource_idx: int) -> int:
+            inventory = agent_obj["inventory"]
+            if isinstance(inventory, dict):
+                return int(inventory.get(resource_idx, 0))
+            return int(inventory[resource_idx])
+
+        samples = []
+        for seed in range(200):
+            env.reset(seed=seed)
+
+            first_use = np.array([move_east_idx], dtype=dtype_actions)
+            env.step(first_use)
+
+            noop_action = np.array([noop_idx], dtype=dtype_actions)
+            for _ in range(5):
+                env.step(noop_action)
+
+            pre_agent = next(obj for _obj_id, obj in env.grid_objects().items() if "agent_id" in obj)
+            iron_before = get_inventory_value(pre_agent, iron_idx)
+            steel_before = get_inventory_value(pre_agent, steel_idx)
+
+            env.step(first_use)
+
+            post_agent = next(obj for _obj_id, obj in env.grid_objects().items() if "agent_id" in obj)
+            iron_after = get_inventory_value(post_agent, iron_idx)
+            steel_after = get_inventory_value(post_agent, steel_idx)
+
+            iron_consumed = iron_before - iron_after
+            steel_gained = steel_after - steel_before
+
+            # Step() advances the timestep before the assembler runs, so 5 cooldown ticks yields ~60% progress
+            # and the ceil-scaled input consumes 5 iron (ceil(8 * 0.6)).
+            assert iron_consumed == 5, f"Partial usage should consume 5 iron, consumed {iron_consumed}"
+            samples.append(steel_gained)
+
+        assert all(sample in (1, 2) for sample in samples), "Partial usage should only yield 1 or 2 steel"
+        assert any(sample == 1 for sample in samples), "Should observe at least one 1-steel yield"
+        assert any(sample == 2 for sample in samples), "Should observe at least one 2-steel yield"
+
+        mean_output = float(np.mean(samples))
+        assert abs(mean_output - 1.8) < 0.1, f"Mean steel yield {mean_output} should approximate expected value 1.8"

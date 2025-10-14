@@ -106,7 +106,9 @@ proc drawAgentTraces*(panel: Panel) =
       if settings.showResources and i > 0:
         let gainMap = obj.gainMap[i]
         for item in gainMap:
-          for j in 0 ..< item.count:
+          let iconCountRaw = int(item.count)
+          let iconCount = if iconCountRaw < 0: 0 else: iconCountRaw
+          for j in 0 ..< iconCount:
             bxy.drawImage(
               replay.itemImages[item.itemId],
               vec2(pos.x, pos.y - (traceHeight / 2) + ((j + 1) * 32/256)),

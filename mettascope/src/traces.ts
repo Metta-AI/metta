@@ -201,7 +201,8 @@ export function drawTrace(panel: PanelInfo) {
         for (const [inventoryId, inventoryAmount] of gainMap) {
           const inventoryName = state.replay.itemNames[inventoryId]
           const inventoryImage = `resources/${inventoryName}.png`
-          for (let k = 0; k < inventoryAmount; k++) {
+          const iconCount = Math.max(0, Math.floor(inventoryAmount))
+          for (let k = 0; k < iconCount; k++) {
             ctx.drawSprite(
               inventoryImage,
               j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,

@@ -5,6 +5,9 @@ the recipe_details_obs flag. When recipe_details_obs=True, converters show
 their recipe inputs and outputs as separate features in their observations.
 """
 
+import math
+import struct
+
 from mettagrid.config.mettagrid_c_config import from_mettagrid_config
 from mettagrid.config.mettagrid_config import (
     ActionConfig,
@@ -181,3 +184,86 @@ class TestConverterObservations:
         assert battery_red_input_id not in gen_feature_map, "Generator should not have battery_red input"
         assert ore_red_input_id not in altar_feature_map, "Altar should not have ore_red input"
         assert ore_blue_input_id not in altar_feature_map, "Altar should not have ore_blue input"
+
+    def test_converter_fractional_outputs_emitted(self):
+        """Test that fractional outputs are emitted as output_frac:* features with uint8 bucketization."""
+        game_config = self.get_base_game_config(recipe_details_obs=True)
+        # Add a converter with purely fractional output
+        game_config.objects["frac_gen"] = ConverterConfig(
+            type_id=4,
+            input_resources={},
+            output_resources={"battery_red": 0.5},
+            max_output=-1,
+            conversion_ticks=0,
+            cooldown=0,
+            initial_resource_count=0,
+        )
+
+        # Map with the fractional converter in view
+        game_map = [
+            ["wall", "wall", "wall", "wall", "wall"],
+            ["wall", "agent.agent", ".", "frac_gen", "wall"],
+            ["wall", ".", ".", ".", "wall"],
+            ["wall", ".", ".", ".", "wall"],
+            ["wall", "wall", "wall", "wall", "wall"],
+        ]
+
+        env = MettaGrid(from_mettagrid_config(game_config), game_map, 7)
+        obs, _ = env.reset()
+        agent_obs = obs[0]
+
+        # Converter at (3,1) shows up at (4,2)
+        generator_tokens = self.get_converter_tokens_at_location(agent_obs, 4, 2)
+
+        out_frac_id = env.feature_spec()["output_frac:battery_red"]["id"]
+        out_id = env.feature_spec()["output:battery_red"]["id"]
+
+        feature_map = {token[1]: token[2] for token in generator_tokens}
+
+        assert out_frac_id in feature_map, "Should emit output_frac for fractional-only output"
+        # 0.5 => ceil(0.5*255) = 128
+        assert feature_map[out_frac_id] == 128, f"Expected 128 bucket for 0.5, got {feature_map[out_frac_id]}"
+        assert out_id not in feature_map, "Integral output feature should be absent for <1.0 amount"
+
+    def test_converter_fractional_remainder_emitted_for_amounts_above_one(self):
+        """Test that outputs >=1.0 emit an output_frac:* token for their fractional remainder."""
+        game_config = self.get_base_game_config(recipe_details_obs=True)
+        game_config.objects["hybrid_gen"] = ConverterConfig(
+            type_id=5,
+            input_resources={},
+            output_resources={"battery_red": 1.2},
+            max_output=-1,
+            conversion_ticks=0,
+            cooldown=0,
+            initial_resource_count=0,
+        )
+
+        game_map = [
+            ["wall", "wall", "wall", "wall", "wall"],
+            ["wall", "agent.agent", ".", "hybrid_gen", "wall"],
+            ["wall", ".", ".", ".", "wall"],
+            ["wall", ".", ".", ".", "wall"],
+            ["wall", "wall", "wall", "wall", "wall"],
+        ]
+
+        env = MettaGrid(from_mettagrid_config(game_config), game_map, 11)
+        obs, _ = env.reset()
+        agent_obs = obs[0]
+
+        converter_tokens = self.get_converter_tokens_at_location(agent_obs, 4, 2)
+
+        out_frac_id = env.feature_spec()["output_frac:battery_red"]["id"]
+        out_id = env.feature_spec()["output:battery_red"]["id"]
+
+        feature_map = {token[1]: token[2] for token in converter_tokens}
+
+        assert out_id in feature_map, "Should emit integral output component for amounts >= 1.0"
+        assert feature_map[out_id] == 1, f"Integral component should be floored to 1, got {feature_map[out_id]}"
+
+        assert out_frac_id in feature_map, "Should emit fractional remainder for amounts >= 1.0"
+        float_amount = struct.unpack("!f", struct.pack("!f", 1.2))[0]
+        remainder = float_amount - math.floor(float_amount)
+        expected_bucket = math.ceil(remainder * 255.0)
+        assert feature_map[out_frac_id] == expected_bucket, (
+            f"Expected bucket {expected_bucket} for remainder {remainder}, got {feature_map[out_frac_id]}"
+        )

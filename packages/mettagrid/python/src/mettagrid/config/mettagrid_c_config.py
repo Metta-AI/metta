@@ -1,4 +1,5 @@
 import math
+import numbers
 from typing import Sequence
 
 from mettagrid.config.mettagrid_config import (
@@ -78,6 +79,23 @@ def expand_position_patterns(positions: Sequence[Position]) -> list[int]:
         if bin(i).count("1") == len(positions):
             result.append(i)
     return result
+
+
+def _validate_outputs_dict(outputs: dict[str, float], context: str) -> None:
+    # Belt-and-suspenders validation: outputs must be finite, >= 0, and ceil(value) <= 255.
+    # Accept any real numeric type (e.g., Python numbers, NumPy scalars).
+    for k, v in outputs.items():
+        if not isinstance(v, numbers.Real):
+            raise ValueError(f"{context}[{k}] must be a real number, got {type(v).__name__}: {v}")
+
+        fv = float(v)
+
+        if math.isnan(fv) or math.isinf(fv):
+            raise ValueError(f"{context}[{k}] must be finite, got {v}")
+        if fv < 0:
+            raise ValueError(f"{context}[{k}] must be >= 0, got {v}")
+        if math.ceil(fv) > 255:
+            raise ValueError(f"{context}[{k}] ceil({v}) exceeds 255 which would overflow inventory")
 
 
 def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
@@ -257,11 +275,16 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             # Convert tag names to IDs
             tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
 
+            # Validate converter outputs before constructing C++ object
+            _validate_outputs_dict(
+                object_config.output_resources, f"ConverterConfig.output_resources for {object_type}"
+            )
+
             cpp_converter_config = CppConverterConfig(
                 type_id=object_config.type_id,
                 type_name=object_type,
                 input_resources={resource_name_to_id[k]: v for k, v in object_config.input_resources.items()},
-                output_resources={resource_name_to_id[k]: v for k, v in object_config.output_resources.items()},
+                output_resources={resource_name_to_id[k]: float(v) for k, v in object_config.output_resources.items()},
                 max_output=object_config.max_output,
                 max_conversions=object_config.max_conversions,
                 conversion_ticks=object_config.conversion_ticks,
@@ -291,10 +314,17 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 # Expand position patterns to byte patterns
                 bit_patterns = expand_position_patterns(position_pattern)
 
+                # Validate recipe outputs before constructing C++ object
+                _validate_outputs_dict(
+                    recipe_config.output_resources, f"RecipeConfig.output_resources for {object_type}"
+                )
+
                 # Create C++ recipe
                 cpp_recipe = CppRecipe(
                     input_resources={resource_name_to_id[k]: v for k, v in recipe_config.input_resources.items()},
-                    output_resources={resource_name_to_id[k]: v for k, v in recipe_config.output_resources.items()},
+                    output_resources={
+                        resource_name_to_id[k]: float(v) for k, v in recipe_config.output_resources.items()
+                    },
                     cooldown=recipe_config.cooldown,
                 )
 
@@ -454,9 +484,11 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         clipper: ClipperConfig = game_config.clipper
         clipper_recipes = []
         for recipe_config in clipper.unclipping_recipes:
+            # Validate clipper recipe outputs as well
+            _validate_outputs_dict(recipe_config.output_resources, "ClipperConfig.unclipping_recipes.output_resources")
             cpp_recipe = CppRecipe(
                 input_resources={resource_name_to_id[k]: v for k, v in recipe_config.input_resources.items()},
-                output_resources={resource_name_to_id[k]: v for k, v in recipe_config.output_resources.items()},
+                output_resources={resource_name_to_id[k]: float(v) for k, v in recipe_config.output_resources.items()},
                 cooldown=recipe_config.cooldown,
             )
             clipper_recipes.append(cpp_recipe)
