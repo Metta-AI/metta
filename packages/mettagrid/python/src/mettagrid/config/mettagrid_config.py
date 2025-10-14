@@ -184,6 +184,29 @@ class AssemblerConfig(GridObjectConfig):
         default=False, description="If true, this assembler starts in a clipped state at the beginning of the game"
     )
 
+    @model_validator(mode="after")
+    def validate_every_recipe_can_be_triggered(self) -> "AssemblerConfig":
+        """Ensure all recipes have at least one valid cog pattern not already claimed by other recipes."""
+
+        if not self.recipes:
+            return self
+
+        # Lazy import avoids circular dependency at module load time.
+        from mettagrid.config.mettagrid_c_config import expand_position_patterns
+
+        pattern_to_recipe: dict[int, RecipeConfig] = {}
+
+        for positions, recipe in self.recipes:
+            recipe_has_at_least_one_pattern = False
+            for pattern in expand_position_patterns(positions):
+                if pattern not in pattern_to_recipe:
+                    pattern_to_recipe[pattern] = recipe
+                    recipe_has_at_least_one_pattern = True
+            if not recipe_has_at_least_one_pattern:
+                raise ValueError(f"Recipe {recipe} has no valid cog patterns not already claimed by other recipes.")
+
+        return self
+
 
 class ChestConfig(GridObjectConfig):
     """Python chest configuration."""
