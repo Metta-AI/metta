@@ -55,21 +55,9 @@ export const AuthorsView: FC<AuthorsViewProps> = ({ authors }) => {
           aValue = a.institution?.toLowerCase() || "";
           bValue = b.institution?.toLowerCase() || "";
           break;
-        case "recentActivity":
-          aValue = new Date(a.recentActivity || 0).getTime();
-          bValue = new Date(b.recentActivity || 0).getTime();
-          break;
         case "papers":
           aValue = a.paperCount || 0;
           bValue = b.paperCount || 0;
-          break;
-        case "citations":
-          aValue = a.totalCitations || 0;
-          bValue = b.totalCitations || 0;
-          break;
-        case "hIndex":
-          aValue = a.hIndex || 0;
-          bValue = b.hIndex || 0;
           break;
         default:
           aValue = a.name.toLowerCase();
@@ -123,10 +111,7 @@ export const AuthorsView: FC<AuthorsViewProps> = ({ authors }) => {
   const sortOptions = [
     { key: "name", label: "Name" },
     { key: "institution", label: "Institution" },
-    { key: "recentActivity", label: "Recent Activity" },
     { key: "papers", label: "Papers" },
-    { key: "citations", label: "Citations" },
-    { key: "hIndex", label: "H-index" },
   ];
 
   return (
