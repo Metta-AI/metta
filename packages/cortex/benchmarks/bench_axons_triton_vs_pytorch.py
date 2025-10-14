@@ -1,9 +1,10 @@
 #!/usr/bin/env -S uv run python
-"""Benchmark Axons (streaming RTU, diagonal) Triton vs PyTorch using the Axons cell.
+"""Benchmark AxonCell (streaming RTU, diagonal) Triton vs PyTorch.
 
 This mirrors the style of ``bench_rtu_triton_vs_pytorch.py`` and compares the
-Triton-accelerated path vs the PyTorch path inside ``cortex.cells.axons.Axons``
-by forcing backend selection via a small monkeypatch of ``select_backend``.
+Triton-accelerated path vs the PyTorch path inside
+``cortex.cells.core.AxonCell`` by forcing backend selection via a small
+monkeypatch of ``select_backend``.
 """
 
 from __future__ import annotations
@@ -12,12 +13,12 @@ import time
 from typing import Optional
 
 import torch
-from cortex.cells.axons import Axons
+from cortex.cells.core import AxonCell
 from cortex.config import AxonsConfig
 
 
-def _run_cell(cell: Axons, x: torch.Tensor, resets: Optional[torch.Tensor], which: str) -> torch.Tensor:
-    import cortex.cells.axons as cell_mod
+def _run_cell(cell: AxonCell, x: torch.Tensor, resets: Optional[torch.Tensor], which: str) -> torch.Tensor:
+    import cortex.cells.core.axon_cell as cell_mod
 
     orig = cell_mod.select_backend
 
@@ -55,7 +56,7 @@ def benchmark_axons(
         resets = torch.rand(batch_size, seq_len, device=device_t) < reset_prob
 
     # Build a single cell whose parameters are shared across both backends
-    cell = Axons(AxonsConfig(hidden_size=hidden_size, activation=activation)).to(device=device_t, dtype=dtype)
+    cell = AxonCell(AxonsConfig(hidden_size=hidden_size, activation=activation)).to(device=device_t, dtype=dtype)
 
     results: dict[str, Optional[float]] = {}
 

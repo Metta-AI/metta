@@ -1,20 +1,7 @@
-"""Axons cell: streaming RTU (diagonal input weights, PyTorch/Triton/CUDA).
+"""AxonCell: Streaming RTU cell (diagonal input weights) with multi-backend support.
 
-This cell mirrors the structure of `cortex.cells.rtu.RTUCell` and can run on
-either the PyTorch or Triton backend. For streaming diagonal RTU it uses:
-
-- PyTorch: `cortex.kernels.pytorch.rtu_stream.rtu_stream_diag_pytorch`
-- Triton:  `cortex.kernels.triton.rtu.stream_diag.rtu_stream_diag_triton` (CUDA)
-- CUDA (seq-allin, short-T): `cortex.kernels.cuda.rtu_stream_diag_cuda_seq_allin` (CUDA)
-
-Notes
------
-- Assumes D == H (identity input map) as enforced by the kernel.
-- Carries compact [B,H] eligibility traces across chunks. The traces are
-  included in the returned TensorDict state and can be detached between
-  subsequences by the caller to achieve true streaming.
-- Backend selection follows `cortex.utils.select_backend`: Triton is used when
-  available on CUDA unless disabled; otherwise falls back to PyTorch.
+Moved from ``cortex.cells.axons`` to ``cortex.cells.core.axon_cell``.
+This version optionally allows ``out_dim != hidden_size`` to support AxonLayer.
 """
 
 from __future__ import annotations
@@ -52,21 +39,26 @@ def _resolve_activation(name: str) -> nn.Module:
 
 
 @register_cell(AxonsConfig)
-class Axons(MemoryCell):
+class AxonCell(MemoryCell):
     """Cortex memory cell for streaming RTU with diagonal input weights.
 
-    This wrapper:
-      - calls the streaming RTU PyTorch kernel (diagonal w1/w2 input weights),
-      - projects `2H -> H` to fit Cortex block shapes,
-      - manages TensorDict state with keys {"hc1", "hc2", trace tensors},
-      - handles step-vs-sequence inputs and reset masks.
+    Notes
+    -----
+    - Assumes D == H (identity input map) as enforced by the kernel.
+    - Carries compact [B,H] eligibility traces across chunks.
+    - Backend selection follows ``cortex.utils.select_backend``.
+    - By default, this cell enforces that its output feature dimension equals
+      ``hidden_size`` to match Cortex block contracts. Set
+      ``enforce_out_dim_eq_hidden=False`` for use cases (e.g., AxonLayer)
+      where ``out_dim`` differs.
     """
 
-    def __init__(self, cfg: AxonsConfig) -> None:
+    def __init__(self, cfg: AxonsConfig, enforce_out_dim_eq_hidden: bool = True) -> None:
         if cfg.hidden_size is None:
             raise ValueError("AxonsConfig.hidden_size must be set")
         super().__init__(hidden_size=cfg.hidden_size)
         self.cfg = cfg
+        self._enforce_out_dim_eq_hidden = bool(enforce_out_dim_eq_hidden)
 
         H = cfg.hidden_size
         self.activation = _resolve_activation(cfg.activation)
@@ -90,17 +82,16 @@ class Axons(MemoryCell):
 
         # Low-rank output projection: 2H -> r -> out_dim (defaults to H).
         out_dim = cfg.out_dim if getattr(cfg, "out_dim", None) not in (None, 0) else H
-        # Rank rule: if specified, use it; otherwise use maximum possible rank for (2H -> out_dim)
         if getattr(cfg, "out_rank", None) is None:
             r = min(2 * H, out_dim)
         else:
             r = int(cfg.out_rank)
         if r < 1:
             raise ValueError(f"Axons out_rank must be >= 1, got {r}")
-        self._out_dim = out_dim
+        self._out_dim = int(out_dim)
         self._out_rank = r
         self.out_lr1 = nn.Linear(2 * H, r, bias=False)
-        self.out_lr2 = nn.Linear(r, out_dim, bias=True)
+        self.out_lr2 = nn.Linear(r, self._out_dim, bias=True)
 
         # SRHT mixer parameters (fixed buffers)
         self._use_srht = bool(getattr(cfg, "use_srht", False))
@@ -283,7 +274,6 @@ class Axons(MemoryCell):
             )
             return y2h_t_, h1_n_, h2_n_, trace_out_
 
-        # Prefer CUDA for short sequences (<= threshold), else Triton (if available), else PyTorch.
         prefer_cuda = want_cuda_seq_allin(tensor=x_btd, seq_len=T, threshold=int(self.cfg.cuda_seq_threshold))
         backend = select_backend(
             triton_fn=_fw_triton,
@@ -301,7 +291,7 @@ class Axons(MemoryCell):
         st["hc2"] = h2_n
         self._unpack_trace_out(st, trace_out)
 
-        # Project 2H -> H (batch-first)
+        # Project 2H -> out_dim (batch-first)
         if is_step:
             y2h = y2h_t.squeeze(1)
             y = self.out_lr2(self.out_lr1(y2h))
@@ -309,13 +299,11 @@ class Axons(MemoryCell):
             y2h_flat = y2h_t.reshape(B * T, -1)
             y = self.out_lr2(self.out_lr1(y2h_flat)).reshape(B, T, self._out_dim)
 
-        # For compatibility with blocks, enforce output feature = hidden_size.
-        # If a user overrides out_dim != H, raise a helpful error.
-        if y.shape[-1] != self.hidden_size:
+        # Enforce block contract if requested
+        if self._enforce_out_dim_eq_hidden and y.shape[-1] != self.hidden_size:
             raise ValueError(
-                f"Axons out_dim={self._out_dim} != hidden_size={self.hidden_size}. "
-                "Blocks expect the cell to return tensors with feature dim == hidden_size. "
-                "Set AxonsConfig.out_dim to None (default) or to hidden_size."
+                f"AxonCell out_dim={self._out_dim} != hidden_size={self.hidden_size}. "
+                "Set enforce_out_dim_eq_hidden=False (used by AxonLayer) when non-H outputs are desired."
             )
 
         return y, st
@@ -333,4 +321,4 @@ class Axons(MemoryCell):
         return state
 
 
-__all__ = ["Axons"]
+__all__ = ["AxonCell"]

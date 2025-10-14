@@ -38,7 +38,7 @@ class _SRHTCudaFunc(Function):
     ):
         ext = _load_ext()
         perm_ctg = None if perm_h is None else perm_h.contiguous()
-        y, = ext.forward(x_btd.contiguous(), signs_h.contiguous(), perm_ctg, normalize)
+        (y,) = ext.forward(x_btd.contiguous(), signs_h.contiguous(), perm_ctg, normalize)
         empty = torch.tensor([], dtype=torch.long, device=x_btd.device)
         ctx.save_for_backward(signs_h, perm_h if perm_h is not None else empty)
         ctx.normalize = normalize
@@ -50,7 +50,7 @@ class _SRHTCudaFunc(Function):
         perm_h = None if perm.numel() == 0 else perm
         ext = _load_ext()
         perm_ctg = None if perm_h is None else perm_h.contiguous()
-        grad_x, = ext.backward(grad_y.contiguous(), signs_h.contiguous(), perm_ctg, ctx.normalize)
+        (grad_x,) = ext.backward(grad_y.contiguous(), signs_h.contiguous(), perm_ctg, ctx.normalize)
         return grad_x, None, None, None
 
 

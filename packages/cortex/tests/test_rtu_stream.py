@@ -763,8 +763,6 @@ def test_cuda_seq_streaming_diag_whole_vs_chunked_parity(with_resets: bool) -> N
                 assert torch.allclose(gw, gs, rtol=rtol, atol=atol), msg
 
 
-
-
 @pytest.mark.skipif(not _HAS_TRITON or not torch.cuda.is_available(), reason="Triton+CUDA required")
 @pytest.mark.parametrize("with_resets", [False, True])
 def test_triton_streaming_diag_whole_vs_chunked_parity(with_resets: bool) -> None:

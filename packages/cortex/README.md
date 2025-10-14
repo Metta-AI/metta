@@ -10,7 +10,7 @@
 - [Supported Components](#supported-components)
   - [Memory Cells](#memory-cells)
   - [Blocks](#blocks)
-- [Axons (Streaming RTU)](#axons-streaming-rtu)
+- [AxonCell - Locally Recurrent Gradient Propagating alternative to Linear Layers](#axoncell---locally-recurrent-gradient-propagating-alternative-to-linear-layers)
 - [Quick Start](#quick-start)
 - [Template Architectures](#template-architectures)
 - [Metta Framework Integration](#metta-framework-integration)
@@ -100,7 +100,7 @@ Core computational units implementing recurrent logic. All cells follow batch-fi
 | `mLSTMCell`     | Matrix-LSTM with per-head state, chunkwise closed-form updates, and optional causal Conv1D pre-activation. | Yes | No |
 | `sLSTMCell`     | Structured LSTM with per-head gating, stabilized accumulators (`c`, `n`, `m`), and optional causal Conv1D. | Yes | No |
 | `CausalConv1d`  | Depthwise causal Conv1D cell (ring-buffer state); supports optional channel-mixing mode. | Yes (channel-mixing only) | No |
-| `Axons`         | Streaming RTU with diagonal input weights (per-channel local recurrence, 2H→H projection). | Yes | Yes (seq‑allin, short‑T) |
+| `AxonsCell`     | Streaming RTU with diagonal input weights (per-channel local recurrence, 2H→H→out_dim projection). | Yes | Yes (seq‑allin, short‑T) |
 
 **Notes:**
 - Triton kernels are selected automatically on CUDA when constraints are met; otherwise PyTorch fallback is used
@@ -193,9 +193,9 @@ x_step = torch.randn(batch_size, 256)  # [B, H]
 output_step, state = stack.step(x_step, state)
 ```
 
-## Axons - Locally Recurrent Gradient Propagating alternative to Linear Layers
+## AxonCell - Locally Recurrent Gradient Propagating alternative to Linear Layers
 
-The Axons cell (`packages/cortex/src/cortex/cells/axons.py`) is the new
+The AxonCell (`packages/cortex/src/cortex/cells/core/axon_cell.py`) is the new
 fundamental building block in Cortex. It is designed as a drop‑in replacement
 for a linear layer that makes the projection locally recurrent and enables
 gradients to propagate across an arbitrary horizon.
@@ -231,19 +231,18 @@ Usage example
 ```python
 import torch
 from cortex.config import AxonsConfig
-from cortex.cells.axons import Axons
+from cortex.cells.core import AxonCell
 
 B, T, H = 8, 512, 256
 x = torch.randn(B, T, H, device='cuda')
 
-cell = Axons(
+cell = AxonCell(
     AxonsConfig(
         hidden_size=H,
         activation='SiLU',
         cuda_seq_threshold=1000,
-        # use_srht is True by default; set to False to disable
         use_srht=True,
-        srht_permute=True       # random permutation in SRHT
+        srht_permute=True
     )
 ).to(x.device)
 state = cell.init_state(batch=B, device=x.device, dtype=x.dtype)
@@ -252,6 +251,31 @@ state = cell.init_state(batch=B, device=x.device, dtype=x.dtype)
 resets = torch.zeros(B, T, dtype=torch.bool, device=x.device)
 
 y, state = cell(x, state=state, resets=resets)  # y: [B, T, H]
+```
+
+### AxonLayer: AxonsCell as a general Linear replacement
+
+For any ``nn.Linear(in_features→out_features)`` site, use ``AxonLayer``. It
+sets ``hidden_size = in_features`` and ``out_dim = out_features`` internally
+and manages the Axons state automatically (either nested inside a parent
+TensorDict or locally if none is provided).
+
+```python
+from tensordict import TensorDict
+from cortex.cells.core import AxonLayer
+
+B, T, H_in, H_out = 8, 128, 256, 384
+x = torch.randn(B, T, H_in)
+resets = torch.zeros(B, T, dtype=torch.bool)
+
+layer = AxonLayer(in_features=H_in, out_features=H_out)
+
+# With parent TensorDict state
+parent_state = TensorDict({}, batch_size=[B])
+y = layer(x, state=parent_state, resets=resets)  # y: [B, T, H_out]
+
+# Or without parent state (local state is kept inside the layer)
+y2 = layer(x, state=None, resets=resets)
 ```
 
 Why it matters

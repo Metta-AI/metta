@@ -1,8 +1,8 @@
 #!/usr/bin/env -S uv run python
-"""Benchmark: PyTorch Linear vs Axons cell (same input/output dims).
+"""Benchmark: PyTorch Linear vs AxonCell (same input/output dims).
 
 This script compares a standard ``torch.nn.Linear(H, H)`` layer against the
-``cortex.cells.axons.Axons`` cell on identical inputs of shape ``[B, T, H]``.
+``cortex.cells.core.AxonCell`` on identical inputs of shape ``[B, T, H]``.
 
 What it measures
 ----------------
@@ -34,7 +34,7 @@ from typing import Callable, Dict, Iterator
 
 import torch
 import torch.nn as nn
-from cortex.cells.axons import Axons
+from cortex.cells.core import AxonCell
 from cortex.config import AxonsConfig
 
 
@@ -54,7 +54,7 @@ def _force_axon_backend(which: str) -> Iterator[None]:
 
     which: one of {auto, pytorch, triton, cuda}
     """
-    import cortex.cells.axons as cell_mod
+    import cortex.cells.core.axon_cell as cell_mod
 
     if which == "auto":
         yield
@@ -169,7 +169,7 @@ def benchmark_linear_vs_axon(
         out_dim=hidden_size,
         out_rank=axon_out_rank,
     )
-    ax = Axons(cfg).to(device=device_t, dtype=dtype)
+    ax = AxonCell(cfg).to(device=device_t, dtype=dtype)
 
     def run_axon(inp: torch.Tensor) -> torch.Tensor:
         y, _ = ax(inp, state=None, resets=resets)
@@ -257,7 +257,7 @@ def main() -> None:
         device = "cpu"
 
     print("=" * 80)
-    print("PyTorch Linear vs Axons Benchmark")
+    print("PyTorch Linear vs AxonCell Benchmark")
     print("=" * 80)
     if device == "cuda":
         print(f"Device: {torch.cuda.get_device_name(0)} | CUDA {torch.version.cuda}")

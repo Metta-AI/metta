@@ -112,6 +112,7 @@ def benchmark_rtu(
 # Streaming (diagonal, D == H)
 # -----------------------------
 
+
 def _maybe_stream_kernels():
     pt = None
     tri = None
@@ -178,7 +179,7 @@ def benchmark_rtu_stream_diag(
     trace_in = None
     resets = None
     if with_resets:
-        resets = (torch.rand(B, T, device=device_t) < reset_prob)
+        resets = torch.rand(B, T, device=device_t) < reset_prob
 
     results: dict[str, Optional[float]] = {}
 

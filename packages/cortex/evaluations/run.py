@@ -9,7 +9,7 @@ from typing import Callable, Dict, Tuple
 
 import torch
 import torch.nn as nn
-from cortex.cells.axons import Axons  # runtime type check for gating
+from cortex.cells.core import AxonCell  # runtime type check for gating
 from cortex.stacks import CortexStack
 from model import SequenceClassifier
 from stacks import STACKS, StackSpec
@@ -140,7 +140,7 @@ def train_one(
         for blk in s.blocks:
             # Adapter blocks wrap another block; in our templates we use PreUp directly
             cell = getattr(blk, "cell", None)
-            if isinstance(cell, Axons):
+            if isinstance(cell, AxonCell):
                 return True
         return False
 
@@ -166,10 +166,10 @@ def train_one(
                 bstate = None
             if bstate is None or not hasattr(bstate, "keys"):
                 continue
-            # Axons state (if present) lives under this key
-            if "Axons" in bstate.keys():
+            # AxonCell state (if present) lives under this key
+            if "AxonCell" in bstate.keys():
                 try:
-                    cstate = bstate.get("Axons")
+                    cstate = bstate.get("AxonCell")
                 except Exception:
                     cstate = None
                 if cstate is None or not hasattr(cstate, "keys"):
@@ -244,7 +244,7 @@ def train_one(
                 train
                 and AXONS_PARITY_PROBE > 0
                 and hasattr(model.stack.blocks[0], "cell")
-                and model.stack.blocks[0].cell.__class__.__name__ == "Axons"
+                and model.stack.blocks[0].cell.__class__.__name__ == "AxonsCell"
                 and total == 0  # first minibatch only to avoid overhead
                 and (EPOCH_IDX % max(AXONS_PARITY_PROBE, 1) == 0)
             ):

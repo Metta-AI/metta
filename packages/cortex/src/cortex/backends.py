@@ -32,4 +32,3 @@ def load_cuda_stream_diag() -> Optional[Callable]:
 
 
 __all__ = ["want_cuda_seq_allin", "load_cuda_stream_diag"]
-
