@@ -46,6 +46,17 @@ jobs:
         with:
           install-mode: "minimal"
 
+      - name: Install Mettascope
+        run: |
+          ./mettascope/install.sh
+
+      - name: Build mettascope2
+        run: |
+          cd packages/mettagrid/nim/mettascope
+          nimble install -y
+          nimble deps --tree
+          nim c -d:emscripten src/mettascope.nim
+
       - name: Build Observatory
         run: |
           cd observatory
@@ -67,17 +78,6 @@ jobs:
           cd mettascope
           echo "Player directory: $(pwd)"
           ls -la
-
-      - name: Install Mettascope
-        run: |
-          ./mettascope/install.sh
-
-      - name: Build mettascope2
-        run:
-          cd packages/mettagrid/nim/mettascope
-          nimble install -y
-          nimble deps --tree
-          nim c -d:emscripten src/mettascope.nim
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
