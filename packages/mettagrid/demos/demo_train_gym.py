@@ -24,7 +24,6 @@ import time
 import numpy as np
 
 # Gym adapter imports
-from mettagrid import SingleAgentMettaGridGymEnv
 from mettagrid.builder.envs import make_arena
 
 # Training framework imports
@@ -37,15 +36,19 @@ except ImportError:
     SB3_AVAILABLE = False
 
 
+# TODO: this does not actually work because MettaGridConfig is not an instance of a gymnasium environment
+def _make_env():
+    from mettagrid.envs import SingleAgentWrapper
+
+    return SingleAgentWrapper(make_arena(num_agents=1))
+
+
 def demo_single_agent_gym():
     """Demonstrate single-agent Gymnasium environment."""
     print("SINGLE-AGENT GYM DEMO")
     print("=" * 60)
 
-    env = SingleAgentMettaGridGymEnv(
-        mg_config=make_arena(num_agents=1),
-        render_mode=None,
-    )
+    env = _make_env()
 
     print("Single-agent Gym environment created")
     print(f"   - Observation space: {env.observation_space}")
@@ -84,10 +87,7 @@ def demo_sb3_training():
         return
 
     try:
-        env = SingleAgentMettaGridGymEnv(
-            mg_config=make_arena(num_agents=1),
-            render_mode=None,
-        )
+        env = _make_env()
 
         print("Created single-agent environment for SB3")
         print(f"   - Observation space: {env.observation_space}")
@@ -137,17 +137,7 @@ def demo_vectorized_envs():
         return
 
     try:
-
-        def make_mettagrid():
-            def _init():
-                return SingleAgentMettaGridGymEnv(
-                    mg_config=make_arena(num_agents=1),
-                    render_mode=None,
-                )
-
-            return _init
-
-        vec_env = DummyVecEnv([make_mettagrid() for _ in range(4)])
+        vec_env = DummyVecEnv([_make_env for _ in range(4)])
 
         print("Created 4 vectorized environments")
         print(f"   - Observation space: {vec_env.observation_space}")
