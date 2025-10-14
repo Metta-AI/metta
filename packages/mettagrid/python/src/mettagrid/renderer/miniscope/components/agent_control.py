@@ -62,6 +62,10 @@ class AgentControlComponent(MiniscopeComponent):
             elif ch in ["e", "E"]:
                 self._state.enter_glyph_picker()
                 return True
+            # Handle manual mode toggle
+            elif ch in ["m", "M"]:
+                self._state.toggle_manual_control(self._state.selected_agent)
+                return True
 
         return False
 
