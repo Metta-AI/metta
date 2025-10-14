@@ -4,7 +4,7 @@ import io
 
 import pytest
 
-from devops.job_runner import JobResult, LocalJob, RemoteJob
+from metta.jobs.runner import JobResult, LocalJob, RemoteJob
 
 
 class FakePopen:
