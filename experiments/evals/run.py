@@ -7,7 +7,7 @@ from metta.tools.eval import EvaluateRemoteJobTool
 
 # Used by eval_task_worker.py
 def eval(
-    policy_uri: str, simulations_json_base64_path: str, output_file_path: str
+    policy_uri: str, simulations_json_base64_path: str, job_result_file_path: str
 ) -> EvaluateRemoteJobTool:
     # Decode from base64 to avoid OmegaConf auto-parsing issues
     with open(simulations_json_base64_path, "rb") as f:
@@ -19,5 +19,5 @@ def eval(
     return EvaluateRemoteJobTool(
         simulations=simulations,
         policy_uri=policy_uri,
-        output_file_path=output_file_path,
+        job_result_file_path=job_result_file_path,
     )

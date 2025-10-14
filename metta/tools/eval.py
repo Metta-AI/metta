@@ -36,7 +36,7 @@ class EvaluateRemoteJobTool(RemoteJobTool):
     simulations: Sequence[SimulationConfig]  # list of simulations to run
     policy_uri: str  # policy uri to evaluate
     replay_dir: str = Field(default=f"{SOFTMAX_S3_BASE}/replays/{str(uuid.uuid4())}")
-    output_file_path: str  # path to the file where the results will be written
+    job_result_file_path: str  # path to the file where the results will be written
 
     group: str | None = None  # Separate group parameter like in train.py
 
