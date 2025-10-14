@@ -21,14 +21,11 @@ if defined(emscripten):
   --exceptions:goto
   --define:noSignalHandler
   --debugger:native
-  --define:release
-  --define:noAutoGLerrorCheck
 
   # Delete dist directory if it exists
   if dirExists("dist"):
     rmDir("dist")
   mkDir("dist")
-
 
   switch(
     "passL",
