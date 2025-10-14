@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("MettaGridEnv")
 
-RenderMode = Literal["gui", "unicode", "text", "none"]
+RenderMode = Literal["gui", "unicode", "none"]
 
 
 class MettaGridEnv(MettaGridPufferBase):
