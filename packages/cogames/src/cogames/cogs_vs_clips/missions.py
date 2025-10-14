@@ -394,7 +394,12 @@ USER_MAP_CATALOG: tuple[UserMap, ...] = (
     ),
     SiteUserMap(
         name="vanilla",
-        site="vanilla_200.map",
+        site="vanilla_small.map",
+        mission_args={"default": {"easy": True}},
+    ),
+    SiteUserMap(
+        name="vanilla_large",
+        site="vanilla_large.map",
         mission_args={"default": {"easy": True}},
     ),
     RandomUserMap(
