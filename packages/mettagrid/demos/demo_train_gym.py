@@ -24,7 +24,7 @@ import time
 import numpy as np
 
 # Gym adapter imports
-from mettagrid import MettaGridGymEnv
+from mettagrid import SingleAgentMettaGridGymEnv
 from mettagrid.builder.envs import make_arena
 
 # Training framework imports
@@ -42,7 +42,7 @@ def demo_single_agent_gym():
     print("SINGLE-AGENT GYM DEMO")
     print("=" * 60)
 
-    env = MettaGridGymEnv(
+    env = SingleAgentMettaGridGymEnv(
         mg_config=make_arena(num_agents=1),
         render_mode=None,
     )
@@ -84,7 +84,7 @@ def demo_sb3_training():
         return
 
     try:
-        env = MettaGridGymEnv(
+        env = SingleAgentMettaGridGymEnv(
             mg_config=make_arena(num_agents=1),
             render_mode=None,
         )
@@ -140,7 +140,7 @@ def demo_vectorized_envs():
 
         def make_mettagrid():
             def _init():
-                return MettaGridGymEnv(
+                return SingleAgentMettaGridGymEnv(
                     mg_config=make_arena(num_agents=1),
                     render_mode=None,
                 )
