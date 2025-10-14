@@ -221,6 +221,26 @@ export async function createMentionNotifications(
           mentionText: mention.originalMention,
         });
       }
+    } else if (mention.type === "institution") {
+      // Institution mention
+      const institutionTitle =
+        contentType === "post"
+          ? `${actorName} mentioned ${mention.institutionName} in a post`
+          : `${actorName} mentioned ${mention.institutionName} in a comment`;
+
+      for (const userId of mention.userIds) {
+        notifications.push({
+          userId,
+          type: "MENTION",
+          title: institutionTitle,
+          message: `Your institution was mentioned: "${mention.originalMention}"`,
+          actionUrl,
+          actorId,
+          postId: contentType === "post" ? contentId : undefined,
+          commentId: contentType === "comment" ? contentId : undefined,
+          mentionText: mention.originalMention,
+        });
+      }
     } else if (mention.type === "group") {
       // Group mention
       const groupInfo = mention.institutionName
