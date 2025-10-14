@@ -64,6 +64,12 @@ def describe_policy_arg(with_proportion: bool):
     console.print("\n" + "\n".join([f"  - {part}" for part in subcommand_parts]) + "\n")
 
 
+def _translate_error(e: Exception) -> str:
+    if isinstance(e, ModuleNotFoundError):
+        return "Could not find policy class"
+    return str(e).replace("Invalid symbol name", "Could not find policy class")
+
+
 def get_policy_spec(ctx: typer.Context, policy_arg: Optional[str]) -> PolicySpec:
     if policy_arg is None:
         console.print(ctx.get_help())
@@ -71,8 +77,8 @@ def get_policy_spec(ctx: typer.Context, policy_arg: Optional[str]) -> PolicySpec
     else:
         try:
             return _parse_policy_spec(spec=policy_arg)  # type: ignore
-        except ValueError as e:
-            translated = str(e).replace("Invalid symbol name", "Could not find policy class")
+        except (ValueError, ModuleNotFoundError) as e:
+            translated = _translate_error(e)
             console.print(f"[yellow]Error parsing policy argument: {translated}[/yellow]\n")
 
     list_checkpoints()
@@ -92,8 +98,8 @@ def get_policy_specs(ctx: typer.Context, policy_args: Optional[list[str]]) -> li
     else:
         try:
             return [_parse_policy_spec(spec=policy_arg) for policy_arg in policy_args]
-        except ValueError as e:
-            translated = str(e).replace("Invalid symbol name", "Could not find policy class")
+        except (ValueError, ModuleNotFoundError) as e:
+            translated = _translate_error(e)
             console.print(f"[yellow]Error parsing policy argument: {translated}[/yellow]")
             console.print()
 
