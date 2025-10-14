@@ -50,6 +50,9 @@ jobs:
         run: |
           ./mettascope/install.sh
 
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+
       - name: Build mettascope2
         run: |
           cd packages/mettagrid/nim/mettascope
