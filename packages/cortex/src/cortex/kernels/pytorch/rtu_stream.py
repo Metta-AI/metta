@@ -21,10 +21,10 @@ from typing import Optional, Tuple
 import torch
 from torch.autograd import Function
 
-
 # ------------------------------------------------------------
 # Diagonal input-map streaming RTU (new, lightweight variant)
 # ------------------------------------------------------------
+
 
 # ---- Activation + derivative (SiLU, ReLU, Tanh, Identity) ----
 def _act_and_deriv(z: torch.Tensor, activation: str) -> tuple[torch.Tensor, torch.Tensor]:

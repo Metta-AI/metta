@@ -5,7 +5,7 @@ Exports selected kernels implemented in Triton for convenient access.
 
 from __future__ import annotations
 
-from .rtu import  rtu_stream_diag_triton
+from .rtu import rtu_stream_diag_triton
 
 __all__ = [
     "rtu_stream_diag_triton",
