@@ -42,6 +42,14 @@ protected:
     return true;
   }
 
+  std::string variant_name(ActionArg arg) const override {
+    Orientation orientation = static_cast<Orientation>(arg);
+    if (!_game_config->allow_diagonals && isDiagonal(orientation)) {
+      return ActionHandler::variant_name(arg);
+    }
+    return std::string(action_name()) + "_" + OrientationFullNames[static_cast<size_t>(orientation)];
+  }
+
 private:
   const GameConfig* _game_config;
 };

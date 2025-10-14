@@ -285,6 +285,70 @@ void MettaGrid::init_action_handlers() {
       _max_action_arg = _max_action_args[i];
     }
   }
+
+  build_flat_action_catalog();
+}
+
+void MettaGrid::build_flat_action_catalog() {
+  _flat_action_map.clear();
+  _flat_action_names.clear();
+  _action_arg_to_flat.clear();
+
+  size_t total_variants = 0;
+  for (unsigned char max_arg : _max_action_args) {
+    total_variants += static_cast<size_t>(max_arg) + 1;
+  }
+
+  _flat_action_map.reserve(total_variants);
+  _flat_action_names.reserve(total_variants);
+  _action_arg_to_flat.resize(_action_handlers.size());
+
+  std::unordered_set<std::string> seen_names;
+  seen_names.reserve(total_variants);
+
+  for (size_t handler_index = 0; handler_index < _action_handlers.size(); ++handler_index) {
+    auto& handler = _action_handlers[handler_index];
+    unsigned char max_arg = _max_action_args[handler_index];
+    auto& arg_map = _action_arg_to_flat[handler_index];
+    arg_map.assign(static_cast<size_t>(max_arg) + 1, -1);
+
+    const int max_arg_int = static_cast<int>(max_arg);
+    for (int raw_arg = 0; raw_arg <= max_arg_int; ++raw_arg) {
+      const ActionArg arg = static_cast<ActionArg>(raw_arg);
+
+      std::string base_name = handler->variant_name(arg);
+      if (base_name.empty()) {
+        base_name = handler->action_name();
+      }
+
+      std::string variant = base_name;
+      int suffix = 1;
+      while (!seen_names.insert(variant).second) {
+        variant = base_name + "_" + std::to_string(suffix++);
+      }
+
+      const auto flat_index = static_cast<int>(_flat_action_map.size());
+      _flat_action_map.emplace_back(static_cast<ActionType>(handler_index), arg);
+      _flat_action_names.emplace_back(std::move(variant));
+      arg_map[static_cast<size_t>(arg)] = flat_index;
+    }
+  }
+}
+
+int MettaGrid::flat_action_index(ActionType action, ActionArg arg) const {
+  if (action < 0) {
+    return -1;
+  }
+  size_t action_idx = static_cast<size_t>(action);
+  if (action_idx >= _action_arg_to_flat.size()) {
+    return -1;
+  }
+  size_t arg_idx = static_cast<size_t>(arg);
+  const auto& mapping = _action_arg_to_flat[action_idx];
+  if (arg_idx >= mapping.size()) {
+    return -1;
+  }
+  return mapping[arg_idx];
 }
 
 void MettaGrid::add_agent(Agent* agent) {
@@ -325,6 +389,7 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
 
   // Build global tokens based on configuration
   std::vector<PartialObservationToken> global_tokens;
+  int flat_action = flat_action_index(action, action_arg);
 
   if (_global_obs_config.episode_completion_pct) {
     ObservationType episode_completion_pct = 0;
@@ -337,7 +402,8 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   }
 
   if (_global_obs_config.last_action) {
-    global_tokens.push_back({ObservationFeature::LastAction, static_cast<ObservationType>(action)});
+    ObservationType action_value = static_cast<ObservationType>(std::max(0, flat_action));
+    global_tokens.push_back({ObservationFeature::LastAction, action_value});
     global_tokens.push_back({ObservationFeature::LastActionArg, static_cast<ObservationType>(action_arg)});
   }
 
@@ -651,7 +717,56 @@ void MettaGrid::set_buffers(const py::array_t<uint8_t, py::array::c_style>& obse
 }
 
 py::tuple MettaGrid::step(const py::array_t<ActionType, py::array::c_style> actions) {
-  _step(actions);
+  auto info = actions.request();
+  py::array_t<ActionType, py::array::c_style> converted;
+
+  auto assign_flat = [&](auto& view, size_t agent_idx, ActionType flat_index) {
+    if (flat_index < 0 || static_cast<size_t>(flat_index) >= _flat_action_map.size()) {
+      view(agent_idx, 0) = -1;
+      view(agent_idx, 1) = 0;
+      return;
+    }
+    const auto& mapping = _flat_action_map[static_cast<size_t>(flat_index)];
+    view(agent_idx, 0) = mapping.first;
+    view(agent_idx, 1) = mapping.second;
+  };
+
+  if (info.ndim == 1) {
+    if (info.shape[0] != static_cast<ssize_t>(_agents.size())) {
+      throw std::runtime_error("actions has the wrong shape");
+    }
+    auto view = actions.unchecked<1>();
+    converted = py::array_t<ActionType, py::array::c_style>(
+        py::array::ShapeContainer{static_cast<ssize_t>(_agents.size()), static_cast<ssize_t>(2)});
+    auto converted_view = converted.mutable_unchecked<2>();
+    for (size_t agent_idx = 0; agent_idx < _agents.size(); ++agent_idx) {
+      auto flat_index = view(agent_idx);
+      assign_flat(converted_view, agent_idx, flat_index);
+    }
+    _step(converted);
+  } else if (info.ndim == 2) {
+    if (info.shape[0] != static_cast<ssize_t>(_agents.size())) {
+      throw std::runtime_error("actions has the wrong shape");
+    }
+
+    if (info.shape[1] == 1) {
+      auto view = actions.unchecked<2>();
+      converted = py::array_t<ActionType, py::array::c_style>(
+          py::array::ShapeContainer{static_cast<ssize_t>(_agents.size()), static_cast<ssize_t>(2)});
+      auto converted_view = converted.mutable_unchecked<2>();
+      for (size_t agent_idx = 0; agent_idx < _agents.size(); ++agent_idx) {
+        auto flat_index = view(agent_idx, 0);
+        assign_flat(converted_view, agent_idx, flat_index);
+      }
+      _step(converted);
+    } else if (info.shape[1] == 2) {
+      _step(actions);
+    } else {
+      throw std::runtime_error("actions has the wrong shape");
+    }
+  } else {
+    throw std::runtime_error("actions has the wrong shape");
+  }
 
   auto rewards_view = _rewards.mutable_unchecked<1>();
 
@@ -876,8 +991,8 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
 
 py::list MettaGrid::action_names() {
   py::list names;
-  for (const auto& handler : _action_handlers) {
-    names.append(handler->action_name());
+  for (const auto& name : _flat_action_names) {
+    names.append(py::str(name));
   }
   return names;
 }
@@ -947,10 +1062,7 @@ py::object MettaGrid::action_space() {
   auto gym = py::module_::import("gymnasium");
   auto spaces = gym.attr("spaces");
 
-  size_t number_of_actions = py::len(action_names());
-  size_t number_of_action_args = _max_action_arg + 1;
-  return spaces.attr("MultiDiscrete")(py::make_tuple(number_of_actions, number_of_action_args),
-                                      py::arg("dtype") = dtype_actions());
+  return spaces.attr("Discrete")(py::int_(_flat_action_map.size()));
 }
 
 py::object MettaGrid::observation_space() {
@@ -981,6 +1093,21 @@ py::list MettaGrid::max_action_args() {
   return py::cast(_max_action_args);
 }
 
+py::list MettaGrid::action_catalog() {
+  py::list catalog;
+  for (size_t idx = 0; idx < _flat_action_map.size(); ++idx) {
+    const auto& mapping = _flat_action_map[idx];
+    py::dict entry;
+    entry["flat_index"] = py::int_(idx);
+    entry["action_id"] = py::int_(mapping.first);
+    entry["param"] = py::int_(mapping.second);
+    entry["base_name"] = py::str(_action_handlers[static_cast<size_t>(mapping.first)]->action_name());
+    entry["variant_name"] = py::str(_flat_action_names[idx]);
+    catalog.append(std::move(entry));
+  }
+  return catalog;
+}
+
 py::list MettaGrid::object_type_names_py() {
   return py::cast(object_type_names);
 }
@@ -989,7 +1116,8 @@ py::list MettaGrid::resource_names_py() {
   return py::cast(resource_names);
 }
 
-py::none MettaGrid::set_inventory(GridObjectId agent_id, const std::map<InventoryItem, InventoryQuantity>& inventory) {
+py::none MettaGrid::set_inventory(GridObjectId agent_id,
+                                  const std::unordered_map<InventoryItem, InventoryQuantity>& inventory) {
   if (agent_id < num_agents()) {
     this->_agents[agent_id]->set_inventory(inventory);
   }
@@ -1033,6 +1161,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_property_readonly("observation_space", &MettaGrid::observation_space)
       .def("action_success", &MettaGrid::action_success_py)
       .def("max_action_args", &MettaGrid::max_action_args)
+      .def("action_catalog", &MettaGrid::action_catalog)
       .def("object_type_names", &MettaGrid::object_type_names_py)
       .def("feature_spec", &MettaGrid::feature_spec)
       .def_readonly("obs_width", &MettaGrid::obs_width)

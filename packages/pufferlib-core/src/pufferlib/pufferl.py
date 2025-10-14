@@ -1,15 +1,29 @@
 # TODO: Add information
 # - Help menu
 # - Docs link
-# python -m torch.distributed.run --standalone --nnodes=1 --nproc-per-node=1 clean_pufferl.py --env puffer_nmmo3 --mode train
+# python -m torch.distributed.run --standalone --nnodes=1 --nproc-per-node=1 clean_pufferl.py --env puffer_nmmo3 --mode train  # noqa: E501
 # torchrun --standalone --nnodes=1 --nproc-per-node=6 -m pufferlib.pufferl train puffer_nmmo3
 import warnings
-
-from torch.distributed.elastic.multiprocessing.errors import record
 
 warnings.filterwarnings("error", category=RuntimeWarning)
 
 
+def record(fn):
+    """Lazy import wrapper for torch.distributed.elastic.multiprocessing.errors.record.
+
+    This is defined before other imports to avoid triggering torch.distributed import on macOS,
+    which causes a warning about unsupported redirects.
+    """
+    try:
+        from torch.distributed.elastic.multiprocessing.errors import record as _record
+
+        return _record(fn)
+    except ImportError:
+        return fn
+
+
+# ruff: noqa: E402
+# Imports below are intentionally after the record function definition to avoid torch.distributed warnings
 import argparse
 import ast
 import configparser
@@ -469,7 +483,10 @@ class PuffeRL:
         y_pred = self.values.flatten()
         y_true = advantages.flatten() + self.values.flatten()
         var_y = y_true.var()
-        explained_var = torch.nan if var_y == 0 else 1 - (y_true - y_pred).var() / var_y
+        if var_y == 0:
+            explained_var = torch.tensor(float("nan"), device=y_true.device, dtype=var_y.dtype)
+        else:
+            explained_var = 1 - (y_true - y_pred).var() / var_y
         losses["explained_variance"] = explained_var.item()
 
         profile.end()

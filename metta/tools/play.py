@@ -12,6 +12,8 @@ from metta.common.wandb.context import WandbConfig
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_wandb_config
+from mettagrid import dtype_actions
+from mettagrid.util.action_catalog import build_action_mapping, make_decode_fn, make_encode_fn
 from mettagrid.util.grid_object_formatter import format_grid_object
 
 logger = logging.getLogger(__name__)
@@ -52,8 +54,12 @@ class PlayTool(Tool):
             env = sim.get_env()
             initial_replay = sim.get_replay()
 
+            flat_mapping, _ = build_action_mapping(env)
+            decode_flat_action = make_decode_fn(flat_mapping)
+            encode_flat_action = make_encode_fn(flat_mapping)
+
             current_step = 0
-            actions = np.zeros((env.num_agents, 2))
+            actions = np.zeros(env.num_agents, dtype=dtype_actions)
             total_rewards = np.zeros(env.num_agents)
 
             response = mettascope2.init(replay=json.dumps(initial_replay))
@@ -71,7 +77,12 @@ class PlayTool(Tool):
                         total_rewards[agent_id] += env.rewards[agent_id]
 
                     update_object = format_grid_object(
-                        grid_object, actions, env.action_success, env.rewards, total_rewards
+                        grid_object,
+                        actions,
+                        env.action_success,
+                        env.rewards,
+                        total_rewards,
+                        decode_flat_action=decode_flat_action,
                     )
 
                     grid_objects[i] = update_object
@@ -85,13 +96,22 @@ class PlayTool(Tool):
                 if response.should_close:
                     break
 
-                actions = sim.generate_actions()
+                actions = np.asarray(sim.generate_actions(), dtype=dtype_actions)
                 # Just do random actions for now.
-                actions[:, 0] = np.random.randint(0, 5, size=len(actions))  # Random action types
-                actions[:, 1] = np.random.randint(0, 4, size=len(actions))  # Random action args
+                random_actions = np.random.randint(0, env.action_space.n, size=len(actions))
+                actions[:] = random_actions.astype(dtype_actions, copy=False)
                 for action in response.actions:
-                    actions[action.agent_id, 0] = action.action_id
-                    actions[action.agent_id, 1] = action.argument
+                    agent_id = action.agent_id
+                    action_id = getattr(action, "action_id", None)
+                    if action_id is None:
+                        continue
+                    action_param = getattr(action, "argument", None)
+                    if action_param is None:
+                        action_param = getattr(action, "action_param", None)
+                    if action_param is None:
+                        action_param = getattr(action, "param", 0)
+                    flat_index = encode_flat_action(int(action_id), int(action_param))
+                    actions[agent_id] = flat_index
 
                 sim.step_simulation(actions)
                 current_step += 1

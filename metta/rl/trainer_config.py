@@ -8,7 +8,7 @@ from mettagrid.base_config import Config
 
 
 class OptimizerConfig(Config):
-    type: Literal["adam", "muon"] = "adam"
+    type: Literal["adam", "muon", "adamw_schedulefree"] = "adamw_schedulefree"
     # Learning rate: Type 2 default chosen by sweep
     learning_rate: float = Field(default=0.001153637, gt=0, le=1.0)
     # Beta1: Standard Adam default from Kingma & Ba (2014) "Adam: A Method for Stochastic Optimization"
@@ -19,6 +19,9 @@ class OptimizerConfig(Config):
     eps: float = Field(default=3.186531e-07, gt=0)
     # Weight decay: Disabled by default, common practice for RL to avoid over-regularization
     weight_decay: float = Field(default=0, ge=0)
+    # ScheduleFree-specific parameters
+    momentum: float = Field(default=0.9, ge=0, le=1.0)  # Beta parameter for ScheduleFree
+    warmup_steps: int = Field(default=0, ge=0)  # Number of warmup steps for ScheduleFree
 
 
 class InitialPolicyConfig(Config):
