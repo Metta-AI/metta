@@ -5,7 +5,7 @@ on:
       - main
     paths:
       - "mettascope/**"
-      - "mettascope2/**"
+      - "packages/mettagrid/nim/mettascope/**"
       - "observatory/**"
       - ".github/workflows/**"
   workflow_dispatch: {}
@@ -46,10 +46,6 @@ jobs:
         with:
           install-mode: "minimal"
 
-      - name: Install Mettascope
-        run: |
-          ./mettascope/install.sh
-
       - name: Build Observatory
         run: |
           cd observatory
@@ -72,15 +68,16 @@ jobs:
           echo "Player directory: $(pwd)"
           ls -la
 
-      - name: Generate Atlas
+      - name: Install Mettascope
         run: |
-          cd mettascope
-          uv run tools/gen_atlas.py
+          ./mettascope/install.sh
 
       - name: Build mettascope2
-        uses: ./.github/actions/build-mettascope2
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+        run:
+          cd packages/mettagrid/nim/mettascope
+          nimble install -y
+          nimble deps --tree
+          nim c -d:emscripten src/mettascope.nim
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
@@ -91,7 +88,7 @@ jobs:
           mkdir -p deploy/mettascope2
           cp -r mettascope/* deploy/
           cp -r observatory/dist/* deploy/observatory/
-          cp -r mettascope2/dist/* deploy/mettascope2/
+          cp -r packages/mettagrid/nim/mettascope/dist/* deploy/mettascope2/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
