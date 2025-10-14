@@ -1,5 +1,5 @@
 import std/[os, strutils, parseopt, json],
-  boxy, windy, windy/http, vmath, fidget2, fidget2/hybridrender,
+  boxy, windy, vmath, fidget2, fidget2/hybridrender, webby,
   mettascope/[replays, common, panels, utils, timeline,
   worldmap, minimap, agenttraces, footer, objectinfo, envconfig]
 
@@ -36,6 +36,11 @@ proc parseArgs() =
         quit("Unknown option: " & p.key)
     of cmdArgument:
       quit("Unknown option: " & p.key)
+
+proc parseUrlParams() =
+  ## Parse URL parameters.
+  let url = parseUrl(window.url)
+  commandLineReplay = url.query["replay"]
 
 find "/UI/Main":
 
@@ -168,9 +173,12 @@ when isMainModule:
     echo "Please run it from the root of the project."
     quit(1)
 
-  parseArgs()
+  when defined(emscripten):
+    parseUrlParams()
+  else:
+    parseArgs()
 
-  initFidget(
+  startFidget(
     figmaUrl = "https://www.figma.com/design/hHmLTy7slXTOej6opPqWpz/MetaScope-V2-Rig",
     windowTitle = "MetaScope V2",
     entryFrame = "UI/Main",
@@ -178,12 +186,6 @@ when isMainModule:
     dataDir = dataDir
   )
 
-  when defined(emscripten):
-    # Emscripten can't block so it will call this callback instead.
-    window.run(mainLoop)
-  else:
-    # When running native code we can block in an infinite loop.
-    while not window.closeRequested:
-      mainLoop()
-    # Destroy the window.
-    window.close()
+  while isRunning():
+    tickFidget()
+  closeFidget()
