@@ -24,33 +24,15 @@ class AgentControlComponent(MiniscopeComponent):
         """Initialize the agent control component."""
         super().__init__(env=env, state=state, panels=panels)
         self._set_panel(panels.footer)
-        self._action_lookup: Dict[str, int] = {name: idx for idx, name in enumerate(self._env.action_names)}
-        self._noop_action_id: Optional[int] = self._action_lookup.get("noop")
-        self._move_action_lookup: Dict[int, Optional[int]] = {
-            0: self._action_lookup.get("move_north"),
-            1: self._action_lookup.get("move_south"),
-            2: self._action_lookup.get("move_west"),
-            3: self._action_lookup.get("move_east"),
+
+        action_lookup: Dict[str, int] = {name: idx for idx, name in enumerate(self._env.action_names)}
+        self._move_action_lookup: Dict[str, Optional[int]] = {
+            "W": action_lookup.get("move_north"),
+            "A": action_lookup.get("move_west"),
+            "S": action_lookup.get("move_south"),
+            "D": action_lookup.get("move_east"),
+            "R": action_lookup.get("noop"),
         }
-
-    def _set_move_action(self, orientation_idx: int) -> None:
-        """Set a movement action for the selected agent."""
-        move_action_id = self._move_action_lookup.get(orientation_idx)
-        if move_action_id is not None:
-            self._state.user_action = (move_action_id, 0)
-        else:
-            # Fall back to legacy verb/argument pairs if the flattened action is unavailable.
-            self._state.user_action = (-1, orientation_idx)
-        self._state.should_step = True
-
-    def _set_rest_action(self) -> None:
-        """Set a rest/no-op action for the selected agent."""
-        if self._noop_action_id is not None:
-            self._state.user_action = (self._noop_action_id, 0)
-        else:
-            # Default to noop when explicit action name is missing.
-            self._state.user_action = (-1, -1)
-        self._state.should_step = True
 
     def handle_input(self, ch: str) -> bool:
         """Handle agent control inputs.
@@ -61,8 +43,6 @@ class AgentControlComponent(MiniscopeComponent):
         Returns:
             True if the input was handled
         """
-        ch_lower = ch.lower()
-        # Handle agent selection
         if ch == "[":
             self._state.select_previous_agent(self._env.num_agents)
             return True
@@ -71,31 +51,16 @@ class AgentControlComponent(MiniscopeComponent):
             return True
 
         # Handle manual mode toggle
-        elif ch in ["m", "M"] and self._state.selected_agent is not None:
-            self._state.toggle_manual_control(self._state.selected_agent)
-            return True
-
-        # Handle agent movement commands (only when an agent is selected)
-        elif ch_lower == "w" and self._state.selected_agent is not None:
-            self._set_move_action(0)  # NORTH
-            return True
-        elif ch_lower == "s" and self._state.selected_agent is not None:
-            self._set_move_action(1)  # SOUTH
-            return True
-        elif ch_lower == "a" and self._state.selected_agent is not None:
-            self._set_move_action(2)  # WEST
-            return True
-        elif ch_lower == "d" and self._state.selected_agent is not None:
-            self._set_move_action(3)  # EAST
-            return True
-        elif ch_lower == "r" and self._state.selected_agent is not None:
-            self._set_rest_action()
-            return True
-
-        # Handle glyph picker
-        elif ch in ["e", "E"] and self._state.selected_agent is not None:
-            self._state.enter_glyph_picker()
-            return True
+        elif self._state.selected_agent is not None:
+            # Handle movement actions
+            if (action_id := self._move_action_lookup.get(ch.upper())) is not None:
+                self._state.user_action = (action_id, 0)
+                self._state.should_step = True
+                return True
+            # Handle glyph picker
+            elif ch in ["e", "E"]:
+                self._state.enter_glyph_picker()
+                return True
 
         return False
 
