@@ -58,6 +58,7 @@ jobs:
           cd packages/mettagrid/nim/mettascope
           nimble install -y
           nimble deps --tree
+          cd ../../../..
           nim c -d:emscripten src/mettascope.nim
 
       - name: Build Observatory
