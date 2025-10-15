@@ -58,15 +58,15 @@ _LAZY_ATTRS: Dict[str, Tuple[str, str]] = {
         "MettaGridBenchMARLEnv",
     ),
     "MettaGridTask": ("mettagrid.envs.benchmarl_env", "MettaGridTask"),
-    # Gymnasium adapter
-    "MettaGridGymEnv": ("mettagrid.envs.gym_env", "MettaGridGymEnv"),
+    # Gymnasium single-agent wrapper
+    "SingleAgentWrapper": ("mettagrid.envs.gym_wrapper", "SingleAgentWrapper"),
 }
 
 if TYPE_CHECKING:
     from mettagrid.config.mettagrid_config import MettaGridConfig
     from mettagrid.core import MettaGridAction, MettaGridCore, MettaGridObservation
     from mettagrid.envs.benchmarl_env import MettaGridBenchMARLEnv, MettaGridTask
-    from mettagrid.envs.gym_env import MettaGridGymEnv
+    from mettagrid.envs.gym_wrapper import SingleAgentWrapper
     from mettagrid.envs.mettagrid_env import MettaGridEnv, RenderMode
     from mettagrid.envs.pettingzoo_env import MettaGridPettingZooEnv
     from mettagrid.map_builder.map_builder import GameMap
@@ -102,7 +102,7 @@ __all__ = [
     "MettaGridPettingZooEnv",
     "MettaGridBenchMARLEnv",
     "MettaGridTask",
-    "MettaGridGymEnv",
+    "SingleAgentWrapper",
     # Data types (from C++)
     "dtype_actions",
     "dtype_observations",
