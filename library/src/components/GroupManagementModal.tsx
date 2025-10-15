@@ -77,7 +77,9 @@ export const GroupManagementModal: FC<GroupManagementModalProps> = ({
   group,
   currentUserRole,
 }) => {
-  const [activeTab, setActiveTab] = useState<"members" | "add" | "settings">("members");
+  const [activeTab, setActiveTab] = useState<"members" | "add" | "settings">(
+    "members"
+  );
   const [localMembers, setLocalMembers] = useState<GroupMember[]>(
     group.members || []
   );
@@ -227,7 +229,7 @@ export const GroupManagementModal: FC<GroupManagementModalProps> = ({
                 form.reset(defaultAddGroupValues);
                 onClose();
               }}
-              className="rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+              className="cursor-pointer rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
             >
               <X className="h-5 w-5" />
             </button>

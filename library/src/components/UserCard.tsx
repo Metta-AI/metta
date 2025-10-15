@@ -83,7 +83,7 @@ export default function UserCard({
             </div>
             <button
               onClick={onClose}
-              className="flex-shrink-0 rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+              className="cursor-pointer flex-shrink-0 rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
             >
               <svg
                 className="h-5 w-5"
