@@ -17,6 +17,7 @@ from metta.eval.eval_service import evaluate_policy
 from metta.rl import stats as rl_stats
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation_config import SimulationConfig
+from metta.tools.remote_job import JobResult, RemoteJobTool
 from metta.tools.utils.auto_config import auto_wandb_config
 from metta.utils.uri import ParsedURI
 
@@ -28,6 +29,56 @@ def _determine_run_name(policy_uri: str) -> str:
     if parsed.scheme == "file" and parsed.local_path is not None:
         return f"eval_{parsed.local_path.stem}"
     return f"eval_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+
+class EvaluateRemoteJobTool(RemoteJobTool):
+    # required params:
+    simulations: Sequence[SimulationConfig]  # list of simulations to run
+    policy_uri: str  # policy uri to evaluate
+    replay_dir: str = Field(default=f"{SOFTMAX_S3_BASE}/replays/{str(uuid.uuid4())}")
+    job_result_file_path: str  # path to the file where the results will be written
+
+    group: str | None = None  # Separate group parameter like in train.py
+
+    stats_server_uri: str | None = None  # If set, send stats to this http server
+    eval_task_id: str | None = None
+    push_metrics_to_wandb: bool = False
+
+    def run_job(self) -> JobResult:
+        eval_tool = EvaluateTool(
+            simulations=self.simulations,
+            policy_uris=[self.policy_uri],
+            replay_dir=self.replay_dir,
+            group=self.group,
+            stats_server_uri=self.stats_server_uri,
+            eval_task_id=self.eval_task_id,
+            push_metrics_to_wandb=self.push_metrics_to_wandb,
+        )
+
+        try:
+            normalized_uri = CheckpointManager.normalize_uri(self.policy_uri)
+
+            stats_client: StatsClient | None = None
+            if self.stats_server_uri is not None:
+                stats_client = HttpStatsClient.create(self.stats_server_uri)
+
+            device = torch.device(self.system.device)
+
+            eval_results = eval_tool.eval_policy(
+                normalized_uri=normalized_uri, device=device, stats_client=stats_client
+            )
+            if len(eval_results.scores.simulation_scores) == 0:
+                return JobResult(result="failure", error="No simulations were run")
+            elif len(eval_results.scores.simulation_scores) != len(self.simulations):
+                # Find missing simulations
+                missing_simulations = [
+                    sim for sim in self.simulations if sim.full_name not in eval_results.scores.simulation_scores
+                ]
+                return JobResult(result="success", warnings=[f"Failed to run simulations: {missing_simulations}"])
+
+            return JobResult(result="success")
+        except Exception as e:
+            return JobResult(result="failure", error=str(e))
 
 
 class EvaluateTool(Tool):
@@ -106,6 +157,39 @@ class EvaluateTool(Tool):
                 except Exception as e2:
                     logger.error("Fallback WandB logging failed: %s", e2)
 
+    def eval_policy(self, normalized_uri: str, device: torch.device, stats_client: StatsClient | None) -> EvalResults:
+        # Verify the checkpoint exists
+        try:
+            agent = CheckpointManager.load_from_uri(normalized_uri, device="cpu")
+            metadata = CheckpointManager.get_policy_metadata(normalized_uri)
+            del agent
+        except Exception as e:
+            logger.warning(f"Failed to load policy from {normalized_uri}: {e}")
+            raise
+
+        eval_run_name = _determine_run_name(normalized_uri)
+
+        # Get eval_task_id from config if provided
+        eval_task_id = None
+        if self.eval_task_id:
+            eval_task_id = uuid.UUID(self.eval_task_id)
+
+        eval_results = evaluate_policy(
+            checkpoint_uri=normalized_uri,
+            simulations=list(self.simulations),
+            stats_dir=self.stats_dir,
+            replay_dir=f"{self.replay_dir}/{eval_run_name}/{metadata.get('run_name', 'unknown')}",
+            device=device,
+            vectorization=self.system.vectorization,
+            export_stats_db_uri=self.stats_db_uri,
+            stats_client=stats_client,
+            eval_task_id=eval_task_id,
+        )
+
+        self._log_to_wandb(normalized_uri, eval_results, stats_client)
+
+        return eval_results
+
     def invoke(self, args: dict[str, str]) -> int | None:
         if self.policy_uris is None:
             raise ValueError("policy_uris is required")
@@ -128,11 +212,6 @@ class EvaluateTool(Tool):
         all_results = {"simulations": [sim.full_name for sim in self.simulations], "policies": []}
         device = torch.device(self.system.device)
 
-        # Get eval_task_id from config if provided
-        eval_task_id = None
-        if self.eval_task_id:
-            eval_task_id = uuid.UUID(self.eval_task_id)
-
         for policy_uri in self.policy_uris:
             normalized_uri = CheckpointManager.normalize_uri(policy_uri)
 
@@ -147,21 +226,8 @@ class EvaluateTool(Tool):
 
             eval_run_name = _determine_run_name(normalized_uri)
             results = {"policy_uri": normalized_uri, "checkpoints": []}
-
-            eval_results = evaluate_policy(
-                checkpoint_uri=normalized_uri,
-                simulations=list(self.simulations),
-                stats_dir=self.stats_dir,
-                replay_dir=f"{self.replay_dir}/{eval_run_name}/{metadata.get('run_name', 'unknown')}",
-                device=device,
-                vectorization=self.system.vectorization,
-                export_stats_db_uri=self.stats_db_uri,
-                stats_client=stats_client,
-                eval_task_id=eval_task_id,
-            )
-
-            self._log_to_wandb(normalized_uri, eval_results, stats_client)
-
+            eval_results = self.eval_policy(normalized_uri, device, stats_client)
+            metadata = CheckpointManager.get_policy_metadata(normalized_uri)
             results["checkpoints"].append(
                 {
                     "name": metadata.get("run_name", "unknown"),

@@ -161,7 +161,10 @@ class AssemblerConfig(GridObjectConfig):
     """Python assembler configuration."""
 
     type: Literal["assembler"] = Field(default="assembler")
-    recipes: list[tuple[list[Position], RecipeConfig]] = Field(default_factory=list)
+    recipes: list[tuple[list[Position], RecipeConfig]] = Field(
+        default_factory=list,
+        description="Recipes in reverse order of priority.",
+    )
     allow_partial_usage: bool = Field(
         default=False,
         description=(
@@ -183,6 +186,7 @@ class AssemblerConfig(GridObjectConfig):
     start_clipped: bool = Field(
         default=False, description="If true, this assembler starts in a clipped state at the beginning of the game"
     )
+    fully_overlapping_recipes_allowed: bool = Field(default=False, description="Allow recipes to fully overlap")
 
 
 class ChestConfig(GridObjectConfig):

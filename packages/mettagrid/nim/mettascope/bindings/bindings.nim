@@ -20,7 +20,6 @@ proc ctrlCHandler() {.noconv.} =
     window.close()
   quit(0)
 
-
 proc init(dataDir: string, replay: string): RenderResponse =
   try:
     setControlCHook(ctrlCHandler)
@@ -28,7 +27,7 @@ proc init(dataDir: string, replay: string): RenderResponse =
     #echo "Replay from python: ", replay
     echo "Data dir: ", dataDir
     playMode = Realtime
-    initFidget(
+    startFidget(
       figmaUrl = "https://www.figma.com/design/hHmLTy7slXTOej6opPqWpz/MetaScope-V2-Rig",
       windowTitle = "MetaScope V2",
       entryFrame = "UI/Main",
@@ -61,7 +60,7 @@ proc render(currentStep: int, replayStep: string): RenderResponse =
         window.close()
         result.shouldClose = true
         return
-      mainLoop()
+      tickFidget()
       if requestPython:
         onRequestPython()
         for action in requestActions:
