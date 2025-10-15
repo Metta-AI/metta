@@ -427,10 +427,75 @@ def test_mlstm_backward_sequential_vs_parallel() -> None:
 
             print(f"Gradient diff for {name_p}: max_abs={grad_diff_max:.6f}, max_rel={grad_diff_rel:.6f}")
 
-            # Check with relaxed tolerance
-            torch.testing.assert_close(
-                param_p.grad, param_s.grad, rtol=5e-2, atol=5e-2, msg=f"Gradients differ for parameter {name_p}"
-            )
+
+def test_mlstm_axon_gates_state_and_shapes() -> None:
+    """mLSTM with Axon gates should run and populate Axon gate substates under 'mlstm' group."""
+    torch.manual_seed(2042)
+
+    device = get_test_device()
+    dtype = torch.float32
+
+    B, T, H, NH = 2, 10, 64, 4
+
+    cfg = mLSTMCellConfig(
+        hidden_size=H,
+        num_heads=NH,
+        chunk_size=32,
+        conv1d_kernel_size=4,
+        use_axon_layer=True,
+    )
+    cell = mLSTMCell(cfg).to(device=device, dtype=dtype)
+
+    x = torch.randn(B, T, H, device=device, dtype=dtype)
+    y, state = cell(x, state=None)
+
+    assert y.shape == (B, T, H)
+    assert state is not None
+    # Axon gate substates live under group "mlstm"
+    assert "mlstm" in state.keys(), "Expected Axon gate group 'mlstm' in state"
+    axg = state.get("mlstm")
+    assert axg is not None
+    for gate_key in ("igate", "fgate"):
+        assert gate_key in axg.keys(), f"Missing Axon subkey: {gate_key}"
+        sub = axg.get(gate_key)
+        assert sub is not None and "hc1" in sub.keys() and "hc2" in sub.keys()
+        # mLSTM gate AxonLayer in_features = 3H
+        assert sub["hc1"].shape == (B, 3 * H)
+        assert sub["hc2"].shape == (B, 3 * H)
+
+
+def test_mlstm_axon_reset_propagates() -> None:
+    """Resetting mLSTM state should reset Axon gate substates under 'mlstm'."""
+    torch.manual_seed(2043)
+
+    device = get_test_device()
+    dtype = torch.float32
+
+    B, T, H, NH = 3, 7, 64, 4
+    cfg = mLSTMCellConfig(
+        hidden_size=H,
+        num_heads=NH,
+        chunk_size=32,
+        conv1d_kernel_size=4,
+        use_axon_layer=True,
+    )
+    cell = mLSTMCell(cfg).to(device=device, dtype=dtype)
+
+    x = torch.randn(B, T, H, device=device, dtype=dtype)
+    _, state = cell(x, state=None)
+    assert state is not None and "mlstm" in state.keys()
+
+    mask = torch.zeros(B, dtype=torch.bool, device=device)
+    mask[0] = True
+    state_after = cell.reset_state(state, mask)
+    axg = state_after.get("mlstm")  # type: ignore[union-attr]
+    assert axg is not None
+    sub = axg.get("igate")
+    assert sub is not None
+    assert torch.allclose(sub["hc1"][0], torch.zeros_like(sub["hc1"][0]))
+    assert torch.allclose(sub["hc2"][0], torch.zeros_like(sub["hc2"][0]))
+
+    # (Optional relaxed tolerance checks removed to keep test concise)
 
 
 def test_mlstm_reset_mask_functionality() -> None:

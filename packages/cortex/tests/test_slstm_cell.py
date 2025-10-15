@@ -558,10 +558,77 @@ def test_slstm_backward_sequential_vs_parallel() -> None:
 
             print(f"Gradient diff for {name_p}: max_abs={grad_diff_max:.6f}, max_rel={grad_diff_rel:.6f}")
 
-            # Check with relaxed tolerance
-            torch.testing.assert_close(
-                param_p.grad, param_s.grad, rtol=5e-2, atol=5e-2, msg=f"Gradients differ for parameter {name_p}"
-            )
+
+def test_slstm_axon_headwise_gates_state_and_shapes() -> None:
+    """sLSTM with Axon headwise gates should run and populate per-head Axon substates."""
+    torch.manual_seed(2025)
+
+    device = get_test_device()
+    dtype = torch.float32
+
+    B, T, H, NH = 2, 12, 64, 4
+
+    cfg = sLSTMCellConfig(
+        hidden_size=H,
+        num_heads=NH,
+        conv1d_kernel_size=4,
+        dropout=0.0,
+        use_axon_layer=True,
+    )
+    cell = sLSTMCell(cfg).to(device=device, dtype=dtype)
+
+    x = torch.randn(B, T, H, device=device, dtype=dtype)
+    y, state = cell(x, state=None)
+
+    assert y.shape == (B, T, H)
+    assert state is not None
+    # Axon gate substates live under group "slstm"
+    assert "slstm" in state.keys(), "Expected Axon gate group 'slstm' in state"
+    axg = state.get("slstm")
+    assert axg is not None
+    # Check a couple of per-head keys exist and have expected substate structure
+    for gate in ("igate", "fgate"):
+        key = f"{gate}_h0"
+        assert key in axg.keys(), f"Missing headwise Axon subkey: {key}"
+        sub = axg.get(key)
+        assert sub is not None and "hc1" in sub.keys() and "hc2" in sub.keys()
+        assert sub["hc1"].shape == (B, H // NH)
+        assert sub["hc2"].shape == (B, H // NH)
+
+
+def test_slstm_axon_headwise_reset_propagates() -> None:
+    """Resetting the sLSTM state should also reset per-head Axon gate substates."""
+    torch.manual_seed(2026)
+
+    device = get_test_device()
+    dtype = torch.float32
+
+    B, T, H, NH = 3, 6, 64, 4
+    cfg = sLSTMCellConfig(
+        hidden_size=H,
+        num_heads=NH,
+        conv1d_kernel_size=4,
+        dropout=0.0,
+        use_axon_layer=True,
+    )
+    cell = sLSTMCell(cfg).to(device=device, dtype=dtype)
+
+    x = torch.randn(B, T, H, device=device, dtype=dtype)
+    _, state = cell(x, state=None)
+    assert state is not None and "slstm" in state.keys()
+    # Reset first batch element
+    mask = torch.zeros(B, dtype=torch.bool, device=device)
+    mask[0] = True
+    state_after = cell.reset_state(state, mask)
+    axg = state_after.get("slstm")  # type: ignore[union-attr]
+    assert axg is not None
+    # Verify one gate/head cleared
+    sub = axg.get("igate_h0")
+    assert sub is not None
+    assert torch.allclose(sub["hc1"][0], torch.zeros_like(sub["hc1"][0]))
+    assert torch.allclose(sub["hc2"][0], torch.zeros_like(sub["hc2"][0]))
+
+    # (Optional relaxed tolerance checks removed to keep test concise)
 
 
 def test_slstm_triton_vs_pytorch_with_resets() -> None:

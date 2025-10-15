@@ -9,11 +9,10 @@ from typing import Callable, Dict, Tuple
 
 import torch
 import torch.nn as nn
-from cortex.cells.core import AxonCell  # runtime type check for gating
 from cortex.stacks import CortexStack
 from model import SequenceClassifier
 from stacks import STACKS, StackSpec
-from synthetic_datasets import DelayedRecallDataset, DyckDataset, MajorityDataset
+from synthetic_datasets import DelayedRecallDataset, DyckDataset, MajorityDataset, MajorityHeadPadDataset
 from torch.utils.data import DataLoader
 
 
@@ -53,7 +52,7 @@ class TaskSpec:
 
 def make_task(task: str, *, num_samples: int, seed: int) -> TaskSpec:
     if task == "delayed_recall":
-        delay = 1024
+        delay = 512
 
         def _splits():
             return DelayedRecallDataset.splits(num_samples=num_samples, delay=delay, seed=seed)
@@ -65,6 +64,17 @@ def make_task(task: str, *, num_samples: int, seed: int) -> TaskSpec:
 
         def _splits():
             return MajorityDataset.splits(num_samples=num_samples, length=length, seed=seed)
+
+        return TaskSpec(name=task, make_splits=_splits, vocab_size=3, n_classes=2)
+
+    if task == "majority_headpad":
+        length = 1024
+        tail_pad_len = 256  # choose chunk-size=256 to make last chunk all PAD
+
+        def _splits():
+            return MajorityHeadPadDataset.splits(
+                num_samples=num_samples, length=length, tail_pad_len=tail_pad_len, seed=seed
+            )
 
         return TaskSpec(name=task, make_splits=_splits, vocab_size=3, n_classes=2)
 
@@ -112,8 +122,9 @@ def train_one(
     epochs: int,
     batch_size: int,
     lr: float,
-    rtu_chunk_size: int | None = None,
+    chunk_size: int | None = None,
     rtu_disable_traces_last_chunk: bool = False,
+    reset_state_before_last_chunk: bool = False,
 ) -> Dict[str, float]:
     train_ds, val_ds, test_ds = task.make_splits()
     _ensure_disjoint_splits(train_ds, val_ds, test_ds)
@@ -135,60 +146,105 @@ def train_one(
     opt = torch.optim.AdamW(model.parameters(), lr=lr)
     criterion = nn.CrossEntropyLoss()
 
-    def _stack_uses_rtu_stream(s: CortexStack) -> bool:
-        """Return True if any block in the stack uses Axons (RTU stream)."""
-        for blk in s.blocks:
-            # Adapter blocks wrap another block; in our templates we use PreUp directly
-            cell = getattr(blk, "cell", None)
-            if isinstance(cell, AxonCell):
-                return True
-        return False
-
-    rtu_enabled = bool(rtu_chunk_size and rtu_chunk_size > 0 and _stack_uses_rtu_stream(stack))
-    if rtu_chunk_size and rtu_chunk_size > 0 and not rtu_enabled:
-        logging.warning("--rtu-chunk-size provided but current stack has no RTUStream cell; ignoring chunked streaming")
+    # Generic chunked processing (TBPTT on last chunk) for any stack when enabled
+    chunk_enabled = bool(chunk_size and chunk_size > 0)
+    if chunk_enabled:
+        logging.info("chunked processing enabled: chunk_size=%d", int(chunk_size))
 
     def _zero_rtu_traces_in_state(state) -> None:
-        """Zero carried streaming traces inside RTUStream cell states in-place.
+        """Zero Axon eligibility traces wherever they appear in the nested state.
 
-        This disables boundary-correction terms for the next chunk.
+        Supports both direct AxonCell states (under a block key) and AxonLayer-managed
+        substates nested under groups like 'axon', 'slstm', 'mlstm', 'mlstm_qkv', etc.
         """
-        if state is None:
+        if state is None or not hasattr(state, "keys"):
             return
-        try:
-            keys = list(state.keys()) if hasattr(state, "keys") else []
-        except Exception:
-            keys = []
-        for bk in keys:
+
+        trace_keys = (
+            "E_nu_c1",
+            "E_nu_c2",
+            "E_th_c1",
+            "E_th_c2",
+            "E_w1_c1",
+            "E_w1_c2",
+            "E_w2_c1",
+            "E_w2_c2",
+        )
+
+        scanned = 0
+        zeroed = 0
+
+        def _recurse(td, path: str) -> None:
+            if td is None or not hasattr(td, "keys"):
+                return
             try:
-                bstate = state.get(bk)
+                td_keys = list(td.keys())
             except Exception:
-                bstate = None
-            if bstate is None or not hasattr(bstate, "keys"):
-                continue
-            # AxonCell state (if present) lives under this key
-            if "AxonCell" in bstate.keys():
+                td_keys = []
+
+            # If this TensorDict looks like an Axon trace container, zero its traces
+            has_explicit_traces = any(k in td_keys for k in trace_keys)
+            looks_like_axon_state = ("hc1" in td_keys) and ("hc2" in td_keys)
+            if has_explicit_traces or looks_like_axon_state:
+                nonlocal scanned, zeroed
+                scanned += 1
                 try:
-                    cstate = bstate.get("AxonCell")
+                    pre_stats = []
+                    # Collect both explicit and generic E_* traces for logging
+                    for name in td_keys:
+                        if (name in trace_keys or name.startswith("E_")) and torch.is_tensor(td.get(name)):
+                            t = td.get(name)
+                            pre_stats.append((name, float(t.norm().item())))
+                    if pre_stats:
+                        msg = ", ".join(f"{n}:l2={v:.3e}" for n, v in pre_stats)
+                        logging.debug("[traces] before-zero path=%s %s", path, msg)
                 except Exception:
-                    cstate = None
-                if cstate is None or not hasattr(cstate, "keys"):
-                    continue
-                for name in (
-                    "E_nu_c1",
-                    "E_nu_c2",
-                    "E_th_c1",
-                    "E_th_c2",
-                    "E_w1_c1",
-                    "E_w1_c2",
-                    "E_w2_c1",
-                    "E_w2_c2",
-                ):
-                    if name in cstate.keys():
-                        t = cstate.get(name)
-                        if torch.is_tensor(t):
-                            with torch.no_grad():
-                                cstate[name] = torch.zeros_like(t)
+                    pass
+                # Zero any known or generic E_* trace tensors
+                for name in list(td_keys):
+                    if (name in trace_keys or name.startswith("E_")) and torch.is_tensor(td.get(name)):
+                        with torch.no_grad():
+                            t = td.get(name)
+                            td[name] = torch.zeros_like(t)
+                zeroed += 1
+                try:
+                    post_nonzero = []
+                    for name in td_keys:
+                        if (name in trace_keys or name.startswith("E_")) and torch.is_tensor(td.get(name)):
+                            t = td.get(name)
+                            if float(t.abs().sum().item()) != 0.0:
+                                post_nonzero.append(name)
+                    if post_nonzero:
+                        logging.warning("[traces] non-zero after zeroing path=%s keys=%s", path, post_nonzero)
+                    else:
+                        logging.debug("[traces] after-zero path=%s all-zero", path)
+                except Exception:
+                    pass
+
+            # Recurse into children TensorDicts
+            for k in td_keys:
+                try:
+                    child = td.get(k)
+                except Exception:
+                    child = None
+                if hasattr(child, "keys"):
+                    _recurse(child, f"{path}/{k}")
+
+            # No architecture-specific fallbacks: recursion + generic E_* detection handles all cases
+
+        # Start recursion from each top-level block key
+        try:
+            top_keys = list(state.keys())
+        except Exception:
+            top_keys = []
+        for k in top_keys:
+            try:
+                sub = state.get(k)
+            except Exception:
+                sub = None
+            if hasattr(sub, "keys"):
+                _recurse(sub, k)
+        logging.debug("[traces] summary: scanned=%d zeroed=%d", scanned, zeroed)
 
     def _run_epoch(loader: DataLoader, train: bool) -> Tuple[float, float]:
         model.train(train)
@@ -201,10 +257,10 @@ def train_one(
             labels = labels.to(device)
             if train:
                 opt.zero_grad(set_to_none=True)
-            if rtu_enabled:
+            if chunk_enabled:
                 # Stream in chunks; detach state between chunks (TBPTT on last chunk)
                 T = seq.size(1)
-                C = int(rtu_chunk_size)  # type: ignore[arg-type]
+                C = int(chunk_size)  # type: ignore[arg-type]
                 assert C > 0
                 logits = None  # type: ignore[assignment]
 
@@ -226,9 +282,12 @@ def train_one(
                                     state = state.apply(lambda t: t.detach() if torch.is_tensor(t) else t)
 
                 # Final chunk with gradients (tail if present, else last full chunk)
-                # Optionally disable traces at last chunk for sanity checks
+                # Optionally disable RTU traces at last chunk for sanity checks (no-op for non-RTU stacks)
                 if rtu_disable_traces_last_chunk and state is not None:
                     _zero_rtu_traces_in_state(state)
+                # Optionally drop the carried state entirely before final chunk
+                if reset_state_before_last_chunk:
+                    state = None
                 if tail > 0:
                     start = n_full * C
                     logits, state = model(seq[:, start:], state)
@@ -324,7 +383,7 @@ def train_one(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Cortex synthetic evaluations")
-    parser.add_argument("--task", choices=["delayed_recall", "majority", "dyck"], required=True)
+    parser.add_argument("--task", choices=["delayed_recall", "majority", "majority_headpad", "dyck"], required=True)
     # Build stack choices dynamically from the registry so new entries in STACKS are auto-discovered.
     stack_choices = sorted(list(STACKS.keys())) + ["all"]
     parser.add_argument("--stack", choices=stack_choices, default="all")
@@ -349,12 +408,12 @@ def main() -> None:
     )
     parser.add_argument("--log-level", type=str, default="INFO", help="Logging level (DEBUG, INFO, WARNING, ERROR)")
     parser.add_argument(
-        "--rtu-chunk-size",
+        "--chunk-size",
         type=int,
         default=0,
         help=(
-            "If >0, enable streaming in RTU stacks by chunking sequences into this many tokens and detaching state "
-            "between chunks (TBPTT on last chunk only). Ignored for non-RTU stacks."
+            "If >0, process sequences in chunks of this many timesteps and detach state between chunks "
+            "(TBPTT on the last chunk only). Applies to any stack."
         ),
     )
     parser.add_argument(
@@ -363,6 +422,14 @@ def main() -> None:
         help=(
             "Sanity check: zero carried RTU streaming traces right before the final gradient-bearing chunk. "
             "Disables boundary-correction terms so delayed_recall should degrade under chunking."
+        ),
+    )
+    parser.add_argument(
+        "--reset-state-before-last-chunk",
+        action="store_true",
+        help=(
+            "Diagnostic: set state=None immediately before the final gradient-bearing chunk when chunking is on. "
+            "Removes information propagated from earlier chunks; majority and delayed_recall should drop toward chance."
         ),
     )
     args = parser.parse_args()
@@ -404,8 +471,9 @@ def main() -> None:
             epochs=args.epochs,
             batch_size=args.batch_size,
             lr=args.lr,
-            rtu_chunk_size=args.rtu_chunk_size if args.rtu_chunk_size > 0 else None,
+            chunk_size=args.chunk_size if args.chunk_size > 0 else None,
             rtu_disable_traces_last_chunk=args.rtu_disable_traces_last_chunk,
+            reset_state_before_last_chunk=args.reset_state_before_last_chunk,
         )
         results[name] = metrics
         logging.info(

@@ -288,6 +288,17 @@ Why it matters
   architectures: replacing feed‑forward linear projections with Axons imbues
   networks with long‑horizon temporal inductive bias.
 
+### AxonLayer Integration Across Cells
+
+The table below tracks AxonLayer replacements for linear-like projections in key cells. AxonLayer is a drop-in, stateful alternative to `nn.Linear` that wraps `AxonCell` and automatically manages per-layer state inside a parent `TensorDict`.
+
+| Cell | Components Replaced | AxonLayer Shapes | State Group/Keys | Resets | Status | Notes |
+|---|---|---|---|---|---|---|
+| sLSTM (`cortex.cells.slstm.sLSTMCell`) | igate, fgate, zgate, ogate (headwise expand) | NH × AxonLayer(DH→DH) with H=NH·DH | group=`slstm`, keys=`{gate}_h{i}` | forwarded from cell | behind flag | Preserves strict per-head isolation via `_HeadwiseAxonLayer`; enable with `sLSTMCellConfig.use_axon_layer=True` |
+| mLSTM (`cortex.cells.mlstm.mLSTMCell`) | igate, fgate (3H→NH) | AxonLayer(3H→NH) | group=`mlstm`, keys=`igate`, `fgate` | forwarded from cell | behind flag | Enable with `mLSTMCellConfig.use_axon_layer=True`; default uses `nn.Linear` |
+
+Note: AxonLayer usage is opt-in and defaults to the legacy Linear projections for backward compatibility. Set the per-cell config flag `use_axon_layer=True` to switch to Axon-backed projections and automatic state handling.
+
 ## Template Architectures
 
 The repo ships with a few small templates to get you started and to make quick comparisons easier.

@@ -45,6 +45,11 @@ class mLSTMCellConfig(CellConfig):
     chunk_size: int = Field(default=64, ge=1)
     # Always apply conv-in inside the cell (depthwise causal conv)
     conv1d_kernel_size: int = Field(default=4, ge=1)
+    # Use AxonLayer for gating projections (3H -> NH) and Q/K/V instead of conv
+    use_axon_layer: bool = Field(default=False)
+    # Rank for AxonLayer low-rank output map when enabled (None → use Axon default)
+    axon_rank: int | None = Field(default=None, ge=1)
+    # When Axon is enabled, Q, K, and V are always built with separate AxonLayers.
 
 
 class sLSTMCellConfig(CellConfig):
@@ -56,6 +61,10 @@ class sLSTMCellConfig(CellConfig):
     conv1d_kernel_size: int = Field(default=4, ge=0)
     # Dropout applied to the cell output prior to normalization
     dropout: float = Field(default=0.0, ge=0.0)
+    # Use AxonLayer-based gates instead of block-diagonal Linear expand
+    use_axon_layer: bool = Field(default=False)
+    # Rank for AxonLayer low-rank output map when enabled (per-head). None → Axon default.
+    axon_rank: int | None = Field(default=None, ge=1)
 
 
 class RTUCellConfig(CellConfig):
@@ -95,7 +104,7 @@ class AxonsConfig(CellConfig):
     # If set, the exact value is used.
     out_rank: int | None = Field(default=None)
     # Prefer CUDA seq-allin kernel for short sequences (<= threshold)
-    cuda_seq_threshold: int = Field(default=1000, ge=1)
+    cuda_seq_threshold: int = Field(default=5000, ge=1)
     # Optional SRHT mixer before the kernel (diagonal input map remains in mixed basis)
     use_srht: bool = Field(default=True)
     srht_permute: bool = Field(default=True)

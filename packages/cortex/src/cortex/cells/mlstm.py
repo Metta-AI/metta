@@ -10,8 +10,9 @@ from tensordict import TensorDict
 
 from cortex.cells.base import MemoryCell
 from cortex.cells.conv import CausalConv1d
+from cortex.cells.core import AxonLayer
 from cortex.cells.registry import register_cell
-from cortex.config import CausalConv1dConfig, mLSTMCellConfig
+from cortex.config import AxonsConfig, CausalConv1dConfig, mLSTMCellConfig
 from cortex.kernels.pytorch.mlstm import (
     mlstm_chunkwise_simple,
     mlstm_recurrent_step_stabilized_simple,
@@ -76,21 +77,51 @@ class mLSTMCell(MemoryCell):
         assert cfg.hidden_size % cfg.num_heads == 0, "hidden_size must be divisible by num_heads"
         self.head_dim = cfg.hidden_size // cfg.num_heads
 
-        # Input/forget gates - exact as in original
-        self.igate = nn.Linear(3 * cfg.hidden_size, cfg.num_heads)
-        self.fgate = nn.Linear(3 * cfg.hidden_size, cfg.num_heads)
+        # Input/forget gates: either Axon-backed or legacy Linear depending on flag
+        H = cfg.hidden_size
+        NH = cfg.num_heads
+        if cfg.use_axon_layer:
+            in_features = 3 * H
+            out_features = NH
+            is_pow2 = (in_features & (in_features - 1)) == 0 and in_features > 0
+            ax_cfg = AxonsConfig(out_rank=cfg.axon_rank, use_srht=bool(is_pow2), srht_permute=True)
+            self.igate = AxonLayer(in_features, out_features, cfg=ax_cfg, name="igate", group="mlstm",)
+            self.fgate = AxonLayer(in_features, out_features, cfg=ax_cfg, name="fgate", group="mlstm")
+        else:
+            self.igate = nn.Linear(3 * H, NH)
+            self.fgate = nn.Linear(3 * H, NH)
 
-        # Causal depthwise Conv1d on input, used to form Q/K.
-        # Match reference pattern: q,k from conv-activated features; v from raw features.
+        # Q/K/V preprocessing: either conv+SiLU (default) or Axon-backed layers
         self.conv_kernel_size = cfg.conv1d_kernel_size
-        conv_config = CausalConv1dConfig(
-            hidden_size=cfg.hidden_size,
-            kernel_size=self.conv_kernel_size,
-            causal_conv_bias=True,
-            channel_mixing=False,  # depthwise convolution
-        )
-        self.conv1d_cell = CausalConv1d(conv_config)
-        self.conv_act = nn.SiLU()
+        if not cfg.use_axon_layer:
+            conv_config = CausalConv1dConfig(
+                hidden_size=cfg.hidden_size,
+                kernel_size=self.conv_kernel_size,
+                causal_conv_bias=True,
+                channel_mixing=False,  # depthwise convolution
+            )
+            self.conv1d_cell = CausalConv1d(conv_config)
+            self.conv_act = nn.SiLU()
+            self.qkv_act = None
+            self.q_layer = None
+            self.k_layer = None
+            self.v_layer = None
+            self.qk_layer = None
+        else:
+            H = int(cfg.hidden_size)
+            out_rank = cfg.axon_rank
+            is_pow2 = (H & (H - 1)) == 0 and H > 0
+            qkv_cfg = AxonsConfig(
+                hidden_size=H, out_dim=H, out_rank=out_rank, use_srht=bool(is_pow2), srht_permute=True
+            )
+            self.qkv_act = nn.SiLU()  # match conv+SiLU behavior
+            # Shared-QK: single layer feeds both q and k; v has its own layer
+            self.qk_layer = AxonLayer(H, H, cfg=qkv_cfg, name="qk", group="mlstm_qkv")
+            self.v_layer = AxonLayer(H, H, cfg=qkv_cfg, name="v", group="mlstm_qkv")
+            self.q_layer = None
+            self.k_layer = None
+            self.conv1d_cell = None
+            self.conv_act = None
 
         # Output normalization
         self.outnorm = MultiHeadLayerNorm(cfg.hidden_size, weight=True, bias=False)
@@ -100,13 +131,16 @@ class mLSTMCell(MemoryCell):
     def reset_parameters(self):
         """Initialize parameters."""
         self.outnorm.reset_parameters()
-        self.conv1d_cell.reset_parameters()
-        # Forget gate initialization
-        torch.nn.init.zeros_(self.fgate.weight)
-        bias_linspace_init_(self.fgate.bias, start=3.0, end=6.0)
-        # Input gate initialization
-        torch.nn.init.zeros_(self.igate.weight)
-        torch.nn.init.normal_(self.igate.bias, mean=0.0, std=0.1)
+        if self.conv1d_cell is not None:
+            self.conv1d_cell.reset_parameters()
+        # Initialize gates when using legacy Linear; AxonLayer uses its own defaults
+        if not self.cfg.use_axon_layer:
+            # Forget gate initialization (encourages retention)
+            torch.nn.init.zeros_(self.fgate.weight)
+            bias_linspace_init_(self.fgate.bias, start=3.0, end=6.0)
+            # Input gate initialization
+            torch.nn.init.zeros_(self.igate.weight)
+            torch.nn.init.normal_(self.igate.bias, mean=0.0, std=0.1)
 
     def init_state(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> TensorDict:
         """Initialize state tensors."""
@@ -118,8 +152,11 @@ class mLSTMCell(MemoryCell):
         n_state = torch.zeros(B, NH, DH, 1, device=device, dtype=dtype)
         m_state = torch.zeros(B, NH, 1, 1, device=device, dtype=dtype)
 
-        # Get conv state from the conv1d cell
-        conv_state = self.conv1d_cell.init_state(batch, device=device, dtype=dtype)
+        # Get conv state from the conv1d cell if in use
+        if self.conv1d_cell is not None:
+            conv_state = self.conv1d_cell.init_state(batch, device=device, dtype=dtype)
+        else:
+            conv_state = TensorDict({}, batch_size=[B])
 
         # Combine all states
         combined_state = TensorDict({"c": c_state, "n": n_state, "m": m_state}, batch_size=[B])
@@ -156,26 +193,33 @@ class mLSTMCell(MemoryCell):
         # Note: mLSTM backends support reset masks directly. For step we pass a
         # [B] mask; for sequences we pass a [B, T] mask to the chunkwise backend.
 
-        # Causal conv on input to form q/k (v remains raw input)
-        # Extract conv state from the combined state
-        if st is not None and "conv" in st:
-            conv_state_dict = TensorDict({"conv": st.get("conv")}, batch_size=[B])
+        # Build Q, K, V
+        if not self.cfg.use_axon_layer:
+            # Causal conv on input to form q/k (v remains raw input)
+            if st is not None and "conv" in st:
+                conv_state_dict = TensorDict({"conv": st.get("conv")}, batch_size=[B])
+            else:
+                conv_state_dict = None
+            if is_step:
+                x_conv, conv_state_new = self.conv1d_cell(x_seq.squeeze(1), conv_state_dict, resets=resets)
+                x_conv = x_conv.unsqueeze(1)  # [B, H] -> [B, 1, H]
+            else:
+                x_conv, conv_state_new = self.conv1d_cell(x_seq, conv_state_dict, resets=resets)
+            x_conv_act = self.conv_act(x_conv)
+            q = x_conv_act
+            k = x_conv_act
+            v = x_seq
         else:
-            conv_state_dict = None
-
-        # Apply convolution using the CausalConv1d cell
-        if is_step:
-            x_conv, conv_state_new = self.conv1d_cell(x_seq.squeeze(1), conv_state_dict, resets=resets)
-            x_conv = x_conv.unsqueeze(1)  # [B, H] -> [B, 1, H]
-        else:
-            x_conv, conv_state_new = self.conv1d_cell(x_seq, conv_state_dict, resets=resets)
-
-        x_conv_act = self.conv_act(x_conv)
-
-        # q, k from conv-activated path; v from raw input (reference pattern)
-        q = x_conv_act
-        k = x_conv_act
-        v = x_seq
+            # Axon-backed Q,K,V; carry conv buffer forward unchanged if present
+            if st is not None and "conv" in st:
+                conv_state_new = TensorDict({"conv": st.get("conv")}, batch_size=[B])
+            else:
+                conv_state_new = TensorDict({}, batch_size=[B])
+            xin = x_seq
+            qk = self.qk_layer(xin, state=st, resets=resets)
+            q = self.qkv_act(qk)
+            k = self.qkv_act(qk)
+            v = self.v_layer(xin, state=st, resets=resets)
 
         if_gate_input = torch.cat([q, k, v], dim=-1)
 
@@ -189,10 +233,14 @@ class mLSTMCell(MemoryCell):
         k = k.transpose(1, 2)  # [B, NH, T, DH]
         v = v.transpose(1, 2)  # [B, NH, T, DH]
 
-        # Compute gates - exact as in original
-        igate_preact = self.igate(if_gate_input)  # [B, T, NH]
+        # Compute gates
+        if self.cfg.use_axon_layer:
+            igate_preact = self.igate(if_gate_input, state=st, resets=resets)  # [B, T, NH]
+            fgate_preact = self.fgate(if_gate_input, state=st, resets=resets)  # [B, T, NH]
+        else:
+            igate_preact = self.igate(if_gate_input)  # [B, T, NH]
+            fgate_preact = self.fgate(if_gate_input)  # [B, T, NH]
         igate_preact = igate_preact.transpose(-1, -2)  # [B, NH, T]
-        fgate_preact = self.fgate(if_gate_input)  # [B, T, NH]
         fgate_preact = fgate_preact.transpose(-1, -2)  # [B, NH, T]
 
         if is_step:
@@ -221,7 +269,15 @@ class mLSTMCell(MemoryCell):
                 reset_mask=reset_step,
             )
             new_state = TensorDict({"c": c_new, "n": n_new, "m": m_new}, batch_size=[B])
-            new_state.update(conv_state_new)  # Add updated conv state
+            if conv_state_new is not None:
+                new_state.update(conv_state_new)
+            # Preserve any auxiliary substates (e.g., AxonLayer groups written into `st`)
+            try:
+                for k in list(st.keys()):
+                    if k not in ("c", "n", "m"):
+                        new_state[k] = st.get(k)
+            except Exception:
+                pass
         else:
             # Sequence processing
             # Exact segment-aware handling for resets: split the sequence into
@@ -279,7 +335,15 @@ class mLSTMCell(MemoryCell):
                 h_state, (c_new, n_new, m_new) = backend_fn(**backend_kwargs)
             # Attach conv buffer after sequence for continuity across calls
             new_state = TensorDict({"c": c_new, "n": n_new, "m": m_new}, batch_size=[B])
-            new_state.update(conv_state_new)  # Add updated conv state
+            if conv_state_new is not None:
+                new_state.update(conv_state_new)
+            # Preserve any auxiliary substates (e.g., AxonLayer groups written into `st`)
+            try:
+                for k in list(st.keys()):
+                    if k not in ("c", "n", "m"):
+                        new_state[k] = st.get(k)
+            except Exception:
+                pass
 
         # Apply output normalization
         h_state_norm = self.outnorm(h_state)  # [B, NH, T, DH]
@@ -301,13 +365,23 @@ class mLSTMCell(MemoryCell):
         state["n"] = state["n"] * (1.0 - mask_expanded)
         state["m"] = state["m"] * (1.0 - mask_expanded)
 
-        # Reset conv state using the CausalConv1d cell's reset_state method
-        if "conv" in state:
+        # Reset conv state using the CausalConv1d cell's reset_state method (if used)
+        if self.conv1d_cell is not None and "conv" in state:
             conv_state_dict = TensorDict({"conv": state["conv"]}, batch_size=[state["c"].shape[0]])
             conv_state_dict = self.conv1d_cell.reset_state(conv_state_dict, mask)
             # Avoid boolean conversion of TensorDict
             if "conv" in conv_state_dict:
                 state["conv"] = conv_state_dict["conv"]
+
+        # Reset Axon gate substates if AxonLayer is enabled
+        if self.cfg.use_axon_layer:
+            self.igate.reset_state(mask, state)
+            self.fgate.reset_state(mask, state)
+
+        # Reset Axon QKV substates when Axon is enabled (shared QK + V)
+        if self.cfg.use_axon_layer:
+            self.qk_layer.reset_state(mask, state)
+            self.v_layer.reset_state(mask, state)
 
         return state
 
