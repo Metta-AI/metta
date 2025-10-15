@@ -118,7 +118,7 @@ export const GroupCreateForm: FC<GroupCreateFormProps> = ({
                 form.reset(defaultValues);
                 onClose();
               }}
-              className="rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+              className="cursor-pointer rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
             >
               <X className="h-5 w-5" />
             </button>
