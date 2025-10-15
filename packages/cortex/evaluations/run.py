@@ -5,15 +5,24 @@ import logging
 import os
 import random
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple, cast
 
 import torch
 import torch.nn as nn
 from cortex.stacks import CortexStack
-from model import SequenceClassifier
-from stacks import STACKS, StackSpec
-from synthetic_datasets import DelayedRecallDataset, DyckDataset, MajorityDataset, MajorityHeadPadDataset
+from model import SequenceClassifier  # type: ignore[import-not-found]
+from stacks import STACKS, StackSpec  # type: ignore[import-not-found]
+from synthetic_datasets import (  # type: ignore[import-not-found]
+    DelayedRecallDataset,
+    DyckDataset,
+    MajorityDataset,
+    MajorityHeadPadDataset,
+)
 from torch.utils.data import DataLoader
+
+# Globals used by optional Axons parity probe
+AXONS_PARITY_PROBE: int = 0
+EPOCH_IDX: int = 0
 
 
 def _ensure_disjoint_splits(train_ds, val_ds, test_ds) -> None:
@@ -364,6 +373,7 @@ def train_one(
     chunk_size: int | None = None,
     rtu_disable_traces_last_chunk: bool = False,
     reset_state_before_last_chunk: bool = False,
+    axons_parity_probe: int = 0,
 ) -> Dict[str, float]:
     train_ds, val_ds, test_ds = task.make_splits()
     _ensure_disjoint_splits(train_ds, val_ds, test_ds)
@@ -415,16 +425,16 @@ def train_one(
     # Generic chunked processing (TBPTT on last chunk) for any stack when enabled
     chunk_enabled = bool(chunk_size and chunk_size > 0)
     if chunk_enabled:
-        logging.info("chunked processing enabled: chunk_size=%d", int(chunk_size))
+        logging.info("chunked processing enabled: chunk_size=%d", int(cast(int, chunk_size)))
 
-    def _zero_rtu_traces_in_state(state) -> None:
+    def _zero_rtu_traces_in_state(state) -> tuple[int, int]:
         """Zero Axon eligibility traces wherever they appear in the nested state.
 
         Supports both direct AxonCell states (under a block key) and AxonLayer-managed
         substates nested under groups like 'axon', 'slstm', 'mlstm', 'mlstm_qkv', etc.
         """
         if state is None or not hasattr(state, "keys"):
-            return
+            return (0, 0)
 
         trace_keys = (
             "E_nu_c1",
@@ -511,12 +521,14 @@ def train_one(
             if hasattr(sub, "keys"):
                 _recurse(sub, k)
         logging.debug("[traces] summary: scanned=%d zeroed=%d", scanned, zeroed)
+        return scanned, zeroed
 
     def _run_epoch(loader: DataLoader, train: bool) -> Tuple[float, float]:
         model.train(train)
         total_loss = 0.0
         correct = 0
         total = 0
+        warned_no_traces = False
         for seq, labels in loader:
             state = None  # independent sequences; do not carry state across batches during training/eval
             seq = seq.to(device)
@@ -550,7 +562,13 @@ def train_one(
                 # Final chunk with gradients (tail if present, else last full chunk)
                 # Optionally disable RTU traces at last chunk for sanity checks (no-op for non-RTU stacks)
                 if rtu_disable_traces_last_chunk and state is not None:
-                    _zero_rtu_traces_in_state(state)
+                    scanned, zeroed = _zero_rtu_traces_in_state(state)
+                    if scanned == 0 and not warned_no_traces:
+                        warned_no_traces = True
+                        logging.warning(
+                            "rtu-disable-traces-last-chunk requested, but no Axon/RTU traces were found in state. "
+                            "This flag is a no-op for stacks without AxonCell/AxonLayer (e.g., slstm_postup)."
+                        )
                 # Optionally drop the carried state entirely before final chunk
                 if reset_state_before_last_chunk:
                     state = None
@@ -619,13 +637,14 @@ def train_one(
         return avg_loss, acc
 
     best_val = 0.0
-    # Globals for the parity probe inside the epoch loop
+    # Globals for the parity probe inside the epoch loop. CLI flag overrides env.
     global AXONS_PARITY_PROBE, EPOCH_IDX
-    AXONS_PARITY_PROBE = int(os.getenv("AXONS_PARITY_PROBE", "0"))
+    try:
+        env_probe = int(os.getenv("AXONS_PARITY_PROBE", "0"))
+    except Exception:
+        env_probe = 0
+    AXONS_PARITY_PROBE = axons_parity_probe if axons_parity_probe > 0 else env_probe
     EPOCH_IDX = 0
-    if AXONS_PARITY_PROBE <= 0:
-        # allow CLI flag to control as well
-        AXONS_PARITY_PROBE = 0
 
     for epoch in range(1, epochs + 1):
         EPOCH_IDX = epoch
@@ -771,6 +790,7 @@ def main() -> None:
             chunk_size=args.chunk_size if args.chunk_size > 0 else None,
             rtu_disable_traces_last_chunk=args.rtu_disable_traces_last_chunk,
             reset_state_before_last_chunk=args.reset_state_before_last_chunk,
+            axons_parity_probe=args.axons_parity_probe,
         )
         results[name] = metrics
         logging.info(

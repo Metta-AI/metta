@@ -97,8 +97,7 @@ class sLSTMCell(MemoryCell):
         if cfg.use_axon_layer:
             # Fused Axon gates: compute [i,f] from x_conv and [z,o] from x_seq
             # with two AxonLayer calls H -> 2H to reduce per-chunk overhead.
-            is_pow2 = (H & (H - 1)) == 0 and H > 0
-            ax_cfg = AxonsConfig(hidden_size=H, out_dim=2 * H, use_srht=bool(is_pow2), srht_permute=True)
+            ax_cfg = AxonsConfig(hidden_size=H, out_dim=2 * H, use_untraced_linear=True)
             self.if_fused = AxonLayer(H, 2 * H, cfg=ax_cfg, name="if_fused", group="slstm")
             self.zo_fused = AxonLayer(H, 2 * H, cfg=ax_cfg, name="zo_fused", group="slstm")
         else:
@@ -300,10 +299,14 @@ class sLSTMCell(MemoryCell):
         n_t = last_state[2].reshape(B, H)
         m_t = last_state[3].reshape(B, H)
 
-        # Create new state
+        # Create new state and preserve AxonLayer-managed substates
         new_state = TensorDict({"y": y_t, "c": c_t, "n": n_t, "m": m_t}, batch_size=[B])
         if conv_state_new is not None:
             new_state.update(conv_state_new)
+        # If AxonLayer was used, it may have attached a nested state group (e.g., "slstm")
+        # inside the parent state ``st``. Carry that substate forward explicitly.
+        if self.cfg.use_axon_layer and hasattr(st, "keys") and ("slstm" in st.keys()):
+            new_state["slstm"] = st.get("slstm")
 
         # Apply normalization and dropout
         y_out = self._normalize_output(y_seq)

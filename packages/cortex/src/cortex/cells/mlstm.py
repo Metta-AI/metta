@@ -84,7 +84,7 @@ class mLSTMCell(MemoryCell):
             in_features = 3 * H
             out_features = NH
             is_pow2 = (in_features & (in_features - 1)) == 0 and in_features > 0
-            ax_cfg = AxonsConfig(use_srht=bool(is_pow2), srht_permute=True)
+            ax_cfg = AxonsConfig(use_untraced_linear=True)
             self.igate = AxonLayer(
                 in_features,
                 out_features,
@@ -117,7 +117,7 @@ class mLSTMCell(MemoryCell):
         else:
             H = int(cfg.hidden_size)
             is_pow2 = (H & (H - 1)) == 0 and H > 0
-            qkv_cfg = AxonsConfig(hidden_size=H, out_dim=H, use_srht=bool(is_pow2), srht_permute=True)
+            qkv_cfg = AxonsConfig(hidden_size=H, out_dim=H,use_untraced_linear=True)
             self.qkv_act = nn.SiLU()  # match conv+SiLU behavior
             # Shared-QK: single layer feeds both q and k; v has its own layer
             self.qk_layer = AxonLayer(H, H, cfg=qkv_cfg, name="qk", group="mlstm_qkv")
