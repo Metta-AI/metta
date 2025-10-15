@@ -68,7 +68,6 @@ class ObsPerceiverLatentConsistentDropout(nn.Module):
         self.v_proj = nn.Linear(self._feat_dim, self._latent_dim, bias=False)
 
         self.layers = nn.ModuleList([])
-        self.attn_dropouts = nn.ModuleList([])
         self.mlp_dropouts = nn.ModuleList([])
 
         for _i in range(self._num_layers):
@@ -88,10 +87,8 @@ class ObsPerceiverLatentConsistentDropout(nn.Module):
             self.layers.append(layer_dict)
 
             if self._dropout_p > 0:
-                self.attn_dropouts.append(ConsistentDropout(p=self._dropout_p))
                 self.mlp_dropouts.append(ConsistentDropout(p=self._dropout_p))
             else:
-                self.attn_dropouts.append(None)
                 self.mlp_dropouts.append(None)
 
         self.final_norm = nn.LayerNorm(self._latent_dim)
@@ -102,13 +99,8 @@ class ObsPerceiverLatentConsistentDropout(nn.Module):
 
         if self._dropout_p > 0:
             for i in range(self._num_layers):
-                attn_mask_key = (self.config.name, f"attn_dropout_mask_{i}")
                 mlp_mask_key = (self.config.name, f"mlp_dropout_mask_{i}")
 
-                spec[attn_mask_key] = UnboundedContinuous(
-                    shape=torch.Size([self._num_latents, self._latent_dim]),
-                    dtype=torch.float32,
-                )
                 spec[mlp_mask_key] = UnboundedContinuous(
                     shape=torch.Size([self._num_latents, self._latent_dim]),
                     dtype=torch.float32,
@@ -142,16 +134,6 @@ class ObsPerceiverLatentConsistentDropout(nn.Module):
             attn_output = F.scaled_dot_product_attention(q, k, v, attn_mask=attn_bias)
             attn_output = einops.rearrange(attn_output, "b h n d -> b n (h d)")
             attn_output = layer["attn_out_proj"](attn_output)
-
-            # Apply consistent dropout to attention output
-            if self.attn_dropouts[i] is not None:
-                mask_key_attn = (self.config.name, f"attn_dropout_mask_{i}")
-                attn_mask = td.get(mask_key_attn, None)
-                if self.training:
-                    attn_output, attn_mask = self.attn_dropouts[i](attn_output, mask=attn_mask)
-                    td[mask_key_attn] = attn_mask
-                else:
-                    attn_output = self.attn_dropouts[i](attn_output, mask=attn_mask)
 
             latents = residual + attn_output
 
