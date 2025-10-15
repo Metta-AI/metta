@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Search } from "lucide-react";
 
 import { useStarMutation } from "@/hooks/useStarMutation";
 import { PapersTable } from "@/components/PapersTable";
@@ -11,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 import type {
   PaperWithUserContext,
@@ -151,6 +153,7 @@ export function PapersView({
 
   const filteredCount = filteredPapers.length;
   const totalCount = papers.length;
+  const starredCount = papers.filter((p) => p.isStarredByCurrentUser).length;
   const hasFilters = searchQuery.trim().length > 0 || showOnlyStarred;
 
   return (
@@ -168,37 +171,42 @@ export function PapersView({
       {/* Content Area */}
       <div className="flex-1 overflow-y-auto px-4 py-6 md:px-6">
         <div className="mx-auto w-full max-w-7xl space-y-6">
-          {/* Search Bar */}
-          <div className="w-full">
-            <Label htmlFor="papers-search">Search</Label>
-            <Input
-              id="papers-search"
-              placeholder="Search title, tags, or authors"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              className="mt-1"
-            />
-          </div>
-
-          {/* Filter Controls */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="papers-starred-only"
-                checked={showOnlyStarred}
-                onCheckedChange={(checked) =>
-                  setShowOnlyStarred(Boolean(checked))
-                }
-              />
-              <Label htmlFor="papers-starred-only" className="text-sm">
-                Show starred only
-              </Label>
+          {/* Stats Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="secondary">{totalCount} papers</Badge>
+              <Badge variant="secondary">{starredCount} starred</Badge>
             </div>
             {hasFilters && (
               <Button variant="outline" size="sm" onClick={handleClearFilters}>
                 Clear filters
               </Button>
             )}
+          </div>
+
+          {/* Search Bar */}
+          <div className="relative w-full">
+            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-5 w-5 -translate-y-1/2" />
+            <Input
+              placeholder="Search papers"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              className="pl-10"
+            />
+          </div>
+
+          {/* Filter Controls */}
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="papers-starred-only"
+              checked={showOnlyStarred}
+              onCheckedChange={(checked) =>
+                setShowOnlyStarred(Boolean(checked))
+              }
+            />
+            <Label htmlFor="papers-starred-only" className="text-sm">
+              Show starred only
+            </Label>
           </div>
 
           <PapersTable
