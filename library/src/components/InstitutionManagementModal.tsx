@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs } from "@/components/ui/tabs";
 
 interface InstitutionMember {
   id: string;
@@ -251,37 +252,16 @@ export const InstitutionManagementModal: FC<
           </div>
 
           {isAdmin && (
-            <div className="mt-4 flex gap-2">
-              <button
-                onClick={() => setActiveTab("members")}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                  activeTab === "members"
-                    ? "bg-blue-100 text-blue-700"
-                    : "text-gray-600 hover:bg-gray-100"
-                }`}
-              >
-                Members ({memberCount})
-              </button>
-              <button
-                onClick={() => setActiveTab("add")}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                  activeTab === "add"
-                    ? "bg-blue-100 text-blue-700"
-                    : "text-gray-600 hover:bg-gray-100"
-                }`}
-              >
-                Add Member
-              </button>
-              <button
-                onClick={() => setActiveTab("settings")}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                  activeTab === "settings"
-                    ? "bg-blue-100 text-blue-700"
-                    : "text-gray-600 hover:bg-gray-100"
-                }`}
-              >
-                Settings
-              </button>
+            <div className="mt-4">
+              <Tabs
+                tabs={[
+                  { id: "members", label: `Members (${memberCount})` },
+                  { id: "add", label: "Add Member" },
+                  { id: "settings", label: "Settings" },
+                ]}
+                activeTab={activeTab}
+                onTabChange={(tab) => setActiveTab(tab as typeof activeTab)}
+              />
             </div>
           )}
         </div>
