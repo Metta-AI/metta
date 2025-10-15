@@ -104,7 +104,8 @@ class AxonCell(MemoryCell):
         self.out_proj = nn.Linear(2 * H, self._out_dim, bias=True)
 
         # SRHT mixer parameters (fixed buffers)
-        self._use_srht = bool(getattr(cfg, "use_srht", False))
+        # Disable SRHT automatically when using full‑rank RTU.
+        self._use_srht = bool(getattr(cfg, "use_srht", False)) and (not self._use_fullrank)
         if self._use_srht:
             rng = torch.Generator(device="cpu")
             rng.manual_seed(0)
