@@ -4,26 +4,23 @@
 # python -m torch.distributed.run --standalone --nnodes=1 --nproc-per-node=1 clean_pufferl.py --env puffer_nmmo3 --mode train  # noqa: E501
 # torchrun --standalone --nnodes=1 --nproc-per-node=6 -m pufferlib.pufferl train puffer_nmmo3
 import warnings
-import platform
 
 warnings.filterwarnings("error", category=RuntimeWarning)
 
 
-if platform.system() == "Darwin":
-    def record(fn):
-        """Lazy import wrapper for torch.distributed.elastic.multiprocessing.errors.record.
+def record(fn):
+    """Lazy import wrapper for torch.distributed.elastic.multiprocessing.errors.record.
 
-        This is defined before other imports to avoid triggering torch.distributed import on macOS,
-        which causes a warning about unsupported redirects.
-        """
-        try:
-            from torch.distributed.elastic.multiprocessing.errors import record as _record
+    This is defined before other imports to avoid triggering torch.distributed import on macOS,
+    which causes a warning about unsupported redirects.
+    """
+    try:
+        from torch.distributed.elastic.multiprocessing.errors import record as _record
 
-            return _record(fn)
-        except ImportError:
-            return fn
-else:
-    from torch.distributed.elastic.multiprocessing.errors import record
+        return _record(fn)
+    except ImportError:
+        return fn
+
 
 # ruff: noqa: E402
 # Imports below are intentionally after the record function definition to avoid torch.distributed warnings
