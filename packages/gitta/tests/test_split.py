@@ -58,34 +58,30 @@ index 0000000..789012
     assert len(files[1].additions) == 3  # Three lines in new file
 
 
-def test_create_patch_file():
-    """Test creating a patch from selected files."""
+def test_create_patch_file(monkeypatch: pytest.MonkeyPatch):
+    """Test that create_patch_file delegates to git diff with expected args."""
     splitter = PRSplitter()
+    splitter.base_branch = "origin/main"
+    splitter.current_branch = "feature"
 
-    files = [
-        FileDiff(
-            filename="file1.py",
-            additions=["+line1"],
-            deletions=["-line2"],
-            hunks=[],
-            raw_diff="diff --git a/file1.py b/file1.py\n+line1\n-line2",
-        ),
-        FileDiff(
-            filename="file2.py",
-            additions=["+line3"],
-            deletions=[],
-            hunks=[],
-            raw_diff="diff --git a/file2.py b/file2.py\n+line3",
-        ),
-    ]
+    captured_args: Dict[str, Any] = {}
 
-    # Select only file1.py
-    patch = splitter.create_patch_file(files, ["file1.py"])
+    def fake_run_git(*args: str) -> str:
+        captured_args["args"] = args
+        return "MOCK_DIFF"
 
-    assert "file1.py" in patch
-    assert "file2.py" not in patch
-    assert "+line1" in patch
-    assert "-line2" in patch
+    monkeypatch.setattr("gitta.split.run_git", fake_run_git)
+
+    patch = splitter.create_patch_file([], ["file1.py", "file1.py"])
+
+    assert patch == "MOCK_DIFF"
+    assert captured_args["args"] == (
+        "diff",
+        "--binary",
+        "origin/main...feature",
+        "--",
+        "file1.py",
+    )
 
 
 def test_verify_split():

@@ -356,14 +356,13 @@ Return a JSON response with this exact structure:
         )
 
     def create_patch_file(self, files: List[FileDiff], selected_files: List[str]) -> str:
-        """Create a patch file containing only the selected files"""
-        patch_content = []
+        """Create a patch containing only the selected files using git diff."""
+        unique_files = [Path(filename).as_posix() for filename in dict.fromkeys(selected_files)]
+        if not unique_files:
+            return ""
 
-        for f in files:
-            if f.filename in selected_files:
-                patch_content.append(f.raw_diff)
-
-        return "\n".join(patch_content)
+        diff_args = ["diff", "--binary", f"{self.base_branch}...{self.current_branch}", "--", *unique_files]
+        return run_git(*diff_args)
 
     def apply_patch_to_new_branch(self, patch_content: str, branch_name: str) -> None:
         """Create a new branch and apply the patch"""
