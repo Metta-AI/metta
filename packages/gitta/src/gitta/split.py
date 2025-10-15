@@ -10,7 +10,7 @@ import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 from anthropic import Anthropic  # type: ignore[import-not-found]
 
@@ -96,6 +96,7 @@ class PRSplitter:
         anthropic_client: Optional[Anthropic] = None,
         force_push: bool = True,
         independence: float = 0.5,
+        exclude_files: Optional[Set[str]] = None,
     ):
         env_key = os.environ.get("ANTHROPIC_API_KEY")
         dotenv_key = None if env_key else _load_env_from_dotenv("ANTHROPIC_API_KEY")
@@ -112,6 +113,7 @@ class PRSplitter:
         if not 0.0 <= independence <= 1.0:
             raise ValueError("Independence must be between 0.0 and 1.0")
         self.independence = independence
+        self.exclude_files = {Path(name).as_posix() for name in (exclude_files or set())}
 
     def _ensure_anthropic(self) -> Anthropic:
         """Returns an Anthropic client, constructing it lazily if needed."""
@@ -164,6 +166,11 @@ Return a JSON response with this exact structure:
     "group2_title": "Short PR title for group 2"
 }}
 """
+        if self.exclude_files:
+            prompt += (
+                "\nThe following files must stay in the first pull request and should not be moved to the second:\n"
+                f"{json.dumps(sorted(self.exclude_files), indent=2)}\n"
+            )
         return prompt
 
     def get_base_branch(self) -> str:
@@ -302,6 +309,51 @@ Return a JSON response with this exact structure:
             print(f"Failed to parse AI response: {e}")
             print(f"Response content: {content}")
             raise
+
+    def _apply_exclusions(self, decision: SplitDecision, files: List[FileDiff]) -> SplitDecision:
+        """Ensure excluded files remain in group1."""
+        if not self.exclude_files:
+            return decision
+
+        all_filenames = {file_diff.filename for file_diff in files}
+        forced = {name for name in self.exclude_files if name in all_filenames}
+        if not forced:
+            return decision
+
+        print(f"\n🔒 Keeping excluded files in group1: {', '.join(sorted(forced))}")
+
+        group1: List[str] = []
+        seen: Set[str] = set()
+
+        for filename in decision.group1_files:
+            if filename not in seen:
+                group1.append(filename)
+                seen.add(filename)
+
+        group2: List[str] = []
+        for filename in decision.group2_files:
+            if filename in forced:
+                if filename not in seen:
+                    group1.append(filename)
+                    seen.add(filename)
+                continue
+            if filename not in seen:
+                group2.append(filename)
+                seen.add(filename)
+
+        for filename in forced:
+            if filename not in seen:
+                group1.append(filename)
+                seen.add(filename)
+
+        return SplitDecision(
+            group1_files=group1,
+            group2_files=group2,
+            group1_description=decision.group1_description,
+            group2_description=decision.group2_description,
+            group1_title=decision.group1_title,
+            group2_title=decision.group2_title,
+        )
 
     def create_patch_file(self, files: List[FileDiff], selected_files: List[str]) -> str:
         """Create a patch file containing only the selected files"""
@@ -459,6 +511,7 @@ Return a JSON response with this exact structure:
         # Analyze with AI
         print("🤖 Analyzing with AI to determine split strategy...")
         split_decision = self.analyze_diff_with_ai(files)
+        split_decision = self._apply_exclusions(split_decision, files)
 
         print("\n📋 Split Decision:")
         print(f"Group 1 ({len(split_decision.group1_files)} files): {split_decision.group1_title}")
@@ -526,6 +579,7 @@ def split_pr(
     *,
     force_push: bool = True,
     independence: float = 0.5,
+    exclude_files: Optional[List[str]] = None,
 ) -> None:
     """
     Split the current branch into two smaller PRs.
@@ -535,12 +589,14 @@ def split_pr(
         github_token: GitHub token (defaults to GITHUB_TOKEN env var)
         force_push: Retry push with --force-with-lease when remote branches exist (default True)
         independence: Weight between balanced sizing (0.0) and logical separation (1.0)
+        exclude_files: Files to keep in the first PR (not split)
     """
     splitter = PRSplitter(
         anthropic_api_key,
         github_token,
         force_push=force_push,
         independence=independence,
+        exclude_files=set(exclude_files or []),
     )
     splitter.split()
 
@@ -560,6 +616,9 @@ Examples:
 
   # Favor balanced PR sizes
   python -m gitta.split --independence 0.1
+
+  # Keep generated files in the first PR
+  python -m gitta.split --exclude uv.lock
 
   # Also create GitHub PRs
   python -m gitta.split --github-token YOUR_TOKEN
@@ -590,6 +649,14 @@ Environment variables:
     )
 
     parser.add_argument(
+        "--exclude",
+        action="append",
+        default=[],
+        metavar="PATH",
+        help="File path to force into the first PR; repeatable.",
+    )
+
+    parser.add_argument(
         "--no-force-push",
         action="store_true",
         help="Skip the force-with-lease retry when remote branches already exist",
@@ -617,6 +684,7 @@ Environment variables:
             github_token=args.github_token,
             force_push=not args.no_force_push,
             independence=args.independence,
+            exclude_files=args.exclude,
         )
     except Exception as e:
         print(f"\n❌ Error: {e}")

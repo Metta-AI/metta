@@ -47,6 +47,9 @@ python -m gitta.split
 
 # Favor balanced sizing (optional)
 python -m gitta.split --independence 0.2
+
+# Keep generated files in the first PR
+python -m gitta.split --exclude uv.lock
 ```
 
 ## What Happens
@@ -103,12 +106,14 @@ Created PR: https://github.com/owner/repo/pull/124
 5. **Logical grouping** - The AI tries to keep related changes together
 6. **Rerun safely** - If you rerun the splitter, existing `*-part{n}` branches are recreated from the base branch automatically and remote branches are refreshed with `--force-with-lease` when needed (pass `--no-force-push` if you prefer the command to fail instead).
 7. **Tune independence** - Use `--independence` to choose between balanced PR sizes (near 0.0) and stronger logical separation (near 1.0).
+8. **Exclude generated files** - Use `--exclude <path>` to keep large or generated files (e.g., lockfiles) in the first PR.
 
 ### Balancing independence vs. size
 
 - `--independence 0.0` keeps the two PRs similar in size even if some files are loosely related.
 - `--independence 1.0` maximizes logical differences, allowing one PR to shrink if needed.
 - Values in between strike a balance (default 0.5). The guidance is surfaced in the AI prompt directly.
+- Pair `--independence` with `--exclude uv.lock` (or similar) when you want to keep generated assets out of the AI decision entirely.
 
 ## Troubleshooting
 

@@ -6,7 +6,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Set
 
 import pytest
 
@@ -340,6 +340,24 @@ def test_build_prompt_reflects_independence():
     assert "Prioritize independence of concerns" in prompt_high
 
 
+def test_build_prompt_mentions_exclusions():
+    splitter = PRSplitter(exclude_files={"uv.lock", "poetry.lock"})
+    file_summaries = [
+        {
+            "filename": "uv.lock",
+            "additions": 0,
+            "deletions": 0,
+            "hunks": 0,
+            "sample_changes": "",
+        }
+    ]
+
+    prompt = splitter._build_split_prompt(file_summaries)
+
+    assert "uv.lock" in prompt
+    assert "poetry.lock" in prompt
+
+
 def test_invalid_independence_value():
     with pytest.raises(ValueError):
         PRSplitter(independence=1.5)
@@ -347,12 +365,36 @@ def test_invalid_independence_value():
         PRSplitter(independence=-0.1)
 
 
+def test_apply_exclusions_moves_files():
+    splitter = PRSplitter(exclude_files={"keep.txt"})
+    decision = SplitDecision(
+        group1_files=["a.py", "b.py"],
+        group2_files=["keep.txt", "c.py"],
+        group1_description="g1",
+        group2_description="g2",
+        group1_title="t1",
+        group2_title="t2",
+    )
+
+    files = [
+        FileDiff(filename="a.py", additions=[], deletions=[], hunks=[], raw_diff=""),
+        FileDiff(filename="keep.txt", additions=[], deletions=[], hunks=[], raw_diff=""),
+        FileDiff(filename="c.py", additions=[], deletions=[], hunks=[], raw_diff=""),
+    ]
+
+    adjusted = splitter._apply_exclusions(decision, files)
+
+    assert "keep.txt" in adjusted.group1_files
+    assert "keep.txt" not in adjusted.group2_files
+
+
 def test_split_pr_forwards_independence(monkeypatch: pytest.MonkeyPatch):
     captured: Dict[str, Any] = {}
 
     class FakeSplitter:
-        def __init__(self, *_, independence: float, **__):
+        def __init__(self, *_, independence: float, exclude_files: Set[str], **__):
             captured["independence"] = independence
+            captured["exclude_files"] = exclude_files
 
         def split(self) -> None:
             captured["split_called"] = True
@@ -362,9 +404,10 @@ def test_split_pr_forwards_independence(monkeypatch: pytest.MonkeyPatch):
     # Call the helper directly
     from gitta.split import split_pr
 
-    split_pr(independence=0.3)
+    split_pr(independence=0.3, exclude_files=["uv.lock"])
     assert captured["independence"] == 0.3
     assert captured["split_called"] is True
+    assert captured["exclude_files"] == {"uv.lock"}
 
 
 def test_cli_rejects_invalid_independence(monkeypatch: pytest.MonkeyPatch):
@@ -377,7 +420,7 @@ def test_cli_rejects_invalid_independence(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_cli_passes_independence(monkeypatch: pytest.MonkeyPatch):
-    args = ["gitta.split", "--anthropic-key", "abc123", "--independence", "0.2"]
+    args = ["gitta.split", "--anthropic-key", "abc123", "--independence", "0.2", "--exclude", "uv.lock"]
     monkeypatch.setattr(sys, "argv", args)
 
     captured_kwargs: Dict[str, Any] = {}
@@ -390,6 +433,7 @@ def test_cli_passes_independence(monkeypatch: pytest.MonkeyPatch):
     main()
     assert captured_kwargs["independence"] == 0.2
     assert captured_kwargs["force_push"] is True
+    assert captured_kwargs["exclude_files"] == ["uv.lock"]
 
 
 def test_prsplitter_loads_key_from_dotenv(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
