@@ -18,6 +18,7 @@ from metta.rl.training import (
     TrainingEnvironment,
 )
 from metta.rl.training.optimizer import create_optimizer
+from metta.rl.training.scheduler import LossScheduler
 from mettagrid.profiling.stopwatch import Stopwatch
 
 try:
@@ -107,6 +108,7 @@ class Trainer:
         )
         self._context.get_train_epoch_fn = lambda: self._train_epoch_callable
         self._context.set_train_epoch_fn = self._set_train_epoch_callable
+        self._scheduler: LossScheduler | None = None
 
         self._train_epoch_callable: Callable[[], None] = self._run_epoch
 
@@ -159,6 +161,8 @@ class Trainer:
 
         # Rollout phase
         with self.timer("_rollout"):
+            if self._scheduler is not None:
+                self._scheduler.apply(phase="rollout")
             rollout_result = self.core_loop.rollout_phase(self._env, self._context)
             self._context.training_env_id = rollout_result.training_env_id
             world_size = self._distributed_helper.get_world_size()
@@ -173,6 +177,8 @@ class Trainer:
         with self.timer("_train"):
             if self._context.training_env_id is None:
                 raise RuntimeError("Training environment slice unavailable for training phase")
+            if self._scheduler is not None:
+                self._scheduler.apply(phase="train")
             losses_stats, epochs_trained = self.core_loop.training_phase(
                 context=self._context,
                 update_epochs=self._cfg.update_epochs,

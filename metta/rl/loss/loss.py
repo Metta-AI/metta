@@ -10,7 +10,6 @@ from torchrl.data import Composite
 
 from metta.agent.policy import Policy
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
-from metta.rl.loss.scheduler import PhaseRunSchedule
 
 
 @dataclass(slots=True)
@@ -23,10 +22,7 @@ class Loss:
         env (TrainingEnvironment): Vectorized training environment wrapper.
         device (torch.device): Device to place tensors and compute on.
         instance_name (str): Name used to identify this loss instance in logs/state.
-        loss_cfg (Any): Concrete loss configuration. Can define:
-            - schedule (list[HyperSchedule], optional): Hyperparameter annealing rules.
-            - rollout_sched (PhaseRunSchedule | None): Controls if rollout runs.
-            - train_sched (PhaseRunSchedule | None): Controls if train runs.
+        loss_cfg (Any): Concrete loss configuration.
 
     Optional attributes initialized at runtime:
         policy_experience_spec (Composite | None): Spec for experience fields required by the policy.
@@ -49,8 +45,6 @@ class Loss:
     _zero_tensor: Tensor | None = None
     _context: ComponentContext | None = None
 
-    _rollout_sched: PhaseRunSchedule | None = None
-    _train_sched: PhaseRunSchedule | None = None
     _state_attrs: set[str] = field(default_factory=set, init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -90,7 +84,7 @@ class Loss:
     def rollout(self, td: TensorDict, context: ComponentContext | None = None) -> None:
         """Rollout step executed while experience buffer requests more data."""
         ctx = self._ensure_context(context)
-        if not self._should_run("rollout", ctx):
+        if not self._loss_gate_allows("rollout", ctx):
             return
         if ctx.training_env_id is None:
             raise RuntimeError("ComponentContext.training_env_id must be set before calling Loss.rollout")
@@ -108,7 +102,7 @@ class Loss:
     ) -> tuple[Tensor, TensorDict, bool]:
         """Training step executed while scheduler allows it."""
         ctx = self._ensure_context(context)
-        if not self._should_run("train", ctx):
+        if not self._loss_gate_allows("train", ctx):
             return self._zero(), shared_loss_data, False
         return self.run_train(shared_loss_data, ctx, mb_idx)
 
@@ -127,46 +121,28 @@ class Loss:
 
     def on_train_phase_end(self, context: ComponentContext | None = None) -> None:
         """Hook executed after the training phase completes."""
-        ctx = self._ensure_context(context)
-
-        # Apply configured schedules via a unified "update(obj, ctx)" API.
-        # Prefer a single `schedules` list on the loss config; fall back to
-        # legacy `metric_schedules` and `schedule` lists if needed.
-        schedules = getattr(self.loss_cfg, "schedules", None)
-        if not isinstance(schedules, (list, tuple)):
-            schedules = []
-            for attr_name in ("metric_schedules", "schedule"):
-                items = getattr(self.loss_cfg, attr_name, None)
-                if isinstance(items, (list, tuple)):
-                    schedules.extend(items)
-
-        for sched in schedules:
-            update_fn = getattr(sched, "update", None)
-            if callable(update_fn):
-                update_fn(self.loss_cfg, ctx)
-
-        # Finally, allow custom user-defined updater to override
-        update_fn = getattr(self.loss_cfg, "update_hypers", None)
-        if callable(update_fn):
-            update_fn(ctx)
+        self._ensure_context(context)
 
     def save_loss_states(self, context: ComponentContext | None = None) -> None:
         """Save loss states at the end of training (optional)."""
         self._ensure_context(context)
 
     # Scheduling helpers
-    def _should_run(self, phase: str, context: ComponentContext) -> bool:
-        sched = self._rollout_sched if phase == "rollout" else self._train_sched
-        if sched is None:
+    def _loss_gate_allows(self, phase: str, context: ComponentContext) -> bool:
+        gates = getattr(context, "loss_run_gates", None)
+        if not gates:
             return True
-        return sched.is_active(epoch=context.epoch, agent_step=context.agent_step)
+        entry = gates.get(self.instance_name) or gates.get(self.__class__.__name__.lower())
+        if not entry:
+            return True
+        return bool(entry.get(phase, True))
 
     # End scheduling helpers
 
     def _configure_schedule(self) -> None:
-        """Initialize per-phase run schedule from loss configuration if provided."""
-        self._rollout_sched = getattr(self.loss_cfg, "rollout_sched", None)
-        self._train_sched = getattr(self.loss_cfg, "train_sched", None)
+        """No-op: scheduling is now controlled by trainer-level scheduler."""
+        self._rollout_sched = None
+        self._train_sched = None
 
     # Utility helpers
 

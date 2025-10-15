@@ -10,7 +10,6 @@ from torchrl.data import Composite, MultiCategorical, UnboundedContinuous
 from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.loss import Loss
-from metta.rl.loss.scheduler import HyperSchedule
 from metta.rl.training import ComponentContext, TrainingEnvironment
 from metta.utils.batch import calculate_prioritized_sampling_params
 from mettagrid.base_config import Config
@@ -30,8 +29,6 @@ class VTraceConfig(Config):
 
 
 class PPOConfig(Config):
-    schedule: list[HyperSchedule] = Field(default_factory=list)
-
     # PPO hyperparameters
     # Clip coefficient (0.1-0.3 typical; Schulman et al. 2017)
     clip_coef: float = Field(default=0.264407, gt=0, le=1.0)
@@ -67,9 +64,7 @@ class PPOConfig(Config):
         default_factory=PrioritizedExperienceReplayConfig
     )
 
-    def update_hypers(self, context: ComponentContext) -> None:
-        for sched in self.schedule:
-            sched.apply(obj=self, epoch=context.epoch, agent_step=context.agent_step)
+    # Hyperparameter scheduling now handled by trainer-level LossScheduler
 
     def create(
         self,

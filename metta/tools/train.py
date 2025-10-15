@@ -43,6 +43,7 @@ from metta.rl.training import (
     WandbAborterConfig,
     WandbLogger,
 )
+from metta.rl.training.scheduler import LossScheduler, SchedulerConfig
 from metta.tools.utils.auto_config import (
     auto_run_name,
     auto_stats_server_uri,
@@ -68,6 +69,7 @@ class TrainTool(Tool):
     group: Optional[str] = None
     evaluator: EvaluatorConfig = Field(default_factory=EvaluatorConfig)
     torch_profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)
+    scheduler: SchedulerConfig | None = None
 
     context_checkpointer: ContextCheckpointerConfig = Field(default_factory=ContextCheckpointerConfig)
     stats_reporter: StatsReporterConfig = Field(default_factory=StatsReporterConfig)
@@ -287,6 +289,9 @@ class TrainTool(Tool):
 
         if wandb_run is not None and distributed_helper.is_master():
             trainer.register(WandbLogger(wandb_run))
+
+        if self.scheduler is not None:
+            trainer.register(LossScheduler(self.scheduler))
 
     def _configure_torch_backends(self) -> None:
         if not torch.cuda.is_available():

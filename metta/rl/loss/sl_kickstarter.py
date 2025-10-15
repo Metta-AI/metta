@@ -9,15 +9,12 @@ from torchrl.data import Composite, UnboundedContinuous
 
 from metta.agent.policy import Policy
 from metta.rl.loss import Loss
-from metta.rl.loss.scheduler import HyperSchedule
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import ComponentContext
 from mettagrid.base_config import Config
 
 
 class SLKickstarterConfig(Config):
-    schedule: list[HyperSchedule] = Field(default_factory=list)
-
     teacher_uri: str = Field(default="")
     action_loss_coef: float = Field(default=0.995, ge=0, le=1.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)

@@ -93,6 +93,10 @@ class ComponentContext:
         self.latest_policy_uri_fn: Callable[[], Optional[str]] | None = None
         self.losses: Dict[str, Any] = {}
 
+        # Scheduler-related state
+        self.loss_run_gates: Dict[str, Dict[str, bool]] = {}
+        self.loss_scheduler: Any | None = None
+
         self.get_train_epoch_fn: Callable[[], Callable[[], None]] | None = None
         self.set_train_epoch_fn: Callable[[Callable[[], None]], None] | None = None
 
