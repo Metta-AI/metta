@@ -56,6 +56,11 @@ private:
           break;
         }
       }
+
+      // The starting agent must be in one of the surrounding positions
+      if (start_index == -1) {
+        throw std::runtime_error("Starting agent is not in a surrounding position of the assembler");
+      }
     }
 
     // If starting agent was found in surrounding positions, reorder to start from there
