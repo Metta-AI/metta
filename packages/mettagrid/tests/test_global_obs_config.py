@@ -1,28 +1,40 @@
 """Test global observation configuration functionality."""
 
 from mettagrid.config.mettagrid_c_config import from_mettagrid_config
+from mettagrid.config.mettagrid_config import (
+    ActionConfig,
+    ActionsConfig,
+    AgentConfig,
+    AgentRewards,
+    GameConfig,
+    GlobalObsConfig,
+    WallConfig,
+)
 from mettagrid.mettagrid_c import MettaGrid, PackedCoordinate
 
 
-def create_test_env(global_obs_config):
+def create_test_env(global_obs_config: dict[str, bool]):
     """Create test environment with specified global_obs configuration."""
-    game_config = {
-        "num_agents": 2,
-        "obs_width": 11,
-        "obs_height": 11,
-        "num_observation_tokens": 100,
-        "max_steps": 100,
-        "resource_names": ["item1", "item2"],
-        "global_obs": global_obs_config,
-        "agent": {
-            "default_resource_limit": 10,
-            "freeze_duration": 0,
-            "rewards": {},
-            "action_failure_penalty": 0,
-        },
-        "actions": {"noop": {"enabled": True}, "move": {"enabled": True}},
-        "objects": {"wall": {"type_id": 1, "swappable": False}},
-    }
+    game_config = GameConfig(
+        num_agents=2,
+        obs_width=11,
+        obs_height=11,
+        num_observation_tokens=100,
+        max_steps=100,
+        resource_names=["item1", "item2"],
+        global_obs=GlobalObsConfig(**global_obs_config),
+        agent=AgentConfig(
+            default_resource_limit=10,
+            freeze_duration=0,
+            rewards=AgentRewards(),
+            action_failure_penalty=0,
+        ),
+        actions=ActionsConfig(
+            noop=ActionConfig(enabled=True),
+            move=ActionConfig(enabled=True),
+        ),
+        objects={"wall": WallConfig(type_id=1, swappable=False)},
+    )
 
     game_map = [
         ["wall", "wall", "wall", "wall"],
@@ -61,12 +73,12 @@ def test_all_global_tokens_enabled():
 
     expected_features = {
         env.feature_spec()[feature_name]["id"]
-        for feature_name in ["episode_completion_pct", "last_action", "last_action_arg", "last_reward"]
+        for feature_name in ["episode_completion_pct", "last_action", "last_reward"]
     }
     global_token_count = count_global_features(obs, expected_features)
 
-    # Each agent should have 4 global tokens
-    assert global_token_count == 8  # 2 agents * 4 tokens
+    # Each agent should have 3 global tokens
+    assert global_token_count == 6  # 2 agents * 3 tokens
 
 
 def test_episode_completion_disabled():
@@ -76,13 +88,11 @@ def test_episode_completion_disabled():
     env = create_test_env(global_obs)
     obs, _ = env.reset()
 
-    expected_features = {
-        env.feature_spec()[feature_name]["id"] for feature_name in ["last_action", "last_action_arg", "last_reward"]
-    }
+    expected_features = {env.feature_spec()[feature_name]["id"] for feature_name in ["last_action", "last_reward"]}
     global_token_count = count_global_features(obs, expected_features)
 
-    # Each agent should have 3 global tokens
-    assert global_token_count == 6  # 2 agents * 3 tokens
+    # Each agent should have 2 global tokens
+    assert global_token_count == 4  # 2 agents * 2 tokens
 
 
 def test_last_action_disabled():
@@ -111,7 +121,7 @@ def test_all_global_tokens_disabled():
     # Should have no global tokens
     unexpected_features = {
         env.feature_spec()[feature_name]["id"]
-        for feature_name in ["episode_completion_pct", "last_action", "last_action_arg", "last_reward"]
+        for feature_name in ["episode_completion_pct", "last_action", "last_reward"]
     }
     global_token_count = count_global_features(obs, unexpected_features)
 
@@ -122,23 +132,23 @@ def test_all_global_tokens_disabled():
 def test_global_obs_default_values():
     """Test that global_obs uses default values when not specified."""
     # Test with no global_obs specified - should use defaults (all True)
-    game_config = {
-        "num_agents": 1,
-        "obs_width": 11,
-        "obs_height": 11,
-        "num_observation_tokens": 100,
-        "max_steps": 100,
-        "resource_names": ["item1"],
+    game_config = GameConfig(
+        num_agents=1,
+        obs_width=11,
+        obs_height=11,
+        num_observation_tokens=100,
+        max_steps=100,
+        resource_names=["item1"],
         # No global_obs specified - should use defaults
-        "agent": {
-            "default_resource_limit": 10,
-            "freeze_duration": 0,
-            "rewards": {},
-            "action_failure_penalty": 0,
-        },
-        "actions": {"noop": {"enabled": True}},
-        "objects": {"wall": {"type_id": 1, "swappable": False}},
-    }
+        agent=AgentConfig(
+            default_resource_limit=10,
+            freeze_duration=0,
+            rewards=AgentRewards(),
+            action_failure_penalty=0,
+        ),
+        actions=ActionsConfig(noop=ActionConfig(enabled=True)),
+        objects={"wall": WallConfig(type_id=1, swappable=False)},
+    )
 
     game_map = [["agent.agent"]]
 
@@ -146,11 +156,11 @@ def test_global_obs_default_values():
     env = MettaGrid(from_mettagrid_config(game_config), game_map, 42)
     obs, _ = env.reset()
 
-    # Should have all 4 global tokens by default
+    # Should have all 3 global tokens by default
     expected_features = {
         env.feature_spec()[feature_name]["id"]
-        for feature_name in ["episode_completion_pct", "last_action", "last_action_arg", "last_reward"]
+        for feature_name in ["episode_completion_pct", "last_action", "last_reward"]
     }
     global_token_count = count_global_features(obs, expected_features)
 
-    assert global_token_count == 4
+    assert global_token_count == 3

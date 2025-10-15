@@ -1,8 +1,8 @@
 #ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_CHEST_HPP_
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_CHEST_HPP_
 
-#include <map>
 #include <set>
+#include <unordered_map>
 #include <vector>
 
 #include "core/event.hpp"
@@ -46,74 +46,90 @@ private:
     return -1;  // Agent is not adjacent
   }
 
-  // Check if the given position index is a deposit position
-  bool is_deposit_position(int position_index) const {
-    return deposit_positions.find(position_index) != deposit_positions.end();
-  }
+  // Transfer resources based on position delta
+  // Positive delta = deposit from agent to chest
+  // Negative delta = withdraw from chest to agent
+  bool transfer_resource(Agent& agent, int delta) {
+    if (delta > 0) {
+      // Deposit: agent -> chest
+      int agent_amount = static_cast<int>(agent.inventory.amount(resource_type));
+      int transfer_amount = std::min(delta, agent_amount);
+      if (transfer_amount == 0) {
+        return false;
+      }
 
-  // Check if the given position index is a withdrawal position
-  bool is_withdrawal_position(int position_index) const {
-    return withdrawal_positions.find(position_index) != withdrawal_positions.end();
-  }
+      // Check if chest has space (unless max_inventory is unlimited)
+      if (max_inventory >= 0) {
+        int current_amount = static_cast<int>(inventory.amount(resource_type));
+        int available_space = max_inventory - current_amount;
+        transfer_amount = std::min(transfer_amount, available_space);
 
-  // Deposit a resource from agent to chest
-  bool deposit_resource(Agent& agent) {
-    // Check if agent has the required resource
-    if (agent.inventory.amount(resource_type) == 0) {
-      return false;
-    }
+        if (transfer_amount == 0) {
+          // Chest is full, destroy the resource from agent
+          agent.update_inventory(resource_type, -delta);
+          stats_tracker->add("chest." + stats_tracker->resource_name(resource_type) + ".destroyed", delta);
+          return true;
+        }
+      }
 
-    InventoryDelta deposited = update_inventory(resource_type, 1);
-    if (deposited == 1) {
-      agent.update_inventory(resource_type, -1);
-      if (stats_tracker) {
-        stats_tracker->incr("chest." + stats_tracker->resource_name(resource_type) + ".deposited");
-        stats_tracker->incr("chest." + stats_tracker->resource_name(resource_type) + ".amount");
+      // Transfer from agent to chest
+      InventoryDelta deposited = update_inventory(resource_type, transfer_amount);
+      agent.update_inventory(resource_type, -transfer_amount);
+      stats_tracker->add("chest." + stats_tracker->resource_name(resource_type) + ".deposited", transfer_amount);
+      stats_tracker->set("chest." + stats_tracker->resource_name(resource_type) + ".amount",
+                         inventory.amount(resource_type));
+
+      // If we couldn't transfer the full delta due to max_inventory, destroy the rest
+      int destroyed = delta - transfer_amount;
+      if (destroyed > 0) {
+        agent.update_inventory(resource_type, -destroyed);
+        stats_tracker->add("chest." + stats_tracker->resource_name(resource_type) + ".destroyed", destroyed);
       }
       return true;
-    }
-    // Chest couldn't accept the resource, give it back to agent
-    return false;
-  }
+    } else if (delta < 0) {
+      // Withdraw: chest -> agent
+      int chest_amount = static_cast<int>(inventory.amount(resource_type));
+      int withdraw_amount = std::min(-delta, chest_amount);
+      if (withdraw_amount == 0) {
+        return false;
+      }
 
-  // Withdraw a resource from chest to agent
-  bool withdraw_resource(Agent& agent) {
-    // Check if chest has the required resource
-    if (inventory.amount(resource_type) == 0) {
+      // Transfer from chest to agent
+      InventoryDelta withdrawn = agent.update_inventory(resource_type, withdraw_amount);
+      if (withdrawn > 0) {
+        update_inventory(resource_type, -withdrawn);
+        stats_tracker->add("chest." + stats_tracker->resource_name(resource_type) + ".withdrawn", withdrawn);
+        stats_tracker->set("chest." + stats_tracker->resource_name(resource_type) + ".amount",
+                           inventory.amount(resource_type));
+        return true;
+      }
       return false;
     }
-
-    InventoryDelta withdrawn = agent.update_inventory(resource_type, 1);
-    if (withdrawn == 1) {
-      update_inventory(resource_type, -1);
-      if (stats_tracker) {
-        stats_tracker->incr("chest." + stats_tracker->resource_name(resource_type) + ".withdrawn");
-        stats_tracker->add("chest." + stats_tracker->resource_name(resource_type) + ".amount", -1);
-      }
-      return true;
-    }
-    // Agent couldn't accept the resource, give it back to chest
-    return false;
+    return false;  // delta == 0, no-op
   }
 
 public:
   // Configuration
   InventoryItem resource_type;
-  std::set<int> deposit_positions;
-  std::set<int> withdrawal_positions;
+  std::unordered_map<int, int> position_deltas;  // position_index -> delta
+  int max_inventory;                             // Maximum inventory (-1 = unlimited)
 
   // Grid access for finding agent positions
   class Grid* grid;
 
-  Chest(GridCoord r, GridCoord c, const ChestConfig& cfg)
+  Chest(GridCoord r, GridCoord c, const ChestConfig& cfg, StatsTracker* stats_tracker)
       : GridObject(),
         HasInventory(InventoryConfig()),  // Chests have nothing to configure in their inventory. Yet.
         resource_type(cfg.resource_type),
-        deposit_positions(cfg.deposit_positions),
-        withdrawal_positions(cfg.withdrawal_positions),
-        stats_tracker(nullptr),
+        position_deltas(cfg.position_deltas),
+        max_inventory(cfg.max_inventory),
+        stats_tracker(stats_tracker),
         grid(nullptr) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids);
+    // Set initial inventory
+    if (cfg.initial_inventory > 0) {
+      update_inventory(cfg.resource_type, cfg.initial_inventory);
+    }
   }
 
   virtual ~Chest() = default;
@@ -134,14 +150,14 @@ public:
       return false;
     }
 
-    // Check if agent is in a valid position for deposit or withdrawal
-    if (is_deposit_position(agent_position_index)) {
-      return deposit_resource(actor);
-    } else if (is_withdrawal_position(agent_position_index)) {
-      return withdraw_resource(actor);
-    } else {
-      return false;
+    // Check if there's a configured delta for this position
+    auto it = position_deltas.find(agent_position_index);
+    if (it == position_deltas.end()) {
+      return false;  // No action configured for this position
     }
+
+    int delta = it->second;
+    return transfer_resource(actor, delta);
   }
 
   virtual std::vector<PartialObservationToken> obs_features() const override {
@@ -149,7 +165,6 @@ public:
     features.reserve(2 + this->inventory.get().size() + this->tag_ids.size());
 
     features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
-    features.push_back({ObservationFeature::Color, static_cast<ObservationType>(this->resource_type)});
 
     // Add current inventory (inv:resource)
     for (const auto& [item, amount] : this->inventory.get()) {

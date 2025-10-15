@@ -50,6 +50,9 @@ check_cmd() {
 
 echo "Welcome to Metta!"
 
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+sh "$SCRIPT_DIR/devops/tools/install-system.sh"
+
 for cmd in uv bazel git g++ nimble nim; do
   if ! check_cmd "$cmd"; then
     echo "$cmd not found. Consider running ./devops/tools/install-system.sh"
@@ -60,6 +63,9 @@ done
 uv sync
 uv run python -m metta.setup.metta_cli symlink-setup setup --quiet
 uv run python -m metta.setup.metta_cli install $PROFILE_ADDITION $NON_INTERACTIVE_ADDITION
+if [ "$(uname -s)" = "Linux" ]; then
+  uv run python scripts/install_cuda_extras.py --quiet || true
+fi
 
 echo "\nSetup complete!\n"
 

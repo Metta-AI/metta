@@ -5,19 +5,8 @@ from typing import Any, Dict, Optional
 
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training import ComponentContext, DistributedHelper, TrainerComponent
-from mettagrid.config import Config
 
 logger = logging.getLogger(__name__)
-
-
-class ContextCheckpointerConfig(Config):
-    """Configuration for trainer state checkpointing."""
-
-    epoch_interval: int = 50
-    """How often to save trainer state checkpoints (in epochs)."""
-
-    keep_last_n: int = 5
-    """Number of trainer checkpoints to retain locally."""
 
 
 class ContextCheckpointer(TrainerComponent):
@@ -28,14 +17,13 @@ class ContextCheckpointer(TrainerComponent):
     def __init__(
         self,
         *,
-        config: ContextCheckpointerConfig,
         checkpoint_manager: CheckpointManager,
         distributed_helper: DistributedHelper,
     ) -> None:
-        super().__init__(epoch_interval=max(1, config.epoch_interval))
-        self._config = config
+        super().__init__(epoch_interval=1)
         self._checkpoint_manager = checkpoint_manager
         self._distributed = distributed_helper
+        self._last_synced_policy_epoch: Optional[int] = None
 
     # ------------------------------------------------------------------
     # Lifecycle helpers
@@ -45,6 +33,7 @@ class ContextCheckpointer(TrainerComponent):
         target_path = self._checkpoint_manager.checkpoint_dir
         target_path.mkdir(parents=True, exist_ok=True)
         logger.debug("Trainer checkpoints will be written to %s", target_path)
+        self._last_synced_policy_epoch = context.latest_saved_policy_epoch
 
     # ------------------------------------------------------------------
     # Public API used by Trainer
@@ -76,6 +65,7 @@ class ContextCheckpointer(TrainerComponent):
         context.agent_step = payload["agent_step"]
         context.epoch = restored_epoch
         context.latest_saved_policy_epoch = restored_epoch
+        self._last_synced_policy_epoch = context.latest_saved_policy_epoch
 
         optimizer_state = payload.get("optimizer_state")
         context.state.optimizer_state = optimizer_state
@@ -84,6 +74,9 @@ class ContextCheckpointer(TrainerComponent):
                 context.optimizer.load_state_dict(optimizer_state)
             except ValueError as exc:  # pragma: no cover - mismatch rare but we log it
                 logger.warning("Failed to load optimizer state from checkpoint: %s", exc)
+            finally:
+                # Drop reference to the restored state to avoid retaining GPU buffers
+                context.state.optimizer_state = None
 
         stopwatch_state = payload.get("stopwatch_state")
         context.state.stopwatch_state = stopwatch_state
@@ -116,6 +109,7 @@ class ContextCheckpointer(TrainerComponent):
                     loss.load_state_dict(stored, strict=False)
                 except Exception as exc:  # pragma: no cover - defensive
                     logger.warning("Failed to restore loss state for %s: %s", name, exc)
+        context.state.loss_states = {}
 
         context.timing_baseline = {
             "agent_step": context.agent_step,
@@ -129,27 +123,26 @@ class ContextCheckpointer(TrainerComponent):
         if not self._distributed.should_checkpoint():
             return
 
-        if epoch % self._config.epoch_interval != 0:
+        policy_epoch = self.context.latest_saved_policy_epoch
+        if policy_epoch is None:
             return
 
-        self._save_state()
+        if policy_epoch != self._last_synced_policy_epoch:
+            self._save_state()
 
     def on_training_complete(self) -> None:  # type: ignore[override]
         if not self._distributed.should_checkpoint():
             return
 
-        self._save_state(force=True)
+        self._save_state()
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
-    def _save_state(self, *, force: bool = False) -> None:
+    def _save_state(self) -> None:
         context = self.context
         current_epoch = context.epoch
         agent_step = context.agent_step
-
-        if not force and self._config.epoch_interval and current_epoch % self._config.epoch_interval != 0:
-            return
 
         try:
             context.state.stopwatch_state = context.stopwatch.save_state()
@@ -182,3 +175,9 @@ class ContextCheckpointer(TrainerComponent):
             curriculum_state=context.state.curriculum_state,
             loss_states=context.state.loss_states,
         )
+
+        self._last_synced_policy_epoch = self.context.latest_saved_policy_epoch
+
+        # Release references so we do not pin large GPU tensors between checkpoints
+        context.state.optimizer_state = None
+        context.state.loss_states = {}

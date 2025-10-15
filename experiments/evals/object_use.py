@@ -10,6 +10,7 @@ from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
     WallConfig,
 )
+from mettagrid.map_builder.map_builder import MapBuilder
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.scenes.mean_distance import MeanDistance
 
@@ -45,15 +46,13 @@ def make_object_use_env(
                 instances=num_instances,
                 border_width=6,
                 instance_border_width=3,
-                instance_map=MapGen.Config(
+                instance=MapGen.Config(
                     width=11,
                     height=11,
                     border_width=3,
-                    root=MeanDistance.factory(
-                        params=MeanDistance.Params(
-                            mean_distance=6,
-                            objects=map_objects,
-                        )
+                    instance=MeanDistance.Config(
+                        mean_distance=6,
+                        objects=map_objects,
                     ),
                 ),
             ),
@@ -73,6 +72,10 @@ def make_object_use_ascii_env(
 ) -> MettaGridConfig:
     """Create an object use evaluation environment from ASCII map."""
 
+    instance_config = MapBuilder.Config.from_uri(
+        f"packages/mettagrid/configs/maps/object_use/{ascii_map}.map"
+    )
+
     env = MettaGridConfig(
         game=GameConfig(
             num_agents=num_agents * num_instances,
@@ -80,7 +83,6 @@ def make_object_use_ascii_env(
             objects=objects,
             actions=ActionsConfig(
                 move=ActionConfig(),
-                rotate=ActionConfig(enabled=False),
                 get_items=ActionConfig(),
                 put_items=ActionConfig(),
             ),
@@ -92,10 +94,7 @@ def make_object_use_ascii_env(
                 instances=num_instances,
                 border_width=6,
                 instance_border_width=3,
-                instance_map=MapGen.Config.with_ascii_uri(
-                    f"packages/mettagrid/configs/maps/object_use/{ascii_map}.map",
-                    border_width=1,
-                ),
+                instance=instance_config,
             ),
         )
     )
@@ -303,7 +302,7 @@ def make_swap_in_env() -> MettaGridConfig:
         },
         rewards={"heart": 1},
     )
-    env.game.actions.swap = ActionConfig(enabled=True)
+    env.game.actions.swap = ActionConfig()
     return env
 
 
@@ -324,7 +323,7 @@ def make_swap_out_env() -> MettaGridConfig:
         },
         rewards={"heart": 1},
     )
-    env.game.actions.swap = ActionConfig(enabled=True)
+    env.game.actions.swap = ActionConfig()
     return env
 
 

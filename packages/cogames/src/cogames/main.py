@@ -1,231 +1,293 @@
+#!/usr/bin/env -S uv run
+
 """CLI for CoGames - collection of environments for multi-agent cooperative and competitive games."""
 
+import importlib.metadata
+import json
 import logging
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional, TypeVar
+
+import typer
+import yaml
+from click.core import ParameterSource
+from packaging.version import Version
+from rich.table import Table
+
+from cogames import evaluate as evaluate_module
+from cogames import game
+from cogames import play as play_module
+from cogames import train as train_module
+from cogames.cli.base import console
+from cogames.cli.mission import describe_mission, get_mission_name_and_config, get_mission_names_and_configs
+from cogames.cli.policy import get_policy_spec, get_policy_specs, policy_arg_example, policy_arg_w_proportion_example
+from cogames.curricula import make_rotation
+from cogames.device import resolve_training_device
+from mettagrid import MettaGridEnv
 
 # Always add current directory to Python path
 sys.path.insert(0, ".")
 
-import typer
-from rich.console import Console
-
 logger = logging.getLogger("cogames.main")
 
-app = typer.Typer(help="CoGames - Multi-agent cooperative and competitive games")
-console = Console()
+
+T = TypeVar("T")
 
 
-@app.callback(invoke_without_command=True)
-def default(ctx: typer.Context) -> None:
-    """Show help when no command is provided."""
-    if ctx.invoked_subcommand is None:
-        # No command provided, show help
-        print(ctx.get_help())
+app = typer.Typer(
+    help="CoGames - Multi-agent cooperative and competitive games",
+    context_settings={"help_option_names": ["-h", "--help"]},
+    no_args_is_help=True,
+    rich_markup_mode="rich",
+    pretty_exceptions_show_locals=False,
+)
 
 
-@app.command("games")
+@app.command("missions", help="List all available missions, or describe a specific mission")
+@app.command("games", hidden=True)
+@app.command("mission", hidden=True)
 def games_cmd(
-    game_name: Optional[str] = typer.Argument(None, help="Name of the game to describe"),
-    save: Optional[Path] = typer.Option(None, "--save", "-s", help="Save game configuration to file (YAML or JSON)"),  # noqa: B008
-) -> None:
-    """List all available games or describe a specific game."""
-    from cogames import game
-
-    if game_name is None:
-        # List all games
-        table = game.list_games(console)
-        console.print(table)
-    else:
-        # Get the game configuration
-        try:
-            game_config = game.get_game(game_name)
-        except ValueError as e:
-            console.print(f"[red]Error: {e}[/red]")
-            raise typer.Exit(1) from e
-
-        # Save configuration if requested
-        if save:
-            try:
-                game.save_game_config(game_config, save)
-                console.print(f"[green]Game configuration saved to: {save}[/green]")
-            except ValueError as e:
-                console.print(f"[red]Error saving configuration: {e}[/red]")
-                raise typer.Exit(1) from e
-        else:
-            # Otherwise describe the game
-            try:
-                game.describe_game(game_name, console)
-            except ValueError as e:
-                console.print(f"[red]Error: {e}[/red]")
-                raise typer.Exit(1) from e
-
-
-@app.command(name="play")
-def play_cmd(
-    game_name: Optional[str] = typer.Argument(None, help="Name of the game to play"),
-    policy_class_path: str = typer.Option(
-        "cogames.examples.random_policy.RandomPolicy", "--policy", help="Path to policy class"
+    ctx: typer.Context,
+    mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Name of the mission"),
+    format_: Optional[Literal["yaml", "json"]] = typer.Option(
+        None, "--format", help="Output mission configuration in YAML or JSON."
     ),
-    policy_data_path: Optional[str] = typer.Option(None, "--policy-data", help="Path to initial policy weights"),
-    interactive: bool = typer.Option(True, "--interactive", "-i", help="Run in interactive mode"),
-    steps: int = typer.Option(100, "--steps", "-s", help="Number of steps to run"),
+    save: Optional[Path] = typer.Option(  # noqa: B008
+        None,
+        "--save",
+        "-s",
+        help="Save mission configuration to file (YAML or JSON)",
+    ),
 ) -> None:
-    """Play a game."""
-    from cogames import game, utils
+    resolved_mission, env_cfg = get_mission_name_and_config(ctx, mission)
 
-    # If no game specified, list games
-    if game_name is None:
-        console.print("[yellow]No game specified. Available games:[/yellow]")
-        table = game.list_games(console)
-        console.print(table)
-        console.print("\n[dim]Usage: cogames play <game>[/dim]")
+    if save is not None:
+        try:
+            game.save_mission_config(env_cfg, save)
+            console.print(f"[green]Mission configuration saved to: {save}[/green]")
+        except ValueError as exc:  # pragma: no cover - user input
+            console.print(f"[red]Error saving configuration: {exc}[/red]")
+            raise typer.Exit(1) from exc
         return
 
-    # Resolve game name
-    resolved_game, error = utils.resolve_game(game_name)
-    if error:
-        console.print(f"[red]Error: {error}[/red]")
-        raise typer.Exit(1)
-    assert resolved_game is not None
-    env_cfg = game.get_game(resolved_game)
+    if format_ is not None:
+        try:
+            data = env_cfg.model_dump(mode="json")
+            if format_ == "json":
+                console.print(json.dumps(data, indent=2))
+            else:
+                console.print(yaml.safe_dump(data, sort_keys=False))
+        except Exception as exc:  # pragma: no cover - serialization errors
+            console.print(f"[red]Error formatting configuration: {exc}[/red]")
+            raise typer.Exit(1) from exc
+        return
 
-    console.print(f"[cyan]Playing {resolved_game}[/cyan]")
-    console.print(f"Max Steps: {steps}, Interactive: {interactive}")
+    try:
+        describe_mission(resolved_mission, env_cfg)
+    except ValueError as exc:  # pragma: no cover - user input
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(1) from exc
 
-    from cogames import play as play_module
+
+@app.command(name="play", help="Play a game")
+def play_cmd(
+    ctx: typer.Context,
+    mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Name of the mission"),
+    policy: str = typer.Option("noop", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
+    steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
+    render: Literal["gui", "unicode", "none"] = typer.Option(
+        "gui", "--render", "-r", help="Render mode: 'gui', 'unicode' (interactive terminal), or 'none'"
+    ),
+) -> None:
+    resolved_mission, env_cfg = get_mission_name_and_config(ctx, mission)
+    policy_spec = get_policy_spec(ctx, policy)
+    console.print(f"[cyan]Playing {resolved_mission}[/cyan]")
+    console.print(f"Max Steps: {steps}, Render: {render}")
+
+    if ctx.get_parameter_source("steps") in (
+        ParameterSource.COMMANDLINE,
+        ParameterSource.ENVIRONMENT,
+        ParameterSource.PROMPT,
+    ):
+        env_cfg.game.max_steps = steps
 
     play_module.play(
         console,
         env_cfg=env_cfg,
-        policy_class_path=policy_class_path,
-        policy_data_path=policy_data_path,
+        policy_spec=policy_spec,
         max_steps=steps,
         seed=42,
-        verbose=interactive,  # Use interactive flag for verbose output
+        render=render,
+        game_name=resolved_mission,
     )
 
 
-@app.command("make-game")
-def make_scenario(
-    base_game: Optional[str] = typer.Argument(None, help="Base game to use as template"),
-    num_agents: int = typer.Option(2, "--agents", "-a", help="Number of agents"),
-    width: int = typer.Option(10, "--width", "-w", help="Map width"),
-    height: int = typer.Option(10, "--height", "-h", help="Map height"),
-    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (YAML or JSON)"),  # noqa: B008
+@app.command("make-mission", help="Create a new mission configuration")
+@app.command("make-game", hidden=True)
+def make_mission(
+    ctx: typer.Context,
+    base_mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Base mission to start configuring from"),
+    num_agents: int = typer.Option(2, "--agents", "-a", help="Number of agents", min=1),
+    width: int = typer.Option(10, "--width", "-w", help="Map width", min=1),
+    height: int = typer.Option(10, "--height", "-h", help="Map height", min=1),
+    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (yml or json)"),  # noqa: B008
 ) -> None:
-    """Create a new game configuration."""
-    from cogames import game, utils
-
     try:
-        # If base_game specified, use it as template
-        if base_game:
-            resolved_game, error = utils.resolve_game(base_game)
-            if error:
-                console.print(f"[red]Error: {error}[/red]")
-                console.print("Creating from scratch instead...")
-            else:
-                console.print(f"[cyan]Using {resolved_game} as template[/cyan]")
-        else:
-            console.print("[cyan]Creating new game from scratch[/cyan]")
-
-        # Use cogs_vs_clips make_game for now
-        from cogames.cogs_vs_clips.scenarios import make_game
-
-        # Create game with specified parameters
-        new_config = make_game(
-            num_cogs=num_agents,
-            num_assemblers=1,
-            num_chests=1,
-        )
+        resolved_mission, env_cfg = get_mission_name_and_config(ctx, base_mission)
 
         # Update map dimensions
-        new_config.game.map_builder.width = width
-        new_config.game.map_builder.height = height
-        new_config.game.num_agents = num_agents
+        env_cfg.game.map_builder.width = width  # type: ignore[attr-defined]
+        env_cfg.game.map_builder.height = height  # type: ignore[attr-defined]
+        env_cfg.game.num_agents = num_agents
+
+        # Validate the environment configuration
+        _ = MettaGridEnv(env_cfg)
 
         if output:
-            game.save_game_config(new_config, output)
-            console.print(f"[green]Game configuration saved to: {output}[/green]")
+            game.save_mission_config(env_cfg, output)
+            console.print(f"[green]Modified {resolved_mission} configuration saved to: {output}[/green]")
         else:
             console.print("\n[yellow]To save this configuration, use the --output option.[/yellow]")
 
-    except Exception as e:
-        console.print(f"[red]Error: {e}[/red]")
-        raise typer.Exit(1) from e
+    except Exception as exc:  # pragma: no cover - user input
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(1) from exc
 
 
-@app.command(name="train")
+@app.command(name="train", help="Train a policy on a mission")
 def train_cmd(
-    game_name: Optional[str] = typer.Argument(None, help="Name of the game to train on"),
-    policy_class_path: str = typer.Option(
-        "cogames.examples.simple_policy.SimplePolicy", "--policy", help="Path to policy class"
-    ),
-    initial_weights_path: Optional[str] = typer.Option(
-        None, "--initial-weights", help="Path to initial policy weights"
-    ),
+    ctx: typer.Context,
+    missions: Optional[list[str]] = typer.Option(None, "--mission", "-m", help="Missions to train on"),  # noqa B008
+    policy: str = typer.Option("simple", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
     checkpoints_path: str = typer.Option(
-        "./experiments",
+        "./train_dir",
         "--checkpoints",
         help="Path to save training data",
     ),
-    steps: int = typer.Option(10000, "--steps", "-s", help="Number of training steps"),
-    device: str = typer.Option("cuda", "--device", help="Device to train on"),
-    seed: int = typer.Option(42, "--seed", help="Seed for training"),
-    batch_size: int = typer.Option(4096, "--batch-size", help="Batch size for training"),
-    minibatch_size: int = typer.Option(4096, "--minibatch-size", help="Minibatch size for training"),
+    steps: int = typer.Option(10_000_000_000, "--steps", "-s", help="Number of training steps", min=1),
+    device: str = typer.Option(
+        "auto",
+        "--device",
+        help="Device to train on (e.g. 'auto', 'cpu', 'cuda')",
+    ),
+    seed: int = typer.Option(42, "--seed", help="Seed for training", min=0),
+    batch_size: int = typer.Option(4096, "--batch-size", help="Batch size for training", min=1),
+    minibatch_size: int = typer.Option(4096, "--minibatch-size", help="Minibatch size for training", min=1),
+    num_workers: Optional[int] = typer.Option(
+        None,
+        "--num-workers",
+        help="Number of worker processes (defaults to number of CPU cores)",
+        min=1,
+    ),
+    parallel_envs: Optional[int] = typer.Option(
+        None,
+        "--parallel-envs",
+        help="Number of parallel environments",
+        min=1,
+    ),
+    vector_batch_size: Optional[int] = typer.Option(
+        None,
+        "--vector-batch-size",
+        help="Override vectorized environment batch size",
+        min=1,
+    ),
 ) -> None:
-    """Train a policy on a game."""
-    import torch
+    selected_missions = get_mission_names_and_configs(ctx, missions)
+    if len(selected_missions) == 1:
+        mission_name, env_cfg = selected_missions[0]
+        supplier = None
+        console.print(f"Training on mission: {mission_name}\n")
+    elif len(selected_missions) > 1:
+        env_cfg = None
+        supplier = make_rotation(selected_missions)
+        console.print("Training on missions:\n" + "\n".join(f"- {m}" for m, _ in selected_missions) + "\n")
+    else:
+        # Should not get here
+        raise ValueError("Please specify at least one mission")
 
-    from cogames import game, utils
-    from cogames import train as train_module
-
-    # If no game specified, list games
-    if game_name is None:
-        console.print("[yellow]No game specified. Available games:[/yellow]")
-        table = game.list_games(console)
-        console.print(table)
-        console.print("\n[dim]Usage: cogames train <game>[/dim]")
-        return
-
-    # Resolve game name
-    resolved_game, error = utils.resolve_game(game_name)
-    if error:
-        console.print(f"[red]Error: {error}[/red]")
-        raise typer.Exit(1)
-    assert resolved_game is not None
-    env_cfg = game.get_game(resolved_game)
+    policy_spec = get_policy_spec(ctx, policy)
+    torch_device = resolve_training_device(console, device)
 
     try:
         train_module.train(
             env_cfg=env_cfg,
-            policy_class_path=policy_class_path,
-            initial_weights_path=initial_weights_path,
-            device=torch.device(device),
+            policy_class_path=policy_spec.policy_class_path,
+            initial_weights_path=policy_spec.policy_data_path,
+            device=torch_device,
             num_steps=steps,
             checkpoints_path=Path(checkpoints_path),
             seed=seed,
             batch_size=batch_size,
             minibatch_size=minibatch_size,
+            vector_num_workers=num_workers,
+            vector_num_envs=parallel_envs,
+            vector_batch_size=vector_batch_size,
+            env_cfg_supplier=supplier,
+            missions_arg=missions,
         )
 
-    except ValueError as e:
-        console.print(f"[red]Error: {e}[/red]")
-        raise typer.Exit(1) from e
+    except ValueError as exc:  # pragma: no cover - user input
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(1) from exc
 
     console.print(f"[green]Training complete. Checkpoints saved to: {checkpoints_path}[/green]")
 
 
-@app.command()
-def evaluate(
-    game_name: Optional[str] = typer.Argument(None, help="Name of the game to evaluate"),
-    policy: Optional[str] = typer.Argument(None, help="Path to policy checkpoint or 'random' for random policy"),
-    episodes: int = typer.Option(10, "--episodes", "-e", help="Number of evaluation episodes"),
+@app.command(
+    name="eval",
+    help="Evaluate one or more policies on a mission",
+)
+@app.command("evaluate", hidden=True)
+def evaluate_cmd(
+    ctx: typer.Context,
+    mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Name of the mission"),
+    policies: Optional[list[str]] = typer.Option(  # noqa: B008
+        None,
+        "--policy",
+        "-p",
+        help=f"Policies to evaluate: ({policy_arg_w_proportion_example}...)",
+    ),
+    episodes: int = typer.Option(10, "--episodes", "-e", help="Number of evaluation episodes", min=1),
+    action_timeout_ms: int = typer.Option(
+        250,
+        "--action-timeout-ms",
+        help="Max milliseconds afforded to generate each action before noop is used by default",
+        min=1,
+    ),
+    steps: Optional[int] = typer.Option(1000, "--steps", "-s", help="Max steps per episode", min=1),
 ) -> None:
-    """Evaluate a policy on a game."""
-    console.print("[red]Coming soon...[/red]")
+    resolved_mission, env_cfg = get_mission_name_and_config(ctx, mission)
+    policy_specs = get_policy_specs(ctx, policies)
+
+    console.print(
+        f"[cyan]Evaluating {len(policy_specs)} policies on {resolved_mission} over {episodes} episodes[/cyan]"
+    )
+
+    evaluate_module.evaluate(
+        console,
+        resolved_game=resolved_mission,
+        env_cfg=env_cfg,
+        policy_specs=policy_specs,
+        action_timeout_ms=action_timeout_ms,
+        episodes=episodes,
+        max_steps=steps,
+    )
+
+
+@app.command(name="version", help="Show version information")
+def version_cmd() -> None:
+    def public_version(dist_name: str) -> str:
+        return str(Version(importlib.metadata.version(dist_name)).public)
+
+    table = Table(show_header=False, box=None, show_lines=False, pad_edge=False)
+    table.add_column("", justify="right", style="bold cyan")
+    table.add_column("", justify="right")
+
+    for dist_name in ["mettagrid", "pufferlib-core", "cogames"]:
+        table.add_row(dist_name, public_version(dist_name))
+
+    console.print(table)
 
 
 if __name__ == "__main__":

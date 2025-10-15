@@ -76,8 +76,8 @@ def production_navigation_curriculum(navigation_env):
         for terrain in ["balanced", "maze", "sparse", "dense", "cylinder-world"]:
             maps.append(f"varied_terrain/{terrain}_{size}")
 
-    dense_tasks.add_bucket("game.map_builder.instance_map.dir", maps)
-    dense_tasks.add_bucket("game.map_builder.instance_map.objects.altar", [Span(3, 50)])
+    dense_tasks.add_bucket("game.map_builder.instance.dir", maps)
+    dense_tasks.add_bucket("game.map_builder.instance.objects.altar", [Span(3, 50)])
 
     # Sparse tasks
     sparse_env = navigation_env.model_copy()
@@ -106,7 +106,10 @@ def bucketed_task_generator_config(arena_env):
 @pytest.fixture(scope="function")
 def task_generator_set_config(arena_env):
     """Create a task generator set configuration."""
-    return cc.multi_task(arena_env)
+    return cc.TaskGeneratorSet.Config(
+        task_generators=[cc.single_task(arena_env)],
+        weights=[1.0],
+    )
 
 
 @pytest.fixture(scope="function")

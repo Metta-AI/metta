@@ -2,13 +2,14 @@ import contextlib
 import os
 import platform
 from datetime import timedelta
-from typing import Optional
+from typing import Any, Optional
 
 import torch
 from pydantic import Field, model_validator
 
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
+from metta.agent.util.torch_backends import build_sdpa_context
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
 from metta.common.util.heartbeat import record_heartbeat
@@ -21,7 +22,6 @@ from metta.rl.training import (
     Checkpointer,
     CheckpointerConfig,
     ContextCheckpointer,
-    ContextCheckpointerConfig,
     DistributedHelper,
     Evaluator,
     EvaluatorConfig,
@@ -70,7 +70,7 @@ class TrainTool(Tool):
     evaluator: EvaluatorConfig = Field(default_factory=EvaluatorConfig)
     torch_profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)
 
-    context_checkpointer: ContextCheckpointerConfig = Field(default_factory=ContextCheckpointerConfig)
+    context_checkpointer: dict[str, Any] = Field(default_factory=dict)
     stats_reporter: StatsReporterConfig = Field(default_factory=StatsReporterConfig)
     wandb_aborter: WandbAborterConfig = Field(default_factory=WandbAborterConfig)
 
@@ -116,6 +116,8 @@ class TrainTool(Tool):
         self.training_env.seed += distributed_helper.get_rank()
         env = VectorizedTrainingEnvironment(self.training_env)
 
+        self._configure_torch_backends()
+
         checkpoint_manager = CheckpointManager(run=self.run or "default", system_cfg=self.system)
 
         # this check is not in the model validator because we setup the remote prefix in `invoke` rather than `init``
@@ -146,11 +148,27 @@ class TrainTool(Tool):
 
                 trainer.restore()
                 trainer.train()
+
+            # Training completed successfully
+            return 0
+
+        except KeyboardInterrupt:
+            logger.warning("Training interrupted by user")
+            return 130  # Standard exit code for Ctrl+C
+
+        except Exception as e:
+            logger.error(f"Training failed with exception: {e}")
+            return 1
+
         finally:
             env.close()
             if stats_client and hasattr(stats_client, "close"):
                 stats_client.close()
             distributed_helper.cleanup()
+            sdpa_stack = getattr(self, "_sdpa_context_stack", None)
+            if sdpa_stack is not None:
+                sdpa_stack.close()
+                self._sdpa_context_stack = None
 
     def _load_or_create_policy(
         self,
@@ -259,8 +277,13 @@ class TrainTool(Tool):
         else:
             components.append(policy_checkpointer)
 
+        if self.context_checkpointer:
+            logger.debug(
+                "Context checkpointer configuration is ignored; checkpointing is policy-driven now: %s",
+                self.context_checkpointer,
+            )
+
         trainer_checkpointer = ContextCheckpointer(
-            config=self.context_checkpointer,
             checkpoint_manager=checkpoint_manager,
             distributed_helper=distributed_helper,
         )
@@ -285,6 +308,38 @@ class TrainTool(Tool):
 
         if wandb_run is not None and distributed_helper.is_master():
             trainer.register(WandbLogger(wandb_run))
+
+    def _configure_torch_backends(self) -> None:
+        if not torch.cuda.is_available():
+            return
+
+        try:
+            torch.backends.cuda.matmul.allow_tf32 = True
+            torch.backends.cudnn.allow_tf32 = True
+        except Exception as exc:  # pragma: no cover - diagnostic only
+            logger.debug("Skipping CUDA matmul backend configuration: %s", exc)
+
+        # Opportunistically enable flash attention when available
+        if os.environ.get("FLASH_ATTENTION") is None:
+            try:
+                import flash_attn  # noqa: F401
+            except ImportError:
+                pass
+            else:
+                os.environ["FLASH_ATTENTION"] = "1"
+
+        context = build_sdpa_context(
+            prefer_flash=True,
+            prefer_mem_efficient=True,
+            prefer_math=True,
+            set_priority=True,
+        )
+        if context is not None:
+            stack = getattr(self, "_sdpa_context_stack", None)
+            if stack is None:
+                stack = contextlib.ExitStack()
+                self._sdpa_context_stack = stack
+            stack.enter_context(context)
 
     def _log_run_configuration(
         self,
@@ -328,7 +383,6 @@ class TrainTool(Tool):
         self.training_env.forward_pass_minibatch_target_size = min(
             self.training_env.forward_pass_minibatch_target_size, 4
         )
-        self.context_checkpointer.epoch_interval = min(self.context_checkpointer.epoch_interval, 10)
         self.checkpointer.epoch_interval = min(self.checkpointer.epoch_interval, 10)
         self.uploader.epoch_interval = min(self.uploader.epoch_interval, 10)
         self.evaluator.epoch_interval = min(self.evaluator.epoch_interval, 10)

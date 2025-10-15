@@ -101,7 +101,6 @@ class ConverterConfig(GridObjectConfig):
         conversion_ticks: int,
         cooldown: int,
         initial_resource_count: int = 0,
-        color: int = 0,
         recipe_details_obs: bool = False,
     ) -> None: ...
     type_id: int
@@ -113,7 +112,6 @@ class ConverterConfig(GridObjectConfig):
     conversion_ticks: int
     cooldown: int
     initial_resource_count: int
-    color: int
     recipe_details_obs: bool
 
 class ActionConfig:
@@ -124,6 +122,30 @@ class ActionConfig:
     ) -> None: ...
     required_resources: dict[int, int]
     consumed_resources: dict[int, float]
+
+class Recipe:
+    def __init__(
+        self,
+        input_resources: dict[int, int] = {},
+        output_resources: dict[int, int] = {},
+        cooldown: int = 0,
+    ) -> None: ...
+    input_resources: dict[int, int]
+    output_resources: dict[int, int]
+    cooldown: int
+
+class ClipperConfig:
+    def __init__(
+        self,
+        unclipping_recipes: list[Recipe],
+        length_scale: float,
+        cutoff_distance: float,
+        clip_rate: float,
+    ) -> None: ...
+    unclipping_recipes: list[Recipe]
+    length_scale: float
+    cutoff_distance: float
+    clip_rate: float
 
 class AttackActionConfig(ActionConfig):
     def __init__(
@@ -142,6 +164,21 @@ class ChangeGlyphActionConfig(ActionConfig):
         number_of_glyphs: int = ...,
     ) -> None: ...
     number_of_glyphs: int
+
+class ResourceModConfig(ActionConfig):
+    def __init__(
+        self,
+        required_resources: dict[int, int] = {},
+        consumed_resources: dict[int, float] = {},
+        modifies: dict[int, float] = {},
+        agent_radius: int = 0,
+        converter_radius: int = 0,
+        scales: bool = False,
+    ) -> None: ...
+    modifies: dict[int, float]
+    agent_radius: int
+    converter_radius: int
+    scales: bool
 
 class GlobalObsConfig:
     def __init__(
@@ -170,10 +207,14 @@ class GameConfig:
         actions: dict[str, ActionConfig],
         objects: dict[str, GridObjectConfig],
         resource_loss_prob: float = 0.0,
+        tag_id_map: dict[int, str] | None = None,
         track_movement_metrics: bool = False,
         recipe_details_obs: bool = False,
         allow_diagonals: bool = False,
         reward_estimates: Optional[dict[str, float]] = None,
+        inventory_regen_amounts: dict[int, int] | None = None,
+        inventory_regen_interval: int = 0,
+        clipper: Optional[ClipperConfig] = None,
     ) -> None: ...
     num_agents: int
     max_steps: int
@@ -189,6 +230,10 @@ class GameConfig:
     recipe_details_obs: bool
     allow_diagonals: bool
     reward_estimates: Optional[dict[str, float]]
+    tag_id_map: dict[int, str]
+    inventory_regen_amounts: dict[int, int]
+    inventory_regen_interval: int
+    clipper: Optional[ClipperConfig]
 
 class MettaGrid:
     obs_width: int
@@ -198,7 +243,7 @@ class MettaGrid:
     map_width: int
     map_height: int
     num_agents: int
-    action_space: gym.spaces.MultiDiscrete
+    action_space: gym.spaces.Discrete
     observation_space: gym.spaces.Box
     initial_grid_hash: int
 
@@ -208,12 +253,19 @@ class MettaGrid:
     def set_buffers(
         self, observations: np.ndarray, terminals: np.ndarray, truncations: np.ndarray, rewards: np.ndarray
     ) -> None: ...
-    def grid_objects(self) -> dict[int, dict]: ...
+    def grid_objects(
+        self,
+        min_row: int = -1,
+        max_row: int = -1,
+        min_col: int = -1,
+        max_col: int = -1,
+        ignore_types: list[str] = [],
+    ) -> dict[int, dict]: ...
     def action_names(self) -> list[str]: ...
+    def action_catalog(self) -> list[dict[str, int | str]]: ...
     def get_episode_rewards(self) -> np.ndarray: ...
     def get_episode_stats(self) -> EpisodeStats: ...
     def action_success(self) -> list[bool]: ...
-    def max_action_args(self) -> list[int]: ...
     def object_type_names(self) -> list[str]: ...
     def resource_names(self) -> list[str]: ...
     def feature_spec(self) -> dict[str, dict[str, float | int]]: ...

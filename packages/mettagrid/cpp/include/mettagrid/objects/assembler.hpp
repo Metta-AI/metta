@@ -1,9 +1,11 @@
 #ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_ASSEMBLER_HPP_
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_ASSEMBLER_HPP_
 
-#include <map>
+#include <algorithm>
+#include <cassert>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "core/grid.hpp"
@@ -14,6 +16,8 @@
 #include "objects/constants.hpp"
 #include "objects/recipe.hpp"
 #include "objects/usable.hpp"
+
+class Clipper;
 
 class Assembler : public GridObject, public Usable {
 private:
@@ -31,6 +35,7 @@ private:
         }
       }
     }
+
     return positions;
   }
 
@@ -60,7 +65,7 @@ private:
 
   // Check if agents have sufficient resources for the given recipe
   bool can_afford_recipe(const Recipe& recipe, const std::vector<Agent*>& surrounding_agents) const {
-    std::map<InventoryItem, InventoryQuantity> total_resources;
+    std::unordered_map<InventoryItem, InventoryQuantity> total_resources;
     for (Agent* agent : surrounding_agents) {
       for (const auto& [item, amount] : agent->inventory.get()) {
         total_resources[item] = static_cast<InventoryQuantity>(total_resources[item] + amount);
@@ -81,19 +86,67 @@ private:
     }
   }
 
+  // Returns true if the recipe yields any positive output amount (legacy name retained for compatibility)
+  bool recipe_has_positive_output(const Recipe& recipe) const {
+    for (const auto& [item, amount] : recipe.output_resources) {
+      if (amount > 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
 public:
   // Consume resources from surrounding agents for the given recipe
+  // Uses a balanced approach: sorts agents by resource amount and takes evenly from them
   // Intended to be private, but made public for testing. We couldn't get `friend` to work as expected.
   void consume_resources_for_recipe(const Recipe& recipe, const std::vector<Agent*>& surrounding_agents) {
     for (const auto& [item, required_amount] : recipe.input_resources) {
-      InventoryQuantity remaining = required_amount;
-      for (Agent* agent : surrounding_agents) {
-        if (remaining == 0) break;
-        InventoryQuantity available = agent->inventory.amount(item);
-        InventoryQuantity to_consume = static_cast<InventoryQuantity>(std::min<int>(available, remaining));
-        agent->update_inventory(item, static_cast<InventoryDelta>(-to_consume));
-        remaining -= to_consume;
+      // We expect the main usage to be 3 passes:
+      // 1. Separate agents into those who have "their share" and those who don't. Consume resources from those who
+      // don't.
+      // 2. Take a second pass through the list to confirm that all remaining agents have "their share", based on
+      // an updated understanding of what's needed.
+      // 3. Consume resources from the agents who have "their share".
+      InventoryQuantity required_remaining = required_amount;
+      std::vector<Agent*> agents_to_consider;
+      std::vector<Agent*> next_agents_to_consider = surrounding_agents;
+      size_t num_agents_remaining = next_agents_to_consider.size();
+      // Intentionally rounded down
+      InventoryQuantity required_per_agent = required_remaining / num_agents_remaining;
+      do {
+        agents_to_consider = next_agents_to_consider;
+        next_agents_to_consider.clear();
+        for (Agent* agent : agents_to_consider) {
+          InventoryQuantity agent_amount = agent->inventory.amount(item);
+          if (agent_amount <= required_per_agent) {
+            // This agent has less than (or equal to) what we're going to be asking for. Thus, we can just consume
+            // all of it now. This lets us update how much we'll need from other agents.
+            if (agent_amount > 0) {
+              agent->update_inventory(item, static_cast<InventoryDelta>(-agent_amount));
+              required_remaining -= agent_amount;
+            }
+            // We can update how much we're looking for as an in-flight operation.
+            num_agents_remaining--;
+            if (num_agents_remaining > 0) {
+              required_per_agent = required_remaining / num_agents_remaining;
+            }
+          } else {
+            // This agent has more than what we're going to be asking for. We'll add it to our list of agents to
+            // consider next time.
+            next_agents_to_consider.push_back(agent);
+          }
+        }
+        // Do this until we don't kick any agents off the list, at which point we know all agents have "their share".
+      } while (agents_to_consider.size() != next_agents_to_consider.size());
+
+      for (Agent* agent : agents_to_consider) {
+        InventoryQuantity required_rounded_up = (required_remaining + num_agents_remaining - 1) / num_agents_remaining;
+        agent->update_inventory(item, static_cast<InventoryDelta>(-required_rounded_up));
+        required_remaining -= required_rounded_up;
+        num_agents_remaining--;
       }
+      assert(required_remaining == 0 && "Failed to consume all required resources");
     }
   }
 
@@ -106,12 +159,19 @@ public:
   // Clipped state
   bool is_clipped;
 
+  // Clip immunity - if true, cannot be clipped
+  bool clip_immune;
+
+  // Start clipped - if true, starts in clipped state
+  bool start_clipped;
+
   // Current cooldown state
   unsigned int cooldown_end_timestep;
+  unsigned int cooldown_duration;  // Total duration of current cooldown
 
   // Usage tracking
-  unsigned int max_uses;    // Maximum number of uses (0 = unlimited)
   unsigned int uses_count;  // Current number of times used
+  unsigned int max_uses;    // Maximum number of uses (0 = unlimited)
 
   // Exhaustion tracking
   float exhaustion;           // Exhaustion rate (0 = no exhaustion)
@@ -119,6 +179,9 @@ public:
 
   // Grid access for finding surrounding agents
   class Grid* grid;
+
+  // Clipper pointer, for when we become unclipped.
+  Clipper* clipper_ptr;
 
   // Pointer to current timestep from environment
   unsigned int* current_timestep_ptr;
@@ -128,20 +191,28 @@ public:
   ObservationType input_recipe_offset;
   ObservationType output_recipe_offset;
 
+  // Allow partial usage during cooldown
+  bool allow_partial_usage;
+
   Assembler(GridCoord r, GridCoord c, const AssemblerConfig& cfg)
       : recipes(cfg.recipes),
         unclip_recipes(),
         is_clipped(false),
+        clip_immune(cfg.clip_immune),
+        start_clipped(cfg.start_clipped),
         cooldown_end_timestep(0),
-        max_uses(cfg.max_uses),
+        cooldown_duration(0),
         uses_count(0),
+        max_uses(cfg.max_uses),
         exhaustion(cfg.exhaustion),
         cooldown_multiplier(1.0f),
         grid(nullptr),
         current_timestep_ptr(nullptr),
         recipe_details_obs(cfg.recipe_details_obs),
         input_recipe_offset(cfg.input_recipe_offset),
-        output_recipe_offset(cfg.output_recipe_offset) {
+        output_recipe_offset(cfg.output_recipe_offset),
+        allow_partial_usage(cfg.allow_partial_usage),
+        clipper_ptr(nullptr) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids);
   }
   virtual ~Assembler() = default;
@@ -162,6 +233,23 @@ public:
       return 0;
     }
     return cooldown_end_timestep - *current_timestep_ptr;
+  }
+
+  // Get the fraction of cooldown completed (0.0 = just started, 1.0 = completed)
+  float cooldown_progress() const {
+    // If no cooldown is active or no timestep pointer, return 1.0 (completed)
+    if (!current_timestep_ptr || cooldown_duration == 0 || cooldown_end_timestep <= *current_timestep_ptr) {
+      return 1.0f;
+    }
+
+    // Calculate how much time has elapsed since cooldown started
+    unsigned int cooldown_start = cooldown_end_timestep - cooldown_duration;
+    if (*current_timestep_ptr <= cooldown_start) {
+      return 0.0f;  // Cooldown just started
+    }
+
+    unsigned int elapsed = *current_timestep_ptr - cooldown_start;
+    return static_cast<float>(elapsed) / static_cast<float>(cooldown_duration);
   }
 
   // Helper function to convert surrounding agent positions to byte value
@@ -202,43 +290,88 @@ public:
   }
 
   // Make this assembler clipped with the given unclip recipes
-  void becomeClipped(const std::vector<std::shared_ptr<Recipe>>& unclip_recipes_vec) {
+  void become_clipped(const std::vector<std::shared_ptr<Recipe>>& unclip_recipes_vec, Clipper* clipper) {
     is_clipped = true;
     unclip_recipes = unclip_recipes_vec;
+    // It's a little odd that we store the clipper here, versus having global access to it. This is a
+    // path of least resistance, not a specific intention. But it does present questions around whether
+    // there could be more than one Clipper.
+    clipper_ptr = clipper;
+    // Reset cooldown. The assembler being on its normal cooldown shouldn't stop it from being unclipped.
+    cooldown_end_timestep = *current_timestep_ptr;
+    cooldown_duration = 0;
+  }
+
+  void become_unclipped();
+
+  // Scale recipe requirements based on cooldown progress (for partial usage)
+  const Recipe scale_recipe_for_partial_usage(const Recipe& original_recipe, float progress) const {
+    Recipe scaled_recipe;
+
+    // Scale input resources (multiply by progress and round up)
+    for (const auto& [resource, amount] : original_recipe.input_resources) {
+      InventoryQuantity scaled_amount = static_cast<InventoryQuantity>(std::ceil(amount * progress));
+      scaled_recipe.input_resources[resource] = scaled_amount;
+    }
+
+    // Scale output resources (multiply by progress and round down)
+    for (const auto& [resource, amount] : original_recipe.output_resources) {
+      InventoryQuantity scaled_amount = static_cast<InventoryQuantity>(std::floor(amount * progress));
+      scaled_recipe.output_resources[resource] = scaled_amount;
+    }
+
+    // Keep the same cooldown
+    scaled_recipe.cooldown = original_recipe.cooldown;
+
+    return scaled_recipe;
   }
 
   virtual bool onUse(Agent& actor, ActionArg /*arg*/) override {
     if (!grid || !current_timestep_ptr) {
       return false;
     }
-    // Check if max uses has been reached
+
     if (max_uses > 0 && uses_count >= max_uses) {
       return false;
     }
-    if (cooldown_remaining() > 0) {
-      return false;
-    }
-    const Recipe* recipe = get_current_recipe();
-    if (!recipe || (recipe->input_resources.empty() && recipe->output_resources.empty())) {
-      return false;
-    }
-    std::vector<Agent*> surrounding_agents = get_surrounding_agents();
-    if (!can_afford_recipe(*recipe, surrounding_agents)) {
-      return false;
-    }
-    consume_resources_for_recipe(*recipe, surrounding_agents);
-    give_output_to_agent(*recipe, actor);
 
-    // Apply cooldown with exhaustion multiplier
-    if (recipe->cooldown > 0) {
-      unsigned int adjusted_cooldown = static_cast<unsigned int>(recipe->cooldown * cooldown_multiplier);
-      cooldown_end_timestep = *current_timestep_ptr + adjusted_cooldown;
+    // Check if on cooldown and whether partial usage is allowed
+    float progress = cooldown_progress();
+    if (progress < 1.0f && !allow_partial_usage) {
+      return false;  // On cooldown and partial usage not allowed
     }
+
+    const Recipe* original_recipe = get_current_recipe();
+    if (!original_recipe) {
+      return false;
+    }
+
+    Recipe recipe_to_use = *original_recipe;
+    if (progress < 1.0f && allow_partial_usage) {
+      recipe_to_use = scale_recipe_for_partial_usage(*original_recipe, progress);
+
+      // Prevent usage that would yield no outputs (and would only serve to burn inputs and increment uses_count)
+      // Do not prevent usage if:
+      // - the unscaled recipe does not have outputs
+      // - usage would unclip the assembler; the unscaled unclipping recipe may happen to include outputs
+      if (!recipe_has_positive_output(recipe_to_use) && recipe_has_positive_output(*original_recipe) && !is_clipped) {
+        return false;
+      }
+    }
+
+    std::vector<Agent*> surrounding_agents = get_surrounding_agents();
+    if (!can_afford_recipe(recipe_to_use, surrounding_agents)) {
+      return false;
+    }
+    consume_resources_for_recipe(recipe_to_use, surrounding_agents);
+    give_output_to_agent(recipe_to_use, actor);
+
+    cooldown_duration = static_cast<unsigned int>(recipe_to_use.cooldown * cooldown_multiplier);
+    cooldown_end_timestep = *current_timestep_ptr + cooldown_duration;
 
     // If we were clipped and successfully used an unclip recipe, become unclipped. Also, don't count this as a use.
     if (is_clipped) {
-      is_clipped = false;
-      unclip_recipes.clear();
+      become_unclipped();
     } else {
       uses_count++;
 
@@ -247,7 +380,6 @@ public:
         cooldown_multiplier *= (1.0f + exhaustion);
       }
     }
-
     return true;
   }
 
@@ -302,5 +434,18 @@ public:
     return features;
   }
 };
+
+#include "systems/clipper.hpp"
+
+inline void Assembler::become_unclipped() {
+  is_clipped = false;
+  unclip_recipes.clear();
+  if (clipper_ptr) {
+    // clipper_ptr might not be set if we're being unclipped as part of a test.
+    // Later, it might be because we started clipped.
+    clipper_ptr->on_unclip_assembler(*this);
+  }
+  clipper_ptr = nullptr;
+}
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_ASSEMBLER_HPP_

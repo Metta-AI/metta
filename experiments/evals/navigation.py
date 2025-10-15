@@ -1,6 +1,7 @@
 from metta.sim.simulation_config import SimulationConfig
 from mettagrid.builder.envs import make_navigation
 from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.scenes.mean_distance import MeanDistance
 
@@ -13,15 +14,6 @@ def make_nav_eval_env(env: MettaGridConfig) -> MettaGridConfig:
     return env
 
 
-def replace_objects_with_altars(name: str) -> str:
-    ascii_map = f"packages/mettagrid/configs/maps/navigation_sequence/{name}.map"
-
-    with open(ascii_map, "r") as f:
-        map_content = f.read()
-
-    return map_content.replace("n", "_").replace("m", "_")
-
-
 def make_nav_ascii_env(
     name: str,
     max_steps: int,
@@ -31,15 +23,22 @@ def make_nav_ascii_env(
     instance_border_width: int = 3,
 ) -> MettaGridConfig:
     # we re-use nav sequence maps, but replace all objects with altars
-    ascii_map = replace_objects_with_altars(name)
+    path = f"packages/mettagrid/configs/maps/navigation_sequence/{name}.map"
 
     env = make_navigation(num_agents=num_agents * num_instances)
     env.game.max_steps = max_steps
+
+    map_instance = AsciiMapBuilder.Config.from_uri(path)
+
+    # replace objects with altars
+    map_instance.char_to_name_map["n"] = "altar"
+    map_instance.char_to_name_map["m"] = "altar"
+
     env.game.map_builder = MapGen.Config(
         instances=num_instances,
         border_width=border_width,
         instance_border_width=instance_border_width,
-        instance_map=MapGen.Config.with_ascii_map(ascii_map, border_width=border_width),
+        instance=map_instance,
     )
 
     return make_nav_eval_env(env)
@@ -50,15 +49,13 @@ def make_emptyspace_sparse_env() -> MettaGridConfig:
     env.game.max_steps = 300
     env.game.map_builder = MapGen.Config(
         instances=4,
-        instance_map=MapGen.Config(
+        instance=MapGen.Config(
             width=60,
             height=60,
             border_width=3,
-            root=MeanDistance.factory(
-                params=MeanDistance.Params(
-                    mean_distance=30,
-                    objects={"altar": 3},
-                )
+            instance=MeanDistance.Config(
+                mean_distance=30,
+                objects={"altar": 3},
             ),
         ),
     )

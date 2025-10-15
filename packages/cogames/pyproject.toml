@@ -1,23 +1,25 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=61.0", "wheel", "setuptools_scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "cogames"
-version = "0.3.5"
 description = "Multi-agent cooperative games"
 readme = "README.md"
-requires-python = ">=3.11.7"
+requires-python = ">=3.11.7,<3.13"
 dependencies = [
+  "heavyball>=2.0.0",
   "mettagrid",
+  "packaging>=24.0.0",
   "pufferlib-core",
   "pydantic>=2.11.5",
   "pyyaml>=6.0.2",
   "einops>=0.8.0",
   "scipy>=1.15.3",
-  "typer>=0.9.0",
+  "typer>=0.19.2",
   "rich>=13.7.0",
 ]
+dynamic = ["version"]
 
 [project.scripts]
 cogames = "cogames.main:app"
@@ -28,6 +30,24 @@ include = ["cogames", "cogames.*"]
 
 [tool.setuptools.package-data]
 cogames = ["py.typed"]
+
+[tool.setuptools_scm]
+tag_regex = "^cogames-v(?P<version>\\d+\\.\\d+\\.\\d+(?:\\.\\d+)?)$"
+version_scheme = "no-guess-dev"
+local_scheme = "node-and-date"
+root = "../.."
+fallback_version = "0.0.0"
+
+[tool.setuptools_scm.scm.git]
+describe_command = [
+  "git",
+  "describe",
+  "--dirty",
+  "--tags",
+  "--long",
+  "--match",
+  "cogames-v*",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

@@ -11,7 +11,7 @@ from metta.agent.policy import Policy
 from metta.rl.loss import Loss
 from metta.rl.training import ComponentContext
 from metta.rl.utils import ensure_sequence_metadata
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 
 class EMAConfig(Config):

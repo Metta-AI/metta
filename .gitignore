@@ -40,6 +40,7 @@ build-coverage/
 # Bazel build artifacts
 **/bazel-*
 **/.bazel_output/
+**/bazel-mettagrid/*
 
 # Node.js / Frontend
 node_modules/
@@ -64,6 +65,8 @@ replays/
 train_dir/
 personal/
 /mettagrid/multirun/
+agent/src/metta/ops/
+tmp/
 
 # Test and benchmark
 test_data/
@@ -111,6 +114,11 @@ identified-figures/
 # TODO - remove after troubleshooting stability and re-add to keys in .github/workflows/checks.yml
 mettagrid/MODULE.bazel.lock
 
+# Stable Release System
+devops/stable/state/
+devops/stable/logs/
+devops/stable/release-notes/
+
 # skypilot testing
 recipe_test_jobs.json
 cluster_test_jobs.json
@@ -118,3 +126,14 @@ cluster_test_jobs.json
 # MetaScope
 packages/mettagrid/nim/mettascope/dist/
 packages/mettagrid/nim/mettascope/bindings/generated/
+mettascope.out
+!packages/mettagrid/nim/mettascope/data/resources/
+packages/mettagrid/nim/mettascope/src/tmp
+packages/mettagrid/python/src/mettagrid/nim/mettascope/
+agent/src/metta/ops/agalite_kernels/_build/
+
+# Nim runtime
+.nim_runtime
+
+.terraform*
+terraform.tfstate

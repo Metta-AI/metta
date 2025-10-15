@@ -1,6 +1,5 @@
 import numpy as np
 
-from mettagrid.map_builder.map_builder import map_grid_dtype
 from mettagrid.map_builder.utils import (
     compute_positions,
     create_grid,
@@ -9,6 +8,7 @@ from mettagrid.map_builder.utils import (
     sample_position,
     set_position,
 )
+from mettagrid.mapgen.types import map_grid_dtype
 
 
 class TestCreateGrid:

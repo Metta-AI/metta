@@ -1,14 +1,16 @@
 import numpy as np
 
+from mettagrid.mapgen.area import AreaQuery
 from mettagrid.mapgen.scenes.room_grid import RoomGrid
-from mettagrid.mapgen.types import AreaQuery
-from mettagrid.test_support.mapgen import assert_grid, render_scene
+from mettagrid.test_support.mapgen import render_scene
+
+from .test_utils import assert_grid
 
 
 def test_exact():
     # Test creating a 2x3 grid of rooms
     scene = render_scene(
-        RoomGrid.factory(RoomGrid.Params(rows=2, columns=3, border_width=1, border_object="wall")),
+        RoomGrid.Config(rows=2, columns=3, border_width=1, border_object="wall"),
         (10, 10),
     )
 
@@ -32,7 +34,7 @@ def test_exact():
 def test_with_rows_columns():
     # Test creating a 2x3 grid of rooms
     scene = render_scene(
-        RoomGrid.factory(RoomGrid.Params(rows=2, columns=3, border_width=1, border_object="wall")),
+        RoomGrid.Config(rows=2, columns=3, border_width=1, border_object="wall"),
         (10, 10),
     )
 
@@ -54,7 +56,7 @@ def test_with_layout():
     layout = [["room1", "room2"], ["room3", "room4"]]
 
     scene = render_scene(
-        RoomGrid.factory(RoomGrid.Params(layout=layout, border_width=1, border_object="wall")),
+        RoomGrid.Config(layout=layout, border_width=1, border_object="wall"),
         (10, 10),
     )
 

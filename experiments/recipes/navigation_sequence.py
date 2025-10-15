@@ -16,9 +16,9 @@ from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.map_builder.random import RandomMapBuilder
@@ -57,7 +57,7 @@ def make_env(num_agents: int = 4) -> MettaGridConfig:
         instances=num_agents,
         border_width=6,
         instance_border_width=3,
-        instance_map=TerrainFromNumpy.Config(
+        instance=TerrainFromNumpy.Config(
             agents=1,
             objects={"altar": 15, "mine_red": 15, "generator_red": 15},
             dir="varied_terrain/dense_large",
@@ -65,6 +65,15 @@ def make_env(num_agents: int = 4) -> MettaGridConfig:
         ),
     )
     return nav
+
+
+def mettagrid() -> MettaGridConfig:
+    """Default MettaGridConfig used for inference-based tools."""
+    return make_env()
+
+
+def simulations() -> list[SimulationConfig]:
+    return list(make_navigation_sequence_eval_suite())
 
 
 def make_curriculum(
@@ -82,15 +91,11 @@ def make_curriculum(
         for terrain in ["balanced", "maze", "sparse", "dense", "cylinder-world"]:
             maps.append(f"varied_terrain/{terrain}_{size}")
 
-    dense_tasks.add_bucket("game.map_builder.instance_map.dir", maps)
+    dense_tasks.add_bucket("game.map_builder.instance.dir", maps)
+    dense_tasks.add_bucket("game.map_builder.instance.objects.altar", [Span(15, 50)])
+    dense_tasks.add_bucket("game.map_builder.instance.objects.mine_red", [Span(15, 50)])
     dense_tasks.add_bucket(
-        "game.map_builder.instance_map.objects.altar", [Span(15, 50)]
-    )
-    dense_tasks.add_bucket(
-        "game.map_builder.instance_map.objects.mine_red", [Span(15, 50)]
-    )
-    dense_tasks.add_bucket(
-        "game.map_builder.instance_map.objects.generator_red", [Span(15, 50)]
+        "game.map_builder.instance.objects.generator_red", [Span(15, 50)]
     )
     dense_tasks.add_bucket("game.objects.altar.initial_resource_count", [0, 1])
     sparse_nav_env = nav_env.model_copy()
@@ -155,27 +160,16 @@ def train(
     )
 
 
-def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
-    eval_env = env or make_env()
-    return PlayTool(
-        sim=SimulationConfig(
-            suite="navigation_sequence",
-            env=eval_env,
-            name="eval",
-        ),
-    )
+def evaluate(policy_uris: Optional[list[str]] = None) -> EvaluateTool:
+    """Evaluate policies on navigation sequence tasks."""
+    return EvaluateTool(simulations=simulations(), policy_uris=policy_uris or [])
 
 
-def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
-    eval_env = env or make_env()
-    return ReplayTool(
-        sim=SimulationConfig(
-            suite="navigation_sequence",
-            env=eval_env,
-            name="eval",
-        ),
-    )
+def play(policy_uri: Optional[str] = None) -> PlayTool:
+    """Interactive play with a policy."""
+    return PlayTool(sim=simulations()[0], policy_uri=policy_uri)
 
 
-def eval() -> SimTool:
-    return SimTool(simulations=make_navigation_sequence_eval_suite())
+def replay(policy_uri: Optional[str] = None) -> ReplayTool:
+    """Generate replay from a policy."""
+    return ReplayTool(sim=simulations()[0], policy_uri=policy_uri)

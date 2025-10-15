@@ -169,12 +169,13 @@ if [ "$PARALLEL" == true ]; then
   run_package_tests "packages/mettagrid" "$BLUE" & # Bold Blue
   sleep 2                                          # mettagrid is slowest, so give time for it to grab resources
 
-  run_package_tests "agent" "$RED" &              # Bold Red
-  run_package_tests "common" "$GREEN" &           # Bold Green
-  run_package_tests "app_backend" "$YELLOW" &     # Bold Yellow
-  run_package_tests "codebot" "$MAGENTA" &        # Bold Magenta
-  run_package_tests "core" "$CYAN" &              # Bold Cyan
-  run_package_tests "packages/cogames" "$WHITE" & # Bold White
+  run_package_tests "agent" "$RED" &                # Bold Red
+  run_package_tests "common" "$GREEN" &             # Bold Green
+  run_package_tests "app_backend" "$YELLOW" &       # Bold Yellow
+  run_package_tests "packages/codebot" "$MAGENTA" & # Bold Magenta
+  run_package_tests "core" "$CYAN" &                # Bold Cyan
+  run_package_tests "packages/cogames" "$WHITE" &   # Bold White
+  run_package_tests "packages/gitta" "$BLUE" &      # Bold Blue
 
   # Wait for all background jobs to complete
   wait
@@ -184,9 +185,10 @@ else
   run_package_tests "agent" "$RED"
   run_package_tests "common" "$GREEN"
   run_package_tests "app_backend" "$YELLOW"
-  run_package_tests "codebot" "$MAGENTA"
+  run_package_tests "packages/codebot" "$MAGENTA"
   run_package_tests "core" "$CYAN"
   run_package_tests "packages/cogames" "$WHITE"
+  run_package_tests "packages/gitta" "$BLUE"
 fi
 
 # Calculate total time
@@ -197,7 +199,7 @@ TOTAL_TIME=$((END_TIME - START_TIME))
 OVERALL_FAILED=0
 FAILED_PACKAGES=""
 
-for package in agent common app_backend packages/mettagrid packages/cogames codebot core; do
+for package in agent common app_backend packages/mettagrid packages/cogames packages/codebot packages/gitta core; do
   package_name=$(basename "$package")
   if [ -f "test-results/${package_name}.exit" ]; then
     EXIT_CODE=$(cat "test-results/${package_name}.exit")
@@ -216,7 +218,7 @@ echo -e "\n${WHITE}━━━━━━━━━━━━━━━━━━━━�
 echo -e "\n${WHITE}🐌 TOP 10 SLOWEST TESTS${NC}"
 
 # Combine all duration files and sort
-for package in agent common app_backend packages/mettagrid packages/cogames codebot core; do
+for package in agent common app_backend packages/mettagrid packages/cogames packages/codebot packages/gitta core; do
   package_name=$(basename "$package")
   if [ -f "test-results/${package_name}_durations.txt" ]; then
     # Add package name to each line

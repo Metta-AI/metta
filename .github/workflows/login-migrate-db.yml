@@ -1,0 +1,34 @@
+name: Migrate Login DB
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - main
+      - pasha/add_login_service
+    paths:
+      - "login/prisma/**"
+      - ".github/workflows/login-migrate-db.yml"
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Migrate Login DB
+        working-directory: ./login
+        env:
+          DATABASE_URL: "${{ secrets.LOGIN_DATABASE_URL }}"
+        run: pnpm run db:migrate

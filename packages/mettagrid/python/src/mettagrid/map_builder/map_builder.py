@@ -1,23 +1,15 @@
-from abc import ABC, abstractmethod
-from typing import Annotated, Any, ClassVar, Generic, Type, TypeAlias, TypeVar
+from __future__ import annotations
 
-import numpy as np
-import numpy.typing as npt
+from abc import ABC, abstractmethod
+from pathlib import Path
+from typing import Annotated, Any, ClassVar, Generic, Self, Type, TypeVar
+
+import yaml
 from pydantic import SerializeAsAny, WrapValidator, model_serializer, model_validator
 
-from mettagrid.config.config import Config
+from mettagrid.base_config import Config
+from mettagrid.mapgen.types import MapGrid
 from mettagrid.util.module import load_symbol
-
-# We store maps as 2D arrays of object names.
-# "empty" means an empty cell; "wall" means a wall, etc. See `mettagrid.util.char_encoder` for the full list.
-#
-# Properly shaped version, `np.ndarray[tuple[int, int], np.dtype[np.str_]]`,
-# would be better, but slices from numpy arrays are not typed properly, which makes it too annoying to use.
-
-
-MapGrid: TypeAlias = npt.NDArray[np.str_]
-
-map_grid_dtype = np.dtype("<U20")
 
 
 class GameMap:
@@ -64,6 +56,29 @@ class MapBuilderConfig(Config, Generic[TBuilder]):
             )
         return cls._builder_cls
 
+    @classmethod
+    def from_uri(cls, uri: str | Path) -> Self:
+        """Load a builder config from a YAML or JSON file."""
+
+        path = Path(uri)
+        with path.open("r", encoding="utf-8") as f:
+            raw = f.read()
+
+        return cls.from_str(raw)
+
+    @classmethod
+    def from_str(cls, data: str | bytes) -> Self:
+        """Load a builder config from a serialized string or mapping."""
+
+        parsed = yaml.safe_load(data)
+        builder_config = validate_any_map_builder(parsed)
+
+        # Runtime type check to ensure we return the correct type
+        if not isinstance(builder_config, cls):
+            raise TypeError(f"Expected {cls.__name__} instance, got {type(builder_config).__name__}")
+
+        return builder_config
+
     @model_validator(mode="before")
     @classmethod
     def _strip_type_field(cls, data: Any) -> Any:
@@ -104,44 +119,45 @@ class MapBuilder(ABC):
     def build(self) -> GameMap: ...
 
 
-def _validate_open_map_builder(v: Any, handler):
+def validate_any_map_builder(v: Any):
     """
     Accepts any of:
       - a MapBuilderConfig instance (already specific)
       - a dict with {"type": "<FQCN-of-Builder-or-Config>", ...params...}
-      - anything else -> let the default handler try (will error if invalid)
     """
     if isinstance(v, MapBuilderConfig):
         return v
 
-    if isinstance(v, dict):
-        t = v.get("type")
-        if t is None:
-            # try default handler first (e.g., if the default type is already implied)
-            return handler(v)
+    if not isinstance(v, dict):
+        raise ValueError("MapBuilder config must be a dict")
 
-        # Import the symbol named in 'type'
-        target = load_symbol(t) if isinstance(t, str) else t
+    t = v.get("type")
+    if t is None:
+        raise ValueError("'type' is required")
 
-        # If it's a Builder, use its nested Config
-        if isinstance(target, type) and issubclass(target, MapBuilder):
-            cfg_model = getattr(target, "Config", None)
-            if not (isinstance(cfg_model, type) and issubclass(cfg_model, MapBuilderConfig)):
-                raise TypeError(f"{target.__name__} must define a nested class Config(MapBuilderConfig).")
-            data = {k: v for k, v in v.items() if k != "type"}
-            return cfg_model.model_validate(data)
+    # Import the symbol named in 'type'
+    target = load_symbol(t) if isinstance(t, str) else t
 
-        # If it's already a Config subclass, validate with it directly
-        if isinstance(target, type) and issubclass(target, MapBuilderConfig):
-            data = {k: v for k, v in v.items() if k != "type"}
-            return target.model_validate(data)
+    # If it's a Builder, use its nested Config
+    if isinstance(target, type) and issubclass(target, MapBuilder):
+        cfg_model = getattr(target, "Config", None)
+        if not (isinstance(cfg_model, type) and issubclass(cfg_model, MapBuilderConfig)):
+            raise TypeError(f"{target.__name__} must define a nested class Config(MapBuilderConfig).")
+        data = {k: v for k, v in v.items() if k != "type"}
+        return cfg_model.model_validate(data)
 
-        raise TypeError(f"'type' must point to a MapBuilder subclass or a MapBuilderConfig subclass; got {target!r}")
+    # If it's already a Config subclass, validate with it directly
+    if isinstance(target, type) and issubclass(target, MapBuilderConfig):
+        data = {k: v for k, v in v.items() if k != "type"}
+        return target.model_validate(data)
 
-    # Fallback to the normal validator (will raise a decent error)
-    return handler(v)
+    raise TypeError(f"'type' must point to a MapBuilder subclass or a MapBuilderConfig subclass; got {target!r}")
 
 
-AnyMapBuilderConfig = SerializeAsAny[Annotated[MapBuilderConfig[Any], WrapValidator(_validate_open_map_builder)]]
+def _any_map_builder_wrap_validator(v: Any, handler):
+    return validate_any_map_builder(v)
+
+
+AnyMapBuilderConfig = SerializeAsAny[Annotated[MapBuilderConfig[Any], WrapValidator(_any_map_builder_wrap_validator)]]
 
 C = TypeVar("C")

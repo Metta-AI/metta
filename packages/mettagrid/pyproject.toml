@@ -1,11 +1,5 @@
 [build-system]
-requires = [
-  "setuptools>=61.0",
-  "wheel",
-  "numpy>=2",
-  "pybind11==2.10.4",
-  "setuptools_scm>=8",
-]
+requires = ["setuptools>=61.0", "wheel", "numpy>=2", "pybind11==2.10.4", "setuptools_scm>=8"]
 build-backend = "bazel_build"
 backend-path = ["."]
 
@@ -14,7 +8,7 @@ name = "mettagrid" # Do not change! Has to be 'mettagrid' for our PyPi package
 dynamic = ["version"]
 description = "A fast grid-based open-ended MARL environment"
 authors = [{ name = "David Bloomin", email = "daveey@gmail.com" }]
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.13"
 license = "MIT"
 readme = "README.md"
 urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/mettagrid" }
@@ -49,7 +43,9 @@ python_files = ["test_*.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]
 # Exclude the generic Bazel C++ test runner script (not a pytest test)
+# Exclude Bazel symlink directories
 addopts = "--ignore=tests/run_test.py"
+norecursedirs = ["bazel-*", ".bazel_output", ".*"]
 
 [tool.uv]
 cache-keys = [
@@ -59,6 +55,7 @@ cache-keys = [
   { file = "MODULE.bazel" },
   { file = "cpp/**/*.{cpp,hpp}" },
   { file = "nim/mettascope/src/**/*.{nim,nims}" },
+  { file = "nim/mettascope/bindings/bindings.nim" },
   { file = "nim/mettascope/mettascope.nimble" },
 ]
 
@@ -67,7 +64,7 @@ where = ["python/src", "cpp/src"]
 include = ["mettagrid", "mettagrid.*"]
 
 [tool.setuptools.package-data]
-"mettagrid" = ["py.typed", "*.so", "*.pyi", "*.pyd", "*.dylib"]
+"mettagrid" = ["py.typed", "*.so", "*.pyi", "*.pyd", "*.dylib", "nim/mettascope/**/*"]
 
 [tool.uv.sources]
 metta-common = { workspace = true }
@@ -86,12 +83,4 @@ root = "../.."
 fallback_version = "0.0.0"
 
 [tool.setuptools_scm.scm.git]
-describe_command = [
-  "git",
-  "describe",
-  "--dirty",
-  "--tags",
-  "--long",
-  "--match",
-  "mettagrid-v*",
-]
+describe_command = ["git", "describe", "--dirty", "--tags", "--long", "--match", "mettagrid-v*"]

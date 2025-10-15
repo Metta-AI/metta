@@ -42,15 +42,17 @@ runs:
         # Get year and week number for weekly cache invalidation
         echo "yearweek=$(date +%Y-%U)" >> "$GITHUB_OUTPUT"
 
+    - name: Cache nimble
+      id: cache-nimble
+      uses: actions/cache@v4
+      with:
+        path: ~/.nimble
+        key: nim-binary-${{ runner.os }}-${{ steps.get-week.outputs.yearweek }}
+        restore-keys: |
+          nim-binary-${{ runner.os }}-
+
     - name: Set up nim
-      shell: bash
-      run: |
-        curl https://nim-lang.org/choosenim/init.sh -sSf | sh -s -- -y
-        export PATH=/home/runner/.nimble/bin:$PATH
-        echo "/home/runner/.nimble/bin" >> "$GITHUB_PATH"
-        nim --version
-        nimble --version
-        echo "Nim installed"
+      uses: treeform/setup-nim-action@v2
 
     - name: Cache Bazel binary
       if: inputs.install-mode != 'minimal'

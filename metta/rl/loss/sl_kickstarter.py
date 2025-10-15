@@ -11,7 +11,7 @@ from metta.agent.policy import Policy
 from metta.rl.loss import Loss
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import ComponentContext
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 
 class SLKickstarterConfig(Config):
@@ -67,11 +67,8 @@ class SLKickstarter(Loss):
 
         self.teacher_policy: Policy = CheckpointManager.load_from_uri(self.loss_cfg.teacher_uri, device)
         if hasattr(self.teacher_policy, "initialize_to_environment"):
-            driver_env = self.env.driver_env
-            features = driver_env.observation_features
-            self.teacher_policy.initialize_to_environment(
-                features, driver_env.action_names, driver_env.max_action_args, self.device
-            )
+            env_metadata = self.env.meta_data
+            self.teacher_policy.initialize_to_environment(env_metadata, self.device)
 
         # Detach gradient
         for param in self.teacher_policy.parameters():
@@ -96,7 +93,7 @@ class SLKickstarter(Loss):
         return Composite(
             # kickstarter loss data
             teacher_action=UnboundedContinuous(
-                shape=(int(self.teacher_policy_spec["action"].shape[0]),), dtype=torch.int64
+                shape=(int(self.teacher_policy_spec["action"].shape[0]),), dtype=torch.int32
             ),
             teacher_value=scalar_f32,
         )
@@ -112,13 +109,13 @@ class SLKickstarter(Loss):
         # Teacher forward pass
         teacher_td = policy_td.select(*self.teacher_policy_spec.keys(include_nested=True)).clone()
         teacher_td = self.teacher_policy(teacher_td, action=None)
-        teacher_action = teacher_td["action"].to(dtype=torch.int64).detach()
+        teacher_action = teacher_td["action"].to(dtype=torch.int32).detach()
         teacher_value = teacher_td["values"].to(dtype=torch.float32).detach()
 
         # Student forward pass
         student_td = policy_td.select(*self.policy_experience_spec.keys(include_nested=True)).clone()
         student_td = self.policy(student_td, action=None)
-        student_action = student_td["action"].to(dtype=torch.int64)
+        student_action = student_td["action"].to(dtype=torch.int32)
         student_value = student_td["values"].to(dtype=torch.float32)
 
         # Calculate annealing coefficient

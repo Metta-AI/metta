@@ -1,29 +1,72 @@
 """Game playing functionality for CoGames."""
 
-import json
 import logging
-from typing import Optional
+from types import SimpleNamespace
+from typing import TYPE_CHECKING, Any, Optional
 
 import numpy as np
-import torch
 from rich.console import Console
 
-import mettagrid.mettascope as mettascope
-from mettagrid import MettaGridConfig, MettaGridEnv
-from mettagrid.util.grid_object_formatter import format_grid_object
-from mettagrid.util.module import load_symbol
+from cogames.policy.interfaces import PolicySpec
+from cogames.policy.utils import initialize_or_load_policy
+from mettagrid import MettaGridConfig, MettaGridEnv, RenderMode, dtype_actions
+
+if TYPE_CHECKING:
+    from mettagrid import MettaGridConfig
+
 
 logger = logging.getLogger("cogames.play")
+
+DIRECTION_ACTION_NAMES: dict[int, str] = {
+    0: "move_north",
+    1: "move_south",
+    2: "move_west",
+    3: "move_east",
+    4: "move_northwest",
+    5: "move_northeast",
+    6: "move_southwest",
+    7: "move_southeast",
+}
+
+
+def _flatten_action_request(
+    action_request: Any,
+    *,
+    total_actions: int,
+    noop_action_id: int,
+    move_action_lookup: dict[int, int],
+) -> int:
+    """Translate a MettaScope ActionRequest into a flattened action index."""
+
+    raw_action_id = int(getattr(action_request, "action_id", -1))
+    if 0 <= raw_action_id < total_actions:
+        return raw_action_id
+
+    argument_value = getattr(action_request, "argument", None)
+    if argument_value is not None:
+        orientation_idx = int(argument_value)
+        flattened_move = move_action_lookup.get(orientation_idx)
+        if flattened_move is not None:
+            return flattened_move
+
+    logger.debug(
+        "Received unrecognized manual action; defaulting to noop",
+        extra={
+            "action_id": raw_action_id,
+            "argument": getattr(action_request, "argument", None),
+        },
+    )
+    return noop_action_id
 
 
 def play(
     console: Console,
-    env_cfg: MettaGridConfig,
-    policy_class_path: str,
-    policy_data_path: Optional[str] = None,
+    env_cfg: "MettaGridConfig",
+    policy_spec: PolicySpec,
+    game_name: str,
     max_steps: Optional[int] = None,
     seed: int = 42,
-    verbose: bool = False,
+    render: RenderMode = "gui",
 ) -> None:
     """Play a single game episode with a policy.
 
@@ -32,80 +75,67 @@ def play(
         env_cfg: Game configuration
         policy_class_path: Path to policy class
         policy_data_path: Optional path to policy weights/checkpoint
+        game_name: Human-readable name of the game (used for logging/metadata)
         max_steps: Maximum steps for the episode (None for no limit)
         seed: Random seed
-        render: Whether to render the game
-        save_video: Optional path to save video
-        verbose: Whether to print detailed progress
+        render: Render mode - "gui", "unicode", or "none"
     """
-    # Create environment
-    env = MettaGridEnv(env_cfg=env_cfg)
-    obs, _ = env.reset(seed=seed)
 
-    # Load and create policy
-    policy_class = load_symbol(policy_class_path)
-    policy = policy_class(env, torch.device("cpu"))
+    if game_name:
+        logger.debug("Starting play session", extra={"game_name": game_name})
+    env = MettaGridEnv(env_cfg=env_cfg, render_mode=render)
 
-    if policy_data_path and hasattr(policy, "load_checkpoint"):
-        policy.load_checkpoint(policy_data_path)
-
-    policy.reset()
-
-    # Run episode
-    step_count = 0
-    num_agents = env_cfg.game.num_agents
-    actions = np.zeros((env.num_agents, 2), dtype=np.int32)
-    total_rewards = np.zeros(env.num_agents)
-
-    initial_replay = {
-        "version": 2,
-        "action_names": env.action_names,
-        "item_names": env.resource_names,
-        "type_names": env.object_type_names,
-        "map_size": [env.map_width, env.map_height],
-        "num_agents": env.num_agents,
-        "max_steps": 0,
-        "mg_config": env.mg_config.model_dump(mode="json"),
-        "objects": [],
+    policy = initialize_or_load_policy(policy_spec.policy_class_path, policy_spec.policy_data_path, env)
+    agent_policies = [policy.agent_policy(agent_id) for agent_id in range(env.num_agents)]
+    action_lookup = {name: idx for idx, name in enumerate(env.action_names)}
+    noop_action_id = action_lookup.get("noop", 0)
+    move_action_lookup = {
+        orientation: action_lookup[name]
+        for orientation, name in DIRECTION_ACTION_NAMES.items()
+        if name in action_lookup
     }
 
-    response = mettascope.init(replay=json.dumps(initial_replay))
-    if response.should_close:
-        return
+    obs, _ = env.reset(seed=seed)
 
-    def generate_replay_step():
-        grid_objects = []
-        for grid_object in env.grid_objects.values():
-            if "agent_id" in grid_object:
-                agent_id = grid_object["agent_id"]
-                total_rewards[agent_id] += env.rewards[agent_id]
-            grid_objects.append(
-                format_grid_object(grid_object, actions, env.action_success, env.rewards, total_rewards)
-            )
-        step_replay = {"step": step_count, "objects": grid_objects}
-        return json.dumps(step_replay)
+    # Standard game loop
+    step_count = 0
+    num_agents = env_cfg.game.num_agents
+    actions = np.zeros(env.num_agents, dtype=dtype_actions)
+    total_rewards = np.zeros(env.num_agents)
 
     while max_steps is None or step_count < max_steps:
-        # Generate replay step
-        replay_step = generate_replay_step()
-
-        # Call policy once per agent to get actions
-        for agent_id in range(num_agents):
-            actions[agent_id] = policy.step(agent_id, obs[agent_id])
-
-        response = mettascope.render(step_count, replay_step)
-        if response.should_close:
+        # Check if renderer wants to continue (e.g., user quit or interactive loop finished)
+        if not env._renderer.should_continue():
             break
-        if response.action:
-            actions[response.action_agent_id, 0] = response.action_action_id
-            actions[response.action_agent_id, 1] = response.action_argument
 
-        obs, rewards, dones, truncated, info = env.step(actions)
+        # Render the environment (handles display and user input)
+        env.render()
 
+        # Get user actions from renderer (if any)
+        user_actions = env._renderer.get_user_actions()
+
+        # Get actions - use user input if available, otherwise use policy
+        for agent_id in range(num_agents):
+            if agent_id in user_actions:
+                # User provided action for this agent
+                action_id, action_param = user_actions[agent_id]
+                # Flatten the action using the helper function
+                actions[agent_id] = _flatten_action_request(
+                    SimpleNamespace(action_id=action_id, argument=action_param),
+                    total_actions=len(env.action_names),
+                    noop_action_id=noop_action_id,
+                    move_action_lookup=move_action_lookup,
+                )
+            else:
+                # Use policy action
+                actions[agent_id] = int(agent_policies[agent_id].step(obs[agent_id]))
+
+        # Step the environment
+        obs, rewards, dones, truncated, _ = env.step(actions)
+
+        # Update total rewards
+        total_rewards += rewards
         step_count += 1
-
-        if verbose:
-            console.print(f"Step {step_count}: Reward = {float(sum(rewards)):.2f}")
 
         if all(dones) or all(truncated):
             break
@@ -113,3 +143,5 @@ def play(
     # Print summary
     console.print("\n[bold green]Episode Complete![/bold green]")
     console.print(f"Steps: {step_count}")
+    console.print(f"Total Rewards: {total_rewards}")
+    console.print(f"Final Reward Sum: {float(sum(total_rewards)):.2f}")

@@ -20,6 +20,16 @@ build:dbg --compilation_mode=dbg
 build:dbg --copt=-O0
 build:dbg --copt=-g
 build:dbg --strip=never
+# AddressSanitizer disabled - causes issues on macOS with Python extensions
+# build:dbg --copt=-fsanitize=address
+# build:dbg --copt=-fsanitize=undefined
+# build:dbg --copt=-fsanitize=float-divide-by-zero
+# build:dbg --copt=-fno-sanitize-recover=all
+build:dbg --copt=-fstack-protector-strong
+# build:dbg --linkopt=-fsanitize=address
+# build:dbg --linkopt=-fsanitize=undefined
+# build:dbg --linkopt=-fsanitize=float-divide-by-zero
+# build:dbg --test_env=ASAN_OPTIONS=detect_leaks=0
 
 # Test configuration
 test --test_output=errors

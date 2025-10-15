@@ -5,14 +5,14 @@ import torch
 from pydantic import Field
 from tensordict import NonTensorData, TensorDict
 from torch import Tensor
-from torchrl.data import Composite, MultiCategorical, UnboundedContinuous
+from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.loss import Loss
 from metta.rl.training import ComponentContext, TrainingEnvironment
 from metta.utils.batch import calculate_prioritized_sampling_params
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 
 class PrioritizedExperienceReplayConfig(Config):
@@ -117,7 +117,6 @@ class PPO(Loss):
 
     def get_experience_spec(self) -> Composite:
         act_space = self.env.single_action_space
-        nvec = act_space.nvec
         act_dtype = torch.int32 if np.issubdtype(act_space.dtype, np.integer) else torch.float32
         scalar_f32 = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
 
@@ -125,10 +124,7 @@ class PPO(Loss):
             rewards=scalar_f32,
             dones=scalar_f32,
             truncateds=scalar_f32,
-            actions=MultiCategorical(
-                nvec=nvec,
-                dtype=act_dtype,
-            ),
+            actions=UnboundedDiscrete(shape=torch.Size([]), dtype=act_dtype),
             act_log_prob=scalar_f32,
             values=scalar_f32,
         )

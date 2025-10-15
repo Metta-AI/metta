@@ -1,9 +1,9 @@
 #ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_SYSTEMS_STATS_TRACKER_HPP_
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_SYSTEMS_STATS_TRACKER_HPP_
 
-#include <map>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <variant>
 
 // Forward declaration
@@ -13,7 +13,7 @@ using InventoryItem = uint8_t;
 
 class StatsTracker {
 private:
-  std::map<std::string, float> _stats;
+  std::unordered_map<std::string, float> _stats;
   // StatsTracker holds a reference to resource_names to make it easier to track stats for each resource.
   // The environment owns this reference, so it should live as long as we're going to use it.
   const std::vector<std::string>* _resource_names;
@@ -21,23 +21,14 @@ private:
   // Test class needs access for testing
   friend class StatsTrackerTest;
 
-  // Use a static function to avoid global destructor
-  static const std::string& get_unknown_resource_name() {
-    static const std::string name = "[unknown -- StatsTracker resource names not initialized]";
-    return name;
-  }
-
 public:
-  StatsTracker() : _stats(), _resource_names(nullptr) {}
-
-  void set_resource_names(const std::vector<std::string>* resource_names) {
-    _resource_names = resource_names;
+  explicit StatsTracker(const std::vector<std::string>* resource_names) : _stats(), _resource_names(resource_names) {
+    if (resource_names == nullptr) {
+      throw std::invalid_argument("resource_names cannot be null");
+    }
   }
 
   const std::string& resource_name(InventoryItem item) const {
-    if (_resource_names == nullptr) {
-      return get_unknown_resource_name();
-    }
     return (*_resource_names)[item];
   }
 
@@ -63,7 +54,7 @@ public:
   }
 
   // Convert to map for Python API
-  const std::map<std::string, float>& to_dict() const {
+  const std::unordered_map<std::string, float>& to_dict() const {
     return _stats;
   }
 

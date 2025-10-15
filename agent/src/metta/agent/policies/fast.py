@@ -9,15 +9,7 @@ from torch import nn
 from torchrl.data import Composite, UnboundedDiscrete
 
 import pufferlib.pytorch
-from metta.agent.components.action import ActionEmbedding, ActionEmbeddingConfig
-from metta.agent.components.actor import (
-    ActionProbs,
-    ActionProbsConfig,
-    ActorKey,
-    ActorKeyConfig,
-    ActorQuery,
-    ActorQueryConfig,
-)
+from metta.agent.components.actor import ActionProbs, ActionProbsConfig
 from metta.agent.components.cnn_encoder import CNNEncoder, CNNEncoderConfig
 from metta.agent.components.lstm import LSTM, LSTMConfig
 from metta.agent.components.obs_shim import ObsShimBox, ObsShimBoxConfig
@@ -44,11 +36,6 @@ class FastConfig(PolicyArchitecture):
     )
     critic_hidden_dim: int = 1024
     actor_hidden_dim: int = 512
-    action_embedding_config: ActionEmbeddingConfig = ActionEmbeddingConfig(out_key="action_embedding")
-    actor_query_config: ActorQueryConfig = ActorQueryConfig(in_key="actor_1", out_key="actor_query")
-    actor_key_config: ActorKeyConfig = ActorKeyConfig(
-        query_key="actor_query", embedding_key="action_embedding", out_key="logits"
-    )
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
 
 
@@ -62,8 +49,6 @@ class FastPolicy(Policy):
 
         self.active_action_names = []
         self.num_active_actions = 100  # Default
-        self.action_index_tensor = None
-        self.cum_action_max_params = None
 
         self.out_width = env.obs_width
         self.out_height = env.obs_height
@@ -90,12 +75,14 @@ class FastPolicy(Policy):
         self.value_head = TDM(module, in_keys=["critic_1"], out_keys=["values"])
 
         # Actor branch
-        self.action_embeddings = ActionEmbedding(config=self.config.action_embedding_config)
-        self.config.actor_query_config.embed_dim = self.config.action_embedding_config.embedding_dim
-        self.config.actor_query_config.hidden_size = self.config.actor_hidden_dim
-        self.actor_query = ActorQuery(config=self.config.actor_query_config)
-        self.config.actor_key_config.embed_dim = self.config.action_embedding_config.embedding_dim
-        self.actor_key = ActorKey(config=self.config.actor_key_config)
+        self.actor_logits = TDM(
+            pufferlib.pytorch.layer_init(
+                nn.Linear(self.config.actor_hidden_dim, int(self.action_space.n)),
+                std=0.01,
+            ),
+            in_keys=["actor_1"],
+            out_keys=["logits"],
+        )
         self.action_probs = ActionProbs(config=self.config.action_probs_config)
 
     @torch._dynamo.disable  # Avoid graph breaks from TensorDict operations hurting performance
@@ -108,9 +95,7 @@ class FastPolicy(Policy):
         self.critic_1(td)
         td["critic_1"] = self.critic_activation(td["critic_1"])
         self.value_head(td)
-        self.action_embeddings(td)
-        self.actor_query(td)
-        self.actor_key(td)
+        self.actor_logits(td)
         self.action_probs(td, action)
         td["values"] = td["values"].flatten()
 
@@ -125,7 +110,6 @@ class FastPolicy(Policy):
         self.to(device)
 
         log = self.obs_shim.initialize_to_environment(env, device)
-        self.action_embeddings.initialize_to_environment(env, device)
         self.action_probs.initialize_to_environment(env, device)
         return [log]
 

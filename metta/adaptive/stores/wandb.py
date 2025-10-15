@@ -24,9 +24,12 @@ class WandbStore:
     STATUS_FAILED = "failed"
     STATUS_CANCELLED = "cancelled"
 
-    def __init__(self, entity: str, project: str):
+    def __init__(self, entity: str, project: str, evaluator_prefix: Optional[str] = None):
         self.entity = entity
         self.project = project
+        # Optional evaluator metrics prefix (e.g., "evaluator/eval_sweep") used to detect eval completion
+        # If None, falls back to broad detection of any "evaluator/" metrics
+        self.evaluator_prefix = evaluator_prefix
         # Don't store api instance - create fresh one each time to avoid caching
 
     @retry_on_exception(max_retries=3, initial_delay=1.0, max_delay=30.0)
@@ -200,28 +203,25 @@ class WandbStore:
             eval_value = summary.get("has_started_eval") if "has_started_eval" in summary else "missing"
             logger.debug(f"[WandbStore] Run {run.id} has_started_eval flag not found or not True. Value: {eval_value}")
 
-        # Check for evaluator metrics (ONLY keys starting with "evaluator/")
-        # This check is independent of has_started_eval flag
-        has_evaluator_metrics = any(k.startswith("evaluator/") for k in summary.keys())  # type: ignore
+        # Check for evaluator metrics under configured namespace (if provided) to avoid false positives
+        if self.evaluator_prefix:
+            has_evaluator_metrics = any(k.startswith(self.evaluator_prefix) for k in summary.keys())  # type: ignore
+        else:
+            # Backward-compatible behavior: any evaluator/* metric counts
+            has_evaluator_metrics = any(k.startswith("evaluator/") for k in summary.keys())  # type: ignore
 
         if has_evaluator_metrics:
             has_started_eval = True
             has_been_evaluated = True
 
-        # Extract cost and runtime first
-        # TEMPORARY PATCH: Calculate cost as $4.6 per hour of runtime
-        # TODO: Remove this patch when cost tracking is fixed upstream
-        # Cost is stored under monitor/cost/accrued_total in WandB
-        # cost = float(summary.get("monitor/cost/accrued_total", 0.0))  # type: ignore
+        # Extract runtime and cost
         # Runtime is stored under _runtime in WandB
         runtime = float(summary.get("_runtime", 0.0))  # type: ignore
         if runtime == 0.0 and hasattr(run, "duration"):
             runtime = float(run.duration) if run.duration else 0.0
 
-        # Calculate cost based on runtime at $4.6 per hour
-        cost_per_hour = 4.6
-        runtime_hours = runtime / 3600.0 if runtime > 0 else 0
-        cost = cost_per_hour * runtime_hours
+        # Cost is stored under monitor/cost/accrued_total in WandB; default to 0
+        cost = summary.get("monitor/cost/accrued_total", 0)  # type: ignore
 
         # Note: observation field is no longer used - sweep data is stored in summary instead
 
@@ -229,14 +229,36 @@ class WandbStore:
         total_timesteps = None
         current_steps = None
 
-        # Get total_timesteps from config
+        # Get total_timesteps from config. Handle both flat and nested configs.
         if hasattr(run, "config"):
-            config = dict(run.config)
-            # Check trainer.total_timesteps
-            if "trainer" in config and isinstance(config["trainer"], dict):
-                total_timesteps = config["trainer"].get("total_timesteps")
-                if total_timesteps is not None:
-                    total_timesteps = int(total_timesteps)
+            cfg_obj = run.config
+            try:
+                config = dict(cfg_obj)
+            except Exception:
+                config = {}
+
+            def _extract_total_steps(d: dict) -> int | None:
+                # Direct path: top-level trainer
+                t = None
+                if isinstance(d, dict):
+                    if "trainer" in d and isinstance(d["trainer"], dict):
+                        t = d["trainer"].get("total_timesteps")
+                        if t is not None:
+                            try:
+                                return int(t)
+                            except Exception:
+                                pass
+                    # Nested path: search child dicts (e.g., {"TrainTool": {"trainer": {...}}})
+                    for v in d.values():
+                        if isinstance(v, dict):
+                            found = _extract_total_steps(v)
+                            if found is not None:
+                                return found
+                return None
+
+            maybe_total = _extract_total_steps(config)
+            if maybe_total is not None:
+                total_timesteps = maybe_total
 
         # Get current_steps from summary
         if "metric/agent_step" in summary:

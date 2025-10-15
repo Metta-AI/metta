@@ -28,7 +28,7 @@ def write_map_preview_file(preview_path: str, env: MettaGridEnv, gzipped: bool):
         "map_size": [env.map_width, env.map_height],
         "num_agents": env.num_agents,
         "max_steps": 1,
-        "grid_objects": list(env.grid_objects.values()),
+        "grid_objects": list(env.grid_objects().values()),
     }
 
     preview_data = json.dumps(preview).encode("utf-8")  # Convert to JSON string
