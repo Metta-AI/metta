@@ -224,7 +224,6 @@ class EvaluateTool(Tool):
                 logger.warning(f"Failed to load policy from {normalized_uri}: {e}")
                 continue
 
-            eval_run_name = _determine_run_name(normalized_uri)
             results = {"policy_uri": normalized_uri, "checkpoints": []}
             eval_results = self.eval_policy(normalized_uri, device, stats_client)
             metadata = CheckpointManager.get_policy_metadata(normalized_uri)
