@@ -2,13 +2,15 @@
 
 import json
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
+from typing import Any, Dict
 
 import pytest
 
 from gitta import GitError
-from gitta.split import FileDiff, PRSplitter, SplitDecision
+from gitta.split import FileDiff, PRSplitter, SplitDecision, main
 
 
 @pytest.fixture(autouse=True)
@@ -307,9 +309,10 @@ def test_push_branch_no_force(monkeypatch: pytest.MonkeyPatch):
 
 def test_build_prompt_reflects_independence():
     splitter_low = PRSplitter(independence=0.0)
+    splitter_mid = PRSplitter(independence=0.5)
     splitter_high = PRSplitter(independence=1.0)
 
-    file_summaries = [
+    file_summaries: list[Dict[str, Any]] = [
         {
             "filename": "feature.py",
             "additions": 10,
@@ -320,11 +323,19 @@ def test_build_prompt_reflects_independence():
     ]
 
     prompt_low = splitter_low._build_split_prompt(file_summaries)
+    prompt_mid = splitter_mid._build_split_prompt(file_summaries)
     prompt_high = splitter_high._build_split_prompt(file_summaries)
 
     assert "Independence preference: 0.00" in prompt_low
+    assert "Weight of balanced sizing: 1.00" in prompt_low
     assert "Prioritize balanced group sizes" in prompt_low
+
+    assert "Independence preference: 0.50" in prompt_mid
+    assert "Weight of balanced sizing: 0.50" in prompt_mid
+    assert "Balance both logical separation and size" in prompt_mid
+
     assert "Independence preference: 1.00" in prompt_high
+    assert "Weight of balanced sizing: 0.00" in prompt_high
     assert "Prioritize independence of concerns" in prompt_high
 
 
@@ -333,3 +344,48 @@ def test_invalid_independence_value():
         PRSplitter(independence=1.5)
     with pytest.raises(ValueError):
         PRSplitter(independence=-0.1)
+
+
+def test_split_pr_forwards_independence(monkeypatch: pytest.MonkeyPatch):
+    captured: Dict[str, Any] = {}
+
+    class FakeSplitter:
+        def __init__(self, *_, independence: float, **__):
+            captured["independence"] = independence
+
+        def split(self) -> None:
+            captured["split_called"] = True
+
+    monkeypatch.setattr("gitta.split.PRSplitter", FakeSplitter)
+
+    # Call the helper directly
+    from gitta.split import split_pr
+
+    split_pr(independence=0.3)
+    assert captured["independence"] == 0.3
+    assert captured["split_called"] is True
+
+
+def test_cli_rejects_invalid_independence(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(sys, "argv", ["gitta.split", "--independence", "1.2", "--anthropic-key", "abc"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code == 1
+
+
+def test_cli_passes_independence(monkeypatch: pytest.MonkeyPatch):
+    args = ["gitta.split", "--anthropic-key", "abc123", "--independence", "0.2"]
+    monkeypatch.setattr(sys, "argv", args)
+
+    captured_kwargs: Dict[str, Any] = {}
+
+    def fake_split_pr(**kwargs: Any) -> None:
+        captured_kwargs.update(kwargs)
+
+    monkeypatch.setattr("gitta.split.split_pr", fake_split_pr)
+
+    main()
+    assert captured_kwargs["independence"] == 0.2
+    assert captured_kwargs["force_push"] is True
