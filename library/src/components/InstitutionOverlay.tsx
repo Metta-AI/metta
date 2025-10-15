@@ -56,20 +56,11 @@ export default function InstitutionOverlay({
       createdAt: paper.createdAt ? new Date(paper.createdAt) : new Date(),
       updatedAt: paper.updatedAt ? new Date(paper.updatedAt) : new Date(),
       isStarredByCurrentUser: paper.isStarredByCurrentUser || false,
-      isQueuedByCurrentUser: paper.isQueuedByCurrentUser || false,
     };
 
-    openPaper(
-      paperWithContext,
-      [],
-      [],
-      () => {
-        /** noop for institution context */
-      },
-      () => {
-        /** noop for institution context */
-      }
-    );
+    openPaper(paperWithContext, [], [], () => {
+      /** noop for institution context */
+    });
   };
 
   const handleOpenAuthor = (author: AuthorDTO) => {
