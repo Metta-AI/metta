@@ -14,7 +14,7 @@ and run them with only the target library installed.
 
 2. **Keep Boundaries Clean**
    - No calls into Metta training utilities (`train.py`, simulation loops, etc.)
-   - Only import the adapter (`MettaGridPettingZooEnv`, `MettaGridGymEnv`, `MettaGridPufferEnv`) + curriculum
+   - Only import the adapter (`MettaGridPettingZooEnv`, `MettaGridBenchMARLEnv`, `SingleAgentWrapper`) + curriculum
 
 3. **Be CI-Friendly**
    - Hard cap on steps/timesteps (≤~300) so they finish fast
@@ -30,8 +30,8 @@ and run them with only the target library installed.
 
 ```text
 ./demos/
+  ├── benchmarl_demo.py          # BenchMARL/TorchRL demo
   ├── demo_train_pettingzoo.py   # PettingZoo Parallel API demo
-  ├── demo_train_gym.py          # Gymnasium + Stable-Baselines3 (single-agent) demo
   ├── demo_train_puffer.py       # PufferLib demo
   └── README.md                  # (this file)
 ```
@@ -44,8 +44,8 @@ All scripts are **PEP 723 compliant** with inline dependency specifications. Fro
 
 ```bash
 # Run individual demos
+uv run python demos/benchmarl_demo.py
 uv run python demos/demo_train_pettingzoo.py
-uv run python demos/demo_train_gym.py
 uv run python demos/demo_train_puffer.py
 
 # Or test all demos via GitHub Actions workflow
@@ -66,12 +66,12 @@ gh workflow run test-demo-environments.yml
 - Asserts non-NaN rewards, sensible shapes, and episode cycling
 - Multi-agent action spaces work correctly
 
-### Gymnasium / SB3 (`demo_train_gym.py`)
+### BenchMARL / TorchRL (`benchmarl_demo.py`)
 
-- Single-agent wrapper satisfies SB3's expectations
-- Trains a PPO agent for ~256 steps without errors
-- Rollout verification shows trained model can act
-- Vectorized `DummyVecEnv` test confirms parallelism
+- Environment satisfies BenchMARL/TorchRL requirements
+- Demonstrates TensorDict-based API
+- Tests multi-agent functionality with proper specs
+- Shows integration with modern RL frameworks
 
 ### PufferLib (`demo_train_puffer.py`)
 
@@ -88,7 +88,7 @@ We ensure MettaGrid plays nicely with the PyTorch RL stacks that game/multi-agen
 
 ### **Tier 1** (actively tested in demos + CI)
 
-- **Stable-Baselines3 (SB3)** – most common baseline suite for Gym environments
+- **BenchMARL / TorchRL** – modern multi-agent RL framework with TensorDict
 - **PettingZoo** – standard multi-agent RL API with extensive ecosystem
 - **PufferLib** – vectorized, throughput-focused env/training toolkit
 
@@ -128,7 +128,7 @@ Demos are automatically tested via GitHub Actions (`.github/workflows/test-demo-
 ```yaml
 strategy:
   matrix:
-    demo: [demo_train_pettingzoo, demo_train_puffer, demo_train_gym]
+    demo: [benchmarl_demo, demo_train_pettingzoo, demo_train_puffer]
 ```
 
 Each demo runs with:
