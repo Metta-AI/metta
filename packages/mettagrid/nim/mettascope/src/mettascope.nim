@@ -20,7 +20,7 @@ proc updateReplayHeader() =
 proc onReplayLoaded() =
   ## Called when a replay is loaded.
   updateReplayHeader()
-  fitFullMap(worldMapPanel)
+  worldMapPanel.pos = vec2(0, 0)
   onStepChanged()
   updateEnvConfig()
 
@@ -83,6 +83,8 @@ find "/UI/Main":
         thisNode.size.x,
         thisNode.size.y
       )
+      if not common.replay.isNil and worldMapPanel.pos == vec2(0, 0):
+        fitFullMap(worldMapPanel)
       bxy.translate(worldMapPanel.rect.xy.vec2 * window.contentScale)
       drawWorldMap(worldMapPanel)
       bxy.restoreTransform()
