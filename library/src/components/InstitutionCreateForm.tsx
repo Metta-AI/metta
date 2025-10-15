@@ -36,9 +36,9 @@ const institutionSchema = z.object({
   name: z.string().min(1, "Institution name is required"),
   domain: z
     .string()
+    .min(1, "Domain is required")
     .max(255, "Domain is too long")
-    .optional()
-    .transform((value) => value?.trim() || undefined),
+    .transform((value) => value?.trim()),
   description: z
     .string()
     .max(500, "Description is too long")
@@ -69,7 +69,7 @@ type InstitutionFormValues = z.infer<typeof institutionSchema>;
 
 const defaultValues: InstitutionFormValues = {
   name: "",
-  domain: undefined,
+  domain: "",
   description: undefined,
   website: undefined,
   location: undefined,
@@ -130,7 +130,9 @@ export const InstitutionCreateForm: FC<InstitutionCreateFormProps> = ({
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Institution Name *</FormLabel>
+                  <FormLabel>
+                    Institution Name <span className="text-red-500">*</span>
+                  </FormLabel>
                   <FormControl>
                     <Input
                       {...field}
@@ -138,7 +140,6 @@ export const InstitutionCreateForm: FC<InstitutionCreateFormProps> = ({
                       autoComplete="organization"
                     />
                   </FormControl>
-                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -148,19 +149,18 @@ export const InstitutionCreateForm: FC<InstitutionCreateFormProps> = ({
               name="domain"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Domain</FormLabel>
+                  <FormLabel>
+                    Domain <span className="text-red-500">*</span>
+                  </FormLabel>
                   <FormControl>
                     <Input
                       {...field}
-                      value={field.value ?? ""}
-                      onChange={(event) => field.onChange(event.target.value)}
                       placeholder="e.g., softmax.com"
                     />
                   </FormControl>
                   <FormDescription>
                     Used for @-tagging (e.g., @softmax.com/team)
                   </FormDescription>
-                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -170,7 +170,9 @@ export const InstitutionCreateForm: FC<InstitutionCreateFormProps> = ({
               name="type"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Institution Type *</FormLabel>
+                  <FormLabel>
+                    Institution Type <span className="text-red-500">*</span>
+                  </FormLabel>
                   <Select value={field.value} onValueChange={field.onChange}>
                     <FormControl>
                       <SelectTrigger>
@@ -186,7 +188,6 @@ export const InstitutionCreateForm: FC<InstitutionCreateFormProps> = ({
                       <SelectItem value="OTHER">Other</SelectItem>
                     </SelectContent>
                   </Select>
-                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -206,7 +207,6 @@ export const InstitutionCreateForm: FC<InstitutionCreateFormProps> = ({
                       placeholder="Brief description of the institution..."
                     />
                   </FormControl>
-                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -227,7 +227,6 @@ export const InstitutionCreateForm: FC<InstitutionCreateFormProps> = ({
                       autoComplete="url"
                     />
                   </FormControl>
-                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -247,7 +246,6 @@ export const InstitutionCreateForm: FC<InstitutionCreateFormProps> = ({
                       autoComplete="address-level2"
                     />
                   </FormControl>
-                  <FormMessage />
                 </FormItem>
               )}
             />
