@@ -102,7 +102,7 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper, onClose }) => {
         {onClose && (
           <button
             onClick={onClose}
-            className="cursor-pointer flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
+            className="flex h-8 w-8 flex-shrink-0 cursor-pointer items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
             title="Close paper details"
           >
             <svg
@@ -202,7 +202,7 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper, onClose }) => {
               {onClose && (
                 <button
                   onClick={onClose}
-                  className="cursor-pointer hidden rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 md:block"
+                  className="hidden cursor-pointer rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 md:block"
                   title="Close paper details"
                 >
                   <svg

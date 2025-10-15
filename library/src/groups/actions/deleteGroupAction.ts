@@ -46,4 +46,3 @@ export const deleteGroupAction = actionClient
       message: "Group deleted successfully",
     };
   });
-

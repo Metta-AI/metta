@@ -25,4 +25,3 @@ export const GET = withErrorHandler(
     return NextResponse.json(institution);
   }
 );
-

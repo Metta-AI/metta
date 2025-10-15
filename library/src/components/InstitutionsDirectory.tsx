@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useFilterSort } from "@/lib/hooks/useFilterSort";
+import { SortControls } from "@/components/ui/sort-controls";
 import { useErrorHandling } from "@/lib/hooks/useErrorHandling";
 import { useOverlayNavigation } from "@/components/OverlayStack";
 import { InstitutionCreateForm } from "@/components/InstitutionCreateForm";
@@ -209,35 +210,18 @@ export const InstitutionsDirectory: React.FC<InstitutionsDirectoryProps> = ({
           </div>
 
           {/* Sort Controls */}
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <span className="text-sm font-medium text-gray-600">Sort by:</span>
-            <div className="flex flex-wrap gap-2">
-              {sortOptions.map((option) => {
-                const isActive = sortBy === option.key;
-                return (
-                  <Button
-                    key={option.key}
-                    variant={isActive ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => {
-                      if (isActive) {
-                        setSortDirection(
-                          sortDirection === "asc" ? "desc" : "asc"
-                        );
-                      } else {
-                        setSortBy(option.key);
-                        setSortDirection(
-                          option.key === "name" ? "asc" : "desc"
-                        );
-                      }
-                    }}
-                  >
-                    {option.label}
-                  </Button>
-                );
-              })}
-            </div>
-          </div>
+          <SortControls
+            sortOptions={sortOptions}
+            sortBy={sortBy}
+            sortDirection={sortDirection}
+            onSortChange={(key) => {
+              setSortBy(key);
+              setSortDirection(key === "name" ? "asc" : "desc");
+            }}
+            onDirectionToggle={() =>
+              setSortDirection(sortDirection === "asc" ? "desc" : "asc")
+            }
+          />
 
           {joinError && <p className="text-destructive text-sm">{joinError}</p>}
 
