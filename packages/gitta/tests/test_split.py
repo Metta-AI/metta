@@ -266,3 +266,40 @@ def test_push_branch_propagates_other_errors(monkeypatch: pytest.MonkeyPatch):
 
     with pytest.raises(GitError):
         splitter.push_branch("feature-error")
+
+
+def test_push_branch_updates_rejected(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
+    """Handle the 'Updates were rejected because...' message emitted by git."""
+    splitter = PRSplitter()
+    calls: list[tuple[str, ...]] = []
+    call_count = {"push_origin": 0}
+
+    def fake_run_git(*args: str) -> str:
+        calls.append(args)
+        if args == ("push", "origin", "feature-reject") and call_count["push_origin"] == 0:
+            call_count["push_origin"] += 1
+            raise GitError(
+                "git push origin feature-reject failed (1): Updates were rejected because the tip of your current "
+                "branch is behind"
+            )
+        return ""
+
+    monkeypatch.setattr("gitta.split.run_git", fake_run_git)
+
+    splitter.push_branch("feature-reject")
+
+    assert ("push", "--force-with-lease", "origin", "feature-reject") in calls
+    assert "force-with-lease" in capsys.readouterr().out
+
+
+def test_push_branch_no_force(monkeypatch: pytest.MonkeyPatch):
+    """When force_push is disabled the retry should not occur."""
+    splitter = PRSplitter(force_push=False)
+
+    def fake_run_git(*_: str) -> str:
+        raise GitError("git push origin feature-noforce failed (1): non-fast-forward")
+
+    monkeypatch.setattr("gitta.split.run_git", fake_run_git)
+
+    with pytest.raises(GitError):
+        splitter.push_branch("feature-noforce")

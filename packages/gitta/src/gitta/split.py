@@ -49,6 +49,7 @@ class PRSplitter:
         anthropic_api_key: Optional[str] = None,
         github_token: Optional[str] = None,
         anthropic_client: Optional[Anthropic] = None,
+        force_push: bool = True,
     ):
         self.anthropic_api_key = anthropic_api_key or os.environ.get("ANTHROPIC_API_KEY")
         self.anthropic: Optional[Anthropic] = anthropic_client
@@ -58,6 +59,7 @@ class PRSplitter:
         self.github_token = github_token or os.environ.get("GITHUB_TOKEN")
         self.base_branch: Optional[str] = None
         self.current_branch: Optional[str] = None
+        self.force_push = force_push
 
     def _ensure_anthropic(self) -> Anthropic:
         """Returns an Anthropic client, constructing it lazily if needed."""
@@ -297,7 +299,11 @@ Return a JSON response with this exact structure:
             run_git("push", "origin", branch_name)
         except GitError as exc:
             message = str(exc).lower()
-            if "non-fast-forward" not in message and "fetch first" not in message:
+            rerun_indicators = ("non-fast-forward", "fetch first", "updates were rejected because", "rejected")
+            if not any(indicator in message for indicator in rerun_indicators):
+                raise
+
+            if not self.force_push:
                 raise
 
             print(f"Remote branch {branch_name} already exists. Updating with --force-with-lease.")
@@ -440,7 +446,12 @@ Return a JSON response with this exact structure:
         print("\n✨ PR split complete!")
 
 
-def split_pr(anthropic_api_key: Optional[str] = None, github_token: Optional[str] = None) -> None:
+def split_pr(
+    anthropic_api_key: Optional[str] = None,
+    github_token: Optional[str] = None,
+    *,
+    force_push: bool = True,
+) -> None:
     """
     Split the current branch into two smaller PRs.
 
@@ -448,7 +459,7 @@ def split_pr(anthropic_api_key: Optional[str] = None, github_token: Optional[str
         anthropic_api_key: Anthropic API key (defaults to ANTHROPIC_API_KEY env var)
         github_token: GitHub token (defaults to GITHUB_TOKEN env var)
     """
-    splitter = PRSplitter(anthropic_api_key, github_token)
+    splitter = PRSplitter(anthropic_api_key, github_token, force_push=force_push)
     splitter.split()
 
 
@@ -486,6 +497,12 @@ Environment variables:
         default=os.environ.get("GITHUB_TOKEN"),
     )
 
+    parser.add_argument(
+        "--no-force-push",
+        action="store_true",
+        help="Skip the force-with-lease retry when remote branches already exist",
+    )
+
     args = parser.parse_args()
 
     # Validate API key
@@ -499,7 +516,11 @@ Environment variables:
         print("   Set GITHUB_TOKEN environment variable or use --github-token to enable")
 
     try:
-        split_pr(anthropic_api_key=args.anthropic_key, github_token=args.github_token)
+        split_pr(
+            anthropic_api_key=args.anthropic_key,
+            github_token=args.github_token,
+            force_push=not args.no_force_push,
+        )
     except Exception as e:
         print(f"\n❌ Error: {e}")
         sys.exit(1)

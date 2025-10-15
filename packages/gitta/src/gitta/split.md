@@ -95,7 +95,7 @@ Created PR: https://github.com/owner/repo/pull/124
 3. **Keep your original branch** - It's preserved as a backup
 4. **Works best with 2-20 files** - Very large PRs might need manual adjustment
 5. **Logical grouping** - The AI tries to keep related changes together
-6. **Rerun safely** - If you rerun the splitter, existing `*-part{n}` branches are recreated from the base branch automatically and remote branches are refreshed with `--force-with-lease` when needed.
+6. **Rerun safely** - If you rerun the splitter, existing `*-part{n}` branches are recreated from the base branch automatically and remote branches are refreshed with `--force-with-lease` when needed (pass `--no-force-push` if you prefer the command to fail instead).
 
 ## Troubleshooting
 
