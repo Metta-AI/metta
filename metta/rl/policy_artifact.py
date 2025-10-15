@@ -345,7 +345,7 @@ def load_policy_artifact(path: str | Path) -> PolicyArtifact:
         msg = f"Policy artifact not found: {input_path}"
         raise FileNotFoundError(msg)
 
-    if not zipfile.is_zipfile(input_path):
+    if not zipfile.is_zipfile(input_path) or input_path.suffix == ".pt":
         try:
             legacy_payload = torch.load(input_path, map_location="cpu", weights_only=False)
         except FileNotFoundError:
