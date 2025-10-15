@@ -11,6 +11,7 @@ import { manageGroupMembershipAction } from "@/groups/actions/manageGroupMembers
 import { useErrorHandling } from "@/lib/hooks/useErrorHandling";
 import { getUserDisplayName } from "@/lib/utils/user";
 import { useDeleteGroup } from "@/hooks/mutations/admin/useDeleteGroup";
+import { Tabs } from "@/components/ui/tabs";
 import {
   Form,
   FormControl,
@@ -236,37 +237,16 @@ export const GroupManagementModal: FC<GroupManagementModalProps> = ({
           </div>
 
           {isAdmin && (
-            <div className="mt-4 flex gap-2">
-              <button
-                onClick={() => setActiveTab("members")}
-                className={`cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                  activeTab === "members"
-                    ? "bg-blue-100 text-blue-700"
-                    : "text-gray-600 hover:bg-gray-100"
-                }`}
-              >
-                Members ({memberCount})
-              </button>
-              <button
-                onClick={() => setActiveTab("add")}
-                className={`cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                  activeTab === "add"
-                    ? "bg-blue-100 text-blue-700"
-                    : "text-gray-600 hover:bg-gray-100"
-                }`}
-              >
-                Add Member
-              </button>
-              <button
-                onClick={() => setActiveTab("settings")}
-                className={`cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                  activeTab === "settings"
-                    ? "bg-blue-100 text-blue-700"
-                    : "text-gray-600 hover:bg-gray-100"
-                }`}
-              >
-                Settings
-              </button>
+            <div className="mt-4">
+              <Tabs
+                tabs={[
+                  { id: "members", label: `Members (${memberCount})` },
+                  { id: "add", label: "Add Member" },
+                  { id: "settings", label: "Settings" },
+                ]}
+                activeTab={activeTab}
+                onTabChange={(tab) => setActiveTab(tab as typeof activeTab)}
+              />
             </div>
           )}
         </div>
