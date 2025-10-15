@@ -30,7 +30,7 @@ and run them with only the target library installed.
 
 ```text
 ./demos/
-  ├── benchmarl_demo.py          # BenchMARL/TorchRL demo
+  ├── demo_train_benchmarl.py    # BenchMARL/TorchRL demo
   ├── demo_train_pettingzoo.py   # PettingZoo Parallel API demo
   ├── demo_train_puffer.py       # PufferLib demo
   └── README.md                  # (this file)
@@ -44,7 +44,7 @@ All scripts are **PEP 723 compliant** with inline dependency specifications. Fro
 
 ```bash
 # Run individual demos
-uv run python demos/benchmarl_demo.py
+uv run python demos/demo_train_benchmarl.py
 uv run python demos/demo_train_pettingzoo.py
 uv run python demos/demo_train_puffer.py
 
@@ -66,7 +66,7 @@ gh workflow run test-demo-environments.yml
 - Asserts non-NaN rewards, sensible shapes, and episode cycling
 - Multi-agent action spaces work correctly
 
-### BenchMARL / TorchRL (`benchmarl_demo.py`)
+### BenchMARL / TorchRL (`demo_train_benchmarl.py`)
 
 - Environment satisfies BenchMARL/TorchRL requirements
 - Demonstrates TensorDict-based API
@@ -128,7 +128,7 @@ Demos are automatically tested via GitHub Actions (`.github/workflows/test-demo-
 ```yaml
 strategy:
   matrix:
-    demo: [benchmarl_demo, demo_train_pettingzoo, demo_train_puffer]
+    demo: [demo_train_benchmarl, demo_train_pettingzoo, demo_train_puffer]
 ```
 
 Each demo runs with:
