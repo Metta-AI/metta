@@ -39,5 +39,6 @@ jobs:
         run: |
           aws eks update-kubeconfig --name main --region us-east-1
           cd devops/charts
-          helmfile apply -l name=dashboard-cronjob \
-            --set image.tag=${{ steps.build-image.outputs.tag }}
+          helmfile -l name=dashboard-cronjob \
+            --set image.tag=${{ steps.build-image.outputs.tag }} \
+            apply
