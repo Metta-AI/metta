@@ -1,7 +1,6 @@
 """Tests for PR splitting functionality without mocks."""
 
 import json
-import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -11,7 +10,12 @@ import pytest
 from gitta.split import FileDiff, PRSplitter, SplitDecision
 
 
-@pytest.mark.skipif(not os.environ.get("ANTHROPIC_API_KEY"), reason="Requires API key")
+@pytest.fixture(autouse=True)
+def clear_anthropic_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ensure tests do not rely on real Anthropic credentials."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+
 def test_parse_diff():
     """Test parsing of git diff output."""
     diff_text = """diff --git a/file1.py b/file1.py
@@ -50,7 +54,6 @@ index 0000000..789012
     assert len(files[1].additions) == 3  # Three lines in new file
 
 
-@pytest.mark.skipif(not os.environ.get("ANTHROPIC_API_KEY"), reason="Requires API key")
 def test_create_patch_file():
     """Test creating a patch from selected files."""
     splitter = PRSplitter()
@@ -81,7 +84,6 @@ def test_create_patch_file():
     assert "-line2" in patch
 
 
-@pytest.mark.skipif(not os.environ.get("ANTHROPIC_API_KEY"), reason="Requires API key")
 def test_verify_split():
     """Test verification of split diffs."""
     splitter = PRSplitter()
@@ -136,7 +138,6 @@ def test_get_repo_from_remote_urls():
             assert expected is None
 
 
-@pytest.mark.skipif(not os.environ.get("ANTHROPIC_API_KEY"), reason="Requires API key")
 def test_split_decision_json_parsing():
     """Test parsing of split decision from JSON."""
     # Test valid JSON parsing
@@ -157,7 +158,6 @@ def test_split_decision_json_parsing():
     assert "backend" in decision.group1_description.lower()
 
 
-@pytest.mark.skipif(not os.environ.get("ANTHROPIC_API_KEY"), reason="Requires API key")
 def test_real_git_diff():
     """Test with a real git repository and actual diffs."""
     # Create temporary repo
@@ -180,6 +180,8 @@ def test_real_git_diff():
         (repo_path / "file1.py").write_text("def hello():\n    print('hello world')\n    return True\n")
         (repo_path / "file2.py").write_text("def goodbye():\n    print('bye')\n")
 
+        subprocess.run(["git", "add", "file2.py"], cwd=repo_path, check=True, capture_output=True)
+
         # Get the diff
         result = subprocess.run(["git", "diff", "HEAD"], cwd=repo_path, capture_output=True, text=True, check=True)
 
@@ -191,3 +193,38 @@ def test_real_git_diff():
         assert files[0].filename == "file1.py"
         assert files[1].filename == "file2.py"
         assert any("hello world" in line for line in files[0].additions)
+
+
+def test_apply_patch_to_existing_branch(monkeypatch: pytest.MonkeyPatch):
+    """`apply_patch_to_new_branch` should recreate existing branches safely."""
+    splitter = PRSplitter()
+    splitter.base_branch = "origin/main"
+
+    calls: list[tuple[str, ...]] = []
+
+    def fake_run_git(*args: str) -> str:
+        calls.append(args)
+        return ""
+
+    monkeypatch.setattr("gitta.split.run_git", fake_run_git)
+
+    splitter.apply_patch_to_new_branch("diff --git a/file b/file\n", "feature-part1")
+
+    assert ("checkout", "-B", "feature-part1", "origin/main") in calls
+
+
+def test_analyze_diff_requires_api_key():
+    """Ensure Anthropic-backed splitting raises without credentials."""
+    splitter = PRSplitter()
+    files = [
+        FileDiff(
+            filename="demo.py",
+            additions=["+print('hi')"],
+            deletions=[],
+            hunks=[],
+            raw_diff="diff --git a/demo.py b/demo.py\n+print('hi')",
+        )
+    ]
+
+    with pytest.raises(ValueError):
+        splitter.analyze_diff_with_ai(files)

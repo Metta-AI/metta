@@ -10,7 +10,7 @@ This guide will help you get started with splitting large PRs using gitta.
    pip install gitta
    ```
 
-2. **Get an Anthropic API key:**
+2. **(For AI-driven splitting) Get an Anthropic API key:**
    - Sign up at https://console.anthropic.com/
    - Create an API key
    - Set it as an environment variable:
@@ -86,6 +86,8 @@ Created PR: https://github.com/owner/repo/pull/124
 ✨ PR split complete!
 ```
 
+> **Tip:** You can still use `PRSplitter` helpers (such as `parse_diff` or `create_patch_file`) without an Anthropic key, which is handy for scripting or testing scenarios.
+
 ## Tips
 
 1. **Review before pushing** - The tool shows the split plan before creating branches
@@ -93,6 +95,7 @@ Created PR: https://github.com/owner/repo/pull/124
 3. **Keep your original branch** - It's preserved as a backup
 4. **Works best with 2-20 files** - Very large PRs might need manual adjustment
 5. **Logical grouping** - The AI tries to keep related changes together
+6. **Rerun safely** - If you rerun the splitter, existing `*-part{n}` branches are recreated from the base branch automatically; if the branches already exist on the remote you may need to force-push manually.
 
 ## Troubleshooting
 

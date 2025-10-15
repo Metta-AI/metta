@@ -44,15 +44,31 @@ class SplitDecision:
 class PRSplitter:
     """Split large pull requests into smaller, logically isolated ones."""
 
-    def __init__(self, anthropic_api_key: Optional[str] = None, github_token: Optional[str] = None):
+    def __init__(
+        self,
+        anthropic_api_key: Optional[str] = None,
+        github_token: Optional[str] = None,
+        anthropic_client: Optional[Anthropic] = None,
+    ):
         self.anthropic_api_key = anthropic_api_key or os.environ.get("ANTHROPIC_API_KEY")
-        if not self.anthropic_api_key:
-            raise ValueError("Anthropic API key not provided and ANTHROPIC_API_KEY environment variable not set")
+        self.anthropic: Optional[Anthropic] = anthropic_client
+        if self.anthropic is None and self.anthropic_api_key:
+            self.anthropic = Anthropic(api_key=self.anthropic_api_key)
 
-        self.anthropic = Anthropic(api_key=self.anthropic_api_key)
         self.github_token = github_token or os.environ.get("GITHUB_TOKEN")
         self.base_branch: Optional[str] = None
         self.current_branch: Optional[str] = None
+
+    def _ensure_anthropic(self) -> Anthropic:
+        """Returns an Anthropic client, constructing it lazily if needed."""
+        if self.anthropic:
+            return self.anthropic
+
+        if self.anthropic_api_key:
+            self.anthropic = Anthropic(api_key=self.anthropic_api_key)
+            return self.anthropic
+
+        raise ValueError("Anthropic API key not provided and ANTHROPIC_API_KEY environment variable not set")
 
     def get_base_branch(self) -> str:
         """Determine the base branch (usually main or master)"""
@@ -136,6 +152,8 @@ class PRSplitter:
     def analyze_diff_with_ai(self, files: List[FileDiff]) -> SplitDecision:
         """Use Anthropic API to analyze how to split the diff"""
 
+        anthropic_client = self._ensure_anthropic()
+
         # Prepare a summary for the AI
         file_summaries = []
         for f in files:
@@ -172,7 +190,7 @@ Return a JSON response with this exact structure:
 }}
 """
 
-        response = self.anthropic.messages.create(
+        response = anthropic_client.messages.create(
             model="claude-3-5-sonnet-20241022", max_tokens=1000, messages=[{"role": "user", "content": prompt}]
         )
 
@@ -227,7 +245,7 @@ Return a JSON response with this exact structure:
         base_branch = self.base_branch
 
         # Create and checkout new branch from base
-        run_git("checkout", "-b", branch_name, base_branch)
+        run_git("checkout", "-B", branch_name, base_branch)
 
         # Apply the patch
         with tempfile.NamedTemporaryFile(mode="w", suffix=".patch", delete=False) as f:
