@@ -7,7 +7,7 @@ import re
 import time
 from collections import defaultdict
 from copy import deepcopy
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 import typer
@@ -49,6 +49,7 @@ def evaluate(
     policy_specs: list[PolicySpec],
     episodes: int,
     action_timeout_ms: int,
+    max_steps: Optional[int] = None,
     seed: int = 42,
 ) -> None:
     if not policy_specs:
@@ -99,7 +100,10 @@ def evaluate(
 
             done = np.zeros(env.num_agents, dtype=bool)
             truncated = np.zeros(env.num_agents, dtype=bool)
-            while not done.all() and not truncated.all():
+
+            step_count = 0
+
+            while max_steps is None or step_count < max_steps:
                 actions = np.zeros(env.num_agents, dtype=env.action_space.dtype)
                 for i in range(env.num_agents):
                     start_time = time.time()
@@ -115,6 +119,10 @@ def evaluate(
                         action = noop
                     actions[i] = np.asarray(action).astype(env.action_space.dtype).item()
                 obs, rewards, done, truncated, _ = env.step(actions)
+
+                step_count += 1
+                if done.all() or truncated.all():
+                    break
 
             per_episode_rewards.append(np.array(env.get_episode_rewards(), dtype=float))
 

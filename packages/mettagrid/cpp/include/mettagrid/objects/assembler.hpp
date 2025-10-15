@@ -1,6 +1,8 @@
 #ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_ASSEMBLER_HPP_
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_ASSEMBLER_HPP_
 
+#include <algorithm>
+#include <cassert>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -96,17 +98,55 @@ private:
 
 public:
   // Consume resources from surrounding agents for the given recipe
+  // Uses a balanced approach: sorts agents by resource amount and takes evenly from them
   // Intended to be private, but made public for testing. We couldn't get `friend` to work as expected.
   void consume_resources_for_recipe(const Recipe& recipe, const std::vector<Agent*>& surrounding_agents) {
     for (const auto& [item, required_amount] : recipe.input_resources) {
-      InventoryQuantity remaining = required_amount;
-      for (Agent* agent : surrounding_agents) {
-        if (remaining == 0) break;
-        InventoryQuantity available = agent->inventory.amount(item);
-        InventoryQuantity to_consume = static_cast<InventoryQuantity>(std::min<int>(available, remaining));
-        agent->update_inventory(item, static_cast<InventoryDelta>(-to_consume));
-        remaining -= to_consume;
+      // We expect the main usage to be 3 passes:
+      // 1. Separate agents into those who have "their share" and those who don't. Consume resources from those who
+      // don't.
+      // 2. Take a second pass through the list to confirm that all remaining agents have "their share", based on
+      // an updated understanding of what's needed.
+      // 3. Consume resources from the agents who have "their share".
+      InventoryQuantity required_remaining = required_amount;
+      std::vector<Agent*> agents_to_consider;
+      std::vector<Agent*> next_agents_to_consider = surrounding_agents;
+      size_t num_agents_remaining = next_agents_to_consider.size();
+      // Intentionally rounded down
+      InventoryQuantity required_per_agent = required_remaining / num_agents_remaining;
+      do {
+        agents_to_consider = next_agents_to_consider;
+        next_agents_to_consider.clear();
+        for (Agent* agent : agents_to_consider) {
+          InventoryQuantity agent_amount = agent->inventory.amount(item);
+          if (agent_amount <= required_per_agent) {
+            // This agent has less than (or equal to) what we're going to be asking for. Thus, we can just consume
+            // all of it now. This lets us update how much we'll need from other agents.
+            if (agent_amount > 0) {
+              agent->update_inventory(item, static_cast<InventoryDelta>(-agent_amount));
+              required_remaining -= agent_amount;
+            }
+            // We can update how much we're looking for as an in-flight operation.
+            num_agents_remaining--;
+            if (num_agents_remaining > 0) {
+              required_per_agent = required_remaining / num_agents_remaining;
+            }
+          } else {
+            // This agent has more than what we're going to be asking for. We'll add it to our list of agents to
+            // consider next time.
+            next_agents_to_consider.push_back(agent);
+          }
+        }
+        // Do this until we don't kick any agents off the list, at which point we know all agents have "their share".
+      } while (agents_to_consider.size() != next_agents_to_consider.size());
+
+      for (Agent* agent : agents_to_consider) {
+        InventoryQuantity required_rounded_up = (required_remaining + num_agents_remaining - 1) / num_agents_remaining;
+        agent->update_inventory(item, static_cast<InventoryDelta>(-required_rounded_up));
+        required_remaining -= required_rounded_up;
+        num_agents_remaining--;
       }
+      assert(required_remaining == 0 && "Failed to consume all required resources");
     }
   }
 

@@ -22,7 +22,7 @@ from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.policy_artifact import PolicyArtifact
 from metta.rl.training.training_environment import EnvironmentMetaData
 from metta.rl.vecenv import make_vecenv
-from metta.sim.replay_writer import S3ReplayWriter
+from metta.sim.replay_log_renderer import ReplayLogRenderer
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.stats import DuckDBStatsWriter
@@ -50,8 +50,8 @@ class Simulation:
         policy_uri: str | None,
         device: torch.device,
         vectorization: str,
+        replay_dir: str,
         stats_dir: str = "/tmp/stats",
-        replay_dir: str | None = None,
         stats_client: StatsClient | None = None,
         stats_epoch_id: uuid.UUID | None = None,
         eval_task_id: uuid.UUID | None = None,
@@ -60,13 +60,11 @@ class Simulation:
         self._id = uuid.uuid4().hex[:12]
         self._eval_task_id = eval_task_id
 
-        replay_dir = f"{replay_dir}/{self._id}" if replay_dir else None
-
         sim_stats_dir = (Path(stats_dir) / self._id).resolve()
         sim_stats_dir.mkdir(parents=True, exist_ok=True)
         self._stats_dir = sim_stats_dir
         self._stats_writer = DuckDBStatsWriter(sim_stats_dir)
-        self._replay_writer = S3ReplayWriter(replay_dir)
+        self._replay_writer = ReplayLogRenderer(f"{replay_dir}/{self._id}")
         self._device = device
 
         self._full_name = f"{cfg.suite}/{cfg.name}"
