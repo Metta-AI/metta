@@ -159,7 +159,7 @@ def train_4gpu(
         batch_size=524_288 * 4,
         scale_batches_by_world_size=True,
         optimizer=OptimizerConfig(learning_rate=scaled_lr),
-        update_epochs=2,
+        update_epochs = 3 #2,
     )
 
     if policy_architecture is None:
