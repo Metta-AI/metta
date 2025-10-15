@@ -11,7 +11,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 import torch
-from cortex.kernels.pytorch.rtu_stream import rtu_stream_diag_pytorch
+from cortex.kernels.pytorch.rtu.rtu_stream_diag import rtu_stream_diag_pytorch
 
 try:  # Triton availability for GPU tests
     from cortex.kernels.triton import rtu_stream_diag_triton as _rtu_triton_stream

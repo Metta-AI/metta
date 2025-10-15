@@ -119,7 +119,7 @@ def _maybe_stream_kernels():
     cu = None
     # PyTorch reference
     try:
-        from cortex.kernels.pytorch.rtu_stream import (
+        from cortex.kernels.pytorch.rtu.rtu_stream_diag import (
             rtu_stream_diag_pytorch as pt_fn,
         )
 

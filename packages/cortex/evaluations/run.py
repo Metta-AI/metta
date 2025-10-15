@@ -5,7 +5,7 @@ import logging
 import os
 import random
 from dataclasses import dataclass
-from typing import Callable, Dict, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -50,6 +50,218 @@ class TaskSpec:
     n_classes: int
 
 
+#############################################
+# Fast TBPTT-breaker datasets (local-only)  #
+#############################################
+
+
+class TwoNeedleXORFast(torch.utils.data.Dataset):
+    """Binary parity over head with tail PAD; last-step supervision only.
+
+    - L total steps with final `tail` steps all PAD=0
+    - Place exactly two 1s uniformly in the head; with p=0.5, add a third 1
+    - Label = parity of ones in head (odd=1, even=0)
+    """
+
+    PAD, ONE = 0, 1
+
+    def __init__(
+        self,
+        num_samples: int,
+        *,
+        L: int = 256,
+        tail: int = 64,
+        seed: int = 0,
+        start_idx: int = 0,
+        end_idx: Optional[int] = None,
+    ) -> None:
+        super().__init__()
+        assert 0 < tail < L
+        self.L, self.tail = L, tail
+        self.num_samples = num_samples
+        self.seed = seed
+        seqs, labels = self._generate_all(num_samples, L, tail, seed)
+        end_idx = num_samples if end_idx is None else end_idx
+        self._seqs = seqs[start_idx:end_idx]
+        self._labels = labels[start_idx:end_idx]
+        self.ids = list(range(start_idx, end_idx))
+
+    @staticmethod
+    def _generate_all(num_samples: int, L: int, tail: int, seed: int) -> Tuple[List[torch.Tensor], torch.Tensor]:
+        rng = random.Random(seed)
+        head_len = L - tail
+        seqs: List[torch.Tensor] = []
+        labels: List[int] = []
+        for _ in range(num_samples):
+            seq = torch.zeros(L, dtype=torch.long)
+            i = rng.randrange(head_len)
+            j = rng.randrange(head_len)
+            while j == i:
+                j = rng.randrange(head_len)
+            seq[i] = seq[j] = TwoNeedleXORFast.ONE
+            ones = 2
+            if rng.random() < 0.5:
+                k = rng.randrange(head_len)
+                while k == i or k == j:
+                    k = rng.randrange(head_len)
+                seq[k] = TwoNeedleXORFast.ONE
+                ones = 3
+            label = int(ones % 2 == 1)
+            seqs.append(seq)
+            labels.append(label)
+        return seqs, torch.tensor(labels, dtype=torch.long)
+
+    def __len__(self) -> int:  # type: ignore[override]
+        return len(self._seqs)
+
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:  # type: ignore[override]
+        return self._seqs[idx], self._labels[idx]
+
+    @classmethod
+    def splits(
+        cls,
+        *,
+        num_samples: int,
+        L: int = 256,
+        tail: int = 64,
+        train_frac: float = 0.8,
+        val_frac: float = 0.1,
+        seed: int = 0,
+    ) -> Tuple["TwoNeedleXORFast", "TwoNeedleXORFast", "TwoNeedleXORFast"]:
+        n_train = int(num_samples * train_frac)
+        n_val = int(num_samples * val_frac)
+        assert n_train > 0 and n_val > 0 and (num_samples - n_train - n_val) > 0
+        train = cls(num_samples, L=L, tail=tail, seed=seed, start_idx=0, end_idx=n_train)
+        val = cls(num_samples, L=L, tail=tail, seed=seed, start_idx=n_train, end_idx=n_train + n_val)
+        test = cls(num_samples, L=L, tail=tail, seed=seed, start_idx=n_train + n_val, end_idx=None)
+        return train, val, test
+
+
+class AssocRecallFast(torch.utils.data.Dataset):
+    KEY, VAL, QRY, PAD = 0, 1, 2, 3
+
+    def __init__(
+        self,
+        num_samples: int,
+        *,
+        L: int = 384,
+        K: int = 8,
+        tail: int = 128,
+        n_key: int = 256,
+        n_val: int = 256,
+        seed: int = 0,
+        start_idx: int = 0,
+        end_idx: Optional[int] = None,
+    ) -> None:
+        super().__init__()
+        assert 0 < tail < L
+        self.L, self.K, self.tail = L, K, tail
+        self.nk, self.nv = n_key, n_val
+        self.base = max(n_key, n_val)
+        self.num_samples = num_samples
+        self.seed = seed
+        seqs, labels = self._generate_all(num_samples, L, K, tail, n_key, n_val, seed)
+        end_idx = num_samples if end_idx is None else end_idx
+        self._seqs = seqs[start_idx:end_idx]
+        self._labels = labels[start_idx:end_idx]
+        self.ids = list(range(start_idx, end_idx))
+
+    @classmethod
+    def _generate_all(
+        cls,
+        num_samples: int,
+        L: int,
+        K: int,
+        tail: int,
+        n_key: int,
+        n_val: int,
+        seed: int,
+    ) -> Tuple[List[torch.Tensor], torch.Tensor]:
+        rng = random.Random(seed)
+        base = max(n_key, n_val)
+        PAD_TOKEN = cls.PAD * base + 0
+        head_len = L - tail
+        seqs: List[torch.Tensor] = []
+        labels: List[int] = []
+        for _ in range(num_samples):
+            seq = [PAD_TOKEN] * L
+            pos = rng.sample(range(head_len), 2 * K)
+            keys = [rng.randrange(n_key) for _ in range(K)]
+            vals = [rng.randrange(n_val) for _ in range(K)]
+            # place keys
+            for p, k in zip(pos[:K], keys, strict=False):
+                seq[p] = cls.KEY * base + k
+            # place values, avoiding collisions by linear probe within head
+            for p, v in zip(pos[K:], vals, strict=False):
+                q = p
+                while seq[q] != PAD_TOKEN:
+                    q = (q + 1) % head_len
+                seq[q] = cls.VAL * base + v
+            j = rng.randrange(K)
+            seq[-1] = cls.QRY * base + keys[j]
+            seqs.append(torch.tensor(seq, dtype=torch.long))
+            labels.append(vals[j])
+        return seqs, torch.tensor(labels, dtype=torch.long)
+
+    def __len__(self) -> int:  # type: ignore[override]
+        return len(self._seqs)
+
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:  # type: ignore[override]
+        return self._seqs[idx], self._labels[idx]
+
+    @classmethod
+    def splits(
+        cls,
+        *,
+        num_samples: int,
+        L: int = 384,
+        K: int = 8,
+        tail: int = 128,
+        n_key: int = 256,
+        n_val: int = 256,
+        train_frac: float = 0.8,
+        val_frac: float = 0.1,
+        seed: int = 0,
+    ) -> Tuple["AssocRecallFast", "AssocRecallFast", "AssocRecallFast"]:
+        n_train = int(num_samples * train_frac)
+        n_val = int(num_samples * val_frac)
+        assert n_train > 0 and n_val > 0 and (num_samples - n_train - n_val) > 0
+        train = cls(
+            num_samples,
+            L=L,
+            K=K,
+            tail=tail,
+            n_key=n_key,
+            n_val=n_val,
+            seed=seed,
+            start_idx=0,
+            end_idx=n_train,
+        )
+        val = cls(
+            num_samples,
+            L=L,
+            K=K,
+            tail=tail,
+            n_key=n_key,
+            n_val=n_val,
+            seed=seed,
+            start_idx=n_train,
+            end_idx=n_train + n_val,
+        )
+        test = cls(
+            num_samples,
+            L=L,
+            K=K,
+            tail=tail,
+            n_key=n_key,
+            n_val=n_val,
+            seed=seed,
+            start_idx=n_train + n_val,
+            end_idx=None,
+        )
+        return train, val, test
+
+
 def make_task(task: str, *, num_samples: int, seed: int) -> TaskSpec:
     if task == "delayed_recall":
         delay = 512
@@ -85,6 +297,31 @@ def make_task(task: str, *, num_samples: int, seed: int) -> TaskSpec:
             return DyckDataset.splits(num_samples=num_samples, n_pairs=n_pairs, seed=seed)
 
         return TaskSpec(name=task, make_splits=_splits, vocab_size=2, n_classes=2)
+
+    if task == "two_needle_xor_fast":
+        L = 256
+        tail = 64
+
+        def _splits():
+            return TwoNeedleXORFast.splits(num_samples=num_samples, L=L, tail=tail, seed=seed)
+
+        return TaskSpec(name=task, make_splits=_splits, vocab_size=2, n_classes=2)
+
+    if task == "assoc_recall_fast":
+        L = 384
+        K = 8
+        tail = 128
+        n_key = 256
+        n_val = 256
+
+        def _splits():
+            return AssocRecallFast.splits(
+                num_samples=num_samples, L=L, K=K, tail=tail, n_key=n_key, n_val=n_val, seed=seed
+            )
+
+        vocab_size = 4 * max(n_key, n_val)
+        n_classes = n_val
+        return TaskSpec(name=task, make_splits=_splits, vocab_size=vocab_size, n_classes=n_classes)
 
     raise ValueError(f"Unknown task: {task}")
 
@@ -412,7 +649,18 @@ def train_one(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Cortex synthetic evaluations")
-    parser.add_argument("--task", choices=["delayed_recall", "majority", "majority_headpad", "dyck"], required=True)
+    parser.add_argument(
+        "--task",
+        choices=[
+            "delayed_recall",
+            "majority",
+            "majority_headpad",
+            "dyck",
+            "two_needle_xor_fast",
+            "assoc_recall_fast",
+        ],
+        required=True,
+    )
     # Build stack choices dynamically from the registry so new entries in STACKS are auto-discovered.
     stack_choices = sorted(list(STACKS.keys())) + ["all"]
     parser.add_argument("--stack", choices=stack_choices, default="all")

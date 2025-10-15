@@ -18,7 +18,7 @@ from cortex.cells.base import MemoryCell
 from cortex.cells.registry import register_cell
 from cortex.config import AxonsConfig
 from cortex.kernels.cuda.srht_cuda import srht_cuda  # type: ignore
-from cortex.kernels.pytorch.rtu_stream import rtu_stream_diag_pytorch
+from cortex.kernels.pytorch.rtu.rtu_stream_diag import rtu_stream_diag_pytorch
 from cortex.kernels.pytorch.srht import srht_pytorch
 from cortex.kernels.triton.rtu import rtu_stream_diag_triton  # type: ignore
 from cortex.types import MaybeState, ResetMask, Tensor

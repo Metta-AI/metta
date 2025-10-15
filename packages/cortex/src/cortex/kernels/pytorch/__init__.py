@@ -6,7 +6,7 @@ from cortex.kernels.pytorch.mlstm import (
     mlstm_chunkwise_simple,
     mlstm_recurrent_step_stabilized_simple,
 )
-from cortex.kernels.pytorch.rtu_stream import rtu_stream_diag_pytorch
+from cortex.kernels.pytorch.rtu.rtu_stream_diag import rtu_stream_diag_pytorch
 from cortex.kernels.pytorch.slstm import slstm_sequence_pytorch
 
 __all__ = [
