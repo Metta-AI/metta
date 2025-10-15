@@ -10,6 +10,7 @@ from cortex.kernels.pytorch.mlstm import (
     mlstm_recurrent_step_stabilized_simple,
 )
 from cortex.kernels.pytorch.rtu.rtu_stream_diag import rtu_stream_diag_pytorch
+from cortex.kernels.pytorch.rtu.rtu_stream_fullrank import rtu_stream_full_pytorch
 from cortex.kernels.pytorch.slstm import slstm_sequence_pytorch
 from cortex.kernels.triton.conv1d import causal_conv1d_triton
 from cortex.kernels.triton.mlstm import mlstm_chunkwise_triton
@@ -26,4 +27,5 @@ __all__ = [
     "slstm_sequence_triton",
     "rtu_stream_diag_pytorch",
     "rtu_stream_diag_triton",
+    "rtu_stream_full_pytorch",
 ]
