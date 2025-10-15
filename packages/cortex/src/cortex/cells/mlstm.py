@@ -99,14 +99,35 @@ class mLSTMCell(MemoryCell):
 
         # Q/K/V preprocessing: always apply causal conv; optionally add Axon QKV
         self.conv_kernel_size = cfg.conv1d_kernel_size
-        conv_config = CausalConv1dConfig(
-            hidden_size=cfg.hidden_size,
-            kernel_size=self.conv_kernel_size,
-            causal_conv_bias=True,
-            channel_mixing=False,  # depthwise convolution
-        )
-        self.conv1d_cell = CausalConv1d(conv_config)
-        self.conv_act = nn.SiLU()
+        if not cfg.use_axon_layer:
+            conv_config = CausalConv1dConfig(
+                hidden_size=cfg.hidden_size,
+                kernel_size=self.conv_kernel_size,
+                causal_conv_bias=True,
+                channel_mixing=False,  # depthwise convolution
+            )
+            self.conv1d_cell = CausalConv1d(conv_config)
+            self.conv_act = nn.SiLU()
+            self.qkv_act = None
+            self.q_layer = None
+            self.k_layer = None
+            self.v_layer = None
+            self.qk_layer = None
+        else:
+            H = int(cfg.hidden_size)
+            out_rank = cfg.axon_rank
+            is_pow2 = (H & (H - 1)) == 0 and H > 0
+            qkv_cfg = AxonsConfig(
+                hidden_size=H, out_dim=H, out_rank=out_rank, use_srht=bool(is_pow2), srht_permute=True
+            )
+            self.qkv_act = nn.SiLU()  # match conv+SiLU behavior
+            # Shared-QK: single layer feeds both q and k; v has its own layer
+            self.qk_layer = AxonLayer(H, H, cfg=qkv_cfg, name="qk", group="mlstm_qkv")
+            self.v_layer = AxonLayer(H, H, cfg=qkv_cfg, name="v", group="mlstm_qkv")
+            self.q_layer = None
+            self.k_layer = None
+            self.conv1d_cell = None
+            self.conv_act = None
 
         if not cfg.use_axon_qkv:
             self.qkv_act = None

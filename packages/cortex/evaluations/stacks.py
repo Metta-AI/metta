@@ -172,6 +172,31 @@ def build_axons_preup_tuned(*, d_hidden: int = 128, proj_factor: float = 2.0) ->
     return build_cortex(cfg)
 
 
+def build_axons_preup_tuned(*, d_hidden: int = 128, proj_factor: float = 2.0) -> CortexStack:
+    """Axons PreUp with long memory and no SRHT to improve cross-chunk credit.
+
+    - r_min close to 1.0 to reduce trace decay across long heads
+    - use_srht=False to avoid early low-rank distortions
+    - out_rank set to full to avoid bottleneck in 2H→H map
+    """
+    cfg = CortexStackConfig(
+        d_hidden=d_hidden,
+        post_norm=True,
+        blocks=[
+            PassThroughBlockConfig(
+                # hidden_size is inferred from PreUp: int(proj_factor * d_hidden)
+                cell=AxonsConfig(hidden_size=None, activation="silu", r_min=0.99, r_max=0.9999, use_srht=False, out_rank=None),
+            ),
+            PreUpBlockConfig(
+                proj_factor=proj_factor,
+                # hidden_size is inferred from PreUp: int(proj_factor * d_hidden)
+                cell=AxonsConfig(hidden_size=None, activation="silu", r_min=0.99, r_max=0.9999, use_srht=False, out_rank=None),
+            ),
+        ],
+    )
+    return build_cortex(cfg)
+
+
 # Registry of available stacks for the evaluation harness
 STACKS: Dict[str, StackSpec] = {
     # Single‑block templates
