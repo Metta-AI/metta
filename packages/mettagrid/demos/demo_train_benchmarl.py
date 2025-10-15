@@ -18,7 +18,7 @@
 This demo shows how to use MettaGridBenchMARLEnv with ONLY BenchMARL
 and external MARL libraries, without any Metta training infrastructure.
 
-Run with: uv run python packages/mettagrid/demos/benchmarl_demo.py (from project root)
+Run with: uv run python packages/mettagrid/demos/demo_train_benchmarl.py (from project root)
 """
 
 import time
