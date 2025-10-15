@@ -9,9 +9,9 @@ import re
 import sys
 import tempfile
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
-from anthropic import Anthropic
+from anthropic import Anthropic  # type: ignore[import-not-found]
 
 from .core import GitError, run_git
 from .git import get_current_branch, get_remote_url
@@ -25,7 +25,7 @@ class FileDiff:
     filename: str
     additions: List[str]
     deletions: List[str]
-    hunks: List[Dict[str, any]]
+    hunks: List[Dict[str, Any]]
     raw_diff: str
 
 
@@ -51,8 +51,8 @@ class PRSplitter:
 
         self.anthropic = Anthropic(api_key=self.anthropic_api_key)
         self.github_token = github_token or os.environ.get("GITHUB_TOKEN")
-        self.base_branch = None
-        self.current_branch = None
+        self.base_branch: Optional[str] = None
+        self.current_branch: Optional[str] = None
 
     def get_base_branch(self) -> str:
         """Determine the base branch (usually main or master)"""
@@ -221,8 +221,13 @@ Return a JSON response with this exact structure:
 
     def apply_patch_to_new_branch(self, patch_content: str, branch_name: str) -> None:
         """Create a new branch and apply the patch"""
+        if self.base_branch is None:
+            raise GitError("Base branch not set. Run split() before applying patches.")
+
+        base_branch = self.base_branch
+
         # Create and checkout new branch from base
-        run_git("checkout", "-b", branch_name, self.base_branch)
+        run_git("checkout", "-b", branch_name, base_branch)
 
         # Apply the patch
         with tempfile.NamedTemporaryFile(mode="w", suffix=".patch", delete=False) as f:
@@ -281,11 +286,14 @@ Return a JSON response with this exact structure:
                 return match.group(1)
 
             return None
-        except:
+        except GitError:
             return None
 
     def create_github_pr(self, branch: str, title: str, body: str) -> Optional[str]:
         """Create a GitHub PR using the API"""
+        if self.base_branch is None:
+            raise GitError("Base branch not set. Run split() before creating PRs.")
+
         if not self.github_token:
             print(f"Skipping PR creation for {branch} (no GitHub token provided)")
             return None
@@ -314,15 +322,17 @@ Return a JSON response with this exact structure:
         print("🔄 Starting PR split process...")
 
         # Get branch information
-        self.current_branch = get_current_branch()
-        self.base_branch = self.get_base_branch()
+        current_branch = get_current_branch()
+        base_branch = self.get_base_branch()
+        self.current_branch = current_branch
+        self.base_branch = base_branch
 
-        print(f"📍 Current branch: {self.current_branch}")
-        print(f"📍 Base branch: {self.base_branch}")
+        print(f"📍 Current branch: {current_branch}")
+        print(f"📍 Base branch: {base_branch}")
 
         # Get the full diff
         print("📥 Getting diff...")
-        full_diff = self.get_diff(self.base_branch, self.current_branch)
+        full_diff = self.get_diff(base_branch, current_branch)
 
         if not full_diff:
             print("❌ No changes detected!")
@@ -370,8 +380,8 @@ Return a JSON response with this exact structure:
             print("  ⚠️  Verification warnings detected")
 
         # Create branches
-        branch1_name = f"{self.current_branch}-part1"
-        branch2_name = f"{self.current_branch}-part2"
+        branch1_name = f"{current_branch}-part1"
+        branch2_name = f"{current_branch}-part2"
 
         print(f"\n🌿 Creating branch: {branch1_name}")
         self.apply_patch_to_new_branch(patch1, branch1_name)
@@ -395,7 +405,7 @@ Return a JSON response with this exact structure:
         self.create_github_pr(branch2_name, split_decision.group2_title, pr2_body)
 
         # Return to original branch
-        run_git("checkout", self.current_branch)
+        run_git("checkout", current_branch)
 
         print("\n✨ PR split complete!")
 

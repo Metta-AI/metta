@@ -9,7 +9,7 @@ import time
 from functools import wraps
 from typing import Any, Dict, Optional
 
-import httpx
+import httpx  # type: ignore[import-not-found]
 
 from .core import GitError
 
