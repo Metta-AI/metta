@@ -341,15 +341,15 @@ class CheckpointManager:
         ) as tmp_file:
             tmp_path = Path(tmp_file.name)
 
-        try:
-            torch.save(state, tmp_path)
-            # Atomic move: this operation is atomic on most filesystems
-            tmp_path.replace(trainer_file)
-        except Exception:
-            # Clean up temporary file on error
-            if tmp_path.exists():
-                tmp_path.unlink()
-            raise
+            try:
+                torch.save(state, tmp_path)
+                # Atomic move: this operation is atomic on most filesystems
+                tmp_path.replace(trainer_file)
+            except Exception:
+                # Clean up temporary file on error
+                if tmp_path.exists():
+                    tmp_path.unlink()
+                raise
 
         # Restore train mode after saving for ScheduleFree optimizers
         if is_schedulefree:
