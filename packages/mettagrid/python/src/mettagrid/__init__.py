@@ -6,6 +6,7 @@ This module provides various environment adapters for different RL frameworks:
 - MettaGridEnv: Training environment (PufferLib-based with stats/replay)
 - MettaGridGymEnv: Gymnasium adapter
 - MettaGridPettingZooEnv: PettingZoo adapter
+- MettaGridBenchMARLEnv: BenchMARL/TorchRL adapter
 
 All adapters inherit from MettaGridCore and provide framework-specific interfaces.
 For PufferLib integration, use PufferLib's MettaPuff wrapper directly.
@@ -51,11 +52,21 @@ _LAZY_ATTRS: Dict[str, Tuple[str, str]] = {
     "GameMap": ("mettagrid.map_builder.map_builder", "GameMap"),
     "StatsWriter": ("mettagrid.util.stats_writer", "StatsWriter"),
     "RenderMode": ("mettagrid.envs.mettagrid_env", "RenderMode"),
+    # BenchMARL adapter (optional)
+    "MettaGridBenchMARLEnv": (
+        "mettagrid.envs.benchmarl_env",
+        "MettaGridBenchMARLEnv",
+    ),
+    "MettaGridTask": ("mettagrid.envs.benchmarl_env", "MettaGridTask"),
+    # Gymnasium single-agent wrapper
+    "SingleAgentWrapper": ("mettagrid.envs.gym_wrapper", "SingleAgentWrapper"),
 }
 
 if TYPE_CHECKING:
     from mettagrid.config.mettagrid_config import MettaGridConfig
     from mettagrid.core import MettaGridAction, MettaGridCore, MettaGridObservation
+    from mettagrid.envs.benchmarl_env import MettaGridBenchMARLEnv, MettaGridTask
+    from mettagrid.envs.gym_wrapper import SingleAgentWrapper
     from mettagrid.envs.mettagrid_env import MettaGridEnv, RenderMode
     from mettagrid.envs.pettingzoo_env import MettaGridPettingZooEnv
     from mettagrid.map_builder.map_builder import GameMap
@@ -89,6 +100,9 @@ __all__ = [
     "MettaGridEnv",
     # Environment adapters
     "MettaGridPettingZooEnv",
+    "MettaGridBenchMARLEnv",
+    "MettaGridTask",
+    "SingleAgentWrapper",
     # Data types (from C++)
     "dtype_actions",
     "dtype_observations",
