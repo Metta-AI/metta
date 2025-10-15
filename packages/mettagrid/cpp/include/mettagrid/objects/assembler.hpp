@@ -98,47 +98,14 @@ private:
     return true;
   }
 
-  // Give output resources to agents, prioritizing the acting agent
-  // Similar to consume_resources_for_recipe but ensures acting agent gets first dibs
+  // Give output resources to agents
   void give_output_for_recipe(const Recipe& recipe, const std::vector<Agent*>& surrounding_agents) {
+    std::vector<Inventory*> inventories;
+    for (Agent* agent : surrounding_agents) {
+      inventories.push_back(&agent->inventory);
+    }
     for (const auto& [item, amount] : recipe.output_resources) {
-      if (amount <= 0) {
-        continue;
-      }
-
-      // Create a vector of agents with their free space for this resource
-      std::vector<std::pair<Agent*, InventoryQuantity>> agents_with_space;
-      for (Agent* agent : surrounding_agents) {
-        InventoryQuantity free_space = agent->inventory.free_space(item);
-        if (free_space > 0) {
-          agents_with_space.push_back({agent, free_space});
-        }
-      }
-
-      // If no agents can accept this resource, skip it
-      if (agents_with_space.empty()) {
-        continue;
-      }
-
-      // Ensure acting agent (first in surrounding_agents) gets priority
-      // The acting agent should always be first in the surrounding_agents vector
-      // We'll distribute starting from the first agent in order
-
-      InventoryQuantity remaining = amount;
-
-      // First pass: give to each agent in order up to their capacity
-      for (auto& [agent, free_space] : agents_with_space) {
-        if (remaining == 0) break;
-
-        InventoryQuantity to_give = static_cast<InventoryQuantity>(std::min<int>(free_space, remaining));
-        if (to_give > 0) {
-          agent->update_inventory(item, static_cast<InventoryDelta>(to_give));
-          remaining -= to_give;
-        }
-      }
-
-      // Note: Unlike consume_resources_for_recipe, we don't assert if we can't distribute everything
-      // Some output might be lost if no agent has space for it
+      Inventory::shared_update(inventories, item, amount);
     }
   }
 
@@ -154,55 +121,15 @@ private:
 
 public:
   // Consume resources from surrounding agents for the given recipe
-  // Uses a balanced approach: sorts agents by resource amount and takes evenly from them
   // Intended to be private, but made public for testing. We couldn't get `friend` to work as expected.
   void consume_resources_for_recipe(const Recipe& recipe, const std::vector<Agent*>& surrounding_agents) {
+    std::vector<Inventory*> inventories;
+    for (Agent* agent : surrounding_agents) {
+      inventories.push_back(&agent->inventory);
+    }
     for (const auto& [item, required_amount] : recipe.input_resources) {
-      // We expect the main usage to be 3 passes:
-      // 1. Separate agents into those who have "their share" and those who don't. Consume resources from those who
-      // don't.
-      // 2. Take a second pass through the list to confirm that all remaining agents have "their share", based on
-      // an updated understanding of what's needed.
-      // 3. Consume resources from the agents who have "their share".
-      InventoryQuantity required_remaining = required_amount;
-      std::vector<Agent*> agents_to_consider;
-      std::vector<Agent*> next_agents_to_consider = surrounding_agents;
-      size_t num_agents_remaining = next_agents_to_consider.size();
-      // Intentionally rounded down
-      InventoryQuantity required_per_agent = required_remaining / num_agents_remaining;
-      do {
-        agents_to_consider = next_agents_to_consider;
-        next_agents_to_consider.clear();
-        for (Agent* agent : agents_to_consider) {
-          InventoryQuantity agent_amount = agent->inventory.amount(item);
-          if (agent_amount <= required_per_agent) {
-            // This agent has less than (or equal to) what we're going to be asking for. Thus, we can just consume
-            // all of it now. This lets us update how much we'll need from other agents.
-            if (agent_amount > 0) {
-              agent->update_inventory(item, static_cast<InventoryDelta>(-agent_amount));
-              required_remaining -= agent_amount;
-            }
-            // We can update how much we're looking for as an in-flight operation.
-            num_agents_remaining--;
-            if (num_agents_remaining > 0) {
-              required_per_agent = required_remaining / num_agents_remaining;
-            }
-          } else {
-            // This agent has more than what we're going to be asking for. We'll add it to our list of agents to
-            // consider next time.
-            next_agents_to_consider.push_back(agent);
-          }
-        }
-        // Do this until we don't kick any agents off the list, at which point we know all agents have "their share".
-      } while (agents_to_consider.size() != next_agents_to_consider.size());
-
-      for (Agent* agent : agents_to_consider) {
-        InventoryQuantity required_rounded_up = (required_remaining + num_agents_remaining - 1) / num_agents_remaining;
-        agent->update_inventory(item, static_cast<InventoryDelta>(-required_rounded_up));
-        required_remaining -= required_rounded_up;
-        num_agents_remaining--;
-      }
-      assert(required_remaining == 0 && "Failed to consume all required resources");
+      InventoryDelta consumed = Inventory::shared_update(inventories, item, -required_amount);
+      assert(consumed == -required_amount && "Expected all required resources to be consumed");
     }
   }
 
