@@ -49,9 +49,11 @@ class Checkpointer(TrainerComponent):
         context.latest_policy_uri_fn = self.get_latest_policy_uri
         context.latest_policy_uri_value = self.get_latest_policy_uri()
         if self._distributed.should_checkpoint():
+            env_metadata = getattr(context.env, "meta_data", None)
             report = AgentCodebase(
                 base_refs=("origin/main", "main"),
                 path="agent/src/metta/agent",
+                env_metadata=env_metadata,
             )
             self._model_report_future = report.start_async()
         else:

@@ -8,11 +8,12 @@ import threading
 import traceback
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Mapping, Optional, Sequence, Tuple
+from typing import Dict, Optional, Sequence, Tuple
 
 import yaml
 
 from metta.common.util.fs import get_repo_root
+from metta.rl.training import EnvironmentMetaData
 
 REPO_ROOT: Path = get_repo_root()
 
@@ -38,10 +39,7 @@ def find_merge_base(base_refs: Sequence[str]) -> Tuple[str, str]:
             continue
         if base_sha:
             return base_sha, ref
-    raise RuntimeError(
-        "Unable to determine merge base. "
-        "Provide one or more valid refs with --base-ref."
-    )
+    raise RuntimeError("Unable to determine merge base. Provide one or more valid refs with --base-ref.")
 
 
 def git_diff(base_sha: str, pathspec: str) -> str:
@@ -51,6 +49,7 @@ def git_diff(base_sha: str, pathspec: str) -> str:
         check=True,
         capture_output=True,
         text=True,
+        cwd=str(REPO_ROOT),
     )
     return completed.stdout
 
@@ -71,12 +70,42 @@ def _serialize_error(exc: Exception) -> Dict[str, object]:
     return error
 
 
+def _serialize_env_metadata(env: EnvironmentMetaData) -> Dict[str, object]:
+    features: Dict[str, Dict[str, object]] = {}
+    for name, feature in env.obs_features.items():
+        feature_entry: Dict[str, object] = {}
+        if hasattr(feature, "id"):
+            feature_entry["id"] = int(feature.id)
+        if hasattr(feature, "normalization"):
+            feature_entry["normalization"] = float(feature.normalization)
+        if hasattr(feature, "dtype"):
+            feature_entry["dtype"] = str(feature.dtype)
+        if hasattr(feature, "shape"):
+            try:
+                feature_entry["shape"] = list(feature.shape)
+            except TypeError:
+                pass
+        features[name] = feature_entry
+
+    return {
+        "obs_width": env.obs_width,
+        "obs_height": env.obs_height,
+        "num_agents": env.num_agents,
+        "action_names": list(env.action_names),
+        "features": features,
+        "feature_normalizations": {int(k): float(v) for k, v in env.feature_normalizations.items()},
+        "observation_space": repr(env.observation_space),
+        "action_space": repr(env.action_space),
+    }
+
+
 @dataclass
 class AgentCodebase:
     """Create a structured view of diff data that can be serialized as YAML."""
 
     base_refs: Sequence[str]
     path: str
+    env_metadata: Optional[EnvironmentMetaData] = None
 
     def to_dict(self) -> Dict[str, str]:
         """Return a dictionary containing merge-base info and path diff."""
@@ -94,7 +123,10 @@ class AgentCodebase:
             report = self.to_dict()
         except Exception as exc:  # pragma: no cover - defensive guard
             return {"status": "error", "error": _serialize_error(exc)}
-        return {"status": "ready", "report": report}
+        payload: Dict[str, object] = {"status": "ready", "report": report}
+        if self.env_metadata is not None:
+            payload["environment_metadata"] = _serialize_env_metadata(self.env_metadata)
+        return payload
 
     def render_yaml(self) -> bytes:
         payload = self.build_payload()
@@ -102,7 +134,7 @@ class AgentCodebase:
 
     def extra_files(self) -> Dict[str, bytes]:
         """Return archive-ready files for inclusion in checkpoints."""
-        return {"metadata/model_compatibility.yaml": self.render_yaml()}
+        return {"agent_codebase.yaml": self.render_yaml()}
 
     def start_async(self) -> "AgentCodebaseFuture":
         """Kick off background generation of the report."""
@@ -130,7 +162,7 @@ class AgentCodebaseFuture:
             files = self._report.extra_files()
         except Exception as exc:  # pragma: no cover - defensive guard
             files = {
-                "metadata/model_compatibility.yaml": yaml.safe_dump(
+                "agent_codebase.yaml": yaml.safe_dump(
                     {"status": "error", "error": _serialize_error(exc)},
                     sort_keys=False,
                 ).encode("utf-8")
@@ -154,8 +186,7 @@ class AgentCodebaseFuture:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Show the merge-base SHA with main and the diff against the current "
-            "workspace restricted to a path."
+            "Show the merge-base SHA with main and the diff against the current workspace restricted to a path."
         )
     )
     parser.add_argument(
@@ -184,8 +215,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error(str(exc))
     except subprocess.CalledProcessError as exc:
         parser.error(
-            f"git command failed with exit code {exc.returncode}: "
-            f"{exc.stderr.strip() if exc.stderr else 'no stderr'}"
+            f"git command failed with exit code {exc.returncode}: {exc.stderr.strip() if exc.stderr else 'no stderr'}"
         )
 
     print(f"Merge base against {result['base_ref']}: {result['merge_base_sha']}")

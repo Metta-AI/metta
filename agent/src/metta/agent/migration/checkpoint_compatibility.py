@@ -4,13 +4,14 @@ import traceback
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Iterable, Mapping, MutableMapping, Optional
+from typing import Any, Dict, Iterable, Literal, Mapping, MutableMapping, Optional
 
 import torch
 
 from metta.agent.policy import PolicyArchitecture
 from metta.rl.policy_artifact import load_policy_artifact
 from metta.rl.training import EnvironmentMetaData
+from metta.utils.uri import ParsedURI
 
 
 @dataclass
@@ -59,6 +60,47 @@ def _ordered_state_dict(state: Mapping[str, torch.Tensor]) -> MutableMapping[str
     if isinstance(state, OrderedDict):
         return state.copy()
     return OrderedDict((k, v) for k, v in state.items())
+
+
+@dataclass
+class CheckpointValidationResult:
+    status: Literal["success", "failure", "skipped"]
+    path: Path | None = None
+    report: CheckpointCompatibilityReport | None = None
+    reason: str | None = None
+
+
+def validate_initial_checkpoint_uri(
+    initial_policy_uri: str | Path,
+    *,
+    policy_architecture: PolicyArchitecture,
+    env_metadata: EnvironmentMetaData,
+) -> CheckpointValidationResult:
+    uri = str(initial_policy_uri)
+    if not uri:
+        return CheckpointValidationResult(status="skipped", reason="no_initial_policy_uri")
+
+    parsed = ParsedURI.parse(uri)
+    if parsed.scheme != "file":
+        return CheckpointValidationResult(
+            status="skipped",
+            reason=f"non_local_uri_scheme:{parsed.scheme}",
+        )
+
+    local_path = parsed.require_local_path()
+    if not local_path.exists():
+        raise FileNotFoundError(f"Initial checkpoint not found at {local_path}")
+
+    report = check_checkpoint_compatibility(
+        local_path,
+        policy_architecture=policy_architecture,
+        env_metadata=env_metadata,
+    )
+
+    if report.success:
+        return CheckpointValidationResult(status="success", path=local_path, report=report)
+
+    return CheckpointValidationResult(status="failure", path=local_path, report=report)
 
 
 def check_checkpoint_compatibility(

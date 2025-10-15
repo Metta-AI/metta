@@ -1,12 +1,15 @@
 import contextlib
+import json
 import os
 import platform
 from datetime import timedelta
+from pathlib import Path
 from typing import Any, Optional
 
 import torch
 from pydantic import Field, model_validator
 
+from metta.agent.migration.checkpoint_compatibility import validate_initial_checkpoint_uri
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.agent.util.torch_backends import build_sdpa_context
@@ -115,6 +118,7 @@ class TrainTool(Tool):
 
         self.training_env.seed += distributed_helper.get_rank()
         env = VectorizedTrainingEnvironment(self.training_env)
+        self._validate_initial_checkpoint(env)
 
         self._configure_torch_backends()
 
@@ -187,6 +191,34 @@ class TrainTool(Tool):
             policy_uri=self.initial_policy_uri,
         )
         return policy_checkpointer, policy
+
+    def _validate_initial_checkpoint(self, env: VectorizedTrainingEnvironment) -> None:
+        result = validate_initial_checkpoint_uri(
+            self.initial_policy_uri or "",
+            policy_architecture=self.policy_architecture,
+            env_metadata=env.meta_data,
+        )
+
+        if result.status == "skipped":
+            if result.reason:
+                logger.info(
+                    "Skipping compatibility validation for initial checkpoint (%s)",
+                    result.reason,
+                )
+            return
+
+        if result.status == "success":
+            logger.info("Initial checkpoint %s passed compatibility validation", result.path)
+            return
+
+        env.close()
+        details_source = result.report.to_dict() if result.report is not None else {"reason": result.reason}
+        details = json.dumps(details_source, indent=2, sort_keys=False)
+        path_display = result.path or self.initial_policy_uri
+        raise RuntimeError(
+            "Initial checkpoint compatibility validation failed for "
+            f"{path_display} (report below):\n{details}"
+        )
 
     def _initialize_trainer(
         self,

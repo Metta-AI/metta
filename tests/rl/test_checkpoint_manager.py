@@ -89,7 +89,7 @@ class TestBasicSaveLoad:
             mock_agent,
             epoch=2,
             policy_architecture=mock_policy_architecture,
-            extra_files={"metadata/model_compatibility.yaml": payload},
+            extra_files={"agent_codebase.yaml": payload},
         )
 
         checkpoint_dir = checkpoint_manager.checkpoint_dir
@@ -97,7 +97,7 @@ class TestBasicSaveLoad:
 
         artifact = CheckpointManager.load_artifact_from_uri(agent_file.as_uri())
         assert artifact.extra_files is not None
-        assert artifact.extra_files.get("metadata/model_compatibility.yaml") == payload
+        assert artifact.extra_files.get("agent_codebase.yaml") == payload
 
     def test_remote_prefix_upload(self, test_system_cfg, mock_agent, mock_policy_architecture):
         test_system_cfg.local_only = False

@@ -8,8 +8,24 @@ import torch.nn as nn
 from pydantic import Field
 from tensordict import TensorDict
 
+from metta.agent.policies.agalite import AGaLiTeConfig
 from metta.agent.policies.fast import FastConfig
+from metta.agent.policies.fast_dynamics import FastDynamicsConfig
+from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
+from metta.agent.policies.memory_free import MemoryFreeConfig
+from metta.agent.policies.puffer import PufferPolicyConfig
+from metta.agent.policies.transformer import TransformerPolicyConfig
 from metta.agent.policies.vit import ViTDefaultConfig
+from metta.agent.policies.vit_reset import ViTResetConfig
+from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
+
+try:
+    from metta.agent.policies.drama_policy import DramaPolicyConfig
+except ModuleNotFoundError as exc:  # pragma: no cover - optional dependency
+    DramaPolicyConfig = None  # type: ignore[assignment]
+    _DRAMA_IMPORT_ERROR = exc
+else:
+    _DRAMA_IMPORT_ERROR = None
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.policy_artifact import (
     PolicyArtifact,
@@ -19,7 +35,7 @@ from metta.rl.policy_artifact import (
     save_policy_artifact_safetensors,
 )
 from metta.rl.training import EnvironmentMetaData
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 
 class DummyActionComponentConfig(Config):
@@ -57,7 +73,6 @@ def _env_metadata() -> EnvironmentMetaData:
         obs_height=1,
         obs_features={},
         action_names=[],
-        max_action_args=[],
         num_agents=1,
         observation_space=None,
         action_space=None,
@@ -126,6 +141,34 @@ def test_policy_architecture_round_trip_fast_with_override() -> None:
     reconstructed = policy_architecture_from_string(spec)
 
     assert isinstance(reconstructed, FastConfig)
+    assert reconstructed.model_dump() == config.model_dump()
+
+
+@pytest.mark.parametrize(
+    "config_cls",
+    [
+        AGaLiTeConfig,
+        DramaPolicyConfig,
+        FastConfig,
+        FastDynamicsConfig,
+        FastLSTMResetConfig,
+        MemoryFreeConfig,
+        PufferPolicyConfig,
+        TransformerPolicyConfig,
+        ViTDefaultConfig,
+        ViTResetConfig,
+        ViTSlidingTransConfig,
+    ],
+)
+def test_policy_architecture_round_trip_all_configs(config_cls: type[PolicyArchitecture] | None) -> None:
+    if config_cls is None:
+        pytest.skip(f"Policy config unavailable; missing dependency: {_DRAMA_IMPORT_ERROR}")
+
+    config = config_cls()
+    spec = policy_architecture_to_string(config)
+    reconstructed = policy_architecture_from_string(spec)
+
+    assert isinstance(reconstructed, config_cls)
     assert reconstructed.model_dump() == config.model_dump()
 
 
