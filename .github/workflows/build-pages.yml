@@ -1,4 +1,4 @@
-name: "Deploy to GitHub Pages"
+name: "Build (and sometimes Deploy) to GitHub Pages"
 on:
   push:
     paths: &site_paths
@@ -22,7 +22,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy-pages:
+  build-pages:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
