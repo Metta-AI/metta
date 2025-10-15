@@ -176,8 +176,8 @@ def build_axons_preup_tuned(*, d_hidden: int = 128, proj_factor: float = 2.0) ->
     """Axons PreUp with long memory and no SRHT to improve cross-chunk credit.
 
     - r_min close to 1.0 to reduce trace decay across long heads
-    - use_srht=False to avoid early low-rank distortions
-    - out_rank set to full to avoid bottleneck in 2H→H map
+    - use_srht=False to avoid low-rank mixing in the input space
+    - Single-layer 2H→H projection in AxonCell (no low-rank output)
     """
     cfg = CortexStackConfig(
         d_hidden=d_hidden,
@@ -185,16 +185,12 @@ def build_axons_preup_tuned(*, d_hidden: int = 128, proj_factor: float = 2.0) ->
         blocks=[
             PassThroughBlockConfig(
                 # hidden_size is inferred from PreUp: int(proj_factor * d_hidden)
-                cell=AxonsConfig(
-                    hidden_size=None, activation="silu", r_min=0.99, r_max=0.9999, use_srht=False, out_rank=None
-                ),
+                cell=AxonsConfig(hidden_size=None, activation="silu", r_min=0.99, r_max=0.9999, use_srht=False),
             ),
             PreUpBlockConfig(
                 proj_factor=proj_factor,
                 # hidden_size is inferred from PreUp: int(proj_factor * d_hidden)
-                cell=AxonsConfig(
-                    hidden_size=None, activation="silu", r_min=0.99, r_max=0.9999, use_srht=False, out_rank=None
-                ),
+                cell=AxonsConfig(hidden_size=None, activation="silu", r_min=0.99, r_max=0.9999, use_srht=False),
             ),
         ],
     )
