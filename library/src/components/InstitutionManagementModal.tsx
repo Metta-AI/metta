@@ -364,7 +364,9 @@ export const InstitutionManagementModal: FC<
                   name="userEmail"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>User Email *</FormLabel>
+                      <FormLabel>
+                        User Email <span className="text-red-500">*</span>
+                      </FormLabel>
                       <FormControl>
                         <Input
                           {...field}
@@ -373,7 +375,6 @@ export const InstitutionManagementModal: FC<
                           autoComplete="email"
                         />
                       </FormControl>
-                      <FormMessage />
                     </FormItem>
                   )}
                 />
@@ -383,7 +384,9 @@ export const InstitutionManagementModal: FC<
                   name="role"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Role</FormLabel>
+                      <FormLabel>
+                        Role <span className="text-red-500">*</span>
+                      </FormLabel>
                       <Select
                         value={field.value}
                         onValueChange={field.onChange}
@@ -401,7 +404,6 @@ export const InstitutionManagementModal: FC<
                           <SelectItem value="faculty">Faculty</SelectItem>
                         </SelectContent>
                       </Select>
-                      <FormMessage />
                     </FormItem>
                   )}
                 />
@@ -422,7 +424,6 @@ export const InstitutionManagementModal: FC<
                           placeholder="e.g., Computer Science"
                         />
                       </FormControl>
-                      <FormMessage />
                     </FormItem>
                   )}
                 />
@@ -443,7 +444,6 @@ export const InstitutionManagementModal: FC<
                           placeholder="e.g., Senior Researcher"
                         />
                       </FormControl>
-                      <FormMessage />
                     </FormItem>
                   )}
                 />
