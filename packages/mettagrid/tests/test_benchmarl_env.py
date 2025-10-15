@@ -99,7 +99,10 @@ def make_test_config(num_agents=3, max_steps=100):
             ),
             objects={"wall": WallConfig(type_id=1)},
             agents=agents,
-            map_builder=AsciiMapBuilder.Config(map_data=map_data),
+            map_builder=AsciiMapBuilder.Config(
+                map_data=map_data,
+                char_to_name_map={},  # Use global defaults for '#', '.', and agent numbers
+            ),
             obs_width=11,
             obs_height=11,
         )
