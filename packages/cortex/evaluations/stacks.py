@@ -13,6 +13,7 @@ Add new templates by:
 
 from __future__ import annotations
 
+from ast import Pass
 from dataclasses import dataclass
 from typing import Callable, Dict
 
@@ -78,7 +79,7 @@ def build_slstm_postup_axon(*, d_hidden: int = 128, proj_factor: float = 1.5, nu
         d_hidden=d_hidden,
         post_norm=True,
         blocks=[
-            PreUpBlockConfig( #Having PassThrough block initially helps a lot *
+            PreUpBlockConfig(
                 # hidden_size is inferred from PreUp: int(proj_factor * d_hidden)
                 cell=AxonsConfig(hidden_size=None, activation="silu", use_fullrank_rtu=False, use_untraced_linear=True)
             ),
