@@ -137,7 +137,7 @@
       "type": "debugpy",
       "request": "launch",
       "module": "cogames.main",
-      "args": ["play", "machina_2", "--render", "text"],
+      "args": ["play", "-m", "machina_1", "--render", "unicode"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
