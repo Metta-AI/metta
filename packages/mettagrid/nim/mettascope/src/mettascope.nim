@@ -18,7 +18,11 @@ proc updateReplayHeader() =
   titleNode.text = display
 
 proc onReplayLoaded() =
+  ## Called when a replay is loaded.
   updateReplayHeader()
+  fitFullMap(worldMapPanel)
+  onStepChanged()
+  updateEnvConfig()
 
 proc parseArgs() =
   ## Parse command line arguments.
@@ -50,33 +54,6 @@ find "/UI/Main":
 
     utils.typeface = readTypeface(dataDir / "fonts" / "Inter-Regular.ttf")
 
-    case common.playMode
-    of Historical:
-      if commandLineReplay != "":
-        if commandLineReplay.startsWith("http"):
-          echo "Loading built-in replay while web is loading"
-          common.replay = loadReplay(dataDir / "replays" / "pens.json.z")
-          onReplayLoaded()
-          echo "Loading replay from URL: ", commandLineReplay
-          let req = startHttpRequest(commandLineReplay)
-          req.onError = proc(msg: string) =
-            echo "onError: " & msg
-          req.onResponse = proc(response: HttpResponse) =
-            echo "onResponse: code=", $response.code, ", len=", response.body.len
-            common.replay = loadReplay(response.body, commandLineReplay)
-            onReplayLoaded()
-        else:
-          echo "Loading replay from file: ", commandLineReplay
-          common.replay = loadReplay(commandLineReplay)
-          onReplayLoaded()
-      elif common.replay == nil:
-        echo "Loading built-in replay"
-        common.replay = loadReplay( dataDir / "replays" / "pens.json.z")
-        onReplayLoaded()
-    of Realtime:
-      echo "Realtime mode detected"
-      onReplayLoaded()
-
     rootArea.split(Vertical)
     rootArea.split = 0.20
 
@@ -106,8 +83,6 @@ find "/UI/Main":
         thisNode.size.x,
         thisNode.size.y
       )
-      if not common.replay.isNil and worldMapPanel.pos == vec2(0, 0):
-        fitFullMap(worldMapPanel)
       bxy.translate(worldMapPanel.rect.xy.vec2 * window.contentScale)
       drawWorldMap(worldMapPanel)
       bxy.restoreTransform()
@@ -147,8 +122,31 @@ find "/UI/Main":
       timeline.drawTimeline(globalTimelinePanel)
       bxy.restoreTransform()
 
-    onStepChanged()
-    updateEnvConfig()
+    case common.playMode
+    of Historical:
+      if commandLineReplay != "":
+        if commandLineReplay.startsWith("http"):
+          common.replay = EmptyReplay
+          echo "Loading replay from URL: ", commandLineReplay
+          let req = startHttpRequest(commandLineReplay)
+          req.onError = proc(msg: string) =
+            # TODO: Show error to user.
+            echo "onError: " & msg
+          req.onResponse = proc(response: HttpResponse) =
+            common.replay = loadReplay(response.body, commandLineReplay)
+            onReplayLoaded()
+        else:
+          echo "Loading replay from file: ", commandLineReplay
+          common.replay = loadReplay(commandLineReplay)
+          onReplayLoaded()
+      elif common.replay == nil:
+        let defaultReplay = dataDir / "replays" / "pens.json.z"
+        echo "Loading replay from default file: ", defaultReplay
+        common.replay = loadReplay(defaultReplay)
+        onReplayLoaded()
+    of Realtime:
+      echo "Realtime mode"
+      onReplayLoaded()
 
   onFrame:
 
