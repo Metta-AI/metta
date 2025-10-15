@@ -140,7 +140,6 @@ def benchmark_linear_vs_axon(
     reset_prob: float,
     axon_backend: str,
     use_srht: bool,
-    axon_out_rank: int,
 ) -> Dict[str, float | int]:
     device_t = torch.device(device)
     dtype = torch.float32
@@ -167,7 +166,6 @@ def benchmark_linear_vs_axon(
         cuda_seq_threshold=1000,
         use_srht=use_srht,
         out_dim=hidden_size,
-        out_rank=axon_out_rank,
     )
     ax = AxonCell(cfg).to(device=device_t, dtype=dtype)
 
@@ -239,12 +237,7 @@ def _parse_args() -> argparse.Namespace:
     )
     p.add_argument("--no-srht", dest="use_srht", action="store_false", help="Disable SRHT mixer (enabled by default)")
     p.set_defaults(use_srht=True)
-    p.add_argument(
-        "--axon-out-rank",
-        type=int,
-        default=-1,
-        help="Low-rank projection for Axons (2H->r->H). Default uses H//2.",
-    )
+    # No low-rank output in AxonCell anymore (2H->out via single Linear)
     return p.parse_args()
 
 
@@ -263,10 +256,9 @@ def main() -> None:
         print(f"Device: {torch.cuda.get_device_name(0)} | CUDA {torch.version.cuda}")
     else:
         print("Device: CPU")
-    out_rank = args.axon_out_rank if args.axon_out_rank > 0 else args.hidden // 2
     print(
         f"Config: B={args.batch}, T={args.seq}, H={args.hidden}, activation={args.activation}, "
-        f"backend={args.axon_backend}, SRHT={'on' if args.use_srht else 'off'}, out_rank={out_rank}"
+        f"backend={args.axon_backend}, SRHT={'on' if args.use_srht else 'off'}"
     )
     print(f"Warmup={args.warmup}, Iters={args.iters}")
     print()
@@ -283,7 +275,6 @@ def main() -> None:
         reset_prob=args.reset_prob,
         axon_backend=args.axon_backend,
         use_srht=args.use_srht,
-        axon_out_rank=out_rank,
     )
 
     print(f"Linear (ms): {res['linear_ms']:.3f}")
