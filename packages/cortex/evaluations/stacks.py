@@ -102,16 +102,14 @@ def build_mlstm_preup_axon(*, d_hidden: int = 128, proj_factor: float = 2.0, num
         blocks=[
             PreUpBlockConfig(
                 proj_factor=proj_factor,
-                cell=AxonsConfig(hidden_size=None, activation="silu"),
-            ),
-            PreUpBlockConfig(
-                proj_factor=proj_factor,
                 cell=mLSTMCellConfig(
                     hidden_size=None,
                     num_heads=num_heads,
                     chunk_size=256,
                     conv1d_kernel_size=4,
-                    use_axon_layer=False,
+                    use_axon_layer=True,
+                    use_axon_qkv=True,
+                    axon_rank=None,
                 ),
             ),
         ],

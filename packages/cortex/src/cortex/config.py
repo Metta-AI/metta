@@ -45,11 +45,13 @@ class mLSTMCellConfig(CellConfig):
     chunk_size: int = Field(default=64, ge=1)
     # Always apply conv-in inside the cell (depthwise causal conv)
     conv1d_kernel_size: int = Field(default=4, ge=1)
-    # Use AxonLayer for gating projections (3H -> NH) and Q/K/V instead of conv
+    # Use AxonLayer for gating projections (3H -> NH)
     use_axon_layer: bool = Field(default=False)
+    # Optionally also use AxonLayers for Q/K/V (defaults to conv path)
+    use_axon_qkv: bool = Field(default=False)
     # Rank for AxonLayer low-rank output map when enabled (None → use Axon default)
     axon_rank: int | None = Field(default=None, ge=1)
-    # When Axon is enabled, Q, K, and V are always built with separate AxonLayers.
+    # When use_axon_qkv is enabled, Q/K share a layer and V has its own layer.
 
 
 class sLSTMCellConfig(CellConfig):

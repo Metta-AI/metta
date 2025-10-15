@@ -13,16 +13,24 @@ from .axon_cell import AxonCell
 
 
 class AxonLayer(nn.Module):
-    """Stateful replacement for ``nn.Linear`` backed by ``AxonCell``.
+    """Stateful replacement for ``nn.Linear`` blending Linear and Axon paths.
 
-    - Accepts any input/output feature sizes. Internally sets
+    Behavior
+    - Computes ``z = (1 - alpha) * LN(Linear(x)) + alpha * LN(Axon(x))`` where
+      ``alpha = sigmoid(a)`` and ``a`` is a learnable scalar initialized ``<< 0``
+      so the layer is effectively linear at initialization.
+    - The Axon branch uses an ``AxonCell`` with activation forced to ``identity``.
+    - Both branches are normalized with ``LayerNorm(out_features)`` before the
+      convex blend to keep scales comparable.
+
+    Interface
+    - Accepts any input/output feature sizes. Internally forces
       ``hidden_size = in_features`` and ``out_dim = out_features`` on the
       wrapped ``AxonCell``.
-    - Manages Axons state automatically, either inside a provided parent
-      ``TensorDict`` under a configurable group/key, or in a local internal
-      state when no parent state is supplied.
-    - Respects both step inputs ``[B, H_in]`` and sequence inputs
-      ``[B, T, H_in]``. Resets are forwarded transparently.
+    - Manages Axon state automatically in a provided parent ``TensorDict``
+      under ``group/name`` or keeps a local internal state when none is
+      provided.
+    - Supports step inputs ``[B, H_in]`` and sequence inputs ``[B, T, H_in]``.
     """
 
     def __init__(
@@ -57,11 +65,17 @@ class AxonLayer(nn.Module):
             # Enforce IO sizes regardless of provided cfg
             cfg.hidden_size = self.in_features
             cfg.out_dim = self.out_features
+            # Keep Axon activation linear inside this wrapper
+            cfg.activation = "identity"
             if cfg.out_rank is None:
                 cfg.out_rank = max(1, min(self.out_features, 2 * self.in_features) // 2)
 
         # Wrapped AxonCell (allow out_dim != hidden_size)
         self.cell = AxonCell(cfg, enforce_out_dim_eq_hidden=False)
+
+        # Plain linear branch for linear-at-init behavior
+        self.linear = nn.Linear(self.in_features, self.out_features, bias=True)
+        # Residual/convex gate parameter: alpha = sigmoid(alpha_logit)
 
         # Local state used when parent state is not provided
         self._local_state: MaybeState = None
@@ -117,14 +131,18 @@ class AxonLayer(nn.Module):
 
         # Route to underlying AxonCell and write-back updated substate
         if st is self._local_state:
-            y, self._local_state = self.cell(x, self._local_state, resets=resets)
+            y_axon, self._local_state = self.cell(x, self._local_state, resets=resets)
         else:
             group_td = st.get(self._state_group)
             assert group_td is not None
             sub = group_td.get(self._state_key)
-            y, sub_new = self.cell(x, sub, resets=resets)
+            y_axon, sub_new = self.cell(x, sub, resets=resets)
             group_td[self._state_key] = sub_new
 
+        # Compute linear branch directly on input (supports [B, H] or [B, T, H])
+        y_lin = self.linear(x)
+
+        y =y_lin +  y_axon
         return y
 
     @torch.no_grad()

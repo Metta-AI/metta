@@ -122,6 +122,8 @@ def train_one(
     epochs: int,
     batch_size: int,
     lr: float,
+    axon_lr_mult: float = 1.0,
+    axon_weight_decay: float | None = None,
     chunk_size: int | None = None,
     rtu_disable_traces_last_chunk: bool = False,
     reset_state_before_last_chunk: bool = False,
@@ -143,7 +145,34 @@ def train_one(
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logging.info("model parameters: total=%d trainable=%d", total_params, trainable_params)
 
-    opt = torch.optim.AdamW(model.parameters(), lr=lr)
+    # Optimizer: optionally boost LR and/or set weight_decay for Axon dynamics/input params
+    if axon_lr_mult != 1.0 or axon_weight_decay is not None:
+        axon_names = ("nu_log", "theta_log", "w1", "w2")
+        axon_params = []
+        base_params = []
+        for n, p in model.named_parameters():
+            if any(n.endswith(k) or (f".{k}" in n) for k in axon_names):
+                axon_params.append(p)
+            else:
+                base_params.append(p)
+        param_groups = [
+            {"params": base_params, "lr": lr},
+            {
+                "params": axon_params,
+                "lr": lr * max(axon_lr_mult, 0.0),
+                **({"weight_decay": float(axon_weight_decay)} if axon_weight_decay is not None else {}),
+            },
+        ]
+        logging.info(
+            "optimizer param groups: base=%d axon=%d (lr_mult=%.2f, wd=%s)",
+            sum(p.numel() for p in base_params),
+            sum(p.numel() for p in axon_params),
+            axon_lr_mult,
+            "None" if axon_weight_decay is None else f"{axon_weight_decay}",
+        )
+        opt = torch.optim.AdamW(param_groups)
+    else:
+        opt = torch.optim.AdamW(model.parameters(), lr=lr)
     criterion = nn.CrossEntropyLoss()
 
     # Generic chunked processing (TBPTT on last chunk) for any stack when enabled
@@ -417,6 +446,24 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--axon-lr-mult",
+        type=float,
+        default=1.0,
+        help=(
+            "If !=1, multiply LR of Axon dynamics/input params (nu_log, theta_log, w1, w2). "
+            "Useful to accelerate Axon learning without affecting the rest of the model."
+        ),
+    )
+    parser.add_argument(
+        "--axon-weight-decay",
+        type=float,
+        default=None,
+        help=(
+            "If set, override weight_decay just for Axon dynamics/input params (nu_log, theta_log, w1, w2). "
+            "Recommended: 0.0 to avoid shrinking retention on long-horizon tasks."
+        ),
+    )
+    parser.add_argument(
         "--rtu-disable-traces-last-chunk",
         action="store_true",
         help=(
@@ -471,6 +518,8 @@ def main() -> None:
             epochs=args.epochs,
             batch_size=args.batch_size,
             lr=args.lr,
+            axon_lr_mult=args.axon_lr_mult,
+            axon_weight_decay=args.axon_weight_decay,
             chunk_size=args.chunk_size if args.chunk_size > 0 else None,
             rtu_disable_traces_last_chunk=args.rtu_disable_traces_last_chunk,
             reset_state_before_last_chunk=args.reset_state_before_last_chunk,
