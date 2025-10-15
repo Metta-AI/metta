@@ -9,12 +9,13 @@ import re
 import sys
 import tempfile
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from anthropic import Anthropic  # type: ignore[import-not-found]
 
 from .core import GitError, run_git
-from .git import get_current_branch, get_remote_url
+from .git import find_root, get_current_branch, get_remote_url
 from .github import create_pr
 
 
@@ -41,6 +42,50 @@ class SplitDecision:
     group2_title: str
 
 
+def _read_dotenv_values(path: Path) -> Dict[str, str]:
+    values: Dict[str, str] = {}
+    try:
+        for line in path.read_text().splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            if "=" not in stripped:
+                continue
+            key, value = stripped.split("=", 1)
+            key = key.strip()
+            if not key:
+                continue
+            value = value.strip().strip("'\"")
+            values[key] = value
+    except OSError:
+        pass
+    return values
+
+
+def _load_env_from_dotenv(var_name: str) -> Optional[str]:
+    candidates: List[Path] = []
+    try:
+        cwd = Path.cwd()
+    except FileNotFoundError:
+        cwd = None
+
+    if cwd is not None:
+        candidates.append(cwd)
+        repo_root = find_root(cwd)
+        if repo_root and repo_root not in candidates:
+            candidates.append(repo_root)
+
+    if not candidates:
+        return None
+    for directory in candidates:
+        dotenv_path = directory / ".env"
+        if dotenv_path.is_file():
+            values = _read_dotenv_values(dotenv_path)
+            if var_name in values:
+                return values[var_name]
+    return None
+
+
 class PRSplitter:
     """Split large pull requests into smaller, logically isolated ones."""
 
@@ -52,7 +97,10 @@ class PRSplitter:
         force_push: bool = True,
         independence: float = 0.5,
     ):
-        self.anthropic_api_key = anthropic_api_key or os.environ.get("ANTHROPIC_API_KEY")
+        env_key = os.environ.get("ANTHROPIC_API_KEY")
+        dotenv_key = None if env_key else _load_env_from_dotenv("ANTHROPIC_API_KEY")
+
+        self.anthropic_api_key = anthropic_api_key or env_key or dotenv_key
         self.anthropic: Optional[Anthropic] = anthropic_client
         if self.anthropic is None and self.anthropic_api_key:
             self.anthropic = Anthropic(api_key=self.anthropic_api_key)
@@ -525,7 +573,7 @@ Environment variables:
     parser.add_argument(
         "--anthropic-key",
         help="Anthropic API key (defaults to ANTHROPIC_API_KEY env var)",
-        default=os.environ.get("ANTHROPIC_API_KEY"),
+        default=os.environ.get("ANTHROPIC_API_KEY") or _load_env_from_dotenv("ANTHROPIC_API_KEY"),
     )
 
     parser.add_argument(
@@ -552,7 +600,7 @@ Environment variables:
     # Validate API key
     if not args.anthropic_key:
         print("❌ Error: Anthropic API key not provided!")
-        print("   Set ANTHROPIC_API_KEY environment variable or use --anthropic-key")
+        print("   Set ANTHROPIC_API_KEY environment variable, add it to a .env file, or use --anthropic-key")
         sys.exit(1)
 
     if not args.github_token:

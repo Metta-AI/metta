@@ -1,6 +1,7 @@
 """Tests for PR splitting functionality without mocks."""
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -389,3 +390,53 @@ def test_cli_passes_independence(monkeypatch: pytest.MonkeyPatch):
     main()
     assert captured_kwargs["independence"] == 0.2
     assert captured_kwargs["force_push"] is True
+
+
+def test_prsplitter_loads_key_from_dotenv(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    env_path = tmp_path / ".env"
+    env_path.write_text("ANTHROPIC_API_KEY=sk-ant-test\n")
+    repo_root = Path(__file__).resolve().parents[4]
+
+    try:
+        original_cwd = Path.cwd()
+    except FileNotFoundError:
+        original_cwd = repo_root
+        os.chdir(original_cwd)
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+    try:
+        os.chdir(tmp_path)
+        splitter = PRSplitter()
+    finally:
+        os.chdir(original_cwd)
+
+    assert splitter.anthropic_api_key == "sk-ant-test"
+
+
+def test_prsplitter_prefers_repo_dotenv(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    repo_path = tmp_path / "repo"
+    repo_path.mkdir()
+    subprocess.run(["git", "init"], cwd=repo_path, check=True, capture_output=True)
+    (repo_path / ".env").write_text("ANTHROPIC_API_KEY=sk-ant-root\n")
+
+    nested = repo_path / "nested" / "deeper"
+    nested.mkdir(parents=True)
+
+    repo_root = Path(__file__).resolve().parents[4]
+
+    try:
+        original_cwd = Path.cwd()
+    except FileNotFoundError:
+        original_cwd = repo_root
+        os.chdir(original_cwd)
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+    try:
+        os.chdir(nested)
+        splitter = PRSplitter()
+    finally:
+        os.chdir(original_cwd)
+
+    assert splitter.anthropic_api_key == "sk-ant-root"

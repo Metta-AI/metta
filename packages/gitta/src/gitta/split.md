@@ -13,9 +13,12 @@ This guide will help you get started with splitting large PRs using gitta.
 2. **(For AI-driven splitting) Get an Anthropic API key:**
    - Sign up at https://console.anthropic.com/
    - Create an API key
-   - Set it as an environment variable:
+   - Set it as an environment variable or place it in a `.env` file at the repo root:
      ```bash
      export ANTHROPIC_API_KEY="sk-ant-..."
+     ```
+     ```bash
+     echo "ANTHROPIC_API_KEY=sk-ant-..." >> .env
      ```
 
 3. **Optional: Set up GitHub token for auto PR creation:**
