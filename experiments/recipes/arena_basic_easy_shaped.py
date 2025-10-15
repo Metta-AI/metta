@@ -1,4 +1,5 @@
 from typing import Optional, Sequence
+import math
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
@@ -10,7 +11,7 @@ from metta.cogworks.curriculum.curriculum import (
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.loss import LossConfig
-from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
+from metta.rl.trainer_config import OptimizerConfig, TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import make_sweep, SweepParameters as SP, Distribution as D
@@ -131,14 +132,12 @@ def train_4gpu(
     enable_detailed_slice_logging: bool = False,
     policy_architecture: Optional[PolicyArchitecture] = None,
 ) -> TrainTool:
-    """Train configured for 4-GPU runs with world-size scaling.
+    """Train configured for 4‑GPU runs with world-size scaling.
 
-    - Keeps the global batch size consistent with the single-GPU default
-      by enabling per-rank scaling (``scale_batches_by_world_size=True``).
-    - Sets an appropriate global batch size (same as default recipe), which
-      will be divided across ranks at runtime by the TrainTool helper.
-    - Uses the default learning rate (no change needed when global batch is
-      kept constant via world-size scaling).
+    - Sets global batch size to 4× the default (524,288 → 2,097,152).
+    - Enables per‑rank scaling (``scale_batches_by_world_size=True``), keeping
+      per‑rank batch appropriate while preserving the configured global batch.
+    - Scales the default learning rate by sqrt(batch_scale) (×2 for 4× batch).
     """
 
     curriculum = curriculum or make_curriculum(
@@ -147,13 +146,18 @@ def train_4gpu(
 
     eval_simulations = simulations()
 
-    # Global batch size: keep the single-GPU default so that enabling
-    # scale-by-world-size maintains a constant global batch across 4 GPUs.
-    # Learning rate: unchanged when global batch is constant.
+    # 4x the default global batch size (default = 524_288), and
+    # enable scale-by-world-size so per-rank batch is adjusted at runtime.
+    # For Adam/AdamW-family optimizers, use sqrt scaling of LR with batch size.
+    # Here: lr_scaled = lr_default * sqrt(4) = 2x.
+    default_lr = OptimizerConfig.model_fields["learning_rate"].default
+    scaled_lr = float(default_lr) * math.sqrt(4.0)
+
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
-        batch_size=524_288,
+        batch_size=524_288 * 4,
         scale_batches_by_world_size=True,
+        optimizer=OptimizerConfig(learning_rate=scaled_lr),
     )
 
     if policy_architecture is None:
