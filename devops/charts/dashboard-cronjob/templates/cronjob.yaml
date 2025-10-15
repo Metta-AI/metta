@@ -23,7 +23,7 @@ spec:
           - name: {{ .Chart.Name }}
             image: "{{ if .Values.image.registry }}{{ .Values.image.registry }}/{{ end }}{{ .Values.image.name }}:{{ required "tag is required" .Values.image.tag }}"
             imagePullPolicy: {{ .Values.image.pullPolicy }}
-            command: ["uv", "run", "python", "-m", "softmax.dashboard.report", "report", "--push"]
+            command: {{ toJson .Values.command }}
             env:
             # Datadog metric tagging
             - name: DD_ENV
