@@ -99,15 +99,16 @@ class mLSTMCell(MemoryCell):
 
         # Q/K/V preprocessing: always apply causal conv; optionally add Axon QKV
         self.conv_kernel_size = cfg.conv1d_kernel_size
-        if not cfg.use_axon_layer:
-            conv_config = CausalConv1dConfig(
-                hidden_size=cfg.hidden_size,
-                kernel_size=self.conv_kernel_size,
-                causal_conv_bias=True,
-                channel_mixing=False,  # depthwise convolution
-            )
-            self.conv1d_cell = CausalConv1d(conv_config)
-            self.conv_act = nn.SiLU()
+        conv_config = CausalConv1dConfig(
+            hidden_size=cfg.hidden_size,
+            kernel_size=self.conv_kernel_size,
+            causal_conv_bias=True,
+            channel_mixing=False,  # depthwise convolution
+        )
+        self.conv1d_cell = CausalConv1d(conv_config)
+        self.conv_act = nn.SiLU()
+
+        if not cfg.use_axon_qkv:
             self.qkv_act = None
             self.q_layer = None
             self.k_layer = None
@@ -126,8 +127,6 @@ class mLSTMCell(MemoryCell):
             self.v_layer = AxonLayer(H, H, cfg=qkv_cfg, name="v", group="mlstm_qkv")
             self.q_layer = None
             self.k_layer = None
-            self.conv1d_cell = None
-            self.conv_act = None
 
         if not cfg.use_axon_qkv:
             self.qkv_act = None
