@@ -143,6 +143,7 @@ class ObsPerceiverLatentConsistentDropout(nn.Module):
             attn_output = einops.rearrange(attn_output, "b h n d -> b n (h d)")
             attn_output = layer["attn_out_proj"](attn_output)
 
+            # Apply consistent dropout to attention output
             if self.attn_dropouts[i] is not None:
                 mask_key_attn = (self.config.name, f"attn_dropout_mask_{i}")
                 attn_mask = td.get(mask_key_attn, None)
@@ -154,6 +155,7 @@ class ObsPerceiverLatentConsistentDropout(nn.Module):
 
             latents = residual + attn_output
 
+            # MLP block with consistent dropout
             mlp_output = layer["mlp"](layer["mlp_norm"](latents))
 
             if self.mlp_dropouts[i] is not None:
