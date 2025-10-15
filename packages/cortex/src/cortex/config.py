@@ -89,9 +89,9 @@ class RTUCellConfig(CellConfig):
 class AxonsConfig(CellConfig):
     """Configuration for the Axons cell (streaming RTU, diagonal input weights).
 
-    This variant assumes D == H (identity input map) and uses per-channel
-    diagonal input weights (w1, w2). The kernel returns a 2H activation that
-    the cell projects back to H.
+    Assumes D == H (identity input map) and uses per‑channel diagonal input
+    weights (w1, w2). The kernel returns a 2H activation that the cell projects
+    to ``out_dim`` with a single linear layer.
     """
 
     hidden_size: int | None = Field(default=None)
@@ -99,12 +99,9 @@ class AxonsConfig(CellConfig):
     r_max: float = Field(default=1.0)
     r_min: float = Field(default=0.0)
     max_phase: float = Field(default=6.28)
-    # Low‑rank output projection settings: maps 2H -> out_dim via rank `out_rank`.
+    # Output projection settings: maps 2H -> out_dim via a single linear layer.
     # out_dim defaults to H (cell.hidden_size) for compatibility with blocks.
     out_dim: int | None = Field(default=None, ge=1)
-    # If None, use the maximum possible rank for a (2H -> out_dim) map, i.e. min(2H, out_dim).
-    # If set, the exact value is used.
-    out_rank: int | None = Field(default=None)
     # Prefer CUDA seq-allin kernel for short sequences (<= threshold)
     cuda_seq_threshold: int = Field(default=5000, ge=1)
     # Optional SRHT mixer before the kernel (diagonal input map remains in mixed basis)

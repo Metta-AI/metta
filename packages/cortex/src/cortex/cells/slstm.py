@@ -98,13 +98,7 @@ class sLSTMCell(MemoryCell):
             # Fused Axon gates: compute [i,f] from x_conv and [z,o] from x_seq
             # with two AxonLayer calls H -> 2H to reduce per-chunk overhead.
             is_pow2 = (H & (H - 1)) == 0 and H > 0
-            ax_cfg = AxonsConfig(
-                hidden_size=H,
-                out_dim=2 * H,
-                out_rank=cfg.axon_rank,
-                use_srht=bool(is_pow2),
-                srht_permute=True,
-            )
+            ax_cfg = AxonsConfig(hidden_size=H, out_dim=2 * H, use_srht=bool(is_pow2), srht_permute=True)
             self.if_fused = AxonLayer(H, 2 * H, cfg=ax_cfg, name="if_fused", group="slstm")
             self.zo_fused = AxonLayer(H, 2 * H, cfg=ax_cfg, name="zo_fused", group="slstm")
         else:

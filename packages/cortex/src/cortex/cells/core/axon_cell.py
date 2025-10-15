@@ -80,18 +80,10 @@ class AxonCell(MemoryCell):
             self.w1.uniform_(-bound_in, bound_in)
             self.w2.uniform_(-bound_in, bound_in)
 
-        # Low-rank output projection: 2H -> r -> out_dim (defaults to H).
+        # Output projection: single linear map 2H -> out_dim (defaults to H).
         out_dim = cfg.out_dim if getattr(cfg, "out_dim", None) not in (None, 0) else H
-        if getattr(cfg, "out_rank", None) is None:
-            r = min(2 * H, out_dim)
-        else:
-            r = int(cfg.out_rank)
-        if r < 1:
-            raise ValueError(f"Axons out_rank must be >= 1, got {r}")
         self._out_dim = int(out_dim)
-        self._out_rank = r
-        self.out_lr1 = nn.Linear(2 * H, r, bias=False)
-        self.out_lr2 = nn.Linear(r, self._out_dim, bias=True)
+        self.out_proj = nn.Linear(2 * H, self._out_dim, bias=True)
 
         # SRHT mixer parameters (fixed buffers)
         self._use_srht = bool(getattr(cfg, "use_srht", False))
@@ -294,10 +286,10 @@ class AxonCell(MemoryCell):
         # Project 2H -> out_dim (batch-first)
         if is_step:
             y2h = y2h_t.squeeze(1)
-            y = self.out_lr2(self.out_lr1(y2h))
+            y = self.out_proj(y2h)
         else:
             y2h_flat = y2h_t.reshape(B * T, -1)
-            y = self.out_lr2(self.out_lr1(y2h_flat)).reshape(B, T, self._out_dim)
+            y = self.out_proj(y2h_flat).reshape(B, T, self._out_dim)
 
         # Enforce block contract if requested
         if self._enforce_out_dim_eq_hidden and y.shape[-1] != self.hidden_size:

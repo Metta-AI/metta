@@ -58,8 +58,6 @@ class AxonLayer(nn.Module):
             is_pow2 = (self.in_features & (self.in_features - 1)) == 0 and self.in_features > 0
             cfg.use_srht = bool(is_pow2)
             cfg.srht_permute = True
-            # Heuristic rank: half of the smaller IO capacity
-            cfg.out_rank = max(1, min(self.out_features, 2 * self.in_features) // 2)
             cfg.cuda_seq_threshold = 1000
         else:
             # Enforce IO sizes regardless of provided cfg
@@ -67,8 +65,6 @@ class AxonLayer(nn.Module):
             cfg.out_dim = self.out_features
             # Keep Axon activation linear inside this wrapper
             cfg.activation = "identity"
-            if cfg.out_rank is None:
-                cfg.out_rank = max(1, min(self.out_features, 2 * self.in_features) // 2)
 
         # Wrapped AxonCell (allow out_dim != hidden_size)
         self.cell = AxonCell(cfg, enforce_out_dim_eq_hidden=False)
@@ -142,7 +138,7 @@ class AxonLayer(nn.Module):
         # Compute linear branch directly on input (supports [B, H] or [B, T, H])
         y_lin = self.linear(x)
 
-        y =y_lin +  y_axon
+        y = y_lin + y_axon
         return y
 
     @torch.no_grad()

@@ -78,7 +78,6 @@ def build_slstm_postup_axon(*, d_hidden: int = 128, proj_factor: float = 1.5, nu
         d_hidden=d_hidden,
         post_norm=True,
         blocks=[
-
             PostUpBlockConfig(
                 proj_factor=proj_factor,
                 cell=sLSTMCellConfig(
@@ -115,6 +114,7 @@ def build_mlstm_preup_axon(*, d_hidden: int = 128, proj_factor: float = 2.0, num
         ],
     )
     return build_cortex(cfg)
+
 
 def build_axons_preup(*, d_hidden: int = 128, proj_factor: float = 2.0) -> CortexStack:
     """Axons (streaming RTU, diagonal) wrapped in a PreUp block.
@@ -155,12 +155,16 @@ def build_axons_preup_tuned(*, d_hidden: int = 128, proj_factor: float = 2.0) ->
         blocks=[
             PassThroughBlockConfig(
                 # hidden_size is inferred from PreUp: int(proj_factor * d_hidden)
-                cell=AxonsConfig(hidden_size=None, activation="silu", r_min=0.99, r_max=0.9999, use_srht=False, out_rank=None),
+                cell=AxonsConfig(
+                    hidden_size=None, activation="silu", r_min=0.99, r_max=0.9999, use_srht=False, out_rank=None
+                ),
             ),
             PreUpBlockConfig(
                 proj_factor=proj_factor,
                 # hidden_size is inferred from PreUp: int(proj_factor * d_hidden)
-                cell=AxonsConfig(hidden_size=None, activation="silu", r_min=0.99, r_max=0.9999, use_srht=False, out_rank=None),
+                cell=AxonsConfig(
+                    hidden_size=None, activation="silu", r_min=0.99, r_max=0.9999, use_srht=False, out_rank=None
+                ),
             ),
         ],
     )
