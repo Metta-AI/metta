@@ -67,7 +67,7 @@
       "type": "debugpy",
       "request": "launch",
       "module": "tools.run",
-      "args": ["experiments.recipes.scratchpad.${env:USER}.evaluate"],
+      "args": ["experiments.recipes.arena.evaluate"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
@@ -95,7 +95,7 @@
       "type": "debugpy",
       "request": "launch",
       "module": "tools.run",
-      "args": ["experiments.recipes.scratchpad.${env:USER}.analyze"],
+      "args": ["experiments.recipes.arena.analyze"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
@@ -109,7 +109,7 @@
       "type": "debugpy",
       "request": "launch",
       "module": "tools.run",
-      "args": ["experiments.recipes.scratchpad.${env:USER}.replay"],
+      "args": ["experiments.recipes.arena.replay"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
@@ -123,7 +123,7 @@
       "type": "debugpy",
       "request": "launch",
       "module": "tools.run",
-      "args": ["experiments.recipes.scratchpad.${env:USER}.play"],
+      "args": ["experiments.recipes.arena.play"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
