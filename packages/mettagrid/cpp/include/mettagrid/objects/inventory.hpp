@@ -22,6 +22,9 @@ private:
 public:
   // Splits the delta between the inventories. Returns the amount of delta successfully consumed.
   static InventoryDelta shared_update(std::vector<Inventory*> inventories, InventoryItem item, InventoryDelta delta) {
+    if (inventories.empty()) {
+      return 0;
+    }
     // We expect the main usage to be 3 passes:
     // 1. Separate inventories into those that can fully participate and those that can't. During this stage we
     // update the not-fully-participating inventories as much as possible.
