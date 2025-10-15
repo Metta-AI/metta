@@ -41,6 +41,9 @@ git checkout feature/big-refactor
 
 # Run the splitter
 python -m gitta.split
+
+# Favor balanced sizing (optional)
+python -m gitta.split --independence 0.2
 ```
 
 ## What Happens
@@ -96,6 +99,13 @@ Created PR: https://github.com/owner/repo/pull/124
 4. **Works best with 2-20 files** - Very large PRs might need manual adjustment
 5. **Logical grouping** - The AI tries to keep related changes together
 6. **Rerun safely** - If you rerun the splitter, existing `*-part{n}` branches are recreated from the base branch automatically and remote branches are refreshed with `--force-with-lease` when needed (pass `--no-force-push` if you prefer the command to fail instead).
+7. **Tune independence** - Use `--independence` to choose between balanced PR sizes (near 0.0) and stronger logical separation (near 1.0).
+
+### Balancing independence vs. size
+
+- `--independence 0.0` keeps the two PRs similar in size even if some files are loosely related.
+- `--independence 1.0` maximizes logical differences, allowing one PR to shrink if needed.
+- Values in between strike a balance (default 0.5). The guidance is surfaced in the AI prompt directly.
 
 ## Troubleshooting
 

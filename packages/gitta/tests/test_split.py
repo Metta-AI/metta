@@ -303,3 +303,33 @@ def test_push_branch_no_force(monkeypatch: pytest.MonkeyPatch):
 
     with pytest.raises(GitError):
         splitter.push_branch("feature-noforce")
+
+
+def test_build_prompt_reflects_independence():
+    splitter_low = PRSplitter(independence=0.0)
+    splitter_high = PRSplitter(independence=1.0)
+
+    file_summaries = [
+        {
+            "filename": "feature.py",
+            "additions": 10,
+            "deletions": 2,
+            "hunks": 3,
+            "sample_changes": "",
+        }
+    ]
+
+    prompt_low = splitter_low._build_split_prompt(file_summaries)
+    prompt_high = splitter_high._build_split_prompt(file_summaries)
+
+    assert "Independence preference: 0.00" in prompt_low
+    assert "Prioritize balanced group sizes" in prompt_low
+    assert "Independence preference: 1.00" in prompt_high
+    assert "Prioritize independence of concerns" in prompt_high
+
+
+def test_invalid_independence_value():
+    with pytest.raises(ValueError):
+        PRSplitter(independence=1.5)
+    with pytest.raises(ValueError):
+        PRSplitter(independence=-0.1)

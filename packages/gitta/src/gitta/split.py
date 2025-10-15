@@ -50,6 +50,7 @@ class PRSplitter:
         github_token: Optional[str] = None,
         anthropic_client: Optional[Anthropic] = None,
         force_push: bool = True,
+        independence: float = 0.5,
     ):
         self.anthropic_api_key = anthropic_api_key or os.environ.get("ANTHROPIC_API_KEY")
         self.anthropic: Optional[Anthropic] = anthropic_client
@@ -60,6 +61,9 @@ class PRSplitter:
         self.base_branch: Optional[str] = None
         self.current_branch: Optional[str] = None
         self.force_push = force_push
+        if not 0.0 <= independence <= 1.0:
+            raise ValueError("Independence must be between 0.0 and 1.0")
+        self.independence = independence
 
     def _ensure_anthropic(self) -> Anthropic:
         """Returns an Anthropic client, constructing it lazily if needed."""
@@ -71,6 +75,48 @@ class PRSplitter:
             return self.anthropic
 
         raise ValueError("Anthropic API key not provided and ANTHROPIC_API_KEY environment variable not set")
+
+    def _build_split_prompt(self, file_summaries: List[Dict[str, Any]]) -> str:
+        """Construct the AI prompt with independence guidance."""
+        independence = self.independence
+        balance_weight = 1.0 - independence
+
+        independence_guidance = (
+            "Prioritize balanced group sizes even if some files are loosely related."
+            if independence <= 0.25
+            else "Balance both logical separation and size; prefer independence when it doesn't create huge imbalance."
+            if independence < 0.75
+            else "Prioritize independence of concerns even if one group becomes much smaller."
+        )
+
+        prompt = f"""Analyze these file changes and suggest how to split them into two pull requests.
+
+Files changed:
+{json.dumps(file_summaries, indent=2)}
+
+Independence preference: {independence:.2f}
+- 0.00 means keep PR sizes balanced even if concerns overlap.
+- 1.00 means maximize logical independence even if PR sizes differ greatly.
+- Weight of balanced sizing: {balance_weight:.2f}
+- Weight of independence: {independence:.2f}
+- {independence_guidance}
+
+Provide two groups that follow these guidelines:
+1. Each PR should remain independently mergeable with minimal cross-dependencies.
+2. Prefer grouping files by shared concern or feature area.
+3. Keep PR sizes reasonably close unless independence weight is very high.
+
+Return a JSON response with this exact structure:
+{{
+    "group1_files": ["file1.py", "file2.py"],
+    "group2_files": ["file3.js", "file4.js"],
+    "group1_description": "Brief description of what group 1 does",
+    "group2_description": "Brief description of what group 2 does",
+    "group1_title": "Short PR title for group 1",
+    "group2_title": "Short PR title for group 2"
+}}
+"""
+        return prompt
 
     def get_base_branch(self) -> str:
         """Determine the base branch (usually main or master)"""
@@ -170,27 +216,7 @@ class PRSplitter:
                 }
             )
 
-        prompt = f"""Analyze these file changes and suggest how to split them into two logically isolated pull requests.
-
-Files changed:
-{json.dumps(file_summaries, indent=2)}
-
-Consider:
-1. Logical grouping (e.g., feature vs tests, frontend vs backend)
-2. Dependencies between files
-3. Roughly equal size distribution
-4. Each PR should be independently mergeable
-
-Return a JSON response with this exact structure:
-{{
-    "group1_files": ["file1.py", "file2.py"],
-    "group2_files": ["file3.js", "file4.js"],
-    "group1_description": "Brief description of what group 1 does",
-    "group2_description": "Brief description of what group 2 does",
-    "group1_title": "Short PR title for group 1",
-    "group2_title": "Short PR title for group 2"
-}}
-"""
+        prompt = self._build_split_prompt(file_summaries)
 
         response = anthropic_client.messages.create(
             model="claude-3-5-sonnet-20241022", max_tokens=1000, messages=[{"role": "user", "content": prompt}]
@@ -451,6 +477,7 @@ def split_pr(
     github_token: Optional[str] = None,
     *,
     force_push: bool = True,
+    independence: float = 0.5,
 ) -> None:
     """
     Split the current branch into two smaller PRs.
@@ -458,8 +485,15 @@ def split_pr(
     Args:
         anthropic_api_key: Anthropic API key (defaults to ANTHROPIC_API_KEY env var)
         github_token: GitHub token (defaults to GITHUB_TOKEN env var)
+        force_push: Retry push with --force-with-lease when remote branches exist (default True)
+        independence: Weight between balanced sizing (0.0) and logical separation (1.0)
     """
-    splitter = PRSplitter(anthropic_api_key, github_token, force_push=force_push)
+    splitter = PRSplitter(
+        anthropic_api_key,
+        github_token,
+        force_push=force_push,
+        independence=independence,
+    )
     splitter.split()
 
 
@@ -475,6 +509,9 @@ Examples:
 
   # Split with explicit API key
   python -m gitta.split --anthropic-key YOUR_KEY
+
+  # Favor balanced PR sizes
+  python -m gitta.split --independence 0.1
 
   # Also create GitHub PRs
   python -m gitta.split --github-token YOUR_TOKEN
@@ -498,6 +535,13 @@ Environment variables:
     )
 
     parser.add_argument(
+        "--independence",
+        type=float,
+        default=0.5,
+        help="Balance between equal-sized splits (0.0) and logical separation (1.0). Default: 0.5",
+    )
+
+    parser.add_argument(
         "--no-force-push",
         action="store_true",
         help="Skip the force-with-lease retry when remote branches already exist",
@@ -515,11 +559,16 @@ Environment variables:
         print("⚠️  Warning: GitHub token not provided, will skip PR creation")
         print("   Set GITHUB_TOKEN environment variable or use --github-token to enable")
 
+    if not 0.0 <= args.independence <= 1.0:
+        print("❌ Error: --independence must be between 0.0 and 1.0")
+        sys.exit(1)
+
     try:
         split_pr(
             anthropic_api_key=args.anthropic_key,
             github_token=args.github_token,
             force_push=not args.no_force_push,
+            independence=args.independence,
         )
     except Exception as e:
         print(f"\n❌ Error: {e}")
