@@ -27,10 +27,13 @@ nvcc_args = []
 
 glbicxx_abi = getattr(getattr(torch, "_C", None), "_GLIBCXX_USE_CXX11_ABI", None)
 if glbicxx_abi is not None:
-    abi_define = f"-D_GLIBCXX_USE_CXX11_ABI={int(glbicxx_abi)}"
+    abi_int = int(glbicxx_abi)
+    abi_define = f"-D_GLIBCXX_USE_CXX11_ABI={abi_int}"
     cxx_args.append(abi_define)
+    define_macros = [("_GLIBCXX_USE_CXX11_ABI", str(abi_int))]
 else:
     abi_define = None
+    define_macros = []
 
 
 if DEBUG:
@@ -53,9 +56,11 @@ if shutil.which("nvcc"):
     extension_class = CUDAExtension
     torch_sources.append("src/pufferlib/extensions/cuda/pufferlib.cu")
     print("Building with CUDA support")
+    extension_compile_args = {"cxx": cxx_args, "nvcc": nvcc_args}
 else:
     extension_class = CppExtension
     print("Building with CPU-only support")
+    extension_compile_args = cxx_args
 
 # Add rpath for torch libraries
 extra_link_args = []
@@ -69,10 +74,8 @@ ext_modules = [
     extension_class(
         "pufferlib._C",
         torch_sources,
-        extra_compile_args={
-            "cxx": cxx_args,
-            "nvcc": nvcc_args,
-        },
+        extra_compile_args=extension_compile_args,
+        define_macros=define_macros,
         extra_link_args=extra_link_args,
     ),
 ]
