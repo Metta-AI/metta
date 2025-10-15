@@ -46,7 +46,7 @@ const institutionSchema = z.object({
     .transform((value) => value?.trim() || undefined),
   website: z
     .string()
-    .url("Please enter a valid URL")
+    .url("Please enter a valid URL (e.g., https://example.com)")
     .optional()
     .or(z.literal(""))
     .transform((value) => value || undefined),
@@ -153,10 +153,7 @@ export const InstitutionCreateForm: FC<InstitutionCreateFormProps> = ({
                     Domain <span className="text-red-500">*</span>
                   </FormLabel>
                   <FormControl>
-                    <Input
-                      {...field}
-                      placeholder="e.g., softmax.com"
-                    />
+                    <Input {...field} placeholder="e.g., softmax.com" />
                   </FormControl>
                   <FormDescription>
                     Used for @-tagging (e.g., @softmax.com/team)
@@ -227,6 +224,7 @@ export const InstitutionCreateForm: FC<InstitutionCreateFormProps> = ({
                       autoComplete="url"
                     />
                   </FormControl>
+                  <FormMessage />
                 </FormItem>
               )}
             />
