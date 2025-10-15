@@ -14,6 +14,13 @@ import pytest
 import torch
 from cortex.kernels.pytorch.rtu.rtu_stream_fullrank import rtu_stream_full_pytorch
 
+try:
+    from cortex.kernels.cuda import rtu_stream_full_cuda_seq_allin as _rtu_full_cuda
+
+    _HAS_FULL_CUDA = True
+except Exception:  # pragma: no cover
+    _HAS_FULL_CUDA = False
+
 
 def _build_params_full(D: int, H: int, *, device, dtype):
     torch.manual_seed(123)
@@ -117,6 +124,240 @@ def test_fullrank_grads_match_finite_differences(with_resets: bool) -> None:
     atolW, rtolW = tol["W"]
     assert torch.allclose(g_auto[2].to(torch.float64), num_W1, atol=atolW, rtol=rtolW)
     assert torch.allclose(g_auto[3].to(torch.float64), num_W2, atol=atolW, rtol=rtolW)
+
+
+# ------------------------------
+# CUDA parity (skipped if no GPU)
+# ------------------------------
+
+
+def _run_full_pytorch(x, params, activation: str, resets_bt=None):
+    nu_log, theta_log, W1, W2 = params
+    B, _, _ = x.shape
+    H = nu_log.shape[0]
+    hc1_0 = torch.zeros(B, H, device=x.device, dtype=x.dtype)
+    hc2_0 = torch.zeros(B, H, device=x.device, dtype=x.dtype)
+    return rtu_stream_full_pytorch(
+        x_btd=x,
+        nu_log=nu_log,
+        theta_log=theta_log,
+        Wc1=W1,
+        Wc2=W2,
+        activation_name=activation,
+        hc1_init_bh=hc1_0,
+        hc2_init_bh=hc2_0,
+        trace_in=None,
+        resets_bt=resets_bt,
+    )
+
+
+def _run_full_cuda(x, params, activation: str, resets_bt=None):
+    nu_log, theta_log, W1, W2 = params
+    B, _, _ = x.shape
+    H = nu_log.shape[0]
+    hc1_0 = torch.zeros(B, H, device=x.device, dtype=x.dtype)
+    hc2_0 = torch.zeros(B, H, device=x.device, dtype=x.dtype)
+    return _rtu_full_cuda(
+        x_btd=x,
+        nu_log=nu_log,
+        theta_log=theta_log,
+        Wc1=W1,
+        Wc2=W2,
+        activation_name=activation,
+        hc1_init_bh=hc1_0,
+        hc2_init_bh=hc2_0,
+        trace_in=None,
+        resets_bt=resets_bt,
+    )
+
+
+def _run_chunks_pytorch_full(x, params, activation: str, resets_bt=None, chunks=(5, 1000)):
+    nu_log, theta_log, W1, W2 = params
+    B, T, _ = x.shape
+    H = nu_log.shape[0]
+    hc1 = torch.zeros(B, H, device=x.device, dtype=x.dtype)
+    hc2 = torch.zeros(B, H, device=x.device, dtype=x.dtype)
+    trace = None
+    ys = []
+    t0 = 0
+    for sz in chunks:
+        t1 = min(T, t0 + sz)
+        if t1 <= t0:
+            break
+        y_blk, (hc1, hc2), trace = rtu_stream_full_pytorch(
+            x_btd=x[:, t0:t1, :],
+            nu_log=nu_log,
+            theta_log=theta_log,
+            Wc1=W1,
+            Wc2=W2,
+            activation_name=activation,
+            hc1_init_bh=hc1,
+            hc2_init_bh=hc2,
+            trace_in=trace,
+            resets_bt=None if resets_bt is None else resets_bt[:, t0:t1],
+        )
+        ys.append(y_blk)
+        hc1, hc2 = hc1.detach(), hc2.detach()
+        trace = tuple(t.detach() for t in trace) if trace is not None else None
+        t0 = t1
+        if t0 >= T:
+            break
+    return torch.cat(ys, dim=1)
+
+
+def _run_chunks_cuda_full(x, params, activation: str, resets_bt=None, chunks=(5, 1000)):
+    nu_log, theta_log, W1, W2 = params
+    B, T, _ = x.shape
+    H = nu_log.shape[0]
+    hc1 = torch.zeros(B, H, device=x.device, dtype=x.dtype)
+    hc2 = torch.zeros(B, H, device=x.device, dtype=x.dtype)
+    trace = None
+    ys = []
+    t0 = 0
+    for sz in chunks:
+        t1 = min(T, t0 + sz)
+        if t1 <= t0:
+            break
+        y_blk, (hc1, hc2), trace = _rtu_full_cuda(
+            x_btd=x[:, t0:t1, :],
+            nu_log=nu_log,
+            theta_log=theta_log,
+            Wc1=W1,
+            Wc2=W2,
+            activation_name=activation,
+            hc1_init_bh=hc1,
+            hc2_init_bh=hc2,
+            trace_in=trace,
+            resets_bt=None if resets_bt is None else resets_bt[:, t0:t1],
+        )
+        ys.append(y_blk)
+        hc1, hc2 = hc1.detach(), hc2.detach()
+        trace = tuple(t.detach() for t in trace) if trace is not None else None
+        t0 = t1
+        if t0 >= T:
+            break
+    return torch.cat(ys, dim=1)
+
+
+@pytest.mark.skipif(not _HAS_FULL_CUDA or not torch.cuda.is_available(), reason="CUDA required")
+@pytest.mark.parametrize("with_resets", [False, True])
+def test_cuda_fullrank_full_forward_and_grad_parity(with_resets: bool) -> None:
+    torch.manual_seed(101)
+    device = torch.device("cuda")
+    dtype = torch.float32
+
+    B, T, D, H = 2, 17, 6, 5
+    x = torch.randn(B, T, D, device=device, dtype=dtype).requires_grad_(True)
+    resets = None
+    if with_resets:
+        resets = torch.rand(B, T, device=device) < 0.2
+
+    nu0, th0, W10, W20 = _build_params_full(D, H, device=device, dtype=dtype)
+
+    # PyTorch reference (full)
+    nu_pt = nu0.clone().detach().requires_grad_(True)
+    th_pt = th0.clone().detach().requires_grad_(True)
+    W1_pt = W10.clone().detach().requires_grad_(True)
+    W2_pt = W20.clone().detach().requires_grad_(True)
+    y_pt, (h1_pt, h2_pt), _ = _run_full_pytorch(x, (nu_pt, th_pt, W1_pt, W2_pt), "SiLU", resets)
+    loss_pt = (y_pt**2).mean()
+    g_pt = torch.autograd.grad(loss_pt, (nu_pt, th_pt, W1_pt, W2_pt, x), retain_graph=True)
+
+    # CUDA (full)
+    nu_cu = nu0.clone().detach().requires_grad_(True)
+    th_cu = th0.clone().detach().requires_grad_(True)
+    W1_cu = W10.clone().detach().requires_grad_(True)
+    W2_cu = W20.clone().detach().requires_grad_(True)
+    y_cu, (h1_cu, h2_cu), _ = _run_full_cuda(x, (nu_cu, th_cu, W1_cu, W2_cu), "SiLU", resets)
+    loss_cu = (y_cu**2).mean()
+    g_cu = torch.autograd.grad(loss_cu, (nu_cu, th_cu, W1_cu, W2_cu, x), retain_graph=True)
+
+    # Forward parity
+    assert torch.allclose(y_pt, y_cu, rtol=2e-5, atol=1e-6)
+    assert torch.allclose(h1_pt, h1_cu, rtol=2e-5, atol=1e-6)
+    assert torch.allclose(h2_pt, h2_cu, rtol=2e-5, atol=1e-6)
+
+    # Gradient parity
+    names = ["nu_log", "theta_log", "W1", "W2", "x"]
+    tolerances = {
+        "nu_log": (5e-4, 2e-5),
+        "theta_log": (5e-4, 2e-5),
+        "W1": (5e-5, 1e-6),
+        "W2": (5e-5, 1e-6),
+        "x": (6e-5, 2e-6),
+    }
+    for gp, gc, nm in zip(g_pt, g_cu, names, strict=False):
+        rtol, atol = tolerances[nm]
+        assert torch.allclose(gp, gc, rtol=rtol, atol=atol), (
+            f"grad {nm} mismatch: max diff={(gp - gc).abs().max().item():.3e}"
+        )
+
+
+@pytest.mark.skipif(not _HAS_FULL_CUDA or not torch.cuda.is_available(), reason="CUDA required")
+@pytest.mark.parametrize("with_resets", [False, True])
+def test_cuda_fullrank_chunked_forward_and_grad_parity(with_resets: bool) -> None:
+    torch.manual_seed(202)
+    device = torch.device("cuda")
+    dtype = torch.float32
+
+    B, T, D, H = 2, 23, 6, 5
+    x = torch.randn(B, T, D, device=device, dtype=dtype).requires_grad_(True)
+    if with_resets:
+        # Two masks: random and deterministic (to hit chunk boundaries)
+        resets_rand = torch.rand(B, T, device=device) < 0.25
+        resets_det = torch.zeros(B, T, dtype=torch.bool, device=device)
+        for b in range(B):
+            resets_det[b, 0] = False
+            for t_idx in (4, 7, 15):
+                if t_idx < T:
+                    resets_det[b, t_idx] = True
+        resets_list = [resets_rand, resets_det]
+    else:
+        resets_list = [None]
+
+    nu0, th0, W10, W20 = _build_params_full(D, H, device=device, dtype=dtype)
+
+    def run_py(chunks, resets):
+        nu = nu0.clone().detach().requires_grad_(True)
+        th = th0.clone().detach().requires_grad_(True)
+        W1 = W10.clone().detach().requires_grad_(True)
+        W2 = W20.clone().detach().requires_grad_(True)
+        y = _run_chunks_pytorch_full(x, (nu, th, W1, W2), activation="SiLU", resets_bt=resets, chunks=chunks)
+        loss = (y**2).mean()
+        grads = torch.autograd.grad(loss, (nu, th, W1, W2, x), retain_graph=True)
+        return y, grads
+
+    def run_cu(chunks, resets):
+        nu = nu0.clone().detach().requires_grad_(True)
+        th = th0.clone().detach().requires_grad_(True)
+        W1 = W10.clone().detach().requires_grad_(True)
+        W2 = W20.clone().detach().requires_grad_(True)
+        y = _run_chunks_cuda_full(x, (nu, th, W1, W2), activation="SiLU", resets_bt=resets, chunks=chunks)
+        loss = (y**2).mean()
+        grads = torch.autograd.grad(loss, (nu, th, W1, W2, x), retain_graph=True)
+        return y, grads
+
+    for resets in resets_list:
+        for chunks in [(T,), (7, 16), (5, 9, 9)]:
+            y_py, g_py = run_py(chunks, resets)
+            y_cu, g_cu = run_cu(chunks, resets)
+
+            assert y_py.shape == y_cu.shape
+            assert torch.allclose(y_py, y_cu, rtol=2e-5, atol=1e-6)
+
+            names = ["nu_log", "theta_log", "W1", "W2", "x"]
+            tolerances = {
+                "nu_log": (6e-4, 3e-5),
+                "theta_log": (6e-4, 3e-5),
+                "W1": (8e-5, 2e-6),
+                "W2": (8e-5, 2e-6),
+                "x": (1e-4, 4e-6),
+            }
+            for gp, gc, nm in zip(g_py, g_cu, names, strict=False):
+                rtol, atol = tolerances[nm]
+                assert torch.allclose(gp, gc, rtol=rtol, atol=atol), (
+                    f"grad {nm} mismatch chunks={chunks}: max diff={(gp - gc).abs().max().item():.3e}"
+                )
 
 
 def _forward_stream_chunks_fullrank(x, params, activation: str, resets_bt=None, chunks=(3, 1000)):
