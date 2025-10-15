@@ -98,10 +98,47 @@ private:
     return true;
   }
 
-  // Give output resources to the triggering agent
-  void give_output_to_agent(const Recipe& recipe, Agent& agent) {
+  // Give output resources to agents, prioritizing the acting agent
+  // Similar to consume_resources_for_recipe but ensures acting agent gets first dibs
+  void give_output_for_recipe(const Recipe& recipe, const std::vector<Agent*>& surrounding_agents) {
     for (const auto& [item, amount] : recipe.output_resources) {
-      agent.update_inventory(item, static_cast<InventoryDelta>(amount));
+      if (amount <= 0) {
+        continue;
+      }
+
+      // Create a vector of agents with their free space for this resource
+      std::vector<std::pair<Agent*, InventoryQuantity>> agents_with_space;
+      for (Agent* agent : surrounding_agents) {
+        InventoryQuantity free_space = agent->inventory.free_space(item);
+        if (free_space > 0) {
+          agents_with_space.push_back({agent, free_space});
+        }
+      }
+
+      // If no agents can accept this resource, skip it
+      if (agents_with_space.empty()) {
+        continue;
+      }
+
+      // Ensure acting agent (first in surrounding_agents) gets priority
+      // The acting agent should always be first in the surrounding_agents vector
+      // We'll distribute starting from the first agent in order
+
+      InventoryQuantity remaining = amount;
+
+      // First pass: give to each agent in order up to their capacity
+      for (auto& [agent, free_space] : agents_with_space) {
+        if (remaining == 0) break;
+
+        InventoryQuantity to_give = static_cast<InventoryQuantity>(std::min<int>(free_space, remaining));
+        if (to_give > 0) {
+          agent->update_inventory(item, static_cast<InventoryDelta>(to_give));
+          remaining -= to_give;
+        }
+      }
+
+      // Note: Unlike consume_resources_for_recipe, we don't assert if we can't distribute everything
+      // Some output might be lost if no agent has space for it
     }
   }
 
@@ -382,7 +419,7 @@ public:
       return false;
     }
     consume_resources_for_recipe(recipe_to_use, surrounding_agents);
-    give_output_to_agent(recipe_to_use, actor);
+    give_output_for_recipe(recipe_to_use, surrounding_agents);
 
     cooldown_duration = static_cast<unsigned int>(recipe_to_use.cooldown * cooldown_multiplier);
     cooldown_end_timestep = *current_timestep_ptr + cooldown_duration;
