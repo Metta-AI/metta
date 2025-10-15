@@ -107,6 +107,10 @@ class AxonsConfig(CellConfig):
     # Optional SRHT mixer before the kernel (diagonal input map remains in mixed basis)
     use_srht: bool = Field(default=True)
     srht_permute: bool = Field(default=True)
+    # Use full‑rank RTU kernel (Wc1/Wc2 in R^{D×H}) instead of diagonal (w1/w2 in R^H).
+    # When enabled, AxonCell selects between PyTorch and CUDA full‑rank backends
+    # using the same CUDA preference policy. Disabled by default for stability.
+    use_fullrank_rtu: bool = Field(default=False)
 
 
 class BlockConfig(BaseModel):

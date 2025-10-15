@@ -19,10 +19,19 @@ from cortex.cells.registry import register_cell
 from cortex.config import AxonsConfig
 from cortex.kernels.cuda.srht_cuda import srht_cuda  # type: ignore
 from cortex.kernels.pytorch.rtu.rtu_stream_diag import rtu_stream_diag_pytorch
+from cortex.kernels.pytorch.rtu.rtu_stream_fullrank import rtu_stream_full_pytorch
 from cortex.kernels.pytorch.srht import srht_pytorch
 from cortex.kernels.triton.rtu import rtu_stream_diag_triton  # type: ignore
 from cortex.types import MaybeState, ResetMask, Tensor
 from cortex.utils import select_backend
+
+try:
+    # CUDA full‑rank autograd wrapper (jit‑compiled on first use)
+    from cortex.kernels.cuda import rtu_stream_full_cuda_seq_allin as _rtu_full_cuda
+
+    _HAS_FULL_CUDA = True
+except Exception:  # pragma: no cover
+    _HAS_FULL_CUDA = False
 
 
 def _resolve_activation(name: str) -> nn.Module:
@@ -72,17 +81,26 @@ class AxonCell(MemoryCell):
         self.nu_log = nn.Parameter(nu_log_init)
         self.theta_log = nn.Parameter(theta_log_init)
 
-        # Diagonal input weights (per-channel)
-        self.w1 = nn.Parameter(torch.empty(H))
-        self.w2 = nn.Parameter(torch.empty(H))
+        # Input maps: diagonal (default) or full‑rank based on cfg flag
+        self._use_fullrank = bool(getattr(cfg, "use_fullrank_rtu", False))
         bound_in = 1.0 / math.sqrt(H)
-        with torch.no_grad():
-            self.w1.uniform_(-bound_in, bound_in)
-            self.w2.uniform_(-bound_in, bound_in)
+        if self._use_fullrank:
+            self.Wc1 = nn.Parameter(torch.empty(H, H))
+            self.Wc2 = nn.Parameter(torch.empty(H, H))
+            with torch.no_grad():
+                self.Wc1.uniform_(-bound_in, bound_in)
+                self.Wc2.uniform_(-bound_in, bound_in)
+        else:
+            # Diagonal input weights (per-channel)
+            self.w1 = nn.Parameter(torch.empty(H))
+            self.w2 = nn.Parameter(torch.empty(H))
+            with torch.no_grad():
+                self.w1.uniform_(-bound_in, bound_in)
+                self.w2.uniform_(-bound_in, bound_in)
 
         # Output projection: single linear map 2H -> out_dim (defaults to H).
         out_dim = cfg.out_dim if getattr(cfg, "out_dim", None) not in (None, 0) else H
-        self._out_dim = int(out_dim)
+        self._out_dim = int(out_dim) if out_dim is not None else int(H)
         self.out_proj = nn.Linear(2 * H, self._out_dim, bias=True)
 
         # SRHT mixer parameters (fixed buffers)
@@ -103,20 +121,36 @@ class AxonCell(MemoryCell):
 
     def _zero_traces(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> TensorDict:
         H = self.hidden_size
-        zero = torch.zeros(batch, H, device=device, dtype=dtype)
-        return TensorDict(
-            {
-                "E_nu_c1": zero.clone(),
-                "E_nu_c2": zero.clone(),
-                "E_th_c1": zero.clone(),
-                "E_th_c2": zero.clone(),
-                "E_w1_c1": zero.clone(),
-                "E_w1_c2": zero.clone(),
-                "E_w2_c1": zero.clone(),
-                "E_w2_c2": zero.clone(),
-            },
-            batch_size=[batch],
-        )
+        zero_bh = torch.zeros(batch, H, device=device, dtype=dtype)
+        if self._use_fullrank:
+            zero_bdh = torch.zeros(batch, H, H, device=device, dtype=dtype)
+            return TensorDict(
+                {
+                    "E_nu_c1": zero_bh.clone(),
+                    "E_nu_c2": zero_bh.clone(),
+                    "E_th_c1": zero_bh.clone(),
+                    "E_th_c2": zero_bh.clone(),
+                    "E_w1_c1": zero_bdh.clone(),
+                    "E_w1_c2": zero_bdh.clone(),
+                    "E_w2_c1": zero_bdh.clone(),
+                    "E_w2_c2": zero_bdh.clone(),
+                },
+                batch_size=[batch],
+            )
+        else:
+            return TensorDict(
+                {
+                    "E_nu_c1": zero_bh.clone(),
+                    "E_nu_c2": zero_bh.clone(),
+                    "E_th_c1": zero_bh.clone(),
+                    "E_th_c2": zero_bh.clone(),
+                    "E_w1_c1": zero_bh.clone(),
+                    "E_w1_c2": zero_bh.clone(),
+                    "E_w2_c1": zero_bh.clone(),
+                    "E_w2_c2": zero_bh.clone(),
+                },
+                batch_size=[batch],
+            )
 
     def init_state(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> TensorDict:
         H = self.hidden_size
@@ -232,49 +266,88 @@ class AxonCell(MemoryCell):
             x_in: torch.Tensor, h1: torch.Tensor, h2: torch.Tensor, rm: Optional[torch.Tensor], tr: Optional[tuple]
         ):
             act_name = self.activation.__class__.__name__
-            y2h_t_, (h1_n_, h2_n_), trace_out_ = rtu_stream_diag_pytorch(
-                x_btd=x_in,
-                nu_log=self.nu_log,
-                theta_log=self.theta_log,
-                w1=self.w1,
-                w2=self.w2,
-                activation_name=act_name,
-                hc1_init_bh=h1,
-                hc2_init_bh=h2,
-                trace_in=tr,
-                resets_bt=rm,
-            )
+            if not self._use_fullrank:
+                y2h_t_, (h1_n_, h2_n_), trace_out_ = rtu_stream_diag_pytorch(
+                    x_btd=x_in,
+                    nu_log=self.nu_log,
+                    theta_log=self.theta_log,
+                    w1=self.w1,
+                    w2=self.w2,
+                    activation_name=act_name,
+                    hc1_init_bh=h1,
+                    hc2_init_bh=h2,
+                    trace_in=tr,
+                    resets_bt=rm,
+                )
+            else:
+                y2h_t_, (h1_n_, h2_n_), trace_out_ = rtu_stream_full_pytorch(
+                    x_btd=x_in,
+                    nu_log=self.nu_log,
+                    theta_log=self.theta_log,
+                    Wc1=self.Wc1,
+                    Wc2=self.Wc2,
+                    activation_name=act_name,
+                    hc1_init_bh=h1,
+                    hc2_init_bh=h2,
+                    trace_in=tr,
+                    resets_bt=rm,
+                )
             return y2h_t_, h1_n_, h2_n_, trace_out_
 
         def _fw_cuda(
             x_in: torch.Tensor, h1: torch.Tensor, h2: torch.Tensor, rm: Optional[torch.Tensor], tr: Optional[tuple]
         ):
             act_name = self.activation.__class__.__name__
-            cu_fn = load_cuda_stream_diag()
-            assert cu_fn is not None, "CUDA stream-diag kernel not available"
-            y2h_t_, (h1_n_, h2_n_), trace_out_ = cu_fn(
-                x_btd=x_in,
-                nu_log=self.nu_log,
-                theta_log=self.theta_log,
-                w1=self.w1,
-                w2=self.w2,
-                activation_name=act_name,
-                hc1_init_bh=h1,
-                hc2_init_bh=h2,
-                trace_in=tr,
-                resets_bt=rm,
-            )
+            if not self._use_fullrank:
+                cu_fn = load_cuda_stream_diag()
+                assert cu_fn is not None, "CUDA stream-diag kernel not available"
+                y2h_t_, (h1_n_, h2_n_), trace_out_ = cu_fn(
+                    x_btd=x_in,
+                    nu_log=self.nu_log,
+                    theta_log=self.theta_log,
+                    w1=self.w1,
+                    w2=self.w2,
+                    activation_name=act_name,
+                    hc1_init_bh=h1,
+                    hc2_init_bh=h2,
+                    trace_in=tr,
+                    resets_bt=rm,
+                )
+            else:
+                assert _HAS_FULL_CUDA, "CUDA full-rank kernel not available"
+                y2h_t_, (h1_n_, h2_n_), trace_out_ = _rtu_full_cuda(
+                    x_btd=x_in,
+                    nu_log=self.nu_log,
+                    theta_log=self.theta_log,
+                    Wc1=self.Wc1,
+                    Wc2=self.Wc2,
+                    activation_name=act_name,
+                    hc1_init_bh=h1,
+                    hc2_init_bh=h2,
+                    trace_in=tr,
+                    resets_bt=rm,
+                )
             return y2h_t_, h1_n_, h2_n_, trace_out_
 
         prefer_cuda = want_cuda_seq_allin(tensor=x_btd, seq_len=T, threshold=int(self.cfg.cuda_seq_threshold))
-        backend = select_backend(
-            triton_fn=_fw_triton,
-            pytorch_fn=_fw_torch,
-            tensor=x_btd,
-            allow_triton=True,
-            cuda_fn=_fw_cuda,
-            allow_cuda=prefer_cuda,
-        )
+        if self._use_fullrank:
+            backend = select_backend(
+                triton_fn=None,
+                pytorch_fn=_fw_torch,
+                tensor=x_btd,
+                allow_triton=False,
+                cuda_fn=_fw_cuda,
+                allow_cuda=prefer_cuda,
+            )
+        else:
+            backend = select_backend(
+                triton_fn=_fw_triton,
+                pytorch_fn=_fw_torch,
+                tensor=x_btd,
+                allow_triton=True,
+                cuda_fn=_fw_cuda,
+                allow_cuda=prefer_cuda,
+            )
 
         y2h_t, h1_n, h2_n, trace_out = backend(x_btd, hc1, hc2, resets_bt, trace_in)
 
@@ -303,13 +376,17 @@ class AxonCell(MemoryCell):
     def reset_state(self, state: MaybeState, mask: ResetMask) -> MaybeState:
         if state is None:
             return None
-        # Broadcast to [B, 1]
+        # Broadcast to [B, 1] and apply across trailing dims (handles [B,H] and [B,D,H])
         m = mask.to(dtype=state["hc1"].dtype).view(-1, 1)
         for k in list(state.keys()):
             if state[k] is None:
                 continue
-            if state[k].dim() == 2 and state[k].shape[0] == m.shape[0]:
-                state[k] = state[k] * (1.0 - m)
+            if state[k].dim() >= 2 and state[k].shape[0] == m.shape[0]:
+                # Broadcast (B,1[,1]) over remaining dims
+                view = m
+                while view.dim() < state[k].dim():
+                    view = view.unsqueeze(-1)
+                state[k] = state[k] * (1.0 - view)
         return state
 
 
