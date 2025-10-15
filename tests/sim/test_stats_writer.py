@@ -61,7 +61,7 @@ def test_episode_lifecycle(temp_dir):
     replay_url = "https://example.com/replay.json"
 
     # Record the complete episode
-    writer.record_episode(episode_id, attributes, agent_metrics, agent_groups, step_count, replay_url, created_at)
+    episode_id = writer.record_episode(attributes, agent_metrics, agent_groups, step_count, replay_url, created_at)
 
     # Verify data in database
     assert writer.db is not None

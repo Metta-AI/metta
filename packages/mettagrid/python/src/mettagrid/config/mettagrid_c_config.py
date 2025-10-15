@@ -287,7 +287,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             # Create a mapping from byte patterns to recipes
             recipe_map = {}  # byte_pattern -> CppRecipe
 
-            for position_pattern, recipe_config in object_config.recipes:
+            for position_pattern, recipe_config in reversed(object_config.recipes):
                 # Expand position patterns to byte patterns
                 bit_patterns = expand_position_patterns(position_pattern)
 
@@ -299,8 +299,15 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 )
 
                 # Map this recipe to all matching byte patterns
+                recipe_has_active_pattern = False
                 for bit_pattern in bit_patterns:
-                    recipe_map[bit_pattern] = cpp_recipe
+                    if bit_pattern not in recipe_map:
+                        recipe_map[bit_pattern] = cpp_recipe
+                        recipe_has_active_pattern = True
+                if not recipe_has_active_pattern and not object_config.fully_overlapping_recipes_allowed:
+                    raise ValueError(
+                        f"Recipe {recipe_config} has no valid cog patterns not already claimed by other recipes."
+                    )
 
             # Create a vector of 256 Recipe pointers (indexed by byte pattern)
             cpp_recipes = [None] * 256

@@ -4,8 +4,8 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
-#include <map>
 #include <set>
+#include <unordered_map>
 
 #include "core/grid_object.hpp"
 #include "core/types.hpp"
@@ -14,7 +14,7 @@ struct ChestConfig : public GridObjectConfig {
   ChestConfig(TypeId type_id,
               const std::string& type_name,
               InventoryItem resource_type,
-              const std::map<int, int>& position_deltas,
+              const std::unordered_map<int, int>& position_deltas,
               int initial_inventory = 0,
               int max_inventory = 255,
               const std::vector<int>& tag_ids = {})
@@ -25,16 +25,23 @@ struct ChestConfig : public GridObjectConfig {
         max_inventory(max_inventory) {}
 
   InventoryItem resource_type;
-  std::map<int, int> position_deltas;  // position_index -> delta (positive = deposit amount, negative = withdraw amount)
-  int initial_inventory;               // Initial amount of resource_type in the chest
-  int max_inventory;                   // Maximum inventory (-1 = unlimited)
+  std::unordered_map<int, int>
+      position_deltas;    // position_index -> delta (positive = deposit amount, negative = withdraw amount)
+  int initial_inventory;  // Initial amount of resource_type in the chest
+  int max_inventory;      // Maximum inventory (-1 = unlimited)
 };
 
 namespace py = pybind11;
 
 inline void bind_chest_config(py::module& m) {
   py::class_<ChestConfig, GridObjectConfig, std::shared_ptr<ChestConfig>>(m, "ChestConfig")
-      .def(py::init<TypeId, const std::string&, InventoryItem, const std::map<int, int>&, int, int, const std::vector<int>&>(),
+      .def(py::init<TypeId,
+                    const std::string&,
+                    InventoryItem,
+                    const std::unordered_map<int, int>&,
+                    int,
+                    int,
+                    const std::vector<int>&>(),
            py::arg("type_id"),
            py::arg("type_name"),
            py::arg("resource_type"),

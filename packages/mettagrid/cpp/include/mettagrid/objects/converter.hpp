@@ -48,7 +48,7 @@ private:
     // produce.
     // Get the amounts to consume from input, so we don't update the inventory
     // while iterating over it.
-    std::map<InventoryItem, uint8_t> amounts_to_consume;
+    std::unordered_map<InventoryItem, uint8_t> amounts_to_consume;
     for (const auto& [item, input_amount] : this->input_resources) {
       amounts_to_consume[item] = input_amount;
     }
@@ -65,8 +65,8 @@ private:
   }
 
 public:
-  std::map<InventoryItem, InventoryQuantity> input_resources;
-  std::map<InventoryItem, InventoryQuantity> output_resources;
+  std::unordered_map<InventoryItem, InventoryQuantity> input_resources;
+  std::unordered_map<InventoryItem, InventoryQuantity> output_resources;
   // The converter won't convert if its output already has this many things of
   // the type it produces. This may be clunky in some cases, but the main usage
   // is to make Mines (etc) have a maximum output.
