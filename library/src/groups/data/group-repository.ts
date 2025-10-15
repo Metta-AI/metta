@@ -141,6 +141,15 @@ export class GroupRepository {
   }
 
   /**
+   * Delete a group
+   */
+  static async delete(groupId: string) {
+    return prisma.group.delete({
+      where: { id: groupId },
+    });
+  }
+
+  /**
    * Create a membership
    */
   static async createMembership(data: {
