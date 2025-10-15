@@ -130,12 +130,12 @@ def build_axons_preup(*, d_hidden: int = 128, proj_factor: float = 2.0) -> Corte
         blocks=[
             PassThroughBlockConfig(
                 # hidden_size is inferred from PreUp: int(proj_factor * d_hidden)
-                cell=AxonsConfig(hidden_size=None, activation="silu",use_fullrank_rtu=False,)
+                cell=AxonsConfig(hidden_size=None, activation="silu", use_fullrank_rtu=False, use_untraced_linear=True)
             ),
             PreUpBlockConfig(
                 proj_factor=proj_factor,
                 # hidden_size is inferred from PreUp: int(proj_factor * d_hidden)
-                cell=AxonsConfig(hidden_size=None, activation="silu",use_fullrank_rtu=False),
+                cell=AxonsConfig(hidden_size=None, activation="silu", use_fullrank_rtu=False, use_untraced_linear=True),
             ),
         ],
     )

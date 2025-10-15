@@ -103,9 +103,19 @@ class AxonCell(MemoryCell):
         self._out_dim = int(out_dim) if out_dim is not None else int(H)
         self.out_proj = nn.Linear(2 * H, self._out_dim, bias=True)
 
-        # SRHT mixer parameters (fixed buffers)
-        # Disable SRHT automatically when using full‑rank RTU.
-        self._use_srht = bool(getattr(cfg, "use_srht", False)) and (not self._use_fullrank)
+        # Optional untraced learnable projection (H->H) used instead of SRHT.
+        # Disabled automatically when using full‑rank RTU.
+        self._use_untraced_linear = bool(getattr(cfg, "use_untraced_linear", False)) and (not self._use_fullrank)
+        if self._use_untraced_linear:
+            self.input_proj = nn.Linear(H, H, bias=False)
+            with torch.no_grad():
+                nn.init.orthogonal_(self.input_proj.weight)
+
+        # SRHT mixer parameters (fixed buffers). Disabled when full‑rank or
+        # when untraced input projection is enabled.
+        self._use_srht = (
+            bool(getattr(cfg, "use_srht", False)) and (not self._use_fullrank) and (not self._use_untraced_linear)
+        )
         if self._use_srht:
             rng = torch.Generator(device="cpu")
             rng.manual_seed(0)
@@ -234,8 +244,10 @@ class AxonCell(MemoryCell):
         # Pack carried traces (if present)
         trace_in = self._pack_trace_in(st)
 
-        # Optional SRHT mixer before kernel
-        if getattr(self, "_use_srht", False):
+        # Optional untraced linear input projection or SRHT mixer before kernel
+        if getattr(self, "_use_untraced_linear", False):
+            x_btd = self.input_proj(x_btd)
+        elif getattr(self, "_use_srht", False):
             Hh = self.hidden_size
             perm = None if self.srht_perm.numel() == 0 else self.srht_perm.to(device=x_btd.device)
             signs = self.srht_signs.to(device=x_btd.device, dtype=x_btd.dtype)

@@ -105,12 +105,17 @@ class AxonsConfig(CellConfig):
     # Prefer CUDA seq-allin kernel for short sequences (<= threshold)
     cuda_seq_threshold: int = Field(default=5000, ge=1)
     # Optional SRHT mixer before the kernel (diagonal input map remains in mixed basis)
-    use_srht: bool = Field(default=True)
+    use_srht: bool = Field(default=False)
     srht_permute: bool = Field(default=True)
     # Use full‑rank RTU kernel (Wc1/Wc2 in R^{D×H}) instead of diagonal (w1/w2 in R^H).
     # When enabled, AxonCell selects between PyTorch and CUDA full‑rank backends
     # using the same CUDA preference policy. Disabled by default for stability.
     use_fullrank_rtu: bool = Field(default=False)
+    # Use an untraced learnable linear input projection (H -> H) instead of SRHT.
+    # This projection is applied outside the traced kernel and does not receive
+    # cross‑chunk boundary corrections. It is automatically disabled when
+    # use_fullrank_rtu=True. It also siables srht if enabled.
+    use_untraced_linear: bool = Field(default=True)
 
 
 class BlockConfig(BaseModel):
