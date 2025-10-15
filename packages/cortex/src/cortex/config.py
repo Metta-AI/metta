@@ -141,6 +141,11 @@ class PreUpBlockConfig(BlockConfig):
     """Configuration for pre-upsampling blocks (projects before cell)."""
 
     proj_factor: float = Field(default=2.0, gt=0.0)
+    # When True, applies the activation to the 'a' projection before
+    # passing it into the cell (i.e., feeds a_act instead of a). This
+    # is automatically disabled for mLSTM cells to avoid changing
+    # semantics there.
+    activate_cell_input: bool = Field(default=True)
 
     def get_cell_hidden_size(self, d_hidden: int) -> int:
         """Cell operates on expanded inner dimension."""

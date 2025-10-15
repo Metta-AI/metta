@@ -78,11 +78,10 @@ def build_slstm_postup_axon(*, d_hidden: int = 128, proj_factor: float = 1.5, nu
         d_hidden=d_hidden,
         post_norm=True,
         blocks=[
-            # PreUpBlockConfig(
-            #     proj_factor=proj_factor,
-            #     # hidden_size is inferred from PreUp: int(proj_factor * d_hidden)
-            #     cell=AxonsConfig(hidden_size=None, activation="silu", use_fullrank_rtu=False, use_untraced_linear=True)
-            # ),
+            PreUpBlockConfig( #Having PassThrough block initially helps a lot *
+                # hidden_size is inferred from PreUp: int(proj_factor * d_hidden)
+                cell=AxonsConfig(hidden_size=None, activation="silu", use_fullrank_rtu=False, use_untraced_linear=True)
+            ),
             PostUpBlockConfig(
                 proj_factor=proj_factor,
                 cell=sLSTMCellConfig(
