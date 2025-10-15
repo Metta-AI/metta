@@ -291,6 +291,18 @@ Return a JSON response with this exact structure:
 
         return len(missing) == 0 and len(extra) == 0
 
+    def push_branch(self, branch_name: str) -> None:
+        """Push a branch, retrying with --force-with-lease if the remote already exists."""
+        try:
+            run_git("push", "origin", branch_name)
+        except GitError as exc:
+            message = str(exc).lower()
+            if "non-fast-forward" not in message and "fetch first" not in message:
+                raise
+
+            print(f"Remote branch {branch_name} already exists. Updating with --force-with-lease.")
+            run_git("push", "--force-with-lease", "origin", branch_name)
+
     def get_repo_from_remote(self) -> Optional[str]:
         """Extract owner/repo from git remote URL"""
         try:
@@ -411,8 +423,8 @@ Return a JSON response with this exact structure:
 
         # Push branches
         print("\n📤 Pushing branches...")
-        run_git("push", "origin", branch1_name)
-        run_git("push", "origin", branch2_name)
+        self.push_branch(branch1_name)
+        self.push_branch(branch2_name)
 
         # Create PRs
         print("\n🔧 Creating pull requests...")
@@ -448,13 +460,13 @@ def main():
         epilog="""
 Examples:
   # Split current branch using environment variables
-  python -m gitta.split_cli
+  python -m gitta.split
 
   # Split with explicit API key
-  python -m gitta.split_cli --anthropic-key YOUR_KEY
+  python -m gitta.split --anthropic-key YOUR_KEY
 
   # Also create GitHub PRs
-  python -m gitta.split_cli --github-token YOUR_TOKEN
+  python -m gitta.split --github-token YOUR_TOKEN
 
 Environment variables:
   ANTHROPIC_API_KEY - Anthropic API key for AI analysis

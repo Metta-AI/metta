@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from gitta import GitError
 from gitta.split import FileDiff, PRSplitter, SplitDecision
 
 
@@ -228,3 +229,40 @@ def test_analyze_diff_requires_api_key():
 
     with pytest.raises(ValueError):
         splitter.analyze_diff_with_ai(files)
+
+
+def test_push_branch_force_with_lease(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
+    """If the remote already exists, push_branch should retry with --force-with-lease."""
+    splitter = PRSplitter()
+    calls: list[tuple[str, ...]] = []
+    call_count = {"push_origin": 0}
+
+    def fake_run_git(*args: str) -> str:
+        calls.append(args)
+        if args == ("push", "origin", "feature-force") and call_count["push_origin"] == 0:
+            call_count["push_origin"] += 1
+            raise GitError("git push origin feature-force failed (1): non-fast-forward")
+        return ""
+
+    monkeypatch.setattr("gitta.split.run_git", fake_run_git)
+
+    splitter.push_branch("feature-force")
+
+    assert ("push", "origin", "feature-force") in calls
+    assert ("push", "--force-with-lease", "origin", "feature-force") in calls
+
+    captured = capsys.readouterr().out
+    assert "force-with-lease" in captured
+
+
+def test_push_branch_propagates_other_errors(monkeypatch: pytest.MonkeyPatch):
+    """Errors unrelated to non-fast-forward should still raise."""
+    splitter = PRSplitter()
+
+    def fake_run_git(*_: str) -> str:
+        raise GitError("Permission denied (publickey).")
+
+    monkeypatch.setattr("gitta.split.run_git", fake_run_git)
+
+    with pytest.raises(GitError):
+        splitter.push_branch("feature-error")
