@@ -25,6 +25,14 @@ DEBUG = os.getenv("DEBUG", "0") == "1"
 cxx_args = ["-fdiagnostics-color=always"]
 nvcc_args = []
 
+glbicxx_abi = getattr(getattr(torch, "_C", None), "_GLIBCXX_USE_CXX11_ABI", None)
+if glbicxx_abi is not None:
+    abi_define = f"-D_GLIBCXX_USE_CXX11_ABI={int(glbicxx_abi)}"
+    cxx_args.append(abi_define)
+else:
+    abi_define = None
+
+
 if DEBUG:
     cxx_args += ["-O0", "-g"]
     nvcc_args += ["-O0", "-g"]
@@ -32,6 +40,8 @@ else:
     cxx_args += ["-O3"]
     nvcc_args += ["-O3"]
 
+if abi_define and shutil.which("nvcc"):
+    nvcc_args += [abi_define, "-Xcompiler", abi_define]
 # Extensions setup
 torch_sources = ["src/pufferlib/extensions/pufferlib.cpp"]
 
@@ -52,7 +62,8 @@ extra_link_args = []
 if platform.system() == "Darwin":  # macOS
     extra_link_args.extend([f"-Wl,-rpath,{torch_lib_path}", "-Wl,-headerpad_max_install_names"])
 elif platform.system() == "Linux":  # Linux
-    extra_link_args.extend([f"-Wl,-rpath,{torch_lib_path}", "-Wl,-rpath,$ORIGIN"])
+    rpaths = ["$ORIGIN/../torch/lib", "$ORIGIN", torch_lib_path]
+    extra_link_args.extend(f"-Wl,-rpath,{path}" for path in rpaths)
 
 ext_modules = [
     extension_class(

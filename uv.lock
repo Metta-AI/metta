@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = "==3.11.7"
 resolution-markers = [
     "sys_platform == 'linux'",
@@ -2163,7 +2163,7 @@ requires-dist = [
     { name = "tensordict", specifier = ">=0.8.3" },
     { name = "termcolor", specifier = ">=2.4.0" },
     { name = "tiktoken", specifier = ">=0.9.0" },
-    { name = "torch", specifier = ">=2.7.1" },
+    { name = "torch", specifier = "==2.8.0" },
     { name = "torchrl", specifier = ">=0.8.1" },
     { name = "tqdm", specifier = ">=4.67.1" },
     { name = "typer", specifier = ">=0.19.2" },
