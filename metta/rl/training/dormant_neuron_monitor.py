@@ -247,7 +247,7 @@ class DormantNeuronMonitor(TrainerComponent):
             # Reshape to [output_neurons, input_weights_per_neuron]
             if param.dim() > 2:
                 reshaped = param.view(param.size(0), -1)
-                dormant_neurons = reshaped.abs().all(dim=1).sum().item()
+                dormant_neurons = (reshaped.abs() < self._config.weight_threshold).all(dim=1).sum().item()
             else:
                 dormant_neurons = 0
 
