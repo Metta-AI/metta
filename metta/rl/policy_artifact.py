@@ -357,11 +357,7 @@ def load_policy_artifact(path: str | Path) -> PolicyArtifact:
             policy = load_pufferlib_checkpoint(legacy_payload, device="cpu")
             return PolicyArtifact(policy=policy)
 
-        if isinstance(legacy_payload, Policy):
-            return PolicyArtifact(policy=legacy_payload)
-
-        msg = "Unsupported legacy checkpoint format"
-        raise TypeError(msg)
+        return PolicyArtifact(policy=legacy_payload)
 
     architecture: PolicyArchitecture | None = None
     state_dict: MutableMapping[str, torch.Tensor] | None = None
