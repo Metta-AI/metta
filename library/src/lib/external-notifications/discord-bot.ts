@@ -325,7 +325,10 @@ export class DiscordBotService {
 
     // Base embed structure
     const embed = {
-      timestamp: notification.createdAt.toISOString(),
+      timestamp:
+        typeof notification.createdAt === "string"
+          ? notification.createdAt
+          : notification.createdAt.toISOString(),
       footer: {
         text: "Library Notifications",
       },
