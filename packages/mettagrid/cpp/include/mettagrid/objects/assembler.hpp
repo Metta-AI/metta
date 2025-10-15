@@ -31,7 +31,7 @@ private:
       for (int j = -1; j <= 1; ++j) {
         if (i == 0 && j == 0) continue;  // skip center
         GridLocation position = {static_cast<GridCoord>(r + i), static_cast<GridCoord>(c + j)};
-        if (grid && grid->is_valid_location(position)) {
+        if (grid->is_valid_location(position)) {
           positions.emplace_back(static_cast<GridCoord>(r + i), static_cast<GridCoord>(c + j));
         }
       }
