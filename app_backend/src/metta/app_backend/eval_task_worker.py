@@ -15,6 +15,7 @@ import logging
 import os
 import shutil
 import subprocess
+import sys
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -34,8 +35,8 @@ from metta.common.datadog.tracing import init_tracing, trace
 from metta.common.util.collections import remove_none_values
 from metta.common.util.constants import SOFTMAX_S3_BASE, SOFTMAX_S3_BUCKET
 from metta.common.util.git_repo import REPO_URL
-from metta.common.util.log_config import init_logging
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.tools.remote_job import JobResult
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +44,9 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TaskResult:
     success: bool
-    stdout_log_path: str | None = None
-    stderr_log_path: str | None = None
+    log_path: str | None = None
+    warnings: list[str] | None = None
+    error: str | None = None
 
 
 class AbstractTaskExecutor(ABC):
@@ -67,38 +69,41 @@ class SimTaskExecutor(AbstractTaskExecutor):
         for key in ["PYTHONPATH", "UV_PROJECT", "UV_PROJECT_ENVIRONMENT"]:
             env.pop(key, None)
 
-        result = subprocess.run(
-            cmd,
-            cwd=self._versioned_path,
-            capture_output=capture_output,
-            text=True,
-            env=env,
-        )
+        if capture_output:
+            # Redirect stderr to stdout to get chronologically interspersed output (like 2>&1)
+            result = subprocess.run(
+                cmd,
+                cwd=self._versioned_path,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                env=env,
+            )
+        else:
+            result = subprocess.run(
+                cmd,
+                cwd=self._versioned_path,
+                text=True,
+                env=env,
+            )
 
         return result
 
-    def _stdout_log_path(self, job_id: str) -> str:
-        return f"jobs/{job_id}/stdout.txt"
-
-    def _stderr_log_path(self, job_id: str) -> str:
-        return f"jobs/{job_id}/stderr.txt"
+    def _log_path(self, job_id: str) -> str:
+        return f"jobs/{job_id}/output.log"
 
     def _upload_logs_to_s3(self, job_id: str, process: subprocess.CompletedProcess) -> None:
         logger.info(f"Uploading logs to S3: {job_id}")
-        logger.info(f"Stdout: {process.stdout}")
-        logger.info(f"Stderr: {process.stderr}")
+        logger.info(f"Combined output: {process.stdout}")
+
+        # stdout contains both stderr and stdout interspersed (due to stderr=STDOUT redirect)
+        log_content = process.stdout or ""
+
         s3_client = boto3.client("s3")
         s3_client.put_object(
             Bucket=SOFTMAX_S3_BUCKET,
-            Key=self._stdout_log_path(job_id),
-            Body=process.stdout,
-            ContentType="text/plain",
-        )
-
-        s3_client.put_object(
-            Bucket=SOFTMAX_S3_BUCKET,
-            Key=self._stderr_log_path(job_id),
-            Body=process.stderr,
+            Key=self._log_path(job_id),
+            Body=log_content,
             ContentType="text/plain",
         )
 
@@ -171,6 +176,8 @@ class SimTaskExecutor(AbstractTaskExecutor):
 
         normalized = CheckpointManager.normalize_uri(task.policy_uri)
 
+        job_result_file_path = f"job_result_file_path_{task.id}.json"
+
         cmd = [
             "uv",
             "run",
@@ -180,6 +187,7 @@ class SimTaskExecutor(AbstractTaskExecutor):
             f"simulations_json_base64_path={os.path.abspath(file_path)}",
             f"eval_task_id={str(task.id)}",
             f"stats_server_uri={self._backend_url}",
+            f"job_result_file_path={os.path.abspath(job_result_file_path)}",
             "push_metrics_to_wandb=true",
         ]
         # exclude simulation_json_base64 from logging, since it's too large and undescriptive
@@ -190,13 +198,33 @@ class SimTaskExecutor(AbstractTaskExecutor):
 
         self._upload_logs_to_s3(str(task.id), result)
 
-        logger.info(f"Simulation completed successfully: {result.stdout}")
+        logger.info(f"Simulation completed with return code {result.returncode}")
 
-        return TaskResult(
-            success=result.returncode == 0,
-            stdout_log_path=f"{SOFTMAX_S3_BASE}/{self._stdout_log_path(str(task.id))}",
-            stderr_log_path=f"{SOFTMAX_S3_BASE}/{self._stderr_log_path(str(task.id))}",
-        )
+        log_path = f"{SOFTMAX_S3_BASE}/{self._log_path(str(task.id))}"
+
+        if result.returncode == 0:
+            if os.path.exists(job_result_file_path):
+                with open(job_result_file_path, "r") as f:
+                    output = json.load(f)
+                result = JobResult.model_validate(output)
+                return TaskResult(
+                    success=result.result == "success",
+                    warnings=result.warnings,
+                    error=result.error,
+                    log_path=log_path,
+                )
+            else:
+                return TaskResult(
+                    success=False,
+                    log_path=log_path,
+                    error="Job result file not found",
+                )
+        else:
+            return TaskResult(
+                success=False,
+                log_path=log_path,
+                error="Job failed with return code " + str(result.returncode),
+            )
 
 
 class EvalTaskWorker:
@@ -220,8 +248,8 @@ class EvalTaskWorker:
         task_id: uuid.UUID,
         status: TaskStatus,
         error_reason: str | None = None,
-        stdout_log_path: str | None = None,
-        stderr_log_path: str | None = None,
+        log_path: str | None = None,
+        warnings: list[str] | None = None,
     ) -> None:
         await self._client.update_task_status(
             TaskUpdateRequest(
@@ -232,8 +260,8 @@ class EvalTaskWorker:
                         attributes=remove_none_values(
                             {
                                 f"error_reason_{self._assignee}": error_reason,
-                                "stdout_log_path": stdout_log_path,
-                                "stderr_log_path": stderr_log_path,
+                                "output_log_path": log_path,
+                                "warnings": warnings,
                             }
                         ),
                     )
@@ -262,11 +290,16 @@ class EvalTaskWorker:
                         status = "done" if task_result.success else "error"
 
                         logger.info(f"Task {task.id} completed with status {status}")
+                        warnings = None
+                        if task_result.warnings is not None and len(task_result.warnings) > 0:
+                            warnings = task_result.warnings
+
                         await self._update_task_status(
                             task.id,
                             status,
-                            stdout_log_path=task_result.stdout_log_path,
-                            stderr_log_path=task_result.stderr_log_path,
+                            error_reason=task_result.error,
+                            log_path=task_result.log_path,
+                            warnings=warnings,
                         )
                         logger.info(f"Task {task.id} updated to {status}")
                     except Exception as e:
@@ -288,6 +321,17 @@ class EvalTaskWorker:
             except Exception as e:
                 logger.error(f"Error in worker loop: {e}", exc_info=True)
                 await asyncio.sleep(10)
+
+
+def init_logging():
+    # Configure root logger
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+        handlers=[logging.StreamHandler(sys.stdout)],
+    )
+
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 async def main() -> None:

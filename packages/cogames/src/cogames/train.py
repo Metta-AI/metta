@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import multiprocessing
 import platform
 from pathlib import Path
@@ -27,6 +28,48 @@ if TYPE_CHECKING:
     import torch
 
 logger = logging.getLogger("cogames.pufferlib")
+
+
+def _largest_divisor_at_most(value: int, limit: int) -> int:
+    for candidate in range(min(value, limit), 0, -1):
+        if value % candidate == 0:
+            return candidate
+    return 1
+
+
+def _resolve_vector_counts(
+    num_envs: int,
+    num_workers: int,
+    *,
+    envs_user_supplied: bool,
+    workers_user_supplied: bool,
+) -> tuple[int, int]:
+    """Adjust counts so num_envs stays divisible by num_workers."""
+
+    num_envs = max(1, num_envs)
+    num_workers = max(1, num_workers)
+
+    if envs_user_supplied and workers_user_supplied:
+        return num_envs, num_workers
+
+    if envs_user_supplied:
+        adjusted_workers = _largest_divisor_at_most(num_envs, min(num_workers, num_envs))
+        return num_envs, max(1, adjusted_workers)
+
+    if workers_user_supplied:
+        num_envs = max(num_envs, num_workers)
+        if num_envs % num_workers != 0:
+            num_envs = num_workers * math.ceil(num_envs / num_workers)
+        return num_envs, num_workers
+
+    if num_envs < num_workers:
+        num_envs = num_workers
+        return num_envs, num_workers
+
+    if num_envs % num_workers != 0:
+        num_envs = num_workers * math.ceil(num_envs / num_workers)
+
+    return num_envs, num_workers
 
 
 def train(
@@ -80,6 +123,36 @@ def train(
         num_workers = 1
 
     num_envs = vector_num_envs or 256
+
+    original_envs = num_envs
+    original_workers = num_workers
+
+    adjusted_envs, adjusted_workers = _resolve_vector_counts(
+        num_envs,
+        num_workers,
+        envs_user_supplied=vector_num_envs is not None,
+        workers_user_supplied=vector_num_workers is not None,
+    )
+
+    if adjusted_envs != original_envs:
+        log_fn = logger.warning if vector_num_envs is not None else logger.info
+        log_fn(
+            "Auto-adjusting num_envs from %s to %s so num_workers=%s divides evenly",
+            original_envs,
+            adjusted_envs,
+            adjusted_workers,
+        )
+        num_envs = adjusted_envs
+
+    if adjusted_workers != original_workers:
+        log_fn = logger.warning if vector_num_workers is not None else logger.info
+        log_fn(
+            "Auto-adjusting num_workers from %s to %s to evenly divide num_envs=%s",
+            original_workers,
+            adjusted_workers,
+            num_envs,
+        )
+        num_workers = adjusted_workers
 
     envs_per_worker = max(1, num_envs // num_workers)
     base_batch_size = vector_batch_size or 128
@@ -321,7 +394,7 @@ def train(
 
             console.print()
             console.print("To continue training this policy:", style="bold")
-            console.print(f"  [yellow]cogames train {all_missions} {policy_arg}[/yellow]")
+            console.print(f"  [yellow]cogames train {all_missions} -p {policy_arg}[/yellow]")
             console.print()
             console.print("To play with this policy:", style="bold")
             console.print(f"  [yellow]cogames play -m {first_mission} -p {policy_arg}[/yellow]")

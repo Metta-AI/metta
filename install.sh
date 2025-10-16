@@ -63,6 +63,9 @@ done
 uv sync
 uv run python -m metta.setup.metta_cli symlink-setup setup --quiet
 uv run python -m metta.setup.metta_cli install $PROFILE_ADDITION $NON_INTERACTIVE_ADDITION
+if [ "$(uname -s)" = "Linux" ]; then
+  uv run python scripts/install_cuda_extras.py --quiet || true
+fi
 
 echo "\nSetup complete!\n"
 

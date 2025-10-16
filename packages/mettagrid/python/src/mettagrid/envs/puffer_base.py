@@ -66,24 +66,19 @@ class MettaGridPufferBase(MettaGridCore, PufferEnv):
     def __init__(
         self,
         mg_config: MettaGridConfig,
-        render_mode: Optional[str] = None,
         buf: Optional[Any] = None,
     ):
         """
         Initialize PufferLib base environment.
 
         Args:
-            curriculum: Curriculum for task management
-            render_mode: Rendering mode
-            level: Optional pre-built game map
+            mg_config: Environment configuration
             buf: PufferLib buffer object
-            **kwargs: Additional arguments
         """
         # Initialize core environment. Do this first to set up observation space for PufferEnv.
         MettaGridCore.__init__(
             self,
             mg_config=mg_config,
-            render_mode=render_mode,
         )
 
         # Initialize PufferEnv with buffers

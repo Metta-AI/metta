@@ -18,6 +18,7 @@ from mettagrid.config.mettagrid_config import (
 )
 from mettagrid.envs.pettingzoo_env import MettaGridPettingZooEnv
 from mettagrid.map_builder.ascii import AsciiMapBuilder
+from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME
 
 
 def make_pettingzoo_env(num_agents=3, max_steps=100):
@@ -69,6 +70,7 @@ def make_pettingzoo_env(num_agents=3, max_steps=100):
             agents=agents,
             map_builder=AsciiMapBuilder.Config(
                 map_data=map_data,
+                char_to_name_map=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )

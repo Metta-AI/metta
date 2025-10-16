@@ -12,7 +12,17 @@ class TestChest:
 
     def test_chest_deposit(self):
         """Test that deposit/withdrawal only work from configured positions."""
-        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
+        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True)
+
+        cfg.game.objects["chest"] = ChestConfig(
+            type_id=10,
+            resource_type="gold",
+            map_char="C",
+            name="chest",
+            position_deltas=[("N", 1), ("S", -1)],  # N=deposit 1, S=withdraw 1
+        )
+
+        cfg = cfg.with_ascii_map(
             [
                 ["#", "#", "#", "#", "#"],
                 ["#", ".", "@", ".", "#"],
@@ -26,12 +36,6 @@ class TestChest:
         cfg.game.agent.initial_inventory = {"gold": 5}
 
         # Configure chest with specific positions only
-        cfg.game.objects["chest"] = ChestConfig(
-            type_id=10,
-            resource_type="gold",
-            position_deltas=[("N", 1), ("S", -1)],  # N=deposit 1, S=withdraw 1
-        )
-
         cfg.game.actions.move.enabled = True
 
         env = MettaGridCore(cfg)
@@ -90,15 +94,7 @@ class TestChest:
 
     def test_chest_partial_transfers(self):
         """Test that partial transfers work when resources are limited."""
-        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
-            [
-                ["#", "#", "#", "#", "#"],
-                ["#", ".", "@", ".", "#"],
-                ["#", ".", "C", ".", "#"],
-                ["#", ".", ".", ".", "#"],
-                ["#", "#", "#", "#", "#"],
-            ]
-        )
+        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True)
 
         cfg.game.resource_names = ["gold"]
         cfg.game.agent.initial_inventory = {"gold": 3}  # Agent starts with only 3 gold
@@ -106,9 +102,21 @@ class TestChest:
         # Configure chest with larger deltas than available resources
         cfg.game.objects["chest"] = ChestConfig(
             type_id=10,
+            name="chest",
             resource_type="gold",
+            map_char="C",
             position_deltas=[("N", 5), ("S", -5)],  # N=deposit 5, S=withdraw 5
             initial_inventory=2,  # Chest starts with 2 gold
+        )
+
+        cfg = cfg.with_ascii_map(
+            [
+                ["#", "#", "#", "#", "#"],
+                ["#", ".", "@", ".", "#"],
+                ["#", ".", "C", ".", "#"],
+                ["#", ".", ".", ".", "#"],
+                ["#", "#", "#", "#", "#"],
+            ]
         )
 
         cfg.game.actions.move.enabled = True

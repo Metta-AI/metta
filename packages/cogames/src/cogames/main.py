@@ -11,6 +11,7 @@ from typing import Literal, Optional, TypeVar
 
 import typer
 import yaml
+from click.core import ParameterSource
 from packaging.version import Version
 from rich.table import Table
 
@@ -94,17 +95,22 @@ def play_cmd(
     ctx: typer.Context,
     mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Name of the mission"),
     policy: str = typer.Option("noop", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
-    non_interactive: bool = typer.Option(False, "--non-interactive", "-ni", help="Run in non-interactive mode"),
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
-    render: Literal["gui", "text", "none"] = typer.Option(
-        "gui", "--render", "-r", help="Render mode: 'gui', 'text', or 'none' (no rendering)"
+    render: Literal["gui", "unicode", "none"] = typer.Option(
+        "gui", "--render", "-r", help="Render mode: 'gui', 'unicode' (interactive terminal), or 'none'"
     ),
 ) -> None:
     resolved_mission, env_cfg = get_mission_name_and_config(ctx, mission)
-    interactive = not non_interactive
     policy_spec = get_policy_spec(ctx, policy)
     console.print(f"[cyan]Playing {resolved_mission}[/cyan]")
-    console.print(f"Max Steps: {steps}, Interactive: {interactive}, Render: {render}")
+    console.print(f"Max Steps: {steps}, Render: {render}")
+
+    if ctx.get_parameter_source("steps") in (
+        ParameterSource.COMMANDLINE,
+        ParameterSource.ENVIRONMENT,
+        ParameterSource.PROMPT,
+    ):
+        env_cfg.game.max_steps = steps
 
     play_module.play(
         console,
@@ -113,7 +119,6 @@ def play_cmd(
         max_steps=steps,
         seed=42,
         render=render,
-        verbose=interactive,
         game_name=resolved_mission,
     )
 
@@ -250,6 +255,7 @@ def evaluate_cmd(
         help="Max milliseconds afforded to generate each action before noop is used by default",
         min=1,
     ),
+    steps: Optional[int] = typer.Option(1000, "--steps", "-s", help="Max steps per episode", min=1),
 ) -> None:
     resolved_mission, env_cfg = get_mission_name_and_config(ctx, mission)
     policy_specs = get_policy_specs(ctx, policies)
@@ -265,6 +271,7 @@ def evaluate_cmd(
         policy_specs=policy_specs,
         action_timeout_ms=action_timeout_ms,
         episodes=episodes,
+        max_steps=steps,
     )
 
 
