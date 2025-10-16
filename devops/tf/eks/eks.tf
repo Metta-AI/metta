@@ -68,11 +68,30 @@ module "eks" {
   tags = local.tags
 }
 
+resource "aws_iam_role" "ebs-csi-driver" {
+  name = "ebs-csi-driver"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect    = "Allow",
+      Principal = { Service = "pods.eks.amazonaws.com" },
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "ebs-csi-driver-attach" {
+  role       = aws_iam_role.ebs-csi-driver.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+}
+
+
 resource "aws_eks_pod_identity_association" "ebs-csi-driver" {
   cluster_name    = module.eks.cluster_name
   namespace       = "kube-system"
   service_account = "ebs-csi-controller-sa"
-  role_arn        = "arn:aws:iam::751442549699:role/AmazonEBSCSIDriverPolicy"
+  role_arn        = aws_iam_role.ebs-csi-driver.arn
 }
 
 ################################################################################
