@@ -243,13 +243,16 @@ class MapGen(MapBuilder):
                         intrinsic_size = intrinsic_size[::-1]
                     self.height, self.width = intrinsic_size
 
-                # Track current instance number for set_team_by_instance
-                current_instance_id = len(self.instance_scene_factories) if self.config.set_team_by_instance else None
+                current_instance_id = len(self.instance_scene_factories)
+                apply_instance_id = self.config.set_team_by_instance
 
                 instance_grid = create_grid(self.height, self.width)
                 instance_area = Area.root_area_from_grid(instance_grid)
                 instance_scene = instance_scene_config.create_root(
-                    instance_area, self.rng, instance_id=current_instance_id
+                    instance_area,
+                    self.rng,
+                    instance_id=current_instance_id,
+                    apply_instance_id=apply_instance_id,
                 )
                 instance_scene.render_with_children()
                 self.instance_scene_factories.append(TransplantScene.Config(scene=instance_scene))
@@ -366,7 +369,8 @@ class MapGen(MapBuilder):
                     limit=1,
                     order_by="first",
                     lock="lock",
-                    instance_id=idx if self.config.set_team_by_instance else None,
+                    instance_id=idx,
+                    apply_instance_id=self.config.set_team_by_instance,
                 )
             )
 
@@ -392,6 +396,7 @@ class MapGen(MapBuilder):
                             order_by="first",
                             lock="lock",
                             instance_id=start_idx + i,
+                            apply_instance_id=True,
                         )
                     )
             else:
@@ -403,6 +408,7 @@ class MapGen(MapBuilder):
                         limit=remaining_instances,
                         order_by="first",
                         lock="lock",
+                        apply_instance_id=False,
                     )
                 )
 
@@ -425,6 +431,7 @@ class MapGen(MapBuilder):
                     scene=scene_config,
                     where="full",
                     instance_id=instance_id,
+                    apply_instance_id=True,
                 )
             ]
         )
@@ -440,7 +447,12 @@ class MapGen(MapBuilder):
 
         instance_id = 0 if (self.instances == 1 and self.config.set_team_by_instance) else None
 
-        self.root_scene = root_scene_cfg.create_root(self.inner_area, self.rng, instance_id=instance_id)
+        self.root_scene = root_scene_cfg.create_root(
+            self.inner_area,
+            self.rng,
+            instance_id=instance_id,
+            apply_instance_id=self.config.set_team_by_instance,
+        )
         self.root_scene.render_with_children()
 
         return GameMap(self.guarded_grid())

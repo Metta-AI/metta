@@ -20,8 +20,8 @@ class Random(Scene[RandomConfig]):
         height, width, config = self.height, self.width, self.config
 
         if isinstance(config.agents, int):
-            # If instance_id is set, use it for team assignment
-            if self.instance_id is not None:
+            # If team assignment is enabled, use the instance_id as team identifier
+            if getattr(self, "apply_instance_id", False) and self.instance_id is not None:
                 agents = [f"agent.team_{self.instance_id}"] * config.agents
             else:
                 agents = ["agent.agent"] * config.agents
