@@ -127,15 +127,15 @@ class SceneConfig(Config):
         area: Area,
         rng: np.random.Generator | None = None,
         instance_id: int | None = None,
-        apply_instance_id: bool = False,
+        use_instance_id_for_team_assignment: bool = False,
     ) -> Scene:
-        effective_instance_id = instance_id if apply_instance_id else None
+        effective_instance_id = instance_id if use_instance_id_for_team_assignment else None
         return self.scene_cls(
             area=area,
             config=self,
             rng=rng or np.random.default_rng(),
             instance_id=effective_instance_id,
-            apply_instance_id=apply_instance_id,
+            use_instance_id_for_team_assignment=use_instance_id_for_team_assignment,
         )
 
     def create_as_child(
@@ -143,11 +143,11 @@ class SceneConfig(Config):
         parent_scene: Scene,
         area: Area,
         instance_id: int | None = None,
-        apply_instance_id: bool = False,
+        use_instance_id_for_team_assignment: bool = False,
     ) -> Scene:
         rng = parent_scene.rng.spawn(1)[0]
         inherited_instance_id = instance_id if instance_id is not None else getattr(parent_scene, "instance_id", None)
-        effective_instance_id = inherited_instance_id if apply_instance_id else None
+        effective_instance_id = inherited_instance_id if use_instance_id_for_team_assignment else None
 
         return self.scene_cls(
             area=area,
@@ -155,7 +155,7 @@ class SceneConfig(Config):
             rng=rng,
             parent_scene=parent_scene,
             instance_id=effective_instance_id,
-            apply_instance_id=apply_instance_id,
+            use_instance_id_for_team_assignment=use_instance_id_for_team_assignment,
         )
 
 
@@ -188,7 +188,7 @@ def validate_any_scene_config(v: Any) -> SceneConfig:
 class ChildrenAction(AreaQuery):
     scene: SceneConfig
     instance_id: int | None = None
-    apply_instance_id: bool | None = None
+    use_instance_id_for_team_assignment: bool | None = None
 
 
 ConfigT = TypeVar("ConfigT", bound=SceneConfig)
@@ -242,7 +242,7 @@ class Scene(Generic[ConfigT]):
         config: ConfigT,
         parent_scene: Scene | None = None,
         instance_id: int | None = None,
-        apply_instance_id: bool = False,
+        use_instance_id_for_team_assignment: bool = False,
     ):
         # Validate config - they can come from untyped yaml or from weakly typed dicts in python code.
         self.config = self.Config.model_validate(config)
@@ -255,9 +255,9 @@ class Scene(Generic[ConfigT]):
             parent_scene.transform.compose(self.config.transform) if parent_scene else self.config.transform
         )
 
-        self.apply_instance_id = apply_instance_id
+        self.use_instance_id_for_team_assignment = use_instance_id_for_team_assignment
 
-        if self.apply_instance_id:
+        if self.use_instance_id_for_team_assignment:
             if instance_id is not None:
                 self.instance_id = instance_id
             elif parent_scene is not None:
@@ -340,16 +340,16 @@ class Scene(Generic[ConfigT]):
         for action in children_actions:
             areas = self.select_areas(action)
             for area in areas:
-                apply_instance_id = (
-                    action.apply_instance_id
-                    if action.apply_instance_id is not None
-                    else getattr(self, "apply_instance_id", False)
+                use_instance_id_for_team_assignment = (
+                    action.use_instance_id_for_team_assignment
+                    if action.use_instance_id_for_team_assignment is not None
+                    else getattr(self, "use_instance_id_for_team_assignment", False)
                 )
                 child_scene = action.scene.create_as_child(
                     self,
                     area,
                     instance_id=action.instance_id,
-                    apply_instance_id=apply_instance_id,
+                    use_instance_id_for_team_assignment=use_instance_id_for_team_assignment,
                 )
                 self.children.append(child_scene)
                 child_scene.render_with_children()
