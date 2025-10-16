@@ -2,6 +2,7 @@
 
 import { FC, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { MessageCircle, AlertTriangle } from "lucide-react";
 
 import { useMathJax } from "@/components/MathJaxProvider";
 import { usePaginator } from "@/lib/hooks/usePaginator";
@@ -285,19 +286,7 @@ export const PostPage: FC<{
           ) : (
             <div className="rounded-lg border border-gray-200 bg-white p-8 text-center">
               <div className="mb-4 text-gray-400">
-                <svg
-                  className="mx-auto h-12 w-12"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                  />
-                </svg>
+                <MessageCircle className="mx-auto h-12 w-12" />
               </div>
               <h3 className="mb-2 text-lg font-medium text-gray-900">
                 No posts yet
@@ -313,17 +302,7 @@ export const PostPage: FC<{
             <div className="mt-4 rounded-lg border border-yellow-200 bg-yellow-50 p-4">
               <div className="flex">
                 <div className="flex-shrink-0">
-                  <svg
-                    className="h-5 w-5 text-yellow-400"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
+                  <AlertTriangle className="h-5 w-5 text-yellow-400" />
                 </div>
                 <div className="ml-3">
                   <h3 className="text-sm font-medium text-yellow-800">
