@@ -29,7 +29,7 @@ def add_easy_heart_recipe(cfg: MettaGridConfig) -> None:
         return
 
     agent_cfg: AgentConfig = cfg.game.agent
-    agent_cfg.resource_limits["heart"] = 100
+    agent_cfg.resource_limits["heart"] = 10
 
     for _, recipe in assembler_cfg.recipes:
         if recipe.output_resources.get("heart") and recipe.input_resources == {"energy": 1}:
@@ -48,13 +48,10 @@ def add_shaped_rewards(cfg: MettaGridConfig) -> None:
     """Augment agent rewards with additional heart-centric shaped rewards."""
 
     agent_cfg = cfg.game.agent
-    stats = dict(agent_cfg.rewards.stats or {})
-
-    stats["heart.gained"] = 5.0
-    stats["chest.heart.withdrawn"] = -5.0
-    stats["chest.heart.amount"] = 2.5
-
-    agent_cfg.rewards.stats = stats
+    agent_cfg.rewards.stats = {
+        "heart.gained": 0.1,
+        "chest.heart.deposited": 1.0,
+    }
 
 
 def extend_max_steps(cfg: MettaGridConfig, multiplier: float = 20.0) -> None:
