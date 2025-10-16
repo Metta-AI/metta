@@ -236,6 +236,6 @@ def sweep(sweep_name: str) -> SweepTool:
         eval_entrypoint="evaluate_in_sweep",
         objective=f"evaluator/eval_{SWEEP_EVAL_SUITE}/score",
         parameters=parameters,
-        num_trials=80,
+        max_trials=80,
         num_parallel_trials=4,
     )

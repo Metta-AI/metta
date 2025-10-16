@@ -219,7 +219,7 @@ def make_sweep(
     eval_entrypoint: str,
     objective: str,
     parameters: Union[Dict[str, ParameterSpec], List[Dict[str, ParameterSpec]]],
-    num_trials: int = 10,
+    max_trials: int = 10,
     num_parallel_trials: int = 1,
     train_overrides: Optional[Dict] = None,
     eval_overrides: Optional[Dict] = None,
@@ -282,11 +282,88 @@ def make_sweep(
         recipe_module=recipe,
         train_entrypoint=train_entrypoint,
         eval_entrypoint=eval_entrypoint,
-        max_trials=num_trials,
+        max_trials=max_trials,
         max_parallel_jobs=num_parallel_trials,
         scheduler_type=scheduler_type,
         train_overrides=train_overrides or {},
         eval_overrides=eval_overrides or {},
+        **scheduler_config,
+        **advanced,
+    )
+
+
+def grid_search(
+    name: str,
+    recipe: str,
+    train_entrypoint: str,
+    eval_entrypoint: str,
+    objective: str,
+    parameters: Union[Dict[str, Any], List[Dict[str, Any]]],
+    max_trials: int = 10,
+    num_parallel_trials: int = 1,
+    train_overrides: Optional[Dict] = None,
+    eval_overrides: Optional[Dict] = None,
+    # Catch all for un-exposed tool overrides.
+    # See SweepTool definition for details.
+    **advanced,
+) -> "SweepTool":
+    """Create a grid-search sweep with minimal configuration.
+
+    Mirrors `make_sweep` but selects the grid-search scheduler and accepts
+    only categorical parameters (CategoricalParameterConfig or lists). Numeric
+    ParameterConfig entries are not required and are ignored if present.
+
+    Args (all passed as tool overrides downstream):
+        Tool overrides:
+            name: Sweep identifier
+            recipe: Recipe module path
+            train_entrypoint: Training entrypoint function
+            eval_entrypoint: Evaluation entrypoint function
+            max_trials: Maximum number of trials to schedule (cap on grid size)
+            num_parallel_trials: Max parallel jobs
+            train_overrides: Optional overrides for training configuration
+            eval_overrides: Optional overrides for evaluation configuration
+            **advanced: Additional SweepTool options
+
+        Grid parameters:
+            objective: Metric to optimize (used by evaluation hooks)
+            parameters: Nested dict of categorical choices (lists or CategoricalParameterConfig)
+
+    Returns:
+        Configured SweepTool
+    """
+    # Convert list of single-item dicts to flat dict
+    if isinstance(parameters, list):
+        flat_params: Dict[str, Any] = {}
+        for item in parameters:
+            if not isinstance(item, dict):
+                raise ValueError(f"List items must be dicts, got {type(item)}")
+            if len(item) != 1:
+                raise ValueError(f"Each dict in list must have exactly one key-value pair, got {len(item)} keys")
+            flat_params.update(item)
+        parameters = flat_params
+
+    # Local imports to avoid circular dependencies
+    from metta.tools.sweep import SweepSchedulerType, SweepTool
+
+    scheduler_type = SweepSchedulerType.GRID_SEARCH
+
+    # No additional scheduler-config knobs for grid search beyond tool kwargs
+    scheduler_config: Dict[str, Any] = {}
+
+    return SweepTool(
+        sweep_name=name,
+        # Do not construct a ProteinConfig; grid path uses grid_parameters + grid_metric
+        recipe_module=recipe,
+        train_entrypoint=train_entrypoint,
+        eval_entrypoint=eval_entrypoint,
+        max_trials=max_trials,
+        max_parallel_jobs=num_parallel_trials,
+        scheduler_type=scheduler_type,
+        train_overrides=train_overrides or {},
+        eval_overrides=eval_overrides or {},
+        grid_parameters=parameters,  # categorical choices
+        grid_metric=objective,
         **scheduler_config,
         **advanced,
     )
