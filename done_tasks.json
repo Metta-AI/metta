@@ -1,14 +1,45 @@
 [
   {
+    "gid": "1211069421664747",
+    "name": "Align with researcher tools on notebooks/plotly dashboards",
+    "branch": "task/align-notebook-plotly",
+    "commit": "77fc5ac1ae727924da5672d375199e7e40bd25dc",
+    "completed_at": "2025-10-16"
+  },
+  {
+    "gid": "1211665269726540",
+    "name": "Add unit test that same seed gives us the same model weights + starting config",
+    "branch": "task/seed-deterministic-init",
+    "commit": "0f491659205e451324d9ce49e92692797f999a66",
+    "notes": "Added regression test ensuring identical seeds reproduce identical Fast policy parameters and environment metadata."
+  },
+  {
+    "gid": "1211496531542715",
+    "name": "Rename EnvironmentMetaData to GameRules",
+    "branch": "refactor/rename-game-rules",
+    "commit": "792770ce543753ee1c833bbd0521bd863a309223",
+    "notes": "Renamed the training GameRules dataclass and updated all policy and tooling references to use the new name and property."
+  },
+  {
+    "gid": "1211377548529684",
+    "name": "Add Dynamics Model: Next value prediction",
+    "branch": "task/add-next-value-prediction",
+    "commit": "a9f1c193998c84846091bdd7cbc2ba2f44982361",
+    "completed_at": "2025-10-16",
+    "notes": "Extended FastDynamics to predict next-step values and trained the head within the dynamics loss."
+  },
+  {
     "gid": "1211366023633219",
     "name": "Add EMA of Future Latent State Prediction Loss",
     "branch": "feature/future-latent-ema-loss",
+    "commit": "2ece4bc9fdf3d71c88a034ec69de167492693ca8",
     "completed_at": "2025-10-16"
   },
   {
     "gid": "1210892820911816",
     "name": "Check VAST for 4090/5090 Dev boxes",
     "branch": "feature/vast-dev-box-check",
+    "commit": "e573611eaea579a2a2828aa21e17f6a74e1ebf4f",
     "completed_at": "2025-10-16"
   }
 ]

@@ -1,3 +1,12 @@
+**Completed Tasks**
+
+- Specify envs for replays (gid 1209208922660615) — implemented on branch `richard-replays-spec`; added evaluator configuration support for selecting environments when generating replays.
+- Add measurements for fairness during evaluation (gid 1209164338788423) — implemented on branch `richard-fairness-metrics`; records group-level fairness metrics and surfaces them in evaluation dashboards.
+- Deterministic runs (gid 1211665269726547) — implemented on branch `richard-deterministic-runs`; adds a deterministic mode to TrainTool that forces torch deterministic backends and disables episode desynchronization in curricula.
+- Generate replays during training (gid 1209041170403516) — implemented on branch `richard-training-replays`; adds configurable replay recording for the training environment with per-environment storage.
+
+---
+
 **1. 30 sweeps per confirmed result (gid 1211414008323007)**
 Difficulty: Very High
 Assignee: Subhojeet Pramanik
@@ -178,419 +187,399 @@ Difficulty: Medium-High
 Assignee: Unassigned
 Likely entails running exploratory experiments and interpreting the results. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**37. Generate replays during training (gid 1209041170403516)**
-Difficulty: Medium-High
-Assignee: Unassigned
-Likely entails running multi-seed training loops to gather evidence, and tuning replay generation and viewer integration while touching metta/tools/replay and metta/sim/replay_log_renderer. Generate a sample replay and ensure MettaScope can load it.
-
-**38. Goal: generate a stable Pattern for running for Performance Evaluations/comparisons (gid 1210793382718996)**
+**37. Goal: generate a stable Pattern for running for Performance Evaluations/comparisons (gid 1210793382718996)**
 Difficulty: Medium-High
 Assignee: Matthew Bull
 Likely entails driving a multi-step initiative from design through validation. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**39. Imitation learning (gid 1211366168188140)**
+**38. Imitation learning (gid 1211366168188140)**
 Difficulty: Medium-High
 Assignee: Unassigned
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**40. Implement Continuous Dropout (gid 1210282198057739)**
+**39. Implement Continuous Dropout (gid 1210282198057739)**
 Difficulty: Medium-High
 Assignee: harshbhatt7585@gmail.com
 Likely entails implementing new core logic and validating end-to-end. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**41. Implement Nevergrad adapter (gid 1211034485747674)**
+**40. Implement Nevergrad adapter (gid 1211034485747674)**
 Difficulty: Medium-High
 Assignee: Axel Kerbec
 Likely entails implementing new core logic and validating end-to-end. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**42. Integrate noisy linear (gid 1210286336916414)**
+**41. Integrate noisy linear (gid 1210286336916414)**
 Difficulty: Medium-High
 Assignee: Alexandros Vardakostas
 Likely entails aligning interfaces between subsystems. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**43. Kickstarting single student from single teacher (gid 1209661379538164)**
+**42. Kickstarting single student from single teacher (gid 1209661379538164)**
 Difficulty: Medium-High
 Assignee: Alexandros Vardakostas
 Likely entails making targeted updates within the training stack and verifying behaviour while touching kickstarting recipes under experiments/recipes/kickstarting. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**44. LSTM Entropy (gid 1209548780079332)**
+**43. LSTM Entropy (gid 1209548780079332)**
 Difficulty: Medium-High
 Assignee: Subhojeet Pramanik
 Likely entails making targeted updates within the training stack and verifying behaviour while touching packages/cogames/policies/recurrent. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**45. Make scorecards for comparing performance of different training regimes (gid 1210769218369227)**
+**44. Make scorecards for comparing performance of different training regimes (gid 1210769218369227)**
 Difficulty: Medium-High
 Assignee: Axel Kerbec
 Likely entails running multi-seed training loops to gather evidence. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**46. Measure Learning Progress performance in arena and navigation against other curricula (gid 1209843025820875)**
+**45. Measure Learning Progress performance in arena and navigation against other curricula (gid 1209843025820875)**
 Difficulty: Medium-High
 Assignee: Jack Heart
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**47. MettaGrid training on Google Colab (gid 1209208922660670)**
+**46. MettaGrid training on Google Colab (gid 1209208922660670)**
 Difficulty: Medium-High
 Assignee: harshbhatt7585@gmail.com
 Likely entails running multi-seed training loops to gather evidence. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**48. Share a vecenv in SimulationSuite (gid 1210189468261556)**
+**47. Share a vecenv in SimulationSuite (gid 1210189468261556)**
 Difficulty: Medium-High
 Assignee: Unassigned
 Likely entails making targeted updates within the training stack and verifying behaviour while touching metta/rl/vecenv and related simulation wrappers, metta/sim and packages/mettagrid, mettagrid/config definitions and curriculum tasks. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**49. Simplified Temporal Consistency Reinforcement Learning (gid 1210992256238856)**
+**48. Simplified Temporal Consistency Reinforcement Learning (gid 1210992256238856)**
 Difficulty: Medium-High
 Assignee: Unassigned
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**50. Specify envs for replays (gid 1209208922660615)**
-Difficulty: Medium-High
-Assignee: Unassigned
-Status: Completed by Codex on 2025-10-17.
-Likely entails tuning replay generation and viewer integration while touching metta/tools/replay and metta/sim/replay_log_renderer, mettagrid/config definitions and curriculum tasks. Generate a sample replay and ensure MettaScope can load it.
-
-**51. Spectral norm LSTM gate weights (gid 1211014686946592)**
+**49. Spectral norm LSTM gate weights (gid 1211014686946592)**
 Difficulty: Medium-High
 Assignee: Subhojeet Pramanik
 Likely entails making targeted updates within the training stack and verifying behaviour while touching packages/cogames/policies/recurrent. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**52. Supervised learning (gid 1211366166789802)**
+**50. Supervised learning (gid 1211366166789802)**
 Difficulty: Medium-High
 Assignee: Unassigned
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**53. v1 figure of merit formula for arena environment (gid 1210768867477704)**
+**51. v1 figure of merit formula for arena environment (gid 1210768867477704)**
 Difficulty: Medium-High
 Assignee: Axel Kerbec
 Likely entails making targeted updates within the training stack and verifying behaviour while touching mettagrid/config definitions and curriculum tasks. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**54. We should post and update when hyperparams update (gid 1211366025214105)**
+**52. We should post and update when hyperparams update (gid 1211366025214105)**
 Difficulty: Medium-High
 Assignee: Axel Kerbec
 Likely entails making targeted updates within the training stack and verifying behaviour while touching experiments/recipes hyperparameter configs. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**55. AMAGO (gid 1209661379538166)**
+**53. AMAGO (gid 1209661379538166)**
 Difficulty: Medium
 Assignee: Unassigned
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**56. Atomic saves (gid 1209394151090423)**
+**54. Atomic saves (gid 1209394151090423)**
 Difficulty: Medium
 Assignee: Michael Hollander
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**57. AWS instance comparison report (gid 1210768672358004)**
+**55. AWS instance comparison report (gid 1210768672358004)**
 Difficulty: Medium
 Assignee: Axel Kerbec
 Likely entails producing reproducible analysis and documenting findings while touching devops/aws automation. Store notebooks or summary tables in docs/analysis for review.
 
-**58. Chat with labmates about useful RL tricks (gid 1211414008917193)**
+**56. Chat with labmates about useful RL tricks (gid 1211414008917193)**
 Difficulty: Medium
 Assignee: Subhojeet Pramanik
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**59. Clear design document for agent refactor (gid 1210769258927270)**
+**57. Clear design document for agent refactor (gid 1210769258927270)**
 Difficulty: Medium
 Assignee: Subhojeet Pramanik
 Likely entails producing design docs to align stakeholders. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**60. Continuous distillation (gid 1211366022781592)**
+**58. Continuous distillation (gid 1211366022781592)**
 Difficulty: Medium
 Assignee: Alexandros Vardakostas
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**61. Deep Complex Networks (gid 1211419372602429)**
+**59. Deep Complex Networks (gid 1211419372602429)**
 Difficulty: Medium
 Assignee: Unassigned
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**62. Deterministic runs (gid 1211665269726547)**
+**60. Doxascope (gid 1211366171266384)**
 Difficulty: Medium
 Assignee: Unassigned
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**63. Doxascope (gid 1211366171266384)**
-Difficulty: Medium
-Assignee: Unassigned
-Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
-
-**64. Easy job log access for skypilot jobs (gid 1209694588206333)**
+**61. Easy job log access for skypilot jobs (gid 1209694588206333)**
 Difficulty: Medium
 Assignee: Teo Ionita
 Likely entails making targeted updates within the training stack and verifying behaviour while touching scripts/skypilot and orchestration tooling. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**65. Empirical-precision-weighted kalman updates (gid 1209070474559682)**
+**62. Empirical-precision-weighted kalman updates (gid 1209070474559682)**
 Difficulty: Medium
 Assignee: Subhojeet Pramanik
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**66. Exploration (gid 1209661379538184)**
+**63. Exploration (gid 1209661379538184)**
 Difficulty: Medium
 Assignee: Unassigned
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**67. Exploration: Deep Laplacian Representation (gid 1211414008323018)**
+**64. Exploration: Deep Laplacian Representation (gid 1211414008323018)**
 Difficulty: Medium
 Assignee: Subhojeet Pramanik
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**68. Exploration: Successor Features/Representation (gid 1211414008323013)**
+**65. Exploration: Successor Features/Representation (gid 1211414008323013)**
 Difficulty: Medium
 Assignee: Subhojeet Pramanik
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**69. Exploring Distributional RL (gid 1209734926321017)**
+**66. Exploring Distributional RL (gid 1209734926321017)**
 Difficulty: Medium
 Assignee: Alexandros Vardakostas
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**70. Exploring MAPG (gid 1209734926321013)**
+**67. Exploring MAPG (gid 1209734926321013)**
 Difficulty: Medium
 Assignee: Alexandros Vardakostas
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**71. External obs can support tensor or tensor dict (gid 1211366079505398)**
+**68. External obs can support tensor or tensor dict (gid 1211366079505398)**
 Difficulty: Medium
 Assignee: Alexandros Vardakostas
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**72. Fix WANDB timeouts in aws runs (gid 1209300681992284)**
+**69. Fix WANDB timeouts in aws runs (gid 1209300681992284)**
 Difficulty: Medium
 Assignee: Teo Ionita
 Likely entails making targeted updates within the training stack and verifying behaviour while touching logging hooks under metta/common/wandb and analysis notebooks, devops/aws automation. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**73. GBPE (gid 1211414008323001)**
+**70. GBPE (gid 1211414008323001)**
 Difficulty: Medium
 Assignee: Subhojeet Pramanik
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**74. Give users simple access to cost information (waiting for skypilot) (gid 1210836493505871)**
+**71. Give users simple access to cost information (waiting for skypilot) (gid 1210836493505871)**
 Difficulty: Medium
 Assignee: Dominik Farr
 Likely entails making targeted updates within the training stack and verifying behaviour while touching scripts/skypilot and orchestration tooling. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**75. Global Observations (gid 1209661381715536)**
+**72. Global Observations (gid 1209661381715536)**
 Difficulty: Medium
 Assignee: Robb Walters
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**76. GRPO (gid 1210921009975326)**
+**73. GRPO (gid 1210921009975326)**
 Difficulty: Medium
 Assignee: harshbhatt7585@gmail.com
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**77. Hierchiechal RL (gid 1209661381715554)**
+**74. Hierchiechal RL (gid 1209661381715554)**
 Difficulty: Medium
 Assignee: Unassigned
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**78. HRM (Hierarchical Reasoning Model) (gid 1211334022894072)**
+**75. HRM (Hierarchical Reasoning Model) (gid 1211334022894072)**
 Difficulty: Medium
 Assignee: harshbhatt7585@gmail.com
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**79. HuggingFaceTB/SmolLM2-135M · Hugging Face (gid 1211068828541795)**
+**76. HuggingFaceTB/SmolLM2-135M · Hugging Face (gid 1211068828541795)**
 Difficulty: Medium
 Assignee: Richard Higgins
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**80. Improve PROTEIN: (gid 1211034485747675)**
+**77. Improve PROTEIN: (gid 1211034485747675)**
 Difficulty: Medium
 Assignee: Axel Kerbec
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**81. Investigate mixtures of experts (gid 1211386207776011)**
+**78. Investigate mixtures of experts (gid 1211386207776011)**
 Difficulty: Medium
 Assignee: Unassigned
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**82. Lambda Returns (gid 1211414008323010)**
+**79. Lambda Returns (gid 1211414008323010)**
 Difficulty: Medium
 Assignee: Subhojeet Pramanik
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**83. Legendre Memory Units: Continuous-Time Representation in Recurrent Neural Networks (gid 1209148136958987)**
+**80. Legendre Memory Units: Continuous-Time Representation in Recurrent Neural Networks (gid 1209148136958987)**
 Difficulty: Medium
 Assignee: Unassigned
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**84. LoRA (gid 1211614906026722)**
+**81. LoRA (gid 1211614906026722)**
 Difficulty: Medium
 Assignee: Richard Higgins
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**85. Merge recommendation for default configuration for Arena (gid 1210768673357064)**
+**82. Merge recommendation for default configuration for Arena (gid 1210768673357064)**
 Difficulty: Medium
 Assignee: Tasha Pais
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**86. Mettaboxes (gid 1210397100757356)**
+**83. Mettaboxes (gid 1210397100757356)**
 Difficulty: Medium
 Assignee: Richard Higgins
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**87. Neural Damage (gid 1209661381715534)**
+**84. Neural Damage (gid 1209661381715534)**
 Difficulty: Medium
 Assignee: Unassigned
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**88. Observation Prediction (gid 1209661381715532)**
+**85. Observation Prediction (gid 1209661381715532)**
 Difficulty: Medium
 Assignee: Tasha Pais
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**89. Predictive Loss (gid 1210392276593852)**
+**86. Predictive Loss (gid 1210392276593852)**
 Difficulty: Medium
 Assignee: Tasha Pais
 Likely entails touching the loss stack and keeping gradients stable while touching packages/cogames/losses plus metta/rl/training loops. Add focused unit tests around loss computation and run uv run pytest.
 
-**90. Recurrent Trace Unit (gid 1211366082402133)**
+**87. Recurrent Trace Unit (gid 1211366082402133)**
 Difficulty: Medium
 Assignee: Subhojeet Pramanik
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**91. Remove that Square Root: A New Efficient
+**88. Remove that Square Root: A New Efficient
 Scale-Invariant Version of AdaGrad (gid 1209021128429249)**
 Difficulty: Medium
 Assignee: Unassigned
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**92. Replicate Ada (gid 1211366169251945)**
+**89. Replicate Ada (gid 1211366169251945)**
 Difficulty: Medium
 Assignee: Unassigned
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**93. Robust-to-new-versions Agent (gid 1209661381715538)**
+**90. Robust-to-new-versions Agent (gid 1209661381715538)**
 Difficulty: Medium
 Assignee: Alexandros Vardakostas
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**94. Syllabus Support (gid 1209043561406868)**
+**91. Syllabus Support (gid 1209043561406868)**
 Difficulty: Medium
 Assignee: Unassigned
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**95. Test an embedded LSTM (gid 1210286336916416)**
+**92. Test an embedded LSTM (gid 1210286336916416)**
 Difficulty: Medium
 Assignee: Alexandros Vardakostas
 Likely entails making targeted updates within the training stack and verifying behaviour while touching packages/cogames/policies/recurrent. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**96. Test out Muon optimizer. (gid 1209208922660224)**
+**93. Test out Muon optimizer. (gid 1209208922660224)**
 Difficulty: Medium
 Assignee: harshbhatt7585@gmail.com
 Likely entails making targeted updates within the training stack and verifying behaviour while touching packages/common/optimizers. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**97. Time the various GPUs, like H100 vs. A100 vs. etc (gid 1210892820911818)**
+**94. Time the various GPUs, like H100 vs. A100 vs. etc (gid 1210892820911818)**
 Difficulty: Medium
 Assignee: Axel Kerbec
 Likely entails making targeted updates within the training stack and verifying behaviour while touching devops/hardware provisioning scripts. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**98. Try KL loss in PPO (gid 1209208922660336)**
+**95. Try KL loss in PPO (gid 1209208922660336)**
 Difficulty: Medium
 Assignee: harshbhatt7585@gmail.com
 Likely entails touching the loss stack and keeping gradients stable while touching packages/cogames/losses plus metta/rl/training loops. Add focused unit tests around loss computation and run uv run pytest.
 
-**99. Try out fibrations (gid 1210527330325140)**
+**96. Try out fibrations (gid 1210527330325140)**
 Difficulty: Medium
 Assignee: Alexandros Vardakostas
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**100. Try using average-reward and no discounting (gid 1209394151090417)**
+**97. Try using average-reward and no discounting (gid 1209394151090417)**
 Difficulty: Medium
 Assignee: Unassigned
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**101. Adam on Local Time Addressing Nonstationarity in RL with Relative Adam Timesteps (gid 1209017937764338)**
+**98. Adam on Local Time Addressing Nonstationarity in RL with Relative Adam Timesteps (gid 1209017937764338)**
 Difficulty: Low
 Assignee: Unassigned
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**102. Add CMPO (gid 1211471933325968)**
+**99. Add CMPO (gid 1211471933325968)**
 Difficulty: Low
 Assignee: Unassigned
 Likely entails adding focused functionality to existing modules. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**103. Add Contrastive Loss (gid 1211366081045969)**
+**100. Add Contrastive Loss (gid 1211366081045969)**
 Difficulty: Low
 Assignee: Tasha Pais
 Likely entails adding focused functionality to existing modules, and touching the loss stack and keeping gradients stable while touching packages/cogames/losses plus metta/rl/training loops. Add focused unit tests around loss computation and run uv run pytest.
 
-**104. Add dormant neurons graph to Wandb / evals (gid 1209208922660846)**
+**101. Add dormant neurons graph to Wandb / evals (gid 1209208922660846)**
 Difficulty: Low
 Assignee: Michael Hollander
 Likely entails adding focused functionality to existing modules while touching logging hooks under metta/common/wandb and analysis notebooks. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**105. Add Dynamics Model: Next action prediction (gid 1211366082087987)**
+**102. Add Dynamics Model: Next action prediction (gid 1211366082087987)**
 Difficulty: Low
 Assignee: Tasha Pais
 Likely entails adding focused functionality to existing modules. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**106. Add Dynamics Model: Next value prediction (gid 1211377548529684)**
+**103. Add Dynamics Model: Next value prediction (gid 1211377548529684)**
 Difficulty: Low
 Assignee: Tasha Pais
 Likely entails adding focused functionality to existing modules. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**107. Add EMA of Future Latent State Prediction Loss (gid 1211366023633219)**
+**104. Add EMA of Future Latent State Prediction Loss (gid 1211366023633219)**
 Difficulty: Low
 Assignee: Tasha Pais
 Likely entails adding focused functionality to existing modules, and touching the loss stack and keeping gradients stable while touching packages/cogames/losses plus metta/rl/training loops. Add focused unit tests around loss computation and run uv run pytest.
 
-**108. Add Loss scheduling, i.e., saving the state of losses (gid 1211366081860048)**
+**105. Add Loss scheduling, i.e., saving the state of losses (gid 1211366081860048)**
 Difficulty: Low
 Assignee: Alexandros Vardakostas
 Likely entails adding focused functionality to existing modules, and touching the loss stack and keeping gradients stable while touching packages/cogames/losses plus metta/rl/training loops. Add focused unit tests around loss computation and run uv run pytest.
 
-**109. Add measurements for fairness during evaluation (gid 1209164338788423)**
-Difficulty: Low
-Assignee: Unassigned
-Likely entails adding focused functionality to existing modules. Plan to run uv run pytest and capture key metrics before marking the task complete.
-
-**110. Add MUESLI (gid 1211366024409404)**
+**106. Add MUESLI (gid 1211366024409404)**
 Difficulty: Low
 Assignee: Alexandros Vardakostas
 Likely entails adding focused functionality to existing modules. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**111. Add noise to RNN (gid 1209778674231666)**
+**107. Add noise to RNN (gid 1209778674231666)**
 Difficulty: Low
 Assignee: Alexandros Vardakostas
 Likely entails adding focused functionality to existing modules. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**112. Add sliding window flash attention to cortex (gid 1211590894831394)**
+**108. Add sliding window flash attention to cortex (gid 1211590894831394)**
 Difficulty: Low
 Assignee: Subhojeet Pramanik
 Likely entails adding focused functionality to existing modules. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**113. Add Stable Latent State Loss (gid 1211366082780014)**
+**109. Add Stable Latent State Loss (gid 1211366082780014)**
 Difficulty: Low
 Assignee: Tasha Pais
 Likely entails adding focused functionality to existing modules, and touching the loss stack and keeping gradients stable while touching packages/cogames/losses plus metta/rl/training loops. Add focused unit tests around loss computation and run uv run pytest.
 
-**114. Add unit test that same seed gives us the same model weights + starting config (gid 1211665269726540)**
+**110. Add unit test that same seed gives us the same model weights + starting config (gid 1211665269726540)**
 Difficulty: Low
 Assignee: Tasha Pais
 Likely entails adding focused functionality to existing modules. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**115. Align with researcher tools on notebooks/plotly dashboards (gid 1211069421664747)**
+**111. Align with researcher tools on notebooks/plotly dashboards (gid 1211069421664747)**
 Difficulty: Low
 Assignee: Matthew Bull
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**116. Check VAST for 4090/5090 Dev boxes (gid 1210892820911816)**
+**112. Check VAST for 4090/5090 Dev boxes (gid 1210892820911816)**
 Difficulty: Low
 Assignee: Axel Kerbec
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**117. Cogweb Agent Bucket for agents (gid 1210851220510512)**
+**113. Cogweb Agent Bucket for agents (gid 1210851220510512)**
 Difficulty: Low
 Assignee: Richard Higgins
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**118. Rename EnvironmentMetaData to GameRules (gid 1211496531542715)**
+**114. Rename EnvironmentMetaData to GameRules (gid 1211496531542715)**
 Difficulty: Low
 Assignee: Michael Hollander
 Likely entails performing schema and naming clean-up while touching mettagrid/config definitions and curriculum tasks. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
-**119. Task Graph Test (gid 1209208922660663)**
+**115. Task Graph Test (gid 1209208922660663)**
 Difficulty: Low
 Assignee: Matthew Bull
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
+
