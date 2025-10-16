@@ -108,10 +108,10 @@ def _latest_checkpoint(uri: str) -> PolicyMetadata | None:
         return max(checkpoints, key=lambda p: p["epoch"])
 
 
-def _load_checkpoint_file(path: str) -> PolicyArtifact:
+def _load_checkpoint_file(path: str, is_pt_file: bool = False) -> PolicyArtifact:
     """Load a checkpoint file, raising FileNotFoundError on corruption."""
     try:
-        return load_policy_artifact(Path(path))
+        return load_policy_artifact(Path(path), is_pt_file)
     except FileNotFoundError:
         raise
     except (BadZipFile, ValueError, TypeError) as err:
@@ -221,7 +221,7 @@ class CheckpointManager:
 
         if parsed.scheme == "s3":
             with local_copy(parsed.canonical) as local_path:
-                return _load_checkpoint_file(str(local_path))
+                return _load_checkpoint_file(str(local_path), is_pt_file=Path(parsed.canonical).suffix == ".pt")
 
         if parsed.scheme == "mock":
             return PolicyArtifact(policy=MockAgent())

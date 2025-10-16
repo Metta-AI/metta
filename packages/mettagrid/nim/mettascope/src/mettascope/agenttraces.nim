@@ -82,9 +82,9 @@ proc drawAgentTraces*(panel: Panel) =
       if obj.isFrozen.len > 1 and obj.isFrozen[i]:
         bxy.drawImage("trace/frozen", pos, angle = 0, scale = 1/200)
       else:
-        let actionId = obj.actionId[i]
+        let actionId = obj.actionId.at(i)
         if actionId >= 0:
-          if obj.actionSuccess[i]:
+          if obj.actionSuccess.at(i):
             bxy.drawImage(
               replay.traceImages[actionId],
               pos,
@@ -94,7 +94,7 @@ proc drawAgentTraces*(panel: Panel) =
           else:
             bxy.drawImage("trace/invalid", pos, angle = 0, scale = 1/200)
 
-      let reward = obj.currentReward[i]
+      let reward = obj.currentReward.at(i)
       if reward > 0:
         bxy.drawImage(
           "resources/reward",
