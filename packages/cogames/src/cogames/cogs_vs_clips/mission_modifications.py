@@ -2,11 +2,7 @@ from cogames.cogs_vs_clips import protocols
 from cogames.cogs_vs_clips.stations import (
     assembler,
 )
-from mettagrid.config.mettagrid_config import (
-    AssemblerConfig,
-    MettaGridConfig,
-    RecipeConfig,
-)
+from mettagrid.config.mettagrid_config import AgentConfig, AssemblerConfig, MettaGridConfig, RecipeConfig
 
 
 def replace_assembler_recipe_simple(cfg: MettaGridConfig) -> MettaGridConfig:
@@ -32,6 +28,9 @@ def add_easy_heart_recipe(cfg: MettaGridConfig) -> None:
     if assembler_cfg is None:
         return
 
+    agent_cfg: AgentConfig = cfg.game.agent
+    agent_cfg.resource_limits["heart"] = 100
+
     for _, recipe in assembler_cfg.recipes:
         if recipe.output_resources.get("heart") and recipe.input_resources == {"energy": 1}:
             return
@@ -52,7 +51,6 @@ def add_shaped_rewards(cfg: MettaGridConfig) -> None:
     stats = dict(agent_cfg.rewards.stats or {})
 
     stats["heart.gained"] = 5.0
-    stats["heart.put"] = 7.5
     stats["chest.heart.amount"] = 2.5
 
     shaped_reward = 0.25
