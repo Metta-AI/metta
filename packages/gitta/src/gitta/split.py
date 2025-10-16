@@ -9,11 +9,12 @@ import re
 import sys
 import tempfile
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from anthropic import Anthropic
+from anthropic.types import TextBlock
 
-from .core import GitError, run_git
+from .core import GitError, run_git, run_git_cmd
 from .git import get_current_branch, get_remote_url
 from .github import create_pr
 
@@ -25,7 +26,7 @@ class FileDiff:
     filename: str
     additions: List[str]
     deletions: List[str]
-    hunks: List[Dict[str, any]]
+    hunks: List[Dict[str, Any]]
     raw_diff: str
 
 
@@ -41,18 +42,49 @@ class SplitDecision:
     group2_title: str
 
 
+DEFAULT_MODEL = "claude-sonnet-4-5"
+DEFAULT_COMMIT_TIMEOUT = 300.0
+
+
 class PRSplitter:
     """Split large pull requests into smaller, logically isolated ones."""
 
-    def __init__(self, anthropic_api_key: Optional[str] = None, github_token: Optional[str] = None):
+    def __init__(
+        self,
+        anthropic_api_key: Optional[str] = None,
+        github_token: Optional[str] = None,
+        model: Optional[str] = None,
+        skip_hooks: Optional[bool] = None,
+        commit_timeout: Optional[float] = None,
+    ):
         self.anthropic_api_key = anthropic_api_key or os.environ.get("ANTHROPIC_API_KEY")
         if not self.anthropic_api_key:
             raise ValueError("Anthropic API key not provided and ANTHROPIC_API_KEY environment variable not set")
 
         self.anthropic = Anthropic(api_key=self.anthropic_api_key)
         self.github_token = github_token or os.environ.get("GITHUB_TOKEN")
-        self.base_branch = None
-        self.current_branch = None
+        self.model = model or os.environ.get("GITTA_SPLIT_MODEL") or DEFAULT_MODEL
+
+        if skip_hooks is None:
+            skip_hooks_env = os.environ.get("GITTA_SKIP_HOOKS", "").lower()
+            self.skip_hooks = skip_hooks_env in {"1", "true", "yes", "on"}
+        else:
+            self.skip_hooks = skip_hooks
+
+        if commit_timeout is not None:
+            self.commit_timeout = commit_timeout
+        else:
+            timeout_env = os.environ.get("GITTA_COMMIT_TIMEOUT")
+            if timeout_env:
+                try:
+                    self.commit_timeout = float(timeout_env)
+                except ValueError as exc:
+                    raise ValueError("GITTA_COMMIT_TIMEOUT must be a number") from exc
+            else:
+                self.commit_timeout = DEFAULT_COMMIT_TIMEOUT
+
+        self.base_branch: Optional[str] = None
+        self.current_branch: Optional[str] = None
 
     def get_base_branch(self) -> str:
         """Determine the base branch (usually main or master)"""
@@ -173,11 +205,16 @@ Return a JSON response with this exact structure:
 """
 
         response = self.anthropic.messages.create(
-            model="claude-3-5-sonnet-20241022", max_tokens=1000, messages=[{"role": "user", "content": prompt}]
+            model=self.model,
+            max_tokens=1000,
+            messages=[{"role": "user", "content": prompt}],
         )
 
         # Parse the AI response
-        content = response.content[0].text
+        text_block = next((block for block in response.content if isinstance(block, TextBlock)), None)
+        if text_block is None:
+            raise ValueError("Anthropic response did not include a text block")
+        content = cast(str, text_block.text)
 
         # Try to extract JSON from the response
         try:
@@ -217,10 +254,17 @@ Return a JSON response with this exact structure:
             if f.filename in selected_files:
                 patch_content.append(f.raw_diff)
 
-        return "\n".join(patch_content)
+        if not patch_content:
+            return ""
+
+        patch = "\n".join(patch_content)
+        return patch if patch.endswith("\n") else f"{patch}\n"
 
     def apply_patch_to_new_branch(self, patch_content: str, branch_name: str) -> None:
         """Create a new branch and apply the patch"""
+        if self.base_branch is None:
+            raise ValueError("Base branch is not set")
+
         # Create and checkout new branch from base
         run_git("checkout", "-b", branch_name, self.base_branch)
 
@@ -237,6 +281,22 @@ Return a JSON response with this exact structure:
 
         finally:
             os.unlink(patch_file)
+
+    def commit_changes(self, message: str) -> None:
+        """Commit staged changes with optional hook skipping and timeout control."""
+        commit_args = ["commit"]
+        if self.skip_hooks:
+            commit_args.append("--no-verify")
+        commit_args.extend(["-m", message])
+        run_git_cmd(commit_args, timeout=self.commit_timeout)
+
+    def ensure_clean_worktree(self) -> None:
+        """Abort if the working tree has uncommitted changes."""
+        status = run_git("status", "--porcelain")
+        if status.strip():
+            raise GitError(
+                "Working tree has uncommitted changes. Please commit or stash them before running the PR splitter."
+            )
 
     def verify_split(self, original_diff: str, diff1: str, diff2: str) -> bool:
         """Verify that the split diffs contain all changes from the original"""
@@ -296,6 +356,10 @@ Return a JSON response with this exact structure:
             print("Could not determine GitHub repository from remote")
             return None
 
+        if self.base_branch is None:
+            print("Base branch not set; skipping PR creation")
+            return None
+
         # Get base branch name without origin/
         base_branch_name = self.base_branch.replace("origin/", "")
 
@@ -312,17 +376,21 @@ Return a JSON response with this exact structure:
     def split(self) -> None:
         """Main method to split the current PR"""
         print("🔄 Starting PR split process...")
+        self.ensure_clean_worktree()
 
         # Get branch information
-        self.current_branch = get_current_branch()
-        self.base_branch = self.get_base_branch()
+        current_branch = get_current_branch()
+        base_branch = self.get_base_branch()
 
-        print(f"📍 Current branch: {self.current_branch}")
-        print(f"📍 Base branch: {self.base_branch}")
+        self.current_branch = current_branch
+        self.base_branch = base_branch
+
+        print(f"📍 Current branch: {current_branch}")
+        print(f"📍 Base branch: {base_branch}")
 
         # Get the full diff
         print("📥 Getting diff...")
-        full_diff = self.get_diff(self.base_branch, self.current_branch)
+        full_diff = self.get_diff(base_branch, current_branch)
 
         if not full_diff:
             print("❌ No changes detected!")
@@ -370,16 +438,16 @@ Return a JSON response with this exact structure:
             print("  ⚠️  Verification warnings detected")
 
         # Create branches
-        branch1_name = f"{self.current_branch}-part1"
-        branch2_name = f"{self.current_branch}-part2"
+        branch1_name = f"{current_branch}-part1"
+        branch2_name = f"{current_branch}-part2"
 
         print(f"\n🌿 Creating branch: {branch1_name}")
         self.apply_patch_to_new_branch(patch1, branch1_name)
-        run_git("commit", "-m", split_decision.group1_title)
+        self.commit_changes(split_decision.group1_title)
 
         print(f"🌿 Creating branch: {branch2_name}")
         self.apply_patch_to_new_branch(patch2, branch2_name)
-        run_git("commit", "-m", split_decision.group2_title)
+        self.commit_changes(split_decision.group2_title)
 
         # Push branches
         print("\n📤 Pushing branches...")
@@ -395,20 +463,35 @@ Return a JSON response with this exact structure:
         self.create_github_pr(branch2_name, split_decision.group2_title, pr2_body)
 
         # Return to original branch
-        run_git("checkout", self.current_branch)
+        run_git("checkout", current_branch)
 
         print("\n✨ PR split complete!")
 
 
-def split_pr(anthropic_api_key: Optional[str] = None, github_token: Optional[str] = None) -> None:
+def split_pr(
+    anthropic_api_key: Optional[str] = None,
+    github_token: Optional[str] = None,
+    model: Optional[str] = None,
+    skip_hooks: Optional[bool] = None,
+    commit_timeout: Optional[float] = None,
+) -> None:
     """
     Split the current branch into two smaller PRs.
 
     Args:
         anthropic_api_key: Anthropic API key (defaults to ANTHROPIC_API_KEY env var)
         github_token: GitHub token (defaults to GITHUB_TOKEN env var)
+        model: Anthropic model name (defaults to latest Claude Sonnet alias)
+        skip_hooks: Skip git hooks during commit (defaults to GITTA_SKIP_HOOKS env var)
+        commit_timeout: Timeout in seconds for git commit (defaults to GITTA_COMMIT_TIMEOUT env var)
     """
-    splitter = PRSplitter(anthropic_api_key, github_token)
+    splitter = PRSplitter(
+        anthropic_api_key=anthropic_api_key,
+        github_token=github_token,
+        model=model,
+        skip_hooks=skip_hooks,
+        commit_timeout=commit_timeout,
+    )
     splitter.split()
 
 
@@ -417,20 +500,26 @@ def main():
     parser = argparse.ArgumentParser(
         description="Split large PRs into smaller, logically isolated ones",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
+        epilog=f"""
 Examples:
   # Split current branch using environment variables
-  python -m gitta.split_cli
+  python -m gitta.split
 
   # Split with explicit API key
-  python -m gitta.split_cli --anthropic-key YOUR_KEY
+  python -m gitta.split --anthropic-key YOUR_KEY
 
   # Also create GitHub PRs
-  python -m gitta.split_cli --github-token YOUR_TOKEN
+  python -m gitta.split --github-token YOUR_TOKEN
+
+  # Override the Anthropic model
+  python -m gitta.split --model {DEFAULT_MODEL}
 
 Environment variables:
   ANTHROPIC_API_KEY - Anthropic API key for AI analysis
   GITHUB_TOKEN      - GitHub token for creating PRs (optional)
+  GITTA_SPLIT_MODEL - Anthropic model name (optional, defaults to {DEFAULT_MODEL})
+  GITTA_SKIP_HOOKS  - Set to "1" to skip git hooks when committing split branches
+  GITTA_COMMIT_TIMEOUT - Commit timeout in seconds (defaults to {DEFAULT_COMMIT_TIMEOUT})
         """,
     )
 
@@ -446,6 +535,34 @@ Environment variables:
         default=os.environ.get("GITHUB_TOKEN"),
     )
 
+    parser.add_argument(
+        "--model",
+        help=f"Anthropic model to use (defaults to GITTA_SPLIT_MODEL env var or {DEFAULT_MODEL})",
+        default=os.environ.get("GITTA_SPLIT_MODEL"),
+    )
+    parser.add_argument(
+        "--skip-hooks",
+        dest="skip_hooks",
+        action="store_true",
+        help="Skip git hooks (--no-verify) when committing split branches",
+    )
+    parser.add_argument(
+        "--no-skip-hooks",
+        dest="skip_hooks",
+        action="store_false",
+        help="Run git hooks when committing split branches",
+    )
+    parser.add_argument(
+        "--commit-timeout",
+        type=float,
+        default=None,
+        help=(
+            "Timeout in seconds for git commit "
+            f"(defaults to GITTA_COMMIT_TIMEOUT env var or {DEFAULT_COMMIT_TIMEOUT})"
+        ),
+    )
+    parser.set_defaults(skip_hooks=None)
+
     args = parser.parse_args()
 
     # Validate API key
@@ -459,7 +576,13 @@ Environment variables:
         print("   Set GITHUB_TOKEN environment variable or use --github-token to enable")
 
     try:
-        split_pr(anthropic_api_key=args.anthropic_key, github_token=args.github_token)
+        split_pr(
+            anthropic_api_key=args.anthropic_key,
+            github_token=args.github_token,
+            model=args.model,
+            skip_hooks=args.skip_hooks,
+            commit_timeout=args.commit_timeout,
+        )
     except Exception as e:
         print(f"\n❌ Error: {e}")
         sys.exit(1)

@@ -25,6 +25,17 @@ This guide will help you get started with splitting large PRs using gitta.
      ```bash
      export GITHUB_TOKEN="ghp_..."
      ```
+4. **Optional: Choose a specific Claude model:**
+   - Defaults to `claude-sonnet-4-5`
+   - Override via environment variable or CLI flag:
+     ```bash
+     export GITTA_SPLIT_MODEL="claude-3-7-sonnet-latest"
+     # or
+     python -m gitta.split --model claude-3-7-sonnet-latest
+     ```
+5. **Optional: Control git hooks / commit timeout:**
+   - Skip hooks with `export GITTA_SKIP_HOOKS="1"`
+   - Extend timeout with `export GITTA_COMMIT_TIMEOUT="600"`
 
 ## Basic Usage
 
@@ -41,6 +52,8 @@ git checkout feature/big-refactor
 
 # Run the splitter
 python -m gitta.split
+# ...override the model or hooks inline
+python -m gitta.split --model claude-3-7-sonnet-latest --skip-hooks --commit-timeout 600
 ```
 
 ## What Happens
@@ -121,6 +134,14 @@ Verify your API key:
 ```bash
 echo $ANTHROPIC_API_KEY  # Should show your key
 ```
+
+### Deprecation warning about the model
+
+If you see a warning that the Claude model is deprecated, set `GITTA_SPLIT_MODEL` (or pass `--model`) to a newer `*-latest` alias so future runs automatically stay on a supported release.
+
+### Commit timed out or hook is slow
+
+Set `GITTA_SKIP_HOOKS=1` (or pass `--skip-hooks`) to append `--no-verify`, and/or raise `GITTA_COMMIT_TIMEOUT` (or `--commit-timeout`) to give hooks more time.
 
 ### GitHub PR Creation Failed
 

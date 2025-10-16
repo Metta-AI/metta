@@ -49,6 +49,9 @@ from .github import (
     run_gh,
 )
 
+# Split functionality
+from .split import PRSplitter, split_pr
+
 __all__ = [
     # Core
     "GitError",
@@ -87,4 +90,7 @@ __all__ = [
     "create_pr",
     # Filter
     "filter_repo",
+    # Split
+    "split_pr",
+    "PRSplitter",
 ]
