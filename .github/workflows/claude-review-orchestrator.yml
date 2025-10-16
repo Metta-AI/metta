@@ -96,7 +96,7 @@ jobs:
   consolidate-review:
     needs: [validate-pr, review-readme, review-comments, review-types, review-einops, review-style]
     runs-on: ubuntu-latest
-    if: always()
+    if: "!cancelled()"
     permissions:
       contents: read
       pull-requests: write
