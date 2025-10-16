@@ -16,7 +16,6 @@ import {
   QuotedPostCard,
   PostContent,
 } from "@/components/feed";
-import { getUserDisplayName } from "@/lib/utils/user";
 import { useDeletePost } from "@/hooks/mutations";
 
 /**
@@ -190,92 +189,33 @@ export const FeedPost: FC<{
     setIsPhotoViewerOpen(false);
   };
 
-  // Handle pure paper posts (papers without user commentary)
-  if (post.postType === "pure-paper" && post.paper) {
-    return (
-      <div
-        role="button"
-        onClick={handlePostClick}
-        className={`group relative cursor-pointer overflow-hidden rounded-2xl border-neutral-200 shadow-sm transition before:absolute before:top-0 before:bottom-0 before:left-0 before:w-1 before:bg-transparent before:content-[''] hover:before:bg-neutral-900/70 ${
-          isCommentsExpanded
-            ? "border bg-white ring-2 ring-neutral-900/10"
-            : "border bg-white hover:border-neutral-300 hover:bg-neutral-50"
-        }`}
-        style={{
-          paddingBottom: "2px",
-          paddingLeft: "24px",
-          paddingTop: "24px",
-        }}
-      >
-        {/* Header with user info */}
-        <div className="mb-4 flex items-center justify-between">
-          <PostHeader
-            author={post.author}
-            createdAt={post.createdAt}
-            onUserClick={onUserClick}
-          />
+  const isPurePaper = post.postType === "pure-paper" && !!post.paper;
 
-          <PostActionButtons
-            postId={post.id}
-            commentCount={commentCount}
-            canDelete={canDelete}
-            isPurePaper={true}
-            isDeletePending={deletePostMutation.isPending}
-            onDelete={handleDelete}
-            onCommentClick={handlePostClick}
-          />
-        </div>
+  // Photo viewer component (used in both branches)
+  const photoViewer = post.images && post.images.length > 0 && (
+    <PhotoViewer
+      images={post.images}
+      initialIndex={selectedImageIndex}
+      isOpen={isPhotoViewerOpen}
+      onClose={handlePhotoViewerClose}
+      postAuthor={
+        post.author.name || post.author.email?.split("@")[0] || "Unknown User"
+      }
+    />
+  );
 
-        {/* Paper card */}
-        <div className="px-4 pb-4" onClick={(e) => e.stopPropagation()}>
-          <PaperCard paper={post.paper} onPaperClick={onPaperClick} />
-        </div>
+  // Delete modal component (used in both branches)
+  const deleteModal = (
+    <DeleteConfirmationModal
+      isOpen={showDeleteModal}
+      onClose={handleCancelDelete}
+      onConfirm={handleConfirmDelete}
+      title="Delete Post"
+      message="Are you sure you want to delete this post? This action cannot be undone and will permanently remove the post and all its comments from the feed."
+      isDeleting={deletePostMutation.isPending}
+    />
+  );
 
-        {/* Attached images for pure-paper posts */}
-        <AttachedImages
-          images={post.images || []}
-          onImageClick={handleImageClick}
-        />
-
-        {/* In-post comments */}
-        <div onClick={(e) => e.stopPropagation()}>
-          <InPostComments
-            post={post}
-            isExpanded={isCommentsExpanded}
-            onToggle={onCommentToggle}
-            currentUser={currentUser}
-          />
-        </div>
-
-        {/* Delete Post Modal */}
-        <DeleteConfirmationModal
-          isOpen={showDeleteModal}
-          onClose={handleCancelDelete}
-          onConfirm={handleConfirmDelete}
-          title="Delete Post"
-          message="Are you sure you want to delete this post? This action cannot be undone and will permanently remove the post and all its comments from the feed."
-          isDeleting={deletePostMutation.isPending}
-        />
-
-        {/* Photo Viewer */}
-        {post.images && post.images.length > 0 && (
-          <PhotoViewer
-            images={post.images}
-            initialIndex={selectedImageIndex}
-            isOpen={isPhotoViewerOpen}
-            onClose={handlePhotoViewerClose}
-            postAuthor={
-              post.author.name ||
-              post.author.email?.split("@")[0] ||
-              "Unknown User"
-            }
-          />
-        )}
-      </div>
-    );
-  }
-
-  // Handle user posts and paper posts with commentary
   return (
     <div
       role="button"
@@ -285,9 +225,24 @@ export const FeedPost: FC<{
           ? "border border-neutral-200 bg-white ring-2 ring-neutral-900/10"
           : "border border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50"
       }`}
+      style={
+        isPurePaper
+          ? {
+              paddingBottom: "2px",
+              paddingLeft: "24px",
+              paddingTop: "24px",
+            }
+          : undefined
+      }
     >
       {/* Post header with user info */}
-      <div className="flex items-center justify-between px-4 pt-4 pb-2">
+      <div
+        className={
+          isPurePaper
+            ? "mb-4 flex items-center justify-between"
+            : "flex items-center justify-between px-4 pt-4 pb-2"
+        }
+      >
         <PostHeader
           author={post.author}
           createdAt={post.createdAt}
@@ -298,15 +253,16 @@ export const FeedPost: FC<{
           postId={post.id}
           commentCount={commentCount}
           canDelete={canDelete}
+          isPurePaper={isPurePaper}
           isDeletePending={deletePostMutation.isPending}
           onDelete={handleDelete}
-          onQuote={handleQuotePost}
+          onQuote={isPurePaper ? undefined : handleQuotePost}
           onCommentClick={handlePostClick}
         />
       </div>
 
-      {/* Post content with LaTeX support */}
-      {post.content && <PostContent content={post.content} />}
+      {/* Post content with LaTeX support (regular posts only) */}
+      {!isPurePaper && post.content && <PostContent content={post.content} />}
 
       {/* Attached images */}
       <AttachedImages
@@ -314,8 +270,8 @@ export const FeedPost: FC<{
         onImageClick={handleImageClick}
       />
 
-      {/* Quoted posts display */}
-      {post.quotedPosts && post.quotedPosts.length > 0 && (
+      {/* Quoted posts display (regular posts only) */}
+      {!isPurePaper && post.quotedPosts && post.quotedPosts.length > 0 && (
         <div className="px-4 pb-4">
           <div className="space-y-2">
             {post.quotedPosts.map((quotedPost) => (
@@ -325,15 +281,19 @@ export const FeedPost: FC<{
         </div>
       )}
 
-      {/* Embedded paper card for paper posts */}
-      {post.postType === "paper-post" && paperData && (
+      {/* Paper card (both pure-paper and paper-post) */}
+      {((isPurePaper && post.paper) ||
+        (post.postType === "paper-post" && paperData)) && (
         <div className="px-4 pb-4" onClick={(e) => e.stopPropagation()}>
-          <PaperCard paper={paperData} onPaperClick={onPaperClick} />
+          <PaperCard
+            paper={(isPurePaper ? post.paper : paperData)!}
+            onPaperClick={onPaperClick}
+          />
         </div>
       )}
 
-      {/* Silent refresh for arXiv institution processing */}
-      {post.content && (
+      {/* Silent refresh for arXiv institution processing (regular posts only) */}
+      {!isPurePaper && post.content && (
         <SilentArxivRefresh
           postId={post.id}
           content={post.content}
@@ -348,35 +308,15 @@ export const FeedPost: FC<{
           isExpanded={isCommentsExpanded}
           onToggle={onCommentToggle}
           currentUser={currentUser}
-          onCommentCountChange={handleCommentCountChange}
+          onCommentCountChange={
+            isPurePaper ? undefined : handleCommentCountChange
+          }
           highlightedCommentId={highlightedCommentId}
         />
       </div>
 
-      {/* Delete Post Modal */}
-      <DeleteConfirmationModal
-        isOpen={showDeleteModal}
-        onClose={handleCancelDelete}
-        onConfirm={handleConfirmDelete}
-        title="Delete Post"
-        message="Are you sure you want to delete this post? This action cannot be undone and will permanently remove the post and all its comments from the feed."
-        isDeleting={deletePostMutation.isPending}
-      />
-
-      {/* Photo Viewer */}
-      {post.images && post.images.length > 0 && (
-        <PhotoViewer
-          images={post.images}
-          initialIndex={selectedImageIndex}
-          isOpen={isPhotoViewerOpen}
-          onClose={handlePhotoViewerClose}
-          postAuthor={
-            post.author.name ||
-            post.author.email?.split("@")[0] ||
-            "Unknown User"
-          }
-        />
-      )}
+      {deleteModal}
+      {photoViewer}
     </div>
   );
 };
