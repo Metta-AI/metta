@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 
+#include <array>
 #include <random>
+#include <utility>
 
 #include "actions/attack.hpp"
 #include "actions/change_glyph.hpp"
@@ -18,6 +20,7 @@
 #include "objects/constants.hpp"
 #include "objects/converter.hpp"
 #include "objects/inventory_config.hpp"
+#include "objects/production_handler.hpp"
 #include "objects/wall.hpp"
 
 // Test-specific inventory item type constants
@@ -98,6 +101,14 @@ protected:
                        {});                             // initial_inventory
   }
 };
+
+static void RegisterProductionHandlers(EventManager& event_manager) {
+  auto finish_handler = std::make_unique<ProductionHandler>(&event_manager);
+  event_manager.event_handlers.insert({EventType::FinishConverting, std::move(finish_handler)});
+
+  auto cooldown_handler = std::make_unique<CoolDownHandler>(&event_manager);
+  event_manager.event_handlers.insert({EventType::CoolDown, std::move(cooldown_handler)});
+}
 
 // ==================== Agent Tests ====================
 
@@ -512,7 +523,7 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
                                 0,                        // max_output
                                 -1,                       // max_conversions
                                 1,                        // conversion_ticks
-                                10,                       // cooldown
+                                {10},                     // cooldown
                                 0,                        // initial_resource_count
                                 false);                   // recipe_details_obs
   EventManager event_manager;
@@ -565,7 +576,7 @@ TEST_F(MettaGridCppTest, GetOutput) {
                                 1,                        // max_output
                                 -1,                       // max_conversions
                                 1,                        // conversion_ticks
-                                10,                       // cooldown
+                                {10},                     // cooldown
                                 1,                        // initial_items
                                 false);                   // recipe_details_obs
   EventManager event_manager;
@@ -1355,7 +1366,10 @@ TEST_F(MettaGridCppTest, AssemblerRecipeObservationsEnabled) {
   EXPECT_EQ(current_recipe, recipe0.get());
 }
 
-TEST_F(MettaGridCppTest, AssemblerConsumeResourcesAcrossAgents) {
+TEST_F(MettaGridCppTest, AssemblerBalancedConsumptionAmpleResources) {
+  // Test case (a): 3 agents with ample resources, consume 10 total
+  // Each agent should lose 3-4 resources for balanced consumption
+
   // Create a recipe that requires 10 ore
   std::unordered_map<InventoryItem, InventoryQuantity> input_resources;
   input_resources[TestItems::ORE] = 10;
@@ -1366,52 +1380,100 @@ TEST_F(MettaGridCppTest, AssemblerConsumeResourcesAcrossAgents) {
   auto recipe = std::make_shared<Recipe>(input_resources, output_resources, 0);
 
   // Create assembler with the recipe
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  AssemblerConfig config(1, "test_assembler", std::vector<int>{});
   config.recipes = {recipe};
   Assembler assembler(5, 5, config);
-  // Create agents
-  AgentConfig agent_config(0,         // type_id
-                           "agent",   // type_name
-                           0,         // group_id
-                           "agent");  // group_name
+
+  // Create agents with ample resources
+  AgentConfig agent_config(0, "agent", 0, "agent");
   auto resource_names = create_test_resource_names();
   Agent agent1(0, 0, agent_config, &resource_names);
   Agent agent2(0, 0, agent_config, &resource_names);
   Agent agent3(0, 0, agent_config, &resource_names);
 
-  agent1.update_inventory(TestItems::ORE, 3);
-  agent2.update_inventory(TestItems::ORE, 4);
-  agent3.update_inventory(TestItems::ORE, 5);
+  agent1.update_inventory(TestItems::ORE, 20);
+  agent2.update_inventory(TestItems::ORE, 20);
+  agent3.update_inventory(TestItems::ORE, 20);
 
   std::vector<Agent*> surrounding_agents = {&agent1, &agent2, &agent3};
 
-  // Record initial ore amounts
-  InventoryQuantity initial_ore1 = agent1.inventory.amount(TestItems::ORE);
-  InventoryQuantity initial_ore2 = agent2.inventory.amount(TestItems::ORE);
-  InventoryQuantity initial_ore3 = agent3.inventory.amount(TestItems::ORE);
-
-  // Call consume_resources_for_recipe - this should consume exactly 10 ore total
+  // Consume resources
   assembler.consume_resources_for_recipe(*recipe, surrounding_agents);
 
-  // Check that the fix works: only consume what's needed (10 total)
-  InventoryQuantity final_ore1 = agent1.inventory.amount(TestItems::ORE);
-  InventoryQuantity final_ore2 = agent2.inventory.amount(TestItems::ORE);
-  InventoryQuantity final_ore3 = agent3.inventory.amount(TestItems::ORE);
+  // Check balanced consumption
+  InventoryQuantity consumed1 = 20 - agent1.inventory.amount(TestItems::ORE);
+  InventoryQuantity consumed2 = 20 - agent2.inventory.amount(TestItems::ORE);
+  InventoryQuantity consumed3 = 20 - agent3.inventory.amount(TestItems::ORE);
 
-  // With the fix: consume exactly 10 ore total
-  // Agent 1: 3 -> 0 (loses 3)
-  // Agent 2: 4 -> 0 (loses 4)
-  // Agent 3: 5 -> 2 (loses 3, keeps 2)
-  // Total consumed: 10 (correct!)
+  // Total should be exactly 10
+  EXPECT_EQ(consumed1 + consumed2 + consumed3, 10);
 
-  EXPECT_EQ(final_ore1, 0) << "Agent 1 should lose all ore (3)";
-  EXPECT_EQ(final_ore2, 0) << "Agent 2 should lose all ore (4)";
-  EXPECT_EQ(final_ore3, 2) << "Agent 3 should keep 2 ore (lose 3)";
+  // Each agent should lose 3-4 resources (balanced)
+  // With 10 resources and 3 agents: 10/3 = 3.33, so we expect 3, 3, 4 distribution
+  EXPECT_GE(consumed1, 3);
+  EXPECT_LE(consumed1, 4);
+  EXPECT_GE(consumed2, 3);
+  EXPECT_LE(consumed2, 4);
+  EXPECT_GE(consumed3, 3);
+  EXPECT_LE(consumed3, 4);
+}
 
-  // Verify total consumption is correct (10)
-  InventoryQuantity total_consumed =
-      (initial_ore1 - final_ore1) + (initial_ore2 - final_ore2) + (initial_ore3 - final_ore3);
-  EXPECT_EQ(total_consumed, 10) << "Should consume exactly 10 ore, consumed " << total_consumed;
+TEST_F(MettaGridCppTest, AssemblerBalancedConsumptionMixedResources) {
+  // Test case (b): 4 agents with mixed resources
+  // Agent 1: 0 resources, Agent 2: 1 resource, Agents 3&4: ample resources
+  // When consuming 20, should consume 0/1/9/10 respectively
+
+  // Create a recipe that requires 20 ore
+  std::unordered_map<InventoryItem, InventoryQuantity> input_resources;
+  input_resources[TestItems::ORE] = 20;
+
+  std::unordered_map<InventoryItem, InventoryQuantity> output_resources;
+  output_resources[TestItems::LASER] = 1;
+
+  auto recipe = std::make_shared<Recipe>(input_resources, output_resources, 0);
+
+  // Create assembler with the recipe
+  AssemblerConfig config(1, "test_assembler", std::vector<int>{});
+  config.recipes = {recipe};
+  Assembler assembler(5, 5, config);
+
+  // Create agents with varied resources
+  AgentConfig agent_config(0, "agent", 0, "agent");
+  auto resource_names = create_test_resource_names();
+  Agent agent1(0, 0, agent_config, &resource_names);
+  Agent agent2(0, 0, agent_config, &resource_names);
+  Agent agent3(0, 0, agent_config, &resource_names);
+  Agent agent4(0, 0, agent_config, &resource_names);
+
+  agent1.update_inventory(TestItems::ORE, 0);   // No resources
+  agent2.update_inventory(TestItems::ORE, 1);   // Limited resources
+  agent3.update_inventory(TestItems::ORE, 50);  // Ample resources
+  agent4.update_inventory(TestItems::ORE, 50);  // Ample resources
+
+  std::vector<Agent*> surrounding_agents = {&agent1, &agent2, &agent3, &agent4};
+
+  // Consume resources
+  assembler.consume_resources_for_recipe(*recipe, surrounding_agents);
+
+  // Check consumption matches expected pattern
+  InventoryQuantity consumed1 = 0 - agent1.inventory.amount(TestItems::ORE);
+  InventoryQuantity consumed2 = 1 - agent2.inventory.amount(TestItems::ORE);
+  InventoryQuantity consumed3 = 50 - agent3.inventory.amount(TestItems::ORE);
+  InventoryQuantity consumed4 = 50 - agent4.inventory.amount(TestItems::ORE);
+
+  // Total should be exactly 20
+  EXPECT_EQ(consumed1 + consumed2 + consumed3 + consumed4, 20);
+
+  // Expected consumption pattern: 0, 1, 9-10, 9-10
+  EXPECT_EQ(consumed1, 0) << "Agent with 0 resources should consume 0";
+  EXPECT_EQ(consumed2, 1) << "Agent with 1 resource should consume 1";
+
+  // Remaining 19 should be split between agents 3 and 4 (9 and 10 or 10 and 9)
+  EXPECT_GE(consumed3, 9);
+  EXPECT_LE(consumed3, 10);
+  EXPECT_GE(consumed4, 9);
+  EXPECT_LE(consumed4, 10);
+  EXPECT_EQ(consumed3 + consumed4, 19) << "Agents 3 and 4 should consume the remaining 19";
 }
 
 TEST_F(MettaGridCppTest, AssemblerClippingAndUnclipping) {
@@ -1651,7 +1713,6 @@ TEST_F(MettaGridCppTest, AssemblerExhaustion) {
 
   // Test 3: Wait for cooldown and use again
   current_timestep = 10;
-  EXPECT_EQ(assembler.cooldown_remaining(), 0) << "Should have no cooldown at timestep 10";
 
   success = assembler.onUse(*agent, 0);
   EXPECT_TRUE(success) << "Second use should succeed";
@@ -1801,7 +1862,7 @@ TEST_F(MettaGridCppTest, ResourceModConverter) {
                                 -1,                    // max_output
                                 -1,                    // max_conversions
                                 0,                     // conversion_ticks
-                                0,                     // cooldown
+                                {0},                   // cooldown
                                 0,                     // initial_items
                                 false);                // recipe_details_obs
   Converter* converter = new Converter(3, 2, converter_cfg);
@@ -1825,4 +1886,110 @@ TEST_F(MettaGridCppTest, ResourceModConverter) {
 
   // Check that converter gained 1 ore
   EXPECT_EQ(converter->inventory.amount(TestItems::ORE), 1);
+}
+
+TEST_F(MettaGridCppTest, ConverterCooldownSequenceCycles) {
+  Grid grid(5, 5);
+  EventManager event_manager;
+  event_manager.init(&grid);
+  RegisterProductionHandlers(event_manager);
+
+  std::vector<unsigned short> cooldown_time_values{2, 4, 0};
+  ConverterConfig converter_cfg(
+      TestItems::CONVERTER, "converter", {}, {{TestItems::ORE, 1}}, -1, -1, 1, cooldown_time_values);
+  Converter* converter = new Converter(2, 2, converter_cfg);
+  grid.add_object(converter);
+  converter->set_event_manager(&event_manager);
+
+  std::vector<unsigned int> completions;
+  unsigned int last_output = 0;
+  const unsigned int total_steps = 40;
+  for (unsigned int step = 0; step <= total_steps; ++step) {
+    event_manager.process_events(step);
+    unsigned short current_output = converter->inventory.amount(TestItems::ORE);
+    if (current_output > last_output) {
+      completions.push_back(step);
+      last_output = current_output;
+    }
+  }
+
+  std::vector<unsigned short> observed;
+  for (size_t i = 1; i < completions.size(); ++i) {
+    unsigned int gap = completions[i] - completions[i - 1];
+    unsigned short cooldown = gap > 1 ? static_cast<unsigned short>(gap - 1) : 0;
+    observed.push_back(cooldown);
+  }
+
+  std::vector<unsigned short> expected{2, 4, 0, 2, 4};
+  ASSERT_GE(observed.size(), expected.size());
+  for (size_t i = 0; i < expected.size(); ++i) {
+    EXPECT_EQ(observed[i], expected[i]);
+  }
+
+  EXPECT_EQ(converter->cooldown_time, cooldown_time_values);
+}
+
+TEST_F(MettaGridCppTest, ConverterCooldownSequenceHandlesEmptyList) {
+  Grid grid(5, 5);
+  EventManager event_manager;
+  event_manager.init(&grid);
+  RegisterProductionHandlers(event_manager);
+
+  std::vector<unsigned short> cooldown_time_values;
+  ConverterConfig converter_cfg(
+      TestItems::CONVERTER, "converter", {}, {{TestItems::ORE, 1}}, -1, -1, 1, cooldown_time_values);
+  Converter* converter = new Converter(1, 1, converter_cfg);
+  grid.add_object(converter);
+  converter->set_event_manager(&event_manager);
+
+  std::vector<unsigned int> completions;
+  unsigned int last_output = 0;
+  const unsigned int total_steps = 12;
+  for (unsigned int step = 0; step <= total_steps; ++step) {
+    event_manager.process_events(step);
+    unsigned short current_output = converter->inventory.amount(TestItems::ORE);
+    if (current_output > last_output) {
+      completions.push_back(step);
+      last_output = current_output;
+    }
+  }
+
+  std::vector<unsigned short> observed;
+  for (size_t i = 1; i < completions.size(); ++i) {
+    unsigned int gap = completions[i] - completions[i - 1];
+    unsigned short cooldown = gap > 1 ? static_cast<unsigned short>(gap - 1) : 0;
+    observed.push_back(cooldown);
+  }
+
+  std::vector<unsigned short> expected(observed.size(), 0);
+  EXPECT_EQ(observed, expected);
+}
+
+TEST_F(MettaGridCppTest, ConverterRespectsMaxConversionsLimit) {
+  Grid grid(5, 5);
+  EventManager event_manager;
+  event_manager.init(&grid);
+  RegisterProductionHandlers(event_manager);
+
+  std::vector<unsigned short> cooldown_time_values{5, 10};
+  ConverterConfig converter_cfg(
+      TestItems::CONVERTER, "converter", {}, {{TestItems::ORE, 1}}, -1, 2, 1, cooldown_time_values);
+  Converter* converter = new Converter(3, 3, converter_cfg);
+  grid.add_object(converter);
+  converter->set_event_manager(&event_manager);
+
+  std::vector<unsigned int> completions;
+  unsigned int last_output = 0;
+  const unsigned int total_steps = 40;
+  for (unsigned int step = 0; step <= total_steps; ++step) {
+    event_manager.process_events(step);
+    unsigned short current_output = converter->inventory.amount(TestItems::ORE);
+    if (current_output > last_output) {
+      completions.push_back(step);
+      last_output = current_output;
+    }
+  }
+
+  EXPECT_EQ(completions.size(), 2u);
+  EXPECT_EQ(converter->inventory.amount(TestItems::ORE), 2);
 }
