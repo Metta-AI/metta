@@ -426,6 +426,12 @@ Return a JSON response with this exact structure:
         print(f"  Files: {', '.join(split_decision.group2_files)}")
         print(f"  Description: {split_decision.group2_description}")
 
+        # Validate that both groups have at least one file
+        if not split_decision.group1_files:
+            raise GitError("Cannot split: Group 1 is empty. Both groups must contain at least one file.")
+        if not split_decision.group2_files:
+            raise GitError("Cannot split: Group 2 is empty. Both groups must contain at least one file.")
+
         # Verify all files are accounted for
         all_files = set(f.filename for f in files)
         assigned_files = set(split_decision.group1_files + split_decision.group2_files)
