@@ -7,12 +7,12 @@ from metta.setup.utils import info, success
 
 
 @register_module
-class ExperimentsSetup(SetupModule):
+class ScratchpadSetup(SetupModule):
     install_once = True
 
     @property
     def description(self) -> str:
-        return "Experiments"
+        return "Scratchpad for experiments"
 
     @property
     def user_experiments_dir(self) -> Path:
