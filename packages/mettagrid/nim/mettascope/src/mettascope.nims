@@ -48,4 +48,5 @@ if defined(emscripten):
 when not defined(debug):
   --define:noAutoGLerrorCheck
   --define:release
-  --define:ssl
+
+--define:ssl

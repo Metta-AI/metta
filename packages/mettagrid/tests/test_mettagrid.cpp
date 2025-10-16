@@ -1993,3 +1993,219 @@ TEST_F(MettaGridCppTest, ConverterRespectsMaxConversionsLimit) {
   EXPECT_EQ(completions.size(), 2u);
   EXPECT_EQ(converter->inventory.amount(TestItems::ORE), 2);
 }
+
+// Tests for Inventory::shared_update function
+TEST_F(MettaGridCppTest, SharedUpdate_PositiveDelta_EvenDistribution) {
+  // Test that positive delta is evenly distributed among inventories
+  InventoryConfig cfg;
+  cfg.limits = {{{TestItems::ORE}, 100}};
+
+  Inventory inv1(cfg);
+  Inventory inv2(cfg);
+  Inventory inv3(cfg);
+
+  std::vector<Inventory*> inventories = {&inv1, &inv2, &inv3};
+
+  // Add 30 ore, should be distributed as 10 each
+  InventoryDelta consumed = Inventory::shared_update(inventories, TestItems::ORE, 30);
+
+  EXPECT_EQ(consumed, 30);
+  EXPECT_EQ(inv1.amount(TestItems::ORE), 10);
+  EXPECT_EQ(inv2.amount(TestItems::ORE), 10);
+  EXPECT_EQ(inv3.amount(TestItems::ORE), 10);
+}
+
+TEST_F(MettaGridCppTest, SharedUpdate_PositiveDelta_UnevenDistribution) {
+  // Test that when delta doesn't divide evenly, earlier inventories get more
+  InventoryConfig cfg;
+  cfg.limits = {{{TestItems::ORE}, 100}};
+
+  Inventory inv1(cfg);
+  Inventory inv2(cfg);
+  Inventory inv3(cfg);
+
+  std::vector<Inventory*> inventories = {&inv1, &inv2, &inv3};
+
+  // Add 31 ore, should be distributed as 11, 10, 10 (earlier inventories get more)
+  InventoryDelta consumed = Inventory::shared_update(inventories, TestItems::ORE, 31);
+
+  EXPECT_EQ(consumed, 31);
+  EXPECT_EQ(inv1.amount(TestItems::ORE), 11);
+  EXPECT_EQ(inv2.amount(TestItems::ORE), 10);
+  EXPECT_EQ(inv3.amount(TestItems::ORE), 10);
+}
+
+TEST_F(MettaGridCppTest, SharedUpdate_PositiveDelta_WithLimits) {
+  // Test that inventories that hit their limit drop out of distribution
+  InventoryConfig cfg;
+  cfg.limits = {{{TestItems::ORE}, 10}};  // Low limit of 10
+
+  Inventory inv1(cfg);
+  Inventory inv2(cfg);
+  Inventory inv3(cfg);
+
+  // Pre-fill inv1 with 5 ore
+  inv1.update(TestItems::ORE, 5);
+
+  std::vector<Inventory*> inventories = {&inv1, &inv2, &inv3};
+
+  // Try to add 30 ore
+  // inv1 can only take 5 more (to reach limit of 10)
+  // inv2 and inv3 can each take 10 (to reach their limits)
+  // Total consumed will be 5 + 10 + 10 = 25, not the full 30
+  InventoryDelta consumed = Inventory::shared_update(inventories, TestItems::ORE, 30);
+
+  EXPECT_EQ(consumed, 25);                     // Only 25 can be consumed due to limits
+  EXPECT_EQ(inv1.amount(TestItems::ORE), 10);  // Hit limit
+  EXPECT_EQ(inv2.amount(TestItems::ORE), 10);  // Hit limit
+  EXPECT_EQ(inv3.amount(TestItems::ORE), 10);  // Hit limit
+}
+
+TEST_F(MettaGridCppTest, SharedUpdate_NegativeDelta_EvenDistribution) {
+  // Test that negative delta is evenly distributed among inventories
+  InventoryConfig cfg;
+  cfg.limits = {{{TestItems::ORE}, 100}};
+
+  Inventory inv1(cfg);
+  Inventory inv2(cfg);
+  Inventory inv3(cfg);
+
+  // Pre-fill inventories with 20 ore each
+  inv1.update(TestItems::ORE, 20);
+  inv2.update(TestItems::ORE, 20);
+  inv3.update(TestItems::ORE, 20);
+
+  std::vector<Inventory*> inventories = {&inv1, &inv2, &inv3};
+
+  // Remove 30 ore, should remove 10 from each
+  InventoryDelta consumed = Inventory::shared_update(inventories, TestItems::ORE, -30);
+
+  EXPECT_EQ(consumed, -30);
+  EXPECT_EQ(inv1.amount(TestItems::ORE), 10);
+  EXPECT_EQ(inv2.amount(TestItems::ORE), 10);
+  EXPECT_EQ(inv3.amount(TestItems::ORE), 10);
+}
+
+TEST_F(MettaGridCppTest, SharedUpdate_NegativeDelta_InsufficientResources) {
+  // Test behavior when some inventories don't have enough to contribute their share
+  InventoryConfig cfg;
+  cfg.limits = {{{TestItems::ORE}, 100}};
+
+  Inventory inv1(cfg);
+  Inventory inv2(cfg);
+  Inventory inv3(cfg);
+
+  // Pre-fill inventories with different amounts
+  inv1.update(TestItems::ORE, 5);   // Only has 5
+  inv2.update(TestItems::ORE, 20);  // Has plenty
+  inv3.update(TestItems::ORE, 20);  // Has plenty
+
+  std::vector<Inventory*> inventories = {&inv1, &inv2, &inv3};
+
+  // Try to remove 30 ore
+  // inv1 can only contribute 5, remaining 25 split between inv2 and inv3 as 13, 12
+  InventoryDelta consumed = Inventory::shared_update(inventories, TestItems::ORE, -30);
+
+  EXPECT_EQ(consumed, -30);
+  EXPECT_EQ(inv1.amount(TestItems::ORE), 0);  // Depleted
+  EXPECT_EQ(inv2.amount(TestItems::ORE), 7);  // 20 - 13
+  EXPECT_EQ(inv3.amount(TestItems::ORE), 8);  // 20 - 12
+}
+
+TEST_F(MettaGridCppTest, SharedUpdate_NegativeDelta_UnevenDistribution) {
+  // Test that when negative delta doesn't divide evenly, earlier inventories lose more
+  InventoryConfig cfg;
+  cfg.limits = {{{TestItems::ORE}, 100}};
+
+  Inventory inv1(cfg);
+  Inventory inv2(cfg);
+  Inventory inv3(cfg);
+
+  // Pre-fill inventories with 20 ore each
+  inv1.update(TestItems::ORE, 20);
+  inv2.update(TestItems::ORE, 20);
+  inv3.update(TestItems::ORE, 20);
+
+  std::vector<Inventory*> inventories = {&inv1, &inv2, &inv3};
+
+  // Remove 31 ore, should remove 11, 10, 10 (earlier inventories lose more)
+  InventoryDelta consumed = Inventory::shared_update(inventories, TestItems::ORE, -31);
+
+  EXPECT_EQ(consumed, -31);
+  EXPECT_EQ(inv1.amount(TestItems::ORE), 9);   // 20 - 11
+  EXPECT_EQ(inv2.amount(TestItems::ORE), 10);  // 20 - 10
+  EXPECT_EQ(inv3.amount(TestItems::ORE), 10);  // 20 - 10
+}
+
+TEST_F(MettaGridCppTest, SharedUpdate_EmptyInventoriesList) {
+  // Test with empty inventories list
+  std::vector<Inventory*> inventories;
+
+  InventoryDelta consumed = Inventory::shared_update(inventories, TestItems::ORE, 10);
+
+  EXPECT_EQ(consumed, 0);  // Nothing consumed since no inventories
+}
+
+TEST_F(MettaGridCppTest, SharedUpdate_SingleInventory) {
+  // Test with single inventory
+  InventoryConfig cfg;
+  cfg.limits = {{{TestItems::ORE}, 100}};
+
+  Inventory inv1(cfg);
+  std::vector<Inventory*> inventories = {&inv1};
+
+  // All delta should go to the single inventory
+  InventoryDelta consumed = Inventory::shared_update(inventories, TestItems::ORE, 25);
+
+  EXPECT_EQ(consumed, 25);
+  EXPECT_EQ(inv1.amount(TestItems::ORE), 25);
+}
+
+TEST_F(MettaGridCppTest, SharedUpdate_AllInventoriesAtLimit) {
+  // Test when all inventories are at their limit
+  InventoryConfig cfg;
+  cfg.limits = {{{TestItems::ORE}, 10}};
+
+  Inventory inv1(cfg);
+  Inventory inv2(cfg);
+
+  // Fill both to limit
+  inv1.update(TestItems::ORE, 10);
+  inv2.update(TestItems::ORE, 10);
+
+  std::vector<Inventory*> inventories = {&inv1, &inv2};
+
+  // Try to add more
+  InventoryDelta consumed = Inventory::shared_update(inventories, TestItems::ORE, 20);
+
+  EXPECT_EQ(consumed, 0);  // Nothing consumed since all at limit
+  EXPECT_EQ(inv1.amount(TestItems::ORE), 10);
+  EXPECT_EQ(inv2.amount(TestItems::ORE), 10);
+}
+
+TEST_F(MettaGridCppTest, SharedUpdate_MixedLimits) {
+  // Test with inventories having different limits
+  InventoryConfig cfg1;
+  cfg1.limits = {{{TestItems::ORE}, 10}};
+
+  InventoryConfig cfg2;
+  cfg2.limits = {{{TestItems::ORE}, 20}};
+
+  InventoryConfig cfg3;
+  cfg3.limits = {{{TestItems::ORE}, 30}};
+
+  Inventory inv1(cfg1);  // Limit 10
+  Inventory inv2(cfg2);  // Limit 20
+  Inventory inv3(cfg3);  // Limit 30
+
+  std::vector<Inventory*> inventories = {&inv1, &inv2, &inv3};
+
+  // Try to add 45 ore
+  // inv1 takes 10 (hits limit), inv2 takes 18, inv3 takes 17
+  InventoryDelta consumed = Inventory::shared_update(inventories, TestItems::ORE, 45);
+
+  EXPECT_EQ(consumed, 45);
+  EXPECT_EQ(inv1.amount(TestItems::ORE), 10);  // Hit limit
+  EXPECT_EQ(inv2.amount(TestItems::ORE), 18);  // Gets more due to being earlier
+  EXPECT_EQ(inv3.amount(TestItems::ORE), 17);
+}
