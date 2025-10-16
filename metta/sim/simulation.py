@@ -156,13 +156,10 @@ class Simulation:
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
 
         # doxascope setup
-        self._last_policy_td = None
         self._doxascope_logger = DoxascopeLogger(enabled=cfg.doxascope_enabled, simulation_id=self._id)
         if self._doxascope_logger.enabled:
-            base_policy_name = Path(self._policy_uri).stem.split(":")[0]
-            policy_name = base_policy_name.replace("/", "_")
             self._doxascope_logger.configure(
-                policy_name=policy_name,
+                policy_uri=self._policy_uri,
                 object_type_names=metta_grid_env.object_type_names,
             )
 
@@ -222,10 +219,6 @@ class Simulation:
             agent_obs = agent_obs[None, ...]  # Add back the agent dimension
         td = obs_to_td(agent_obs, self._device)
         policy(td)
-
-        if self._doxascope_logger.enabled and policy is self._policy:
-            self._last_policy_td = td
-
         return td["actions"]
 
     def generate_actions(self) -> np.ndarray:
@@ -294,13 +287,11 @@ class Simulation:
         # doxascope logging
         if self._doxascope_logger.enabled:
             metta_grid_env: MettaGridEnv = self._vecenv.driver_env  # type: ignore
-            assert isinstance(metta_grid_env, MettaGridEnv)
             env_grid_objects = metta_grid_env.grid_objects()
             self._doxascope_logger.log_timestep(
                 self._policy,
                 self._policy_idxs,
                 env_grid_objects,
-                tensordict=self._last_policy_td,
             )
 
         obs, rewards, dones, trunc, infos = self._vecenv.step(actions_np)
