@@ -1,8 +1,7 @@
 import logging
 from typing import List
 
-from metta.agent.components.action import ActionEmbeddingConfig
-from metta.agent.components.actor import ActionProbsConfig, ActorKeyConfig, ActorQueryConfig
+from metta.agent.components.actor import ActionProbsConfig, ActorHeadConfig
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.components.misc import MLPConfig
 from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
@@ -20,7 +19,6 @@ class ViTSlidingTransConfig(PolicyArchitecture):
     _latent_dim = 64
     _token_embed_dim = 8
     _fourier_freqs = 3
-    _embed_dim = 16
     _core_out_dim = 32
     _memory_num_layers = 2
 
@@ -56,14 +54,7 @@ class ViTSlidingTransConfig(PolicyArchitecture):
             out_features=1,
             hidden_features=[1024],
         ),
-        ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embed_dim),
-        ActorQueryConfig(in_key="core", out_key="actor_query", hidden_size=_core_out_dim, embed_dim=_embed_dim),
-        ActorKeyConfig(
-            query_key="actor_query",
-            embedding_key="action_embedding",
-            out_key="logits",
-            embed_dim=_embed_dim,
-        ),
+        ActorHeadConfig(in_key="core", out_key="logits", input_dim=_core_out_dim),
     ]
 
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")

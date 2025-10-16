@@ -2,6 +2,7 @@
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_CONVERTER_HPP_
 
 #include <cassert>
+#include <cstddef>
 #include <string>
 #include <vector>
 
@@ -48,7 +49,7 @@ private:
     // produce.
     // Get the amounts to consume from input, so we don't update the inventory
     // while iterating over it.
-    std::map<InventoryItem, uint8_t> amounts_to_consume;
+    std::unordered_map<InventoryItem, uint8_t> amounts_to_consume;
     for (const auto& [item, input_amount] : this->input_resources) {
       amounts_to_consume[item] = input_amount;
     }
@@ -64,9 +65,17 @@ private:
     this->event_manager->schedule_event(EventType::FinishConverting, this->conversion_ticks, this->id, 0);
   }
 
+  unsigned short cooldown_value_for_cycle(size_t cycle) const {
+    if (this->cooldown_time.empty()) {
+      return 0;
+    }
+    size_t index = cycle % this->cooldown_time.size();
+    return this->cooldown_time[index];
+  }
+
 public:
-  std::map<InventoryItem, InventoryQuantity> input_resources;
-  std::map<InventoryItem, InventoryQuantity> output_resources;
+  std::unordered_map<InventoryItem, InventoryQuantity> input_resources;
+  std::unordered_map<InventoryItem, InventoryQuantity> output_resources;
   // The converter won't convert if its output already has this many things of
   // the type it produces. This may be clunky in some cases, but the main usage
   // is to make Mines (etc) have a maximum output.
@@ -74,14 +83,14 @@ public:
   short max_output;
   short max_conversions;
   unsigned short conversion_ticks;  // Time to produce output
-  unsigned short cooldown;          // Time to wait after producing before starting again
+  std::vector<unsigned short> cooldown_time;  // Sequenced cooldown durations
+  unsigned short conversions_completed;
   bool converting;                  // Currently in production phase
   bool cooling_down;                // Currently in cooldown phase
   bool recipe_details_obs;
   EventManager* event_manager;
   ObservationType input_recipe_offset;
   ObservationType output_recipe_offset;
-  unsigned short conversions_completed;
 
   Converter(GridCoord r, GridCoord c, const ConverterConfig& cfg)
       : GridObject(),
@@ -91,14 +100,14 @@ public:
         max_output(cfg.max_output),
         max_conversions(cfg.max_conversions),
         conversion_ticks(cfg.conversion_ticks),
-        cooldown(cfg.cooldown),
+        cooldown_time(cfg.cooldown_time),
+        conversions_completed(0),
         converting(false),
         cooling_down(false),
         recipe_details_obs(cfg.recipe_details_obs),
         event_manager(nullptr),
         input_recipe_offset(cfg.input_recipe_offset),
-        output_recipe_offset(cfg.output_recipe_offset),
-        conversions_completed(0) {
+        output_recipe_offset(cfg.output_recipe_offset) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids);
 
     // Initialize inventory with initial_resource_count for all output types
@@ -115,22 +124,30 @@ public:
   void finish_converting() {
     this->converting = false;
 
-    // Only increment the counter when tracking conversion limits
-    if (this->max_conversions >= 0) {
-      this->conversions_completed++;
-    }
-
     // Add output to inventory
     for (const auto& [item, amount] : this->output_resources) {
       this->inventory.update(item, amount);
     }
 
-    if (this->cooldown > 0) {
-      // Start cooldown phase
+    // Increment before checking cooldown to ensure max_conversions is properly
+    // enforced when cooldown is zero
+    this->conversions_completed++;
+
+    // Use (conversions_completed - 1) to get the cooldown for the conversion
+    // that just finished
+    unsigned short cooldown_value =
+        this->cooldown_value_for_cycle(this->conversions_completed - 1);
+    if (cooldown_value > 0) {
       this->cooling_down = true;
-      this->event_manager->schedule_event(EventType::CoolDown, this->cooldown, this->id, 0);
-    } else if (this->cooldown == 0) {
-      // No cooldown, try to start converting again immediately
+      if (this->event_manager) {
+        this->event_manager->schedule_event(
+            EventType::CoolDown,
+            cooldown_value,
+            this->id,
+            0);
+      }
+    } else {
+      this->cooling_down = false;
       this->maybe_start_converting();
     }
   }
@@ -194,6 +211,10 @@ public:
     }
 
     return features;
+  }
+
+  unsigned short next_cooldown_time() const {
+    return this->cooldown_value_for_cycle(this->conversions_completed);
   }
 };
 

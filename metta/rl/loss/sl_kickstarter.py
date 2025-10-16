@@ -65,10 +65,11 @@ class SLKickstarter(Loss):
         # load teacher policy
         from metta.rl.checkpoint_manager import CheckpointManager
 
-        self.teacher_policy: Policy = CheckpointManager.load_from_uri(self.loss_cfg.teacher_uri, device)
-        if hasattr(self.teacher_policy, "initialize_to_environment"):
-            env_metadata = self.env.meta_data
-            self.teacher_policy.initialize_to_environment(env_metadata, self.device)
+        env_metadata = getattr(self.env, "meta_data", None)
+        if env_metadata is None:
+            raise RuntimeError("Environment metadata is required to instantiate teacher policy")
+
+        self.teacher_policy = CheckpointManager.load_from_uri(self.loss_cfg.teacher_uri, env_metadata, self.device)
 
         # Detach gradient
         for param in self.teacher_policy.parameters():

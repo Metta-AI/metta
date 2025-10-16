@@ -195,7 +195,7 @@ output_step, state = stack.step(x_step, state)
 
 ## AxonCell - Locally Recurrent Gradient Propagating alternative to Linear Layers
 
-The AxonCell (`packages/cortex/src/cortex/cells/core/axon_cell.py`) is the new
+The AxonCell (`packages/cortex/src/cortex/cells/axons.py`) is a new
 fundamental building block in Cortex. It is designed as a drop‑in replacement
 for a linear layer that makes the projection locally recurrent and enables
 gradients to propagate across an arbitrary horizon.
@@ -231,12 +231,12 @@ Usage example
 ```python
 import torch
 from cortex.config import AxonsConfig
-from cortex.cells.core import AxonCell
+from cortex.cells.axons import AxonsCell
 
 B, T, H = 8, 512, 256
 x = torch.randn(B, T, H, device='cuda')
 
-cell = AxonCell(
+cell = AxonsCell(
     AxonsConfig(
         hidden_size=H,
         activation='SiLU',
@@ -262,7 +262,7 @@ TensorDict or locally if none is provided).
 
 ```python
 from tensordict import TensorDict
-from cortex.cells.core import AxonLayer
+from cortex.cells.axons import AxonLayer
 
 B, T, H_in, H_out = 8, 128, 256, 384
 x = torch.randn(B, T, H_in)
@@ -284,7 +284,7 @@ Why it matters
   streaming, improving temporal expressivity with low memory cost.
 - It enables learning signals to flow beyond TBPTT by preserving
   cross‑boundary credit via compact traces rather than full activation history.
-- It is intended as the default “linear” building block in future Cortex
+- It is intended as the default "linear" building block in future Cortex
   architectures: replacing feed‑forward linear projections with Axons imbues
   networks with long‑horizon temporal inductive bias.
 
@@ -323,11 +323,11 @@ stack = build_xlstm_stack(
 
 ## Metta Framework Integration
 
-Cortex provides a ready-to-use adapter for integrating memory stacks with the [Metta RL framework](https://github.com/metta-ai/metta), which uses TensorDict-based state management.
+Metta ships with a ready-to-use component for integrating Cortex memory stacks with its TensorDict-based pipelines.
 
-### MettaTDAdapter
+### CortexTD Component
 
-The `MettaTDAdapter` wraps a `CortexStack` and makes it compatible with Metta's TensorDict interface, handling stateful recurrent memory across rollout and training phases.
+The `CortexTD` component (located in `metta.agent.components.cortex`) wraps a `CortexStack` and makes it compatible with Metta's TensorDict interface, handling stateful recurrent memory across rollout and training phases.
 
 **Key Features:**
 
@@ -343,7 +343,7 @@ The `MettaTDAdapter` wraps a `CortexStack` and makes it compatible with Metta's 
 
 ```python
 from cortex import build_cortex, CortexStackConfig, LSTMCellConfig, PreUpBlockConfig
-from cortex.adapters import MettaTDAdapter
+from metta.agent.components.cortex import CortexTD, CortexTDConfig
 
 # Build a memory stack
 stack = build_cortex(CortexStackConfig(
@@ -356,23 +356,23 @@ stack = build_cortex(CortexStackConfig(
     ]
 ))
 
-# Wrap with Metta adapter
-adapter = MettaTDAdapter(
+# Wrap with Metta component
+component = CortexTD(CortexTDConfig(
     stack=stack,
     in_key="latent",           # Input key in TensorDict
     out_key="recurrent_out",   # Output key in TensorDict
     d_hidden=256,              # Stack's external hidden size
     out_features=512,          # Optional projection to different size
     store_dtype="fp32"         # Storage precision: 'fp32' or 'bf16'
-)
+))
 
 # Use in your Metta policy
-# The adapter handles state management automatically via TensorDict metadata
+# The component handles state management automatically via TensorDict metadata
 ```
 
 **Integration Notes:**
 
-- The adapter is an `nn.Module` that registers the stack's parameters for optimization
+- The component is an `nn.Module` that registers the stack's parameters for optimization
 - Requires `training_env_ids` in TensorDict for per-environment state tracking
 - Expects `bptt` (backprop through time steps) metadata to distinguish rollout (bptt=1) from training (bptt>1)
 - Implements `get_memory()` / `set_memory()` for checkpoint serialization

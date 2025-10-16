@@ -4,7 +4,9 @@ from typing import Optional
 import torch
 import torch.nn as nn
 from tensordict import TensorDict
+from tensordict.nn import TensorDictModule as TDM
 
+import pufferlib.pytorch
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.rl.training import EnvironmentMetaData
@@ -138,8 +140,8 @@ class ActionProbs(nn.Module):
             return self.forward_training(td, action)
 
     def forward_inference(self, td: TensorDict) -> TensorDict:
-        logits = td[self.config.in_key]
         """Forward pass for inference mode with action sampling."""
+        logits = td[self.config.in_key]
         action_logit_index, selected_log_probs, _, full_log_probs = sample_actions(logits)
 
         td["actions"] = action_logit_index.to(dtype=torch.int32)
@@ -182,3 +184,36 @@ class ActionProbs(nn.Module):
             td = td.reshape(batch_size, bptt_size)
 
         return td
+
+
+class ActorHeadConfig(ComponentConfig):
+    in_key: str
+    out_key: str
+    input_dim: int
+    layer_init_std: float = 1.0
+    name: str = "actor_head"
+
+    def make_component(self, env: EnvironmentMetaData | None = None):
+        if env is None:
+            raise ValueError("ActorHeadConfig requires EnvironmentMetaData to determine action dimensions")
+        return ActorHead(config=self, env=env)
+
+
+class ActorHead(nn.Module):
+    """Simple linear head that maps hidden features to environment logits."""
+
+    def __init__(self, config: ActorHeadConfig, env: EnvironmentMetaData):
+        super().__init__()
+        self.config = config
+        self.in_key = self.config.in_key
+        self.out_key = self.config.out_key
+        num_actions = int(env.action_space.n)
+
+        linear = pufferlib.pytorch.layer_init(
+            nn.Linear(self.config.input_dim, num_actions),
+            std=self.config.layer_init_std,
+        )
+        self._module = TDM(linear, in_keys=[self.in_key], out_keys=[self.out_key])
+
+    def forward(self, td: TensorDict) -> TensorDict:
+        return self._module(td)
