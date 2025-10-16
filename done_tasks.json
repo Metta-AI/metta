@@ -34,5 +34,19 @@
     "commit": "a9f1c193998c84846091bdd7cbc2ba2f44982361",
     "completed_at": "2025-10-16",
     "notes": "Extended FastDynamics to predict next-step values and trained the head within the dynamics loss."
+  },
+  {
+    "gid": "1211366023633219",
+    "name": "Add EMA of Future Latent State Prediction Loss",
+    "branch": "feature/future-latent-ema-loss",
+    "commit": "2ece4bc9fdf3d71c88a034ec69de167492693ca8",
+    "completed_at": "2025-10-16"
+  },
+  {
+    "gid": "1210892820911816",
+    "name": "Check VAST for 4090/5090 Dev boxes",
+    "branch": "feature/vast-dev-box-check",
+    "commit": "e573611eaea579a2a2828aa21e17f6a74e1ebf4f",
+    "completed_at": "2025-10-16"
   }
 ]

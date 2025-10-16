@@ -156,15 +156,6 @@
     "name": "AWS instance comparison report"
   },
   {
-    "gid": "1210892820911816",
-    "assignee": {
-      "gid": "1209745820121609",
-      "name": "Axel Kerbec"
-    },
-    "completed": false,
-    "name": "Check VAST for 4090/5090 Dev boxes"
-  },
-  {
     "gid": "1210892820911818",
     "assignee": {
       "gid": "1209745820121609",
@@ -412,15 +403,6 @@
     },
     "completed": false,
     "name": "Add Contrastive Loss"
-  },
-  {
-    "gid": "1211366023633219",
-    "assignee": {
-      "gid": "1211215486118014",
-      "name": "Tasha Pais"
-    },
-    "completed": false,
-    "name": "Add EMA of Future Latent State Prediction Loss"
   },
   {
     "gid": "1211366082780014",
