@@ -385,6 +385,42 @@ def test_apply_exclusions_moves_files():
     assert "keep.txt" not in adjusted.group2_files
 
 
+def test_split_moves_unassigned_into_group1(monkeypatch: pytest.MonkeyPatch):
+    files = [
+        FileDiff(filename="a.py", additions=[], deletions=[], hunks=[], raw_diff=""),
+        FileDiff(filename="b.py", additions=[], deletions=[], hunks=[], raw_diff=""),
+    ]
+
+    splitter = PRSplitter()
+    splitter.current_branch = "feature"
+    splitter.base_branch = "origin/main"
+
+    def fake_analyze_diff(_):
+        return SplitDecision(
+            group1_files=["a.py"],
+            group2_files=[],
+            group1_description="g1",
+            group2_description="g2",
+            group1_title="t1",
+            group2_title="t2",
+        )
+
+    monkeypatch.setattr(splitter, "analyze_diff_with_ai", fake_analyze_diff)
+    monkeypatch.setattr(splitter, "_apply_exclusions", lambda d, _: d)
+    monkeypatch.setattr(splitter, "get_diff", lambda _base, _head: "diff")
+    monkeypatch.setattr(splitter, "parse_diff", lambda _diff: files)
+    monkeypatch.setattr(splitter, "create_patch_file", lambda _files, names: "\n".join(names))
+    monkeypatch.setattr(splitter, "verify_split", lambda *_: True)
+    monkeypatch.setattr(splitter, "apply_patch_to_new_branch", lambda *_: None)
+    monkeypatch.setattr(splitter, "push_branch", lambda *_: None)
+    monkeypatch.setattr(splitter, "create_github_pr", lambda *_: None)
+    monkeypatch.setattr(splitter, "get_base_branch", lambda: "origin/main")
+    monkeypatch.setattr("gitta.split.get_current_branch", lambda: "feature")
+    monkeypatch.setattr("gitta.split.run_git", lambda *args: "")
+
+    splitter.split()
+
+
 def test_split_pr_forwards_independence(monkeypatch: pytest.MonkeyPatch):
     captured: Dict[str, Any] = {}
 

@@ -526,8 +526,26 @@ Return a JSON response with this exact structure:
 
         if all_files != assigned_files:
             print("\n⚠️  Warning: File mismatch!")
-            print(f"  Unassigned: {all_files - assigned_files}")
-            print(f"  Unknown: {assigned_files - all_files}")
+            unassigned = sorted(all_files - assigned_files)
+            unknown = sorted(assigned_files - all_files)
+
+            if unassigned:
+                print(f"  Unassigned: {set(unassigned)}")
+                print("  ➕ Moving unassigned files into group1")
+                additional = [name for name in unassigned if name not in split_decision.group1_files]
+                group1_files = split_decision.group1_files + additional
+                group2_files = [name for name in split_decision.group2_files if name in all_files]
+                split_decision = SplitDecision(
+                    group1_files=group1_files,
+                    group2_files=group2_files,
+                    group1_description=split_decision.group1_description,
+                    group2_description=split_decision.group2_description,
+                    group1_title=split_decision.group1_title,
+                    group2_title=split_decision.group2_title,
+                )
+
+            if unknown:
+                print(f"  Unknown: {set(unknown)}")
 
         # Create patches
         print("\n✂️  Creating patches...")
