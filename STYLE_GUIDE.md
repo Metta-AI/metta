@@ -80,7 +80,9 @@ def some_function():
     from .core import run_git_cmd  # Avoid this
 ```
 
-**Exception:** Only for resolving circular dependencies (and consider this a code smell)
+**Exceptions:**
+- Circular dependency workarounds (consider this a code smell to fix later)
+- Heavy imports in CLI tools (e.g., `torch`, `wandb`) where startup time matters
 
 ## General Guidelines
 
