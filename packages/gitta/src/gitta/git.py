@@ -370,3 +370,49 @@ def git_log_since(ref: str, max_count: int = 20, oneline: bool = True) -> str:
             return run_git(*fallback_args)
         except GitError:
             return "Unable to retrieve git log"
+
+
+def validate_commit_state(
+    require_clean: bool = True,
+    require_pushed: bool = True,
+    target_repo: Optional[str] = None,
+    allow_untracked: bool = False,
+) -> str:
+    """Validate git working tree state and return current commit hash.
+
+    This is useful before remote execution to ensure the remote environment
+    can reproduce the local code state.
+
+    Args:
+        require_clean: Raise error if there are uncommitted changes
+        require_pushed: Raise error if current commit isn't pushed
+        target_repo: If provided, validate we're in this repo (e.g., "owner/repo")
+        allow_untracked: If True, allow untracked files (only check tracked changes)
+
+    Returns:
+        Current commit hash
+
+    Raises:
+        GitError: If validation fails or not in a git repository
+    """
+    current_commit = get_current_commit()
+
+    # Validate we're in the right repository
+    if target_repo and not is_repo_match(target_repo):
+        raise GitError(f"Not in repository {target_repo}")
+
+    # Check for uncommitted changes
+    if require_clean:
+        has_changes, status_output = has_unstaged_changes(allow_untracked=allow_untracked)
+        if has_changes:
+            raise GitError(
+                f"Working tree has uncommitted changes to tracked files:\n{status_output}\n"
+                "Commit or stash your changes before proceeding."
+            )
+
+    # Check if commit is pushed
+    if require_pushed and not is_commit_pushed(current_commit):
+        short_commit = current_commit[:8]
+        raise GitError(f"Commit {short_commit} hasn't been pushed to remote.\nPush your changes before proceeding.")
+
+    return current_commit

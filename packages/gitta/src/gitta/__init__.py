@@ -39,6 +39,7 @@ from .git import (
     is_repo_match,
     ref_exists,
     resolve_git_ref,
+    validate_commit_state,
     validate_git_ref,
 )
 
@@ -83,6 +84,7 @@ __all__ = [
     "ref_exists",
     "diff",
     "git_log_since",
+    "validate_commit_state",
     # GitHub API
     "run_gh",
     "get_matched_pr",
