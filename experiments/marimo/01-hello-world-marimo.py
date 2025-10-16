@@ -1009,7 +1009,7 @@ def _(
             with contextlib.redirect_stdout(io.StringIO()):
                 eval_env = MettaGridEnv(mg_config, render_mode="human")
 
-            env_metadata = GameRules(
+            game_rules = GameRules(
                 obs_width=eval_env.obs_width,
                 obs_height=eval_env.obs_height,
                 obs_features=eval_env.observation_features,
@@ -1025,7 +1025,7 @@ def _(
             )
 
             trained_policy = trained_artifact.instantiate(
-                env_metadata, torch.device("cpu")
+                game_rules, torch.device("cpu")
             )
             if trained_policy is None:
                 raise RuntimeError(
@@ -1684,7 +1684,7 @@ def _(
         run_name_from_ckpt = metadata["run_name"]
 
         trained_artifact = CheckpointManager.load_from_uri(
-            str(latest_ckpt), env_metadata, device
+            str(latest_ckpt), game_rules, device
         )
         trained_policy = trained_artifact.policy
         if trained_policy is None:

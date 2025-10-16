@@ -9,7 +9,7 @@ from metta.rl.training import GameRules
 from metta.rl.utils import ensure_sequence_metadata
 
 
-def _build_env_metadata():
+def _build_game_rules():
     action_names = ["move_north", "attack_0", "attack_1", "attack_2"]
     feature_normalizations = {0: 1.0}
 
@@ -39,26 +39,26 @@ def _build_token_observations(batch_size: int, num_tokens: int) -> TensorDict:
 
 
 def test_fast_config_creates_policy():
-    env_metadata = _build_env_metadata()
-    policy = FastConfig().make_policy(env_metadata)
+    game_rules = _build_game_rules()
+    policy = FastConfig().make_policy(game_rules)
     assert isinstance(policy, FastPolicy)
 
 
 def test_fast_policy_initialize_sets_action_metadata():
-    env_metadata = _build_env_metadata()
-    policy = FastPolicy(env_metadata)
+    game_rules = _build_game_rules()
+    policy = FastPolicy(game_rules)
 
-    logs = policy.initialize_to_environment(env_metadata, torch.device("cpu"))
+    logs = policy.initialize_to_environment(game_rules, torch.device("cpu"))
 
     # Initialization returns a list containing the observation shim log (may be None)
     assert isinstance(logs, list)
-    assert policy.action_probs.num_actions == len(env_metadata.action_names)
+    assert policy.action_probs.num_actions == len(game_rules.action_names)
 
 
 def test_fast_policy_forward_produces_actions_and_values():
-    env_metadata = _build_env_metadata()
-    policy = FastPolicy(env_metadata)
-    policy.initialize_to_environment(env_metadata, torch.device("cpu"))
+    game_rules = _build_game_rules()
+    policy = FastPolicy(game_rules)
+    policy.initialize_to_environment(game_rules, torch.device("cpu"))
     policy.eval()
 
     td = _build_token_observations(batch_size=1, num_tokens=4)

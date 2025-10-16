@@ -14,7 +14,7 @@ from metta.rl.training.training_environment import GameRules
 from metta.rl.utils import ensure_sequence_metadata
 
 
-def _build_env_metadata():
+def _build_game_rules():
     action_names = ["move_north", "attack_0", "attack_1", "attack_2"]
     feature_normalizations = {0: 1.0}
 
@@ -54,11 +54,11 @@ def _build_token_observations(batch_size: int, num_tokens: int) -> TensorDict:
     ],
 )
 def test_transformer_config_creates_policy(config_factory, expected_backbone):
-    env_metadata = _build_env_metadata()
-    policy = config_factory().make_policy(env_metadata)
+    game_rules = _build_game_rules()
+    policy = config_factory().make_policy(game_rules)
     assert isinstance(policy, TransformerPolicy)
     assert isinstance(policy.config.transformer, expected_backbone)
-    policy.initialize_to_environment(env_metadata, torch.device("cpu"))
+    policy.initialize_to_environment(game_rules, torch.device("cpu"))
     policy.eval()
 
     td = _build_token_observations(batch_size=1, num_tokens=4)
@@ -73,18 +73,18 @@ def test_transformer_config_creates_policy(config_factory, expected_backbone):
 
 
 def test_transformer_policy_initialization_sets_action_metadata():
-    env_metadata = _build_env_metadata()
-    policy = backbone_gtrxl.gtrxl_policy_config().make_policy(env_metadata)
+    game_rules = _build_game_rules()
+    policy = backbone_gtrxl.gtrxl_policy_config().make_policy(game_rules)
 
-    policy.initialize_to_environment(env_metadata, torch.device("cpu"))
+    policy.initialize_to_environment(game_rules, torch.device("cpu"))
 
-    assert policy.action_probs.num_actions == len(env_metadata.action_names)
+    assert policy.action_probs.num_actions == len(game_rules.action_names)
 
 
 def test_padding_tokens_do_not_zero_valid_entries():
-    env_metadata = _build_env_metadata()
-    policy = backbone_gtrxl.gtrxl_policy_config().make_policy(env_metadata)
-    policy.initialize_to_environment(env_metadata, torch.device("cpu"))
+    game_rules = _build_game_rules()
+    policy = backbone_gtrxl.gtrxl_policy_config().make_policy(game_rules)
+    policy.initialize_to_environment(game_rules, torch.device("cpu"))
     policy.eval()
 
     observations = torch.full((1, 4, 3), 0xFF, dtype=torch.uint8)
@@ -113,9 +113,9 @@ def test_padding_tokens_do_not_zero_valid_entries():
 
 
 def test_transformer_reset_memory_is_noop():
-    env_metadata = _build_env_metadata()
-    policy = backbone_gtrxl.gtrxl_policy_config().make_policy(env_metadata)
-    policy.initialize_to_environment(env_metadata, torch.device("cpu"))
+    game_rules = _build_game_rules()
+    policy = backbone_gtrxl.gtrxl_policy_config().make_policy(game_rules)
+    policy.initialize_to_environment(game_rules, torch.device("cpu"))
 
     policy._memory[0] = torch.ones(1, policy.hidden_size)
     policy.reset_memory()
@@ -127,9 +127,9 @@ def test_transformer_reset_memory_is_noop():
 
 
 def test_transformer_memory_len_update():
-    env_metadata = _build_env_metadata()
-    policy = backbone_trxl.trxl_policy_config().make_policy(env_metadata)
-    policy.initialize_to_environment(env_metadata, torch.device("cpu"))
+    game_rules = _build_game_rules()
+    policy = backbone_trxl.trxl_policy_config().make_policy(game_rules)
+    policy.initialize_to_environment(game_rules, torch.device("cpu"))
 
     td = _build_token_observations(batch_size=1, num_tokens=4)
     ensure_sequence_metadata(td, batch_size=1, time_steps=1)

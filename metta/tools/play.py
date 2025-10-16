@@ -83,9 +83,6 @@ class PlayTool(Tool):
         # Load policy if provided, otherwise use mock agent (random actions)
         if self.policy_uri:
             logger.info(f"Loading policy from {self.policy_uri}")
-            policy = CheckpointManager.load_from_uri(self.policy_uri)
-
-            # Create environment metadata for policy initialization
             game_rules = GameRules(
                 obs_width=env.obs_width,
                 obs_height=env.obs_height,
@@ -96,6 +93,7 @@ class PlayTool(Tool):
                 action_space=env.single_action_space,
                 feature_normalizations=env.feature_normalizations,
             )
+            policy = CheckpointManager.load_from_uri(self.policy_uri, game_rules, device)
 
             # Initialize policy to environment
             policy.eval()
