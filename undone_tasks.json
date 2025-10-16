@@ -36,12 +36,6 @@
     "name": "v1 figure of merit formula for arena environment"
   },
   {
-    "gid": "1209041170403516",
-    "assignee": null,
-    "completed": false,
-    "name": "Generate replays during training"
-  },
-  {
     "gid": "1209208922660846",
     "assignee": {
       "gid": "1210748130054770",
@@ -805,12 +799,6 @@
     "assignee": null,
     "completed": false,
     "name": "Try using average-reward and no discounting"
-  },
-  {
-    "gid": "1211665269726547",
-    "assignee": null,
-    "completed": false,
-    "name": "Deterministic runs"
   },
   {
     "gid": "1209661379538190",
