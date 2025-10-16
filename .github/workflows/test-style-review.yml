@@ -34,6 +34,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           anthropic_model: "claude-sonnet-4-20250514"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           allowed_tools: "Edit,Replace,Bash(git diff HEAD~1),Write"
           direct_prompt: |
             Review the Python diff for code style violations according to our company style guide.
