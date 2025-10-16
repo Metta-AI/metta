@@ -68,7 +68,7 @@ module "eks" {
   tags = local.tags
 }
 
-resource "aws_eks_pod_identity_association" "observatory_backend" {
+resource "aws_eks_pod_identity_association" "ebs-csi-driver" {
   cluster_name    = module.eks.cluster_name
   namespace       = "kube-system"
   service_account = "ebs-csi-controller-sa"
