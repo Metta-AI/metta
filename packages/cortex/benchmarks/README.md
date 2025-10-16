@@ -2,87 +2,37 @@
 
 Performance benchmarks comparing Triton-accelerated kernels against pure PyTorch implementations.
 
-## Available Benchmarks
+## CLI Usage
 
-### RTU (low‑rank)
+All benchmarks are now launched through a single entry point:
+
 ```bash
-uv run python benchmarks/bench_rtu_triton_vs_pytorch.py
-```
-Performance varies with sequence length and hidden size. Triton benefits most for longer sequences and when per‑timestep resets are used (segmented scan path). The script reports per‑config speed and max output difference.
-
-Sample run (NVIDIA L4, CUDA 12.8):
-
-```
-/workspace/metta/packages/cortex# uv run python benchmarks/bench_rtu_triton_vs_pytorch.py
-================================================================================
-RTU (low-rank) Triton vs PyTorch Benchmark
-================================================================================
-
-Device: NVIDIA L4
-CUDA Version: 12.8
-
-Configuration format: (batch, seq_len, hidden, rank, resets, p)
-
-Config                                           PyTorch (ms)    Triton (ms)     Speedup    Max Diff    
---------------------------------------------------------------------------------------------------------------
-(4, 128, 64, 8, False, 0.0)                        Benchmarking PyTorch implementation...
-  Benchmarking Triton implementation...
-25.789          1.550           16.64x     4.32e-07    
-(4, 256, 64, 8, False, 0.0)                        Benchmarking PyTorch implementation...
-  Benchmarking Triton implementation...
-53.949          1.582           34.11x     5.36e-07    
-(8, 256, 64, 16, False, 0.0)                       Benchmarking PyTorch implementation...
-  Benchmarking Triton implementation...
-53.405          1.552           34.40x     8.29e-01    
-(8, 512, 64, 16, False, 0.0)                       Benchmarking PyTorch implementation...
-  Benchmarking Triton implementation...
-106.822         1.674           63.83x     1.28e+00    
-(8, 512, 128, 16, False, 0.0)                      Benchmarking PyTorch implementation...
-  Benchmarking Triton implementation...
-105.946         1.752           60.47x     1.28e+00    
-(8, 512, 64, 16, True, 0.1)                        Benchmarking PyTorch implementation...
-  Benchmarking Triton implementation...
-145.180         2.011           72.18x     6.15e-01    
-(8, 1024, 64, 16, True, 0.1)                       Benchmarking PyTorch implementation...
-  Benchmarking Triton implementation...
-297.344         1.890           157.31x    7.40e-01    
-
-================================================================================
-Benchmark complete!
-================================================================================
+uv run ./run.py --list          # show available benchmarks
+uv run ./run.py rtu             # run all RTU configs
+uv run ./run.py slstm --config 0 --config 3  # run selected configs only
+uv run ./run.py mlstm --device cpu           # force CPU mode (skips Triton)
+uv run ./run.py conv1d --warmup 10 --iterations 50
 ```
 
-### sLSTM
-```bash
-uv run python benchmarks/bench_slstm_triton_vs_pytorch.py
-```
-**Performance:** 23x - 68x speedup (excellent performance across all configs)
+The runner handles:
 
-### mLSTM
-```bash
-uv run python benchmarks/bench_mlstm_triton_vs_pytorch.py
-```
-**Performance:** 3.5x - 12.3x speedup (best at longer sequences)
+- Automatic CUDA vs CPU device selection (override with `--device`)
+- Warmup/iteration overrides (`--warmup`, `--iterations`)
+- Per-config selection via repeated `--config` flags (indices shown in output)
+- Uniform table formatting for PyTorch/Triton timings, speedups, and error reporting
 
-### LSTM
-```bash
-uv run python benchmarks/bench_lstm_triton_vs_pytorch.py
-```
-**Performance:** PyTorch (cuDNN) is 3x - 25x faster. Triton kernel useful for custom reset patterns.
+Each benchmark module defines its own configuration grid but reuses the shared timing utilities and output formatting in `common.py`.
 
-**Why Triton is still slower:**
-- Each timestep recomputes the full recurrent GEMM from global memory; cuDNN keeps weights in on-chip caches and fuses the sequence.
-- The kernel tiles only along the hidden dimension (`MATMUL_K_TILE=16`), which limits tensor-core usage and overall occupancy.
-- Python dispatch launches the forward kernel once per sequence iteration, whereas cuDNN handles the whole sequence inside one launch.
-- Mixed-precision support is conservative (fp32 accumulation), so cuDNN’s tensor-core kernels retain a throughput edge.
+## Benchmarks
 
-Closing these gaps would mean redesigning the Triton kernel (persistent tiles, better tensor-core tiling, fewer launches), which is feasible but a substantial engineering effort.
+- `rtu` – Low-rank RTUCell (segmented scan and standard paths)
+- `axons` – Streaming RTU diagonal cell
+- `slstm` – Structured LSTM kernels
+- `mlstm` – Multi-head LSTM kernels
+- `lstm` – Vanilla LSTM (compares Triton vs cuDNN baseline)
+- `conv1d` – Causal Conv1D kernel with per-timestep resets
 
-### Conv1D
-```bash
-uv run python benchmarks/bench_conv1d_triton_vs_pytorch.py
-```
-**Performance:** PyTorch (cuDNN) is typically faster. Triton kernel optimized for per-timestep reset case.
+Use `uv run ./run.py --list` for the authoritative list and descriptions.
 
 ## Requirements
 
