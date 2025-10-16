@@ -47,18 +47,16 @@ module "eks" {
     node_pools = ["general-purpose"]
   }
 
-  # https://www.reddit.com/r/Terraform/comments/znomk4/ebs_csi_driver_entirely_from_terraform_on_aws_eks/
   cluster_addons = {
     eks-pod-identity-agent = {
       before_compute = true
     }
     aws-ebs-csi-driver = {
-      addon_version            = "v1.51.0-eksbuild.1"
-      service_account_role_arn = "arn:aws:iam::751442549699:role/AmazonEBSCSIDriverPolicy"
-      # TODO - switch to Pod Identity addon?
+      addon_version = "v1.51.0-eksbuild.1"
     }
   }
 
+  # TODO - is this needed?
   node_iam_role_additional_policies = {
     AmazonEBSCSIDriverPolicy = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
   }
@@ -68,6 +66,13 @@ module "eks" {
 
 
   tags = local.tags
+}
+
+resource "aws_eks_pod_identity_association" "observatory_backend" {
+  cluster_name    = module.eks.cluster_name
+  namespace       = "kube-system"
+  service_account = "ebs-csi-controller-sa"
+  role_arn        = "arn:aws:iam::751442549699:role/AmazonEBSCSIDriverPolicy"
 }
 
 ################################################################################
