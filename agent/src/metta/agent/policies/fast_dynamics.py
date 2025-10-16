@@ -31,6 +31,7 @@ def forward(self, td: TensorDict, action: torch.Tensor = None) -> TensorDict:
     td["pred_input"] = torch.cat([td["core"], td["logits"]], dim=-1)
     self.returns_pred(td)
     self.reward_pred(td)
+    self.future_latent_pred(td)
     td["values"] = td["values"].flatten()
     return td
 
@@ -91,8 +92,14 @@ class FastDynamicsConfig(PolicyArchitecture):
         pred_input_dim = self._core_out_dim + num_actions
         returns_module = nn.Linear(pred_input_dim, 1)
         reward_module = nn.Linear(pred_input_dim, 1)
+        future_latent_module = nn.Linear(pred_input_dim, self._core_out_dim)
         policy.returns_pred = TDM(returns_module, in_keys=["pred_input"], out_keys=["returns_pred"])
         policy.reward_pred = TDM(reward_module, in_keys=["pred_input"], out_keys=["reward_pred"])
+        policy.future_latent_pred = TDM(
+            future_latent_module,
+            in_keys=["pred_input"],
+            out_keys=["future_latent_pred"],
+        )
 
         policy.forward = types.MethodType(forward, policy)
 
