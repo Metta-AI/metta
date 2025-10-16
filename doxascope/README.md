@@ -44,13 +44,13 @@ All doxascope data lives in `train_dir/doxascope/` (gitignored to avoid committi
 
 ```
 train_dir/doxascope/
-├── raw_data/<policy_name>/
+├── raw_data/<policy_name>/<version>/
 │   └── doxascope_data_<simulation_id>.json     # Logged LSTM states and positions
-├── results/<policy_name>/<run_name>/
+├── results/<policy_name>/<version>/<run_name>/
 │   ├── best_model.pth                          # Best checkpoint (full)
 │   ├── best_model.state_dict.pth               # State dict only
-│   ├── training_history.csv                     # Loss and accuracy per epoch
-│   ├── test_results.json                        # Test accuracy per timestep
+│   ├── training_history.csv                    # Loss and accuracy per epoch
+│   ├── test_results.json                       # Test accuracy per timestep
 │   ├── test_results_baseline.json              # Random baseline results (if enabled)
 │   ├── preprocessed_data/
 │   │   ├── train.npz                            # Cached training data
@@ -112,15 +112,15 @@ uv run ./tools/run.py arena.evaluate policy_uri=<path> doxascope_enabled=true
 
 **Data Logging**: The `DoxascopeLogger` automatically detects LSTM states from:
 
-- TensorDict (per-forward recurrent state)
 - Policy state buffers (`policy.state.lstm_h/lstm_c`)
-- Component buffers (`components['lstm_reset']`)
+- Component buffers (e.g., `components['lstm_reset']`, `components['lstm']`)
+- Direct component methods (`component.get_memory()`)
 
 **Important**: Doxascope currently only supports **single-environment logging**. The doxascope recipe defaults to
 single-environment evaluation for this reason. Multi-environment setups are not currently supported.
 
-Raw location and LSTM data is saved to `train_dir/doxascope/raw_data/<policy_name>/`. Run multiple simulations to
-accumulate data.
+Raw location and LSTM data is saved to `train_dir/doxascope/raw_data/<policy_name>/<version>/`. Run multiple simulations
+to accumulate data.
 
 ### 2. Training the Doxascope Network
 
@@ -333,7 +333,6 @@ Loss is averaged across all prediction heads using standard cross-entropy.
 **"No recurrent state found"**
 
 - Doxascope requires LSTM-based policies. Ensure your policy uses recurrent components.
-- Check that the policy exposes LSTM state via TensorDict, `policy.state`, or component buffers.
 
 **Low accuracy near baseline**
 
