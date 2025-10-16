@@ -6,7 +6,7 @@ import pytest
 import mettagrid.builder.envs as eb
 from experiments.recipes.arena import mettagrid
 from metta.agent.mocks import MockAgent
-from metta.cogworks.curriculum import env_curriculum
+from metta.cogworks.curriculum import CurriculumConfig, SingleTaskGenerator, TaskGeneratorSet, env_curriculum
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from metta.sim.simulation import Simulation
@@ -130,6 +130,27 @@ class TestNewPolicySystem:
         # Replay tool constructed from same sim
         replay_tool = ReplayTool(sim=sim_cfg)
         assert hasattr(replay_tool, "sim")
+
+    def test_train_tool_deterministic_run_settings(self):
+        env_cfg = eb.make_arena(num_agents=2)
+        single = SingleTaskGenerator.Config(env=env_cfg)
+        task_set = TaskGeneratorSet.Config(task_generators=[single], weights=[1.0])
+        curriculum = CurriculumConfig(task_generator=task_set)
+        training_env_cfg = TrainingEnvironmentConfig(curriculum=curriculum)
+
+        train_tool = TrainTool(training_env=training_env_cfg, deterministic_run=True)
+        train_tool.system.torch_deterministic = False
+
+        train_tool._apply_deterministic_run_settings()
+
+        assert train_tool.system.torch_deterministic is True
+        assert train_tool.training_env.async_factor == 1
+        root_overrides = train_tool.training_env.curriculum.task_generator.overrides
+        assert root_overrides.get("desync_episodes") is False
+        child_overrides = (
+            train_tool.training_env.curriculum.task_generator.task_generators[0].overrides
+        )
+        assert child_overrides.get("desync_episodes") is False
 
     def test_mock_agent_fallback(self):
         """Test that mock agents are used when policies can't be loaded."""

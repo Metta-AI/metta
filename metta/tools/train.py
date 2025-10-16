@@ -44,6 +44,7 @@ from metta.rl.training import (
     WandbAborterConfig,
     WandbLogger,
 )
+from metta.cogworks.curriculum.task_generator import BucketedTaskGenerator, TaskGeneratorSet
 from metta.tools.utils.auto_config import (
     auto_run_name,
     auto_stats_server_uri,
@@ -76,6 +77,7 @@ class TrainTool(Tool):
 
     map_preview_uri: str | None = None
     disable_macbook_optimize: bool = False
+    deterministic_run: bool = False
 
     @model_validator(mode="after")
     def validate_fields(self) -> "TrainTool":
@@ -104,6 +106,9 @@ class TrainTool(Tool):
 
         if platform.system() == "Darwin" and not self.disable_macbook_optimize:
             self._minimize_config_for_debugging()  # this overrides many config settings for local testings
+
+        if self.deterministic_run:
+            self._apply_deterministic_run_settings()
 
         if self.evaluator and self.evaluator.evaluate_local:
             # suppress NCCL watchdog timeouts while ranks wait for master to complete evals
@@ -169,6 +174,30 @@ class TrainTool(Tool):
             if sdpa_stack is not None:
                 sdpa_stack.close()
                 self._sdpa_context_stack = None
+
+    def _apply_deterministic_run_settings(self) -> None:
+        """Force deterministic environment behavior for training runs."""
+        self.system.torch_deterministic = True
+        # Asynchronous environment updates can introduce ordering differences.
+        self.training_env.async_factor = 1
+
+        def disable_desync(generator_config):
+            overrides = dict(generator_config.overrides)
+            overrides.setdefault("desync_episodes", False)
+            generator_config.overrides = overrides
+
+            if isinstance(generator_config, TaskGeneratorSet.Config):
+                for child in generator_config.task_generators:
+                    disable_desync(child)
+            elif isinstance(generator_config, BucketedTaskGenerator.Config):
+                disable_desync(generator_config.child_generator_config)
+
+        disable_desync(self.training_env.curriculum.task_generator)
+
+        logger.info(
+            "Deterministic run enabled: forcing torch deterministic algorithms, "
+            "setting async_factor=1, and disabling desync_episodes in curriculum generators."
+        )
 
     def _load_or_create_policy(
         self,
