@@ -213,8 +213,17 @@ class EvaluateTool(Tool):
         device = torch.device(self.system.device)
 
         for policy_uri in self.policy_uris:
-            # Normalize the URI using CheckpointManager
             normalized_uri = CheckpointManager.normalize_uri(policy_uri)
+
+            # Verify the checkpoint exists and load metadata
+            try:
+                agent = CheckpointManager.load_artifact_from_uri(normalized_uri)
+                metadata = CheckpointManager.get_policy_metadata(normalized_uri)
+                del agent
+            except Exception as e:
+                logger.warning(f"Failed to load policy from {normalized_uri}: {e}")
+                continue
+
             results = {"policy_uri": normalized_uri, "checkpoints": []}
             eval_results = self.eval_policy(normalized_uri, device, stats_client)
             metadata = CheckpointManager.get_policy_metadata(normalized_uri)
