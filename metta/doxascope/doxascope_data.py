@@ -252,10 +252,19 @@ class DoxascopeLogger:
                     f"Clamped out-of-bounds indices in LSTM extraction: original {select_rows}, clipped {clipped}"
                 )
             return torch.cat([last_h.index_select(0, clipped), last_c.index_select(0, clipped)], dim=1)
-        except Exception:
+        except (IndexError, ValueError) as e:
+            logger.warning(f"Index selection failed: {e}, attempting fallback")
             try:
-                return torch.cat([last_h, last_c], dim=1)
-            except Exception:
+                # Validate dimensions before fallback
+                if last_h.shape[0] == last_c.shape[0]:
+                    return torch.cat([last_h, last_c], dim=1)
+                else:
+                    logger.error(
+                        f"Cannot concatenate tensors with mismatched first dimensions: {last_h.shape} vs {last_c.shape}"
+                    )
+                    return None
+            except Exception as e:
+                logger.error(f"Fallback concatenation failed: {e}")
                 return None
 
     def log_timestep(
