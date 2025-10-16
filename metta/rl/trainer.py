@@ -195,6 +195,13 @@ class Trainer:
         # Store losses stats for callbacks
         self._context.latest_losses_stats = losses_stats
 
+        # Record a timing checkpoint so lap-based metrics reflect this epoch
+        try:
+            self.timer.checkpoint_all(steps=self._context.agent_step, checkpoint_name=f"epoch_{self._context.epoch}")
+        except Exception:
+            # Defensive: do not break training if timing checkpointing fails
+            pass
+
         # Invoke callbacks for epoch end on every rank. Components that should
         # only run on the master process must set `_master_only` so they aren't
         # registered on other ranks.
