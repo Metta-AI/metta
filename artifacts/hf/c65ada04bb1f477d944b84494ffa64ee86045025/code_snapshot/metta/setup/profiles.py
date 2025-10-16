@@ -50,7 +50,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "skypilot": {"enabled": False},
             "tailscale": {"enabled": False},
             "notebookwidgets": {"enabled": False},
-            "scratchpad": {"enabled": True},
+            "experiments": {"enabled": True},
         }
     },
     UserType.CLOUD: {
@@ -66,7 +66,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "skypilot": {"enabled": True},
             "tailscale": {"enabled": False},
             "notebookwidgets": {"enabled": False},
-            "scratchpad": {"enabled": True},
+            "experiments": {"enabled": True},
         }
     },
     UserType.SOFTMAX_DOCKER: {
@@ -82,7 +82,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "skypilot": {"enabled": False},
             "tailscale": {"enabled": False},
             "notebookwidgets": {"enabled": False},
-            "scratchpad": {"enabled": False},
+            "experiments": {"enabled": False},
         }
     },
     UserType.SOFTMAX: {
@@ -100,7 +100,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "skypilot": {"enabled": True, "expected_connection": METTA_SKYPILOT_URL},
             "tailscale": {"enabled": True, "expected_connection": "@stem.ai"},
             "notebookwidgets": {"enabled": False},
-            "scratchpad": {"enabled": True},
+            "experiments": {"enabled": True},
             "helm": {"enabled": True},
         }
     },

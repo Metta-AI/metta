@@ -7,7 +7,6 @@ import torch.nn as nn
 from tensordict import TensorDict
 from torchrl.data import Composite
 
-from metta.agent.components.utils import zero_long
 from metta.rl.training import EnvironmentMetaData
 
 from .config import DramaWorldModelConfig
@@ -52,7 +51,6 @@ class DramaWorldModelComponent(nn.Module):
         self.output_norm = nn.LayerNorm(config.d_model)
 
     def forward(self, td: TensorDict) -> TensorDict:
-        """Project observations/actions and run them through the DRAMA Mamba backbone."""
         samples = td[self.in_key]
         actions = td.get(self.action_key)
 
@@ -62,7 +60,7 @@ class DramaWorldModelComponent(nn.Module):
         batch_size, seq_len = samples.shape[0], samples.shape[1]
 
         if actions is None:
-            actions = zero_long((batch_size, seq_len), device=samples.device)
+            actions = torch.zeros(batch_size, seq_len, dtype=torch.long, device=samples.device)
         else:
             actions = actions.to(device=samples.device)
             # Collapse one-hot or singleton action dimensions to scalars.
@@ -77,7 +75,11 @@ class DramaWorldModelComponent(nn.Module):
             if actions.size(1) == 1:
                 actions = actions.expand(-1, seq_len)
             elif actions.size(1) < seq_len:
-                pad = zero_long((batch_size, seq_len - actions.size(1)), device=samples.device)
+                pad = torch.zeros(
+                    (batch_size, seq_len - actions.size(1)),
+                    dtype=actions.dtype,
+                    device=samples.device,
+                )
                 actions = torch.cat([actions, pad], dim=1)
             elif actions.size(1) > seq_len:
                 actions = actions[:, :seq_len]

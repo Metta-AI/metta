@@ -29,7 +29,6 @@ class ReplayTool(Tool):
     replay_dir: str = "./train_dir/replays"
     stats_dir: str = "./train_dir/stats"
     open_browser_on_start: bool = True
-    launch_viewer: bool = True
 
     def invoke(self, args: dict[str, str]) -> int | None:
         # Create simulation using CheckpointManager integration
@@ -50,13 +49,7 @@ class ReplayTool(Tool):
             return 1
         replay_url = replay_urls[0]
 
-        if self.launch_viewer:
-            open_browser(replay_url, self)
-        else:
-            logger.info(
-                "Generated replay at %s (MettaScope viewer launch skipped because launch_viewer=False)",
-                get_clean_path(replay_url),
-            )
+        open_browser(replay_url, self)
         return 0
 
 

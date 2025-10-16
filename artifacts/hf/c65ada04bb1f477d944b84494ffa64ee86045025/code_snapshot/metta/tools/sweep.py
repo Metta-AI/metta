@@ -15,8 +15,7 @@ from metta.common.tool import Tool
 from metta.common.util.constants import PROD_STATS_SERVER_URI
 from metta.common.util.log_config import init_logging
 from metta.common.wandb.context import WandbConfig
-from metta.sweep.core import ParameterConfig
-from metta.sweep.protein_config import ProteinConfig
+from metta.sweep.protein_config import ParameterConfig, ProteinConfig
 from metta.sweep.schedulers.async_capped import AsyncCappedOptimizingScheduler, AsyncCappedSchedulerConfig
 from metta.sweep.schedulers.batched_synced import BatchedSyncedOptimizingScheduler, BatchedSyncedSchedulerConfig
 from metta.tools.utils.auto_config import auto_wandb_config
@@ -86,7 +85,6 @@ class SweepSchedulerType(StrEnum):
 
     BATCHED_SYNCED = "batched_synced"
     ASYNC_CAPPED = "async_capped"
-    GRID_SEARCH = "grid_search"
 
 
 class SweepTool(Tool):
@@ -153,10 +151,6 @@ class SweepTool(Tool):
     # Dispatcher configuration
     dispatcher_type: DispatcherType = DispatcherType.SKYPILOT  # SKYPILOT or LOCAL
     capture_output: bool = True  # Capture and stream subprocess output (local only)
-
-    # Grid-search specific configuration (used when scheduler_type == GRID_SEARCH)
-    grid_parameters: dict[str, Any] = {}
-    grid_metric: Optional[str] = None
 
     def invoke(self, args: dict[str, str]) -> int | None:
         """Execute the sweep."""
@@ -244,13 +238,11 @@ class SweepTool(Tool):
                 resume = False
 
         # Create components
-        # Derive evaluator prefix from the configured metric if possible
+        # Derive evaluator prefix from the configured optimizer metric if possible
         # Example: metric "evaluator/eval_sweep/score" -> prefix "evaluator/eval_sweep"
         evaluator_prefix = None
         try:
             metric_path = getattr(self.protein_config, "metric", None)
-            if self.scheduler_type == SweepSchedulerType.GRID_SEARCH and not metric_path:
-                metric_path = self.grid_metric
             if isinstance(metric_path, str) and "/" in metric_path:
                 evaluator_prefix = metric_path.rsplit("/", 1)[0]
         except Exception:
@@ -286,7 +278,7 @@ class SweepTool(Tool):
                 force_eval=self.force_eval,
             )
             scheduler = BatchedSyncedOptimizingScheduler(scheduler_config)
-        elif self.scheduler_type == SweepSchedulerType.ASYNC_CAPPED:
+        else:
             scheduler_config = AsyncCappedSchedulerConfig(
                 max_trials=self.max_trials,
                 recipe_module=self.recipe_module,
@@ -304,56 +296,6 @@ class SweepTool(Tool):
                 liar_strategy=self.liar_strategy,
             )
             scheduler = AsyncCappedOptimizingScheduler(scheduler_config)
-        else:
-            # GRID_SEARCH scheduler: derive categorical parameters and enumerate
-            from metta.sweep.schedulers.grid_search import GridSearchScheduler, GridSearchSchedulerConfig
-
-            # Helper to extract categoricals from protein_config if present
-            def _extract_categorical_params(params: dict) -> dict:
-                from metta.sweep.core import CategoricalParameterConfig
-
-                def recurse(obj: dict, prefix: str = "") -> dict:
-                    out: dict = {}
-                    for k, v in obj.items():
-                        full = f"{prefix}.{k}" if prefix else k
-                        if isinstance(v, CategoricalParameterConfig):
-                            out[k] = v
-                        elif isinstance(v, dict):
-                            nested = recurse(v, full)
-                            if nested:
-                                out[k] = nested
-                        elif isinstance(v, list):
-                            out[k] = v
-                        # Ignore numeric ParameterConfig for grid search
-                    return out
-
-                return recurse(params)
-
-            # Prefer explicit grid parameters provided on the tool; otherwise extract from protein_config
-            grid_params = self.grid_parameters or _extract_categorical_params(
-                getattr(self.protein_config, "parameters", {})
-            )
-            if not grid_params:
-                raise ValueError(
-                    "GRID_SEARCH scheduler requires categorical parameters "
-                    "(provide tool.grid_parameters or set them in protein_config.parameters)"
-                )
-
-            scheduler_config = GridSearchSchedulerConfig(
-                max_trials=self.max_trials,
-                recipe_module=self.recipe_module,
-                train_entrypoint=self.train_entrypoint,
-                eval_entrypoint=self.eval_entrypoint,
-                train_overrides=self.train_overrides,
-                eval_overrides=self.eval_overrides,
-                stats_server_uri=self.stats_server_uri,
-                gpus=self.gpus,
-                nodes=self.nodes,
-                experiment_id=self.sweep_name,
-                max_concurrent_evals=self.max_concurrent_evals,
-                parameters=grid_params,
-            )
-            scheduler = GridSearchScheduler(scheduler_config)
 
         # Create adaptive config
         adaptive_config = AdaptiveConfig(
@@ -377,13 +319,10 @@ class SweepTool(Tool):
 
         try:
             logger.info("[SweepTool] Starting adaptive controller with sweep hooks...")
-            metric_for_hook = getattr(self.protein_config, "metric", None)
-            if self.scheduler_type == SweepSchedulerType.GRID_SEARCH and not metric_for_hook:
-                metric_for_hook = self.grid_metric
-            logger.info(f"[SweepTool] Optimizing metric: {metric_for_hook}")
+            logger.info(f"[SweepTool] Optimizing metric: {self.protein_config.metric}")
 
             # Create the on_eval_completed hook with the specific metric we're optimizing
-            on_eval_completed = create_on_eval_completed_hook(metric_for_hook)
+            on_eval_completed = create_on_eval_completed_hook(self.protein_config.metric)
 
             # Pass on_eval_completed hook to run method for sweep-specific observation tracking
             controller.run(

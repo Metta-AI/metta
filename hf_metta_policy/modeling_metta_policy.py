@@ -19,7 +19,12 @@ class MettaPolicyForRL(PreTrainedModel):
 
     def __init__(self, config: MettaPolicyConfig, *model_args: Any, **model_kwargs: Any) -> None:
         super().__init__(config)
-        self._root_dir = Path(__file__).resolve().parent.parent
+        artifact_root = getattr(config, "_artifact_root", None)
+        if artifact_root is None:
+            artifact_root = Path(__file__).resolve().parent.parent
+        else:
+            artifact_root = Path(artifact_root)
+        self._root_dir = artifact_root
         self._ensure_snapshot_on_path()
         policy = self._load_policy()
         if not isinstance(policy, nn.Module):
@@ -38,6 +43,7 @@ class MettaPolicyForRL(PreTrainedModel):
         config: MettaPolicyConfig | None = kwargs.pop("config", None)
         if config is None:
             config = cls.config_class.from_pretrained(pretrained_model_name_or_path)  # type: ignore[arg-type]
+        config._artifact_root = Path(pretrained_model_name_or_path)
         model = cls(config, *model_args, **kwargs)
         return model
 
@@ -53,12 +59,20 @@ class MettaPolicyForRL(PreTrainedModel):
             snapshot_path = str(snapshot_dir)
             if snapshot_path not in sys.path:
                 sys.path.insert(0, snapshot_path)
-        for relative in self.config.code_roots:
+        for relative in reversed(self.config.code_roots):
             candidate = (snapshot_dir / relative).resolve()
             if candidate.exists():
                 candidate_path = str(candidate)
                 if candidate_path not in sys.path:
                     sys.path.insert(0, candidate_path)
+        for module_name in ("metta", "metta.agent"):
+            if module_name in sys.modules:
+                del sys.modules[module_name]
+        importlib.invalidate_caches()
+        try:
+            importlib.import_module("metta")
+        except ModuleNotFoundError:
+            pass
 
     def _load_policy(self) -> nn.Module:
         checkpoint_path = self._root_dir / self.config.checkpoint_filename

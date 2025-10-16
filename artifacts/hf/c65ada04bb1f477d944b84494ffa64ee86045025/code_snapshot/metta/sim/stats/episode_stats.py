@@ -40,18 +40,17 @@ class DuckDBStatsWriter(StatsWriter):
 
     def record_episode(
         self,
+        episode_id: str,
         attributes: Dict[str, str],
         agent_metrics: Dict[int, Dict[str, float]],
         agent_groups: Dict[int, int],
         step_count: int,
         replay_url: str | None,
         created_at: datetime.datetime,
-    ) -> int:
+    ) -> None:
         self._ensure_db()
-        episode_id = str(uuid.uuid4())
         assert self.db is not None, "Database must be initialized before recording episodes"
         self.db.record_episode(episode_id, attributes, agent_metrics, agent_groups, step_count, replay_url, created_at)
-        return episode_id
 
     def close(self) -> None:
         if self.db is not None:

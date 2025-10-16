@@ -14,7 +14,7 @@ from zipfile import BadZipFile
 import torch
 from safetensors.torch import load as load_safetensors
 from safetensors.torch import save as save_safetensors
-from transformers import AutoModel
+from hf_metta_policy.modeling_metta_policy import MettaPolicyForRL
 
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.policy import Policy, PolicyArchitecture
@@ -412,7 +412,7 @@ def load_policy_artifact(path: str | Path, is_pt_file: bool = False) -> PolicyAr
 def load_policy_from_hf_artifact(path: str | Path) -> Policy:
     """Load a policy that was exported via the HF interoperability helper."""
 
-    model = AutoModel.from_pretrained(Path(path), trust_remote_code=True)
+    model = MettaPolicyForRL.from_pretrained(Path(path))
     policy = getattr(model, "policy", None)
     if policy is None:
         raise ValueError(f"Hugging Face artifact at {path} did not expose a policy module")

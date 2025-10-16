@@ -594,8 +594,3 @@ class Protein:
             self.success_observations[same[0]] = new_observation
         else:
             self.success_observations.append(new_observation)
-
-
-## Note: categorical parameters are intentionally not supported natively by
-## Protein's GP space. Mapping from categories to numeric indices, and back,
-## is handled in the optimizer adapter layer.
