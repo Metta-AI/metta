@@ -127,10 +127,8 @@ class SceneConfig(Config):
         area: Area,
         rng: np.random.Generator | None = None,
         instance_id: int | None = None,
-        apply_instance_id: bool | None = None,
+        apply_instance_id: bool = False,
     ) -> Scene:
-        if apply_instance_id is None:
-            apply_instance_id = instance_id is not None
         effective_instance_id = instance_id if apply_instance_id else None
         return self.scene_cls(
             area=area,
@@ -145,12 +143,9 @@ class SceneConfig(Config):
         parent_scene: Scene,
         area: Area,
         instance_id: int | None = None,
-        apply_instance_id: bool | None = None,
+        apply_instance_id: bool = False,
     ) -> Scene:
         rng = parent_scene.rng.spawn(1)[0]
-        if apply_instance_id is None:
-            apply_instance_id = getattr(parent_scene, "apply_instance_id", False)
-
         inherited_instance_id = instance_id if instance_id is not None else getattr(parent_scene, "instance_id", None)
         effective_instance_id = inherited_instance_id if apply_instance_id else None
 
@@ -192,7 +187,7 @@ def validate_any_scene_config(v: Any) -> SceneConfig:
 
 class ChildrenAction(AreaQuery):
     scene: SceneConfig
-    instance_id: int | None = None  # Add this field
+    instance_id: int | None = None
     apply_instance_id: bool | None = None
 
 

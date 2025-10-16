@@ -11,7 +11,7 @@ proc drawMinimap*(panel: Panel) =
     color = color(0, 0, 0, 1.0)
   )
 
-  if replay.isNil:
+  if replay.isNil or replay.mapSize == (0, 0):
     return
 
   bxy.saveTransform()

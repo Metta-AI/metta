@@ -1,17 +1,23 @@
 import logging
 import os
-import pickle
-from collections import OrderedDict
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, Optional, TypedDict
+from zipfile import BadZipFile
 
 import boto3
 import torch
 
 from metta.agent.mocks import MockAgent
-from metta.agent.policy import Policy
-from metta.rl.puffer_policy import _is_puffer_state_dict, load_pufferlib_checkpoint
+from metta.agent.policy import Policy, PolicyArchitecture
+from metta.rl.policy_artifact import (
+    PolicyArtifact,
+    load_policy_artifact,
+    save_policy_artifact_safetensors,
+)
 from metta.rl.system_config import SystemConfig
+from metta.rl.training.optimizer import is_schedulefree_optimizer
+from metta.rl.training.training_environment import EnvironmentMetaData
 from metta.tools.utils.auto_config import auto_policy_storage_decision
 from metta.utils.file import local_copy, write_file
 from metta.utils.uri import ParsedURI
@@ -31,8 +37,8 @@ def key_and_version(uri: str) -> tuple[str, int] | None:
     """Extract key (run name) and version (epoch) from a policy URI.
 
     Examples:
-        "file:///tmp/my_run/checkpoints/my_run:v5.pt" -> ("my_run", 5)
-        "s3://bucket/policies/my_run/checkpoints/my_run:v10.pt" -> ("my_run", 10)
+        "file:///tmp/my_run/checkpoints/my_run:v5.mpt" -> ("my_run", 5)
+        "s3://bucket/policies/my_run/checkpoints/my_run:v10.mpt" -> ("my_run", 10)
         "mock://test_agent" -> ("test_agent", 0)
     """
     parsed = ParsedURI.parse(uri)
@@ -53,8 +59,8 @@ def _extract_run_and_epoch(path: Path) -> tuple[str, int] | None:
     """Infer run name and epoch from a checkpoint path.
 
     Examples:
-        "file:///tmp/my_run/checkpoints/my_run:v5.pt" -> ("my_run", 5)
-        "s3://bucket/policies/my_run/checkpoints/my_run:v10.pt" -> ("my_run", 10)
+        "file:///tmp/my_run/checkpoints/my_run:v5.mpt" -> ("my_run", 5)
+        "s3://bucket/policies/my_run/checkpoints/my_run:v10.mpt" -> ("my_run", 10)
     """
 
     stem = path.stem
@@ -68,7 +74,7 @@ def _extract_run_and_epoch(path: Path) -> tuple[str, int] | None:
 def _get_all_checkpoints(uri: str) -> list[PolicyMetadata]:
     parsed = ParsedURI.parse(uri)
     if parsed.scheme == "file" and parsed.local_path:
-        checkpoint_files = [ckpt for ckpt in parsed.local_path.glob("*.pt") if ckpt.stem]
+        checkpoint_files = [ckpt for ckpt in parsed.local_path.glob("*.mpt") if ckpt.stem]
     elif parsed.scheme == "s3" and parsed.bucket:
         s3_client = boto3.client("s3")
         prefix = parsed.key or ""
@@ -77,22 +83,21 @@ def _get_all_checkpoints(uri: str) -> list[PolicyMetadata]:
         if response["KeyCount"] == 0:
             return []
 
-        checkpoint_files: list[Path] = [Path(obj["Key"]) for obj in response["Contents"] if obj["Key"].endswith(".pt")]
+        checkpoint_files: list[Path] = [Path(obj["Key"]) for obj in response["Contents"] if obj["Key"].endswith(".mpt")]
     else:
         raise ValueError(f"Cannot get checkpoints from uri: {uri}")
 
     checkpoint_metadata: list[PolicyMetadata] = []
     for path in checkpoint_files:
-        if not path.name.endswith("trainer_state.pt"):
-            run_and_epoch = _extract_run_and_epoch(path)
-            if run_and_epoch:
-                path_uri = uri.rstrip("/") + "/" + path.name
-                metadata: PolicyMetadata = {
-                    "run_name": run_and_epoch[0],
-                    "epoch": run_and_epoch[1],
-                    "uri": path_uri,
-                }
-                checkpoint_metadata.append(metadata)
+        run_and_epoch = _extract_run_and_epoch(path)
+        if run_and_epoch:
+            path_uri = uri.rstrip("/") + "/" + path.name
+            metadata: PolicyMetadata = {
+                "run_name": run_and_epoch[0],
+                "epoch": run_and_epoch[1],
+                "uri": path_uri,
+            }
+            checkpoint_metadata.append(metadata)
 
     return checkpoint_metadata
 
@@ -103,30 +108,23 @@ def _latest_checkpoint(uri: str) -> PolicyMetadata | None:
         return max(checkpoints, key=lambda p: p["epoch"])
 
 
-def _load_checkpoint_file(path: str, device: str | torch.device) -> Policy:
+def _load_checkpoint_file(path: str, is_pt_file: bool = False) -> PolicyArtifact:
     """Load a checkpoint file, raising FileNotFoundError on corruption."""
     try:
-        checkpoint_data = torch.load(path, weights_only=False, map_location=device)
-
-        if _is_puffer_state_dict(checkpoint_data):
-            return load_pufferlib_checkpoint(checkpoint_data, device)
-
-        return checkpoint_data
-
+        return load_policy_artifact(Path(path), is_pt_file)
     except FileNotFoundError:
         raise
-    except (pickle.UnpicklingError, RuntimeError, OSError) as err:
+    except (BadZipFile, ValueError, TypeError) as err:
         raise FileNotFoundError(f"Invalid or corrupted checkpoint file: {path}") from err
 
 
 class CheckpointManager:
-    """Checkpoint manager with filename-embedded metadata and LRU cache."""
+    """Checkpoint manager with filename-embedded metadata."""
 
     def __init__(
         self,
         run: str,
         system_cfg: SystemConfig,
-        cache_size: int = 3,
     ):
         # Validate run name
         if not run or not run.strip():
@@ -144,9 +142,6 @@ class CheckpointManager:
         os.makedirs(system_cfg.data_dir, exist_ok=True)
         os.makedirs(self.run_dir, exist_ok=True)
         os.makedirs(self.checkpoint_dir, exist_ok=True)
-
-        self.cache_size = cache_size
-        self._cache = OrderedDict()
 
         self._remote_prefix = None
         if not system_cfg.local_only:
@@ -193,12 +188,13 @@ class CheckpointManager:
     def remote_checkpoints_enabled(self) -> bool:
         return self._remote_prefix is not None
 
-    def clear_cache(self):
-        """Clear the instance's LRU cache."""
-        self._cache.clear()
+    @staticmethod
+    def load_from_uri(uri: str, env_metadata: EnvironmentMetaData, device: torch.device) -> Policy:
+        artifact = CheckpointManager.load_artifact_from_uri(uri)
+        return artifact.instantiate(env_metadata, device)
 
     @staticmethod
-    def load_from_uri(uri: str, device: str | torch.device = "cpu") -> Policy:
+    def load_artifact_from_uri(uri: str) -> PolicyArtifact:
         """Load a policy from a URI (file://, s3://, or mock://).
 
         Supports :latest selector for automatic resolution to the most recent checkpoint:
@@ -208,7 +204,6 @@ class CheckpointManager:
         if uri.startswith(("http://", "https://", "ftp://", "gs://")):
             raise ValueError(f"Invalid URI: {uri}")
 
-        # Resolve :latest selector before proceeding
         uri = CheckpointManager.normalize_uri(uri)
         parsed = ParsedURI.parse(uri)
 
@@ -219,17 +214,17 @@ class CheckpointManager:
                 if not checkpoint_file:
                     raise FileNotFoundError(f"No checkpoint files in {uri}")
                 local_path = ParsedURI.parse(checkpoint_file["uri"]).local_path
-                return _load_checkpoint_file(local_path, device)  # type: ignore
+                return _load_checkpoint_file(local_path)  # type: ignore
             if not path.exists():
                 raise FileNotFoundError(f"Checkpoint file not found: {path}")
-            return _load_checkpoint_file(str(path), device)
+            return _load_checkpoint_file(str(path))
 
         if parsed.scheme == "s3":
             with local_copy(parsed.canonical) as local_path:
-                return _load_checkpoint_file(str(local_path), device)
+                return _load_checkpoint_file(str(local_path), is_pt_file=Path(parsed.canonical).suffix == ".pt")
 
         if parsed.scheme == "mock":
-            return MockAgent()
+            return PolicyArtifact(policy=MockAgent())
 
         raise ValueError(f"Invalid URI: {uri}")
 
@@ -266,7 +261,7 @@ class CheckpointManager:
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
         if not trainer_file.exists():
             return None
-        state = torch.load(trainer_file, weights_only=False)
+        state = torch.load(trainer_file, map_location="cpu", weights_only=False)
         result = {
             "optimizer_state": state.get("optimizer", state.get("optimizer_state")),
             "epoch": state.get("epoch", 0),
@@ -280,16 +275,28 @@ class CheckpointManager:
             result["loss_states"] = state["loss_states"]
         return result
 
-    def save_agent(self, agent, epoch: int) -> str:
+    def save_agent(
+        self,
+        agent: Policy,
+        epoch: int,
+        *,
+        policy_architecture: PolicyArchitecture,
+    ) -> str:
         """Save agent checkpoint to disk and upload to remote storage if configured.
+
+        The serialized artifact always includes the policy weights and architecture metadata.
 
         Returns URI of saved checkpoint (s3:// if remote prefix configured, otherwise file://).
         """
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        filename = f"{self.run_name}:v{epoch}.pt"
+        filename = f"{self.run_name}:v{epoch}.mpt"
         checkpoint_path = self.checkpoint_dir / filename
 
-        torch.save(agent, checkpoint_path)
+        save_policy_artifact_safetensors(
+            checkpoint_path,
+            policy_architecture=policy_architecture,
+            state_dict=agent.state_dict(),
+        )
 
         remote_uri = None
         if self._remote_prefix:
@@ -311,6 +318,12 @@ class CheckpointManager:
     ):
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
+
+        # For ScheduleFree optimizers, ensure we save in eval mode
+        is_schedulefree = is_schedulefree_optimizer(optimizer)
+        if is_schedulefree:
+            optimizer.eval()
+
         state = {"optimizer": optimizer.state_dict(), "epoch": epoch, "agent_step": agent_step}
         if stopwatch_state:
             state["stopwatch_state"] = stopwatch_state
@@ -318,7 +331,29 @@ class CheckpointManager:
             state["curriculum_state"] = curriculum_state
         if loss_states is not None:
             state["loss_states"] = loss_states
-        torch.save(state, trainer_file)
+
+        # Atomic save for trainer state to prevent partial saves
+        with tempfile.NamedTemporaryFile(
+            dir=self.checkpoint_dir,
+            prefix=".trainer_state.pt.",
+            suffix=".tmp",
+            delete=False,
+        ) as tmp_file:
+            tmp_path = Path(tmp_file.name)
+
+            try:
+                torch.save(state, tmp_path)
+                # Atomic move: this operation is atomic on most filesystems
+                tmp_path.replace(trainer_file)
+            except Exception:
+                # Clean up temporary file on error
+                if tmp_path.exists():
+                    tmp_path.unlink()
+                raise
+
+        # Restore train mode after saving for ScheduleFree optimizers
+        if is_schedulefree:
+            optimizer.train()
 
     def get_latest_checkpoint(self) -> str | None:
         local_max_checkpoint = _latest_checkpoint(f"file://{self.checkpoint_dir}")

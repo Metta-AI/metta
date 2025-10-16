@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Iterable
 
-from cogames.cogs_vs_clips import glyphs
+from cogames.cogs_vs_clips import glyphs, mission_modifications
 from cogames.cogs_vs_clips.stations import (
     assembler,
     carbon_ex_dep,
@@ -38,9 +38,34 @@ from mettagrid.config.mettagrid_config import (
     RecipeConfig,
     WallConfig,
 )
-from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 from mettagrid.map_builder.random import RandomMapBuilder
+
+
+def _get_default_map_objects() -> dict[str, AnyGridObjectConfig]:
+    return {
+        "wall": WallConfig(name="wall", type_id=1, map_char="#", render_symbol="⬛"),
+        "charger": charger(),
+        "carbon_extractor": carbon_extractor(),
+        "oxygen_extractor": oxygen_extractor(),
+        "germanium_extractor": germanium_extractor(),
+        "silicon_extractor": silicon_extractor(),
+        # depleted variants
+        "silicon_ex_dep": silicon_ex_dep(),
+        "oxygen_ex_dep": oxygen_ex_dep(),
+        "carbon_ex_dep": carbon_ex_dep(),
+        "germanium_ex_dep": germanium_ex_dep(),
+        "clipped_carbon_extractor": clipped_carbon_extractor(),
+        "clipped_oxygen_extractor": clipped_oxygen_extractor(),
+        "clipped_germanium_extractor": clipped_germanium_extractor(),
+        "clipped_silicon_extractor": clipped_silicon_extractor(),
+        "chest": chest(),
+        "chest_carbon": chest_carbon(),
+        "chest_oxygen": chest_oxygen(),
+        "chest_germanium": chest_germanium(),
+        "chest_silicon": chest_silicon(),
+        "assembler": assembler(),
+    }
 
 
 def _default_mission(*, num_cogs: int = 4, clip_rate: float = 0.0, **kwargs: dict[str, Any]) -> GameConfig:
@@ -52,29 +77,7 @@ def _default_mission(*, num_cogs: int = 4, clip_rate: float = 0.0, **kwargs: dic
             noop=ActionConfig(),
             change_glyph=ChangeGlyphActionConfig(number_of_glyphs=len(glyphs.GLYPHS)),
         ),
-        objects={
-            "wall": WallConfig(name="wall", type_id=1, map_char="#", render_symbol="⬛"),
-            "charger": charger(),
-            "carbon_extractor": carbon_extractor(),
-            "oxygen_extractor": oxygen_extractor(),
-            "germanium_extractor": germanium_extractor(),
-            "silicon_extractor": silicon_extractor(),
-            # depleted variants
-            "silicon_ex_dep": silicon_ex_dep(),
-            "oxygen_ex_dep": oxygen_ex_dep(),
-            "carbon_ex_dep": carbon_ex_dep(),
-            "germanium_ex_dep": germanium_ex_dep(),
-            "clipped_carbon_extractor": clipped_carbon_extractor(),
-            "clipped_oxygen_extractor": clipped_oxygen_extractor(),
-            "clipped_germanium_extractor": clipped_germanium_extractor(),
-            "clipped_silicon_extractor": clipped_silicon_extractor(),
-            "chest": chest(),
-            "chest_carbon": chest_carbon(),
-            "chest_oxygen": chest_oxygen(),
-            "chest_germanium": chest_germanium(),
-            "chest_silicon": chest_silicon(),
-            "assembler": assembler(),
-        },
+        objects=_get_default_map_objects(),
         agent=AgentConfig(
             resource_limits={
                 "heart": 1,
@@ -146,40 +149,12 @@ def get_mission_generator(mission: str = "default") -> Callable[..., GameConfig]
     return index[mission]
 
 
-def _get_default_map_objects() -> dict[str, AnyGridObjectConfig]:
-    return {
-        "wall": WallConfig(name="wall", type_id=1, map_char="#", render_symbol="⬛"),
-        "charger": charger(),
-        "carbon_extractor": carbon_extractor(),
-        "oxygen_extractor": oxygen_extractor(),
-        "germanium_extractor": germanium_extractor(),
-        "silicon_extractor": silicon_extractor(),
-        # depleted variants
-        "silicon_ex_dep": silicon_ex_dep(),
-        "oxygen_ex_dep": oxygen_ex_dep(),
-        "carbon_ex_dep": carbon_ex_dep(),
-        "germanium_ex_dep": germanium_ex_dep(),
-        "clipped_carbon_extractor": clipped_carbon_extractor(),
-        "clipped_oxygen_extractor": clipped_oxygen_extractor(),
-        "clipped_germanium_extractor": clipped_germanium_extractor(),
-        "clipped_silicon_extractor": clipped_silicon_extractor(),
-        "chest": chest(),
-        "chest_carbon": chest_carbon(),
-        "chest_oxygen": chest_oxygen(),
-        "chest_germanium": chest_germanium(),
-        "chest_silicon": chest_silicon(),
-        "assembler": assembler(),
-    }
-
-
-def get_map_builder_for_site(site: str) -> MapBuilderConfig[AsciiMapBuilder]:
+def get_map_builder_for_site(site: str) -> MapBuilderConfig:
     """Get the map builder for a site. Site is the name of the site file in the maps directory."""
     maps_dir = Path(__file__).parent.parent / "maps"
     map_path = maps_dir / site
 
-    return AsciiMapBuilder.Config.from_uri(
-        str(map_path), {o.map_char: o.name for o in _get_default_map_objects().values()}
-    )
+    return MapBuilderConfig.from_uri(str(map_path))
 
 
 def get_random_map_builder(
@@ -251,11 +226,17 @@ class RandomUserMap(UserMap):
         return list(self._mission_args.keys())
 
     def _generate_env(self, mission_name: str) -> MettaGridConfig:
-        args = self._mission_args.get(mission_name, {})
+        args = dict(self._mission_args.get(mission_name, {}))
+        easy = bool(args.pop("easy", False))
+        shaped = bool(args.pop("shaped", False))
         base_mission = args.pop("base_mission", self.default_mission)
         game = get_mission_generator(base_mission)(**args)
         game.map_builder = get_random_map_builder(**args)
-        return MettaGridConfig(game=game)
+        cfg = MettaGridConfig(game=game)
+        mission_modifications.apply_modifications(
+            cfg, {"easy": easy, "shaped": shaped, "extend_max_steps": easy or shaped}
+        )
+        return cfg
 
 
 class SiteUserMap(UserMap):
@@ -274,11 +255,17 @@ class SiteUserMap(UserMap):
         return list(self._mission_args.keys())
 
     def _generate_env(self, mission_name: str) -> MettaGridConfig:
-        args = self._mission_args.get(mission_name, {})
+        args = dict(self._mission_args.get(mission_name, {}))
+        easy = bool(args.pop("easy", False))
+        shaped = bool(args.pop("shaped", False))
         base_mission = args.pop("base_mission", self.default_mission)
         game = get_mission_generator(base_mission)(**args)
         game.map_builder = get_map_builder_for_site(self._site)
-        return MettaGridConfig(game=game)
+        cfg = MettaGridConfig(game=game)
+        mission_modifications.apply_modifications(
+            cfg, {"easy": easy, "shaped": shaped, "extend_max_steps": easy or shaped}
+        )
+        return cfg
 
 
 def make_game(
@@ -312,37 +299,109 @@ def make_game(
     return RandomUserMap(name="random", mission_args=mission_args).generate_env("default")
 
 
+def _with_easy_shaped_variants(
+    extra: Iterable[tuple[str, dict[str, Any]]] | None = None,
+) -> dict[str, dict[str, Any]]:
+    missions: list[tuple[str, dict[str, Any]]] = [("default", {})]
+    if extra is not None:
+        missions.extend((name, dict(values)) for name, values in extra)
+    missions.append(("easy", {"easy": True}))
+    missions.append(("shaped", {"shaped": True}))
+    missions.append(("easy_shaped", {"easy": True, "shaped": True}))
+    return {name: dict(values) for name, values in missions}
+
+
 USER_MAP_CATALOG: tuple[UserMap, ...] = (
     SiteUserMap(
         name="training_facility_1",
         site="training_facility_open_1.map",
-        mission_args={
-            "default": dict(),
-            "energy_intensive": dict(base_mission="energy_intensive"),
-        },
+        mission_args=_with_easy_shaped_variants(extra=[("energy_intensive", {"base_mission": "energy_intensive"})]),
     ),
-    SiteUserMap(name="training_facility_2", site="training_facility_open_2.map"),
-    SiteUserMap(name="training_facility_3", site="training_facility_open_3.map"),
-    SiteUserMap(name="training_facility_4", site="training_facility_tight_4.map"),
-    SiteUserMap(name="training_facility_5", site="training_facility_tight_5.map"),
-    SiteUserMap(name="training_facility_6", site="training_facility_clipped.map"),
+    SiteUserMap(
+        name="training_facility_2",
+        site="training_facility_open_2.map",
+        mission_args=_with_easy_shaped_variants(),
+    ),
+    SiteUserMap(
+        name="training_facility_3",
+        site="training_facility_open_3.map",
+        mission_args=_with_easy_shaped_variants(),
+    ),
+    SiteUserMap(
+        name="training_facility_4",
+        site="training_facility_tight_4.map",
+        mission_args=_with_easy_shaped_variants(),
+    ),
+    SiteUserMap(
+        name="training_facility_5",
+        site="training_facility_tight_5.map",
+        mission_args=_with_easy_shaped_variants(),
+    ),
+    SiteUserMap(
+        name="training_facility_6",
+        site="training_facility_clipped.map",
+        mission_args=_with_easy_shaped_variants(),
+    ),
     SiteUserMap(
         name="machina_1",
         site="cave_base_50.map",
-        mission_args={
-            "default": dict(),
-            "clipped": dict(map_builder_args=dict(clip_rate=0.02)),
-        },
+        mission_args=_with_easy_shaped_variants(extra=[("clipped", {"map_builder_args": {"clip_rate": 0.02}})]),
     ),
-    SiteUserMap(name="machina_2", site="machina_100_stations.map"),
-    SiteUserMap(name="machina_3", site="machina_200_stations.map"),
-    SiteUserMap(name="machina_1_big", site="canidate1_500_stations.map"),
-    SiteUserMap(name="machina_2_bigger", site="canidate1_1000_stations.map"),
-    SiteUserMap(name="machina_3_big", site="canidate2_500_stations.map"),
-    SiteUserMap(name="machina_4_bigger", site="canidate2_1000_stations.map"),
-    SiteUserMap(name="machina_5_big", site="canidate3_500_stations.map"),
-    SiteUserMap(name="machina_6_bigger", site="canidate3_1000_stations.map"),
-    SiteUserMap(name="machina_7_big", site="canidate4_500_stations.map"),
+    SiteUserMap(
+        name="machina_2",
+        site="machina_100_stations.map",
+        mission_args=_with_easy_shaped_variants(),
+    ),
+    SiteUserMap(
+        name="machina_3",
+        site="machina_200_stations.map",
+        mission_args=_with_easy_shaped_variants(),
+    ),
+    SiteUserMap(
+        name="machina_1_big",
+        site="canidate1_500_stations.map",
+        mission_args=_with_easy_shaped_variants(),
+    ),
+    SiteUserMap(
+        name="machina_2_bigger",
+        site="canidate1_1000_stations.map",
+        mission_args=_with_easy_shaped_variants(),
+    ),
+    SiteUserMap(
+        name="machina_3_big",
+        site="canidate2_500_stations.map",
+        mission_args=_with_easy_shaped_variants(),
+    ),
+    SiteUserMap(
+        name="machina_4_bigger",
+        site="canidate2_1000_stations.map",
+        mission_args=_with_easy_shaped_variants(),
+    ),
+    SiteUserMap(
+        name="machina_5_big",
+        site="canidate3_500_stations.map",
+        mission_args=_with_easy_shaped_variants(),
+    ),
+    SiteUserMap(
+        name="machina_6_bigger",
+        site="canidate3_1000_stations.map",
+        mission_args=_with_easy_shaped_variants(),
+    ),
+    SiteUserMap(
+        name="machina_7_big",
+        site="canidate4_500_stations.map",
+        mission_args=_with_easy_shaped_variants(),
+    ),
+    SiteUserMap(
+        name="vanilla",
+        site="vanilla_small.map",
+        mission_args={"default": {"easy": True}},
+    ),
+    SiteUserMap(
+        name="vanilla_large",
+        site="vanilla_large.map",
+        mission_args={"default": {"easy": True}},
+    ),
     RandomUserMap(
         name="random",
         mission_args=dict(

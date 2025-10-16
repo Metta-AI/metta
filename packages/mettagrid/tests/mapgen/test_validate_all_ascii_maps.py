@@ -82,8 +82,47 @@ class TestAsciiMap:
 
     @pytest.fixture
     def content(self, map_file):
+        # Read map file and, if it is a YAML-based map with a map_data block,
+        # extract only the ASCII map content so validations operate on the grid
+        # rather than YAML keys. Fallback to the full content for plain ASCII maps.
         with open(str(map_file), "r", encoding="utf-8") as f:
-            return f.read()
+            raw = f.read()
+
+        lines = raw.splitlines()
+        map_text_lines: list[str] = []
+
+        # Detect a YAML block scalar for map_data and extract it if present.
+        # We avoid adding a dependency on PyYAML by using indentation heuristics.
+        map_idx = None
+        for i, line in enumerate(lines):
+            stripped = line.lstrip()
+            if stripped.startswith("map_data:"):
+                map_idx = i
+                break
+
+        if map_idx is not None and map_idx + 1 < len(lines):
+            # The line after map_data: should begin the indented block content.
+            # Compute the indentation of the first content line and gather all
+            # subsequent lines that are indented at least that much.
+            first_content = lines[map_idx + 1]
+            indent_width = len(first_content) - len(first_content.lstrip(" "))
+
+            # If indent_width is zero, treat as plain content fallback.
+            if indent_width > 0:
+                for j in range(map_idx + 1, len(lines)):
+                    line_j = lines[j]
+                    # Count leading spaces
+                    lead = len(line_j) - len(line_j.lstrip(" "))
+                    if lead < indent_width:
+                        break
+                    # Strip only the block indent, keep internal spacing
+                    map_text_lines.append(line_j[indent_width:])
+
+        # Fallback to raw if we did not find a map_data block
+        if not map_text_lines:
+            return raw
+
+        return "\n".join(map_text_lines)
 
     @pytest.fixture(scope="class")
     def char_to_name(self):
@@ -98,7 +137,7 @@ class TestAsciiMap:
         # Create a comprehensive mapping that includes all object types used in maps
         objects = {
             "wall": WallConfig(name="wall", type_id=1, map_char="#", render_symbol="⬛"),
-            "converter": ConverterConfig(name="converter", type_id=2, map_char="c", render_symbol="🔄", cooldown=0),
+            "converter": ConverterConfig(name="converter", type_id=2, map_char="c", render_symbol="🔄", cooldown=[0]),
             "assembler": AssemblerConfig(name="assembler", type_id=3, map_char="m", render_symbol="🏭"),
             "chest": ChestConfig(
                 name="chest",
