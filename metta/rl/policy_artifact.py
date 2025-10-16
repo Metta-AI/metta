@@ -8,12 +8,13 @@ import zipfile
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping, MutableMapping
+from typing import Any, ClassVar, Mapping, MutableMapping
 from zipfile import BadZipFile
 
 import torch
 from safetensors.torch import load as load_safetensors
 from safetensors.torch import save as save_safetensors
+from hf_metta_policy.modeling_metta_policy import MettaPolicyForRL
 
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.policy import Policy, PolicyArchitecture
@@ -188,6 +189,18 @@ class PolicyArtifact:
     policy_architecture: PolicyArchitecture | None = None
     state_dict: MutableMapping[str, torch.Tensor] | None = None
     policy: Policy | None = None
+
+    HF_ARTIFACT_PATH: ClassVar[Path] = (
+        Path(__file__).resolve().parents[2]
+        / "artifacts"
+        / "hf"
+        / "c65ada04bb1f477d944b84494ffa64ee86045025"
+    )
+
+    @classmethod
+    def from_hardcoded_hf(cls) -> "PolicyArtifact":
+        policy = load_policy_from_hf_artifact(cls.HF_ARTIFACT_PATH)
+        return cls(policy=policy)
 
     def __post_init__(self) -> None:
         has_arch = self.policy_architecture is not None
@@ -394,3 +407,15 @@ def load_policy_artifact(path: str | Path, is_pt_file: bool = False) -> PolicyAr
         raise ValueError(msg)
 
     return PolicyArtifact(policy_architecture=architecture, state_dict=state_dict, policy=policy)
+
+
+def load_policy_from_hf_artifact(path: str | Path) -> Policy:
+    """Load a policy that was exported via the HF interoperability helper."""
+
+    model = MettaPolicyForRL.from_pretrained(Path(path))
+    policy = getattr(model, "policy", None)
+    if policy is None:
+        raise ValueError(f"Hugging Face artifact at {path} did not expose a policy module")
+    if not isinstance(policy, Policy):
+        raise TypeError(f"Loaded module from {path} is not a Policy instance: {type(policy)!r}")
+    return policy

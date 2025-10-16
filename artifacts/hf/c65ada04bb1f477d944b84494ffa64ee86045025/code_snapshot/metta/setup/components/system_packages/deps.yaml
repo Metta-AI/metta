@@ -1,0 +1,124 @@
+packages:
+  awscli:
+    brew:
+      name: awscli
+      pin: true
+    apt:
+      name: awscli
+
+  docker:
+    brew:
+      name: docker
+    apt:
+      name: docker.io
+
+  node:
+    brew:
+      name: node
+      version: "24"
+    apt:
+      name: nodejs
+
+  gh:
+    brew:
+      name: gh
+    apt:
+      name: gh
+
+  jq:
+    brew:
+      name: jq
+    apt:
+      name: jq
+
+  # Build tools
+  bazelisk:
+    brew:
+      name: bazelisk
+    apt:
+      name: bazelisk
+
+  clang-format:
+    brew:
+      name: clang-format
+    apt:
+      name: clang-format
+
+  ninja:
+    brew:
+      name: ninja
+    apt:
+      name: ninja-build
+
+  # Python package manager
+  uv:
+    brew:
+      name: uv
+    # No apt support - installed via curl script on Linux
+
+  # Testing libraries
+  googletest:
+    brew:
+      name: googletest
+    apt:
+      name: libgtest-dev
+
+  google-benchmark:
+    brew:
+      name: google-benchmark
+    apt:
+      name: libbenchmark-dev
+
+  # Kubernetes tools
+  kubectl:
+    brew:
+      name: kubectl
+      installed_name: kubernetes-cli
+    apt:
+      name: kubectl
+
+  helm:
+    brew:
+      name: helm
+    apt:
+      name: helm
+
+  helmfile:
+    brew:
+      name: helmfile
+    # No apt support
+
+  kind:
+    brew:
+      name: kind
+    apt:
+      name: kind
+
+  # Security tools
+  gitleaks:
+    brew:
+      name: gitleaks
+    apt:
+      name: gitleaks
+
+  # Special language support
+  nim:
+    brew:
+      name: nim
+    # Linux installs Nim via choosenim (see metta/setup/components/system.py)
+
+  # Homebrew packages with custom taps
+  graphite:
+    brew:
+      name: graphite
+      tap: withgraphite/tap
+
+  spacectl:
+    brew:
+      name: spacectl
+      tap: spacelift-io/spacelift
+
+  amazon-efs-utils:
+    brew:
+      name: amazon-efs-utils
+      tap: aws/aws
