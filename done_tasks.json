@@ -1,0 +1,8 @@
+[
+  {
+    "gid": "1211366023633219",
+    "name": "Add EMA of Future Latent State Prediction Loss",
+    "branch": "feature/future-latent-ema-loss",
+    "completed_at": "2025-10-16"
+  }
+]
