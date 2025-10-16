@@ -44,7 +44,7 @@ else:
     nvcc_args += ["-O3"]
 
 if abi_define and shutil.which("nvcc"):
-    nvcc_args += [abi_define, "-Xcompiler", abi_define]
+    nvcc_args += ["-Xcompiler", abi_define]
 # Extensions setup
 torch_sources = ["src/pufferlib/extensions/pufferlib.cpp"]
 
