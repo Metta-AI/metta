@@ -18,7 +18,7 @@ for i in "${!PAIRED_SEEDS[@]}"; do
         system.seed=$SEED \
         training_env.seed=$SEED \
         trainer.losses.enable_contrastive=true \
-        num_gpus=4
+        gpus=4
 
     # Without contrastive loss
     RUN_NAME="${BASE_RUN_NAME}.no_contrastive.seed${SEED}"
@@ -28,7 +28,7 @@ for i in "${!PAIRED_SEEDS[@]}"; do
         system.seed=$SEED \
         training_env.seed=$SEED \
         trainer.losses.enable_contrastive=false \
-        num_gpus=4
+        gpus=4
 
     echo ""
 done
