@@ -50,9 +50,9 @@ module "eks" {
   # https://www.reddit.com/r/Terraform/comments/znomk4/ebs_csi_driver_entirely_from_terraform_on_aws_eks/
   cluster_addons = {
     aws-ebs-csi-driver = {
-      addon_version = "v1.48.0-eksbuild.2"
-      # TODO - upgrade to the most recent version, but note that v1.49.0 requires new permissions
-      # Read through https://github.com/kubernetes-sigs/aws-ebs-csi-driver/blob/master/docs/install.md#set-up-driver-permissions for details.
+      addon_version            = "v1.51.0-eksbuild.1"
+      service_account_role_arn = "arn:aws:iam::751442549699:role/AmazonEBSCSIDriverPolicy"
+      # TODO - switch to Pod Identity addon?
     }
   }
 
