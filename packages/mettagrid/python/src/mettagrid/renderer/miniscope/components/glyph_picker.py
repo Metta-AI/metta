@@ -8,6 +8,7 @@ from rich.table import Table
 from mettagrid import MettaGridEnv
 from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState, RenderMode
+from mettagrid.renderer.miniscope.styles import gradient_title, surface_panel
 
 from .base import MiniscopeComponent
 
@@ -38,18 +39,22 @@ class GlyphPickerComponent(MiniscopeComponent):
         self._panel = panels.sidebar
         self._glyph_query: str = ""
 
-    def update(self) -> Table:
-        """Render the glyph picker panel using current state.
+    def update(self) -> None:
+        """Render the glyph picker panel using current state."""
 
-        Returns:
-            Rich Table with glyph picker interface
-        """
+        if self._state.mode != RenderMode.GLYPH_PICKER:
+            return
 
-        # Handle input if in glyph picker mode
-        if self._state.mode == RenderMode.GLYPH_PICKER:
-            self._handle_input()
+        self._handle_input()
 
-        return self._build_table(self._glyph_query)
+        table = self._build_table(self._glyph_query)
+        panel = surface_panel(
+            table,
+            title=gradient_title("Glyph Picker"),
+            border_variant="primary",
+            variant="alt",
+        )
+        self._panel.append_block(panel)
 
     def _handle_input(self) -> None:
         """Handle user input for glyph picker."""
@@ -75,6 +80,8 @@ class GlyphPickerComponent(MiniscopeComponent):
                     change_glyph_idx = self.env.action_names.index("change_glyph")
                     self.state.user_action = (change_glyph_idx, glyph_id)
                     self.state.should_step = True
+                    if self.state.selected_agent is not None:
+                        self.state.pending_glyphs[self.state.selected_agent] = glyph_id
                 self._exit_glyph_picker()
         elif ch == "\x1b":  # Escape
             self._exit_glyph_picker()
@@ -93,12 +100,14 @@ class GlyphPickerComponent(MiniscopeComponent):
             Rich Table object
         """
         # Create table with border
+        title = gradient_title(f"Glyph: {query or 'search'}")
         table = Table(
-            title=f"Glyph: {query}",
+            title=title,
             show_header=False,
             box=box.ROUNDED,
             padding=(0, 1),
             width=self._width,
+            border_style="border",
         )
         table.add_column("ID", style="cyan", no_wrap=True)
         table.add_column("Symbol", no_wrap=True)

@@ -8,6 +8,7 @@ from rich.console import Console
 from mettagrid import MettaGridEnv
 from mettagrid.renderer.miniscope.miniscope_panel import MiniscopePanel, PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState
+from mettagrid.renderer.miniscope.styles import CLAUDE_THEME
 
 
 class MiniscopeComponent(ABC):
@@ -32,7 +33,7 @@ class MiniscopeComponent(ABC):
         self._panel: Optional[MiniscopePanel] = None
         self._width: Optional[int] = None
         self._height: Optional[int] = None
-        self._console = Console()
+        self._console = Console(theme=CLAUDE_THEME, style="text", highlight=False)
 
     @property
     def env(self) -> MettaGridEnv:

@@ -1,15 +1,17 @@
 """Agent info panel component for miniscope renderer."""
 
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 import numpy as np
 from rich import box
 from rich.table import Table
+from rich.text import Text
 
 from mettagrid import MettaGridEnv
 from mettagrid.core import BoundingBox
 from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState
+from mettagrid.renderer.miniscope.styles import gradient_title, surface_panel
 from mettagrid.renderer.miniscope.symbol import get_symbol_for_object
 
 from .base import MiniscopeComponent
@@ -50,14 +52,10 @@ class AgentInfoComponent(MiniscopeComponent):
         """Get glyphs from state."""
         return self.state.glyphs if self.state else None
 
-    def update(self) -> List[str]:
-        """Render the agent info panel using current environment and state.
-
-        Returns:
-            List of strings representing the rendered panel
-        """
+    def update(self) -> None:
+        """Render the agent info panel using current environment and state."""
         if not self.env or not self.state:
-            return ["[Agent Info: No environment or state]"]
+            return
 
         # Get grid objects from environment
         bbox = BoundingBox(
@@ -74,7 +72,13 @@ class AgentInfoComponent(MiniscopeComponent):
             self.state.total_rewards,
             self.state.manual_agents,
         )
-        return table
+        panel = surface_panel(
+            table,
+            title=gradient_title("Agent Snapshot"),
+            border_variant="alt",
+            variant="alt",
+        )
+        self._panel.append_block(panel)
 
     def _build_table(
         self,
@@ -89,14 +93,16 @@ class AgentInfoComponent(MiniscopeComponent):
             Rich Table object
         """
         table = Table(
-            title="Agent Info",
+            title=gradient_title("Agent Info"),
             show_header=False,
             box=box.ROUNDED,
             padding=(0, 1),
             width=self._width,
+            border_style="border.alt",
+            row_styles=["surface.alt", "surface"],
         )
-        table.add_column("Key", style="cyan", no_wrap=True, width=12)
-        table.add_column("Value", style="white")
+        table.add_column("Key", style="muted", no_wrap=True, width=12)
+        table.add_column("Value", style="text")
 
         if selected_agent is None:
             table.add_row("Status", "No agent selected")
@@ -112,14 +118,12 @@ class AgentInfoComponent(MiniscopeComponent):
                 table.add_row("Agent", str(selected_agent))
                 table.add_row("Status", "(not found)")
             else:
-                # Build inventory display
                 reward = (
                     total_rewards[selected_agent]
                     if total_rewards is not None and selected_agent < len(total_rewards)
                     else 0.0
                 )
 
-                # Get agent symbol
                 agent_symbol = ""
                 symbol_map = self._get_symbol_map()
                 object_type_names = self._get_object_type_names()
@@ -130,29 +134,36 @@ class AgentInfoComponent(MiniscopeComponent):
                 table.add_row("Agent", f"{selected_agent}{agent_symbol}")
                 table.add_row("Reward", f"{reward:.1f}")
 
-                # Show manual mode status
                 if selected_agent in manual_agents:
-                    table.add_row("Mode", "MANUAL")
+                    table.add_row("Mode", Text("MANUAL", style="accent"))
                 else:
                     table.add_row("Mode", "Policy")
 
-                # Show glyph if available
                 glyph_id = agent_obj.get("glyph")
+                if glyph_id is None:
+                    glyph_id = agent_obj.get("glyph_id")
+
+                pending_override = None
+                if selected_agent is not None:
+                    pending_override = self.state.pending_glyphs.get(selected_agent)
+
+                if glyph_id is None and pending_override is not None:
+                    glyph_id = pending_override
+                elif isinstance(glyph_id, int) and pending_override is not None and glyph_id == pending_override:
+                    self.state.pending_glyphs.pop(selected_agent, None)
+
                 glyphs = self._get_glyphs()
-                # glyph_id could be an int or a string emoji
                 if glyph_id is not None:
                     if isinstance(glyph_id, int) and glyphs and 0 <= glyph_id < len(glyphs):
                         glyph_symbol = glyphs[glyph_id]
                         table.add_row("Glyph", f"{glyph_id} {glyph_symbol}")
                     elif isinstance(glyph_id, str):
-                        # Direct emoji string
                         table.add_row("Glyph", glyph_id)
 
                 inventory = agent_obj.get("inventory", {})
                 if not inventory or not isinstance(inventory, dict):
                     table.add_row("Inventory", "(empty)")
                 else:
-                    # Show resources with amounts (inventory is dict of resource_id -> amount)
                     has_items = False
                     for resource_id, amount in sorted(inventory.items()):
                         resource_names = self._get_resource_names()

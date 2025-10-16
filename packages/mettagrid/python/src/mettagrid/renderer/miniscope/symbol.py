@@ -22,6 +22,20 @@ DEFAULT_SYMBOL_MAP = {
 }
 
 
+SYMBOL_FALLBACKS = {
+    "oxygen_ex_dep": "🟦",
+}
+
+
+def harmonize_symbol_map(symbol_map: dict[str, str]) -> None:
+    """Adjust symbols that collide with generic tiles (e.g. empty cells)."""
+
+    empty_symbol = symbol_map.get("empty")
+    for key, fallback in SYMBOL_FALLBACKS.items():
+        if symbol_map.get(key) == empty_symbol:
+            symbol_map[key] = fallback
+
+
 def get_symbol_for_object(obj: dict, object_type_names: list[str], symbol_map: dict[str, str]) -> str:
     """Get the emoji symbol for an object.
 

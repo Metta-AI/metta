@@ -2,12 +2,12 @@
 
 from typing import Dict
 
-from rich.table import Table
 from rich.text import Text
 
 from mettagrid import MettaGridEnv
 from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState
+from mettagrid.renderer.miniscope.styles import chip_markup, join_chips, surface_panel
 
 from .base import MiniscopeComponent
 
@@ -65,6 +65,8 @@ class AgentControlComponent(MiniscopeComponent):
             # Handle glyph picker
             elif ch == "E":
                 self._state.enter_glyph_picker()
+                # Consume the triggering key so the picker starts with an empty query.
+                self._state.user_input = None
                 return True
             # Handle manual mode toggle
             elif ch == "M":
@@ -76,25 +78,36 @@ class AgentControlComponent(MiniscopeComponent):
     def update(self) -> None:
         """Update the agent control panel display."""
         # Get agent selection info
+        manual_active = False
         if self._state.selected_agent is not None:
-            agent_text = f"[Agent {self._state.selected_agent}]"
-            manual_text = " (Manual)" if self._state.selected_agent in self._state.manual_agents else ""
+            agent_text = f"Agent {self._state.selected_agent}"
+            manual_active = self._state.selected_agent in self._state.manual_agents
         else:
-            agent_text = "[AI Control]"
-            manual_text = ""
+            agent_text = "AI Control"
 
-        # Use compact format if height is limited (< 3 lines)
-        if self._height and self._height < 3:
-            content = Text(f"{agent_text}{manual_text} | []=Agent | M=Manual | WASD=Move | E=Emote | R=Rest")
-        else:
-            # Create table with controls
-            table = Table(show_header=False, show_edge=True, box=None, padding=(0, 1))
-            table.add_column("Controls", justify="left", no_wrap=True)
+        footer_line = Text()
+        footer_line += Text.from_markup(chip_markup("Agent"))
+        footer_line.append(f" {agent_text}", style="accent")
+        if manual_active:
+            footer_line.append(" · Manual", style="accent.dim")
 
-            # Agent controls only
-            table.add_row(f"{agent_text}{manual_text}")
-            table.add_row("[]=Agent  M=Manual  WASD=Move  E=Emote  R=Rest")
-            content = table
+        footer_line.append("   │   ", style="divider")
+        footer_line += join_chips(
+            [
+                ("[]", "Cycle"),
+                ("M", "Manual"),
+                ("WASD", "Move"),
+                ("E", "Emote"),
+                ("R", "Rest"),
+            ],
+            spacer="   ",
+        )
 
-        # Set panel content
-        self._panel.set_content(content)
+        footer_panel = surface_panel(
+            footer_line,
+            variant="alt",
+            border_variant="alt",
+            padding=(0, 1),
+        )
+
+        self._panel.set_content(footer_panel)

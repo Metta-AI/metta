@@ -4,11 +4,13 @@ from typing import Dict
 
 from rich import box
 from rich.table import Table
+from rich.text import Text
 
 from mettagrid import MettaGridEnv
 from mettagrid.core import BoundingBox
 from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState, RenderMode
+from mettagrid.renderer.miniscope.styles import gradient_title, surface_panel
 
 from .base import MiniscopeComponent
 
@@ -67,7 +69,13 @@ class ObjectInfoComponent(MiniscopeComponent):
             self.state.cursor_col,
             panel_height,
         )
-        self._panel.set_content(table)
+        panel = surface_panel(
+            table,
+            title=gradient_title("Object Inspector"),
+            border_variant="primary",
+            variant="base",
+        )
+        self._panel.append_block(panel)
 
     def _build_table(
         self,
@@ -82,14 +90,16 @@ class ObjectInfoComponent(MiniscopeComponent):
             Rich Table object
         """
         table = Table(
-            title="Object Info",
+            title=gradient_title("Object Info"),
             show_header=False,
             box=box.ROUNDED,
             padding=(0, 1),
             width=self._width,
+            border_style="border",
+            row_styles=["surface", "surface.alt"],
         )
-        table.add_column("Key", style="cyan", no_wrap=True, width=12)
-        table.add_column("Value", style="white")
+        table.add_column("Key", style="muted", no_wrap=True, width=12)
+        table.add_column("Value", style="text")
 
         # Find object at cursor position
         selected_obj = None
@@ -106,8 +116,8 @@ class ObjectInfoComponent(MiniscopeComponent):
             table.add_row("Type", type_name)
             actual_r = selected_obj.get("r", "?")
             actual_c = selected_obj.get("c", "?")
-            table.add_row("Cursor pos", f"({cursor_row}, {cursor_col})")
-            table.add_row("Object pos", f"({actual_r}, {actual_c})")
+            table.add_row("Cursor", f"({cursor_row}, {cursor_col})")
+            table.add_row("Object", f"({actual_r}, {actual_c})")
 
             # Check if this object has recipes (e.g., assembler)
             has_recipes = "recipes" in selected_obj
@@ -140,7 +150,7 @@ class ObjectInfoComponent(MiniscopeComponent):
 
                                 # Show current recipe
                                 table.add_row("", "")  # Spacer
-                                table.add_row("Recipe", f"{inputs_str} → {outputs_str}")
+                                table.add_row("Recipe", Text(f"{inputs_str} → {outputs_str}", style="accent"))
                                 props_shown += 2
                                 break
 

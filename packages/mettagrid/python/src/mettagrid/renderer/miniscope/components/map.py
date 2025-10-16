@@ -1,10 +1,13 @@
 """Map component for miniscope renderer."""
 
+from rich.text import Text
+
 from mettagrid import MettaGridEnv
 from mettagrid.core import BoundingBox
 from mettagrid.renderer.miniscope.buffer import MapBuffer
 from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState, RenderMode
+from mettagrid.renderer.miniscope.styles import surface_panel
 
 from .base import MiniscopeComponent
 
@@ -120,4 +123,17 @@ class MapComponent(MiniscopeComponent):
 
         # Render with viewport and set panel content
         buffer = self._map_buffer.render(grid_objects, use_viewport=True)
-        self._panel.set_content(buffer.split("\n"))
+        map_text = Text(buffer)
+        map_text.no_wrap = True
+
+        panel_width = self._panel.width if self._panel else None
+        map_panel = surface_panel(
+            map_text,
+            variant="base",
+            border_variant="primary",
+            padding=(0, 0),
+            width=panel_width,
+        )
+
+        if self._panel:
+            self._panel.set_content(map_panel)

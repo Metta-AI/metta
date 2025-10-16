@@ -69,6 +69,7 @@ class MiniscopeState:
     resource_names: Optional[List[str]] = None
     symbol_map: Optional[Dict[str, str]] = None
     glyphs: Optional[List[str]] = None
+    pending_glyphs: Dict[int, int] = field(default_factory=dict)
 
     def is_running(self) -> bool:
         """Check if the renderer should continue running."""
@@ -165,6 +166,7 @@ class MiniscopeState:
         self.manual_agents.clear()
         self.user_action = None
         self.should_step = False
+        self.pending_glyphs.clear()
 
         # Store map dimensions
         self.map_height = map_height

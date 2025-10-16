@@ -1,13 +1,12 @@
 """Symbols table component for miniscope renderer."""
 
-from typing import List
-
 from rich import box
 from rich.table import Table
 
 from mettagrid import MettaGridEnv
 from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState
+from mettagrid.renderer.miniscope.styles import gradient_title, surface_panel
 
 from .base import MiniscopeComponent
 
@@ -38,18 +37,20 @@ class SymbolsTableComponent(MiniscopeComponent):
         """Get symbol map from state."""
         return self.state.symbol_map if self.state else {}
 
-    def update(self) -> List[str]:
-        """Render the symbols table.
-
-        Returns:
-            List of strings representing the symbols table
-        """
+    def update(self) -> None:
+        """Render the symbols table."""
         symbol_map = self._get_symbol_map()
         if not symbol_map:
-            return ["[Symbols: No symbol map]"]
+            return
 
         table = self._build_table()
-        return table
+        panel = surface_panel(
+            table,
+            title=gradient_title("Legend"),
+            border_variant="alt",
+            variant="alt",
+        )
+        self._panel.append_block(panel)
 
     def _build_table(self) -> Table:
         """Build the symbols table.
@@ -58,11 +59,12 @@ class SymbolsTableComponent(MiniscopeComponent):
             Rich Table object
         """
         table = Table(
-            title="Symbols",
+            title=gradient_title("Symbols"),
             show_header=False,
             box=box.ROUNDED,
             padding=(0, 1),
             width=self._width,
+            border_style="border.alt",
         )
         table.add_column("Symbol", no_wrap=True, style="white", width=3)
         table.add_column("Name", style="cyan", overflow="ellipsis", width=15)

@@ -28,7 +28,8 @@ from .components import (
 )
 from .miniscope_panel import PanelLayout
 from .miniscope_state import MiniscopeState, PlaybackState
-from .symbol import DEFAULT_SYMBOL_MAP
+from .styles import CLAUDE_THEME
+from .symbol import DEFAULT_SYMBOL_MAP, harmonize_symbol_map
 
 
 class MiniscopeRenderer(Renderer):
@@ -46,8 +47,8 @@ class MiniscopeRenderer(Renderer):
         # Renderer state
         self._state = MiniscopeState()
 
-        # Rich console for rendering
-        self._console = Console()
+        # Rich console for rendering with customized theme
+        self._console = Console(theme=CLAUDE_THEME, style="text", highlight=False)
 
         # Panel layout
         self._panels = PanelLayout(self._console)
@@ -77,6 +78,8 @@ class MiniscopeRenderer(Renderer):
         # Add custom symbols from game config
         for obj in env.mg_config.game.objects.values():
             self._state.symbol_map[obj.name] = obj.render_symbol
+
+        harmonize_symbol_map(self._state.symbol_map)
 
         self._state.glyphs = [g.symbol for g in GLYPH_DATA] if GLYPH_DATA else None
 

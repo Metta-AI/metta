@@ -2,7 +2,8 @@
 
 from typing import List, Optional, Union
 
-from rich.console import Console
+from rich.console import Console, Group, RenderableType
+from rich.layout import Layout
 from rich.live import Live
 from rich.panel import Panel
 from rich.table import Table
@@ -36,6 +37,7 @@ class MiniscopePanel:
         self.border = border
         self._content: List[str] = []
         self._rich_content: Optional[Union[Table, Panel, Text]] = None
+        self._blocks: List[RenderableType] = []
 
     def set_content(self, content: Union[List[str], Table, Panel, Text]) -> None:
         """Set the panel content.
@@ -43,12 +45,17 @@ class MiniscopePanel:
         Args:
             content: Either list of strings or Rich renderable object
         """
+        self._blocks.clear()
         if isinstance(content, list):
             self._content = content
             self._rich_content = None
         else:
             self._content = []
             self._rich_content = content
+
+    def append_block(self, block: RenderableType) -> None:
+        """Append a renderable block to the panel, preserving existing content."""
+        self._blocks.append(block)
 
     def get_content(self) -> List[str]:
         """Get the panel content as list of strings.
@@ -70,12 +77,15 @@ class MiniscopePanel:
         Returns:
             Rich renderable object or None
         """
+        if self._blocks:
+            return Group(*self._blocks)
         return self._rich_content
 
     def clear(self) -> None:
         """Clear the panel content."""
         self._content = []
         self._rich_content = None
+        self._blocks.clear()
 
     def is_empty(self) -> bool:
         """Check if panel has content.
@@ -141,8 +151,8 @@ class PanelLayout:
         self.panels: dict[str, MiniscopePanel] = {}
 
         # Create standard panels
-        self.header = MiniscopePanel("header", height=2)
-        self.footer = MiniscopePanel("footer", height=2)
+        self.header = MiniscopePanel("header")
+        self.footer = MiniscopePanel("footer")
         self.map_view = MiniscopePanel("map_view")
         self.sidebar = MiniscopePanel("sidebar", width=46)
 
@@ -193,33 +203,40 @@ class PanelLayout:
 
     def render_to_console(self) -> None:
         """Render the complete layout to console using Rich Table."""
-        # Create main layout table with header, map/info panes, and footer
-        layout = Table.grid(padding=0, expand=True)
-        layout.add_column(ratio=1)  # Single column for full width content
+        layout = Layout()
+        layout.split(
+            Layout(name="header", minimum_size=2, size=3),
+            Layout(name="body", ratio=1),
+            Layout(name="footer", minimum_size=2, size=3),
+        )
 
-        # Add header
-        header_content = self.header.get_rich_content() or "\n".join(self.header.get_content())
-        layout.add_row(header_content)
+        layout["header"].update(self._renderable_for_panel(self.header))
+        layout["footer"].update(self._renderable_for_panel(self.footer))
 
-        # Create horizontal layout for map (left) and info pane (right)
-        main_row = Table.grid(padding=0, expand=True)
-        main_row.add_column(ratio=1)  # Map pane (left, flexible width)
-        main_row.add_column(width=46)  # Info pane (right, fixed width)
+        map_content = self._renderable_for_panel(self.map_view)
+        sidebar_content = self._renderable_for_panel(self.sidebar)
 
-        # Get content for map and sidebar
-        map_content = self.map_view.get_rich_content() or "\n".join(self.map_view.render())
-        sidebar_content = self.sidebar.get_rich_content() or "\n".join(self.sidebar.render())
+        body_table = Table.grid(padding=0, expand=True)
+        body_table.add_column(ratio=2)
+        body_table.add_column(width=self.sidebar.width or 46)
+        body_table.add_row(map_content, sidebar_content)
 
-        main_row.add_row(map_content, sidebar_content)
-        layout.add_row(main_row)
+        layout["body"].update(body_table)
 
-        # Add footer
-        footer_content = self.footer.get_rich_content() or "\n".join(self.footer.get_content())
-        layout.add_row(footer_content)
-
-        # Update live display if active, otherwise clear and print
         if self._live is not None:
             self._live.update(layout)
         else:
             self.console.clear()
             self.console.print(layout)
+
+    def _renderable_for_panel(self, panel: MiniscopePanel) -> RenderableType:
+        """Convert a miniscope panel into a renderable, falling back to text."""
+        rich_content = panel.get_rich_content()
+        if rich_content is not None:
+            return rich_content
+
+        lines = panel.render()
+        if not lines:
+            return ""
+        text = Text("\n".join(lines), style="text")
+        return text

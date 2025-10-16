@@ -1,11 +1,13 @@
 """Simulation control component for miniscope renderer."""
 
 import numpy as np
+from rich.console import Group
 from rich.text import Text
 
 from mettagrid import MettaGridEnv
 from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState, PlaybackState
+from mettagrid.renderer.miniscope.styles import join_chips, surface_panel
 
 from .base import MiniscopeComponent
 
@@ -101,15 +103,46 @@ class SimControlComponent(MiniscopeComponent):
         sps = f"{self.state.fps:.1f}" if self.state.fps < 10 else f"{int(self.state.fps)}"
         camera_pos = f"({self.state.camera_row},{self.state.camera_col})"
 
-        # Build status text
-        text = Text()
-        text.append("?=Help  SPACE=Play/Pause  <>=Speed  O=Mode  IJKL=Pan  Q=Quit\n")
-        text.append(
-            f"Step {self.state.step_count} | "
-            + f"Reward: {total_reward:.2f} | "
-            + f"SPS: {sps} | Status: {status} | "
-            + f"Mode: {mode_text} | Camera: {camera_pos}"
+        status_icon = {
+            PlaybackState.RUNNING: "▶",
+            PlaybackState.PAUSED: "⏸",
+            PlaybackState.STEPPING: "⏭",
+            PlaybackState.STOPPED: "■",
+        }[self.state.playback]
+
+        controls_row = join_chips(
+            [
+                ("?", "Help"),
+                ("Space", "Play/Pause"),
+                ("<  >", "Speed"),
+                ("O", "Mode"),
+                ("IJKL", "Pan"),
+                ("Q", "Quit"),
+            ],
+            spacer="   ",
         )
 
-        # Set panel content
-        self._panel.set_content(text)
+        status_line = Text()
+        status_line.append("Miniscope", style="accent")
+        status_line.append("  │  ", style="divider")
+        status_line.append(
+            f"Step {self.state.step_count:,}  Reward {total_reward:.2f}  SPS {sps}",
+            style="text",
+        )
+        status_line.append("  │  ", style="divider")
+        status_line.append(f"Mode {mode_text}", style="muted")
+        status_line.append("  ·  ", style="divider")
+        status_line.append(f"Camera {camera_pos}", style="muted")
+        status_line.append("  ·  ", style="divider")
+        status_line.append(f"{status_icon} {status}", style="accent" if status != "PAUSED" else "muted")
+        status_line.append("  ·  ", style="divider")
+        status_line.append(f"Speed ×{self.state.fps:.1f}", style="accent.dim")
+
+        header_panel = surface_panel(
+            Group(status_line, controls_row),
+            variant="dark",
+            border_variant="alt",
+            padding=(0, 1),
+        )
+
+        self._panel.set_content(header_panel)
