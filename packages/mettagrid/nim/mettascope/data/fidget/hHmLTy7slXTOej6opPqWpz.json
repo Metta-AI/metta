@@ -45416,29 +45416,19 @@
                     "interactions": []
                   },
                   {
-                    "id": "2364:374",
+                    "id": "2501:502",
                     "name": "Logo",
-                    "type": "INSTANCE",
+                    "type": "FRAME",
                     "scrollBehavior": "SCROLLS",
-                    "componentId": "4:92",
-                    "overrides": [
-                      {
-                        "id": "2364:374",
-                        "overriddenFields": [
-                          "clipsContent",
-                          "name"
-                        ]
-                      }
-                    ],
                     "children": [
                       {
-                        "id": "I2364:374;4:83",
+                        "id": "2501:503",
                         "name": "Group 174",
                         "type": "GROUP",
                         "scrollBehavior": "SCROLLS",
                         "children": [
                           {
-                            "id": "I2364:374;2384:668",
+                            "id": "2501:504",
                             "name": "Union",
                             "type": "VECTOR",
                             "scrollBehavior": "SCROLLS",
@@ -45517,7 +45507,7 @@
                             "interactions": []
                           },
                           {
-                            "id": "I2364:374;2384:679",
+                            "id": "2501:505",
                             "name": "Union",
                             "type": "VECTOR",
                             "scrollBehavior": "SCROLLS",
@@ -45613,7 +45603,7 @@
                             "interactions": []
                           },
                           {
-                            "id": "I2364:374;4:90",
+                            "id": "2501:506",
                             "name": "Ellipse 37",
                             "type": "ELLIPSE",
                             "scrollBehavior": "SCROLLS",
@@ -86020,9 +86010,9 @@
   "schemaVersion": 0,
   "styles": {},
   "name": "MetaScope V2 Rig",
-  "lastModified": "2025-10-03T22:58:20Z",
-  "thumbnailUrl": "https://s3-alpha.figma.com/thumbnails/51c2545f-2008-4433-b669-1abccb6f2835?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAQ4GOSFWC6UK6QLJ2%2F20251002%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20251002T000000Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=163aa996a880dbcb682375134c8971e50a5563643b0948714aad2313a54f3dce",
-  "version": "2270823826403730615",
+  "lastModified": "2025-10-13T19:52:51Z",
+  "thumbnailUrl": "https://s3-alpha.figma.com/thumbnails/52a7fda7-6777-4a1b-a51e-347a2583827a?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAQ4GOSFWCU44USHFR%2F20251012%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20251012T120000Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=33d3a3a231c29c9820598452a3eff6683ffa2b4dc0d3aaadc337e508bb096824",
+  "version": "2274494426286812254",
   "role": "owner",
   "editorType": "figma",
   "linkAccess": "inherit"

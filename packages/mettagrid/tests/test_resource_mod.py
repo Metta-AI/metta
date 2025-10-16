@@ -13,6 +13,7 @@ from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
 from mettagrid.mettagrid_c import (
     MettaGrid,
     ResourceModConfig,
+    dtype_actions,
     dtype_observations,
     dtype_rewards,
     dtype_terminals,
@@ -116,8 +117,8 @@ def test_resource_mod_consumption():
 
     # Execute resource_mod action
     action_idx = env.action_names().index("resource_mod")
-    actions = np.zeros((1, 2), dtype=np.int32)
-    actions[0] = [action_idx, 0]  # arg is ignored for resource_mod (AoE centered on actor)
+    actions = np.zeros(1, dtype=dtype_actions)
+    actions[0] = action_idx
     env.step(actions)
 
     # Check that energy was consumed and health was added
@@ -223,10 +224,8 @@ def test_resource_mod_aoe_agents():
 
     # Red agent uses resource_mod (affects all 3 agents within radius 2)
     action_idx = env.action_names().index("resource_mod")
-    actions = np.zeros((3, 2), dtype=np.int32)
-    actions[0] = [action_idx, 0]  # Red uses resource_mod centered on self (arg ignored)
-    actions[1] = [0, 0]  # Blue does noop
-    actions[2] = [0, 0]  # Green does noop
+    actions = np.zeros(3, dtype=dtype_actions)
+    actions[0] = action_idx  # Red uses resource_mod centered on self (arg ignored)
 
     env.step(actions)
 
@@ -300,7 +299,7 @@ def test_resource_mod_converters():
                 max_output=100,
                 max_conversions=1000,
                 conversion_ticks=1,
-                cooldown=5,
+                cooldown_time=[5],
                 initial_resource_count=0,
                 recipe_details_obs=False,
             ),
@@ -312,7 +311,7 @@ def test_resource_mod_converters():
                 max_output=100,
                 max_conversions=1000,
                 conversion_ticks=1,
-                cooldown=5,
+                cooldown_time=[5],
                 initial_resource_count=0,
                 recipe_details_obs=False,
             ),
@@ -324,7 +323,7 @@ def test_resource_mod_converters():
                 max_output=100,
                 max_conversions=1000,
                 conversion_ticks=1,
-                cooldown=5,
+                cooldown_time=[5],
                 initial_resource_count=0,
                 recipe_details_obs=False,
             ),
@@ -353,8 +352,8 @@ def test_resource_mod_converters():
 
     # Agent uses resource_mod
     action_idx = env.action_names().index("resource_mod")
-    actions = np.zeros((1, 2), dtype=np.int32)
-    actions[0] = [action_idx, 0]  # arg is ignored for resource_mod (AoE centered on actor)
+    actions = np.zeros(1, dtype=dtype_actions)
+    actions[0] = action_idx
 
     env.step(actions)
 
@@ -454,10 +453,8 @@ def test_resource_mod_negative():
 
     # Red uses AoE damage
     action_idx = env.action_names().index("resource_mod")
-    actions = np.zeros((3, 2), dtype=np.int32)
-    actions[0] = [action_idx, 0]  # arg is ignored for resource_mod (AoE centered on actor)
-    actions[1] = [0, 0]
-    actions[2] = [0, 0]
+    actions = np.zeros(3, dtype=dtype_actions)
+    actions[0] = action_idx
 
     env.step(actions)
 
@@ -588,9 +585,8 @@ def test_resource_mod_scaling_vs_no_scaling():
     env_scale.reset()
 
     action_idx = env_scale.action_names().index("resource_mod")
-    actions = np.zeros((2, 2), dtype=np.int32)
-    actions[0] = [action_idx, 0]  # Red uses resource_mod (arg ignored, AoE centered on actor)
-    actions[1] = [0, 0]  # Blue does noop
+    actions = np.zeros(2, dtype=dtype_actions)
+    actions[0] = action_idx
     env_scale.step(actions)
 
     # Check scaled results (10 divided by 2 agents = 5 each)
@@ -605,8 +601,8 @@ def test_resource_mod_scaling_vs_no_scaling():
     env_no_scale.set_buffers(observations, terminals, truncations, rewards)
     env_no_scale.reset()
 
-    actions[0] = [action_idx, 0]  # Red uses resource_mod (arg ignored, AoE centered on actor)
-    actions[1] = [0, 0]  # Blue does noop
+    actions = np.zeros(2, dtype=dtype_actions)
+    actions[0] = action_idx
     env_no_scale.step(actions)
 
     # Check non-scaled results (each gets full 10)

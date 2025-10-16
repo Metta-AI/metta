@@ -20,8 +20,8 @@ from devops.skypilot.utils.job_helpers import (
     launch_task,
     open_job_log_from_request_id,
     set_task_secrets,
-    validate_module_path,
 )
+from metta.common.tool.tool_path import validate_module_path
 from metta.common.util.cli import get_user_confirmation
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from metta.common.util.fs import cd_repo_root
@@ -121,10 +121,10 @@ def main():
         epilog="""
 Examples:
   # Basic:
-  %(prog)s experiments.recipes.arena.train run=test_123 trainer.total_timesteps=100000
+  %(prog)s arena.train run=test_123 trainer.total_timesteps=100000
 
   # Mix of launch flags and tool args:
-  %(prog)s experiments.recipes.arena.train --gpus 2 --nodes 4 -- run=test_123 trainer.steps=1000
+  %(prog)s arena.train --gpus 2 --nodes 4 -- run=test_123 trainer.steps=1000
         """,
     )
 
@@ -132,7 +132,7 @@ Examples:
     # We'll parse known args only, allowing unknown ones to be passed as tool args
     parser.add_argument(
         "module_path",
-        help="Module path to run (e.g., experiments.recipes.arena.train). "
+        help="Module path to run (e.g., arena.train or experiments.recipes.arena.train). "
         "Any arguments following the module path will be passed to the tool.",
     )
 
@@ -222,6 +222,7 @@ Examples:
                 print("  - Skip check: add --skip-git-check flag")
                 sys.exit(1)
 
+    # Validate module path (supports shorthand like 'arena.train')
     if not validate_module_path(args.module_path):
         sys.exit(1)
 

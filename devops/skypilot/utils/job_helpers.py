@@ -1,4 +1,3 @@
-import importlib
 import netrc
 import os
 import re
@@ -67,56 +66,6 @@ def check_git_state(commit_hash: str) -> str | None:
         return "\n".join(error_lines)
 
     return None
-
-
-def validate_module_path(module_path: str) -> bool:
-    """
-    Check that a module path like 'experiments.recipes.arena_basic_easy_shaped.train'
-    points to a valid function.
-    """
-    try:
-        # Split module path and function name
-        # e.g., "experiments.recipes.arena_basic_easy_shaped.train"
-        # -> module: "experiments.recipes.arena_basic_easy_shaped", function: "train"
-        parts = module_path.split(".")
-        module_name = ".".join(parts[:-1])
-        function_name = parts[-1]
-
-        # First check if the file exists (for better error messages)
-        module_file_path = module_name.replace(".", "/") + ".py"
-        if not Path(module_file_path).exists():
-            print(red(f"❌ Module file '{module_file_path}' does not exist"))
-            return False
-
-        # Try to import the module
-        try:
-            module = importlib.import_module(module_name)
-        except ImportError as e:
-            print(red(f"❌ Failed to import module '{module_name}': {e}"))
-            return False
-
-        # Check if the function exists in the module
-        if not hasattr(module, function_name):
-            print(red(f"❌ Function '{function_name}' not found in module '{module_name}'"))
-            # List available functions as suggestions
-            available_funcs = [
-                name for name in dir(module) if not name.startswith("_") and callable(getattr(module, name))
-            ]
-            if available_funcs:
-                print(f"    Available functions: {', '.join(available_funcs[:5])}")
-            return False
-
-        # Optionally, verify it's callable
-        func = getattr(module, function_name)
-        if not callable(func):
-            print(red(f"❌ '{function_name}' exists but is not callable"))
-            return False
-
-        return True
-
-    except Exception as e:
-        print(red(f"❌ Error validating module path '{module_path}': {e}"))
-        return False
 
 
 def display_job_summary(

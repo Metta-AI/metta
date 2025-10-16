@@ -2,17 +2,22 @@ import base64
 import json
 
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.sim import SimTool
+from metta.tools.eval import EvaluateRemoteJobTool
 
 
 # Used by eval_task_worker.py
-def eval(policy_uri: str, simulations_json_base64: str) -> SimTool:
+def eval(
+    policy_uri: str, simulations_json_base64_path: str, job_result_file_path: str
+) -> EvaluateRemoteJobTool:
     # Decode from base64 to avoid OmegaConf auto-parsing issues
+    with open(simulations_json_base64_path, "rb") as f:
+        simulations_json_base64 = f.read()
     simulations_json = base64.b64decode(simulations_json_base64).decode()
     simulations = [
         SimulationConfig.model_validate(sim) for sim in json.loads(simulations_json)
     ]
-    return SimTool(
+    return EvaluateRemoteJobTool(
         simulations=simulations,
-        policy_uris=[policy_uri],
+        policy_uri=policy_uri,
+        job_result_file_path=job_result_file_path,
     )

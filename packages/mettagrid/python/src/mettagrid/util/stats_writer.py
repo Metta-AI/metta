@@ -20,28 +20,29 @@ class StatsWriter(ABC):
     @abstractmethod
     def record_episode(
         self,
-        episode_id: str,
         attributes: Dict[str, str],
         agent_metrics: Dict[int, Dict[str, float]],
         agent_groups: Dict[int, int],
         step_count: int,
         replay_url: str | None,
         created_at: datetime.datetime,
-    ) -> None:
+    ) -> int:
         """Record episode statistics.
 
         Args:
-            episode_id: Unique identifier for the episode
             attributes: Episode attributes/metadata as key-value pairs
             agent_metrics: Per-agent metrics as {agent_id: {metric_name: value}}
             agent_groups: Agent group assignments as {agent_id: group_id}
             step_count: Number of steps in the episode
             replay_url: Optional URL to the episode replay
             created_at: When the episode was created
+
+        Returns:
+            The episode ID
         """
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def close(self) -> None:
         """Close any open connections or resources."""
-        pass
+        raise NotImplementedError

@@ -208,20 +208,20 @@ def test_get_replay_urls(tmp_path: Path):
 
     # Test filtering by policy URI (policy1 version 1)
     policy1_v1_urls = db.get_replay_urls(
-        policy_uri=CheckpointManager.normalize_uri("policy1/checkpoints/policy1:v1.pt")
+        policy_uri=CheckpointManager.normalize_uri("policy1/checkpoints/policy1:v1.mpt")
     )
     assert len(policy1_v1_urls) == 1
     assert replay_urls[0] in policy1_v1_urls
 
     # Test filtering by policy URI (policy1 version 2)
     policy1_v2_urls = db.get_replay_urls(
-        policy_uri=CheckpointManager.normalize_uri("policy1/checkpoints/policy1:v2.pt")
+        policy_uri=CheckpointManager.normalize_uri("policy1/checkpoints/policy1:v2.mpt")
     )
     assert len(policy1_v2_urls) == 1
     assert replay_urls[1] in policy1_v2_urls
 
     # Test filtering by policy URI (policy2 version 1)
-    policy2_urls = db.get_replay_urls(policy_uri=CheckpointManager.normalize_uri("policy2/checkpoints/policy2:v1.pt"))
+    policy2_urls = db.get_replay_urls(policy_uri=CheckpointManager.normalize_uri("policy2/checkpoints/policy2:v1.mpt"))
     assert len(policy2_urls) == 1
     assert replay_urls[2] in policy2_urls
 
@@ -233,7 +233,8 @@ def test_get_replay_urls(tmp_path: Path):
 
     # Test combining policy URI and environment filters
     combined_urls = db.get_replay_urls(
-        policy_uri=CheckpointManager.normalize_uri("policy1/checkpoints/policy1:v1.pt"), env="env1"
+        policy_uri=CheckpointManager.normalize_uri("policy1/checkpoints/policy1:v1.mpt"),
+        env="env1",
     )
     assert len(combined_urls) == 1
     assert replay_urls[0] in combined_urls
@@ -284,7 +285,7 @@ def test_from_shards_and_context(tmp_path: Path):
     assert not merged_path.exists(), "Merged DB already exists"
 
     # Create agent map with URIs (new API)
-    agent_map = {0: CheckpointManager.normalize_uri("test_policy/checkpoints/test_policy:v1.pt")}
+    agent_map = {0: CheckpointManager.normalize_uri("test_policy/checkpoints/test_policy:v1.mpt")}
 
     # Now call the actual from_shards_and_context method using URI
     merged_db = SimulationStatsDB.from_shards_and_context(
@@ -293,7 +294,7 @@ def test_from_shards_and_context(tmp_path: Path):
         agent_map=agent_map,
         sim_name="test_sim",
         sim_env="test_env",
-        policy_uri=CheckpointManager.normalize_uri("test_policy/checkpoints/test_policy:v1.pt"),
+        policy_uri=CheckpointManager.normalize_uri("test_policy/checkpoints/test_policy:v1.mpt"),
     )
 
     # Verify merged database was created
@@ -441,7 +442,8 @@ def test_sequential_policy_merges(tmp_path: Path):
     assert policy_b_found, "Policy B not found in result database"
 
     # Verify policy count
-    all_policies = result_db.get_all_policy_uris()
+    rows = result_db.con.execute("SELECT DISTINCT policy_key, policy_version FROM simulations").fetchall()
+    all_policies = [f"{row[0]}:v{row[1]}" for row in rows]
     assert len(all_policies) == 2, f"Expected 2 policies, got {len(all_policies)}: {all_policies}"
 
     result_db.close()
@@ -467,7 +469,8 @@ def test_export_preserves_all_policies(tmp_path: Path):
 
     # Check exported database
     exported_db = SimulationStatsDB(export_path)
-    policies = exported_db.get_all_policy_uris()
+    rows = exported_db.con.execute("SELECT DISTINCT policy_key, policy_version FROM simulations").fetchall()
+    policies = [f"{row[0]}:v{row[1]}" for row in rows]
 
     # Should have both policies
     assert "policy_X:v1" in policies, f"policy_X:v1 not found in {policies}"
@@ -493,7 +496,8 @@ def test_export_preserves_all_policies(tmp_path: Path):
 
     # Check the updated export - should contain all three policies
     final_db = SimulationStatsDB(export_path)
-    final_policies = final_db.get_all_policy_uris()
+    rows = final_db.con.execute("SELECT DISTINCT policy_key, policy_version FROM simulations").fetchall()
+    final_policies = [f"{row[0]}:v{row[1]}" for row in rows]
 
     # Should have all three policies
     assert "policy_X:v1" in final_policies, f"policy_X:v1 not found in {final_policies}"

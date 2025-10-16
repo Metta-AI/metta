@@ -18,6 +18,7 @@ from mettagrid.config.mettagrid_config import (
 )
 from mettagrid.envs.pettingzoo_env import MettaGridPettingZooEnv
 from mettagrid.map_builder.ascii import AsciiMapBuilder
+from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME
 
 
 def make_pettingzoo_env(num_agents=3, max_steps=100):
@@ -69,6 +70,7 @@ def make_pettingzoo_env(num_agents=3, max_steps=100):
             agents=agents,
             map_builder=AsciiMapBuilder.Config(
                 map_data=map_data,
+                char_to_name_map=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
@@ -133,7 +135,7 @@ def test_pettingzoo_env_step():
         # Random actions for active agents
         actions = {}
         for agent in env.agents:
-            actions[agent] = np.random.randint(0, 2, size=2, dtype=np.int32)
+            actions[agent] = int(env.action_space(agent).sample())
 
         observations, rewards, terminations, truncations, infos = env.step(actions)
 
@@ -178,7 +180,7 @@ def test_pettingzoo_env_agent_removal():
     while env.agents and step_count < max_test_steps:
         actions = {}
         for agent in env.agents:
-            actions[agent] = np.random.randint(0, 2, size=2, dtype=np.int32)
+            actions[agent] = int(env.action_space(agent).sample())
 
         observations, rewards, terminations, truncations, infos = env.step(actions)
         step_count += 1
@@ -328,7 +330,7 @@ def test_pettingzoo_action_observation_spaces():
 
         # In our implementation, all agents have the same spaces
         assert obs_space.shape == reference_obs_space.shape
-        assert action_space.nvec.tolist() == reference_action_space.nvec.tolist()
+        assert action_space.n == reference_action_space.n
 
         # Test that spaces can generate valid samples
         obs_sample = obs_space.sample()
