@@ -1,0 +1,93 @@
+name: "Test Style Review"
+
+on:
+  push:
+    branches:
+      - test-style-review
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+jobs:
+  test-style:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.7"
+
+      - name: Set up environment (minimal)
+        uses: ./.github/actions/setup-environment
+        with:
+          install-mode: minimal
+
+      - name: Run Claude Style Analysis
+        id: claude-analysis
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_model: "claude-sonnet-4-20250514"
+          allowed_tools: "Edit,Replace,Bash(git diff HEAD~1),Write"
+          direct_prompt: |
+            Review the Python diff for code style violations according to our company style guide.
+
+            **CRITICAL INSTRUCTIONS**:
+            1. If you find NO style violations:
+               - Simply respond with "No issues found."
+               - DO NOT create any review
+            2. ONLY create a review if you find genuine style violations
+            3. Focus on violations that harm code readability or maintainability
+
+            ## Style Guide Principles
+
+            Our code should be **lean, pragmatic, and trust the environment**. We favor clarity through
+            simplicity over defensive programming and excessive documentation.
+
+            ### 1. Trust Your Environment
+
+            **Flag for removal:**
+            - Unnecessary existence checks for known/guaranteed paths
+            - Defensive checks for invariants that are guaranteed by the project structure
+            - Redundant validation of internal state
+
+            ### 2. Self-Documenting Code
+
+            **Flag for removal:**
+            - Docstrings that merely repeat the function signature
+            - Comments that restate what the code obviously does
+            - Redundant Args:/Returns: blocks when types are clear from signatures
+
+            ### 3. Direct and Simple
+
+            **Flag these patterns:**
+            - Unnecessary indirection (storing config values in separate instance variables)
+            - Overly clever code that obscures simple operations
+            - Unnecessary abstraction layers
+
+            ### 4. Conventional Structure
+
+            **Flag these violations:**
+            - Imports inside functions (except for circular dependency workarounds)
+            - Imports not at the top of the file
+
+            Run git diff to see the changes, then analyze test_style_violations.py for violations.
+            If you find violations, create a JSON file with your findings.
+
+      - name: Show Results
+        if: always()
+        run: |
+          echo "=== Claude Analysis Complete ==="
+          if [ -f "claude-review-analysis.json" ]; then
+            echo "Found issues:"
+            cat claude-review-analysis.json | jq '.'
+          else
+            echo "No issues found or no JSON created"
+          fi
