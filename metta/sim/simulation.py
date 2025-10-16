@@ -20,7 +20,7 @@ from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
 from metta.common.util.heartbeat import record_heartbeat
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.policy_artifact import PolicyArtifact
-from metta.rl.training.training_environment import EnvironmentMetaData
+from metta.rl.training.training_environment import GameRules
 from metta.rl.vecenv import make_vecenv
 from metta.sim.replay_log_renderer import ReplayLogRenderer
 from metta.sim.simulation_config import SimulationConfig
@@ -126,7 +126,7 @@ class Simulation:
         metta_grid_env: MettaGridEnv = getattr(driver_env, "_env", driver_env)
         assert isinstance(metta_grid_env, MettaGridEnv), f"Expected MettaGridEnv, got {type(metta_grid_env)}"
 
-        env_metadata = EnvironmentMetaData(
+        game_rules = GameRules(
             obs_width=metta_grid_env.obs_width,
             obs_height=metta_grid_env.obs_height,
             obs_features=metta_grid_env.observation_features,
@@ -137,10 +137,10 @@ class Simulation:
             feature_normalizations=metta_grid_env.feature_normalizations,
         )
 
-        self._policy = self._materialize_policy(self._policy_artifact, self._policy, env_metadata)
+        self._policy = self._materialize_policy(self._policy_artifact, self._policy, game_rules)
 
         if self._npc_artifact is not None:
-            self._npc_policy = self._materialize_policy(self._npc_artifact, self._npc_policy, env_metadata)
+            self._npc_policy = self._materialize_policy(self._npc_artifact, self._npc_policy, game_rules)
 
         # agent-index bookkeeping
         idx_matrix = torch.arange(metta_grid_env.num_agents * self._num_envs, device=self._device).reshape(
@@ -161,19 +161,19 @@ class Simulation:
         self,
         artifact: PolicyArtifact,
         existing_policy: Policy | None,
-        env_metadata: EnvironmentMetaData,
+        game_rules: GameRules,
     ) -> Policy:
         using_existing = existing_policy is not None
         if using_existing:
             policy = existing_policy
         else:
-            policy = artifact.instantiate(env_metadata, device=self._device)
+            policy = artifact.instantiate(game_rules, device=self._device)
 
         policy = policy.to(self._device)
         policy.eval()
 
         if using_existing and hasattr(policy, "initialize_to_environment"):
-            policy.initialize_to_environment(env_metadata, self._device)
+            policy.initialize_to_environment(game_rules, self._device)
         return policy
 
     @classmethod
