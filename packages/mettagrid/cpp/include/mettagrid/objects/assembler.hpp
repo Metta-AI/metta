@@ -227,7 +227,7 @@ public:
     this->current_timestep_ptr = timestep_ptr;
   }
 
-  // Calculate remaining cooldown time
+  // Get the remaining cooldown duration in ticks (0 when ready for use)
   unsigned int cooldown_remaining() const {
     if (!current_timestep_ptr || cooldown_end_timestep <= *current_timestep_ptr) {
       return 0;
@@ -235,7 +235,6 @@ public:
     return cooldown_end_timestep - *current_timestep_ptr;
   }
 
-  // Get the fraction of cooldown completed (0.0 = just started, 1.0 = completed)
   float cooldown_progress() const {
     // If no cooldown is active or no timestep pointer, return 1.0 (completed)
     if (!current_timestep_ptr || cooldown_duration == 0 || cooldown_end_timestep <= *current_timestep_ptr) {

@@ -312,8 +312,8 @@ void MettaGrid::build_flat_action_catalog() {
     auto& arg_map = _action_arg_to_flat[handler_index];
     arg_map.assign(static_cast<size_t>(max_arg) + 1, -1);
 
-    const int max_arg_int = static_cast<int>(max_arg);
-    for (int raw_arg = 0; raw_arg <= max_arg_int; ++raw_arg) {
+    const unsigned int max_arg_uint = static_cast<unsigned int>(max_arg);
+    for (unsigned int raw_arg = 0; raw_arg <= max_arg_uint; ++raw_arg) {
       const ActionArg arg = static_cast<ActionArg>(raw_arg);
 
       std::string base_name = handler->variant_name(arg);
@@ -895,7 +895,7 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
       obj_dict["is_converting"] = converter->converting;
       obj_dict["is_cooling_down"] = converter->cooling_down;
       obj_dict["conversion_duration"] = converter->conversion_ticks;
-      obj_dict["cooldown_duration"] = converter->cooldown;
+      obj_dict["cooldown_duration"] = converter->next_cooldown_time();
       obj_dict["output_limit"] = converter->max_output;
       py::dict input_resources_dict;
       for (const auto& [resource, quantity] : converter->input_resources) {
