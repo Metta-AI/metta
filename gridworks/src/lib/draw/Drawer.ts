@@ -38,10 +38,9 @@ const STATIC_OBJECT_DRAWERS: Record<string, ObjectDrawer> = {
   "agent.predator": [{ tile: "agent", modulate: { r: 1, g: 0, b: 0 } }],
 };
 
-export const objectNames = [
-  ...Object.keys(STATIC_OBJECT_DRAWERS),
-  "agent.team_*",
-];
+const TEAM_OBJECT_NAMES = Array.from({ length: 10 }, (_, i) => `agent.team_${i}`);
+
+export const objectNames = [...Object.keys(STATIC_OBJECT_DRAWERS), ...TEAM_OBJECT_NAMES];
 
 function buildTeamDrawer(name: string): ObjectDrawer | undefined {
   if (!name.startsWith("agent.team_")) {
