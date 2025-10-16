@@ -339,13 +339,13 @@ def _save_policy_artifact(
     )
 
 
-def load_policy_artifact(path: str | Path) -> PolicyArtifact:
+def load_policy_artifact(path: str | Path, is_pt_file: bool = False) -> PolicyArtifact:
     input_path = Path(path)
     if not input_path.exists():
         msg = f"Policy artifact not found: {input_path}"
         raise FileNotFoundError(msg)
 
-    if not zipfile.is_zipfile(input_path) or input_path.suffix == ".pt":
+    if is_pt_file or input_path.suffix == ".pt":
         try:
             legacy_payload = torch.load(input_path, map_location="cpu", weights_only=False)
         except FileNotFoundError:
