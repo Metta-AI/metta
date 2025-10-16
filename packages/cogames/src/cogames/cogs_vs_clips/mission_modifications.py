@@ -53,17 +53,6 @@ def add_shaped_rewards(cfg: MettaGridConfig) -> None:
     stats["heart.gained"] = 5.0
     stats["chest.heart.amount"] = 2.5
 
-    shaped_reward = 0.25
-    stats.update(
-        {
-            "carbon.gained": shaped_reward,
-            "oxygen.gained": shaped_reward,
-            "germanium.gained": shaped_reward,
-            "silicon.gained": shaped_reward,
-            "energy.gained": shaped_reward / 5,
-        }
-    )
-
     agent_cfg.rewards.stats = stats
 
 
