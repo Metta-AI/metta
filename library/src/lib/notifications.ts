@@ -1,7 +1,11 @@
 import { prisma } from "@/lib/db/prisma";
 import { ResolvedMention } from "./mention-resolution";
-import { JobQueueService } from "./job-queue";
-import { getEnabledChannels } from "./notification-preferences";
+import { JobQueueService, type NotificationData } from "./job-queue";
+import {
+  getEnabledChannels,
+  type NotificationPreferenceSettings,
+} from "./notification-preferences";
+import { Logger } from "./logging/logger";
 
 export type NotificationType =
   | "MENTION"
@@ -25,9 +29,10 @@ interface CreateNotificationParams {
 }
 
 /**
- * Create a single notification record
+ * Create a single notification record with full data fetching
  */
 export async function createNotification(params: CreateNotificationParams) {
+  // Create notification and immediately fetch with all relations
   const notification = await prisma.notification.create({
     data: {
       userId: params.userId,
@@ -40,69 +45,122 @@ export async function createNotification(params: CreateNotificationParams) {
       commentId: params.commentId,
       mentionText: params.mentionText,
     },
+    include: {
+      user: {
+        select: { id: true, name: true, email: true },
+      },
+      actor: {
+        select: { id: true, name: true, email: true },
+      },
+      post: {
+        select: { id: true, title: true },
+      },
+      comment: {
+        select: {
+          id: true,
+          content: true,
+          post: { select: { id: true, title: true } },
+        },
+      },
+    },
   });
 
   // Queue external notifications (email, Discord) if enabled
-  await queueExternalNotifications(
-    notification.id,
-    notification.userId,
-    notification.type
-  );
+  await queueExternalNotifications(notification);
 
   return notification;
 }
 
 /**
- * Queue external notifications for a notification
+ * Queue external notifications with full notification data (avoid re-fetching)
  */
 async function queueExternalNotifications(
-  notificationId: string,
-  userId: string,
-  type: NotificationType
+  notification: NotificationData
 ): Promise<void> {
   try {
     // Get enabled channels for this user and notification type
-    const enabledChannels = await getEnabledChannels(userId, type);
+    const enabledChannels = await getEnabledChannels(
+      notification.userId,
+      notification.type
+    );
 
-    if (enabledChannels.length > 0) {
-      // Determine priority based on notification type
-      const priority = type === "SYSTEM" ? 10 : type === "MENTION" ? 5 : 0;
-
-      await JobQueueService.queueExternalNotification(
-        notificationId,
-        enabledChannels,
-        userId,
-        priority
-      );
-
-      console.log(
-        `📤 Queued external notifications for ${notificationId}: ${enabledChannels.join(", ")}`
-      );
+    if (enabledChannels.length === 0) {
+      Logger.debug("No enabled channels for notification", {
+        notificationId: notification.id,
+        userId: notification.userId,
+      });
+      return;
     }
+
+    // Get user preferences once
+    const preferences: NotificationPreferenceSettings = {
+      emailEnabled: enabledChannels.includes("email"),
+      discordEnabled: enabledChannels.includes("discord"),
+    };
+
+    // Determine priority based on notification type
+    const priority =
+      notification.type === "SYSTEM"
+        ? 10
+        : notification.type === "MENTION"
+          ? 5
+          : 0;
+
+    // Queue with full notification data - no DB queries needed in worker
+    await JobQueueService.queueExternalNotification(
+      notification,
+      enabledChannels,
+      preferences,
+      priority
+    );
+
+    Logger.debug("Queued external notifications", {
+      notificationId: notification.id,
+      channels: enabledChannels,
+    });
   } catch (error) {
-    console.error(
-      `❌ Failed to queue external notifications for ${notificationId}:`,
-      error
+    Logger.error(
+      "Failed to queue external notifications",
+      error instanceof Error ? error : new Error(String(error)),
+      { notificationId: notification.id }
     );
     // Don't throw - we don't want external notification failures to break the main flow
   }
 }
 
 /**
- * Create multiple notifications in batch
+ * Create multiple notifications in batch with full data fetching
  */
 export async function createNotifications(
   notifications: CreateNotificationParams[]
 ) {
   if (notifications.length === 0) return [];
 
-  // Create notifications and get the IDs back
+  // Create notifications and fetch with relations
   const result = await prisma.$transaction(async (tx) => {
     const createdNotifications = [];
 
     for (const notificationData of notifications) {
       const notification = await tx.notification.create({
         data: notificationData,
+        include: {
+          user: {
+            select: { id: true, name: true, email: true },
+          },
+          actor: {
+            select: { id: true, name: true, email: true },
+          },
+          post: {
+            select: { id: true, title: true },
+          },
+          comment: {
+            select: {
+              id: true,
+              content: true,
+              post: { select: { id: true, title: true } },
+            },
+          },
+        },
       });
       createdNotifications.push(notification);
     }
@@ -110,18 +168,20 @@ export async function createNotifications(
     return createdNotifications;
   });
 
-  // Queue external notifications for each created notification
+  // Queue external notifications for each created notification (parallel)
   const queuePromises = result.map((notification) =>
-    queueExternalNotifications(
-      notification.id,
-      notification.userId,
-      notification.type
-    )
+    queueExternalNotifications(notification)
   );
 
-  // Don't await these - let them run in background
-  Promise.allSettled(queuePromises).catch((error) => {
-    console.error("❌ Some external notification queuing failed:", error);
+  // Await in parallel with proper error handling
+  await Promise.allSettled(queuePromises).then((results) => {
+    const failures = results.filter((r) => r.status === "rejected");
+    if (failures.length > 0) {
+      Logger.warn("Some external notification queuing failed", {
+        failureCount: failures.length,
+        totalCount: results.length,
+      });
+    }
   });
 
   return result;
@@ -190,7 +250,9 @@ export async function createMentionNotifications(
 
   if (notifications.length > 0) {
     await createNotifications(notifications);
-    console.log(`📧 Created ${notifications.length} mention notifications`);
+    Logger.info("Created mention notifications", {
+      count: notifications.length,
+    });
   }
 
   return notifications;

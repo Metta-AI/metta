@@ -26,6 +26,7 @@ import {
 } from "fs";
 import path from "path";
 import { execSync } from "child_process";
+import { Logger } from "./logging/logger";
 
 // ===== SYSTEM DEPENDENCY CHECKS =====
 
@@ -35,11 +36,13 @@ import { execSync } from "child_process";
 function checkSystemDependency(command: string, name: string): void {
   try {
     execSync(`${command} --version`, { stdio: ["pipe", "pipe", "pipe"] });
-    console.log(`✅ ${name} is available`);
+    Logger.debug("System dependency available", { tool: name });
   } catch (error: any) {
-    console.error(`❌ ${name} not found in system`);
-    console.error(`   Command '${command} --version' failed: ${error.message}`);
-    console.error(`   This may cause processing to fail silently`);
+    Logger.error(
+      "System dependency not found",
+      error instanceof Error ? error : new Error(String(error)),
+      { tool: name, command }
+    );
     throw new Error(`${name} not available: ${error.message}`);
   }
 }
@@ -295,7 +298,7 @@ function createSemanticMappings(
       return aX - bX;
     });
 
-  console.log(
+  Logger.info(
     `📋 Found ${captionElements.filter((el) => el.Text?.match(/^Figure\s+\d+/i)).length} caption anchors for semantic mapping`
   );
 
@@ -305,7 +308,7 @@ function createSemanticMappings(
 
     // Debug: Log all figure-related captions
     if (caption.Text.toLowerCase().includes("figure")) {
-      console.log(`🔍 Caption found: "${caption.Text.substring(0, 100)}..."`);
+      Logger.info(`🔍 Caption found: "${caption.Text.substring(0, 100)}..."`);
     }
 
     // EXACT COPY FROM WORKING BATCH SCRIPT - TWO-PHASE DETECTION
@@ -326,7 +329,7 @@ function createSemanticMappings(
     );
     const isSingleFigure = analysis.isSingleFigure && !isStructuralMultiPanel;
 
-    console.log(
+    Logger.info(
       `   📍 Figure ${analysis.figureNumber}: ${isSingleFigure ? "Single" : "Multi-panel"} (${actualFigures.length} figures) ${isStructuralMultiPanel ? "[structural detection]" : "[caption detection]"}`
     );
 
@@ -407,10 +410,10 @@ async function compressPdfWithPdfLib(pdfBuffer: Buffer): Promise<Buffer> {
   const { PDFDocument } = await import("pdf-lib");
 
   try {
-    console.log("🔧 Loading PDF with pdf-lib...");
+    Logger.info("🔧 Loading PDF with pdf-lib...");
     const pdfDoc = await PDFDocument.load(pdfBuffer);
 
-    console.log("🗜️ Applying pdf-lib compression...");
+    Logger.info("🗜️ Applying pdf-lib compression...");
     const compressedBytes = await pdfDoc.save({
       useObjectStreams: true, // Enable object streams for better compression
       addDefaultPage: false,
@@ -433,7 +436,7 @@ async function compressPdfWithGhostscript(pdfBuffer: Buffer): Promise<Buffer> {
   const tempInputFile = `temp-input-${uuidv4()}.pdf`;
   const tempOutputFile = `temp-output-${uuidv4()}.pdf`;
 
-  console.log(
+  Logger.info(
     `🗜️ Starting Ghostscript compression for ${pdfBuffer.length} byte PDF`
   );
 
@@ -442,7 +445,7 @@ async function compressPdfWithGhostscript(pdfBuffer: Buffer): Promise<Buffer> {
     checkSystemDependency("gs", "Ghostscript");
 
     // Write input PDF
-    console.log(
+    Logger.info(
       `📝 Writing ${pdfBuffer.length} bytes to temp file: ${tempInputFile}`
     );
     writeFileSync(tempInputFile, pdfBuffer);
@@ -469,8 +472,8 @@ async function compressPdfWithGhostscript(pdfBuffer: Buffer): Promise<Buffer> {
       tempInputFile,
     ];
 
-    console.log("🗜️ Running Ghostscript compression directly...");
-    console.log(`📝 Command: ${gsCommand.join(" ")}`);
+    Logger.info("🗜️ Running Ghostscript compression directly...");
+    Logger.info(`📝 Command: ${gsCommand.join(" ")}`);
 
     // Execute ghostscript directly with better error handling
     let gsOutput = "";
@@ -483,41 +486,44 @@ async function compressPdfWithGhostscript(pdfBuffer: Buffer): Promise<Buffer> {
       });
     } catch (execError: any) {
       gsError = execError.stderr || execError.message || "Unknown error";
-      console.error(`❌ Ghostscript execution failed: ${gsError}`);
-      console.error(`   Exit code: ${execError.status}`);
-      console.error(`   Signal: ${execError.signal}`);
+      Logger.error(`❌ Ghostscript execution failed`, execError, {
+        gsError,
+        exitCode: execError.status,
+        signal: execError.signal,
+      });
       throw new Error(`Ghostscript execution failed: ${gsError}`);
     }
 
     if (gsOutput) {
-      console.log(`📄 Ghostscript output: ${gsOutput}`);
+      Logger.info(`📄 Ghostscript output: ${gsOutput}`);
     }
 
     // Check if output file was created
     if (!existsSync(tempOutputFile)) {
-      console.error(
-        "❌ Ghostscript command completed but no output file created"
-      );
-      console.error(`   Expected output file: ${tempOutputFile}`);
+      const errorMsg =
+        "Ghostscript command completed but no output file created";
+      Logger.error(errorMsg, new Error(errorMsg), {
+        expectedFile: tempOutputFile,
+      });
       throw new Error("Ghostscript failed to create output file");
     }
 
     // Read compressed PDF
     const compressedBuffer = readFileSync(tempOutputFile);
-    console.log(
+    Logger.info(
       `📊 Compression results: ${pdfBuffer.length} bytes → ${compressedBuffer.length} bytes (${Math.round((compressedBuffer.length / pdfBuffer.length) * 100)}%)`
     );
 
     // Validate compressed PDF before returning
-    console.log("🔍 Validating compressed PDF...");
+    Logger.info("🔍 Validating compressed PDF...");
     const compressedHeader = compressedBuffer.slice(0, 8).toString();
-    console.log(`📄 Compressed PDF header: ${compressedHeader}`);
+    Logger.info(`📄 Compressed PDF header: ${compressedHeader}`);
 
     if (!compressedHeader.startsWith("%PDF-")) {
       throw new Error(`Invalid compressed PDF header: ${compressedHeader}`);
     }
 
-    console.log(`✅ Compressed PDF validation passed`);
+    Logger.info(`✅ Compressed PDF validation passed`);
     return compressedBuffer;
   } finally {
     // Cleanup temp files
@@ -525,7 +531,12 @@ async function compressPdfWithGhostscript(pdfBuffer: Buffer): Promise<Buffer> {
       if (existsSync(tempInputFile)) unlinkSync(tempInputFile);
       if (existsSync(tempOutputFile)) unlinkSync(tempOutputFile);
     } catch (cleanupError) {
-      console.warn("⚠️ Failed to cleanup temp files:", cleanupError);
+      Logger.warn("⚠️ Failed to cleanup temp files:", {
+        error:
+          cleanupError instanceof Error
+            ? cleanupError.message
+            : String(cleanupError),
+      });
     }
   }
 }
@@ -537,10 +548,10 @@ async function convertPdfFormat(pdfBuffer: Buffer): Promise<Buffer> {
   const { PDFDocument } = await import("pdf-lib");
 
   try {
-    console.log("🔧 Loading PDF for format conversion...");
+    Logger.info("🔧 Loading PDF for format conversion...");
     const sourcePdf = await PDFDocument.load(pdfBuffer);
 
-    console.log("✨ Creating clean PDF with standard format...");
+    Logger.info("✨ Creating clean PDF with standard format...");
     const cleanPdf = await PDFDocument.create();
 
     // Copy all pages to new clean document
@@ -572,11 +583,11 @@ async function splitAndProcessPdf(
 ): Promise<TextractElement[]> {
   const { PDFDocument } = await import("pdf-lib");
 
-  console.log("📄 Loading PDF for splitting...");
+  Logger.info("📄 Loading PDF for splitting...");
   const pdfDoc = await PDFDocument.load(pdfBuffer);
   const totalPages = pdfDoc.getPageCount();
 
-  console.log(`📊 PDF has ${totalPages} pages, splitting for Textract...`);
+  Logger.info(`📊 PDF has ${totalPages} pages, splitting for Textract...`);
 
   // Estimate pages per chunk based on size
   const avgBytesPerPage = pdfSize / totalPages;
@@ -585,7 +596,7 @@ async function splitAndProcessPdf(
     Math.floor((maxSize / avgBytesPerPage) * 0.8)
   ); // 80% safety margin
 
-  console.log(`📋 Processing ~${pagesPerChunk} pages per chunk`);
+  Logger.info(`📋 Processing ~${pagesPerChunk} pages per chunk`);
 
   const allElements: TextractElement[] = [];
 
@@ -594,7 +605,7 @@ async function splitAndProcessPdf(
     const chunkNum = Math.floor(startPage / pagesPerChunk) + 1;
     const totalChunks = Math.ceil(totalPages / pagesPerChunk);
 
-    console.log(
+    Logger.info(
       `🔄 Processing chunk ${chunkNum}/${totalChunks} (pages ${startPage + 1}-${endPage + 1})`
     );
 
@@ -613,12 +624,12 @@ async function splitAndProcessPdf(
       const chunkBuffer = Buffer.from(chunkBytes);
       const chunkSize = chunkBuffer.length;
 
-      console.log(
+      Logger.info(
         `📦 Chunk ${chunkNum} size: ${(chunkSize / 1024 / 1024).toFixed(1)}MB`
       );
 
       if (chunkSize > maxSize) {
-        console.warn(
+        Logger.warn(
           `⚠️ Chunk ${chunkNum} still too large (${(chunkSize / 1024 / 1024).toFixed(1)}MB), skipping`
         );
         continue;
@@ -630,8 +641,8 @@ async function splitAndProcessPdf(
         chunkElements = await coreTextractProcessing(chunkBuffer, chunkSize);
       } catch (textractError: any) {
         if (textractError.name === "UnsupportedDocumentException") {
-          console.warn(`❌ Textract rejected chunk ${chunkNum} format`);
-          console.log(
+          Logger.warn(`❌ Textract rejected chunk ${chunkNum} format`);
+          Logger.info(
             `🔧 Attempting PDF format conversion for chunk ${chunkNum}...`
           );
 
@@ -639,7 +650,7 @@ async function splitAndProcessPdf(
             const convertedBuffer = await convertPdfFormat(chunkBuffer);
             const convertedSize = convertedBuffer.length;
 
-            console.log(
+            Logger.info(
               `✅ Converted chunk ${chunkNum}: ${(chunkSize / 1024 / 1024).toFixed(1)}MB → ${(convertedSize / 1024 / 1024).toFixed(1)}MB`
             );
 
@@ -649,16 +660,16 @@ async function splitAndProcessPdf(
                 convertedSize
               );
             } else {
-              console.warn(
-                `⚠️ Converted chunk ${chunkNum} too large, skipping`
-              );
+              Logger.warn(`⚠️ Converted chunk ${chunkNum} too large, skipping`);
               continue;
             }
           } catch (conversionError) {
-            console.warn(
-              `❌ Failed to convert chunk ${chunkNum}:`,
-              conversionError
-            );
+            Logger.warn(`❌ Failed to convert chunk ${chunkNum}:`, {
+              error:
+                conversionError instanceof Error
+                  ? conversionError.message
+                  : String(conversionError),
+            });
             continue; // Skip this chunk and continue with others
           }
         } else {
@@ -673,16 +684,19 @@ async function splitAndProcessPdf(
       }));
 
       allElements.push(...adjustedElements);
-      console.log(
+      Logger.info(
         `✅ Chunk ${chunkNum} processed: ${adjustedElements.length} elements`
       );
     } catch (chunkError) {
-      console.warn(`❌ Failed to process chunk ${chunkNum}:`, chunkError);
+      Logger.warn(`❌ Failed to process chunk ${chunkNum}:`, {
+        error:
+          chunkError instanceof Error ? chunkError.message : String(chunkError),
+      });
       // Continue with other chunks
     }
   }
 
-  console.log(
+  Logger.info(
     `🎯 Split processing complete: ${allElements.length} total elements from ${totalPages} pages`
   );
   return allElements;
@@ -695,23 +709,23 @@ async function getRawTextractElements(
   pdfBuffer: Buffer,
   pdfSize?: number
 ): Promise<AdobeElement[]> {
-  console.log(
+  Logger.info(
     "🔍 Using AWS Textract for PDF element extraction (replacing Adobe)..."
   );
 
   // Detailed PDF validation (same as before)
-  console.log("🔬 Analyzing PDF structure for Textract processing...");
+  Logger.info("🔬 Analyzing PDF structure for Textract processing...");
 
   // Use provided pdfSize or calculate from buffer
   const actualPdfSize = pdfSize || pdfBuffer.length;
-  console.log(
+  Logger.info(
     `📏 PDF size: ${actualPdfSize} bytes (${Math.round(actualPdfSize / 1024)} KB)`
   );
 
   // Check PDF header
   const pdfHeader = pdfBuffer.slice(0, 8).toString();
   const pdfVersion = pdfHeader.match(/%PDF-(\d\.\d)/)?.[1];
-  console.log(`📄 PDF version: ${pdfVersion || "unknown"}`);
+  Logger.info(`📄 PDF version: ${pdfVersion || "unknown"}`);
 
   if (!pdfHeader.startsWith("%PDF")) {
     throw new Error(`Invalid PDF header: ${pdfHeader}`);
@@ -724,12 +738,12 @@ async function getRawTextractElements(
   const hasJavaScript =
     pdfString.includes("/JavaScript") || pdfString.includes("/JS");
 
-  console.log(`📊 PDF analysis for Textract:`);
-  console.log(`   - Has images: ${hasImages}`);
-  console.log(
+  Logger.info(`📊 PDF analysis for Textract:`);
+  Logger.info(`   - Has images: ${hasImages}`);
+  Logger.info(
     `   - Has JavaScript: ${hasJavaScript} ${hasJavaScript ? "(Textract handles this fine)" : ""}`
   );
-  console.log(
+  Logger.info(
     `   - Size: ${Math.round(actualPdfSize / (1024 * 1024))}MB ${actualPdfSize > 5 * 1024 * 1024 ? "(will use S3)" : "(direct upload)"}`
   );
 
@@ -748,12 +762,12 @@ async function getRawTextractElements(
       Bounds: elem.Bounds,
     }));
 
-    console.log(
+    Logger.info(
       `✅ Textract extracted ${adobeElements.length} elements successfully`
     );
     return adobeElements;
   } catch (error: any) {
-    console.error("❌ AWS Textract processing failed:", error);
+    Logger.error("❌ AWS Textract processing failed:", error);
     throw new Error(`AWS Textract failed: ${error.message}`);
   }
 }
@@ -773,7 +787,7 @@ async function pollTextractJob(
   const pollInterval = 10000; // 10 seconds
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    console.log(
+    Logger.info(
       `📊 Polling Textract job ${jobId} (attempt ${attempt}/${maxAttempts})...`
     );
 
@@ -782,17 +796,17 @@ async function pollTextractJob(
     );
 
     const status = pollResponse.JobStatus;
-    console.log(`📋 Job status: ${status}`);
+    Logger.info(`📋 Job status: ${status}`);
 
     if (status === "SUCCEEDED") {
-      console.log("🎉 Textract job completed successfully!");
+      Logger.info("🎉 Textract job completed successfully!");
 
       // Handle paginated results for large documents
       let allBlocks = pollResponse.Blocks || [];
       let nextToken = pollResponse.NextToken;
 
       while (nextToken) {
-        console.log("📄 Getting additional result pages...");
+        Logger.info("📄 Getting additional result pages...");
         const nextResponse = await textractClient.send(
           new GetDocumentAnalysisCommand({
             JobId: jobId,
@@ -804,7 +818,7 @@ async function pollTextractJob(
         nextToken = nextResponse.NextToken;
       }
 
-      console.log(
+      Logger.info(
         `📊 Retrieved ${allBlocks.length} total blocks across all pages`
       );
 
@@ -816,14 +830,14 @@ async function pollTextractJob(
       const statusMessage = pollResponse.StatusMessage || "Unknown error";
       throw new Error(`Textract job failed: ${statusMessage}`);
     } else if (status === "PARTIAL_SUCCESS") {
-      console.warn("⚠️ Textract job completed with partial success");
+      Logger.warn("⚠️ Textract job completed with partial success");
 
       // Handle paginated results even for partial success
       let allBlocks = pollResponse.Blocks || [];
       let nextToken = pollResponse.NextToken;
 
       while (nextToken) {
-        console.log("📄 Getting additional partial result pages...");
+        Logger.info("📄 Getting additional partial result pages...");
         try {
           const nextResponse = await textractClient.send(
             new GetDocumentAnalysisCommand({
@@ -835,12 +849,17 @@ async function pollTextractJob(
           allBlocks = allBlocks.concat(nextResponse.Blocks || []);
           nextToken = nextResponse.NextToken;
         } catch (paginationError) {
-          console.warn("⚠️ Failed to get additional pages:", paginationError);
+          Logger.warn("⚠️ Failed to get additional pages:", {
+            error:
+              paginationError instanceof Error
+                ? paginationError.message
+                : String(paginationError),
+          });
           break; // Use what we have
         }
       }
 
-      console.log(
+      Logger.info(
         `📊 Retrieved ${allBlocks.length} total blocks (partial success)`
       );
 
@@ -849,11 +868,11 @@ async function pollTextractJob(
         Blocks: allBlocks,
       };
     } else if (status === "IN_PROGRESS") {
-      console.log("⏳ Job still in progress, waiting...");
+      Logger.info("⏳ Job still in progress, waiting...");
       await new Promise((resolve) => setTimeout(resolve, pollInterval));
       continue;
     } else {
-      console.warn(`⚠️ Unknown job status: ${status}, continuing to poll...`);
+      Logger.warn(`⚠️ Unknown job status: ${status}, continuing to poll...`);
       await new Promise((resolve) => setTimeout(resolve, pollInterval));
       continue;
     }
@@ -898,7 +917,7 @@ async function coreTextractProcessing(
   try {
     // For files > 5MB, use S3 (can handle up to 500MB!)
     if (pdfSize > 5 * 1024 * 1024) {
-      console.log("📦 Large PDF - using S3 + Textract...");
+      Logger.info("📦 Large PDF - using S3 + Textract...");
 
       s3Client = new S3Client({
         region: process.env.AWS_REGION || "us-east-1",
@@ -910,7 +929,7 @@ async function coreTextractProcessing(
       bucketName = process.env.AWS_S3_BUCKET || "metta-pdf-processing";
       s3Key = `temp-pdfs/${uuidv4()}.pdf`;
 
-      console.log(
+      Logger.info(
         `⬆️ Uploading ${Math.round(pdfSize / (1024 * 1024))}MB PDF to S3: s3://${bucketName}/${s3Key}`
       );
 
@@ -923,7 +942,7 @@ async function coreTextractProcessing(
         })
       );
 
-      console.log("✅ S3 upload completed");
+      Logger.info("✅ S3 upload completed");
     }
 
     // Prepare Textract request
@@ -946,14 +965,14 @@ async function coreTextractProcessing(
       };
     }
 
-    console.log("🤖 Running AWS Textract analysis...");
+    Logger.info("🤖 Running AWS Textract analysis...");
     const startTime = Date.now();
 
     let response: any;
 
     // Use async API for files > 10MB (500MB limit), sync API for smaller files (10MB limit)
     if (pdfSize > 10 * 1024 * 1024) {
-      console.log("⏳ Using asynchronous Textract API for large file...");
+      Logger.info("⏳ Using asynchronous Textract API for large file...");
 
       // Start analysis job
       const startRequest = {
@@ -971,24 +990,24 @@ async function coreTextractProcessing(
       if (!jobId) {
         throw new Error("Textract job ID not returned from start request");
       }
-      console.log(`🔄 Textract job started: ${jobId}`);
+      Logger.info(`🔄 Textract job started: ${jobId}`);
 
       // Poll for completion
       response = await pollTextractJob(textractClient, jobId);
     } else {
       // Use sync API for files <= 10MB
-      console.log("⚡ Using synchronous Textract API...");
+      Logger.info("⚡ Using synchronous Textract API...");
       response = await textractClient.send(
         new AnalyzeDocumentCommand(textractRequest)
       );
     }
 
     const processingTime = Date.now() - startTime;
-    console.log(`✅ Textract completed in ${processingTime}ms`);
+    Logger.info(`✅ Textract completed in ${processingTime}ms`);
 
     // Process Textract blocks
     const blocks = response.Blocks || [];
-    console.log(`📊 Textract found ${blocks.length} blocks`);
+    Logger.info(`📊 Textract found ${blocks.length} blocks`);
 
     // 🔍 DEBUG: Dump raw Textract response to file for inspection
     const debugTimestamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -1008,9 +1027,12 @@ async function coreTextractProcessing(
           2
         )
       );
-      console.log(`📄 Raw Textract blocks saved to: ${rawBlocksFile}`);
+      Logger.info(`📄 Raw Textract blocks saved to: ${rawBlocksFile}`);
     } catch (debugError) {
-      console.warn("⚠️ Failed to write debug file:", debugError);
+      Logger.warn("⚠️ Failed to write debug file:", {
+        error:
+          debugError instanceof Error ? debugError.message : String(debugError),
+      });
     }
 
     const elements: TextractElement[] = [];
@@ -1066,7 +1088,7 @@ async function coreTextractProcessing(
 
     // Cleanup S3 file if used
     if (s3Client && bucketName && s3Key) {
-      console.log("🧹 Cleaning up S3 temporary file...");
+      Logger.info("🧹 Cleaning up S3 temporary file...");
       try {
         await s3Client.send(
           new DeleteObjectCommand({
@@ -1075,7 +1097,12 @@ async function coreTextractProcessing(
           })
         );
       } catch (cleanupError) {
-        console.warn("⚠️ Failed to cleanup S3 file:", cleanupError);
+        Logger.warn("⚠️ Failed to cleanup S3 file:", {
+          error:
+            cleanupError instanceof Error
+              ? cleanupError.message
+              : String(cleanupError),
+        });
       }
     }
 
@@ -1100,18 +1127,18 @@ async function coreTextractProcessing(
       }
 
       writeFileSync(processedElementsFile, JSON.stringify(debugData, null, 2));
-      console.log(`📄 Processed elements saved to: ${processedElementsFile}`);
+      Logger.info(`📄 Processed elements saved to: ${processedElementsFile}`);
 
       // Print summary
-      console.log(`📊 Element types found:`);
+      Logger.info(`📊 Element types found:`);
       Object.entries(debugData.elementTypes).forEach(([type, count]) => {
-        console.log(`   - ${type}: ${count}`);
+        Logger.info(`   - ${type}: ${count}`);
       });
     } catch (debugError) {
-      console.warn(
-        "⚠️ Failed to write processed elements debug file:",
-        debugError
-      );
+      Logger.warn("⚠️ Failed to write processed elements debug file:", {
+        error:
+          debugError instanceof Error ? debugError.message : String(debugError),
+      });
     }
 
     return elements;
@@ -1126,7 +1153,12 @@ async function coreTextractProcessing(
           })
         );
       } catch (cleanupError) {
-        console.warn("⚠️ Failed to cleanup S3 file after error:", cleanupError);
+        Logger.warn("⚠️ Failed to cleanup S3 file after error:", {
+          error:
+            cleanupError instanceof Error
+              ? cleanupError.message
+              : String(cleanupError),
+        });
       }
     }
 
@@ -1134,15 +1166,20 @@ async function coreTextractProcessing(
     const textractMaxSize = 500 * 1024 * 1024; // 500MB - Textract's actual S3 limit
     if (pdfSize > 10 * 1024 * 1024) {
       // Only try splitting for files > 10MB
-      console.warn("❌ S3 + Textract failed:", error.message);
-      console.log(
+      Logger.warn("❌ S3 + Textract failed:", error.message);
+      Logger.info(
         "📄 Falling back to PDF splitting for large/problematic file..."
       );
 
       try {
         return await splitAndProcessPdf(pdfBuffer, pdfSize, textractMaxSize);
       } catch (splitError) {
-        console.warn("❌ PDF splitting also failed:", splitError);
+        Logger.warn("❌ PDF splitting also failed:", {
+          error:
+            splitError instanceof Error
+              ? splitError.message
+              : String(splitError),
+        });
         // Both S3 and splitting failed - throw original error
         throw error;
       }
@@ -1164,7 +1201,7 @@ async function retryAdobeOperation<T>(
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      console.log(`🔄 Adobe operation attempt ${attempt}/${maxRetries}`);
+      Logger.info(`🔄 Adobe operation attempt ${attempt}/${maxRetries}`);
       return await operation();
     } catch (error: any) {
       lastError = error;
@@ -1175,20 +1212,20 @@ async function retryAdobeOperation<T>(
         errorMessage.includes("encrypted") ||
         errorMessage.includes("password")
       ) {
-        console.log("❌ PDF encryption error - not retrying");
+        Logger.info("❌ PDF encryption error - not retrying");
         throw error;
       }
 
       if (attempt === maxRetries) {
-        console.log(`❌ Adobe operation failed after ${maxRetries} attempts`);
+        Logger.info(`❌ Adobe operation failed after ${maxRetries} attempts`);
         throw error;
       }
 
       const delay = baseDelay * Math.pow(2, attempt - 1); // Exponential backoff
-      console.warn(
+      Logger.warn(
         `⚠️ Adobe operation failed (attempt ${attempt}): ${errorMessage}`
       );
-      console.log(`⏳ Retrying in ${delay}ms...`);
+      Logger.info(`⏳ Retrying in ${delay}ms...`);
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
@@ -1198,7 +1235,7 @@ async function retryAdobeOperation<T>(
 
 async function getRawAdobeElements(pdfBuffer: Buffer): Promise<AdobeElement[]> {
   // ⚠️ DEPRECATED: Adobe is unreliable - now using Textract
-  console.warn("⚠️ Adobe function called - redirecting to AWS Textract");
+  Logger.warn("⚠️ Adobe function called - redirecting to AWS Textract");
   return await getRawTextractElements(pdfBuffer, pdfBuffer.length);
 }
 
@@ -1208,7 +1245,7 @@ async function getRawAdobeElements(pdfBuffer: Buffer): Promise<AdobeElement[]> {
 /*
 async function extractFigureFromElement_BROKEN(
   element: AdobeElement,
-    console.error(
+    Logger.error(
       "❌ PDF appears to be encrypted/password-protected - Adobe will fail"
     );
     throw new Error(
@@ -1219,12 +1256,12 @@ async function extractFigureFromElement_BROKEN(
   // Check PDF version
   const pdfHeader = pdfBuffer.slice(0, 8).toString();
   const pdfVersion = pdfHeader.match(/%PDF-(\d\.\d)/)?.[1];
-  console.log(`📄 PDF version: ${pdfVersion || "unknown"}`);
+  Logger.info(`📄 PDF version: ${pdfVersion || "unknown"}`);
 
   // Size limits (Adobe has processing limits)
   const maxSize = 100 * 1024 * 1024; // 100MB should be safe
   if (pdfSize > maxSize) {
-    console.warn(
+    Logger.warn(
       `⚠️ PDF is large (${Math.round(pdfSize / (1024 * 1024))}MB) - may cause Adobe processing issues`
     );
   }
@@ -1239,24 +1276,24 @@ async function extractFigureFromElement_BROKEN(
   const hasJavaScript =
     pdfString.includes("/JavaScript") || pdfString.includes("/JS");
 
-  console.log(`📊 PDF analysis:`);
-  console.log(`   - Has images: ${hasImages}`);
-  console.log(`   - Complex graphics: ${hasComplexGraphics}`);
-  console.log(`   - JavaScript: ${hasJavaScript}`);
-  console.log(`   - Encrypted: ${isEncrypted}`);
+  Logger.info(`📊 PDF analysis:`);
+  Logger.info(`   - Has images: ${hasImages}`);
+  Logger.info(`   - Complex graphics: ${hasComplexGraphics}`);
+  Logger.info(`   - JavaScript: ${hasJavaScript}`);
+  Logger.info(`   - Encrypted: ${isEncrypted}`);
 
   // Warn about potential issues
   if (hasJavaScript) {
-    console.warn(
+    Logger.warn(
       "⚠️ PDF contains JavaScript - this often causes Adobe processing failures"
     );
-    console.warn(
+    Logger.warn(
       "   Adobe PDF Services may reject PDFs with interactive content"
     );
   }
 
   if (pdfSize > 10 * 1024 * 1024) {
-    console.warn(
+    Logger.warn(
       `⚠️ Large PDF (${Math.round(pdfSize / (1024 * 1024))}MB) - Adobe processing may be slow or fail`
     );
   }
@@ -1271,7 +1308,7 @@ async function processWithAdobe(
   pdfBuffer: Buffer,
   pdfSize: number
 ): Promise<AdobeElement[]> {
-  console.log("💾 Writing PDF to temporary file for Adobe...");
+  Logger.info("💾 Writing PDF to temporary file for Adobe...");
 
   const {
     PDFServices,
@@ -1303,7 +1340,7 @@ async function processWithAdobe(
     const pdfServices = new PDFServices(clientConfig);
 
     // Write PDF with validation
-    console.log(
+    Logger.info(
       `📝 Writing ${pdfSize} bytes to temporary file: ${tempFileName}`
     );
     writeFileSync(tempFileName, pdfBuffer);
@@ -1320,7 +1357,7 @@ async function processWithAdobe(
       );
     }
 
-    console.log(
+    Logger.info(
       `✅ Temporary file created successfully: ${tempFileSize} bytes`
     );
 
@@ -1336,7 +1373,7 @@ async function processWithAdobe(
     const job = new ExtractPDFJob({ inputAsset, params });
 
     // Add longer timeout for Adobe PDF Services (large PDFs with JavaScript need more time)
-    console.log(
+    Logger.info(
       "⏳ Submitting to Adobe PDF Services (this may take 2-5 minutes for large/complex PDFs)..."
     );
     const submitPromise = pdfServices.submit({ job });
@@ -1350,7 +1387,7 @@ async function processWithAdobe(
       ),
     ])) as string;
 
-    console.log("🔄 Polling Adobe for results...");
+    Logger.info("🔄 Polling Adobe for results...");
     const resultPromise = pdfServices.getJobResult({
       pollingURL,
       resultType: ExtractPDFResult,
@@ -1365,7 +1402,7 @@ async function processWithAdobe(
       ),
     ])) as any;
 
-    console.log("💾 Downloading extraction results...");
+    Logger.info("💾 Downloading extraction results...");
     const resultAsset = (pdfServicesResponse as any).result?.resource;
     if (!resultAsset) {
       throw new Error("No result asset found in Adobe response");
@@ -1398,12 +1435,12 @@ async function processWithAdobe(
     // Cleanup
     unlinkSync(tempZipPath);
 
-    console.log(
+    Logger.info(
       `✅ Got ${extractionResult.elements?.length || 0} raw Adobe elements`
     );
     return extractionResult.elements || [];
   } catch (adobeError: any) {
-    console.error("❌ Adobe PDF Services error:", adobeError);
+    Logger.error("❌ Adobe PDF Services error:", adobeError);
 
     // Enhanced error analysis
     const errorCode =
@@ -1413,19 +1450,19 @@ async function processWithAdobe(
     const trackingId =
       adobeError._requestTrackingId || adobeError.requestTrackingId || "NONE";
 
-    console.error(`📋 Adobe Error Details:`);
-    console.error(`   - Error Code: ${errorCode}`);
-    console.error(`   - Status Code: ${statusCode}`);
-    console.error(`   - Tracking ID: ${trackingId}`);
-    console.error(`   - Message: ${adobeError.message || "No message"}`);
+    Logger.error(`📋 Adobe Error Details:`);
+    Logger.error(`   - Error Code: ${errorCode}`);
+    Logger.error(`   - Status Code: ${statusCode}`);
+    Logger.error(`   - Tracking ID: ${trackingId}`);
+    Logger.error(`   - Message: ${adobeError.message || "No message"}`);
 
     // Common Adobe error analysis
     if (errorCode === "ERROR" && statusCode === 500) {
-      console.error("🔍 Analysis: Adobe internal error - possible causes:");
-      console.error("   - PDF structure not compatible with Adobe extraction");
-      console.error("   - PDF contains complex elements Adobe cannot parse");
-      console.error("   - PDF may be corrupted or have unusual encoding");
-      console.error("   - Adobe service experiencing issues");
+      Logger.error("🔍 Analysis: Adobe internal error - possible causes:");
+      Logger.error("   - PDF structure not compatible with Adobe extraction");
+      Logger.error("   - PDF contains complex elements Adobe cannot parse");
+      Logger.error("   - PDF may be corrupted or have unusual encoding");
+      Logger.error("   - Adobe service experiencing issues");
 
       // Re-analyze the PDF for specific issues
       const pdfString = pdfBuffer.toString("binary");
@@ -1436,17 +1473,17 @@ async function processWithAdobe(
       const hasTransparency =
         pdfString.includes("/SMask") || pdfString.includes("/CA");
 
-      console.error("🔍 Extended PDF analysis:");
-      console.error(`   - Has forms: ${hasComplexForms}`);
-      console.error(`   - Has annotations: ${hasAnnotations}`);
-      console.error(`   - Has embedded files: ${hasEmbeddedFiles}`);
-      console.error(`   - Has transparency: ${hasTransparency}`);
+      Logger.error("🔍 Extended PDF analysis:");
+      Logger.error(`   - Has forms: ${hasComplexForms}`);
+      Logger.error(`   - Has annotations: ${hasAnnotations}`);
+      Logger.error(`   - Has embedded files: ${hasEmbeddedFiles}`);
+      Logger.error(`   - Has transparency: ${hasTransparency}`);
 
       if (hasComplexForms) {
-        console.error("⚠️ PDF contains forms - Adobe may struggle with these");
+        Logger.error("⚠️ PDF contains forms - Adobe may struggle with these");
       }
       if (hasEmbeddedFiles) {
-        console.error(
+        Logger.error(
           "⚠️ PDF contains embedded files - potential processing issue"
         );
       }
@@ -1456,7 +1493,7 @@ async function processWithAdobe(
     if (process.env.NODE_ENV === "development") {
       const debugFileName = `debug-adobe-error-${Date.now()}.pdf`;
       writeFileSync(debugFileName, pdfBuffer);
-      console.error(`💾 Saved problematic PDF for debugging: ${debugFileName}`);
+      Logger.error(`💾 Saved problematic PDF for debugging: ${debugFileName}`);
     }
 
     throw new Error(
@@ -1478,7 +1515,7 @@ async function extractFigureFromElement(
   pdfBuffer: Buffer
 ): Promise<{ imageData: string; imageType: string } | null> {
   if (!element.Bounds || element.Bounds.length !== 4) {
-    console.log(`⚠️ Invalid bounds for ${semanticLabel}`);
+    Logger.info(`⚠️ Invalid bounds for ${semanticLabel}`);
     return null;
   }
 
@@ -1497,7 +1534,7 @@ async function extractFigureFromElement(
     );
 
     if (!existsSync(tempImagePath)) {
-      console.log(`❌ Failed to convert page ${pageNum} for ${semanticLabel}`);
+      Logger.info(`❌ Failed to convert page ${pageNum} for ${semanticLabel}`);
       return null;
     }
 
@@ -1537,7 +1574,9 @@ async function extractFigureFromElement(
 
     return null;
   } catch (error) {
-    console.log(`❌ Error extracting ${semanticLabel}:`, error);
+    Logger.info(`❌ Error extracting ${semanticLabel}:`, {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return null;
   }
 }
@@ -1552,7 +1591,7 @@ async function selectAdobeObjectsWithLLM(
   keyFigures: any[],
   rawAdobeElements: AdobeElement[]
 ): Promise<Map<number, SemanticMapping>> {
-  console.log(
+  Logger.info(
     `🤖 Using LLM to select Adobe objects for ${keyFigures.length} desired figures...`
   );
 
@@ -1567,7 +1606,7 @@ async function selectAdobeObjectsWithLLM(
     }
   });
 
-  console.log(
+  Logger.info(
     `📄 Filtering Adobe elements to pages: ${Array.from(figurePages).sort().join(", ")}`
   );
 
@@ -1577,7 +1616,7 @@ async function selectAdobeObjectsWithLLM(
       ? rawAdobeElements.filter((el) => figurePages.has(el.Page))
       : rawAdobeElements; // Fallback if no page numbers available
 
-  console.log(
+  Logger.info(
     `🔍 Reduced Adobe elements from ${rawAdobeElements.length} to ${filteredAdobeElements.length} (${Math.round((filteredAdobeElements.length / rawAdobeElements.length) * 100)}%)`
   );
 
@@ -1643,10 +1682,10 @@ For each desired figure, select the ObjectID that most likely represents that sp
       schema: AdobeObjectSelectionSchema,
     });
 
-    console.log(
+    Logger.info(
       `✅ LLM selected ${result.object.selections.length} Adobe objects`
     );
-    console.log(`🧠 LLM reasoning: ${result.object.globalReasoning}`);
+    Logger.info(`🧠 LLM reasoning: ${result.object.globalReasoning}`);
 
     // Convert LLM results to SemanticMapping format
     const mappings = new Map<number, SemanticMapping>();
@@ -1671,14 +1710,14 @@ For each desired figure, select the ObjectID that most likely represents that sp
               : 0.75,
       });
 
-      console.log(
+      Logger.info(
         `  📍 ${selection.figureIdentifier} → ObjectID ${selection.selectedObjectID} (${selection.confidence}) - ${selection.reasoning}`
       );
     }
 
     return mappings;
   } catch (error) {
-    console.error("❌ LLM Adobe object selection failed:", error);
+    Logger.error("❌ LLM Adobe object selection failed:", error);
     throw error;
   }
 }
@@ -1693,12 +1732,12 @@ async function extractFiguresWithSemanticValidation(
 ): Promise<OpenAIPdfFigure[]> {
   const matchedFigures: OpenAIPdfFigure[] = [];
 
-  console.log(
+  Logger.info(
     `🎯 Processing ${keyFigures.length} OpenAI figures against ${semanticMappings.size} semantic mappings...`
   );
 
   for (const keyFig of keyFigures) {
-    console.log(`🔍 Looking for: ${keyFig.figureNumber}`);
+    Logger.info(`🔍 Looking for: ${keyFig.figureNumber}`);
 
     let bestMatch: {
       mapping: SemanticMapping;
@@ -1712,7 +1751,7 @@ async function extractFiguresWithSemanticValidation(
         const element = rawAdobeElements.find((el) => el.ObjectID === objectID);
         if (element) {
           bestMatch = { mapping, element, confidence: 0.98 };
-          console.log(`✅ EXACT semantic match: ${mapping.semanticLabel}`);
+          Logger.info(`✅ EXACT semantic match: ${mapping.semanticLabel}`);
           break;
         }
       }
@@ -1730,7 +1769,7 @@ async function extractFiguresWithSemanticValidation(
           );
           if (element) {
             bestMatch = { mapping, element, confidence: 0.95 };
-            console.log(
+            Logger.info(
               `🎯 Smart subpanel mapping: "${keyFig.figureNumber}" → "${firstSubpanel}"`
             );
             break;
@@ -1762,7 +1801,7 @@ async function extractFiguresWithSemanticValidation(
               const confidence = keyFigPanel ? 0.95 : 0.85;
               if (!bestMatch || confidence > bestMatch.confidence) {
                 bestMatch = { mapping, element, confidence };
-                console.log(
+                Logger.info(
                   `✅ Fuzzy semantic match: ${mapping.semanticLabel} (confidence: ${confidence})`
                 );
               }
@@ -1785,7 +1824,7 @@ async function extractFiguresWithSemanticValidation(
       if (extraction) {
         const filename = `${keyFig.figureNumber.replace(/[^a-zA-Z0-9]/g, "_")}.png`;
         const imageSize = Math.round((extraction.imageData.length * 3) / 4); // Base64 to bytes conversion
-        console.log(`✅ Extracted: ${filename} (${imageSize} bytes, virtual)`);
+        Logger.info(`✅ Extracted: ${filename} (${imageSize} bytes, virtual)`);
 
         // No file system write - keeping everything in memory as base64
 
@@ -1806,7 +1845,7 @@ async function extractFiguresWithSemanticValidation(
         });
       }
     } else {
-      console.log(`❌ No semantic match found for ${keyFig.figureNumber}`);
+      Logger.info(`❌ No semantic match found for ${keyFig.figureNumber}`);
 
       // Add metadata-only
       matchedFigures.push({
@@ -1837,13 +1876,13 @@ export async function extractPdfWithOpenAI(pdfBuffer: Buffer): Promise<{
   pageCount: number;
   figuresWithImages: OpenAIPdfFigure[];
 }> {
-  console.log(
+  Logger.info(
     "🤖 Starting OpenAI PDF extraction with EXACT batch script approach..."
   );
 
   try {
     // Validate PDF buffer
-    console.log(`📄 Validating PDF buffer (${pdfBuffer.length} bytes)...`);
+    Logger.info(`📄 Validating PDF buffer (${pdfBuffer.length} bytes)...`);
     if (pdfBuffer.length === 0) {
       throw new Error("PDF buffer is empty");
     }
@@ -1851,18 +1890,21 @@ export async function extractPdfWithOpenAI(pdfBuffer: Buffer): Promise<{
     // Check PDF header
     const pdfHeader = pdfBuffer.slice(0, 8).toString();
     if (!pdfHeader.startsWith("%PDF")) {
-      console.error(`❌ Invalid PDF header: "${pdfHeader}"`);
-      console.error(
-        `❌ First 50 bytes: ${pdfBuffer.slice(0, 50).toString("hex")}`
+      const error = new Error(
+        `Invalid PDF: header is "${pdfHeader}", expected "%PDF"`
       );
-      throw new Error(`Invalid PDF: header is "${pdfHeader}", expected "%PDF"`);
+      Logger.error(`❌ Invalid PDF header`, error, {
+        pdfHeader,
+        first50Bytes: pdfBuffer.slice(0, 50).toString("hex"),
+      });
+      throw error;
     }
 
-    console.log(`✅ Valid PDF detected (version: ${pdfHeader})`);
+    Logger.info(`✅ Valid PDF detected (version: ${pdfHeader})`);
 
     // Step 1: Anthropic analysis
-    console.log("📝 Step 1: Getting key figures and summary from Anthropic...");
-    console.log(
+    Logger.info("📝 Step 1: Getting key figures and summary from Anthropic...");
+    Logger.info(
       `📋 PDF details for Anthropic: ${pdfBuffer.length} bytes, header: ${pdfHeader}`
     );
 
@@ -1904,38 +1946,22 @@ CRITICAL:
         maxRetries: 1,
       });
 
-      console.log("✅ Anthropic API call successful");
+      Logger.info("✅ Anthropic API call successful");
     } catch (anthropicError: any) {
-      console.error("❌ Anthropic API call failed with detailed context:");
-      console.error(`   PDF size: ${pdfBuffer.length} bytes`);
-      console.error(`   PDF header: ${pdfHeader}`);
-      console.error(`   Model: claude-3-5-sonnet-20241022`);
-      console.error(`   Error type: ${anthropicError.constructor.name}`);
-      console.error(`   Status code: ${anthropicError.status || "N/A"}`);
-      console.error(`   Error message: ${anthropicError.message}`);
-
-      if (anthropicError.headers) {
-        console.error(`   Response headers:`, anthropicError.headers);
-      }
-
-      if (anthropicError.status === 500) {
-        console.error(
-          "   ⚠️ Internal server error from Anthropic - this may indicate:"
-        );
-        console.error("      - Corrupted or malformed PDF content");
-        console.error(
-          "      - PDF preprocessing failure (compression/conversion)"
-        );
-        console.error(
-          "      - Content that triggers Anthropic's internal filters"
-        );
-        console.error("      - Temporary service issues on Anthropic's side");
-      }
+      Logger.error("❌ Anthropic API call failed", anthropicError, {
+        pdfSize: pdfBuffer.length,
+        pdfHeader,
+        model: "claude-3-5-sonnet-20241022",
+        errorType: anthropicError.constructor.name,
+        statusCode: anthropicError.status || "N/A",
+        headers: anthropicError.headers,
+        is500Error: anthropicError.status === 500,
+      });
 
       throw anthropicError;
     }
 
-    console.log(
+    Logger.info(
       `✅ Anthropic identified ${summaryResult.object.keyFigures?.length || 0} key figures`
     );
 
@@ -1968,22 +1994,22 @@ CRITICAL:
         })
       );
 
-      console.log(
+      Logger.info(
         `📊 Extracted ${figuresWithImages.length} figure insights from AI analysis`
       );
 
       // Only attempt image extraction if enabled
       if (process.env.ENABLE_FIGURE_EXTRACTION === "true") {
-        console.log(
+        Logger.info(
           "🖼️ Image extraction enabled - attempting figure extraction..."
         );
         try {
-          console.log(
+          Logger.info(
             "\n🔧 Step 2: Getting raw Adobe data (EXACTLY like batch script)..."
           );
           const rawAdobeElements = await getRawAdobeElements(pdfBuffer);
 
-          console.log("🎯 Step 3: Creating semantic mappings from raw data...");
+          Logger.info("🎯 Step 3: Creating semantic mappings from raw data...");
 
           // Configuration flag to use LLM-based object selection
           const useLlmSelection =
@@ -1992,34 +2018,36 @@ CRITICAL:
           let semanticMappings: Map<number, SemanticMapping>;
 
           if (useLlmSelection) {
-            console.log("🤖 Using LLM-based Adobe object selection...");
+            Logger.info("🤖 Using LLM-based Adobe object selection...");
             try {
               semanticMappings = await selectAdobeObjectsWithLLM(
                 summaryResult.object.keyFigures,
                 rawAdobeElements
               );
-              console.log(
+              Logger.info(
                 `✅ LLM created ${semanticMappings.size} object selections`
               );
             } catch (error) {
-              console.warn(
+              Logger.warn(
                 "⚠️ LLM selection failed, falling back to traditional semantic mapping:",
-                error
+                {
+                  error: error instanceof Error ? error.message : String(error),
+                }
               );
               semanticMappings = createSemanticMappings(rawAdobeElements);
-              console.log(
+              Logger.info(
                 `✅ Fallback created ${semanticMappings.size} semantic mappings`
               );
             }
           } else {
-            console.log("🎯 Using traditional semantic mapping...");
+            Logger.info("🎯 Using traditional semantic mapping...");
             semanticMappings = createSemanticMappings(rawAdobeElements);
-            console.log(
+            Logger.info(
               `✅ Created ${semanticMappings.size} semantic mappings`
             );
           }
 
-          console.log(
+          Logger.info(
             "🔍 Step 4: Extracting figures using semantic validation..."
           );
           figuresWithImages = await extractFiguresWithSemanticValidation(
@@ -2032,18 +2060,23 @@ CRITICAL:
           const imagesFound = figuresWithImages.filter(
             (fig) => fig.imageData
           ).length;
-          console.log(
+          Logger.info(
             `🎉 Successfully extracted ${imagesFound}/${summaryResult.object.keyFigures.length} key figures!`
           );
         } catch (figureError) {
-          console.log(
+          Logger.info(
             "⚠️ Image extraction failed, keeping metadata-only figures:",
-            figureError
+            {
+              error:
+                figureError instanceof Error
+                  ? figureError.message
+                  : String(figureError),
+            }
           );
           // figuresWithImages already contains metadata-only figures, so no need to recreate
         }
       } else {
-        console.log(
+        Logger.info(
           "🚫 Image extraction disabled, using metadata-only figures"
         );
       }
@@ -2057,7 +2090,7 @@ CRITICAL:
       figuresWithImages,
     };
   } catch (error) {
-    console.error("❌ Error in Anthropic PDF extraction:", error);
+    Logger.error("❌ Error in Anthropic PDF extraction:", error);
     throw error;
   }
 }

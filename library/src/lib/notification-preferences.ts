@@ -7,12 +7,17 @@
 import { prisma } from "@/lib/db/prisma";
 import type { NotificationType } from "@prisma/client";
 
-export interface NotificationPreferences {
-  [key: string]: {
-    emailEnabled: boolean;
-    discordEnabled: boolean;
-  };
+export interface NotificationPreferenceSettings {
+  emailEnabled: boolean;
+  discordEnabled: boolean;
 }
+
+export interface NotificationPreferences {
+  [key: string]: NotificationPreferenceSettings;
+}
+
+export type MutableNotificationPreferenceSettings =
+  Partial<NotificationPreferenceSettings>;
 
 export interface UserNotificationPreferences {
   userId: string;
@@ -98,9 +103,27 @@ export async function getNotificationPreference(
  */
 export async function updateNotificationPreferences(
   userId: string,
-  preferences: Partial<NotificationPreferences>
+  preferences: Partial<Record<string, MutableNotificationPreferenceSettings>>
 ): Promise<void> {
   const updates = Object.entries(preferences).map(async ([type, settings]) => {
+    if (!settings) {
+      return prisma.notificationPreference.upsert({
+        where: {
+          userId_type: {
+            userId,
+            type: type as NotificationType,
+          },
+        },
+        create: {
+          userId,
+          type: type as NotificationType,
+          emailEnabled: true,
+          discordEnabled: false,
+        },
+        update: {},
+      });
+    }
+
     return prisma.notificationPreference.upsert({
       where: {
         userId_type: {
@@ -115,8 +138,12 @@ export async function updateNotificationPreferences(
         discordEnabled: settings.discordEnabled ?? false,
       },
       update: {
-        emailEnabled: settings.emailEnabled,
-        discordEnabled: settings.discordEnabled,
+        ...(settings.emailEnabled !== undefined && {
+          emailEnabled: settings.emailEnabled,
+        }),
+        ...(settings.discordEnabled !== undefined && {
+          discordEnabled: settings.discordEnabled,
+        }),
       },
     });
   });
@@ -130,7 +157,7 @@ export async function updateNotificationPreferences(
 export async function updateNotificationPreference(
   userId: string,
   type: NotificationType,
-  settings: { emailEnabled?: boolean; discordEnabled?: boolean }
+  settings: MutableNotificationPreferenceSettings
 ): Promise<void> {
   await prisma.notificationPreference.upsert({
     where: {
@@ -143,8 +170,12 @@ export async function updateNotificationPreference(
       discordEnabled: settings.discordEnabled ?? false,
     },
     update: {
-      emailEnabled: settings.emailEnabled,
-      discordEnabled: settings.discordEnabled,
+      ...(settings.emailEnabled !== undefined && {
+        emailEnabled: settings.emailEnabled,
+      }),
+      ...(settings.discordEnabled !== undefined && {
+        discordEnabled: settings.discordEnabled,
+      }),
     },
   });
 }

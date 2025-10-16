@@ -8,6 +8,7 @@ import {
 } from "@/posts/data/papers";
 import { useStarMutation } from "@/hooks/useStarMutation";
 import { toggleQueueAction } from "@/posts/actions/toggleQueueAction";
+import { getUserInitials } from "@/lib/utils/user";
 import { useOverlayNavigation } from "./OverlayStack";
 import { signOut } from "next-auth/react";
 
@@ -41,7 +42,7 @@ export function MeView({
 
   // Handle toggle star
   const handleToggleStar = (paperId: string) => {
-    starMutation.mutate(paperId);
+    starMutation.mutate({ paperId });
   };
 
   // Handle toggle queue
@@ -79,22 +80,6 @@ export function MeView({
     } catch (error) {
       console.error("Error signing out:", error);
     }
-  };
-
-  // Generate user initials for profile circle
-  const getUserInitials = (name: string | null, email: string | null) => {
-    if (name) {
-      return name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2);
-    }
-    if (email) {
-      return email.charAt(0).toUpperCase();
-    }
-    return "?";
   };
 
   return (

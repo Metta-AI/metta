@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
+import { Logger } from "./logging/logger";
 
 /**
  * Service for managing the tag vocabulary from existing papers
@@ -23,7 +24,7 @@ export class TagVocabularyService {
       return this.cachedTags;
     }
 
-    console.log("🏷️ Refreshing tag vocabulary from database...");
+    Logger.info("🏷️ Refreshing tag vocabulary from database...");
 
     // Get all papers with tags
     const papers = await prisma.paper.findMany({
@@ -49,7 +50,7 @@ export class TagVocabularyService {
     this.cachedTags = allTags;
     this.cacheTimestamp = now;
 
-    console.log(`✅ Found ${allTags.length} unique tags in vocabulary`);
+    Logger.info(`✅ Found ${allTags.length} unique tags in vocabulary`);
 
     return allTags;
   }

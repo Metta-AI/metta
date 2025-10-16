@@ -58,7 +58,7 @@ export async function hasInstitutionAdminAccess(
   const userInstitution = await prisma.userInstitution.findUnique({
     where: {
       userId_institutionId: {
-        userId: session.user.id,
+        userId: session.user.id!,
         institutionId,
       },
     },

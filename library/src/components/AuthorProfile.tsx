@@ -4,11 +4,13 @@ import { FC, useState } from "react";
 
 import { AuthorDTO } from "@/posts/data/authors-client";
 import { StarWidgetQuery } from "./StarWidgetQuery";
+import { formatDate, formatRelativeDate } from "@/lib/utils/date";
 
 interface AuthorProfileProps {
   author: AuthorDTO;
   onClose?: () => void;
   onInstitutionClick?: (institutionName: string) => void;
+  onPaperClick?: (paper: any) => void;
 }
 
 /**
@@ -22,6 +24,7 @@ export const AuthorProfile: FC<AuthorProfileProps> = ({
   author,
   onClose,
   onInstitutionClick,
+  onPaperClick,
 }) => {
   const [activeTab, setActiveTab] = useState<"overview" | "papers" | "network">(
     "overview"
@@ -37,45 +40,6 @@ export const AuthorProfile: FC<AuthorProfileProps> = ({
       .slice(0, 2);
   };
 
-  const formatDate = (date: Date | string) => {
-    // Convert string to Date if needed
-    const dateObj = typeof date === "string" ? new Date(date) : date;
-
-    // Check if the date is valid
-    if (isNaN(dateObj.getTime())) {
-      return "Invalid date";
-    }
-
-    return new Intl.DateTimeFormat("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    }).format(dateObj);
-  };
-
-  const formatRelativeDate = (date: Date | string | null) => {
-    if (!date) return "Unknown";
-
-    // Convert string to Date if needed
-    const dateObj = typeof date === "string" ? new Date(date) : date;
-
-    // Check if the date is valid
-    if (isNaN(dateObj.getTime())) {
-      return "Unknown";
-    }
-
-    const now = new Date();
-    const diffInDays = Math.floor(
-      (now.getTime() - dateObj.getTime()) / (1000 * 60 * 60 * 24)
-    );
-
-    if (diffInDays === 0) return "Today";
-    if (diffInDays === 1) return "Yesterday";
-    if (diffInDays < 7) return `${diffInDays} days ago`;
-    if (diffInDays < 30) return `${Math.floor(diffInDays / 7)} weeks ago`;
-    return `${Math.floor(diffInDays / 30)} months ago`;
-  };
-
   const toggleFollow = () => {
     setIsFollowing(!isFollowing);
   };
@@ -85,31 +49,6 @@ export const AuthorProfile: FC<AuthorProfileProps> = ({
       {/* Header */}
       <div className="border-b border-gray-200">
         <div className="px-6 py-6">
-          {/* Close Button */}
-          {onClose && (
-            <div className="mb-4 flex justify-end">
-              <button
-                onClick={onClose}
-                className="p-2 text-gray-400 transition-colors hover:text-gray-600"
-                aria-label="Close"
-              >
-                <svg
-                  className="h-6 w-6"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            </div>
-          )}
-
           {/* Author Info */}
           <div className="flex items-start gap-6">
             <div className="bg-primary-500 flex h-24 w-24 flex-shrink-0 items-center justify-center rounded-full text-3xl font-semibold text-white">
@@ -236,7 +175,12 @@ export const AuthorProfile: FC<AuthorProfileProps> = ({
                   {author.recentPapers.slice(0, 5).map((paper) => (
                     <div
                       key={paper.id}
-                      className="border-b border-gray-100 pb-4 last:border-b-0"
+                      onClick={() => onPaperClick?.(paper)}
+                      className={`border-b border-gray-100 pb-4 last:border-b-0 ${
+                        onPaperClick
+                          ? "-m-2 cursor-pointer rounded p-2 hover:bg-gray-50"
+                          : ""
+                      }`}
                     >
                       <h4 className="mb-1 font-medium text-gray-900">
                         {paper.title}

@@ -7,6 +7,9 @@ import { z } from "zod/v4";
 import { actionClient } from "@/lib/actionClient";
 import { getSessionOrRedirect } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
+import { InstitutionMembershipService } from "../services/membership-service";
+import { InstitutionRepository } from "../data/institution-repository";
+import { NotFoundError } from "@/lib/errors";
 
 const inputSchema = zfd.formData({
   institutionId: zfd.text(z.string()),
@@ -19,76 +22,34 @@ export const approveRejectMembershipAction = actionClient
   .action(async ({ parsedInput: input }) => {
     const session = await getSessionOrRedirect();
 
-    // Check if user has admin rights for this institution
-    const userInstitution = await prisma.userInstitution.findUnique({
-      where: {
-        userId_institutionId: {
-          userId: session.user.id,
-          institutionId: input.institutionId,
-        },
-      },
-    });
-
-    if (!userInstitution || userInstitution.role !== "admin") {
-      throw new Error(
-        "You don't have permission to manage membership requests for this institution"
-      );
-    }
-
     // Find the target user by email
     const targetUser = await prisma.user.findUnique({
       where: { email: input.userEmail },
+      select: { id: true, name: true, email: true },
     });
 
     if (!targetUser) {
-      throw new Error("User not found");
+      throw new NotFoundError("User", input.userEmail);
     }
 
-    // Find the pending membership
-    const pendingMembership = await prisma.userInstitution.findUnique({
-      where: {
-        userId_institutionId: {
-          userId: targetUser.id,
-          institutionId: input.institutionId,
-        },
-      },
-      include: {
-        institution: {
-          select: { name: true },
-        },
-      },
-    });
+    // Use service to handle approval/rejection
+    const result = await InstitutionMembershipService.approveMembership(
+      session.user.id,
+      targetUser.id,
+      input.institutionId,
+      input.action === "approve"
+    );
 
-    if (!pendingMembership) {
-      throw new Error("No membership request found for this user");
-    }
-
-    if (pendingMembership.status !== "PENDING") {
-      throw new Error("This membership request is not pending approval");
-    }
-
-    // Update the membership status
-    const newStatus = input.action === "approve" ? "APPROVED" : "REJECTED";
-    const isActive = input.action === "approve";
-
-    await prisma.userInstitution.update({
-      where: {
-        userId_institutionId: {
-          userId: targetUser.id,
-          institutionId: input.institutionId,
-        },
-      },
-      data: {
-        status: newStatus,
-        isActive: isActive,
-      },
-    });
+    // Get institution name for response message
+    const institution = await InstitutionRepository.findByIdWithBasicInfo(
+      input.institutionId
+    );
 
     revalidatePath("/institutions");
 
     return {
       success: true,
-      message: `Membership request ${input.action === "approve" ? "approved" : "rejected"} for ${targetUser.name || targetUser.email} at ${pendingMembership.institution.name}`,
+      message: `Membership request ${input.action === "approve" ? "approved" : "rejected"} for ${targetUser.name || targetUser.email} at ${institution?.name}`,
       action: input.action,
     };
   });

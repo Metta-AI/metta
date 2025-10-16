@@ -1,11 +1,36 @@
 "use client";
 
-import { FC, useState, useEffect } from "react";
+import React, { FC, useEffect, useMemo, useState, useRef } from "react";
 import { useAction } from "next-safe-action/hooks";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { X, Users, Mail, UserPlus, Edit2, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { manageUserMembershipAction } from "@/institutions/actions/manageUserMembershipAction";
 import { toggleApprovalRequirementAction } from "@/institutions/actions/toggleApprovalRequirementAction";
+import { useErrorHandling } from "@/lib/hooks/useErrorHandling";
+import { getUserDisplayName } from "@/lib/utils/user";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 
 interface InstitutionMember {
   id: string;
@@ -32,6 +57,28 @@ interface InstitutionManagementModalProps {
   currentUserRole?: string | null;
 }
 
+const addMemberSchema = z.object({
+  userEmail: z.string().email("Valid email is required"),
+  role: z.string().min(1),
+  department: z
+    .string()
+    .optional()
+    .transform((value) => value?.trim() || undefined),
+  title: z
+    .string()
+    .optional()
+    .transform((value) => value?.trim() || undefined),
+});
+
+type AddMemberValues = z.infer<typeof addMemberSchema>;
+
+const addMemberDefaults: AddMemberValues = {
+  userEmail: "",
+  role: "member",
+  department: undefined,
+  title: undefined,
+};
+
 export const InstitutionManagementModal: FC<
   InstitutionManagementModalProps
 > = ({ isOpen, onClose, institution, currentUserRole }) => {
@@ -41,136 +88,147 @@ export const InstitutionManagementModal: FC<
   const [localMembers, setLocalMembers] = useState<InstitutionMember[]>(
     institution.members || []
   );
-  const [newMemberData, setNewMemberData] = useState({
-    userEmail: "",
-    role: "member",
-    department: "",
-    title: "",
-  });
-  const [error, setError] = useState<string | null>(null);
+  const pendingMembershipActionRef = useRef<"add" | "remove" | null>(null);
+  const pendingMemberEmailRef = useRef<string | null>(null);
+  const pendingApprovalRef = useRef<boolean | null>(null);
 
-  // Update local members when institution prop changes
+  const form = useForm<AddMemberValues>({
+    resolver: zodResolver(addMemberSchema),
+    defaultValues: addMemberDefaults,
+  });
+
+  const {
+    error: membershipError,
+    setError: setMembershipError,
+    clearError: clearMembershipError,
+  } = useErrorHandling({
+    fallbackMessage: "Failed to manage membership. Please try again.",
+  });
+
   useEffect(() => {
     setLocalMembers(institution.members || []);
   }, [institution.members]);
 
+  useEffect(() => {
+    if (!isOpen) {
+      setActiveTab("members");
+      form.reset(addMemberDefaults);
+      clearMembershipError();
+    }
+  }, [isOpen, form, clearMembershipError]);
+
   const { execute: manageMembership, isExecuting } = useAction(
     manageUserMembershipAction,
     {
-      onSuccess: (result) => {
-        if (activeTab === "add") {
-          // Optimistically add the new member to local state using current form data
+      onSuccess: () => {
+        const pendingAction = pendingMembershipActionRef.current;
+        if (pendingAction === "add") {
+          const values = form.getValues();
           const newMember: InstitutionMember = {
-            id: `temp_${Date.now()}`, // Temporary ID until page refresh
+            id: `temp_${Date.now()}`,
             user: {
-              name: newMemberData.userEmail.split("@")[0] || null,
-              email: newMemberData.userEmail,
+              name: values.userEmail.split("@")[0] || null,
+              email: values.userEmail,
             },
-            role: newMemberData.role || "member",
-            department: newMemberData.department || null,
-            title: newMemberData.title || null,
+            role: values.role || "member",
+            department: values.department || null,
+            title: values.title || null,
             joinedAt: new Date(),
             isActive: true,
           };
 
           setLocalMembers((prev) => [...prev, newMember]);
-
-          setNewMemberData({
-            userEmail: "",
-            role: "member",
-            department: "",
-            title: "",
-          });
-          setError(null);
+          form.reset(addMemberDefaults);
+          clearMembershipError();
           setActiveTab("members");
+          toast.success("Invitation sent");
         }
+
+        if (pendingAction === "remove" && pendingMemberEmailRef.current) {
+          setLocalMembers((prev) =>
+            prev.filter(
+              (member) => member.user.email !== pendingMemberEmailRef.current
+            )
+          );
+          toast.success("Member removed");
+        }
+
+        pendingMembershipActionRef.current = null;
+        pendingMemberEmailRef.current = null;
       },
       onError: (error) => {
         console.error("Error managing membership:", error);
-
-        // Extract error message from the error object
-        const serverError = error.error?.serverError;
-        const validationErrors = error.error?.validationErrors;
-
+        setMembershipError(error);
         const errorMessage =
-          (typeof serverError === "string" ? serverError : null) ||
-          (typeof serverError === "object" &&
-          serverError !== null &&
-          "message" in serverError
-            ? (serverError as any).message
-            : null) ||
-          (Array.isArray(validationErrors) &&
-          validationErrors.length > 0 &&
-          typeof validationErrors[0] === "object" &&
-          validationErrors[0] !== null &&
-          "message" in validationErrors[0]
-            ? (validationErrors[0] as any).message
-            : null) ||
-          "Failed to manage membership. Please try again.";
-
-        setError(errorMessage);
+          error.error?.serverError ?? "Failed to manage membership";
+        toast.error(errorMessage);
+        pendingMembershipActionRef.current = null;
+        pendingMemberEmailRef.current = null;
       },
     }
   );
 
-  // Toggle approval requirement action
   const { execute: toggleApproval, isExecuting: isTogglingApproval } =
     useAction(toggleApprovalRequirementAction, {
       onSuccess: () => {
-        // The parent component will refresh to show updated data
-        console.log("Approval setting updated");
+        const requiresApproval = pendingApprovalRef.current;
+        if (requiresApproval !== null) {
+          toast.success(
+            requiresApproval
+              ? "Membership approval now required"
+              : "Membership approval disabled"
+          );
+        }
+        pendingApprovalRef.current = null;
       },
       onError: (error) => {
         console.error("Error toggling approval:", error);
-        alert("Failed to update approval setting");
+        toast.error("Failed to update approval setting");
+        pendingApprovalRef.current = null;
       },
     });
 
   const handleApprovalToggle = (requiresApproval: boolean) => {
+    pendingApprovalRef.current = requiresApproval;
     const formData = new FormData();
     formData.append("institutionId", institution.id);
     formData.append("requiresApproval", requiresApproval.toString());
     toggleApproval(formData);
   };
 
-  const handleAddMember = (e: React.FormEvent) => {
-    e.preventDefault();
-
+  const handleRemoveMember = (memberEmail: string) => {
+    pendingMembershipActionRef.current = "remove";
+    pendingMemberEmailRef.current = memberEmail;
     const formData = new FormData();
     formData.append("institutionId", institution.id);
-    formData.append("userEmail", newMemberData.userEmail);
-    formData.append("role", newMemberData.role);
-    formData.append("department", newMemberData.department);
-    formData.append("title", newMemberData.title);
-    formData.append("action", "add");
+    formData.append("userEmail", memberEmail);
+    formData.append("action", "remove");
 
     manageMembership(formData);
   };
 
-  const handleRemoveMember = (memberEmail: string) => {
-    if (window.confirm("Are you sure you want to remove this member?")) {
-      // Optimistically remove from local state
-      setLocalMembers((prev) =>
-        prev.filter((member) => member.user.email !== memberEmail)
-      );
+  const handleAddMember = (values: AddMemberValues) => {
+    pendingMembershipActionRef.current = "add";
+    const formData = new FormData();
+    formData.append("institutionId", institution.id);
+    formData.append("userEmail", values.userEmail);
+    formData.append("role", values.role);
+    formData.append("department", values.department ?? "");
+    formData.append("title", values.title ?? "");
+    formData.append("action", "add");
 
-      const formData = new FormData();
-      formData.append("institutionId", institution.id);
-      formData.append("userEmail", memberEmail);
-      formData.append("action", "remove");
-
-      manageMembership(formData);
-    }
+    manageMembership(formData);
   };
 
   const isAdmin = currentUserRole === "admin";
 
   if (!isOpen) return null;
 
+  const memberCount = useMemo(() => localMembers.length, [localMembers.length]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div className="max-h-[80vh] w-full max-w-2xl overflow-hidden rounded-lg bg-white shadow-xl">
-        {/* Header */}
         <div className="border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -197,7 +255,7 @@ export const InstitutionManagementModal: FC<
                     : "text-gray-600 hover:bg-gray-100"
                 }`}
               >
-                Members ({localMembers.length})
+                Members ({memberCount})
               </button>
               <button
                 onClick={() => setActiveTab("add")}
@@ -223,7 +281,6 @@ export const InstitutionManagementModal: FC<
           )}
         </div>
 
-        {/* Content */}
         <div
           className="overflow-y-auto p-6"
           style={{ maxHeight: "calc(80vh - 140px)" }}
@@ -250,9 +307,10 @@ export const InstitutionManagementModal: FC<
                       </div>
                       <div>
                         <div className="font-medium text-gray-900">
-                          {member.user.name ||
-                            member.user.email?.split("@")[0] ||
-                            "Unknown"}
+                          {getUserDisplayName(
+                            member.user.name,
+                            member.user.email
+                          )}
                         </div>
                         <div className="text-sm text-gray-500">
                           {member.user.email}
@@ -291,112 +349,120 @@ export const InstitutionManagementModal: FC<
           )}
 
           {activeTab === "add" && isAdmin && (
-            <form onSubmit={handleAddMember} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  User Email *
-                </label>
-                <input
-                  type="email"
-                  value={newMemberData.userEmail}
-                  onChange={(e) => {
-                    setNewMemberData((prev) => ({
-                      ...prev,
-                      userEmail: e.target.value,
-                    }));
-                    // Clear error when user starts typing
-                    if (error) {
-                      setError(null);
-                    }
-                  }}
-                  required
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                  placeholder="user@example.com"
+            <Form {...form}>
+              <form
+                onSubmit={form.handleSubmit(handleAddMember)}
+                className="space-y-4"
+              >
+                <FormField
+                  control={form.control}
+                  name="userEmail"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>User Email *</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type="email"
+                          placeholder="user@example.com"
+                          autoComplete="email"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Role
-                </label>
-                <select
-                  value={newMemberData.role}
-                  onChange={(e) =>
-                    setNewMemberData((prev) => ({
-                      ...prev,
-                      role: e.target.value,
-                    }))
-                  }
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                >
-                  <option value="member">Member</option>
-                  <option value="admin">Admin</option>
-                  <option value="researcher">Researcher</option>
-                  <option value="student">Student</option>
-                  <option value="faculty">Faculty</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Department
-                </label>
-                <input
-                  type="text"
-                  value={newMemberData.department}
-                  onChange={(e) =>
-                    setNewMemberData((prev) => ({
-                      ...prev,
-                      department: e.target.value,
-                    }))
-                  }
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                  placeholder="e.g., Computer Science"
+                <FormField
+                  control={form.control}
+                  name="role"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Role</FormLabel>
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a role" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="member">Member</SelectItem>
+                          <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value="researcher">Researcher</SelectItem>
+                          <SelectItem value="student">Student</SelectItem>
+                          <SelectItem value="faculty">Faculty</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Title
-                </label>
-                <input
-                  type="text"
-                  value={newMemberData.title}
-                  onChange={(e) =>
-                    setNewMemberData((prev) => ({
-                      ...prev,
-                      title: e.target.value,
-                    }))
-                  }
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                  placeholder="e.g., Senior Researcher"
+                <FormField
+                  control={form.control}
+                  name="department"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Department</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          value={field.value ?? ""}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                          placeholder="e.g., Computer Science"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
 
-              {/* Error Display */}
-              {error && (
-                <div className="rounded-md bg-red-50 p-3">
-                  <div className="text-sm text-red-700">{error}</div>
+                <FormField
+                  control={form.control}
+                  name="title"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Title</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          value={field.value ?? ""}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                          placeholder="e.g., Senior Researcher"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {membershipError && (
+                  <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">
+                    {membershipError}
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-3 pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setActiveTab("members")}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={isExecuting}>
+                    {isExecuting ? "Adding..." : "Add Member"}
+                  </Button>
                 </div>
-              )}
-
-              <div className="flex justify-end gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("members")}
-                  className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={!newMemberData.userEmail || isExecuting}
-                  className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {isExecuting ? "Adding..." : "Add Member"}
-                </button>
-              </div>
-            </form>
+              </form>
+            </Form>
           )}
 
           {activeTab === "settings" && isAdmin && (
@@ -406,7 +472,6 @@ export const InstitutionManagementModal: FC<
                   Institution Settings
                 </h3>
 
-                {/* Approval Settings */}
                 <div className="rounded-lg border border-gray-200 p-4">
                   <div className="flex items-center justify-between">
                     <div>

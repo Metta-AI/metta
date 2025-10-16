@@ -4,6 +4,8 @@
  * Handles Discord OAuth flow for account linking and user authentication
  */
 
+import { Logger } from "./logging/logger";
+
 export interface DiscordUser {
   id: string;
   username: string;
@@ -123,7 +125,7 @@ export class DiscordAuthService {
 
       return response.ok;
     } catch (error) {
-      console.error("Failed to revoke Discord token:", error);
+      Logger.error("Failed to revoke Discord token:", error);
       return false;
     }
   }

@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { BadRequestError, ServiceUnavailableError } from "@/lib/errors";
+import { handleApiError } from "@/lib/api/error-handler";
+import { Logger } from "@/lib/logging/logger";
 
 export async function GET(request: NextRequest) {
   try {
@@ -7,20 +10,14 @@ export async function GET(request: NextRequest) {
     const filename = searchParams.get("filename") || "document.pdf";
 
     if (!url) {
-      return NextResponse.json(
-        { error: "URL parameter is required" },
-        { status: 400 }
-      );
+      throw new BadRequestError("URL parameter is required");
     }
 
     // Validate URL format (basic security check)
     try {
       new URL(url);
     } catch {
-      return NextResponse.json(
-        { error: "Invalid URL format" },
-        { status: 400 }
-      );
+      throw new BadRequestError("Invalid URL format");
     }
 
     // Fetch the PDF from the external URL
@@ -31,9 +28,12 @@ export async function GET(request: NextRequest) {
     });
 
     if (!response.ok) {
-      return NextResponse.json(
-        { error: `Failed to fetch PDF: ${response.status}` },
-        { status: response.status }
+      Logger.warn("Failed to fetch external PDF", {
+        url,
+        status: response.status,
+      });
+      throw new ServiceUnavailableError(
+        `Failed to fetch PDF: ${response.status}`
       );
     }
 
@@ -42,10 +42,7 @@ export async function GET(request: NextRequest) {
 
     // Ensure it's a PDF
     if (!contentType.includes("pdf") && !contentType.includes("octet-stream")) {
-      return NextResponse.json(
-        { error: "URL does not point to a PDF file" },
-        { status: 400 }
-      );
+      throw new BadRequestError("URL does not point to a PDF file");
     }
 
     const pdfBuffer = await response.arrayBuffer();
@@ -61,10 +58,6 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("PDF download error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(error, { endpoint: "GET /api/download-pdf" });
   }
 }

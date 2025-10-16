@@ -10,6 +10,7 @@ import { LLMWorker } from "./llm-worker";
 import { TaggingWorker } from "./tagging-worker";
 import { ExternalNotificationWorker } from "./external-notification-worker";
 import { JobQueueService } from "../job-queue";
+import { Logger } from "../logging/logger";
 
 export class WorkerManager {
   private institutionWorker?: InstitutionWorker;
@@ -19,7 +20,7 @@ export class WorkerManager {
   private isShuttingDown = false;
 
   async start(): Promise<void> {
-    console.log("🚀 Starting all background workers...");
+    Logger.info("Starting all background workers");
 
     try {
       // Start all workers
@@ -28,14 +29,14 @@ export class WorkerManager {
       this.taggingWorker = new TaggingWorker();
       this.externalNotificationWorker = new ExternalNotificationWorker();
 
-      console.log("✅ All workers started successfully!");
-      console.log("📊 Worker status:");
-      console.log("   🏛️ Institution Worker: Running (concurrency: 2)");
-      console.log("   🤖 LLM Worker: Running (concurrency: 1)");
-      console.log("   🏷️ Tagging Worker: Running (concurrency: 3)");
-      console.log(
-        "   📧 External Notification Worker: Running (concurrency: 3)"
-      );
+      Logger.info("All workers started successfully", {
+        workers: [
+          "Institution Worker (concurrency: 2)",
+          "LLM Worker (concurrency: 1)",
+          "Tagging Worker (concurrency: 3)",
+          "External Notification Worker (concurrency: 3)",
+        ],
+      });
 
       // Setup graceful shutdown
       this.setupGracefulShutdown();
@@ -43,7 +44,9 @@ export class WorkerManager {
       // Display queue stats every 30 seconds
       this.startStatsReporting();
     } catch (error) {
-      console.error("❌ Failed to start workers:", error);
+      const errorInstance =
+        error instanceof Error ? error : new Error(String(error));
+      Logger.error("Failed to start workers", errorInstance);
       await this.shutdown();
       process.exit(1);
     }
@@ -53,7 +56,7 @@ export class WorkerManager {
     process.on("SIGINT", () => this.handleShutdown("SIGINT"));
     process.on("SIGTERM", () => this.handleShutdown("SIGTERM"));
     process.on("uncaughtException", (error) => {
-      console.error("🚨 Uncaught exception:", error);
+      Logger.error("Uncaught exception", error);
       this.handleShutdown("uncaughtException");
     });
   }
@@ -62,7 +65,7 @@ export class WorkerManager {
     if (this.isShuttingDown) return;
     this.isShuttingDown = true;
 
-    console.log(`\n🛑 Received ${signal}, shutting down gracefully...`);
+    Logger.info("Shutting down gracefully", { signal });
     await this.shutdown();
     process.exit(0);
   }
@@ -73,27 +76,17 @@ export class WorkerManager {
 
       try {
         const stats = await JobQueueService.getQueueStats();
-        console.log("\n📊 Queue Statistics:");
-        console.log(
-          `   🏛️ Institution: ${stats.institution.active} active, ${stats.institution.waiting} waiting, ${stats.institution.completed} completed`
-        );
-        console.log(
-          `   🤖 LLM: ${stats.llm.active} active, ${stats.llm.waiting} waiting, ${stats.llm.completed} completed`
-        );
-        console.log(
-          `   🏷️ Tagging: ${stats.tagging.active} active, ${stats.tagging.waiting} waiting, ${stats.tagging.completed} completed`
-        );
-        console.log(
-          `   📧 Notifications: ${stats.notifications.active} active, ${stats.notifications.waiting} waiting, ${stats.notifications.completed} completed`
-        );
+        Logger.debug("Queue Statistics", { stats });
       } catch (error) {
-        console.error("❌ Failed to get queue stats:", error);
+        Logger.warn("Failed to get queue stats", {
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }, 30000); // Every 30 seconds
   }
 
   async shutdown(): Promise<void> {
-    console.log("🛑 Shutting down all workers...");
+    Logger.info("Shutting down all workers");
 
     const shutdownPromises = [];
 
@@ -113,7 +106,7 @@ export class WorkerManager {
     await Promise.all(shutdownPromises);
     await JobQueueService.shutdown();
 
-    console.log("✅ All workers shut down successfully");
+    Logger.info("All workers shut down successfully");
   }
 }
 
@@ -121,7 +114,9 @@ export class WorkerManager {
 if (require.main === module) {
   const manager = new WorkerManager();
   manager.start().catch((error) => {
-    console.error("💥 Failed to start worker manager:", error);
+    const errorInstance =
+      error instanceof Error ? error : new Error(String(error));
+    Logger.error("Failed to start worker manager", errorInstance);
     process.exit(1);
   });
 }

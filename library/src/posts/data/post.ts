@@ -72,7 +72,7 @@ export default async function loadPost(postId: string): Promise<PostDTO> {
   }
 
   const postDTO = toFeedPostDTO(
-    post,
+    post as any,
     usersMap,
     papersMap,
     userPaperInteractionsMap
