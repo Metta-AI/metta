@@ -26,7 +26,7 @@ static std::unique_ptr<py::scoped_interpreter> g_python_guard;
 // wrapper layer. When that refactoring is complete, we should be able to:
 // 1. Remove all pybind11 includes from this benchmark
 // 2. Remove the Python interpreter initialization
-// 3. Work directly with C++ types (std::vector, std::map, etc.)
+// 3. Work directly with C++ types (std::vector, std::unordered_map, etc.)
 //
 // We'll know we've succeeded when this file has zero references to pybind11!
 
@@ -34,16 +34,19 @@ static std::unique_ptr<py::scoped_interpreter> g_python_guard;
 GameConfig CreateBenchmarkConfig(size_t num_agents) {
   std::vector<std::string> resource_names = {"ore", "heart"};
 
-  std::shared_ptr<ActionConfig> action_cfg = std::make_shared<ActionConfig>(
-      std::map<InventoryItem, InventoryQuantity>(), std::map<InventoryItem, InventoryProbability>());
+  std::shared_ptr<ActionConfig> action_cfg =
+      std::make_shared<ActionConfig>(std::unordered_map<InventoryItem, InventoryQuantity>(),
+                                     std::unordered_map<InventoryItem, InventoryProbability>());
 
   std::shared_ptr<AttackActionConfig> attack_cfg =
-      std::make_shared<AttackActionConfig>(std::map<InventoryItem, InventoryQuantity>(),
-                                           std::map<InventoryItem, InventoryProbability>(),
-                                           std::map<InventoryItem, InventoryQuantity>());
+      std::make_shared<AttackActionConfig>(std::unordered_map<InventoryItem, InventoryQuantity>(),
+                                           std::unordered_map<InventoryItem, InventoryProbability>(),
+                                           std::unordered_map<InventoryItem, InventoryQuantity>());
 
-  std::shared_ptr<ChangeGlyphActionConfig> change_glyph_cfg = std::make_shared<ChangeGlyphActionConfig>(
-      std::map<InventoryItem, InventoryQuantity>(), std::map<InventoryItem, InventoryProbability>(), 4);
+  std::shared_ptr<ChangeGlyphActionConfig> change_glyph_cfg =
+      std::make_shared<ChangeGlyphActionConfig>(std::unordered_map<InventoryItem, InventoryQuantity>(),
+                                                std::unordered_map<InventoryItem, InventoryProbability>(),
+                                                4);
 
   // GameConfig expects a vector of pairs for actions (ordered list)
   std::vector<std::pair<std::string, std::shared_ptr<ActionConfig>>> actions_cfg;
@@ -57,7 +60,7 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
   actions_cfg.push_back({"get_items", action_cfg});
   actions_cfg.push_back({"change_glyph", change_glyph_cfg});
 
-  std::map<std::string, std::shared_ptr<GridObjectConfig>> objects_cfg;
+  std::unordered_map<std::string, std::shared_ptr<GridObjectConfig>> objects_cfg;
 
   objects_cfg["wall"] = std::make_shared<WallConfig>(1, "wall", false);
   objects_cfg["agent.team1"] = std::make_shared<AgentConfig>(0, "agent", 0, "team1");
@@ -110,35 +113,22 @@ py::list CreateDefaultMap(size_t num_agents_per_team = 2) {
 
 // Utility function to generate valid random actions
 py::array_t<int> GenerateValidRandomActions(MettaGrid* env, size_t num_agents, std::mt19937* gen) {
-  // Get the maximum argument values for each action type
-  py::list max_args = env->max_action_args();
-  size_t num_actions = py::len(env->action_names());
+  // MettaGrid supports both flat action indices and (action, arg) pairs.
+  // The Python benchmarks use the flat variant, so mirror that here to keep
+  // parity and avoid manual bounds calculations for each action handler.
+  py::list action_names = env->action_names();
+  const size_t num_flat_actions = py::len(action_names);
+  if (num_flat_actions == 0) {
+    throw std::runtime_error("MettaGrid returned no available actions");
+  }
 
-  // Create actions array
-  std::vector<py::ssize_t> shape = {static_cast<py::ssize_t>(num_agents), 2};
+  std::vector<py::ssize_t> shape = {static_cast<py::ssize_t>(num_agents)};
   py::array_t<int> actions(shape);
-  auto actions_ptr = static_cast<int*>(actions.request().ptr);
+  auto* actions_ptr = static_cast<int*>(actions.request().ptr);
 
-  // Initialize distributions
-  std::uniform_int_distribution<> action_dist(0, static_cast<int>(num_actions) - 1);
-
+  std::uniform_int_distribution<> action_dist(0, static_cast<int>(num_flat_actions) - 1);
   for (size_t i = 0; i < num_agents; ++i) {
-    // Choose random action type
-    int action_type = action_dist(*gen);
-
-    // Get max allowed argument for this action type
-    int max_arg = py::cast<int>(max_args[static_cast<size_t>(action_type)]);
-
-    // Choose random valid argument (0 to max_arg inclusive)
-    int action_arg = 0;
-    if (max_arg > 0) {
-      std::uniform_int_distribution<> arg_dist(0, max_arg);
-      action_arg = arg_dist(*gen);
-    }
-
-    // Set the action values
-    actions_ptr[i * 2] = action_type;
-    actions_ptr[i * 2 + 1] = action_arg;
+    actions_ptr[i] = action_dist(*gen);
   }
 
   return actions;

@@ -5,12 +5,13 @@
 # Email identity for sending notifications
 # Note: This requires DNS verification before emails can be sent
 resource "aws_ses_email_identity" "library_notifications" {
-  email = "noreply@${var.domain}"
+  email = var.ses_from_email
 }
 
 # Domain identity for better deliverability and DKIM signing
+# Extract domain from the email address (e.g., "softmax.com" from "library@softmax.com")
 resource "aws_ses_domain_identity" "library" {
-  domain = var.domain
+  domain = split("@", var.ses_from_email)[1]
 }
 
 # DKIM signing for improved email authentication
@@ -46,7 +47,7 @@ resource "aws_iam_user_policy" "ses_smtp" {
         Resource = "*"
         Condition = {
           StringEquals = {
-            "ses:FromAddress" = "noreply@${var.domain}"
+            "ses:FromAddress" = var.ses_from_email
           }
         }
       }
@@ -85,31 +86,9 @@ resource "aws_ses_event_destination" "cloudwatch" {
   }
 }
 
-# Reference existing Route53 hosted zone for the parent domain
-# This zone is managed by external-dns from the EKS cluster
-data "aws_route53_zone" "library" {
-  name         = "softmax-research.net"
-  private_zone = false
-}
-
-# Route53 record for SES domain verification
-resource "aws_route53_record" "ses_verification" {
-  zone_id = data.aws_route53_zone.library.zone_id
-  name    = "_amazonses.${var.domain}"
-  type    = "TXT"
-  ttl     = 600
-  records = [aws_ses_domain_identity.library.verification_token]
-}
-
-# Route53 records for DKIM signing (3 records)
-resource "aws_route53_record" "ses_dkim" {
-  count   = 3
-  zone_id = data.aws_route53_zone.library.zone_id
-  name    = "${aws_ses_domain_dkim.library.dkim_tokens[count.index]}._domainkey.${var.domain}"
-  type    = "CNAME"
-  ttl     = 600
-  records = ["${aws_ses_domain_dkim.library.dkim_tokens[count.index]}.dkim.amazonses.com"]
-}
+# Note: DNS records for SES verification and DKIM must be manually added to Cloudflare
+# The required records are exported in the Terraform outputs
+# Run `terraform output` to see the exact DNS records to add
 
 # Convert AWS secret access key to SES SMTP password format
 # SES requires a special password derived from the IAM secret using AWS SigV4
@@ -124,7 +103,8 @@ data "external" "ses_smtp_password" {
 # Local values for constructing SES connection details
 locals {
   ses_smtp_endpoint = "email-smtp.${var.region}.amazonaws.com"
-  ses_from_email    = "noreply@${var.domain}"
+  ses_from_email    = var.ses_from_email
+  ses_domain        = split("@", var.ses_from_email)[1]
 
   # SES SMTP credentials from IAM access key
   ses_smtp_username = aws_iam_access_key.ses_smtp.id

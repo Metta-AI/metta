@@ -1,8 +1,8 @@
 #ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_CHEST_HPP_
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_CHEST_HPP_
 
-#include <map>
 #include <set>
+#include <unordered_map>
 #include <vector>
 
 #include "core/event.hpp"
@@ -111,8 +111,8 @@ private:
 public:
   // Configuration
   InventoryItem resource_type;
-  std::map<int, int> position_deltas;  // position_index -> delta
-  int max_inventory;                   // Maximum inventory (-1 = unlimited)
+  std::unordered_map<int, int> position_deltas;  // position_index -> delta
+  int max_inventory;                             // Maximum inventory (-1 = unlimited)
 
   // Grid access for finding agent positions
   class Grid* grid;
