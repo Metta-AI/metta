@@ -1,8 +1,9 @@
-from experiments.recipes import arena
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
+
+from experiments.recipes import arena
 
 # This file is for local experimentation only. It is not checked in, and therefore won't be usable on skypilot
 
@@ -35,6 +36,7 @@ def replay() -> ReplayTool:
     env = arena.mettagrid(num_agents=24)
     env.game.max_steps = 100
     cfg = arena.replay(policy_uri=None)
+    # cfg.policy_uri = "s3://your-bucket/checkpoints/daveey.combat.lpsm.8x4/daveey.combat.lpsm.8x4:v42.pt"
     return cfg
 
 
@@ -42,4 +44,5 @@ def evaluate(
     policy_uri: str = "s3://your-bucket/checkpoints/local.{{ USER }}.1/local.{{ USER }}.1:v10.pt",
 ) -> EvaluateTool:
     cfg = arena.evaluate(policy_uris=policy_uri)
+
     return cfg

@@ -100,6 +100,7 @@ experiments/recipes/scratchpad/*.py
 !experiments/recipes/scratchpad/README.md
 !experiments/recipes/scratchpad/example.py
 !experiments/recipes/scratchpad/ci.py
+!experiments/recipes/scratchpad/__init__.py
 packages/cogames/experiments
 
 resources
