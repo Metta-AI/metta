@@ -4,5 +4,11 @@
     "name": "Add EMA of Future Latent State Prediction Loss",
     "branch": "feature/future-latent-ema-loss",
     "completed_at": "2025-10-16"
+  },
+  {
+    "gid": "1210892820911816",
+    "name": "Check VAST for 4090/5090 Dev boxes",
+    "branch": "feature/vast-dev-box-check",
+    "completed_at": "2025-10-16"
   }
 ]
