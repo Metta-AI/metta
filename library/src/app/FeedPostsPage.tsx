@@ -45,7 +45,6 @@ export const FeedPostsPage: FC<{
 }> = ({ posts: initialPosts, papersData, currentUser }) => {
   const page = usePaginator(initialPosts);
   const { mathJaxLoaded, renderMath } = useMathJax();
-  const feedRef = useRef<HTMLDivElement>(null);
   const { openPaper } = useOverlayNavigation();
 
   // Star mutation
