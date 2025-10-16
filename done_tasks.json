@@ -19,6 +19,12 @@
     "branch": "refactor/rename-game-rules",
     "commit": "792770ce543753ee1c833bbd0521bd863a309223",
     "notes": "Renamed the training GameRules dataclass and updated all policy and tooling references to use the new name and property."
->>>>>>> origin/richard-triage
+  },
+  {
+    "gid": "1209208922660846",
+    "name": "Add dormant neurons graph to Wandb / evals",
+    "branch": "feature/dormant-neuron-metrics",
+    "commit": "84e37a22d02245f11da321dfbd4a50d250e02709",
+    "notes": "Log dormant neuron fractions per layer and overall to wandb via StatsReporter and added regression coverage for the analysis utility."
   }
 ]
