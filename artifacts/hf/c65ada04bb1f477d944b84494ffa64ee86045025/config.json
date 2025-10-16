@@ -20,6 +20,6 @@
   "code_snapshot_subdir": "code_snapshot",
   "extra_metadata": {},
   "model_type": "metta-policy",
-  "source_commit": "d1fbfc60a071e649758417b01c16003655d1d492",
+  "source_commit": "2f7356113a788a47517fdfb4ea4b24afaccb5685",
   "transformers_version": "4.57.1"
 }

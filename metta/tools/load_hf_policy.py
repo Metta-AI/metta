@@ -4,12 +4,12 @@ import argparse
 from pathlib import Path
 from typing import Iterable
 
-from transformers import AutoModel
+from hf_metta_policy.modeling_metta_policy import MettaPolicyForRL
 
 
 def load_policy(model_dir: Path) -> None:
     model_dir = model_dir.expanduser().resolve()
-    model = AutoModel.from_pretrained(model_dir, trust_remote_code=True)
+    model = MettaPolicyForRL.from_pretrained(model_dir)
     policy = getattr(model, "policy", None)
     param_count = None
     if policy is not None and hasattr(policy, "parameters"):
