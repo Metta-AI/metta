@@ -7,6 +7,7 @@ and episode tracking functionality."""
 from __future__ import annotations
 
 import datetime
+from collections import defaultdict
 import logging
 import time
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, cast
@@ -249,12 +250,48 @@ class MettaGridEnv(MettaGridPufferBase):
             env_cfg_flattened[f"config.{str(k).replace('/', '.')}"] = str(v)
 
         # Prepare agent metrics
-        agent_metrics = {}
+        agent_metrics: Dict[int, Dict[str, float]] = {}
         for agent_idx, agent_stats in enumerate(stats["agent"]):
             agent_metrics[agent_idx] = {}
             agent_metrics[agent_idx]["reward"] = float(episode_rewards[agent_idx])
             for k, v in agent_stats.items():
                 agent_metrics[agent_idx][k] = float(v)
+
+        # Compute fairness metrics within agent groups (or globally if no groups)
+        if agent_metrics:
+            rewards_by_agent = {agent_id: metrics["reward"] for agent_id, metrics in agent_metrics.items()}
+            grouped_rewards: Dict[int, list[float]] = defaultdict(list)
+
+            if agent_groups:
+                for agent_id, group_id in agent_groups.items():
+                    reward = rewards_by_agent.get(agent_id)
+                    if reward is not None:
+                        grouped_rewards[group_id].append(reward)
+                # Include agents without an assigned group in a global bucket
+                ungrouped_rewards = [
+                    reward for agent_id, reward in rewards_by_agent.items() if agent_id not in agent_groups
+                ]
+                if ungrouped_rewards:
+                    grouped_rewards[-1].extend(ungrouped_rewards)
+            else:
+                grouped_rewards[-1].extend(rewards_by_agent.values())
+
+            for group_id, reward_list in grouped_rewards.items():
+                if not reward_list:
+                    continue
+                rewards_arr = np.asarray(reward_list, dtype=np.float32)
+                fairness_gap = float(rewards_arr.max() - rewards_arr.min()) if rewards_arr.size > 1 else 0.0
+                fairness_std = float(rewards_arr.std(ddof=0)) if rewards_arr.size > 1 else 0.0
+
+                # Target agents in this group (or everyone for the global bucket)
+                if group_id == -1:
+                    target_agents = agent_metrics.keys()
+                else:
+                    target_agents = [agent_id for agent_id, g_id in agent_groups.items() if g_id == group_id]
+
+                for agent_id in target_agents:
+                    agent_metrics[agent_id]["reward_fairness_gap"] = fairness_gap
+                    agent_metrics[agent_id]["reward_fairness_std"] = fairness_std
 
         # Get agent groups
         grid_objects = self.grid_objects()

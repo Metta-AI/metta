@@ -8,6 +8,18 @@ class EvalRewardSummary(Config):
     simulation_scores: dict[tuple[str, str], float] = Field(
         default_factory=dict, description="Average reward for each simulation (category, short_sim_name)"
     )
+    fairness_gap_category_scores: dict[str, float] = Field(
+        default_factory=dict, description="Average reward fairness gap (max-min) for each category"
+    )
+    fairness_gap_simulation_scores: dict[tuple[str, str], float] = Field(
+        default_factory=dict, description="Average reward fairness gap for each simulation"
+    )
+    fairness_std_category_scores: dict[str, float] = Field(
+        default_factory=dict, description="Average reward fairness standard deviation for each category"
+    )
+    fairness_std_simulation_scores: dict[tuple[str, str], float] = Field(
+        default_factory=dict, description="Average reward fairness standard deviation for each simulation"
+    )
 
     @property
     def avg_category_score(self) -> float:
@@ -21,6 +33,22 @@ class EvalRewardSummary(Config):
         return {
             **{f"{category}/score": score for category, score in self.category_scores.items()},
             **{f"{category}/{sim}": score for (category, sim), score in self.simulation_scores.items()},
+            **{
+                f"{category}/fairness_gap": gap
+                for category, gap in self.fairness_gap_category_scores.items()
+            },
+            **{
+                f"{category}/fairness_gap/{sim}": gap
+                for (category, sim), gap in self.fairness_gap_simulation_scores.items()
+            },
+            **{
+                f"{category}/fairness_std": std
+                for category, std in self.fairness_std_category_scores.items()
+            },
+            **{
+                f"{category}/fairness_std/{sim}": std
+                for (category, sim), std in self.fairness_std_simulation_scores.items()
+            },
         }
 
 

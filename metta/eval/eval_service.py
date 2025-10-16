@@ -107,9 +107,23 @@ def extract_scores(
         logger.info(f"{suite} score: {score}")
         return score
 
-    category_scores = {suite: score for suite in suites if (score := suite_score(suite)) is not None}
+    def category_metric(metric: str) -> dict[str, float]:
+        values: dict[str, float] = {}
+        for suite in suites:
+            score = stats_db.get_average_metric(metric, checkpoint_uri, f"sim_name LIKE '%{suite}%'")
+            if score is not None:
+                values[suite] = score
+        return values
+
+    category_scores = category_metric("reward")
+    fairness_gap_category_scores = category_metric("reward_fairness_gap")
+    fairness_std_category_scores = category_metric("reward_fairness_std")
 
     return EvalRewardSummary(
         category_scores=category_scores,
         simulation_scores=stats_db.simulation_scores(checkpoint_uri, "reward"),
+        fairness_gap_category_scores=fairness_gap_category_scores,
+        fairness_gap_simulation_scores=stats_db.simulation_scores(checkpoint_uri, "reward_fairness_gap"),
+        fairness_std_category_scores=fairness_std_category_scores,
+        fairness_std_simulation_scores=stats_db.simulation_scores(checkpoint_uri, "reward_fairness_std"),
     )
