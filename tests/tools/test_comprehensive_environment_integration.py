@@ -230,7 +230,7 @@ class TestComprehensiveEnvironmentIntegration:
         assert replay_tool.sim.name == "test_resource"
 
         # Test PlayTool configuration
-        play_tool = PlayTool(sim=sim_config, policy_uri=None, open_browser_on_start=False)
+        play_tool = PlayTool(sim=sim_config, policy_uri=None)
         assert play_tool.sim.name == "test_resource"
 
     def test_agents_count_in_environments(self):
