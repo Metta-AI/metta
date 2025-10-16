@@ -8,7 +8,7 @@ from typing import Iterable, Sequence
 
 from hf_metta_policy import MettaPolicyConfig
 
-DEFAULT_CODE_ROOTS = ("agent/src", "metta")
+DEFAULT_CODE_ROOTS = ("agent/src", "metta", "packages/mettagrid/python/src")
 IGNORE_PATTERNS = ("__pycache__", "*.pyc", "*.pyo")
 
 

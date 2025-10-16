@@ -15,11 +15,12 @@
   "checkpoint_filename": "policy.pt",
   "code_roots": [
     "agent/src",
-    "metta"
+    "metta",
+    "packages/mettagrid/python/src"
   ],
   "code_snapshot_subdir": "code_snapshot",
   "extra_metadata": {},
   "model_type": "metta-policy",
-  "source_commit": "2f7356113a788a47517fdfb4ea4b24afaccb5685",
+  "source_commit": "b2351f455097113973fa50daa9bab3dbfa7a135f",
   "transformers_version": "4.57.1"
 }

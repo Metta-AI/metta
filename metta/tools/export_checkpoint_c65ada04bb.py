@@ -20,7 +20,6 @@ def main() -> None:
     export_hf_policy(
         checkpoint_path=checkpoint_path,
         export_dir=export_dir,
-        code_roots=("agent/src", "metta"),
     )
 
     print(f"Exported HF artifact to {export_dir}")
