@@ -67,7 +67,7 @@ def get_matched_pr(commit_hash: str, repo: str) -> tuple[int, str] | None:
         resp.raise_for_status()
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 404:
-            # Commit not in repo or no PRs â†' treat as "no match"
+            # Commit not in repo or no PRs -> treat as "no match"
             return None
         raise GitError(f"GitHub API error ({e.response.status_code}): {e.response.text}") from e
     except httpx.RequestError as e:

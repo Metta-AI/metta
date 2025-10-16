@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+from functools import lru_cache
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -41,9 +42,19 @@ def get_branch_commit(branch: str) -> str:
     return run_git("rev-parse", "--verify", branch).strip()
 
 
+@lru_cache(maxsize=256)
+def _get_commit_message_cached(commit_hash: str) -> str:
+    """Internal cached helper - only call with resolved commit hashes."""
+    return run_git("log", "-1", "--pretty=%B", commit_hash)
+
+
 def get_commit_message(commit_hash: str) -> str:
     """Get the commit message for a given commit."""
-    return run_git("log", "-1", "--pretty=%B", commit_hash)
+    if len(commit_hash) == 40 and all(c in "0123456789abcdef" for c in commit_hash.lower()):
+        return _get_commit_message_cached(commit_hash)
+
+    resolved_hash = run_git("rev-parse", commit_hash)
+    return _get_commit_message_cached(resolved_hash)
 
 
 def has_unstaged_changes(allow_untracked: bool = False) -> tuple[bool, str]:
@@ -99,7 +110,7 @@ def is_commit_pushed(commit_hash: str) -> bool:
         branch = get_current_branch()
         upstream = run_git("rev-parse", "--abbrev-ref", f"{branch}@{{u}}")
     except GitError:
-        # No upstream configured â"€ fallback to scanning all remotes
+        # No upstream configured - fallback to scanning all remotes
         remote_branches = run_git("branch", "-r", "--contains", commit_hash)
         return bool(remote_branches.strip())
 
@@ -364,10 +375,19 @@ def fetch(repo_root: Path) -> None:
         pass
 
 
+# Manual cache for ref_exists - only store successful lookups
+_ref_exists_cache: Dict[tuple[Path, str], bool] = {}
+
+
 def ref_exists(repo_root: Path, ref: str) -> bool:
-    """True if ref resolves in this repo."""
+    """True if ref resolves in this repo. Only caches positive results."""
+    cache_key = (repo_root, ref)
+    if cache_key in _ref_exists_cache:
+        return True
+
     try:
         run_git_in_dir(repo_root, "rev-parse", "--verify", "--quiet", ref)
+        _ref_exists_cache[cache_key] = True
         return True
     except GitError:
         return False

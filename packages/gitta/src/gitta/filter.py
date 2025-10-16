@@ -5,18 +5,19 @@ from __future__ import annotations
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from .core import GitError, run_git
 from .git import get_commit_count, get_file_list
 
 
-def filter_repo(source_path: Path, paths: List[str]) -> Path:
+def filter_repo(source_path: Path, paths: List[str], make_root: Optional[str] = None) -> Path:
     """Filter repository to only include specified paths.
 
     Args:
         source_path: Path to source repository
-        paths: List of paths to keep (e.g., ["mettagrid/", "mettascope/"])
+        paths: List of paths to keep (e.g., ["packages/mettagrid/", "mettascope/"])
+        make_root: If provided, the matched path will be moved to repo root (e.g., "packages/mettagrid/")
 
     Returns:
         Path to the filtered repository
@@ -57,7 +58,11 @@ def filter_repo(source_path: Path, paths: List[str]) -> Path:
     for path in paths:
         filter_cmd.extend(["--path", path])
 
-    print(f"Filtering to: {', '.join(paths)}")
+    if make_root:
+        filter_cmd.extend(["--path-rename", f"{make_root}:"])
+        print(f"Filtering to: {', '.join(paths)}, moving {make_root} to root")
+    else:
+        print(f"Filtering to: {', '.join(paths)}")
 
     result = subprocess.run(filter_cmd, cwd=filtered_path, capture_output=True, text=True)
     if result.returncode != 0:
