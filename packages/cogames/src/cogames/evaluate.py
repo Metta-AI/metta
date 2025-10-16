@@ -7,15 +7,15 @@ import re
 import time
 from collections import defaultdict
 from copy import deepcopy
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 import typer
 from rich.console import Console
 from rich.table import Table
 
-from cogames.policy.policy import PolicySpec
-from cogames.utils import initialize_or_load_policy
+from cogames.policy.interfaces import PolicySpec
+from cogames.policy.utils import initialize_or_load_policy
 from mettagrid import MettaGridConfig, MettaGridEnv
 
 if TYPE_CHECKING:
@@ -49,6 +49,7 @@ def evaluate(
     policy_specs: list[PolicySpec],
     episodes: int,
     action_timeout_ms: int,
+    max_steps: Optional[int] = None,
     seed: int = 42,
 ) -> None:
     if not policy_specs:
@@ -85,7 +86,7 @@ def evaluate(
     # Run episodes
     progress_label = "Evaluating episodes"
     rng = np.random.default_rng(seed)
-    noop = np.zeros(env.action_space.shape[0], dtype=env.action_space.dtype)
+    noop = np.array(0, dtype=env.action_space.dtype)
     with typer.progressbar(range(episodes), label=progress_label) as progress:
         for episode_idx in progress:
             obs, _ = env.reset(seed=seed + episode_idx)
@@ -99,17 +100,29 @@ def evaluate(
 
             done = np.zeros(env.num_agents, dtype=bool)
             truncated = np.zeros(env.num_agents, dtype=bool)
-            while not done.all() and not truncated.all():
-                actions = np.zeros((env.num_agents, env.action_space.shape[0]), dtype=env.action_space.dtype)
+
+            step_count = 0
+
+            while max_steps is None or step_count < max_steps:
+                actions = np.zeros(env.num_agents, dtype=env.action_space.dtype)
                 for i in range(env.num_agents):
                     start_time = time.time()
-                    action, _ = agent_policies[i].step(obs[i])
+                    action = agent_policies[i].step(obs[i])
+                    if isinstance(action, tuple):
+                        raise TypeError(
+                            "AgentPolicy.step must return a single MettaGridAction under the single-discrete API. "
+                            "Update the policy to emit an int-compatible action instead of a tuple."
+                        )
                     end_time = time.time()
                     if (end_time - start_time) > action_timeout_ms / 1000:
                         per_policy_timeouts[assignments[i]] += 1
                         action = noop
-                    actions[i] = action
+                    actions[i] = np.asarray(action).astype(env.action_space.dtype).item()
                 obs, rewards, done, truncated, _ = env.step(actions)
+
+                step_count += 1
+                if done.all() or truncated.all():
+                    break
 
             per_episode_rewards.append(np.array(env.get_episode_rewards(), dtype=float))
 

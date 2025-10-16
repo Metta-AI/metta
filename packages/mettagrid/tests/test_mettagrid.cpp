@@ -62,8 +62,8 @@ protected:
     return inventory_config;
   }
 
-  std::map<std::string, RewardType> create_test_stats_rewards() {
-    std::map<std::string, RewardType> rewards;
+  std::unordered_map<std::string, RewardType> create_test_stats_rewards() {
+    std::unordered_map<std::string, RewardType> rewards;
     rewards[std::string(TestItemStrings::ORE) + ".amount"] = TestRewards::ORE;
     rewards[std::string(TestItemStrings::LASER) + ".amount"] = TestRewards::LASER;
     rewards[std::string(TestItemStrings::ARMOR) + ".amount"] = TestRewards::ARMOR;
@@ -72,8 +72,8 @@ protected:
   }
 
   // Helper function to create test stats_reward_max map
-  std::map<std::string, RewardType> create_test_stats_reward_max() {
-    std::map<std::string, RewardType> stats_reward_max;
+  std::unordered_map<std::string, RewardType> create_test_stats_reward_max() {
+    std::unordered_map<std::string, RewardType> stats_reward_max;
     stats_reward_max[std::string(TestItemStrings::ORE) + ".amount"] = 10.0f;
     stats_reward_max[std::string(TestItemStrings::LASER) + ".amount"] = 10.0f;
     stats_reward_max[std::string(TestItemStrings::ARMOR) + ".amount"] = 10.0f;
@@ -202,7 +202,7 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_RewardCappingBehavior) {
   auto rewards = create_test_stats_rewards();
 
   // Set a lower cap for ORE so we can actually test capping
-  std::map<std::string, RewardType> stats_reward_max;
+  std::unordered_map<std::string, RewardType> stats_reward_max;
   stats_reward_max[std::string(TestItemStrings::ORE) + ".amount"] = 2.0f;  // Cap at 2.0 instead of 10.0
 
   AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0.0f, inventory_config, rewards, stats_reward_max, 0.0f, {});
@@ -267,7 +267,7 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_MultipleItemCaps) {
   auto rewards = create_test_stats_rewards();
 
   // Set different caps for different items
-  std::map<std::string, RewardType> stats_reward_max;
+  std::unordered_map<std::string, RewardType> stats_reward_max;
   stats_reward_max[std::string(TestItemStrings::ORE) + ".amount"] = 2.0f;     // Low cap for ORE
   stats_reward_max[std::string(TestItemStrings::HEART) + ".amount"] = 30.0f;  // Cap for HEART
   // LASER and ARMOR have no caps
@@ -903,11 +903,12 @@ TEST_F(MettaGridCppTest, FractionalConsumptionMultipleResources) {
   int laser_left = agent->inventory.amount(TestItems::LASER);
   int armor_left = agent->inventory.amount(TestItems::ARMOR);
 
-  EXPECT_EQ(ore_left, 33);
+  // Since it's random, it's okay if these values change during a refactor, as long as they stay reasonable.
+  EXPECT_EQ(ore_left, 35);  // on average expect 35
 
-  EXPECT_EQ(laser_left, 48);
+  EXPECT_EQ(laser_left, 48);  // on average expect 47.5
 
-  EXPECT_EQ(armor_left, 24);
+  EXPECT_EQ(armor_left, 21);  // on average expect 22.5
 }
 
 TEST_F(MettaGridCppTest, FractionalConsumptionAttackAction) {
@@ -1354,63 +1355,114 @@ TEST_F(MettaGridCppTest, AssemblerRecipeObservationsEnabled) {
   EXPECT_EQ(current_recipe, recipe0.get());
 }
 
-TEST_F(MettaGridCppTest, AssemblerConsumeResourcesAcrossAgents) {
+TEST_F(MettaGridCppTest, AssemblerBalancedConsumptionAmpleResources) {
+  // Test case (a): 3 agents with ample resources, consume 10 total
+  // Each agent should lose 3-4 resources for balanced consumption
+
   // Create a recipe that requires 10 ore
-  std::map<InventoryItem, InventoryQuantity> input_resources;
+  std::unordered_map<InventoryItem, InventoryQuantity> input_resources;
   input_resources[TestItems::ORE] = 10;
 
-  std::map<InventoryItem, InventoryQuantity> output_resources;
+  std::unordered_map<InventoryItem, InventoryQuantity> output_resources;
   output_resources[TestItems::LASER] = 1;
 
   auto recipe = std::make_shared<Recipe>(input_resources, output_resources, 0);
 
   // Create assembler with the recipe
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  AssemblerConfig config(1, "test_assembler", std::vector<int>{});
   config.recipes = {recipe};
   Assembler assembler(5, 5, config);
-  // Create agents
-  AgentConfig agent_config(0,         // type_id
-                           "agent",   // type_name
-                           0,         // group_id
-                           "agent");  // group_name
+
+  // Create agents with ample resources
+  AgentConfig agent_config(0, "agent", 0, "agent");
   auto resource_names = create_test_resource_names();
   Agent agent1(0, 0, agent_config, &resource_names);
   Agent agent2(0, 0, agent_config, &resource_names);
   Agent agent3(0, 0, agent_config, &resource_names);
 
-  agent1.update_inventory(TestItems::ORE, 3);
-  agent2.update_inventory(TestItems::ORE, 4);
-  agent3.update_inventory(TestItems::ORE, 5);
+  agent1.update_inventory(TestItems::ORE, 20);
+  agent2.update_inventory(TestItems::ORE, 20);
+  agent3.update_inventory(TestItems::ORE, 20);
 
   std::vector<Agent*> surrounding_agents = {&agent1, &agent2, &agent3};
 
-  // Record initial ore amounts
-  InventoryQuantity initial_ore1 = agent1.inventory.amount(TestItems::ORE);
-  InventoryQuantity initial_ore2 = agent2.inventory.amount(TestItems::ORE);
-  InventoryQuantity initial_ore3 = agent3.inventory.amount(TestItems::ORE);
-
-  // Call consume_resources_for_recipe - this should consume exactly 10 ore total
+  // Consume resources
   assembler.consume_resources_for_recipe(*recipe, surrounding_agents);
 
-  // Check that the fix works: only consume what's needed (10 total)
-  InventoryQuantity final_ore1 = agent1.inventory.amount(TestItems::ORE);
-  InventoryQuantity final_ore2 = agent2.inventory.amount(TestItems::ORE);
-  InventoryQuantity final_ore3 = agent3.inventory.amount(TestItems::ORE);
+  // Check balanced consumption
+  InventoryQuantity consumed1 = 20 - agent1.inventory.amount(TestItems::ORE);
+  InventoryQuantity consumed2 = 20 - agent2.inventory.amount(TestItems::ORE);
+  InventoryQuantity consumed3 = 20 - agent3.inventory.amount(TestItems::ORE);
 
-  // With the fix: consume exactly 10 ore total
-  // Agent 1: 3 -> 0 (loses 3)
-  // Agent 2: 4 -> 0 (loses 4)
-  // Agent 3: 5 -> 2 (loses 3, keeps 2)
-  // Total consumed: 10 (correct!)
+  // Total should be exactly 10
+  EXPECT_EQ(consumed1 + consumed2 + consumed3, 10);
 
-  EXPECT_EQ(final_ore1, 0) << "Agent 1 should lose all ore (3)";
-  EXPECT_EQ(final_ore2, 0) << "Agent 2 should lose all ore (4)";
-  EXPECT_EQ(final_ore3, 2) << "Agent 3 should keep 2 ore (lose 3)";
+  // Each agent should lose 3-4 resources (balanced)
+  // With 10 resources and 3 agents: 10/3 = 3.33, so we expect 3, 3, 4 distribution
+  EXPECT_GE(consumed1, 3);
+  EXPECT_LE(consumed1, 4);
+  EXPECT_GE(consumed2, 3);
+  EXPECT_LE(consumed2, 4);
+  EXPECT_GE(consumed3, 3);
+  EXPECT_LE(consumed3, 4);
+}
 
-  // Verify total consumption is correct (10)
-  InventoryQuantity total_consumed =
-      (initial_ore1 - final_ore1) + (initial_ore2 - final_ore2) + (initial_ore3 - final_ore3);
-  EXPECT_EQ(total_consumed, 10) << "Should consume exactly 10 ore, consumed " << total_consumed;
+TEST_F(MettaGridCppTest, AssemblerBalancedConsumptionMixedResources) {
+  // Test case (b): 4 agents with mixed resources
+  // Agent 1: 0 resources, Agent 2: 1 resource, Agents 3&4: ample resources
+  // When consuming 20, should consume 0/1/9/10 respectively
+
+  // Create a recipe that requires 20 ore
+  std::unordered_map<InventoryItem, InventoryQuantity> input_resources;
+  input_resources[TestItems::ORE] = 20;
+
+  std::unordered_map<InventoryItem, InventoryQuantity> output_resources;
+  output_resources[TestItems::LASER] = 1;
+
+  auto recipe = std::make_shared<Recipe>(input_resources, output_resources, 0);
+
+  // Create assembler with the recipe
+  AssemblerConfig config(1, "test_assembler", std::vector<int>{});
+  config.recipes = {recipe};
+  Assembler assembler(5, 5, config);
+
+  // Create agents with varied resources
+  AgentConfig agent_config(0, "agent", 0, "agent");
+  auto resource_names = create_test_resource_names();
+  Agent agent1(0, 0, agent_config, &resource_names);
+  Agent agent2(0, 0, agent_config, &resource_names);
+  Agent agent3(0, 0, agent_config, &resource_names);
+  Agent agent4(0, 0, agent_config, &resource_names);
+
+  agent1.update_inventory(TestItems::ORE, 0);   // No resources
+  agent2.update_inventory(TestItems::ORE, 1);   // Limited resources
+  agent3.update_inventory(TestItems::ORE, 50);  // Ample resources
+  agent4.update_inventory(TestItems::ORE, 50);  // Ample resources
+
+  std::vector<Agent*> surrounding_agents = {&agent1, &agent2, &agent3, &agent4};
+
+  // Consume resources
+  assembler.consume_resources_for_recipe(*recipe, surrounding_agents);
+
+  // Check consumption matches expected pattern
+  InventoryQuantity consumed1 = 0 - agent1.inventory.amount(TestItems::ORE);
+  InventoryQuantity consumed2 = 1 - agent2.inventory.amount(TestItems::ORE);
+  InventoryQuantity consumed3 = 50 - agent3.inventory.amount(TestItems::ORE);
+  InventoryQuantity consumed4 = 50 - agent4.inventory.amount(TestItems::ORE);
+
+  // Total should be exactly 20
+  EXPECT_EQ(consumed1 + consumed2 + consumed3 + consumed4, 20);
+
+  // Expected consumption pattern: 0, 1, 9-10, 9-10
+  EXPECT_EQ(consumed1, 0) << "Agent with 0 resources should consume 0";
+  EXPECT_EQ(consumed2, 1) << "Agent with 1 resource should consume 1";
+
+  // Remaining 19 should be split between agents 3 and 4 (9 and 10 or 10 and 9)
+  EXPECT_GE(consumed3, 9);
+  EXPECT_LE(consumed3, 10);
+  EXPECT_GE(consumed4, 9);
+  EXPECT_LE(consumed4, 10);
+  EXPECT_EQ(consumed3 + consumed4, 19) << "Agents 3 and 4 should consume the remaining 19";
 }
 
 TEST_F(MettaGridCppTest, AssemblerClippingAndUnclipping) {

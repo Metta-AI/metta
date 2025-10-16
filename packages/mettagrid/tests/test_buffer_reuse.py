@@ -2,6 +2,7 @@
 
 import numpy as np
 
+from mettagrid import dtype_actions
 from mettagrid.builder.envs import make_arena
 from mettagrid.envs.mettagrid_env import MettaGridEnv
 
@@ -16,7 +17,7 @@ def test_buffer_reuse_across_resets():
     """
     # Get basic config
     # Create environment
-    env = MettaGridEnv(make_arena(num_agents=24), render_mode=None)
+    env = MettaGridEnv(make_arena(num_agents=24), render_mode="none")
 
     # Get initial C++ environment reference
     initial_cpp_env = env.c_env
@@ -85,7 +86,7 @@ def test_buffer_consistency_during_episode():
     # Get basic config
 
     # Create environment
-    env = MettaGridEnv(make_arena(num_agents=24), render_mode=None)
+    env = MettaGridEnv(make_arena(num_agents=24), render_mode="none")
 
     # Reset environment
     obs, info = env.reset(seed=42)
@@ -99,7 +100,7 @@ def test_buffer_consistency_during_episode():
     # Take a few steps
     for step in range(5):
         # Create random actions (noop action = 0)
-        actions = np.zeros((env.num_agents, 2), dtype=np.int32)
+        actions = np.zeros(env.num_agents, dtype=dtype_actions)
 
         # Step environment
         obs, rewards, terminals, truncations, info = env.step(actions)

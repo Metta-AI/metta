@@ -2,14 +2,13 @@
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_CORE_EVENT_HPP_
 
 #include <cassert>
-#include <map>
 #include <memory>
 #include <queue>
+#include <unordered_map>
 
 #include "core/grid.hpp"
 #include "core/grid_object.hpp"
 
-using std::map;
 using std::priority_queue;
 using std::unique_ptr;
 
@@ -45,7 +44,7 @@ private:
 
 public:
   Grid* grid;
-  map<EventType, unique_ptr<EventHandler>> event_handlers;
+  std::unordered_map<EventType, unique_ptr<EventHandler>> event_handlers;
 
   EventManager() : _event_queue(), _current_timestep(0), grid(nullptr), event_handlers() {}
 

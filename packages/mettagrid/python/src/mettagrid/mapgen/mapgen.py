@@ -6,7 +6,6 @@ import numpy as np
 from pydantic import Field, ValidatorFunctionWrapHandler, field_validator, model_validator
 
 from mettagrid.map_builder import AnyMapBuilderConfig, GameMap, MapBuilder, MapBuilderConfig, MapGrid
-from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.map_builder.map_builder import validate_any_map_builder
 from mettagrid.map_builder.utils import create_grid
 from mettagrid.mapgen.area import Area, AreaWhere
@@ -20,13 +19,19 @@ class MapGen(MapBuilder):
     class Config(MapBuilderConfig["MapGen"]):
         ########## Global parameters ##########
 
-        # Default border_width value guarantees that agents don't see beyond the outer walls.
-        # This value usually shouldn't be changed.
-        border_width: int = Field(default=5, ge=0)
+        border_width: int = Field(
+            default=5,
+            ge=0,
+            description="Default value guarantees that agents don't see beyond the outer walls. This value usually "
+            "shouldn't be changed.",
+        )
 
-        # Random seed. If not set, a random seed will be generated.
-        # Seeds for root scene and all its children will be derived from this seed, unless they set their own seeds.
-        seed: int | None = Field(default=None, ge=0)
+        seed: int | None = Field(
+            default=None,
+            ge=0,
+            description="Random seed. If not set, a random seed will be generated. Seeds for root"
+            " scene and all its children will be derived from this seed, unless they set their own seeds.",
+        )
 
         ########## Single instance parameters ##########
 
@@ -87,11 +92,20 @@ class MapGen(MapBuilder):
             else:
                 raise ValueError(f"Invalid instance configuration: {v!r}")
 
-        # Inner grid size. Doesn't take outer border into account.
-        # If `instance` is a MapBuilder config, these fields must be None; otherwise, they must be set.
-        # If `instances` is set, this is the size used for each instance.
-        width: int | None = Field(default=None, ge=0)
-        height: int | None = Field(default=None, ge=0)
+        width: int | None = Field(
+            default=None,
+            ge=0,
+            description="""Inner grid width. Doesn't take outer border into account. If `instance` is a MapBuilder
+            config, this field must be None; otherwise, it must be set. If `instances` is set, this is the size used for
+            each instance.""",
+        )
+        height: int | None = Field(
+            default=None,
+            ge=0,
+            description="""Inner grid width. Doesn't take outer border into account. If `instance` is a MapBuilder
+            config, this field must be None; otherwise, it must be set. If `instances` is set, this is the size used for
+            each instance.""",
+        )
 
         ########## Multiple instances parameters ##########
 
@@ -132,22 +146,6 @@ class MapGen(MapBuilder):
             # could be valid, if the scene has an intrinsic size.
 
             return self
-
-        @classmethod
-        def with_ascii_uri(
-            cls, ascii_map_uri: str, char_to_name_map: dict[str, str] | None = None, **kwargs
-        ) -> MapGen.Config:
-            """Create a MapGenConfig with an ASCII map file as instance."""
-
-            kwargs["instance"] = AsciiMapBuilder.Config.from_uri(ascii_map_uri, char_to_name_map)
-            return cls(**kwargs)
-
-        @classmethod
-        def with_ascii_map(cls, ascii_map: str, **kwargs) -> MapGen.Config:
-            """Create a MapGenConfig with an ASCII map as instance."""
-            lines = ascii_map.strip().splitlines()
-            kwargs["instance"] = AsciiMapBuilder.Config(map_data=[list(line) for line in lines])
-            return cls(**kwargs)
 
     def __init__(self, config: Config):
         self.config = config

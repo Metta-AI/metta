@@ -5,7 +5,6 @@ import { SceneTree, StorableMap } from "@/lib/api";
 import { MettaGrid } from "@/lib/MettaGrid";
 
 import { ConfigViewer } from "./ConfigViewer";
-import { CopyToClipboardButton } from "./CopyToClipboardButton";
 import { MapViewer } from "./MapViewer";
 import { SceneTreeViewer } from "./SceneTreeViewer";
 import { Tabs } from "./Tabs";
@@ -14,7 +13,7 @@ export const StorableMapViewer: FC<{
   map: StorableMap;
 }> = ({ map }) => {
   // Parse the frontmatter YAML
-  const grid = useMemo(() => MettaGrid.fromAscii(map.data), [map.data]);
+  const grid = useMemo(() => MettaGrid.fromStorableMap(map), [map]);
 
   const [selectedSceneTree, setSelectedSceneTree] = useState<
     SceneTree | undefined
@@ -49,14 +48,19 @@ export const StorableMapViewer: FC<{
   );
 
   return (
-    <div className="grid min-h-[600px] grid-cols-[400px_1fr_250px] gap-8">
+    <div className="grid min-h-[600px] grid-cols-[400px_1fr] gap-8">
       <div className="max-h-[80vh] overflow-auto">
         <Tabs
           tabs={[
             {
               id: "config",
               label: "Config",
-              content: <ConfigViewer value={map.frontmatter.config} />,
+              content: (
+                <ConfigViewer
+                  value={map.frontmatter.config}
+                  kind="MapBuilderConfig_Any_"
+                />
+              ),
             },
             {
               id: "metadata",
@@ -85,11 +89,6 @@ export const StorableMapViewer: FC<{
       </div>
       <div className="flex flex-col items-center justify-start overflow-auto">
         <MapViewer grid={grid} drawExtra={drawExtra} />
-      </div>
-      <div className="flex flex-col gap-2">
-        <CopyToClipboardButton text={map.data}>
-          Copy Map Data to Clipboard
-        </CopyToClipboardButton>
       </div>
     </div>
   );

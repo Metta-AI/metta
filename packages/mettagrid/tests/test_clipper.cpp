@@ -22,9 +22,10 @@ protected:
   void SetUp() override {
     grid = std::make_unique<Grid>(10, 10);
     current_timestep = 0;
-    unclip_recipe = std::make_shared<Recipe>(std::map<InventoryItem, InventoryQuantity>{{TestItems::ORE, 1}},
-                                             std::map<InventoryItem, InventoryQuantity>{{TestItems::BATTERY, 1}},
-                                             10);
+    unclip_recipe =
+        std::make_shared<Recipe>(std::unordered_map<InventoryItem, InventoryQuantity>{{TestItems::ORE, 1}},
+                                 std::unordered_map<InventoryItem, InventoryQuantity>{{TestItems::BATTERY, 1}},
+                                 10);
   }
 
   void TearDown() override {}
@@ -243,9 +244,10 @@ protected:
   void SetUp() override {
     current_timestep = 0;
     rng.seed(42);
-    unclip_recipe = std::make_shared<Recipe>(std::map<InventoryItem, InventoryQuantity>{{TestItems::ORE, 1}},
-                                             std::map<InventoryItem, InventoryQuantity>{{TestItems::BATTERY, 1}},
-                                             10);
+    unclip_recipe =
+        std::make_shared<Recipe>(std::unordered_map<InventoryItem, InventoryQuantity>{{TestItems::ORE, 1}},
+                                 std::unordered_map<InventoryItem, InventoryQuantity>{{TestItems::BATTERY, 1}},
+                                 10);
   }
 
   void TearDown() override {}

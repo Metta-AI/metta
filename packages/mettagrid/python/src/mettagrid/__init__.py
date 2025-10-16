@@ -27,7 +27,6 @@ _LAZY_ATTRS: Dict[str, Tuple[str, str]] = {
     # Main environment (backward compatible)
     "MettaGridEnv": ("mettagrid.envs.mettagrid_env", "MettaGridEnv"),
     # Environment adapters
-    "MettaGridGymEnv": ("mettagrid.envs.gym_env", "MettaGridGymEnv"),
     "MettaGridPettingZooEnv": (
         "mettagrid.envs.pettingzoo_env",
         "MettaGridPettingZooEnv",
@@ -47,18 +46,17 @@ _LAZY_ATTRS: Dict[str, Tuple[str, str]] = {
     ),
     "validate_action_space": ("mettagrid.types", "validate_action_space"),
     "get_observation_shape": ("mettagrid.types", "get_observation_shape"),
-    "get_action_nvec": ("mettagrid.types", "get_action_nvec"),
+    "get_action_count": ("mettagrid.types", "get_action_count"),
     # Supporting classes
     "GameMap": ("mettagrid.map_builder.map_builder", "GameMap"),
-    "ReplayWriter": ("mettagrid.util.replay_writer", "ReplayWriter"),
     "StatsWriter": ("mettagrid.util.stats_writer", "StatsWriter"),
+    "RenderMode": ("mettagrid.envs.mettagrid_env", "RenderMode"),
 }
 
 if TYPE_CHECKING:
     from mettagrid.config.mettagrid_config import MettaGridConfig
     from mettagrid.core import MettaGridAction, MettaGridCore, MettaGridObservation
-    from mettagrid.envs.gym_env import MettaGridGymEnv
-    from mettagrid.envs.mettagrid_env import MettaGridEnv
+    from mettagrid.envs.mettagrid_env import MettaGridEnv, RenderMode
     from mettagrid.envs.pettingzoo_env import MettaGridPettingZooEnv
     from mettagrid.map_builder.map_builder import GameMap
     from mettagrid.mettagrid_c import (
@@ -71,12 +69,11 @@ if TYPE_CHECKING:
         dtype_truncations,
     )
     from mettagrid.types import (
-        get_action_nvec,
+        get_action_count,
         get_observation_shape,
         validate_action_space,
         validate_observation_space,
     )
-    from mettagrid.util.replay_writer import ReplayWriter
     from mettagrid.util.stats_writer import StatsWriter
 
     try:
@@ -89,10 +86,8 @@ __all__ = [
     "MettaGridConfig",
     # Core classes
     "MettaGridCore",
-    # Main environment (backward compatible)
     "MettaGridEnv",
     # Environment adapters
-    "MettaGridGymEnv",
     "MettaGridPettingZooEnv",
     # Data types (from C++)
     "dtype_actions",
@@ -108,11 +103,11 @@ __all__ = [
     "validate_observation_space",
     "validate_action_space",
     "get_observation_shape",
-    "get_action_nvec",
+    "get_action_count",
     # Supporting classes
     "GameMap",
-    "ReplayWriter",
     "StatsWriter",
+    "RenderMode",
     # Optional visualization module
     "mettascope",
 ]

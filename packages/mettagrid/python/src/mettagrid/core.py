@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import numpy.typing as npt
@@ -47,8 +47,8 @@ logger = logging.getLogger("MettaGridCore")
 # - value: uint8 feature value
 MettaGridObservation = npt.NDArray[np.uint8]  # Shape: (num_tokens, 3)
 
-# Actions are MultiDiscrete: shape (num_action_dims,) where each dimension is an action choice
-MettaGridAction = npt.NDArray[np.int32]  # Shape: (num_action_dims,)
+# Actions are Discrete: single integer index representing unique action choices
+MettaGridAction = npt.NDArray[np.int32]  # Shape: ()
 
 
 @dataclass
@@ -78,7 +78,6 @@ class MettaGridCore:
     def __init__(
         self,
         mg_config: MettaGridConfig,
-        render_mode: Optional[str] = None,
     ):
         """Initialize core MettaGrid functionality."""
         if not isinstance(mg_config, MettaGridConfig):
@@ -87,7 +86,6 @@ class MettaGridCore:
         # We protect the env config with __ to avoid accidental modification
         # by subclasses. It should only be modified through set_mg_config.
         self.__mg_config = mg_config
-        self._render_mode = render_mode
         self._renderer = None
         self._current_seed: int = 0
 
@@ -98,10 +96,6 @@ class MettaGridCore:
         self.terminals: np.ndarray
         self.truncations: np.ndarray
         self.rewards: np.ndarray
-
-        # Initialize renderer class if needed (before C++ env creation)
-        if self._render_mode is not None:
-            self._initialize_renderer()
 
         self.__c_env_instance: MettaGridCpp = self._create_c_env()
         self._update_core_buffers()
@@ -123,16 +117,6 @@ class MettaGridCore:
             raise RuntimeError("Environment not initialized")
         return self.__c_env_instance
 
-    def _initialize_renderer(self) -> None:
-        """Initialize renderer class based on render mode."""
-        self._renderer = None
-        self._renderer_class = None
-        self._renderer_native = False
-        if self._render_mode in ("human", "miniscope"):
-            from mettagrid.renderer.miniscope import MiniscopeRenderer
-
-            self._renderer_class = MiniscopeRenderer
-
     def _create_c_env(self) -> MettaGridCpp:
         game_map = self._map_builder.build()
 
@@ -140,6 +124,7 @@ class MettaGridCore:
         level_agents = np.count_nonzero(np.char.startswith(game_map.grid, "agent"))
         assert self.__mg_config.game.num_agents == level_agents, (
             f"Number of agents {self.__mg_config.game.num_agents} does not match number of agents in map {level_agents}"
+            f". This may be because your map, after removing border width, is too small to fit the number of agents."
         )
         game_config_dict = self.__mg_config.game.model_dump()
 
@@ -157,20 +142,6 @@ class MettaGridCore:
 
         # Validate that C++ environment conforms to expected types
         self._validate_c_env_types(c_env)
-
-        # Initialize renderer if needed
-        if (
-            self._render_mode is not None
-            and self._renderer is None
-            and hasattr(self, "_renderer_class")
-            and self._renderer_class is not None
-        ):
-            if self._renderer_native:
-                self._renderer = self._renderer_class()
-            else:
-                self._renderer = self._renderer_class(
-                    c_env.object_type_names(), self.__mg_config.game, c_env.map_height, c_env.map_width
-                )
 
         self.__c_env_instance = c_env
         return c_env
@@ -206,17 +177,23 @@ class MettaGridCore:
 
         return obs, infos
 
-    def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
+    def step(
+        self, actions: np.ndarray | int | Sequence[int]
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
         """Execute one timestep of the environment dynamics with the given actions."""
-        # Execute step in core environment
-        return self.__c_env_instance.step(actions)
+        arr = np.asarray(actions, dtype=dtype_actions)
+        if arr.ndim != 1 or arr.shape[0] != self.num_agents:
+            raise ValueError(
+                f"Expected actions of shape ({self.num_agents},) but received {arr.shape}; "
+                "ensure policies emit a scalar action id per agent"
+            )
+        return self.__c_env_instance.step(arr)
 
-    def render(self) -> Optional[str]:
+    def render(self) -> None:
         """Render the environment."""
-        if self._renderer is None or self.__c_env_instance is None:
-            return None
-
-        return self._renderer.render(self.__c_env_instance.current_step, self.__c_env_instance.grid_objects())
+        # Rendering is now handled via the renderer parameter passed to MettaGridEnv
+        # This method is kept for backward compatibility but does nothing
+        pass
 
     def close(self) -> None:
         """Close the environment."""
@@ -229,11 +206,6 @@ class MettaGridCore:
     def get_episode_stats(self) -> EpisodeStats:
         """Get the episode stats."""
         return self.__c_env_instance.get_episode_stats()
-
-    @property
-    def render_mode(self) -> Optional[str]:
-        """Get render mode."""
-        return self._render_mode
 
     @property
     def core_env(self) -> Optional[MettaGridCpp]:
@@ -271,18 +243,13 @@ class MettaGridCore:
         return self.__c_env_instance.observation_space
 
     @property
-    def _action_space(self) -> spaces.MultiDiscrete:
+    def _action_space(self) -> spaces.Discrete:
         """Internal action space - use single_action_space for PufferEnv compatibility."""
         return self.__c_env_instance.action_space
 
     @property
     def action_names(self) -> List[str]:
         return self.__c_env_instance.action_names()
-
-    @property
-    def max_action_args(self) -> List[int]:
-        action_args_array = self.__c_env_instance.max_action_args()
-        return [int(x) for x in action_args_array]
 
     @property
     def object_type_names(self) -> List[str]:

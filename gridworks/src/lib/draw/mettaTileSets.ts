@@ -1,24 +1,73 @@
 import { TileSet, TileSetSource } from "./TileSet";
 import { TileSetCollection } from "./TileSetCollection";
 
-const sources = [
+export const TILE_NAMES = [
   "altar",
   "armory",
   "factory",
   "generator",
-  "generator.color",
+  "generator_red",
+  "generator_blue",
+  "generator_green",
   "mine",
-  "mine.color",
+  "mine_red",
+  "mine_blue",
+  "mine_green",
+  "charger",
+  "carbon_extractor",
+  "oxygen_extractor",
+  "germanium_extractor",
+  "silicon_extractor",
+  "clipped_carbon_extractor",
+  "clipped_oxygen_extractor",
+  "clipped_germanium_extractor",
+  "clipped_silicon_extractor",
+  "oxygen_ex_dep",
+  "carbon_ex_dep",
+  "germanium_ex_dep",
+  "silicon_ex_dep",
+  "assembler",
+  "chest",
+  "chest_carbon",
+  "chest_oxygen",
+  "chest_germanium",
+  "chest_silicon",
   "lab",
   "lasery",
   "temple",
-  "wall",
   "block",
-  "agent",
-].map(
+  "wall",
+  // doesn't include "agent" or "wall.*", they're special
+];
+
+export const WALL_NAMES = [
+  "wall.0",
+  "wall.e",
+  "wall.s",
+  "wall.se",
+  "wall.w",
+  "wall.we",
+  "wall.ws",
+  "wall.wse",
+  "wall.n",
+  "wall.ne",
+  "wall.ns",
+  "wall.nse",
+  "wall.nw",
+  "wall.nwe",
+  "wall.nws",
+  "wall.nwse",
+];
+
+export const WALL_E = 1;
+export const WALL_S = 2;
+export const WALL_W = 4;
+export const WALL_N = 8;
+
+const sources = [...TILE_NAMES, ...WALL_NAMES, "wall.fill", "agent"].map(
   (name) =>
     ({
-      src: `/assets/objects/${name}.png`,
+      src: `/mettascope-assets/objects/${name}.png`,
       tileSize: 256,
       tiles: [
         {

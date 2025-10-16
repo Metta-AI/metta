@@ -9,7 +9,6 @@ from metta.common.util.collections import is_unique
 from metta.common.util.heartbeat import record_heartbeat
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.eval.eval_stats_db import EvalStatsDB
-from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation import Simulation, SimulationCompatibilityError
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
@@ -23,27 +22,21 @@ def evaluate_policy(
     simulations: list[SimulationConfig],
     device: torch.device,
     vectorization: str,
-    stats_dir: str | None = None,
-    replay_dir: str | None = None,
+    replay_dir: str,
+    stats_dir: str = "/tmp/stats",
     export_stats_db_uri: str | None = None,
     stats_epoch_id: uuid.UUID | None = None,
     eval_task_id: uuid.UUID | None = None,
     stats_client: StatsClient | None,
 ) -> EvalResults:
     """Evaluate one policy URI, merging all simulations into a single StatsDB."""
-    stats_dir = stats_dir or "/tmp/stats"
-
     logger.info(f"Evaluating checkpoint {checkpoint_uri}")
-    if not is_unique([sim.name for sim in simulations]):
+    if not is_unique([sim.full_name for sim in simulations]):
         raise ValueError("Simulation names must be unique")
-
-    # Load the policy from URI directly to the correct device
-    policy = CheckpointManager.load_from_uri(checkpoint_uri, device=device)
 
     sims = [
         Simulation(
             cfg=sim,
-            policy=policy,
             policy_uri=checkpoint_uri,
             device=device,
             vectorization=vectorization,
