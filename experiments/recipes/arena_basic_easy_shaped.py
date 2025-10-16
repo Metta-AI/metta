@@ -256,7 +256,7 @@ def train_grid(
     - Update epochs: {1, 2, 4}
     - LR scaling: lr = lr_default * (batch_multiplier ** learning_rate_scale_exponent)
     - World-size scaling enabled to keep per-rank batch appropriate
-    - Total timesteps fixed at 5e9
+    - Total timesteps fixed at 2e9
     """
 
     curriculum = make_curriculum()
@@ -276,7 +276,7 @@ def train_grid(
         scale_batches_by_world_size=True,
         update_epochs=int(num_epochs),
         optimizer=OptimizerConfig(learning_rate=scaled_lr),
-        total_timesteps=5_000_000_000,
+        total_timesteps=2_000_000_000,
     )
 
     return TrainTool(
