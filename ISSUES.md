@@ -24,12 +24,17 @@ This document tracks all open concerns and review comments from PR #2384: "feat:
 
 ---
 
-### 2. Return Value Usage (job_helpers.py)
+### 2. Return Value Usage (job_helpers.py) ✅ VERIFIED
 **Reviewer:** @berekuk
-**Status:** Open
+**Status:** **COMPLETED** (Already correct)
 **Location:** `devops/skypilot/utils/job_helpers.py`
 
 **Issue:** Error message return values from helper functions aren't being used in `launch.py`
+
+**Resolution:** Upon inspection, the return values ARE being used correctly:
+- `check_git_state()` returns `str | None` and is properly checked in `launch.py:219-223`
+- Error messages are printed and cause script to exit when validation fails
+- No changes needed - the code was already correct
 
 **Priority:** Medium - error handling concern
 
@@ -37,17 +42,20 @@ This document tracks all open concerns and review comments from PR #2384: "feat:
 
 ## Type Safety Improvements
 
-### 3. Termination Reason Type Safety
+### 3. Termination Reason Type Safety ✅ FIXED
 **Reviewer:** @berekuk
-**Status:** **DEFERRED** (Low priority, can be addressed in follow-up)
+**Status:** **COMPLETED**
 
 **Issue:** `termination_reason` is currently a string, should be a typed dataclass with enum
 
-**Current Approach:** Plain string
-**Suggested Approach:** Typed dataclass with enum for better type safety
+**Fix Applied:**
+- Created `TerminationReason` enum with all termination reason values
+- Updated all monitors to use enum values instead of plain strings
+- Updated `skypilot_run.py` to use enum throughout
+- Added helper methods for dynamic reason creation (`with_exit_code`, `parse_os_error`, `parse_unexpected_error`)
+- Provides better IDE autocomplete, catches typos at dev time, and clarifies valid termination reasons
 
 **Priority:** Medium - technical debt
-**Decision:** Keep as strings for now since they're used consistently throughout the codebase
 
 ---
 
@@ -156,18 +164,18 @@ fi
 ### Completed Improvements ✅
 
 1. **Job Registration Reliability** - Replaced unreliable `time.sleep()` with proper retry logic using `retry_function` with exponential backoff
-2. **Monitor Abstract Base Class** - Added typed ABC for all monitors, improving code organization and type safety
-3. **Simplified Monitor Return Types** - Changed from `tuple[bool, Optional[str]]` to `str | None` for clearer API
-4. **Auto Monitor Names** - Monitors now use `__class__.__name__` instead of manual name properties
-5. **Removed Defensive Code** - Cleaned up unnecessary venv deactivation logic from skypilot_run.yaml
-6. **Fixed File Path References** - Updated paths from `launch/` to `recipes/` directory after main branch rename
+2. **Return Value Usage** - Verified that error messages ARE being used correctly in `launch.py`
+3. **Termination Reason Type Safety** - Created `TerminationReason` enum for all termination reasons with helper methods
+4. **Monitor Abstract Base Class** - Added typed ABC for all monitors, improving code organization and type safety
+5. **Simplified Monitor Return Types** - Changed from `tuple[bool, Optional[str]]` to `str | None` for clearer API
+6. **Auto Monitor Names** - Monitors now use `__class__.__name__` instead of manual name properties
+7. **Removed Defensive Code** - Cleaned up unnecessary venv deactivation logic from skypilot_run.yaml
+8. **Fixed File Path References** - Updated paths from `launch/` to `recipes/` directory after main branch rename
 
-### Remaining Items
+### Remaining Items (Acknowledged for Follow-up PRs)
 
-1. **Return Value Usage** - Need to review if error messages from helper functions should be used in `launch.py` (Low priority)
-2. **Termination Reason Type Safety** - Consider adding typed enum for termination reasons (Deferred - can be follow-up)
-3. **Client/Server Separation** - Better organize code separation (Acknowledged for follow-up PR)
-4. **Rename skypilot_run.yaml** - Consider renaming to job.yaml for clarity (Acknowledged for follow-up PR)
+1. **Client/Server Separation** - Better organize code separation between client and server code
+2. **Rename skypilot_run.yaml** - Consider renaming to job.yaml for clarity
 
 ### Notes
 
