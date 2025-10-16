@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Wrapper script for metta command
+# This allows users to run 'metta' directly without prefixing with 'uv run'
+
+# Function to find the metta repository root starting from a given directory
+find_metta_root_from() {
+    local dir="$1"
+    while [ "$dir" != "/" ]; do
+        # Check if this is a metta repository
+        # Note: .git can be either a directory (regular repo) or a file (worktree)
+        if [ -f "$dir/metta/setup/metta_cli.py" ] && [ -e "$dir/.git" ]; then
+            echo "$dir"
+            return 0
+        fi
+        dir="$(dirname "$dir")"
+    done
+    return 1
+}
+
+# First, resolve the symlink to find the default metta repository
+# This ensures we use the repository where the symlink points (e.g., m3)
+SCRIPT_PATH="$(readlink -f "$0" 2>/dev/null || readlink "$0" 2>/dev/null || echo "$0")"
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+DEFAULT_PROJECT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+
+# Now check if we're currently in a different metta repository
+if current_metta_root=$(find_metta_root_from "$PWD"); then
+    # We're in a metta repository - use it instead of the default
+    PROJECT_DIR="$current_metta_root"
+else
+    # Not in a metta repository - use the default (where symlink points)
+    PROJECT_DIR="$DEFAULT_PROJECT_DIR"
+fi
+
+# Run metta using uv with the project directory
+exec uv run --project "$PROJECT_DIR" python -m metta.setup.metta_cli "$@"

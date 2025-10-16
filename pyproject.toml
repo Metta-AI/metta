@@ -62,6 +62,7 @@ dependencies = [
   "tiktoken>=0.9.0",
   "torch>=2.7.1",
   "torchrl>=0.8.1",
+  "transformers>=4.45.0",
   "tqdm>=4.67.1",
   "typer>=0.19.2",
   "uvicorn[standard]>=0.34.2",

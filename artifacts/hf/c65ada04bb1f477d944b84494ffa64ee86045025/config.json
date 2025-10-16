@@ -1,0 +1,25 @@
+{
+  "architectures": [
+    "MettaPolicyForRL"
+  ],
+  "auto_map": {
+    "AutoConfig": [
+      "hf_metta_policy.configuration_metta_policy",
+      "MettaPolicyConfig"
+    ],
+    "AutoModel": [
+      "hf_metta_policy.modeling_metta_policy",
+      "MettaPolicyForRL"
+    ]
+  },
+  "checkpoint_filename": "policy.pt",
+  "code_roots": [
+    "agent/src",
+    "metta"
+  ],
+  "code_snapshot_subdir": "code_snapshot",
+  "extra_metadata": {},
+  "model_type": "metta-policy",
+  "source_commit": "d1fbfc60a071e649758417b01c16003655d1d492",
+  "transformers_version": "4.57.1"
+}
