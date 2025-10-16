@@ -1,5 +1,7 @@
 #!/bin/bash
-# Script to launch contrastive loss ablation study
+
+# Note: Using reduced batch sizes for 4 GPU setup to avoid OOM
+
 BASE_RUN_NAME="tasha.10.15.shaped_hypers_vit_2"
 
 PAIRED_SEEDS=(42 123 456)
@@ -18,6 +20,8 @@ for i in "${!PAIRED_SEEDS[@]}"; do
         system.seed=$SEED \
         training_env.seed=$SEED \
         trainer.losses.enable_contrastive=true \
+        trainer.batch_size=262144 \
+        trainer.minibatch_size=8192 \
         --gpus 4 \
         --max-runtime-hours 8
 
@@ -29,12 +33,13 @@ for i in "${!PAIRED_SEEDS[@]}"; do
         system.seed=$SEED \
         training_env.seed=$SEED \
         trainer.losses.enable_contrastive=false \
+        trainer.batch_size=262144 \
+        trainer.minibatch_size=8192 \
         --gpus 4 \
         --max-runtime-hours 8
 
     echo ""
 done
 
-echo "All jobs launched!"
+echo "All 8 jobs launched!"
 echo "Monitor with: sky jobs queue"
-
