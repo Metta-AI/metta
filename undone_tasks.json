@@ -1,1 +1,962 @@
-[{"gid":"1211643546103111","name":"Diagnose and repair LSTM in cogames ","completed":false},{"gid":"1209661379538186","name":"Office Mettaquarium","completed":true},{"gid":"1211348044162691","name":"Relax Python version requirements ","completed":true},{"gid":"1211069421664747","name":"Align with researcher tools on notebooks/plotly dashboards","completed":false},{"gid":"1210793382718996","name":"Goal: generate a stable Pattern for running for Performance Evaluations/comparisons","completed":false},{"gid":"1210768867477704","name":"v1 figure of merit formula for arena environment","completed":false},{"gid":"1209208922660736","name":"Trial Datadog","completed":true},{"gid":"1209661379538188","name":"Level construction based on time and reward","completed":true},{"gid":"1210257376876538","name":"add heartbeat and shut down stuck jobs","completed":true},{"gid":"1209208922660615","name":"Specify envs for replays","completed":false},{"gid":"1209041170403516","name":"Generate replays during training","completed":false},{"gid":"1209208922660846","name":"Add dormant neurons graph to Wandb / evals","completed":false},{"gid":"1211458385718916","name":"Cogames Policies","completed":true},{"gid":"1211501032736057","name":"Benchmark all architectures","completed":false},{"gid":"1210768673357064","name":"Merge recommendation for default configuration for Arena","completed":false},{"gid":"1210189468261556","name":"Share a vecenv in SimulationSuite","completed":false},{"gid":"1211665269726540","name":"Add unit test that same seed gives us the same model weights + starting config","completed":false},{"gid":"1209208922660706","name":"Early stopping training","completed":false},{"gid":"1210768867764961","name":"Implement automated early termination policy (waiting for Skypilot)","completed":false},{"gid":"1210797922141228","name":"Automatically control update_epochs","completed":false},{"gid":"1211366167295815","name":"Trainer refactor: David finishes or hands off in next couple of days","completed":true},{"gid":"1211366023737817","name":"Trainer refactor","completed":true},{"gid":"1210397100757356","name":"Mettaboxes","completed":false},{"gid":"1209694588206333","name":"Easy job log access for skypilot jobs ","completed":false},{"gid":"1209300681992284","name":"Fix WANDB timeouts in aws runs","completed":false},{"gid":"1210836493505871","name":"Give users simple access to cost information (waiting for skypilot)","completed":false},{"gid":"1209208922660670","name":"MettaGrid training on Google Colab","completed":false},{"gid":"1210768672358004","name":"AWS instance comparison report","completed":false},{"gid":"1210892820911816","name":"Check VAST for 4090/5090 Dev boxes","completed":false},{"gid":"1210892820911818","name":"Time the various GPUs, like H100 vs. A100 vs. etc","completed":false},{"gid":"1209480502135241","name":"Modal: High-performance AI infrastructure","completed":false},{"gid":"1210768867894504","name":"Define scaling experiment recipe and analysis pipeline","completed":false},{"gid":"1210794035717156","name":"Clean interfaces to alternative training systems ","completed":false},{"gid":"1210691431933850","name":"Make architecture modification more flexible for external researchers","completed":true},{"gid":"1209148137213831","name":"Fix policy_store._cached_prs","completed":false},{"gid":"1209394151090423","name":"Atomic saves","completed":false},{"gid":"1210769258927270","name":"Clear design document for agent refactor","completed":false},{"gid":"1211366079505398","name":"External obs can support tensor or tensor dict","completed":false},{"gid":"1211366077406187","name":"External obs can be tokens or box grid","completed":true},{"gid":"1211366168933471","name":"Should accept actions in the multi-discrete shape","completed":true},{"gid":"1211366023159308","name":"Policy class locks down the interface to our environment","completed":true},{"gid":"1211366167894254","name":"Really clean python interface to any policy, and we wrap these","completed":true},{"gid":"1209661381715538","name":"Robust-to-new-versions Agent","completed":false},{"gid":"1210701752469476","name":"Schedule Agent Interface Design Mtng","completed":true},{"gid":"1211377548529735","name":"Train/Agent simplified to support simple Cogs v. Clips interface","completed":true},{"gid":"1210851220510512","name":"Cogweb Agent Bucket for agents","completed":false},{"gid":"1210768736506416","name":"Train latent attention agent on arena","completed":true},{"gid":"1210279380944526","name":"Create infrastructure for integrating transformers","completed":true},{"gid":"1211366167120263","name":"TransformerXL (Week 1)","completed":true},{"gid":"1211068828541795","name":"HuggingFaceTB/SmolLM2-135M · Hugging Face","completed":false},{"gid":"1211614906026722","name":"LoRA","completed":false},{"gid":"1211366082180353","name":"Agalite","completed":true},{"gid":"1211366127997815","name":"ViT","completed":true},{"gid":"1211483975821942","name":"MAMBA","completed":true},{"gid":"1211483975821944","name":"DRAMA","completed":true},{"gid":"1211334022894072","name":"HRM (Hierarchical Reasoning Model)","completed":false},{"gid":"1210286336916414","name":"Integrate noisy linear","completed":false},{"gid":"1209661381715536","name":"Global Observations","completed":false},{"gid":"1210284652865440","name":"Train a transformer on hard envs","completed":false},{"gid":"1210284652865429","name":"Eval a transformer vs. other models","completed":true},{"gid":"1211483237885521","name":"Sliding Context Window Memory Transformer","completed":true},{"gid":"1210952663535195","name":"Give agent FULL context window (no memory) what is maximum achievable operating over everything","completed":true},{"gid":"1211590894831394","name":"Add sliding window flash attention to cortex ","completed":false},{"gid":"1211366082402133","name":"Recurrent Trace Unit","completed":false},{"gid":"1211386207776011","name":"Investigate mixtures of experts","completed":false},{"gid":"1210282198057739","name":"Implement Continuous Dropout","completed":false},{"gid":"1209548780079332","name":"LSTM Entropy","completed":false},{"gid":"1211366081971886","name":"xLSTM","completed":true},{"gid":"1211014686946592","name":"Spectral norm LSTM gate weights\n","completed":false},{"gid":"1210286336916416","name":"Test an embedded LSTM","completed":false},{"gid":"1209778674231666","name":"Add noise to RNN","completed":false},{"gid":"1211366168177678","name":"LSTM Burn-in","completed":true},{"gid":"1211377548529672","name":"LSTM Resets","completed":true},{"gid":"1210392276593852","name":"Predictive Loss","completed":false},{"gid":"1211366082087987","name":"Add Dynamics Model: Next action prediction ","completed":false},{"gid":"1211377548529684","name":"Add Dynamics Model: Next value prediction","completed":false},{"gid":"1211366081045969","name":"Add Contrastive Loss","completed":false},{"gid":"1211366023633219","name":"Add EMA of Future Latent State Prediction Loss","completed":false},{"gid":"1211366082780014","name":"Add Stable Latent State Loss","completed":false},{"gid":"1209661381715532","name":"Observation Prediction","completed":false},{"gid":"1210921009975326","name":"GRPO","completed":false},{"gid":"1209997528390269","name":"Try ScheduleFree","completed":true},{"gid":"1209208922660224","name":"Test out Muon optimizer. ","completed":false},{"gid":"1210527330325140","name":"Try out fibrations","completed":false},{"gid":"1209208922660336","name":"Try KL loss in PPO","completed":false},{"gid":"1210730874237408","name":"Support \"bring your own\" e.g., Losses","completed":true},{"gid":"1210835256607820","name":"Goal: Lay foundation for loss densification and architecture flexibility","completed":true},{"gid":"1211366081860048","name":"Add Loss scheduling, i.e., saving the state of losses","completed":false},{"gid":"1211366024409404","name":"Add MUESLI","completed":false},{"gid":"1211471933325968","name":"Add CMPO","completed":false},{"gid":"1211366169251945","name":"Replicate Ada","completed":false},{"gid":"1211366169326504","name":"Experiment with diversity (DIAYN)","completed":false},{"gid":"1211377548529720","name":"Experiment with fitnotyping","completed":false},{"gid":"1211414008323001","name":"GBPE ","completed":false},{"gid":"1211414008323007","name":"30 sweeps per confirmed result","completed":false},{"gid":"1211414008323010","name":"Lambda Returns","completed":false},{"gid":"1211414008323013","name":"Exploration: Successor Features/Representation","completed":false},{"gid":"1211414008323018","name":"Exploration: Deep Laplacian Representation ","completed":false},{"gid":"1211414008917193","name":"Chat with labmates about useful RL tricks","completed":false},{"gid":"1209070474559682","name":"Empirical-precision-weighted kalman updates","completed":false},{"gid":"1210769219224464","name":"Experiment with error-based signals, e.g. regret","completed":false},{"gid":"1209208922660663","name":"Task Graph Test","completed":false},{"gid":"1209661379538164","name":"Kickstarting single student from single teacher","completed":false},{"gid":"1210768737314651","name":"Demonstrate kickstarting efficiency","completed":false},{"gid":"1210803372736877","name":"Goal: Establish SOTA results in arena with kickstarting","completed":false},{"gid":"1211366022781592","name":"Continuous distillation","completed":false},{"gid":"1209843025820874","name":"Clean up curricula <> simulations interactions. tools should accept curricula but simulations should not ","completed":false},{"gid":"1211496531542715","name":"Rename EnvironmentMetaData to GameRules","completed":false},{"gid":"1210768737095586","name":"Sweep over learning progress hypers","completed":false},{"gid":"1209843025820875","name":"Measure Learning Progress performance in arena and navigation against other curricula","completed":false},{"gid":"1211366170684412","name":"Centralize and checkpointing for curriculum","completed":true},{"gid":"1211366024221512","name":"Dreamer v3","completed":false},{"gid":"1211366081690070","name":"Mining replays for supervised learning dataset","completed":false},{"gid":"1211413398528738","name":"FACTS: A Factored State-Space Framework for World Modelling","completed":false},{"gid":"1211034485747674","name":"Implement Nevergrad adapter ","completed":false},{"gid":"1211034485747675","name":"Improve PROTEIN:","completed":false},{"gid":"1210769218369227","name":"Make scorecards for comparing performance of different training regimes","completed":false},{"gid":"1210835256607814","name":"Sweep over Navigation recipe","completed":false},{"gid":"1211366081074075","name":"Week 1: Integrate new hyper parameters","completed":true},{"gid":"1211366080964632","name":"Write a validation experiment for best run/hyper selection at the end of a sweep.  ","completed":false},{"gid":"1211366170784149","name":"Early termination for sweeps","completed":true},{"gid":"1211366023296832","name":"[DEPR] Wait until someones burnt with sweeped hypers before making it notify","completed":true},{"gid":"1211366025214105","name":"We should post and update when hyperparams update","completed":false},{"gid":"1211366025760607","name":"Cost/Resource sweeping (Axel)","completed":false},{"gid":"1209093125647581","name":"Write a shell script that will run train across multiple parameters","completed":true},{"gid":"1211366023715604","name":"Generational sweeps","completed":false},{"gid":"1211366171266384","name":"Doxascope","completed":false},{"gid":"1211366079632345","name":"Training Pipeline","completed":false},{"gid":"1211366166789802","name":"Supervised learning","completed":false},{"gid":"1211366168188140","name":"Imitation learning","completed":false},{"gid":"1209043561406868","name":"Syllabus Support","completed":false},{"gid":"1209394151090417","name":"Try using average-reward and no discounting","completed":false},{"gid":"1211665269726547","name":"Deterministic runs","completed":false},{"gid":"1209661379538190","name":"Memory Architecture, memory tokens?","completed":false},{"gid":"1210786852138807","name":"Evals broken with NPC policies","completed":false},{"gid":"1210943495769120","name":"Design simple but effective scripted NPCs","completed":false},{"gid":"1211365428128399","name":"Integrate NPC through losses post-dehydration","completed":false},{"gid":"1211366023380595","name":"Training against a pre-existing policy","completed":false},{"gid":"1209017937764257","name":"Multi-Policy Training (PufferLib)","completed":false},{"gid":"1210979764834655","name":"Research: Can we train a policy to help a uri specified NPC get more reward?","completed":false},{"gid":"1209164338788423","name":"Add measurements for fairness during evaluation","completed":false},{"gid":"1209661379538166","name":"AMAGO","completed":false},{"gid":"1209661379538184","name":"Exploration","completed":false},{"gid":"1209661381715554","name":"Hierchiechal RL","completed":false},{"gid":"1209805021772139","name":"Debugging Reinforcement Learning Systems","completed":false},{"gid":"1209734926321013","name":"Exploring MAPG","completed":false},{"gid":"1209734926321017","name":"Exploring Distributional RL","completed":false},{"gid":"1210992256238856","name":"Simplified Temporal Consistency Reinforcement Learning","completed":false},{"gid":"1210578513824126","name":"Evolutionary Policy Optimization","completed":false},{"gid":"1209021128429249","name":"Remove that Square Root: A New Efficient\nScale-Invariant Version of AdaGrad","completed":false},{"gid":"1209017937764336","name":"The Road Less Scheduled","completed":false},{"gid":"1209017937764338","name":"Adam on Local Time Addressing Nonstationarity in RL with Relative Adam Timesteps","completed":false},{"gid":"1209148136958987","name":"Legendre Memory Units: Continuous-Time Representation in Recurrent Neural Networks","completed":false},{"gid":"1209661381715534","name":"Neural Damage","completed":false},{"gid":"1209070474559707","name":"Harnessing Uncertainty: Entropy-Modulated Policy Gradients for Long-Horizon LLM Agents","completed":false},{"gid":"1211419372602429","name":"Deep Complex Networks","completed":false},{"gid":"1211377548527521","name":"See \"RL Infrastructure\" for GrabBag: https://app.asana.com/1/1209016784099267/project/1209041170403490/list/1209017020013677","completed":true},{"gid":"1211377548529727","name":"Audit RL Infrastructure Asana and re-incorporate here","completed":true},{"gid":"1211377548529729","name":"Audit Prior Episode and re-incorporate here","completed":true}]
+[
+  {
+    "gid": "1211643546103111",
+    "assignee": {
+      "gid": "1210156468476325",
+      "name": "Dominik Farr"
+    },
+    "completed": false,
+    "name": "Diagnose and repair LSTM in cogames "
+  },
+  {
+    "gid": "1211069421664747",
+    "assignee": {
+      "gid": "1210562604873083",
+      "name": "Matthew Bull"
+    },
+    "completed": false,
+    "name": "Align with researcher tools on notebooks/plotly dashboards"
+  },
+  {
+    "gid": "1210793382718996",
+    "assignee": {
+      "gid": "1210562604873083",
+      "name": "Matthew Bull"
+    },
+    "completed": false,
+    "name": "Goal: generate a stable Pattern for running for Performance Evaluations/comparisons"
+  },
+  {
+    "gid": "1210768867477704",
+    "assignee": {
+      "gid": "1209745820121609",
+      "name": "Axel Kerbec"
+    },
+    "completed": false,
+    "name": "v1 figure of merit formula for arena environment"
+  },
+  {
+    "gid": "1209208922660615",
+    "assignee": null,
+    "completed": false,
+    "name": "Specify envs for replays"
+  },
+  {
+    "gid": "1209041170403516",
+    "assignee": null,
+    "completed": false,
+    "name": "Generate replays during training"
+  },
+  {
+    "gid": "1209208922660846",
+    "assignee": {
+      "gid": "1210748130054770",
+      "name": "Michael Hollander"
+    },
+    "completed": false,
+    "name": "Add dormant neurons graph to Wandb / evals"
+  },
+  {
+    "gid": "1211501032736057",
+    "assignee": {
+      "gid": "1211215486118014",
+      "name": "Tasha Pais"
+    },
+    "completed": false,
+    "name": "Benchmark all architectures"
+  },
+  {
+    "gid": "1210768673357064",
+    "assignee": {
+      "gid": "1211215486118014",
+      "name": "Tasha Pais"
+    },
+    "completed": false,
+    "name": "Merge recommendation for default configuration for Arena"
+  },
+  {
+    "gid": "1210189468261556",
+    "assignee": null,
+    "completed": false,
+    "name": "Share a vecenv in SimulationSuite"
+  },
+  {
+    "gid": "1211665269726540",
+    "assignee": {
+      "gid": "1211215486118014",
+      "name": "Tasha Pais"
+    },
+    "completed": false,
+    "name": "Add unit test that same seed gives us the same model weights + starting config"
+  },
+  {
+    "gid": "1209208922660706",
+    "assignee": {
+      "gid": "1210156468476325",
+      "name": "Dominik Farr"
+    },
+    "completed": false,
+    "name": "Early stopping training"
+  },
+  {
+    "gid": "1210768867764961",
+    "assignee": {
+      "gid": "1210156468476325",
+      "name": "Dominik Farr"
+    },
+    "completed": false,
+    "name": "Implement automated early termination policy (waiting for Skypilot)"
+  },
+  {
+    "gid": "1210797922141228",
+    "assignee": null,
+    "completed": false,
+    "name": "Automatically control update_epochs"
+  },
+  {
+    "gid": "1210397100757356",
+    "assignee": {
+      "gid": "1210265575384509",
+      "name": "Richard Higgins"
+    },
+    "completed": false,
+    "name": "Mettaboxes"
+  },
+  {
+    "gid": "1209694588206333",
+    "assignee": {
+      "gid": "1211010835124172",
+      "name": "Teo Ionita"
+    },
+    "completed": false,
+    "name": "Easy job log access for skypilot jobs "
+  },
+  {
+    "gid": "1209300681992284",
+    "assignee": {
+      "gid": "1211010835124172",
+      "name": "Teo Ionita"
+    },
+    "completed": false,
+    "name": "Fix WANDB timeouts in aws runs"
+  },
+  {
+    "gid": "1210836493505871",
+    "assignee": {
+      "gid": "1210156468476325",
+      "name": "Dominik Farr"
+    },
+    "completed": false,
+    "name": "Give users simple access to cost information (waiting for skypilot)"
+  },
+  {
+    "gid": "1209208922660670",
+    "assignee": {
+      "gid": "1203757829157834",
+      "name": "harshbhatt7585@gmail.com"
+    },
+    "completed": false,
+    "name": "MettaGrid training on Google Colab"
+  },
+  {
+    "gid": "1210768672358004",
+    "assignee": {
+      "gid": "1209745820121609",
+      "name": "Axel Kerbec"
+    },
+    "completed": false,
+    "name": "AWS instance comparison report"
+  },
+  {
+    "gid": "1210892820911816",
+    "assignee": {
+      "gid": "1209745820121609",
+      "name": "Axel Kerbec"
+    },
+    "completed": false,
+    "name": "Check VAST for 4090/5090 Dev boxes"
+  },
+  {
+    "gid": "1210892820911818",
+    "assignee": {
+      "gid": "1209745820121609",
+      "name": "Axel Kerbec"
+    },
+    "completed": false,
+    "name": "Time the various GPUs, like H100 vs. A100 vs. etc"
+  },
+  {
+    "gid": "1209480502135241",
+    "assignee": {
+      "gid": "1209745820121609",
+      "name": "Axel Kerbec"
+    },
+    "completed": false,
+    "name": "Modal: High-performance AI infrastructure"
+  },
+  {
+    "gid": "1210768867894504",
+    "assignee": {
+      "gid": "1209745820121609",
+      "name": "Axel Kerbec"
+    },
+    "completed": false,
+    "name": "Define scaling experiment recipe and analysis pipeline"
+  },
+  {
+    "gid": "1210794035717156",
+    "assignee": {
+      "gid": "1210562604873083",
+      "name": "Matthew Bull"
+    },
+    "completed": false,
+    "name": "Clean interfaces to alternative training systems "
+  },
+  {
+    "gid": "1209148137213831",
+    "assignee": {
+      "gid": "1210748130054770",
+      "name": "Michael Hollander"
+    },
+    "completed": false,
+    "name": "Fix policy_store._cached_prs"
+  },
+  {
+    "gid": "1209394151090423",
+    "assignee": {
+      "gid": "1210748130054770",
+      "name": "Michael Hollander"
+    },
+    "completed": false,
+    "name": "Atomic saves"
+  },
+  {
+    "gid": "1210769258927270",
+    "assignee": {
+      "gid": "1211348675176557",
+      "name": "Subhojeet Pramanik"
+    },
+    "completed": false,
+    "name": "Clear design document for agent refactor"
+  },
+  {
+    "gid": "1211366079505398",
+    "assignee": {
+      "gid": "1209017937764464",
+      "name": "Alexandros Vardakostas"
+    },
+    "completed": false,
+    "name": "External obs can support tensor or tensor dict"
+  },
+  {
+    "gid": "1209661381715538",
+    "assignee": {
+      "gid": "1209017937764464",
+      "name": "Alexandros Vardakostas"
+    },
+    "completed": false,
+    "name": "Robust-to-new-versions Agent"
+  },
+  {
+    "gid": "1210851220510512",
+    "assignee": {
+      "gid": "1210265575384509",
+      "name": "Richard Higgins"
+    },
+    "completed": false,
+    "name": "Cogweb Agent Bucket for agents"
+  },
+  {
+    "gid": "1211068828541795",
+    "assignee": {
+      "gid": "1210265575384509",
+      "name": "Richard Higgins"
+    },
+    "completed": false,
+    "name": "HuggingFaceTB/SmolLM2-135M \u00b7 Hugging Face"
+  },
+  {
+    "gid": "1211614906026722",
+    "assignee": {
+      "gid": "1210265575384509",
+      "name": "Richard Higgins"
+    },
+    "completed": false,
+    "name": "LoRA"
+  },
+  {
+    "gid": "1211334022894072",
+    "assignee": {
+      "gid": "1203757829157834",
+      "name": "harshbhatt7585@gmail.com"
+    },
+    "completed": false,
+    "name": "HRM (Hierarchical Reasoning Model)"
+  },
+  {
+    "gid": "1210286336916414",
+    "assignee": {
+      "gid": "1209017937764464",
+      "name": "Alexandros Vardakostas"
+    },
+    "completed": false,
+    "name": "Integrate noisy linear"
+  },
+  {
+    "gid": "1209661381715536",
+    "assignee": {
+      "gid": "1209952770332211",
+      "name": "Robb Walters"
+    },
+    "completed": false,
+    "name": "Global Observations"
+  },
+  {
+    "gid": "1210284652865440",
+    "assignee": {
+      "gid": "1210265575384509",
+      "name": "Richard Higgins"
+    },
+    "completed": false,
+    "name": "Train a transformer on hard envs"
+  },
+  {
+    "gid": "1211590894831394",
+    "assignee": {
+      "gid": "1211348675176557",
+      "name": "Subhojeet Pramanik"
+    },
+    "completed": false,
+    "name": "Add sliding window flash attention to cortex "
+  },
+  {
+    "gid": "1211366082402133",
+    "assignee": {
+      "gid": "1211348675176557",
+      "name": "Subhojeet Pramanik"
+    },
+    "completed": false,
+    "name": "Recurrent Trace Unit"
+  },
+  {
+    "gid": "1211386207776011",
+    "assignee": null,
+    "completed": false,
+    "name": "Investigate mixtures of experts"
+  },
+  {
+    "gid": "1210282198057739",
+    "assignee": {
+      "gid": "1203757829157834",
+      "name": "harshbhatt7585@gmail.com"
+    },
+    "completed": false,
+    "name": "Implement Continuous Dropout"
+  },
+  {
+    "gid": "1209548780079332",
+    "assignee": {
+      "gid": "1211348675176557",
+      "name": "Subhojeet Pramanik"
+    },
+    "completed": false,
+    "name": "LSTM Entropy"
+  },
+  {
+    "gid": "1211014686946592",
+    "assignee": {
+      "gid": "1211348675176557",
+      "name": "Subhojeet Pramanik"
+    },
+    "completed": false,
+    "name": "Spectral norm LSTM gate weights\n"
+  },
+  {
+    "gid": "1210286336916416",
+    "assignee": {
+      "gid": "1209017937764464",
+      "name": "Alexandros Vardakostas"
+    },
+    "completed": false,
+    "name": "Test an embedded LSTM"
+  },
+  {
+    "gid": "1209778674231666",
+    "assignee": {
+      "gid": "1209017937764464",
+      "name": "Alexandros Vardakostas"
+    },
+    "completed": false,
+    "name": "Add noise to RNN"
+  },
+  {
+    "gid": "1210392276593852",
+    "assignee": {
+      "gid": "1211215486118014",
+      "name": "Tasha Pais"
+    },
+    "completed": false,
+    "name": "Predictive Loss"
+  },
+  {
+    "gid": "1211366082087987",
+    "assignee": {
+      "gid": "1211215486118014",
+      "name": "Tasha Pais"
+    },
+    "completed": false,
+    "name": "Add Dynamics Model: Next action prediction "
+  },
+  {
+    "gid": "1211377548529684",
+    "assignee": {
+      "gid": "1211215486118014",
+      "name": "Tasha Pais"
+    },
+    "completed": false,
+    "name": "Add Dynamics Model: Next value prediction"
+  },
+  {
+    "gid": "1211366081045969",
+    "assignee": {
+      "gid": "1211215486118014",
+      "name": "Tasha Pais"
+    },
+    "completed": false,
+    "name": "Add Contrastive Loss"
+  },
+  {
+    "gid": "1211366023633219",
+    "assignee": {
+      "gid": "1211215486118014",
+      "name": "Tasha Pais"
+    },
+    "completed": false,
+    "name": "Add EMA of Future Latent State Prediction Loss"
+  },
+  {
+    "gid": "1211366082780014",
+    "assignee": {
+      "gid": "1211215486118014",
+      "name": "Tasha Pais"
+    },
+    "completed": false,
+    "name": "Add Stable Latent State Loss"
+  },
+  {
+    "gid": "1209661381715532",
+    "assignee": {
+      "gid": "1211215486118014",
+      "name": "Tasha Pais"
+    },
+    "completed": false,
+    "name": "Observation Prediction"
+  },
+  {
+    "gid": "1210921009975326",
+    "assignee": {
+      "gid": "1203757829157834",
+      "name": "harshbhatt7585@gmail.com"
+    },
+    "completed": false,
+    "name": "GRPO"
+  },
+  {
+    "gid": "1209208922660224",
+    "assignee": {
+      "gid": "1203757829157834",
+      "name": "harshbhatt7585@gmail.com"
+    },
+    "completed": false,
+    "name": "Test out Muon optimizer. "
+  },
+  {
+    "gid": "1210527330325140",
+    "assignee": {
+      "gid": "1209017937764464",
+      "name": "Alexandros Vardakostas"
+    },
+    "completed": false,
+    "name": "Try out fibrations"
+  },
+  {
+    "gid": "1209208922660336",
+    "assignee": {
+      "gid": "1203757829157834",
+      "name": "harshbhatt7585@gmail.com"
+    },
+    "completed": false,
+    "name": "Try KL loss in PPO"
+  },
+  {
+    "gid": "1211366081860048",
+    "assignee": {
+      "gid": "1209017937764464",
+      "name": "Alexandros Vardakostas"
+    },
+    "completed": false,
+    "name": "Add Loss scheduling, i.e., saving the state of losses"
+  },
+  {
+    "gid": "1211366024409404",
+    "assignee": {
+      "gid": "1209017937764464",
+      "name": "Alexandros Vardakostas"
+    },
+    "completed": false,
+    "name": "Add MUESLI"
+  },
+  {
+    "gid": "1211471933325968",
+    "assignee": null,
+    "completed": false,
+    "name": "Add CMPO"
+  },
+  {
+    "gid": "1211366169251945",
+    "assignee": null,
+    "completed": false,
+    "name": "Replicate Ada"
+  },
+  {
+    "gid": "1211366169326504",
+    "assignee": null,
+    "completed": false,
+    "name": "Experiment with diversity (DIAYN)"
+  },
+  {
+    "gid": "1211377548529720",
+    "assignee": null,
+    "completed": false,
+    "name": "Experiment with fitnotyping"
+  },
+  {
+    "gid": "1211414008323001",
+    "assignee": {
+      "gid": "1211348675176557",
+      "name": "Subhojeet Pramanik"
+    },
+    "completed": false,
+    "name": "GBPE "
+  },
+  {
+    "gid": "1211414008323007",
+    "assignee": {
+      "gid": "1211348675176557",
+      "name": "Subhojeet Pramanik"
+    },
+    "completed": false,
+    "name": "30 sweeps per confirmed result"
+  },
+  {
+    "gid": "1211414008323010",
+    "assignee": {
+      "gid": "1211348675176557",
+      "name": "Subhojeet Pramanik"
+    },
+    "completed": false,
+    "name": "Lambda Returns"
+  },
+  {
+    "gid": "1211414008323013",
+    "assignee": {
+      "gid": "1211348675176557",
+      "name": "Subhojeet Pramanik"
+    },
+    "completed": false,
+    "name": "Exploration: Successor Features/Representation"
+  },
+  {
+    "gid": "1211414008323018",
+    "assignee": {
+      "gid": "1211348675176557",
+      "name": "Subhojeet Pramanik"
+    },
+    "completed": false,
+    "name": "Exploration: Deep Laplacian Representation "
+  },
+  {
+    "gid": "1211414008917193",
+    "assignee": {
+      "gid": "1211348675176557",
+      "name": "Subhojeet Pramanik"
+    },
+    "completed": false,
+    "name": "Chat with labmates about useful RL tricks"
+  },
+  {
+    "gid": "1209070474559682",
+    "assignee": {
+      "gid": "1211348675176557",
+      "name": "Subhojeet Pramanik"
+    },
+    "completed": false,
+    "name": "Empirical-precision-weighted kalman updates"
+  },
+  {
+    "gid": "1210769219224464",
+    "assignee": {
+      "gid": "1209815295012648",
+      "name": "Jack Heart"
+    },
+    "completed": false,
+    "name": "Experiment with error-based signals, e.g. regret"
+  },
+  {
+    "gid": "1209208922660663",
+    "assignee": {
+      "gid": "1210562604873083",
+      "name": "Matthew Bull"
+    },
+    "completed": false,
+    "name": "Task Graph Test"
+  },
+  {
+    "gid": "1209661379538164",
+    "assignee": {
+      "gid": "1209017937764464",
+      "name": "Alexandros Vardakostas"
+    },
+    "completed": false,
+    "name": "Kickstarting single student from single teacher"
+  },
+  {
+    "gid": "1210768737314651",
+    "assignee": {
+      "gid": "1209017937764464",
+      "name": "Alexandros Vardakostas"
+    },
+    "completed": false,
+    "name": "Demonstrate kickstarting efficiency"
+  },
+  {
+    "gid": "1210803372736877",
+    "assignee": {
+      "gid": "1209017937764464",
+      "name": "Alexandros Vardakostas"
+    },
+    "completed": false,
+    "name": "Goal: Establish SOTA results in arena with kickstarting"
+  },
+  {
+    "gid": "1211366022781592",
+    "assignee": {
+      "gid": "1209017937764464",
+      "name": "Alexandros Vardakostas"
+    },
+    "completed": false,
+    "name": "Continuous distillation"
+  },
+  {
+    "gid": "1209843025820874",
+    "assignee": {
+      "gid": "1210748130054770",
+      "name": "Michael Hollander"
+    },
+    "completed": false,
+    "name": "Clean up curricula <> simulations interactions. tools should accept curricula but simulations should not "
+  },
+  {
+    "gid": "1211496531542715",
+    "assignee": {
+      "gid": "1210748130054770",
+      "name": "Michael Hollander"
+    },
+    "completed": false,
+    "name": "Rename EnvironmentMetaData to GameRules"
+  },
+  {
+    "gid": "1210768737095586",
+    "assignee": {
+      "gid": "1209815295012648",
+      "name": "Jack Heart"
+    },
+    "completed": false,
+    "name": "Sweep over learning progress hypers"
+  },
+  {
+    "gid": "1209843025820875",
+    "assignee": {
+      "gid": "1209815295012648",
+      "name": "Jack Heart"
+    },
+    "completed": false,
+    "name": "Measure Learning Progress performance in arena and navigation against other curricula"
+  },
+  {
+    "gid": "1211366024221512",
+    "assignee": null,
+    "completed": false,
+    "name": "Dreamer v3"
+  },
+  {
+    "gid": "1211366081690070",
+    "assignee": {
+      "gid": "1211010835124172",
+      "name": "Teo Ionita"
+    },
+    "completed": false,
+    "name": "Mining replays for supervised learning dataset"
+  },
+  {
+    "gid": "1211413398528738",
+    "assignee": {
+      "gid": "1209017937764458",
+      "name": "Emmett Shear"
+    },
+    "completed": false,
+    "name": "FACTS: A Factored State-Space Framework for World Modelling"
+  },
+  {
+    "gid": "1211034485747674",
+    "assignee": {
+      "gid": "1209745820121609",
+      "name": "Axel Kerbec"
+    },
+    "completed": false,
+    "name": "Implement Nevergrad adapter "
+  },
+  {
+    "gid": "1211034485747675",
+    "assignee": {
+      "gid": "1209745820121609",
+      "name": "Axel Kerbec"
+    },
+    "completed": false,
+    "name": "Improve PROTEIN:"
+  },
+  {
+    "gid": "1210769218369227",
+    "assignee": {
+      "gid": "1209745820121609",
+      "name": "Axel Kerbec"
+    },
+    "completed": false,
+    "name": "Make scorecards for comparing performance of different training regimes"
+  },
+  {
+    "gid": "1210835256607814",
+    "assignee": {
+      "gid": "1209745820121609",
+      "name": "Axel Kerbec"
+    },
+    "completed": false,
+    "name": "Sweep over Navigation recipe"
+  },
+  {
+    "gid": "1211366080964632",
+    "assignee": {
+      "gid": "1209745820121609",
+      "name": "Axel Kerbec"
+    },
+    "completed": false,
+    "name": "Write a validation experiment for best run/hyper selection at the end of a sweep.  "
+  },
+  {
+    "gid": "1211366025214105",
+    "assignee": {
+      "gid": "1209745820121609",
+      "name": "Axel Kerbec"
+    },
+    "completed": false,
+    "name": "We should post and update when hyperparams update"
+  },
+  {
+    "gid": "1211366025760607",
+    "assignee": {
+      "gid": "1209745820121609",
+      "name": "Axel Kerbec"
+    },
+    "completed": false,
+    "name": "Cost/Resource sweeping (Axel)"
+  },
+  {
+    "gid": "1211366023715604",
+    "assignee": null,
+    "completed": false,
+    "name": "Generational sweeps"
+  },
+  {
+    "gid": "1211366171266384",
+    "assignee": null,
+    "completed": false,
+    "name": "Doxascope"
+  },
+  {
+    "gid": "1211366079632345",
+    "assignee": null,
+    "completed": false,
+    "name": "Training Pipeline"
+  },
+  {
+    "gid": "1211366166789802",
+    "assignee": null,
+    "completed": false,
+    "name": "Supervised learning"
+  },
+  {
+    "gid": "1211366168188140",
+    "assignee": null,
+    "completed": false,
+    "name": "Imitation learning"
+  },
+  {
+    "gid": "1209043561406868",
+    "assignee": null,
+    "completed": false,
+    "name": "Syllabus Support"
+  },
+  {
+    "gid": "1209394151090417",
+    "assignee": null,
+    "completed": false,
+    "name": "Try using average-reward and no discounting"
+  },
+  {
+    "gid": "1211665269726547",
+    "assignee": null,
+    "completed": false,
+    "name": "Deterministic runs"
+  },
+  {
+    "gid": "1209661379538190",
+    "assignee": null,
+    "completed": false,
+    "name": "Memory Architecture, memory tokens?"
+  },
+  {
+    "gid": "1210786852138807",
+    "assignee": null,
+    "completed": false,
+    "name": "Evals broken with NPC policies"
+  },
+  {
+    "gid": "1210943495769120",
+    "assignee": null,
+    "completed": false,
+    "name": "Design simple but effective scripted NPCs"
+  },
+  {
+    "gid": "1211365428128399",
+    "assignee": null,
+    "completed": false,
+    "name": "Integrate NPC through losses post-dehydration"
+  },
+  {
+    "gid": "1211366023380595",
+    "assignee": null,
+    "completed": false,
+    "name": "Training against a pre-existing policy"
+  },
+  {
+    "gid": "1209017937764257",
+    "assignee": null,
+    "completed": false,
+    "name": "Multi-Policy Training (PufferLib)"
+  },
+  {
+    "gid": "1210979764834655",
+    "assignee": null,
+    "completed": false,
+    "name": "Research: Can we train a policy to help a uri specified NPC get more reward?"
+  },
+  {
+    "gid": "1209164338788423",
+    "assignee": null,
+    "completed": false,
+    "name": "Add measurements for fairness during evaluation"
+  },
+  {
+    "gid": "1209661379538166",
+    "assignee": null,
+    "completed": false,
+    "name": "AMAGO"
+  },
+  {
+    "gid": "1209661379538184",
+    "assignee": null,
+    "completed": false,
+    "name": "Exploration"
+  },
+  {
+    "gid": "1209661381715554",
+    "assignee": null,
+    "completed": false,
+    "name": "Hierchiechal RL"
+  },
+  {
+    "gid": "1209805021772139",
+    "assignee": null,
+    "completed": false,
+    "name": "Debugging Reinforcement Learning Systems"
+  },
+  {
+    "gid": "1209734926321013",
+    "assignee": {
+      "gid": "1209017937764464",
+      "name": "Alexandros Vardakostas"
+    },
+    "completed": false,
+    "name": "Exploring MAPG"
+  },
+  {
+    "gid": "1209734926321017",
+    "assignee": {
+      "gid": "1209017937764464",
+      "name": "Alexandros Vardakostas"
+    },
+    "completed": false,
+    "name": "Exploring Distributional RL"
+  },
+  {
+    "gid": "1210992256238856",
+    "assignee": null,
+    "completed": false,
+    "name": "Simplified Temporal Consistency Reinforcement Learning"
+  },
+  {
+    "gid": "1210578513824126",
+    "assignee": null,
+    "completed": false,
+    "name": "Evolutionary Policy Optimization"
+  },
+  {
+    "gid": "1209021128429249",
+    "assignee": null,
+    "completed": false,
+    "name": "Remove that Square Root: A New Efficient\nScale-Invariant Version of AdaGrad"
+  },
+  {
+    "gid": "1209017937764338",
+    "assignee": null,
+    "completed": false,
+    "name": "Adam on Local Time Addressing Nonstationarity in RL with Relative Adam Timesteps"
+  },
+  {
+    "gid": "1209148136958987",
+    "assignee": null,
+    "completed": false,
+    "name": "Legendre Memory Units: Continuous-Time Representation in Recurrent Neural Networks"
+  },
+  {
+    "gid": "1209661381715534",
+    "assignee": null,
+    "completed": false,
+    "name": "Neural Damage"
+  },
+  {
+    "gid": "1209070474559707",
+    "assignee": {
+      "gid": "1209017937764458",
+      "name": "Emmett Shear"
+    },
+    "completed": false,
+    "name": "Harnessing Uncertainty: Entropy-Modulated Policy Gradients for Long-Horizon LLM Agents"
+  },
+  {
+    "gid": "1211419372602429",
+    "assignee": null,
+    "completed": false,
+    "name": "Deep Complex Networks"
+  }
+]
