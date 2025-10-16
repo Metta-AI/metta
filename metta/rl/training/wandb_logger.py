@@ -32,7 +32,7 @@ class WandbLogger(TrainerComponent):
 
         # Add rollout breakdown metrics (lap time since previous checkpoint)
         def _lap_time(name: str) -> float:
-            t = context.stopwatch.get_lap_time(name)
+            t = context.stopwatch.get_lap_time(name=name)
             return float(t) if t is not None else 0.0
 
         payload.update(
