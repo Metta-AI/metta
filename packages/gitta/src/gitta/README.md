@@ -8,7 +8,6 @@ A comprehensive Python library for Git operations, GitHub API interactions, and 
 - **Git Utilities**: Branch management, commit tracking, diff analysis
 - **GitHub API Integration**: Create PRs, post commit statuses, query PR information
 - **Repository Filtering**: Extract specific paths using git-filter-repo
-- **PR Splitting**: Automatically split large PRs into smaller, logical units using AI
 
 ## Installation
 
@@ -57,28 +56,7 @@ gitta.post_commit_status(
 )
 ```
 
-### PR Splitting
-
-Split large PRs into smaller, logically isolated ones:
-
-```bash
-# Set environment variables
-export ANTHROPIC_API_KEY="your-key"
-export GITHUB_TOKEN="your-token"  # Optional, for auto-creating PRs
-
-# Run the splitter
-python -m gitta.split
-```
-
-The PR splitter will:
-
-1. Analyze your changes using AI to determine logical groupings
-2. Create two new branches with the split changes
-3. Verify no changes are lost
-4. Push the branches to origin
-5. Create pull requests (if GitHub token provided)
-
-### Advanced Options
+## Advanced Options
 
 ```python
 # Custom error handling
@@ -97,7 +75,6 @@ repo_root = gitta.find_root(Path.cwd())
 
 ## Environment Variables
 
-- `ANTHROPIC_API_KEY`: API key for AI-powered PR splitting
 - `GITHUB_TOKEN`: GitHub personal access token for API operations
 - `GITTA_AUTO_ADD_SAFE_DIRECTORY`: Set to "1" to auto-handle git safe directory issues
 
@@ -109,6 +86,5 @@ gitta/
 ├── core.py          # Core git command runner
 ├── git.py           # Git operations
 ├── github.py        # GitHub API functionality
-├── filter.py        # Repository filtering
-└── split.py         # PR splitting logic and CLI
+└── filter.py        # Repository filtering
 ```
