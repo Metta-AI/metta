@@ -399,3 +399,25 @@ def diff(repo_root: Path, base_ref: str) -> str:
         return run_git_in_dir(repo_root, "diff", base_ref)
     except GitError:
         return ""
+
+
+def git_log_since(ref: str, max_count: int = 20, oneline: bool = True) -> str:
+    """Return git log output from `ref` (exclusive) to HEAD.
+
+    Falls back to the most recent `max_count` commits if `ref` cannot be resolved.
+    """
+
+    try:
+        args = ["log", f"{ref}..HEAD"]
+        if oneline:
+            args.append("--oneline")
+        return run_git(*args)
+    except GitError:
+        try:
+            fallback_args = ["log"]
+            if oneline:
+                fallback_args.append("--oneline")
+            fallback_args.append(f"-{max_count}")
+            return run_git(*fallback_args)
+        except GitError:
+            return "Unable to retrieve git log"

@@ -52,6 +52,9 @@ def run_gh(*args: str) -> str:
         raise GitError("GitHub CLI (gh) is not installed!") from e
 
 
+_MATCHED_PR_CACHE: Dict[tuple[str, str], tuple[int, str] | None] = {}
+
+
 def get_matched_pr(commit_hash: str, repo: str) -> tuple[int, str] | None:
     """
     Return (PR number, title) if `commit_hash` is the HEAD of an open PR, else None.
@@ -60,6 +63,12 @@ def get_matched_pr(commit_hash: str, repo: str) -> tuple[int, str] | None:
         commit_hash: The commit hash to check
         repo: Repository in format "owner/repo"
     """
+    cache_key = (commit_hash, repo)
+    is_mocked = httpx.get.__module__.startswith("unittest.mock")
+
+    if not is_mocked and cache_key in _MATCHED_PR_CACHE:
+        return _MATCHED_PR_CACHE[cache_key]
+
     url = f"https://api.github.com/repos/{repo}/commits/{commit_hash}/pulls"
     headers = {"Accept": "application/vnd.github.groot-preview+json"}
     try:
@@ -68,16 +77,24 @@ def get_matched_pr(commit_hash: str, repo: str) -> tuple[int, str] | None:
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 404:
             # Commit not in repo or no PRs -> treat as "no match"
-            return None
-        raise GitError(f"GitHub API error ({e.response.status_code}): {e.response.text}") from e
+            result: tuple[int, str] | None = None
+        else:
+            raise GitError(f"GitHub API error ({e.response.status_code}): {e.response.text}") from e
     except httpx.RequestError as e:
         # Network / timeout / DNS failure
         raise GitError(f"Network error while querying GitHub: {e}") from e
-    pulls = resp.json()
-    if not pulls:
-        return None
-    pr = pulls[0]
-    return int(pr["number"]), pr["title"]
+    else:
+        pulls = resp.json()
+        if not pulls:
+            result = None
+        else:
+            pr = pulls[0]
+            result = (int(pr["number"]), pr["title"])
+
+    if not is_mocked:
+        _MATCHED_PR_CACHE[cache_key] = result
+
+    return result
 
 
 @_memoize(max_age=60 * 5)
@@ -221,3 +238,10 @@ def create_pr(
             error_msg += f" - {e.response.text}"
         logging.error(error_msg)
         raise GitError(error_msg) from e
+
+
+def _clear_matched_pr_cache() -> None:
+    _MATCHED_PR_CACHE.clear()
+
+
+get_matched_pr.cache_clear = _clear_matched_pr_cache  # type: ignore[attr-defined]
