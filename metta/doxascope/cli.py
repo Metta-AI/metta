@@ -367,8 +367,15 @@ def run_sweep_trial(
         return {"config": config, "success": False, "reason": "early_stopping_no_improvement"}
 
     model.load_state_dict(training_result.best_checkpoint["state_dict"])
-    _, test_acc_per_step = trainer._run_epoch(test_loader, is_training=False)
-    test_acc_avg = sum(test_acc_per_step) / len(test_acc_per_step) if test_acc_per_step else 0
+
+    # Evaluate on test set if available, otherwise use default metrics
+    if test_loader is not None:
+        _, test_acc_per_step = trainer._run_epoch(test_loader, is_training=False)
+        test_acc_avg = sum(test_acc_per_step) / len(test_acc_per_step) if test_acc_per_step else 0
+    else:
+        test_acc_per_step = []
+        test_acc_avg = 0.0
+        print("   ⚠️  No test set available (insufficient data or test_split=0)")
 
     print(f"   ✅ Val Acc: {training_result.final_val_acc:.2f}%, Test Acc (avg): {test_acc_avg:.2f}%")
     return {
