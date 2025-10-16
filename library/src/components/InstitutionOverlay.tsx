@@ -6,6 +6,7 @@ import type { AuthorDTO } from "@/posts/data/authors-client";
 import type { PaperWithUserContext } from "@/posts/data/papers";
 import { useOverlayNavigation } from "./OverlayStack";
 import { useInstitution } from "@/hooks/queries";
+import { Tabs } from "@/components/ui/tabs";
 
 interface InstitutionOverlayProps {
   institution: {
@@ -55,20 +56,11 @@ export default function InstitutionOverlay({
       createdAt: paper.createdAt ? new Date(paper.createdAt) : new Date(),
       updatedAt: paper.updatedAt ? new Date(paper.updatedAt) : new Date(),
       isStarredByCurrentUser: paper.isStarredByCurrentUser || false,
-      isQueuedByCurrentUser: paper.isQueuedByCurrentUser || false,
     };
 
-    openPaper(
-      paperWithContext,
-      [],
-      [],
-      () => {
-        /** noop for institution context */
-      },
-      () => {
-        /** noop for institution context */
-      }
-    );
+    openPaper(paperWithContext, [], [], () => {
+      /** noop for institution context */
+    });
   };
 
   const handleOpenAuthor = (author: AuthorDTO) => {
@@ -76,25 +68,15 @@ export default function InstitutionOverlay({
   };
 
   const tabButtons = (
-    <div className="flex gap-2">
-      {(["overview", "papers", "authors"] as const).map((tab) => (
-        <button
-          key={tab}
-          onClick={() => setActiveTab(tab)}
-          className={`rounded-md px-3 py-1 text-sm font-medium ${
-            activeTab === tab
-              ? "bg-blue-50 text-blue-700"
-              : "text-gray-600 hover:bg-gray-100"
-          }`}
-        >
-          {tab === "papers"
-            ? `Papers (${institutionPapers.length})`
-            : tab === "authors"
-              ? `Authors (${institutionAuthors.length})`
-              : "Overview"}
-        </button>
-      ))}
-    </div>
+    <Tabs
+      tabs={[
+        { id: "overview", label: "Overview" },
+        { id: "papers", label: `Papers (${institutionPapers.length})` },
+        { id: "authors", label: `Authors (${institutionAuthors.length})` },
+      ]}
+      activeTab={activeTab}
+      onTabChange={(tab) => setActiveTab(tab as typeof activeTab)}
+    />
   );
 
   return (

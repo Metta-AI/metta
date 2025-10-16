@@ -4,6 +4,7 @@ import React from "react";
 import { AuthorDTO } from "@/posts/data/authors-client";
 import { AuthorProfile } from "./AuthorProfile";
 import { useOverlayNavigation } from "./OverlayStack";
+import * as papersApi from "@/lib/api/resources/papers";
 
 interface NavigableAuthorOverlayProps {
   author: AuthorDTO;
@@ -33,34 +34,39 @@ export default function NavigableAuthorOverlay({
   };
 
   // Handle paper click
-  const handlePaperClick = (paper: any) => {
-    // Convert paper from AuthorDTO.recentPapers to PaperWithUserContext format
-    const paperWithContext = {
-      id: paper.id,
-      title: paper.title,
-      abstract: paper.abstract,
-      tags: paper.tags || [],
-      link: paper.link,
-      source: null,
-      externalId: null,
-      stars: paper.stars,
-      starred: false,
-      createdAt: paper.createdAt,
-      updatedAt: paper.createdAt,
-      authors: paper.authors || [],
-      institutions: paper.institutions || [],
-      isStarredByCurrentUser: false,
-      isQueuedByCurrentUser: false,
-    };
+  const handlePaperClick = async (paper: any) => {
+    // Fetch full paper data to get all authors
+    // (AuthorDTO.recentPapers may not have full author data for performance)
+    try {
+      const fullPaper = await papersApi.getPaper(paper.id);
 
-    // Open paper overlay with minimal context
-    openPaper(
-      paperWithContext,
-      [], // users
-      [], // interactions
-      () => {}, // onStarToggle (noop)
-      () => {} // onQueueToggle (noop)
-    );
+      const paperWithContext = {
+        id: fullPaper.id,
+        title: fullPaper.title,
+        abstract: fullPaper.abstract,
+        tags: fullPaper.tags || [],
+        link: fullPaper.link,
+        source: fullPaper.source,
+        externalId: null,
+        stars: fullPaper.stars,
+        starred: false,
+        createdAt: new Date(fullPaper.createdAt),
+        updatedAt: new Date(fullPaper.createdAt),
+        authors: fullPaper.authors || [],
+        institutions: paper.institutions || [],
+        isStarredByCurrentUser: false,
+      };
+
+      // Open paper overlay with minimal context
+      openPaper(
+        paperWithContext,
+        [], // users
+        [], // interactions
+        () => {} // onStarToggle (noop)
+      );
+    } catch (error) {
+      console.error("Error loading paper:", error);
+    }
   };
 
   return (

@@ -44,10 +44,10 @@ const groupSchema = z.object({
   name: z
     .string()
     .min(1, "Group name is required")
-    .max(100, "Group name is too long")
+    .max(100, "Group name must be 100 characters or less")
     .regex(
       /^[a-zA-Z0-9_-]+$/,
-      "Use letters, numbers, hyphens, and underscores only"
+      "Group name can only contain letters, numbers, hyphens (-), and underscores (_). No spaces or special characters."
     ),
   description: z
     .string()
@@ -118,7 +118,7 @@ export const GroupCreateForm: FC<GroupCreateFormProps> = ({
                 form.reset(defaultValues);
                 onClose();
               }}
-              className="rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+              className="cursor-pointer rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
             >
               <X className="h-5 w-5" />
             </button>
@@ -144,7 +144,9 @@ export const GroupCreateForm: FC<GroupCreateFormProps> = ({
                   name="institutionId"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Institution *</FormLabel>
+                      <FormLabel>
+                        Institution <span className="text-red-500">*</span>
+                      </FormLabel>
                       <Select
                         value={field.value}
                         onValueChange={field.onChange}
@@ -169,7 +171,6 @@ export const GroupCreateForm: FC<GroupCreateFormProps> = ({
                         Groups belong to institutions and can be tagged as @
                         {"{group-name}"}
                       </FormDescription>
-                      <FormMessage />
                     </FormItem>
                   )}
                 />
@@ -179,7 +180,9 @@ export const GroupCreateForm: FC<GroupCreateFormProps> = ({
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Group Name *</FormLabel>
+                      <FormLabel>
+                        Group Name <span className="text-red-500">*</span>
+                      </FormLabel>
                       <FormControl>
                         <Input
                           {...field}
@@ -213,7 +216,6 @@ export const GroupCreateForm: FC<GroupCreateFormProps> = ({
                           placeholder="What is this group about?"
                         />
                       </FormControl>
-                      <FormMessage />
                     </FormItem>
                   )}
                 />
@@ -272,7 +274,6 @@ export const GroupCreateForm: FC<GroupCreateFormProps> = ({
                           </div>
                         </label>
                       </div>
-                      <FormMessage />
                     </FormItem>
                   )}
                 />

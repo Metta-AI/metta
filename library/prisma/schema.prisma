@@ -95,7 +95,6 @@ model Post {
   updatedAt      DateTime       @default(now()) @updatedAt
   content        String?
   postType       String         @default("user-post")
-  queues         Int            @default(0)
   replies        Int            @default(0)
   paperId        String?
   images         String[]       @default([])
@@ -201,14 +200,12 @@ model UserPaperInteraction {
   paperId String
   starred Boolean?  @default(false)
   readAt  DateTime? @db.Timestamp(6)
-  queued  Boolean?  @default(false)
   notes   String?
   paper   Paper     @relation(fields: [paperId], references: [id])
   user    User      @relation(fields: [userId], references: [id])
 
   @@id([userId, paperId], map: "user_paper_interaction_userId_paperId_pk")
   @@index([userId, starred])
-  @@index([userId, queued])
   @@index([paperId, starred])
   @@map("user_paper_interaction")
 }

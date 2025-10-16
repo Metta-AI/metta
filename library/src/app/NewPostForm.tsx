@@ -326,7 +326,6 @@ export const NewPostForm: FC = () => {
                       }}
                     />
                   </FormControl>
-                  <FormMessage />
                 </FormItem>
               )}
             />

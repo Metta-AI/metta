@@ -10,7 +10,7 @@ import {
 /**
  * Me Page
  *
- * This page displays the current user's profile and their starred/queued papers.
+ * This page displays the current user's profile and their starred papers.
  * Requires authentication - redirects to sign in if not authenticated.
  */
 
@@ -25,9 +25,8 @@ export default async function MePage() {
   // Load papers data with current user context
   const { papers, users, interactions } = await loadPapersWithUserContext();
 
-  // Filter papers to only show starred and queued papers for current user
+  // Filter papers to only show starred papers for current user
   const starredPapers = papers.filter((paper) => paper.isStarredByCurrentUser);
-  const queuedPapers = papers.filter((paper) => paper.isQueuedByCurrentUser);
 
   return (
     <OverlayStackProvider>
@@ -39,7 +38,6 @@ export default async function MePage() {
           image: session.user.image ?? null,
         }}
         starredPapers={starredPapers}
-        queuedPapers={queuedPapers}
         allPapers={papers}
         users={users}
         interactions={interactions}
