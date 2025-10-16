@@ -19,6 +19,13 @@
     "branch": "refactor/rename-game-rules",
     "commit": "792770ce543753ee1c833bbd0521bd863a309223",
     "notes": "Renamed the training GameRules dataclass and updated all policy and tooling references to use the new name and property."
->>>>>>> origin/richard-triage
+  },
+  {
+    "gid": "1211377548529684",
+    "name": "Add Dynamics Model: Next value prediction",
+    "branch": "task/add-next-value-prediction",
+    "commit": "a9f1c193998c84846091bdd7cbc2ba2f44982361",
+    "completed_at": "2025-10-16",
+    "notes": "Extended FastDynamics to predict next-step values and trained the head within the dynamics loss."
   }
 ]
