@@ -1,0 +1,148 @@
+name: "Claude Review: Style"
+on:
+  workflow_call:
+    inputs:
+      pr_number:
+        required: true
+        type: string
+
+jobs:
+  review:
+    uses: ./.github/workflows/claude-review-base.yml
+    secrets: inherit
+    with:
+      review_name: "Code Style"
+      review_type: "style"
+      file_pattern: "\\.py$"
+      tools: "Edit,Replace,Bash(git diff HEAD~1)"
+      pr_number: ${{ inputs.pr_number }}
+      prompt: |
+        Review the Python diff for code style violations according to our company style guide.
+
+        **CRITICAL INSTRUCTIONS**:
+        1. If you find NO style violations:
+           - Simply respond with "No issues found."
+           - DO NOT create any review
+        2. ONLY create a review if you find genuine style violations
+        3. Focus on violations that harm code readability or maintainability
+
+        ## Style Guide Principles
+
+        Our code should be **lean, pragmatic, and trust the environment**. We favor clarity through
+        simplicity over defensive programming and excessive documentation.
+
+        ### 1. Trust Your Environment
+
+        **Flag for removal:**
+        - Unnecessary existence checks for known/guaranteed paths
+        - Defensive checks for invariants that are guaranteed by the project structure
+        - Redundant validation of internal state
+
+        **Examples:**
+        ```python
+        # BAD: Unnecessary check in internal tooling
+        if ruff_config_path.exists():
+            with open(ruff_config_path, "rb") as f:
+                config = tomllib.load(f)
+
+        # GOOD: Trust known invariants
+        with open(ruff_config_path, "rb") as f:
+            config = tomllib.load(f)
+        ```
+
+        **When NOT to flag:**
+        - External user inputs or API responses
+        - Configuration files that users might modify
+        - Network resources or external dependencies
+        - Truly unpredictable runtime conditions
+
+        ### 2. Self-Documenting Code
+
+        **Flag for removal:**
+        - Docstrings that merely repeat the function signature
+        - Comments that restate what the code obviously does
+        - Redundant Args:/Returns: blocks when types are clear from signatures
+
+        **Examples:**
+        ```python
+        # BAD: Redundant documentation
+        def get_world_size(self) -> int:
+            """Get the number of processes.
+
+            Returns:
+                World size
+            """
+            return self._world_size
+
+        # GOOD: Let clear code speak for itself
+        def get_world_size(self) -> int:
+            return self.config.world_size
+        ```
+
+        **Keep these comments:**
+        - Explanations of WHY something is done
+        - Important warnings or gotchas
+        - Complex algorithm explanations
+        - Non-obvious behavior
+        - Business logic context
+
+        ### 3. Direct and Simple
+
+        **Flag these patterns:**
+        - Unnecessary indirection (storing config values in separate instance variables)
+        - Overly clever code that obscures simple operations
+        - Unnecessary abstraction layers
+
+        **Examples:**
+        ```python
+        # BAD: Unnecessary indirection
+        def __init__(self, config):
+            self._rank = config.rank  # Duplicated storage
+
+        def get_rank(self):
+            return self._rank
+
+        # GOOD: Direct access
+        def __init__(self, config):
+            self.config = config
+
+        def get_rank(self):
+            return self.config.rank
+        ```
+
+        ### 4. Conventional Structure
+
+        **Flag these violations:**
+        - Imports inside functions (except for circular dependency workarounds)
+        - Imports not at the top of the file
+        - Missing separation between import groups
+
+        **Examples:**
+        ```python
+        # BAD: Inline import
+        def some_function():
+            from .core import run_git_cmd  # Avoid this
+            return run_git_cmd()
+
+        # GOOD: Top-level imports
+        from .core import run_git_cmd
+
+        def some_function():
+            return run_git_cmd()
+        ```
+
+        ## General Guidelines to Enforce
+
+        - **Error handling**: Flag catch-all exception handlers that can't meaningfully handle errors
+        - **Code length**: Suggest simplifications when verbose code could be clearer and shorter
+        - **Comments**: Flag comments that repeat what's obvious from the code
+
+        ## Severity Levels
+
+        - **blocking**: Code that will cause runtime issues or is fundamentally wrong
+        - **major**: Clear style violations that significantly harm readability
+        - **minor**: Style inconsistencies that should be fixed but aren't critical
+        - **nitpick**: Very minor suggestions that could be improved but are acceptable
+
+        Focus on **major** violations. Only create suggestions for changes that will genuinely
+        improve code quality and align with our lean, pragmatic philosophy.
