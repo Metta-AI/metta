@@ -1,4 +1,8 @@
-"""Utilities for obtaining git metadata needed by remote runs."""
+"""Commit validation utilities for remote task execution.
+
+Validates git working tree state before dispatching remote evaluation tasks,
+ensuring the remote environment can reproduce the local code state.
+"""
 
 from __future__ import annotations
 
@@ -11,12 +15,27 @@ import gitta
 logger = logging.getLogger(__name__)
 
 
-def get_git_hash_for_remote_task(
+def get_validated_commit_hash(
     target_repo: Optional[str] = None,
     skip_git_check: bool = False,
     skip_cmd: str = "skipping git check",
 ) -> Optional[str]:
-    """Return the commit hash to attach to remote tasks."""
+    """Get current commit hash, validating it's clean and pushed for remote execution.
+
+    This validates the working tree state before dispatching remote tasks to ensure
+    the remote environment can reproduce the local code state.
+
+    Args:
+        target_repo: Optional repository slug (e.g., "owner/repo") to validate against
+        skip_git_check: Skip validation checks (useful in CI/remote environments)
+        skip_cmd: Message to show in error about how to skip validation
+
+    Returns:
+        Current commit hash if validation passes, None if not in a git repo
+
+    Raises:
+        GitError: If validation fails (uncommitted changes, unpushed commits, etc.)
+    """
 
     try:
         current_commit = gitta.get_current_commit()
