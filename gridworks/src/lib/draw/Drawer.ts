@@ -53,7 +53,11 @@ function buildTeamDrawer(name: string): ObjectDrawer | undefined {
     return undefined;
   }
 
-  const colorId = teamId === 0 ? 0 : teamId - 1;
+  if (teamId === 0) {
+    return [{ tile: "agent" }];
+  }
+
+  const colorId = teamId - 1;
   return [{ tile: "agent", modulate: colorFromId(colorId) }];
 }
 
