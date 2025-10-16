@@ -281,7 +281,7 @@ Return a JSON response with this exact structure:
                 return match.group(1)
 
             return None
-        except:
+        except Exception:
             return None
 
     def create_github_pr(self, branch: str, title: str, body: str) -> Optional[str]:
