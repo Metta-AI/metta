@@ -31,13 +31,12 @@ def forward(self, td: TensorDict, action: torch.Tensor = None) -> TensorDict:
     td["pred_input"] = torch.cat([td["core"], td["logits"]], dim=-1)
     self.returns_pred(td)
     self.reward_pred(td)
+    self.value_pred(td)
     td["values"] = td["values"].flatten()
     return td
 
 
 class FastDynamicsConfig(PolicyArchitecture):
-    class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
-
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
     _latent_dim = 64
@@ -91,8 +90,10 @@ class FastDynamicsConfig(PolicyArchitecture):
         pred_input_dim = self._core_out_dim + num_actions
         returns_module = nn.Linear(pred_input_dim, 1)
         reward_module = nn.Linear(pred_input_dim, 1)
+        value_module = nn.Linear(pred_input_dim, 1)
         policy.returns_pred = TDM(returns_module, in_keys=["pred_input"], out_keys=["returns_pred"])
         policy.reward_pred = TDM(reward_module, in_keys=["pred_input"], out_keys=["reward_pred"])
+        policy.value_pred = TDM(value_module, in_keys=["pred_input"], out_keys=["value_pred"])
 
         policy.forward = types.MethodType(forward, policy)
 
