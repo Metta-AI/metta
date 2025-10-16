@@ -8,7 +8,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Dict, Optional
 
-from .core import GitError, NotAGitRepoError, run_git, run_git_in_dir
+from .core import GitError, NotAGitRepoError, run_git, run_git_cmd, run_git_in_dir
 
 logger = logging.getLogger(__name__)
 
@@ -176,14 +176,7 @@ canonical_remote_url = https_remote_url
 
 
 def get_remote_url(remote: str = "origin") -> str | None:
-    """Get the URL of a remote repository.
-
-    Args:
-        remote: Name of the remote (default: "origin")
-
-    Returns:
-        The remote URL or None if the remote doesn't exist
-    """
+    """Get the URL of a remote repository."""
     try:
         return run_git("remote", "get-url", remote)
     except GitError:
@@ -191,11 +184,7 @@ def get_remote_url(remote: str = "origin") -> str | None:
 
 
 def get_all_remotes() -> Dict[str, str]:
-    """Get all configured remotes and their URLs.
-
-    Returns:
-        Dictionary mapping remote names to their fetch URLs
-    """
+    """Get all configured remotes and their fetch URLs."""
     try:
         output = run_git("remote", "-v")
         remotes = {}
@@ -210,14 +199,7 @@ def get_all_remotes() -> Dict[str, str]:
 
 
 def is_repo_match(target_repo: str) -> bool:
-    """Check if any remote is set to the specified repository.
-
-    This checks all configured remotes, not just 'origin', and handles
-    various URL formats (SSH, HTTPS, with/without .git suffix).
-
-    Args:
-        target_repo: Repository in format "owner/repo"
-    """
+    """Check if any remote matches the target repository (e.g., "owner/repo")."""
     target_url = https_remote_url(f"https://github.com/{target_repo}")
 
     remotes = get_all_remotes()
@@ -288,20 +270,8 @@ def add_remote(name: str, url: str, repo_path: Path | None = None):
 
 
 def find_root(start: Path) -> Optional[Path]:
-    """Return the repository root that contains start, or None if not in a repo.
-
-    This uses git's own logic to find the repository root, which correctly
-    handles worktrees, submodules, and other edge cases.
-
-    Args:
-        start: Starting path (file or directory) to search from
-
-    Returns:
-        Path to repository root or None if not in a repo
-    """
+    """Return the repository root that contains start, or None if not in a repo."""
     try:
-        from .core import run_git_cmd
-
         # Ensure we have a directory for cwd
         if start.is_file():
             cwd = start.parent
@@ -378,22 +348,9 @@ def validate_commit_state(
     target_repo: Optional[str] = None,
     allow_untracked: bool = False,
 ) -> str:
-    """Validate git working tree state and return current commit hash.
+    """Validate working tree state before remote execution and return current commit hash.
 
-    This is useful before remote execution to ensure the remote environment
-    can reproduce the local code state.
-
-    Args:
-        require_clean: Raise error if there are uncommitted changes
-        require_pushed: Raise error if current commit isn't pushed
-        target_repo: If provided, validate we're in this repo (e.g., "owner/repo")
-        allow_untracked: If True, allow untracked files (only check tracked changes)
-
-    Returns:
-        Current commit hash
-
-    Raises:
-        GitError: If validation fails or not in a git repository
+    Raises GitError if validation fails (uncommitted changes, unpushed commits, wrong repo).
     """
     current_commit = get_current_commit()
 
