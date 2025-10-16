@@ -30,6 +30,20 @@ class WandbLogger(TrainerComponent):
             "metric/stats_time": float(context.stopwatch.get_last_elapsed("_process_stats")),
         }
 
+        # Add rollout breakdown metrics (lap time since previous checkpoint)
+        def _lap_time(name: str) -> float:
+            t = context.stopwatch.get_lap_time(name)
+            return float(t) if t is not None else 0.0
+
+        payload.update(
+            {
+                "metric/rollout_env_wait_time": _lap_time("_rollout.env_wait"),
+                "metric/rollout_td_prep_time": _lap_time("_rollout.td_prep"),
+                "metric/rollout_inference_time": _lap_time("_rollout.inference"),
+                "metric/rollout_send_time": _lap_time("_rollout.send"),
+            }
+        )
+
         total_time = payload["metric/train_time"] + payload["metric/rollout_time"] + payload["metric/stats_time"]
         steps_delta = context.agent_step - self._last_agent_step
         if total_time > 0 and steps_delta > 0:
