@@ -18,6 +18,7 @@ from devops.skypilot.utils.job_latency import calculate_queue_latency
 from devops.skypilot.utils.nccl_tests import launch_nccl_tests
 from devops.skypilot.utils.runtime_monitors import ForceRestartTestMonitor, HeartbeatMonitor, TimeoutMonitor
 from devops.skypilot.utils.subprocess_helpers import terminate_process_group
+from devops.skypilot.utils.termination_reason import TerminationReason
 from metta.common.util.log_config import getRankAwareLogger
 from metta.common.wandb.context import WandbConfig, WandbContext
 from metta.common.wandb.utils import log_to_wandb_summary
@@ -129,9 +130,9 @@ def monitor_until_termination(job_config: JobConfig, job: subprocess.Popen) -> s
         if exit_code is not None:
             logger.info(f"Subprocess exited with code {exit_code}")
             if exit_code == 0:
-                return "job_completed"
+                return TerminationReason.JOB_COMPLETED.value
             else:
-                return f"job_failed_{exit_code}"
+                return TerminationReason.JOB_FAILED.with_exit_code(exit_code)
 
         for monitor in monitors:
             reason = monitor.check_condition()
@@ -182,13 +183,13 @@ def main() -> int:
 
         if job_config.test_nccl and job_config.restart_count == 0:
             if not launch_nccl_tests(logger, job_config.is_master):
-                termination_reason = "nccl_tests_failed"
+                termination_reason = TerminationReason.NCCL_TESTS_FAILED.value
 
         # If we've restarted 3+ times and average runtime is less than 3 minutes,
         if job_config.restart_count >= 3 and job_config.accumulated_runtime_sec is not None:
             average_runtime_minutes = (job_config.accumulated_runtime_sec / job_config.restart_count) / 60
             if average_runtime_minutes < 3:
-                termination_reason = "rapid_restarts"
+                termination_reason = TerminationReason.RAPID_RESTARTS.value
 
         if not termination_reason:
             subprocess = run_job_in_background()
@@ -199,7 +200,7 @@ def main() -> int:
         if isinstance(e, SystemExit) and e.code is None:
             exit_code = 1
 
-        termination_reason = f"job_failed_{exit_code}"
+        termination_reason = TerminationReason.JOB_FAILED.with_exit_code(exit_code)
         logger.error(f"Unexpected error in main: {type(e).__name__}: {str(e)}")
 
     finally:
@@ -220,7 +221,7 @@ def main() -> int:
             # if logging or notifications throw, we still want to exit cleanly
             logger.error(f"Error in finally block: {e}")
 
-    return EXIT_AND_RESTART if termination_reason == "force_restart_test" else EXIT_AND_STOP
+    return EXIT_AND_RESTART if termination_reason == TerminationReason.FORCE_RESTART_TEST.value else EXIT_AND_STOP
 
 
 if __name__ == "__main__":

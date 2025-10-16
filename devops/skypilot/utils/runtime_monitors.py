@@ -8,6 +8,7 @@ import time
 from abc import ABC, abstractmethod
 from pathlib import Path
 
+from devops.skypilot.utils.termination_reason import TerminationReason
 from metta.common.util.log_config import getRankAwareLogger
 
 logger = getRankAwareLogger(__name__)
@@ -67,7 +68,7 @@ class HeartbeatMonitor(Monitor):
             current_time = time.time()
             elapsed = current_time - last_heartbeat_time
             if elapsed > self.heartbeat_timeout:
-                return "heartbeat_timeout"
+                return TerminationReason.HEARTBEAT_TIMEOUT.value
 
             return None
 
@@ -75,22 +76,22 @@ class HeartbeatMonitor(Monitor):
             logger.error(f"Heartbeat file not found: {self.heartbeat_file}")
             if not self.heartbeat_file.parent.exists():
                 logger.error(f"Parent directory also missing: {self.heartbeat_file.parent}")
-                return "heartbeat_directory_missing"
+                return TerminationReason.HEARTBEAT_DIRECTORY_MISSING.value
 
-            return "heartbeat_file_missing"
+            return TerminationReason.HEARTBEAT_FILE_MISSING.value
 
         except PermissionError as e:
             logger.error(f"Permission denied accessing heartbeat file: {e}")
-            return "heartbeat_permission_denied"
+            return TerminationReason.HEARTBEAT_PERMISSION_DENIED.value
 
         except OSError as e:
             errno_num = getattr(e, "errno", "unknown")
             logger.error(f"OS error accessing heartbeat file (errno={errno_num}): {e}")
-            return f"heartbeat_os_error_{errno_num}"
+            return TerminationReason.parse_os_error(errno_num)
 
         except Exception as e:
             logger.error(f"Unexpected error checking heartbeat: {type(e).__name__}: {e}")
-            return f"heartbeat_unexpected_error_{type(e).__name__}"
+            return TerminationReason.parse_unexpected_error(type(e).__name__)
 
 
 class TimeoutMonitor(Monitor):
@@ -163,7 +164,7 @@ class TimeoutMonitor(Monitor):
         Returns the termination reason if triggered, None otherwise.
         """
         if self.get_total_runtime() > self.max_seconds:
-            return "max_runtime_reached"
+            return TerminationReason.MAX_RUNTIME_REACHED.value
 
         # Save accumulated runtime on every check
         self.save_accumulated_runtime()
@@ -189,6 +190,6 @@ class ForceRestartTestMonitor(Monitor):
         elapsed = time.time() - self.start_time
 
         if elapsed >= self.failure_delay_sec:
-            return "force_restart_test"
+            return TerminationReason.FORCE_RESTART_TEST.value
 
         return None
