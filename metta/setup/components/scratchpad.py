@@ -27,7 +27,7 @@ class ScratchpadSetup(SetupModule):
         info(f"Setting up personal experiments file under {self._personal_experiments_path}...")
         username = os.getenv("USER", "user")
 
-        template_path = self.user_experiments_dir / "example.py"
+        template_path = self.user_experiments_dir / "template.py"
         with open(template_path, "r") as f:
             template_content = f.read()
 
