@@ -721,7 +721,7 @@ def cmd_benchmark(
         False,
         "--verbose",
         "-v",
-        help="Stream benchmark output, including Python print statements.",
+        help="Verbose test output. Includes e.g. Python print statements within tests.",
     ),
 ):
     """Run performance benchmarks for the mettagrid package."""
