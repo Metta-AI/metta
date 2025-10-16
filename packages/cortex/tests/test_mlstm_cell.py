@@ -1,9 +1,11 @@
 """Tests for mLSTM cell implementation."""
 
+import pytest
 import torch
 from cortex.blocks import PreUpBlock
 from cortex.cells.mlstm import mLSTMCell
 from cortex.config import PreUpBlockConfig, mLSTMCellConfig
+from cortex.utils import TRITON_AVAILABLE
 
 
 def get_test_device():
@@ -469,6 +471,9 @@ def test_mlstm_reset_mask_functionality() -> None:
     # Add more resets within chunks to test thoroughly
     reset_mask[0, 70] = True  # Another reset within third chunk
     reset_mask[1, 15] = True  # Reset within first chunk
+
+    if not (TRITON_AVAILABLE and device.type == "cuda"):
+        pytest.skip("Triton reset-mask checks require CUDA with Triton kernels")
 
     # Test 1: Simple backend with reset mask
     output_simple_reset, (c_simple, n_simple, m_simple) = mlstm_chunkwise_simple(

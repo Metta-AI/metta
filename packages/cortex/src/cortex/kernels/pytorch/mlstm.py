@@ -111,25 +111,22 @@ def mlstm_chunkwise_simple(
     B, NH, S_orig, DH = queries.shape
     _dtype, _device = queries.dtype, queries.device
 
-    # When the sequence length fits into a single chunk, compute outputs and
-    # final states using the recurrent step kernel for exact step semantics.
-    if S_orig <= chunk_size:
-        c = initial_C if initial_C is not None else torch.zeros((B, NH, DH, DH), dtype=_dtype, device=_device)
-        n = initial_n if initial_n is not None else torch.zeros((B, NH, DH, 1), dtype=_dtype, device=_device)
-        if n.dim() == 3:
-            n = n.unsqueeze(-1)
-        m = initial_m if initial_m is not None else torch.zeros((B, NH, 1, 1), dtype=_dtype, device=_device)
+    def _run_recurrent_full() -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Fallback helper that processes the entire sequence step-by-step."""
+        c = initial_C.clone() if initial_C is not None else torch.zeros((B, NH, DH, DH), dtype=_dtype, device=_device)
+        n_init = initial_n if initial_n is not None else torch.zeros((B, NH, DH, 1), dtype=_dtype, device=_device)
+        n_local = n_init.unsqueeze(-1) if n_init.dim() == 3 else n_init
+        n_local = n_local.clone()
+        m_local = initial_m if initial_m is not None else torch.zeros((B, NH, 1, 1), dtype=_dtype, device=_device)
+        m_local = m_local.clone()
 
-        outs = []
-        # Single-step function expects shapes (B, NH, 1, DH) and gates (B, NH, 1, 1)
+        outs: list[torch.Tensor] = []
         for s in range(S_orig):
-            # Apply reset mask if provided - reset states before processing timestep s
             if reset_mask is not None:
-                # reset_mask is [B, S], get mask for current timestep
                 mask_s = reset_mask[:, s].to(dtype=_dtype).view(B, 1, 1, 1)
                 c = c * (1.0 - mask_s)
-                n = n * (1.0 - mask_s)
-                m = m * (1.0 - mask_s)
+                n_local = n_local * (1.0 - mask_s)
+                m_local = m_local * (1.0 - mask_s)
 
             q_s = queries[:, :, s : s + 1, :]
             k_s = keys[:, :, s : s + 1, :]
@@ -137,10 +134,10 @@ def mlstm_chunkwise_simple(
             i_s = igate_preact[:, :, s : s + 1].unsqueeze(-1)
             f_s = fgate_preact[:, :, s : s + 1].unsqueeze(-1)
 
-            h_step, (c, n, m) = mlstm_recurrent_step_stabilized_simple(
+            h_step, (c, n_local, m_local) = mlstm_recurrent_step_stabilized_simple(
                 c_state=c,
-                n_state=n,
-                m_state=m,
+                n_state=n_local,
+                m_state=m_local,
                 q=q_s,
                 k=k_s,
                 v=v_s,
@@ -151,10 +148,17 @@ def mlstm_chunkwise_simple(
             outs.append(h_step)
 
         h_seq = torch.cat(outs, dim=2)  # (B, NH, S, DH)
+        return h_seq, c, n_local, m_local
+
+    # When the sequence length fits within a single chunk, or when per-timestep
+    # resets are requested, fall back to the exact recurrent scan for parity
+    # with step mode. This avoids state leakage across reset boundaries on CPU.
+    reset_requires_scan = bool(reset_mask.any().item()) if reset_mask is not None else False
+    if S_orig <= chunk_size or reset_requires_scan:
+        h_seq, c_final, n_final, m_final = _run_recurrent_full()
         if return_last_state:
-            return h_seq, (c, n, m)
-        else:
-            return h_seq
+            return h_seq, (c_final, n_final, m_final)
+        return h_seq
 
     # Determine chunking layout without padding; handle tail via recurrent step to keep states exact
     CS = chunk_size

@@ -53,7 +53,7 @@ def mlstm_chunkwise_triton(
     try:
         from cortex.kernels.triton.mlstm.torch import mlstm_chunkwise__xl_chunk
     except ImportError:
-        # Fallback if triton kernels are not available
+        # Fallback if Triton kernels are not available
         from cortex.kernels.pytorch.mlstm import mlstm_chunkwise_simple
 
         return mlstm_chunkwise_simple(
