@@ -49,6 +49,9 @@ module "eks" {
 
   # https://www.reddit.com/r/Terraform/comments/znomk4/ebs_csi_driver_entirely_from_terraform_on_aws_eks/
   cluster_addons = {
+    eks-pod-identity-agent = {
+      before_compute = true
+    }
     aws-ebs-csi-driver = {
       addon_version            = "v1.51.0-eksbuild.1"
       service_account_role_arn = "arn:aws:iam::751442549699:role/AmazonEBSCSIDriverPolicy"
