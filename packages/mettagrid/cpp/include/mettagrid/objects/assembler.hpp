@@ -22,6 +22,7 @@ class Clipper;
 class Assembler : public GridObject, public Usable {
 private:
   // Surrounding positions in deterministic order: NW, N, NE, W, E, SW, S, SE
+  // This order is important for get_agent_pattern_byte which uses bit positions
   std::vector<std::pair<GridCoord, GridCoord>> get_surrounding_positions() const {
     GridCoord r = location.r;
     GridCoord c = location.c;
@@ -39,13 +40,36 @@ private:
     return positions;
   }
 
-  // Get surrounding agents in a deterministic order (clockwise from NW)
-  std::vector<Agent*> get_surrounding_agents() const {
+  // Get surrounding agents in upper-left-to-lower-right order starting from the given agent's position
+  std::vector<Agent*> get_surrounding_agents(const Agent* starting_agent) const {
     std::vector<Agent*> agents;
     if (!grid) return agents;
 
     std::vector<std::pair<GridCoord, GridCoord>> positions = get_surrounding_positions();
 
+    // Find the starting agent's position in the surrounding positions
+    int start_index = -1;
+    if (starting_agent) {
+      for (size_t i = 0; i < positions.size(); i++) {
+        if (positions[i].first == starting_agent->location.r && positions[i].second == starting_agent->location.c) {
+          start_index = i;
+          break;
+        }
+      }
+
+      // The starting agent must be in one of the surrounding positions
+      if (start_index == -1) {
+        throw std::runtime_error("Starting agent is not in a surrounding position of the assembler");
+      }
+    }
+
+    // If starting agent was found in surrounding positions, reorder to start from there
+    if (start_index >= 0) {
+      // Rotate the positions vector to start from the starting_agent's position
+      std::rotate(positions.begin(), positions.begin() + start_index, positions.end());
+    }
+
+    // Collect agents from the reordered positions
     for (const auto& pos : positions) {
       GridCoord check_r = pos.first;
       GridCoord check_c = pos.second;
@@ -79,10 +103,14 @@ private:
     return true;
   }
 
-  // Give output resources to the triggering agent
-  void give_output_to_agent(const Recipe& recipe, Agent& agent) {
+  // Give output resources to agents
+  void give_output_for_recipe(const Recipe& recipe, const std::vector<Agent*>& surrounding_agents) {
+    std::vector<Inventory*> inventories;
+    for (Agent* agent : surrounding_agents) {
+      inventories.push_back(&agent->inventory);
+    }
     for (const auto& [item, amount] : recipe.output_resources) {
-      agent.update_inventory(item, static_cast<InventoryDelta>(amount));
+      Inventory::shared_update(inventories, item, amount);
     }
   }
 
@@ -98,55 +126,15 @@ private:
 
 public:
   // Consume resources from surrounding agents for the given recipe
-  // Uses a balanced approach: sorts agents by resource amount and takes evenly from them
   // Intended to be private, but made public for testing. We couldn't get `friend` to work as expected.
   void consume_resources_for_recipe(const Recipe& recipe, const std::vector<Agent*>& surrounding_agents) {
+    std::vector<Inventory*> inventories;
+    for (Agent* agent : surrounding_agents) {
+      inventories.push_back(&agent->inventory);
+    }
     for (const auto& [item, required_amount] : recipe.input_resources) {
-      // We expect the main usage to be 3 passes:
-      // 1. Separate agents into those who have "their share" and those who don't. Consume resources from those who
-      // don't.
-      // 2. Take a second pass through the list to confirm that all remaining agents have "their share", based on
-      // an updated understanding of what's needed.
-      // 3. Consume resources from the agents who have "their share".
-      InventoryQuantity required_remaining = required_amount;
-      std::vector<Agent*> agents_to_consider;
-      std::vector<Agent*> next_agents_to_consider = surrounding_agents;
-      size_t num_agents_remaining = next_agents_to_consider.size();
-      // Intentionally rounded down
-      InventoryQuantity required_per_agent = required_remaining / num_agents_remaining;
-      do {
-        agents_to_consider = next_agents_to_consider;
-        next_agents_to_consider.clear();
-        for (Agent* agent : agents_to_consider) {
-          InventoryQuantity agent_amount = agent->inventory.amount(item);
-          if (agent_amount <= required_per_agent) {
-            // This agent has less than (or equal to) what we're going to be asking for. Thus, we can just consume
-            // all of it now. This lets us update how much we'll need from other agents.
-            if (agent_amount > 0) {
-              agent->update_inventory(item, static_cast<InventoryDelta>(-agent_amount));
-              required_remaining -= agent_amount;
-            }
-            // We can update how much we're looking for as an in-flight operation.
-            num_agents_remaining--;
-            if (num_agents_remaining > 0) {
-              required_per_agent = required_remaining / num_agents_remaining;
-            }
-          } else {
-            // This agent has more than what we're going to be asking for. We'll add it to our list of agents to
-            // consider next time.
-            next_agents_to_consider.push_back(agent);
-          }
-        }
-        // Do this until we don't kick any agents off the list, at which point we know all agents have "their share".
-      } while (agents_to_consider.size() != next_agents_to_consider.size());
-
-      for (Agent* agent : agents_to_consider) {
-        InventoryQuantity required_rounded_up = (required_remaining + num_agents_remaining - 1) / num_agents_remaining;
-        agent->update_inventory(item, static_cast<InventoryDelta>(-required_rounded_up));
-        required_remaining -= required_rounded_up;
-        num_agents_remaining--;
-      }
-      assert(required_remaining == 0 && "Failed to consume all required resources");
+      InventoryDelta consumed = Inventory::shared_update(inventories, item, -required_amount);
+      assert(consumed == -required_amount && "Expected all required resources to be consumed");
     }
   }
 
@@ -358,12 +346,12 @@ public:
       }
     }
 
-    std::vector<Agent*> surrounding_agents = get_surrounding_agents();
+    std::vector<Agent*> surrounding_agents = get_surrounding_agents(&actor);
     if (!can_afford_recipe(recipe_to_use, surrounding_agents)) {
       return false;
     }
     consume_resources_for_recipe(recipe_to_use, surrounding_agents);
-    give_output_to_agent(recipe_to_use, actor);
+    give_output_for_recipe(recipe_to_use, surrounding_agents);
 
     cooldown_duration = static_cast<unsigned int>(recipe_to_use.cooldown * cooldown_multiplier);
     cooldown_end_timestep = *current_timestep_ptr + cooldown_duration;
