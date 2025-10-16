@@ -3,7 +3,7 @@ from typing import Any, ClassVar, Literal, Optional
 from pydantic import ConfigDict, Field, model_validator
 
 from metta.rl.loss import LossConfig
-from metta.rl.training import HeartbeatConfig, HyperparameterSchedulerConfig
+from metta.rl.training import DormantNeuronMonitorConfig, HeartbeatConfig, HyperparameterSchedulerConfig
 from mettagrid.base_config import Config
 
 
@@ -66,6 +66,7 @@ class TrainerConfig(Config):
 
     hyperparameter_scheduler: HyperparameterSchedulerConfig = Field(default_factory=HyperparameterSchedulerConfig)
     heartbeat: Optional[HeartbeatConfig] = Field(default_factory=HeartbeatConfig)
+    dormant_neuron_monitor: Optional[DormantNeuronMonitorConfig] = Field(default_factory=DormantNeuronMonitorConfig)
 
     initial_policy: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)
     profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)

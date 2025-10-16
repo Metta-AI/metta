@@ -23,6 +23,7 @@ from metta.rl.training import (
     CheckpointerConfig,
     ContextCheckpointer,
     DistributedHelper,
+    DormantNeuronMonitor,
     Evaluator,
     EvaluatorConfig,
     GradientReporter,
@@ -250,6 +251,19 @@ class TrainTool(Tool):
 
             if stats_component is not None:
                 components.append(stats_component)
+
+            dormant_cfg = getattr(self.trainer, "dormant_neuron_monitor", None)
+            if dormant_cfg is not None:
+                monitor_cfg = dormant_cfg.model_copy(
+                    update={"report_to_wandb": bool(wandb_run) and bool(dormant_cfg.report_to_wandb)}
+                )
+                if monitor_cfg.epoch_interval > 0:
+                    components.append(
+                        DormantNeuronMonitor(
+                            config=monitor_cfg,
+                            wandb_run=wandb_run if monitor_cfg.report_to_wandb else None,
+                        )
+                    )
 
             components.append(policy_checkpointer)
 
