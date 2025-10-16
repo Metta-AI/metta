@@ -1,31 +1,23 @@
-#!/usr/bin/env python3
 """
 Doxascope Data Module
 
 This module provides functionality for:
 1. Logging LSTM memory vectors and agent positions during simulation using the DoxascopeLogger class.
-2. Preprocessing the logged data for neural network training
+2. Preprocessing the logged data for neural network training.
 
 """
 
 import json
 import logging
-from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
-from tensordict import TensorDict
 
 logger = logging.getLogger(__name__)
 
-# Maximum number of LSTM layers to consider when detecting shape format
-MAX_LSTM_LAYERS = 8
 
-
-# Coordinate Conversion Utilities
-@lru_cache(maxsize=128)
 def get_positions_for_manhattan_distance(d: int) -> List[Tuple[int, int]]:
     """
     Returns a canonical, sorted list of all (dr, dc) positions
@@ -37,25 +29,21 @@ def get_positions_for_manhattan_distance(d: int) -> List[Tuple[int, int]]:
         for dc in range(-d, d + 1):
             if abs(dr) + abs(dc) <= d:
                 positions.append((dr, dc))
-    # Sort by row, then column for a canonical order
     return sorted(positions)
 
 
-@lru_cache(maxsize=128)
 def get_num_classes_for_manhattan_distance(d: int) -> int:
     """Returns the number of reachable cells within a given Manhattan distance."""
     d = abs(d)
     return 2 * d * d + 2 * d + 1
 
 
-@lru_cache(maxsize=128)
 def get_pos_to_class_id_map(d: int) -> Dict[Tuple[int, int], int]:
     """Returns a mapping from (dr, dc) -> class_id for a given Manhattan distance."""
     positions = get_positions_for_manhattan_distance(d)
     return {pos: i for i, pos in enumerate(positions)}
 
 
-@lru_cache(maxsize=128)
 def get_class_id_to_pos_map(d: int) -> Dict[int, Tuple[int, int]]:
     """Returns a mapping from class_id -> (dr, dc) for a given Manhattan distance."""
     positions = get_positions_for_manhattan_distance(d)
@@ -94,7 +82,7 @@ class DoxascopeLogger:
 
         self.base_dir = Path(output_dir)
         self.simulation_id = simulation_id
-        self.data: List = []
+        self.data: List[Dict] = []
         self.timestep = 0
         self.agent_id_map: Optional[Dict[int, int]] = None
         self.agent_type_id: int = 0
@@ -102,14 +90,27 @@ class DoxascopeLogger:
 
     def configure(
         self,
-        policy_name: str,
+        policy_uri: str,
         object_type_names: Optional[List[str]] = None,
     ):
         """Configure the logger with policy-specific information."""
         if not self.enabled:
             return
 
-        self.output_dir = self.base_dir / policy_name
+        stem = Path(policy_uri).stem
+        if ":" in stem:
+            base_name, version = stem.split(":", 1)
+        else:
+            base_name = stem
+            version = None
+
+        base_name = base_name.replace("/", "_")
+
+        if version:
+            self.output_dir = self.base_dir / base_name / version
+        else:
+            self.output_dir = self.base_dir / base_name
+
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.output_file = self.output_dir / f"doxascope_data_{self.simulation_id}.json"
 
@@ -130,12 +131,138 @@ class DoxascopeLogger:
                     agent_id_map[agent_id] = obj_id
         return agent_id_map
 
+    def _get_last_lstm_layer(
+        self, h_tensor: torch.Tensor, c_tensor: torch.Tensor
+    ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
+        """
+        Extracts the last layer from LSTM state tensors, handling (L,B,H) and (B,L,H) formats.
+        Heuristic to distinguish tensor formats: smaller dim is layers.
+        - (L, B, H): layers first, batch second - typical PyTorch default
+        - (B, L, H): batch first, layers second - when batch_first=True
+        """
+        if h_tensor.ndim == 2:
+            return h_tensor, c_tensor
+        if h_tensor.ndim != 3:
+            return None, None
+
+        d0, d1, _ = h_tensor.shape
+
+        if d0 < d1:
+            return h_tensor[-1, :, :], c_tensor[-1, :, :]
+        elif d1 < d0:
+            return h_tensor[:, -1, :], c_tensor[:, -1, :]
+        else:
+            logger.warning(
+                f"Ambiguous LSTM state shape {h_tensor.shape} encountered. "
+                f"Assuming default (L, B, H) format. If this is incorrect, "
+                f"the logged memory vector will be wrong."
+            )
+            return h_tensor[-1, :, :], c_tensor[-1, :, :]
+
+    def _extract_memory_from_policy_state(self, policy: Any, policy_idxs: torch.Tensor) -> Optional[torch.Tensor]:
+        """Extract LSTM memory from policy.state (preferred method)."""
+        try:
+            st = getattr(policy, "state", None)
+            h_attr = getattr(st, "lstm_h", None) if st is not None else None
+            c_attr = getattr(st, "lstm_c", None) if st is not None else None
+            if h_attr is not None and c_attr is not None:
+                last_h, last_c = self._get_last_lstm_layer(h_attr, c_attr)
+                if last_h is not None and last_c is not None:
+                    mm = torch.cat([last_h, last_c], dim=1)
+                    try:
+                        select_rows = policy_idxs.to(torch.long)
+                        return mm.index_select(0, select_rows)
+                    except Exception:
+                        return mm
+        except Exception:
+            pass
+        return None
+
+    def _extract_memory_from_components(self, policy: Any, policy_idxs: torch.Tensor) -> Optional[torch.Tensor]:
+        """Extract LSTM memory directly from policy components."""
+        try:
+            components_dict = getattr(policy, "components", None)
+            if components_dict is None and hasattr(policy, "network"):
+                components_dict = getattr(policy.network, "components", None)
+
+            if components_dict is not None:
+                for comp in components_dict.values():
+                    h_buf = getattr(comp, "lstm_h", None)
+                    c_buf = getattr(comp, "lstm_c", None)
+
+                    # Handle LSTMReset case (tensors)
+                    if isinstance(h_buf, torch.Tensor) and isinstance(c_buf, torch.Tensor):
+                        last_h, last_c = self._get_last_lstm_layer(h_buf, c_buf)
+                        if last_h is not None and last_c is not None:
+                            memory_matrix = self._select_agent_memories(last_h, last_c, policy_idxs)
+                            if memory_matrix is not None:
+                                return memory_matrix
+
+                    # Handle regular LSTM case (dictionaries)
+                    elif isinstance(h_buf, dict) and isinstance(c_buf, dict) and h_buf and c_buf:
+                        env_id = max(h_buf.keys())
+                        if env_id in c_buf:
+                            h_tensor = h_buf[env_id]
+                            c_tensor = c_buf[env_id]
+                            last_h, last_c = self._get_last_lstm_layer(h_tensor, c_tensor)
+                            if last_h is not None and last_c is not None:
+                                memory_matrix = self._select_agent_memories(last_h, last_c, policy_idxs)
+                                if memory_matrix is not None:
+                                    return memory_matrix
+        except Exception:
+            pass
+        return None
+
+    def _extract_memory_from_get_memory(self, policy: Any, policy_idxs: torch.Tensor) -> Optional[torch.Tensor]:
+        """Extract LSTM memory using component get_memory() methods."""
+        try:
+            components_dict = getattr(policy, "components", None)
+            if components_dict is None and hasattr(policy, "network"):
+                components_dict = getattr(policy.network, "components", None)
+
+            if components_dict is not None:
+                for comp in components_dict.values():
+                    get_mem = getattr(comp, "get_memory", None)
+                    if callable(get_mem):
+                        lstm_h_dict, lstm_c_dict = get_mem()
+                        if isinstance(lstm_h_dict, dict) and isinstance(lstm_c_dict, dict) and lstm_h_dict:
+                            env_id = max(lstm_h_dict.keys())
+                            h_t = lstm_h_dict[env_id]
+                            c_t = lstm_c_dict[env_id]
+                            if isinstance(h_t, torch.Tensor) and isinstance(c_t, torch.Tensor):
+                                last_h, last_c = self._get_last_lstm_layer(h_t, c_t)
+                                if last_h is not None and last_c is not None:
+                                    memory_matrix = self._select_agent_memories(last_h, last_c, policy_idxs)
+                                    if memory_matrix is not None:
+                                        return memory_matrix
+        except Exception:
+            pass
+        return None
+
+    def _select_agent_memories(
+        self, last_h: torch.Tensor, last_c: torch.Tensor, policy_idxs: torch.Tensor
+    ) -> Optional[torch.Tensor]:
+        """Select and concatenate memory vectors for the specified agent indices."""
+        try:
+            select_rows = policy_idxs.to(torch.long)
+            max_row = min(last_h.shape[0], int(select_rows.max().item() + 1))
+            clipped = torch.clamp(select_rows, 0, max_row - 1)
+            if not torch.equal(clipped, select_rows):
+                logger.warning(
+                    f"Clamped out-of-bounds indices in LSTM extraction: original {select_rows}, clipped {clipped}"
+                )
+            return torch.cat([last_h.index_select(0, clipped), last_c.index_select(0, clipped)], dim=1)
+        except Exception:
+            try:
+                return torch.cat([last_h, last_c], dim=1)
+            except Exception:
+                return None
+
     def log_timestep(
         self,
         policy: Any,
         policy_idxs: torch.Tensor,
         env_grid_objects: Dict,
-        tensordict: Optional[TensorDict] = None,
     ):
         """Log memory vectors and positions for policy agents at current timestep.
 
@@ -146,222 +273,40 @@ class DoxascopeLogger:
             policy: The policy being evaluated
             policy_idxs: Indices of agents controlled by the policy
             env_grid_objects: Dictionary of grid objects from the environment
-            tensordict: Optional TensorDict from the policy forward pass, containing
-                       LSTM states and potentially agent indices.
         """
         if not self.enabled:
             return
 
         self.timestep += 1
 
-        # Add agent indices to tensordict if provided and not already present
-        if tensordict is not None and "__agent_indices" not in tensordict.keys():
-            try:
-                tensordict["__agent_indices"] = (
-                    policy_idxs.detach()
-                    .clone()
-                    .to(tensordict.device if hasattr(tensordict, "device") else policy_idxs.device)
-                )
-            except Exception:
-                pass
-
-        # The policy passed in may be a wrapper. The actual model is inside.
-        # Keep compatibility with wrapped policies if needed in future
-        _ = getattr(policy, "policy", policy)
-
-        # Try to extract recurrent state from multiple possible sources
         memory_matrix: Optional[torch.Tensor] = None
-        batch_pos_to_global: Optional[Dict[int, int]] = None
 
-        # 1) Preferred: from per-forward TensorDict (direct keys or nested)
-        if isinstance(tensordict, TensorDict):
-            # Direct keys
-            td_lstm_h = tensordict.get("lstm_h") if "lstm_h" in tensordict.keys() else None
-            td_lstm_c = tensordict.get("lstm_c") if "lstm_c" in tensordict.keys() else None
-            td_batch_idxs = tensordict.get("__agent_indices") if "__agent_indices" in tensordict.keys() else None
-
-            # Or nested recurrent state
-            recurrent_source: Any = None
-            if "recurrent_state" in tensordict.keys():
-                recurrent_source = tensordict.get("recurrent_state")
-
-            lstm_h = (
-                td_lstm_h if td_lstm_h is not None else (recurrent_source.get("lstm_h") if recurrent_source else None)
-            )
-            lstm_c = (
-                td_lstm_c if td_lstm_c is not None else (recurrent_source.get("lstm_c") if recurrent_source else None)
-            )
-            batch_indices = (
-                td_batch_idxs
-                if td_batch_idxs is not None
-                else (
-                    recurrent_source.get("__agent_indices")
-                    if recurrent_source and "__agent_indices" in recurrent_source.keys()
-                    else None
-                )
-            )
-
-            if (
-                lstm_h is not None
-                and lstm_c is not None
-                and isinstance(lstm_h, torch.Tensor)
-                and isinstance(lstm_c, torch.Tensor)
-            ):
-                if lstm_h.ndim == 3:
-                    d0, d1, _ = lstm_h.shape
-                    # Treat as [B, L, H] if middle dim small
-                    if d1 <= MAX_LSTM_LAYERS and d0 >= d1:
-                        last_h = lstm_h[:, -1, :]
-                        last_c = lstm_c[:, -1, :]
-                        memory_matrix = torch.cat([last_h, last_c], dim=1)
-                    # Treat as [L, B, H] if first dim small
-                    elif d0 <= MAX_LSTM_LAYERS and d1 >= d0:
-                        last_h = lstm_h[-1, :, :]
-                        last_c = lstm_c[-1, :, :]
-                        memory_matrix = torch.cat([last_h, last_c], dim=1)
-                elif lstm_h.ndim == 2 and lstm_c.ndim == 2 and lstm_h.shape[0] == lstm_c.shape[0]:
-                    # Already [B, H]
-                    memory_matrix = torch.cat([lstm_h, lstm_c], dim=1)
-
-                if memory_matrix is not None and batch_indices is not None:
-                    try:
-                        batch_indices = batch_indices.reshape(-1).to(torch.long)
-                        batch_pos_to_global = {int(i): int(g) for i, g in enumerate(batch_indices.tolist())}
-                    except Exception:
-                        batch_pos_to_global = None
-
-        # 2) Fallback: from policy.state (supports LxBxH or LxAxH or AxH)
+        # Try extraction methods in order of preference
         if memory_matrix is None:
-            st = getattr(policy, "state", None)
-            h_attr = getattr(st, "lstm_h", None) if st is not None else None
-            c_attr = getattr(st, "lstm_c", None) if st is not None else None
-            if h_attr is not None and c_attr is not None:
-                try:
-                    if h_attr.ndim == 3:
-                        # Assume [L, A, H] or [L, B, H] → take last layer
-                        last_h = h_attr[-1, :, :]
-                        last_c = c_attr[-1, :, :]
-                    elif h_attr.ndim == 2:
-                        # Already [A, H]
-                        last_h = h_attr
-                        last_c = c_attr
-                    else:
-                        last_h = None
-                        last_c = None
+            memory_matrix = self._extract_memory_from_policy_state(policy, policy_idxs)
 
-                    if last_h is not None and last_c is not None:
-                        mm = torch.cat([last_h, last_c], dim=1)  # [A, 2H]
-                        # Reorder rows to match this step's policy agent ordering
-                        try:
-                            select_rows = policy_idxs.to(torch.long)
-                            memory_matrix = mm.index_select(0, select_rows)
-                        except Exception:
-                            memory_matrix = mm
-                        batch_pos_to_global = None
-                except Exception:
-                    pass
-
-        # 3) Fallback: inspect policy components (handles ViT/LSTM and LSTMReset)
         if memory_matrix is None:
-            try:
-                # PolicyAutoBuilder exposes components on either `components` or `network.components`
-                components_dict = getattr(policy, "components", None)
-                if components_dict is None and hasattr(policy, "network"):
-                    components_dict = getattr(policy.network, "components", None)
+            memory_matrix = self._extract_memory_from_components(policy, policy_idxs)
 
-                if components_dict is not None:
-                    # Try LSTMReset first (buffers `lstm_h`/`lstm_c` with shape [L, A, H])
-                    for comp in components_dict.values():
-                        h_buf = getattr(comp, "lstm_h", None)
-                        c_buf = getattr(comp, "lstm_c", None)
-                        if isinstance(h_buf, torch.Tensor) and isinstance(c_buf, torch.Tensor) and h_buf.ndim == 3:
-                            # Take the last layer and map current agent batch rows
-                            last_h = h_buf[-1, :, :]
-                            last_c = c_buf[-1, :, :]
-                            # Map to current policy batch ordering when possible
-                            try:
-                                select_rows = policy_idxs.to(torch.long)
-                                # Guard against selecting beyond available rows
-                                max_row = min(last_h.shape[0], int(select_rows.max().item() + 1))
-                                clipped = torch.clamp(select_rows, 0, max_row - 1)
-                                memory_matrix = torch.cat(
-                                    [last_h.index_select(0, clipped), last_c.index_select(0, clipped)], dim=1
-                                )
-                            except Exception:
-                                memory_matrix = torch.cat([last_h, last_c], dim=1)
-                            batch_pos_to_global = None
-                            break
+        if memory_matrix is None:
+            memory_matrix = self._extract_memory_from_get_memory(policy, policy_idxs)
 
-                    # If not found, try LSTM component with dict memory
-                    if memory_matrix is None:
-                        for comp in components_dict.values():
-                            get_mem = getattr(comp, "get_memory", None)
-                            if callable(get_mem):
-                                try:
-                                    lstm_h_dict, lstm_c_dict = get_mem()
-                                    if isinstance(lstm_h_dict, dict) and isinstance(lstm_c_dict, dict) and lstm_h_dict:
-                                        # Use the first available key
-                                        any_key = sorted(lstm_h_dict.keys())[0]
-                                        h_t = lstm_h_dict[any_key]
-                                        c_t = lstm_c_dict[any_key]
-                                        if isinstance(h_t, torch.Tensor) and h_t.ndim == 3:
-                                            last_h = h_t[-1, :, :]
-                                            last_c = c_t[-1, :, :]
-                                            try:
-                                                select_rows = policy_idxs.to(torch.long)
-                                                max_row = min(last_h.shape[0], int(select_rows.max().item() + 1))
-                                                clipped = torch.clamp(select_rows, 0, max_row - 1)
-                                                memory_matrix = torch.cat(
-                                                    [last_h.index_select(0, clipped), last_c.index_select(0, clipped)],
-                                                    dim=1,
-                                                )
-                                            except Exception:
-                                                memory_matrix = torch.cat([last_h, last_c], dim=1)
-                                            batch_pos_to_global = None
-                                            break
-                                except Exception:
-                                    continue
-            except Exception:
-                pass
-
-        # If we still don't have memory, disable after first step with a clear message
-        if self.timestep == 2 and memory_matrix is None:
-            logger.error(
-                "Doxascope logging disabled: could not locate recurrent state (e.g., LSTM) "
-                "in TensorDict or policy.state. Skipping data collection for this simulation."
-            )
+        if memory_matrix is None:
+            logger.warning("No recurrent state found on timestep %d. Disabling doxascope logging.", self.timestep)
             self.enabled = False
             return
 
-        # If memory vectors are still None after the first step, just skip logging
-        if memory_matrix is None:
-            return
-
-        # Build agent ID mapping from grid objects
         agent_map = self._build_agent_id_map(env_grid_objects)
-
-        timestep_data = {"timestep": self.timestep, "agents": []}
+        timestep_data: Dict[str, Any] = {"timestep": self.timestep, "agents": []}
 
         for i, agent_idx in enumerate(policy_idxs):
             flat_idx = int(agent_idx.item())
-            # Determine batch row for this global index
-            if "batch_pos_to_global" in locals() and batch_pos_to_global:
-                # find batch position whose global id equals flat_idx
-                try:
-                    # Reverse map once lazily
-                    if "global_to_batch" not in locals():
-                        global_to_batch = {g: b for b, g in batch_pos_to_global.items()}
-                    row = global_to_batch.get(flat_idx, None)
-                except Exception:
-                    row = i
-            else:
-                row = i
-            if row is None or row < 0 or row >= memory_matrix.shape[0]:
+            row = i
+            if row < 0 or row >= memory_matrix.shape[0]:
                 continue
             memory_vector = memory_matrix[row].flatten().detach().cpu()
             mv_np = memory_vector.numpy().astype(np.float32)
 
-            # Single env; agent_idx corresponds directly to agent_id
             agent_id = flat_idx
             if agent_id not in agent_map:
                 logger.warning(f"Agent {agent_id} not found in grid objects")
@@ -389,7 +334,6 @@ class DoxascopeLogger:
             if not self.data:
                 logger.warning("Doxascope: no data was logged for this simulation; nothing to save.")
                 return
-            # Write plain JSON
             with open(self.output_file, "w") as f:
                 json.dump(self.data, f)
             file_size_bytes = self.output_file.stat().st_size
@@ -400,11 +344,10 @@ class DoxascopeLogger:
 
 
 def _extract_agent_trajectories(files: list) -> List[List[Tuple[np.ndarray, Tuple[int, int]]]]:
-    """Load raw data (single-env) and return per-file, per-agent trajectories.
-
+    """
+    Load raw data (single-env) and return per-file, per-agent trajectories.
     Each trajectory is a list of (memory_vector, position) tuples from a single
-    file for a single agent. Assumes single environment collection. Older logs
-    that include an 'env' field are treated as single-env by ignoring that field.
+    file for a single agent.
     """
     trajectories: List[List[Tuple[np.ndarray, Tuple[int, int]]]] = []
 
@@ -412,7 +355,6 @@ def _extract_agent_trajectories(files: list) -> List[List[Tuple[np.ndarray, Tupl
         with open(json_file, "r") as f:
             data = json.load(f)
 
-        # Key by agent_id (single-env assumption)
         file_agent_trajs: Dict[int, List[Tuple[np.ndarray, Tuple[int, int]]]] = {}
         expected_dim = None
 
@@ -466,7 +408,6 @@ def _create_training_samples(
             timestep_labels: List[int] = []
             valid_sample = True
 
-            # Create labels for past and future timesteps (Manhattan metric, no diagonals allowed)
             for k in list(range(-num_past, 0)) + list(range(1, num_future + 1)):
                 pos_k = trajectory[i + k][1]
                 dr, dc = pos_k[0] - current_pos[0], pos_k[1] - current_pos[1]
