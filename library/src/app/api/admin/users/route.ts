@@ -20,7 +20,10 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const skip = (page - 1) * limit;
 
   // Build where clause for filtering
-  const whereClause: any = {};
+  const whereClause: any = {
+    // Exclude system bot user
+    email: { not: "library_bot@system" },
+  };
 
   if (showBannedOnly) {
     whereClause.isBanned = true;
@@ -93,7 +96,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     pagination: {
       page,
       limit,
-      totalCount,
+      total: totalCount,
       totalPages,
       hasNextPage: page < totalPages,
       hasPrevPage: page > 1,

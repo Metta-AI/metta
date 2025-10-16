@@ -46,7 +46,10 @@ export interface AdminUserListResponse {
 }
 
 export async function listAdminInstitutions(): Promise<AdminInstitution[]> {
-  return fetchJson<AdminInstitution[]>("/api/admin/institutions");
+  const response = await fetchJson<{ institutions: AdminInstitution[] }>(
+    "/api/admin/institutions"
+  );
+  return response.institutions;
 }
 
 export async function listAdminUsers(params?: {

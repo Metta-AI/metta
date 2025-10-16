@@ -9,6 +9,7 @@ import {
   type ControllerProps,
   FieldPath,
   FieldValues,
+  useFormContext,
 } from "react-hook-form";
 
 import { cn } from "@/lib/utils";
@@ -108,14 +109,18 @@ const FormMessage = React.forwardRef<
   HTMLParagraphElement,
   React.HTMLAttributes<HTMLParagraphElement>
 >(({ className, children, ...props }, ref) => {
-  const body = children ? (
-    children
-  ) : (
-    <span className="text-destructive text-sm">This field is required</span>
-  );
-
+  const fieldContext = React.useContext(FormFieldContext);
   const itemContext = React.useContext(FormItemContext);
   const id = itemContext?.id;
+
+  const { formState } = useFormContext();
+  const fieldName = fieldContext?.name;
+  const fieldError = fieldName ? formState.errors[fieldName] : undefined;
+  const errorMessage = fieldError?.message as string | undefined;
+
+  if (!errorMessage && !children) {
+    return null;
+  }
 
   return (
     <p
@@ -124,7 +129,7 @@ const FormMessage = React.forwardRef<
       className={cn("text-destructive text-sm", className)}
       {...props}
     >
-      {body}
+      {children || errorMessage}
     </p>
   );
 });

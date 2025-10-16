@@ -82,7 +82,6 @@ const OverlayContent: React.FC<{
               interactions={paperPayload.interactions}
               onClose={onClose}
               onStarToggle={paperPayload.onStarToggle}
-              onQueueToggle={paperPayload.onQueueToggle}
             />
           </React.Suspense>
         );
@@ -115,7 +114,7 @@ const OverlayContent: React.FC<{
     }
   };
 
-  return <div className="max-h-full overflow-hidden">{renderContent()}</div>;
+  return <div className="h-full">{renderContent()}</div>;
 };
 
 export const useOverlayNavigation = () => {
@@ -125,12 +124,11 @@ export const useOverlayNavigation = () => {
     paper: OverlayStackItem<"paper">["payload"]["paper"],
     users: OverlayStackItem<"paper">["payload"]["users"],
     interactions: OverlayStackItem<"paper">["payload"]["interactions"],
-    onStarToggle: OverlayStackItem<"paper">["payload"]["onStarToggle"],
-    onQueueToggle: OverlayStackItem<"paper">["payload"]["onQueueToggle"]
+    onStarToggle: OverlayStackItem<"paper">["payload"]["onStarToggle"]
   ) => {
     pushOverlay(
       "paper",
-      { paper, users, interactions, onStarToggle, onQueueToggle },
+      { paper, users, interactions, onStarToggle },
       paper.title
     );
   };

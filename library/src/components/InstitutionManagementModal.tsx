@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs } from "@/components/ui/tabs";
 
 interface InstitutionMember {
   id: string;
@@ -88,6 +89,9 @@ export const InstitutionManagementModal: FC<
   const [localMembers, setLocalMembers] = useState<InstitutionMember[]>(
     institution.members || []
   );
+  const [localRequiresApproval, setLocalRequiresApproval] = useState<boolean>(
+    institution.requiresApproval || false
+  );
   const pendingMembershipActionRef = useRef<"add" | "remove" | null>(null);
   const pendingMemberEmailRef = useRef<string | null>(null);
   const pendingApprovalRef = useRef<boolean | null>(null);
@@ -107,7 +111,8 @@ export const InstitutionManagementModal: FC<
 
   useEffect(() => {
     setLocalMembers(institution.members || []);
-  }, [institution.members]);
+    setLocalRequiresApproval(institution.requiresApproval || false);
+  }, [institution.members, institution.requiresApproval]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -173,6 +178,7 @@ export const InstitutionManagementModal: FC<
       onSuccess: () => {
         const requiresApproval = pendingApprovalRef.current;
         if (requiresApproval !== null) {
+          setLocalRequiresApproval(requiresApproval);
           toast.success(
             requiresApproval
               ? "Membership approval now required"
@@ -239,44 +245,23 @@ export const InstitutionManagementModal: FC<
             </div>
             <button
               onClick={onClose}
-              className="rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+              className="cursor-pointer rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
             >
               <X className="h-5 w-5" />
             </button>
           </div>
 
           {isAdmin && (
-            <div className="mt-4 flex gap-2">
-              <button
-                onClick={() => setActiveTab("members")}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                  activeTab === "members"
-                    ? "bg-blue-100 text-blue-700"
-                    : "text-gray-600 hover:bg-gray-100"
-                }`}
-              >
-                Members ({memberCount})
-              </button>
-              <button
-                onClick={() => setActiveTab("add")}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                  activeTab === "add"
-                    ? "bg-blue-100 text-blue-700"
-                    : "text-gray-600 hover:bg-gray-100"
-                }`}
-              >
-                Add Member
-              </button>
-              <button
-                onClick={() => setActiveTab("settings")}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                  activeTab === "settings"
-                    ? "bg-blue-100 text-blue-700"
-                    : "text-gray-600 hover:bg-gray-100"
-                }`}
-              >
-                Settings
-              </button>
+            <div className="mt-4">
+              <Tabs
+                tabs={[
+                  { id: "members", label: `Members (${memberCount})` },
+                  { id: "add", label: "Add Member" },
+                  { id: "settings", label: "Settings" },
+                ]}
+                activeTab={activeTab}
+                onTabChange={(tab) => setActiveTab(tab as typeof activeTab)}
+              />
             </div>
           )}
         </div>
@@ -359,7 +344,9 @@ export const InstitutionManagementModal: FC<
                   name="userEmail"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>User Email *</FormLabel>
+                      <FormLabel>
+                        User Email <span className="text-red-500">*</span>
+                      </FormLabel>
                       <FormControl>
                         <Input
                           {...field}
@@ -368,7 +355,6 @@ export const InstitutionManagementModal: FC<
                           autoComplete="email"
                         />
                       </FormControl>
-                      <FormMessage />
                     </FormItem>
                   )}
                 />
@@ -378,7 +364,9 @@ export const InstitutionManagementModal: FC<
                   name="role"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Role</FormLabel>
+                      <FormLabel>
+                        Role <span className="text-red-500">*</span>
+                      </FormLabel>
                       <Select
                         value={field.value}
                         onValueChange={field.onChange}
@@ -396,7 +384,6 @@ export const InstitutionManagementModal: FC<
                           <SelectItem value="faculty">Faculty</SelectItem>
                         </SelectContent>
                       </Select>
-                      <FormMessage />
                     </FormItem>
                   )}
                 />
@@ -417,7 +404,6 @@ export const InstitutionManagementModal: FC<
                           placeholder="e.g., Computer Science"
                         />
                       </FormControl>
-                      <FormMessage />
                     </FormItem>
                   )}
                 />
@@ -438,7 +424,6 @@ export const InstitutionManagementModal: FC<
                           placeholder="e.g., Senior Researcher"
                         />
                       </FormControl>
-                      <FormMessage />
                     </FormItem>
                   )}
                 />
@@ -479,7 +464,7 @@ export const InstitutionManagementModal: FC<
                         Membership Approval
                       </h4>
                       <p className="mt-1 text-sm text-gray-600">
-                        {institution.requiresApproval
+                        {localRequiresApproval
                           ? "New members require admin approval before they can join"
                           : "Users can join this institution automatically"}
                       </p>
@@ -488,7 +473,7 @@ export const InstitutionManagementModal: FC<
                       <input
                         type="checkbox"
                         className="peer sr-only"
-                        checked={institution.requiresApproval || false}
+                        checked={localRequiresApproval}
                         onChange={(e) => handleApprovalToggle(e.target.checked)}
                         disabled={isTogglingApproval}
                       />

@@ -108,7 +108,7 @@ export const PhotoViewer: FC<PhotoViewerProps> = ({
             e.stopPropagation();
             onClose();
           }}
-          className="absolute top-4 right-4 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white transition-colors hover:bg-black/70"
+          className="absolute top-4 right-4 z-20 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-black/50 text-white transition-colors hover:bg-black/70"
           aria-label="Close photo viewer"
         >
           <X className="h-5 w-5" />

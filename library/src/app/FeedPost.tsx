@@ -17,7 +17,7 @@ import {
   PostContent,
 } from "@/components/feed";
 import { getUserDisplayName } from "@/lib/utils/user";
-import { useQueuePaper, useDeletePost } from "@/hooks/mutations";
+import { useDeletePost } from "@/hooks/mutations";
 
 /**
  * FeedPost Component
@@ -25,7 +25,7 @@ import { useQueuePaper, useDeletePost } from "@/hooks/mutations";
  * Displays a single post in the social feed with rich formatting including:
  * - Author information with avatar
  * - Post content with LaTeX support (rendered by parent component)
- * - Social metrics (likes, queues, replies)
+ * - Social metrics (likes, replies)
  * - Paper references when applicable using PaperCard
  * - Interactive elements
  */
@@ -41,6 +41,7 @@ export const FeedPost: FC<{
   isCommentsExpanded: boolean;
   onCommentToggle: () => void;
   highlightedCommentId?: string | null;
+  onPostDeleted?: (postId: string) => void;
 }> = ({
   post,
   onPaperClick,
@@ -49,6 +50,7 @@ export const FeedPost: FC<{
   isCommentsExpanded,
   onCommentToggle,
   highlightedCommentId,
+  onPostDeleted,
 }) => {
   const router = useRouter();
 
@@ -57,12 +59,6 @@ export const FeedPost: FC<{
 
   // Local state for comment count to handle immediate UI updates
   const [commentCount, setCommentCount] = useState(post.replies);
-
-  // Local state for optimistic queue updates
-  const [optimisticQueues, setOptimisticQueues] = useState(post.queues);
-  const [optimisticQueued, setOptimisticQueued] = useState(
-    post.paper?.queued ?? false
-  );
 
   // Delete modal state
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -74,10 +70,8 @@ export const FeedPost: FC<{
   // Sync local state when post prop changes
   useEffect(() => {
     setPaperData(post.paper);
-    setOptimisticQueues(post.queues);
-    setOptimisticQueued(post.paper?.queued ?? false);
     setCommentCount(post.replies);
-  }, [post.paper, post.queues, post.replies]);
+  }, [post.paper, post.replies]);
 
   // Callback to update paper data when institutions are added
   const handleInstitutionsAdded = (institutions: string[]) => {
@@ -145,44 +139,9 @@ export const FeedPost: FC<{
 
   // Mutations
   const deletePostMutation = useDeletePost();
-  const queuePaperMutation = useQueuePaper();
 
   // Check if current user can delete this post
   const canDelete = currentUser && currentUser.id === post.author.id;
-
-  const handleQueue = () => {
-    if (!currentUser) {
-      console.log("User must be logged in to queue papers");
-      return;
-    }
-
-    if (!paperData) {
-      console.log("Cannot queue post without associated paper");
-      return;
-    }
-
-    // Optimistic updates
-    const newQueued = !optimisticQueued;
-    const newQueues = newQueued ? optimisticQueues + 1 : optimisticQueues - 1;
-
-    setOptimisticQueued(newQueued);
-    setOptimisticQueues(newQueues);
-
-    // Execute the mutation
-    queuePaperMutation.mutate(
-      {
-        paperId: paperData.id,
-        postId: post.id,
-      },
-      {
-        onError: () => {
-          // Revert optimistic updates on error
-          setOptimisticQueued(!newQueued);
-          setOptimisticQueues(post.queues);
-        },
-      }
-    );
-  };
 
   const handlePostClick = (e: React.MouseEvent) => {
     // Check if the click came from an image container
@@ -205,7 +164,15 @@ export const FeedPost: FC<{
   };
 
   const handleConfirmDelete = () => {
-    deletePostMutation.mutate({ postId: post.id });
+    deletePostMutation.mutate(
+      { postId: post.id },
+      {
+        onSuccess: () => {
+          // Optimistically remove post from feed
+          onPostDeleted?.(post.id);
+        },
+      }
+    );
     setShowDeleteModal(false);
   };
 
@@ -253,12 +220,7 @@ export const FeedPost: FC<{
             commentCount={commentCount}
             canDelete={canDelete}
             isPurePaper={true}
-            paperId={paperData?.id}
-            optimisticQueues={optimisticQueues}
-            optimisticQueued={optimisticQueued}
-            isQueuePending={queuePaperMutation.isPending}
             isDeletePending={deletePostMutation.isPending}
-            onQueue={handleQueue}
             onDelete={handleDelete}
             onCommentClick={handlePostClick}
           />
@@ -336,12 +298,7 @@ export const FeedPost: FC<{
           postId={post.id}
           commentCount={commentCount}
           canDelete={canDelete}
-          paperId={paperData?.id}
-          optimisticQueues={optimisticQueues}
-          optimisticQueued={optimisticQueued}
-          isQueuePending={queuePaperMutation.isPending}
           isDeletePending={deletePostMutation.isPending}
-          onQueue={handleQueue}
           onDelete={handleDelete}
           onQuote={handleQuotePost}
           onCommentClick={handlePostClick}

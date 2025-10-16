@@ -108,9 +108,12 @@ async function resolveUserMention(
     };
   }
 
-  // If no user found, try to find institution with this name
-  const institution = await prisma.institution.findUnique({
-    where: { name: searchTerm },
+  // If no user found, try to find institution
+  // Check if searchTerm looks like a domain (contains dot and TLD)
+  const looksLikeDomain = /\.[a-zA-Z]{2,}$/.test(searchTerm);
+
+  const institution = await prisma.institution.findFirst({
+    where: looksLikeDomain ? { domain: searchTerm } : { name: searchTerm },
     select: {
       id: true,
       name: true,
