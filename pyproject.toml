@@ -33,6 +33,7 @@ dependencies = [
   "metta-agent",
   "metta-app-backend",
   "metta-common",
+  "nevergrad>=1.0.12",
   "numpy>=2",
   "nvidia-ml-py",
   "omegaconf>=2.3.0",
