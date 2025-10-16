@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Doxascope Analysis Utilities
 
@@ -6,7 +5,7 @@ Doxascope Analysis Utilities
 
 import json
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -110,7 +109,7 @@ def compare_policies(policy_names: List[str], data_dir: Path, output_dir: Path):
 def compare_runs(run_dirs: List[Path], policy_name: str, output_dir: Path):
     run_results = {}
     # Sort runs from newest to oldest to find the latest baseline
-    sorted_run_dirs = sorted(run_dirs, key=lambda p: p.name, reverse=True)
+    sorted_run_dirs = sorted(run_dirs, key=lambda p: p.stat().st_mtime, reverse=True)
 
     baseline_results = None
     # Find the first available baseline from the sorted list of runs
@@ -138,10 +137,10 @@ def compare_runs(run_dirs: List[Path], policy_name: str, output_dir: Path):
     for run_name, results in sorted(run_results.items()):
         if "timesteps" in results and "test_accuracy_per_step" in results:
             # Find the full path for the run_name to get data size
-            run_dir = next((rd for rd in run_dirs if rd.name == run_name), None)
+            matching_run_dir: Optional[Path] = next((rd for rd in run_dirs if rd.name == run_name), None)
             data_size_str = "N/A"
-            if run_dir:
-                train_data_path = run_dir / "preprocessed_data" / "train.npz"
+            if matching_run_dir:
+                train_data_path = matching_run_dir / "preprocessed_data" / "train.npz"
                 if train_data_path.exists():
                     size_bytes = train_data_path.stat().st_size
                     data_size_str = f"{size_bytes / (1024 * 1024):.1f}MB"

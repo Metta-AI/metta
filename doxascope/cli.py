@@ -12,10 +12,11 @@ import random
 import shlex
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 import torch
+from torch.utils.data import DataLoader
 
 from .doxascope_analysis import compare_policies, compare_runs
 from .doxascope_network import DoxascopeNet, DoxascopeTrainer, create_baseline_data, prepare_data
@@ -67,7 +68,6 @@ def _select_command(choices: Dict[str, argparse.ArgumentParser]) -> Optional[str
 
 def _interactive_prediction_config(args: argparse.Namespace) -> Optional[argparse.Namespace]:
     """Asks the user to confirm or change prediction timestep settings."""
-    # Set a sensible default if num_future_timesteps is not provided (e.g., in interactive sweep)
     if getattr(args, "num_future_timesteps", None) is None:
         args.num_future_timesteps = 1
 
@@ -83,12 +83,12 @@ def _interactive_prediction_config(args: argparse.Namespace) -> Optional[argpars
     print("Enter new values or press Enter to keep the default.")
     new_future = _prompt_for_value("Future Timesteps", int, args.num_future_timesteps)
     if new_future is None:
-        return None  # User cancelled
+        return None
     args.num_future_timesteps = new_future
 
     new_past = _prompt_for_value("Past Timesteps", int, args.num_past_timesteps)
     if new_past is None:
-        return None  # User cancelled
+        return None
     args.num_past_timesteps = new_past
 
     print("\nPrediction settings updated.")
@@ -131,7 +131,7 @@ def handle_collect_command(args: argparse.Namespace):
         argv = shlex.split(command_str)
         os.execvp(argv[0], argv)  # type: ignore[arg-type]
     except FileNotFoundError:
-        print(f"\nError: Command '{args[0]}' not found.")
+        print(f"\nError: Command '{argv[0]}' not found.")
         print("Please ensure 'uv' is installed and you are running from the repository root.")
     except Exception as e:
         print(f"\nAn unexpected error occurred while trying to execute the command: {e}")
@@ -139,8 +139,7 @@ def handle_collect_command(args: argparse.Namespace):
 
 def _interactive_train_config(args: argparse.Namespace) -> Optional[argparse.Namespace]:
     """Shows current training settings and allows the user to change them interactively."""
-    # Define the settings that can be changed, grouped for readability.
-    config_groups = {
+    config_groups: Dict[str, List[Tuple[str, str, type]]] = {
         "Data Splits": [
             ("test_split", "Test Split", float),
             ("val_split", "Validation Split", float),
@@ -164,7 +163,6 @@ def _interactive_train_config(args: argparse.Namespace) -> Optional[argparse.Nam
         ],
     }
 
-    # First, display the current settings
     print("\n--- Other Training Configuration ---")
     for group, options in config_groups.items():
         print(f"\n  {group}:")
@@ -172,12 +170,10 @@ def _interactive_train_config(args: argparse.Namespace) -> Optional[argparse.Nam
             print(f"    - {prompt:<28}: {getattr(args, key)}")
     print("-" * 36)
 
-    # Ask if the user wants to proceed
     proceed = input("Proceed with these settings? (y/n): ").lower()
     if proceed in ["", "y", "yes"]:
         return args
 
-    # Enter interactive editing mode
     flat_options = [opt for group in config_groups.values() for opt in group]
     while True:
         print("\n--- Edit Configuration ---")
@@ -310,12 +306,13 @@ def get_search_space(sweep_type: str) -> Dict[str, list]:
         }
     print("⚙️ Using hyperparameter search space.")
     return {
-        "hidden_dim": [128, 256, 512],
+        "hidden_dim": [128, 256, 512, 1024],
         "dropout_rate": [0.2, 0.4, 0.6],
         "lr": [0.0001, 0.0005, 0.001],
         "activation_fn": ["gelu"],
         "main_net_depth": [3],
         "processor_depth": [1],
+        "batch_size": [32, 64, 128],
     }
 
 
@@ -340,9 +337,9 @@ def run_sweep_trial(
     train_loader, val_loader, test_loader, input_dim = data_loaders
     assert input_dim is not None, "Input dimension cannot be None for sweep trial."
 
-    # Separate model params from training params (like learning rate)
     model_config = config.copy()
     trial_lr = model_config.pop("lr", 0.001)
+    trial_batch_size = model_config.pop("batch_size", 32)
 
     model_params = {
         "input_dim": input_dim,
@@ -352,6 +349,12 @@ def run_sweep_trial(
     }
     model = DoxascopeNet(**model_params).to(device)
     trainer = DoxascopeTrainer(model, device=device)
+
+    train_loader = DataLoader(train_loader.dataset, batch_size=trial_batch_size, shuffle=True)
+    if val_loader:
+        val_loader = DataLoader(val_loader.dataset, batch_size=trial_batch_size, shuffle=False)
+    if test_loader:
+        test_loader = DataLoader(test_loader.dataset, batch_size=trial_batch_size, shuffle=False)
 
     start_time = time.time()
     training_result = trainer.train(
@@ -363,7 +366,6 @@ def run_sweep_trial(
         print("   ❌ Trial failed (no validation improvements).")
         return {"config": config, "success": False, "reason": "early_stopping_no_improvement"}
 
-    # Evaluate on the test set
     model.load_state_dict(training_result.best_checkpoint["state_dict"])
     _, test_acc_per_step = trainer._run_epoch(test_loader, is_training=False)
     test_acc_avg = sum(test_acc_per_step) / len(test_acc_per_step) if test_acc_per_step else 0
@@ -380,11 +382,64 @@ def run_sweep_trial(
     }
 
 
-def get_available_policies(data_dir: Path) -> List[Path]:
-    """Scans a directory and returns a list of policy subdirectories."""
+def _get_policy_dirs_with_versions(data_dir: Path, is_raw_data: bool = False) -> List[Path]:
+    """Scans a directory and returns policy directories, handling version subdirectories.
+
+    For results directories: Returns paths like:
+    - data_dir/policy_name (for policies without versions)
+    - data_dir/policy_name/version (for policies with versions)
+
+    For raw data directories: Returns paths like:
+    - data_dir/policy_name (for policies without versions)
+    - data_dir/policy_name/version (for policies with versions)
+
+    Args:
+        data_dir: Directory to scan
+        is_raw_data: Whether this is a raw data directory (contains JSON files) or results (contains best_model.pth)
+    """
     if not data_dir.is_dir():
         return []
-    return sorted([d for d in data_dir.iterdir() if d.is_dir()])
+
+    policy_dirs = []
+    for policy_dir in data_dir.iterdir():
+        if not policy_dir.is_dir():
+            continue
+
+        subdirs_with_content = []
+        for subdir in policy_dir.iterdir():
+            if not subdir.is_dir():
+                continue
+            if is_raw_data:
+                has_json = any(f.suffix == ".json" for f in subdir.iterdir() if f.is_file())
+                if has_json:
+                    subdirs_with_content.append(subdir)
+            else:
+                has_runs = any(
+                    (run_dir / "best_model.pth").exists() for run_dir in subdir.iterdir() if run_dir.is_dir()
+                )
+                if has_runs:
+                    subdirs_with_content.append(subdir)
+
+        if subdirs_with_content:
+            policy_dirs.extend(subdirs_with_content)
+        else:
+            has_content = False
+            if is_raw_data:
+                has_content = any(f.suffix == ".json" for f in policy_dir.iterdir() if f.is_file())
+            else:
+                has_content = any(
+                    (run_dir / "best_model.pth").exists() for run_dir in policy_dir.iterdir() if run_dir.is_dir()
+                )
+
+            if has_content:
+                policy_dirs.append(policy_dir)
+
+    return sorted(policy_dirs)
+
+
+def get_available_policies(data_dir: Path, is_raw_data: bool = False) -> List[Path]:
+    """Scans a directory and returns a list of policy subdirectories."""
+    return _get_policy_dirs_with_versions(data_dir, is_raw_data)
 
 
 def get_available_runs(policy_dir: Path) -> List[Path]:
@@ -394,7 +449,7 @@ def get_available_runs(policy_dir: Path) -> List[Path]:
     return sorted([d for d in policy_dir.iterdir() if d.is_dir() and (d / "best_model.pth").exists()])
 
 
-def select_from_list(items: List[Path], item_type: str) -> Optional[Path]:
+def select_from_list(items: List[Path], item_type: str, base_dir: Optional[Path] = None) -> Optional[Path]:
     """Displays a list of items and prompts the user to select one."""
     if not items:
         print(f"No {item_type}s found.")
@@ -402,7 +457,11 @@ def select_from_list(items: List[Path], item_type: str) -> Optional[Path]:
 
     print(f"Please select a {item_type}:")
     for i, item in enumerate(items):
-        print(f"  [{i + 1}] {item.name}")
+        if base_dir:
+            display_name = str(item.relative_to(base_dir))
+        else:
+            display_name = item.name
+        print(f"  [{i + 1}] {display_name}")
 
     while True:
         try:
@@ -429,11 +488,6 @@ def find_latest_run(policy_dir: Path) -> Optional[Path]:
     return max(run_dirs, key=lambda d: d.name)
 
 
-"""
-# Analysis functions moved to doxascope_analysis.py
-"""
-
-
 # --- Command Handlers ---
 
 
@@ -446,15 +500,14 @@ def handle_train_command(args: argparse.Namespace):
     print(f"Using device: {device}")
 
     policy_name = args.policy_name
-    # If no policy name is provided, enter interactive selection mode
     if not policy_name:
-        available_policies = get_available_policies(args.raw_data_dir)
-        selected_policy_path = select_from_list(available_policies, "policy to train")
+        available_policies = get_available_policies(args.raw_data_dir, is_raw_data=True)
+        selected_policy_path = select_from_list(available_policies, "policy to train", args.raw_data_dir)
         if not selected_policy_path:
             print("No policy selected. Aborting training.")
             return
-        policy_name = selected_policy_path.name
-        # After interactive policy selection, allow interactive config editing
+        policy_relative_path = selected_policy_path.relative_to(args.raw_data_dir)
+        policy_name = str(policy_relative_path)
         updated_args = _interactive_prediction_config(args)
         if updated_args is None:
             print("Configuration cancelled. Aborting training.")
@@ -467,8 +520,14 @@ def handle_train_command(args: argparse.Namespace):
             return
         args = updated_args
 
-    # Prepare data and output directories
-    policy_data_dir = args.raw_data_dir / policy_name
+    if policy_name and "/" not in policy_name:
+        policy_data_dir = args.raw_data_dir / policy_name
+    else:
+        if "selected_policy_path" in locals():
+            policy_data_dir = selected_policy_path
+        else:
+            policy_data_dir = args.raw_data_dir / policy_name
+
     if not policy_data_dir.is_dir():
         print(f"Error: Raw data directory for policy '{policy_name}' not found at {policy_data_dir}")
         print("Please ensure data exists or collect it via 'doxascope collect' (doxascope_enabled=true).")
@@ -479,7 +538,6 @@ def handle_train_command(args: argparse.Namespace):
     output_dir.mkdir(parents=True, exist_ok=True)
     print(f"Saving results to: {output_dir}")
 
-    # Prepare data loaders for the main model
     print("\n--- Preparing Data for Main Model ---")
     data_loaders = prepare_data(
         raw_data_dir=policy_data_dir,
@@ -492,11 +550,10 @@ def handle_train_command(args: argparse.Namespace):
         data_split_seed=42,
     )
 
-    if data_loaders[0] is None:
+    if not data_loaders or data_loaders[0] is None:
         print("Failed to create data loaders. Aborting.")
         return
 
-    # Run the main training pipeline
     train_loader, val_loader, test_loader, input_dim = data_loaders
     if input_dim is None:
         print("Error: input_dim is None. Cannot determine model input size.")
@@ -530,10 +587,8 @@ def handle_train_command(args: argparse.Namespace):
         is_baseline=False,
     )
 
-    # Run the baseline training pipeline if requested
     if args.train_random_baseline:
         print("\n--- Preparing Data for Baseline Model (using randomized inputs) ---")
-        # Create baseline data by randomizing the preprocessed inputs
         preprocessed_dir = output_dir / "preprocessed_data"
         baseline_data_loaders = create_baseline_data(preprocessed_dir, args.batch_size)
 
@@ -542,6 +597,7 @@ def handle_train_command(args: argparse.Namespace):
             return
 
         train_loader_base, val_loader_base, test_loader_base, input_dim_base = baseline_data_loaders
+        assert train_loader_base is not None
         if input_dim_base is None:
             print("Error: input_dim is None for baseline. Cannot determine model input size.")
             return
@@ -551,8 +607,9 @@ def handle_train_command(args: argparse.Namespace):
         print("\n--- Starting Training (Baseline) ---")
         print(f"Model Parameters: {sum(p.numel() for p in model_base.parameters() if p.requires_grad):,}")
 
+        assert isinstance(train_loader_base, DataLoader)
         trainer_base.train_and_evaluate(
-            train_loader=train_loader_base,
+            train_loader=train_loader_base,  # type: ignore
             val_loader=val_loader_base,
             test_loader=test_loader_base,
             num_epochs=args.num_epochs,
@@ -563,8 +620,6 @@ def handle_train_command(args: argparse.Namespace):
             is_baseline=True,
         )
 
-    # --- Generate Analysis Plots ---
-    # This is now done after the baseline run to ensure baseline results are available.
     if main_run_artifacts and main_run_artifacts["test_loader"]:
         print("\n--- Generating Analysis Plots ---")
         generate_all_plots(
@@ -574,13 +629,12 @@ def handle_train_command(args: argparse.Namespace):
             history=main_run_artifacts["history"],
             test_results=main_run_artifacts["test_results"],
             test_loader=main_run_artifacts["test_loader"],
-            is_baseline=False,  # Always generate plots for the main model
+            is_baseline=False,
         )
 
 
 def handle_compare_command(args: argparse.Namespace):
     """Handles the 'compare' command."""
-    # If no policies are specified, enter fully interactive mode
     if not args.policy_names:
         print("\nPlease select a comparison type:")
         choices = [
@@ -597,11 +651,11 @@ def handle_compare_command(args: argparse.Namespace):
             if not available_policies:
                 print("No policies with completed runs found.")
                 return
-            policy_path = select_from_list(available_policies, "policy to compare")
+            policy_path = select_from_list(available_policies, "policy to compare", args.data_dir)
             if not policy_path:
                 return
-            args.policy_names = [policy_path.name]
-            # Fall through to the single-policy logic below
+            policy_relative_path = policy_path.relative_to(args.data_dir)
+            args.policy_names = [str(policy_relative_path)]
 
         elif "multiple policies" in choice:
             available_policies = get_available_policies(args.data_dir)
@@ -612,13 +666,11 @@ def handle_compare_command(args: argparse.Namespace):
             if not selected_policies or len(selected_policies) < 2:
                 print("Please select at least two policies to compare.")
                 return
-            args.policy_names = [p.name for p in selected_policies]
-            # Fall through to the multi-policy logic below
+            args.policy_names = [str(p.relative_to(args.data_dir)) for p in selected_policies]
         else:
-            return  # Should not happen
+            return
 
     if len(args.policy_names) == 1:
-        # Compare selected runs for a single policy
         policy_name = args.policy_names[0]
         policy_dir = args.data_dir / policy_name
         available_runs = get_available_runs(policy_dir)
@@ -630,7 +682,6 @@ def handle_compare_command(args: argparse.Namespace):
 
         compare_runs(selected_runs, policy_name, policy_dir)
     else:
-        # Compare the latest run of multiple policies
         compare_policies(args.policy_names, args.data_dir, args.data_dir)
 
 
@@ -644,51 +695,50 @@ def handle_sweep_command(args: argparse.Namespace):
 
     policy_name = args.policy_name
 
-    # --- Interactive Mode ---
     if not policy_name:
-        # 1. Select Policy
-        available_policies = get_available_policies(args.raw_data_dir)
-        selected_policy_path = select_from_list(available_policies, "policy to sweep")
+        available_policies = get_available_policies(args.raw_data_dir, is_raw_data=True)
+        selected_policy_path = select_from_list(available_policies, "policy to sweep", args.raw_data_dir)
         if not selected_policy_path:
             print("No policy selected. Aborting sweep.")
             return
-        policy_name = selected_policy_path.name
+        policy_relative_path = selected_policy_path.relative_to(args.raw_data_dir)
+        policy_name = str(policy_relative_path)
 
-        # 2. Configure prediction timesteps
         updated_args = _interactive_prediction_config(args)
         if updated_args is None:
             print("Configuration cancelled. Aborting sweep.")
             return
         args = updated_args
 
-        # 3. Select sweep type
         sweep_type = _select_string_from_list(["hyper", "arch"], "sweep type")
         if sweep_type is None:
             print("No sweep type selected. Aborting sweep.")
             return
         args.sweep_type = sweep_type
 
-        # 4. Configure sweep parameters
         updated_args = _interactive_sweep_config(args)
         if updated_args is None:
             print("Configuration cancelled. Aborting sweep.")
             return
         args = updated_args
 
-    # --- Non-interactive mode ---
     elif args.num_future_timesteps is None:
         print("Error: 'num_future_timesteps' is required when running sweep non-interactively.")
         print("Usage: uv run doxascope sweep <policy_name> <num_future_timesteps>")
         return
 
-    # Create a unique directory for this sweep run
     sweep_name = f"sweep_{args.sweep_type}_{time.strftime('%Y%m%d-%H%M%S')}"
     sweep_output_dir = args.output_dir / policy_name / sweep_name
     sweep_output_dir.mkdir(parents=True, exist_ok=True)
     print(f"Saving sweep results to: {sweep_output_dir}")
 
-    # Prepare data once for the entire sweep
-    policy_data_dir = args.raw_data_dir / policy_name
+    if policy_name and "/" not in policy_name:
+        policy_data_dir = args.raw_data_dir / policy_name
+    else:
+        if "selected_policy_path" in locals():
+            policy_data_dir = selected_policy_path
+        else:
+            policy_data_dir = args.raw_data_dir / policy_name
     data_loaders = prepare_data(
         policy_data_dir,
         sweep_output_dir,  # Use sweep dir for preprocessed data cache
@@ -714,7 +764,6 @@ def handle_sweep_command(args: argparse.Namespace):
         result = run_sweep_trial(i, args.num_configs, config, args, device, data_loaders_for_sweep)
         all_results.append(result)
 
-    # Save final results
     results_df = pd.DataFrame([res for res in all_results if res["success"]])
     if not results_df.empty:
         results_df = results_df.sort_values(by="best_val_acc", ascending=False)
@@ -726,7 +775,6 @@ def handle_sweep_command(args: argparse.Namespace):
     else:
         print("\nNo successful trials to summarize.")
 
-    # Save all raw results to JSON
     with open(sweep_output_dir / "all_trial_results.json", "w") as f:
         json.dump(all_results, f, indent=2, default=lambda o: str(o))  # Handle non-serializable types
 
@@ -738,16 +786,13 @@ def main():
     )
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
-    # --- Collect Command ---
     parser_collect = subparsers.add_parser(
         "collect",
         help="Collect training data by running a policy evaluation.",
         description="Collect training data by running a policy evaluation.",
     )
-    # Navigation data collection removed; always uses arena
     parser_collect.set_defaults(func=handle_collect_command)
 
-    # --- Train Command ---
     parser_train = subparsers.add_parser(
         "train",
         help="Train a Doxascope network on collected data.",
@@ -781,8 +826,8 @@ def main():
         "--num-future-timesteps", type=int, default=1, help="Number of future timesteps to predict."
     )
     parser_train.add_argument("--num-past-timesteps", type=int, default=0, help="Number of past timesteps to predict.")
-    parser_train.add_argument("--batch-size", type=int, default=32, help="Batch size for training.")
-    parser_train.add_argument("--learning-rate", type=float, default=0.001, help="Learning rate for the optimizer.")
+    parser_train.add_argument("--batch-size", type=int, default=64, help="Batch size for training.")
+    parser_train.add_argument("--learning-rate", type=float, default=0.0005, help="Learning rate for the optimizer.")
     parser_train.add_argument("--num-epochs", type=int, default=100, help="Number of epochs to train for.")
     parser_train.add_argument("--patience", type=int, default=10, help="Patience for early stopping.")
     parser_train.add_argument(
@@ -795,7 +840,7 @@ def main():
         help="Train a baseline model with random memory vectors for comparison.",
     )
     parser_train.add_argument("--hidden_dim", type=int, default=512, help="Hidden dimension for the model.")
-    parser_train.add_argument("--dropout_rate", type=float, default=0.4, help="Dropout rate for the model.")
+    parser_train.add_argument("--dropout_rate", type=float, default=0.6, help="Dropout rate for the model.")
     parser_train.add_argument("--activation_fn", type=str, default="gelu", help="Activation function for the model.")
     parser_train.add_argument("--main_net_depth", type=int, default=3, help="Depth of the main network.")
     parser_train.add_argument("--processor_depth", type=int, default=1, help="Depth of the state processors.")
@@ -818,7 +863,6 @@ def main():
     )
     parser_compare.set_defaults(func=handle_compare_command)
 
-    # --- Sweep Command ---
     parser_sweep = subparsers.add_parser(
         "sweep",
         help="Run a hyperparameter or architecture sweep to find the best model.",
@@ -862,23 +906,17 @@ def main():
 
     args = parser.parse_args()
 
-    # If no command is given, prompt the user to select one
     if args.command is None:
         command_name = _select_command(subparsers.choices)
         if not command_name:
             print("No command selected. Exiting.")
             return
-        # Re-parse args for the chosen command to populate its defaults.
-        # This will fail if the command has required args not provided,
-        # which is why we made policy_name optional.
         args = parser.parse_args([command_name])
 
     if hasattr(args, "func"):
         args.func(args)
     else:
-        # Fallback for interactive mode if func is not set
         if args.command:
-            # Manually map command to function if not set by argparse
             command_map = {
                 "collect": handle_collect_command,
                 "train": handle_train_command,
