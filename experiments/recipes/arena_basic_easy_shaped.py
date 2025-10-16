@@ -1,4 +1,6 @@
 from typing import Optional, Sequence
+import math
+import random
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
@@ -10,10 +12,11 @@ from metta.cogworks.curriculum.curriculum import (
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.loss import LossConfig
-from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
+from metta.rl.trainer_config import OptimizerConfig, TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import make_sweep, SweepParameters as SP, Distribution as D
+from metta.sweep.core import grid_search as make_grid_search
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
@@ -237,5 +240,83 @@ def sweep(sweep_name: str) -> SweepTool:
         max_trials=80,
         # Default value is 1. We don't recommend going higher than 4.
         # The faster each individual trial, the lower you should set this number.
-        num_parallel_trials=4,
+        num_parallel_trials=18,
+    )
+
+
+def train_grid(
+    *,
+    batch_multiplier: int = 1,
+    num_epochs: int = 1,
+    learning_rate_scale_exponent: float = 0.5,
+) -> TrainTool:
+    """Train entry with batch/epoch/LR scaling knobs for grid search.
+
+    - Batch size: default × {1, 2, 4, 8}
+    - Update epochs: {1, 2, 4}
+    - LR scaling: lr = lr_default * (batch_multiplier ** learning_rate_scale_exponent)
+    - World-size scaling enabled to keep per-rank batch appropriate
+    - Total timesteps fixed at 5e9
+    """
+
+    curriculum = make_curriculum()
+    eval_simulations = simulations()
+
+    # Compute derived values from defaults
+    base_batch = TrainerConfig.model_fields["batch_size"].default
+    default_lr = OptimizerConfig.model_fields["learning_rate"].default
+    scaled_batch = int(base_batch) * int(batch_multiplier)
+    scaled_lr = float(default_lr) * math.pow(
+        float(batch_multiplier), float(learning_rate_scale_exponent)
+    )
+
+    trainer_cfg = TrainerConfig(
+        losses=LossConfig(),
+        batch_size=scaled_batch,
+        scale_batches_by_world_size=True,
+        update_epochs=int(num_epochs),
+        optimizer=OptimizerConfig(learning_rate=scaled_lr),
+        total_timesteps=5_000_000_000,
+    )
+
+    return TrainTool(
+        trainer=trainer_cfg,
+        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
+        evaluator=EvaluatorConfig(simulations=eval_simulations),
+        policy_architecture=ViTDefaultConfig(),
+        torch_profiler=TorchProfilerConfig(),
+    )
+
+
+def hardware_grid_sweep(sweep_name: str) -> SweepTool:
+    """Grid search (hardware-focused) over batch size, update epochs, LR scaling exponent, and seeds.
+
+    Dimensions:
+      - batch_multiplier: [1, 2, 4, 8]
+      - num_epochs: [1, 2, 4]
+      - learning_rate_scale_exponent: [1.0, 0.5]
+      - system.seed: three random integers drawn at runtime
+    """
+
+    # Random seed choices generated at runtime
+    seed_choices = [random.randint(1, 1_000_000) for _ in range(3)]
+
+    parameters = [
+        SP.categorical("batch_multiplier", [1, 2, 4, 8]),
+        SP.categorical("num_epochs", [1, 2, 4]),
+        SP.categorical("learning_rate_scale_exponent", [1.0, 0.5]),
+        SP.categorical("training_env.forward_pass_minibatch_target_size", [4096, 8192]),
+        SP.categorical("system.seed", seed_choices),
+    ]
+
+    # 4 (batch) * 3 (epochs) * 2 (LR exponent) * 2 (env fp minibatch target) * 3 (seeds) = 144 trials total
+    return make_grid_search(
+        name=sweep_name,
+        recipe="experiments.recipes.arena_basic_easy_shaped",
+        train_entrypoint="train_grid",
+        eval_entrypoint="evaluate_in_sweep",
+        objective="evaluator/eval_sweep/score",
+        parameters=parameters,
+        max_trials=144,
+        num_parallel_trials=18,
     )
