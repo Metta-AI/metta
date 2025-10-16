@@ -567,8 +567,7 @@ Environment variables:
         type=float,
         default=None,
         help=(
-            "Timeout in seconds for git commit "
-            f"(defaults to GITTA_COMMIT_TIMEOUT env var or {DEFAULT_COMMIT_TIMEOUT})"
+            f"Timeout in seconds for git commit (defaults to GITTA_COMMIT_TIMEOUT env var or {DEFAULT_COMMIT_TIMEOUT})"
         ),
     )
     parser.set_defaults(skip_hooks=None)
