@@ -36,12 +36,6 @@
     "name": "v1 figure of merit formula for arena environment"
   },
   {
-    "gid": "1209208922660615",
-    "assignee": null,
-    "completed": false,
-    "name": "Specify envs for replays"
-  },
-  {
     "gid": "1209041170403516",
     "assignee": null,
     "completed": false,
@@ -859,12 +853,6 @@
     "assignee": null,
     "completed": false,
     "name": "Research: Can we train a policy to help a uri specified NPC get more reward?"
-  },
-  {
-    "gid": "1209164338788423",
-    "assignee": null,
-    "completed": false,
-    "name": "Add measurements for fairness during evaluation"
   },
   {
     "gid": "1209661379538166",
