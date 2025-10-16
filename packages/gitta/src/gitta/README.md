@@ -12,7 +12,7 @@ A comprehensive Python library for Git operations, GitHub API interactions, and 
 ## Installation
 
 ```bash
-pip install gitta anthropic httpx
+uv pip install gitta
 ```
 
 ## Usage

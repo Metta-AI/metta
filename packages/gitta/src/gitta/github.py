@@ -1,4 +1,4 @@
-"""GitHub API and CLI functionality."""
+"""GitHub helpers built on top of both the REST API and the ``gh`` CLI."""
 
 from __future__ import annotations
 
@@ -186,7 +186,11 @@ def create_pr(
     draft: bool = False,
 ) -> Dict[str, Any]:
     """
-    Create a pull request on GitHub.
+    Create a pull request on GitHub using the REST API.
+
+    We call the HTTP endpoint directly instead of `gh pr create` so callers
+    can run in non-interactive environments and inject custom metadata
+    without relying on CLI flag support.
 
     Args:
         repo: Repository in format "owner/repo"

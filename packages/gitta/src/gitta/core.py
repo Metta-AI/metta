@@ -1,4 +1,4 @@
-"""Core git command runner and exceptions."""
+"""Low-level git command execution helpers shared across gitta."""
 
 from __future__ import annotations
 
@@ -141,7 +141,9 @@ def run_git_cmd(
 
 def run_git_with_cwd(args: list[str], cwd: str | Path | None = None) -> str:
     """Run a git command with optional working directory and return its output."""
-    return run_git_cmd(args, cwd=Path(cwd) if cwd else None)
+    if cwd is None:
+        return run_git(*args)
+    return run_git_in_dir(cwd, *args)
 
 
 def run_git(*args: str) -> str:

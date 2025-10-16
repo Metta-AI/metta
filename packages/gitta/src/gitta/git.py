@@ -1,9 +1,8 @@
-"""Git operations and utilities."""
+"""Higher-level git operations built on top of the helpers in gitta.core."""
 
 from __future__ import annotations
 
 import logging
-import os
 import re
 from functools import lru_cache
 from pathlib import Path
@@ -132,7 +131,12 @@ def validate_git_ref(ref: str) -> str | None:
     return commit_hash
 
 
-def canonical_remote_url(url: str) -> str:
+def resolve_git_ref(ref: str) -> str:
+    """Resolve a git reference to its full commit hash."""
+    return run_git("rev-parse", ref).strip()
+
+
+def https_remote_url(url: str) -> str:
     """Canonicalize a git remote URL to a consistent format.
 
     Converts both SSH and HTTPS GitHub URLs to a canonical HTTPS format
@@ -165,6 +169,10 @@ def canonical_remote_url(url: str) -> str:
 
     # Return as-is for non-GitHub URLs
     return url
+
+
+# Backwards compatibility alias
+canonical_remote_url = https_remote_url
 
 
 def get_remote_url(remote: str = "origin") -> str | None:
@@ -210,73 +218,14 @@ def is_repo_match(target_repo: str) -> bool:
     Args:
         target_repo: Repository in format "owner/repo"
     """
-    target_url = canonical_remote_url(f"https://github.com/{target_repo}")
+    target_url = https_remote_url(f"https://github.com/{target_repo}")
 
     remotes = get_all_remotes()
     for remote_url in remotes.values():
-        if canonical_remote_url(remote_url) == target_url:
+        if https_remote_url(remote_url) == target_url:
             return True
 
     return False
-
-
-def get_git_hash_for_remote_task(
-    target_repo: str | None = None,
-    skip_git_check: bool = False,
-    skip_cmd: str = "skipping git check",
-) -> str | None:
-    """
-    Get git hash for remote task execution.
-
-    Returns:
-        - None if no local git repo or no origin synced to target repo
-        - Git hash if commit is synced with remote and no dirty changes
-        - Raises GitError if dirty changes exist and skip_git_check is False
-
-    Args:
-        target_repo: Repository in format "owner/repo". If None, skips repo check.
-        skip_git_check: If True, skip the dirty changes check
-        skip_cmd: The command to show in error messages for skipping the check
-    """
-    try:
-        current_commit = get_current_commit()
-    except (GitError, ValueError):
-        logger.warning("Not in a git repository, using git_hash=None")
-        return None
-
-    if target_repo and not is_repo_match(target_repo):
-        logger.warning(f"Origin not set to {target_repo}, using git_hash=None")
-        return None
-
-    on_skypilot = bool(os.getenv("SKYPILOT_TASK_ID"))
-    has_changes, status_output = has_unstaged_changes()
-    if has_changes:
-        logger.warning("Working tree has unstaged changes.\n" + status_output)
-        if not skip_git_check:
-            if on_skypilot:
-                # Skypilot jobs can create local files as part of their setup. It's assumed that these changes do not
-                # need to be checked in because they wouldn't have an effect on policy evaluator's execution
-                logger.warning("Running on skypilot: proceeding despite unstaged changes")
-            else:
-                raise GitError(
-                    "You have uncommitted changes to tracked files that won't be reflected in the remote task.\n"
-                    f"You can push your changes or specify to skip this check with {skip_cmd}"
-                )
-    elif status_output:
-        # Only untracked files present (or clean). Log for visibility if untracked exist.
-        logger.info("Proceeding with unstaged changes.\n" + status_output)
-
-    if not is_commit_pushed(current_commit) and not on_skypilot:
-        short_commit = current_commit[:8]
-        if not skip_git_check:
-            raise GitError(
-                f"Commit {short_commit} hasn't been pushed.\n"
-                f"You can push your changes or specify to skip this check with {skip_cmd}"
-            )
-        else:
-            logger.warning(f"Proceeding with unpushed commit {short_commit} due to {skip_cmd}")
-
-    return current_commit
 
 
 def get_file_list(repo_path: Path | None = None, ref: str = "HEAD") -> list[str]:

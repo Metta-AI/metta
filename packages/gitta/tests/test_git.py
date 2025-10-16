@@ -18,6 +18,8 @@ from gitta import (
     get_file_list,
     get_remote_url,
     has_unstaged_changes,
+    https_remote_url,
+    resolve_git_ref,
 )
 
 
@@ -125,18 +127,21 @@ def test_find_git_root():
         assert find_root(Path(tmpdir)) is None
 
 
-def test_canonical_remote_url():
-    """Test URL canonicalization."""
+def test_https_remote_url_alias():
+    """Test URL canonicalization helpers."""
     # GitHub SSH URLs
-    assert canonical_remote_url("git@github.com:Owner/repo.git") == "https://github.com/Owner/repo"
-    assert canonical_remote_url("ssh://git@github.com/Owner/repo") == "https://github.com/Owner/repo"
+    assert https_remote_url("git@github.com:Owner/repo.git") == "https://github.com/Owner/repo"
+    assert https_remote_url("ssh://git@github.com/Owner/repo") == "https://github.com/Owner/repo"
 
     # GitHub HTTPS URLs
-    assert canonical_remote_url("https://github.com/Owner/repo.git") == "https://github.com/Owner/repo"
-    assert canonical_remote_url("https://github.com/Owner/repo") == "https://github.com/Owner/repo"
+    assert https_remote_url("https://github.com/Owner/repo.git") == "https://github.com/Owner/repo"
+    assert https_remote_url("https://github.com/Owner/repo") == "https://github.com/Owner/repo"
 
     # Non-GitHub URLs remain unchanged
-    assert canonical_remote_url("git@gitlab.com:owner/repo.git") == "git@gitlab.com:owner/repo.git"
+    assert https_remote_url("git@gitlab.com:owner/repo.git") == "git@gitlab.com:owner/repo.git"
+
+    # Backwards compatibility alias still available
+    assert canonical_remote_url("git@github.com:Owner/repo.git") == "https://github.com/Owner/repo"
 
 
 def test_git_errors():
@@ -153,3 +158,12 @@ def test_git_errors():
 
         with pytest.raises(GitError):
             has_unstaged_changes()
+
+
+def test_resolve_git_ref():
+    repo_path = create_temp_repo()
+    os.chdir(repo_path)
+
+    head = resolve_git_ref("HEAD")
+    assert len(head) == 40
+    assert head == resolve_git_ref(head[:8])

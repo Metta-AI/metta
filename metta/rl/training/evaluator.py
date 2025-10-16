@@ -7,9 +7,9 @@ from uuid import UUID
 import torch
 from pydantic import Field
 
-import gitta as git
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum import Curriculum
+from metta.common.util.git_remote import get_git_hash_for_remote_task
 from metta.common.util.git_repo import REPO_SLUG
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy
@@ -103,7 +103,7 @@ class Evaluator(TrainerComponent):
                 eval_cfg.evaluate_remote = False
                 logger.info("Epoch interval set to 0, disabling remote evaluations")
             elif not eval_cfg.git_hash:
-                eval_cfg.git_hash = git.get_git_hash_for_remote_task(
+                eval_cfg.git_hash = get_git_hash_for_remote_task(
                     target_repo=REPO_SLUG,
                     skip_git_check=eval_cfg.skip_git_check,
                     skip_cmd="evaluator.skip_git_check=true",
