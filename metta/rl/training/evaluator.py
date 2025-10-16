@@ -34,6 +34,14 @@ class EvaluatorConfig(Config):
     evaluate_remote: bool = False
     num_training_tasks: int = 2
     simulations: list[SimulationConfig] = Field(default_factory=list)
+    training_replay_envs: list[SimulationConfig] = Field(
+        default_factory=list,
+        description=(
+            "Optional explicit simulation configs to use when recording training replays. "
+            "When provided, these override the default behaviour of sampling num_training_tasks "
+            "from the active curriculum."
+        ),
+    )
     replay_dir: Optional[str] = None
     skip_git_check: bool = Field(default=False)
     git_hash: str | None = Field(default=None)
@@ -184,14 +192,25 @@ class Evaluator(TrainerComponent):
         sims = []
 
         # Add training task evaluations
-        for i in range(self._config.num_training_tasks):
-            sims.append(
-                SimulationConfig(
-                    suite="training",
-                    name=f"train_task_{i}",
-                    env=curriculum.get_task().get_env_cfg(),
+        if self._config.training_replay_envs:
+            for idx, sim_cfg in enumerate(self._config.training_replay_envs):
+                # Clone to avoid mutating caller-provided instances
+                sim_copy = sim_cfg.model_copy(deep=True)
+                # Ensure required identifiers are populated
+                if not getattr(sim_copy, "suite", None):
+                    sim_copy.suite = "training"
+                if not getattr(sim_copy, "name", None):
+                    sim_copy.name = f"train_task_{idx}"
+                sims.append(sim_copy)
+        else:
+            for i in range(self._config.num_training_tasks):
+                sims.append(
+                    SimulationConfig(
+                        suite="training",
+                        name=f"train_task_{i}",
+                        env=curriculum.get_task().get_env_cfg().model_copy(deep=True),
+                    )
                 )
-            )
 
         # Add configured simulations
         sims.extend(self._config.simulations)
