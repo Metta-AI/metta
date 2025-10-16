@@ -16,11 +16,13 @@ import torch
 from torch import nn
 
 from metta.agent.policies.fast import FastConfig
+from metta.agent.policy import Policy
 from metta.cogworks.curriculum import env_curriculum
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.policy_artifact import save_policy_artifact_pt
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import CheckpointerConfig, ContextCheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
 from metta.tools.train import TrainTool
 from mettagrid.builder.envs import make_arena
 
@@ -82,7 +84,6 @@ class TestTrainerCheckpointIntegration:
             policy_architecture=policy_cfg.model_copy(deep=True),
             stats_server_uri=None,
             checkpointer=CheckpointerConfig(epoch_interval=1),
-            context_checkpointer=ContextCheckpointerConfig(epoch_interval=1),
             evaluator=EvaluatorConfig(epoch_interval=0, evaluate_local=False, evaluate_remote=False),
         )
         tool.invoke({})
@@ -115,8 +116,12 @@ class TestTrainerCheckpointIntegration:
         assert trainer_state["agent_step"] > 0
         assert trainer_state["epoch"] > 0
 
-        policy_files = [f for f in Path(checkpoint_manager.checkpoint_dir).glob("*.pt") if f.name != "trainer_state.pt"]
-        assert policy_files, "No policy files found in checkpoint directory"
+        latest_policy_uri = checkpoint_manager.get_latest_checkpoint()
+        assert latest_policy_uri, "No policy files found in checkpoint directory"
+        latest_policy_meta = CheckpointManager.get_policy_metadata(latest_policy_uri)
+        assert latest_policy_meta["epoch"] == trainer_state["epoch"], (
+            "Trainer state epoch is not aligned with latest policy checkpoint"
+        )
 
         first_run_agent_step = trainer_state["agent_step"]
         first_run_epoch = trainer_state["epoch"]
@@ -140,10 +145,12 @@ class TestTrainerCheckpointIntegration:
         assert trainer_state_2["agent_step"] > first_run_agent_step
         assert trainer_state_2["epoch"] >= first_run_epoch
 
-        policy_files_2 = [
-            f for f in Path(checkpoint_manager_2.checkpoint_dir).glob("*.pt") if f.name != "trainer_state.pt"
-        ]
-        assert len(policy_files_2) >= len(policy_files)
+        latest_policy_uri = checkpoint_manager_2.get_latest_checkpoint()
+        assert latest_policy_uri, "No policy checkpoints found after resume"
+        latest_policy_meta = CheckpointManager.get_policy_metadata(latest_policy_uri)
+        assert latest_policy_meta["epoch"] == trainer_state_2["epoch"], (
+            "Trainer state epoch is not aligned with latest policy checkpoint after resume"
+        )
 
     def test_checkpoint_fields_are_preserved(self) -> None:
         run_name = "test_checkpoint_fields"
@@ -188,18 +195,29 @@ class TestTrainerCheckpointIntegration:
         policy_uri = checkpoint_manager.get_latest_checkpoint()
         assert policy_uri, "Expected at least one policy checkpoint"
 
-        # Load the latest policy to ensure it is valid
-        policy = checkpoint_manager.load_from_uri(policy_uri)
-        assert policy is not None
-        assert hasattr(policy, "state_dict"), "Loaded policy should be a torch.nn.Module"
+        artifact = checkpoint_manager.load_artifact_from_uri(policy_uri)
+        assert artifact.policy is not None
 
 
-class DummyPolicy(nn.Module):
+class DummyPolicy(Policy, nn.Module):
     """Lightweight torch module used to populate fake checkpoints quickly."""
 
     def __init__(self, epoch: int) -> None:
         super().__init__()
         self.register_buffer("epoch_tensor", torch.tensor(epoch, dtype=torch.float32))
+
+    def forward(self, td) -> None:
+        """Dummy forward method."""
+        pass
+
+    @property
+    def device(self) -> torch.device:
+        """Return device of the epoch tensor."""
+        return torch.device("cpu")
+
+    def reset_memory(self) -> None:
+        """Dummy reset_memory method."""
+        pass
 
 
 class _FastTrainTool(TrainTool):
@@ -235,8 +253,8 @@ class _FastTrainTool(TrainTool):
             trainer_state_path,
         )
 
-        policy_path = checkpoint_manager.checkpoint_dir / f"{run_name}:v{epoch}.pt"
+        policy_path = checkpoint_manager.checkpoint_dir / f"{run_name}:v{epoch}.mpt"
         policy = DummyPolicy(epoch)
-        torch.save(policy, policy_path)
+        save_policy_artifact_pt(policy_path, policy=policy)
 
         return 0

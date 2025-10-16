@@ -86,7 +86,7 @@ class TestBuffers:
         c_env.reset()
 
         noop_action_idx = c_env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
+        actions = np.full(NUM_AGENTS, noop_action_idx, dtype=dtype_actions)
         obs, rewards, terminals, truncations, info = c_env.step(actions)
         episode_rewards = c_env.get_episode_rewards()
 
@@ -256,7 +256,7 @@ class TestBuffers:
 
         # Take a step - this should overwrite our manual values
         noop_action_idx = c_env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
+        actions = np.full(NUM_AGENTS, noop_action_idx, dtype=dtype_actions)
 
         obs_returned, rewards_returned, terminals_returned, truncations_returned, info = c_env.step(actions)
 
@@ -295,7 +295,7 @@ class TestBuffers:
 
         # Take one step to reach max_steps
         noop_action_idx = c_env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
+        actions = np.full(NUM_AGENTS, noop_action_idx, dtype=dtype_actions)
         c_env.step(actions)  # current_step = 1, should trigger end of episode
 
         # Now truncations should all be True
@@ -318,7 +318,7 @@ class TestBuffers:
 
         # Take one step to reach max_steps
         noop_action_idx = c_env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
+        actions = np.full(NUM_AGENTS, noop_action_idx, dtype=dtype_actions)
         c_env.step(actions)  # current_step = 1, should trigger end of episode
 
         # Now terminals should all be True, truncations should all be False
@@ -339,7 +339,7 @@ class TestBuffers:
 
         # Take a step to get valid baseline values
         noop_action_idx = c_env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
+        actions = np.full(NUM_AGENTS, noop_action_idx, dtype=dtype_actions)
         c_env.step(actions)
 
         # Store initial values
@@ -430,7 +430,7 @@ class TestBuffers:
 
         # Take first step
         noop_action_idx = c_env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
+        actions = np.full(NUM_AGENTS, noop_action_idx, dtype=dtype_actions)
 
         obs, step_rewards_1, terminals_ret, truncations_ret, _info = c_env.step(actions)
         episode_rewards_1 = c_env.get_episode_rewards()

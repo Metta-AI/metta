@@ -1,4 +1,10 @@
-####
-#_.#
-##.#
-####
+type: mettagrid.map_builder.ascii.AsciiMapBuilder
+map_data: |
+  ####
+  #_.#
+  ##.#
+  ####
+char_to_name_map:
+  "#": "wall"
+  "_": "altar"
+  ".": "empty"

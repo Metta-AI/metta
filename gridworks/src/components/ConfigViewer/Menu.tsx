@@ -1,8 +1,7 @@
 import { FC, use } from "react";
 
-import { Dropdown } from "../Dropdown";
+import { CornerMenu } from "../CornerMenu";
 import { useCloseDropdown } from "../Dropdown/DropdownContext";
-import { DropdownMenu } from "../Dropdown/DropdownMenu";
 import { DropdownMenuActionItem } from "../Dropdown/DropdownMenuActionItem";
 import { CheckIcon } from "../icons/CheckIcon";
 import { EmptyIcon } from "../icons/EmptyIcon";
@@ -24,17 +23,5 @@ const ToggleDebugItem: FC = () => {
 };
 
 export const Menu: FC = () => {
-  return (
-    <Dropdown
-      render={() => (
-        <DropdownMenu>
-          <ToggleDebugItem />
-        </DropdownMenu>
-      )}
-    >
-      <div className="h-4 w-4 cursor-pointer rounded bg-gray-200 text-center text-gray-700 hover:bg-gray-300">
-        ▼
-      </div>
-    </Dropdown>
-  );
+  return <CornerMenu renderItems={() => <ToggleDebugItem />} />;
 };

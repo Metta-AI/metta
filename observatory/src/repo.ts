@@ -114,6 +114,26 @@ export type EvalTasksResponse = {
   tasks: EvalTask[]
 }
 
+export type PaginatedEvalTasksResponse = {
+  tasks: EvalTask[]
+  total_count: number
+  page: number
+  page_size: number
+  total_pages: number
+}
+
+export type TaskFilters = {
+  policy_name?: string
+  sim_suite?: string
+  status?: string
+  assignee?: string
+  user_id?: string
+  retries?: string
+  created_at?: string
+  assigned_at?: string
+  updated_at?: string
+}
+
 // Policy-based scorecard types
 export type PaginationRequest = {
   page: number
@@ -300,6 +320,10 @@ export interface Repo {
   // Eval task methods
   createEvalTask(request: EvalTaskCreateRequest): Promise<EvalTask>
   getEvalTasks(): Promise<EvalTask[]>
+  getEvalTasksPaginated(page: number, pageSize: number, filters: TaskFilters): Promise<PaginatedEvalTasksResponse>
+  getEvalTask(taskId: string): Promise<EvalTask>
+  getTaskLogUrl(taskId: string, logType: 'stdout' | 'stderr' | 'output'): string
+  retryEvalTask(taskId: string): Promise<void>
 
   // Policy methods
   getPolicyIds(policyNames: string[]): Promise<Record<string, string>>
@@ -478,6 +502,50 @@ export class ServerRepo implements Repo {
   async getEvalTasks(): Promise<EvalTask[]> {
     const response = await this.apiCall<EvalTasksResponse>('/tasks/all?limit=500')
     return response.tasks
+  }
+
+  async getEvalTasksPaginated(
+    page: number,
+    pageSize: number,
+    filters: TaskFilters
+  ): Promise<PaginatedEvalTasksResponse> {
+    const params = new URLSearchParams()
+    params.append('page', page.toString())
+    params.append('page_size', pageSize.toString())
+
+    // Only append non-empty filter values
+    if (filters.policy_name?.trim()) params.append('policy_name', filters.policy_name.trim())
+    if (filters.sim_suite?.trim()) params.append('sim_suite', filters.sim_suite.trim())
+    if (filters.status?.trim()) params.append('status', filters.status.trim())
+    if (filters.assignee?.trim()) params.append('assignee', filters.assignee.trim())
+    if (filters.user_id?.trim()) params.append('user_id', filters.user_id.trim())
+    if (filters.retries?.trim()) params.append('retries', filters.retries.trim())
+    if (filters.created_at?.trim()) params.append('created_at', filters.created_at.trim())
+    if (filters.assigned_at?.trim()) params.append('assigned_at', filters.assigned_at.trim())
+    if (filters.updated_at?.trim()) params.append('updated_at', filters.updated_at.trim())
+
+    return this.apiCall<PaginatedEvalTasksResponse>(`/tasks/paginated?${params}`)
+  }
+
+  async getEvalTask(taskId: string): Promise<EvalTask> {
+    return this.apiCall<EvalTask>(`/tasks/${taskId}`)
+  }
+
+  getTaskLogUrl(taskId: string, logType: 'stdout' | 'stderr'): string {
+    return `${this.baseUrl}/tasks/${taskId}/logs/${logType}`
+  }
+
+  async retryEvalTask(taskId: string): Promise<void> {
+    await this.apiCallWithBody<void>('/tasks/claimed/update', {
+      updates: {
+        [taskId]: {
+          status: 'unprocessed',
+          clear_assignee: true,
+          attributes: {},
+        },
+      },
+      require_assignee: null,
+    })
   }
 
   async getPolicyIds(policyNames: string[]): Promise<Record<string, string>> {
