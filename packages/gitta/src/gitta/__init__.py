@@ -33,6 +33,7 @@ from .git import (
     get_file_list,
     get_git_hash_for_remote_task,
     get_remote_url,
+    git_log_since,
     has_unstaged_changes,
     is_commit_pushed,
     is_repo_match,
@@ -82,6 +83,7 @@ __all__ = [
     "fetch",
     "ref_exists",
     "diff",
+    "git_log_since",
     # GitHub API
     "run_gh",
     "get_matched_pr",

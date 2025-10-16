@@ -7,7 +7,7 @@ srcDir = "src"
 
 requires "nim >= 2.2.4"
 requires "cligen >= 1.9.0"
-requires "fidget2 >= 0.0.11"
+requires "fidget2 >= 0.0.12"
 requires "genny >= 0.1.1"
 
 task bindings, "Generate bindings":
