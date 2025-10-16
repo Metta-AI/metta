@@ -70,3 +70,7 @@ describe_command = [
 
 [tool.setuptools.package-data]
 pufferlib = ["*.py", "*.so", "*.pyd"]
+
+# Update the below line to trigger a rebuild of the package when installed in editable mode
+#   even if the source code of the package has not changed.
+# rebuild-after: 10-16-2025
