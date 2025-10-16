@@ -807,12 +807,6 @@
     "name": "Try using average-reward and no discounting"
   },
   {
-    "gid": "1211665269726547",
-    "assignee": null,
-    "completed": false,
-    "name": "Deterministic runs"
-  },
-  {
     "gid": "1209661379538190",
     "assignee": null,
     "completed": false,
