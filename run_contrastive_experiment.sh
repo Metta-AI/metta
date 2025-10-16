@@ -21,9 +21,7 @@ for i in "${!PAIRED_SEEDS[@]}"; do
         training_env.seed=$SEED \
         trainer.losses.enable_contrastive=true \
         trainer.batch_size=65536 \
-        trainer.minibatch_size=2048 \
-        --gpus 4 \
-        --max-runtime-hours 8
+        trainer.minibatch_size=2048
 
     # Without contrastive loss
     RUN_NAME="${BASE_RUN_NAME}.no_contrastive.seed${SEED}"
@@ -34,9 +32,7 @@ for i in "${!PAIRED_SEEDS[@]}"; do
         training_env.seed=$SEED \
         trainer.losses.enable_contrastive=false \
         trainer.batch_size=65536 \
-        trainer.minibatch_size=2048 \
-        --gpus 4 \
-        --max-runtime-hours 8
+        trainer.minibatch_size=2048
 
     echo ""
 done
