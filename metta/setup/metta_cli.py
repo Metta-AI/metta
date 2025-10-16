@@ -716,7 +716,14 @@ def cmd_ci():
 
 
 @app.command(name="benchmark", help="Run C++ and Python benchmarks for mettagrid")
-def cmd_benchmark():
+def cmd_benchmark(
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="Stream benchmark output, including Python print statements.",
+    ),
+):
     """Run performance benchmarks for the mettagrid package."""
     mettagrid_dir = cli.repo_root / "packages" / "mettagrid"
 
@@ -724,8 +731,12 @@ def cmd_benchmark():
     info("Note: This may fail if Python environment is not properly configured.")
     info("If it fails, try running directly: cd packages/mettagrid && make benchmark")
 
+    make_cmd = ["make", "benchmark"]
+    if verbose:
+        make_cmd.append("VERBOSE=1")
+
     try:
-        subprocess.run(["make", "benchmark"], cwd=mettagrid_dir, check=True)
+        subprocess.run(make_cmd, cwd=mettagrid_dir, check=True)
         success("Benchmarks completed!")
     except subprocess.CalledProcessError as e:
         error("Benchmark execution failed!")
