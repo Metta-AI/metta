@@ -16,6 +16,7 @@ from sky.server.common import RequestId, get_server_url
 import gitta as git
 from metta.app_backend.clients.base_client import get_machine_token
 from metta.common.util.git_repo import REPO_SLUG
+from metta.common.util.retry import retry_function
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
 
 
@@ -211,13 +212,24 @@ def get_request_id_from_launch_output(output: str) -> str | None:
     return None
 
 
-def get_job_id_from_request_id(request_id: str, wait_seconds: float = 1.0) -> str | None:
-    """Get job ID from a request ID."""
-    time.sleep(wait_seconds)  # Wait for job to be registered
+def get_job_id_from_request_id(request_id: str, max_retries: int = 5) -> str | None:
+    """Get job ID from a request ID with retry logic."""
+
+    def _get_job_id():
+        job_id, _ = sky.get(RequestId(request_id))
+        if job_id is None:
+            raise ValueError("Job ID not yet registered")
+        return str(job_id)
 
     try:
-        job_id, _ = sky.get(RequestId(request_id))
-        return str(job_id) if job_id is not None else None
+        return retry_function(
+            _get_job_id,
+            max_retries=max_retries,
+            initial_delay=1.0,
+            max_delay=10.0,
+            backoff_factor=1.5,
+            exceptions=(Exception,),
+        )
     except Exception:
         return None
 
@@ -320,15 +332,25 @@ def tail_job_log(job_id: str, lines: int = 100) -> str | None:
         return f"Error: {str(e)}"
 
 
-def open_job_log_from_request_id(request_id: str, wait_seconds: float = 1.0) -> tuple[str | None, str]:
+def open_job_log_from_request_id(request_id: str, max_retries: int = 5) -> tuple[str | None, str]:
     """Launch job log in a subprocess from a request ID."""
 
-    # Wait for the job to be registered
-    time.sleep(wait_seconds)
+    def _get_job_from_request():
+        job_id, handle = sky.get(RequestId(request_id))
+        if job_id is None:
+            raise ValueError("Job ID not yet registered")
+        return job_id, handle
 
     try:
-        # Get the job ID and handle from the request
-        job_id, _handle = sky.get(RequestId(request_id))
+        # Get the job ID and handle from the request with retry
+        job_id, _handle = retry_function(
+            _get_job_from_request,
+            max_retries=max_retries,
+            initial_delay=1.0,
+            max_delay=10.0,
+            backoff_factor=1.5,
+            exceptions=(Exception,),
+        )
 
         if job_id is None:
             print(yellow("Job ID not found in output"))

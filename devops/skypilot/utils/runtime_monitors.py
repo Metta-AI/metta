@@ -5,15 +5,32 @@ Runtime monitors for SkyPilot jobs including heartbeat and timeout monitoring.
 
 import os
 import time
+from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Optional
 
 from metta.common.util.log_config import getRankAwareLogger
 
 logger = getRankAwareLogger(__name__)
 
 
-class HeartbeatMonitor:
+class Monitor(ABC):
+    """Abstract base class for runtime monitors."""
+
+    @property
+    def name(self) -> str:
+        """Get the monitor name from the class name."""
+        return self.__class__.__name__
+
+    @abstractmethod
+    def check_condition(self) -> str | None:
+        """Check if the monitor condition is triggered.
+
+        Returns the termination reason if triggered, None otherwise.
+        """
+        pass
+
+
+class HeartbeatMonitor(Monitor):
     """Monitor for checking heartbeat file updates."""
 
     def __init__(
@@ -21,7 +38,6 @@ class HeartbeatMonitor:
         rank: int,
         heartbeat_timeout_sec: int,
     ):
-        self.name = "heartbeat"
         self.heartbeat_timeout = heartbeat_timeout_sec
         self.rank = rank
         self.is_master = rank == 0
@@ -40,41 +56,44 @@ class HeartbeatMonitor:
         except Exception as e:
             logger.error(f"Failed to update heartbeat file: {e}")
 
-    def check_condition(self) -> tuple[bool, Optional[str]]:
-        """Check if heartbeat has timed out."""
+    def check_condition(self) -> str | None:
+        """Check if heartbeat has timed out.
+
+        Returns the termination reason if triggered, None otherwise.
+        """
         try:
             stat = self.heartbeat_file.stat()
             last_heartbeat_time = stat.st_mtime
             current_time = time.time()
             elapsed = current_time - last_heartbeat_time
             if elapsed > self.heartbeat_timeout:
-                return True, "heartbeat_timeout"
+                return "heartbeat_timeout"
 
-            return False, None
+            return None
 
         except FileNotFoundError:
             logger.error(f"Heartbeat file not found: {self.heartbeat_file}")
             if not self.heartbeat_file.parent.exists():
                 logger.error(f"Parent directory also missing: {self.heartbeat_file.parent}")
-                return True, "heartbeat_directory_missing"
+                return "heartbeat_directory_missing"
 
-            return True, "heartbeat_file_missing"
+            return "heartbeat_file_missing"
 
         except PermissionError as e:
             logger.error(f"Permission denied accessing heartbeat file: {e}")
-            return True, "heartbeat_permission_denied"
+            return "heartbeat_permission_denied"
 
         except OSError as e:
             errno_num = getattr(e, "errno", "unknown")
             logger.error(f"OS error accessing heartbeat file (errno={errno_num}): {e}")
-            return True, f"heartbeat_os_error_{errno_num}"
+            return f"heartbeat_os_error_{errno_num}"
 
         except Exception as e:
             logger.error(f"Unexpected error checking heartbeat: {type(e).__name__}: {e}")
-            return True, f"heartbeat_unexpected_error_{type(e).__name__}"
+            return f"heartbeat_unexpected_error_{type(e).__name__}"
 
 
-class TimeoutMonitor:
+class TimeoutMonitor(Monitor):
     """Monitor for checking maximum runtime."""
 
     def __init__(
@@ -82,7 +101,6 @@ class TimeoutMonitor:
         rank: int,
         max_runtime_hours: float,
     ):
-        self.name = "timeout"
         self.max_runtime_hours = max_runtime_hours
         self.max_seconds = max_runtime_hours * 3600 if max_runtime_hours else 0
         self.start_time = time.time()
@@ -139,35 +157,38 @@ class TimeoutMonitor:
         except Exception as e:
             logger.error(f"Failed to save accumulated runtime: {e}")
 
-    def check_condition(self) -> tuple[bool, Optional[str]]:
-        """Check if max runtime has been exceeded."""
+    def check_condition(self) -> str | None:
+        """Check if max runtime has been exceeded.
 
+        Returns the termination reason if triggered, None otherwise.
+        """
         if self.get_total_runtime() > self.max_seconds:
-            return True, "max_runtime_reached"
+            return "max_runtime_reached"
 
         # Save accumulated runtime on every check
         self.save_accumulated_runtime()
 
-        return False, None
+        return None
 
 
-class ForceRestartTestMonitor:
+class ForceRestartTestMonitor(Monitor):
     """Monitor that simulates node failure for testing job recovery."""
 
     def __init__(
         self,
         restart_time_hours: float,
     ):
-        self.name = "force_restart_test"
         self.start_time = time.time()
         self.failure_delay_sec = int(restart_time_hours * 3600)
 
-    def check_condition(self) -> tuple[bool, Optional[str]]:
-        """Check if it's time to simulate a failure."""
+    def check_condition(self) -> str | None:
+        """Check if it's time to simulate a failure.
 
+        Returns the termination reason if triggered, None otherwise.
+        """
         elapsed = time.time() - self.start_time
 
         if elapsed >= self.failure_delay_sec:
-            return True, "force_restart_test"
+            return "force_restart_test"
 
-        return False, None
+        return None

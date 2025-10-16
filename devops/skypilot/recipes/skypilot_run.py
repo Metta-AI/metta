@@ -134,8 +134,8 @@ def monitor_until_termination(job_config: JobConfig, job: subprocess.Popen) -> s
                 return f"job_failed_{exit_code}"
 
         for monitor in monitors:
-            should_terminate, reason = monitor.check_condition()
-            if should_terminate:
+            reason = monitor.check_condition()
+            if reason:
                 logger.info(f"{monitor.name} triggered: {reason}")
                 terminate_process_group(job)
 

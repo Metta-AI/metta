@@ -43,16 +43,12 @@ file_mounts:
     source: s3://softmax-train-dir
     mode: MOUNT_CACHED
 
-setup: set -u && bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/launch/setup.sh")
+setup: set -u && bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/recipes/setup.sh")
 
 run: |
   set -e
   cd /workspace/metta
 
-  # Note that the docker image may start with its own venv - switch to metta venv
-  if [ -n "$VIRTUAL_ENV" ]; then
-      deactivate 2>/dev/null || true
-  fi
   . .venv/bin/activate
 
   uv run ./devops/skypilot/utils/configure_environment.py
@@ -60,7 +56,7 @@ run: |
   source "$METTA_ENV_FILE"
 
   echo "Starting skypilot run script..."
-  uv run ./devops/skypilot/launch/skypilot_run.py
+  uv run ./devops/skypilot/recipes/skypilot_run.py
 
 envs:
   GITHUB_REPOSITORY: Metta-AI/metta
