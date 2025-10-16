@@ -105,7 +105,7 @@ dev = [{ include-group = "testing" }, { include-group = "lint" }]
 
 [project.scripts]
 metta = "metta.setup.metta_cli:main"
-doxascope = "doxascope.cli:main"
+doxascope = "metta.doxascope.cli:main"
 skypilot = "devops.skypilot.launch:main"
 skypilot-sandbox = "devops.skypilot.sandbox:main"
 mapgen = "tools.map.gen:main"

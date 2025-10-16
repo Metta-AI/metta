@@ -4,7 +4,7 @@ import sys
 
 import pytest
 
-from doxascope.doxascope_data import (
+from metta.doxascope.doxascope_data import (
     DoxascopeLogger,
     class_id_to_pos,
     get_num_classes_for_manhattan_distance,
@@ -167,7 +167,7 @@ def test_doxascope_end_to_end(doxascope_env):
 
     # --- 1. Run Training ---
     train_cmd = [
-        "doxascope.cli",
+        "metta.doxascope.cli",
         "train",
         policy_name,
         "--raw-data-dir",
