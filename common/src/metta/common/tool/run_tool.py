@@ -129,8 +129,10 @@ def parse_cli_args(cli_args: list[str]) -> dict[str, Any]:
         # Unlike earlier versions, we no longer lstrip('-'); args should be plain key=value
         if "=" not in arg:
             raise ValueError(f"Invalid argument format: {arg}. Expected key=value")
-        key, value = arg.split("=", 1)
-        parsed[key] = parse_value(value)
+        key, value_str = arg.split("=", 1)
+        if not key:
+            raise ValueError(f"Invalid argument format: {arg}. Expected key=value")
+        parsed[key] = parse_value(value_str)
     return parsed
 
 

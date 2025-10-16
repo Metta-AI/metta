@@ -26,7 +26,7 @@ class SimpleTestTool(Tool):
         return 0
 
 
-def test_parse_value_types():
+def test_parse_value_types() -> None:
     """Verify parse_value correctly identifies and converts different types."""
     # Booleans
     assert parse_value("true") is True
@@ -45,7 +45,7 @@ def test_parse_value_types():
     assert parse_value("") == ""
 
 
-def test_parse_value_json_structures():
+def test_parse_value_json_structures() -> None:
     """Verify JSON objects and arrays are parsed correctly."""
     assert parse_value('{"k":1}') == {"k": 1}
     assert parse_value("[1,2,3]") == [1, 2, 3]
@@ -60,7 +60,7 @@ def test_parse_value_json_structures():
     assert len(result) > 1_000_000
 
 
-def test_parse_cli_args_basic():
+def test_parse_cli_args_basic() -> None:
     """Verify CLI arguments are parsed into a flat dict with correct types."""
     result = parse_cli_args(["name=test", "count=42", "enabled=true", "nested.field=value"])
 
@@ -70,7 +70,7 @@ def test_parse_cli_args_basic():
     assert result["nested.field"] == "value"
 
 
-def test_parse_cli_args_handles_special_cases():
+def test_parse_cli_args_handles_special_cases() -> None:
     """Verify edge cases like empty values and embedded equals signs."""
     # Empty value
     result = parse_cli_args(["key="])
@@ -81,8 +81,8 @@ def test_parse_cli_args_handles_special_cases():
     assert result["url"] == "http://example.com?a=1&b=2"
 
 
-def test_parse_cli_args_rejects_invalid_format():
-    """Verify that arguments without '=' are rejected."""
+def test_parse_cli_args_rejects_invalid_format() -> None:
+    """Verify that arguments without '=' or with empty keys are rejected."""
     import pytest
 
     with pytest.raises(ValueError, match="Invalid argument format"):
@@ -91,8 +91,11 @@ def test_parse_cli_args_rejects_invalid_format():
     with pytest.raises(ValueError, match="Invalid argument format"):
         parse_cli_args([""])
 
+    with pytest.raises(ValueError, match="Invalid argument format"):
+        parse_cli_args(["=value"])
 
-def test_nestify_converts_flat_to_nested():
+
+def test_nestify_converts_flat_to_nested() -> None:
     """Verify nestify converts dotted keys into nested dicts."""
     flat = {
         "a.b.c": 1,
@@ -109,7 +112,7 @@ def test_nestify_converts_flat_to_nested():
     assert nested["x"] == 4
 
 
-def test_get_tool_fields_includes_parent_fields():
+def test_get_tool_fields_includes_parent_fields() -> None:
     """Verify get_tool_fields returns fields from the tool and its parent classes."""
     fields = get_tool_fields(SimpleTestTool)
 
@@ -121,7 +124,7 @@ def test_get_tool_fields_includes_parent_fields():
     assert "system" in fields
 
 
-def test_classify_remaining_args_separates_known_and_unknown():
+def test_classify_remaining_args_separates_known_and_unknown() -> None:
     """Verify classification separates tool overrides from unknown arguments."""
     tool_fields = get_tool_fields(SimpleTestTool)
 
