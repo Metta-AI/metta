@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Note: Using reduced batch sizes for 4 GPU setup to avoid OOM
+# Note: Using heavily reduced batch sizes for 4 GPU ViT setup to avoid OOM
 
 BASE_RUN_NAME="tasha.10.15.shaped_hypers_vit_2"
 
@@ -20,8 +20,8 @@ for i in "${!PAIRED_SEEDS[@]}"; do
         system.seed=$SEED \
         training_env.seed=$SEED \
         trainer.losses.enable_contrastive=true \
-        trainer.batch_size=262144 \
-        trainer.minibatch_size=8192 \
+        trainer.batch_size=65536 \
+        trainer.minibatch_size=2048 \
         --gpus 4 \
         --max-runtime-hours 8
 
@@ -33,13 +33,13 @@ for i in "${!PAIRED_SEEDS[@]}"; do
         system.seed=$SEED \
         training_env.seed=$SEED \
         trainer.losses.enable_contrastive=false \
-        trainer.batch_size=262144 \
-        trainer.minibatch_size=8192 \
+        trainer.batch_size=65536 \
+        trainer.minibatch_size=2048 \
         --gpus 4 \
         --max-runtime-hours 8
 
     echo ""
 done
 
-echo "All 8 jobs launched!"
+echo "All 6 jobs launched!"
 echo "Monitor with: sky jobs queue"
