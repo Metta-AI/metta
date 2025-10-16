@@ -1,5 +1,4 @@
 import math
-from typing import Sequence
 
 from mettagrid.config.mettagrid_config import (
     AgentConfig,
@@ -7,6 +6,7 @@ from mettagrid.config.mettagrid_config import (
     ChestConfig,
     ClipperConfig,
     ConverterConfig,
+    Formation,
     GameConfig,
     Position,
     WallConfig,
@@ -40,7 +40,7 @@ def recursive_update(d, u):
     return d
 
 
-def expand_position_patterns(positions: Sequence[Position]) -> list[int]:
+def expand_position_patterns(formation: Formation) -> list[int]:
     """Convert from a list of string positions to a list of matching bit patterns.
 
     Args:
@@ -51,14 +51,16 @@ def expand_position_patterns(positions: Sequence[Position]) -> list[int]:
     Returns:
         List of bit patterns that match the position requirements
     """
+    if formation == "Default":
+        return list(range(256))
 
     fix_positions_byte = 0
     has_any = False
-    for pos in positions:
+    for pos in formation:
         if pos == "Any":
             has_any = True
         else:
-            assert pos in FIXED_POSITIONS, f"Invalid position: {pos}"
+            assert isinstance(pos, str) and pos in FIXED_POSITIONS, f"Invalid position: {pos}"
             position_bit = FIXED_POSITION_TO_BITMASK[pos]
             assert fix_positions_byte & position_bit == 0, (
                 f"Position {pos} already set. Only one agent per position is allowed."
@@ -75,7 +77,7 @@ def expand_position_patterns(positions: Sequence[Position]) -> list[int]:
     for i in range(256):
         if i & fix_positions_byte != fix_positions_byte:
             continue
-        if bin(i).count("1") == len(positions):
+        if bin(i).count("1") == len(formation):
             result.append(i)
     return result
 
@@ -309,19 +311,10 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                         f"Recipe {recipe_config} has no valid cog patterns not already claimed by other recipes."
                     )
 
-            # Create a vector of 256 Recipe pointers (indexed by byte pattern)
-            # cpp_recipes = [object_config.default_recipe] * 256
-            default_cpp_recipe = None
-            if object_config.default_recipe is not None:
-                recipe_config = object_config.default_recipe
-                default_cpp_recipe = CppRecipe(
-                    input_resources={resource_name_to_id[k]: v for k, v in recipe_config.input_resources.items()},
-                    output_resources={resource_name_to_id[k]: v for k, v in recipe_config.output_resources.items()},
-                    cooldown=recipe_config.cooldown,
-                )
-            cpp_recipes = [default_cpp_recipe] * 256
-            for byte_pattern, recipe in recipe_map.items():
-                cpp_recipes[byte_pattern] = recipe
+            # Create a vector of 256 Recipe pointers (indexed by bit pattern)
+            cpp_recipes = [None] * 256
+            for bit_pattern, recipe in recipe_map.items():
+                cpp_recipes[bit_pattern] = recipe
 
             # Convert tag names to IDs
             tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]

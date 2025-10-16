@@ -25,7 +25,7 @@ def charger(max_uses: Optional[int] = None) -> AssemblerConfig:
         render_symbol="⚡",
         allow_partial_usage=True,  # can use it while its on cooldown
         max_uses=max_uses or 0,
-        default_recipe=protocols.standard_charging_recipe(),
+        recipes=[("Default", protocols.standard_charging_recipe())],
     )
 
 
@@ -37,7 +37,7 @@ def carbon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         map_char="C",
         render_symbol="⚫",
         max_uses=max_uses or 0,
-        default_recipe=protocols.standard_carbon_recipe(),
+        recipes=[("Default", protocols.standard_charging_recipe())],
     )
 
 
@@ -50,7 +50,7 @@ def oxygen_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         render_symbol="🔵",
         allow_partial_usage=True,  # can use it while its on cooldown
         max_uses=max_uses or 0,
-        default_recipe=protocols.standard_oxygen_recipe(),
+        recipes=[("Default", protocols.standard_oxygen_recipe())],
     )
 
 
@@ -62,8 +62,8 @@ def germanium_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         map_char="G",
         render_symbol="🟣",
         max_uses=max_uses or 2,
-        default_recipe=protocols.germanium_recipe(1),
-        recipes=protocols.protocol(protocols.germanium_recipe(2), num_agents=2)
+        recipes=[("Default", protocols.germanium_recipe(1))]
+        + protocols.protocol(protocols.germanium_recipe(2), num_agents=2)
         + protocols.protocol(protocols.germanium_recipe(3), num_agents=3)
         + protocols.protocol(protocols.germanium_recipe(4), min_agents=4),
     )
@@ -77,7 +77,7 @@ def silicon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         map_char="S",
         render_symbol="🔷",
         max_uses=max_uses or 0,
-        default_recipe=protocols.standard_silicon_recipe(),
+        recipes=[("Default", protocols.standard_silicon_recipe())],
     )
 
 
@@ -89,7 +89,7 @@ def clipped_carbon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         render_symbol="⚫",
         max_uses=max_uses or 0,
         start_clipped=True,
-        default_recipe=protocols.standard_carbon_recipe(),
+        recipes=[("Default", protocols.standard_carbon_recipe())],
     )
 
 
@@ -101,7 +101,7 @@ def clipped_oxygen_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         render_symbol="🔵",
         max_uses=max_uses or 0,
         start_clipped=True,
-        default_recipe=protocols.standard_oxygen_recipe(),
+        recipes=[("Default", protocols.standard_oxygen_recipe())],
     )
 
 
@@ -113,8 +113,8 @@ def clipped_germanium_extractor(max_uses: Optional[int] = None) -> AssemblerConf
         render_symbol="🟣",
         max_uses=max_uses or 2,
         start_clipped=True,
-        default_recipe=protocols.germanium_recipe(1),
-        recipes=protocols.protocol(protocols.germanium_recipe(2), num_agents=2)
+        recipes=[("Default", protocols.germanium_recipe(1))]
+        + protocols.protocol(protocols.germanium_recipe(2), num_agents=2)
         + protocols.protocol(protocols.germanium_recipe(3), num_agents=3)
         + protocols.protocol(protocols.germanium_recipe(4), min_agents=4),
     )
@@ -128,7 +128,7 @@ def clipped_silicon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig
         render_symbol="🔷",
         max_uses=max_uses or 0,
         start_clipped=True,
-        default_recipe=protocols.standard_silicon_recipe(),
+        recipes=[("Default", protocols.standard_silicon_recipe())],
     )
 
 
@@ -139,7 +139,7 @@ def carbon_ex_dep() -> AssemblerConfig:
         map_char="c",
         render_symbol="⬛",
         max_uses=100,
-        default_recipe=protocols.low_carbon_recipe(),
+        recipes=[("Default", protocols.low_carbon_recipe())],
     )
 
 
@@ -151,7 +151,7 @@ def oxygen_ex_dep() -> AssemblerConfig:
         render_symbol="⬜",
         max_uses=10,
         allow_partial_usage=True,
-        default_recipe=protocols.low_oxygen_recipe(),
+        recipes=[("Default", protocols.low_oxygen_recipe())],
     )
 
 
@@ -162,8 +162,8 @@ def germanium_ex_dep() -> AssemblerConfig:
         map_char="g",
         render_symbol="🟪",
         max_uses=1,
-        default_recipe=protocols.germanium_recipe(1),
-        recipes=protocols.protocol(protocols.germanium_recipe(2), num_agents=2)
+        recipes=[("Default", protocols.germanium_recipe(1))]
+        + protocols.protocol(protocols.germanium_recipe(2), num_agents=2)
         + protocols.protocol(protocols.germanium_recipe(3), num_agents=3)
         + protocols.protocol(protocols.germanium_recipe(4), min_agents=4),
     )
@@ -176,7 +176,7 @@ def silicon_ex_dep() -> AssemblerConfig:
         map_char="s",
         render_symbol="🔹",
         max_uses=10,
-        default_recipe=protocols.low_silicon_recipe(),
+        recipes=[("Default", protocols.low_silicon_recipe())],
     )
 
 
