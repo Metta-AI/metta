@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Doxascope Neural Network
 
@@ -9,7 +8,7 @@ import json
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -121,7 +120,8 @@ class DoxascopeNet(nn.Module):
 
     def forward(self, x: torch.Tensor) -> List[torch.Tensor]:
         # Input x is expected to be a concatenation of the LSTM hidden state and cell state.
-        lstm_state_dim = self.config["input_dim"] // 2
+        assert x.shape[1] % 2 == 0, "Input dimension must be even (equal hidden and cell state sizes)"
+        lstm_state_dim = x.shape[1] // 2
 
         # Split input into hidden and cell states
         hidden_state = x[:, :lstm_state_dim]
@@ -279,7 +279,7 @@ class DoxascopeTrainer:
         best_val_acc = 0
         epochs_no_improve = 0
 
-        history = {"train_loss": [], "val_loss": [], "train_acc": [], "val_acc": []}
+        history: Dict[str, List[float]] = {"train_loss": [], "val_loss": [], "train_acc": [], "val_acc": []}
 
         checkpoint = {}
 
@@ -367,7 +367,7 @@ def create_baseline_data(
                 np.savez_compressed(baseline_file, X=X_random, y=y)
 
     # Create data loaders from baseline files
-    loaders = []
+    loaders: List[Optional[DataLoader]] = []
     for split in ["train", "val", "test"]:
         baseline_file = baseline_files[split]
         if baseline_file.exists():
@@ -384,7 +384,7 @@ def create_baseline_data(
     input_dim = None
     for loader in loaders:
         if loader is not None:
-            sample_x, _ = next(iter(loader))
+            sample_x, _ = next(iter(loader))  # type: ignore
             input_dim = sample_x.shape[1]
             break
 
@@ -400,7 +400,7 @@ def prepare_data(
     num_future_timesteps: int,
     num_past_timesteps: int,
     data_split_seed: int = 42,
-):
+) -> Tuple[Optional[DataLoader], Optional[DataLoader], Optional[DataLoader], Optional[int]]:
     """
     Prepares and splits data into training, validation, and test sets.
     The split is done on a per-file basis to prevent data leakage.
@@ -409,96 +409,81 @@ def prepare_data(
     preprocessed_dir = output_dir / "preprocessed_data"
     preprocessed_dir.mkdir(parents=True, exist_ok=True)
 
-    # Always regenerate splits and preprocessed NPZs to ensure consistency
     all_json_files = sorted(list(raw_data_dir.glob("*.json")))
     if not all_json_files:
         raise ValueError(f"No JSON files found in {raw_data_dir}")
 
-    # Shuffle files deterministically to ensure reproducible splits
     import random
 
     random.seed(data_split_seed)
     random.shuffle(all_json_files)
 
-    # Create more balanced splits by distributing files more evenly
-    # This helps ensure similar label distributions across splits
     num_files = len(all_json_files)
+    test_count = 0
+    val_count = 0
 
-    # Calculate split indices
-    test_idx = max(1, int(num_files * test_split))
-    val_idx = test_idx + max(1, int(num_files * val_split))
+    if num_files >= 3:
+        test_count = int(round(num_files * test_split)) if test_split > 0 else 0
+        val_count = int(round(num_files * val_split)) if val_split > 0 else 0
 
-    # Clamp indices to ensure valid splits
-    test_idx = min(test_idx, num_files)
-    val_idx = min(val_idx, num_files)
+        if test_split > 0 and test_count == 0:
+            test_count = 1
+        if val_split > 0 and val_count == 0:
+            val_count = 1
 
-    # Balance file distribution by file size to get more even label distributions
-    # while maintaining file-level separation to prevent data leakage
+        reserved = test_count + val_count
+        if num_files - reserved < 1:
+            needed = 1 - (num_files - reserved)
+            reduce_val = min(needed, val_count)
+            val_count -= reduce_val
+            needed -= reduce_val
+            if needed > 0:
+                reduce_test = min(needed, test_count)
+                test_count -= reduce_test
 
-    # Get file sizes to help balance the splits
-    file_sizes = []
-    for file in all_json_files:
-        size = file.stat().st_size
-        file_sizes.append((file, size))
+        test_count = max(0, min(test_count, num_files))
+        val_count = max(0, min(val_count, num_files - test_count))
 
-    # Sort by file size for better distribution
-    file_sizes.sort(key=lambda x: x[1], reverse=True)
+    elif num_files == 2:
+        if test_split > 0 or val_split > 0:
+            test_count = 1
+            val_count = 0
 
-    # Distribute files across splits to balance total data volume
-    # Use a round-robin approach weighted by target split sizes
-    test_files = []
-    val_files = []
-    train_files = []
+    # Now distribute round-robin after sorting:
+    all_json_files.sort(key=lambda f: f.stat().st_size, reverse=True)
 
-    # Target ratios
-    test_ratio = test_split
-    val_ratio = val_split
-    # train_ratio retained for clarity of target ratios; it's implied by the others
-    _train_ratio = 1.0 - test_split - val_split
+    train_files: List[Path] = []
+    val_files: List[Path] = []
+    test_files: List[Path] = []
 
-    total_size = sum(size for _, size in file_sizes)
-    target_test_size = total_size * test_ratio
-    target_val_size = total_size * val_ratio
+    # List of (split_list, max_count) tuples, in assignment priority order
+    active_splits = []
+    if test_count > 0:
+        active_splits.append((test_files, test_count))
+    if val_count > 0:
+        active_splits.append((val_files, val_count))
+    train_max = num_files - test_count - val_count
+    if train_max > 0:
+        active_splits.append((train_files, train_max))
 
-    current_test_size = 0
-    current_val_size = 0
+    assigned = 0
+    while assigned < num_files and active_splits:
+        for i in range(len(active_splits)):
+            if assigned >= num_files:
+                break
+            split_list, remaining = active_splits[i]
+            if remaining > 0:
+                split_list.append(all_json_files[assigned])
+                assigned += 1
+                remaining -= 1
+                active_splits[i] = (split_list, remaining)
+                if remaining == 0:
+                    del active_splits[i]
+                    break  # Restart loop to avoid index issues
 
-    # Distribute files to balance data volume across splits
-    for file, size in file_sizes:
-        test_need = target_test_size - current_test_size
-        val_need = target_val_size - current_val_size
-
-        # Assign to split with highest need, ensuring train gets priority
-        # if both test and val needs are met.
-        if test_need > val_need and test_need > 0:
-            test_files.append(file)
-            current_test_size += size
-        elif val_need > 0:
-            val_files.append(file)
-            current_val_size += size
-        else:
-            train_files.append(file)
-
-    # Move files from the largest split to training if train_files is empty
-    if not train_files:
-        if len(val_files) > len(test_files) and val_files:
-            train_files.append(val_files.pop(0))
-        elif test_files:
-            train_files.append(test_files.pop(0))
-        elif val_files:  # Handle case where only val_files has items
-            train_files.append(val_files.pop(0))
-
-    # Ensure at least one training file exists
-    if not train_files:
-        if val_files:
-            train_files.append(val_files.pop(0))
+    train_files.extend(all_json_files[assigned:])
 
     print(f"Data split into {len(train_files)} train, {len(val_files)} val, {len(test_files)} test files.")
-    print(
-        f"File size distribution - Train: {sum(f.stat().st_size for f in train_files) / 1024000:.1f}MB, "
-        f"Val: {sum(f.stat().st_size for f in val_files) / 1024000:.1f}MB, "
-        f"Test: {sum(f.stat().st_size for f in test_files) / 1024000:.1f}MB"
-    )
 
     # Process files for each split
     X_train, y_train = preprocess_doxascope_data(
@@ -524,7 +509,6 @@ def prepare_data(
     # Create datasets and dataloaders from loaded/processed data
     train_loader, val_loader, test_loader = None, None, None
 
-    # Load from NPZ files (either newly created or from cache)
     train_data = np.load(preprocessed_dir / "train.npz")
     train_dataset = DoxascopeDataset(train_data["X"], train_data["y"])
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
