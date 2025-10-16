@@ -7,12 +7,12 @@ from metta.setup.utils import info, success
 
 
 @register_module
-class ExperimentsSetup(SetupModule):
+class ScratchpadSetup(SetupModule):
     install_once = True
 
     @property
     def description(self) -> str:
-        return "Experiments"
+        return "Scratchpad for experiments"
 
     @property
     def user_experiments_dir(self) -> Path:
@@ -27,7 +27,7 @@ class ExperimentsSetup(SetupModule):
         info(f"Setting up personal experiments file under {self._personal_experiments_path}...")
         username = os.getenv("USER", "user")
 
-        template_path = self.user_experiments_dir / "example.py"
+        template_path = self.user_experiments_dir / "template.py"
         with open(template_path, "r") as f:
             template_content = f.read()
 
