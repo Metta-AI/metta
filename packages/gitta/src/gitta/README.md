@@ -71,6 +71,14 @@ if gitta.is_commit_pushed("abc123"):
 
 # Get repository root
 repo_root = gitta.find_root(Path.cwd())
+
+# Validate commit state before remote execution
+commit_hash = gitta.validate_commit_state(
+    require_clean=True,      # Require no uncommitted changes
+    require_pushed=True,     # Require commit is pushed to remote
+    target_repo="owner/repo", # Optional: verify we're in correct repo
+    allow_untracked=False    # Whether to allow untracked files
+)
 ```
 
 ## Environment Variables

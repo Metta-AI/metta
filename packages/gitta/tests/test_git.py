@@ -20,6 +20,7 @@ from gitta import (
     has_unstaged_changes,
     https_remote_url,
     resolve_git_ref,
+    validate_commit_state,
 )
 
 
@@ -167,3 +168,82 @@ def test_resolve_git_ref():
     head = resolve_git_ref("HEAD")
     assert len(head) == 40
     assert head == resolve_git_ref(head[:8])
+
+
+def test_validate_commit_state_clean_repo():
+    """Test validate_commit_state with a clean repository."""
+    repo_path = create_temp_repo()
+    os.chdir(repo_path)
+
+    # Clean repo should validate successfully (without requiring pushed)
+    commit = validate_commit_state(require_clean=True, require_pushed=False)
+    assert len(commit) == 40
+    assert commit == get_current_commit()
+
+
+def test_validate_commit_state_uncommitted_changes():
+    """Test validate_commit_state fails with uncommitted changes."""
+    repo_path = create_temp_repo()
+    os.chdir(repo_path)
+
+    # Modify a file
+    (repo_path / "README.md").write_text("# Modified")
+
+    # Should fail when requiring clean
+    with pytest.raises(GitError, match="uncommitted changes"):
+        validate_commit_state(require_clean=True, require_pushed=False)
+
+    # Should succeed when not requiring clean
+    commit = validate_commit_state(require_clean=False, require_pushed=False)
+    assert len(commit) == 40
+
+
+def test_validate_commit_state_untracked_files():
+    """Test validate_commit_state with untracked files."""
+    repo_path = create_temp_repo()
+    os.chdir(repo_path)
+
+    # Add an untracked file
+    (repo_path / "new_file.txt").write_text("new content")
+
+    # Should fail by default (untracked files count as changes)
+    with pytest.raises(GitError, match="uncommitted changes"):
+        validate_commit_state(require_clean=True, require_pushed=False)
+
+    # Should succeed when allowing untracked files
+    commit = validate_commit_state(require_clean=True, require_pushed=False, allow_untracked=True)
+    assert len(commit) == 40
+
+
+def test_validate_commit_state_unpushed_commit():
+    """Test validate_commit_state with unpushed commits."""
+    repo_path = create_temp_repo()
+    os.chdir(repo_path)
+
+    # Set up a remote
+    add_remote("origin", "git@github.com:test/repo.git")
+
+    # Should fail when requiring pushed (no upstream configured)
+    with pytest.raises(GitError, match="hasn't been pushed"):
+        validate_commit_state(require_clean=True, require_pushed=True)
+
+    # Should succeed when not requiring pushed
+    commit = validate_commit_state(require_clean=True, require_pushed=False)
+    assert len(commit) == 40
+
+
+def test_validate_commit_state_wrong_repo():
+    """Test validate_commit_state with wrong repository."""
+    repo_path = create_temp_repo()
+    os.chdir(repo_path)
+
+    # Add a remote
+    add_remote("origin", "git@github.com:test/repo.git")
+
+    # Should succeed when target_repo matches
+    commit = validate_commit_state(require_clean=True, require_pushed=False, target_repo="test/repo")
+    assert len(commit) == 40
+
+    # Should fail when target_repo doesn't match
+    with pytest.raises(GitError, match="Not in repository"):
+        validate_commit_state(require_clean=True, require_pushed=False, target_repo="different/repo")
