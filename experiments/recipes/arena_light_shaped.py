@@ -1,4 +1,4 @@
-"""Arena recipe with contrastive loss enabled and sparse rewards: ore -> battery -> heart."""
+"""Arena recipe with light shaped rewards: minimal rewards for ore and battery to guide learning."""
 
 from typing import Optional, Sequence
 
@@ -29,26 +29,34 @@ from metta.rl.loss.ppo import PPOConfig
 
 
 def mettagrid(num_agents: int = 24) -> MettaGridConfig:
-    """Create arena environment with sparse rewards: only heart gives reward."""
+    """Create arena environment with light shaped rewards.
+
+    Progression: minimal intermediate rewards for ore and battery to guide learning.
+    """
     arena_env = eb.make_arena(num_agents=num_agents)
 
-    # Sparse rewards: only final objective (heart) gives reward
-    # Remove all intermediate rewards
-    arena_env.game.agent.rewards.inventory["ore_red"] = 0.0
-    arena_env.game.agent.rewards.inventory["battery_red"] = 0.0
-    arena_env.game.agent.rewards.inventory["laser"] = 0.0
-    arena_env.game.agent.rewards.inventory["armor"] = 0.0
-    arena_env.game.agent.rewards.inventory["blueprint"] = 0.0
+    # Light shaped rewards: small rewards for critical resources
+    arena_env.game.agent.rewards.inventory = {
+        "heart": 1.0,
+        "ore_red": 0.05,  # Small reward for mining
+        "battery_red": 0.3,  # Moderate reward for battery (key intermediate)
+        "laser": 0.0,  # No reward for optional items
+        "armor": 0.0,
+        "blueprint": 0.0,
+    }
+    arena_env.game.agent.rewards.inventory_max = {
+        "heart": 100,
+        "ore_red": 1,
+        "battery_red": 1,
+        "laser": 1,
+        "armor": 1,
+        "blueprint": 1,
+    }
 
-    # Only heart gives reward (final objective)
-    arena_env.game.agent.rewards.inventory["heart"] = 1.0
-    arena_env.game.agent.rewards.inventory_max["heart"] = 100  # Allow accumulation
-
-    # Set up the resource chain: ore -> battery -> heart
-    # Ensure converter processes: mine ore, use ore to make battery, use battery to make heart
+    # Easy converter: 1 battery_red to 1 heart (instead of 3 to 1)
     altar = arena_env.game.objects.get("altar")
     if isinstance(altar, ConverterConfig) and hasattr(altar, "input_resources"):
-        altar.input_resources["battery_red"] = 1  # battery -> heart conversion
+        altar.input_resources["battery_red"] = 1
 
     return arena_env
 
@@ -58,14 +66,17 @@ def make_curriculum(
     enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
 ) -> CurriculumConfig:
-    """Create curriculum with sparse reward environment."""
+    """Create curriculum with light shaped reward environment."""
     arena_env = arena_env or mettagrid()
 
     arena_tasks = cc.bucketed(arena_env)
 
-    # Only vary heart rewards (final objective) in curriculum
-    arena_tasks.add_bucket("game.agent.rewards.inventory.heart", [0.5, 1.0, 2.0])
-    arena_tasks.add_bucket("game.agent.rewards.inventory_max.heart", [10, 50, 100])
+    # Vary key intermediate rewards in curriculum
+    for item in ["ore_red", "battery_red"]:
+        arena_tasks.add_bucket(
+            f"game.agent.rewards.inventory.{item}", [0, 0.05, 0.1, 0.3, 0.5]
+        )
+        arena_tasks.add_bucket(f"game.agent.rewards.inventory_max.{item}", [1, 2])
 
     # Enable/disable attacks for variety
     arena_tasks.add_bucket("game.actions.attack.consumed_resources.laser", [1, 100])
@@ -88,7 +99,7 @@ def make_curriculum(
 
 
 def simulations(env: Optional[MettaGridConfig] = None) -> list[SimulationConfig]:
-    """Create evaluation environments with sparse rewards."""
+    """Create evaluation environments with light shaped rewards."""
     basic_env = env or mettagrid()
     basic_env.game.actions.attack.consumed_resources["laser"] = 100
 
@@ -96,8 +107,8 @@ def simulations(env: Optional[MettaGridConfig] = None) -> list[SimulationConfig]
     combat_env.game.actions.attack.consumed_resources["laser"] = 1
 
     return [
-        SimulationConfig(suite="arena_sparse", name="basic", env=basic_env),
-        SimulationConfig(suite="arena_sparse", name="combat", env=combat_env),
+        SimulationConfig(suite="arena_light_shaped", name="basic", env=basic_env),
+        SimulationConfig(suite="arena_light_shaped", name="combat", env=combat_env),
     ]
 
 
@@ -109,7 +120,7 @@ def train(
     temperature: float = 0.07,
     contrastive_coef: float = 0.1,
 ) -> TrainTool:
-    """Train with sparse rewards and optional contrastive loss."""
+    """Train with light shaped rewards and optional contrastive loss."""
     curriculum = curriculum or make_curriculum(
         enable_detailed_slice_logging=enable_detailed_slice_logging
     )
@@ -142,12 +153,12 @@ def train(
 
 
 def play(policy_uri: Optional[str] = None) -> PlayTool:
-    """Interactive play with sparse reward environment."""
+    """Interactive play with light shaped reward environment."""
     return PlayTool(sim=simulations()[0], policy_uri=policy_uri)
 
 
 def replay(policy_uri: Optional[str] = None) -> ReplayTool:
-    """Replay with sparse reward environment."""
+    """Replay with light shaped reward environment."""
     return ReplayTool(sim=simulations()[0], policy_uri=policy_uri)
 
 
@@ -155,7 +166,7 @@ def evaluate(
     policy_uris: Sequence[str] | str | None = None,
     eval_simulations: Optional[Sequence[SimulationConfig]] = None,
 ) -> EvaluateTool:
-    """Evaluate with sparse reward environments."""
+    """Evaluate with light shaped reward environments."""
     sims = list(eval_simulations) if eval_simulations is not None else simulations()
 
     if policy_uris is None:
@@ -175,7 +186,7 @@ def evaluate_remote(
     policy_uri: str,
     eval_simulations: Optional[Sequence[SimulationConfig]] = None,
 ) -> EvalRemoteTool:
-    """Remote evaluation with sparse reward environments."""
+    """Remote evaluation with light shaped reward environments."""
     sims = list(eval_simulations) if eval_simulations is not None else simulations()
     return EvalRemoteTool(
         simulations=sims,
@@ -185,7 +196,7 @@ def evaluate_remote(
 
 # Sweep section
 
-SWEEP_EVAL_SUITE = "sweep_arena_sparse"
+SWEEP_EVAL_SUITE = "sweep_arena_light_shaped"
 
 
 def evaluate_in_sweep(policy_uri: str) -> EvaluateTool:
