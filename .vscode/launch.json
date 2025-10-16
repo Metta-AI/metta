@@ -7,7 +7,7 @@
       "type": "debugpy",
       "request": "launch",
       "module": "tools.run",
-      "args": ["experiments.recipes.scratchpad.${env:USER}.train"],
+      "args": ["experiments.recipes.arena.train"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
@@ -68,20 +68,6 @@
       "request": "launch",
       "module": "tools.run",
       "args": ["experiments.recipes.arena.evaluate"],
-      "cwd": "${workspaceFolder}",
-      "env": {
-        "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
-      },
-      "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}",
-    },
-    {
-      "name": "Dashboard",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "tools.dashboard",
-      "args": ["+user=${env:USER}"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
