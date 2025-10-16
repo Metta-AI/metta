@@ -27,22 +27,45 @@ type ObjectLayer = {
 
 type ObjectDrawer = ObjectLayer[];
 
-const objectDrawers: Record<string, ObjectDrawer> = {
+const STATIC_OBJECT_DRAWERS: Record<string, ObjectDrawer> = {
   empty: [],
   wall: [{ tile: "wall" }], // unused by Drawer but used by AsciiEditor
   ...Object.fromEntries(
     TILE_NAMES.map((tile) => [tile, [{ tile }] as ObjectDrawer])
   ),
   "agent.agent": [{ tile: "agent" }],
-  "agent.team_1": [{ tile: "agent", modulate: colorFromId(0) }],
-  "agent.team_2": [{ tile: "agent", modulate: colorFromId(1) }],
-  "agent.team_3": [{ tile: "agent", modulate: colorFromId(2) }],
-  "agent.team_4": [{ tile: "agent", modulate: colorFromId(3) }],
   "agent.prey": [{ tile: "agent", modulate: { r: 0, g: 1, b: 0 } }],
   "agent.predator": [{ tile: "agent", modulate: { r: 1, g: 0, b: 0 } }],
 };
 
-export const objectNames = Object.keys(objectDrawers);
+export const objectNames = [
+  ...Object.keys(STATIC_OBJECT_DRAWERS),
+  "agent.team_*",
+];
+
+function buildTeamDrawer(name: string): ObjectDrawer | undefined {
+  if (!name.startsWith("agent.team_")) {
+    return undefined;
+  }
+
+  const suffix = name.substring("agent.team_".length);
+  const teamId = Number.parseInt(suffix, 10);
+  if (Number.isNaN(teamId)) {
+    return undefined;
+  }
+
+  const colorId = teamId === 0 ? 0 : teamId - 1;
+  return [{ tile: "agent", modulate: colorFromId(colorId) }];
+}
+
+function getObjectDrawer(name: string): ObjectDrawer | undefined {
+  const teamDrawer = buildTeamDrawer(name);
+  if (teamDrawer) {
+    return teamDrawer;
+  }
+
+  return STATIC_OBJECT_DRAWERS[name];
+}
 
 export const BACKGROUND_MAP_COLOR = "#cfa970";
 
@@ -103,7 +126,7 @@ export class Drawer {
 
   // Assumes that `ctx` is scaled such that the image is 1x1
   drawObject(ctx: CanvasRenderingContext2D, object: MettaObject) {
-    const layers = objectDrawers[object.name];
+    const layers = getObjectDrawer(object.name);
     if (!layers) {
       throw new Error(`No drawer for object ${object.name}`);
     }

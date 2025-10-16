@@ -1,6 +1,9 @@
 # Agent-specific colored squares for agent IDs 0-9 (consistent width)
 AGENT_SQUARES = ["🟦", "🟧", "🟩", "🟨", "🟪", "🟥", "🟫", "⬛", "🟦", "🟧"]
 
+# Reusable palette for team-based agents (wrap when we exceed the palette).
+TEAM_SYMBOLS = ["🔵", "🔴", "🟢", "🟡", "🟣", "🟠", "⚪", "⚫"]
+
 
 DEFAULT_SYMBOL_MAP = {
     # Terrain
@@ -44,6 +47,12 @@ def get_symbol_for_object(obj: dict, object_type_names: list[str], symbol_map: d
     # Try full type name first, then base type
     if type_name in symbol_map:
         return symbol_map[type_name]
+
+    if type_name.startswith("agent.team_"):
+        suffix = type_name[len("agent.team_") :]
+        if suffix.isdigit():
+            team_index = int(suffix)
+            return TEAM_SYMBOLS[team_index % len(TEAM_SYMBOLS)]
 
     base = type_name.split(".")[0]
     return symbol_map.get(base, symbol_map.get("?", "❓"))

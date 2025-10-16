@@ -33,11 +33,10 @@ DEFAULT_CHAR_TO_NAME: dict[str, str] = {
     "c": "converter",
     "C": "chest",
     "Z": "assembler",
-    "1": "agent.team_1",
-    "2": "agent.team_2",
-    "3": "agent.team_3",
-    "4": "agent.team_4",
 }
+
+# Convenience aliases for numbered teams.
+DEFAULT_CHAR_TO_NAME.update({str(i): f"agent.team_{i}" for i in range(10)})
 
 
 def default_char_to_name() -> dict[str, str]:
