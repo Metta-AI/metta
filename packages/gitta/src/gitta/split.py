@@ -186,7 +186,7 @@ Return a JSON response with this exact structure:
 
     def get_diff(self, base: str, head: str) -> str:
         """Get the diff between two branches"""
-        return run_git("diff", f"{base}...{head}")
+        return run_git("diff", base, head)
 
     def parse_diff(self, diff_text: str) -> List[FileDiff]:
         """Parse git diff output into structured format"""
@@ -361,7 +361,7 @@ Return a JSON response with this exact structure:
         if not unique_files:
             return ""
 
-        diff_args = ["diff", "--binary", f"{self.base_branch}...{self.current_branch}", "--", *unique_files]
+        diff_args = ["diff", "--binary", self.base_branch, self.current_branch, "--", *unique_files]
         return run_git(*diff_args)
 
     def apply_patch_to_new_branch(self, patch_content: str, branch_name: str) -> None:

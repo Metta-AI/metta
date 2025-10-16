@@ -78,7 +78,8 @@ def test_create_patch_file(monkeypatch: pytest.MonkeyPatch):
     assert captured_args["args"] == (
         "diff",
         "--binary",
-        "origin/main...feature",
+        "origin/main",
+        "feature",
         "--",
         "file1.py",
     )
