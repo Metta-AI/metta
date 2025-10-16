@@ -33,6 +33,7 @@ def replay() -> ReplayTool:
     cfg.wandb.enabled = False
     cfg.system.vectorization = "serial"
     cfg.open_browser_on_start = False
+    cfg.launch_viewer = False
     cfg.sim.env.label = cfg.sim.env.label or "mettagrid"
     return cfg
 
