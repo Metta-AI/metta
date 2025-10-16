@@ -1,0 +1,12 @@
+pattern: '#######
+
+  #.....#
+
+  ##...##
+
+  #.....#
+
+  #.....#
+
+  ##...##'
+type: mettagrid.mapgen.scenes.wfc.WFC

@@ -14,8 +14,8 @@ from zipfile import BadZipFile
 import torch
 from safetensors.torch import load as load_safetensors
 from safetensors.torch import save as save_safetensors
-from hf_metta_policy.modeling_metta_policy import MettaPolicyForRL
 
+from hf_metta_policy.modeling_metta_policy import MettaPolicyForRL
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.puffer_policy import _is_puffer_state_dict, load_pufferlib_checkpoint
@@ -191,16 +191,13 @@ class PolicyArtifact:
     policy: Policy | None = None
 
     HF_ARTIFACT_PATH: ClassVar[Path] = (
-        Path(__file__).resolve().parents[2]
-        / "artifacts"
-        / "hf"
-        / "c65ada04bb1f477d944b84494ffa64ee86045025"
+        Path(__file__).resolve().parents[2] / "artifacts" / "hf" / "c65ada04bb1f477d944b84494ffa64ee86045025"
     )
 
     @classmethod
-    def from_hardcoded_hf(cls) -> "PolicyArtifact":
+    def from_hardcoded_hf(cls) -> "Policy":
         policy = load_policy_from_hf_artifact(cls.HF_ARTIFACT_PATH)
-        return cls(policy=policy)
+        return policy
 
     def __post_init__(self) -> None:
         has_arch = self.policy_architecture is not None
@@ -416,6 +413,6 @@ def load_policy_from_hf_artifact(path: str | Path) -> Policy:
     policy = getattr(model, "policy", None)
     if policy is None:
         raise ValueError(f"Hugging Face artifact at {path} did not expose a policy module")
-    if not isinstance(policy, Policy):
-        raise TypeError(f"Loaded module from {path} is not a Policy instance: {type(policy)!r}")
+    #    if not isinstance(policy, Policy):
+    #        raise TypeError(f"Loaded module from {path} is not a Policy instance: {type(policy)!r}")
     return policy

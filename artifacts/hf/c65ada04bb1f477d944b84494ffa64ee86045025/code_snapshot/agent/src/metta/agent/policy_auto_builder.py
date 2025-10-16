@@ -26,6 +26,7 @@ class PolicyAutoBuilder(nn.Module):
     def __init__(self, env, config: Config = None):
         super().__init__()
         self.config = config
+        print("lalalalala")
 
         self.components = OrderedDict()
         for component_config in self.config.components:
