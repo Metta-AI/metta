@@ -17,7 +17,7 @@ from metta.agent.components.obs_tokenizers import (
 )
 from metta.agent.policies.sliding_transformer import SlidingTransformerConfig
 from metta.agent.policy import Policy, PolicyArchitecture
-from metta.rl.training import EnvironmentMetaData
+from metta.rl.training import GameRules
 from mettagrid.util.module import load_symbol
 
 logger = logging.getLogger(__name__)
@@ -83,7 +83,7 @@ class FastDynamicsConfig(PolicyArchitecture):
 
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
 
-    def make_policy(self, env_metadata: EnvironmentMetaData) -> Policy:
+    def make_policy(self, env_metadata: GameRules) -> Policy:
         AgentClass = load_symbol(self.class_path)
         policy = AgentClass(env_metadata, self)
 

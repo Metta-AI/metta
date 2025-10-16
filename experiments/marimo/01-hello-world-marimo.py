@@ -93,7 +93,7 @@ def _():
     from metta.rl.training import (
         EvaluatorConfig,
         TrainingEnvironmentConfig,
-        EnvironmentMetaData,
+        GameRules,
     )
 
     from metta.cogworks.curriculum import (
@@ -1009,7 +1009,7 @@ def _(
             with contextlib.redirect_stdout(io.StringIO()):
                 eval_env = MettaGridEnv(mg_config, render_mode="human")
 
-            env_metadata = EnvironmentMetaData(
+            env_metadata = GameRules(
                 obs_width=eval_env.obs_width,
                 obs_height=eval_env.obs_height,
                 obs_features=eval_env.observation_features,

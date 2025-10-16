@@ -58,7 +58,7 @@ class TLKickstarter(Loss):
         # load teacher policy
         from metta.rl.checkpoint_manager import CheckpointManager
 
-        env_metadata = getattr(self.env, "meta_data", None)
+        env_metadata = getattr(self.env, "game_rules", getattr(self.env, "meta_data", None))
         if env_metadata is None:
             raise RuntimeError("Environment metadata is required to instantiate teacher policy")
 

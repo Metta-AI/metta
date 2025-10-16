@@ -5,7 +5,7 @@ import torch
 from tensordict import TensorDict
 
 from metta.agent.policies.agalite import AGaLiTeConfig
-from metta.rl.training.training_environment import EnvironmentMetaData
+from metta.rl.training.training_environment import GameRules
 from metta.rl.utils import ensure_sequence_metadata
 
 
@@ -19,7 +19,7 @@ def _build_env_metadata():
         "shield": SimpleNamespace(id=2, normalization=5.0),
     }
 
-    return EnvironmentMetaData(
+    return GameRules(
         obs_width=11,
         obs_height=11,
         obs_features=obs_features,

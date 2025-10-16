@@ -20,7 +20,7 @@ from metta.agent.components.obs_shim import (
     ObsShimTokens,
     ObsShimTokensConfig,
 )
-from metta.rl.training import EnvironmentMetaData
+from metta.rl.training import GameRules
 from mettagrid.base_config import Config
 from mettagrid.util.module import load_symbol
 
@@ -37,7 +37,7 @@ class PolicyArchitecture(Config):
     # a separate component that optionally accepts actions and process logits into log probs, entropy, etc.
     action_probs_config: ComponentConfig
 
-    def make_policy(self, env_metadata: EnvironmentMetaData) -> "Policy":
+    def make_policy(self, env_metadata: GameRules) -> "Policy":
         """Create an agent instance from configuration."""
 
         AgentClass = load_symbol(self.class_path)
@@ -61,7 +61,7 @@ class Policy(ABC, nn.Module):
             truncateds=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
         )
 
-    def initialize_to_environment(self, env_metadata: EnvironmentMetaData, device: torch.device):
+    def initialize_to_environment(self, env_metadata: GameRules, device: torch.device):
         return
 
     @property
@@ -115,7 +115,7 @@ class ExternalPolicyWrapper(Policy):
     if necessary.
     """
 
-    def __init__(self, policy: nn.Module, env_metadata: EnvironmentMetaData, box_obs: bool = True):
+    def __init__(self, policy: nn.Module, env_metadata: GameRules, box_obs: bool = True):
         super().__init__()
         self.policy = policy
         if box_obs:
@@ -133,7 +133,7 @@ class ExternalPolicyWrapper(Policy):
         self.obs_shaper(td)
         return self.policy(td["obs"])
 
-    def initialize_to_environment(self, env_metadata: EnvironmentMetaData, device: torch.device):
+    def initialize_to_environment(self, env_metadata: GameRules, device: torch.device):
         pass
 
     @property

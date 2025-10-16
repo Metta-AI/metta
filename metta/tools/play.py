@@ -12,7 +12,7 @@ from metta.agent.utils import obs_to_td
 from metta.common.tool import Tool
 from metta.common.wandb.context import WandbConfig
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.training.training_environment import EnvironmentMetaData
+from metta.rl.training.training_environment import GameRules
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_wandb_config
 from mettagrid import MettaGridEnv, RenderMode, dtype_actions
@@ -86,7 +86,7 @@ class PlayTool(Tool):
             policy = CheckpointManager.load_from_uri(self.policy_uri)
 
             # Create environment metadata for policy initialization
-            env_metadata = EnvironmentMetaData(
+            game_rules = GameRules(
                 obs_width=env.obs_width,
                 obs_height=env.obs_height,
                 obs_features=env.observation_features,
@@ -99,7 +99,7 @@ class PlayTool(Tool):
 
             # Initialize policy to environment
             policy.eval()
-            policy.initialize_to_environment(env_metadata, device)
+            policy.initialize_to_environment(game_rules, device)
         else:
             logger.info("No policy specified, using random actions")
             policy = None

@@ -20,7 +20,7 @@ from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
 from metta.common.util.heartbeat import record_heartbeat
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.policy_artifact import PolicyArtifact
-from metta.rl.training.training_environment import EnvironmentMetaData
+from metta.rl.training.training_environment import GameRules
 from metta.rl.vecenv import make_vecenv
 from metta.sim.replay_log_renderer import ReplayLogRenderer
 from metta.sim.simulation_config import SimulationConfig
@@ -126,7 +126,7 @@ class Simulation:
         metta_grid_env: MettaGridEnv = getattr(driver_env, "_env", driver_env)
         assert isinstance(metta_grid_env, MettaGridEnv), f"Expected MettaGridEnv, got {type(metta_grid_env)}"
 
-        env_metadata = EnvironmentMetaData(
+        env_metadata = GameRules(
             obs_width=metta_grid_env.obs_width,
             obs_height=metta_grid_env.obs_height,
             obs_features=metta_grid_env.observation_features,
@@ -161,7 +161,7 @@ class Simulation:
         self,
         artifact: PolicyArtifact,
         existing_policy: Policy | None,
-        env_metadata: EnvironmentMetaData,
+        env_metadata: GameRules,
     ) -> Policy:
         using_existing = existing_policy is not None
         if using_existing:

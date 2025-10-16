@@ -10,7 +10,7 @@ from metta.agent.policies import sliding_transformer as backbone_sliding
 from metta.agent.policies import trxl as backbone_trxl
 from metta.agent.policies import trxl_nvidia as backbone_trxl_nvidia
 from metta.agent.policies.transformer import TransformerPolicy, TransformerPolicyConfig
-from metta.rl.training.training_environment import EnvironmentMetaData
+from metta.rl.training.training_environment import GameRules
 from metta.rl.utils import ensure_sequence_metadata
 
 
@@ -22,7 +22,7 @@ def _build_env_metadata():
         "token_value": SimpleNamespace(id=0, normalization=1.0),
     }
 
-    return EnvironmentMetaData(
+    return GameRules(
         obs_width=11,
         obs_height=11,
         obs_features=obs_features,

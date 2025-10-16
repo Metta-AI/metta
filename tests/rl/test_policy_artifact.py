@@ -18,7 +18,7 @@ from metta.rl.policy_artifact import (
     policy_architecture_to_string,
     save_policy_artifact_safetensors,
 )
-from metta.rl.training import EnvironmentMetaData
+from metta.rl.training import GameRules
 from mettagrid.base_config import Config
 
 
@@ -35,7 +35,7 @@ class DummyPolicyArchitecture(PolicyArchitecture):
 
 
 class DummyPolicy(Policy):
-    def __init__(self, env_metadata: EnvironmentMetaData | None, _: PolicyArchitecture | None = None):
+    def __init__(self, env_metadata: GameRules | None, _: PolicyArchitecture | None = None):
         super().__init__()
         self.linear = nn.Linear(1, 1)
 
@@ -51,8 +51,8 @@ class DummyPolicy(Policy):
         return None
 
 
-def _env_metadata() -> EnvironmentMetaData:
-    return EnvironmentMetaData(
+def _env_metadata() -> GameRules:
+    return GameRules(
         obs_width=1,
         obs_height=1,
         obs_features={},

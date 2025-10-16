@@ -18,7 +18,7 @@ from safetensors.torch import save as save_safetensors
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.puffer_policy import _is_puffer_state_dict, load_pufferlib_checkpoint
-from metta.rl.training import EnvironmentMetaData
+from metta.rl.training import GameRules
 from mettagrid.util.module import load_symbol
 
 
@@ -206,7 +206,7 @@ class PolicyArtifact:
 
     def instantiate(
         self,
-        env_metadata: EnvironmentMetaData,
+        env_metadata: GameRules,
         device: torch.device,
         *,
         strict: bool = True,

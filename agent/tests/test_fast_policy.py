@@ -5,7 +5,7 @@ import torch
 from tensordict import TensorDict
 
 from metta.agent.policies.fast import FastConfig, FastPolicy
-from metta.rl.training import EnvironmentMetaData
+from metta.rl.training import GameRules
 from metta.rl.utils import ensure_sequence_metadata
 
 
@@ -17,7 +17,7 @@ def _build_env_metadata():
         "token_value": SimpleNamespace(id=0, normalization=1.0),
     }
 
-    return EnvironmentMetaData(
+    return GameRules(
         obs_width=11,
         obs_height=11,
         obs_features=obs_features,

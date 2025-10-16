@@ -6,7 +6,7 @@ import torch
 from torch import nn
 
 from metta.agent.policy import ExternalPolicyWrapper
-from metta.rl.training import EnvironmentMetaData
+from metta.rl.training import GameRules
 from mettagrid import dtype_actions
 
 
@@ -19,8 +19,8 @@ class _DummyPolicy(nn.Module):
         return self.linear(obs)
 
 
-def _make_env_metadata() -> EnvironmentMetaData:
-    return EnvironmentMetaData(
+def _make_env_metadata() -> GameRules:
+    return GameRules(
         obs_width=4,
         obs_height=4,
         obs_features={},

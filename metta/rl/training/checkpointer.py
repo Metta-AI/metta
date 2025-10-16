@@ -8,7 +8,7 @@ from pydantic import Field
 
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.training import DistributedHelper, EnvironmentMetaData, TrainerComponent
+from metta.rl.training import DistributedHelper, GameRules, TrainerComponent
 from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
@@ -52,7 +52,7 @@ class Checkpointer(TrainerComponent):
     # ------------------------------------------------------------------
     def load_or_create_policy(
         self,
-        env_metadata: EnvironmentMetaData,
+        env_metadata: GameRules,
         *,
         policy_uri: Optional[str] = None,
     ) -> Policy:
