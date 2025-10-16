@@ -34,6 +34,25 @@ class PolicyAutoBuilder(nn.Module):
 
         self.action_probs = self.config.action_probs_config.make_component()
         self.network = TensorDictSequential(self.components, inplace=True)
+
+        # Debug: Print second layer weights
+        if len(self.components) >= 2:
+            second_layer_name = list(self.components.keys())[1]
+            second_layer = self.components[second_layer_name]
+            print(f"\n{'='*60}")
+            print(f"SECOND LAYER DEBUG INFO")
+            print(f"{'='*60}")
+            print(f"Second layer name: {second_layer_name}")
+            print(f"Second layer type: {type(second_layer)}")
+            print(f"{'='*60}")
+
+            # Print all parameters in the second layer
+            for name, param in second_layer.named_parameters():
+                print(f"  Parameter: {name}")
+                print(f"  Shape: {param.shape}")
+                print(f"  Values:\n{param.data}")
+                print(f"{'-'*60}")
+
         self._sdpa_context = ExitStack()
 
         self._total_params = sum(

@@ -3,11 +3,33 @@
   // for more information on the VS Code debugger, visit https://go.microsoft.com/fwlink/?linkid=830387
   "configurations": [
     {
-      "name": "Train Metta",
+      "name": "Train Arena",
       "type": "debugpy",
       "request": "launch",
       "module": "tools.run",
-      "args": ["experiments.recipes.scratchpad.${env:USER}.train"],
+      "args": [
+        "train",
+        "arena",
+        "run=debug_${env:USER}"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
+      },
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "preLaunchTask": "${defaultBuildTask}",
+    },
+    {
+      "name": "Train Navigation",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "tools.run",
+      "args": [
+        "train",
+        "navigation",
+        "run=debug_${env:USER}"
+      ],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
@@ -21,7 +43,10 @@
       "type": "debugpy",
       "request": "launch",
       "module": "tools.sweep_init",
-      "args": ["+user=${env:USER}", "dist_cfg_path=${data_dir}/${env:USER}/dist_cfg.yaml"],
+      "args": [
+        "+user=${env:USER}",
+        "dist_cfg_path=${data_dir}/${env:USER}/dist_cfg.yaml"
+      ],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
@@ -35,7 +60,10 @@
       "type": "debugpy",
       "request": "launch",
       "module": "tools.sweep_eval",
-      "args": ["+user=${env:USER}", "dist_cfg_path=./train_dir/${env:USER}/dist_cfg.yaml"],
+      "args": [
+        "+user=${env:USER}",
+        "dist_cfg_path=./train_dir/${env:USER}/dist_cfg.yaml"
+      ],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
@@ -63,11 +91,33 @@
       "preLaunchTask": "${defaultBuildTask}",
     },
     {
-      "name": "Evaluate",
+      "name": "Evaluate Arena",
       "type": "debugpy",
       "request": "launch",
       "module": "tools.run",
-      "args": ["experiments.recipes.scratchpad.${env:USER}.evaluate"],
+      "args": [
+        "evaluate",
+        "arena",
+        "policy_uri=file://./train_dir/debug_${env:USER}/checkpoints"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
+      },
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "preLaunchTask": "${defaultBuildTask}",
+    },
+    {
+      "name": "Evaluate Navigation",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "tools.run",
+      "args": [
+        "evaluate",
+        "navigation",
+        "policy_uri=file://./train_dir/debug_${env:USER}/checkpoints"
+      ],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
@@ -81,7 +131,9 @@
       "type": "debugpy",
       "request": "launch",
       "module": "tools.dashboard",
-      "args": ["+user=${env:USER}"],
+      "args": [
+        "+user=${env:USER}"
+      ],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
@@ -91,11 +143,15 @@
       "preLaunchTask": "${defaultBuildTask}",
     },
     {
-      "name": "Analyze",
+      "name": "Analyze Arena",
       "type": "debugpy",
       "request": "launch",
       "module": "tools.run",
-      "args": ["experiments.recipes.scratchpad.${env:USER}.analyze"],
+      "args": [
+        "analyze",
+        "arena",
+        "eval_db_uri=./train_dir/eval_debug_${env:USER}/stats.db"
+      ],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
@@ -105,11 +161,15 @@
       "preLaunchTask": "${defaultBuildTask}",
     },
     {
-      "name": "Generate Replay",
+      "name": "Analyze Navigation",
       "type": "debugpy",
       "request": "launch",
       "module": "tools.run",
-      "args": ["experiments.recipes.scratchpad.${env:USER}.replay"],
+      "args": [
+        "analyze",
+        "navigation",
+        "eval_db_uri=./train_dir/eval_debug_${env:USER}/stats.db"
+      ],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
@@ -119,11 +179,33 @@
       "preLaunchTask": "${defaultBuildTask}",
     },
     {
-      "name": "Play Metta",
+      "name": "Replay Arena",
       "type": "debugpy",
       "request": "launch",
       "module": "tools.run",
-      "args": ["experiments.recipes.scratchpad.${env:USER}.play"],
+      "args": [
+        "replay",
+        "arena",
+        "policy_uri=file://./train_dir/debug_${env:USER}/checkpoints"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
+      },
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "preLaunchTask": "${defaultBuildTask}",
+    },
+    {
+      "name": "Play Arena",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "tools.run",
+      "args": [
+        "play",
+        "arena",
+        "policy_uri=file://./train_dir/debug_${env:USER}/checkpoints"
+      ],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
@@ -137,7 +219,10 @@
       "type": "debugpy",
       "request": "launch",
       "module": "cogames.main",
-      "args": ["play", "machina_2"],
+      "args": [
+        "play",
+        "machina_2"
+      ],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
