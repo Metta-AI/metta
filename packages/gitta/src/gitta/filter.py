@@ -33,7 +33,7 @@ def filter_repo(source_path: Path, paths: List[str], make_root: Optional[str] = 
     print("Cloning for filtering...")
 
     # Clone locally
-    source_url = f"file://{source_path.absolute()}"
+    source_url = source_path.resolve().as_uri()
     try:
         run_git("clone", "--no-local", source_url, str(filtered_path))
     except GitError as e:

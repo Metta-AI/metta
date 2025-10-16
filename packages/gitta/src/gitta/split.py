@@ -58,10 +58,7 @@ class PRSplitter:
         commit_timeout: Optional[float] = None,
     ):
         self.anthropic_api_key = anthropic_api_key or os.environ.get("ANTHROPIC_API_KEY")
-        if not self.anthropic_api_key:
-            raise ValueError("Anthropic API key not provided and ANTHROPIC_API_KEY environment variable not set")
-
-        self.anthropic = Anthropic(api_key=self.anthropic_api_key)
+        self._anthropic: Optional[Anthropic] = None
         self.github_token = github_token or os.environ.get("GITHUB_TOKEN")
         self.model = model or os.environ.get("GITTA_SPLIT_MODEL") or DEFAULT_MODEL
 
@@ -85,6 +82,17 @@ class PRSplitter:
 
         self.base_branch: Optional[str] = None
         self.current_branch: Optional[str] = None
+
+    def _get_anthropic_client(self) -> Anthropic:
+        api_key = self.anthropic_api_key or os.environ.get("ANTHROPIC_API_KEY")
+        if not api_key:
+            raise ValueError("Anthropic API key not provided and ANTHROPIC_API_KEY environment variable not set")
+
+        if self._anthropic is None or api_key != self.anthropic_api_key:
+            self.anthropic_api_key = api_key
+            self._anthropic = Anthropic(api_key=api_key)
+
+        return self._anthropic
 
     def get_base_branch(self) -> str:
         """Determine the base branch (usually main or master)"""
@@ -204,7 +212,9 @@ Return a JSON response with this exact structure:
 }}
 """
 
-        response = self.anthropic.messages.create(
+        client = self._get_anthropic_client()
+
+        response = client.messages.create(
             model=self.model,
             max_tokens=1000,
             messages=[{"role": "user", "content": prompt}],
