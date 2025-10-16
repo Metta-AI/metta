@@ -315,13 +315,19 @@ Examples:
         sys.exit(0)
 
     # Launch the task(s)
-    def prepare_task(base_task: sky.Task, env_updates: dict[str, Any], run_id: str):
-        task = copy.deepcopy(base_task).update_envs(env_updates)
-        task.name = f"{run_id}_{uuid.uuid4().hex[:6]}"
-        task.validate_name()
-        return task
+    def prepare_task(base_task: sky.Task, env_updates: dict[str, Any], run_id: str, copies: int) -> sky.Task:
+        prepared_task = copy.deepcopy(base_task).update_envs(env_updates)
+        if copies > 1:
+            suffix = f"_{uuid.uuid4().hex[:6]}"
+            max_name_length = 63
+            trimmed_base = run_id[: max_name_length - len(suffix)]
+            prepared_task.name = f"{trimmed_base}{suffix}"
+        else:
+            prepared_task.name = run_id
+        prepared_task.validate_name()
+        return prepared_task
 
-    request_ids = [launch_task(prepare_task(task, env_updates, run_id)) for _ in range(args.copies)]
+    request_ids = [launch_task(prepare_task(task, env_updates, run_id, args.copies)) for _ in range(args.copies)]
 
     if args.job_log:
         open_job_log_from_request_id(request_ids[0])

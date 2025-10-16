@@ -28,7 +28,7 @@ class TerminationReason(str, Enum):
 
     def with_exit_code(self, exit_code: int) -> str:
         """Create a failure reason with an exit code."""
-        return f"{self.JOB_FAILED}_{exit_code}"
+        return f"{self.value}_{exit_code}"
 
     @staticmethod
     def parse_os_error(errno: int | str) -> str:
