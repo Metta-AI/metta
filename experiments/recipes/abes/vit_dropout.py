@@ -1,4 +1,4 @@
-from metta.agent.policies.vit import ViTDefaultConfig
+from metta.agent.policies.vit_dropout import ViTDropoutConfig
 from metta.agent.policy import PolicyArchitecture
 
 from experiments.recipes.arena_basic_easy_shaped import (
@@ -25,7 +25,7 @@ def train(
     return base_train(
         curriculum=curriculum,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
-        policy_architecture=policy_architecture or ViTDefaultConfig(),
+        policy_architecture=policy_architecture or ViTDropoutConfig(),
     )
 
 
