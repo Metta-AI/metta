@@ -9,7 +9,7 @@ import re
 import sys
 import tempfile
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Optional, cast
 
 from anthropic import Anthropic
 from anthropic.types import TextBlock
@@ -24,9 +24,9 @@ class FileDiff:
     """Represents a diff for a single file"""
 
     filename: str
-    additions: List[str]
-    deletions: List[str]
-    hunks: List[Dict[str, Any]]
+    additions: list[str]
+    deletions: list[str]
+    hunks: list[dict[str, Any]]
     raw_diff: str
 
 
@@ -34,8 +34,8 @@ class FileDiff:
 class SplitDecision:
     """Represents how to split the PR"""
 
-    group1_files: List[str]
-    group2_files: List[str]
+    group1_files: list[str]
+    group2_files: list[str]
     group1_description: str
     group2_description: str
     group1_title: str
@@ -95,7 +95,6 @@ class PRSplitter:
         return self._anthropic
 
     def get_base_branch(self) -> str:
-        """Determine the base branch (usually main or master)"""
         # Try to find the merge base with common default branches
         for branch in ["main", "master", "develop"]:
             try:
@@ -106,11 +105,9 @@ class PRSplitter:
         raise GitError("Could not determine base branch")
 
     def get_diff(self, base: str, head: str) -> str:
-        """Get the diff between two branches"""
         return run_git("diff", f"{base}...{head}")
 
-    def parse_diff(self, diff_text: str) -> List[FileDiff]:
-        """Parse git diff output into structured format"""
+    def parse_diff(self, diff_text: str) -> list[FileDiff]:
         files = []
         current_file = None
 
@@ -173,9 +170,7 @@ class PRSplitter:
 
         return files
 
-    def analyze_diff_with_ai(self, files: List[FileDiff]) -> SplitDecision:
-        """Use Anthropic API to analyze how to split the diff"""
-
+    def analyze_diff_with_ai(self, files: list[FileDiff]) -> SplitDecision:
         # Prepare a summary for the AI
         file_summaries = []
         for f in files:
@@ -242,6 +237,25 @@ Return a JSON response with this exact structure:
 
             decision_data = json.loads(json_str)
 
+            # Validate all required fields are present
+            required_fields = [
+                "group1_files",
+                "group2_files",
+                "group1_description",
+                "group2_description",
+                "group1_title",
+                "group2_title",
+            ]
+            missing_fields = [field for field in required_fields if field not in decision_data]
+            if missing_fields:
+                raise ValueError(f"AI response missing required fields: {', '.join(missing_fields)}")
+
+            # Validate that file lists are actually lists
+            if not isinstance(decision_data["group1_files"], list):
+                raise ValueError("group1_files must be a list")
+            if not isinstance(decision_data["group2_files"], list):
+                raise ValueError("group2_files must be a list")
+
             return SplitDecision(
                 group1_files=decision_data["group1_files"],
                 group2_files=decision_data["group2_files"],
@@ -256,8 +270,7 @@ Return a JSON response with this exact structure:
             print(f"Response content: {content}")
             raise
 
-    def create_patch_file(self, files: List[FileDiff], selected_files: List[str]) -> str:
-        """Create a patch file containing only the selected files"""
+    def create_patch_file(self, files: list[FileDiff], selected_files: list[str]) -> str:
         patch_content = []
 
         for f in files:
@@ -354,6 +367,36 @@ Return a JSON response with this exact structure:
         except Exception:
             return None
 
+    def branch_exists(self, branch_name: str) -> bool:
+        """Check if a branch already exists locally or remotely."""
+        try:
+            # Check local branch
+            run_git("rev-parse", "--verify", branch_name)
+            return True
+        except GitError:
+            pass
+
+        try:
+            # Check remote branch
+            run_git("rev-parse", "--verify", f"origin/{branch_name}")
+            return True
+        except GitError:
+            pass
+
+        return False
+
+    def generate_unique_branch_name(self, base_name: str) -> str:
+        """Generate a unique branch name by appending timestamp if needed."""
+        if not self.branch_exists(base_name):
+            return base_name
+
+        # Branch exists, append timestamp
+        import datetime
+
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        new_name = f"{base_name}-{timestamp}"
+        return new_name
+
     def create_github_pr(self, branch: str, title: str, body: str) -> Optional[str]:
         """Create a GitHub PR using the API"""
         if not self.github_token:
@@ -437,9 +480,19 @@ Return a JSON response with this exact structure:
         assigned_files = set(split_decision.group1_files + split_decision.group2_files)
 
         if all_files != assigned_files:
-            print("\n⚠️  Warning: File mismatch!")
-            print(f"  Unassigned: {all_files - assigned_files}")
-            print(f"  Unknown: {assigned_files - all_files}")
+            unassigned = all_files - assigned_files
+            unknown = assigned_files - all_files
+
+            error_parts = []
+            if unassigned:
+                error_parts.append(f"Unassigned files: {', '.join(sorted(unassigned))}")
+            if unknown:
+                error_parts.append(f"Unknown files (not in diff): {', '.join(sorted(unknown))}")
+
+            raise GitError(
+                f"AI split decision has file mismatch. {' | '.join(error_parts)}. "
+                "Please retry the split operation or manually adjust the split."
+            )
 
         # Create patches
         print("\n✂️  Creating patches...")
@@ -453,9 +506,9 @@ Return a JSON response with this exact structure:
         else:
             print("  ⚠️  Verification warnings detected")
 
-        # Create branches
-        branch1_name = f"{current_branch}-part1"
-        branch2_name = f"{current_branch}-part2"
+        # Create branches with unique names
+        branch1_name = self.generate_unique_branch_name(f"{current_branch}-part1")
+        branch2_name = self.generate_unique_branch_name(f"{current_branch}-part2")
 
         print(f"\n🌿 Creating branch: {branch1_name}")
         self.apply_patch_to_new_branch(patch1, branch1_name)
@@ -491,16 +544,7 @@ def split_pr(
     skip_hooks: Optional[bool] = None,
     commit_timeout: Optional[float] = None,
 ) -> None:
-    """
-    Split the current branch into two smaller PRs.
-
-    Args:
-        anthropic_api_key: Anthropic API key (defaults to ANTHROPIC_API_KEY env var)
-        github_token: GitHub token (defaults to GITHUB_TOKEN env var)
-        model: Anthropic model name (defaults to latest Claude Sonnet alias)
-        skip_hooks: Skip git hooks during commit (defaults to GITTA_SKIP_HOOKS env var)
-        commit_timeout: Timeout in seconds for git commit (defaults to GITTA_COMMIT_TIMEOUT env var)
-    """
+    """Split the current branch into two smaller PRs using AI analysis."""
     splitter = PRSplitter(
         anthropic_api_key=anthropic_api_key,
         github_token=github_token,
