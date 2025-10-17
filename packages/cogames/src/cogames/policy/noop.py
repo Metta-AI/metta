@@ -34,3 +34,6 @@ class NoopPolicy(Policy):
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         """Get an AgentPolicy instance configured with the noop action id."""
         return NoopAgentPolicy(self._noop_action_id)
+
+    def is_recurrent(self) -> bool:
+        return False
