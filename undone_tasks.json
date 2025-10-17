@@ -69,15 +69,6 @@
     "name": "Share a vecenv in SimulationSuite"
   },
   {
-    "gid": "1211665269726540",
-    "assignee": {
-      "gid": "1211215486118014",
-      "name": "Tasha Pais"
-    },
-    "completed": false,
-    "name": "Add unit test that same seed gives us the same model weights + starting config"
-  },
-  {
     "gid": "1209208922660706",
     "assignee": {
       "gid": "1210156468476325",

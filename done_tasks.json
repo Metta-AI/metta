@@ -9,9 +9,10 @@
   {
     "gid": "1211665269726540",
     "name": "Add unit test that same seed gives us the same model weights + starting config",
-    "branch": "task/seed-deterministic-init",
-    "commit": "0f491659205e451324d9ce49e92692797f999a66",
-    "notes": "Added regression test ensuring identical seeds reproduce identical Fast policy parameters and environment metadata."
+    "branch": "feature/seed-determinism-test",
+    "commit": "47495e6d179d06efe6c79d8658af0459ab3446e3",
+    "notes": "Added regression test ensuring identical seeds reproduce identical Fast policy parameters and environment metadata.",
+    "completed_at": "2025-10-17"
   },
   {
     "gid": "1211496531542715",
