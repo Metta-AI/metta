@@ -105,6 +105,10 @@ def build_mlstm_preup_axon(*, d_hidden: int = 128, proj_factor: float = 2.0, num
         post_norm=True,
         blocks=[
             PreUpBlockConfig(
+                # hidden_size is inferred from PreUp: int(proj_factor * d_hidden)
+                cell=AxonsConfig(hidden_size=None, activation="silu", use_fullrank_rtu=False, use_untraced_linear=True)
+            ),
+            PreUpBlockConfig(
                 proj_factor=proj_factor,
                 cell=mLSTMCellConfig(
                     hidden_size=None,
@@ -147,65 +151,16 @@ def build_axons_preup(*, d_hidden: int = 128, proj_factor: float = 2.0) -> Corte
     return build_cortex(cfg)
 
 
-def build_axons_preup_tuned(*, d_hidden: int = 128, proj_factor: float = 2.0) -> CortexStack:
-    """Axons PreUp with long memory and no SRHT to improve cross-chunk credit.
-
-    - r_min close to 1.0 to reduce trace decay across long heads
-    - use_srht=False to avoid low-rank mixing in the input space
-    - Single-layer 2H→H projection in AxonCell (no low-rank output)
-    """
-    cfg = CortexStackConfig(
-        d_hidden=d_hidden,
-        post_norm=True,
-        blocks=[
-            PassThroughBlockConfig(
-                # hidden_size is inferred from PreUp: int(proj_factor * d_hidden)
-                cell=AxonsConfig(hidden_size=None, activation="silu", r_min=0.99, r_max=0.9999, use_srht=False),
-            ),
-            PreUpBlockConfig(
-                proj_factor=proj_factor,
-                # hidden_size is inferred from PreUp: int(proj_factor * d_hidden)
-                cell=AxonsConfig(hidden_size=None, activation="silu", r_min=0.99, r_max=0.9999, use_srht=False),
-            ),
-        ],
-    )
-    return build_cortex(cfg)
-
-
-def build_axons_preup_tuned(*, d_hidden: int = 128, proj_factor: float = 2.0) -> CortexStack:
-    """Axons PreUp with long memory and no SRHT to improve cross-chunk credit.
-
-    - r_min close to 1.0 to reduce trace decay across long heads
-    - use_srht=False to avoid low-rank mixing in the input space
-    - Single-layer 2H→H projection in AxonCell (no low-rank output)
-    """
-    cfg = CortexStackConfig(
-        d_hidden=d_hidden,
-        post_norm=True,
-        blocks=[
-            PassThroughBlockConfig(
-                # hidden_size is inferred from PreUp: int(proj_factor * d_hidden)
-                cell=AxonsConfig(hidden_size=None, activation="silu", r_min=0.99, r_max=0.9999, use_srht=False),
-            ),
-            PreUpBlockConfig(
-                proj_factor=proj_factor,
-                # hidden_size is inferred from PreUp: int(proj_factor * d_hidden)
-                cell=AxonsConfig(hidden_size=None, activation="silu", r_min=0.99, r_max=0.9999, use_srht=False),
-            ),
-        ],
-    )
-    return build_cortex(cfg)
 
 
 # Registry of available stacks for the evaluation harness
 STACKS: Dict[str, StackSpec] = {
     # Single‑block templates
-    "slstm_postup": StackSpec(name="slstm_postup", builder=lambda: build_slstm_postup(), d_hidden=128),
-    "mlstm_preup": StackSpec(name="mlstm_preup", builder=lambda: build_mlstm_preup(), d_hidden=128),
-    "slstm_postup_axon": StackSpec(name="slstm_postup_axon", builder=lambda: build_slstm_postup_axon(), d_hidden=128),
-    "mlstm_preup_axon": StackSpec(name="mlstm_preup_axon", builder=lambda: build_mlstm_preup_axon(), d_hidden=128),
+    "slstm": StackSpec(name="slstm_postup", builder=lambda: build_slstm_postup(), d_hidden=128),
+    "mlstm": StackSpec(name="mlstm_preup", builder=lambda: build_mlstm_preup(), d_hidden=128),
+    "slstm_axon": StackSpec(name="slstm_postup_axon", builder=lambda: build_slstm_postup_axon(), d_hidden=128),
+    "mlstm_axon": StackSpec(name="mlstm_preup_axon", builder=lambda: build_mlstm_preup_axon(), d_hidden=128),
     "axons_preup": StackSpec(name="axons_preup", builder=lambda: build_axons_preup(), d_hidden=128),
-    "axons_preup_tuned": StackSpec(name="axons_preup_tuned", builder=lambda: build_axons_preup_tuned(), d_hidden=128),
     # Composite templates
     # xLSTM: alternates mLSTM (PreUp) and sLSTM (PostUp)
     "xlstm": StackSpec(name="xlstm", builder=lambda: build_xlstm_stack(d_hidden=128, num_blocks=3), d_hidden=128),

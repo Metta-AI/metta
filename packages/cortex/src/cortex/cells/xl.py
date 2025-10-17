@@ -121,32 +121,12 @@ class XLCell(MemoryCell):
                 mem_seg = mem_seg[:, -self.mem_len :]
 
         resets_bt = self._normalize_resets(resets, B, T, device)
-
-        if self.chunk_size is not None and T > self.chunk_size and not is_step:
-            mem_work = mem
-            mem_seg_work = mem_seg
-            outputs: list[torch.Tensor] = []
-            for start in range(0, T, self.chunk_size):
-                end = min(T, start + self.chunk_size)
-                x_chunk = x_seq[:, start:end, :]
-                resets_chunk = resets_bt[:, start:end]
-                y_chunk, mem_work, mem_seg_work = self._forward_block(
-                    x_chunk,
-                    mem_work,
-                    mem_seg_work,
-                    resets_chunk,
-                )
-                outputs.append(y_chunk)
-            y_seq = torch.cat(outputs, dim=1)
-            new_mem = mem_work
-            new_mem_seg = mem_seg_work
-        else:
-            y_seq, new_mem, new_mem_seg = self._forward_block(
-                x_seq,
-                mem,
-                mem_seg,
-                resets_bt,
-            )
+        y_seq, new_mem, new_mem_seg = self._forward_block(
+            x_seq,
+            mem,
+            mem_seg,
+            resets_bt,
+        )
 
         new_state = TensorDict({"mem": new_mem, "mem_seg": new_mem_seg}, batch_size=[B])
         y_out: Tensor = y_seq.squeeze(1) if is_step else y_seq

@@ -28,9 +28,16 @@ def _count_params(module: nn.Module) -> int:
 
 
 def _force_axon_backend(which: str) -> Iterator[None]:  # type: ignore[override]
+    """Force a specific backend by monkeypatching the selector.
+
+    AxonCell imports the selector into its module namespace, so we patch both
+    ``cortex.utils.select_backend`` and the alias bound in
+    ``cortex.cells.core.axon_cell``.
+    """
     import contextlib
 
     import cortex.cells.core.axon_cell as cell_mod
+    import cortex.utils as utils_mod
 
     if which == "auto":
         # no-op context manager
@@ -42,7 +49,8 @@ def _force_axon_backend(which: str) -> Iterator[None]:  # type: ignore[override]
 
     @contextlib.contextmanager
     def _ctx() -> Iterator[None]:
-        orig = cell_mod.select_backend
+        orig_utils = utils_mod.select_backend
+        orig_cell = getattr(cell_mod, "select_backend", None)
 
         def chooser(*, triton_fn=None, pytorch_fn=None, tensor=None, allow_triton=True, cuda_fn=None, allow_cuda=False):  # type: ignore[override]
             if which == "pytorch":
@@ -51,7 +59,7 @@ def _force_axon_backend(which: str) -> Iterator[None]:  # type: ignore[override]
                 return triton_fn
             if which == "cuda":
                 return cuda_fn
-            return orig(
+            return orig_utils(
                 triton_fn=triton_fn,
                 pytorch_fn=pytorch_fn,
                 tensor=tensor,
@@ -61,10 +69,14 @@ def _force_axon_backend(which: str) -> Iterator[None]:  # type: ignore[override]
             )
 
         try:
-            cell_mod.select_backend = chooser  # type: ignore[assignment]
+            utils_mod.select_backend = chooser  # type: ignore[assignment]
+            if orig_cell is not None:
+                cell_mod.select_backend = chooser  # type: ignore[assignment]
             yield
         finally:
-            cell_mod.select_backend = orig  # type: ignore[assignment]
+            utils_mod.select_backend = orig_utils  # type: ignore[assignment]
+            if orig_cell is not None:
+                cell_mod.select_backend = orig_cell  # type: ignore[assignment]
 
     return _ctx()
 
@@ -116,6 +128,8 @@ CONFIGS: Tuple[Tuple[int, int, int, bool, float, str, str, bool], ...] = (
     (8, 256, 256, False, 0.0, "identity", "auto", True),
     (8, 256, 256, False, 0.0, "identity", "pytorch", True),
     (8, 256, 256, False, 0.0, "identity", "triton", True),
+    # Explicit CUDA-forced config to validate CUDA kernels end-to-end
+    (8, 256, 256, False, 0.0, "identity", "cuda", True),
 )
 
 
