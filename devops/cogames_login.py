@@ -6,7 +6,7 @@ import argparse
 import sys
 from urllib.parse import urlparse
 
-from metta.common.util.auth import BaseCLIAuthenticator
+from cogames.auth import BaseCLIAuthenticator
 
 # Default CoGames server URL
 DEFAULT_COGAMES_SERVER = "https://beta.softmax.com"

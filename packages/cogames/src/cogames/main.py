@@ -316,7 +316,7 @@ def login_cmd(
     from urllib.parse import urlparse
 
     # Check if we already have a token
-    from metta.common.util.auth import BaseCLIAuthenticator
+    from cogames.auth import BaseCLIAuthenticator
 
     temp_auth = BaseCLIAuthenticator(
         auth_server_url=server,

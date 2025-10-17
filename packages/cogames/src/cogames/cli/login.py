@@ -1,6 +1,6 @@
 """CLI login functionality for CoGames."""
 
-from metta.common.util.auth import BaseCLIAuthenticator
+from cogames.auth import BaseCLIAuthenticator
 
 # Default CoGames server URL
 DEFAULT_COGAMES_SERVER = "https://beta.softmax.com"

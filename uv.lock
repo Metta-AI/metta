@@ -563,6 +563,7 @@ name = "cogames"
 source = { editable = "packages/cogames" }
 dependencies = [
     { name = "einops" },
+    { name = "fastapi" },
     { name = "heavyball" },
     { name = "mettagrid" },
     { name = "packaging" },
@@ -572,11 +573,13 @@ dependencies = [
     { name = "rich" },
     { name = "scipy" },
     { name = "typer" },
+    { name = "uvicorn" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "einops", specifier = ">=0.8.0" },
+    { name = "fastapi", specifier = ">=0.115.0" },
     { name = "heavyball", specifier = ">=2.0.0" },
     { name = "mettagrid", editable = "packages/mettagrid" },
     { name = "packaging", specifier = ">=24.0.0" },
@@ -586,6 +589,7 @@ requires-dist = [
     { name = "rich", specifier = ">=13.7.0" },
     { name = "scipy", specifier = ">=1.15.3" },
     { name = "typer", specifier = ">=0.19.2" },
+    { name = "uvicorn", specifier = ">=0.34.0" },
 ]
 
 [[package]]

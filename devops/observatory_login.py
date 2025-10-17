@@ -6,7 +6,7 @@ import argparse
 import sys
 from urllib.parse import urlparse
 
-from metta.common.util.auth import BaseCLIAuthenticator
+from cogames.auth import BaseCLIAuthenticator
 from metta.common.util.constants import (
     DEV_STATS_SERVER_URI,
     PROD_OBSERVATORY_FRONTEND_URL,
