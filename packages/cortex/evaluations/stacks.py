@@ -92,7 +92,7 @@ def build_slstm_postup_axon(*, d_hidden: int = 128, proj_factor: float = 1.5, nu
                     dropout=0.0,
                     use_axon_layer=True,
                 ),
-            )
+            ),
         ],
     )
     return build_cortex(cfg)

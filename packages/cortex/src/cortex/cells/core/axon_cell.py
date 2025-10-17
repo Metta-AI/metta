@@ -218,7 +218,7 @@ class AxonCell(MemoryCell):
             x_btd = x.unsqueeze(1)
         else:
             x_btd = x
-        B, T, H = x_btd.shape #input is of H size
+        B, T, H = x_btd.shape  # input is of H size
 
         # Prepare/validate state
         if state is None or not all(k in state for k in ("hc1", "hc2")):

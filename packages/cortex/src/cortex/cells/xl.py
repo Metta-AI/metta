@@ -39,9 +39,7 @@ class XLCell(MemoryCell):
         if self.d_head <= 0:
             raise ValueError("head_dim must be > 0")
         if head_dim is None and self.d_head * n_heads != d_model:
-            raise ValueError(
-                "d_model must be divisible by n_heads when head_dim is not provided"
-            )
+            raise ValueError("d_model must be divisible by n_heads when head_dim is not provided")
 
         self.mem_len = int(cfg.mem_len)
         self.chunk_size = cfg.chunk_size
@@ -82,9 +80,7 @@ class XLCell(MemoryCell):
         nn.init.zeros_(self.u)
         nn.init.zeros_(self.v)
 
-    def init_state(
-        self, batch: int, *, device: torch.device | str, dtype: torch.dtype
-    ) -> TensorDict:
+    def init_state(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> TensorDict:
         mem = torch.zeros(batch, 0, self.d_model, device=device, dtype=dtype)
         mem_seg = torch.zeros(batch, 0, device=device, dtype=torch.long)
         return TensorDict({"mem": mem, "mem_seg": mem_seg}, batch_size=[batch])
@@ -187,9 +183,7 @@ class XLCell(MemoryCell):
         mem_new[mask_tensor] = 0.0
         mem_seg_new[mask_tensor] = 0
 
-        return TensorDict(
-            {"mem": mem_new, "mem_seg": mem_seg_new}, batch_size=state.batch_size
-        )
+        return TensorDict({"mem": mem_new, "mem_seg": mem_seg_new}, batch_size=state.batch_size)
 
     def _forward_block(
         self,
@@ -278,9 +272,7 @@ class XLCell(MemoryCell):
             resets_bt = resets_bt.view(batch_size, 1)
 
         if resets_bt.shape != (batch_size, seq_len):
-            raise ValueError(
-                f"resets tensor must have shape {(batch_size, seq_len)}, got {resets_bt.shape}"
-            )
+            raise ValueError(f"resets tensor must have shape {(batch_size, seq_len)}, got {resets_bt.shape}")
 
         return resets_bt
 
@@ -300,13 +292,7 @@ class XLCell(MemoryCell):
     ) -> torch.Tensor:
         d_model = self.d_model
         pos_seq = torch.arange(length - 1, -1, -1, device=device, dtype=dtype)
-        inv_freq = 1.0 / (
-            10000
-            ** (
-                torch.arange(0, d_model, 2, device=device, dtype=torch.float32)
-                / d_model
-            )
-        )
+        inv_freq = 1.0 / (10000 ** (torch.arange(0, d_model, 2, device=device, dtype=torch.float32) / d_model))
         sinusoid_inp = torch.outer(pos_seq.to(torch.float32), inv_freq)
         pos_emb = torch.cat([torch.sin(sinusoid_inp), torch.cos(sinusoid_inp)], dim=1)
         if pos_emb.size(1) < d_model:

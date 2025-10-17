@@ -4,11 +4,20 @@ Performance benchmarks comparing Triton-accelerated kernels against pure PyTorch
 
 ## Available Benchmarks
 
-### RTU (low‑rank)
-```bash
-uv run python benchmarks/bench_rtu_triton_vs_pytorch.py
+All benchmarks are now exposed via a single entrypoint:
+
 ```
-Performance varies with sequence length and hidden size. Triton benefits most for longer sequences and when per‑timestep resets are used (segmented scan path). The script reports per‑config speed and max output difference.
+uv run python packages/cortex/benchmarks/run.py --list
+uv run python packages/cortex/benchmarks/run.py <benchmark_key> [--device cuda] [--warmup N] [--iterations M]
+```
+
+Keys: `rtu`, `slstm`, `mlstm`, `lstm`, `conv1d`, `axons`, `linear_vs_axon`.
+
+### RTU (streaming diag)
+```bash
+uv run python packages/cortex/benchmarks/run.py rtu --device cuda
+```
+Performance varies with sequence length and hidden size. Triton benefits most for longer sequences and when per‑timestep resets are used (segmented scan path). The tool reports per‑config speed and max output difference.
 
 Sample run (NVIDIA L4, CUDA 12.8):
 
@@ -54,19 +63,19 @@ Benchmark complete!
 
 ### sLSTM
 ```bash
-uv run python benchmarks/bench_slstm_triton_vs_pytorch.py
+uv run python packages/cortex/benchmarks/run.py slstm --device cuda
 ```
 **Performance:** 23x - 68x speedup (excellent performance across all configs)
 
 ### mLSTM
 ```bash
-uv run python benchmarks/bench_mlstm_triton_vs_pytorch.py
+uv run python packages/cortex/benchmarks/run.py mlstm --device cuda
 ```
 **Performance:** 3.5x - 12.3x speedup (best at longer sequences)
 
 ### LSTM
 ```bash
-uv run python benchmarks/bench_lstm_triton_vs_pytorch.py
+uv run python packages/cortex/benchmarks/run.py lstm --device cuda
 ```
 **Performance:** PyTorch (cuDNN) is 3x - 25x faster. Triton kernel useful for custom reset patterns.
 
@@ -80,8 +89,14 @@ Closing these gaps would mean redesigning the Triton kernel (persistent tiles, b
 
 ### Conv1D
 ```bash
-uv run python benchmarks/bench_conv1d_triton_vs_pytorch.py
+uv run python packages/cortex/benchmarks/run.py conv1d --device cuda
 ```
+
+### Linear vs AxonCell (forward+backward)
+```bash
+uv run python packages/cortex/benchmarks/run.py linear_vs_axon --device cuda
+```
+Compares `nn.Linear(H,H)` with `AxonCell(out_dim=H)` for identical inputs, reporting per‑iteration time, tokens/s, parameter counts, and peak CUDA memory.
 **Performance:** PyTorch (cuDNN) is typically faster. Triton kernel optimized for per-timestep reset case.
 
 ## Requirements

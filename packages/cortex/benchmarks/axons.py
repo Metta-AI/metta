@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Dict, Optional, Tuple
 
 import torch
-from cortex.cells.axons import Axons
+from cortex.cells.core import AxonCell
 from cortex.config import AxonsConfig
 
 from packages.cortex.benchmarks.common import (
@@ -15,12 +15,20 @@ from packages.cortex.benchmarks.common import (
 )
 
 
-def _run_cell(cell: Axons, x: torch.Tensor, resets: Optional[torch.Tensor], which: str) -> torch.Tensor:
-    import cortex.cells.axons as cell_mod
+def _run_cell(cell: AxonCell, x: torch.Tensor, resets: Optional[torch.Tensor], which: str) -> torch.Tensor:
+    import cortex.cells.core.axon_cell as cell_mod
 
     original = cell_mod.select_backend
 
-    def chooser(*, triton_fn, pytorch_fn, tensor, allow_triton=True):  # type: ignore[override]
+    def chooser(
+        *,
+        triton_fn=None,
+        pytorch_fn=None,
+        tensor=None,
+        allow_triton=True,
+        cuda_fn=None,
+        allow_cuda=False,
+    ):  # type: ignore[override]
         return triton_fn if which == "triton" else pytorch_fn
 
     try:
@@ -57,7 +65,7 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
     if with_resets:
         resets = (torch.rand(batch_size, seq_len, device=device) < reset_prob).to(device=device)
 
-    cell = Axons(AxonsConfig(hidden_size=hidden_size, activation="SiLU")).to(device=device, dtype=dtype)
+    cell = AxonCell(AxonsConfig(hidden_size=hidden_size, activation="SiLU")).to(device=device, dtype=dtype)
 
     synchronize = device.type == "cuda"
 

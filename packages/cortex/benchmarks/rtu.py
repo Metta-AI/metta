@@ -3,8 +3,6 @@ from __future__ import annotations
 from typing import Dict, Optional, Tuple
 
 import torch
-from cortex.cells.rtu import RTUCell
-from cortex.config import RTUCellConfig
 
 from packages.cortex.benchmarks.common import (
     BenchmarkCase,
@@ -14,59 +12,67 @@ from packages.cortex.benchmarks.common import (
     register,
 )
 
-
-def _run_cell(cell: RTUCell, x: torch.Tensor, resets: Optional[torch.Tensor], which: str) -> torch.Tensor:
-    import cortex.cells.rtu as cell_mod
-
-    original = cell_mod.select_backend
-
-    def chooser(*, triton_fn, pytorch_fn, tensor, allow_triton=True):  # type: ignore[override]
-        return triton_fn if which == "triton" else pytorch_fn
-
-    try:
-        cell_mod.select_backend = chooser  # type: ignore[assignment]
-        y, _ = cell(x, state=None, resets=resets)
-        return y
-    finally:
-        cell_mod.select_backend = original  # type: ignore[assignment]
-
-
-CONFIGS: Tuple[Tuple[int, int, int, int, bool, float], ...] = (
-    (4, 128, 64, 8, False, 0.0),
-    (4, 256, 64, 8, False, 0.0),
-    (8, 256, 64, 16, False, 0.0),
-    (8, 512, 64, 16, False, 0.0),
-    (8, 512, 128, 16, False, 0.0),
-    (8, 512, 64, 16, True, 0.1),
-    (8, 1024, 64, 16, True, 0.1),
+# Kernel-level streaming diagonal RTU benchmark (D == H), comparing PyTorch vs Triton
+CONFIGS: Tuple[Tuple[int, int, int, bool, float], ...] = (
+    (4, 128, 64, False, 0.0),
+    (4, 256, 64, False, 0.0),
+    (8, 256, 64, False, 0.0),
+    (8, 512, 64, False, 0.0),
+    (8, 512, 128, False, 0.0),
+    (8, 512, 64, True, 0.1),
+    (8, 1024, 64, True, 0.1),
 )
 
 
-def _format_config(config: Tuple[int, int, int, int, bool, float]) -> str:
-    b, t, h, r, use_resets, prob = config
-    return f"({b}, {t}, {h}, {r}, {use_resets}, {prob})"
+def _format_config(config: Tuple[int, int, int, bool, float]) -> str:
+    b, t, h, use_resets, prob = config
+    return f"({b}, {t}, {h}, {use_resets}, {prob})"
 
 
 def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, object]:
-    batch_size, seq_len, hidden_size, rank, with_resets, reset_prob = case.values
+    B, T, H, use_resets, p = case.values
     device = torch.device(settings.device)
     dtype = settings.dtype
 
-    x = torch.randn(batch_size, seq_len, hidden_size, device=device, dtype=dtype)
-    resets = None
-    if with_resets:
-        resets = (torch.rand(batch_size, seq_len, device=device) < reset_prob).to(device=device)
+    # Lazy import to avoid optional dependency errors when listing
+    from cortex.kernels.pytorch.rtu.rtu_stream_diag import rtu_stream_diag_pytorch
 
-    cell = RTUCell(
-        RTUCellConfig(hidden_size=hidden_size, rank=rank, activation="SiLU"),
-    ).to(device=device, dtype=dtype)
+    try:
+        from cortex.kernels.triton.rtu import rtu_stream_diag_triton  # type: ignore
+    except Exception:  # pragma: no cover - optional
+        rtu_stream_diag_triton = None  # type: ignore
+
+    D = H
+    x = torch.randn(B, T, D, device=device, dtype=dtype)
+    nu_log = torch.randn(H, device=device, dtype=dtype)
+    theta_log = torch.randn(H, device=device, dtype=dtype)
+    w1 = torch.randn(H, device=device, dtype=dtype)
+    w2 = torch.randn(H, device=device, dtype=dtype)
+    hc1 = torch.zeros(B, H, device=device, dtype=dtype)
+    hc2 = torch.zeros(B, H, device=device, dtype=dtype)
+    trace_in = None
+    resets: Optional[torch.Tensor] = None
+    if use_resets:
+        resets = (torch.rand(B, T, device=device) < float(p)).to(device=device)
 
     synchronize = device.type == "cuda"
 
     def run_pytorch():
-        return _run_cell(cell, x, resets, which="pytorch")
+        y, _, _ = rtu_stream_diag_pytorch(
+            x_btd=x,
+            nu_log=nu_log,
+            theta_log=theta_log,
+            w1=w1,
+            w2=w2,
+            activation_name="SiLU",
+            hc1_init_bh=hc1,
+            hc2_init_bh=hc2,
+            trace_in=trace_in,
+            resets_bt=resets,
+        )
+        return y
 
-    output_pt, pytorch_time = measure_callable(
+    y_pt, pt_time = measure_callable(
         run_pytorch,
         warmup=settings.warmup,
         iterations=settings.iterations,
@@ -74,29 +80,41 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
     )
 
     results: Dict[str, object] = {
-        "pytorch_ms": pytorch_time * 1000.0,
+        "pytorch_ms": pt_time * 1000.0,
         "triton_ms": None,
         "speedup": None,
         "max_diff": None,
     }
 
-    if device.type != "cuda":
+    if device.type != "cuda" or rtu_stream_diag_triton is None:
         return results
 
     def run_triton():
-        return _run_cell(cell, x, resets, which="triton")
+        y, _, _ = rtu_stream_diag_triton(
+            x_btd=x,
+            nu_log=nu_log,
+            theta_log=theta_log,
+            w1=w1,
+            w2=w2,
+            activation_name="SiLU",
+            hc1_init_bh=hc1,
+            hc2_init_bh=hc2,
+            trace_in=trace_in,
+            resets_bt=resets,
+        )
+        return y
 
     try:
-        output_tr, triton_time = measure_callable(
+        y_tr, tr_time = measure_callable(
             run_triton,
             warmup=settings.warmup,
             iterations=settings.iterations,
             synchronize=True,
         )
-        results["triton_ms"] = triton_time * 1000.0
-        if triton_time > 0:
-            results["speedup"] = pytorch_time / triton_time
-        results["max_diff"] = torch.max(torch.abs(output_pt - output_tr)).item()
+        results["triton_ms"] = tr_time * 1000.0
+        if tr_time > 0:
+            results["speedup"] = pt_time / tr_time
+        results["max_diff"] = torch.max(torch.abs(y_pt - y_tr)).item()
     except Exception as exc:  # pragma: no cover - defensive
         results["error"] = str(exc)
 
@@ -106,11 +124,14 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
 register(
     BenchmarkDefinition(
         key="rtu",
-        title="RTU (low-rank) Triton vs PyTorch Benchmark",
-        description="Benchmark the RTUCell with forced backend selection to compare Triton and PyTorch paths.",
+        title="RTU Streaming Diagonal (D==H) Triton vs PyTorch",
+        description=(
+            "Benchmark kernel-level streaming RTU with diagonal input weights (D==H), comparing PyTorch vs Triton. "
+            "Resets enable segmented-scan path."
+        ),
         configs=CONFIGS,
         format_config=_format_config,
         run_case=_run_case,
-        notes="Includes segmented-scan path by enabling resets in selected configurations.",
+        notes="CUDA-only for Triton path; CPU runs PyTorch reference only.",
     )
 )
