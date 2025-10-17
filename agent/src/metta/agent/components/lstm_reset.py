@@ -10,12 +10,11 @@ from torchrl.data import Composite, UnboundedDiscrete
 from metta.agent.components.component_config import ComponentConfig
 
 
-class LstmTrainStep(nn.Module):
+class LstmTrainStep:
     def __init__(self, lstm: nn.LSTM):
-        super().__init__()
         self.lstm = lstm
 
-    def forward(
+    def __call__(
         self,
         latent: torch.Tensor,
         h_t: torch.Tensor,
@@ -70,7 +69,7 @@ class LSTMReset(nn.Module):
         self.in_key = self.config.in_key
         self.out_key = self.config.out_key
         self.net = nn.LSTM(self.latent_size, self.hidden_size, self.num_layers)
-        self.lstm_train_step = LstmTrainStep(self.net)
+        self._train_step = LstmTrainStep(self.net)
         self._in_training = False
 
         for name, param in self.net.named_parameters():
@@ -199,7 +198,7 @@ class LSTMReset(nn.Module):
     def _forward_train_step(self, latent, h_t, c_t, reset_mask):
         """Run the JIT-scripted LSTM training step."""
         reset_mask = reset_mask.view(1, latent.size(1), -1, 1)  # Shape: [1, B, TT, 1]
-        return self.lstm_train_step(latent, h_t, c_t, reset_mask)
+        return self._train_step(latent, h_t, c_t, reset_mask)
 
     def get_agent_experience_spec(self) -> Composite:
         return Composite(
