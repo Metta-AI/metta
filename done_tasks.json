@@ -75,8 +75,8 @@
   {
     "gid": "1209778674231666",
     "name": "Add noise to RNN",
-    "branch": "task/add-noise-rnn",
-    "commit": "4d2358cb6c86a7c431330e124096e85c5c23aa99",
+    "branch": "task/add-noise-metta-lstm",
+    "commit": "d3fce5ebf949a1c453bb5c4904eda0dec534d339",
     "completed_at": "2025-10-17",
     "notes": "Introduced configurable Gaussian noise for LSTM recurrent outputs with training and evaluation controls plus regression tests."
   },
@@ -85,6 +85,7 @@
     "name": "Add CMPO",
     "branch": "feature/add-cmpo",
     "commit": "30fe618d6f1064c7408814c946bc30f56863726d",
-    "completed_at": "2025-10-17"
+    "completed_at": "2025-10-17",
+    "notes": "Introduced configurable Gaussian noise controls on the Metta LSTM component with training/eval toggles and regression coverage."
   }
 ]
