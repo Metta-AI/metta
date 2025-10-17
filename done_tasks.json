@@ -7,6 +7,14 @@
     "completed_at": "2025-10-16"
   },
   {
+    "gid": "1209208922660336",
+    "name": "Try KL loss in PPO",
+    "branch": "task/ppo-kl-loss",
+    "commit": "08cf3e7a66d78551582a3cd90de14b788e10922a",
+    "completed_at": "2025-10-17",
+    "notes": "Added a configurable KL penalty to PPO, storing full log probabilities in experience and tracking KL metrics."
+  },
+  {
     "gid": "1211665269726540",
     "name": "Add unit test that same seed gives us the same model weights + starting config",
     "branch": "feature/seed-determinism-test",
@@ -120,5 +128,13 @@
     "commit": null,
     "completed_at": "2025-10-17",
     "notes": "Marked obsolete: PolicyStore and its cached PRs were removed (see commit 5eb9839a3a)."
+  },
+  {
+    "gid": "1211366168188140",
+    "name": "Imitation learning",
+    "branch": "task/imitation-learning",
+    "commit": "0cce28b12104112dfa9224e8e1d6caf1bbf23bd4",
+    "completed_at": "2025-10-17",
+    "notes": "Added behaviour-cloning loss module with configurable demonstration dataset support and regression tests."
   }
 ]

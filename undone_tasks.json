@@ -378,15 +378,6 @@
     "name": "Try out fibrations"
   },
   {
-    "gid": "1209208922660336",
-    "assignee": {
-      "gid": "1203757829157834",
-      "name": "harshbhatt7585@gmail.com"
-    },
-    "completed": false,
-    "name": "Try KL loss in PPO"
-  },
-  {
     "gid": "1211366024409404",
     "assignee": {
       "gid": "1209017937764464",
@@ -667,12 +658,6 @@
     "assignee": null,
     "completed": false,
     "name": "Supervised learning"
-  },
-  {
-    "gid": "1211366168188140",
-    "assignee": null,
-    "completed": false,
-    "name": "Imitation learning"
   },
   {
     "gid": "1209043561406868",

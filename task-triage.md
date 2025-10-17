@@ -4,6 +4,7 @@
 - Add measurements for fairness during evaluation (gid 1209164338788423) — implemented on branch `richard-fairness-metrics`; records group-level fairness metrics and surfaces them in evaluation dashboards.
 - Deterministic runs (gid 1211665269726547) — implemented on branch `richard-deterministic-runs`; adds a deterministic mode to TrainTool that forces torch deterministic backends and disables episode desynchronization in curricula.
 - Generate replays during training (gid 1209041170403516) — implemented on branch `richard-training-replays`; adds configurable replay recording for the training environment with per-environment storage.
+- Imitation learning (gid 1211366168188140) — implemented on branch `task/imitation-learning`; adds a configurable behaviour cloning loss with demonstration dataset support and regression tests.
 
 ---
 
@@ -582,4 +583,3 @@ Likely entails performing schema and naming clean-up while touching mettagrid/co
 Difficulty: Low
 Assignee: Matthew Bull
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
-
