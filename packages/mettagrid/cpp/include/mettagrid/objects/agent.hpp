@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 
+#include "actions/orientation.hpp"
 #include "core/types.hpp"
 #include "objects/agent_config.hpp"
 #include "objects/constants.hpp"

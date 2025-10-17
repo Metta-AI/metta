@@ -22,9 +22,7 @@
 #include "config/mettagrid_config.hpp"
 #include "core/grid_object.hpp"
 #include "core/types.hpp"
-#include "objects/assembler.hpp"
-#include "objects/chest.hpp"
-#include "systems/clipper.hpp"
+#include "env/mettagrid_engine.hpp"
 #include "systems/packed_coordinate.hpp"
 
 // Forward declarations of existing C++ classes
@@ -103,98 +101,36 @@ public:
   using ActionHandlers = std::vector<std::unique_ptr<ActionHandler>>;
 
   const Grid& grid() const {
-    return *_grid;
+    return _engine->grid();
   }
   const Actions& actions() const {
     return _actions;
   }
   const ActionSuccess& action_success() const {
-    return _action_success;
+    return _engine->action_success();
   }
   const ActionHandlers& action_handlers() const {
-    return _action_handlers;
+    return _engine->action_handlers();
   }
 
   const Agent* agent(uint32_t agent_id) const {
-    return _agents[agent_id];
+    return _engine->agent(agent_id);
   }
 
 private:
-  // Member variables
-  GlobalObsConfig _global_obs_config;
-  GameConfig _game_config;
-
-  std::vector<ObservationType> _resource_rewards;  // Packed inventory rewards for each agent
-  std::unordered_map<unsigned int, float> _group_reward_pct;
-  std::unordered_map<unsigned int, unsigned int> _group_sizes;
-  std::vector<RewardType> _group_rewards;
-
-  std::unique_ptr<Grid> _grid;
-  std::unique_ptr<EventManager> _event_manager;
-
   Actions _actions;
-  ActionHandlers _action_handlers;
-  size_t _num_action_handlers;
-  std::vector<unsigned char> _max_action_args;
-  unsigned char _max_action_arg;
-  unsigned char _max_action_priority;
 
-  std::unique_ptr<ObservationEncoder> _obs_encoder;
-  std::unique_ptr<StatsTracker> _stats;
-
-  size_t _num_observation_tokens;
-
-  // TODO: currently these are owned and destroyed by the grid, but we should
-  // probably move ownership here.
-  std::vector<Agent*> _agents;
-
-  // We'd prefer to store these as more raw c-style arrays, but we need to both
-  // operate on the memory directly and return them to python.
   py::array_t<uint8_t> _observations;
   py::array_t<bool> _terminals;
   py::array_t<bool> _truncations;
   py::array_t<float> _rewards;
   py::array_t<float> _episode_rewards;
 
-  std::unordered_map<uint8_t, float> _feature_normalizations;
+  mettagrid::env::BufferSet _buffer_views;
+  std::unique_ptr<mettagrid::env::MettaGridEngine> _engine;
+  std::unordered_map<int, std::string> _tag_id_map;
 
-  ActionSuccess _action_success;
-
-  std::mt19937 _rng;
-  unsigned int _seed;
-
-  std::vector<std::pair<ActionType, ActionArg>> _flat_action_map;
-  std::vector<std::string> _flat_action_names;
-  std::vector<std::vector<int>> _action_arg_to_flat;
-
-  // Movement tracking
-  bool _track_movement_metrics;
-  float _resource_loss_prob;
-
-  // Inventory regeneration
-  unsigned int _inventory_regen_interval;
-
-  // Global systems
-  std::unique_ptr<Clipper> _clipper;
-
-  void init_action_handlers();
-  void add_agent(Agent* agent);
-  void _compute_observation(GridCoord observer_r,
-                            GridCoord observer_c,
-                            ObservationCoord obs_width,
-                            ObservationCoord obs_height,
-                            size_t agent_idx,
-                            ActionType action,
-                            ActionArg action_arg);
-  void _compute_observations(py::array_t<ActionType, py::array::c_style> actions);
-  void _step(py::array_t<ActionType, py::array::c_style> actions);
-
-  void _handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type, ActionArg arg);
-  AgentConfig _create_agent_config(const py::dict& agent_group_cfg_py);
-  ConverterConfig _create_converter_config(const py::dict& converter_cfg_py);
-  WallConfig _create_wall_config(const py::dict& wall_cfg_py);
-  void build_flat_action_catalog();
-  int flat_action_index(ActionType action, ActionArg arg) const;
+  void refresh_buffer_views();
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_BINDINGS_METTAGRID_C_HPP_

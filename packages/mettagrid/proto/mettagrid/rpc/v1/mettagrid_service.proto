@@ -1,0 +1,283 @@
+syntax = "proto3";
+
+package mettagrid.rpc.v1;
+
+option csharp_namespace = "MettaGrid.Rpc.V1";
+option go_package = "mettagrid/rpc/v1";
+
+// NOTE: The schema intentionally mirrors the existing Pydantic config models.
+// Some nested messages are still WIP – see socket_server.md for the roadmap.
+
+message GlobalObsConfig {
+  bool episode_completion_pct = 1;
+  bool last_action = 2;
+  bool last_reward = 3;
+  bool visitation_counts = 4;
+}
+
+message ActionResources {
+  map<uint32, uint32> required = 1;
+  map<uint32, float> consumed = 2;
+}
+
+message AttackActionConfig {
+  ActionResources base = 1;
+  map<uint32, uint32> defense = 2;
+}
+
+message ChangeGlyphActionConfig {
+  ActionResources base = 1;
+  uint32 num_glyphs = 2;
+}
+
+message ResourceModActionConfig {
+  ActionResources base = 1;
+  map<uint32, float> modifies = 2;
+  uint32 agent_radius = 3;
+  uint32 converter_radius = 4;
+  bool scales = 5;
+}
+
+message PutRecipeItemsActionConfig {
+  ActionResources base = 1;
+}
+
+message GetOutputActionConfig {
+  ActionResources base = 1;
+}
+
+message SwapActionConfig {
+  ActionResources base = 1;
+}
+
+message RotateActionConfig {
+  ActionResources base = 1;
+}
+
+message NoopActionConfig {
+  ActionResources base = 1;
+}
+
+message MoveActionConfig {
+  ActionResources base = 1;
+}
+
+message ActionDefinition {
+  string name = 1;
+  enum ActionType {
+    ACTION_TYPE_UNSPECIFIED = 0;
+    ACTION_NOOP = 1;
+    ACTION_MOVE = 2;
+    ACTION_ROTATE = 3;
+    ACTION_ATTACK = 4;
+    ACTION_SWAP = 5;
+    ACTION_PUT_ITEMS = 6;
+    ACTION_GET_ITEMS = 7;
+    ACTION_CHANGE_GLYPH = 8;
+    ACTION_RESOURCE_MOD = 9;
+  }
+  ActionType type = 2;
+  oneof config {
+    NoopActionConfig noop = 10;
+    MoveActionConfig move = 11;
+    RotateActionConfig rotate = 12;
+    AttackActionConfig attack = 13;
+    SwapActionConfig swap = 14;
+    PutRecipeItemsActionConfig put_items = 15;
+    GetOutputActionConfig get_items = 16;
+    ChangeGlyphActionConfig change_glyph = 17;
+    ResourceModActionConfig resource_mod = 18;
+  }
+}
+
+message InventoryConfig {
+  message Limit {
+    repeated uint32 items = 1;
+    uint32 max_quantity = 2;
+  }
+  repeated Limit limits = 1;
+}
+
+message AgentConfig {
+  uint32 type_id = 1;
+  string type_name = 2;
+  uint32 group_id = 3;
+  string group_name = 4;
+  repeated uint32 tag_ids = 5;
+  float action_failure_penalty = 6;
+  uint32 freeze_duration = 7;
+  InventoryConfig inventory = 8;
+  map<uint32, uint32> initial_inventory = 9;
+  repeated uint32 soul_bound_resources = 10;
+  repeated uint32 shareable_resources = 11;
+  map<string, float> stat_rewards = 12;
+  map<string, float> stat_reward_max = 13;
+  map<uint32, uint32> inventory_regen_amounts = 14;
+  float group_reward_pct = 15;
+}
+
+message WallConfig {
+  uint32 type_id = 1;
+  string type_name = 2;
+  bool swappable = 3;
+  repeated uint32 tag_ids = 4;
+}
+
+message ConverterConfig {
+  uint32 type_id = 1;
+  string type_name = 2;
+  repeated uint32 tag_ids = 3;
+  map<uint32, uint32> input_resources = 4;
+  map<uint32, uint32> output_resources = 5;
+  int32 max_output = 6;
+  int32 max_conversions = 7;
+  uint32 conversion_ticks = 8;
+  repeated uint32 cooldown_schedule = 9;
+  uint32 initial_resource_count = 10;
+  bool recipe_details_obs = 11;
+}
+
+message ConverterRecipe {
+  map<uint32, uint32> inputs = 1;
+  map<uint32, uint32> outputs = 2;
+  uint32 cooldown = 3;
+}
+
+message AssemblerConfig {
+  uint32 type_id = 1;
+  string type_name = 2;
+  repeated uint32 tag_ids = 3;
+  repeated ConverterRecipe recipes = 4;
+  bool allow_partial_usage = 5;
+  uint32 max_uses = 6;
+  float exhaustion = 7;
+  bool clip_immune = 8;
+  bool start_clipped = 9;
+}
+
+message ChestConfig {
+  uint32 type_id = 1;
+  string type_name = 2;
+  repeated uint32 tag_ids = 3;
+  uint32 resource_type = 4;
+  map<int32, int32> position_deltas = 5;
+  int32 initial_inventory = 6;
+  int32 max_inventory = 7;
+}
+
+message ObjectDefinition {
+  string name = 1;
+  oneof config {
+    AgentConfig agent = 10;
+    WallConfig wall = 11;
+    ConverterConfig converter = 12;
+    AssemblerConfig assembler = 13;
+    ChestConfig chest = 14;
+  }
+}
+
+message ClipperConfig {
+  repeated ConverterRecipe unclipping_recipes = 1;
+  float length_scale = 2;
+  float cutoff_distance = 3;
+  float clip_rate = 4;
+}
+
+message GameConfig {
+  uint32 num_agents = 1;
+  uint32 max_steps = 2;
+  bool episode_truncates = 3;
+  uint32 obs_width = 4;
+  uint32 obs_height = 5;
+  repeated string resource_names = 6;
+  uint32 num_observation_tokens = 7;
+  GlobalObsConfig global_obs = 8;
+  repeated ActionDefinition actions = 9;
+  repeated ObjectDefinition objects = 10;
+  float resource_loss_prob = 11;
+  map<int32, string> tag_id_map = 12;
+  bool track_movement_metrics = 13;
+  bool recipe_details_obs = 14;
+  bool allow_diagonals = 15;
+  map<string, float> reward_estimates = 16;
+  uint32 inventory_regen_interval = 17;
+  ClipperConfig clipper = 18;
+}
+
+message MapCell {
+  uint32 row = 1;
+  uint32 col = 2;
+  string object_type = 3;
+}
+
+message MapDefinition {
+  uint32 height = 1;
+  uint32 width = 2;
+  repeated MapCell cells = 3;
+}
+
+message CreateGameRequest {
+  string game_id = 1;
+  GameConfig config = 2;
+  MapDefinition map = 3;
+  uint32 seed = 4;
+}
+
+message StepGameRequest {
+  string game_id = 1;
+  repeated int32 flat_actions = 2;
+  repeated int32 action_types = 3;
+  repeated int32 action_args = 4;
+}
+
+message GetStateRequest {
+  string game_id = 1;
+}
+
+message DeleteGameRequest {
+  string game_id = 1;
+}
+
+message MettaGridRequest {
+  string request_id = 1;
+  oneof payload {
+    CreateGameRequest create_game = 10;
+    StepGameRequest step_game = 11;
+    GetStateRequest get_state = 12;
+    DeleteGameRequest delete_game = 13;
+  }
+}
+
+message StepResult {
+  bytes observations = 1;   // Packed row-major buffer
+  bytes rewards = 2;        // float32[num_agents]
+  bytes terminals = 3;      // bool[num_agents]
+  bytes truncations = 4;    // bool[num_agents]
+  bytes action_success = 5; // bool[num_agents]
+  uint64 current_step = 6;
+}
+
+message StateResult {
+  StepResult snapshot = 1;
+}
+
+message AckResult {
+  bool ok = 1;
+  string message = 2;
+}
+
+message ErrorResult {
+  int32 code = 1;
+  string message = 2;
+}
+
+message MettaGridResponse {
+  string request_id = 1;
+  oneof payload {
+    AckResult create_result = 10;
+    StepResult step_result = 11;
+    StateResult state_result = 12;
+    AckResult delete_result = 13;
+    ErrorResult error = 14;
+  }
+}

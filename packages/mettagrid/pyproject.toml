@@ -109,3 +109,7 @@ describe_command = [
   "--match",
   "mettagrid-v*",
 ]
+
+[tool.ruff]
+# Exclude generated protobuf files
+extend-exclude = ["*_pb2.py", "*_pb2.pyi"]

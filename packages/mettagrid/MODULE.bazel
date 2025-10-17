@@ -8,8 +8,11 @@ bazel_dep(name = "bazel_skylib", version = "1.8.1")
 # C++ rules and toolchain
 bazel_dep(name = "rules_cc", version = "0.2.0")
 
+# Proto rules (required for protocol buffers)
+bazel_dep(name = "rules_proto", version = "7.1.0")
+
 # Python toolchain - use latest compatible version
-bazel_dep(name = "rules_python", version = "1.5.3")
+bazel_dep(name = "rules_python", version = "1.6.0")
 
 python = use_extension("@rules_python//python/extensions:python.bzl", "python")
 python.defaults(
@@ -35,8 +38,11 @@ bazel_dep(name = "googletest", version = "1.17.0")
 # Google Benchmark for benchmarking
 bazel_dep(name = "google_benchmark", version = "1.9.4")
 
-# Abseil (dependency of some Google libraries)
-bazel_dep(name = "abseil-cpp", version = "20250814.0")
+# Abseil (dependency of some Google libraries) - using latest
+bazel_dep(name = "abseil-cpp", version = "20250512.1")
+
+# Protobuf (for RPC serialization) - using latest
+bazel_dep(name = "protobuf", version = "33.0", repo_name = "com_google_protobuf")
 
 # make compile_commands.json with: bazel run @hedron_compile_commands//:refresh_all
 bazel_dep(name = "hedron_compile_commands", version = "")
