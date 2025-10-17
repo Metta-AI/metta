@@ -71,5 +71,12 @@
     "branch": "feature/stable-latent-loss",
     "commit": "19fd4698815186603b175e64a5f86d1700f5eceb",
     "completed_at": "2025-10-17"
+  },
+  {
+    "gid": "1211471933325968",
+    "name": "Add CMPO",
+    "branch": "feature/add-cmpo",
+    "commit": "30fe618d6f1064c7408814c946bc30f56863726d",
+    "completed_at": "2025-10-17"
   }
 ]
