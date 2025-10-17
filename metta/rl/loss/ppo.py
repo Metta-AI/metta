@@ -34,7 +34,7 @@ class PPOConfig(Config):
     # Clip coefficient (0.1-0.3 typical; Schulman et al. 2017)
     clip_coef: float = Field(default=0.264407, gt=0, le=1.0)
     # Entropy term weight from sweep
-    ent_coef: float = Field(default=0.010000, ge=0)
+    ent_coef: float = Field(default=0.02891525626182556, ge=0)
     # GAE lambda tuned via sweep (cf. standard 0.95)
     gae_lambda: float = Field(default=0.891477, ge=0, le=1.0)
     # Gamma tuned for shorter effective horizon
