@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 # Type imports only happen during type checking, not at runtime
 if TYPE_CHECKING:
     from metta.rl.loss.contrastive_config import ContrastiveConfig
+    from metta.rl.loss.grpo import GRPOConfig
     from metta.rl.loss.loss import Loss
     from metta.rl.loss.loss_config import LossConfig
     from metta.rl.loss.ppo import PPOConfig
@@ -19,11 +20,12 @@ _EXPORTS: dict[str, tuple[str, str | None]] = {
     "LossConfig": ("metta.rl.loss.loss_config", "LossConfig"),
     "Loss": ("metta.rl.loss.loss", "Loss"),
     "PPOConfig": ("metta.rl.loss.ppo", "PPOConfig"),
+    "GRPOConfig": ("metta.rl.loss.grpo", "GRPOConfig"),
     "ContrastiveConfig": ("metta.rl.loss.contrastive_config", "ContrastiveConfig"),
 }
 
 # Explicitly define __all__ to help type checkers
-__all__ = ["LossConfig", "Loss", "PPOConfig", "ContrastiveConfig"]
+__all__ = ["LossConfig", "Loss", "PPOConfig", "GRPOConfig", "ContrastiveConfig"]
 
 
 def __getattr__(name: str) -> Any:
