@@ -18,7 +18,6 @@ We recommend using [uv](https://docs.astral.sh/uv/) to manage virtual environmen
 uv venv
 source .venv/bin/activate
 uv pip install gitta
->>>>>>> main
 ```
 
 ## Usage
@@ -116,13 +115,11 @@ commit_hash = gitta.validate_commit_state(
 
 ## Environment Variables
 
-- `ANTHROPIC_API_KEY`: API key for AI-powered PR splitting
 - `GITHUB_TOKEN`: GitHub personal access token for API operations
+- `ANTHROPIC_API_KEY`: API key for AI-powered PR splitting
 - `GITTA_SPLIT_MODEL`: Anthropic model name (defaults to `claude-sonnet-4-5`)
 - `GITTA_SKIP_HOOKS`: Set to `1` to append `--no-verify` when committing split branches
 - `GITTA_COMMIT_TIMEOUT`: Override the git commit timeout (seconds; defaults to 300)
-- `GITHUB_TOKEN`: GitHub personal access token for API operations
-- `GITTA_AUTO_ADD_SAFE_DIRECTORY`: Set to "1" to auto-handle git safe directory issues
 
 ## Module Structure
 
