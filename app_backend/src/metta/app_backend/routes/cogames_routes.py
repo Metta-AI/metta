@@ -1,6 +1,7 @@
+import tempfile
 import uuid
 
-import boto3
+import aioboto3
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile, status
 from pydantic import BaseModel
 
@@ -26,7 +27,7 @@ def create_cogames_router(stats_repo: MettaRepo) -> APIRouter:
         """Submit a policy zip file for CoGames.
 
         Authenticates via machine token from the login service,
-        uploads the file to S3, and records the submission in the database.
+        uploads the file to S3 using streaming, and records the submission in the database.
         """
         # Extract machine token from request headers
         token = request.headers.get("X-Auth-Token")
@@ -58,16 +59,25 @@ def create_cogames_router(stats_repo: MettaRepo) -> APIRouter:
         s3_key = f"cogames/submissions/{user_id}/{submission_uuid}.zip"
         s3_path = f"s3://{SOFTMAX_S3_BUCKET}/{s3_key}"
 
-        # Upload file to S3
+        # Upload file to S3 using streaming to avoid loading entire file into memory
         try:
-            s3_client = boto3.client("s3")
-            file_content = await file.read()
-            s3_client.put_object(
-                Bucket=SOFTMAX_S3_BUCKET,
-                Key=s3_key,
-                Body=file_content,
-                ContentType="application/zip",
-            )
+            # Use SpooledTemporaryFile to keep small files in memory, large ones on disk
+            # max_size=100MB - files smaller than this stay in memory for performance
+            with tempfile.SpooledTemporaryFile(max_size=100 * 1024 * 1024) as temp_file:
+                # Stream file content in chunks to temporary file
+                while chunk := await file.read(8192):  # 8KB chunks
+                    temp_file.write(chunk)
+                temp_file.seek(0)
+
+                # Use async S3 client to upload without blocking event loop
+                session = aioboto3.Session()
+                async with session.client("s3") as s3_client:
+                    await s3_client.upload_fileobj(
+                        temp_file,
+                        SOFTMAX_S3_BUCKET,
+                        s3_key,
+                        ExtraArgs={"ContentType": "application/zip"},
+                    )
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
