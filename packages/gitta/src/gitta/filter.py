@@ -52,7 +52,6 @@ def filter_repo(source_path: Path, paths: list[str], make_root: str | None = Non
     if not full_path.exists() or not full_path.is_dir():
         raise ValueError(f"Path does not exist or is not a directory: {prefix}")
 
-
     print(f"Extracting {prefix} using git subtree split...")
 
     # Create a temporary branch name
