@@ -5,7 +5,7 @@ import torch.nn as nn
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModule as TDM
 from tensordict.nn import TensorDictSequential
-from torchrl.modules import ConsistentDropoutModule
+from torchrl.modules import ConsistentDropout
 
 import pufferlib.pytorch
 from metta.agent.components.component_config import ComponentConfig
@@ -37,6 +37,7 @@ class MLP(nn.Module):
     def __init__(self, config: MLPConfig):
         super().__init__()
         self.config = config
+        self.mask = None
 
         layers = []
         current_in_features = self.config.in_features
@@ -74,19 +75,13 @@ class MLP(nn.Module):
                 # Apply nonlinearity in-place on the output key of the linear layer
                 layers.append(TDM(nonlinearity_module, in_keys=[layer_out_key], out_keys=[layer_out_key]))
 
-            if self.config.is_dropout:
-                # ConsistentDropoutModule requires 2 keys: input and mask
-                # The second key is for storing the dropout mask in the TensorDict
-                mask_key = (self.config.name, f"layer_{i}_dropout_mask")
-                dropout_module = ConsistentDropoutModule(
-                    p=self.config.dropout_p, in_keys=[layer_out_key, mask_key], out_keys=[layer_out_key, mask_key]
-                )
-                layers.append(dropout_module)
-
             current_in_features = out_features
             current_in_key = layer_out_key
 
         self.network = TensorDictSequential(*layers)
+
+        if self.config.is_dropout:
+            self.dropout = ConsistentDropout(p=self.config.dropout_p)
 
     def _get_nonlinearity(self, name: str) -> nn.Module:
         if hasattr(nn, name):
@@ -96,7 +91,17 @@ class MLP(nn.Module):
         raise ValueError(f"Unsupported or unknown nonlinearity in torch.nn: {name}")
 
     def forward(self, td: TensorDict) -> TensorDict:
-        return self.network(td)
+        td = self.network(td)
+        if self.config.is_dropout:
+            # Apply dropout to the output key
+            output_tensor = td[self.config.out_key]
+            # Check if mask needs to be reset due to batch size mismatch
+            if self.mask is not None and self.mask.shape[0] != output_tensor.shape[0]:
+                self.mask = None
+            dropped_tensor, mask = self.dropout(output_tensor, mask=self.mask)
+            td[self.config.out_key] = dropped_tensor
+            self.mask = mask
+        return td
 
 
 ###------------- Deep Residual MLP -------------------------
