@@ -185,7 +185,10 @@ def test_random_config_from_str(random_config_yaml: str):
 
 
 def test_config_from_str_wrong_class(random_config_yaml: str):
-    with pytest.raises(TypeError, match="RandomMapBuilder.Config is not a subclass of AsciiMapBuilder.Config"):
+    with pytest.raises(
+        TypeError,
+        match="RandomMapBuilder.Config is not a subclass of mettagrid.map_builder.ascii.AsciiMapBuilder.Config",
+    ):
         AsciiMapBuilder.Config.from_str(random_config_yaml)
 
 
