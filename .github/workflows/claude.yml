@@ -130,12 +130,12 @@ jobs:
               REVIEW_TYPES=""
               if echo "$REVIEW_ARGS" | grep -qw "all"; then
                 echo "✅ Detected: All reviews requested"
-                REVIEW_TYPES="readme,comments,types,einops"
+                REVIEW_TYPES="readme,comments,types,einops,style"
               else
-                PARSED_TYPES=$(echo "$REVIEW_ARGS" | sed 's/[\[\]]//g' | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -E '^(readme|comments|types|einops)$' | tr '\n' ',' | sed 's/,$//')
+                PARSED_TYPES=$(echo "$REVIEW_ARGS" | sed 's/[\[\]]//g' | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -E '^(readme|comments|types|einops|style)$' | tr '\n' ',' | sed 's/,$//')
                 if [ -z "$PARSED_TYPES" ]; then
                   echo "⚠️ No valid review types found, defaulting to all"
-                  REVIEW_TYPES="readme,comments,types,einops"
+                  REVIEW_TYPES="readme,comments,types,einops,style"
                 else
                   REVIEW_TYPES="$PARSED_TYPES"
                 fi
@@ -618,6 +618,7 @@ jobs:
                   "- `comments` - Review code comments and docstrings",
                   "- `types` - Check type annotations",
                   "- `einops` - Suggest einops optimizations",
+                  "- `style` - Check code style according to STYLE_GUIDE.md",
                   "- `all` - Run all review types",
                   "",
                   "You can also:",
@@ -657,3 +658,4 @@ jobs:
       run_comments: ${{ contains(needs.claude-response.outputs.review_types, 'comments') }}
       run_types: ${{ contains(needs.claude-response.outputs.review_types, 'types') }}
       run_einops: ${{ contains(needs.claude-response.outputs.review_types, 'einops') }}
+      run_style: ${{ contains(needs.claude-response.outputs.review_types, 'style') }}

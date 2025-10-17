@@ -160,3 +160,8 @@ releases:
     chart: ./login
     version: 0.1.0
     namespace: login
+
+  - name: dashboard-cronjob
+    chart: ./dashboard-cronjob
+    version: 0.1.0
+    namespace: monitoring
