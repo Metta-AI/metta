@@ -5,7 +5,7 @@ import torch.nn as nn
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModule as TDM
 from tensordict.nn import TensorDictSequential
-from torchrl.modules import ConsistentDropout
+from torchrl.modules import ConsistentDropoutModule
 
 import pufferlib.pytorch
 from metta.agent.components.component_config import ComponentConfig
@@ -74,8 +74,14 @@ class MLP(nn.Module):
                 # Apply nonlinearity in-place on the output key of the linear layer
                 layers.append(TDM(nonlinearity_module, in_keys=[layer_out_key], out_keys=[layer_out_key]))
 
-            if self.is_dropout:
-                layers.append(ConsistentDropout(p=self.config.dropout_p))
+            if self.config.is_dropout:
+                # ConsistentDropoutModule requires 2 keys: input and mask
+                # The second key is for storing the dropout mask in the TensorDict
+                mask_key = (self.config.name, f"layer_{i}_dropout_mask")
+                dropout_module = ConsistentDropoutModule(
+                    p=self.config.dropout_p, in_keys=[layer_out_key, mask_key], out_keys=[layer_out_key, mask_key]
+                )
+                layers.append(dropout_module)
 
             current_in_features = out_features
             current_in_key = layer_out_key
