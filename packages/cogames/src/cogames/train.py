@@ -229,7 +229,7 @@ def train(
     env_name = "cogames.cogs_vs_clips"
 
     learning_rate = 0.001153637
-    bptt_horizon = 64
+    bptt_horizon = 64 if use_rnn else 1
     optimizer = "adam"
     adam_eps = 1e-8
 
