@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import {
   PaperWithUserContext,
   User,
@@ -19,7 +18,6 @@ interface MeViewProps {
     image: string | null;
   };
   starredPapers: PaperWithUserContext[];
-  allPapers: PaperWithUserContext[];
   users: User[];
   interactions: UserInteraction[];
 }
@@ -27,7 +25,6 @@ interface MeViewProps {
 export function MeView({
   user,
   starredPapers,
-  allPapers,
   users,
   interactions,
 }: MeViewProps) {

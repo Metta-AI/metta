@@ -13,9 +13,15 @@ interface DiscordStatusResponse {
 
 interface BotStatusResponse {
   configuration: {
-    botEnabled: boolean;
-    clientId: string | null;
-    guildId: string | null;
+    botEnabled?: boolean;
+    clientId?: string | null;
+    guildId?: string | null;
+    enabled?: boolean;
+    ready: boolean;
+    botUser: string | null;
+    username?: string;
+    status?: string;
+    error?: string;
   };
 }
 
