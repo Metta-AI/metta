@@ -1,6 +1,6 @@
 from typing import List
 
-from cortex.stacks.xlstm import build_xlstm_stack
+from cortex.stacks import build_cortex_auto_stack
 
 from metta.agent.components.action import ActionEmbeddingConfig
 from metta.agent.components.actor import ActionProbsConfig, ActorKeyConfig, ActorQueryConfig
@@ -53,17 +53,12 @@ class CortexBaseConfig(PolicyArchitecture):
             out_key="core",
             d_hidden=_latent_dim,
             out_features=_core_out,
-            stack=build_xlstm_stack(
+            # Default to the mixed Cortex auto stack (Axon/mLSTM/sLSTM).
+            stack=build_cortex_auto_stack(
                 d_hidden=_latent_dim,
-                num_blocks=2,
-                mlstm_num_heads=2,
-                slstm_num_heads=2,
-                mlstm_proj_factor=2.0,
-                slstm_proj_factor=1.5,
-                mlstm_chunk_size=128,
-                conv1d_kernel_size=4,
-                dropout=0.0,
+                num_layers=3,
                 post_norm=True,
+                use_axonlayers=True
             ),
             key_prefix="cortex_state",
         ),

@@ -178,7 +178,7 @@ STACKS: Dict[str, StackSpec] = {
     ),
     "cortex_auto_axon": StackSpec(
         name="cortex_auto_stack",
-        builder=lambda: build_cortex_auto_stack(d_hidden=128, num_layers=3,use_axonlayers=True),
+        builder=lambda: build_cortex_auto_stack(d_hidden=128, num_layers=3, use_axonlayers=True),
         d_hidden=128,
     ),
 }
