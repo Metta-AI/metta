@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Optional
 
 import torch
 import torch.nn as nn
@@ -15,6 +15,8 @@ class LSTMConfig(ComponentConfig):
     latent_size: int = 128
     hidden_size: int = 128
     num_layers: int = 2
+    noise_std: float = 0.0
+    noise_during_eval: bool = False
 
     def make_component(self, env=None):
         return LSTM(config=self)
@@ -49,6 +51,8 @@ class LSTM(nn.Module):
         self.num_layers = self.config.num_layers
         self.in_key = self.config.in_key
         self.out_key = self.config.out_key
+        self.noise_std = float(self.config.noise_std)
+        self.noise_during_eval = self.config.noise_during_eval
         self.net = nn.LSTM(self.latent_size, self.hidden_size, self.num_layers, batch_first=True)
 
         for name, param in self.net.named_parameters():
@@ -59,6 +63,19 @@ class LSTM(nn.Module):
 
         self.lstm_h: Dict[int, torch.Tensor] = {}
         self.lstm_c: Dict[int, torch.Tensor] = {}
+
+    def set_noise(self, *, std: float, noise_during_eval: Optional[bool] = None) -> None:
+        self.noise_std = float(std)
+        if noise_during_eval is not None:
+            self.noise_during_eval = noise_during_eval
+
+    def _maybe_add_noise(self, tensor: torch.Tensor) -> torch.Tensor:
+        if self.noise_std <= 0.0:
+            return tensor
+        if not self.training and not self.noise_during_eval:
+            return tensor
+        noise = torch.randn_like(tensor) * self.noise_std
+        return tensor + noise
 
     def __setstate__(self, state):
         """Ensure LSTM hidden states are properly initialized after loading from checkpoint."""
@@ -119,6 +136,7 @@ class LSTM(nn.Module):
             c_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=latent.device)
 
         hidden, (h_n, c_n) = self.net(latent, (h_0, c_0))
+        hidden = self._maybe_add_noise(hidden)
 
         self.lstm_h[training_env_id_start] = h_n.detach()
         self.lstm_c[training_env_id_start] = c_n.detach()
