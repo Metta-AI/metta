@@ -1,4 +1,5 @@
 import logging
+from base64 import b64encode
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Any, Generator
@@ -15,6 +16,9 @@ logger = logging.getLogger(__name__)
 
 @contextmanager
 def _github_client() -> Generator[httpx.Client, None, None]:
+    token = get_secretsmanager_secret("github/dashboard-token").strip()
+    basic_credentials = b64encode(f"{token}:".encode("utf-8")).decode("utf-8")
+
     with httpx.Client(
         base_url=f"https://api.github.com/repos/{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}",
         headers={
@@ -22,8 +26,7 @@ def _github_client() -> Generator[httpx.Client, None, None]:
             "X-GitHub-Api-Version": "2022-11-28",
             "User-Agent": "softmax-metrics",
             # Auth to avoid rate limiting
-            # We should replace this with a PAT before Dec 13 2026
-            "Authorization": f"Basic {get_secretsmanager_secret('github/dashboard-token')}",
+            "Authorization": f"Basic {basic_credentials}",
         },
         timeout=30,
     ) as client:
