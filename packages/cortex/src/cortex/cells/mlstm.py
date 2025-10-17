@@ -12,7 +12,7 @@ from cortex.cells.base import MemoryCell
 from cortex.cells.conv import CausalConv1d
 from cortex.cells.core import AxonLayer, update_parent_state
 from cortex.cells.registry import register_cell
-from cortex.config import AxonsConfig, CausalConv1dConfig, mLSTMCellConfig
+from cortex.config import AxonConfig, CausalConv1dConfig, mLSTMCellConfig
 from cortex.kernels.pytorch.mlstm import (
     mlstm_chunkwise_simple,
     mlstm_recurrent_step_stabilized_simple,
@@ -84,7 +84,7 @@ class mLSTMCell(MemoryCell):
             in_features = 3 * H
             out_features = NH
             # Allow override from config; AxonLayer will enforce IO sizes.
-            ax_cfg = cfg.axon_layer_config or AxonsConfig(use_untraced_linear=False)
+            ax_cfg = cfg.axon_layer_config or AxonConfig(use_untraced_linear=False)
             self.igate = AxonLayer(
                 in_features,
                 out_features,
@@ -116,11 +116,12 @@ class mLSTMCell(MemoryCell):
             self.qk_layer = None
         else:
             H = int(cfg.hidden_size)
+
             # Allow override from config; AxonLayer will enforce IO sizes.
             def ispow2(n: int) -> bool:
                 return n > 0 and (n & (n - 1)) == 0
-            qkv_cfg = cfg.axon_qkv_config or AxonsConfig(hidden_size=H, out_dim=H, use_untraced_linear=False,
-                                                        use_srht=ispow2(H))
+
+            qkv_cfg = cfg.axon_qkv_config or None
             self.qkv_act = nn.SiLU()  # match conv+SiLU behavior
             # Shared-QK: single layer feeds both q and k; v has its own layer
             self.qk_layer = AxonLayer(H, H, cfg=qkv_cfg, name="qk", group="mlstm_qkv")

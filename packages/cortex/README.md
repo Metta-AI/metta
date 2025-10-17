@@ -214,12 +214,12 @@ Within the Cortex framework, `AxonLayer` integrates seamlessly with the `MemoryC
 from tensordict import TensorDict
 from cortex.cells.base import MemoryCell
 from cortex.cells.core import AxonLayer, update_parent_state
-from cortex.config import AxonsConfig
+from cortex.config import AxonConfig
 
 class MyCell(MemoryCell):
     def __init__(self, hidden_size: int) -> None:
         super().__init__(hidden_size=hidden_size)
-        ax_cfg = AxonsConfig(hidden_size=hidden_size, out_dim=hidden_size)
+        ax_cfg = AxonConfig(hidden_size=hidden_size, out_dim=hidden_size)
         self.ax = AxonLayer(hidden_size, hidden_size, cfg=ax_cfg, name="proj", group="mycell")
         # ... additional layer definitions ...
 

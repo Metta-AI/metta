@@ -22,7 +22,7 @@ from cortex.cells import (
 )
 from cortex.config import (
     AdapterBlockConfig,
-    AxonsConfig,
+    AxonConfig,
     BlockConfig,
     CausalConv1dConfig,
     CellConfig,
@@ -31,7 +31,6 @@ from cortex.config import (
     PassThroughBlockConfig,
     PostUpBlockConfig,
     PreUpBlockConfig,
-    RTUCellConfig,
     mLSTMCellConfig,
     sLSTMCellConfig,
 )
@@ -49,12 +48,11 @@ __all__ = [
     "PostUpBlockConfig",
     "CortexStackConfig",
     "CellConfig",
-    "AxonsConfig",
+    "AxonConfig",
     "CausalConv1dConfig",
     "LSTMCellConfig",
     "mLSTMCellConfig",
     "sLSTMCellConfig",
-    "RTUCellConfig",
     # Main classes
     "CortexStack",
     # Cells

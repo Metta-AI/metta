@@ -6,7 +6,7 @@ from typing import Dict, Iterator, Optional, Tuple
 import torch
 import torch.nn as nn
 from cortex.cells.core import AxonCell
-from cortex.config import AxonsConfig
+from cortex.config import AxonConfig
 
 from .common import (
     BenchmarkCase,
@@ -158,7 +158,7 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
         return y.reshape(t.shape[0], t.shape[1], hidden)
 
     # AxonCell configured as linear-like
-    ax_cfg = AxonsConfig(
+    ax_cfg = AxonConfig(
         hidden_size=hidden,
         activation=activation,
         cuda_seq_threshold=1000,

@@ -54,8 +54,8 @@ class mLSTMCellConfig(CellConfig):
     # If provided, these will be forwarded to the internal AxonLayer instances
     # for the gates (3H->NH) and the optional QKV path (H->H). IO sizes and
     # activation will be overridden by the AxonLayer wrapper as needed.
-    axon_layer_config: AxonsConfig | None = Field(default=None)
-    axon_qkv_config: AxonsConfig | None = Field(default=None)
+    axon_layer_config: AxonConfig | None = Field(default=None)
+    axon_qkv_config: AxonConfig | None = Field(default=None)
     # When use_axon_qkv is enabled, Q/K share a layer and V has its own layer.
 
 
@@ -71,12 +71,10 @@ class sLSTMCellConfig(CellConfig):
     # Use AxonLayer-based gates instead of block-diagonal Linear expand
     use_axon_layer: bool = Field(default=False)
     # Optional Axon config forwarded to fused gate AxonLayers when enabled.
-    axon_layer_config: AxonsConfig | None = Field(default=None)
+    axon_layer_config: AxonConfig | None = Field(default=None)
 
 
-
-
-class AxonsConfig(CellConfig):
+class AxonConfig(CellConfig):
     """Configuration for the Axons cell (streaming RTU, diagonal input weights).
 
     Assumes D == H (identity input map) and uses per‑channel diagonal input
@@ -177,7 +175,7 @@ __all__ = [
     "LSTMCellConfig",
     "mLSTMCellConfig",
     "sLSTMCellConfig",
-    "AxonsConfig",
+    "AxonConfig",
     "BlockConfig",
     "PassThroughBlockConfig",
     "PreUpBlockConfig",

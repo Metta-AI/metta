@@ -16,7 +16,7 @@ from tensordict import TensorDict
 from cortex.backends import load_cuda_stream_diag, want_cuda_seq_allin
 from cortex.cells.base import MemoryCell
 from cortex.cells.registry import register_cell
-from cortex.config import AxonsConfig
+from cortex.config import AxonConfig
 from cortex.kernels.cuda.srht_cuda import srht_cuda  # type: ignore
 from cortex.kernels.pytorch.rtu.rtu_stream_diag import rtu_stream_diag_pytorch
 from cortex.kernels.pytorch.rtu.rtu_stream_fullrank import rtu_stream_full_pytorch
@@ -47,7 +47,7 @@ def _resolve_activation(name: str) -> nn.Module:
     raise ValueError(f"Unsupported RTU activation: {name}")
 
 
-@register_cell(AxonsConfig)
+@register_cell(AxonConfig)
 class AxonCell(MemoryCell):
     """Cortex memory cell for streaming RTU with diagonal input weights.
 
@@ -61,9 +61,9 @@ class AxonCell(MemoryCell):
       where ``out_dim`` differs.
     """
 
-    def __init__(self, cfg: AxonsConfig, enforce_out_dim_eq_hidden: bool = True) -> None:
+    def __init__(self, cfg: AxonConfig, enforce_out_dim_eq_hidden: bool = True) -> None:
         if cfg.hidden_size is None:
-            raise ValueError("AxonsConfig.hidden_size must be set")
+            raise ValueError("AxonConfig.hidden_size must be set")
         super().__init__(hidden_size=cfg.hidden_size)
         self.cfg = cfg
         self._enforce_out_dim_eq_hidden = bool(enforce_out_dim_eq_hidden)

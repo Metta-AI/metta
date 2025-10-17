@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from typing import Callable, Dict
 
 from cortex.config import (
-    AxonsConfig,
+    AxonConfig,
     CortexStackConfig,
     PassThroughBlockConfig,
     PostUpBlockConfig,
@@ -28,7 +28,6 @@ from cortex.config import (
 from cortex.factory import build_cortex
 from cortex.stacks import CortexStack
 from cortex.stacks.xlstm import build_xlstm_stack
-from torch import true_divide
 
 
 @dataclass
@@ -81,7 +80,7 @@ def build_slstm_postup_axon(*, d_hidden: int = 128, proj_factor: float = 1.5, nu
         blocks=[
             PreUpBlockConfig(
                 # hidden_size is inferred from PreUp: int(proj_factor * d_hidden)
-                cell=AxonsConfig(hidden_size=None, activation="silu", use_fullrank_rtu=False, use_untraced_linear=True)
+                cell=AxonConfig(hidden_size=None, activation="silu", use_fullrank_rtu=False, use_untraced_linear=True)
             ),
             PostUpBlockConfig(
                 proj_factor=proj_factor,
@@ -106,7 +105,7 @@ def build_mlstm_preup_axon(*, d_hidden: int = 128, proj_factor: float = 2.0, num
         blocks=[
             PassThroughBlockConfig(
                 # hidden_size is inferred from PreUp: int(proj_factor * d_hidden)
-                cell=AxonsConfig(hidden_size=None, activation="silu", use_fullrank_rtu=False, use_untraced_linear=True)
+                cell=AxonConfig(hidden_size=None, activation="silu", use_fullrank_rtu=False, use_untraced_linear=True)
             ),
             PreUpBlockConfig(
                 proj_factor=proj_factor,
@@ -138,12 +137,12 @@ def build_axons_preup(*, d_hidden: int = 128, proj_factor: float = 2.0) -> Corte
         blocks=[
             PassThroughBlockConfig(
                 # hidden_size is inferred from PreUp: int(proj_factor * d_hidden)
-                cell=AxonsConfig(hidden_size=None, activation="silu", use_fullrank_rtu=False, use_untraced_linear=True)
+                cell=AxonConfig(hidden_size=None, activation="silu", use_fullrank_rtu=False, use_untraced_linear=True)
             ),
             PreUpBlockConfig(
                 proj_factor=proj_factor,
                 # hidden_size is inferred from PreUp: int(proj_factor * d_hidden)
-                cell=AxonsConfig(hidden_size=None, activation="silu", use_fullrank_rtu=False, use_untraced_linear=True),
+                cell=AxonConfig(hidden_size=None, activation="silu", use_fullrank_rtu=False, use_untraced_linear=True),
             ),
         ],
     )

@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 from tensordict import TensorDict
 
-from cortex.config import AxonsConfig
+from cortex.config import AxonConfig
 from cortex.types import MaybeState, ResetMask, Tensor
 
 from .axon_cell import AxonCell
@@ -37,7 +37,7 @@ class AxonLayer(nn.Module):
         self,
         in_features: int,
         out_features: int,
-        cfg: Optional[AxonsConfig] = None,
+        cfg: Optional[AxonConfig] = None,
         *,
         name: Optional[str] = None,
         group: str = "axon",
@@ -49,14 +49,15 @@ class AxonLayer(nn.Module):
         # Stable key for storing substate when used inside a parent TensorDict
         self._state_key = name if name is not None else f"axonlayer_{id(self)}"
 
-        # Build Axons config with enforced IO sizes
+        # Build Axon config with enforced IO sizes
         if cfg is None:
-            cfg = AxonsConfig(hidden_size=self.in_features, out_dim=self.out_features)
+            cfg = AxonConfig(hidden_size=self.in_features, out_dim=self.out_features)
             # Sensible defaults for a "linear-like" replacement
             cfg.activation = "identity"
-            # Enable SRHT only when feature dim is a power-of-two; else disable to avoid FWHT constraint.
+            # Choose input mixing: if power-of-two dim, prefer SRHT; otherwise use untraced linear
             is_pow2 = (self.in_features & (self.in_features - 1)) == 0 and self.in_features > 0
             cfg.use_srht = bool(is_pow2)
+            cfg.use_untraced_linear = not is_pow2
             cfg.srht_permute = True
             cfg.cuda_seq_threshold = 1000
         else:

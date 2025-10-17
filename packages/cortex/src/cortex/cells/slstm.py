@@ -16,7 +16,7 @@ from cortex.cells.core import AxonLayer, update_parent_state
 # Reuse utilities from mLSTM for normalization and init
 from cortex.cells.mlstm import MultiHeadLayerNorm, bias_linspace_init_
 from cortex.cells.registry import register_cell
-from cortex.config import AxonsConfig, CausalConv1dConfig, sLSTMCellConfig
+from cortex.config import AxonConfig, CausalConv1dConfig, sLSTMCellConfig
 from cortex.kernels.pytorch.slstm import slstm_sequence_pytorch
 from cortex.kernels.triton.slstm import slstm_sequence_triton
 from cortex.types import MaybeState, ResetMask, Tensor
@@ -98,7 +98,10 @@ class sLSTMCell(MemoryCell):
             # Fused Axon gates: compute [i,f] from x_conv and [z,o] from x_seq
             # with two AxonLayer calls H -> 2H to reduce per-chunk overhead.
             # Allow override from config; AxonLayer will enforce IO sizes.
-            ax_cfg = cfg.axon_layer_config or AxonsConfig(hidden_size=H, out_dim=2 * H, use_untraced_linear=True)
+            def ispow2(n: int) -> bool:
+                return n > 0 and (n & (n - 1)) == 0
+            ax_cfg = cfg.axon_layer_config or AxonConfig(hidden_size=H, out_dim=2 * H, use_untraced_linear=False,
+                                                        use_srht=ispow2(H))
             self.if_fused = AxonLayer(H, 2 * H, cfg=ax_cfg, name="if_fused", group="slstm")
             self.zo_fused = AxonLayer(H, 2 * H, cfg=ax_cfg, name="zo_fused", group="slstm")
         else:

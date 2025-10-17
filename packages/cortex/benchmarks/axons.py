@@ -4,7 +4,7 @@ from typing import Dict, Optional, Tuple
 
 import torch
 from cortex.cells.core import AxonCell
-from cortex.config import AxonsConfig
+from cortex.config import AxonConfig
 
 from packages.cortex.benchmarks.common import (
     BenchmarkCase,
@@ -112,7 +112,7 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
     if with_resets:
         resets = (torch.rand(batch_size, seq_len, device=device) < reset_prob).to(device=device)
 
-    cell = AxonCell(AxonsConfig(hidden_size=hidden_size, activation="SiLU")).to(device=device, dtype=dtype)
+    cell = AxonCell(AxonConfig(hidden_size=hidden_size, activation="SiLU")).to(device=device, dtype=dtype)
 
     synchronize = device.type == "cuda"
 
