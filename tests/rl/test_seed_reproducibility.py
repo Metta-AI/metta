@@ -31,17 +31,18 @@ def _build_env_and_policy(
     env_cfg = factory()
     env = VectorizedTrainingEnvironment(env_cfg)
     try:
+        game_rules = env.game_rules
         policy_cfg = FastConfig()
-        policy = policy_cfg.make_policy(env.meta_data)
+        policy = policy_cfg.make_policy(game_rules)
 
         state_dict = {name: param.detach().cpu().clone() for name, param in policy.state_dict().items()}
         metadata: dict[str, Any] = {
-            "obs_width": env.meta_data.obs_width,
-            "obs_height": env.meta_data.obs_height,
-            "obs_features": env.meta_data.obs_features,
-            "action_names": env.meta_data.action_names,
-            "num_agents": env.meta_data.num_agents,
-            "feature_normalizations": env.meta_data.feature_normalizations,
+            "obs_width": game_rules.obs_width,
+            "obs_height": game_rules.obs_height,
+            "obs_features": game_rules.obs_features,
+            "action_names": game_rules.action_names,
+            "num_agents": game_rules.num_agents,
+            "feature_normalizations": game_rules.feature_normalizations,
         }
     finally:
         env.close()
