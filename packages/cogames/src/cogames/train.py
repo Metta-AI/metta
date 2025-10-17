@@ -295,7 +295,7 @@ def train(
         vf_coef=2.0,
         vf_clip_coef=0.2,
         max_grad_norm=1.5,
-        ent_coef=0.001,
+        ent_coef=0.01,
         adam_beta1=0.95,
         adam_beta2=0.999,
         adam_eps=adam_eps,

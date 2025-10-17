@@ -30,6 +30,11 @@ def add_easy_heart_recipe(cfg: MettaGridConfig) -> None:
 
     agent_cfg: AgentConfig = cfg.game.agent
     agent_cfg.resource_limits["heart"] = 10
+    agent_cfg.action_failure_penalty = 0.0
+
+    # Disable glyph changing in easier variants to reduce degenerate policies
+    if hasattr(cfg.game.actions, "change_glyph"):
+        cfg.game.actions.change_glyph.enabled = False
 
     for _, recipe in assembler_cfg.recipes:
         if recipe.output_resources.get("heart") and recipe.input_resources == {"energy": 1}:
