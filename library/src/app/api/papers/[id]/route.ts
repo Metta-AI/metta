@@ -16,7 +16,6 @@ export async function GET(
               select: {
                 id: true,
                 name: true,
-                orcid: true,
                 institution: true,
               },
             },
@@ -56,7 +55,6 @@ export async function GET(
       authors: paper.paperAuthors.map((pa) => ({
         id: pa.author.id,
         name: pa.author.name,
-        orcid: pa.author.orcid,
         institution: pa.author.institution,
       })),
       institutions: paper.paperInstitutions.map((pi) => pi.institution.name),

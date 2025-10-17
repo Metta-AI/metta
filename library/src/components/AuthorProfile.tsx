@@ -199,44 +199,6 @@ export const AuthorProfile: FC<AuthorProfileProps> = ({
                   Last active {formatRelativeDate(author.recentActivity)}
                 </p>
               </div>
-
-              {author.orcid && (
-                <div className="rounded-lg border border-gray-200 bg-white p-6">
-                  <h3 className="mb-4 text-lg font-semibold text-gray-900">
-                    External Profiles
-                  </h3>
-                  <div className="space-y-2">
-                    <a
-                      href={`https://orcid.org/${author.orcid}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary-500 hover:text-primary-600 block text-sm underline"
-                    >
-                      ORCID Profile
-                    </a>
-                    {author.googleScholarId && (
-                      <a
-                        href={`https://scholar.google.com/citations?user=${author.googleScholarId}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary-500 hover:text-primary-600 block text-sm underline"
-                      >
-                        Google Scholar
-                      </a>
-                    )}
-                    {author.arxivId && (
-                      <a
-                        href={`https://arxiv.org/a/${author.arxivId}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary-500 hover:text-primary-600 block text-sm underline"
-                      >
-                        arXiv Profile
-                      </a>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         )}

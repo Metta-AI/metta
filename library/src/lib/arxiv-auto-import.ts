@@ -32,9 +32,6 @@ async function getOrCreateAuthor(authorName: string) {
         name: normalizedName,
         email: null,
         institution: null,
-        orcid: null,
-        googleScholarId: null,
-        arxivId: null,
       },
     });
     Logger.debug("Created author", { authorName: normalizedName });

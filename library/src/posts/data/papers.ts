@@ -78,7 +78,6 @@ export async function loadPapersWithUserContext(): Promise<{
               select: {
                 id: true,
                 name: true,
-                orcid: true,
                 institution: true,
               },
             },
@@ -125,7 +124,6 @@ export async function loadPapersWithUserContext(): Promise<{
         authors: paper.paperAuthors.map((pa) => ({
           id: pa.author.id,
           name: pa.author.name,
-          orcid: pa.author.orcid,
           institution: pa.author.institution,
         })),
         institutions: paper.paperInstitutions.map((pi) => pi.institution.name),
@@ -165,7 +163,6 @@ export async function loadPapers(): Promise<{
               select: {
                 id: true,
                 name: true,
-                orcid: true,
                 institution: true,
               },
             },
@@ -196,7 +193,6 @@ export async function loadPapers(): Promise<{
       authors: paper.paperAuthors.map((pa) => ({
         id: pa.author.id,
         name: pa.author.name,
-        orcid: pa.author.orcid,
         institution: pa.author.institution,
       })),
       institutions: paper.paperInstitutions.map((pi) => pi.institution.name),
@@ -232,7 +228,6 @@ export async function loadPapersForUser(userId: string): Promise<{
               select: {
                 id: true,
                 name: true,
-                orcid: true,
                 institution: true,
               },
             },
@@ -262,7 +257,6 @@ export async function loadPapersForUser(userId: string): Promise<{
       authors: paper.paperAuthors.map((pa) => ({
         id: pa.author.id,
         name: pa.author.name,
-        orcid: pa.author.orcid,
         institution: pa.author.institution,
       })),
       institutions: paper.paperInstitutions.map((pi) => pi.institution.name),

@@ -126,7 +126,6 @@ export function toFeedPostDTO(
             paper.paperAuthors?.map((pa) => ({
               id: pa.author.id,
               name: pa.author.name,
-              orcid: pa.author.orcid,
               institution: pa.author.institution,
             })) || [],
           institutions:
@@ -210,7 +209,6 @@ export async function loadFeedPosts({
                 select: {
                   id: true,
                   name: true,
-                  orcid: true,
                   institution: true,
                 },
               },
