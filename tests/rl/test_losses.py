@@ -8,6 +8,7 @@ from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.policy import Policy
 from metta.rl.loss import Loss
+from metta.rl.loss.ppo import PPO
 
 
 class DummyPolicy(Policy):
@@ -72,3 +73,16 @@ def test_zero_loss_tracker_clears_values() -> None:
     loss.zero_loss_tracker()
 
     assert all(len(values) == 0 for values in loss.loss_tracker.values())
+
+
+def test_ppo_kl_divergence_matches_manual_computation() -> None:
+    old_logits = torch.tensor([[1.0, 0.0, -1.0], [0.5, 0.5, 0.5]], dtype=torch.float32)
+    new_logits = torch.tensor([[0.9, 0.1, -0.5], [0.3, 0.7, 0.0]], dtype=torch.float32)
+
+    old_log_probs = torch.log_softmax(old_logits, dim=-1)
+    new_log_probs = torch.log_softmax(new_logits, dim=-1)
+
+    kl_from_helper = PPO._kl_divergence(old_log_probs, new_log_probs)
+    manual_kl = torch.sum(old_log_probs.exp() * (old_log_probs - new_log_probs), dim=-1)
+
+    assert torch.allclose(kl_from_helper, manual_kl, atol=1e-6)

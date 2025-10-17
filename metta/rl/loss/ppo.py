@@ -50,6 +50,8 @@ class PPOConfig(Config):
     # L2 regularization defaults to disabled
     l2_reg_loss_coef: float = Field(default=0, ge=0)
     l2_init_loss_coef: float = Field(default=0, ge=0)
+    # Optional KL penalty coefficient (0 disables)
+    kl_coef: float = Field(default=0.0, ge=0)
 
     # Normalization and clipping
     # Advantage normalization toggle
@@ -119,15 +121,23 @@ class PPO(Loss):
         act_space = self.env.single_action_space
         act_dtype = torch.int32 if np.issubdtype(act_space.dtype, np.integer) else torch.float32
         scalar_f32 = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
+        spec_entries = {
+            "rewards": scalar_f32,
+            "dones": scalar_f32,
+            "truncateds": scalar_f32,
+            "actions": UnboundedDiscrete(shape=torch.Size([]), dtype=act_dtype),
+            "act_log_prob": scalar_f32,
+            "values": scalar_f32,
+        }
 
-        return Composite(
-            rewards=scalar_f32,
-            dones=scalar_f32,
-            truncateds=scalar_f32,
-            actions=UnboundedDiscrete(shape=torch.Size([]), dtype=act_dtype),
-            act_log_prob=scalar_f32,
-            values=scalar_f32,
-        )
+        # Store the full log-probabilities if available so we can compute KL penalties.
+        if hasattr(act_space, "n"):
+            num_actions = int(act_space.n)
+            spec_entries["full_log_probs"] = UnboundedContinuous(
+                shape=torch.Size([num_actions]),
+                dtype=torch.float32,
+            )
+        return Composite(spec_entries)
 
     def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
         with torch.no_grad():
@@ -278,6 +288,19 @@ class PPO(Loss):
 
         loss = pg_loss - cfg.ent_coef * entropy_loss + v_loss * cfg.vf_coef
 
+        if cfg.kl_coef > 0:
+            if "full_log_probs" in minibatch.keys() and "full_log_probs" in policy_td.keys():
+                new_full_log_probs = policy_td["full_log_probs"]
+                if new_full_log_probs.shape != minibatch["full_log_probs"].shape:
+                    new_full_log_probs = new_full_log_probs.reshape(minibatch["full_log_probs"].shape)
+                kl_values = self._kl_divergence(minibatch["full_log_probs"], new_full_log_probs)
+                kl_loss = kl_values.mean()
+                loss = loss + cfg.kl_coef * kl_loss
+                self._track("kl_loss", kl_loss)
+            else:
+                # Track zero when KL is requested but data unavailable (legacy checkpoints).
+                self._track("kl_loss", torch.tensor(0.0, device=self.device))
+
         # Update values and ratio in experience buffer
         update_td = TensorDict(
             {"values": newvalue.view(minibatch["values"].shape).detach(), "ratio": importance_sampling_ratio.detach()},
@@ -368,6 +391,12 @@ class PPO(Loss):
     def _importance_ratio(self, new_logprob: Tensor, old_logprob: Tensor) -> Tensor:
         logratio = torch.clamp(new_logprob - old_logprob, -10, 10)
         return logratio.exp()
+
+    @staticmethod
+    def _kl_divergence(old_log_probs: Tensor, new_log_probs: Tensor) -> Tensor:
+        """Compute KL divergence D_KL(old || new) per sample from log probabilities."""
+        old_probs = old_log_probs.exp()
+        return torch.sum(old_probs * (old_log_probs - new_log_probs), dim=-1)
 
     def _track(self, key: str, value: Tensor) -> None:
         self.loss_tracker[key].append(float(value.item()))
