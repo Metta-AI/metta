@@ -12,6 +12,7 @@ export { useDeletePost } from "./useDeletePost";
 export { useCreateComment } from "./useCreateComment";
 export { useDeleteComment } from "./useDeleteComment";
 export { useJoinInstitution } from "./useJoinInstitution";
+export { useJoinGroup } from "./useJoinGroup";
 
 // Settings & notifications
 export { useMarkNotificationsRead } from "./useMarkNotificationsRead";

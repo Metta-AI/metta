@@ -7,13 +7,12 @@ import { GroupCreateForm } from "./GroupCreateForm";
 import { GroupManagementModal } from "./GroupManagementModal";
 import { GroupCard } from "@/components/groups/GroupCard";
 import { GroupDTO } from "@/posts/data/groups";
-import { useAction } from "next-safe-action/hooks";
-import { joinGroupAction } from "@/groups/actions/joinGroupAction";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useFilterSort } from "@/lib/hooks/useFilterSort";
 import { SortControls } from "@/components/ui/sort-controls";
+import { useJoinGroup } from "@/hooks/mutations/useJoinGroup";
 
 interface GroupsViewProps {
   userGroups: GroupDTO[];
@@ -32,19 +31,7 @@ export const GroupsView: FC<GroupsViewProps> = ({
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<GroupDTO | null>(null);
 
-  // Join group action
-  const { execute: joinGroup, isExecuting: isJoining } = useAction(
-    joinGroupAction,
-    {
-      onSuccess: () => {
-        // Groups will be refreshed on next page load
-        // Could add optimistic update here if needed
-      },
-      onError: (error) => {
-        console.error("Error joining group:", error);
-      },
-    }
-  );
+  const { mutate: joinGroup, isPending: isJoining } = useJoinGroup();
 
   const {
     searchQuery,
@@ -70,9 +57,7 @@ export const GroupsView: FC<GroupsViewProps> = ({
   });
 
   const handleJoinGroup = (group: GroupDTO) => {
-    const formData = new FormData();
-    formData.append("groupId", group.id);
-    joinGroup(formData);
+    joinGroup({ groupId: group.id });
   };
 
   // Helper to determine if user can join a group
