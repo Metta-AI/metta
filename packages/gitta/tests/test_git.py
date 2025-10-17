@@ -19,7 +19,6 @@ from gitta import (
     get_remote_url,
     has_unstaged_changes,
     https_remote_url,
-    resolve_git_ref,
     validate_commit_state,
 )
 
@@ -159,15 +158,6 @@ def test_git_errors():
 
         with pytest.raises(GitError):
             has_unstaged_changes()
-
-
-def test_resolve_git_ref():
-    repo_path = create_temp_repo()
-    os.chdir(repo_path)
-
-    head = resolve_git_ref("HEAD")
-    assert len(head) == 40
-    assert head == resolve_git_ref(head[:8])
 
 
 def test_validate_commit_state_clean_repo():

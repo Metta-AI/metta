@@ -122,18 +122,12 @@ def is_commit_pushed(commit_hash: str) -> bool:
         return False
 
 
-def validate_git_ref(ref: str) -> str | None:
-    """Validate a git reference exists (locally or in remote)."""
+def resolve_git_ref(ref: str) -> str | None:
+    """Resolve a git reference to its commit hash, or None if invalid."""
     try:
-        commit_hash = run_git("rev-parse", "--verify", ref)
+        return run_git("rev-parse", "--verify", ref)
     except GitError:
         return None
-    return commit_hash
-
-
-def resolve_git_ref(ref: str) -> str:
-    """Resolve a git reference to its full commit hash."""
-    return run_git("rev-parse", ref).strip()
 
 
 def https_remote_url(url: str) -> str:

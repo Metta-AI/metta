@@ -15,7 +15,6 @@ from gitta.core import (
     run_git,
     run_git_cmd,
     run_git_in_dir,
-    run_git_with_cwd,
 )
 
 
@@ -66,24 +65,6 @@ def test_run_git_in_dir():
         # Get commit hash
         commit = run_git_in_dir(repo_path, "rev-parse", "HEAD")
         assert len(commit) == 40
-
-
-def test_run_git_with_cwd():
-    """Test run_git_with_cwd function."""
-    repo_path = create_temp_repo()
-
-    # Test with Path object
-    output = run_git_with_cwd(["status", "--short"], cwd=repo_path)
-    assert output == ""
-
-    # Test with string path
-    output = run_git_with_cwd(["status", "--short"], cwd=str(repo_path))
-    assert output == ""
-
-    # Test with None (uses current directory)
-    os.chdir(repo_path)
-    output = run_git_with_cwd(["status", "--short"], cwd=None)
-    assert output == ""
 
 
 def test_run_git_cmd_direct():

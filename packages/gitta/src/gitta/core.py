@@ -139,18 +139,11 @@ def run_git_cmd(
     return result.stdout.decode("utf-8", errors="surrogateescape").strip()
 
 
-def run_git_with_cwd(args: list[str], cwd: str | Path | None = None) -> str:
-    """Run a git command with optional working directory and return its output."""
-    if cwd is None:
-        return run_git(*args)
-    return run_git_in_dir(cwd, *args)
-
-
 def run_git(*args: str) -> str:
     """Run a git command and return its output."""
     return run_git_cmd(list(args))
 
 
-def run_git_in_dir(cwd: str | Path, *args: str) -> str:
+def run_git_in_dir(dir: str | Path, *args: str) -> str:
     """Run a git command in a specific directory and return its output."""
-    return run_git_cmd(list(args), cwd=Path(cwd))
+    return run_git_cmd(list(args), cwd=Path(dir))

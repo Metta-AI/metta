@@ -11,7 +11,6 @@ from .core import (
     run_git,
     run_git_cmd,
     run_git_in_dir,
-    run_git_with_cwd,
 )
 
 # Filter functionality
@@ -40,7 +39,6 @@ from .git import (
     ref_exists,
     resolve_git_ref,
     validate_commit_state,
-    validate_git_ref,
 )
 
 # GitHub API functionality
@@ -61,7 +59,6 @@ __all__ = [
     "run_git_cmd",
     "run_git",
     "run_git_in_dir",
-    "run_git_with_cwd",
     # Git operations
     "get_current_branch",
     "get_current_commit",
@@ -69,10 +66,9 @@ __all__ = [
     "get_commit_message",
     "has_unstaged_changes",
     "is_commit_pushed",
-    "validate_git_ref",
+    "resolve_git_ref",
     "canonical_remote_url",
     "https_remote_url",
-    "resolve_git_ref",
     "get_remote_url",
     "get_all_remotes",
     "is_repo_match",
