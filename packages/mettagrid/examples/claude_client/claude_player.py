@@ -11,16 +11,44 @@ from typing import Optional
 import anthropic
 
 
-def load_env_file(env_path: str = ".env"):
-    """Load environment variables from a .env file if it exists."""
-    env_file = Path(env_path)
-    if env_file.exists():
-        with open(env_file) as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith("#"):
-                    key, _, value = line.partition("=")
-                    os.environ[key.strip()] = value.strip().strip('"').strip("'")
+def load_env_file():
+    """Load environment variables from .env file.
+
+    Checks in order:
+    1. Repository root (.env)
+    2. Current directory (.env)
+    3. Script directory (.env)
+    """
+    # Try to find repo root by looking for .git directory
+    current = Path.cwd()
+    while current != current.parent:
+        if (current / ".git").exists():
+            repo_root = current
+            break
+        current = current.parent
+    else:
+        # Fallback: assume we're in packages/mettagrid/examples/claude_client
+        repo_root = Path(__file__).parent.parent.parent.parent.parent
+
+    # Check multiple locations in order of preference
+    env_locations = [
+        repo_root / ".env",  # Repo root first
+        Path.cwd() / ".env",  # Current directory
+        Path(__file__).parent / ".env",  # Script directory
+    ]
+
+    for env_path in env_locations:
+        if env_path.exists():
+            with open(env_path) as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#"):
+                        key, _, value = line.partition("=")
+                        # Only set if not already in environment
+                        env_key = key.strip()
+                        if env_key not in os.environ:
+                            os.environ[env_key] = value.strip().strip('"').strip("'")
+            break  # Stop after loading first .env file found
 
 
 # Try to load .env file on import
