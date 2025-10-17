@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useCallback, useMemo, useState } from "react";
-import { useAction } from "next-safe-action/hooks";
 import { Search } from "lucide-react";
 
 import { InstitutionCard } from "@/components/institutions/InstitutionCard";
@@ -10,12 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useFilterSort } from "@/lib/hooks/useFilterSort";
 import { SortControls } from "@/components/ui/sort-controls";
-import { useErrorHandling } from "@/lib/hooks/useErrorHandling";
 import { useOverlayNavigation } from "@/components/OverlayStack";
 import { InstitutionCreateForm } from "@/components/InstitutionCreateForm";
 import { InstitutionManagementModal } from "@/components/InstitutionManagementModal";
 import type { UnifiedInstitutionDTO } from "@/posts/data/managed-institutions";
-import { joinInstitutionAction } from "@/institutions/actions/joinInstitutionAction";
+import { useJoinInstitution } from "@/hooks/mutations/useJoinInstitution";
 
 interface InstitutionsDirectoryProps {
   directory: UnifiedInstitutionDTO[];
@@ -34,22 +32,10 @@ export const InstitutionsDirectory: React.FC<InstitutionsDirectoryProps> = ({
   const { openInstitution } = useOverlayNavigation();
 
   const {
+    mutate: joinInstitution,
+    isPending: isJoining,
     error: joinError,
-    setError: setJoinError,
-    clearError: clearJoinError,
-  } = useErrorHandling({
-    fallbackMessage: "Failed to join institution.",
-  });
-
-  const { execute: joinInstitution, isExecuting: isJoining } = useAction(
-    joinInstitutionAction,
-    {
-      onSuccess: () => {
-        clearJoinError();
-      },
-      onError: (error) => setJoinError(error),
-    }
-  );
+  } = useJoinInstitution();
 
   const allInstitutions = useMemo<UnifiedInstitutionDTO[]>(() => {
     const byId = new Map<string, UnifiedInstitutionDTO>();
@@ -99,9 +85,7 @@ export const InstitutionsDirectory: React.FC<InstitutionsDirectoryProps> = ({
 
   const handleJoin = useCallback(
     (institution: UnifiedInstitutionDTO) => {
-      const formData = new FormData();
-      formData.append("institutionId", institution.id);
-      joinInstitution(formData);
+      joinInstitution({ institutionId: institution.id });
     },
     [joinInstitution]
   );
@@ -223,7 +207,9 @@ export const InstitutionsDirectory: React.FC<InstitutionsDirectoryProps> = ({
             }
           />
 
-          {joinError && <p className="text-destructive text-sm">{joinError}</p>}
+          {joinError && (
+            <p className="text-destructive text-sm">{joinError.message}</p>
+          )}
 
           {/* Institutions Grid */}
           {filteredAndSortedItems.length > 0 ? (
