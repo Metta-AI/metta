@@ -137,13 +137,10 @@ public:
     }
   }
 
-  // For simplicity, we currently only allow recipes that either (a) are keyed exactly, or (b) are based on the number
-  // of agents.
   // Recipe lookup table for recipes that depend on agents vibing- keyed by local vibe (64-bit number from sorted
   // glyphs). Later, this may be switched to having string keys based on the glyphs.
-  const std::unordered_map<uint64_t, std::shared_ptr<Recipe>> vibe_recipes;
-  // Recipes that just depend on the number of agents.
-  const std::vector<std::shared_ptr<Recipe>> count_based_recipes;
+  // Note that 0 is both the vibe you get when no one is showing a glyph, and also the default vibe.
+  const std::unordered_map<uint64_t, std::shared_ptr<Recipe>> recipes;
 
   // Unclip recipes - used when assembler is clipped
   std::unordered_map<uint64_t, std::shared_ptr<Recipe>> unclip_recipes;
@@ -187,8 +184,7 @@ public:
   bool allow_partial_usage;
 
   Assembler(GridCoord r, GridCoord c, const AssemblerConfig& cfg)
-      : vibe_recipes(cfg.vibe_recipes),
-        count_based_recipes(cfg.count_based_recipes),
+      : recipes(cfg.recipes),
         unclip_recipes(),
         is_clipped(false),
         clip_immune(cfg.clip_immune),
@@ -278,20 +274,18 @@ public:
     if (!grid) return nullptr;
     uint64_t vibe = get_local_vibe();
 
-    // Use unclip recipes if clipped, normal recipes otherwise
+    auto recipes_to_use = recipes;
     if (is_clipped) {
-      auto it = unclip_recipes.find(vibe);
-      if (it == unclip_recipes.end()) return nullptr;
-      return it->second.get();
+      recipes_to_use = unclip_recipes;
     }
-    auto it = vibe_recipes.find(vibe);
-    if (it != vibe_recipes.end()) {
-      return it->second.get();
-    }
-    const size_t num_agents = get_surrounding_agents(nullptr).size();
-    if (num_agents < count_based_recipes.size()) {
-      return count_based_recipes[num_agents].get();
-    }
+
+    auto it = recipes_to_use.find(vibe);
+    if (it != recipes_to_use.end()) return it->second.get();
+
+    // Check the default if no recipe is found for the current vibe.
+    it = recipes_to_use.find(0);
+    if (it != recipes_to_use.end()) return it->second.get();
+
     return nullptr;
   }
 

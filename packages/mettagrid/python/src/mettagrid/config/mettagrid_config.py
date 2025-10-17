@@ -178,12 +178,9 @@ class AssemblerConfig(GridObjectConfig):
     """Python assembler configuration."""
 
     type: Literal["assembler"] = Field(default="assembler")
-    vibe_recipes: list[tuple[list[int], RecipeConfig]] = Field(
+    recipes: list[tuple[list[int], RecipeConfig]] = Field(
         default_factory=list,
         description="Recipes in reverse order of priority.",
-    )
-    count_based_recipes: list[RecipeConfig] = Field(
-        default_factory=list, description="Recipes that depend on the number of agents."
     )
     allow_partial_usage: bool = Field(
         default=False,

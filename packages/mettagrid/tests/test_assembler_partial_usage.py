@@ -22,8 +22,7 @@ class TestAssemblerPartialUsage:
             type_id=20,
             name="assembler",
             map_char="Z",
-            count_based_recipes=[RecipeConfig(input_resources={"iron": 10}, output_resources={"steel": 5}, cooldown=10)]
-            * 9,
+            recipes=[([], RecipeConfig(input_resources={"iron": 10}, output_resources={"steel": 5}, cooldown=10))],
             allow_partial_usage=False,  # Disable partial usage
         )
 
@@ -87,10 +86,7 @@ class TestAssemblerPartialUsage:
             type_id=20,
             name="assembler",
             map_char="Z",
-            count_based_recipes=[
-                RecipeConfig(input_resources={"iron": 20}, output_resources={"steel": 10}, cooldown=100)
-            ]
-            * 9,
+            recipes=[([], RecipeConfig(input_resources={"iron": 20}, output_resources={"steel": 10}, cooldown=100))],
             allow_partial_usage=True,
         )
 

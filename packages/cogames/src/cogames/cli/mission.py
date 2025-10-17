@@ -194,15 +194,10 @@ def describe_mission(mission_name: str, game_config: MettaGridConfig) -> None:
     for obj_name, obj_config in game_config.game.objects.items():
         console.print(f"  • {obj_name}")
         if isinstance(obj_config, AssemblerConfig):
-            for _, recipe in obj_config.vibe_recipes:
+            for _, recipe in obj_config.recipes:
                 if recipe.input_resources:
                     inputs = ", ".join(f"{k}:{v}" for k, v in recipe.input_resources.items())
-                    outputs = ", ".join(f"{k}:{v}" for k, v in recipe.output_resources.items())
-                    console.print(f"    {inputs} → {outputs} (cooldown: {recipe.cooldown})")
-            for recipe in obj_config.count_based_recipes:
-                if recipe.input_resources:
-                    inputs = ", ".join(f"{k}:{v}" for k, v in recipe.input_resources.items())
-                    outputs = ", ".join(f"{k}:{v}" for k, v in recipe.output_resources.items())
+                    outputs = ", ".join(f"{k}:{v}" for k, v in recipe.output_resources.items())  # type: ignore[attr-defined]
                     console.print(f"    {inputs} → {outputs} (cooldown: {recipe.cooldown})")
 
     # Display agent configuration

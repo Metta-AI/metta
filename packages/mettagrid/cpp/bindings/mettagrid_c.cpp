@@ -944,7 +944,7 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
 
       // Add all recipes information (only non-null recipes)
       const std::unordered_map<uint64_t, std::shared_ptr<Recipe>>& active_recipes =
-          assembler->is_clipped ? assembler->unclip_recipes : assembler->vibe_recipes;
+          assembler->is_clipped ? assembler->unclip_recipes : assembler->recipes;
       py::list recipes_list;
 
       // for (size_t i = 0; i < active_recipes.size(); ++i) {

@@ -31,11 +31,7 @@ def add_easy_heart_recipe(cfg: MettaGridConfig) -> None:
     if assembler_cfg is None:
         return
 
-    for _, recipe in assembler_cfg.vibe_recipes:
-        if recipe.output_resources.get("heart") and recipe.input_resources == {"energy": 1}:
-            return
-
-    for recipe in assembler_cfg.count_based_recipes:
+    for _, recipe in assembler_cfg.recipes:
         if recipe.output_resources.get("heart") and recipe.input_resources == {"energy": 1}:
             return
 
@@ -45,7 +41,7 @@ def add_easy_heart_recipe(cfg: MettaGridConfig) -> None:
         cooldown=1,
     )
     # This should allow agents to use the assembler as long as no one is showing a glyph.
-    assembler_cfg.vibe_recipes.append(([], easy_recipe))
+    assembler_cfg.recipes.append(([], easy_recipe))
     assembler_cfg.fully_overlapping_recipes_allowed = True
 
 
