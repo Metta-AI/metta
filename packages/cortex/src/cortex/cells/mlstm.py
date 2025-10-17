@@ -83,7 +83,6 @@ class mLSTMCell(MemoryCell):
         if cfg.use_axon_layer:
             in_features = 3 * H
             out_features = NH
-            is_pow2 = (in_features & (in_features - 1)) == 0 and in_features > 0
             ax_cfg = AxonsConfig(use_untraced_linear=True)
             self.igate = AxonLayer(
                 in_features,
@@ -116,25 +115,7 @@ class mLSTMCell(MemoryCell):
             self.qk_layer = None
         else:
             H = int(cfg.hidden_size)
-            is_pow2 = (H & (H - 1)) == 0 and H > 0
-            qkv_cfg = AxonsConfig(hidden_size=H, out_dim=H,use_untraced_linear=True)
-            self.qkv_act = nn.SiLU()  # match conv+SiLU behavior
-            # Shared-QK: single layer feeds both q and k; v has its own layer
-            self.qk_layer = AxonLayer(H, H, cfg=qkv_cfg, name="qk", group="mlstm_qkv")
-            self.v_layer = AxonLayer(H, H, cfg=qkv_cfg, name="v", group="mlstm_qkv")
-            self.q_layer = None
-            self.k_layer = None
-
-        if not cfg.use_axon_qkv:
-            self.qkv_act = None
-            self.q_layer = None
-            self.k_layer = None
-            self.v_layer = None
-            self.qk_layer = None
-        else:
-            H = int(cfg.hidden_size)
-            is_pow2 = (H & (H - 1)) == 0 and H > 0
-            qkv_cfg = AxonsConfig(hidden_size=H, out_dim=H,use_untraced_linear=True)
+            qkv_cfg = AxonsConfig(hidden_size=H, out_dim=H, use_untraced_linear=True)
             self.qkv_act = nn.SiLU()  # match conv+SiLU behavior
             # Shared-QK: single layer feeds both q and k; v has its own layer
             self.qk_layer = AxonLayer(H, H, cfg=qkv_cfg, name="qk", group="mlstm_qkv")
@@ -193,6 +174,16 @@ class mLSTMCell(MemoryCell):
         combined_state = TensorDict({"c": c_state, "n": n_state, "m": m_state}, batch_size=[B])
         combined_state.update(conv_state)  # Add conv state
         return combined_state
+
+    def _carry_auxiliary_state(self, source: MaybeState, dest: TensorDict) -> None:
+        if source is None:
+            raise ValueError("Auxiliary state merge requires a TensorDict source")
+        dest_keys = set(dest.keys())
+        for key in source.keys():
+            if key in dest_keys:
+                continue
+            dest[key] = source.get(key)
+            dest_keys.add(key)
 
     def forward(
         self,
@@ -300,12 +291,7 @@ class mLSTMCell(MemoryCell):
             if conv_state_new is not None:
                 new_state.update(conv_state_new)
             # Preserve any auxiliary substates (e.g., AxonLayer groups written into `st`)
-            try:
-                for k in list(st.keys()):
-                    if k not in ("c", "n", "m"):
-                        new_state[k] = st.get(k)
-            except Exception:
-                pass
+            self._carry_auxiliary_state(st, new_state)
         else:
             # Sequence processing
             # Exact segment-aware handling for resets: split the sequence into
@@ -366,12 +352,7 @@ class mLSTMCell(MemoryCell):
             if conv_state_new is not None:
                 new_state.update(conv_state_new)
             # Preserve any auxiliary substates (e.g., AxonLayer groups written into `st`)
-            try:
-                for k in list(st.keys()):
-                    if k not in ("c", "n", "m"):
-                        new_state[k] = st.get(k)
-            except Exception:
-                pass
+            self._carry_auxiliary_state(st, new_state)
 
         # Apply output normalization
         h_state_norm = self.outnorm(h_state)  # [B, NH, T, DH]

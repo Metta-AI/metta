@@ -73,25 +73,14 @@ class AxonLayer(nn.Module):
         self.linear = nn.Linear(self.in_features, self.out_features, bias=True)
         # Residual/convex gate parameter: alpha = sigmoid(alpha_logit)
 
-        # Local state used when parent state is not provided
-        self._local_state: MaybeState = None
-
     # Expose state path for debugging/tests
     def state_path(self) -> Tuple[str, str]:
         return self._state_group, self._state_key
 
-    def _ensure_state(self, batch: int, device: torch.device, dtype: torch.dtype, state: MaybeState) -> MaybeState:
+    def _ensure_state(self, batch: int, device: torch.device, dtype: torch.dtype, state: MaybeState) -> TensorDict:
         """Ensure a substate exists either in the provided parent or locally."""
         if state is None:
-            if self._local_state is None:
-                self._local_state = self.cell.init_state(batch=batch, device=device, dtype=dtype)
-            else:
-                # Re-init on batch change
-                if (self._local_state.batch_size and self._local_state.batch_size[0] != batch) or (
-                    self._local_state["hc1"].device != device or self._local_state["hc1"].dtype != dtype
-                ):
-                    self._local_state = self.cell.init_state(batch=batch, device=device, dtype=dtype)
-            return self._local_state
+            raise ValueError("AxonLayer requires an explicit parent TensorDict state.")
 
         # Parent state path: create group/key lazily
         if self._state_group not in state.keys():
@@ -126,14 +115,11 @@ class AxonLayer(nn.Module):
         st = self._ensure_state(batch=B, device=x.device, dtype=x.dtype, state=state)
 
         # Route to underlying AxonCell and write-back updated substate
-        if st is self._local_state:
-            y_axon, self._local_state = self.cell(x, self._local_state, resets=resets)
-        else:
-            group_td = st.get(self._state_group)
-            assert group_td is not None
-            sub = group_td.get(self._state_key)
-            y_axon, sub_new = self.cell(x, sub, resets=resets)
-            group_td[self._state_key] = sub_new
+        group_td = st.get(self._state_group)
+        assert group_td is not None
+        sub = group_td.get(self._state_key)
+        y_axon, sub_new = self.cell(x, sub, resets=resets)
+        group_td[self._state_key] = sub_new
 
         # Compute linear branch directly on input (supports [B, H] or [B, T, H])
         y_lin = self.linear(x)
@@ -150,10 +136,7 @@ class AxonLayer(nn.Module):
         internal state is reset.
         """
         if state is None:
-            if self._local_state is None:
-                return None
-            self._local_state = self.cell.reset_state(self._local_state, mask)  # type: ignore[arg-type]
-            return None
+            raise ValueError("AxonLayer.reset_state requires a parent TensorDict state.")
 
         if self._state_group in state.keys():
             group_td = state.get(self._state_group)
