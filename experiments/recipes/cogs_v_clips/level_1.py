@@ -483,8 +483,24 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
         return env
 
     def _overwrite_positions(self, object, positions):
-        for i, recipe in enumerate(object.recipes):
-            object.recipes[i] = (positions, recipe[1])
+        """Keep only recipes that match the desired number of agents (positions).
+
+        This prevents having multiple recipes with identical cog patterns, which
+        would violate the fully_overlapping_recipes_allowed=False constraint.
+        """
+        num_positions = len(positions)
+        # Filter recipes to only those matching the desired number of positions
+        filtered_recipes = [
+            (positions, recipe[1])
+            for pos_pattern, recipe in object.recipes
+            if len(pos_pattern) == num_positions
+        ]
+        # If we have at least one matching recipe, use it; otherwise keep the first one
+        if filtered_recipes:
+            object.recipes = filtered_recipes
+        else:
+            # Fallback: use the specified positions with the first recipe
+            object.recipes = [(positions, object.recipes[0][1])]
 
     def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
         env = self._make_env_cfg(rng)
