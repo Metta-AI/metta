@@ -179,7 +179,7 @@ class AssemblerConfig(GridObjectConfig):
     """Python assembler configuration."""
 
     type: Literal["assembler"] = Field(default="assembler")
-    recipes: list[tuple[list[Position], RecipeConfig]] = Field(
+    recipes: list[tuple[list[int], RecipeConfig]] = Field(
         default_factory=list,
         description="Recipes in reverse order of priority.",
     )

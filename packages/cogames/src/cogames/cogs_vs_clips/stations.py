@@ -1,6 +1,7 @@
 from typing import Optional
 
 from cogames.cogs_vs_clips import protocols
+from cogames.cogs_vs_clips.glyphs import GLYPH_NAMES
 from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig
 
 resources = [
@@ -26,7 +27,7 @@ def charger(max_uses: Optional[int] = None) -> AssemblerConfig:
         render_symbol="⚡",
         allow_partial_usage=True,  # can use it while its on cooldown
         max_uses=max_uses or 0,
-        recipes=protocols.protocol(recipe),
+        recipes=[([], recipe)],
     )
 
 
@@ -38,7 +39,7 @@ def carbon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         map_char="C",
         render_symbol="⚫",
         max_uses=max_uses or 0,
-        recipes=protocols.protocol(protocols.standard_carbon_recipe()),
+        recipes=[([], protocols.standard_carbon_recipe())],
     )
 
 
@@ -51,7 +52,7 @@ def oxygen_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         render_symbol="🔵",
         allow_partial_usage=True,  # can use it while its on cooldown
         max_uses=max_uses or 0,
-        recipes=protocols.protocol(protocols.standard_oxygen_recipe()),
+        recipes=[([], protocols.standard_oxygen_recipe())],
     )
 
 
@@ -63,12 +64,7 @@ def germanium_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         map_char="G",
         render_symbol="🟣",
         max_uses=max_uses or 2,
-        recipes=(
-            protocols.protocol(protocols.germanium_recipe(1), num_agents=1)
-            + protocols.protocol(protocols.germanium_recipe(2), num_agents=2)
-            + protocols.protocol(protocols.germanium_recipe(3), num_agents=3)
-            + protocols.protocol(protocols.germanium_recipe(4), min_agents=4)
-        ),
+        recipes=[([], protocols.germanium_recipe(1))],
     )
 
 
@@ -80,7 +76,7 @@ def silicon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         map_char="S",
         render_symbol="🔷",
         max_uses=max_uses or 0,
-        recipes=protocols.protocol(protocols.standard_silicon_recipe()),
+        recipes=[([], protocols.standard_silicon_recipe())],
     )
 
 
@@ -92,7 +88,7 @@ def clipped_carbon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         render_symbol="⚫",
         max_uses=max_uses or 0,
         start_clipped=True,
-        recipes=protocols.protocol(protocols.standard_carbon_recipe()),
+        recipes=[([], protocols.standard_carbon_recipe())],
     )
 
 
@@ -104,7 +100,7 @@ def clipped_oxygen_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         render_symbol="🔵",
         max_uses=max_uses or 0,
         start_clipped=True,
-        recipes=protocols.protocol(protocols.standard_carbon_recipe()),
+        recipes=[([], protocols.standard_oxygen_recipe())],
     )
 
 
@@ -116,10 +112,7 @@ def clipped_germanium_extractor(max_uses: Optional[int] = None) -> AssemblerConf
         render_symbol="🟣",
         max_uses=max_uses or 2,
         start_clipped=True,
-        recipes=protocols.protocol(protocols.germanium_recipe(1), num_agents=1)
-        + protocols.protocol(protocols.germanium_recipe(2), num_agents=2)
-        + protocols.protocol(protocols.germanium_recipe(3), num_agents=3)
-        + protocols.protocol(protocols.germanium_recipe(4), min_agents=4),
+        recipes=[([], protocols.germanium_recipe(1))],
     )
 
 
@@ -131,7 +124,7 @@ def clipped_silicon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig
         render_symbol="🔷",
         max_uses=max_uses or 0,
         start_clipped=True,
-        recipes=protocols.protocol(protocols.standard_silicon_recipe()),
+        recipes=[([], protocols.standard_silicon_recipe())],
     )
 
 
@@ -142,7 +135,7 @@ def carbon_ex_dep() -> AssemblerConfig:
         map_char="c",
         render_symbol="⬛",
         max_uses=100,
-        recipes=protocols.protocol(protocols.low_carbon_recipe()),
+        recipes=[([], protocols.low_carbon_recipe())],
     )
 
 
@@ -154,7 +147,7 @@ def oxygen_ex_dep() -> AssemblerConfig:
         render_symbol="⬜",
         max_uses=10,
         allow_partial_usage=True,
-        recipes=protocols.protocol(protocols.low_oxygen_recipe()),
+        recipes=[([], protocols.low_oxygen_recipe())],
     )
 
 
@@ -165,12 +158,7 @@ def germanium_ex_dep() -> AssemblerConfig:
         map_char="g",
         render_symbol="🟪",
         max_uses=1,
-        recipes=(
-            protocols.protocol(protocols.germanium_recipe(1), num_agents=1)
-            + protocols.protocol(protocols.germanium_recipe(2), num_agents=2)
-            + protocols.protocol(protocols.germanium_recipe(3), num_agents=3)
-            + protocols.protocol(protocols.germanium_recipe(4), min_agents=4)
-        ),
+        recipes=[([], protocols.germanium_recipe(1))],
     )
 
 
@@ -181,7 +169,7 @@ def silicon_ex_dep() -> AssemblerConfig:
         map_char="s",
         render_symbol="🔹",
         max_uses=10,
-        recipes=protocols.protocol(protocols.low_silicon_recipe()),
+        recipes=[([], protocols.low_silicon_recipe())],
     )
 
 
@@ -253,44 +241,16 @@ def assembler() -> AssemblerConfig:
         render_symbol="🔄",
         clip_immune=True,
         recipes=[
-            # Single agent heart recipes (cardinal directions)
-            (["N"], protocols.one_agent_heart_recipe()),
-            (["W"], protocols.one_agent_heart_recipe()),
-            (["S"], protocols.one_agent_heart_recipe()),
-            (["E"], protocols.one_agent_heart_recipe()),
-            # Two agent heart recipes (two cardinal directions)
-            (["N", "E"], protocols.two_agent_heart_recipe()),
-            (["N", "W"], protocols.two_agent_heart_recipe()),
-            (["N", "S"], protocols.two_agent_heart_recipe()),
-            (["E", "S"], protocols.two_agent_heart_recipe()),
-            (["E", "W"], protocols.two_agent_heart_recipe()),
-            (["S", "W"], protocols.two_agent_heart_recipe()),
-            # Three agent heart recipes
-            (["N", "E", "W"], protocols.three_agent_heart_recipe()),
-            (["N", "E", "S"], protocols.three_agent_heart_recipe()),
-            (["N", "W", "S"], protocols.three_agent_heart_recipe()),
-            (["E", "W", "S"], protocols.three_agent_heart_recipe()),
-            # Four agent heart recipe
-            (["N", "E", "W", "S"], protocols.four_agent_heart_recipe()),
-            # Equipment recipes: NE diagonal + cardinal = decoder
-            (["NE", "N"], protocols.decoder_recipe()),
-            (["NE", "E"], protocols.decoder_recipe()),
-            (["NE", "S"], protocols.decoder_recipe()),
-            (["NE", "W"], protocols.decoder_recipe()),
-            # Equipment recipes: SE diagonal + cardinal = modulator
-            (["SE", "N"], protocols.modulator_recipe()),
-            (["SE", "E"], protocols.modulator_recipe()),
-            (["SE", "S"], protocols.modulator_recipe()),
-            (["SE", "W"], protocols.modulator_recipe()),
-            # Equipment recipes: SW diagonal + cardinal = scrambler
-            (["SW", "N"], protocols.scrambler_recipe()),
-            (["SW", "E"], protocols.scrambler_recipe()),
-            (["SW", "S"], protocols.scrambler_recipe()),
-            (["SW", "W"], protocols.scrambler_recipe()),
-            # Equipment recipes: NW diagonal + cardinal = resonator
-            (["NW", "N"], protocols.resonator_recipe()),
-            (["NW", "E"], protocols.resonator_recipe()),
-            (["NW", "S"], protocols.resonator_recipe()),
-            (["NW", "W"], protocols.resonator_recipe()),
+            ([GLYPH_NAMES["heart"]], protocols.one_agent_heart_recipe()),
+            ([GLYPH_NAMES["heart"], GLYPH_NAMES["heart"]], protocols.two_agent_heart_recipe()),
+            ([GLYPH_NAMES["heart"], GLYPH_NAMES["heart"], GLYPH_NAMES["heart"]], protocols.three_agent_heart_recipe()),
+            (
+                [GLYPH_NAMES["heart"], GLYPH_NAMES["heart"], GLYPH_NAMES["heart"], GLYPH_NAMES["heart"]],
+                protocols.four_agent_heart_recipe(),
+            ),
+            ([GLYPH_NAMES["angry"], GLYPH_NAMES["carbon"]], protocols.decoder_recipe()),
+            ([GLYPH_NAMES["angry"], GLYPH_NAMES["oxygen"]], protocols.modulator_recipe()),
+            ([GLYPH_NAMES["angry"], GLYPH_NAMES["germanium"]], protocols.scrambler_recipe()),
+            ([GLYPH_NAMES["angry"], GLYPH_NAMES["silicon"]], protocols.resonator_recipe()),
         ],
     )
