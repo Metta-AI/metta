@@ -23,7 +23,8 @@ class MLPConfig(ComponentConfig):
     nonlinearity: Optional[str] = "ReLU"  # e.g., "ReLU", "Tanh"; Name of a torch.nn module
     output_nonlinearity: Optional[str] = None  # e.g., "ReLU", "Tanh"; Name of a torch.nn module
     layer_init_std: float = 1.0
-    dropout: float = 0.25
+    dropout_p: float = 0.25
+    is_dropout: bool = True
 
     def make_component(self, env=None):
         return MLP(config=self)
@@ -71,6 +72,9 @@ class MLP(nn.Module):
                 nonlinearity_module = self._get_nonlinearity(self.config.nonlinearity)
                 # Apply nonlinearity in-place on the output key of the linear layer
                 layers.append(TDM(nonlinearity_module, in_keys=[layer_out_key], out_keys=[layer_out_key]))
+
+            if self.is_dropout:
+                layers.append(nn.ConsistentDropout(self.config.dropout_p))
 
             current_in_features = out_features
             current_in_key = layer_out_key
