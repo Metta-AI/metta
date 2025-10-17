@@ -240,22 +240,51 @@ class ReplayMiner:
         """Save dataset to Parquet format (local or S3)."""
         import json
 
-        # Convert samples to DataFrame
-        df = pd.DataFrame(
-            [
+        # Handle empty sample set by creating DataFrame with expected schema
+        if not self.samples:
+            logger.warning(f"No samples to save for {self.date}, creating empty shard with schema")
+            df = pd.DataFrame(
+                columns=[
+                    "observation",
+                    "action",
+                    "agent_id",
+                    "episode_id",
+                    "timestep",
+                    "date",
+                    "min_reward",
+                    "environment",
+                ]
+            )
+            # Set column types to match expected schema
+            df = df.astype(
                 {
-                    "observation": json.dumps(sample.observation),  # Serialize dict to JSON string
-                    "action": sample.action,
-                    "agent_id": sample.agent_id,
-                    "episode_id": sample.episode_id,
-                    "timestep": sample.timestep,
-                    "date": self.date,
-                    "min_reward": self.min_reward,
-                    "environment": self.environment,
+                    "observation": "object",
+                    "action": "int64",
+                    "agent_id": "int64",
+                    "episode_id": "object",
+                    "timestep": "int64",
+                    "date": "object",
+                    "min_reward": "float64",
+                    "environment": "object",
                 }
-                for sample in self.samples
-            ]
-        )
+            )
+        else:
+            # Convert samples to DataFrame
+            df = pd.DataFrame(
+                [
+                    {
+                        "observation": json.dumps(sample.observation),  # Serialize dict to JSON string
+                        "action": sample.action,
+                        "agent_id": sample.agent_id,
+                        "episode_id": sample.episode_id,
+                        "timestep": sample.timestep,
+                        "date": self.date,
+                        "min_reward": self.min_reward,
+                        "environment": self.environment,
+                    }
+                    for sample in self.samples
+                ]
+            )
 
         # Save to parquet (handles S3 automatically if URI is s3://)
         df.to_parquet(output_uri, index=False)
