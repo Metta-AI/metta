@@ -63,38 +63,53 @@ A social feed and knowledge repository for AI research papers, built with Next.j
    REDIS_PORT=6379
    REDIS_PASSWORD=
    REDIS_TLS=false
-
-   # AWS miscellaneous (optional for PDF processing)
-   AWS_REGION=us-east-1
-   AWS_PROFILE=softmax
-   AWS_S3_BUCKET=metta-pdf-processing
-
-   # LLM integrations (optional)
-   ANTHROPIC_API_KEY=your-anthropic-key
-
-   # Adobe PDF Services (optional)
-   ADOBE_CLIENT_ID=your-adobe-client-id
-   ADOBE_CLIENT_SECRET=your-adobe-client-secret
-
-   # Asana integration (optional)
-   ASANA_API_KEY=
-   ASANA_TOKEN=
-   ASANA_PAPERS_PROJECT_ID=
-   ASANA_WORKSPACE_ID=
-   ASANA_PAPER_LINK_FIELD_ID=
-   ASANA_ARXIV_ID_FIELD_ID=
-   ASANA_ABSTRACT_FIELD_ID=
    ```
 
-   > Only populate the sections relevant to the features you plan to exercise locally. Leave optional values blank to disable the corresponding integration.
+# AWS miscellaneous (optional for PDF processing)
+
+AWS_REGION=us-east-1
+AWS_PROFILE=softmax
+AWS_S3_BUCKET=metta-pdf-processing
+
+# LLM integrations (optional)
+
+ANTHROPIC_API_KEY=your-anthropic-key
+
+# Adobe PDF Services (optional)
+
+ADOBE_CLIENT_ID=your-adobe-client-id
+ADOBE_CLIENT_SECRET=your-adobe-client-secret
+
+# Figure extraction (optional, disabled by default)
+
+# Set to "true" to enable figure image and text extraction from PDFs
+
+# Note: Figure extraction is currently experimental and may not work reliably
+
+ENABLE_FIGURE_EXTRACTION=false
+NEXT_PUBLIC_ENABLE_FIGURE_EXTRACTION=false
+
+# Asana integration (optional)
+
+ASANA_API_KEY=
+ASANA_TOKEN=
+ASANA_PAPERS_PROJECT_ID=
+ASANA_WORKSPACE_ID=
+ASANA_PAPER_LINK_FIELD_ID=
+ASANA_ARXIV_ID_FIELD_ID=
+ASANA_ABSTRACT_FIELD_ID=
+
+````
+
+> Only populate the sections relevant to the features you plan to exercise locally. Leave optional values blank to disable the corresponding integration.
 
 3. **Generate authentication secret**:
 
-   ```bash
-   pnpm auth secret
-   ```
+```bash
+pnpm auth secret
+````
 
-   This will populate your `.env.local` file with a random `NEXTAUTH_SECRET`.
+This will populate your `.env.local` file with a random `NEXTAUTH_SECRET`.
 
 4. **Set up the database**:
 

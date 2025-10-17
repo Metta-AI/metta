@@ -413,9 +413,10 @@ const LLMAbstractView: FC<LLMAbstractViewProps> = ({
             </p>
           </div>
 
-          {/* Figure Insights */}
+          {/* Figure Insights - Hidden when figure extraction is disabled */}
           {llmAbstract.figuresWithImages &&
-            llmAbstract.figuresWithImages.length > 0 && (
+            llmAbstract.figuresWithImages.length > 0 &&
+            process.env.NEXT_PUBLIC_ENABLE_FIGURE_EXTRACTION === "true" && (
               <div>
                 <div className="mb-2 text-[12px] font-semibold text-neutral-700">
                   Key Figures ({llmAbstract.figuresWithImages.length})
