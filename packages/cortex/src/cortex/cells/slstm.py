@@ -97,7 +97,8 @@ class sLSTMCell(MemoryCell):
         if cfg.use_axon_layer:
             # Fused Axon gates: compute [i,f] from x_conv and [z,o] from x_seq
             # with two AxonLayer calls H -> 2H to reduce per-chunk overhead.
-            ax_cfg = AxonsConfig(hidden_size=H, out_dim=2 * H, use_untraced_linear=True)
+            # Allow override from config; AxonLayer will enforce IO sizes.
+            ax_cfg = cfg.axon_layer_config or AxonsConfig(hidden_size=H, out_dim=2 * H, use_untraced_linear=True)
             self.if_fused = AxonLayer(H, 2 * H, cfg=ax_cfg, name="if_fused", group="slstm")
             self.zo_fused = AxonLayer(H, 2 * H, cfg=ax_cfg, name="zo_fused", group="slstm")
         else:

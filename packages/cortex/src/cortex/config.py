@@ -50,7 +50,12 @@ class mLSTMCellConfig(CellConfig):
     # Optionally also use AxonLayers for Q/K/V (defaults to conv path)
     use_axon_qkv: bool = Field(default=False)
     # Rank for AxonLayer low-rank output map when enabled (None → use Axon default)
-    axon_rank: int | None = Field(default=None, ge=1)
+    # Optional Axon configs to customize AxonLayer behavior when enabled.
+    # If provided, these will be forwarded to the internal AxonLayer instances
+    # for the gates (3H->NH) and the optional QKV path (H->H). IO sizes and
+    # activation will be overridden by the AxonLayer wrapper as needed.
+    axon_layer_config: AxonsConfig | None = Field(default=None)
+    axon_qkv_config: AxonsConfig | None = Field(default=None)
     # When use_axon_qkv is enabled, Q/K share a layer and V has its own layer.
 
 
@@ -65,25 +70,10 @@ class sLSTMCellConfig(CellConfig):
     dropout: float = Field(default=0.0, ge=0.0)
     # Use AxonLayer-based gates instead of block-diagonal Linear expand
     use_axon_layer: bool = Field(default=False)
-    # Rank for AxonLayer low-rank output map when enabled (per-head). None → Axon default.
-    axon_rank: int | None = Field(default=None, ge=1)
+    # Optional Axon config forwarded to fused gate AxonLayers when enabled.
+    axon_layer_config: AxonsConfig | None = Field(default=None)
 
 
-class RTUCellConfig(CellConfig):
-    """Configuration for the low-rank Recurrent Trace Unit (RTU) cell.
-
-    The RTU operates on an internal dimension ``hidden_size`` (D == H) and exposes
-    a low-rank input map with rank ``rank``. The underlying kernel produces a
-    2H-dimensional activation which the Cortex cell projects back to H to fit the
-    block interfaces.
-    """
-
-    hidden_size: int | None = Field(default=None)
-    rank: int = Field(default=16, ge=1)
-    activation: str = Field(default="identity")  # one of: silu|relu|tanh|identity
-    r_max: float = Field(default=1.0)
-    r_min: float = Field(default=0.0)
-    max_phase: float = Field(default=6.28)
 
 
 class AxonsConfig(CellConfig):
@@ -114,7 +104,7 @@ class AxonsConfig(CellConfig):
     # Use an untraced learnable linear input projection (H -> H) instead of SRHT.
     # This projection is applied outside the traced kernel and does not receive
     # cross‑chunk boundary corrections. It is automatically disabled when
-    # use_fullrank_rtu=True. It also siables srht if enabled.
+    # use_fullrank_rtu=True. It also disables srht if enabled.
     use_untraced_linear: bool = Field(default=True)
 
 

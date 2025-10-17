@@ -13,7 +13,6 @@ Add new templates by:
 
 from __future__ import annotations
 
-from ast import Pass
 from dataclasses import dataclass
 from typing import Callable, Dict
 
@@ -29,6 +28,7 @@ from cortex.config import (
 from cortex.factory import build_cortex
 from cortex.stacks import CortexStack
 from cortex.stacks.xlstm import build_xlstm_stack
+from torch import true_divide
 
 
 @dataclass
@@ -104,7 +104,7 @@ def build_mlstm_preup_axon(*, d_hidden: int = 128, proj_factor: float = 2.0, num
         d_hidden=d_hidden,
         post_norm=True,
         blocks=[
-            PreUpBlockConfig(
+            PassThroughBlockConfig(
                 # hidden_size is inferred from PreUp: int(proj_factor * d_hidden)
                 cell=AxonsConfig(hidden_size=None, activation="silu", use_fullrank_rtu=False, use_untraced_linear=True)
             ),
@@ -117,7 +117,6 @@ def build_mlstm_preup_axon(*, d_hidden: int = 128, proj_factor: float = 2.0, num
                     conv1d_kernel_size=4,
                     use_axon_layer=True,
                     use_axon_qkv=True,
-                    axon_rank=None,
                 ),
             ),
         ],
@@ -151,8 +150,6 @@ def build_axons_preup(*, d_hidden: int = 128, proj_factor: float = 2.0) -> Corte
     return build_cortex(cfg)
 
 
-
-
 # Registry of available stacks for the evaluation harness
 STACKS: Dict[str, StackSpec] = {
     # Single‑block templates
@@ -160,7 +157,7 @@ STACKS: Dict[str, StackSpec] = {
     "mlstm": StackSpec(name="mlstm_preup", builder=lambda: build_mlstm_preup(), d_hidden=128),
     "slstm_axon": StackSpec(name="slstm_postup_axon", builder=lambda: build_slstm_postup_axon(), d_hidden=128),
     "mlstm_axon": StackSpec(name="mlstm_preup_axon", builder=lambda: build_mlstm_preup_axon(), d_hidden=128),
-    "axons_preup": StackSpec(name="axons_preup", builder=lambda: build_axons_preup(), d_hidden=128),
+    "axons": StackSpec(name="axons_preup", builder=lambda: build_axons_preup(), d_hidden=128),
     # Composite templates
     # xLSTM: alternates mLSTM (PreUp) and sLSTM (PostUp)
     "xlstm": StackSpec(name="xlstm", builder=lambda: build_xlstm_stack(d_hidden=128, num_blocks=3), d_hidden=128),
