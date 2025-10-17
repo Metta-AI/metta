@@ -115,13 +115,6 @@ class LSTMReset(nn.Module):
         state_dict: Mapping[str, torch.Tensor],
         strict: bool = True,
     ) -> _IncompatibleKeys:
-        if state_dict:
-            # Older checkpoints serialized lstm_h / lstm_c buffers. Drop them so strict loads keep working.
-            filtered = dict(state_dict)
-            for key in list(filtered.keys()):
-                if key.rsplit(".", 1)[-1] in {"lstm_h", "lstm_c"}:
-                    filtered.pop(key)
-            state_dict = filtered
         load_info = super().load_state_dict(state_dict, strict=strict)
         self.reset_memory()
         return load_info
