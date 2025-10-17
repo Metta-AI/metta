@@ -4,8 +4,8 @@ from typing import Sequence
 from metta.app_backend.clients.stats_client import HttpStatsClient
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest
 from metta.common.tool.tool import Tool
-from metta.common.util.commit_validation import get_validated_commit_hash
 from metta.common.util.constants import PROD_STATS_SERVER_URI
+from metta.common.util.git_helpers import get_task_commit_hash
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.utils import get_or_create_policy_ids
@@ -24,7 +24,7 @@ class EvalRemoteTool(Tool):
         normalized_uri = CheckpointManager.normalize_uri(self.policy_uri)
         policy_id = get_or_create_policy_ids(stats_client, [(normalized_uri, "")])[normalized_uri]
 
-        git_hash = get_validated_commit_hash(skip_git_check=True)
+        git_hash = get_task_commit_hash(skip_git_check=True)
 
         task = stats_client.create_task(
             TaskCreateRequest(
