@@ -322,9 +322,7 @@ class LearningTaskGraph(TaskGraph[LearningTaskData]):
                 if prereq_comp < self.prereq_threshold:
                     gain = 0.0
                 else:
-                    gain = self.base_learning_rate * (1.0 - payload.difficulty) * prereq_comp * (
-                        1.0 - state[task_id]
-                    )
+                    gain = self.base_learning_rate * (1.0 - payload.difficulty) * prereq_comp * (1.0 - state[task_id])
                 if gain > best_gain:
                     best_gain = gain
                     best_task = task_id
@@ -344,8 +342,12 @@ class LearningTaskGraph(TaskGraph[LearningTaskData]):
         prereqs = self.dependencies_of(task_id)
         prereq_comp = 1.0 if not prereqs else min(new_state[dep] for dep in prereqs)
         if prereq_comp >= self.prereq_threshold:
-            gain = self.base_learning_rate * (1.0 - payload.difficulty) * prereq_comp * experience * (
-                1.0 - new_state[task_id]
+            gain = (
+                self.base_learning_rate
+                * (1.0 - payload.difficulty)
+                * prereq_comp
+                * experience
+                * (1.0 - new_state[task_id])
             )
             if gain > 0:
                 new_state[task_id] = min(1.0, new_state[task_id] + gain)
