@@ -165,3 +165,8 @@ releases:
     chart: ./dashboard-cronjob
     version: 0.1.0
     namespace: monitoring
+
+  - name: replay-mining-cronjob
+    chart: ./replay-mining-cronjob
+    version: 0.1.0
+    namespace: monitoring

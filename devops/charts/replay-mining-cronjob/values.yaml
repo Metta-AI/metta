@@ -1,0 +1,38 @@
+schedule: "0 2 * * *"  # Run daily at 2 AM UTC
+
+image:
+  registry: 751442549699.dkr.ecr.us-east-1.amazonaws.com
+  name: metta-policy-evaluator  # Reuse existing image with metta environment
+  pullPolicy: Always
+  tag: "latest"
+
+# Command to run the replay mining script
+# By default processes yesterday's replays (auto-calculated)
+# Creates daily-sharded datasets: replays_YYYYMMDD.parquet
+command: ["uv", "run", "python", "-m", "metta.tools.replay.replay_mine"]
+
+serviceAccount:
+  create: true
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/replay-mining-cronjob
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 2Gi
+  limits:
+    cpu: 2000m
+    memory: 8Gi
+
+# Datadog metric tagging
+datadog:
+  env: "production"
+  service: "replay-mining-cronjob"
+  site: "datadoghq.com"
+
+# CronJob configuration
+successfulJobsHistoryLimit: 3
+failedJobsHistoryLimit: 3
+concurrencyPolicy: Forbid  # Don't allow concurrent executions
+restartPolicy: OnFailure
+backoffLimit: 3

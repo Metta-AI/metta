@@ -5,6 +5,7 @@ Provides canonical parsing for supported schemes (local files, file://, mock://,
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -51,6 +52,16 @@ class ParsedURI:
     def parse(cls, value: str) -> "ParsedURI":
         if not value:
             raise ValueError("URI cannot be empty")
+
+        # Check if this is an S3 HTTPS URL and convert to s3:// URI
+        if value.startswith("https://") or value.startswith("http://"):
+            # Match pattern: https://{bucket}.s3.amazonaws.com/{key}
+            s3_pattern = r"^https?://([^.]+)\.s3\.amazonaws\.com/(.+)$"
+            match = re.match(s3_pattern, value)
+            if match:
+                bucket, key = match.groups()
+                # Convert to s3:// URI for proper handling
+                value = f"s3://{bucket}/{key}"
 
         if value.startswith("s3://"):
             remainder = value[5:]
