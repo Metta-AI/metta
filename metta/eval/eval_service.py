@@ -118,6 +118,7 @@ def extract_scores(
     category_scores = category_metric("reward")
     fairness_gap_category_scores = category_metric("reward_fairness_gap")
     fairness_std_category_scores = category_metric("reward_fairness_std")
+    fairness_gini_category_scores = category_metric("reward_fairness_gini")
 
     return EvalRewardSummary(
         category_scores=category_scores,
@@ -126,4 +127,6 @@ def extract_scores(
         fairness_gap_simulation_scores=stats_db.simulation_scores(checkpoint_uri, "reward_fairness_gap"),
         fairness_std_category_scores=fairness_std_category_scores,
         fairness_std_simulation_scores=stats_db.simulation_scores(checkpoint_uri, "reward_fairness_std"),
+        fairness_gini_category_scores=fairness_gini_category_scores,
+        fairness_gini_simulation_scores=stats_db.simulation_scores(checkpoint_uri, "reward_fairness_gini"),
     )

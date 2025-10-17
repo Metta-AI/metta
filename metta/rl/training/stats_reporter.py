@@ -69,6 +69,8 @@ def build_wandb_payload(
         overview[f"{category}_fairness_gap"] = gap
     for category, std in evals.fairness_std_category_scores.items():
         overview[f"{category}_fairness_std"] = std
+    for category, gini in evals.fairness_gini_category_scores.items():
+        overview[f"{category}_fairness_gini"] = gini
     if "reward" in overview:
         overview["reward_vs_total_time"] = overview["reward"]
 

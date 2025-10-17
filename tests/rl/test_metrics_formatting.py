@@ -39,6 +39,8 @@ class TestMetricsFormattingMain:
             fairness_gap_simulation_scores={("navigation", "maze"): 0.25},
             fairness_std_category_scores={"navigation": 0.05},
             fairness_std_simulation_scores={("navigation", "maze"): 0.06},
+            fairness_gini_category_scores={"navigation": 0.15},
+            fairness_gini_simulation_scores={("navigation", "maze"): 0.18},
         )
 
         hyperparameters = {"learning_rate": 0.001}
@@ -91,6 +93,8 @@ class TestMetricsFormattingMain:
         assert result["eval_navigation/fairness_gap/maze"] == 0.25
         assert result["eval_navigation/fairness_std"] == 0.05
         assert result["eval_navigation/fairness_std/maze"] == 0.06
+        assert result["eval_navigation/fairness_gini"] == 0.15
+        assert result["eval_navigation/fairness_gini/maze"] == 0.18
 
         # Check system stats (already prefixed)
         assert result["monitor/cpu_percent"] == 50.0
