@@ -14,6 +14,9 @@ import gitta
 
 logger = logging.getLogger(__name__)
 
+# Re-export GitError for convenience
+GitError = gitta.GitError
+
 
 def get_task_commit_hash(
     target_repo: Optional[str] = None,
