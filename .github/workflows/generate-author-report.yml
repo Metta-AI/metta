@@ -33,9 +33,11 @@ jobs:
 
       - name: Validate Author Input
         id: validate-author
+        env:
+          INPUT_AUTHOR: ${{ inputs.author }}
         run: |
           # Basic validation of author username
-          AUTHOR="${{ inputs.author }}"
+          AUTHOR="$INPUT_AUTHOR"
 
           # Remove any leading @ symbol if present
           AUTHOR="${AUTHOR#@}"
@@ -97,7 +99,7 @@ jobs:
           INCLUDE_DRAFT_PRS: ${{ inputs.include_draft_prs }}
           PR_DIGEST_FILE: "pr_digest_output.json"
         run: |
-          echo "Creating PR digest for author '${{ steps.validate-author.outputs.author }}' for last ${{ inputs.days_to_scan }} days..."
+          echo "Creating PR digest for author '${{ steps.validate-author.outputs.author }}' for last $DAYS_TO_SCAN days..."
 
           # Show cache status before running
           if [ -d "pr-summaries" ]; then

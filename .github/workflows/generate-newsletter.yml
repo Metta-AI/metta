@@ -36,23 +36,28 @@ jobs:
 
       - name: Set days to scan and date range
         id: set-days
+        env:
+          INPUT_HISTORICAL_DATE: ${{ inputs.historical_date }}
+          INPUT_DAYS_TO_SCAN: ${{ inputs.days_to_scan }}
+          DEFAULT_HISTORY_DAYS: ${{ vars.PR_NEWSLETTER_HISTORY_DAYS }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           # Validate and set historical date if provided
-          if [ -n "${{ inputs.historical_date }}" ]; then
+          if [ -n "$INPUT_HISTORICAL_DATE" ]; then
             # Validate date format
-            if ! date -d "${{ inputs.historical_date }}" >/dev/null 2>&1; then
+            if ! date -d "$INPUT_HISTORICAL_DATE" >/dev/null 2>&1; then
               echo "❌ Invalid date format. Please use YYYY-MM-DD format."
               exit 1
             fi
 
             # Set the end date to the historical date
-            END_DATE="${{ inputs.historical_date }}"
+            END_DATE="$INPUT_HISTORICAL_DATE"
             echo "📅 Using historical date: $END_DATE"
             echo "is_historical=true" >> $GITHUB_OUTPUT
             echo "end_date=$END_DATE" >> $GITHUB_OUTPUT
 
             # For historical runs, always use workflow input for days
-            DAYS="${{ inputs.days_to_scan || '7' }}"
+            DAYS="${INPUT_DAYS_TO_SCAN:-7}"
             echo "Using $DAYS days before $END_DATE"
           else
             # Normal operation - use current date
@@ -60,7 +65,7 @@ jobs:
             echo "is_historical=false" >> $GITHUB_OUTPUT
             echo "end_date=$END_DATE" >> $GITHUB_OUTPUT
 
-            if [ "${{ github.event_name }}" = "schedule" ]; then
+            if [ "$EVENT_NAME" = "schedule" ]; then
               # Get current day of week (0=Sunday, 1=Monday, etc.)
               DAY_OF_WEEK=$(date +%w)
 
@@ -80,13 +85,13 @@ jobs:
                   echo "Friday run: using 2 days of history"
                   ;;
                 *) # Fallback (shouldn't happen with your cron schedule)
-                  DAYS="${{ vars.PR_NEWSLETTER_HISTORY_DAYS || '1' }}"
+                  DAYS="${DEFAULT_HISTORY_DAYS:-1}"
                   echo "Unexpected day, using default: $DAYS days"
                   ;;
               esac
             else
               # Use workflow input for manual runs, fallback to 1 if not provided
-              DAYS="${{ inputs.days_to_scan || '1' }}"
+              DAYS="${INPUT_DAYS_TO_SCAN:-1}"
               echo "Using workflow input: $DAYS days"
             fi
           fi

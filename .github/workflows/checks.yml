@@ -50,7 +50,10 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_id != '' }}
     steps:
       - name: Echo run_id
-        run: echo "RUN_ID=${{ inputs.run_id }}"
+        env:
+          WORKFLOW_RUN_ID: ${{ inputs.run_id }}
+        run: |
+          echo "RUN_ID=$WORKFLOW_RUN_ID"
 
   # check if CI should run based on Graphite's stack position
   graphite-ci-optimizer:
@@ -131,14 +134,19 @@ jobs:
 
       - name: Determine which tasks to run
         id: determine_tasks
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_RUN_LINT: ${{ github.event.inputs.run_lint }}
+          DISPATCH_RUN_TEST: ${{ github.event.inputs.run_test }}
+          DISPATCH_RUN_BENCHMARK: ${{ github.event.inputs.run_benchmark }}
         run: |
           # Default behavior based on event type and file changes
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
             # Use workflow dispatch inputs for manual runs
-            RUN_LINT="${{ github.event.inputs.run_lint }}"
-            RUN_TEST="${{ github.event.inputs.run_test }}"
-            RUN_BENCHMARK="${{ github.event.inputs.run_benchmark }}"
-          elif [[ "${{ github.event_name }}" == "pull_request" && "${{ steps.check_py_files.outputs.has_relevant_changes }}" == "false" ]]; then
+            RUN_LINT="$DISPATCH_RUN_LINT"
+            RUN_TEST="$DISPATCH_RUN_TEST"
+            RUN_BENCHMARK="$DISPATCH_RUN_BENCHMARK"
+          elif [[ "$EVENT_NAME" == "pull_request" && "${{ steps.check_py_files.outputs.has_relevant_changes }}" == "false" ]]; then
             # Skip everything for PRs with no relevant changes
             RUN_LINT="false"
             RUN_TEST="false"
@@ -190,6 +198,9 @@ jobs:
 
       - name: Run cpplint
         run: ./packages/mettagrid/tests/cpplint.sh
+
+      - name: Check workflow run interpolations
+        run: python3 .github/scripts/check_workflow_interpolations.py
 
   observatory-typescript-check:
     name: "Observatory TypeScript Check"

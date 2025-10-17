@@ -28,8 +28,10 @@ jobs:
 
       - name: Validate PR number
         id: validate
+        env:
+          INPUT_PR_NUMBER: ${{ inputs.pr_number }}
         run: |
-          PR_NUM="${{ inputs.pr_number }}"
+          PR_NUM="$INPUT_PR_NUMBER"
           if ! [[ "$PR_NUM" =~ ^[0-9]+$ ]]; then
             echo "❌ Invalid PR number: $PR_NUM (must be numeric)"
             exit 1
@@ -149,6 +151,8 @@ jobs:
           fi
 
       - name: Create Individual PR File
+        env:
+          MODEL_TIER: ${{ inputs.model_tier }}
         run: |
           mkdir -p pr-analysis
 
@@ -173,8 +177,8 @@ jobs:
           cat > pr-analysis/pr_${{ steps.validate.outputs.pr_number }}_analysis.txt <<EOF
           PR #${{ steps.validate.outputs.pr_number }} Analysis Report
           Generated: $(date -u)
-          Model: ${{ inputs.model_tier }}
-          Repository: ${{ github.repository }}
+          Model: $MODEL_TIER
+          Repository: $GITHUB_REPOSITORY
 
           ================================================================================
 
@@ -194,6 +198,9 @@ jobs:
           key: pr-cache-${{ github.repository }}-${{ hashFiles('.github/scripts/gemini_*.py') }}
 
       - name: Create Summary
+        env:
+          MODEL_TIER: ${{ inputs.model_tier }}
+          CACHE_UPDATED: ${{ inputs.update_cache }}
         run: |
           # Extract summary JSON with error handling and pretty formatting
           if ! SUMMARY_JSON=$(cat single_pr_result.json | jq --indent 2 '{
@@ -210,8 +217,8 @@ jobs:
           # Single PR Analysis Results
 
           **PR:** #${{ steps.validate.outputs.pr_number }}
-          **Model:** ${{ inputs.model_tier }}
-          **Cache Updated:** ${{ inputs.update_cache }}
+          **Model:** $MODEL_TIER
+          **Cache Updated:** $CACHE_UPDATED
 
           ## Quick Summary
           \`\`\`json

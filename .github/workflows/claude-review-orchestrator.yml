@@ -40,8 +40,10 @@ jobs:
     steps:
       - name: Validate PR Number
         id: validate
+        env:
+          INPUT_PR_NUMBER: ${{ inputs.pr_number }}
         run: |
-          PR_NUMBER="${{ inputs.pr_number }}"
+          PR_NUMBER="$INPUT_PR_NUMBER"
 
           if [ -z "$PR_NUMBER" ] || [ "$PR_NUMBER" = "0" ]; then
             echo "❌ Error: No valid PR number provided"
@@ -124,6 +126,12 @@ jobs:
 
       - name: Summary
         if: always()
+        env:
+          RUN_README_INPUT: ${{ inputs.run_readme }}
+          RUN_COMMENTS_INPUT: ${{ inputs.run_comments }}
+          RUN_TYPES_INPUT: ${{ inputs.run_types }}
+          RUN_EINOPS_INPUT: ${{ inputs.run_einops }}
+          RUN_STYLE_INPUT: ${{ inputs.run_style }}
         run: |
           echo "# 🤖 Claude Unified Review Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -139,18 +147,18 @@ jobs:
           echo "## Review Types Run" >> $GITHUB_STEP_SUMMARY
 
           # Show which reviews were requested and their results
-          if [ "${{ inputs.run_readme }}" = "true" ]; then
+          if [ "$RUN_README_INPUT" = "true" ]; then
             echo "- README Accuracy: ${{ needs.review-readme.result || 'skipped' }}" >> $GITHUB_STEP_SUMMARY
           fi
-          if [ "${{ inputs.run_comments }}" = "true" ]; then
+          if [ "$RUN_COMMENTS_INPUT" = "true" ]; then
             echo "- Code Comments: ${{ needs.review-comments.result || 'skipped' }}" >> $GITHUB_STEP_SUMMARY
           fi
-          if [ "${{ inputs.run_types }}" = "true" ]; then
+          if [ "$RUN_TYPES_INPUT" = "true" ]; then
             echo "- Type Annotations: ${{ needs.review-types.result || 'skipped' }}" >> $GITHUB_STEP_SUMMARY
           fi
-          if [ "${{ inputs.run_einops }}" = "true" ]; then
+          if [ "$RUN_EINOPS_INPUT" = "true" ]; then
             echo "- Einops Suggestions: ${{ needs.review-einops.result || 'skipped' }}" >> $GITHUB_STEP_SUMMARY
           fi
-          if [ "${{ inputs.run_style }}" = "true" ]; then
+          if [ "$RUN_STYLE_INPUT" = "true" ]; then
             echo "- Code Style: ${{ needs.review-style.result || 'skipped' }}" >> $GITHUB_STEP_SUMMARY
           fi
