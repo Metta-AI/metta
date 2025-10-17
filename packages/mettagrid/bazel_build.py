@@ -204,8 +204,8 @@ def _run_mettascope_build() -> None:
     print(result.stderr, file=sys.stderr)
     print(result.stdout, file=sys.stderr)
     if result.returncode != 0:
-        print(f"Warning: Mettascope build failed. bindings failed. STDERR:", file=sys.stderr)
-        print(f"Mettascope build bindings STDOUT:", file=sys.stderr)
+        print("Warning: Mettascope build failed. bindings failed. STDERR:", file=sys.stderr)
+        print("Mettascope build bindings STDOUT:", file=sys.stderr)
         raise RuntimeError("Mettascope build failed")
     print("Successfully built mettascope")
     _sync_mettascope_package_data()
