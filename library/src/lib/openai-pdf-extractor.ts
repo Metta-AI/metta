@@ -1967,12 +1967,26 @@ CRITICAL:
 
     let figuresWithImages: OpenAIPdfFigure[] = [];
 
-    // Step 2-4: Process key figures (always extract insights, optionally extract images)
+    // Check if figure extraction is enabled (disabled by default)
+    const figureExtractionEnabled =
+      process.env.ENABLE_FIGURE_EXTRACTION === "true";
+
+    if (!figureExtractionEnabled) {
+      Logger.info(
+        "🚫 Figure extraction temporarily disabled via ENABLE_FIGURE_EXTRACTION environment variable"
+      );
+      Logger.info(
+        "   Set ENABLE_FIGURE_EXTRACTION=true to enable figure image extraction"
+      );
+    }
+
+    // Step 2-4: Process key figures (only if extraction is enabled)
     if (
+      figureExtractionEnabled &&
       summaryResult.object.keyFigures &&
       summaryResult.object.keyFigures.length > 0
     ) {
-      // Always start with metadata-only figures from AI analysis
+      // Start with metadata-only figures from AI analysis
       figuresWithImages = summaryResult.object.keyFigures.map(
         (fig: {
           figureNumber: string;
@@ -1998,8 +2012,8 @@ CRITICAL:
         `📊 Extracted ${figuresWithImages.length} figure insights from AI analysis`
       );
 
-      // Only attempt image extraction if enabled
-      if (process.env.ENABLE_FIGURE_EXTRACTION === "true") {
+      // Attempt image extraction
+      if (figureExtractionEnabled) {
         Logger.info(
           "🖼️ Image extraction enabled - attempting figure extraction..."
         );
@@ -2075,11 +2089,11 @@ CRITICAL:
           );
           // figuresWithImages already contains metadata-only figures, so no need to recreate
         }
-      } else {
-        Logger.info(
-          "🚫 Image extraction disabled, using metadata-only figures"
-        );
       }
+    } else if (!figureExtractionEnabled) {
+      Logger.info(
+        "   Skipping figure metadata extraction - feature temporarily disabled"
+      );
     }
 
     return {
