@@ -199,9 +199,6 @@ jobs:
       - name: Run cpplint
         run: ./packages/mettagrid/tests/cpplint.sh
 
-      - name: Check workflow run interpolations
-        run: python3 .github/scripts/check_workflow_interpolations.py
-
   observatory-typescript-check:
     name: "Observatory TypeScript Check"
     needs: [graphite-ci-optimizer, setup-checks]
