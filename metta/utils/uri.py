@@ -55,8 +55,10 @@ class ParsedURI:
 
         # Check if this is an S3 HTTPS URL and convert to s3:// URI
         if value.startswith("https://") or value.startswith("http://"):
-            # Match pattern: https://{bucket}.s3.amazonaws.com/{key}
-            s3_pattern = r"^https?://([^.]+)\.s3\.amazonaws\.com/(.+)$"
+            # Match patterns: 
+            # - https://{bucket}.s3.amazonaws.com/{key}
+            # - https://{bucket}.s3.{region}.amazonaws.com/{key}
+            s3_pattern = r"^https?://([^.]+)\.s3(?:\.([^.]+))?\.amazonaws\.com/(.+)$"
             match = re.match(s3_pattern, value)
             if match:
                 bucket, key = match.groups()
