@@ -69,9 +69,6 @@ export type UnifiedInstitutionDTO = {
     hIndex: number | null;
     totalCitations: number | null;
     claimed: boolean;
-    orcid: string | null;
-    googleScholarId: string | null;
-    arxivId: string | null;
     recentActivity: Date | null;
     paperCount: number;
     recentPapers: Array<{
@@ -226,9 +223,6 @@ function mapToUnifiedInstitution(
       hIndex: author.hIndex,
       totalCitations: author.totalCitations,
       claimed: author.claimed,
-      orcid: author.orcid,
-      googleScholarId: author.googleScholarId,
-      arxivId: author.arxivId,
       recentActivity: author.recentActivity,
       paperCount: author.paperAuthors.length,
       recentPapers: author.paperAuthors.slice(0, 5).map((pa) => ({
