@@ -227,7 +227,7 @@ def sweep(sweep_name: str) -> SweepTool:
         # Typically, "evaluator/eval_{suite}/score"
         objective="evaluator/eval_sweep/score",
         parameters=parameters,
-        num_trials=80,
+        max_trials=80,
         # Default value is 1. We don't recommend going higher than 4.
         # The faster each individual trial, the lower you should set this number.
         num_parallel_trials=4,

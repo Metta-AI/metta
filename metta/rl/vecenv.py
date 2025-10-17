@@ -8,8 +8,8 @@ import pufferlib
 import pufferlib.vector
 from metta.cogworks.curriculum import Curriculum, CurriculumEnv
 from metta.common.util.log_config import init_logging
-from mettagrid import MettaGridEnv
-from mettagrid.util.replay_writer import ReplayWriter
+from metta.sim.replay_log_renderer import ReplayLogRenderer
+from mettagrid import MettaGridEnv, RenderMode
 from mettagrid.util.stats_writer import StatsWriter
 from pufferlib.pufferlib import set_buffers
 
@@ -19,9 +19,9 @@ logger = logging.getLogger("vecenv")
 @validate_call(config={"arbitrary_types_allowed": True})
 def make_env_func(
     curriculum: Curriculum,
-    render_mode="rgb_array",
+    render_mode: RenderMode = "none",
     stats_writer: Optional[StatsWriter] = None,
-    replay_writer: Optional[ReplayWriter] = None,
+    replay_writer: Optional[ReplayLogRenderer] = None,
     is_training: bool = False,
     run_dir: str | None = None,
     buf: Optional[Any] = None,
@@ -34,7 +34,7 @@ def make_env_func(
         curriculum.get_task().get_env_cfg(),
         render_mode=render_mode,
         stats_writer=stats_writer,
-        replay_writer=replay_writer,
+        renderer=replay_writer,
         is_training=is_training,
     )
     set_buffers(env, buf)
@@ -50,9 +50,9 @@ def make_vecenv(
     num_envs: int = 1,
     batch_size: int | None = None,
     num_workers: int = 1,
-    render_mode: str | None = None,
+    render_mode: RenderMode = "none",
     stats_writer: StatsWriter | None = None,
-    replay_writer: ReplayWriter | None = None,
+    replay_writer: ReplayLogRenderer | None = None,
     is_training: bool = False,
     run_dir: str | None = None,
     **kwargs,

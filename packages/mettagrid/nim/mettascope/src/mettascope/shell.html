@@ -21,7 +21,7 @@
   </head>
   <body>
 
-    <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
+    <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1 width="0" height="0"></canvas>
 
     <script type='text/javascript'>
       var Module = {
@@ -94,7 +94,6 @@
         var canvas = document.getElementById('canvas');
         Module.setCanvasSize(window.innerWidth, window.innerHeight);
       };
-
     </script>
     {{{ SCRIPT }}}
   </body>

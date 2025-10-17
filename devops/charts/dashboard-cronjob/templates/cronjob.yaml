@@ -1,0 +1,40 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "dashboard-cronjob.fullname" . }}
+  labels:
+    {{- include "dashboard-cronjob.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.schedule | quote }}
+  successfulJobsHistoryLimit: {{ .Values.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.failedJobsHistoryLimit }}
+  concurrencyPolicy: {{ .Values.concurrencyPolicy }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "dashboard-cronjob.selectorLabels" . | nindent 12 }}
+        spec:
+          serviceAccountName: {{ include "dashboard-cronjob.serviceAccountName" . }}
+          restartPolicy: {{ .Values.restartPolicy }}
+          containers:
+          - name: {{ .Chart.Name }}
+            image: "{{ if .Values.image.registry }}{{ .Values.image.registry }}/{{ end }}{{ .Values.image.name }}:{{ required "tag is required" .Values.image.tag }}"
+            imagePullPolicy: {{ .Values.image.pullPolicy }}
+            command: {{ toJson .Values.command }}
+            env:
+            # Datadog metric tagging
+            - name: DD_ENV
+              value: {{ .Values.datadog.env | quote }}
+            - name: DD_SERVICE
+              value: {{ .Values.datadog.service | quote }}
+            - name: DD_VERSION
+              value: {{ .Values.image.tag | quote }}
+            - name: DD_SITE
+              value: {{ .Values.datadog.site | quote }}
+            # Secrets are accessed from AWS Secrets Manager via the serviceAccount IAM role
+            # The softmax.aws.secrets_manager module handles fetching them at runtime
+            resources:
+              {{- toYaml .Values.resources | nindent 14 }}

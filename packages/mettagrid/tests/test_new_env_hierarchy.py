@@ -8,7 +8,6 @@ works correctly while being compatible with the existing test framework.
 import numpy as np
 
 from mettagrid import dtype_actions
-from mettagrid.builder.envs import make_arena
 from mettagrid.config.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
@@ -17,6 +16,8 @@ from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
     WallConfig,
 )
+from mettagrid.envs.mettagrid_env import MettaGridEnv
+from mettagrid.envs.pettingzoo_env import MettaGridPettingZooEnv
 from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME
 
@@ -27,17 +28,11 @@ class TestNewEnvironmentHierarchy:
     def test_imports(self):
         """Test that all new classes can be imported."""
         # Test basic imports - this verifies our modules are structured correctly
-        from mettagrid.envs.gym_env import MettaGridGymEnv
-        from mettagrid.envs.mettagrid_env import MettaGridEnv
-        from mettagrid.envs.pettingzoo_env import MettaGridPettingZooEnv
-
         assert MettaGridEnv is not None
-        assert MettaGridGymEnv is not None
         assert MettaGridPettingZooEnv is not None
 
     def test_gym_env_creation(self):
         """Test that Gymnasium environments can be created."""
-        from mettagrid.envs.gym_env import MettaGridGymEnv
 
         cfg = MettaGridConfig(
             game=GameConfig(
@@ -60,15 +55,13 @@ class TestNewEnvironmentHierarchy:
                 ),
             )
         )
-        env = MettaGridGymEnv(cfg, render_mode=None)
+        env = MettaGridEnv(cfg)
 
         assert env is not None
         env.close()
 
     def test_gym_env_basic_ops(self):
         """Test basic Gymnasium environment operations."""
-        from mettagrid.envs.gym_env import MettaGridGymEnv
-
         cfg = MettaGridConfig(
             game=GameConfig(
                 num_agents=1,
@@ -90,20 +83,20 @@ class TestNewEnvironmentHierarchy:
                 ),
             )
         )
-        env = MettaGridGymEnv(cfg, render_mode=None)
+        env = MettaGridEnv(cfg)
 
         # Test reset
         obs, info = env.reset(seed=42)
         assert obs is not None
 
         # Test step
-        action = np.array(0, dtype=dtype_actions)
+        action = np.array([0], dtype=dtype_actions)
         obs, reward, terminated, truncated, info = env.step(action)
 
         assert obs is not None
-        assert isinstance(reward, (int, float))
-        assert isinstance(terminated, bool)
-        assert isinstance(truncated, bool)
+        assert isinstance(reward, np.ndarray)
+        assert isinstance(terminated, np.ndarray)
+        assert isinstance(truncated, np.ndarray)
         assert isinstance(info, dict)
 
         env.close()
@@ -196,30 +189,3 @@ class TestNewEnvironmentHierarchy:
         assert isinstance(infos, dict)
 
         env.close()
-
-
-if __name__ == "__main__":
-    # Run tests manually if called directly
-    import sys
-
-    print("Running manual tests...")
-
-    # Test imports
-    try:
-        from mettagrid.envs.mettagrid_env import MettaGridEnv
-
-        print("✓ All imports successful")
-    except Exception as e:
-        print(f"✗ Import failed: {e}")
-        sys.exit(1)
-
-    # Test basic creation
-    try:
-        env = MettaGridEnv(make_arena(num_agents=24), render_mode=None)
-        env.close()
-        print("✓ MettaGridEnv creation successful")
-    except Exception as e:
-        print(f"✗ MettaGridEnv creation failed: {e}")
-        sys.exit(1)
-
-    print("✓ All manual tests passed!")
