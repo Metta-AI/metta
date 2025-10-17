@@ -1,4 +1,4 @@
-"""Higher-level git operations built on top of the helpers in gitta.core."""
+"""High-level git helpers that build on the command runners in ``gitta.core``."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Dict, Optional
 
-from .core import GitError, NotAGitRepoError, run_git, run_git_cmd, run_git_in_dir
+from .core import GitError, NotAGitRepoError, run_git, run_git_in_dir
 
 logger = logging.getLogger(__name__)
 
@@ -165,7 +165,7 @@ def https_remote_url(url: str) -> str:
     return url
 
 
-# Backwards compatibility alias
+# Prefer ``https_remote_url``; keep ``canonical_remote_url`` for backwards compatibility.
 canonical_remote_url = https_remote_url
 
 
@@ -273,7 +273,7 @@ def find_root(start: Path) -> Optional[Path]:
             cwd = start
 
         # Use git's own logic to find the repository root
-        root = run_git_cmd(["rev-parse", "--show-toplevel"], cwd=cwd)
+        root = run_git_in_dir(cwd, "rev-parse", "--show-toplevel")
         return Path(root)
     except (GitError, NotAGitRepoError):
         return None

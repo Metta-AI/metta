@@ -11,7 +11,11 @@ A comprehensive Python library for Git operations, GitHub API interactions, and 
 
 ## Installation
 
+We recommend using [uv](https://docs.astral.sh/uv/) to manage virtual environments and dependencies:
+
 ```bash
+uv venv
+source .venv/bin/activate
 uv pip install gitta
 ```
 
@@ -90,9 +94,9 @@ commit_hash = gitta.validate_commit_state(
 
 ```
 gitta/
-├── __init__.py      # Main exports
-├── core.py          # Core git command runner
-├── git.py           # Git operations
-├── github.py        # GitHub API functionality
-└── filter.py        # Repository filtering
+├── __init__.py      # Public package surface, re-exporting submodules
+├── core.py          # Low-level git command runners and shared exceptions
+├── git.py           # High-level git operations built on top of core helpers
+├── github.py        # GitHub REST/CLI integrations
+└── filter.py        # Repository filtering utilities
 ```

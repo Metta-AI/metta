@@ -188,9 +188,9 @@ def create_pr(
     """
     Create a pull request on GitHub using the REST API.
 
-    We call the HTTP endpoint directly instead of `gh pr create` so callers
-    can run in non-interactive environments and inject custom metadata
-    without relying on CLI flag support.
+    We call the HTTP endpoint directly instead of `gh pr create` so this helper
+    works in non-interactive environments (e.g., CI, containers without the CLI)
+    and supports fields that the CLI does not expose consistently across versions.
 
     Args:
         repo: Repository in format "owner/repo"
