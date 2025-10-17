@@ -351,15 +351,6 @@
     "name": "Test an embedded LSTM"
   },
   {
-    "gid": "1209778674231666",
-    "assignee": {
-      "gid": "1209017937764464",
-      "name": "Alexandros Vardakostas"
-    },
-    "completed": false,
-    "name": "Add noise to RNN"
-  },
-  {
     "gid": "1210392276593852",
     "assignee": {
       "gid": "1211215486118014",

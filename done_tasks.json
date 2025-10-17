@@ -71,5 +71,13 @@
     "branch": "feature/stable-latent-loss",
     "commit": "19fd4698815186603b175e64a5f86d1700f5eceb",
     "completed_at": "2025-10-17"
+  },
+  {
+    "gid": "1209778674231666",
+    "name": "Add noise to RNN",
+    "branch": "task/add-noise-rnn",
+    "commit": "4d2358cb6c86a7c431330e124096e85c5c23aa99",
+    "completed_at": "2025-10-17",
+    "notes": "Introduced configurable Gaussian noise for LSTM recurrent outputs with training and evaluation controls plus regression tests."
   }
 ]
