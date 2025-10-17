@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
+import gymnasium as gym
 import pytest
 import torch
 import torch.nn as nn
@@ -9,6 +11,7 @@ from pydantic import Field
 from tensordict import TensorDict
 
 from metta.agent.policies.fast import FastConfig
+from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.policy_artifact import (
@@ -154,3 +157,33 @@ def test_policy_architecture_from_string_with_args_round_trip() -> None:
     # Canonical string should parse back to the same config
     round_tripped = policy_architecture_from_string(canonical)
     assert round_tripped.model_dump() == architecture.model_dump()
+
+
+def test_safetensors_save_with_shared_lstm_parameters(tmp_path: Path) -> None:
+    obs_features = {"token": SimpleNamespace(id=0, normalization=1.0)}
+    game_rules = GameRules(
+        obs_width=1,
+        obs_height=1,
+        obs_features=obs_features,
+        action_names=["noop"],
+        num_agents=1,
+        observation_space=None,
+        action_space=gym.spaces.Discrete(1),
+        feature_normalizations={0: 1.0},
+    )
+
+    architecture = FastLSTMResetConfig()
+    policy = architecture.make_policy(game_rules)
+    policy.initialize_to_environment(game_rules, torch.device("cpu"))
+
+    artifact_path = tmp_path / "artifact.zip"
+    save_policy_artifact_safetensors(
+        artifact_path,
+        policy_architecture=architecture,
+        state_dict=policy.state_dict(),
+    )
+
+    loaded = load_policy_artifact(artifact_path)
+    reloaded = loaded.instantiate(game_rules, torch.device("cpu"))
+
+    assert reloaded.network.module.lstm_reset.func.lstm_h.size(1) == 0
