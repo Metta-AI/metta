@@ -100,7 +100,7 @@ Core computational units implementing recurrent logic. All cells follow batch-fi
 | `mLSTMCell`     | Matrix-LSTM with per-head state, chunkwise closed-form updates, and optional causal Conv1D pre-activation. | Yes | No |
 | `sLSTMCell`     | Structured LSTM with per-head gating, stabilized accumulators (`c`, `n`, `m`), and optional causal Conv1D. | Yes | No |
 | `CausalConv1d`  | Depthwise causal Conv1D cell (ring-buffer state); supports optional channel-mixing mode. | Yes (channel-mixing only) | No |
-| `AxonsCell`     | Streaming RTU with diagonal input weights (per-channel local recurrence, 2H→H→out_dim projection). | Yes | Yes (seq‑allin, short‑T) |
+| `AxonCell`     | Streaming RTU with diagonal input weights (per-channel local recurrence, 2H→H→out_dim projection). | Yes | Yes (seq‑allin, short‑T) |
 
 **Notes:**
 - Triton kernels are selected automatically on CUDA when constraints are met; otherwise PyTorch fallback is used
@@ -193,111 +193,101 @@ x_step = torch.randn(batch_size, 256)  # [B, H]
 output_step, state = stack.step(x_step, state)
 ```
 
-## AxonCell - Locally Recurrent Gradient Propagating alternative to Linear Layers
 
-The AxonCell (`packages/cortex/src/cortex/cells/axons.py`) is a new
-fundamental building block in Cortex. It is designed as a drop‑in replacement
-for a linear layer that makes the projection locally recurrent and enables
-gradients to propagate across an arbitrary horizon.
 
-Key properties
+Perfect — that’s exactly the sort of detailed, technical grounding that makes the earlier section sing.
+Here’s a fully revised version of your `AxonLayer` section, now incorporating the **key properties of `AxonsCell`** from your provided description. The result is cohesive, precise, and suitable for an internal technical document or research-style methods appendix.
 
-- Linear→Recurrent: Wraps a diagonal RTU update around each channel and returns
-  a 2H activation that is projected back to H. This effectively turns a
-  `Linear(H→H)` into a locally recurrent layer with minimal parameter overhead.
-- Optional SRHT mixer: Before the kernel, Axons can apply a fast Subsampled
-  Randomized Hadamard Transform (SRHT) that orthonormally mixes features along
-  H. This improves conditioning and lets diagonal per‑channel weights behave
-  more like a dense map. Implementations:
-  - CUDA FWHT path (power‑of‑two H), with custom backward.
-  - PyTorch FWHT fallback (any H) with autograd support.
-  Configure via `AxonsConfig.use_srht` (default True; set False to disable) and `AxonsConfig.srht_permute`
-  (random permutation on/off). The SRHT is normalized by 1/√H, so it preserves
-  feature scale and gradient norms.
-- Streaming traces: Carries compact eligibility traces across subsequences and
-  applies a single boundary correction at chunk heads. This preserves
-  cross‑chunk credit assignment, allowing learning beyond the TBPTT truncation
-  length without storing full activations.
-- Backend auto‑selection: Three aligned implementations are provided and chosen
-  at runtime:
-  - CUDA short‑T fused sequential kernel — preferred when `T ≤ cuda_seq_threshold`.
-  - Triton streaming kernel (GPU, long‑T fast path).
-  - PyTorch reference (portable baseline).
-- Tunable policy: Control the short‑T cutoff via
-  `AxonsConfig.cuda_seq_threshold` (default 1000).
+---
 
-Usage example
+### AxonLayer: A Generalized Linear Operator with Stateful Dynamics
 
-```python
-import torch
-from cortex.config import AxonsConfig
-from cortex.cells.axons import AxonsCell
+`AxonLayer` provides a stateful generalization of the standard `nn.Linear(in_features → out_features)` operator.
+Instead of performing a purely affine transformation, it integrates a lightweight **recurrent dynamic** through an internal [`AxonsCell`](../cells/axons.py), which maintains structured state evolution across timesteps.
+Each forward invocation reads and **mutates a caller-provided parent `TensorDict` state in place**, enabling temporally coherent computation without requiring explicit recurrence or sequence unrolling in the computation graph.
 
-B, T, H = 8, 512, 256
-x = torch.randn(B, T, H, device='cuda')
-
-cell = AxonsCell(
-    AxonsConfig(
-        hidden_size=H,
-        activation='SiLU',
-        cuda_seq_threshold=1000,
-        use_srht=True,
-        srht_permute=True
-    )
-).to(x.device)
-state = cell.init_state(batch=B, device=x.device, dtype=x.dtype)
-
-# Optional per‑timestep resets: shape [B, T] (bool)
-resets = torch.zeros(B, T, dtype=torch.bool, device=x.device)
-
-y, state = cell(x, state=state, resets=resets)  # y: [B, T, H]
-```
-
-### AxonLayer: AxonsCell as a general Linear replacement
-
-For any ``nn.Linear(in_features→out_features)`` site, use ``AxonLayer``. It
-sets ``hidden_size = in_features`` and ``out_dim = out_features`` internally
-and manages the Axons state automatically (either nested inside a parent
-TensorDict or locally if none is provided).
+At a high level, `AxonLayer` functions as a **streaming linear projection** — a linear operator augmented with local recurrence and compact temporal traces.
+This design yields temporal expressivity comparable to recurrent layers while retaining the simplicity and efficiency of a feed-forward linear transformation.
+Within the Cortex framework, `AxonLayer` integrates seamlessly with the `MemoryCell` and `TensorDict` ecosystem, making it composable and state-consistent with other core primitives.
 
 ```python
 from tensordict import TensorDict
-from cortex.cells.axons import AxonLayer
+from cortex.cells.base import MemoryCell
+from cortex.cells.core import AxonLayer, update_parent_state
+from cortex.config import AxonsConfig
 
-B, T, H_in, H_out = 8, 128, 256, 384
-x = torch.randn(B, T, H_in)
-resets = torch.zeros(B, T, dtype=torch.bool)
+class MyCell(MemoryCell):
+    def __init__(self, hidden_size: int) -> None:
+        super().__init__(hidden_size=hidden_size)
+        ax_cfg = AxonsConfig(hidden_size=hidden_size, out_dim=hidden_size)
+        self.ax = AxonLayer(hidden_size, hidden_size, cfg=ax_cfg, name="proj", group="mycell")
+        # ... additional layer definitions ...
 
-layer = AxonLayer(in_features=H_in, out_features=H_out)
+    def forward(self, x, state):
+        if state is None:
+            state = TensorDict({}, batch_size=[x.shape[0]])
 
-# With parent TensorDict state
-parent_state = TensorDict({}, batch_size=[B])
-y = layer(x, state=parent_state, resets=resets)  # y: [B, T, H_out]
+        ax = self.ax(x, state=state)  # mutates state in place
+        # ... custom logic using ax ...
+        out = ax  # placeholder
 
-# Or without parent state (local state is kept inside the layer)
-y2 = layer(x, state=None, resets=resets)
+        next_state = TensorDict({
+            # "c": ..., "n": ..., "m": ...  # cell-specific keys
+        }, batch_size=[x.shape[0]])
+        update_parent_state(next_state, state)
+        return out, next_state
 ```
 
-Why it matters
 
-- Axons generalizes the ubiquitous linear layer to be locally recurrent and
-  streaming, improving temporal expressivity with low memory cost.
-- It enables learning signals to flow beyond TBPTT by preserving
-  cross‑boundary credit via compact traces rather than full activation history.
-- It is intended as the default "linear" building block in future Cortex
-  architectures: replacing feed‑forward linear projections with Axons imbues
-  networks with long‑horizon temporal inductive bias.
+#### Internal Structure
+
+Internally, `AxonLayer` encapsulates an **`AxonCell`**, which serves as the computational core responsible for local recurrence and gradient-preserving temporal traces.
+`AxonCell` generalizes the behavior of a linear layer through several defining mechanisms:
+
+* **Linear→Recurrent Transition:**
+  Each channel is augmented with a *diagonal Recurrent Transition Unit (RTU)* update, producing a doubled activation (`2H`) that is projected back to the target dimension (`H`).
+  This turns a standard `Linear(H → H)` operation into a *locally recurrent* one with minimal parameter overhead.
+
+* **Optional SRHT Feature Mixer:**
+  Prior to the main kernel, `AxonCell` may apply a **Subsampled Randomized Hadamard Transform (SRHT)** to orthogonally mix feature channels.
+  This improves conditioning, allowing per-channel diagonal updates to behave more like dense transformations.
+  It includes both a CUDA fast path (power-of-two `H`) and a PyTorch fallback (arbitrary `H`), controlled via
+  `AxonConfig.use_srht` and `AxonConfig.srht_permute`.
+  The transform is normalized by `1/√H` to preserve scale and gradient norm.
+
+* **Streaming Traces:**
+  Instead of storing full activation histories, `AxonCell` maintains compact **eligibility traces** across subsequences.
+  A boundary correction at chunk heads preserves cross-chunk credit assignment, effectively extending learning beyond TBPTT truncation limits.
+
+
+These mechanisms collectively allow `AxonLayer` to act as a *locally recurrent linear primitive*, efficiently propagating gradient information across time without explicit recurrent loops or large memory footprints.
+
+
+#### Rationale
+
+* **State-Augmented Linear Transformation:**
+  `AxonLayer` transforms the conventional linear projection into a state-aware operator capable of encoding short- and medium-term temporal dependencies.
+
+* **Gradient Flow Beyond TBPTT:**
+  Through compact trace preservation, it allows credit signals to propagate beyond truncated backpropagation windows — a key step toward continuous, long-horizon learning.
+
+* **Architectural Role:**
+  As the canonical linear primitive for upcoming Cortex architectures, `AxonLayer` embeds temporal inductive bias directly into the model’s feed-forward backbone, replacing static linear projections with dynamically evolving connections.
+
+---
+
+
 
 ### AxonLayer Integration Across Cells
 
-The table below tracks AxonLayer replacements for linear-like projections in key cells. AxonLayer is a drop-in, stateful alternative to `nn.Linear` that wraps `AxonCell` and automatically manages per-layer state inside a parent `TensorDict`.
+The table below tracks AxonLayer replacements for linear-like projections in key cells. AxonLayer is a stateful alternative to `nn.Linear` that wraps `AxonCell` and updates per-layer state inside a parent `TensorDict`.
 
-| Cell | Components Replaced | AxonLayer Shapes | State Group/Keys | Resets | Status | Notes |
-|---|---|---|---|---|---|---|
-| sLSTM (`cortex.cells.slstm.sLSTMCell`) | igate, fgate, zgate, ogate (headwise expand) | NH × AxonLayer(DH→DH) with H=NH·DH | group=`slstm`, keys=`{gate}_h{i}` | forwarded from cell | behind flag | Preserves strict per-head isolation via `_HeadwiseAxonLayer`; enable with `sLSTMCellConfig.use_axon_layer=True` |
-| mLSTM (`cortex.cells.mlstm.mLSTMCell`) | igate, fgate (3H→NH) | AxonLayer(3H→NH) | group=`mlstm`, keys=`igate`, `fgate` | forwarded from cell | behind flag | Enable with `mLSTMCellConfig.use_axon_layer=True`; default uses `nn.Linear` |
+| Cell | Components Replaced | Flags | State Group/Keys |
+|---|---|---|---|
+| sLSTM (`cortex.cells.slstm.sLSTMCell`) | Fused gate projections: `if_fused` (i,f) from conv path; `zo_fused` (z,o) from seq path | `use_axon_layer` | group=`slstm`, keys=`if_fused`, `zo_fused` (compat keys like `{igate,fgate,zgate,ogate}_h{i}` may also appear) |
+| mLSTM (`cortex.cells.mlstm.mLSTMCell`) | Input/forget gates; optional QKV path | `use_axon_layer`, `use_axon_qkv` | group=`mlstm` keys=`igate`,`fgate`; optional group=`mlstm_qkv` keys=`qk`,`v` |
 
-Note: AxonLayer usage is opt-in and defaults to the legacy Linear projections for backward compatibility. Set the per-cell config flag `use_axon_layer=True` to switch to Axon-backed projections and automatic state handling.
+Note: AxonLayer usage is opt-in per cell via its config (e.g., `use_axon_layer`, `use_axon_qkv`). The layer mutates the provided parent TensorDict state in place.
 
 ## Template Architectures
 

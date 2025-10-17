@@ -145,4 +145,13 @@ class AxonLayer(nn.Module):
         return state
 
 
-__all__ = ["AxonLayer"]
+def update_parent_state(parent: TensorDict, source: TensorDict) -> TensorDict:
+    """Merge auxiliary entries from ``source`` into ``parent`` without clobbering fresh values."""
+    for key in source.keys():
+        if key in parent.keys():
+            continue
+        parent[key] = source.get(key)
+    return parent
+
+
+__all__ = ["AxonLayer", "update_parent_state"]

@@ -11,7 +11,7 @@ from tensordict import TensorDict
 
 from cortex.cells.base import MemoryCell
 from cortex.cells.conv import CausalConv1d
-from cortex.cells.core import AxonLayer
+from cortex.cells.core import AxonLayer, update_parent_state
 
 # Reuse utilities from mLSTM for normalization and init
 from cortex.cells.mlstm import MultiHeadLayerNorm, bias_linspace_init_
@@ -305,8 +305,8 @@ class sLSTMCell(MemoryCell):
             new_state.update(conv_state_new)
         # If AxonLayer was used, it may have attached a nested state group (e.g., "slstm")
         # inside the parent state ``st``. Carry that substate forward explicitly.
-        if self.cfg.use_axon_layer and hasattr(st, "keys") and ("slstm" in st.keys()):
-            new_state["slstm"] = st.get("slstm")
+        if self.cfg.use_axon_layer:
+            update_parent_state(new_state, st)
 
         # Apply normalization and dropout
         y_out = self._normalize_output(y_seq)

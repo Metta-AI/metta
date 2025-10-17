@@ -10,7 +10,7 @@ from tensordict import TensorDict
 
 from cortex.cells.base import MemoryCell
 from cortex.cells.conv import CausalConv1d
-from cortex.cells.core import AxonLayer
+from cortex.cells.core import AxonLayer, update_parent_state
 from cortex.cells.registry import register_cell
 from cortex.config import AxonsConfig, CausalConv1dConfig, mLSTMCellConfig
 from cortex.kernels.pytorch.mlstm import (
@@ -175,16 +175,6 @@ class mLSTMCell(MemoryCell):
         combined_state.update(conv_state)  # Add conv state
         return combined_state
 
-    def _carry_auxiliary_state(self, source: MaybeState, dest: TensorDict) -> None:
-        if source is None:
-            raise ValueError("Auxiliary state merge requires a TensorDict source")
-        dest_keys = set(dest.keys())
-        for key in source.keys():
-            if key in dest_keys:
-                continue
-            dest[key] = source.get(key)
-            dest_keys.add(key)
-
     def forward(
         self,
         x: Tensor,
@@ -291,7 +281,7 @@ class mLSTMCell(MemoryCell):
             if conv_state_new is not None:
                 new_state.update(conv_state_new)
             # Preserve any auxiliary substates (e.g., AxonLayer groups written into `st`)
-            self._carry_auxiliary_state(st, new_state)
+            update_parent_state(new_state, st)
         else:
             # Sequence processing
             # Exact segment-aware handling for resets: split the sequence into
@@ -352,7 +342,7 @@ class mLSTMCell(MemoryCell):
             if conv_state_new is not None:
                 new_state.update(conv_state_new)
             # Preserve any auxiliary substates (e.g., AxonLayer groups written into `st`)
-            self._carry_auxiliary_state(st, new_state)
+            update_parent_state(new_state, st)
 
         # Apply output normalization
         h_state_norm = self.outnorm(h_state)  # [B, NH, T, DH]

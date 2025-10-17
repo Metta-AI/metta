@@ -6,6 +6,6 @@ management.
 """
 
 from .axon_cell import AxonCell
-from .axon_layer import AxonLayer
+from .axon_layer import AxonLayer, update_parent_state
 
-__all__ = ["AxonCell", "AxonLayer"]
+__all__ = ["AxonCell", "AxonLayer", "update_parent_state"]
