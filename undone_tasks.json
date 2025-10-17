@@ -183,15 +183,6 @@
     "name": "Clean interfaces to alternative training systems "
   },
   {
-    "gid": "1209148137213831",
-    "assignee": {
-      "gid": "1210748130054770",
-      "name": "Michael Hollander"
-    },
-    "completed": false,
-    "name": "Fix policy_store._cached_prs"
-  },
-  {
     "gid": "1209394151090423",
     "assignee": {
       "gid": "1210748130054770",

@@ -112,5 +112,13 @@
     "commit": "52b3c6b8a8447fb1a9af536ab1599528e3fd3637",
     "completed_at": "2025-10-17",
     "notes": "Enabled per-loss scheduling windows/cycles and added persistence tests for loss state."
+  },
+  {
+    "gid": "1209148137213831",
+    "name": "Fix policy_store._cached_prs",
+    "branch": null,
+    "commit": null,
+    "completed_at": "2025-10-17",
+    "notes": "Marked obsolete: PolicyStore and its cached PRs were removed (see commit 5eb9839a3a)."
   }
 ]

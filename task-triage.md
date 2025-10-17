@@ -63,9 +63,9 @@ Assignee: Emmett Shear
 Likely entails making targeted updates within the training stack and verifying behaviour. Plan to run uv run pytest and capture key metrics before marking the task complete.
 
 **12. Fix policy_store._cached_prs (gid 1209148137213831)**
-Difficulty: High
+Difficulty: Obsolete
 Assignee: Michael Hollander
-Likely entails adjusting policy modules and confirming evaluation metrics while touching packages/cogames/policies. Add regression coverage in packages/cogames/tests and run uv run pytest.
+Status: No action needed — PolicyStore was removed in commit 5eb9839a3a, eliminating _cached_prs.
 
 **13. Goal: Establish SOTA results in arena with kickstarting (gid 1210803372736877)**
 Difficulty: High
