@@ -81,8 +81,6 @@ for i in {1..7}; do
 done
 ```
 
-## Troubleshooting
-
 ### Job Failed
 
 ```bash
@@ -92,58 +90,4 @@ kubectl logs -n monitoring job/$(kubectl get jobs -n monitoring \
   --sort-by=.status.startTime -o jsonpath='{.items[-1].metadata.name}')
 ```
 
-### No Replays Found
-
-- Check if evaluations ran on that date
-- Verify date format is YYYY-MM-DD
-- Query stats API: `https://api.observatory.softmax-research.net`
-
-### S3 Permission Errors
-
-- Verify IAM role exists: `devops/tf/eks/replay-mining.tf`
-- Check service account annotation matches IAM role ARN
-- Role needs: `s3:GetObject`, `s3:PutObject`, `s3:ListBucket`
-
-### Pod OOM (Out of Memory)
-
-Increase memory limits in `values.yaml`:
-
-```yaml
-resources:
-  limits:
-    memory: 16Gi  # Increased from 8Gi
-```
-
-## IAM Permissions
-
-The cronjob uses IRSA (IAM Roles for Service Accounts):
-
-**Role**: `replay-mining-cronjob` (defined in Terraform)
-**Permissions**:
-- Read replays from S3
-- Write datasets to S3
-- List bucket contents
-
-See [devops/tf/eks/replay-mining.tf](../../tf/eks/replay-mining.tf) for full configuration.
-
-## Helm Values
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `schedule` | Cron schedule | `"0 2 * * *"` (2 AM UTC) |
-| `command` | Command to run | `["uv", "run", "python", "-m", "metta.tools.replay_dataset.replay_mine"]` |
-| `image.registry` | Docker registry | `751442549699.dkr.ecr.us-east-1.amazonaws.com` |
-| `image.name` | Image name | `metta-policy-evaluator` |
-| `image.tag` | Image tag | `latest` |
-| `resources.limits.cpu` | CPU limit | `2000m` |
-| `resources.limits.memory` | Memory limit | `8Gi` |
-| `concurrencyPolicy` | Concurrent execution policy | `Forbid` |
-| `successfulJobsHistoryLimit` | Keep N successful jobs | `3` |
-| `failedJobsHistoryLimit` | Keep N failed jobs | `3` |
-
-## Related Documentation
-
-- **Python API**: Import from `metta.tools.replay_dataset` package
-- **IAM Configuration**: [devops/tf/eks/replay-mining.tf](../../tf/eks/replay-mining.tf)
-- **Helm Template**: [templates/cronjob.yaml](templates/cronjob.yaml)
-- **Usage**: `uv run python -m metta.tools.replay_dataset.replay_mine --help`
+#
