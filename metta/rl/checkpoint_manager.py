@@ -295,9 +295,7 @@ class CheckpointManager:
 
         from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
 
-        if type(policy_architecture) is FastLSTMResetConfig or (
-            getattr(policy_architecture, "class_path", "") == "metta.agent.policy_auto_builder.PolicyAutoBuilder"
-        ):
+        if type(policy_architecture) is FastLSTMResetConfig:
             save_policy_artifact_pt(checkpoint_path, policy=agent)
         else:
             save_policy_artifact_safetensors(
