@@ -2,12 +2,15 @@
 
 from types import SimpleNamespace
 
+import pytest
 import torch
 from tensordict import TensorDict
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.policy import Policy
 from metta.rl.loss import Loss
+from metta.rl.loss.cmpo import CMPOConfig
+from metta.rl.loss.ppo import PPO
 
 
 class DummyPolicy(Policy):
@@ -72,3 +75,27 @@ def test_zero_loss_tracker_clears_values() -> None:
     loss.zero_loss_tracker()
 
     assert all(len(values) == 0 for values in loss.loss_tracker.values())
+
+
+def test_cmpo_adds_mirror_penalty(monkeypatch: pytest.MonkeyPatch) -> None:
+    cfg = CMPOConfig(mirror_coef=0.5)
+    env = SimpleNamespace(single_action_space=SimpleNamespace(dtype=torch.float32))
+    cmpo_loss = cfg.create(DummyPolicy(), SimpleNamespace(), env, torch.device("cpu"), "cmpo", cfg)
+
+    def fake_super(
+        self, minibatch: TensorDict, policy_td: TensorDict, indices: torch.Tensor, prio_weights: torch.Tensor
+    ) -> torch.Tensor:
+        return torch.tensor(2.0, dtype=torch.float32, requires_grad=True)
+
+    monkeypatch.setattr(PPO, "_process_minibatch_update", fake_super, raising=False)
+
+    minibatch = TensorDict({"act_log_prob": torch.zeros(4, 1)}, batch_size=[4, 1])
+    policy_td = TensorDict({"act_log_prob": torch.full((4, 1), 0.2)}, batch_size=[4, 1])
+    indices = torch.zeros(4, dtype=torch.long)
+    prio_weights = torch.ones(4, 1)
+
+    loss_value = cmpo_loss._process_minibatch_update(minibatch, policy_td, indices, prio_weights)
+
+    expected_penalty = 0.2**2
+    assert loss_value.item() == pytest.approx(2.0 + cfg.mirror_coef * expected_penalty, rel=1e-5)
+    assert cmpo_loss.loss_tracker["cmpo_mirror_penalty"][-1] == pytest.approx(expected_penalty, rel=1e-5)
