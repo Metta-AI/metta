@@ -13,25 +13,7 @@ from .axon_cell import AxonCell
 
 
 class AxonLayer(nn.Module):
-    """Stateful replacement for ``nn.Linear`` blending Linear and Axon paths.
-
-    Behavior
-    - Computes ``z = (1 - alpha) * LN(Linear(x)) + alpha * LN(Axon(x))`` where
-      ``alpha = sigmoid(a)`` and ``a`` is a learnable scalar initialized ``<< 0``
-      so the layer is effectively linear at initialization.
-    - The Axon branch uses an ``AxonCell`` with activation forced to ``identity``.
-    - Both branches are normalized with ``LayerNorm(out_features)`` before the
-      convex blend to keep scales comparable.
-
-    Interface
-    - Accepts any input/output feature sizes. Internally forces
-      ``hidden_size = in_features`` and ``out_dim = out_features`` on the
-      wrapped ``AxonCell``.
-    - Manages Axon state automatically in a provided parent ``TensorDict``
-      under ``group/name`` or keeps a local internal state when none is
-      provided.
-    - Supports step inputs ``[B, H_in]`` and sequence inputs ``[B, T, H_in]``.
-    """
+    """Stateful linear-like layer: y = Linear(x) + AxonCell(x); substate at state[group][name]."""
 
     def __init__(
         self,
@@ -70,16 +52,16 @@ class AxonLayer(nn.Module):
         # Wrapped AxonCell (allow out_dim != hidden_size)
         self.cell = AxonCell(cfg, enforce_out_dim_eq_hidden=False)
 
-        # Plain linear branch for linear-at-init behavior
+        # Plain linear branch
         self.linear = nn.Linear(self.in_features, self.out_features, bias=True)
-        # Residual/convex gate parameter: alpha = sigmoid(alpha_logit)
+        # No gating/normalization inside this wrapper
 
     # Expose state path for debugging/tests
     def state_path(self) -> Tuple[str, str]:
         return self._state_group, self._state_key
 
     def _ensure_state(self, batch: int, device: torch.device, dtype: torch.dtype, state: MaybeState) -> TensorDict:
-        """Ensure a substate exists either in the provided parent or locally."""
+        """Ensure state[group][name] exists with correct batch/device/dtype and return the group TensorDict."""
         if state is None:
             raise ValueError("AxonLayer requires an explicit parent TensorDict state.")
 
@@ -129,12 +111,7 @@ class AxonLayer(nn.Module):
 
     @torch.no_grad()
     def reset_state(self, mask: ResetMask, state: MaybeState | None = None) -> MaybeState | None:
-        """Apply resets to the managed AxonCell state.
-
-        If a parent ``state`` is provided, resets are applied in-place to the
-        registered substate and the parent is returned. Otherwise, the local
-        internal state is reset.
-        """
+        """Reset AxonCell substate in-place on the parent TensorDict and return the parent."""
         if state is None:
             raise ValueError("AxonLayer.reset_state requires a parent TensorDict state.")
 
