@@ -396,15 +396,6 @@
     "name": "Add Contrastive Loss"
   },
   {
-    "gid": "1211366082780014",
-    "assignee": {
-      "gid": "1211215486118014",
-      "name": "Tasha Pais"
-    },
-    "completed": false,
-    "name": "Add Stable Latent State Loss"
-  },
-  {
     "gid": "1209661381715532",
     "assignee": {
       "gid": "1211215486118014",
