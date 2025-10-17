@@ -27,7 +27,7 @@ def charger(max_uses: Optional[int] = None) -> AssemblerConfig:
         render_symbol="⚡",
         allow_partial_usage=True,  # can use it while its on cooldown
         max_uses=max_uses or 0,
-        recipes=[([], recipe)],
+        count_based_recipes=[recipe] * 9,
     )
 
 
@@ -39,7 +39,7 @@ def carbon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         map_char="C",
         render_symbol="⚫",
         max_uses=max_uses or 0,
-        recipes=[([], protocols.standard_carbon_recipe())],
+        count_based_recipes=[protocols.standard_carbon_recipe()] * 9,
     )
 
 
@@ -52,7 +52,7 @@ def oxygen_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         render_symbol="🔵",
         allow_partial_usage=True,  # can use it while its on cooldown
         max_uses=max_uses or 0,
-        recipes=[([], protocols.standard_oxygen_recipe())],
+        count_based_recipes=[protocols.standard_oxygen_recipe()] * 9,
     )
 
 
@@ -64,7 +64,7 @@ def germanium_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         map_char="G",
         render_symbol="🟣",
         max_uses=max_uses or 2,
-        recipes=[([], protocols.germanium_recipe(1))],
+        count_based_recipes=[protocols.germanium_recipe(1)] * 9,
     )
 
 
@@ -76,7 +76,7 @@ def silicon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         map_char="S",
         render_symbol="🔷",
         max_uses=max_uses or 0,
-        recipes=[([], protocols.standard_silicon_recipe())],
+        count_based_recipes=[protocols.standard_silicon_recipe()] * 9,
     )
 
 
@@ -88,7 +88,7 @@ def clipped_carbon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         render_symbol="⚫",
         max_uses=max_uses or 0,
         start_clipped=True,
-        recipes=[([], protocols.standard_carbon_recipe())],
+        count_based_recipes=[protocols.standard_carbon_recipe()] * 9,
     )
 
 
@@ -100,7 +100,7 @@ def clipped_oxygen_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         render_symbol="🔵",
         max_uses=max_uses or 0,
         start_clipped=True,
-        recipes=[([], protocols.standard_oxygen_recipe())],
+        count_based_recipes=[protocols.standard_oxygen_recipe()] * 9,
     )
 
 
@@ -112,7 +112,7 @@ def clipped_germanium_extractor(max_uses: Optional[int] = None) -> AssemblerConf
         render_symbol="🟣",
         max_uses=max_uses or 2,
         start_clipped=True,
-        recipes=[([], protocols.germanium_recipe(1))],
+        count_based_recipes=[protocols.germanium_recipe(1)] * 9,
     )
 
 
@@ -124,7 +124,7 @@ def clipped_silicon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig
         render_symbol="🔷",
         max_uses=max_uses or 0,
         start_clipped=True,
-        recipes=[([], protocols.standard_silicon_recipe())],
+        count_based_recipes=[protocols.standard_silicon_recipe()] * 9,
     )
 
 
@@ -135,7 +135,7 @@ def carbon_ex_dep() -> AssemblerConfig:
         map_char="c",
         render_symbol="⬛",
         max_uses=100,
-        recipes=[([], protocols.low_carbon_recipe())],
+        count_based_recipes=[protocols.low_carbon_recipe()] * 9,
     )
 
 
@@ -147,7 +147,7 @@ def oxygen_ex_dep() -> AssemblerConfig:
         render_symbol="⬜",
         max_uses=10,
         allow_partial_usage=True,
-        recipes=[([], protocols.low_oxygen_recipe())],
+        count_based_recipes=[protocols.low_oxygen_recipe()] * 9,
     )
 
 
@@ -158,7 +158,7 @@ def germanium_ex_dep() -> AssemblerConfig:
         map_char="g",
         render_symbol="🟪",
         max_uses=1,
-        recipes=[([], protocols.germanium_recipe(1))],
+        count_based_recipes=[protocols.germanium_recipe(1)] * 9,
     )
 
 
@@ -169,7 +169,7 @@ def silicon_ex_dep() -> AssemblerConfig:
         map_char="s",
         render_symbol="🔹",
         max_uses=10,
-        recipes=[([], protocols.low_silicon_recipe())],
+        count_based_recipes=[protocols.low_silicon_recipe()] * 9,
     )
 
 
@@ -240,7 +240,7 @@ def assembler() -> AssemblerConfig:
         map_char="&",
         render_symbol="🔄",
         clip_immune=True,
-        recipes=[
+        vibe_recipes=[
             ([GLYPH_NAMES["heart"]], protocols.one_agent_heart_recipe()),
             ([GLYPH_NAMES["heart"], GLYPH_NAMES["heart"]], protocols.two_agent_heart_recipe()),
             ([GLYPH_NAMES["heart"], GLYPH_NAMES["heart"], GLYPH_NAMES["heart"]], protocols.three_agent_heart_recipe()),

@@ -26,7 +26,9 @@ struct AssemblerConfig : public GridObjectConfig {
         start_clipped(false) {}  // Not clipped at start by default
 
   // Recipes keyed by local vibe (64-bit number from sorted glyphs)
-  std::unordered_map<uint64_t, std::shared_ptr<Recipe>> recipes;
+  std::unordered_map<uint64_t, std::shared_ptr<Recipe>> vibe_recipes;
+  // Recipes that just depend on the number of agents.
+  std::vector<std::shared_ptr<Recipe>> count_based_recipes;
 
   // Recipe observation configuration
   bool recipe_details_obs;
@@ -59,7 +61,8 @@ inline void bind_assembler_config(py::module& m) {
       .def_readwrite("type_id", &AssemblerConfig::type_id)
       .def_readwrite("type_name", &AssemblerConfig::type_name)
       .def_readwrite("tag_ids", &AssemblerConfig::tag_ids)
-      .def_readwrite("recipes", &AssemblerConfig::recipes)
+      .def_readwrite("vibe_recipes", &AssemblerConfig::vibe_recipes)
+      .def_readwrite("count_based_recipes", &AssemblerConfig::count_based_recipes)
       .def_readwrite("recipe_details_obs", &AssemblerConfig::recipe_details_obs)
       .def_readwrite("allow_partial_usage", &AssemblerConfig::allow_partial_usage)
       .def_readwrite("max_uses", &AssemblerConfig::max_uses)

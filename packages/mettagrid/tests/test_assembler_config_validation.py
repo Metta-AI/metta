@@ -21,7 +21,7 @@ def test_assembler_config_allows_disjoint_patterns() -> None:
     make_env_cfg_from_assembler_config(
         AssemblerConfig(
             type_id=7,
-            recipes=[
+            vibe_recipes=[
                 ([GLYPH_NAMES["oxygen"]], RecipeConfig()),
                 ([GLYPH_NAMES["carbon"]], RecipeConfig()),
             ],
@@ -34,7 +34,7 @@ def test_assembler_config_rejects_fully_overlapping_patterns_unless_explicitly_a
         make_env_cfg_from_assembler_config(
             AssemblerConfig(
                 type_id=7,
-                recipes=[
+                vibe_recipes=[
                     ([GLYPH_NAMES["oxygen"], GLYPH_NAMES["carbon"]], RecipeConfig()),
                     ([GLYPH_NAMES["oxygen"], GLYPH_NAMES["carbon"]], RecipeConfig()),
                 ],
@@ -43,7 +43,7 @@ def test_assembler_config_rejects_fully_overlapping_patterns_unless_explicitly_a
     make_env_cfg_from_assembler_config(
         AssemblerConfig(
             type_id=7,
-            recipes=[
+            vibe_recipes=[
                 ([GLYPH_NAMES["oxygen"], GLYPH_NAMES["carbon"]], RecipeConfig()),
                 ([GLYPH_NAMES["oxygen"], GLYPH_NAMES["carbon"]], RecipeConfig()),
             ],

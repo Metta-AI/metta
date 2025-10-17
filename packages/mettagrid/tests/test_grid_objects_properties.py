@@ -38,16 +38,10 @@ def env_with_assembler():
                 "wall": WallConfig(type_id=1),
                 "assembler": AssemblerConfig(
                     type_id=2,
-                    recipes=[
-                        (
-                            ["W"],  # pattern: agent to the west
-                            RecipeConfig(
-                                input_resources={"iron": 10},
-                                output_resources={"steel": 5},
-                                cooldown=20,
-                            ),
-                        )
-                    ],
+                    count_based_recipes=[
+                        RecipeConfig(input_resources={"iron": 10}, output_resources={"steel": 5}, cooldown=20)
+                    ]
+                    * 9,
                     max_uses=10,
                     allow_partial_usage=True,
                     exhaustion=0.1,

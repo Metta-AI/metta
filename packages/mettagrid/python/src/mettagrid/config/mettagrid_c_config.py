@@ -6,8 +6,8 @@ from mettagrid.config.mettagrid_config import (
     ChestConfig,
     ClipperConfig,
     ConverterConfig,
+    FixedPosition,
     GameConfig,
-    Position,
     WallConfig,
 )
 from mettagrid.mettagrid_c import ActionConfig as CppActionConfig
@@ -26,7 +26,7 @@ from mettagrid.mettagrid_c import ResourceModConfig as CppResourceModConfig
 from mettagrid.mettagrid_c import WallConfig as CppWallConfig
 
 # Note that these are left to right, top to bottom.
-FIXED_POSITIONS: list[Position] = ["NW", "N", "NE", "W", "E", "SW", "S", "SE"]
+FIXED_POSITIONS: list[FixedPosition] = ["NW", "N", "NE", "W", "E", "SW", "S", "SE"]
 
 
 def recursive_update(d, u):
@@ -241,9 +241,10 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             )
             objects_cpp_params[object_type] = cpp_wall_config
         elif isinstance(object_config, AssemblerConfig):
-            recipes = {}
+            vibe_recipes = {}
+            count_based_recipes = []
 
-            for vibes, recipe_config in reversed(object_config.recipes):
+            for vibes, recipe_config in reversed(object_config.vibe_recipes):
                 vibes = sorted(vibes)
                 overall_vibe = 0
                 for vibe in vibes:
@@ -254,7 +255,14 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                     output_resources={resource_name_to_id[k]: v for k, v in recipe_config.output_resources.items()},
                     cooldown=recipe_config.cooldown,
                 )
-                recipes[overall_vibe] = cpp_recipe
+                vibe_recipes[overall_vibe] = cpp_recipe
+            for recipe_config in object_config.count_based_recipes:
+                cpp_recipe = CppRecipe(
+                    input_resources={resource_name_to_id[k]: v for k, v in recipe_config.input_resources.items()},
+                    output_resources={resource_name_to_id[k]: v for k, v in recipe_config.output_resources.items()},
+                    cooldown=recipe_config.cooldown,
+                )
+                count_based_recipes.append(cpp_recipe)
 
             # Convert tag names to IDs
             tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
@@ -262,7 +270,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_assembler_config = CppAssemblerConfig(
                 type_id=object_config.type_id, type_name=object_type, tag_ids=tag_ids
             )
-            cpp_assembler_config.recipes = recipes
+            cpp_assembler_config.vibe_recipes = vibe_recipes
+            cpp_assembler_config.count_based_recipes = count_based_recipes
             cpp_assembler_config.allow_partial_usage = object_config.allow_partial_usage
             cpp_assembler_config.max_uses = object_config.max_uses
             cpp_assembler_config.exhaustion = object_config.exhaustion
