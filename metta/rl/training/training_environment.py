@@ -69,7 +69,7 @@ class TrainingEnvironmentConfig(Config):
 
 
 @dataclass
-class EnvironmentMetaData:
+class GameRules:
     obs_width: int
     obs_height: int
     obs_features: dict[str, ObsFeature]
@@ -119,8 +119,8 @@ class TrainingEnvironment(ABC):
 
     @property
     @abstractmethod
-    def meta_data(self) -> EnvironmentMetaData:
-        """Get the environment metadata."""
+    def game_rules(self) -> GameRules:
+        """Get the environment game rules."""
 
 
 class VectorizedTrainingEnvironment(TrainingEnvironment):
@@ -191,7 +191,7 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         # Initialize environment with seed
         self._vecenv.async_reset(cfg.seed)
 
-        self._meta_data = EnvironmentMetaData(
+        self._game_rules = GameRules(
             obs_width=self._vecenv.driver_env.obs_width,
             obs_height=self._vecenv.driver_env.obs_height,
             obs_features=self._vecenv.driver_env.observation_features,
@@ -217,8 +217,8 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         self._vecenv.close()
 
     @property
-    def meta_data(self) -> EnvironmentMetaData:
-        return self._meta_data
+    def game_rules(self) -> GameRules:
+        return self._game_rules
 
     @property
     def batch_info(self) -> BatchInfo:
