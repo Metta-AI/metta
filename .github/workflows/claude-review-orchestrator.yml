@@ -94,7 +94,15 @@ jobs:
 
   # Consolidate all results and create a single review
   consolidate-review:
-    needs: [validate-pr, review-readme, review-comments, review-types, review-einops, review-style]
+    needs:
+      [
+        validate-pr,
+        review-readme,
+        review-comments,
+        review-types,
+        review-einops,
+        review-style,
+      ]
     runs-on: ubuntu-latest
     if: always() && !cancelled()
     permissions:
