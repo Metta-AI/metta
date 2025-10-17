@@ -6,7 +6,7 @@ import pytest
 import mettagrid.builder.envs as eb
 from experiments.recipes.arena import mettagrid
 from metta.agent.mocks import MockAgent
-from metta.cogworks.curriculum import env_curriculum
+from metta.cogworks.curriculum import env_curriculum  # Helper function still in old location
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from metta.sim.simulation import Simulation

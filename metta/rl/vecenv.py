@@ -2,11 +2,12 @@ import logging
 from pathlib import Path
 from typing import Any, Optional
 
+from agora import Curriculum
+from agora.wrappers import CurriculumEnv
 from pydantic import validate_call
 
 import pufferlib
 import pufferlib.vector
-from metta.cogworks.curriculum import Curriculum, CurriculumEnv
 from metta.common.util.log_config import init_logging
 from metta.sim.replay_log_renderer import ReplayLogRenderer
 from mettagrid import MettaGridEnv, RenderMode

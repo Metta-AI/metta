@@ -9,10 +9,11 @@ from typing import Any, List, Literal, Tuple
 
 import numpy as np
 import torch
+from agora import Curriculum, CurriculumConfig
 from pydantic import Field
 from torch import Tensor
 
-from metta.cogworks.curriculum import Curriculum, CurriculumConfig, env_curriculum
+from metta.cogworks.curriculum import env_curriculum
 from metta.rl.vecenv import make_vecenv
 from metta.utils.batch import calculate_batch_sizes
 from mettagrid.base_config import Config

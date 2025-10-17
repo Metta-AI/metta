@@ -7,13 +7,13 @@ SliceAnalyzer for analyzing probability distributions across parameter slices.
 
 from abc import ABC, abstractmethod
 from collections import defaultdict, deque
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 if TYPE_CHECKING:
-    from .lp_scorers import LPScorer
-    from .task_tracker import TaskTracker
+    from agora.algorithms.scorers import LPScorer
+    from agora.tracking.tracker import TaskTracker
 
 
 def _make_default_dict_int():
@@ -35,15 +35,15 @@ class StatsLogger(ABC):
 
     def __init__(self, enable_detailed_logging: bool = False):
         self.enable_detailed_logging = enable_detailed_logging
-        self._stats_cache: Dict[str, Any] = {}
+        self._stats_cache: dict[str, Any] = {}
         self._stats_cache_valid = False
 
     @abstractmethod
-    def get_base_stats(self) -> Dict[str, float]:
+    def get_base_stats(self) -> dict[str, float]:
         """Get basic statistics that all algorithms should provide."""
         pass
 
-    def get_detailed_stats(self) -> Dict[str, float]:
+    def get_detailed_stats(self) -> dict[str, float]:
         """Get detailed statistics (expensive operations).
 
         Only computed when enable_detailed_logging=True.
@@ -55,7 +55,7 @@ class StatsLogger(ABC):
         """Invalidate the stats cache."""
         self._stats_cache_valid = False
 
-    def stats(self, prefix: str = "") -> Dict[str, float]:
+    def stats(self, prefix: str = "") -> dict[str, float]:
         """Get all statistics with optional prefix.
 
         Args:
@@ -101,28 +101,28 @@ class SliceAnalyzer:
         self.enable_detailed_logging = enable_detailed_logging
 
         # Slice tracking: slice_name -> task_id -> value
-        self._slice_tracking: Dict[str, Dict[int, Any]] = defaultdict(dict)
+        self._slice_tracking: dict[str, dict[int, Any]] = defaultdict(dict)
 
         # Completion counts per slice bin: slice_name -> bin_index -> count
-        self._slice_completion_counts: Dict[str, Dict[int, int]] = defaultdict(_make_default_dict_int)
+        self._slice_completion_counts: dict[str, dict[int, int]] = defaultdict(_make_default_dict_int)
 
         # Slice binning configuration: slice_name -> bin_edges
-        self._slice_bins: Dict[str, List[float]] = {}
+        self._slice_bins: dict[str, list[float]] = {}
 
         # Track if slice contains discrete vs continuous values
-        self._slice_is_discrete: Dict[str, bool] = {}
+        self._slice_is_discrete: dict[str, bool] = {}
 
         # Recent completion history for density analysis
-        self._slice_completion_history: Dict[str, deque] = defaultdict(_make_deque_maxlen_100)
+        self._slice_completion_history: dict[str, deque] = defaultdict(_make_deque_maxlen_100)
 
         # Monitored slices (limited by max_slice_axes)
         self._monitored_slices: set = set()
 
         # Cache for expensive density statistics
-        self._density_stats_cache: Optional[Dict[str, Dict[str, float]]] = None
+        self._density_stats_cache: dict[str, dict[str, float]] | None = None
         self._density_cache_valid = False
 
-    def extract_slice_values(self, task) -> Dict[str, Any]:
+    def extract_slice_values(self, task) -> dict[str, Any]:
         """Extract slice values from a task's environment configuration."""
         slice_values = {}
 
@@ -135,7 +135,7 @@ class SliceAnalyzer:
 
         return slice_values
 
-    def update_task_completion(self, task_id: int, slice_values: Dict[str, Any], score: float) -> None:
+    def update_task_completion(self, task_id: int, slice_values: dict[str, Any], score: float) -> None:
         """Update slice analysis with task completion data.
 
         Args:
@@ -179,7 +179,7 @@ class SliceAnalyzer:
             self._slice_bins[slice_name] = [value]
             self._slice_is_discrete[slice_name] = True
 
-    def get_slice_distribution_stats(self) -> Dict[str, Dict[str, float]]:
+    def get_slice_distribution_stats(self) -> dict[str, dict[str, float]]:
         """Get distribution statistics for each monitored slice.
 
         Returns:
@@ -225,11 +225,11 @@ class SliceAnalyzer:
 
         return slice_stats
 
-    def get_slice_value_for_task(self, task_id: int, slice_name: str) -> Optional[Any]:
+    def get_slice_value_for_task(self, task_id: int, slice_name: str) -> Any | None:
         """Get the slice value for a specific task and slice dimension."""
         return self._slice_tracking.get(slice_name, {}).get(task_id)
 
-    def get_all_slice_names(self) -> List[str]:
+    def get_all_slice_names(self) -> list[str]:
         """Get all tracked slice names."""
         return list(self._monitored_slices)
 
@@ -237,7 +237,7 @@ class SliceAnalyzer:
         """Invalidate the density statistics cache."""
         self._density_cache_valid = False
 
-    def get_state(self) -> Dict[str, Any]:
+    def get_state(self) -> dict[str, Any]:
         """Get slice analyzer state for checkpointing."""
         return {
             "slice_tracking": {k: dict(v) for k, v in self._slice_tracking.items()},
@@ -248,7 +248,7 @@ class SliceAnalyzer:
             # Note: completion_history is not serialized (transient data)
         }
 
-    def load_state(self, state: Dict[str, Any]) -> None:
+    def load_state(self, state: dict[str, Any]) -> None:
         """Load slice analyzer state from checkpoint."""
         self._slice_tracking = defaultdict(dict, {k: dict(v) for k, v in state.get("slice_tracking", {}).items()})
         self._slice_completion_counts = defaultdict(
@@ -263,7 +263,7 @@ class SliceAnalyzer:
         # Invalidate caches
         self._density_cache_valid = False
 
-    def get_base_stats(self) -> Dict[str, float]:
+    def get_base_stats(self) -> dict[str, float]:
         """Get basic slice analysis statistics."""
         total_tracked_slices = len(self._monitored_slices)
 
@@ -271,7 +271,7 @@ class SliceAnalyzer:
             "total_tracked_slices": total_tracked_slices,
         }
 
-    def get_detailed_stats(self) -> Dict[str, float]:
+    def get_detailed_stats(self) -> dict[str, float]:
         """Get detailed slice distribution statistics (expensive)."""
         if not self.enable_detailed_logging:
             return {}
@@ -304,7 +304,7 @@ class SliceAnalyzer:
 
         return detailed_stats
 
-    def _get_bin_index(self, slice_name: str, value: Any) -> Optional[int]:
+    def _get_bin_index(self, slice_name: str, value: Any) -> int | None:
         """Get bin index for a value in the given slice."""
         if slice_name not in self._slice_bins:
             return None
@@ -356,7 +356,7 @@ class LPStatsAggregator:
         self.slice_analyzer = slice_analyzer
         self.num_tasks = num_tasks
 
-    def get_base_stats(self) -> Dict[str, float]:
+    def get_base_stats(self) -> dict[str, float]:
         """Get basic statistics from all components."""
         stats = {
             "num_tasks": self.num_tasks,
@@ -370,7 +370,7 @@ class LPStatsAggregator:
 
         return stats
 
-    def get_detailed_stats(self) -> Dict[str, float]:
+    def get_detailed_stats(self) -> dict[str, float]:
         """Get detailed statistics from all components."""
         stats = {}
 
@@ -384,7 +384,7 @@ class LPStatsAggregator:
 
         return stats
 
-    def get_all_stats(self, enable_detailed: bool = False) -> Dict[str, float]:
+    def get_all_stats(self, enable_detailed: bool = False) -> dict[str, float]:
         """Get all statistics (base + optionally detailed).
 
         Args:
@@ -412,9 +412,9 @@ class CacheCoordinator:
 
     def __init__(
         self,
-        stats_logger: Optional[StatsLogger] = None,
-        scorer: Optional["LPScorer"] = None,
-        slice_analyzer: Optional[SliceAnalyzer] = None,
+        stats_logger: StatsLogger | None = None,
+        scorer: "LPScorer | None" = None,
+        slice_analyzer: SliceAnalyzer | None = None,
     ):
         """Initialize cache coordinator.
 

@@ -17,7 +17,7 @@ from torch import nn
 
 from metta.agent.policies.fast import FastConfig
 from metta.agent.policy import Policy
-from metta.cogworks.curriculum import env_curriculum
+from metta.cogworks.curriculum import env_curriculum  # Helper function
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.policy_artifact import save_policy_artifact_pt
 from metta.rl.system_config import SystemConfig

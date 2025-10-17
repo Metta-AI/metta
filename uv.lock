@@ -8,6 +8,7 @@ resolution-markers = [
 
 [manifest]
 members = [
+    "agora",
     "codebot",
     "cogames",
     "cortex",
@@ -21,6 +22,49 @@ members = [
     "pufferlib-core",
     "softmax",
 ]
+
+[[package]]
+name = "agora"
+source = { editable = "packages/agora" }
+dependencies = [
+    { name = "numpy" },
+    { name = "pydantic" },
+]
+
+[package.optional-dependencies]
+all = [
+    { name = "mettagrid" },
+    { name = "pufferlib-core" },
+]
+dev = [
+    { name = "mypy" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "pytest-xdist" },
+    { name = "ruff" },
+]
+mettagrid = [
+    { name = "mettagrid" },
+]
+puffer = [
+    { name = "pufferlib-core" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "mettagrid", marker = "extra == 'all'", editable = "packages/mettagrid" },
+    { name = "mettagrid", marker = "extra == 'mettagrid'", editable = "packages/mettagrid" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.11.0" },
+    { name = "numpy", specifier = ">=2.0.0" },
+    { name = "pufferlib-core", marker = "extra == 'all'", editable = "packages/pufferlib-core" },
+    { name = "pufferlib-core", marker = "extra == 'puffer'", editable = "packages/pufferlib-core" },
+    { name = "pydantic", specifier = ">=2.11.5" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.3" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0.0" },
+    { name = "pytest-xdist", marker = "extra == 'dev'", specifier = ">=3.8.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.7.0" },
+]
+provides-extras = ["puffer", "mettagrid", "all", "dev"]
 
 [[package]]
 name = "aiofiles"
@@ -2039,6 +2083,7 @@ name = "metta"
 version = "0.1"
 source = { editable = "." }
 dependencies = [
+    { name = "agora" },
     { name = "altair" },
     { name = "anywidget" },
     { name = "asana" },
@@ -2148,6 +2193,7 @@ testing = [
 
 [package.metadata]
 requires-dist = [
+    { name = "agora", editable = "packages/agora" },
     { name = "altair", specifier = ">=5.5.0" },
     { name = "anywidget", specifier = ">=0.9.18" },
     { name = "asana", specifier = ">=5.2.2" },

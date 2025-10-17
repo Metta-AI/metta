@@ -5,11 +5,11 @@ import pkgutil
 from copy import deepcopy
 from typing import Any
 
+from agora import CurriculumConfig
 from fastapi import APIRouter
 from pydantic.json_schema import models_json_schema
 
 import mettagrid.mapgen.scenes
-from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool

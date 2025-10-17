@@ -10,13 +10,13 @@ from typing import Any, Dict
 
 import numpy as np
 import torch
+from agora import Curriculum, CurriculumConfig
 from einops import rearrange
 
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import Policy
 from metta.agent.utils import obs_to_td
 from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
-from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
 from metta.common.util.heartbeat import record_heartbeat
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.policy_artifact import PolicyArtifact

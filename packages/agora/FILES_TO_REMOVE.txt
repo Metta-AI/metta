@@ -1,0 +1,101 @@
+# Files to Remove After Migration Validation
+# Generated: 2024-10-17
+# Location: metta/cogworks/curriculum/
+
+# ============================================================================
+# REDUNDANT FILES (128KB total)
+# All functionality migrated to packages/agora/
+# ============================================================================
+
+# Core curriculum implementation (20KB)
+metta/cogworks/curriculum/curriculum.py
+  → Migrated to: packages/agora/src/agora/curriculum.py
+
+# Task generators (17KB)
+metta/cogworks/curriculum/task_generator.py
+  → Migrated to: packages/agora/src/agora/generators/
+    - base.py
+    - single.py
+    - bucketed.py
+    - set.py
+
+# Task tracking (18KB)
+metta/cogworks/curriculum/task_tracker.py
+  → Migrated to: packages/agora/src/agora/tracking/tracker.py
+
+# Statistics (17KB)
+metta/cogworks/curriculum/stats.py
+  → Migrated to: packages/agora/src/agora/tracking/stats.py
+
+# Learning progress scorers (19KB)
+metta/cogworks/curriculum/lp_scorers.py
+  → Migrated to: packages/agora/src/agora/algorithms/scorers.py
+
+# Learning progress algorithm (15KB)
+metta/cogworks/curriculum/learning_progress_algorithm.py
+  → Migrated to: packages/agora/src/agora/algorithms/learning_progress.py
+
+# Shared memory backend (10KB)
+metta/cogworks/curriculum/shared_memory_backend.py
+  → Migrated to: packages/agora/src/agora/tracking/memory.py
+
+# PufferEnv wrapper (8.9KB)
+metta/cogworks/curriculum/curriculum_env.py
+  → Migrated to: packages/agora/src/agora/wrappers/puffer.py
+
+# Demo script (1.4KB)
+metta/cogworks/curriculum/demo.py
+  → Examples in: packages/agora/README.md
+
+# Documentation (<1KB)
+metta/cogworks/curriculum/structure.md
+  → Superseded by: packages/agora/README.md
+
+# ============================================================================
+# FILES TO KEEP
+# ============================================================================
+
+# Backward compatibility shim (3.7KB)
+metta/cogworks/curriculum/__init__.py
+  → KEEP: Provides deprecation warnings and re-exports from agora
+  → Remove after: 3-6 month deprecation period
+
+# ============================================================================
+# CLEANUP COMMANDS (After Testing)
+# ============================================================================
+
+# Phase 1: Archive (2-4 weeks after validation)
+# mkdir -p metta/cogworks/curriculum/.archived
+# git mv metta/cogworks/curriculum/{curriculum,task_generator,task_tracker,stats,lp_scorers,learning_progress_algorithm,shared_memory_backend,curriculum_env,demo}.py metta/cogworks/curriculum/.archived/
+# git mv metta/cogworks/curriculum/structure.md metta/cogworks/curriculum/.archived/
+# git commit -m "refactor: archive old curriculum implementation (migrated to agora)"
+
+# Phase 2: Complete removal (3-6 months after migration)
+# git rm -r metta/cogworks/curriculum/
+# git commit -m "refactor: remove deprecated curriculum module (fully migrated to agora)"
+
+# ============================================================================
+# VALIDATION CHECKLIST
+# ============================================================================
+
+# Before removing any files:
+# [ ] All tests pass: uv run pytest tests/cogworks/curriculum/
+# [ ] Linters clean: uv run ruff check packages/agora/
+# [ ] Training works: timeout 30s uv run ./tools/run.py experiments.recipes.arena.train run=test
+# [ ] No import errors: grep -r "from metta.cogworks.curriculum.curriculum import" .
+# [ ] Deprecation period complete (3-6 months)
+# [ ] External projects notified
+# [ ] Team approval obtained
+
+# ============================================================================
+# DISK SPACE IMPACT
+# ============================================================================
+
+# Before: 131.7KB (all files)
+# After Phase 1: 3.7KB (shim only)
+# Savings: ~128KB (97% reduction)
+
+# ============================================================================
+# END OF FILE
+# ============================================================================
+

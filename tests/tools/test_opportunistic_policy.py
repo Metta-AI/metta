@@ -8,10 +8,9 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from agora import CurriculumConfig, SingleTaskGenerator
 
 import mettagrid.builder.envs as eb
-from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.cogworks.curriculum.task_generator import SingleTaskGenerator
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool

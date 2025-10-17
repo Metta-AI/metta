@@ -5,11 +5,11 @@ from typing import Any, Optional
 from uuid import UUID
 
 import torch
+from agora import Curriculum
 from pydantic import Field
 
 import gitta as git
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.cogworks.curriculum import Curriculum
 from metta.common.util.git_repo import REPO_SLUG
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy

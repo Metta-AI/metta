@@ -1,8 +1,8 @@
 import logging
 
+from agora import CurriculumConfig
 from fastapi import APIRouter, HTTPException
 
-from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.common.util.fs import get_repo_root
 from metta.gridworks.common import ErrorResult, dump_config_with_implicit_info
 from metta.gridworks.configs.registry import ConfigMaker, ConfigMakerKind, ConfigMakerRegistry

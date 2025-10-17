@@ -15,7 +15,8 @@ from mettagrid.profiling.stopwatch import Stopwatch
 from mettagrid.profiling.system_monitor import SystemMonitor
 
 if TYPE_CHECKING:
-    from metta.cogworks.curriculum import Curriculum
+    from agora import Curriculum
+
     from metta.rl.training.distributed_helper import DistributedHelper
     from metta.rl.training.stats_reporter import StatsReporter
 

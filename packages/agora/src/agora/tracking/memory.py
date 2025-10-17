@@ -4,11 +4,15 @@ Provides unified interface for task data storage with both local and shared memo
 The abstraction allows TaskTracker to work identically whether using in-process or multi-process storage.
 """
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
+from contextlib import AbstractContextManager
 from multiprocessing import RLock, shared_memory
-from typing import Any, ContextManager, Optional
+from typing import Any
 
 import numpy as np
+import numpy.typing as npt
 
 
 class TaskMemoryBackend(ABC):
@@ -34,7 +38,7 @@ class TaskMemoryBackend(ABC):
     completion_history_size: int
 
     @abstractmethod
-    def get_task_data(self, index: int) -> np.ndarray:
+    def get_task_data(self, index: int) -> npt.NDArray[np.float64]:
         """Get task data at given index (raw array view).
 
         Returns numpy array of length TASK_STRUCT_SIZE that can be read/written.
@@ -42,7 +46,7 @@ class TaskMemoryBackend(ABC):
         ...
 
     @abstractmethod
-    def get_completion_history(self) -> np.ndarray:
+    def get_completion_history(self) -> npt.NDArray[np.float64]:
         """Get completion history array (raw view).
 
         Returns numpy array of length COMPLETION_HISTORY_SIZE that can be read/written.
@@ -50,7 +54,7 @@ class TaskMemoryBackend(ABC):
         ...
 
     @abstractmethod
-    def acquire_lock(self) -> ContextManager[Any]:
+    def acquire_lock(self) -> AbstractContextManager[Any]:
         """Acquire lock for thread-safe access.
 
         Returns context manager for use with 'with' statement.
@@ -102,28 +106,28 @@ class LocalMemoryBackend(TaskMemoryBackend):
 
         self._lock = RLock()
 
-    def get_task_data(self, index: int) -> np.ndarray:
+    def get_task_data(self, index: int) -> npt.NDArray[np.float64]:
         """Get task data at given index (raw array view)."""
         return self._task_array[index]
 
-    def get_completion_history(self) -> np.ndarray:
+    def get_completion_history(self) -> npt.NDArray[np.float64]:
         """Get completion history array (raw view)."""
         return self._completion_history
 
-    def acquire_lock(self) -> ContextManager[Any]:
+    def acquire_lock(self) -> AbstractContextManager[Any]:
         """Acquire lock (no-op for local memory)."""
         return self._lock
 
-    def clear(self):
+    def clear(self) -> None:
         """Clear all memory data."""
         self._task_array.fill(0.0)
         self._completion_history.fill(0.0)
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         """Clean up resources (no-op for local memory)."""
         pass
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Cleanup on destruction (no-op for local memory)."""
         pass
 
@@ -138,7 +142,7 @@ class SharedMemoryBackend(TaskMemoryBackend):
     def __init__(
         self,
         max_tasks: int,
-        session_id: Optional[str] = None,
+        session_id: str | None = None,
         task_struct_size: int = 13,
         completion_history_size: int = 1000,
     ):
@@ -175,7 +179,7 @@ class SharedMemoryBackend(TaskMemoryBackend):
         # Initialize shared structures
         self._init_shared_memory()
 
-    def _init_shared_memory(self):
+    def _init_shared_memory(self) -> None:
         """Initialize shared memory structures."""
         # Calculate sizes
         task_array_size = self.max_tasks * self.task_struct_size * 8  # 8 bytes per float64
@@ -228,25 +232,25 @@ class SharedMemoryBackend(TaskMemoryBackend):
         # This works with both fork and spawn multiprocessing contexts
         self._lock = RLock()
 
-    def get_task_data(self, index: int) -> np.ndarray:
+    def get_task_data(self, index: int) -> npt.NDArray[np.float64]:
         """Get task data at given index (raw array view)."""
         return self._task_array[index]
 
-    def get_completion_history(self) -> np.ndarray:
+    def get_completion_history(self) -> npt.NDArray[np.float64]:
         """Get completion history array (raw view)."""
         return self._completion_history
 
-    def acquire_lock(self) -> ContextManager[Any]:
+    def acquire_lock(self) -> AbstractContextManager[Any]:
         """Acquire the shared lock."""
         return self._lock
 
-    def clear(self):
+    def clear(self) -> None:
         """Clear all shared memory data."""
         with self._lock:
             self._task_array.fill(0.0)
             self._completion_history.fill(0.0)
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         """Clean up shared memory resources."""
         try:
             if hasattr(self, "_task_array_shm"):
@@ -267,7 +271,7 @@ class SharedMemoryBackend(TaskMemoryBackend):
         except Exception:
             pass  # Best-effort cleanup
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Cleanup on destruction."""
         try:
             if hasattr(self, "_task_array_shm"):
