@@ -49,6 +49,9 @@ def init_mettagrid_system_environment() -> None:
     warnings.filterwarnings("ignore", category=DeprecationWarning, module="pkg_resources")
     warnings.filterwarnings("ignore", category=DeprecationWarning, module="pygame.pkgdata")
 
+    # Silence PyTorch distributed elastic warning about redirects on MacOS/Windows
+    logging.getLogger("torch.distributed.elastic.multiprocessing.redirects").setLevel(logging.ERROR)
+
 
 T = TypeVar("T", bound=Config)
 

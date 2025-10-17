@@ -1,41 +1,40 @@
 import strutils, os
 
 if defined(emscripten):
-
-  # This path will only run if -d:emscripten is passed to nim.
-
-  --nimcache:tmp # Store intermediate files close by in the ./tmp dir.
-
-  --os:linux # Emscripten pretends to be linux.
-  --cpu:wasm32 # Emscripten is 32bits.
-  --cc:clang # Emscripten is very close to clang, so we will replace it.
+  --nimcache:tmp
+  --os:linux
+  --cpu:wasm32
+  --cc:clang
   when defined(windows):
-    --clang.exe:emcc.bat  # Replace C
-    --clang.linkerexe:emcc.bat # Replace C linker
-    --clang.cpp.exe:emcc.bat # Replace C++
-    --clang.cpp.linkerexe:emcc.bat # Replace C++ linker.
+    --clang.exe:emcc.bat
+    --clang.linkerexe:emcc.bat
+    --clang.cpp.exe:emcc.bat
+    --clang.cpp.linkerexe:emcc.bat
   else:
-    --clang.exe:emcc  # Replace C
-    --clang.linkerexe:emcc # Replace C linker
-    --clang.cpp.exe:emcc # Replace C++
-    --clang.cpp.linkerexe:emcc # Replace C++ linker.
-  --listCmd # List what commands we are running so that we can debug them.
+    --clang.exe:emcc
+    --clang.linkerexe:emcc
+    --clang.cpp.exe:emcc
+    --clang.cpp.linkerexe:emcc
+  --listCmd
 
-  --gc:arc # GC:arc is friendlier with crazy platforms.
-  --exceptions:goto # Goto exceptions are friendlier with crazy platforms.
-  --define:noSignalHandler # Emscripten doesn't support signal handlers.
+  --gc:arc
+  --exceptions:goto
+  --define:noSignalHandler
+  --debugger:native
 
-  # Create the dist directory if it doesn't exist.
-  if not dirExists("dist"):
-    mkDir("dist")
+  # Delete dist directory if it exists
+  if dirExists("dist"):
+    rmDir("dist")
+  mkDir("dist")
 
-  # Pass this to Emscripten linker to generate html file scaffold for us.
   switch(
     "passL",
     """
-    -o dist/mettascope.html
-    --preload-file data
-    --shell-file src/mettascope/shell.html
+    -o packages/mettagrid/nim/mettascope/dist/mettascope.html
+    --preload-file packages/mettagrid/nim/mettascope/data
+    --shell-file packages/mettagrid/nim/mettascope/src/mettascope/shell.html
+    -s ASYNCIFY
+    -s FETCH
     -s USE_WEBGL2=1
     -s MAX_WEBGL_VERSION=2
     -s MIN_WEBGL_VERSION=1
@@ -46,9 +45,8 @@ if defined(emscripten):
     """.replace("\n", " ")
   )
 
---gc:arc # GC:arc is friendlier with crazy platforms.
---exceptions:goto # Goto exceptions are friendlier with crazy platforms.
---define:noSignalHandler # Emscripten doesn't support signal handlers.
---define:noAutoGLerrorCheck
---define:windyUseStdHttp
+when not defined(debug):
+  --define:noAutoGLerrorCheck
+  --define:release
+
 --define:ssl

@@ -1,0 +1,45 @@
+name: "Claude Review: Style"
+on:
+  workflow_call:
+    inputs:
+      pr_number:
+        required: true
+        type: string
+
+jobs:
+  review:
+    uses: ./.github/workflows/claude-review-base.yml
+    secrets: inherit
+    with:
+      review_name: "Code Style"
+      review_type: "style"
+      file_pattern: "\\.py$"
+      tools: "Edit,Replace,Bash(git diff HEAD~1)"
+      pr_number: ${{ inputs.pr_number }}
+      prompt: |
+        Review the Python diff for code style violations according to STYLE_GUIDE.md.
+
+        **CRITICAL INSTRUCTIONS**:
+        1. First, read STYLE_GUIDE.md to understand our coding philosophy
+        2. If you find NO style violations:
+           - Simply respond with "No issues found."
+           - DO NOT create any review
+        3. ONLY create a review if you find genuine style violations
+        4. Focus on violations that harm code readability or maintainability
+
+        ## Review Process
+
+        1. Run `git diff HEAD~1` to see the changes
+        2. Read STYLE_GUIDE.md for our complete style guidelines
+        3. Analyze the diff against the style guide principles
+        4. Create suggestions only for genuine violations
+
+        ## Severity Levels
+
+        - **blocking**: Code that will cause runtime issues or is fundamentally wrong
+        - **major**: Clear style violations that significantly harm readability
+        - **minor**: Style inconsistencies that should be fixed but aren't critical
+        - **nitpick**: Very minor suggestions that could be improved but are acceptable
+
+        Focus on **major** violations. Only create suggestions for changes that will genuinely
+        improve code quality and align with our lean, pragmatic philosophy.
