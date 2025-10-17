@@ -183,7 +183,7 @@ class TrainTool(Tool):
 
         def disable_desync(generator_config):
             overrides = dict(generator_config.overrides)
-            overrides.setdefault("desync_episodes", False)
+            overrides["desync_episodes"] = False
             generator_config.overrides = overrides
 
             if isinstance(generator_config, TaskGeneratorSet.Config):
