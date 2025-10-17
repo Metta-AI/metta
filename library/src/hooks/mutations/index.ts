@@ -11,6 +11,7 @@ export { useStarMutation } from "../useStarMutation";
 export { useDeletePost } from "./useDeletePost";
 export { useCreateComment } from "./useCreateComment";
 export { useDeleteComment } from "./useDeleteComment";
+export { useJoinInstitution } from "./useJoinInstitution";
 
 // Settings & notifications
 export { useMarkNotificationsRead } from "./useMarkNotificationsRead";
