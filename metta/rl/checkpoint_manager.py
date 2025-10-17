@@ -17,7 +17,7 @@ from metta.rl.policy_artifact import (
 )
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
-from metta.rl.training.training_environment import EnvironmentMetaData
+from metta.rl.training.training_environment import GameRules
 from metta.tools.utils.auto_config import auto_policy_storage_decision
 from metta.utils.file import local_copy, write_file
 from metta.utils.uri import ParsedURI
@@ -189,9 +189,9 @@ class CheckpointManager:
         return self._remote_prefix is not None
 
     @staticmethod
-    def load_from_uri(uri: str, env_metadata: EnvironmentMetaData, device: torch.device) -> Policy:
+    def load_from_uri(uri: str, game_rules: GameRules, device: torch.device) -> Policy:
         artifact = CheckpointManager.load_artifact_from_uri(uri)
-        return artifact.instantiate(env_metadata, device)
+        return artifact.instantiate(game_rules, device)
 
     @staticmethod
     def load_artifact_from_uri(uri: str) -> PolicyArtifact:
