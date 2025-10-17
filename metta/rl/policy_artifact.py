@@ -17,6 +17,7 @@ from safetensors.torch import save as save_safetensors
 
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.policy import Policy, PolicyArchitecture
+from metta.agent.policy_auto_builder import PolicyAutoBuilder
 from metta.rl.puffer_policy import _is_puffer_state_dict, load_pufferlib_checkpoint
 from metta.rl.training import GameRules
 from mettagrid.util.module import load_symbol
@@ -384,7 +385,7 @@ def load_policy_artifact(path: str | Path, is_pt_file: bool = False) -> PolicyAr
             if _is_puffer_state_dict(loaded_policy):
                 policy = load_pufferlib_checkpoint(loaded_policy, device="cpu")
             else:
-                if not isinstance(loaded_policy, Policy):
+                if not isinstance(loaded_policy, Policy) and not isinstance(loaded_policy, PolicyAutoBuilder):
                     msg = "Loaded policy payload is not a Policy instance"
                     raise TypeError(msg)
                 policy = loaded_policy

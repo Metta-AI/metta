@@ -13,6 +13,7 @@ from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.policy_artifact import (
     PolicyArtifact,
     load_policy_artifact,
+    save_policy_artifact_pt,
     save_policy_artifact_safetensors,
 )
 from metta.rl.system_config import SystemConfig
@@ -292,11 +293,18 @@ class CheckpointManager:
         filename = f"{self.run_name}:v{epoch}.mpt"
         checkpoint_path = self.checkpoint_dir / filename
 
-        save_policy_artifact_safetensors(
-            checkpoint_path,
-            policy_architecture=policy_architecture,
-            state_dict=agent.state_dict(),
-        )
+        from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
+
+        if type(policy_architecture) is FastLSTMResetConfig or (
+            getattr(policy_architecture, "class_path", "") == "metta.agent.policy_auto_builder.PolicyAutoBuilder"
+        ):
+            save_policy_artifact_pt(checkpoint_path, policy=agent)
+        else:
+            save_policy_artifact_safetensors(
+                checkpoint_path,
+                policy_architecture=policy_architecture,
+                state_dict=agent.state_dict(),
+            )
 
         remote_uri = None
         if self._remote_prefix:
