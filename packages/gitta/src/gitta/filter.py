@@ -47,9 +47,11 @@ def filter_repo(source_path: Path, paths: list[str], make_root: str | None = Non
     prefix = make_root.rstrip("/")
 
     # Ensure the path exists in the repository
+
     full_path = source_path / prefix
-    if not full_path.exists():
-        raise ValueError(f"Path does not exist in repository: {prefix}")
+    if not full_path.exists() or not full_path.is_dir():
+        raise ValueError(f"Path does not exist or is not a directory: {prefix}")
+
 
     print(f"Extracting {prefix} using git subtree split...")
 
