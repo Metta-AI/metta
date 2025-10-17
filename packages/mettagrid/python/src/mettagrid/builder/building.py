@@ -1,6 +1,11 @@
 from typing import Literal
 
-from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, RecipeConfig, WallConfig
+from mettagrid.config.mettagrid_config import (
+    AssemblerConfig,
+    ChestConfig,
+    ProtocolConfig,
+    WallConfig,
+)
 
 wall = WallConfig(name="wall", type_id=1, map_char="#", render_symbol="⬛")
 block = WallConfig(name="block", type_id=14, map_char="s", render_symbol="📦", swappable=True)
@@ -11,7 +16,7 @@ assembler_altar = AssemblerConfig(
     type_id=8,
     map_char="_",
     render_symbol="🎯",
-    recipes=[([], RecipeConfig(input_resources={"battery_red": 3}, output_resources={"heart": 1}, cooldown=10))],
+    recipes=[([], ProtocolConfig(input_resources={"battery_red": 3}, output_resources={"heart": 1}, cooldown=10))],
 )
 
 
@@ -23,7 +28,7 @@ def make_assembler_mine(color: str, type_id: int) -> AssemblerConfig:
         type_id=type_id,
         map_char=char_map[color],
         render_symbol=symbol_map[color],
-        recipes=[([], RecipeConfig(output_resources={f"ore_{color}": 1}, cooldown=50))],
+        recipes=[([], ProtocolConfig(output_resources={f"ore_{color}": 1}, cooldown=50))],
     )
 
 
@@ -43,7 +48,7 @@ def make_assembler_generator(color: str, type_id: int) -> AssemblerConfig:
         recipes=[
             (
                 [],
-                RecipeConfig(
+                ProtocolConfig(
                     input_resources={f"ore_{color}": 1}, output_resources={f"battery_{color}": 1}, cooldown=25
                 ),
             )
@@ -61,7 +66,12 @@ assembler_lasery = AssemblerConfig(
     map_char="S",
     render_symbol="🟥",
     recipes=[
-        ([], RecipeConfig(input_resources={"battery_red": 1, "ore_red": 2}, output_resources={"laser": 1}, cooldown=10))
+        (
+            [],
+            ProtocolConfig(
+                input_resources={"battery_red": 1, "ore_red": 2}, output_resources={"laser": 1}, cooldown=10
+            ),
+        )
     ],
 )
 
@@ -70,7 +80,7 @@ assembler_armory = AssemblerConfig(
     type_id=16,
     map_char="o",
     render_symbol="🔵",
-    recipes=[([], RecipeConfig(input_resources={"ore_red": 3}, output_resources={"armor": 1}, cooldown=10))],
+    recipes=[([], ProtocolConfig(input_resources={"ore_red": 3}, output_resources={"armor": 1}, cooldown=10))],
 )
 
 assembler_lab = AssemblerConfig(
@@ -79,7 +89,12 @@ assembler_lab = AssemblerConfig(
     map_char="L",
     render_symbol="🔵",
     recipes=[
-        ([], RecipeConfig(input_resources={"battery_red": 1, "ore_red": 2}, output_resources={"laser": 1}, cooldown=10))
+        (
+            [],
+            ProtocolConfig(
+                input_resources={"battery_red": 1, "ore_red": 2}, output_resources={"laser": 1}, cooldown=10
+            ),
+        )
     ],
 )
 
@@ -89,7 +104,12 @@ assembler_factory = AssemblerConfig(
     map_char="F",
     render_symbol="🟪",
     recipes=[
-        ([], RecipeConfig(input_resources={"battery_red": 1, "ore_red": 2}, output_resources={"laser": 1}, cooldown=10))
+        (
+            [],
+            ProtocolConfig(
+                input_resources={"battery_red": 1, "ore_red": 2}, output_resources={"laser": 1}, cooldown=10
+            ),
+        )
     ],
 )
 
@@ -99,7 +119,12 @@ assembler_temple = AssemblerConfig(
     map_char="T",
     render_symbol="🟨",
     recipes=[
-        ([], RecipeConfig(input_resources={"battery_red": 1, "ore_red": 2}, output_resources={"laser": 1}, cooldown=10))
+        (
+            [],
+            ProtocolConfig(
+                input_resources={"battery_red": 1, "ore_red": 2}, output_resources={"laser": 1}, cooldown=10
+            ),
+        )
     ],
 )
 
@@ -150,5 +175,5 @@ nav_assembler = AssemblerConfig(
     type_id=8,
     map_char="_",
     render_symbol="🛣️",
-    recipes=[([], RecipeConfig(input_resources={}, output_resources={"heart": 1}, cooldown=255))],
+    recipes=[([], ProtocolConfig(input_resources={}, output_resources={"heart": 1}, cooldown=255))],
 )

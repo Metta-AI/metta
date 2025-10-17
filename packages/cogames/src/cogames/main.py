@@ -16,7 +16,7 @@ from packaging.version import Version
 from rich.table import Table
 
 from cogames import evaluate as evaluate_module
-from cogames import game
+from cogames import game, verbose
 from cogames import play as play_module
 from cogames import train as train_module
 from cogames.cli.base import console
@@ -51,6 +51,13 @@ app = typer.Typer(
 def games_cmd(
     ctx: typer.Context,
     mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Name of the mission"),
+    cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
+    variant: Optional[list[str]] = typer.Option(  # noqa: B008
+        None,
+        "--variant",
+        "-v",
+        help="Mission variant (can be used multiple times, e.g., --variant solar_flare --variant dark_side)",
+    ),
     format_: Optional[Literal["yaml", "json"]] = typer.Option(
         None, "--format", help="Output mission configuration in YAML or JSON."
     ),
@@ -60,8 +67,17 @@ def games_cmd(
         "-s",
         help="Save mission configuration to file (YAML or JSON)",
     ),
+    print_cvc_config: bool = typer.Option(False, "--print-cvc-config", help="Print Mission config (CVC config)"),
+    print_mg_config: bool = typer.Option(False, "--print-mg-config", help="Print MettaGridConfig"),
 ) -> None:
-    resolved_mission, env_cfg = get_mission_name_and_config(ctx, mission)
+    resolved_mission, env_cfg, mission_cfg = get_mission_name_and_config(ctx, mission, variant, cogs)
+
+    if print_cvc_config or print_mg_config:
+        try:
+            verbose.print_configs(console, env_cfg, mission_cfg, print_cvc_config, print_mg_config)
+        except Exception as exc:
+            console.print(f"[red]Error printing config: {exc}[/red]")
+            raise typer.Exit(1) from exc
 
     if save is not None:
         try:
@@ -95,13 +111,32 @@ def games_cmd(
 def play_cmd(
     ctx: typer.Context,
     mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Name of the mission"),
+    cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
+    variant: Optional[list[str]] = typer.Option(  # noqa: B008
+        None,
+        "--variant",
+        "-v",
+        help="Mission variant (can be used multiple times, e.g., --variant solar_flare --variant dark_side)",
+    ),
     policy: str = typer.Option("noop", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
     render: Literal["gui", "unicode", "none"] = typer.Option(
         "gui", "--render", "-r", help="Render mode: 'gui', 'unicode' (interactive terminal), or 'none'"
     ),
+    print_cvc_config: bool = typer.Option(
+        False, "--print-cvc-config", help="Print Mission config (CVC config) and exit"
+    ),
+    print_mg_config: bool = typer.Option(False, "--print-mg-config", help="Print MettaGridConfig and exit"),
 ) -> None:
-    resolved_mission, env_cfg = get_mission_name_and_config(ctx, mission)
+    resolved_mission, env_cfg, mission_cfg = get_mission_name_and_config(ctx, mission, variant, cogs)
+
+    if print_cvc_config or print_mg_config:
+        try:
+            verbose.print_configs(console, env_cfg, mission_cfg, print_cvc_config, print_mg_config)
+        except Exception as exc:
+            console.print(f"[red]Error printing config: {exc}[/red]")
+            raise typer.Exit(1) from exc
+
     policy_spec = get_policy_spec(ctx, policy)
     console.print(f"[cyan]Playing {resolved_mission}[/cyan]")
     console.print(f"Max Steps: {steps}, Render: {render}")
@@ -112,6 +147,13 @@ def play_cmd(
         ParameterSource.PROMPT,
     ):
         env_cfg.game.max_steps = steps
+
+    if ctx.get_parameter_source("cogs") in (
+        ParameterSource.COMMANDLINE,
+        ParameterSource.ENVIRONMENT,
+        ParameterSource.PROMPT,
+    ):
+        env_cfg.game.num_agents = cogs
 
     play_module.play(
         console,
@@ -129,18 +171,31 @@ def play_cmd(
 def make_mission(
     ctx: typer.Context,
     base_mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Base mission to start configuring from"),
-    num_agents: int = typer.Option(2, "--agents", "-a", help="Number of agents", min=1),
-    width: int = typer.Option(10, "--width", "-w", help="Map width", min=1),
-    height: int = typer.Option(10, "--height", "-h", help="Map height", min=1),
+    num_agents: Optional[int] = typer.Option(None, "--agents", "-a", help="Number of agents", min=1),
+    width: Optional[int] = typer.Option(None, "--width", "-w", help="Map width", min=1),
+    height: Optional[int] = typer.Option(None, "--height", "-h", help="Map height", min=1),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (yml or json)"),  # noqa: B008
 ) -> None:
     try:
-        resolved_mission, env_cfg = get_mission_name_and_config(ctx, base_mission)
+        resolved_mission, env_cfg, _ = get_mission_name_and_config(ctx, base_mission)
 
-        # Update map dimensions
-        env_cfg.game.map_builder.width = width  # type: ignore[attr-defined]
-        env_cfg.game.map_builder.height = height  # type: ignore[attr-defined]
-        env_cfg.game.num_agents = num_agents
+        # Update map dimensions if explicitly provided and supported
+        if width is not None:
+            if not hasattr(env_cfg.game.map_builder, "width"):
+                console.print("[yellow]Warning: Map builder does not support custom width. Ignoring --width.[/yellow]")
+            else:
+                env_cfg.game.map_builder.width = width  # type: ignore[attr-defined]
+
+        if height is not None:
+            if not hasattr(env_cfg.game.map_builder, "height"):
+                console.print(
+                    "[yellow]Warning: Map builder does not support custom height. Ignoring --height.[/yellow]"
+                )
+            else:
+                env_cfg.game.map_builder.height = height  # type: ignore[attr-defined]
+
+        if num_agents is not None:
+            env_cfg.game.num_agents = num_agents
 
         # Validate the environment configuration
         _ = MettaGridEnv(env_cfg)
@@ -159,7 +214,14 @@ def make_mission(
 @app.command(name="train", help="Train a policy on a mission")
 def train_cmd(
     ctx: typer.Context,
-    missions: Optional[list[str]] = typer.Option(None, "--mission", "-m", help="Missions to train on"),  # noqa B008
+    missions: Optional[list[str]] = typer.Option(None, "--mission", "-m", help="Missions to train on"),  # noqa: B008
+    cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
+    variant: Optional[list[str]] = typer.Option(  # noqa: B008
+        None,
+        "--variant",
+        "-v",
+        help="Mission variant (can be used multiple times, e.g., --variant solar_flare --variant dark_side)",
+    ),
     policy: str = typer.Option("simple", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
     checkpoints_path: str = typer.Option(
         "./train_dir",
@@ -243,6 +305,13 @@ def train_cmd(
 def evaluate_cmd(
     ctx: typer.Context,
     mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Name of the mission"),
+    cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
+    variant: Optional[list[str]] = typer.Option(  # noqa: B008
+        None,
+        "--variant",
+        "-v",
+        help="Mission variant (can be used multiple times, e.g., --variant solar_flare --variant dark_side)",
+    ),
     policies: Optional[list[str]] = typer.Option(  # noqa: B008
         None,
         "--policy",
@@ -257,8 +326,20 @@ def evaluate_cmd(
         min=1,
     ),
     steps: Optional[int] = typer.Option(1000, "--steps", "-s", help="Max steps per episode", min=1),
+    print_cvc_config: bool = typer.Option(
+        False, "--print-cvc-config", help="Print Mission config (CVC config) and exit"
+    ),
+    print_mg_config: bool = typer.Option(False, "--print-mg-config", help="Print MettaGridConfig and exit"),
 ) -> None:
-    resolved_mission, env_cfg = get_mission_name_and_config(ctx, mission)
+    resolved_mission, env_cfg, mission_cfg = get_mission_name_and_config(ctx, mission, variant, cogs)
+
+    if print_cvc_config or print_mg_config:
+        try:
+            verbose.print_configs(console, env_cfg, mission_cfg, print_cvc_config, print_mg_config)
+        except Exception as exc:
+            console.print(f"[red]Error printing config: {exc}[/red]")
+            raise typer.Exit(1) from exc
+
     policy_specs = get_policy_specs(ctx, policies)
 
     console.print(

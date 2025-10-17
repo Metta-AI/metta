@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 from rich.console import Console
 
-from cogames.cogs_vs_clips.glyphs import GLYPH_DATA
+from cogames.cogs_vs_clips.vibes import VIBES as GLYPH_DATA
 from mettagrid import MettaGridEnv
 from mettagrid.renderer.renderer import Renderer
 
