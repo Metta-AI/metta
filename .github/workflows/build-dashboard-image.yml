@@ -38,7 +38,5 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: |
           aws eks update-kubeconfig --name main --region us-east-1
-          cd devops/charts
-          helmfile -l name=dashboard-cronjob \
-            --set image.tag=${{ steps.build-image.outputs.tag }} \
-            apply
+          helm upgrade -n monitoring dashboard-cronjob ./devops/charts/dashboard-cronjob \
+            --set image.tag=${{ steps.build-image.outputs.tag }}
