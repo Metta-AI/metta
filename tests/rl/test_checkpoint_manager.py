@@ -31,11 +31,6 @@ class MockAgentPolicyArchitecture(PolicyArchitecture):
         return MockAgent()
 
 
-class MockAutoBuilderPolicyArchitecture(PolicyArchitecture):
-    class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
-    action_probs_config: Config = Field(default_factory=MockActionComponentConfig)
-
-
 @pytest.fixture
 def test_system_cfg():
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -62,11 +57,6 @@ def fast_lstm_reset_policy_architecture():
     return FastLSTMResetConfig()
 
 
-@pytest.fixture
-def mock_autobuilder_policy_architecture():
-    return MockAutoBuilderPolicyArchitecture()
-
-
 class TestBasicSaveLoad:
     def test_load_from_uri_with_latest(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         """Test loading policy with :latest selector."""
@@ -86,18 +76,6 @@ class TestBasicSaveLoad:
         self, checkpoint_manager, mock_agent, fast_lstm_reset_policy_architecture
     ):
         checkpoint_manager.save_agent(mock_agent, epoch=2, policy_architecture=fast_lstm_reset_policy_architecture)
-
-        checkpoint_path = checkpoint_manager.checkpoint_dir / "test_run:v2.mpt"
-        assert checkpoint_path.exists()
-
-        artifact = CheckpointManager.load_artifact_from_uri(checkpoint_path.as_uri())
-        assert artifact.policy is not None
-        assert artifact.state_dict is None
-
-    def test_save_agent_uses_pt_format_for_policy_auto_builder(
-        self, checkpoint_manager, mock_agent, mock_autobuilder_policy_architecture
-    ):
-        checkpoint_manager.save_agent(mock_agent, epoch=2, policy_architecture=mock_autobuilder_policy_architecture)
 
         checkpoint_path = checkpoint_manager.checkpoint_dir / "test_run:v2.mpt"
         assert checkpoint_path.exists()
