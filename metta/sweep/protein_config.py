@@ -1,40 +1,30 @@
-"""Configuration for Protein optimizer."""
+"""Configuration for Protein optimizer.
+
+This module defines the Protein-specific optimization config and settings.
+The canonical parameter spec (`ParameterConfig`) now lives in
+`metta.sweep.core` and should be imported from there.
+"""
 
 from typing import Any, Dict, Literal
 
 from pydantic import Field
 
+from metta.sweep.core import ParameterConfig
 from mettagrid.base_config import Config
-
-
-class ParameterConfig(Config):
-    """Configuration for a single hyperparameter to optimize."""
-
-    min: float = Field(description="Minimum value for the parameter")
-    max: float = Field(description="Maximum value for the parameter")
-    distribution: Literal["uniform", "int_uniform", "uniform_pow2", "log_normal", "logit_normal"] = Field(
-        description="Distribution type for sampling"
-    )
-    mean: float = Field(description="Mean/center value for search")
-    scale: float | str = Field(description="Scale for the parameter search")
 
 
 class ProteinSettings(Config):
     """Settings for the Protein optimizer algorithm."""
 
     # Common settings for all methods
-    max_suggestion_cost: float = Field(
-        default=10800, description="Maximum cost (in seconds) for a single suggestion - 3 hours for 1B timestep runs"
-    )
+    max_suggestion_cost: float = Field(default=10800, description="Maximum cost for a single suggestion")
     global_search_scale: float = Field(default=1.0, description="Scale factor for global search")
-    random_suggestions: int = Field(default=10, description="Number of random suggestions to generate")
+    random_suggestions: int = Field(default=15, description="Number of random suggestions to generate")
     suggestions_per_pareto: int = Field(default=256, description="Number of suggestions per Pareto point")
 
     # Bayesian optimization specific settings
-    resample_frequency: int = Field(default=0, description="How often to resample Pareto points")
-    num_random_samples: int = Field(
-        default=20, description="Number of random samples before using GP - reduced for longer runs"
-    )
+    resample_frequency: int = Field(default=10, description="How often to resample Pareto points")
+    num_random_samples: int = Field(default=0, description="Number of random samples before using GP")
     seed_with_search_center: bool = Field(default=True, description="Whether to seed with the search center")
     expansion_rate: float = Field(default=0.25, description="Rate of search space expansion")
     acquisition_fn: Literal["naive", "ei", "ucb"] = Field(

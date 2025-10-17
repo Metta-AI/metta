@@ -1,15 +1,16 @@
 import logging
 from collections import OrderedDict
 from contextlib import ExitStack
-from typing import Any
+from typing import Any, Optional
 
 import torch
-import torch.nn as nn
 from tensordict import TensorDict
 from tensordict.nn import TensorDictSequential
 from torch.nn.parameter import UninitializedParameter
 from torchrl.data import Composite, UnboundedDiscrete
 
+from metta.agent.policy import Policy
+from metta.rl.training import GameRules
 from mettagrid.base_config import Config
 
 logger = logging.getLogger("metta_agent")
@@ -20,48 +21,39 @@ def log_on_master(*args, **argv):
         logger.info(*args, **argv)
 
 
-class PolicyAutoBuilder(nn.Module):
-    """Generic policy builder for use with configs.
+class PolicyAutoBuilder(Policy):
+    """Generic policy builder for use with configs."""
 
-    Requirements of your configs:
-        - Must have an 'obs_shaper' attribute and it should have an instantiate method that takes an env.
-        - Must have an 'instantiate' method that uses itself as the config to instantiate the layer.
-        - Must be in the order the network is to be executed.
-    """
-
-    def __init__(self, env, config: Config = None):
+    def __init__(self, game_rules: GameRules, config: Config | None = None):
         super().__init__()
         self.config = config
 
         self.components = OrderedDict()
         for component_config in self.config.components:
             name = component_config.name
-            self.components[name] = component_config.make_component(env)
+            self.components[name] = component_config.make_component(game_rules)
 
-        # finish with a special layer for action probs becaues its forward needs old actions to be passed in
-        # we could replace this by adding old_actions to the td
         self.action_probs = self.config.action_probs_config.make_component()
-
         self.network = TensorDictSequential(self.components, inplace=True)
         self._sdpa_context = ExitStack()
 
-        # PyTorch's nn.Module no longer exposes count_params(); defer to manual
-        # aggregation to avoid AttributeError during policy construction.
         self._total_params = sum(
             param.numel()
             for param in self.parameters()
             if param.requires_grad and not isinstance(param, UninitializedParameter)
         )
 
-    def forward(self, td: TensorDict, action: torch.Tensor = None):
-        self.network(td)
-        self.action_probs(td, action)
-        td["values"] = td["values"].flatten()  # could update Experience to not need this line but need to update ppo.py
+    def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
+        td = self.network(td)
+        if "values" in td.keys():
+            values = td["values"]
+            td["values"] = values.reshape(td.batch_size.numel())
+        td = self.action_probs(td, action)
         return td
 
     def initialize_to_environment(
         self,
-        env,
+        game_rules: GameRules,
         device: torch.device,
     ):
         self.to(device)
@@ -71,10 +63,10 @@ class PolicyAutoBuilder(nn.Module):
         logs = []
         for _, value in self.components.items():
             if hasattr(value, "initialize_to_environment"):
-                logs.append(value.initialize_to_environment(env, device))
+                logs.append(value.initialize_to_environment(game_rules, device))
         if hasattr(self, "action_probs"):
             if hasattr(self.action_probs, "initialize_to_environment"):
-                self.action_probs.initialize_to_environment(env, device)
+                self.action_probs.initialize_to_environment(game_rules, device)
 
         for log in logs:
             if log is not None:
@@ -128,7 +120,6 @@ class PolicyAutoBuilder(nn.Module):
 
     def __getstate__(self) -> dict[str, Any]:
         state = self.__dict__.copy()
-        # ExitStack captures contextmanager generators that cannot be pickled.
         state["_sdpa_context"] = None
         return state
 
@@ -162,9 +153,12 @@ class PolicyAutoBuilder(nn.Module):
         spec = Composite(
             env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
         )
-
         for layer in self.components.values():
             if hasattr(layer, "get_agent_experience_spec"):
                 spec.update(layer.get_agent_experience_spec())
 
         return spec
+
+    @property
+    def device(self) -> torch.device:
+        return next(self.parameters()).device

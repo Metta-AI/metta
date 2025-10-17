@@ -16,8 +16,10 @@ import torch
 from torch import nn
 
 from metta.agent.policies.fast import FastConfig
+from metta.agent.policy import Policy
 from metta.cogworks.curriculum import env_curriculum
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.policy_artifact import save_policy_artifact_pt
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
@@ -193,18 +195,29 @@ class TestTrainerCheckpointIntegration:
         policy_uri = checkpoint_manager.get_latest_checkpoint()
         assert policy_uri, "Expected at least one policy checkpoint"
 
-        # Load the latest policy to ensure it is valid
-        policy = checkpoint_manager.load_from_uri(policy_uri)
-        assert policy is not None
-        assert hasattr(policy, "state_dict"), "Loaded policy should be a torch.nn.Module"
+        artifact = checkpoint_manager.load_artifact_from_uri(policy_uri)
+        assert artifact.policy is not None
 
 
-class DummyPolicy(nn.Module):
+class DummyPolicy(Policy, nn.Module):
     """Lightweight torch module used to populate fake checkpoints quickly."""
 
     def __init__(self, epoch: int) -> None:
         super().__init__()
         self.register_buffer("epoch_tensor", torch.tensor(epoch, dtype=torch.float32))
+
+    def forward(self, td) -> None:
+        """Dummy forward method."""
+        pass
+
+    @property
+    def device(self) -> torch.device:
+        """Return device of the epoch tensor."""
+        return torch.device("cpu")
+
+    def reset_memory(self) -> None:
+        """Dummy reset_memory method."""
+        pass
 
 
 class _FastTrainTool(TrainTool):
@@ -240,8 +253,8 @@ class _FastTrainTool(TrainTool):
             trainer_state_path,
         )
 
-        policy_path = checkpoint_manager.checkpoint_dir / f"{run_name}:v{epoch}.pt"
+        policy_path = checkpoint_manager.checkpoint_dir / f"{run_name}:v{epoch}.mpt"
         policy = DummyPolicy(epoch)
-        torch.save(policy, policy_path)
+        save_policy_artifact_pt(policy_path, policy=policy)
 
         return 0

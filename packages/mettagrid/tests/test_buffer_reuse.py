@@ -17,7 +17,7 @@ def test_buffer_reuse_across_resets():
     """
     # Get basic config
     # Create environment
-    env = MettaGridEnv(make_arena(num_agents=24), render_mode=None)
+    env = MettaGridEnv(make_arena(num_agents=24), render_mode="none")
 
     # Get initial C++ environment reference
     initial_cpp_env = env.c_env
@@ -86,7 +86,7 @@ def test_buffer_consistency_during_episode():
     # Get basic config
 
     # Create environment
-    env = MettaGridEnv(make_arena(num_agents=24), render_mode=None)
+    env = MettaGridEnv(make_arena(num_agents=24), render_mode="none")
 
     # Reset environment
     obs, info = env.reset(seed=42)

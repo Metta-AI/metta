@@ -354,7 +354,6 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
         num_cogs = rng.choice(self.config.num_cogs)
         regeneration_rate = rng.choice(self.config.regeneration_rate)
         include_extractors = rng.choice([True, False])
-        chest_position = rng.choice(self.config.chest_positions)
         charger_position = rng.choice(self.config.charger_positions)
         assembler_position = rng.choice(self.config.assembler_positions)
         carbon_extractor_position = rng.choice(self.config.carbon_extractor_positions)
@@ -441,7 +440,7 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
         env.game.objects["chest"] = ChestConfig(
             type_id=17,
             resource_type="heart",
-            deposit_positions=chest_position,
+            position_deltas=[("E", 1), ("W", -1)],
         )
 
         env.game.inventory_regen_interval = regeneration_rate

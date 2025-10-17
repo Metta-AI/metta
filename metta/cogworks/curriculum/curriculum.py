@@ -21,13 +21,6 @@ from mettagrid.config.mettagrid_config import MettaGridConfig
 logger = logging.getLogger(__name__)
 
 
-def get_algorithm_hypers_discriminator(v):
-    """Discriminator function for algorithm hypers types."""
-    if isinstance(v, dict) and "type" in v:
-        return v["type"]
-    return None
-
-
 class CurriculumTask:
     """A task instance with a task_id and env_cfg."""
 

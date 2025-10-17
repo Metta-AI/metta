@@ -312,7 +312,8 @@ void MettaGrid::build_flat_action_catalog() {
     auto& arg_map = _action_arg_to_flat[handler_index];
     arg_map.assign(static_cast<size_t>(max_arg) + 1, -1);
 
-    for (unsigned char raw_arg = 0; raw_arg <= max_arg; ++raw_arg) {
+    const unsigned int max_arg_uint = static_cast<unsigned int>(max_arg);
+    for (unsigned int raw_arg = 0; raw_arg <= max_arg_uint; ++raw_arg) {
       const ActionArg arg = static_cast<ActionArg>(raw_arg);
 
       std::string base_name = handler->variant_name(arg);
@@ -894,7 +895,7 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
       obj_dict["is_converting"] = converter->converting;
       obj_dict["is_cooling_down"] = converter->cooling_down;
       obj_dict["conversion_duration"] = converter->conversion_ticks;
-      obj_dict["cooldown_duration"] = converter->cooldown;
+      obj_dict["cooldown_duration"] = converter->next_cooldown_time();
       obj_dict["output_limit"] = converter->max_output;
       py::dict input_resources_dict;
       for (const auto& [resource, quantity] : converter->input_resources) {
@@ -1092,6 +1093,21 @@ py::list MettaGrid::max_action_args() {
   return py::cast(_max_action_args);
 }
 
+py::list MettaGrid::action_catalog() {
+  py::list catalog;
+  for (size_t idx = 0; idx < _flat_action_map.size(); ++idx) {
+    const auto& mapping = _flat_action_map[idx];
+    py::dict entry;
+    entry["flat_index"] = py::int_(idx);
+    entry["action_id"] = py::int_(mapping.first);
+    entry["param"] = py::int_(mapping.second);
+    entry["base_name"] = py::str(_action_handlers[static_cast<size_t>(mapping.first)]->action_name());
+    entry["variant_name"] = py::str(_flat_action_names[idx]);
+    catalog.append(std::move(entry));
+  }
+  return catalog;
+}
+
 py::list MettaGrid::object_type_names_py() {
   return py::cast(object_type_names);
 }
@@ -1100,7 +1116,8 @@ py::list MettaGrid::resource_names_py() {
   return py::cast(resource_names);
 }
 
-py::none MettaGrid::set_inventory(GridObjectId agent_id, const std::map<InventoryItem, InventoryQuantity>& inventory) {
+py::none MettaGrid::set_inventory(GridObjectId agent_id,
+                                  const std::unordered_map<InventoryItem, InventoryQuantity>& inventory) {
   if (agent_id < num_agents()) {
     this->_agents[agent_id]->set_inventory(inventory);
   }
@@ -1144,6 +1161,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_property_readonly("observation_space", &MettaGrid::observation_space)
       .def("action_success", &MettaGrid::action_success_py)
       .def("max_action_args", &MettaGrid::max_action_args)
+      .def("action_catalog", &MettaGrid::action_catalog)
       .def("object_type_names", &MettaGrid::object_type_names_py)
       .def("feature_spec", &MettaGrid::feature_spec)
       .def_readonly("obs_width", &MettaGrid::obs_width)
