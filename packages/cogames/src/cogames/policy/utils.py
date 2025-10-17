@@ -19,6 +19,7 @@ _POLICY_CLASS_SHORTHAND: dict[str, str] = {
     "token": "cogames.policy.token.TokenPolicy",
     "lstm": "cogames.policy.lstm.LSTMPolicy",
     "claude": "cogames.policy.claude.ClaudePolicy",
+    "hrm": "cogames.policy.hrm.HRMPolicy",
 }
 
 
