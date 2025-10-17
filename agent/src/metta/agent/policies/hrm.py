@@ -157,7 +157,3 @@ class HRMTinyConfig(PolicyArchitecture):
     ]
 
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
-
-
-# Default HRM configuration
-HRMDefaultConfig = HRMPolicyConfig
