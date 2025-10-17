@@ -112,3 +112,69 @@ def test_forward_method_matches_forward_eval():
     result2 = net.forward_eval(obs, None)
 
     assert len(result1) == len(result2) == 2
+
+
+def test_training_noise_changes_logits():
+    env = MockEnv()
+
+    torch.manual_seed(0)
+    baseline = LSTMPolicyNet(env)
+    torch.manual_seed(0)
+    noisy = LSTMPolicyNet(env, noise_std=0.25)
+    noisy.load_state_dict(baseline.state_dict())
+
+    obs = torch.randint(0, 256, (2, 7, 7, 3))
+
+    baseline.train()
+    noisy.train()
+
+    torch.manual_seed(42)
+    baseline_logits, _ = baseline.forward_eval(obs, None)
+    torch.manual_seed(42)
+    noisy_logits, _ = noisy.forward_eval(obs, None)
+
+    assert not torch.allclose(noisy_logits, baseline_logits), "Noise should perturb training logits"
+
+
+def test_eval_noise_disabled_by_default():
+    env = MockEnv()
+
+    torch.manual_seed(123)
+    baseline = LSTMPolicyNet(env)
+    torch.manual_seed(123)
+    noisy = LSTMPolicyNet(env, noise_std=0.5)
+    noisy.load_state_dict(baseline.state_dict())
+
+    obs = torch.randint(0, 256, (3, 7, 7, 3))
+
+    baseline.eval()
+    noisy.eval()
+
+    torch.manual_seed(99)
+    baseline_logits, _ = baseline.forward_eval(obs, None)
+    torch.manual_seed(99)
+    noisy_logits, _ = noisy.forward_eval(obs, None)
+
+    assert torch.allclose(noisy_logits, baseline_logits), "Evaluation should be noise-free by default"
+
+
+def test_eval_noise_flag_enables_noise():
+    env = MockEnv()
+
+    torch.manual_seed(7)
+    baseline = LSTMPolicyNet(env)
+    torch.manual_seed(7)
+    noisy_eval = LSTMPolicyNet(env, noise_std=0.5, noise_during_eval=True)
+    noisy_eval.load_state_dict(baseline.state_dict())
+
+    obs = torch.randint(0, 256, (3, 7, 7, 3))
+
+    baseline.eval()
+    noisy_eval.eval()
+
+    torch.manual_seed(5)
+    baseline_logits, _ = baseline.forward_eval(obs, None)
+    torch.manual_seed(5)
+    noisy_logits, _ = noisy_eval.forward_eval(obs, None)
+
+    assert not torch.allclose(noisy_logits, baseline_logits), "Noise flag should perturb eval logits"

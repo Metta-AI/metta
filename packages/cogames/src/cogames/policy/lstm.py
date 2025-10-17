@@ -15,10 +15,12 @@ logger = logging.getLogger("cogames.policies.lstm_policy")
 
 
 class LSTMPolicyNet(torch.nn.Module):
-    def __init__(self, env):
+    def __init__(self, env, *, noise_std: float = 0.0, noise_during_eval: bool = False):
         super().__init__()
         # Public: Required by PufferLib for RNN state management
         self.hidden_size = 128
+        self._noise_std = float(noise_std)
+        self._noise_during_eval = noise_during_eval
 
         self._net = torch.nn.Sequential(
             pufferlib.pytorch.layer_init(
@@ -34,6 +36,21 @@ class LSTMPolicyNet(torch.nn.Module):
 
         self._action_head = torch.nn.Linear(self.hidden_size, self._num_actions)
         self._value_head = torch.nn.Linear(self.hidden_size, 1)
+
+    def set_noise(self, *, std: float, noise_during_eval: Optional[bool] = None) -> None:
+        """Update noise configuration for the recurrent output."""
+
+        self._noise_std = float(std)
+        if noise_during_eval is not None:
+            self._noise_during_eval = noise_during_eval
+
+    def _maybe_add_noise(self, tensor: torch.Tensor) -> torch.Tensor:
+        if self._noise_std <= 0.0:
+            return tensor
+        if not self.training and not self._noise_during_eval:
+            return tensor
+        noise = torch.randn_like(tensor) * self._noise_std
+        return tensor + noise
 
     def forward_eval(
         self,
@@ -114,6 +131,7 @@ class LSTMPolicyNet(torch.nn.Module):
                 rnn_state = (h, c)
 
         hidden, new_state = self._rnn(hidden, rnn_state)
+        hidden = self._maybe_add_noise(hidden)
 
         # If state was passed as a dict with LSTM keys, update it in-place with new state
         if state_has_keys:
@@ -219,9 +237,20 @@ class LSTMAgentPolicy(StatefulAgentPolicy[LSTMState]):
 class LSTMPolicy(TrainablePolicy):
     """LSTM-based policy that creates StatefulPolicy wrappers for each agent."""
 
-    def __init__(self, env: MettaGridEnv, device: torch.device):
+    def __init__(
+        self,
+        env: MettaGridEnv,
+        device: torch.device,
+        *,
+        noise_std: float = 0.0,
+        noise_during_eval: bool = False,
+    ):
         super().__init__()
-        self._net = LSTMPolicyNet(env).to(device)
+        self._net = LSTMPolicyNet(
+            env,
+            noise_std=noise_std,
+            noise_during_eval=noise_during_eval,
+        ).to(device)
         self._device = device
         self._num_actions = int(env.single_action_space.n)
         self._agent_policy = LSTMAgentPolicy(self._net, device, self._num_actions)
