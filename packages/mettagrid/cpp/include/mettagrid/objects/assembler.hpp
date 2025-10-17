@@ -1,6 +1,8 @@
 #ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_ASSEMBLER_HPP_
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_ASSEMBLER_HPP_
 
+#include <algorithm>
+#include <cassert>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -20,6 +22,7 @@ class Clipper;
 class Assembler : public GridObject, public Usable {
 private:
   // Surrounding positions in deterministic order: NW, N, NE, W, E, SW, S, SE
+  // This order is important for get_agent_pattern_byte which uses bit positions
   std::vector<std::pair<GridCoord, GridCoord>> get_surrounding_positions() const {
     GridCoord r = location.r;
     GridCoord c = location.c;
@@ -37,13 +40,36 @@ private:
     return positions;
   }
 
-  // Get surrounding agents in a deterministic order (clockwise from NW)
-  std::vector<Agent*> get_surrounding_agents() const {
+  // Get surrounding agents in upper-left-to-lower-right order starting from the given agent's position
+  std::vector<Agent*> get_surrounding_agents(const Agent* starting_agent) const {
     std::vector<Agent*> agents;
     if (!grid) return agents;
 
     std::vector<std::pair<GridCoord, GridCoord>> positions = get_surrounding_positions();
 
+    // Find the starting agent's position in the surrounding positions
+    int start_index = -1;
+    if (starting_agent) {
+      for (size_t i = 0; i < positions.size(); i++) {
+        if (positions[i].first == starting_agent->location.r && positions[i].second == starting_agent->location.c) {
+          start_index = i;
+          break;
+        }
+      }
+
+      // The starting agent must be in one of the surrounding positions
+      if (start_index == -1) {
+        throw std::runtime_error("Starting agent is not in a surrounding position of the assembler");
+      }
+    }
+
+    // If starting agent was found in surrounding positions, reorder to start from there
+    if (start_index >= 0) {
+      // Rotate the positions vector to start from the starting_agent's position
+      std::rotate(positions.begin(), positions.begin() + start_index, positions.end());
+    }
+
+    // Collect agents from the reordered positions
     for (const auto& pos : positions) {
       GridCoord check_r = pos.first;
       GridCoord check_c = pos.second;
@@ -77,10 +103,14 @@ private:
     return true;
   }
 
-  // Give output resources to the triggering agent
-  void give_output_to_agent(const Recipe& recipe, Agent& agent) {
+  // Give output resources to agents
+  void give_output_for_recipe(const Recipe& recipe, const std::vector<Agent*>& surrounding_agents) {
+    std::vector<Inventory*> inventories;
+    for (Agent* agent : surrounding_agents) {
+      inventories.push_back(&agent->inventory);
+    }
     for (const auto& [item, amount] : recipe.output_resources) {
-      agent.update_inventory(item, static_cast<InventoryDelta>(amount));
+      Inventory::shared_update(inventories, item, amount);
     }
   }
 
@@ -98,15 +128,13 @@ public:
   // Consume resources from surrounding agents for the given recipe
   // Intended to be private, but made public for testing. We couldn't get `friend` to work as expected.
   void consume_resources_for_recipe(const Recipe& recipe, const std::vector<Agent*>& surrounding_agents) {
+    std::vector<Inventory*> inventories;
+    for (Agent* agent : surrounding_agents) {
+      inventories.push_back(&agent->inventory);
+    }
     for (const auto& [item, required_amount] : recipe.input_resources) {
-      InventoryQuantity remaining = required_amount;
-      for (Agent* agent : surrounding_agents) {
-        if (remaining == 0) break;
-        InventoryQuantity available = agent->inventory.amount(item);
-        InventoryQuantity to_consume = static_cast<InventoryQuantity>(std::min<int>(available, remaining));
-        agent->update_inventory(item, static_cast<InventoryDelta>(-to_consume));
-        remaining -= to_consume;
-      }
+      InventoryDelta consumed = Inventory::shared_update(inventories, item, -required_amount);
+      assert(consumed == -required_amount && "Expected all required resources to be consumed");
     }
   }
 
@@ -187,7 +215,7 @@ public:
     this->current_timestep_ptr = timestep_ptr;
   }
 
-  // Calculate remaining cooldown time
+  // Get the remaining cooldown duration in ticks (0 when ready for use)
   unsigned int cooldown_remaining() const {
     if (!current_timestep_ptr || cooldown_end_timestep <= *current_timestep_ptr) {
       return 0;
@@ -195,7 +223,6 @@ public:
     return cooldown_end_timestep - *current_timestep_ptr;
   }
 
-  // Get the fraction of cooldown completed (0.0 = just started, 1.0 = completed)
   float cooldown_progress() const {
     // If no cooldown is active or no timestep pointer, return 1.0 (completed)
     if (!current_timestep_ptr || cooldown_duration == 0 || cooldown_end_timestep <= *current_timestep_ptr) {
@@ -319,12 +346,12 @@ public:
       }
     }
 
-    std::vector<Agent*> surrounding_agents = get_surrounding_agents();
+    std::vector<Agent*> surrounding_agents = get_surrounding_agents(&actor);
     if (!can_afford_recipe(recipe_to_use, surrounding_agents)) {
       return false;
     }
     consume_resources_for_recipe(recipe_to_use, surrounding_agents);
-    give_output_to_agent(recipe_to_use, actor);
+    give_output_for_recipe(recipe_to_use, surrounding_agents);
 
     cooldown_duration = static_cast<unsigned int>(recipe_to_use.cooldown * cooldown_multiplier);
     cooldown_end_timestep = *current_timestep_ptr + cooldown_duration;

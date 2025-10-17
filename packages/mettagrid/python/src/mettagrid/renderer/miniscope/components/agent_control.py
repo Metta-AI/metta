@@ -1,5 +1,7 @@
 """Agent control component for miniscope renderer."""
 
+from typing import Dict
+
 from rich.table import Table
 from rich.text import Text
 
@@ -23,6 +25,18 @@ class AgentControlComponent(MiniscopeComponent):
         super().__init__(env=env, state=state, panels=panels)
         self._set_panel(panels.footer)
 
+        action_lookup: Dict[str, int] = {name: idx for idx, name in enumerate(self._env.action_names)}
+
+        # Assumes move_{cardinal_direction} named actions exist
+        # If not found, fall back to 0: north, 1: south, 2: west, 3: east, 4: rest/noop
+        self._move_action_lookup: Dict[str, int] = {
+            "W": action_lookup.get("move_north", 0),
+            "S": action_lookup.get("move_south", 1),
+            "A": action_lookup.get("move_west", 2),
+            "D": action_lookup.get("move_east", 3),
+            "R": action_lookup.get("noop", 4),
+        }
+
     def handle_input(self, ch: str) -> bool:
         """Handle agent control inputs.
 
@@ -32,6 +46,7 @@ class AgentControlComponent(MiniscopeComponent):
         Returns:
             True if the input was handled
         """
+        ch = ch.upper()
         # Handle agent selection
         if ch == "[":
             self._state.select_previous_agent(self._env.num_agents)
@@ -41,36 +56,20 @@ class AgentControlComponent(MiniscopeComponent):
             return True
 
         # Handle manual mode toggle
-        elif ch in ["m", "M"] and self._state.selected_agent is not None:
-            self._state.toggle_manual_control(self._state.selected_agent)
-            return True
-
-        # Handle agent movement commands (only when an agent is selected)
-        elif ch in ["w", "W"] and self._state.selected_agent is not None:
-            self._state.user_action = (1, 0)  # NORTH
-            self._state.should_step = True
-            return True
-        elif ch in ["s", "S"] and self._state.selected_agent is not None:
-            self._state.user_action = (1, 1)  # SOUTH
-            self._state.should_step = True
-            return True
-        elif ch in ["a", "A"] and self._state.selected_agent is not None:
-            self._state.user_action = (1, 2)  # WEST
-            self._state.should_step = True
-            return True
-        elif ch in ["d", "D"] and self._state.selected_agent is not None:
-            self._state.user_action = (1, 3)  # EAST
-            self._state.should_step = True
-            return True
-        elif ch in ["r", "R"] and self._state.selected_agent is not None:
-            self._state.user_action = (1, 4)  # REST/NOOP
-            self._state.should_step = True
-            return True
-
-        # Handle glyph picker
-        elif ch in ["e", "E"] and self._state.selected_agent is not None:
-            self._state.enter_glyph_picker()
-            return True
+        elif self._state.selected_agent is not None:
+            # Handle movement actions
+            if (action_id := self._move_action_lookup.get(ch)) is not None:
+                self._state.user_action = (action_id, 0)
+                self._state.should_step = True
+                return True
+            # Handle glyph picker
+            elif ch == "E":
+                self._state.enter_glyph_picker()
+                return True
+            # Handle manual mode toggle
+            elif ch == "M":
+                self._state.toggle_manual_control(self._state.selected_agent)
+                return True
 
         return False
 

@@ -36,6 +36,7 @@ from metta.common.util.collections import remove_none_values
 from metta.common.util.constants import SOFTMAX_S3_BASE, SOFTMAX_S3_BUCKET
 from metta.common.util.git_repo import REPO_URL
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.tools.remote_job import JobResult
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,8 @@ logger = logging.getLogger(__name__)
 class TaskResult:
     success: bool
     log_path: str | None = None
+    warnings: list[str] | None = None
+    error: str | None = None
 
 
 class AbstractTaskExecutor(ABC):
@@ -173,6 +176,8 @@ class SimTaskExecutor(AbstractTaskExecutor):
 
         normalized = CheckpointManager.normalize_uri(task.policy_uri)
 
+        job_result_file_path = f"job_result_file_path_{task.id}.json"
+
         cmd = [
             "uv",
             "run",
@@ -182,6 +187,7 @@ class SimTaskExecutor(AbstractTaskExecutor):
             f"simulations_json_base64_path={os.path.abspath(file_path)}",
             f"eval_task_id={str(task.id)}",
             f"stats_server_uri={self._backend_url}",
+            f"job_result_file_path={os.path.abspath(job_result_file_path)}",
             "push_metrics_to_wandb=true",
         ]
         # exclude simulation_json_base64 from logging, since it's too large and undescriptive
@@ -194,10 +200,31 @@ class SimTaskExecutor(AbstractTaskExecutor):
 
         logger.info(f"Simulation completed with return code {result.returncode}")
 
-        return TaskResult(
-            success=result.returncode == 0,
-            log_path=f"{SOFTMAX_S3_BASE}/{self._log_path(str(task.id))}",
-        )
+        log_path = f"{SOFTMAX_S3_BASE}/{self._log_path(str(task.id))}"
+
+        if result.returncode == 0:
+            if os.path.exists(job_result_file_path):
+                with open(job_result_file_path, "r") as f:
+                    output = json.load(f)
+                result = JobResult.model_validate(output)
+                return TaskResult(
+                    success=result.result == "success",
+                    warnings=result.warnings,
+                    error=result.error,
+                    log_path=log_path,
+                )
+            else:
+                return TaskResult(
+                    success=False,
+                    log_path=log_path,
+                    error="Job result file not found",
+                )
+        else:
+            return TaskResult(
+                success=False,
+                log_path=log_path,
+                error="Job failed with return code " + str(result.returncode),
+            )
 
 
 class EvalTaskWorker:
@@ -222,6 +249,7 @@ class EvalTaskWorker:
         status: TaskStatus,
         error_reason: str | None = None,
         log_path: str | None = None,
+        warnings: list[str] | None = None,
     ) -> None:
         await self._client.update_task_status(
             TaskUpdateRequest(
@@ -233,6 +261,7 @@ class EvalTaskWorker:
                             {
                                 f"error_reason_{self._assignee}": error_reason,
                                 "output_log_path": log_path,
+                                "warnings": warnings,
                             }
                         ),
                     )
@@ -261,10 +290,16 @@ class EvalTaskWorker:
                         status = "done" if task_result.success else "error"
 
                         logger.info(f"Task {task.id} completed with status {status}")
+                        warnings = None
+                        if task_result.warnings is not None and len(task_result.warnings) > 0:
+                            warnings = task_result.warnings
+
                         await self._update_task_status(
                             task.id,
                             status,
+                            error_reason=task_result.error,
                             log_path=task_result.log_path,
+                            warnings=warnings,
                         )
                         logger.info(f"Task {task.id} updated to {status}")
                     except Exception as e:

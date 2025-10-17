@@ -321,17 +321,20 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: Check test results
-        run: |
-          echo "Test job results: ${{ toJSON(needs) }}"
-          if [ "${{ contains(join(needs.*.result, ','), 'failure') }}" == "true" ]; then
-            echo "One or more test jobs failed"
-            exit 1
-          elif [ "${{ contains(join(needs.*.result, ','), 'cancelled') }}" == "true" ]; then
-            echo "One or more test jobs were cancelled"
-            # Indicates Github's "neutral" result
-            # https://github.com/actions/runner/issues/662
-            exit 78
-          else
-            echo "All test jobs completed successfully"
-          fi
+      - name: Check unit tests did not fail
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const needs = ${{ toJSON(needs) }};
+            const results = Object.values(needs).map(j => j.result || '').join(',');
+            core.info(`Test job results: ${results}`);
+
+            if (results.includes('failure')) {
+              core.setFailed('One or more test jobs failed');     // red
+              return;
+            }
+            if (results.includes('cancelled')) {
+              core.notice('One or more test jobs were cancelled');
+            } else {
+              core.info('All test jobs completed successfully');
+            }

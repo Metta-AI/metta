@@ -497,7 +497,7 @@ class TestEdgeObservations:
                         output_resources={"resource2": 1},
                         max_output=10,
                         conversion_ticks=5,
-                        cooldown=3,
+                        cooldown=[3],
                         initial_resource_count=0,
                     ),
                 },
