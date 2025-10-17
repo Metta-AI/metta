@@ -1,7 +1,7 @@
 import textwrap
 
+from mettagrid.map_builder import MapBuilderConfig
 from mettagrid.map_builder.ascii import AsciiMapBuilder
-from mettagrid.map_builder.map_builder import validate_any_map_builder
 from mettagrid.mapgen.utils.storable_map import StorableMap
 
 MAP_LINE_STRINGS = [
@@ -48,7 +48,7 @@ def test_serializes_map_from_yaml_string():
         assert config.char_to_name_map[token] == name
 
     storable_map = StorableMap.from_cfg(
-        validate_any_map_builder(
+        MapBuilderConfig.model_validate(
             {
                 "type": "mettagrid.map_builder.ascii.AsciiMapBuilder",
                 "map_data": config.map_data,
