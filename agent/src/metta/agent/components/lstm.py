@@ -80,6 +80,9 @@ class LSTM(nn.Module):
     def __setstate__(self, state):
         """Ensure LSTM hidden states are properly initialized after loading from checkpoint."""
         self.__dict__.update(state)
+        # Backfill noise controls introduced after some checkpoints were created.
+        self.noise_std = float(getattr(self, "noise_std", 0.0))
+        self.noise_during_eval = bool(getattr(self, "noise_during_eval", False))
         # Reset hidden states when loading from checkpoint to avoid batch size mismatch
         if not hasattr(self, "lstm_h"):
             self.lstm_h = {}
