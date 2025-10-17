@@ -40,9 +40,8 @@ def add_easy_heart_recipe(cfg: MettaGridConfig) -> None:
         output_resources={"heart": 1},
         cooldown=1,
     )
-    # This should allow agents to use the assembler as long as no one is showing a glyph.
-    assembler_cfg.recipes.append(([], easy_recipe))
-    assembler_cfg.fully_overlapping_recipes_allowed = True
+    # Give a nice default recipe.
+    assembler_cfg.recipes = [(k, v) for k, v in assembler_cfg.recipes if k != []] + [([], easy_recipe)]
 
 
 def add_shaped_rewards(cfg: MettaGridConfig) -> None:

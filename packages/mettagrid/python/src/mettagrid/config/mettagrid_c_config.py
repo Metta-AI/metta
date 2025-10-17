@@ -254,6 +254,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                     output_resources={resource_name_to_id[k]: v for k, v in recipe_config.output_resources.items()},
                     cooldown=recipe_config.cooldown,
                 )
+                if overall_vibe in recipes:
+                    raise ValueError(f"Recipe with vibe {overall_vibe} already exists")
                 recipes[overall_vibe] = cpp_recipe
 
             # Convert tag names to IDs
