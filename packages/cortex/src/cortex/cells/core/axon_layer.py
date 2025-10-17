@@ -91,12 +91,15 @@ class AxonLayer(nn.Module):
         if self._state_key not in group_td.keys():
             group_td[self._state_key] = self.cell.init_state(batch=batch, device=device, dtype=dtype)
         else:
+            import logging
+            logging.info("Found key!")
             td = group_td[self._state_key]
             if (td.batch_size and td.batch_size[0] != batch) or (
                 td["hc1"].device != device or td["hc1"].dtype != dtype
             ):
                 group_td[self._state_key] = self.cell.init_state(batch=batch, device=device, dtype=dtype)
-        return state
+        # Return the group TensorDict so the caller can read/write the substate in-place.
+        return group_td
 
     def forward(
         self,
@@ -112,12 +115,10 @@ class AxonLayer(nn.Module):
             B, _, H_in = x.shape
         assert H_in == self.in_features, f"AxonLayer expected input dim={self.in_features}, got {H_in}"
 
-        # Prepare substate
-        st = self._ensure_state(batch=B, device=x.device, dtype=x.dtype, state=state)
+        # Prepare group TensorDict + substate
+        group_td = self._ensure_state(batch=B, device=x.device, dtype=x.dtype, state=state)
 
         # Route to underlying AxonCell and write-back updated substate
-        group_td = st.get(self._state_group)
-        assert group_td is not None
         sub = group_td.get(self._state_key)
         y_axon, sub_new = self.cell(x, sub, resets=resets)
         group_td[self._state_key] = sub_new
