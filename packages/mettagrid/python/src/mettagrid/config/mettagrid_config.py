@@ -22,7 +22,6 @@ from mettagrid.map_builder.random import RandomMapBuilder
 
 # Left to right, top to bottom.
 FixedPosition = Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE"]
-Position = FixedPosition | Literal["Any"]
 
 
 class AgentRewards(Config):

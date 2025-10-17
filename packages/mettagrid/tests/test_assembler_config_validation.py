@@ -1,5 +1,6 @@
 import pytest
 
+from cogames.cogs_vs_clips.glyphs import GLYPH_NAMES
 from mettagrid.config.mettagrid_c_config import convert_to_cpp_game_config
 from mettagrid.config.mettagrid_config import AssemblerConfig, GameConfig, RecipeConfig
 from mettagrid.mettagrid_c import GameConfig as CppGameConfig
@@ -21,20 +22,8 @@ def test_assembler_config_allows_disjoint_patterns() -> None:
         AssemblerConfig(
             type_id=7,
             recipes=[
-                (["N"], RecipeConfig()),
-                (["E"], RecipeConfig()),
-            ],
-        )
-    )
-
-
-def test_assembler_config_allows_partially_overlapping_patterns() -> None:
-    make_env_cfg_from_assembler_config(
-        AssemblerConfig(
-            type_id=7,
-            recipes=[
-                (["Any", "Any"], RecipeConfig()),
-                (["N", "Any"], RecipeConfig()),
+                ([GLYPH_NAMES["oxygen"]], RecipeConfig()),
+                ([GLYPH_NAMES["carbon"]], RecipeConfig()),
             ],
         )
     )
@@ -46,8 +35,8 @@ def test_assembler_config_rejects_fully_overlapping_patterns_unless_explicitly_a
             AssemblerConfig(
                 type_id=7,
                 recipes=[
-                    (["N", "Any"], RecipeConfig()),
-                    (["Any", "Any"], RecipeConfig()),
+                    ([GLYPH_NAMES["oxygen"], GLYPH_NAMES["carbon"]], RecipeConfig()),
+                    ([GLYPH_NAMES["oxygen"], GLYPH_NAMES["carbon"]], RecipeConfig()),
                 ],
             )
         )
@@ -55,8 +44,8 @@ def test_assembler_config_rejects_fully_overlapping_patterns_unless_explicitly_a
         AssemblerConfig(
             type_id=7,
             recipes=[
-                (["N", "Any"], RecipeConfig()),
-                (["Any", "Any"], RecipeConfig()),
+                ([GLYPH_NAMES["oxygen"], GLYPH_NAMES["carbon"]], RecipeConfig()),
+                ([GLYPH_NAMES["oxygen"], GLYPH_NAMES["carbon"]], RecipeConfig()),
             ],
             fully_overlapping_recipes_allowed=True,
         )
