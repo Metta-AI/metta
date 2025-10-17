@@ -237,15 +237,6 @@
     "name": "Robust-to-new-versions Agent"
   },
   {
-    "gid": "1210851220510512",
-    "assignee": {
-      "gid": "1210265575384509",
-      "name": "Richard Higgins"
-    },
-    "completed": false,
-    "name": "Cogweb Agent Bucket for agents"
-  },
-  {
     "gid": "1211068828541795",
     "assignee": {
       "gid": "1210265575384509",
