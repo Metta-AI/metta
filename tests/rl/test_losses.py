@@ -2,7 +2,7 @@
 
 from types import SimpleNamespace
 
-import pytest
+import numpy as np
 import torch
 from tensordict import TensorDict
 from torchrl.data import Composite, UnboundedDiscrete
@@ -10,7 +10,11 @@ from torchrl.data import Composite, UnboundedDiscrete
 from metta.agent.policy import Policy
 from metta.rl.loss import Loss
 from metta.rl.loss.cmpo import CMPOConfig
-from metta.rl.loss.ppo import PPO
+
+try:
+    from gymnasium import spaces as gym_spaces
+except ImportError:  # pragma: no cover - fallback for legacy gym installs
+    from gym import spaces as gym_spaces  # type: ignore[no-redef]
 
 
 class DummyPolicy(Policy):
@@ -77,25 +81,17 @@ def test_zero_loss_tracker_clears_values() -> None:
     assert all(len(values) == 0 for values in loss.loss_tracker.values())
 
 
-def test_cmpo_adds_mirror_penalty(monkeypatch: pytest.MonkeyPatch) -> None:
-    cfg = CMPOConfig(mirror_coef=0.5)
-    env = SimpleNamespace(single_action_space=SimpleNamespace(dtype=torch.float32))
-    cmpo_loss = cfg.create(DummyPolicy(), SimpleNamespace(), env, torch.device("cpu"), "cmpo", cfg)
+def test_cmpo_config_initializes_world_model() -> None:
+    cfg = CMPOConfig()
+    env = SimpleNamespace(
+        single_action_space=gym_spaces.Discrete(6),
+        single_observation_space=gym_spaces.Box(low=0, high=255, shape=(4, 4, 3), dtype=np.uint8),
+    )
+    trainer_cfg = SimpleNamespace(total_timesteps=1024, batch_size=64)
 
-    def fake_super(
-        self, minibatch: TensorDict, policy_td: TensorDict, indices: torch.Tensor, prio_weights: torch.Tensor
-    ) -> torch.Tensor:
-        return torch.tensor(2.0, dtype=torch.float32, requires_grad=True)
+    cmpo_loss = cfg.create(DummyPolicy(), trainer_cfg, env, torch.device("cpu"), "cmpo", cfg)
 
-    monkeypatch.setattr(PPO, "_process_minibatch_update", fake_super, raising=False)
-
-    minibatch = TensorDict({"act_log_prob": torch.zeros(4, 1)}, batch_size=[4, 1])
-    policy_td = TensorDict({"act_log_prob": torch.full((4, 1), 0.2)}, batch_size=[4, 1])
-    indices = torch.zeros(4, dtype=torch.long)
-    prio_weights = torch.ones(4, 1)
-
-    loss_value = cmpo_loss._process_minibatch_update(minibatch, policy_td, indices, prio_weights)
-
-    expected_penalty = 0.2**2
-    assert loss_value.item() == pytest.approx(2.0 + cfg.mirror_coef * expected_penalty, rel=1e-5)
-    assert cmpo_loss.loss_tracker["cmpo_mirror_penalty"][-1] == pytest.approx(expected_penalty, rel=1e-5)
+    assert cmpo_loss.obs_dim == 4 * 4 * 3
+    assert cmpo_loss.action_dim == 6
+    assert len(cmpo_loss.world_model.members) == cfg.world_model.ensemble_size
+    assert cmpo_loss.scheduler.current_ratio == cfg.scheduler.min_ratio
