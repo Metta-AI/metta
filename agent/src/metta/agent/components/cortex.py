@@ -521,7 +521,6 @@ class CortexTD(nn.Module):
         ids_list = ids_long.detach().view(-1).tolist()
         out: List[int] = []
         if create_missing:
-
             if mapping is self._rollout_id2slot:
                 next_slot = self._rollout_next_slot
             else:
