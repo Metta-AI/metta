@@ -1,4 +1,5 @@
 import logging
+from base64 import b64encode
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -12,11 +13,21 @@ from softmax.dashboard.registry import system_health_metric
 logger = logging.getLogger(__name__)
 
 
-def _get_github_token() -> str:
-    """Get GitHub token from AWS Secrets Manager."""
-    # Auth to avoid rate limiting
-    # We should replace this with a PAT before Dec 13 2026
-    return get_secretsmanager_secret("github/dashboard-token")
+def _get_github_auth_header() -> str:
+    """
+    Get GitHub Basic auth header value.
+
+    Returns base64-encoded Basic auth credentials for GitHub API.
+    We should replace this PAT before January 15, 2026.
+    """
+    token = get_secretsmanager_secret("github/dashboard-token").strip()
+    if not token:
+        logger.warning("GitHub dashboard token is empty; API calls may be rate limited.")
+        return ""
+
+    # Use HTTP Basic auth (token as username, empty password) to match the CLI usage
+    basic_credentials = b64encode(f"{token}:".encode("utf-8")).decode("utf-8")
+    return f"Basic {basic_credentials}"
 
 
 class GitHubJobStatus(BaseModel):
@@ -48,7 +59,7 @@ def _get_num_commits_with_phrase(phrase: str, lookback_days: int = 7, branch: st
             branch=branch,
             since=since,
             per_page=100,
-            Authorization=f"Basic {_get_github_token()}",
+            Authorization=_get_github_auth_header(),
         )
     except Exception as e:
         logger.error(f"Failed to get commits: {e}")
@@ -83,7 +94,7 @@ def get_latest_workflow_run(branch: str, workflow_filename: str) -> dict[str, An
             branch=branch,
             status="completed",
             per_page=1,
-            Authorization=f"Basic {_get_github_token()}",
+            Authorization=_get_github_auth_header(),
         )
         return runs[0] if runs else None
     except Exception as e:
@@ -109,7 +120,7 @@ def get_latest_unit_tests_failed() -> int | None:
             repo=repo,
             run_id=run_id,
             per_page=100,
-            Authorization=f"Basic {_get_github_token()}",
+            Authorization=_get_github_auth_header(),
         )
     except Exception as e:
         logger.error(f"Failed to get jobs: {e}")
