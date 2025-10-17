@@ -8,7 +8,7 @@ from tensordict import TensorDict
 from torchrl.data import Composite
 
 from metta.agent.components.utils import zero_long
-from metta.rl.training import EnvironmentMetaData
+from metta.rl.training import GameRules
 
 from .config import DramaWorldModelConfig
 from .mamba_wrapper import MambaConfig as _DramaMambaConfig
@@ -18,7 +18,7 @@ from .mamba_wrapper import MambaWrapperModel
 class DramaWorldModelComponent(nn.Module):
     """Adapter around DRAMA's Mamba world-model backbone."""
 
-    def __init__(self, config: DramaWorldModelConfig, env: Optional[EnvironmentMetaData] = None):
+    def __init__(self, config: DramaWorldModelConfig, env: Optional[GameRules] = None):
         super().__init__()
         self.config = config
         self.in_key = config.in_key
@@ -91,7 +91,7 @@ class DramaWorldModelComponent(nn.Module):
     def get_agent_experience_spec(self) -> Composite:
         return Composite({})
 
-    def initialize_to_environment(self, env: EnvironmentMetaData, device: torch.device) -> Optional[str]:
+    def initialize_to_environment(self, env: GameRules, device: torch.device) -> Optional[str]:
         self.to(device)
         return None
 

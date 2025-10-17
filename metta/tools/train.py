@@ -183,7 +183,7 @@ class TrainTool(Tool):
             policy_architecture=self.policy_architecture,
         )
         policy = policy_checkpointer.load_or_create_policy(
-            env.meta_data,
+            env.game_rules,
             policy_uri=self.initial_policy_uri,
         )
         return policy_checkpointer, policy
