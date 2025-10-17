@@ -52,8 +52,6 @@ resources:
 
 serviceAccount:
   create: true
-  annotations:
-    eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/replay-mining-cronjob
 ```
 
 ## Manual Triggers
