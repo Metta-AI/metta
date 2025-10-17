@@ -47,6 +47,26 @@ class TorchProfilerConfig(Config):
         return self
 
 
+class UpdateEpochAutoTunerConfig(Config):
+    """Configuration for automatically tuning update epochs."""
+
+    enabled: bool = False
+    min_update_epochs: int = Field(default=1, ge=1)
+    max_update_epochs: int = Field(default=8, ge=1)
+    step_size: int = Field(default=1, ge=1)
+    evaluation_epochs: int = Field(default=3, ge=1)
+    warmup_epochs: int = Field(default=2, ge=0)
+    cooldown_epochs: int = Field(default=2, ge=0)
+    min_relative_improvement: float = Field(default=0.05, ge=0.0)
+    metrics_window: int = Field(default=4, ge=1)
+
+    @model_validator(mode="after")
+    def validate_bounds(self) -> "UpdateEpochAutoTunerConfig":
+        if self.max_update_epochs < self.min_update_epochs:
+            raise ValueError("max_update_epochs must be >= min_update_epochs")
+        return self
+
+
 class TrainerConfig(Config):
     total_timesteps: int = Field(default=50_000_000_000, gt=0)
     losses: LossConfig = Field(default_factory=LossConfig)
@@ -69,6 +89,7 @@ class TrainerConfig(Config):
 
     initial_policy: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)
     profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)
+    update_epochs_autotune: UpdateEpochAutoTunerConfig = Field(default_factory=UpdateEpochAutoTunerConfig)
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="forbid",
@@ -82,4 +103,10 @@ class TrainerConfig(Config):
             raise ValueError("minibatch_size must be <= batch_size")
         if self.batch_size % self.minibatch_size != 0:
             raise ValueError("batch_size must be divisible by minibatch_size")
+        auto_cfg = self.update_epochs_autotune
+        if auto_cfg.enabled:
+            if self.update_epochs < auto_cfg.min_update_epochs or self.update_epochs > auto_cfg.max_update_epochs:
+                raise ValueError(
+                    "update_epochs must be within [min_update_epochs, max_update_epochs] when autotune is enabled"
+                )
         return self

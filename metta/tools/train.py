@@ -37,6 +37,7 @@ from metta.rl.training import (
     TorchProfiler,
     TrainerComponent,
     TrainingEnvironmentConfig,
+    UpdateEpochAutoTuner,
     Uploader,
     UploaderConfig,
     VectorizedTrainingEnvironment,
@@ -230,6 +231,10 @@ class TrainTool(Tool):
             interval = getattr(hyper_cfg, "epoch_interval", 1) or 1
             hyper_component = Scheduler(SchedulerConfig(interval=max(1, int(interval))))
             components.append(hyper_component)
+
+        autotune_cfg = getattr(self.trainer, "update_epochs_autotune", None)
+        if autotune_cfg and getattr(autotune_cfg, "enabled", False):
+            components.append(UpdateEpochAutoTuner(autotune_cfg))
 
         stats_component: TrainerComponent | None = None
 

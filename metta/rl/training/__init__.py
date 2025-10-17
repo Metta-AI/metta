@@ -81,6 +81,7 @@ _EXPORTS: dict[str, tuple[str, str | None]] = {
     "WandbAborter": ("metta.rl.training.wandb_aborter", "WandbAborter"),
     "WandbAborterConfig": ("metta.rl.training.wandb_aborter", "WandbAborterConfig"),
     "WandbLogger": ("metta.rl.training.wandb_logger", "WandbLogger"),
+    "UpdateEpochAutoTuner": ("metta.rl.training.update_epochs_tuner", "UpdateEpochAutoTuner"),
 }
 
 # Explicitly define __all__ to help type checkers
@@ -123,6 +124,7 @@ __all__ = [
     "WandbAborter",
     "WandbAborterConfig",
     "WandbLogger",
+    "UpdateEpochAutoTuner",
 ]
 
 
