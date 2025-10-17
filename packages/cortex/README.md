@@ -12,7 +12,7 @@
   - [Blocks](#blocks)
 - [AxonCell - Locally Recurrent Gradient Propagating alternative to Linear Layers](#axoncell---locally-recurrent-gradient-propagating-alternative-to-linear-layers)
 - [Quick Start](#quick-start)
-- [Template Architectures](#template-architectures)
+- [Easy Configuration](#easy-configuration)
 - [Metta Framework Integration](#metta-framework-integration)
 - [Evaluate Quickly](#evaluate-quickly)
 - [Backend Configuration](#backend-configuration)
@@ -289,25 +289,43 @@ The table below tracks AxonLayer replacements for linear-like projections in key
 
 Note: AxonLayer usage is opt-in per cell via its config (e.g., `use_axon_layer`, `use_axon_qkv`). The layer mutates the provided parent TensorDict state in place.
 
-## Template Architectures
+## Easy Configuration
 
-The repo ships with a few small templates to get you started and to make quick comparisons easier.
+Use ready‑made builders and config defaults to compose stacks quickly.
 
-- xlstm
-  - Alternating `mLSTM` (PreUp) and `sLSTM` (PostUp) blocks.
-  - Provided as a convenience builder `build_xlstm_stack(d_hidden, num_blocks, ...)`.
+- cortex_auto
+  - Mixed stack where each layer is one of: `A` = Axon (PreUp), `M` = mLSTM (PreUp), `S` = sLSTM (PostUp).
+  - Pattern controlled by `block_pattern` over `{A,M,S}`; defaults to repeating `"AMS"` to reach `num_layers` (default 3).
+  - Optional `use_axonlayers=True` enables AxonLayer projections inside cells: sets `mLSTM.use_axon_layer=True` and `mLSTM.use_axon_qkv=True`, and `sLSTM.use_axon_layer=True`.
+  - All other details (heads, kernel sizes, proj factors) come from each config’s own defaults unless you pass explicit block configs.
 
-Example (xLSTM):
+Example (cortex_auto):
 
 ```python
-from cortex.stacks.xlstm import build_xlstm_stack
+from cortex.stacks import build_cortex_auto_stack
 
-stack = build_xlstm_stack(
+# Default: 3 layers with pattern "AMS" and config defaults
+stack = build_cortex_auto_stack(d_hidden=128)
+
+# Enable AxonLayers in mLSTM and sLSTM
+stack = build_cortex_auto_stack(d_hidden=128, use_axonlayers=True)
+
+# Custom pattern and optional per-block configs
+from cortex.config import PreUpBlockConfig, PostUpBlockConfig, AxonConfig, mLSTMCellConfig, sLSTMCellConfig
+stack = build_cortex_auto_stack(
     d_hidden=128,
-    num_blocks=5,           # alternate mLSTM/sLSTM 5 times
-    mlstm_proj_factor=2.0,  # PreUp factor for mLSTM blocks
-    slstm_proj_factor=1.5,  # PostUp factor for sLSTM blocks
+    num_layers=3,
+    block_pattern="SAM",  # sLSTM → Axon → mLSTM
+    axon_preup=PreUpBlockConfig(cell=AxonConfig()),
+    mlstm_preup=PreUpBlockConfig(cell=mLSTMCellConfig()),
+    slstm_postup=PostUpBlockConfig(cell=sLSTMCellConfig()),
 )
+```
+
+To run the registered template in the evaluation harness:
+
+```bash
+uv run python packages/cortex/evaluations/run.py --task delayed_recall --stack cortex_auto
 ```
 
 

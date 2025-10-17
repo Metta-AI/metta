@@ -26,8 +26,11 @@ from cortex.config import (
     sLSTMCellConfig,
 )
 from cortex.factory import build_cortex
-from cortex.stacks import CortexStack
+from cortex.stacks import CortexStack, build_cortex_auto_stack
 from cortex.stacks.xlstm import build_xlstm_stack
+
+# cortex_auto_stack is implemented in core (cortex.stacks.auto);
+# this module simply imports and registers it below.
 
 
 @dataclass
@@ -167,6 +170,12 @@ STACKS: Dict[str, StackSpec] = {
     "xlstm_deep": StackSpec(
         name="xlstm_deep", builder=lambda: build_xlstm_stack(d_hidden=128, num_blocks=6), d_hidden=128
     ),
+    # Mixed auto stack cycling Axon/mLSTM/sLSTM with PreUp/PreUp/PostUp
+    "cortex_auto": StackSpec(
+        name="cortex_auto_stack",
+        builder=lambda: build_cortex_auto_stack(d_hidden=128, num_layers=3),
+        d_hidden=128,
+    ),
 }
 
 
@@ -176,4 +185,5 @@ __all__ = [
     "build_slstm_postup",
     "build_mlstm_preup",
     "build_axons_preup",
+    "build_cortex_auto_stack",
 ]
