@@ -573,15 +573,6 @@
     "name": "Experiment with error-based signals, e.g. regret"
   },
   {
-    "gid": "1209208922660663",
-    "assignee": {
-      "gid": "1210562604873083",
-      "name": "Matthew Bull"
-    },
-    "completed": false,
-    "name": "Task Graph Test"
-  },
-  {
     "gid": "1209661379538164",
     "assignee": {
       "gid": "1209017937764464",
