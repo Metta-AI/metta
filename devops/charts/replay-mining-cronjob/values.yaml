@@ -9,7 +9,7 @@ image:
 # Command to run the replay mining script
 # By default processes yesterday's replays (auto-calculated)
 # Creates daily-sharded datasets: replays_YYYYMMDD.parquet
-command: ["uv", "run", "python", "-m", "metta.tools.replay.replay_mine"]
+command: ["uv", "run", "python", "-m", "metta.tools.replay_dataset.replay_mine"]
 
 serviceAccount:
   create: true

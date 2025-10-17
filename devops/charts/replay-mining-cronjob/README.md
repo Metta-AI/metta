@@ -8,7 +8,7 @@ Kubernetes CronJob that automatically mines game replays into supervised learnin
 **Output**: `s3://softmax-public/datasets/replays/replays_YYYYMMDD.parquet`
 **Process**: Queries yesterday's replays → Downloads → Processes → Saves to S3
 
-For **Python API and usage documentation**, see the docstrings in `metta/tools/replay/`.
+For **Python API and usage documentation**, see the docstrings in `metta/tools/replay_dataset/`.
 
 ## Quick Deploy
 
@@ -40,7 +40,7 @@ Configured in `values.yaml`:
 ```yaml
 schedule: "0 2 * * *"  # Daily at 2 AM UTC
 
-command: ["uv", "run", "python", "-m", "metta.tools.replay.mine"]
+command: ["uv", "run", "python", "-m", "metta.tools.replay_dataset.replay_mine"]
 
 resources:
   requests:
@@ -77,7 +77,7 @@ Run locally with a loop (faster than creating multiple K8s jobs):
 ```bash
 for i in {1..7}; do
   date=$(date -d "$i days ago" +%Y-%m-%d)
-  uv run python -m metta.tools.replay.replay_mine --date $date
+  uv run python -m metta.tools.replay_dataset.replay_mine --date $date
 done
 ```
 
@@ -131,7 +131,7 @@ See [devops/tf/eks/replay-mining.tf](../../tf/eks/replay-mining.tf) for full con
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `schedule` | Cron schedule | `"0 2 * * *"` (2 AM UTC) |
-| `command` | Command to run | `["uv", "run", "python", "-m", "metta.tools.replay.mine"]` |
+| `command` | Command to run | `["uv", "run", "python", "-m", "metta.tools.replay_dataset.replay_mine"]` |
 | `image.registry` | Docker registry | `751442549699.dkr.ecr.us-east-1.amazonaws.com` |
 | `image.name` | Image name | `metta-policy-evaluator` |
 | `image.tag` | Image tag | `latest` |
@@ -143,7 +143,7 @@ See [devops/tf/eks/replay-mining.tf](../../tf/eks/replay-mining.tf) for full con
 
 ## Related Documentation
 
-- **Python API**: Import from `metta.tools.replay` package
+- **Python API**: Import from `metta.tools.replay_dataset` package
 - **IAM Configuration**: [devops/tf/eks/replay-mining.tf](../../tf/eks/replay-mining.tf)
 - **Helm Template**: [templates/cronjob.yaml](templates/cronjob.yaml)
-- **Usage**: `uv run python -m metta.tools.replay.replay_mine --help`
+- **Usage**: `uv run python -m metta.tools.replay_dataset.replay_mine --help`

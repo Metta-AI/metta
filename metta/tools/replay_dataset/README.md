@@ -5,7 +5,7 @@ Mine game replays into supervised learning datasets using Parquet + DuckDB.
 ## Quick Start
 
 ```python
-from metta.tools.replay import ReplayDataset
+from metta.tools.replay_dataset import ReplayDataset
 
 # Load datasets from S3
 dataset = ReplayDataset(start_date="2025-10-10", end_date="2025-10-17")
@@ -20,10 +20,10 @@ loader = DataLoader(dataset, batch_size=256, shuffle=True)
 
 ```bash
 # Process yesterday's replays (default)
-uv run python -m metta.tools.replay.replay_mine
+uv run python -m metta.tools.replay_dataset.replay_mine
 
 # Process specific date
-uv run python -m metta.tools.replay.replay_mine --date 2025-10-15
+uv run python -m metta.tools.replay_dataset.replay_mine --date 2025-10-15
 ```
 
 ## Loading with Filters
