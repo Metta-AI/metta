@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import math
 from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from tensordict import TensorDict
 
 from cortex.cells.base import MemoryCell
@@ -98,6 +98,31 @@ class SlidingFlashAttentionCell(MemoryCell):
             return tensor.view(B, self.num_heads, 1, self.head_dim)
         raise ValueError(f"Unexpected tensor shape {tensor.shape}")
 
+    def _attention(
+        self,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+        mask: Optional[torch.Tensor],
+    ) -> torch.Tensor:
+        B, NH, Tq, _ = q.shape
+        Tk = k.shape[2]
+        q_flat = q.reshape(B * NH, Tq, self.head_dim)
+        k_flat = k.reshape(B * NH, Tk, self.head_dim)
+        v_flat = v.reshape(B * NH, Tk, self.head_dim)
+        attn_mask = None
+        if mask is not None:
+            attn_mask = mask.reshape(B * NH, Tq, Tk)
+        output = F.scaled_dot_product_attention(
+            q_flat,
+            k_flat,
+            v_flat,
+            attn_mask=attn_mask,
+            dropout_p=0.0,
+            is_causal=False,
+        )
+        return output.reshape(B, NH, Tq, self.head_dim)
+
     def _sequence_forward(
         self,
         x: torch.Tensor,
@@ -112,10 +137,8 @@ class SlidingFlashAttentionCell(MemoryCell):
         v_h = self._reshape_heads(v)
 
         mask = _sliding_attention_mask(T, self.window_size, x.device, x.dtype).unsqueeze(0).unsqueeze(0)
-        scores = torch.matmul(q_h, k_h.transpose(-2, -1)) / math.sqrt(self.head_dim)
-        scores = scores + mask
-        attn = torch.softmax(scores, dim=-1)
-        context = torch.matmul(attn, v_h)
+        mask = mask.expand(B, self.num_heads, T, T)
+        context = self._attention(q_h, k_h, v_h, mask)
         context = context.transpose(1, 2).reshape(B, T, -1)
         y = self.out_proj(self.dropout(context))
 
@@ -184,11 +207,9 @@ class SlidingFlashAttentionCell(MemoryCell):
             v_window = v_h
             attn_mask = None
 
-        scores = torch.matmul(q_h, k_window.transpose(-2, -1)) / math.sqrt(self.head_dim)
-        if attn_mask is not None:
-            scores = scores + attn_mask
-        attn = torch.softmax(scores, dim=-1)
-        context = torch.matmul(attn, v_window).reshape(B, -1)
+        mask = None if attn_mask is None else attn_mask.expand(B, self.num_heads, 1, k_window.shape[2])
+        context = self._attention(q_h, k_window, v_window, mask)
+        context = context.squeeze(2).reshape(B, -1)
         y = self.out_proj(self.dropout(context))
 
         next_state = state.clone()
