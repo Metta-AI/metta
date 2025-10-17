@@ -5,6 +5,7 @@
 - Deterministic runs (gid 1211665269726547) — implemented on branch `richard-deterministic-runs`; adds a deterministic mode to TrainTool that forces torch deterministic backends and disables episode desynchronization in curricula.
 - Generate replays during training (gid 1209041170403516) — implemented on branch `richard-training-replays`; adds configurable replay recording for the training environment with per-environment storage.
 - Imitation learning (gid 1211366168188140) — implemented on branch `task/imitation-learning`; adds a configurable behaviour cloning loss with demonstration dataset support and regression tests.
+- GRPO (gid 1210921009975326) — implemented on branch `task/grpo`; introduces guided reward policy optimisation with ratio smoothing, KL penalties, and coverage via unit tests.
 
 ---
 

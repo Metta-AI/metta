@@ -136,5 +136,13 @@
     "commit": "0cce28b12104112dfa9224e8e1d6caf1bbf23bd4",
     "completed_at": "2025-10-17",
     "notes": "Added behaviour-cloning loss module with configurable demonstration dataset support and regression tests."
+  },
+  {
+    "gid": "1210921009975326",
+    "name": "GRPO",
+    "branch": "task/grpo",
+    "commit": "780e190e3775ab6406e9d46bdfebddfd87cc9350",
+    "completed_at": "2025-10-17",
+    "notes": "Introduced a guided reward policy optimisation loss with ratio smoothing, KL penalties, and regression tests."
   }
 ]
