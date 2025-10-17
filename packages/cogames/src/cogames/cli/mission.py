@@ -197,7 +197,7 @@ def describe_mission(mission_name: str, game_config: MettaGridConfig) -> None:
             for _, recipe in obj_config.recipes:
                 if recipe.input_resources:
                     inputs = ", ".join(f"{k}:{v}" for k, v in recipe.input_resources.items())
-                    outputs = ", ".join(f"{k}:{v}" for k, v in recipe.output_resources.items())  # type: ignore[attr-defined]
+                    outputs = ", ".join(f"{k}:{v}" for k, v in recipe.output_resources.items())
                     console.print(f"    {inputs} → {outputs} (cooldown: {recipe.cooldown})")
 
     # Display agent configuration
