@@ -96,6 +96,15 @@ class AxonsConfig(CellConfig):
     out_rank: int | None = Field(default=None)
 
 
+class SlidingFlashAttentionConfig(CellConfig):
+    """Sliding-window multi-head attention with optional dropout."""
+
+    hidden_size: int | None = Field(default=None)
+    num_heads: int = Field(default=4, ge=1)
+    window_size: int = Field(default=32, ge=1)
+    dropout: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
 class BlockConfig(BaseModel):
     """Base configuration for cortex blocks."""
 
@@ -161,6 +170,7 @@ __all__ = [
     "mLSTMCellConfig",
     "sLSTMCellConfig",
     "AxonsConfig",
+    "SlidingFlashAttentionConfig",
     "BlockConfig",
     "PassThroughBlockConfig",
     "PreUpBlockConfig",

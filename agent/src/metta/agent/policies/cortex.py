@@ -30,6 +30,8 @@ class CortexBaseConfig(PolicyArchitecture):
     _core_out = 32  # align with ViTReset LSTM latent
     _actor_hidden = 256
     _critic_hidden = 512
+    _flash_window = 48
+    _flash_dropout = 0.0
 
     components: List["PolicyArchitecture"] = [
         ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=48),
@@ -64,6 +66,9 @@ class CortexBaseConfig(PolicyArchitecture):
                 conv1d_kernel_size=4,
                 dropout=0.0,
                 post_norm=True,
+                flash_window_size=_flash_window,
+                flash_num_heads=4,
+                flash_dropout=_flash_dropout,
             ),
             key_prefix="cortex_state",
         ),

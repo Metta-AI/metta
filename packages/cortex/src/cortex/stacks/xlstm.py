@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from cortex.config import (
     CortexStackConfig,
+    PassThroughBlockConfig,
     PostUpBlockConfig,
     PreUpBlockConfig,
+    SlidingFlashAttentionConfig,
     mLSTMCellConfig,
     sLSTMCellConfig,
 )
@@ -24,9 +26,26 @@ def build_xlstm_stack(
     dropout: float = 0.0,
     post_norm: bool = True,
     block_pattern: str | None = None,
+    flash_window_size: int | None = None,
+    flash_num_heads: int | None = None,
+    flash_dropout: float = 0.0,
 ) -> CortexStack:
     """Build xLSTM stack with alternating mLSTM and sLSTM blocks."""
     blocks = []
+
+    if flash_window_size is not None and flash_window_size > 0:
+        flash_heads = flash_num_heads or mlstm_num_heads
+        flash_cell = SlidingFlashAttentionConfig(
+            hidden_size=None,
+            num_heads=flash_heads,
+            window_size=flash_window_size,
+            dropout=flash_dropout,
+        )
+        blocks.append(
+            PassThroughBlockConfig(
+                cell=flash_cell,
+            )
+        )
 
     # Determine block pattern
     if block_pattern is None:
