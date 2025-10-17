@@ -1,18 +1,43 @@
-from typing import Optional
+from dataclasses import dataclass
+from typing import ClassVar, Optional
+
+import httpx
 
 from metta.app_backend.clients.base_client import get_machine_token
 from metta.app_backend.sweep_client import SweepClient
 
 
+@dataclass(frozen=True)
+class AgentBucketInfo:
+    """Details about the S3 bucket used for Cogweb agent artifacts."""
+
+    bucket: str
+    prefix: str
+    uri: str
+    region: str
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, str]) -> "AgentBucketInfo":
+        return cls(
+            bucket=payload["bucket"],
+            prefix=payload.get("prefix", ""),
+            uri=payload["uri"],
+            region=payload.get("region", ""),
+        )
+
+
 class CogwebClient:
     """Unified client for interacting with all Cogweb backend services."""
 
-    _instances = {}
+    _instances: ClassVar[dict[tuple[str, str], "CogwebClient"]] = {}
 
     def __init__(self, base_url: str, auth_token: str):
         """Initialize the Cogweb client. Note: Use get_client() factory method for cached instances."""
         self._base_url = base_url
         self._auth_token = auth_token
+        self._headers: dict[str, str] = {}
+        if auth_token:
+            self._headers["X-Auth-Token"] = auth_token
         self._sweep_client = SweepClient(base_url, auth_token)
 
     @classmethod
@@ -44,6 +69,13 @@ class CogwebClient:
     def sweep_client(self) -> SweepClient:
         """Get the sweep client for direct access to sweep operations."""
         return self._sweep_client
+
+    def get_agent_bucket(self) -> AgentBucketInfo:
+        """Fetch the Cogweb agent bucket configuration."""
+
+        response = httpx.get(f"{self._base_url}/agents/bucket", headers=self._headers)
+        response.raise_for_status()
+        return AgentBucketInfo.from_dict(response.json())
 
     # NOTE: Future service clients can be added here:
     # def stats_client(self) -> StatsClient:

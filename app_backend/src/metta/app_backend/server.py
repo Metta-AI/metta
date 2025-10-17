@@ -13,6 +13,7 @@ from metta.app_backend.auth import user_from_header_or_token
 from metta.app_backend.leaderboard_updater import LeaderboardUpdater
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.routes import (
+    agent_routes,
     dashboard_routes,
     entity_routes,
     eval_task_routes,
@@ -131,6 +132,7 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
     score_router = score_routes.create_score_router(stats_repo)
     sweep_router = sweep_routes.create_sweep_router(stats_repo)
     entity_router = entity_routes.create_entity_router(stats_repo)
+    agent_router = agent_routes.create_agent_router(stats_repo)
 
     app.include_router(dashboard_router)
     app.include_router(eval_task_router)
@@ -144,6 +146,7 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
     app.include_router(policy_scorecard_router, prefix="/heatmap")
     app.include_router(sweep_router)
     app.include_router(entity_router)
+    app.include_router(agent_router)
 
     @app.get("/whoami")
     async def whoami(request: fastapi.Request) -> WhoAmIResponse:
