@@ -291,15 +291,6 @@
     "name": "Train a transformer on hard envs"
   },
   {
-    "gid": "1211590894831394",
-    "assignee": {
-      "gid": "1211348675176557",
-      "name": "Subhojeet Pramanik"
-    },
-    "completed": false,
-    "name": "Add sliding window flash attention to cortex "
-  },
-  {
     "gid": "1211366082402133",
     "assignee": {
       "gid": "1211348675176557",
