@@ -180,10 +180,10 @@ class TrainTool(Tool):
             config=self.checkpointer,
             checkpoint_manager=checkpoint_manager,
             distributed_helper=distributed_helper,
+            policy_architecture=self.policy_architecture,
         )
         policy = policy_checkpointer.load_or_create_policy(
-            env.meta_data,
-            self.policy_architecture,
+            env.game_rules,
             policy_uri=self.initial_policy_uri,
         )
         return policy_checkpointer, policy

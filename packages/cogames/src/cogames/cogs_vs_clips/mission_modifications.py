@@ -42,6 +42,7 @@ def add_easy_heart_recipe(cfg: MettaGridConfig) -> None:
         cooldown=1,
     )
     assembler_cfg.recipes += protocols.protocol(easy_recipe, num_agents=1)
+    assembler_cfg.fully_overlapping_recipes_allowed = True
 
 
 def add_shaped_rewards(cfg: MettaGridConfig) -> None:
