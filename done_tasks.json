@@ -95,5 +95,13 @@
     "commit": "branch:tasha/dynamics-model",
     "completed_at": "2025-10-17",
     "notes": "Marked complete alongside Tasha's dynamics model branch; consolidated with other dynamics work."
+  },
+  {
+    "gid": "1211366081860048",
+    "name": "Add Loss scheduling, i.e., saving the state of losses",
+    "branch": "task/add-loss-scheduling",
+    "commit": "52b3c6b8a8447fb1a9af536ab1599528e3fd3637",
+    "completed_at": "2025-10-17",
+    "notes": "Enabled per-loss scheduling windows/cycles and added persistence tests for loss state."
   }
 ]

@@ -414,15 +414,6 @@
     "name": "Try KL loss in PPO"
   },
   {
-    "gid": "1211366081860048",
-    "assignee": {
-      "gid": "1209017937764464",
-      "name": "Alexandros Vardakostas"
-    },
-    "completed": false,
-    "name": "Add Loss scheduling, i.e., saving the state of losses"
-  },
-  {
     "gid": "1211366024409404",
     "assignee": {
       "gid": "1209017937764464",
