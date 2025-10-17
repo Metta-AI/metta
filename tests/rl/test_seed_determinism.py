@@ -1,5 +1,5 @@
-from types import SimpleNamespace
 import random
+from types import SimpleNamespace
 
 import gymnasium as gym
 import numpy as np

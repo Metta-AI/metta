@@ -147,9 +147,7 @@ class TestNewPolicySystem:
         assert train_tool.training_env.async_factor == 1
         root_overrides = train_tool.training_env.curriculum.task_generator.overrides
         assert root_overrides.get("desync_episodes") is False
-        child_overrides = (
-            train_tool.training_env.curriculum.task_generator.task_generators[0].overrides
-        )
+        child_overrides = train_tool.training_env.curriculum.task_generator.task_generators[0].overrides
         assert child_overrides.get("desync_episodes") is False
 
     def test_mock_agent_fallback(self):
