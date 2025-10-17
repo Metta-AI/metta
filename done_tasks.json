@@ -112,5 +112,13 @@
     "commit": "52b3c6b8a8447fb1a9af536ab1599528e3fd3637",
     "completed_at": "2025-10-17",
     "notes": "Enabled per-loss scheduling windows/cycles and added persistence tests for loss state."
+  },
+  {
+    "gid": "1211366168188140",
+    "name": "Imitation learning",
+    "branch": "task/imitation-learning",
+    "commit": "0cce28b12104112dfa9224e8e1d6caf1bbf23bd4",
+    "completed_at": "2025-10-17",
+    "notes": "Added behaviour-cloning loss module with configurable demonstration dataset support and regression tests."
   }
 ]
