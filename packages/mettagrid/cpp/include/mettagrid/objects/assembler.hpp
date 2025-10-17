@@ -141,9 +141,9 @@ public:
   // of agents.
   // Recipe lookup table for recipes that depend on agents vibing- keyed by local vibe (64-bit number from sorted
   // glyphs). Later, this may be switched to having string keys based on the glyphs.
-  const std::unordered_map<uint64_t, std::shared_ptr<Recipe>>& vibe_recipes;
+  const std::unordered_map<uint64_t, std::shared_ptr<Recipe>> vibe_recipes;
   // Recipes that just depend on the number of agents.
-  const std::vector<std::shared_ptr<Recipe>>& count_based_recipes;
+  const std::vector<std::shared_ptr<Recipe>> count_based_recipes;
 
   // Unclip recipes - used when assembler is clipped
   std::unordered_map<uint64_t, std::shared_ptr<Recipe>> unclip_recipes;
