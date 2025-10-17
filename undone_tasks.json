@@ -69,15 +69,6 @@
     "name": "Share a vecenv in SimulationSuite"
   },
   {
-    "gid": "1211665269726540",
-    "assignee": {
-      "gid": "1211215486118014",
-      "name": "Tasha Pais"
-    },
-    "completed": false,
-    "name": "Add unit test that same seed gives us the same model weights + starting config"
-  },
-  {
     "gid": "1209208922660706",
     "assignee": {
       "gid": "1210156468476325",
@@ -289,15 +280,6 @@
     },
     "completed": false,
     "name": "Train a transformer on hard envs"
-  },
-  {
-    "gid": "1211590894831394",
-    "assignee": {
-      "gid": "1211348675176557",
-      "name": "Subhojeet Pramanik"
-    },
-    "completed": false,
-    "name": "Add sliding window flash attention to cortex "
   },
   {
     "gid": "1211366082402133",

@@ -9,9 +9,10 @@
   {
     "gid": "1211665269726540",
     "name": "Add unit test that same seed gives us the same model weights + starting config",
-    "branch": "task/seed-deterministic-init",
-    "commit": "0f491659205e451324d9ce49e92692797f999a66",
-    "notes": "Added regression test ensuring identical seeds reproduce identical Fast policy parameters and environment metadata."
+    "branch": "feature/seed-determinism-test",
+    "commit": "47495e6d179d06efe6c79d8658af0459ab3446e3",
+    "notes": "Added regression test ensuring identical seeds reproduce identical Fast policy parameters and environment metadata.",
+    "completed_at": "2025-10-17"
   },
   {
     "gid": "1211496531542715",
@@ -87,6 +88,14 @@
     "commit": "30fe618d6f1064c7408814c946bc30f56863726d",
     "completed_at": "2025-10-17",
     "notes": "Introduced configurable Gaussian noise controls on the Metta LSTM component with training/eval toggles and regression coverage."
+  },
+  {
+    "gid": "1211590894831394",
+    "name": "Add sliding window flash attention to cortex",
+    "branch": "feature/sliding-window-flash-attention",
+    "commit": "eceb7fc07c6938aaeb2f0a6063e4e2270c1706bd",
+    "completed_at": "2025-10-17",
+    "notes": "Sliding flash attention done."
   },
   {
     "gid": "1211366082087987",
