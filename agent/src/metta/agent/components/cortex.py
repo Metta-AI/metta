@@ -120,6 +120,70 @@ class CortexTD(nn.Module):
         self._rollout_current_state: Optional[TensorDict] = None
         self._rollout_current_env_ids: Optional[torch.Tensor] = None  # Long[Br]
 
+        # Prime: materialize any lazily-created leaves (e.g., AxonLayer groups)
+        # by running a single zero-input step on CPU. This yields a more complete
+        # state template than stack.init_state() alone, so future gather/scatter
+        # operations include all leaves from the start.
+        self._prime_state_template()
+
+    def _prime_state_template(self) -> None:
+        """Prime by running a zero‑step init and recording any lazy leaves.
+
+        Delegates the zero‑step logic to ``_zero_step_init_state`` to avoid dupes.
+        """
+        s1 = self._zero_step_init_state(batch=1, device=torch.device("cpu"), dtype=torch.float32)
+        self._maybe_register_new_leaves(s1)
+
+    def _zero_step_init_state(self, *, batch: int, device: torch.device, dtype: torch.dtype) -> TensorDict:
+        """Return initial state via one zero-input step from None.
+
+        Ensures lazy leaves are materialized and shapes/devices match runtime.
+        """
+        x0 = torch.zeros(batch, int(self.d_hidden), device=device, dtype=dtype)
+        with torch.no_grad():
+            _y, s1 = self.stack.step(x0, None)
+        return s1
+
+    def _maybe_register_new_leaves(self, state: TensorDict) -> None:
+        """Register lazily-created leaves so gather/scatter includes them.
+
+        AxonLayer-managed substates under groups like 'mlstm' or 'mlstm_qkv'
+        are often created on first use. Extend our flat index and shape map
+        when we observe new leaves at runtime, and ensure store capacity.
+        """
+        existing = {(b, c, leaf) for _fk, (b, c, leaf) in self._flat_entries}
+        for bkey in state.keys():
+            btd = state.get(bkey)
+            if not isinstance(btd, TensorDict):
+                continue
+            for ckey in btd.keys():
+                ctd = btd.get(ckey)
+                if not isinstance(ctd, TensorDict):
+                    continue
+                for lkey in ctd.keys():
+                    t = ctd.get(lkey)
+                    if not isinstance(t, torch.Tensor):
+                        continue
+                    path = (bkey, ckey, lkey)
+                    if path in existing:
+                        continue
+                    # Register new leaf and ensure store tensors exist
+                    fkey = self._flat_key(*path)
+                    self._flat_entries.append((fkey, path))
+                    self._leaf_shapes[path] = tuple(t.shape[1:])
+
+                    # Ensure both stores have tensors with current capacity
+                    def _cap(store: Dict[LeafPath, torch.Tensor]) -> int:
+                        return next(iter(store.values())).shape[0] if store else 1
+
+                    dev = t.device
+                    self._ensure_store_capacity(
+                        self._rollout_store, _cap(self._rollout_store), device=dev, dtype=self._store_dtype
+                    )
+                    self._ensure_store_capacity(
+                        self._train_store, _cap(self._train_store), device=dev, dtype=self._store_dtype
+                    )
+
     @torch._dynamo.disable
     def forward(self, td: TensorDict) -> TensorDict:  # type: ignore[override]
         x = td[self.in_key]
@@ -149,25 +213,24 @@ class CortexTD(nn.Module):
         resets = _as_reset_mask(td.get("dones", None), td.get("truncateds", None), B=B, TT=TT, device=device)
 
         if TT > 1:
-            self._in_training = True
-            self._snapshot_done = False
-            if not self._train_store:
+            # Entering training: refresh train store from rollout on every switch
+            if not self._in_training:
                 self._flush_rollout_current_to_store()
                 self._snapshot_train_store()
+                self._in_training = True
+            # While training, clear rollout cache to avoid stale carryover
             self._rollout_current_state = None
             self._rollout_current_env_ids = None
-        if TT == 1 and self._in_training and not self._snapshot_done:
-            self._flush_rollout_current_to_store()
-            self._snapshot_train_store()
-            self._in_training = False
-            self._snapshot_done = True
-            self._rollout_current_state = None
-            self._rollout_current_env_ids = None
+        else:  # TT == 1
+            # Leaving training: mark flag only; rollout cache continues across steps
+            if self._in_training:
+                self._in_training = False
 
         if TT == 1:
             state_prev = self._ensure_rollout_current_state(env_ids_long, B=B, device=device, dtype=dtype)
             x_step = x.view(B, -1)
             y, state_next = self.stack.step(x_step, state_prev, resets=resets)
+            self._maybe_register_new_leaves(state_next)
             self._rollout_current_state = state_next
             y = self._out_proj(y)
             td.set(self.out_key, y.reshape(B * TT, -1))
@@ -240,7 +303,7 @@ class CortexTD(nn.Module):
         return Composite(spec_dict)
 
     def _discover_state_entries(self) -> List[Tuple[FlatKey, LeafPath]]:
-        template = self.stack.init_state(batch=1, device=torch.device("cpu"), dtype=torch.float32)
+        template = self._zero_step_init_state(batch=1, device=torch.device("cpu"), dtype=torch.float32)
         entries: List[Tuple[FlatKey, LeafPath]] = []
         for block_key in template.keys():
             block_state = template.get(block_key)
@@ -259,7 +322,7 @@ class CortexTD(nn.Module):
         return entries
 
     def _discover_leaf_shapes(self) -> Dict[LeafPath, Tuple[int, ...]]:
-        template = self.stack.init_state(batch=1, device=torch.device("cpu"), dtype=torch.float32)
+        template = self._zero_step_init_state(batch=1, device=torch.device("cpu"), dtype=torch.float32)
         shapes: Dict[LeafPath, Tuple[int, ...]] = {}
         for block_key in template.keys():
             block_state = template.get(block_key)
@@ -310,8 +373,29 @@ class CortexTD(nn.Module):
         device: torch.device,
         dtype: torch.dtype,
     ) -> TensorDict:
+        """Gather a batch state from a slot-indexed store without running a forward pass.
+
+        - For empty requests, returns a zero state built from the known leaf shapes.
+        - For non-empty, builds the nested TensorDict structure and fills leaves by
+          index_select from the store, zeroing rows where slot == -1.
+        """
+        # Fast path: no slots requested -> return all zeros
         if slot_ids.numel() == 0:
-            return self.stack.init_state(batch=B, device=device, dtype=dtype)
+            out = TensorDict({}, batch_size=[B], device=device)
+            # Build zero tensors per leaf
+            for _fkey, (bkey, ckey, lkey) in self._flat_entries:
+                shape = self._leaf_shapes[(bkey, ckey, lkey)]
+                zero = torch.zeros((B, *shape), device=device, dtype=dtype)
+                btd = out.get(bkey) if bkey in out.keys() else TensorDict({}, batch_size=[B])
+                ctd = (
+                    btd.get(ckey)
+                    if (isinstance(btd, TensorDict) and ckey in btd.keys())
+                    else TensorDict({}, batch_size=[B])
+                )
+                ctd.set(lkey, zero)
+                btd[ckey] = ctd
+                out[bkey] = btd
+            return out
 
         if slot_ids.dim() != 1:
             slot_ids = slot_ids.reshape(-1)
@@ -320,7 +404,7 @@ class CortexTD(nn.Module):
         max_slot = int(slot_ids_clamped.max().item()) + 1 if slot_ids_clamped.numel() > 0 else 0
         self._ensure_store_capacity(store, max_slot, device=device, dtype=self._store_dtype)
 
-        batch_state = self.stack.init_state(batch=B, device=device, dtype=dtype)
+        batch_state = TensorDict({}, batch_size=[B], device=device)
         for _fkey, (bkey, ckey, lkey) in self._flat_entries:
             src = store[(bkey, ckey, lkey)]  # [N, ...]
             cap = int(src.shape[0])
@@ -331,10 +415,16 @@ class CortexTD(nn.Module):
             gathered = src.index_select(0, slot_ids_clamped)
             if not bool(valid_mask.all()):
                 gathered[~valid_mask] = 0
-            gathered = gathered.to(dtype=dtype)
-            block_td = batch_state.get(bkey)
-            cell_td = block_td.get(ckey)
-            cell_td.set(lkey, gathered)
+            gathered = gathered.to(dtype=dtype, device=device)
+            btd = batch_state.get(bkey) if bkey in batch_state.keys() else TensorDict({}, batch_size=[B])
+            ctd = (
+                btd.get(ckey)
+                if (isinstance(btd, TensorDict) and ckey in btd.keys())
+                else TensorDict({}, batch_size=[B])
+            )
+            ctd.set(lkey, gathered)
+            btd[ckey] = ctd
+            batch_state[bkey] = btd
         return batch_state
 
     def _scatter_state_by_slots(
@@ -431,6 +521,7 @@ class CortexTD(nn.Module):
         ids_list = ids_long.detach().view(-1).tolist()
         out: List[int] = []
         if create_missing:
+
             if mapping is self._rollout_id2slot:
                 next_slot = self._rollout_next_slot
             else:

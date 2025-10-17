@@ -91,8 +91,6 @@ class AxonLayer(nn.Module):
         if self._state_key not in group_td.keys():
             group_td[self._state_key] = self.cell.init_state(batch=batch, device=device, dtype=dtype)
         else:
-            import logging
-            logging.info("Found key!")
             td = group_td[self._state_key]
             if (td.batch_size and td.batch_size[0] != batch) or (
                 td["hc1"].device != device or td["hc1"].dtype != dtype
