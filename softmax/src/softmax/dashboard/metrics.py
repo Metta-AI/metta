@@ -16,18 +16,24 @@ logger = logging.getLogger(__name__)
 
 @contextmanager
 def _github_client() -> Generator[httpx.Client, None, None]:
+    # We should replace this PAT before January 15, 2026
     token = get_secretsmanager_secret("github/dashboard-token").strip()
-    basic_credentials = b64encode(f"{token}:".encode("utf-8")).decode("utf-8")
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "softmax-metrics",
+    }
+
+    if token:
+        # Use HTTP Basic auth (token as username, empty password) to match the CLI usage.
+        basic_credentials = b64encode(f"{token}:".encode("utf-8")).decode("utf-8")
+        headers["Authorization"] = f"Basic {basic_credentials}"
+    else:
+        logger.warning("GitHub dashboard token is empty; using unauthenticated GitHub API calls.")
 
     with httpx.Client(
         base_url=f"https://api.github.com/repos/{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}",
-        headers={
-            "Accept": "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-            "User-Agent": "softmax-metrics",
-            # Auth to avoid rate limiting
-            "Authorization": f"Basic {basic_credentials}",
-        },
+        headers=headers,
         timeout=30,
     ) as client:
         yield client
