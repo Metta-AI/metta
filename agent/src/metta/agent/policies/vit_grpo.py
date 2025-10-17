@@ -9,6 +9,7 @@ from metta.agent.components.obs_shim import ObsShimTokensConfig
 from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourierConfig
 from metta.agent.policy import PolicyArchitecture
 
+
 class ViTGRPOConfig(PolicyArchitecture):
     """ViT architecture optimized for GRPO - no critic network.
 
