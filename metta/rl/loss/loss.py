@@ -139,19 +139,50 @@ class Loss:
 
     def _configure_schedule(self) -> None:
         """Helper for initializing variables used in scheduling logic."""
-        schedule_cfg = {}  # TODO: support self.loss_cfg.schedule when available
+        schedule_cfg = getattr(self.loss_cfg, "schedule", None)
 
-        rollout_cfg = schedule_cfg.get("rollout") or {}
-        self.rollout_start_epoch = rollout_cfg.get("begin_at_epoch", 0)
-        self.rollout_end_epoch = rollout_cfg.get("end_at_epoch", float("inf"))
-        self.rollout_cycle_length = rollout_cfg.get("cycle_length")
-        self.rollout_active_in_cycle = rollout_cfg.get("active_in_cycle")
+        self._apply_phase_schedule("rollout", getattr(schedule_cfg, "rollout", None))
+        self._apply_phase_schedule("train", getattr(schedule_cfg, "train", None))
 
-        train_cfg = schedule_cfg.get("train") or {}
-        self.train_start_epoch = train_cfg.get("begin_at_epoch", 0)
-        self.train_end_epoch = train_cfg.get("end_at_epoch", float("inf"))
-        self.train_cycle_length = train_cfg.get("cycle_length")
-        self.train_active_in_cycle = train_cfg.get("active_in_cycle")
+    def _apply_phase_schedule(self, phase: str, phase_cfg: Any) -> None:
+        start_attr = f"{phase}_start_epoch"
+        end_attr = f"{phase}_end_epoch"
+        cycle_attr = f"{phase}_cycle_length"
+        active_attr = f"{phase}_active_in_cycle"
+
+        start_epoch = 0
+        end_epoch = float("inf")
+        cycle_length = None
+        active_in_cycle = None
+
+        if phase_cfg is not None:
+            begin = getattr(phase_cfg, "begin_at_epoch", None)
+            end = getattr(phase_cfg, "end_at_epoch", None)
+            if begin is not None:
+                start_epoch = int(begin)
+            if end is not None:
+                end_epoch = float(end)
+            if end_epoch < start_epoch:
+                raise ValueError(f"{phase} schedule end_at_epoch must be >= begin_at_epoch")
+
+            cycle_length = getattr(phase_cfg, "cycle_length", None)
+            active_in_cycle = getattr(phase_cfg, "active_in_cycle", None)
+
+            if cycle_length is not None:
+                cycle_length = int(cycle_length)
+                if cycle_length <= 0:
+                    raise ValueError(f"{phase} cycle_length must be positive")
+                if active_in_cycle is not None:
+                    active_in_cycle = [int(step) for step in active_in_cycle]
+                    if any(step < 1 or step > cycle_length for step in active_in_cycle):
+                        raise ValueError(f"{phase} active_in_cycle entries must be within [1, cycle_length]")
+            elif active_in_cycle:
+                raise ValueError(f"{phase} schedule active_in_cycle requires cycle_length to be set")
+
+        setattr(self, start_attr, start_epoch)
+        setattr(self, end_attr, end_epoch)
+        setattr(self, cycle_attr, cycle_length)
+        setattr(self, active_attr, active_in_cycle)
 
     # Utility helpers
 
