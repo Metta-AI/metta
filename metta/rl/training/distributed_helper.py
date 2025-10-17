@@ -131,21 +131,63 @@ class DistributedHelper:
         if not self.is_distributed or not trainer_cfg.scale_batches_by_world_size:
             return
 
-        # Scale batch sizes by world size
-        trainer_cfg.batch_size = trainer_cfg.batch_size // self.get_world_size()
+        world_size = self.get_world_size()
 
-        # Scale forward pass minibatch size
-        env_cfg.forward_pass_minibatch_target_size = max(
-            1, env_cfg.forward_pass_minibatch_target_size // self.get_world_size()
-        )
+        # Scale batch size by world size (per-rank rollout size)
+        old_batch_size = int(trainer_cfg.batch_size)
+        trainer_cfg.batch_size = max(1, old_batch_size // world_size)
+
+        # Scale forward pass minibatch target (controls env vec batching)
+        if env_cfg is not None:
+            env_cfg.forward_pass_minibatch_target_size = max(
+                1, int(env_cfg.forward_pass_minibatch_target_size) // world_size
+            )
+
+        # Scale minibatch_size to preserve num_minibatches where possible and
+        # satisfy divisibility constraints:
+        #   - minibatch_size % bptt_horizon == 0
+        #   - batch_size % minibatch_size == 0
+        # Strategy: start from floor(old_minibatch/world_size), snap down to a
+        # multiple of bptt_horizon, then ensure it divides batch_size by
+        # reducing to the nearest valid divisor if needed.
+        bptt = int(trainer_cfg.bptt_horizon)
+        old_minibatch = int(trainer_cfg.minibatch_size)
+        # Initial candidate after scaling
+        candidate = max(1, old_minibatch // world_size)
+        # Snap to bptt multiple (not above candidate)
+        if bptt > 1:
+            candidate = max(bptt, (candidate // bptt) * bptt)
+        # Ensure candidate <= batch_size
+        candidate = min(candidate, int(trainer_cfg.batch_size))
+
+        # Adjust down to satisfy batch_size % minibatch_size == 0
+        # Work in units of bptt to keep divisibility by bptt_horizon.
+        if candidate > 0 and bptt > 0:
+            segments = int(trainer_cfg.batch_size) // bptt if bptt else int(trainer_cfg.batch_size)
+            max_k = max(1, candidate // bptt) if bptt else candidate
+            chosen_k = None
+            for k in range(max_k, 0, -1):
+                if segments % k == 0:
+                    chosen_k = k
+                    break
+            if chosen_k is None:
+                # Fallback: use one segment (smallest valid)
+                chosen_k = 1
+            candidate = bptt * chosen_k
+
+        # Final safety: not zero, not exceeding batch_size
+        candidate = max(1, min(candidate, int(trainer_cfg.batch_size)))
+
+        trainer_cfg.minibatch_size = candidate
 
         logger.info(
-            "Scaled batch config for %s processes: batch_size=%s, forward_pass_minibatch_target_size=%s",
-            self.get_world_size(),
+            "Scaled batch config for %s processes: batch_size %s→%s, minibatch_size %s→%s, forward_pass_minibatch_target_size→%s",
+            world_size,
+            old_batch_size,
             trainer_cfg.batch_size,
-            env_cfg.forward_pass_minibatch_target_size
-            if env_cfg is not None
-            else getattr(trainer_cfg, "forward_pass_minibatch_target_size", "n/a"),
+            old_minibatch,
+            trainer_cfg.minibatch_size,
+            env_cfg.forward_pass_minibatch_target_size if env_cfg is not None else "n/a",
         )
 
     def wrap_policy(self, policy: Policy, device: Optional[torch.device] = None) -> Policy | DistributedPolicy:
