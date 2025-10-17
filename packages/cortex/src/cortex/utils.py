@@ -22,8 +22,14 @@ if not _disable_triton:
 
         TRITON_AVAILABLE = torch.cuda.is_available()
     except ImportError:
+        from cortex._triton_stub import install_triton_stub
+
+        install_triton_stub()
         TRITON_AVAILABLE = False
 else:
+    from cortex._triton_stub import install_triton_stub
+
+    install_triton_stub()
     TRITON_AVAILABLE = False
 
 

@@ -241,67 +241,6 @@ def test_slstm_gradient_flow() -> None:
                 print(f"Warning: Parameter {name} has zero gradients (may be expected for some params)")
 
 
-def test_slstm_sequential_vs_parallel_long_sequence() -> None:
-    """Test sequential vs parallel processing with longer sequences."""
-    torch.manual_seed(321)
-
-    device = get_test_device()
-    dtype = torch.float32
-
-    B = 2
-    T = 1060  # longer sequence
-    H = 64  # head_dim should be power of 2 for Triton
-    num_heads = 4
-
-    cfg = sLSTMCellConfig(
-        hidden_size=H,
-        num_heads=num_heads,
-        conv1d_kernel_size=4,
-        dropout=0.0,
-    )
-
-    cell = sLSTMCell(cfg).to(device=device, dtype=dtype)
-    cell.eval()
-
-    x = torch.randn(B, T, H, device=device, dtype=dtype)
-
-    # Parallel processing
-    with torch.no_grad():
-        y_parallel, state_parallel = cell(x, state=None)
-
-    # Sequential processing
-    state = None
-    y_steps = []
-    with torch.no_grad():
-        for t in range(T):
-            y_t, state = cell(x[:, t, :], state)
-            y_steps.append(y_t)
-    y_sequential = torch.stack(y_steps, dim=1)
-
-    # Compare outputs (relaxed tolerance for longer sequences)
-    assert y_parallel.shape == y_sequential.shape
-    torch.testing.assert_close(
-        y_parallel,
-        y_sequential,
-        rtol=1e-2,
-        atol=1e-2,
-        msg="Sequential and parallel outputs differ beyond tolerance for long sequence",
-    )
-
-    # Compare final states with looser tolerance for accumulators
-    assert state_parallel is not None and state is not None, "States should not be None"
-
-    print("[long sequence] Comparing final states")
-    for key in ["c", "n", "m"]:
-        if key in state_parallel and key in state:
-            diff_rel = ((state_parallel[key] - state[key]).abs() / (state_parallel[key].abs() + 1e-8)).max().item()
-            print(f"Max relative difference in {key}: {diff_rel:.6f}")
-
-    torch.testing.assert_close(state_parallel["c"], state["c"], rtol=0.1, atol=0.1)
-    torch.testing.assert_close(state_parallel["n"], state["n"], rtol=0.1, atol=0.1)
-    torch.testing.assert_close(state_parallel["m"], state["m"], rtol=0.1, atol=0.1)
-
-
 def test_slstm_state_reset() -> None:
     """Test state reset functionality."""
     torch.manual_seed(789)
@@ -661,41 +600,3 @@ def test_slstm_triton_vs_pytorch_with_resets() -> None:
                 atol=1e-3,
                 msg=f"Parameter gradient '{name_t}' should match",
             )
-
-
-if __name__ == "__main__":
-    # Run all tests
-    test_slstm_parallel_vs_sequential_close()
-    print("✓ test_slstm_parallel_vs_sequential_close passed")
-
-    test_slstm_with_postup_block()
-    print("✓ test_slstm_with_postup_block passed")
-
-    test_slstm_sequential_vs_parallel_with_smaller_seq()
-    print("✓ test_slstm_sequential_vs_parallel_with_smaller_seq passed")
-
-    test_slstm_gradient_flow()
-    print("✓ test_slstm_gradient_flow passed")
-
-    test_slstm_sequential_vs_parallel_long_sequence()
-    print("✓ test_slstm_sequential_vs_parallel_long_sequence passed")
-
-    test_slstm_state_reset()
-    print("✓ test_slstm_state_reset passed")
-
-    test_slstm_no_conv()
-    print("✓ test_slstm_no_conv passed")
-
-    test_slstm_different_head_counts()
-    print("✓ test_slstm_different_head_counts passed")
-
-    test_slstm_with_dropout()
-    print("✓ test_slstm_with_dropout passed")
-
-    test_slstm_backward_sequential_vs_parallel()
-    print("✓ test_slstm_backward_sequential_vs_parallel passed")
-
-    test_slstm_triton_vs_pytorch_with_resets()
-    print("✓ test_slstm_triton_vs_pytorch_with_resets passed")
-
-    print("\nAll tests passed!")

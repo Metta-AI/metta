@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
+import gymnasium as gym
 import pytest
 import torch
 import torch.nn as nn
@@ -9,6 +11,7 @@ from pydantic import Field
 from tensordict import TensorDict
 
 from metta.agent.policies.fast import FastConfig
+from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.policy_artifact import (
@@ -18,7 +21,7 @@ from metta.rl.policy_artifact import (
     policy_architecture_to_string,
     save_policy_artifact_safetensors,
 )
-from metta.rl.training import EnvironmentMetaData
+from metta.rl.training import GameRules
 from mettagrid.base_config import Config
 
 
@@ -35,7 +38,7 @@ class DummyPolicyArchitecture(PolicyArchitecture):
 
 
 class DummyPolicy(Policy):
-    def __init__(self, env_metadata: EnvironmentMetaData | None, _: PolicyArchitecture | None = None):
+    def __init__(self, game_rules: GameRules | None, _: PolicyArchitecture | None = None):
         super().__init__()
         self.linear = nn.Linear(1, 1)
 
@@ -51,8 +54,8 @@ class DummyPolicy(Policy):
         return None
 
 
-def _env_metadata() -> EnvironmentMetaData:
-    return EnvironmentMetaData(
+def _game_rules() -> GameRules:
+    return GameRules(
         obs_width=1,
         obs_height=1,
         obs_features={},
@@ -65,20 +68,20 @@ def _env_metadata() -> EnvironmentMetaData:
 
 
 def test_policy_only_artifact_instantiate() -> None:
-    env_metadata = _env_metadata()
-    policy = DummyPolicy(env_metadata)
+    game_rules = _game_rules()
+    policy = DummyPolicy(game_rules)
 
     artifact = PolicyArtifact(policy=policy)
 
-    instantiated = artifact.instantiate(env_metadata, torch.device("cpu"))
+    instantiated = artifact.instantiate(game_rules, torch.device("cpu"))
     assert instantiated is policy
     assert instantiated.device.type == "cpu"
 
 
 def test_save_and_load_weights_and_architecture(tmp_path: Path) -> None:
-    env_metadata = _env_metadata()
+    game_rules = _game_rules()
     architecture = DummyPolicyArchitecture()
-    policy = architecture.make_policy(env_metadata)
+    policy = architecture.make_policy(game_rules)
 
     artifact_path = tmp_path / "artifact.zip"
     artifact = save_policy_artifact_safetensors(
@@ -96,14 +99,14 @@ def test_save_and_load_weights_and_architecture(tmp_path: Path) -> None:
     assert isinstance(loaded.policy_architecture, DummyPolicyArchitecture)
     assert loaded.state_dict is not None
 
-    instantiated = loaded.instantiate(env_metadata, torch.device("cpu"))
+    instantiated = loaded.instantiate(game_rules, torch.device("cpu"))
     assert isinstance(instantiated, DummyPolicy)
 
 
 def test_policy_artifact_rejects_policy_and_weights() -> None:
-    env_metadata = _env_metadata()
+    game_rules = _game_rules()
     architecture = DummyPolicyArchitecture()
-    policy = architecture.make_policy(env_metadata)
+    policy = architecture.make_policy(game_rules)
     state = policy.state_dict()
 
     with pytest.raises(ValueError):
@@ -154,3 +157,33 @@ def test_policy_architecture_from_string_with_args_round_trip() -> None:
     # Canonical string should parse back to the same config
     round_tripped = policy_architecture_from_string(canonical)
     assert round_tripped.model_dump() == architecture.model_dump()
+
+
+def test_safetensors_save_with_shared_lstm_parameters(tmp_path: Path) -> None:
+    obs_features = {"token": SimpleNamespace(id=0, normalization=1.0)}
+    game_rules = GameRules(
+        obs_width=1,
+        obs_height=1,
+        obs_features=obs_features,
+        action_names=["noop"],
+        num_agents=1,
+        observation_space=None,
+        action_space=gym.spaces.Discrete(1),
+        feature_normalizations={0: 1.0},
+    )
+
+    architecture = FastLSTMResetConfig()
+    policy = architecture.make_policy(game_rules)
+    policy.initialize_to_environment(game_rules, torch.device("cpu"))
+
+    artifact_path = tmp_path / "artifact.zip"
+    save_policy_artifact_safetensors(
+        artifact_path,
+        policy_architecture=architecture,
+        state_dict=policy.state_dict(),
+    )
+
+    loaded = load_policy_artifact(artifact_path)
+    reloaded = loaded.instantiate(game_rules, torch.device("cpu"))
+
+    assert reloaded.network.module.lstm_reset.func.lstm_h.size(1) == 0
