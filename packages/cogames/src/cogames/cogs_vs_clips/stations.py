@@ -37,7 +37,7 @@ def carbon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
         map_char="C",
         render_symbol="⚫",
         max_uses=max_uses or 0,
-        recipes=[("Default", protocols.standard_charging_recipe())],
+        recipes=[("Default", protocols.standard_carbon_recipe())],
     )
 
 
