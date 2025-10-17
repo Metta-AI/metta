@@ -11,7 +11,6 @@ from .core import (
     run_git,
     run_git_cmd,
     run_git_in_dir,
-    run_git_with_cwd,
 )
 
 # Filter functionality
@@ -31,14 +30,15 @@ from .git import (
     get_current_branch,
     get_current_commit,
     get_file_list,
-    get_git_hash_for_remote_task,
     get_remote_url,
     git_log_since,
     has_unstaged_changes,
+    https_remote_url,
     is_commit_pushed,
     is_repo_match,
     ref_exists,
-    validate_git_ref,
+    resolve_git_ref,
+    validate_commit_state,
 )
 
 # GitHub API functionality
@@ -50,7 +50,7 @@ from .github import (
     run_gh,
 )
 
-# Split functionality
+# PR splitting functionality
 from .split import PRSplitter, split_pr
 
 __all__ = [
@@ -62,7 +62,6 @@ __all__ = [
     "run_git_cmd",
     "run_git",
     "run_git_in_dir",
-    "run_git_with_cwd",
     # Git operations
     "get_current_branch",
     "get_current_commit",
@@ -70,12 +69,12 @@ __all__ = [
     "get_commit_message",
     "has_unstaged_changes",
     "is_commit_pushed",
-    "validate_git_ref",
-    "canonical_remote_url",
+    "resolve_git_ref",
+    "https_remote_url",
+    "canonical_remote_url",  # Backwards compatibility alias
     "get_remote_url",
     "get_all_remotes",
     "is_repo_match",
-    "get_git_hash_for_remote_task",
     "get_file_list",
     "get_commit_count",
     "add_remote",
@@ -84,6 +83,7 @@ __all__ = [
     "ref_exists",
     "diff",
     "git_log_since",
+    "validate_commit_state",
     # GitHub API
     "run_gh",
     "get_matched_pr",

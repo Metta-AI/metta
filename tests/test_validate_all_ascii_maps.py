@@ -13,7 +13,7 @@ import pytest
 import yaml
 
 from metta.common.util.fs import cd_repo_root, get_repo_root
-from mettagrid.map_builder.map_builder import MapBuilderConfig, validate_any_map_builder
+from mettagrid.map_builder.map_builder import MapBuilderConfig
 from tools.map.convert_legacy_maps_to_yaml import DEFAULT_DIRECTORIES
 
 cd_repo_root()
@@ -58,7 +58,7 @@ def _default_directories() -> list[Path]:
 def _load_map_builder_config_cached(map_file: str) -> MapBuilderConfig[Any]:
     with Path(map_file).open(encoding="utf-8") as handle:
         data = yaml.safe_load(handle)
-    config = validate_any_map_builder(data)
+    config = MapBuilderConfig.model_validate(data)
     assert isinstance(config, MapBuilderConfig)
     return config
 

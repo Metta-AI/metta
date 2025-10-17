@@ -18,6 +18,8 @@ from gitta import (
     get_file_list,
     get_remote_url,
     has_unstaged_changes,
+    https_remote_url,
+    validate_commit_state,
 )
 
 
@@ -125,18 +127,21 @@ def test_find_git_root():
         assert find_root(Path(tmpdir)) is None
 
 
-def test_canonical_remote_url():
-    """Test URL canonicalization."""
+def test_https_remote_url_alias():
+    """Test URL canonicalization helpers."""
     # GitHub SSH URLs
-    assert canonical_remote_url("git@github.com:Owner/repo.git") == "https://github.com/Owner/repo"
-    assert canonical_remote_url("ssh://git@github.com/Owner/repo") == "https://github.com/Owner/repo"
+    assert https_remote_url("git@github.com:Owner/repo.git") == "https://github.com/Owner/repo"
+    assert https_remote_url("ssh://git@github.com/Owner/repo") == "https://github.com/Owner/repo"
 
     # GitHub HTTPS URLs
-    assert canonical_remote_url("https://github.com/Owner/repo.git") == "https://github.com/Owner/repo"
-    assert canonical_remote_url("https://github.com/Owner/repo") == "https://github.com/Owner/repo"
+    assert https_remote_url("https://github.com/Owner/repo.git") == "https://github.com/Owner/repo"
+    assert https_remote_url("https://github.com/Owner/repo") == "https://github.com/Owner/repo"
 
     # Non-GitHub URLs remain unchanged
-    assert canonical_remote_url("git@gitlab.com:owner/repo.git") == "git@gitlab.com:owner/repo.git"
+    assert https_remote_url("git@gitlab.com:owner/repo.git") == "git@gitlab.com:owner/repo.git"
+
+    # Backwards compatibility alias still available
+    assert canonical_remote_url("git@github.com:Owner/repo.git") == "https://github.com/Owner/repo"
 
 
 def test_git_errors():
@@ -153,3 +158,82 @@ def test_git_errors():
 
         with pytest.raises(GitError):
             has_unstaged_changes()
+
+
+def test_validate_commit_state_clean_repo():
+    """Test validate_commit_state with a clean repository."""
+    repo_path = create_temp_repo()
+    os.chdir(repo_path)
+
+    # Clean repo should validate successfully (without requiring pushed)
+    commit = validate_commit_state(require_clean=True, require_pushed=False)
+    assert len(commit) == 40
+    assert commit == get_current_commit()
+
+
+def test_validate_commit_state_uncommitted_changes():
+    """Test validate_commit_state fails with uncommitted changes."""
+    repo_path = create_temp_repo()
+    os.chdir(repo_path)
+
+    # Modify a file
+    (repo_path / "README.md").write_text("# Modified")
+
+    # Should fail when requiring clean
+    with pytest.raises(GitError, match="uncommitted changes"):
+        validate_commit_state(require_clean=True, require_pushed=False)
+
+    # Should succeed when not requiring clean
+    commit = validate_commit_state(require_clean=False, require_pushed=False)
+    assert len(commit) == 40
+
+
+def test_validate_commit_state_untracked_files():
+    """Test validate_commit_state with untracked files."""
+    repo_path = create_temp_repo()
+    os.chdir(repo_path)
+
+    # Add an untracked file
+    (repo_path / "new_file.txt").write_text("new content")
+
+    # Should fail by default (untracked files count as changes)
+    with pytest.raises(GitError, match="uncommitted changes"):
+        validate_commit_state(require_clean=True, require_pushed=False)
+
+    # Should succeed when allowing untracked files
+    commit = validate_commit_state(require_clean=True, require_pushed=False, allow_untracked=True)
+    assert len(commit) == 40
+
+
+def test_validate_commit_state_unpushed_commit():
+    """Test validate_commit_state with unpushed commits."""
+    repo_path = create_temp_repo()
+    os.chdir(repo_path)
+
+    # Set up a remote
+    add_remote("origin", "git@github.com:test/repo.git")
+
+    # Should fail when requiring pushed (no upstream configured)
+    with pytest.raises(GitError, match="hasn't been pushed"):
+        validate_commit_state(require_clean=True, require_pushed=True)
+
+    # Should succeed when not requiring pushed
+    commit = validate_commit_state(require_clean=True, require_pushed=False)
+    assert len(commit) == 40
+
+
+def test_validate_commit_state_wrong_repo():
+    """Test validate_commit_state with wrong repository."""
+    repo_path = create_temp_repo()
+    os.chdir(repo_path)
+
+    # Add a remote
+    add_remote("origin", "git@github.com:test/repo.git")
+
+    # Should succeed when target_repo matches
+    commit = validate_commit_state(require_clean=True, require_pushed=False, target_repo="test/repo")
+    assert len(commit) == 40
+
+    # Should fail when target_repo doesn't match
+    with pytest.raises(GitError, match="Not in repository"):
+        validate_commit_state(require_clean=True, require_pushed=False, target_repo="different/repo")

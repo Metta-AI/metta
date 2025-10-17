@@ -1,9 +1,8 @@
-"""Git operations and utilities."""
+"""High-level git helpers that build on the command runners in ``gitta.core``."""
 
 from __future__ import annotations
 
 import logging
-import os
 import re
 from functools import lru_cache
 from pathlib import Path
@@ -123,16 +122,15 @@ def is_commit_pushed(commit_hash: str) -> bool:
         return False
 
 
-def validate_git_ref(ref: str) -> str | None:
-    """Validate a git reference exists (locally or in remote)."""
+def resolve_git_ref(ref: str) -> str | None:
+    """Resolve a git reference to its commit hash, or None if invalid."""
     try:
-        commit_hash = run_git("rev-parse", "--verify", ref)
+        return run_git("rev-parse", "--verify", ref)
     except GitError:
         return None
-    return commit_hash
 
 
-def canonical_remote_url(url: str) -> str:
+def https_remote_url(url: str) -> str:
     """Canonicalize a git remote URL to a consistent format.
 
     Converts both SSH and HTTPS GitHub URLs to a canonical HTTPS format
@@ -167,15 +165,12 @@ def canonical_remote_url(url: str) -> str:
     return url
 
 
+# Prefer ``https_remote_url``; keep ``canonical_remote_url`` for backwards compatibility.
+canonical_remote_url = https_remote_url
+
+
 def get_remote_url(remote: str = "origin") -> str | None:
-    """Get the URL of a remote repository.
-
-    Args:
-        remote: Name of the remote (default: "origin")
-
-    Returns:
-        The remote URL or None if the remote doesn't exist
-    """
+    """Get the URL of a remote repository."""
     try:
         return run_git("remote", "get-url", remote)
     except GitError:
@@ -183,11 +178,7 @@ def get_remote_url(remote: str = "origin") -> str | None:
 
 
 def get_all_remotes() -> Dict[str, str]:
-    """Get all configured remotes and their URLs.
-
-    Returns:
-        Dictionary mapping remote names to their fetch URLs
-    """
+    """Get all configured remotes and their fetch URLs."""
     try:
         output = run_git("remote", "-v")
         remotes = {}
@@ -202,81 +193,15 @@ def get_all_remotes() -> Dict[str, str]:
 
 
 def is_repo_match(target_repo: str) -> bool:
-    """Check if any remote is set to the specified repository.
-
-    This checks all configured remotes, not just 'origin', and handles
-    various URL formats (SSH, HTTPS, with/without .git suffix).
-
-    Args:
-        target_repo: Repository in format "owner/repo"
-    """
-    target_url = canonical_remote_url(f"https://github.com/{target_repo}")
+    """Check if any remote matches the target repository (e.g., "owner/repo")."""
+    target_url = https_remote_url(f"https://github.com/{target_repo}")
 
     remotes = get_all_remotes()
     for remote_url in remotes.values():
-        if canonical_remote_url(remote_url) == target_url:
+        if https_remote_url(remote_url) == target_url:
             return True
 
     return False
-
-
-def get_git_hash_for_remote_task(
-    target_repo: str | None = None,
-    skip_git_check: bool = False,
-    skip_cmd: str = "skipping git check",
-) -> str | None:
-    """
-    Get git hash for remote task execution.
-
-    Returns:
-        - None if no local git repo or no origin synced to target repo
-        - Git hash if commit is synced with remote and no dirty changes
-        - Raises GitError if dirty changes exist and skip_git_check is False
-
-    Args:
-        target_repo: Repository in format "owner/repo". If None, skips repo check.
-        skip_git_check: If True, skip the dirty changes check
-        skip_cmd: The command to show in error messages for skipping the check
-    """
-    try:
-        current_commit = get_current_commit()
-    except (GitError, ValueError):
-        logger.warning("Not in a git repository, using git_hash=None")
-        return None
-
-    if target_repo and not is_repo_match(target_repo):
-        logger.warning(f"Origin not set to {target_repo}, using git_hash=None")
-        return None
-
-    on_skypilot = bool(os.getenv("SKYPILOT_TASK_ID"))
-    has_changes, status_output = has_unstaged_changes()
-    if has_changes:
-        logger.warning("Working tree has unstaged changes.\n" + status_output)
-        if not skip_git_check:
-            if on_skypilot:
-                # Skypilot jobs can create local files as part of their setup. It's assumed that these changes do not
-                # need to be checked in because they wouldn't have an effect on policy evaluator's execution
-                logger.warning("Running on skypilot: proceeding despite unstaged changes")
-            else:
-                raise GitError(
-                    "You have uncommitted changes to tracked files that won't be reflected in the remote task.\n"
-                    f"You can push your changes or specify to skip this check with {skip_cmd}"
-                )
-    elif status_output:
-        # Only untracked files present (or clean). Log for visibility if untracked exist.
-        logger.info("Proceeding with unstaged changes.\n" + status_output)
-
-    if not is_commit_pushed(current_commit) and not on_skypilot:
-        short_commit = current_commit[:8]
-        if not skip_git_check:
-            raise GitError(
-                f"Commit {short_commit} hasn't been pushed.\n"
-                f"You can push your changes or specify to skip this check with {skip_cmd}"
-            )
-        else:
-            logger.warning(f"Proceeding with unpushed commit {short_commit} due to {skip_cmd}")
-
-    return current_commit
 
 
 def get_file_list(repo_path: Path | None = None, ref: str = "HEAD") -> list[str]:
@@ -339,20 +264,8 @@ def add_remote(name: str, url: str, repo_path: Path | None = None):
 
 
 def find_root(start: Path) -> Optional[Path]:
-    """Return the repository root that contains start, or None if not in a repo.
-
-    This uses git's own logic to find the repository root, which correctly
-    handles worktrees, submodules, and other edge cases.
-
-    Args:
-        start: Starting path (file or directory) to search from
-
-    Returns:
-        Path to repository root or None if not in a repo
-    """
+    """Return the repository root that contains start, or None if not in a repo."""
     try:
-        from .core import run_git_cmd
-
         # Ensure we have a directory for cwd
         if start.is_file():
             cwd = start.parent
@@ -360,7 +273,7 @@ def find_root(start: Path) -> Optional[Path]:
             cwd = start
 
         # Use git's own logic to find the repository root
-        root = run_git_cmd(["rev-parse", "--show-toplevel"], cwd=cwd)
+        root = run_git_in_dir(cwd, "rev-parse", "--show-toplevel")
         return Path(root)
     except (GitError, NotAGitRepoError):
         return None
@@ -421,3 +334,36 @@ def git_log_since(ref: str, max_count: int = 20, oneline: bool = True) -> str:
             return run_git(*fallback_args)
         except GitError:
             return "Unable to retrieve git log"
+
+
+def validate_commit_state(
+    require_clean: bool = True,
+    require_pushed: bool = True,
+    target_repo: Optional[str] = None,
+    allow_untracked: bool = False,
+) -> str:
+    """Validate working tree state before remote execution and return current commit hash.
+
+    Raises GitError if validation fails (uncommitted changes, unpushed commits, wrong repo).
+    """
+    current_commit = get_current_commit()
+
+    # Validate we're in the right repository
+    if target_repo and not is_repo_match(target_repo):
+        raise GitError(f"Not in repository {target_repo}")
+
+    # Check for uncommitted changes
+    if require_clean:
+        has_changes, status_output = has_unstaged_changes(allow_untracked=allow_untracked)
+        if has_changes:
+            raise GitError(
+                f"Working tree has uncommitted changes to tracked files:\n{status_output}\n"
+                "Commit or stash your changes before proceeding."
+            )
+
+    # Check if commit is pushed
+    if require_pushed and not is_commit_pushed(current_commit):
+        short_commit = current_commit[:8]
+        raise GitError(f"Commit {short_commit} hasn't been pushed to remote.\nPush your changes before proceeding.")
+
+    return current_commit
