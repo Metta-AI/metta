@@ -18,7 +18,7 @@ from safetensors.torch import save as save_safetensors
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.puffer_policy import _is_puffer_state_dict, load_pufferlib_checkpoint
-from metta.rl.training import EnvironmentMetaData
+from metta.rl.training import GameRules
 from mettagrid.util.module import load_symbol
 
 
@@ -206,17 +206,17 @@ class PolicyArtifact:
 
     def instantiate(
         self,
-        env_metadata: EnvironmentMetaData,
+        game_rules: GameRules,
         device: torch.device,
         *,
         strict: bool = True,
     ) -> Policy:
         if self.state_dict is not None and self.policy_architecture is not None:
-            policy = self.policy_architecture.make_policy(env_metadata)
+            policy = self.policy_architecture.make_policy(game_rules)
             policy = policy.to(device)
 
             if hasattr(policy, "initialize_to_environment"):
-                policy.initialize_to_environment(env_metadata, device)
+                policy.initialize_to_environment(game_rules, device)
 
             ordered_state = OrderedDict(self.state_dict.items())
             missing, unexpected = policy.load_state_dict(ordered_state, strict=strict)
