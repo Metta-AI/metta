@@ -351,24 +351,6 @@
     "name": "Predictive Loss"
   },
   {
-    "gid": "1211366082087987",
-    "assignee": {
-      "gid": "1211215486118014",
-      "name": "Tasha Pais"
-    },
-    "completed": false,
-    "name": "Add Dynamics Model: Next action prediction "
-  },
-  {
-    "gid": "1211377548529684",
-    "assignee": {
-      "gid": "1211215486118014",
-      "name": "Tasha Pais"
-    },
-    "completed": false,
-    "name": "Add Dynamics Model: Next value prediction"
-  },
-  {
     "gid": "1211366081045969",
     "assignee": {
       "gid": "1211215486118014",
