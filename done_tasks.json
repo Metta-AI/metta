@@ -48,5 +48,13 @@
     "branch": "feature/vast-dev-box-check",
     "commit": "e573611eaea579a2a2828aa21e17f6a74e1ebf4f",
     "completed_at": "2025-10-16"
+  },
+  {
+    "gid": "1210851220510512",
+    "name": "Cogweb Agent Bucket for agents",
+    "branch": "task/cogweb-agent-bucket",
+    "commit": "1a00140d421dc8c6996d3d1eab053f7176b2dc14",
+    "completed_at": "2025-10-17",
+    "notes": "Expose Cogweb agent bucket configuration via backend API and client helper."
   }
 ]
