@@ -17,7 +17,6 @@ from cortex.kernels.pytorch.mlstm import (
     mlstm_chunkwise_simple,
     mlstm_recurrent_step_stabilized_simple,
 )
-from cortex.kernels.triton.mlstm import mlstm_chunkwise_triton
 from cortex.types import MaybeState, ResetMask, Tensor
 from cortex.utils import select_backend
 
@@ -299,7 +298,7 @@ class mLSTMCell(MemoryCell):
                     rm = resets
 
                 backend_fn = select_backend(
-                    triton_fn=mlstm_chunkwise_triton,
+                    triton_fn="cortex.kernels.triton.mlstm:mlstm_chunkwise_triton",
                     pytorch_fn=mlstm_chunkwise_simple,
                     tensor=x,
                     allow_triton=True,
@@ -333,7 +332,7 @@ class mLSTMCell(MemoryCell):
                 }
 
                 backend_fn = select_backend(
-                    triton_fn=mlstm_chunkwise_triton,
+                    triton_fn="cortex.kernels.triton.mlstm:mlstm_chunkwise_triton",
                     pytorch_fn=mlstm_chunkwise_simple,
                     tensor=x,
                     allow_triton=True,

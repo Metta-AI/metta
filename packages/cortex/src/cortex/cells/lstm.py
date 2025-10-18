@@ -12,7 +12,6 @@ from cortex.cells.base import MemoryCell
 from cortex.cells.registry import register_cell
 from cortex.config import LSTMCellConfig
 from cortex.kernels.pytorch.lstm import lstm_sequence_pytorch
-from cortex.kernels.triton.lstm import lstm_sequence_triton
 from cortex.types import MaybeState, ResetMask, Tensor
 from cortex.utils import select_backend
 
@@ -104,7 +103,7 @@ class LSTMCell(MemoryCell):
         )
 
         backend_fn = select_backend(
-            triton_fn=lstm_sequence_triton if allow_triton else None,
+            triton_fn="cortex.kernels.triton.lstm:lstm_sequence_triton" if allow_triton else None,
             pytorch_fn=lstm_sequence_pytorch,
             tensor=x_seq,
             allow_triton=allow_triton,

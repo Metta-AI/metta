@@ -385,18 +385,22 @@ def test_mlstm_reset_mask_functionality() -> None:
     device = get_test_device()
     dtype = torch.float32
 
+    # Skip early if Triton not available
+    if not (TRITON_AVAILABLE and device.type == "cuda"):
+        pytest.skip("Triton reset-mask checks require CUDA with Triton kernels")
+
     B = 4  # batch size
     T = 98  # sequence length (spans multiple chunks)
     H = 64  # hidden size
     num_heads = 4
     chunk_size = 32  # Will create 3 chunks
 
-    # Import kernel functions directly
-    from cortex.kernels import (
+    # Import kernel functions (only if available, no try-catch)
+    from cortex.kernels.pytorch.mlstm import (
         mlstm_chunkwise_simple,
-        mlstm_chunkwise_triton,
         mlstm_recurrent_step_stabilized_simple,
     )
+    from cortex.kernels.triton.mlstm import mlstm_chunkwise_triton
 
     # Prepare inputs
     queries = torch.randn(B, num_heads, T, H // num_heads, device=device, dtype=dtype)
@@ -414,9 +418,6 @@ def test_mlstm_reset_mask_functionality() -> None:
     # Add more resets within chunks to test thoroughly
     reset_mask[0, 70] = True  # Another reset within third chunk
     reset_mask[1, 15] = True  # Reset within first chunk
-
-    if not (TRITON_AVAILABLE and device.type == "cuda"):
-        pytest.skip("Triton reset-mask checks require CUDA with Triton kernels")
 
     # Test 1: Simple backend with reset mask
     output_simple_reset, (c_simple, n_simple, m_simple) = mlstm_chunkwise_simple(

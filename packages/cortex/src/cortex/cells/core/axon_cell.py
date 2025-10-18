@@ -20,10 +20,8 @@ from cortex.kernels.cuda import srht_cuda
 from cortex.kernels.pytorch.rtu.rtu_stream_diag import rtu_stream_diag_pytorch
 from cortex.kernels.pytorch.rtu.rtu_stream_fullrank import rtu_stream_full_pytorch
 from cortex.kernels.pytorch.srht import srht_pytorch
-from cortex.kernels.triton.rtu import rtu_stream_diag_triton  # type: ignore
 from cortex.types import MaybeState, ResetMask, Tensor
 from cortex.utils import select_backend
-from cortex.kernels.cuda import rtu_stream_diag_cuda, rtu_stream_full_cuda
 
 
 def _resolve_activation(name: str) -> nn.Module:
@@ -254,7 +252,7 @@ class AxonCell(MemoryCell):
             # Full-rank: only PyTorch and CUDA available (no Triton)
             triton_fn = None
             pytorch_fn = rtu_stream_full_pytorch
-            cuda_fn = rtu_stream_full_cuda
+            cuda_fn = "cortex.kernels.cuda.rtu:rtu_stream_full_cuda"
             kernel_kwargs = {
                 "x_btd": x_btd,
                 "nu_log": self.nu_log,
@@ -269,9 +267,9 @@ class AxonCell(MemoryCell):
             }
         else:
             # Diagonal: all three backends available
-            triton_fn = rtu_stream_diag_triton
+            triton_fn = "cortex.kernels.triton.rtu:rtu_stream_diag_triton"
             pytorch_fn = rtu_stream_diag_pytorch
-            cuda_fn = rtu_stream_diag_cuda
+            cuda_fn = "cortex.kernels.cuda.rtu:rtu_stream_diag_cuda"
             kernel_kwargs = {
                 "x_btd": x_btd,
                 "nu_log": self.nu_log,

@@ -18,7 +18,6 @@ from cortex.cells.mlstm import MultiHeadLayerNorm, bias_linspace_init_
 from cortex.cells.registry import register_cell
 from cortex.config import CausalConv1dConfig, sLSTMCellConfig
 from cortex.kernels.pytorch.slstm import slstm_sequence_pytorch
-from cortex.kernels.triton.slstm import slstm_sequence_triton
 from cortex.types import MaybeState, ResetMask, Tensor
 from cortex.utils import select_backend
 
@@ -278,7 +277,7 @@ class sLSTMCell(MemoryCell):
         allow_triton = (self.head_dim & (self.head_dim - 1)) == 0
         logging.debug(f"head_dim: {self.head_dim}, allow_triton: {allow_triton}, is_step: {is_step}")
         backend_fn = select_backend(
-            triton_fn=slstm_sequence_triton,
+            triton_fn="cortex.kernels.triton.slstm:slstm_sequence_triton",
             pytorch_fn=slstm_sequence_pytorch,
             tensor=x_seq,
             allow_triton=allow_triton,
