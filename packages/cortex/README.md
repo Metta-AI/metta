@@ -23,6 +23,7 @@ from cortex import build_cortex, CortexStackConfig
   - [Memory Cells](#memory-cells)
   - [Blocks](#blocks)
 - [Quick Start](#quick-start)
+- [Metta Framework Integration](#metta-framework-integration)
 - [AxonLayer: A Generalized Linear Operator with Stateful Dynamics](#axonlayer-a-generalized-linear-operator-with-stateful-dynamics)
   - [AxonLayer Integration Across Cells](#axonlayer-integration-across-cells)
 - [Evaluate Quickly](#evaluate-quickly)
@@ -338,66 +339,49 @@ uv run python packages/cortex/evaluations/run.py --task delayed_recall --stack c
 
 ## Metta Framework Integration
 
-Metta ships with a ready-to-use component for integrating Cortex memory stacks with its TensorDict-based pipelines.
+Metta ships with a ready-to-use component for integrating Cortex stacks with its TensorDict-based pipelines.
 
 ### CortexTD Component
 
-The `CortexTD` component (located in `metta.agent.components.cortex`) wraps a `CortexStack` and makes it compatible with Metta's TensorDict interface, handling stateful recurrent memory across rollout and training phases.
+The `CortexTD` component (in `agent/src/metta/agent/components/cortex.py`) wraps a `CortexStack` and provides stateful memory across rollout and training.
 
-**Key Features:**
-
-- **Two-cache architecture**: Separate caches for rollout (data collection) and training (gradient updates)
-  - `rollout_cache`: Updated during environment interaction (single-step mode)
-  - `train_cache`: Frozen snapshot used for deterministic training on replayed sequences
-- **Per-environment memory**: Efficiently manages separate hidden states for each environment
-- **Reset handling**: Automatically applies episode boundary resets via done/truncated flags
-- **Memory-efficient replay**: Stores only `env_id` in replay buffer; reconstructs states from cache
-- **Optional output projection**: Configurable linear projection after the stack
-
-**Example Usage:**
+**Recommended pattern (auto stack):** Use the mixed Axon/mLSTM/sLSTM builder and enable AxonLayers.
 
 ```python
-from cortex import build_cortex, CortexStackConfig, LSTMCellConfig, PreUpBlockConfig
+from cortex.stacks import build_cortex_auto_stack
 from metta.agent.components.cortex import CortexTD, CortexTDConfig
 
-# Build a memory stack
-stack = build_cortex(CortexStackConfig(
+# 1) Build a Cortex stack
+stack = build_cortex_auto_stack(
     d_hidden=256,
-    blocks=[
-        PreUpBlockConfig(
-            cell=LSTMCellConfig(hidden_size=None),
-            proj_factor=2.0
-        )
-    ]
-))
+    num_layers=3,
+    post_norm=True,
+    use_axonlayers=True,
+)
 
-# Wrap with Metta component
+# 2) Wrap it as a Metta component
 component = CortexTD(CortexTDConfig(
     stack=stack,
-    in_key="latent",           # Input key in TensorDict
-    out_key="recurrent_out",   # Output key in TensorDict
-    d_hidden=256,              # Stack's external hidden size
-    out_features=512,          # Optional projection to different size
-    store_dtype="fp32"         # Storage precision: 'fp32' or 'bf16'
+    in_key="latent",
+    out_key="recurrent_out",
+    d_hidden=256,              # stack external size
+    out_features=256,          # identity projection when equal to d_hidden
+    key_prefix="cortex_state",
+    store_dtype="fp32",       # or "bf16"
 ))
-
-# Use in your Metta policy
-# The component handles state management automatically via TensorDict metadata
 ```
 
-**Integration Notes:**
+See also the reference wiring in:
+- `agent/src/metta/agent/components/cortex.py`
+- `agent/src/metta/agent/policies/cortex.py`
 
-- The component is an `nn.Module` that registers the stack's parameters for optimization
-- Requires `training_env_ids` in TensorDict for per-environment state tracking
-- Expects `bptt` (backprop through time steps) metadata to distinguish rollout (bptt=1) from training (bptt>1)
-- Implements `get_memory()` / `set_memory()` for checkpoint serialization
-- Reset masks are constructed from `dones` and `truncateds` in the TensorDict
+**TensorDict expectations:**
+- `bptt`: int Tensor (shape [1]); 1 for rollout (step mode), >1 for training (sequence mode)
+- `batch`: int Tensor (shape [1]); batch size B
+- `training_env_ids`: Long Tensor identifying environments (B or [B, T])
+- Optional resets via `dones`/`truncateds` booleans (B or [B, T])
 
-**Performance Considerations:**
-
-- Uses `store_dtype` to control memory vs precision tradeoff (fp32 for accuracy, bf16 for memory)
-- Maintains a persistent batched state during rollout to avoid redundant gather/scatter operations
-- Training cache is compacted to only store active environment states
+`CortexTD` maintains separate caches for rollout and training, supports checkpointing via `get_memory()`/`set_memory()`, and applies resets automatically.
 
 
 ## Evaluate Quickly
