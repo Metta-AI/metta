@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import importlib.util
 import pkgutil
 
 from metta.common.tool.recipe import Recipe
@@ -75,6 +76,8 @@ class RecipeRegistry:
         Args:
             base_package: Base package to search for recipes (default: experiments.recipes)
         """
+        if importlib.util.find_spec(base_package) is None:
+            return None
         base_module = importlib.import_module(base_package)
 
         # Get the package path
