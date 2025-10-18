@@ -8,10 +8,10 @@
 namespace {
 
 mettagrid::rpc::v1::CreateGameRequest MakeMinimalRequest() {
-  using namespace mettagrid::rpc;
   using mettagrid::rpc::v1::ActionDefinition;
+  using mettagrid::rpc::v1::CreateGameRequest;
 
-  v1::CreateGameRequest request;
+  CreateGameRequest request;
   request.set_game_id("test_env");
   request.set_seed(42);
 
@@ -80,7 +80,12 @@ mettagrid::rpc::v1::CreateGameRequest MakeMinimalRequest() {
 }  // namespace
 
 TEST(GameRegistryTest, CreateStepDeleteLifecycle) {
-  using namespace mettagrid::rpc;
+  using mettagrid::rpc::GameRegistry;
+  using mettagrid::rpc::Status;
+  using mettagrid::rpc::v1::StepGameRequest;
+  using mettagrid::rpc::v1::StepResult;
+  using mettagrid::rpc::v1::DeleteGameRequest;
+  using mettagrid::rpc::RewardType;
 
   GameRegistry registry;
   auto create_request = MakeMinimalRequest();
