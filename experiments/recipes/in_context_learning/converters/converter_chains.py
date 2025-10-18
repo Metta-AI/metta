@@ -259,7 +259,7 @@ class ConverterChainTaskGenerator(ICLTaskGenerator):
         rng: random.Random,
         estimate_max_rewards: bool = False,
     ) -> MettaGridConfig:
-        _, resources, num_sinks, room_size, terrain, width, height, max_steps, _ = (
+        _, resources, num_sinks, room_size, terrain, width, height, max_steps, _, _ = (
             self._setup_task(rng)
         )
 
