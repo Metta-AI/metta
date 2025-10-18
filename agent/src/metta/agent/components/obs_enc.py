@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from tensordict import TensorDict
+from torchrl.modules import ConsistentDropout
 
 from metta.agent.components.component_config import ComponentConfig
 
@@ -218,6 +219,8 @@ class ObsPerceiverLatentConfig(ComponentConfig):
     use_mask: bool = True
     pool: Literal["mean", "first", "none"] = "mean"
     name: str = "obs_perceiver_latent"
+    dropout_p: float = 0.25
+    is_dropout: bool = True
 
     def make_component(self, env=None):
         return ObsPerceiverLatent(config=self)
@@ -237,6 +240,8 @@ class ObsPerceiverLatent(nn.Module):
         self._mlp_ratio = config.mlp_ratio
         self._use_mask = config.use_mask
         self._pool = config.pool
+        self._is_dropout = config.is_dropout
+        self._dropout_p = config.dropout_p
 
         if self._feat_dim <= 0:
             raise ValueError("feat_dim must be positive")
@@ -251,6 +256,8 @@ class ObsPerceiverLatent(nn.Module):
         self.v_proj = nn.Linear(self._feat_dim, self._latent_dim, bias=False)
 
         self.layers = nn.ModuleList([])
+        self.dropouts = nn.ModuleList([])
+        self.dropout_masks = []
         for _ in range(self._num_layers):
             self.layers.append(
                 nn.ModuleDict(
@@ -267,6 +274,9 @@ class ObsPerceiverLatent(nn.Module):
                     }
                 )
             )
+            if self._is_dropout:
+                self.dropouts.append(ConsistentDropout(p=self._dropout_p))
+                self.dropout_masks.append(None)
 
         self.final_norm = nn.LayerNorm(self._latent_dim)
 
@@ -287,7 +297,7 @@ class ObsPerceiverLatent(nn.Module):
 
         latents = self.latents.expand(x_features.shape[0], -1, -1)
 
-        for layer in self.layers:
+        for i, layer in enumerate(self.layers):
             residual = latents
             q = layer["q_proj"](layer["latent_norm"](latents))
             q = einops.rearrange(q, "b n (h d) -> b h n d", h=self._num_heads)
@@ -296,7 +306,16 @@ class ObsPerceiverLatent(nn.Module):
             attn_output = einops.rearrange(attn_output, "b h n d -> b n (h d)")
             latents = residual + layer["attn_out_proj"](attn_output)
 
-            latents = latents + layer["mlp"](layer["mlp_norm"](latents))
+            mlp_output = layer["mlp"](layer["mlp_norm"](latents))
+
+            if self._is_dropout:
+                # Check if mask needs to be reset due to batch size mismatch
+                if self.dropout_masks[i] is not None and self.dropout_masks[i].shape[0] != mlp_output.shape[0]:
+                    self.dropout_masks[i] = None
+                mlp_output, mask = self.dropouts[i](mlp_output, mask=self.dropout_masks[i])
+                self.dropout_masks[i] = mask
+
+            latents = latents + mlp_output
 
         latents = self.final_norm(latents)
 
