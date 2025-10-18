@@ -124,7 +124,9 @@ class MettaGridEnv(MettaGridPufferBase):
 
     @override
     @with_instance_timer("step")
-    def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
+    def step(
+        self, actions: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
         """Execute one timestep for training."""
         self.timer.stop("thread_idle")
 
@@ -161,15 +163,20 @@ class MettaGridEnv(MettaGridPufferBase):
         self._label_completions["completed_tasks"].append(label)
 
         # moving average of the completion rates
-        self._label_completions["completion_rates"] = {t: 0 for t in set(self._label_completions["completed_tasks"])}
+        self._label_completions["completion_rates"] = {
+            t: 0 for t in set(self._label_completions["completed_tasks"])
+        }
         for t in self._label_completions["completed_tasks"]:
             self._label_completions["completion_rates"][t] += 1
         self._label_completions["completion_rates"] = {
-            t: self._label_completions["completion_rates"][t] / len(self._label_completions["completed_tasks"])
+            t: self._label_completions["completion_rates"][t]
+            / len(self._label_completions["completed_tasks"])
             for t in self._label_completions["completion_rates"]
         }
 
-    def _process_episode_completion(self, infos: Dict[str, Any], moving_avg_window: int = 500, alpha=0.9) -> None:
+    def _process_episode_completion(
+        self, infos: Dict[str, Any], moving_avg_window: int = 500, alpha=0.9
+    ) -> None:
         """Process episode completion - stats, etc."""
         self.timer.start("process_episode_stats")
 
@@ -196,10 +203,12 @@ class MettaGridEnv(MettaGridPufferBase):
         if self.mg_config.game.reward_estimates:
             infos["reward_estimates"] = {}
             infos["reward_estimates"]["best_case_optimal_diff"] = (
-                self.mg_config.game.reward_estimates["best_case_optimal_reward"] - episode_rewards.mean()
+                self.mg_config.game.reward_estimates["best_case_optimal_reward"]
+                - episode_rewards.mean()
             )
             infos["reward_estimates"]["worst_case_optimal_diff"] = (
-                self.mg_config.game.reward_estimates["worst_case_optimal_reward"] - episode_rewards.mean()
+                self.mg_config.game.reward_estimates["worst_case_optimal_reward"]
+                - episode_rewards.mean()
             )
 
         self._update_label_completions(moving_avg_window)
@@ -230,14 +239,21 @@ class MettaGridEnv(MettaGridPufferBase):
         # Handle stats writing
         with self.timer("_stats_writer"):
             if self._stats_writer:
-                self._write_episode_stats(stats, episode_rewards, infos.get("replay_url"))
+                self._write_episode_stats(
+                    stats, episode_rewards, infos.get("replay_url")
+                )
 
         # Add timing information
         self._add_timing_info(infos)
 
         self.timer.stop("process_episode_stats")
 
-    def _write_episode_stats(self, stats: EpisodeStats, episode_rewards: np.ndarray, replay_url: Optional[str]) -> None:
+    def _write_episode_stats(
+        self,
+        stats: EpisodeStats,
+        episode_rewards: np.ndarray,
+        replay_url: Optional[str],
+    ) -> None:
         """Write episode statistics to stats writer."""
         if not self._stats_writer:
             return
@@ -259,7 +275,9 @@ class MettaGridEnv(MettaGridPufferBase):
         # Get agent groups
         grid_objects = self.grid_objects()
         agent_groups: Dict[int, int] = {
-            v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type"] == 0
+            v["agent_id"]: v["agent:group"]
+            for v in grid_objects.values()
+            if v["type"] == 0
         }
 
         # Record episode
@@ -288,16 +306,23 @@ class MettaGridEnv(MettaGridPufferBase):
 
         infos["timing_per_epoch"] = {
             **{
-                f"active_frac/{op}": lap_elapsed / adjusted_lap_time if adjusted_lap_time > 0 else 0
+                f"active_frac/{op}": lap_elapsed / adjusted_lap_time
+                if adjusted_lap_time > 0
+                else 0
                 for op, lap_elapsed in lap_times.items()
             },
-            **{f"msec/{op}": lap_elapsed * 1000 for op, lap_elapsed in lap_times.items()},
+            **{
+                f"msec/{op}": lap_elapsed * 1000
+                for op, lap_elapsed in lap_times.items()
+            },
             "frac/thread_idle": lap_thread_idle_time / wall_time_for_lap,
         }
 
         infos["timing_cumulative"] = {
             **{
-                f"active_frac/{op}": elapsed / adjusted_wall_time if adjusted_wall_time > 0 else 0
+                f"active_frac/{op}": elapsed / adjusted_wall_time
+                if adjusted_wall_time > 0
+                else 0
                 for op, elapsed in elapsed_times.items()
             },
             "frac/thread_idle": thread_idle_time / wall_time,

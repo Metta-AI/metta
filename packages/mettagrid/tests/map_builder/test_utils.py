@@ -151,7 +151,9 @@ class TestSamplePosition:
 
     def test_sample_position_with_forbidden_positions(self):
         forbidden = {(3, 3), (4, 4), (5, 5)}
-        pos = sample_position(3, 5, 3, 5, 0, [], forbidden=forbidden, rng=np.random.default_rng(42))
+        pos = sample_position(
+            3, 5, 3, 5, 0, [], forbidden=forbidden, rng=np.random.default_rng(42)
+        )
         assert pos not in forbidden
 
     def test_sample_position_fallback_when_impossible(self):
@@ -223,7 +225,9 @@ class TestSetPosition:
 
     def test_set_position_above_boundary(self):
         assert set_position(15, 10) == 8  # 15 is odd, so upper_bound-2
-        assert set_position(14, 10) == 8  # 14 is even, make_odd(14)=15, so upper_bound-2
+        assert (
+            set_position(14, 10) == 8
+        )  # 14 is even, make_odd(14)=15, so upper_bound-2
 
     def test_set_position_small_boundaries(self):
         assert set_position(0, 3) == 1

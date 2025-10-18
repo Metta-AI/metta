@@ -6,7 +6,10 @@ from glob import glob
 from pydantic import model_validator
 
 from mettagrid.mapgen.scene import ChildrenAction, Scene, SceneConfig
-from mettagrid.mapgen.scenes.random_yaml_scene import RandomYamlScene, RandomYamlSceneCandidate
+from mettagrid.mapgen.scenes.random_yaml_scene import (
+    RandomYamlScene,
+    RandomYamlSceneCandidate,
+)
 
 
 class RandomDcssSceneConfig(SceneConfig):

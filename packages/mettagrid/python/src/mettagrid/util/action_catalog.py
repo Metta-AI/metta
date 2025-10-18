@@ -8,16 +8,22 @@ if TYPE_CHECKING:  # pragma: no cover
     from mettagrid.core import MettaGridCore
 
 
-def build_action_mapping(env: "MettaGridCore") -> Tuple[Dict[int, Tuple[int, int]], List[str]]:
+def build_action_mapping(
+    env: "MettaGridCore",
+) -> Tuple[Dict[int, Tuple[int, int]], List[str]]:
     """Return mapping from flattened action index to (action_id, action_param) plus base action names."""
 
     c_env = getattr(env, "c_env", None)
     if c_env is None or not hasattr(c_env, "action_catalog"):
-        raise RuntimeError("MettaGrid environment does not expose action_catalog; rebuild bindings.")
+        raise RuntimeError(
+            "MettaGrid environment does not expose action_catalog; rebuild bindings."
+        )
 
     catalog_entries = list(c_env.action_catalog())
     if not catalog_entries:
-        raise ValueError("MettaGrid action catalog is empty; cannot build action mapping.")
+        raise ValueError(
+            "MettaGrid action catalog is empty; cannot build action mapping."
+        )
 
     mapping: Dict[int, Tuple[int, int]] = {}
     base_names: Dict[int, str] = {}
@@ -42,7 +48,9 @@ def build_action_mapping(env: "MettaGridCore") -> Tuple[Dict[int, Tuple[int, int
     return mapping, ordered_base_names
 
 
-def make_decode_fn(mapping: Mapping[int, Tuple[int, int]]) -> Callable[[int], Tuple[int, int]]:
+def make_decode_fn(
+    mapping: Mapping[int, Tuple[int, int]],
+) -> Callable[[int], Tuple[int, int]]:
     """Return a callable that converts flattened indices using the provided mapping."""
 
     def decode(flat_index: int) -> Tuple[int, int]:
@@ -54,7 +62,9 @@ def make_decode_fn(mapping: Mapping[int, Tuple[int, int]]) -> Callable[[int], Tu
 def make_encode_fn(mapping: Mapping[int, Tuple[int, int]]) -> Callable[[int, int], int]:
     """Return a callable that converts (action_id, action_param) into flattened indices."""
 
-    inverse: Dict[Tuple[int, int], int] = {pair: flat_index for flat_index, pair in mapping.items()}
+    inverse: Dict[Tuple[int, int], int] = {
+        pair: flat_index for flat_index, pair in mapping.items()
+    }
 
     def encode(action_id: int, action_param: int) -> int:
         return inverse[(int(action_id), int(action_param))]

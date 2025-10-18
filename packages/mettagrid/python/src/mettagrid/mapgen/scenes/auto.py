@@ -77,7 +77,10 @@ class AutoLayoutConfig(SceneConfig):
 
 class AutoLayout(Scene[AutoLayoutConfig]):
     def get_children(self) -> list[ChildrenAction]:
-        weights = np.array([self.config.auto_config.layout.grid, self.config.auto_config.layout.bsp], dtype=np.float32)
+        weights = np.array(
+            [self.config.auto_config.layout.grid, self.config.auto_config.layout.bsp],
+            dtype=np.float32,
+        )
         weights /= weights.sum()
         layout = self.rng.choice(["grid", "bsp"], p=weights)
 
@@ -88,7 +91,9 @@ class AutoLayout(Scene[AutoLayoutConfig]):
                     where=AreaWhere(tags=[tag]),
                 ),
                 ChildrenAction(
-                    scene=RandomObjects.Config(object_ranges=self.config.auto_config.room_objects),
+                    scene=RandomObjects.Config(
+                        object_ranges=self.config.auto_config.room_objects
+                    ),
                     where=AreaWhere(tags=[tag]),
                 ),
             ]

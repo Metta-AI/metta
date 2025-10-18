@@ -49,7 +49,9 @@ def test_resource_mod_in_actions_config():
     """Test that resource_mod can be added to ActionsConfig."""
     actions = ActionsConfig(
         move=ActionConfig(enabled=True),
-        resource_mod=ResourceModActionConfig(enabled=True, modifies={"health": 10.0}, agent_radius=1),
+        resource_mod=ResourceModActionConfig(
+            enabled=True, modifies={"health": 10.0}, agent_radius=1
+        ),
     )
 
     assert actions.resource_mod.enabled is True

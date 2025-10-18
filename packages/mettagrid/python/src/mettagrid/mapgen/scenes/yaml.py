@@ -1,6 +1,11 @@
 import yaml
 
-from mettagrid.mapgen.scene import ChildrenAction, Scene, SceneConfig, validate_any_scene_config
+from mettagrid.mapgen.scene import (
+    ChildrenAction,
+    Scene,
+    SceneConfig,
+    validate_any_scene_config,
+)
 
 
 class YamlSceneConfig(SceneConfig):

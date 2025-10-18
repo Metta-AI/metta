@@ -16,7 +16,9 @@ class ObservationHelper:
         """Filter tokens by location, feature id, and value."""
         tokens = obs
         if location is not None:
-            tokens = tokens[tokens[:, 0] == PackedCoordinate.pack(location[1], location[0])]
+            tokens = tokens[
+                tokens[:, 0] == PackedCoordinate.pack(location[1], location[0])
+            ]
         if feature_id is not None:
             tokens = tokens[tokens[:, 1] == feature_id]
         if value is not None:

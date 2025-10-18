@@ -36,7 +36,9 @@ def test_buffer_reuse_across_resets():
     assert initial_obs_buffer is not None, "Observations buffer should be allocated"
     assert initial_rewards_buffer is not None, "Rewards buffer should be allocated"
     assert initial_terminals_buffer is not None, "Terminals buffer should be allocated"
-    assert initial_truncations_buffer is not None, "Truncations buffer should be allocated"
+    assert initial_truncations_buffer is not None, (
+        "Truncations buffer should be allocated"
+    )
 
     # Store buffer IDs to verify they're the same objects
     obs_buffer_id = id(initial_obs_buffer)
@@ -56,18 +58,36 @@ def test_buffer_reuse_across_resets():
     assert id(env.observations) == obs_buffer_id, "Observations buffer should be reused"
     assert id(env.rewards) == rewards_buffer_id, "Rewards buffer should be reused"
     assert id(env.terminals) == terminals_buffer_id, "Terminals buffer should be reused"
-    assert id(env.truncations) == truncations_buffer_id, "Truncations buffer should be reused"
+    assert id(env.truncations) == truncations_buffer_id, (
+        "Truncations buffer should be reused"
+    )
 
     # Verify buffers have the same shape and dtype
-    assert env.observations.shape == initial_obs_buffer.shape, "Observations shape should be preserved"
-    assert env.rewards.shape == initial_rewards_buffer.shape, "Rewards shape should be preserved"
-    assert env.terminals.shape == initial_terminals_buffer.shape, "Terminals shape should be preserved"
-    assert env.truncations.shape == initial_truncations_buffer.shape, "Truncations shape should be preserved"
+    assert env.observations.shape == initial_obs_buffer.shape, (
+        "Observations shape should be preserved"
+    )
+    assert env.rewards.shape == initial_rewards_buffer.shape, (
+        "Rewards shape should be preserved"
+    )
+    assert env.terminals.shape == initial_terminals_buffer.shape, (
+        "Terminals shape should be preserved"
+    )
+    assert env.truncations.shape == initial_truncations_buffer.shape, (
+        "Truncations shape should be preserved"
+    )
 
-    assert env.observations.dtype == initial_obs_buffer.dtype, "Observations dtype should be preserved"
-    assert env.rewards.dtype == initial_rewards_buffer.dtype, "Rewards dtype should be preserved"
-    assert env.terminals.dtype == initial_terminals_buffer.dtype, "Terminals dtype should be preserved"
-    assert env.truncations.dtype == initial_truncations_buffer.dtype, "Truncations dtype should be preserved"
+    assert env.observations.dtype == initial_obs_buffer.dtype, (
+        "Observations dtype should be preserved"
+    )
+    assert env.rewards.dtype == initial_rewards_buffer.dtype, (
+        "Rewards dtype should be preserved"
+    )
+    assert env.terminals.dtype == initial_terminals_buffer.dtype, (
+        "Terminals dtype should be preserved"
+    )
+    assert env.truncations.dtype == initial_truncations_buffer.dtype, (
+        "Truncations dtype should be preserved"
+    )
 
     # Verify the observations are different (different seed should give different initial state)
     # Note: If observations are the same, it might be due to deterministic map generation
@@ -106,10 +126,18 @@ def test_buffer_consistency_during_episode():
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         # Verify buffer references haven't changed
-        assert env.observations is obs_buffer_ref, f"Observations buffer changed at step {step}"
-        assert env.rewards is rewards_buffer_ref, f"Rewards buffer changed at step {step}"
-        assert env.terminals is terminals_buffer_ref, f"Terminals buffer changed at step {step}"
-        assert env.truncations is truncations_buffer_ref, f"Truncations buffer changed at step {step}"
+        assert env.observations is obs_buffer_ref, (
+            f"Observations buffer changed at step {step}"
+        )
+        assert env.rewards is rewards_buffer_ref, (
+            f"Rewards buffer changed at step {step}"
+        )
+        assert env.terminals is terminals_buffer_ref, (
+            f"Terminals buffer changed at step {step}"
+        )
+        assert env.truncations is truncations_buffer_ref, (
+            f"Truncations buffer changed at step {step}"
+        )
 
         # Break if episode ended
         if terminals.all() or truncations.all():

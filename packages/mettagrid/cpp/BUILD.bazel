@@ -1,5 +1,6 @@
 # BUILD.bazel for cpp/ directory
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("@rules_proto//proto:defs.bzl", "proto_library")
 load("@pybind11_bazel//:build_defs.bzl", "pybind_extension", "pybind_library")
 
 # Export binding files and source files so they can be used by benchmarks and tests
@@ -33,6 +34,68 @@ pybind_library(
     visibility = ["//visibility:public"],
 )
 
+pybind_library(
+    name = "mettagrid_engine",
+    srcs = [
+        "env/mettagrid_engine.cpp",
+    ],
+    hdrs = glob([
+        "include/mettagrid/**/*.hpp",
+    ]),
+    copts = COPTS,
+    includes = ["include/mettagrid"],
+    visibility = ["//visibility:public"],
+)
+
+cc_proto_library(
+    name = "mettagrid_rpc_proto_cc",
+    visibility = ["//visibility:public"],
+    deps = ["//proto:mettagrid_rpc_proto"],
+)
+
+cc_library(
+    name = "mettagrid_rpc",
+    srcs = [
+        "rpc/game_registry.cpp",
+        "rpc/proto_converters.cpp",
+        "rpc/socket_server.cpp",
+    ],
+    hdrs = [
+        "include/mettagrid/rpc/game_registry.hpp",
+        "include/mettagrid/rpc/proto_converters.hpp",
+        "include/mettagrid/rpc/socket_server.hpp",
+        "include/mettagrid/rpc/status.hpp",
+    ],
+    copts = COPTS,
+    includes = ["include/mettagrid", "."],
+    deps = [
+        ":mettagrid_engine",
+        ":mettagrid_rpc_proto_cc",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_binary(
+    name = "mettagrid_rpc_server",
+    srcs = ["rpc/server_main.cpp"],
+    deps = [
+        ":mettagrid_rpc",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_test(
+    name = "mettagrid_rpc_game_registry_test",
+    srcs = [
+        "rpc/tests/game_registry_test.cpp",
+    ],
+    deps = [
+        ":mettagrid_rpc",
+        ":mettagrid_rpc_proto_cc",
+        "@googletest//:gtest_main",
+    ],
+)
+
 # Python bindings
 pybind_extension(
     name = "mettagrid_c",
@@ -44,6 +107,9 @@ pybind_extension(
     ]),
     copts = COPTS,
     includes = ["include/mettagrid", "."],
+    deps = [
+        ":mettagrid_engine",
+    ],
     visibility = ["//visibility:public"],
 )
 

@@ -20,13 +20,18 @@ class TransplantScene(Scene[TransplantSceneConfig]):
     """
 
     def render(self):
-        if self.width != self.config.scene.area.width or self.height != self.config.scene.area.height:
+        if (
+            self.width != self.config.scene.area.width
+            or self.height != self.config.scene.area.height
+        ):
             raise ValueError(
                 "TransplantScene can only be used with scenes that have the same width and height as the parent grid"
             )
 
         scene_copy = copy.deepcopy(self.config.scene)
         scene_copy.transplant_to_grid(
-            self.area.outer_grid, self.area.x - self.config.scene.area.x, self.area.y - self.config.scene.area.y
+            self.area.outer_grid,
+            self.area.x - self.config.scene.area.x,
+            self.area.y - self.config.scene.area.y,
         )
         self.children.append(scene_copy)

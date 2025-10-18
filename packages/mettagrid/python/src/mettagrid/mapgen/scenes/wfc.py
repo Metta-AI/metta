@@ -69,7 +69,10 @@ class WFC(Scene[WFCConfig]):
         self._sum_of_weights = np.sum(self._weights)
         self._sum_of_weight_log_weights = np.sum(self._weights * np.log(self._weights))
 
-        self._starting_entropy = np.log(self._sum_of_weights) - self._sum_of_weight_log_weights / self._sum_of_weights
+        self._starting_entropy = (
+            np.log(self._sum_of_weights)
+            - self._sum_of_weight_log_weights / self._sum_of_weights
+        )
 
         self._next_node_heuristic = self.config.next_node_heuristic
         self._attempts = self.config.attempts
@@ -91,7 +94,9 @@ class WFC(Scene[WFCConfig]):
             for t in range(self._pattern_count):
                 compatibles = []
                 for t2 in range(self._pattern_count):
-                    if self._patterns[t].is_compatible(self._patterns[t2], dx[d], dy[d]):
+                    if self._patterns[t].is_compatible(
+                        self._patterns[t2], dx[d], dy[d]
+                    ):
                         compatibles.append(t2)
                 d_propagator.append(compatibles)
                 self._propagator_lengths[d, t] = len(compatibles)
@@ -113,17 +118,27 @@ class WFCRenderSession:
 
     def reset(self):
         start = time.time()
-        self.wave = np.full((self.height, self.width, self.pattern_count), True, dtype=np.bool_)
+        self.wave = np.full(
+            (self.height, self.width, self.pattern_count), True, dtype=np.bool_
+        )
 
-        self.compatible = np.zeros((self.height, self.width, 4, self.pattern_count), dtype=np.int_)
+        self.compatible = np.zeros(
+            (self.height, self.width, 4, self.pattern_count), dtype=np.int_
+        )
 
         for y in range(self.height):
             for x in range(self.width):
                 for d in range(4):
-                    self.compatible[y, x, d, :] = self.scene._propagator_lengths[opposite_direction(d), :]
+                    self.compatible[y, x, d, :] = self.scene._propagator_lengths[
+                        opposite_direction(d), :
+                    ]
 
-        self.sums_of_ones = np.full((self.height, self.width), len(self.scene._weights), dtype=np.int_)
-        self.sums_of_weights = np.full((self.height, self.width), self.scene._sum_of_weights, dtype=np.float64)
+        self.sums_of_ones = np.full(
+            (self.height, self.width), len(self.scene._weights), dtype=np.int_
+        )
+        self.sums_of_weights = np.full(
+            (self.height, self.width), self.scene._sum_of_weights, dtype=np.float64
+        )
         self.sums_of_weight_log_weights = np.full(
             (self.height, self.width),
             self.scene._sum_of_weight_log_weights,
@@ -135,7 +150,9 @@ class WFCRenderSession:
             for x in range(self.width):
                 heapq.heappush(self.queue, (self.cell_score(x, y), x, y))
 
-        self.stack = np.zeros((self.width * self.height * self.pattern_count, 3), dtype=np.int_)
+        self.stack = np.zeros(
+            (self.width * self.height * self.pattern_count, 3), dtype=np.int_
+        )
         self.stacksize = 0
         logger.debug(f"reset() time: {time.time() - start}")
 
@@ -165,7 +182,9 @@ class WFCRenderSession:
     def run(self):
         ok = False
         for i in range(self.scene._attempts):
-            logger.debug(f"Attempt {i + 1} of {self.scene._attempts}, pattern:\n{self.scene.config.pattern}")
+            logger.debug(
+                f"Attempt {i + 1} of {self.scene._attempts}, pattern:\n{self.scene.config.pattern}"
+            )
             start_time = time.time()
             self.reset()
             ok = self.attempt_run()
@@ -183,13 +202,17 @@ class WFCRenderSession:
                 logger.debug(f"Attempt {i + 1} failed")
 
         if not ok:
-            raise Exception(f"Failed to generate map with pattern:\n{self.scene.config.pattern}")
+            raise Exception(
+                f"Failed to generate map with pattern:\n{self.scene.config.pattern}"
+            )
 
         for y in range(self.height):
             for x in range(self.width):
                 for t in range(self.pattern_count):
                     if self.wave[y, x, t]:
-                        self.scene.grid[y, x] = "wall" if self.scene._patterns[t].data[0][0] else "empty"
+                        self.scene.grid[y, x] = (
+                            "wall" if self.scene._patterns[t].data[0][0] else "empty"
+                        )
 
     def pick_next_node(self):
         # non-periodic
@@ -237,7 +260,9 @@ class WFCRenderSession:
             return False
 
         self.sums_of_weights[y, x] -= self.scene._weights[t]
-        self.sums_of_weight_log_weights[y, x] -= self.scene._weights[t] * np.log(self.scene._weights[t])
+        self.sums_of_weight_log_weights[y, x] -= self.scene._weights[t] * np.log(
+            self.scene._weights[t]
+        )
 
         sum = self.sums_of_weights[y, x]
         if sum > 0:

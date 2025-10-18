@@ -67,7 +67,11 @@ class MiniscopeRenderer(Renderer):
         self._env = env
 
         # Reset state for new episode
-        self._state.reset_for_episode(num_agents=env.num_agents, map_height=env.map_height, map_width=env.map_width)
+        self._state.reset_for_episode(
+            num_agents=env.num_agents,
+            map_height=env.map_height,
+            map_width=env.map_width,
+        )
 
         # Initialize configuration in state
         self._state.object_type_names = env.object_type_names
@@ -87,14 +91,30 @@ class MiniscopeRenderer(Renderer):
         self._components = []
 
         # Create components - all get the same PanelLayout
-        self._components.append(MapComponent(env=env, state=self._state, panels=self._panels))
-        self._components.append(SimControlComponent(env=env, state=self._state, panels=self._panels))
-        self._components.append(AgentControlComponent(env=env, state=self._state, panels=self._panels))
-        self._components.append(AgentInfoComponent(env=env, state=self._state, panels=self._panels))
-        self._components.append(ObjectInfoComponent(env=env, state=self._state, panels=self._panels))
-        self._components.append(SymbolsTableComponent(env=env, state=self._state, panels=self._panels))
-        self._components.append(GlyphPickerComponent(env=env, state=self._state, panels=self._panels))
-        self._components.append(HelpPanelComponent(env=env, state=self._state, panels=self._panels))
+        self._components.append(
+            MapComponent(env=env, state=self._state, panels=self._panels)
+        )
+        self._components.append(
+            SimControlComponent(env=env, state=self._state, panels=self._panels)
+        )
+        self._components.append(
+            AgentControlComponent(env=env, state=self._state, panels=self._panels)
+        )
+        self._components.append(
+            AgentInfoComponent(env=env, state=self._state, panels=self._panels)
+        )
+        self._components.append(
+            ObjectInfoComponent(env=env, state=self._state, panels=self._panels)
+        )
+        self._components.append(
+            SymbolsTableComponent(env=env, state=self._state, panels=self._panels)
+        )
+        self._components.append(
+            GlyphPickerComponent(env=env, state=self._state, panels=self._panels)
+        )
+        self._components.append(
+            HelpPanelComponent(env=env, state=self._state, panels=self._panels)
+        )
 
         # Set up terminal (hide cursor and set up input handling)
         self._setup_terminal()
@@ -284,7 +304,9 @@ class MiniscopeRenderer(Renderer):
             viewport_height = max(5, terminal_size.lines - 6)
             side_panel_width = 46
             spacing = 2
-            available_width = max(10, terminal_size.columns - side_panel_width - spacing)
+            available_width = max(
+                10, terminal_size.columns - side_panel_width - spacing
+            )
             viewport_width = available_width // 2
         except Exception:
             viewport_height = 20
@@ -307,7 +329,10 @@ class MiniscopeRenderer(Renderer):
         actions = {}
 
         # If there's a manual action for the selected agent, return it
-        if self._state.user_action is not None and self._state.selected_agent is not None:
+        if (
+            self._state.user_action is not None
+            and self._state.selected_agent is not None
+        ):
             actions[self._state.selected_agent] = self._state.user_action
             # Clear the action after returning it
             self._state.user_action = None
@@ -329,7 +354,9 @@ class MiniscopeRenderer(Renderer):
     def _cleanup_terminal(self) -> None:
         """Restore terminal settings."""
         if self._terminal_fd and self._old_terminal_settings:
-            termios.tcsetattr(self._terminal_fd, termios.TCSADRAIN, self._old_terminal_settings)
+            termios.tcsetattr(
+                self._terminal_fd, termios.TCSADRAIN, self._old_terminal_settings
+            )
         self._console.show_cursor(True)
 
     def __del__(self):

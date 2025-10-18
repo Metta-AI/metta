@@ -87,7 +87,14 @@ def env_with_chest():
                 "chest": ChestConfig(
                     type_id=3,
                     resource_type="gold",
-                    position_deltas=[("NW", 1), ("N", 1), ("NE", 1), ("SW", -1), ("S", -1), ("SE", -1)],
+                    position_deltas=[
+                        ("NW", 1),
+                        ("N", 1),
+                        ("NE", 1),
+                        ("SW", -1),
+                        ("S", -1),
+                        ("SE", -1),
+                    ],
                 ),
             },
             map_builder=RandomMapBuilder.Config(
@@ -148,21 +155,29 @@ class TestIgnoreTypes:
         print(f"Objects without walls: {len(no_walls)}")
 
         # Count walls manually
-        wall_count = sum(1 for obj in all_objects.values() if obj.get("type_name") == "wall")
-        agent_count = sum(1 for obj in all_objects.values() if obj.get("type_name") == "agent")
+        wall_count = sum(
+            1 for obj in all_objects.values() if obj.get("type_name") == "wall"
+        )
+        agent_count = sum(
+            1 for obj in all_objects.values() if obj.get("type_name") == "agent"
+        )
 
         print(f"Wall count: {wall_count}")
         print(f"Agent count: {agent_count}")
 
         # Verify filtering worked
-        assert len(all_objects) - len(no_walls) == wall_count, "Filtered count should match wall count"
+        assert len(all_objects) - len(no_walls) == wall_count, (
+            "Filtered count should match wall count"
+        )
 
         # Verify no walls remain in filtered result
         remaining_types = set(obj.get("type_name") for obj in no_walls.values())
         assert "wall" not in remaining_types, "No walls should remain after filtering"
 
         # Verify agents are still there
-        agent_count_filtered = sum(1 for obj in no_walls.values() if obj.get("type_name") == "agent")
+        agent_count_filtered = sum(
+            1 for obj in no_walls.values() if obj.get("type_name") == "agent"
+        )
         assert agent_count_filtered == agent_count, "All agents should still be present"
 
     def test_ignore_multiple_types(self, env_with_walls):
@@ -175,8 +190,12 @@ class TestIgnoreTypes:
         no_walls_or_agents = env_with_walls.grid_objects(ignore_types=["wall", "agent"])
 
         # Count types
-        wall_count = sum(1 for obj in all_objects.values() if obj.get("type_name") == "wall")
-        agent_count = sum(1 for obj in all_objects.values() if obj.get("type_name") == "agent")
+        wall_count = sum(
+            1 for obj in all_objects.values() if obj.get("type_name") == "wall"
+        )
+        agent_count = sum(
+            1 for obj in all_objects.values() if obj.get("type_name") == "agent"
+        )
 
         # Should have filtered out all objects in this simple environment
         expected_remaining = len(all_objects) - wall_count - agent_count
@@ -195,7 +214,9 @@ class TestIgnoreTypes:
         bbox_no_walls = env_with_walls.grid_objects(bbox=bbox, ignore_types=["wall"])
 
         # Count walls in bbox
-        wall_count = sum(1 for obj in bbox_objects.values() if obj.get("type_name") == "wall")
+        wall_count = sum(
+            1 for obj in bbox_objects.values() if obj.get("type_name") == "wall"
+        )
 
         assert len(bbox_objects) - len(bbox_no_walls) == wall_count
 
@@ -210,7 +231,10 @@ class TestAssemblerProperties:
         objects = env_with_assembler.grid_objects()
 
         # Find an assembler
-        assembler = next((obj for obj in objects.values() if obj.get("type_name") == "assembler"), None)
+        assembler = next(
+            (obj for obj in objects.values() if obj.get("type_name") == "assembler"),
+            None,
+        )
 
         if assembler:
             # Check basic properties exist
@@ -231,8 +255,12 @@ class TestAssemblerProperties:
             assert assembler["uses_count"] == 0, "Should start with zero uses"
             assert assembler["max_uses"] == 10, "Max uses should match config"
             assert assembler["allow_partial_usage"] is True, "Should match config"
-            assert assembler["exhaustion"] == pytest.approx(0.1), "Exhaustion should match config"
-            assert assembler["cooldown_multiplier"] == pytest.approx(1.0), "Should start at 1.0"
+            assert assembler["exhaustion"] == pytest.approx(0.1), (
+                "Exhaustion should match config"
+            )
+            assert assembler["cooldown_multiplier"] == pytest.approx(1.0), (
+                "Should start at 1.0"
+            )
 
     def test_assembler_current_recipe(self, env_with_assembler):
         """Test that current recipe is exposed."""
@@ -241,7 +269,10 @@ class TestAssemblerProperties:
         objects = env_with_assembler.grid_objects()
 
         # Find an assembler
-        assembler = next((obj for obj in objects.values() if obj.get("type_name") == "assembler"), None)
+        assembler = next(
+            (obj for obj in objects.values() if obj.get("type_name") == "assembler"),
+            None,
+        )
 
         if assembler:
             # Recipe properties may or may not exist depending on whether agents are nearby
@@ -266,7 +297,10 @@ class TestAssemblerProperties:
         objects = env_with_assembler.grid_objects()
 
         # Find an assembler
-        assembler = next((obj for obj in objects.values() if obj.get("type_name") == "assembler"), None)
+        assembler = next(
+            (obj for obj in objects.values() if obj.get("type_name") == "assembler"),
+            None,
+        )
 
         if assembler:
             # Check that recipes list exists
@@ -296,7 +330,9 @@ class TestChestProperties:
         objects = env_with_chest.grid_objects()
 
         # Find a chest
-        chest = next((obj for obj in objects.values() if obj.get("type_name") == "chest"), None)
+        chest = next(
+            (obj for obj in objects.values() if obj.get("type_name") == "chest"), None
+        )
 
         if chest:
             # Check chest-specific properties
@@ -332,7 +368,9 @@ class TestAgentProperties:
         objects = env_with_walls.grid_objects()
 
         # Find an agent
-        agent = next((obj for obj in objects.values() if obj.get("type_name") == "agent"), None)
+        agent = next(
+            (obj for obj in objects.values() if obj.get("type_name") == "agent"), None
+        )
 
         assert agent is not None, "Should have at least one agent"
 

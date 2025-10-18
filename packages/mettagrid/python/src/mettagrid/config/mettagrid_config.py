@@ -48,16 +48,23 @@ class AgentConfig(Config):
     rewards: AgentRewards = Field(default_factory=AgentRewards)
     action_failure_penalty: float = Field(default=0, ge=0)
     initial_inventory: dict[str, int] = Field(default_factory=dict)
-    team_id: int = Field(default=0, ge=0, description="Team identifier for grouping agents")
-    tags: list[str] = Field(default_factory=list, description="Tags for this agent instance")
+    team_id: int = Field(
+        default=0, ge=0, description="Team identifier for grouping agents"
+    )
+    tags: list[str] = Field(
+        default_factory=list, description="Tags for this agent instance"
+    )
     soul_bound_resources: list[str] = Field(
-        default_factory=list, description="Resources that cannot be stolen during attacks"
+        default_factory=list,
+        description="Resources that cannot be stolen during attacks",
     )
     shareable_resources: list[str] = Field(
-        default_factory=list, description="Resources that will be shared when we use another agent"
+        default_factory=list,
+        description="Resources that will be shared when we use another agent",
     )
     inventory_regen_amounts: dict[str, int] = Field(
-        default_factory=dict, description="Resources to regenerate and their amounts per regeneration interval"
+        default_factory=dict,
+        description="Resources to regenerate and their amounts per regeneration interval",
     )
 
 
@@ -99,14 +106,22 @@ class ActionsConfig(Config):
     """
 
     noop: ActionConfig = Field(default_factory=lambda: ActionConfig())
-    move: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))  # Default movement action
+    move: ActionConfig = Field(
+        default_factory=lambda: ActionConfig(enabled=False)
+    )  # Default movement action
     rotate: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     put_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     get_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
-    attack: AttackActionConfig = Field(default_factory=lambda: AttackActionConfig(enabled=False))
+    attack: AttackActionConfig = Field(
+        default_factory=lambda: AttackActionConfig(enabled=False)
+    )
     swap: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
-    change_glyph: ChangeGlyphActionConfig = Field(default_factory=lambda: ChangeGlyphActionConfig(enabled=False))
-    resource_mod: ResourceModActionConfig = Field(default_factory=lambda: ResourceModActionConfig(enabled=False))
+    change_glyph: ChangeGlyphActionConfig = Field(
+        default_factory=lambda: ChangeGlyphActionConfig(enabled=False)
+    )
+    resource_mod: ResourceModActionConfig = Field(
+        default_factory=lambda: ResourceModActionConfig(enabled=False)
+    )
 
 
 class GlobalObsConfig(Config):
@@ -129,8 +144,12 @@ class GridObjectConfig(Config):
     name: str = Field(default="", description="Object name (used for identification)")
     type_id: int = Field(ge=0, le=255, description="Numeric type ID for C++ runtime")
     map_char: str = Field(default="?", description="Character used in ASCII maps")
-    render_symbol: str = Field(default="❓", description="Symbol used for rendering (e.g., emoji)")
-    tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
+    render_symbol: str = Field(
+        default="❓", description="Symbol used for rendering (e.g., emoji)"
+    )
+    tags: list[str] = Field(
+        default_factory=list, description="Tags for this object instance"
+    )
 
 
 class WallConfig(GridObjectConfig):
@@ -190,7 +209,9 @@ class AssemblerConfig(GridObjectConfig):
             "This makes less sense if the assembler has multiple recipes."
         ),
     )
-    max_uses: int = Field(default=0, ge=0, description="Maximum number of uses (0 = unlimited)")
+    max_uses: int = Field(
+        default=0, ge=0, description="Maximum number of uses (0 = unlimited)"
+    )
     exhaustion: float = Field(
         default=0.0,
         ge=0.0,
@@ -199,12 +220,16 @@ class AssemblerConfig(GridObjectConfig):
         ),
     )
     clip_immune: bool = Field(
-        default=False, description="If true, this assembler cannot be clipped by the Clipper system"
+        default=False,
+        description="If true, this assembler cannot be clipped by the Clipper system",
     )
     start_clipped: bool = Field(
-        default=False, description="If true, this assembler starts in a clipped state at the beginning of the game"
+        default=False,
+        description="If true, this assembler starts in a clipped state at the beginning of the game",
     )
-    fully_overlapping_recipes_allowed: bool = Field(default=False, description="Allow recipes to fully overlap")
+    fully_overlapping_recipes_allowed: bool = Field(
+        default=False, description="Allow recipes to fully overlap"
+    )
 
 
 class ChestConfig(GridObjectConfig):
@@ -219,7 +244,9 @@ class ChestConfig(GridObjectConfig):
             "Positive delta = deposit, negative = withdraw (e.g., (E, 1) deposits 1, (N, -5) withdraws 5)"
         ),
     )
-    initial_inventory: int = Field(default=0, ge=0, description="Initial amount of resource_type in the chest")
+    initial_inventory: int = Field(
+        default=0, ge=0, description="Initial amount of resource_type in the chest"
+    )
     max_inventory: int = Field(
         default=255,
         ge=-1,
@@ -301,7 +328,9 @@ class GameConfig(Config):
     num_observation_tokens: int = Field(ge=1, default=200)
     agent: AgentConfig = Field(default_factory=AgentConfig)
     agents: list[AgentConfig] = Field(default_factory=list)
-    actions: ActionsConfig = Field(default_factory=lambda: ActionsConfig(noop=ActionConfig()))
+    actions: ActionsConfig = Field(
+        default_factory=lambda: ActionsConfig(noop=ActionConfig())
+    )
     global_obs: GlobalObsConfig = Field(default_factory=GlobalObsConfig)
     objects: dict[str, AnyGridObjectConfig] = Field(default_factory=dict)
     # these are not used in the C++ code, but we allow them to be set for other uses.
@@ -309,27 +338,37 @@ class GameConfig(Config):
     # and other parts of the template can read from there.
     params: Optional[Any] = None
 
-    resource_loss_prob: float = Field(default=0.0, description="Probability of resource loss per step")
+    resource_loss_prob: float = Field(
+        default=0.0, description="Probability of resource loss per step"
+    )
 
     # Inventory regeneration interval (global check timing)
     inventory_regen_interval: int = Field(
-        default=0, ge=0, description="Interval in timesteps between regenerations (0 = disabled)"
+        default=0,
+        ge=0,
+        description="Interval in timesteps between regenerations (0 = disabled)",
     )
 
     # Global clipper system
-    clipper: Optional[ClipperConfig] = Field(default=None, description="Global clipper configuration")
+    clipper: Optional[ClipperConfig] = Field(
+        default=None, description="Global clipper configuration"
+    )
 
     # Map builder configuration - accepts any MapBuilder config
     map_builder: AnyMapBuilderConfig = RandomMapBuilder.Config(agents=24)
 
     # Feature Flags
     track_movement_metrics: bool = Field(
-        default=True, description="Enable movement metrics tracking (sequential rotations)"
+        default=True,
+        description="Enable movement metrics tracking (sequential rotations)",
     )
     recipe_details_obs: bool = Field(
-        default=False, description="Converters show their recipe inputs and outputs when observed"
+        default=False,
+        description="Converters show their recipe inputs and outputs when observed",
     )
-    allow_diagonals: bool = Field(default=False, description="Enable actions to be aware of diagonal orientations")
+    allow_diagonals: bool = Field(
+        default=False, description="Enable actions to be aware of diagonal orientations"
+    )
 
     reward_estimates: Optional[dict[str, float]] = Field(default=None)
 
@@ -354,16 +393,33 @@ class MettaGridConfig(Config):
 
     @staticmethod
     def EmptyRoom(
-        num_agents: int, width: int = 10, height: int = 10, border_width: int = 1, with_walls: bool = False
+        num_agents: int,
+        width: int = 10,
+        height: int = 10,
+        border_width: int = 1,
+        with_walls: bool = False,
     ) -> "MettaGridConfig":
         """Create an empty room environment configuration."""
-        map_builder = RandomMapBuilder.Config(agents=num_agents, width=width, height=height, border_width=border_width)
+        map_builder = RandomMapBuilder.Config(
+            agents=num_agents, width=width, height=height, border_width=border_width
+        )
         actions = ActionsConfig(
             move=ActionConfig(),
         )
         objects = {}
         if border_width > 0 or with_walls:
-            objects["wall"] = WallConfig(name="wall", type_id=1, map_char="#", render_symbol="⬛", swappable=False)
+            objects["wall"] = WallConfig(
+                name="wall",
+                type_id=1,
+                map_char="#",
+                render_symbol="⬛",
+                swappable=False,
+            )
         return MettaGridConfig(
-            game=GameConfig(map_builder=map_builder, actions=actions, num_agents=num_agents, objects=objects)
+            game=GameConfig(
+                map_builder=map_builder,
+                actions=actions,
+                num_agents=num_agents,
+                objects=objects,
+            )
         )

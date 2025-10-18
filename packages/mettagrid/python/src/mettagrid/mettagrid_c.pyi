@@ -249,9 +249,15 @@ class MettaGrid:
 
     def __init__(self, env_cfg: GameConfig, map: list, seed: int) -> None: ...
     def reset(self) -> Tuple[np.ndarray, dict]: ...
-    def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict]: ...
+    def step(
+        self, actions: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict]: ...
     def set_buffers(
-        self, observations: np.ndarray, terminals: np.ndarray, truncations: np.ndarray, rewards: np.ndarray
+        self,
+        observations: np.ndarray,
+        terminals: np.ndarray,
+        truncations: np.ndarray,
+        rewards: np.ndarray,
     ) -> None: ...
     def grid_objects(
         self,

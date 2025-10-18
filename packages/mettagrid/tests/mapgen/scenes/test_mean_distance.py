@@ -56,7 +56,9 @@ def test_object_placement():
 def test_multiple_object_types():
     """Test placement of multiple different object types."""
     scene = render_scene(
-        MeanDistance.Config(mean_distance=4.0, objects={"altar": 3, "enemy": 2, "key": 1}),
+        MeanDistance.Config(
+            mean_distance=4.0, objects={"altar": 3, "enemy": 2, "key": 1}
+        ),
         (21, 21),
     )
 

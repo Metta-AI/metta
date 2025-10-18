@@ -38,7 +38,11 @@ class Spiral(Scene[SpiralConfig]):
         if isinstance(config.agents, int):
             agents = ["agent.agent"] * config.agents
         elif isinstance(config.agents, dict):
-            agents = ["agent." + str(agent) for agent, na in config.agents.items() for _ in range(na)]
+            agents = [
+                "agent." + str(agent)
+                for agent, na in config.agents.items()
+                for _ in range(na)
+            ]
         else:
             raise ValueError(f"Invalid agents: {config.agents}")
 
@@ -65,7 +69,9 @@ class Spiral(Scene[SpiralConfig]):
 
         # Generate remaining positions along spiral
         last_x, last_y = cx, cy
-        while len(positions) < len(all_symbols):  # Remove the +1 since we're not skipping the first symbol
+        while len(positions) < len(
+            all_symbols
+        ):  # Remove the +1 since we're not skipping the first symbol
             # Calculate next position on spiral
             x = int(cx + radius * np.cos(angle))
             y = int(cy + radius * np.sin(angle))
@@ -76,8 +82,12 @@ class Spiral(Scene[SpiralConfig]):
             if distance >= config.spacing:
                 # Add randomization if requested
                 if config.randomize_position > 0:
-                    offset_x = self.rng.integers(-config.randomize_position, config.randomize_position + 1)
-                    offset_y = self.rng.integers(-config.randomize_position, config.randomize_position + 1)
+                    offset_x = self.rng.integers(
+                        -config.randomize_position, config.randomize_position + 1
+                    )
+                    offset_y = self.rng.integers(
+                        -config.randomize_position, config.randomize_position + 1
+                    )
                     x = np.clip(x + offset_x, 1, width - 2)
                     y = np.clip(y + offset_y, 1, height - 2)
 

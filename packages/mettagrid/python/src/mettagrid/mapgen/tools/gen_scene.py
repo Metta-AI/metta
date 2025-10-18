@@ -16,9 +16,14 @@ def main(
     scene: Annotated[str, typer.Argument(help="Path to the scene config file")],
     width: Annotated[int, typer.Option(help="Width of the map")],
     height: Annotated[int, typer.Option(help="Height of the map")],
-    show_mode: Annotated[ShowMode, typer.Option(help="Show mode: ascii, ascii_border, or none")] = "ascii_border",
+    show_mode: Annotated[
+        ShowMode, typer.Option(help="Show mode: ascii, ascii_border, or none")
+    ] = "ascii_border",
     scene_override: Annotated[
-        Optional[list[str]], typer.Option("--scene-override", help="OmegaConf-style overrides for the scene config")
+        Optional[list[str]],
+        typer.Option(
+            "--scene-override", help="OmegaConf-style overrides for the scene config"
+        ),
     ] = None,
 ):
     """

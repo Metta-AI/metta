@@ -6,7 +6,12 @@ from pathlib import Path
 from typing import Any, ClassVar, Generic, Self, Type, TypeVar
 
 import yaml
-from pydantic import ModelWrapValidatorHandler, SerializeAsAny, model_serializer, model_validator
+from pydantic import (
+    ModelWrapValidatorHandler,
+    SerializeAsAny,
+    model_serializer,
+    model_validator,
+)
 
 from mettagrid.base_config import Config
 from mettagrid.mapgen.types import MapGrid
@@ -91,7 +96,9 @@ class MapBuilderConfig(Config, Generic[TBuilder]):
 
     @model_validator(mode="wrap")
     @classmethod
-    def _validate_with_type(cls, v: Any, handler: ModelWrapValidatorHandler[Self]) -> Self:
+    def _validate_with_type(
+        cls, v: Any, handler: ModelWrapValidatorHandler[Self]
+    ) -> Self:
         """
         Accepts any of:
         - a MapBuilderConfig instance (already specific)
@@ -99,7 +106,9 @@ class MapBuilderConfig(Config, Generic[TBuilder]):
         """
         if isinstance(v, MapBuilderConfig):
             if not isinstance(v, cls):
-                raise TypeError(f"Expected {cls.__qualname__}, got {type(v).__qualname__}")
+                raise TypeError(
+                    f"Expected {cls.__qualname__}, got {type(v).__qualname__}"
+                )
             return v
 
         if not isinstance(v, dict):
@@ -118,22 +127,30 @@ class MapBuilderConfig(Config, Generic[TBuilder]):
 
         # If it's a MapBuilder, use its nested Config
         if not issubclass(type_cls, MapBuilder):
-            raise TypeError(f"'type' must point to a MapBuilder subclass; got {type_cls.__qualname__}")
+            raise TypeError(
+                f"'type' must point to a MapBuilder subclass; got {type_cls.__qualname__}"
+            )
 
         cfg_cls = getattr(type_cls, "Config", None)
         if not (isinstance(cfg_cls, type) and issubclass(cfg_cls, MapBuilderConfig)):
-            raise TypeError(f"{type_cls.__qualname__} must define a nested class Config(MapBuilderConfig).")
+            raise TypeError(
+                f"{type_cls.__qualname__} must define a nested class Config(MapBuilderConfig)."
+            )
 
         # `cfg_cls` can be more specific than `cls`.
         # This might matter when we load the config from YAML through a specific MapBuilderConfig subclass.
         # For example, `AsciiMapBuilder.Config.from_uri()` will return an instance of `AsciiMapBuilder.Config`.
         if not issubclass(cfg_cls, cls):
-            raise TypeError(f"'type' {cfg_cls.__qualname__} is not a subclass of {cls.__qualname__}")
+            raise TypeError(
+                f"'type' {cfg_cls.__qualname__} is not a subclass of {cls.__qualname__}"
+            )
 
         data = {k: v for k, v in v.items() if k != "type"}
         result = cfg_cls.model_validate(data)
 
-        assert isinstance(result, cls)  # should always be true because we checked the subclass relationship above
+        assert isinstance(
+            result, cls
+        )  # should always be true because we checked the subclass relationship above
 
         return result
 

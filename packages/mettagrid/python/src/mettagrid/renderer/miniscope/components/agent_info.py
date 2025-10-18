@@ -124,7 +124,9 @@ class AgentInfoComponent(MiniscopeComponent):
                 symbol_map = self._get_symbol_map()
                 object_type_names = self._get_object_type_names()
                 if symbol_map and object_type_names:
-                    agent_symbol = get_symbol_for_object(agent_obj, object_type_names, symbol_map)
+                    agent_symbol = get_symbol_for_object(
+                        agent_obj, object_type_names, symbol_map
+                    )
                     agent_symbol = f" {agent_symbol}"
 
                 table.add_row("Agent", f"{selected_agent}{agent_symbol}")
@@ -141,7 +143,11 @@ class AgentInfoComponent(MiniscopeComponent):
                 glyphs = self._get_glyphs()
                 # glyph_id could be an int or a string emoji
                 if glyph_id is not None:
-                    if isinstance(glyph_id, int) and glyphs and 0 <= glyph_id < len(glyphs):
+                    if (
+                        isinstance(glyph_id, int)
+                        and glyphs
+                        and 0 <= glyph_id < len(glyphs)
+                    ):
                         glyph_symbol = glyphs[glyph_id]
                         table.add_row("Glyph", f"{glyph_id} {glyph_symbol}")
                     elif isinstance(glyph_id, str):

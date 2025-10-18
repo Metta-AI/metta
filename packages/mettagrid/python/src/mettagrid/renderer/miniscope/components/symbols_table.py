@@ -93,8 +93,12 @@ class SymbolsTableComponent(MiniscopeComponent):
             left_idx = i
             right_idx = i + self._max_rows
 
-            left_symbol, left_name = symbols_list[left_idx] if left_idx < len(symbols_list) else ("", "")
-            right_symbol, right_name = symbols_list[right_idx] if right_idx < len(symbols_list) else ("", "")
+            left_symbol, left_name = (
+                symbols_list[left_idx] if left_idx < len(symbols_list) else ("", "")
+            )
+            right_symbol, right_name = (
+                symbols_list[right_idx] if right_idx < len(symbols_list) else ("", "")
+            )
 
             table.add_row(left_symbol, left_name, right_symbol, right_name)
 

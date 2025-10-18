@@ -1,6 +1,9 @@
 import os
 
-from mettagrid.mapgen.scenes.random_yaml_scene import RandomYamlScene, RandomYamlSceneCandidate
+from mettagrid.mapgen.scenes.random_yaml_scene import (
+    RandomYamlScene,
+    RandomYamlSceneCandidate,
+)
 from mettagrid.test_support.mapgen import render_scene
 
 

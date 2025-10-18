@@ -24,7 +24,8 @@ from . import building, empty_converters
 def make_arena(
     num_agents: int,
     combat: bool = True,
-    map_builder: MapBuilderConfig | None = None,  # custom map builder; must match num_agents
+    map_builder: MapBuilderConfig
+    | None = None,  # custom map builder; must match num_agents
 ) -> MettaGridConfig:
     objects = {
         "wall": building.wall,
@@ -250,7 +251,9 @@ def make_icl_assembler(
             ),
             actions=ActionsConfig(
                 move=ActionConfig(),
-                rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
+                rotate=ActionConfig(
+                    enabled=False
+                ),  # Disabled for unified movement system
                 get_items=ActionConfig(enabled=False),
                 put_items=ActionConfig(enabled=False),
                 noop=ActionConfig(enabled=True),

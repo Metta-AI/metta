@@ -3,7 +3,11 @@
 import numpy as np
 import pytest
 
-from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState, PlaybackState, RenderMode
+from mettagrid.renderer.miniscope.miniscope_state import (
+    MiniscopeState,
+    PlaybackState,
+    RenderMode,
+)
 
 
 class TestMiniscopeState:

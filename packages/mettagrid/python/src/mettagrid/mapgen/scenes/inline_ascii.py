@@ -20,12 +20,17 @@ class InlineAscii(Scene[InlineAsciiConfig]):
         self.ascii_grid = np.array([list(line) for line in lines], dtype="U6")
         # Convert characters to object names using the provided mapping
         if config.char_to_name:
-            self.ascii_grid = np.vectorize(lambda char: config.char_to_name.get(char, char))(self.ascii_grid)
+            self.ascii_grid = np.vectorize(
+                lambda char: config.char_to_name.get(char, char)
+            )(self.ascii_grid)
 
     def render(self):
         config = self.config
         ascii_height, ascii_width = self.ascii_grid.shape
-        if self.width < ascii_width + config.column or self.height < ascii_height + config.row:
+        if (
+            self.width < ascii_width + config.column
+            or self.height < ascii_height + config.row
+        ):
             raise ValueError(
                 f"ASCII grid size {ascii_width}x{ascii_height} is too large"
                 f" for area size {self.width}x{self.height} at "
