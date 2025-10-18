@@ -46,7 +46,7 @@ def _lazy_import(fn_or_path: Callable | str | None) -> Callable | None:
         module = importlib.import_module(module_path)
         return getattr(module, fn_name)
     except (ImportError, AttributeError, ValueError) as e:
-        logger.error(f"Failed to import {fn_or_path}: {e}")
+        logger.debug(f"Failed to import {fn_or_path}: {e}")
         return None
 
 
@@ -77,10 +77,10 @@ def select_backend(
     2) Triton (if available, ``allow_triton``, and tensor on CUDA)
     3) PyTorch (fallback)
     """
-    # Lazy import all backends at selection time
-    cuda_fn_resolved = _lazy_import(cuda_fn)
-    triton_fn_resolved = _lazy_import(triton_fn)
-    pytorch_fn_resolved = _lazy_import(pytorch_fn)
+    # Lazy import backends only if available
+    cuda_fn_resolved = _lazy_import(cuda_fn) if (cuda_fn and torch.cuda.is_available()) else None
+    triton_fn_resolved = _lazy_import(triton_fn) if (triton_fn and TRITON_AVAILABLE) else None
+    pytorch_fn_resolved = _lazy_import(pytorch_fn)  # PyTorch always available
 
     # CUDA priority (highest)
     if allow_cuda and cuda_fn_resolved is not None and tensor.is_cuda:
