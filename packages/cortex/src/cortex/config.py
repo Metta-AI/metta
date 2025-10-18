@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, SerializeAsAny, field_validator
 
 
 class CellConfig(BaseModel):
@@ -123,7 +123,8 @@ class BlockConfig(BaseModel):
     """Base configuration for cortex blocks."""
 
     # May be overridden to None (e.g., Adapter) in subclasses
-    cell: CellConfig | None  # Any cell config type
+    # serialize_as_any=True preserves concrete subclass fields/tags during dumps
+    cell: SerializeAsAny[CellConfig | None] = Field(default=None)
 
     class Config:
         extra = "allow"  # Allow additional fields for extensibility
@@ -183,7 +184,8 @@ class AdapterBlockConfig(BlockConfig):
     """Configuration for adapter blocks with identity-initialized residual paths."""
 
     block_type: str = "adapter"
-    base_block: BlockConfig  # The block to wrap
+    # Preserve subclass fields/tags on dump
+    base_block: SerializeAsAny[BlockConfig]  # The block to wrap
     cell: CellConfig | None = None  # Not used for adapters, delegated to base_block
     bottleneck: int = Field(default=64, ge=1)
     dropout: float = Field(default=0.0, ge=0.0, le=1.0)
@@ -214,7 +216,8 @@ class AdapterBlockConfig(BlockConfig):
 class CortexStackConfig(BaseModel):
     """Configuration for building a sequential stack of blocks."""
 
-    blocks: list[BlockConfig]  # Accept any BlockConfig subclass
+    # Preserve subclass fields/tags for each block on dump
+    blocks: list[SerializeAsAny[BlockConfig]]  # Accept any BlockConfig subclass
     d_hidden: int = Field(ge=1)
     post_norm: bool = Field(default=True)
 
