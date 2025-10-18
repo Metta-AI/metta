@@ -1,5 +1,6 @@
 from typing import Annotated, Callable
 
+import httpx
 from fastapi import Depends, HTTPException, Request, status
 
 from metta.app_backend import config
@@ -55,3 +56,23 @@ def create_user_or_token_dependency(metta_repo: MettaRepo) -> Callable[[Request]
 
 # Dependency types for use in route decorators
 UserEmail = Annotated[str, Depends(user_from_email_or_raise)]
+
+
+async def validate_token_via_login_service(token: str) -> str | None:
+    """Validate a machine token via the login service and return the user_id if valid."""
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{config.login_service_url}/api/validate",
+                headers={"X-Auth-Token": token},
+                timeout=5.0,
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("valid"):
+                    user_info = data.get("user", {})
+                    return user_info.get("id")
+            return None
+    except Exception:
+        return None
