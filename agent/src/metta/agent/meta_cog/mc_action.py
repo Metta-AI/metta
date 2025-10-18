@@ -6,17 +6,17 @@ from tensordict import TensorDict
 from metta.agent.components.component_config import ComponentConfig
 
 
-class ActionEmbeddingConfig(ComponentConfig):
+class MCActionEmbeddingConfig(ComponentConfig):
     out_key: str
     name: str = "action_embedding"
     num_embeddings: int = 100
     embedding_dim: int = 16
 
     def make_component(self, env=None):
-        return ActionEmbedding(config=self)
+        return MCActionEmbedding(config=self)
 
 
-class ActionEmbedding(nn.Module):
+class MCActionEmbedding(nn.Module):
     """
     Creates and manages embeddings for available actions in the environment.
 
@@ -35,7 +35,7 @@ class ActionEmbedding(nn.Module):
     environment change and after init, providing the new set of action names and the target device.
     """
 
-    def __init__(self, config: ActionEmbeddingConfig):
+    def __init__(self, config: MCActionEmbeddingConfig):
         super().__init__()
         self.config = config
         self._reserved_action_embeds = {}
@@ -64,7 +64,7 @@ class ActionEmbedding(nn.Module):
         required_embeddings = len(self._reserved_action_embeds)
         if required_embeddings > self.net.num_embeddings:
             raise ValueError(
-                "ActionEmbeddingConfig.num_embeddings is too small for discovered actions: "
+                "MCActionEmbeddingConfig.num_embeddings is too small for discovered actions: "
                 f"required={required_embeddings}, available={self.net.num_embeddings}"
             )
 

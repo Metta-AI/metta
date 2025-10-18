@@ -6,6 +6,7 @@ from metta.agent.components.component_config import ComponentConfig
 from metta.agent.components.misc import MLPConfig
 from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
 from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourierConfig
+from metta.agent.meta_cog.mc_action import MCActionEmbeddingConfig
 from metta.agent.meta_cog.mc_actor import (
     MCActionProbsConfig,
     MCActorKeyConfig,
@@ -97,7 +98,7 @@ class MCViTResetConfig(PolicyArchitecture):
             hidden_features=[_mc_actor_hidden],
             out_features=_mc_actor_hidden,
         ),
-        ActionEmbeddingConfig(out_key="mc_action_embedding", embedding_dim=_mc_embedding_dim, name="mc_actor_embeds"),
+        MCActionEmbeddingConfig(out_key="mc_action_embedding", embedding_dim=_mc_embedding_dim, name="mc_actor_embeds"),
         MCActorQueryConfig(
             in_key="mc_actor_hidden",
             out_key="mc_actor_query",
