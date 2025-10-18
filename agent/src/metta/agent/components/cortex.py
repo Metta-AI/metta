@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, List, Optional, Tuple
 
 import torch
@@ -13,6 +14,8 @@ from tensordict import TensorDict
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.components.component_config import ComponentConfig
+
+logger = logging.getLogger(__name__)
 
 FlatKey = str
 LeafPath = Tuple[str, str, str]  # (block_key, cell_key, leaf_key)
@@ -130,6 +133,8 @@ class CortexTD(nn.Module):
         # operations include all leaves from the start.
         self._prime_state_template()
 
+        # Eval-time logging is done at DEBUG level each time keys are inferred
+
     def _prime_state_template(self) -> None:
         """Prime by running a zero‑step init and recording any lazy leaves.
 
@@ -192,24 +197,38 @@ class CortexTD(nn.Module):
     def forward(self, td: TensorDict) -> TensorDict:  # type: ignore[override]
         x = td[self.in_key]
 
-        if "bptt" not in td.keys():
-            raise KeyError("TensorDict is missing required 'bptt' metadata")
-        if "batch" not in td.keys():
-            raise KeyError("TensorDict is missing required 'batch' metadata")
+        device = x.device
+        dtype = x.dtype
 
-        TT = int(td["bptt"][0].item())
-        B = int(td["batch"][0].item())
+        # Infer TT (bptt) and batch size if absent (common during evaluation)
+        if "bptt" in td.keys():
+            TT = int(td["bptt"][0].item())
+        else:
+            TT = 1
+            td.set("bptt", torch.ones((x.shape[0],), device=device, dtype=torch.long))
+            logger.debug("[CortexTD] Missing 'bptt'; defaulting to 1.")
+
+        if "batch" in td.keys():
+            B = int(td["batch"][0].item())
+        else:
+            total_len = int(x.shape[0])
+            B = max(total_len // max(TT, 1), 1)
+            td.set("batch", torch.full((B,), B, device=device, dtype=torch.long))
+            logger.debug("[CortexTD] Missing 'batch'; inferring B=%d from input.", B)
+
         if TT <= 0 or B <= 0:
             raise ValueError("'bptt' and 'batch' must be positive integers")
 
         if x.shape[0] != B * TT:
             raise ValueError(f"input length {x.shape[0]} must equal batch*bptt ({B}*{TT})")
 
-        device = x.device
-        dtype = x.dtype
-
+        # training_env_ids: default to a simple range for evaluation
         if "training_env_ids" not in td.keys():
-            raise KeyError("TensorDict is missing required 'training_env_ids' key")
+            td.set("training_env_ids", torch.arange(B, device=device, dtype=torch.long).view(B, 1))
+            logger.debug(
+                "[CortexTD] Missing 'training_env_ids'; defaulting to arange(B) with B=%d.",
+                B,
+            )
 
         env_ids = td["training_env_ids"].squeeze(-1).reshape(-1)[:B]
         env_ids_long = env_ids.to(device=device, dtype=torch.long)
