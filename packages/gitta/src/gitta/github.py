@@ -6,8 +6,9 @@ import logging
 import os
 import subprocess
 import time
+from contextlib import contextmanager
 from functools import wraps
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Generator, Optional
 
 import httpx
 
@@ -39,6 +40,55 @@ def _memoize(max_age=60):
         return wrapper
 
     return decorator
+
+
+@contextmanager
+def github_client(
+    repo: str,
+    token: str | None = None,
+    base_url: str | None = None,
+    timeout: float = 30.0,
+    **headers: str,
+) -> Generator[httpx.Client, None, None]:
+    """
+    Create an authenticated GitHub API client.
+
+    Args:
+        repo: Repository in format "owner/repo"
+        token: GitHub token. If not provided, uses GITHUB_TOKEN env var
+        base_url: Base URL for the API (default: https://api.github.com/repos/{repo})
+        timeout: Request timeout in seconds
+        **headers: Additional headers to include in requests
+
+    Yields:
+        Configured httpx.Client for GitHub API requests
+    """
+    github_token = token or os.environ.get("GITHUB_TOKEN")
+
+    # Build base URL
+    if base_url is None:
+        base_url = f"https://api.github.com/repos/{repo}"
+
+    # Build headers
+    client_headers = {
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "gitta-client",
+    }
+
+    # Add authentication if token is provided
+    if github_token:
+        client_headers["Authorization"] = f"token {github_token}"
+
+    # Add any additional headers
+    client_headers.update(headers)
+
+    with httpx.Client(
+        base_url=base_url,
+        headers=client_headers,
+        timeout=timeout,
+    ) as client:
+        yield client
 
 
 def run_gh(*args: str) -> str:
@@ -242,6 +292,150 @@ def create_pr(
             error_msg += f" - {e.response.text}"
         logging.error(error_msg)
         raise GitError(error_msg) from e
+
+
+def get_commits(
+    repo: str,
+    branch: str = "main",
+    since: str | None = None,
+    per_page: int = 100,
+    token: str | None = None,
+    **headers: str,
+) -> list[dict[str, Any]]:
+    """
+    Get list of commits from a repository.
+
+    Args:
+        repo: Repository in format "owner/repo"
+        branch: Branch name
+        since: ISO 8601 timestamp to filter commits (only commits after this date)
+        per_page: Number of commits per page (max 100)
+        token: GitHub token for authentication
+        **headers: Additional headers (can override Authorization for custom auth)
+
+    Returns:
+        List of commit objects from GitHub API
+
+    Raises:
+        GitError: If the API request fails
+    """
+    params: dict[str, Any] = {"sha": branch, "per_page": per_page}
+    if since:
+        params["since"] = since
+
+    all_commits: list[dict[str, Any]] = []
+    page = 1
+
+    with github_client(repo, token=token, **headers) as client:
+        while True:
+            try:
+                resp = client.get("/commits", params={**params, "page": page})
+                resp.raise_for_status()
+            except httpx.HTTPError as e:
+                error_msg = f"Failed to get commits: {e}"
+                if hasattr(e, "response") and e.response is not None:
+                    error_msg += f" - Status: {e.response.status_code}"
+                logger.error(error_msg)
+                raise GitError(error_msg) from e
+
+            commits = resp.json() or []
+            if not commits:
+                break
+
+            all_commits.extend(commits)
+
+            if len(commits) < per_page:
+                break
+
+            page += 1
+
+    return all_commits
+
+
+def get_workflow_runs(
+    repo: str,
+    workflow_filename: str,
+    branch: str | None = None,
+    status: str | None = None,
+    per_page: int = 1,
+    token: str | None = None,
+    **headers: str,
+) -> list[dict[str, Any]]:
+    """
+    Get workflow runs for a specific workflow.
+
+    Args:
+        repo: Repository in format "owner/repo"
+        workflow_filename: Workflow filename (e.g., "checks.yml")
+        branch: Filter by branch name
+        status: Filter by status (e.g., "completed", "in_progress")
+        per_page: Number of runs per page
+        token: GitHub token for authentication
+        **headers: Additional headers (can override Authorization for custom auth)
+
+    Returns:
+        List of workflow run objects
+
+    Raises:
+        GitError: If the API request fails
+    """
+    params: dict[str, Any] = {"per_page": per_page}
+    if branch:
+        params["branch"] = branch
+    if status:
+        params["status"] = status
+
+    with github_client(repo, token=token, **headers) as client:
+        try:
+            resp = client.get(f"/actions/workflows/{workflow_filename}/runs", params=params)
+            resp.raise_for_status()
+        except httpx.HTTPError as e:
+            error_msg = f"Failed to get workflow runs: {e}"
+            if hasattr(e, "response") and e.response is not None:
+                error_msg += f" - Status: {e.response.status_code}"
+            logger.error(error_msg)
+            raise GitError(error_msg) from e
+
+        return (resp.json() or {}).get("workflow_runs", [])
+
+
+def get_workflow_run_jobs(
+    repo: str,
+    run_id: int,
+    per_page: int = 100,
+    token: str | None = None,
+    **headers: str,
+) -> list[dict[str, Any]]:
+    """
+    Get jobs for a specific workflow run.
+
+    Args:
+        repo: Repository in format "owner/repo"
+        run_id: Workflow run ID
+        per_page: Number of jobs per page
+        token: GitHub token for authentication
+        **headers: Additional headers (can override Authorization for custom auth)
+
+    Returns:
+        List of job objects
+
+    Raises:
+        GitError: If the API request fails
+    """
+    params = {"per_page": per_page}
+
+    with github_client(repo, token=token, **headers) as client:
+        try:
+            resp = client.get(f"/actions/runs/{run_id}/jobs", params=params)
+            resp.raise_for_status()
+        except httpx.HTTPError as e:
+            error_msg = f"Failed to get workflow run jobs: {e}"
+            if hasattr(e, "response") and e.response is not None:
+                error_msg += f" - Status: {e.response.status_code}"
+            logger.error(error_msg)
+            raise GitError(error_msg) from e
+
+        return (resp.json() or {}).get("jobs", [])
 
 
 def _clear_matched_pr_cache() -> None:
