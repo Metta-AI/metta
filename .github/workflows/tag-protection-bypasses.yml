@@ -30,10 +30,12 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Check if protections were bypassed
+        env:
+          MANUAL_MERGE_SHA: ${{ inputs.merge_sha }}
         run: |
           # Use manual inputs or PR event data
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            MERGE_SHA=${{ inputs.merge_sha }}
+            MERGE_SHA="$MANUAL_MERGE_SHA"
 
             # Look up PR number from commit
             echo "Looking up PR number from commit $MERGE_SHA..."

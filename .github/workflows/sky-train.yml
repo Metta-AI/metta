@@ -75,6 +75,10 @@ jobs:
       - name: Generate Run Name
         id: generate_run_name
         shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_MODULE_NAME: ${{ github.event.inputs.module_name }}
+          DISPATCH_COMMIT: ${{ github.event.inputs.commit_to_run }}
         run: |
           set -eo pipefail
           TIMESTAMP=$(date -u +"%Y%m%d_%H%M%S")
@@ -85,10 +89,13 @@ jobs:
           SHORT_COMMIT_HASH=$(git rev-parse --short HEAD)
 
           # Extract trainer env suffix (everything after env/mettagrid)
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            MODULE_NAME="${{ github.event.inputs.module_name }}"
+          if [ "$EVENT_NAME" == "workflow_dispatch" ]; then
+            MODULE_NAME="$DISPATCH_MODULE_NAME"
+            if [ -z "$MODULE_NAME" ]; then
+              MODULE_NAME="$DEFAULT_MODULE_NAME"
+            fi
           else
-            MODULE_NAME="${{ env.DEFAULT_MODULE_NAME }}"
+            MODULE_NAME="$DEFAULT_MODULE_NAME"
           fi
 
           # Extract everything between "experiments." and ".train"
@@ -96,39 +103,39 @@ jobs:
           # e.g., "experiments.a.b.c.train" -> "a.b.c"
           ENV_NAME=$(echo "$MODULE_NAME" | sed 's|^experiments\\.recipes\\.||' | sed 's|\\.train$||')
 
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          if [ "$EVENT_NAME" == "workflow_dispatch" ]; then
             # Manual dispatch: run name is github.sky.<short_hash>.<env_name>.<timestamp>
             # The github.event.inputs.pr_number is not used for the run name itself here.
-            if [ -z "${{ github.event.inputs.commit_to_run }}" ]; then
+            if [ -z "$DISPATCH_COMMIT" ]; then
               echo "Error: commit_to_run is required for workflow_dispatch and was not provided."
               exit 1
             fi
             # Sanity check that checked-out commit matches the input
-            INPUT_SHORT_HASH=$(echo "${{ github.event.inputs.commit_to_run }}" | cut -c1-7)
+            INPUT_SHORT_HASH=$(echo "$DISPATCH_COMMIT" | cut -c1-7)
             if [ "$SHORT_COMMIT_HASH" != "$INPUT_SHORT_HASH" ]; then
                 echo "Warning: Checked out HEAD's short hash ($SHORT_COMMIT_HASH) does not match input commit_to_run's short hash ($INPUT_SHORT_HASH). Using checked out HEAD."
             fi
-            RUN_NAME_BASE="${{ env.RUN_NAME_PREFIX }}"
+            RUN_NAME_BASE="$RUN_NAME_PREFIX"
             FINAL_RUN_NAME="$RUN_NAME_BASE.$SHORT_COMMIT_HASH.$ENV_NAME.$TIMESTAMP"
             echo "Manual dispatch: Using commit ($SHORT_COMMIT_HASH). Run name: $FINAL_RUN_NAME"
 
-          elif [ "${{ github.event_name }}" == "push" ]; then
+          elif [ "$EVENT_NAME" == "push" ]; then
             # Push event: run name includes PR number (if found) or branch name.
             PR_NUMBER_FROM_COMMIT="${{ steps.pr_info.outputs.pr_number_for_name_generation || '' }}"
 
             if [ -n "$PR_NUMBER_FROM_COMMIT" ]; then
-              RUN_NAME_BASE="${{ env.RUN_NAME_PREFIX }}.pr${PR_NUMBER_FROM_COMMIT}"
+              RUN_NAME_BASE="$RUN_NAME_PREFIX.pr${PR_NUMBER_FROM_COMMIT}"
               echo "Push event: Using PR #$PR_NUMBER_FROM_COMMIT in run name base: $RUN_NAME_BASE"
             else
               BRANCH_NAME_RAW=$(git rev-parse --abbrev-ref HEAD)
               BRANCH_NAME_SANITIZED=$(echo "$BRANCH_NAME_RAW" | sed 's/[^a-zA-Z0-9_-]/-/g')
-              RUN_NAME_BASE="${{ env.RUN_NAME_PREFIX }}.${BRANCH_NAME_SANITIZED}"
+              RUN_NAME_BASE="$RUN_NAME_PREFIX.${BRANCH_NAME_SANITIZED}"
               echo "Push event: Using branch name '$BRANCH_NAME_SANITIZED' in run name base: $RUN_NAME_BASE (PR number not found in commit)"
             fi
             FINAL_RUN_NAME="$RUN_NAME_BASE.$SHORT_COMMIT_HASH.$ENV_NAME.$TIMESTAMP"
             echo "Push event: Run name: $FINAL_RUN_NAME"
           else
-            echo "Error: Unhandled event type ${{ github.event_name }}"
+            echo "Error: Unhandled event type $EVENT_NAME"
             exit 1
           fi
 
@@ -211,19 +218,55 @@ jobs:
 
       - name: Create Job Summary
         shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          MODULE_NAME_INPUT: ${{ github.event.inputs.module_name }}
+          TIMEOUT_INPUT: ${{ github.event.inputs.timeout_hours }}
+          RUN_CI_TESTS_INPUT: ${{ github.event.inputs.run_ci_tests }}
+          DISPATCH_COMMIT: ${{ github.event.inputs.commit_to_run }}
         run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ -n "$DISPATCH_COMMIT" ]; then
+            COMMIT_VALUE="$DISPATCH_COMMIT"
+          else
+            COMMIT_VALUE="$GITHUB_SHA"
+          fi
+
+          TRAINER_ENV="$MODULE_NAME_INPUT"
+          if [ -z "$TRAINER_ENV" ]; then
+            TRAINER_ENV="$DEFAULT_MODULE_NAME"
+          fi
+
+          if [ "$EVENT_NAME" = "push" ]; then
+            TIMEOUT_VALUE="$DEFAULT_TIMEOUT_HOURS"
+          else
+            if [ -n "$TIMEOUT_INPUT" ]; then
+              TIMEOUT_VALUE="$TIMEOUT_INPUT"
+            else
+              TIMEOUT_VALUE="$DEFAULT_TIMEOUT_HOURS"
+            fi
+          fi
+
+          if [ "$EVENT_NAME" = "push" ]; then
+            CI_TESTS_VALUE="$DEFAULT_RUN_CI_TESTS"
+          else
+            if [ -n "$RUN_CI_TESTS_INPUT" ]; then
+              CI_TESTS_VALUE="$RUN_CI_TESTS_INPUT"
+            else
+              CI_TESTS_VALUE="false"
+            fi
+          fi
+
           echo "## 🚀 SkyPilot Training Job Launched" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📊 Job Information" >> $GITHUB_STEP_SUMMARY
           echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| **Run Name** | \`${{ steps.generate_run_name.outputs.run_name }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Trigger** | ${{ github.event_name }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Commit** | \`${{ github.event_name == 'workflow_dispatch' && github.event.inputs.commit_to_run || github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Trainer Env** | \`${{ github.event.inputs.module_name || env.DEFAULT_MODULE_NAME }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Timeout** | ${{ github.event.inputs.timeout_hours || env.DEFAULT_TIMEOUT_HOURS }} hours |" >> $GITHUB_STEP_SUMMARY
-          CI_TESTS_ENABLED="${{ github.event_name == 'push' && env.DEFAULT_RUN_CI_TESTS || github.event.inputs.run_ci_tests || false }}"
-          echo "| **Run CI Tests** | ${CI_TESTS_ENABLED} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Trigger** | $EVENT_NAME |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Commit** | \`${COMMIT_VALUE}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Trainer Env** | \`${TRAINER_ENV}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Timeout** | ${TIMEOUT_VALUE} hours |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Run CI Tests** | ${CI_TESTS_VALUE} |" >> $GITHUB_STEP_SUMMARY
 
           if [ -n "${{ steps.extract_request_id.outputs.request_id }}" ]; then
             echo "| **Request ID** | \`${{ steps.extract_request_id.outputs.request_id_short }}\` |" >> $GITHUB_STEP_SUMMARY

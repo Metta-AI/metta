@@ -74,12 +74,15 @@ jobs:
 
       - name: Determine which tasks to run
         id: determine_tasks
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_RUN_TEST: ${{ github.event.inputs.run_test }}
         run: |
           # Default behavior based on event type and file changes
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
             # Use workflow dispatch inputs for manual runs
-            RUN_TEST="${{ github.event.inputs.run_test }}"
-          elif [[ "${{ github.event_name }}" == "pull_request" && "${{ steps.check_files.outputs.has_relevant_changes }}" == "false" ]]; then
+            RUN_TEST="$DISPATCH_RUN_TEST"
+          elif [[ "$EVENT_NAME" == "pull_request" && "${{ steps.check_files.outputs.has_relevant_changes }}" == "false" ]]; then
             # Skip setup tests for PRs with no setup-related changes
             RUN_TEST="false"
             echo "::notice title=Skipping Setup Tests::Skipping setup tests because no setup-related files have changed"

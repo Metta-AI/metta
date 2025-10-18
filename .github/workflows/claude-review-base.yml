@@ -90,8 +90,10 @@ jobs:
 
       - name: Setup PR Context
         id: pr-context
+        env:
+          INPUT_PR_NUMBER: ${{ inputs.pr_number }}
         run: |
-          PR_NUMBER="${{ inputs.pr_number }}"
+          PR_NUMBER="$INPUT_PR_NUMBER"
 
           # Since this workflow is called from the orchestrator which is triggered by issue_comment,
           # we'll always need to fetch PR info using gh CLI
@@ -147,9 +149,11 @@ jobs:
 
       - name: Check File Changes
         id: check-files
+        env:
+          FILE_PATTERN: ${{ inputs.file_pattern }}
         run: |
           BASE_REF="${{ steps.pr-context.outputs.base_ref }}"
-          PATTERN="${{ inputs.file_pattern }}"
+          PATTERN="$FILE_PATTERN"
 
           # Get all changed files
           ALL_FILES=$(git diff --name-only origin/$BASE_REF HEAD || echo "")
