@@ -4,9 +4,9 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
-#include <map>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "core/types.hpp"
@@ -35,15 +35,15 @@ struct GameConfig {
   unsigned int num_observation_tokens;
   GlobalObsConfig global_obs;
   std::vector<std::pair<std::string, std::shared_ptr<ActionConfig>>> actions;  // Ordered list of (name, config) pairs
-  std::map<std::string, std::shared_ptr<GridObjectConfig>> objects;
+  std::unordered_map<std::string, std::shared_ptr<GridObjectConfig>> objects;
   float resource_loss_prob = 0.0;
-  std::map<int, std::string> tag_id_map;
+  std::unordered_map<int, std::string> tag_id_map;
 
   // FEATURE FLAGS
   bool track_movement_metrics = false;
   bool recipe_details_obs = false;
   bool allow_diagonals = false;
-  std::map<std::string, float> reward_estimates = {};
+  std::unordered_map<std::string, float> reward_estimates = {};
 
   // Inventory regeneration interval (global check timing)
   unsigned int inventory_regen_interval = 0;  // Interval in timesteps (0 = disabled)
@@ -79,15 +79,15 @@ inline void bind_game_config(py::module& m) {
                     unsigned int,
                     const GlobalObsConfig&,
                     const std::vector<std::pair<std::string, std::shared_ptr<ActionConfig>>>&,
-                    const std::map<std::string, std::shared_ptr<GridObjectConfig>>&,
+                    const std::unordered_map<std::string, std::shared_ptr<GridObjectConfig>>&,
                     float,
-                    const std::map<int, std::string>&,
+                    const std::unordered_map<int, std::string>&,
 
                     // FEATURE FLAGS
                     bool,
                     bool,
                     bool,
-                    const std::map<std::string, float>&,
+                    const std::unordered_map<std::string, float>&,
 
                     // Inventory regeneration
                     unsigned int,
@@ -105,13 +105,13 @@ inline void bind_game_config(py::module& m) {
            py::arg("actions"),
            py::arg("objects"),
            py::arg("resource_loss_prob") = 0.0f,
-           py::arg("tag_id_map") = std::map<int, std::string>(),
+           py::arg("tag_id_map") = std::unordered_map<int, std::string>(),
 
            // FEATURE FLAGS
            py::arg("track_movement_metrics"),
            py::arg("recipe_details_obs") = false,
            py::arg("allow_diagonals") = false,
-           py::arg("reward_estimates") = std::map<std::string, float>(),
+           py::arg("reward_estimates") = std::unordered_map<std::string, float>(),
 
            // Inventory regeneration
            py::arg("inventory_regen_interval") = 0,

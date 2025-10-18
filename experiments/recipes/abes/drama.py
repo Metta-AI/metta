@@ -1,5 +1,11 @@
 import logging
+import os
+import platform
+import subprocess
+import sys
 from typing import Optional, TYPE_CHECKING
+
+from pathlib import Path
 
 from experiments.recipes.arena_basic_easy_shaped import (
     evaluate,
@@ -9,7 +15,7 @@ from experiments.recipes.arena_basic_easy_shaped import (
     play,
     replay,
     simulations,
-    sweep_async_progressive,
+    sweep,
     train as base_train,
 )
 from metta.agent.policy import PolicyArchitecture
@@ -57,6 +63,32 @@ def _apply_overrides(
     tool.torch_profiler = TorchProfilerConfig(interval_epochs=0)
 
 
+def _ensure_cuda_extras_installed() -> None:
+    if platform.system() != "Linux":
+        return
+
+    script_path = (
+        Path(__file__).resolve().parents[4] / "scripts" / "install_cuda_extras.py"
+    )
+    if not script_path.exists():
+        logger.warning(
+            "Could not locate install_cuda_extras.py; skipping CUDA extras installation."
+        )
+        return
+
+    env = os.environ.copy()
+    try:
+        subprocess.run(
+            [sys.executable, str(script_path), "--quiet"],
+            check=True,
+            env=env,
+        )
+    except subprocess.CalledProcessError as exc:
+        logger.warning("Failed to install CUDA extras automatically: %s", exc)
+    except Exception as exc:  # pragma: no cover - defensive logging
+        logger.warning("Unexpected error while installing CUDA extras: %s", exc)
+
+
 def train(
     *,
     curriculum: Optional[CurriculumConfig] = None,
@@ -67,6 +99,8 @@ def train(
     minibatch_size: int = DEFAULT_MINIBATCH_SIZE,
     forward_pass_minibatch_target_size: int = DEFAULT_FORWARD_PASS_MINIBATCH_TARGET_SIZE,
 ) -> TrainTool:
+    _ensure_cuda_extras_installed()
+
     try:
         from metta.agent.policies.drama_policy import DramaPolicyConfig
         from metta.agent.components.drama import DramaWorldModelConfig
@@ -119,6 +153,6 @@ __all__ = [
     "replay",
     "evaluate",
     "evaluate_in_sweep",
-    "sweep_async_progressive",
+    "sweep",
     "train",
 ]

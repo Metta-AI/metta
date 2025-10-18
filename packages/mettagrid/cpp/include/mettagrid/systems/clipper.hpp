@@ -16,10 +16,10 @@ class Clipper {
 public:
   std::vector<std::shared_ptr<Recipe>> unclipping_recipes;
   // A map from assembler to its adjacent assemblers. This should be constant once computed.
-  std::map<Assembler*, std::vector<Assembler*>> adjacent_assemblers;
+  std::unordered_map<Assembler*, std::vector<Assembler*>> adjacent_assemblers;
   // A map of all assemblers to their current infection weight. This is the weight at which they'll be selected
   // for clipping (if currently unclipped).
-  std::map<Assembler*, float> assembler_infection_weight;
+  std::unordered_map<Assembler*, float> assembler_infection_weight;
   // A set of assemblers that are adjacent to the set of clipped assemblers. Any unclipped assembler with
   // non-zero infection weight will be in this set.
   std::set<Assembler*> border_assemblers;
@@ -175,9 +175,11 @@ public:
     size_t selected_idx = dist(rng);
     std::shared_ptr<Recipe> selected_recipe = unclipping_recipes[selected_idx];
 
-    // Create a vector of 256 copies of the selected recipe
-    std::vector<std::shared_ptr<Recipe>> unclip_recipes;
-    unclip_recipes.assign(256, selected_recipe);
+    // Create a map with the selected recipe for all possible vibes
+    // For now, we'll just map vibe 0 to the recipe (no glyphs case)
+    // TODO: This might need adjustment based on how unclipping should work with glyphs
+    std::unordered_map<uint64_t, std::shared_ptr<Recipe>> unclip_recipes;
+    unclip_recipes[0] = selected_recipe;
     to_infect.become_clipped(unclip_recipes, this);
   }
 

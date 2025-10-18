@@ -7,7 +7,8 @@ import torch.nn as nn
 from tensordict import TensorDict
 from torchrl.data import Composite
 
-from metta.rl.training import EnvironmentMetaData
+from metta.agent.components.utils import zero_long
+from metta.rl.training import GameRules
 
 from .config import DramaWorldModelConfig
 from .mamba_wrapper import MambaConfig as _DramaMambaConfig
@@ -17,7 +18,7 @@ from .mamba_wrapper import MambaWrapperModel
 class DramaWorldModelComponent(nn.Module):
     """Adapter around DRAMA's Mamba world-model backbone."""
 
-    def __init__(self, config: DramaWorldModelConfig, env: Optional[EnvironmentMetaData] = None):
+    def __init__(self, config: DramaWorldModelConfig, env: Optional[GameRules] = None):
         super().__init__()
         self.config = config
         self.in_key = config.in_key
@@ -51,6 +52,7 @@ class DramaWorldModelComponent(nn.Module):
         self.output_norm = nn.LayerNorm(config.d_model)
 
     def forward(self, td: TensorDict) -> TensorDict:
+        """Project observations/actions and run them through the DRAMA Mamba backbone."""
         samples = td[self.in_key]
         actions = td.get(self.action_key)
 
@@ -60,7 +62,7 @@ class DramaWorldModelComponent(nn.Module):
         batch_size, seq_len = samples.shape[0], samples.shape[1]
 
         if actions is None:
-            actions = torch.zeros(batch_size, seq_len, dtype=torch.long, device=samples.device)
+            actions = zero_long((batch_size, seq_len), device=samples.device)
         else:
             actions = actions.to(device=samples.device)
             # Collapse one-hot or singleton action dimensions to scalars.
@@ -75,11 +77,7 @@ class DramaWorldModelComponent(nn.Module):
             if actions.size(1) == 1:
                 actions = actions.expand(-1, seq_len)
             elif actions.size(1) < seq_len:
-                pad = torch.zeros(
-                    (batch_size, seq_len - actions.size(1)),
-                    dtype=actions.dtype,
-                    device=samples.device,
-                )
+                pad = zero_long((batch_size, seq_len - actions.size(1)), device=samples.device)
                 actions = torch.cat([actions, pad], dim=1)
             elif actions.size(1) > seq_len:
                 actions = actions[:, :seq_len]
@@ -93,7 +91,7 @@ class DramaWorldModelComponent(nn.Module):
     def get_agent_experience_spec(self) -> Composite:
         return Composite({})
 
-    def initialize_to_environment(self, env: EnvironmentMetaData, device: torch.device) -> Optional[str]:
+    def initialize_to_environment(self, env: GameRules, device: torch.device) -> Optional[str]:
         self.to(device)
         return None
 

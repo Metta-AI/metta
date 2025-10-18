@@ -22,9 +22,10 @@ protected:
   void SetUp() override {
     grid = std::make_unique<Grid>(10, 10);
     current_timestep = 0;
-    unclip_recipe = std::make_shared<Recipe>(std::map<InventoryItem, InventoryQuantity>{{TestItems::ORE, 1}},
-                                             std::map<InventoryItem, InventoryQuantity>{{TestItems::BATTERY, 1}},
-                                             10);
+    unclip_recipe =
+        std::make_shared<Recipe>(std::unordered_map<InventoryItem, InventoryQuantity>{{TestItems::ORE, 1}},
+                                 std::unordered_map<InventoryItem, InventoryQuantity>{{TestItems::BATTERY, 1}},
+                                 10);
   }
 
   void TearDown() override {}
@@ -35,7 +36,7 @@ protected:
 
   // Helper to create an assembler at a specific location
   Assembler* create_assembler(GridCoord r, GridCoord c) {
-    std::vector<std::shared_ptr<Recipe>> recipes(256, nullptr);
+    std::unordered_map<uint64_t, std::shared_ptr<Recipe>> recipes;
     AssemblerConfig cfg(1, "test_assembler");
     cfg.recipes = recipes;
 
@@ -243,9 +244,10 @@ protected:
   void SetUp() override {
     current_timestep = 0;
     rng.seed(42);
-    unclip_recipe = std::make_shared<Recipe>(std::map<InventoryItem, InventoryQuantity>{{TestItems::ORE, 1}},
-                                             std::map<InventoryItem, InventoryQuantity>{{TestItems::BATTERY, 1}},
-                                             10);
+    unclip_recipe =
+        std::make_shared<Recipe>(std::unordered_map<InventoryItem, InventoryQuantity>{{TestItems::ORE, 1}},
+                                 std::unordered_map<InventoryItem, InventoryQuantity>{{TestItems::BATTERY, 1}},
+                                 10);
   }
 
   void TearDown() override {}
@@ -256,7 +258,7 @@ protected:
 
   // Helper to create an assembler at a specific location
   Assembler* create_assembler(Grid& grid, GridCoord r, GridCoord c, bool clip_immune = false) {
-    std::vector<std::shared_ptr<Recipe>> recipes(256, nullptr);
+    std::unordered_map<uint64_t, std::shared_ptr<Recipe>> recipes;
     AssemblerConfig cfg(1, "test_assembler");
     cfg.recipes = recipes;
     cfg.clip_immune = clip_immune;

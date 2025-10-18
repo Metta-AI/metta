@@ -39,9 +39,9 @@ parameter extraction.
 
 **Location**: `/private/tmp/metta/agent/src/metta/agent/policy_store.py`
 
-**Chain**: `load_from_uri()` → `_load_from_file()` / `_load_wandb_artifact()` / `_load_from_pytorch()`
+**Chain**: `load_artifact_from_uri()` → `_load_from_file()` / `_load_wandb_artifact()` / `_load_from_pytorch()`
 
-- Lines 357-367: `load_from_uri()` dispatches based on URI scheme
+- Lines 357-367: `load_artifact_from_uri()` dispatches based on URI scheme
 - Lines 421-453: `_load_from_file()` does the actual loading
 - Lines 455-469: `_load_wandb_artifact()` downloads then calls `_load_from_file()`
 

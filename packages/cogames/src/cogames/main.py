@@ -20,6 +20,7 @@ from cogames import game
 from cogames import play as play_module
 from cogames import train as train_module
 from cogames.cli.base import console
+from cogames.cli.login import DEFAULT_COGAMES_SERVER, perform_login
 from cogames.cli.mission import describe_mission, get_mission_name_and_config, get_mission_names_and_configs
 from cogames.cli.policy import get_policy_spec, get_policy_specs, policy_arg_example, policy_arg_w_proportion_example
 from cogames.curricula import make_rotation
@@ -95,17 +96,15 @@ def play_cmd(
     ctx: typer.Context,
     mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Name of the mission"),
     policy: str = typer.Option("noop", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
-    non_interactive: bool = typer.Option(False, "--non-interactive", "-ni", help="Run in non-interactive mode"),
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
-    render: Literal["gui", "text", "none"] = typer.Option(
-        "gui", "--render", "-r", help="Render mode: 'gui', 'text', or 'none' (no rendering)"
+    render: Literal["gui", "unicode", "none"] = typer.Option(
+        "gui", "--render", "-r", help="Render mode: 'gui', 'unicode' (interactive terminal), or 'none'"
     ),
 ) -> None:
     resolved_mission, env_cfg = get_mission_name_and_config(ctx, mission)
-    interactive = not non_interactive
     policy_spec = get_policy_spec(ctx, policy)
     console.print(f"[cyan]Playing {resolved_mission}[/cyan]")
-    console.print(f"Max Steps: {steps}, Interactive: {interactive}, Render: {render}")
+    console.print(f"Max Steps: {steps}, Render: {render}")
 
     if ctx.get_parameter_source("steps") in (
         ParameterSource.COMMANDLINE,
@@ -121,7 +120,6 @@ def play_cmd(
         max_steps=steps,
         seed=42,
         render=render,
-        verbose=interactive,
         game_name=resolved_mission,
     )
 
@@ -258,6 +256,7 @@ def evaluate_cmd(
         help="Max milliseconds afforded to generate each action before noop is used by default",
         min=1,
     ),
+    steps: Optional[int] = typer.Option(1000, "--steps", "-s", help="Max steps per episode", min=1),
 ) -> None:
     resolved_mission, env_cfg = get_mission_name_and_config(ctx, mission)
     policy_specs = get_policy_specs(ctx, policies)
@@ -273,6 +272,7 @@ def evaluate_cmd(
         policy_specs=policy_specs,
         action_timeout_ms=action_timeout_ms,
         episodes=episodes,
+        max_steps=steps,
     )
 
 
@@ -289,6 +289,53 @@ def version_cmd() -> None:
         table.add_row(dist_name, public_version(dist_name))
 
     console.print(table)
+
+
+@app.command(name="login", help="Authenticate with CoGames server")
+def login_cmd(
+    server: str = typer.Option(
+        DEFAULT_COGAMES_SERVER,
+        "--server",
+        "-s",
+        help="CoGames server URL",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        "-f",
+        help="Get a new token even if one already exists",
+    ),
+    timeout: int = typer.Option(
+        300,
+        "--timeout",
+        "-t",
+        help="Authentication timeout in seconds",
+        min=1,
+    ),
+) -> None:
+    from urllib.parse import urlparse
+
+    # Check if we already have a token
+    from cogames.auth import BaseCLIAuthenticator
+
+    temp_auth = BaseCLIAuthenticator(
+        auth_server_url=server,
+        token_file_name="cogames.yaml",
+        token_storage_key="login_tokens",
+        extra_uris={},
+    )
+
+    if temp_auth.has_saved_token() and not force:
+        console.print(f"[green]Already authenticated with {urlparse(server).hostname}[/green]")
+        return
+
+    # Perform authentication
+    console.print(f"[cyan]Authenticating with {server}...[/cyan]")
+    if perform_login(auth_server_url=server, force=force, timeout=timeout):
+        console.print("[green]Authentication successful![/green]")
+    else:
+        console.print("[red]Authentication failed![/red]")
+        raise typer.Exit(1)
 
 
 if __name__ == "__main__":
