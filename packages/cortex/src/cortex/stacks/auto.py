@@ -21,7 +21,7 @@ from cortex.config import (
 from cortex.stacks.base import CortexStack
 
 
-def build_cortex_auto_stack(
+def build_cortex_auto_config(
     *,
     d_hidden: int,
     num_layers: int = 3,
@@ -31,8 +31,8 @@ def build_cortex_auto_stack(
     slstm_postup: PostUpBlockConfig | None = None,
     use_axonlayers: bool = False,
     post_norm: bool = True,
-) -> CortexStack:
-    """Build a mixed stack of Axon/mLSTM/sLSTM blocks with config-driven components.
+) -> CortexStackConfig:
+    """Return a CortexStackConfig for a mixed Axon/mLSTM/sLSTM stack.
 
     - Axon and mLSTM are wrapped with PreUp blocks; sLSTM with PostUp.
     - Provide per-block configs (including their internal cell configs) via
@@ -89,7 +89,32 @@ def build_cortex_auto_stack(
         blocks.append(blk)
 
     cfg = CortexStackConfig(blocks=blocks, d_hidden=d_hidden, post_norm=post_norm)
+    return cfg
+
+
+def build_cortex_auto_stack(
+    *,
+    d_hidden: int,
+    num_layers: int = 3,
+    block_pattern: str | None = None,
+    axon_preup: PreUpBlockConfig | None = None,
+    mlstm_preup: PreUpBlockConfig | None = None,
+    slstm_postup: PostUpBlockConfig | None = None,
+    use_axonlayers: bool = False,
+    post_norm: bool = True,
+) -> CortexStack:
+    """Build a CortexStack using the configuration returned by build_cortex_auto_config."""
+    cfg = build_cortex_auto_config(
+        d_hidden=d_hidden,
+        num_layers=num_layers,
+        block_pattern=block_pattern,
+        axon_preup=axon_preup,
+        mlstm_preup=mlstm_preup,
+        slstm_postup=slstm_postup,
+        use_axonlayers=use_axonlayers,
+        post_norm=post_norm,
+    )
     return CortexStack(cfg)
 
 
-__all__ = ["build_cortex_auto_stack"]
+__all__ = ["build_cortex_auto_config", "build_cortex_auto_stack"]

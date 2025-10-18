@@ -4,6 +4,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
+from cortex.config import CortexStackConfig
+from cortex.factory import build_cortex
 from cortex.stacks import CortexStack
 from einops import rearrange
 from pydantic import ConfigDict
@@ -57,8 +59,8 @@ class CortexTDConfig(ComponentConfig):
     d_hidden: int = 128
     out_features: Optional[int] = None
 
-    # Prebuilt Cortex stack instance to use as the core
-    stack: CortexStack
+    # JSON‑serializable config for building the Cortex stack.
+    stack_cfg: CortexStackConfig
 
     key_prefix: str = "cortex_state"
     # Cache storage dtype for CortexTD: 'fp32' (default) or 'bf16'
@@ -77,7 +79,9 @@ class CortexTD(nn.Module):
         self.in_key = config.in_key
         self.out_key = config.out_key
 
-        stack = config.stack
+        # Build the stack from config
+        scfg: CortexStackConfig = config.stack_cfg
+        stack = build_cortex(scfg)
         # Optional sanity check: d_hidden should match the stack's external size
         try:
             stack_hidden = int(stack.cfg.d_hidden)  # type: ignore[attr-defined]
