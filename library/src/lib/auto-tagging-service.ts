@@ -3,6 +3,7 @@ import { anthropic } from "@ai-sdk/anthropic";
 import { z } from "zod";
 import { TagVocabularyService } from "./tag-vocabulary-service";
 import { prisma } from "@/lib/db/prisma";
+import { Logger } from "./logging/logger";
 
 /**
  * Schema for OpenAI tag suggestion response
@@ -16,11 +17,6 @@ const TagSuggestionSchema = z.object({
     .describe("Brief explanation of why these tags were selected"),
 });
 
-export interface TagSuggestionResult {
-  suggestedTags: string[];
-  reasoning: string;
-}
-
 /**
  * Service for automatically tagging papers using OpenAI vision
  */
@@ -30,7 +26,7 @@ export class AutoTaggingService {
    */
   static async autoTagPaper(paperId: string): Promise<string[] | null> {
     try {
-      console.log(`🏷️ Auto-tagging paper: ${paperId}`);
+      Logger.info("Auto-tagging paper", { paperId });
 
       // Get paper data
       const paper = await prisma.paper.findUnique({
@@ -47,22 +43,23 @@ export class AutoTaggingService {
       });
 
       if (!paper) {
-        console.error(`❌ Paper not found: ${paperId}`);
+        Logger.warn("Paper not found for auto-tagging", { paperId });
         return null;
       }
 
       // Skip if paper already has tags
       if (paper.tags && paper.tags.length > 0) {
-        console.log(
-          `⏭️ Paper ${paperId} already has tags: [${paper.tags.join(", ")}]`
-        );
+        Logger.debug("Paper already has tags, skipping", {
+          paperId,
+          tags: paper.tags,
+        });
         return paper.tags;
       }
 
       // Get tag vocabulary
       const tagVocabulary = await TagVocabularyService.getAllTags();
       if (tagVocabulary.length === 0) {
-        console.warn(`⚠️ No tag vocabulary available for auto-tagging`);
+        Logger.warn("No tag vocabulary available for auto-tagging");
         return null;
       }
 
@@ -92,16 +89,18 @@ export class AutoTaggingService {
           data: { tags: suggestedTags },
         });
 
-        console.log(
-          `✅ Auto-tagged paper ${paperId} with: [${suggestedTags.join(", ")}]`
-        );
+        Logger.info("Auto-tagged paper", { paperId, tags: suggestedTags });
         return suggestedTags;
       } else {
-        console.warn(`⚠️ No suitable tags found for paper ${paperId}`);
+        Logger.warn("No suitable tags found for paper", { paperId });
         return null;
       }
     } catch (error) {
-      console.error(`❌ Error auto-tagging paper ${paperId}:`, error);
+      Logger.error(
+        "Error auto-tagging paper",
+        error instanceof Error ? error : new Error(String(error)),
+        { paperId }
+      );
       return null;
     }
   }
@@ -115,7 +114,7 @@ export class AutoTaggingService {
     // arXiv URLs: convert from abstract page to PDF
     if (url.includes("arxiv.org/abs/")) {
       const normalizedUrl = url.replace("/abs/", "/pdf/") + ".pdf";
-      console.log(`📄 Converted arXiv abstract URL to PDF: ${normalizedUrl}`);
+      Logger.debug("Converted arXiv abstract URL to PDF", { normalizedUrl });
       return normalizedUrl;
     }
 
@@ -133,15 +132,17 @@ export class AutoTaggingService {
   ): Promise<string[]> {
     try {
       if (!process.env.ANTHROPIC_API_KEY) {
-        console.warn("⚠️ Anthropic API key not available for PDF analysis");
+        Logger.warn("Anthropic API key not available for PDF analysis");
         return [];
       }
 
-      console.log(`📄 Analyzing PDF for paper: ${paper.title}`);
+      Logger.info("Analyzing PDF for auto-tagging", {
+        paperTitle: paper.title,
+      });
 
       // Normalize URL to get actual PDF
       const normalizedUrl = this.normalizePdfUrl(paper.link);
-      console.log(`📥 Fetching PDF from: ${normalizedUrl}`);
+      Logger.debug("Fetching PDF", { url: normalizedUrl });
 
       // Fetch PDF
       const pdfResponse = await fetch(normalizedUrl, {
@@ -152,49 +153,52 @@ export class AutoTaggingService {
         redirect: "follow",
       });
       if (!pdfResponse.ok) {
-        console.warn(`⚠️ Could not fetch PDF: ${pdfResponse.status}`);
+        Logger.warn("Could not fetch PDF", {
+          status: pdfResponse.status,
+          url: normalizedUrl,
+        });
         return [];
       }
 
       const contentType = pdfResponse.headers.get("content-type") || "";
-      console.log(`📄 PDF response content-type: ${contentType}`);
+      Logger.debug("PDF response received", { contentType });
 
       if (contentType.includes("text/html")) {
-        console.warn(
-          `⚠️ URL returned HTML instead of PDF. URL might be incorrect: ${normalizedUrl}`
-        );
-        console.warn(`⚠️ Original URL: ${paper.link}`);
+        Logger.warn("URL returned HTML instead of PDF", {
+          normalizedUrl,
+          originalUrl: paper.link,
+        });
         return [];
       }
 
       const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
-      console.log(`📄 PDF buffer size: ${pdfBuffer.length} bytes`);
+      Logger.debug("PDF buffer loaded", { size: pdfBuffer.length });
 
       // Validate PDF header
       const pdfHeader = pdfBuffer.slice(0, 8).toString();
-      console.log(`📄 PDF header: ${pdfHeader}`);
       if (!pdfHeader.startsWith("%PDF")) {
-        console.warn(
-          `⚠️ Invalid PDF header: ${pdfHeader}. Content might not be a valid PDF.`
-        );
-        console.warn(
-          `⚠️ First 50 bytes: ${pdfBuffer.slice(0, 50).toString("hex")}`
-        );
+        Logger.warn("Invalid PDF header", {
+          pdfHeader,
+          firstBytes: pdfBuffer.slice(0, 50).toString("hex"),
+        });
         return [];
       }
 
       // Check file size (Anthropic has limits)
       const maxSize = 512 * 1024 * 1024; // 512MB limit for Anthropic
       if (pdfBuffer.length > maxSize) {
-        console.warn(
-          `⚠️ PDF too large: ${pdfBuffer.length} bytes (max: ${maxSize})`
-        );
+        Logger.warn("PDF too large for analysis", {
+          size: pdfBuffer.length,
+          maxSize,
+        });
         return [];
       }
 
       const tagVocabularyText = tagVocabulary.join(", ");
 
-      console.log(`📄 Sending PDF to Anthropic for analysis...`);
+      Logger.info("Sending PDF to Anthropic for analysis", {
+        paperTitle: paper.title,
+      });
       const result = await generateObject({
         model: anthropic("claude-3-5-sonnet-20241022"),
         schema: TagSuggestionSchema,
@@ -238,17 +242,17 @@ IMPORTANT: Only return tags that appear EXACTLY in the vocabulary list above.`,
       );
 
       if (validTags.length > 0) {
-        console.log(`🔍 PDF analysis suggested: [${validTags.join(", ")}]`);
-        console.log(`💭 Reasoning: ${result.object.reasoning}`);
+        Logger.info(`🔍 PDF analysis suggested: [${validTags.join(", ")}]`);
+        Logger.info(`💭 Reasoning: ${result.object.reasoning}`);
       }
 
       return validTags;
     } catch (error) {
-      console.error(`❌ Error in PDF analysis:`, error);
+      Logger.error(`❌ Error in PDF analysis:`, error);
 
       // Log more details about the error
       if (error && typeof error === "object") {
-        console.error(`❌ Error details:`, {
+        Logger.error(`❌ Error details:`, {
           message: (error as any).message,
           statusCode: (error as any).statusCode,
           responseBody: (error as any).responseBody,
@@ -271,11 +275,11 @@ IMPORTANT: Only return tags that appear EXACTLY in the vocabulary list above.`,
   ): Promise<string[]> {
     try {
       if (!process.env.ANTHROPIC_API_KEY) {
-        console.warn("⚠️ Anthropic API key not available for text analysis");
+        Logger.warn("⚠️ Anthropic API key not available for text analysis");
         return [];
       }
 
-      console.log(`📝 Analyzing text for paper: ${paper.title}`);
+      Logger.info(`📝 Analyzing text for paper: ${paper.title}`);
 
       const tagVocabularyText = tagVocabulary.join(", ");
       const textContent = `Title: ${paper.title}\n${paper.abstract ? `Abstract: ${paper.abstract}` : ""}`;
@@ -312,13 +316,13 @@ IMPORTANT: Only return tags that appear EXACTLY in the vocabulary list above.`,
       );
 
       if (validTags.length > 0) {
-        console.log(`📝 Text analysis suggested: [${validTags.join(", ")}]`);
-        console.log(`💭 Reasoning: ${result.object.reasoning}`);
+        Logger.info(`📝 Text analysis suggested: [${validTags.join(", ")}]`);
+        Logger.info(`💭 Reasoning: ${result.object.reasoning}`);
       }
 
       return validTags;
     } catch (error) {
-      console.error(`❌ Error in text analysis:`, error);
+      Logger.error(`❌ Error in text analysis:`, error);
       return [];
     }
   }
@@ -340,28 +344,5 @@ IMPORTANT: Only return tags that appear EXACTLY in the vocabulary list above.`,
       return true;
 
     return false;
-  }
-
-  /**
-   * Auto-tag multiple papers in batch
-   */
-  static async autoTagPapers(
-    paperIds: string[]
-  ): Promise<Map<string, string[] | null>> {
-    const results = new Map<string, string[] | null>();
-
-    console.log(`🏷️ Auto-tagging ${paperIds.length} papers...`);
-
-    for (const paperId of paperIds) {
-      const tags = await this.autoTagPaper(paperId);
-      results.set(paperId, tags);
-
-      // Small delay to avoid rate limits
-      if (paperIds.length > 1) {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-      }
-    }
-
-    return results;
   }
 }

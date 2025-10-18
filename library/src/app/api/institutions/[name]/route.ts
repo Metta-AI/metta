@@ -1,28 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
-import { loadInstitution } from "@/posts/data/institutions-server";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ name: string }> }
-) {
-  try {
+import { withErrorHandler } from "@/lib/api/error-handler";
+import { NotFoundError } from "@/lib/errors";
+import { loadInstitutionByName } from "@/posts/data/managed-institutions";
+
+/**
+ * GET /api/institutions/[name]
+ * Get a single institution by name with its papers and authors
+ */
+export const GET = withErrorHandler(
+  async (
+    request: NextRequest,
+    { params }: { params: Promise<{ name: string }> }
+  ) => {
     const { name } = await params;
-    const institutionName = decodeURIComponent(name);
-    const institution = await loadInstitution(institutionName);
+    const decodedName = decodeURIComponent(name);
+
+    const institution = await loadInstitutionByName(decodedName);
 
     if (!institution) {
-      return NextResponse.json(
-        { error: "Institution not found" },
-        { status: 404 }
-      );
+      throw new NotFoundError("Institution", decodedName);
     }
 
     return NextResponse.json(institution);
-  } catch (error) {
-    console.error("Error loading institution:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
   }
-}
+);
