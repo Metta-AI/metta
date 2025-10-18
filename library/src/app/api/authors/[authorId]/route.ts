@@ -4,7 +4,7 @@ import { loadAuthor } from "@/posts/data/authors-server";
 
 /**
  * API endpoint for fetching individual author data
- * 
+ *
  * GET /api/authors/[authorId]
  * Returns detailed author information including papers and statistics
  */
@@ -17,10 +17,7 @@ export async function GET(
     const author = await loadAuthor(authorId);
 
     if (!author) {
-      return NextResponse.json(
-        { error: "Author not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Author not found" }, { status: 404 });
     }
 
     return NextResponse.json(author);
@@ -31,4 +28,4 @@ export async function GET(
       { status: 500 }
     );
   }
-} 
+}

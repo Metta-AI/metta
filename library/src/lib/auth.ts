@@ -42,20 +42,46 @@ function buildAuthConfig(): NextAuthConfig {
     adapter: PrismaAdapter(prisma),
     providers,
     callbacks: {
-      async signIn({ account, profile }) {
-        // adapted from https://authjs.dev/getting-started/providers/google#email-verified
+      async signIn({ account, profile, user }) {
+        // Check domain restrictions for Google OAuth
         if (
           process.env.DEV_MODE !== "false" &&
           account?.provider === "google"
         ) {
-          return Boolean(
+          const domainCheck = Boolean(
             profile?.email_verified &&
               allowedEmailDomains.some((domain) =>
                 profile?.email?.endsWith(`@${domain}`)
               )
           );
+          if (!domainCheck) return false;
         }
+
+        // Check if user is banned (prevent banned users from logging in)
+        if (user?.id) {
+          const userData = await prisma.user.findUnique({
+            where: { id: user.id },
+            select: {
+              isBanned: true,
+              banReason: true,
+            },
+          });
+
+          if (userData?.isBanned) {
+            console.log(`Banned user attempted login: ${user.email}`);
+            // Prevent login by returning false
+            return false;
+          }
+        }
+
         return true;
+      },
+      async session({ session, user }) {
+        if (session?.user && user?.id) {
+          // Add user ID to session for convenience
+          session.user.id = user.id;
+        }
+        return session;
       },
     },
     session: {
