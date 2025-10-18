@@ -167,14 +167,9 @@ proc setupGPU(tileMap: TileMap) =
     GL_UNSIGNED_BYTE,
     tileMap.tileAtlas.data[0].addr
   )
-  # glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR.GLint)
-  # glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR.GLint)
-  # glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE.GLint)
-  # glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE.GLint)
-  # glGenerateMipmap(GL_TEXTURE_2D)
-
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST.GLint)
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST.GLint)
+  # glGenerateMipmap(GL_TEXTURE_2D)
 
   # Vertex shader source (OpenGL 4.1)
   let vertexShaderSource = """
