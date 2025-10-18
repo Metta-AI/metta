@@ -269,6 +269,32 @@ class StatsReporter(TrainerComponent):
                 payload["experience/area_under_reward"] = self._state.area_under_reward
 
             if self._wandb_run and self._config.report_to_wandb and payload:
+                # --- av delete ---
+                try:
+                    import wandb  # type: ignore
+                except Exception:
+                    wandb = None
+
+                # Optionally attach histograms for actions and mc_actions
+                try:
+                    if hasattr(self.context, "experience"):
+                        exp = self.context.experience
+                        if hasattr(exp, "buffer"):
+                            # Normal actions histogram
+                            if "actions" in exp.buffer.keys():
+                                arr = exp.buffer["actions"].reshape(-1).detach().cpu().numpy()
+                                if wandb is not None and arr.size > 0:
+                                    payload["actions/histogram"] = wandb.Histogram(arr)
+
+                            # MC actions histogram
+                            if "mc_actions" in exp.buffer.keys():
+                                arr = exp.buffer["mc_actions"].reshape(-1).detach().cpu().numpy()
+                                if wandb is not None and arr.size > 0:
+                                    payload["mc_actions/histogram"] = wandb.Histogram(arr)
+                except Exception:
+                    pass
+                # --- ^ av delete ---
+
                 self._wandb_run.log(payload, step=agent_step)
 
             self._latest_payload = payload.copy() if payload else None
@@ -430,7 +456,8 @@ class StatsReporter(TrainerComponent):
         )
         hyperparameters = self._collect_hyperparameters(trainer_cfg=trainer_cfg, parameters=parameters)
 
-        return build_wandb_payload(
+        # return build_wandb_payload( # av restore this line
+        payload = build_wandb_payload(  # av remove this line
             processed_stats=processed,
             timing_info=timing_info,
             weight_stats=weight_stats,
@@ -443,6 +470,53 @@ class StatsReporter(TrainerComponent):
             agent_step=agent_step,
             epoch=epoch,
         )
+
+        # --- av delete ---
+        # --------------------------------------------------------------
+        # Add per-action and per-mc-action distributions by name
+        # These are logged as normalized frequencies per epoch step
+        # --------------------------------------------------------------
+        try:
+            # Access environment action names if available
+            action_names: list[str] | None = None
+            context = getattr(self, "context", None)
+            if context is not None and hasattr(context, "env") and hasattr(context.env, "meta_data"):
+                meta = context.env.meta_data
+                action_names = list(getattr(meta, "action_names", []) or [])
+
+            # Normal actions distribution
+            if hasattr(experience, "buffer") and "actions" in experience.buffer.keys():
+                actions_tensor = experience.buffer["actions"].reshape(-1)
+                if actions_tensor.numel() > 0:
+                    num_actions = len(action_names) if action_names else int(actions_tensor.max().item()) + 1
+                    counts = torch.bincount(actions_tensor.to(dtype=torch.long), minlength=num_actions).to(device="cpu")
+                    total = int(counts.sum().item())
+                    if total > 0:
+                        for i in range(num_actions):
+                            name = action_names[i] if action_names and i < len(action_names) else str(i)
+                            freq = float(counts[i].item() / total)
+                            payload[f"actions/by_name/{name}"] = freq
+
+            # MC actions distribution if available
+            mc_names: list[str] | None = list(getattr(policy, "mc_action_names", []) or [])
+            if hasattr(experience, "buffer") and "mc_actions" in experience.buffer.keys():
+                mc_tensor = experience.buffer["mc_actions"].reshape(-1)
+                if mc_tensor.numel() > 0:
+                    mc_total = int(mc_tensor.max().item()) + 1 if mc_tensor.numel() > 0 else 0
+                    num_mc = len(mc_names) if mc_names else mc_total
+                    counts = torch.bincount(mc_tensor.to(dtype=torch.long), minlength=num_mc).to(device="cpu")
+                    total = int(counts.sum().item())
+                    if total > 0:
+                        for i in range(num_mc):
+                            name = mc_names[i] if mc_names and i < len(mc_names) else str(i)
+                            freq = float(counts[i].item() / total)
+                            payload[f"mc_actions/by_name/{name}"] = freq
+        except Exception:
+            # Never let stats generation fail the run
+            pass
+
+        return payload
+        # --- ^ av delete ---
 
     def _normalize_steps_per_second(self, timing_info: dict[str, Any], agent_step: int) -> None:
         """Adjust SPS to account for agent steps accumulated before a resume."""
