@@ -233,6 +233,9 @@ class LSTMPolicy(TrainablePolicy):
         """Create a StatefulPolicy wrapper for a specific agent."""
         return StatefulAgentPolicy(self._agent_policy, agent_id)
 
+    def is_recurrent(self) -> bool:
+        return True
+
     def load_policy_data(self, checkpoint_path: str) -> None:
         self._net.load_state_dict(torch.load(checkpoint_path, map_location=self._device))
         self._net = self._net.to(self._device)

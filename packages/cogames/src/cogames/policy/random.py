@@ -48,3 +48,6 @@ class RandomPolicy(Policy):
             A RandomAgentPolicy instance
         """
         return RandomAgentPolicy(self._action_space)
+
+    def is_recurrent(self) -> bool:
+        return False

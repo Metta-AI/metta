@@ -79,6 +79,9 @@ class SimplePolicy(TrainablePolicy):
         """Create a Policy instance for a specific agent."""
         return SimpleAgentPolicyImpl(self._net, self._device, self.num_actions)
 
+    def is_recurrent(self) -> bool:
+        return False
+
     def load_policy_data(self, checkpoint_path: str) -> None:
         self._net.load_state_dict(torch.load(checkpoint_path, map_location=self._device))
         self._net = self._net.to(self._device)

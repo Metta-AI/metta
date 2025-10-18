@@ -228,17 +228,10 @@ def train(
 
     env_name = "cogames.cogs_vs_clips"
 
-    if use_rnn:
-        learning_rate = 0.0003
-        bptt_horizon = 1
-        optimizer = "adam"
-        adam_eps = 1e-8
-        logger.info("Using RNN-specific hyperparameters: lr=0.0003, bptt=1, optimizer=adam")
-    else:
-        learning_rate = 0.015
-        bptt_horizon = 1
-        optimizer = "muon"
-        adam_eps = 1e-12
+    learning_rate = 0.001153637
+    bptt_horizon = 64 if use_rnn else 1
+    optimizer = "adam"
+    adam_eps = 1e-8
 
     total_agents = max(1, getattr(vecenv, "num_agents", 1))
     num_envs = max(1, getattr(vecenv, "num_envs", 1))
@@ -302,7 +295,7 @@ def train(
         vf_coef=2.0,
         vf_clip_coef=0.2,
         max_grad_norm=1.5,
-        ent_coef=0.001,
+        ent_coef=0.01,
         adam_beta1=0.95,
         adam_beta2=0.999,
         adam_eps=adam_eps,
