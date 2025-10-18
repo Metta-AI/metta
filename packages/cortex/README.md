@@ -2,8 +2,20 @@
 
 `cortex` is a modular library for building recurrent backbones and agent memory systems. It separates cell-level recurrence from architectural concerns (projections, skips, normalization) so you can compose new stacks quickly and safely.
 
+## Install
+
+Use the cortexcore distribution; import path remains `cortex`:
+
+```
+pip install cortexcore
+
+# then in Python
+from cortex import build_cortex, CortexStackConfig
+```
+
 ## Table of Contents
 
+- [Install](#install)
 - [Architecture](#architecture)
   - [Why This Design?](#why-this-design)
   - [Uniform Interface Design](#uniform-interface-design)
@@ -11,8 +23,9 @@
   - [Memory Cells](#memory-cells)
   - [Blocks](#blocks)
 - [Quick Start](#quick-start)
-- [Template Architectures](#template-architectures)
 - [Metta Framework Integration](#metta-framework-integration)
+- [AxonLayer: A Generalized Linear Operator with Stateful Dynamics](#axonlayer-a-generalized-linear-operator-with-stateful-dynamics)
+  - [AxonLayer Integration Across Cells](#axonlayer-integration-across-cells)
 - [Evaluate Quickly](#evaluate-quickly)
 - [Backend Configuration](#backend-configuration)
 - [Extending Cortex](#extending-cortex)
@@ -93,12 +106,13 @@ This uniformity means you can treat a complex multi-layer stack exactly like a s
 
 Core computational units implementing recurrent logic. All cells follow batch-first convention: `[B, T, H]` for sequences, `[B, H]` for single-step.
 
-| Cell            | Description | Triton Accelerated |
-|-----------------|-------------|-------------------|
-| `LSTMCell`      | Stateless LSTM wrapper with TensorDict state (`h`, `c`); step and sequence parity; optional resets. | Yes |
-| `mLSTMCell`     | Matrix-LSTM with per-head state, chunkwise closed-form updates, and optional causal Conv1D pre-activation. | Yes |
-| `sLSTMCell`     | Structured LSTM with per-head gating, stabilized accumulators (`c`, `n`, `m`), and optional causal Conv1D. | Yes |
-| `CausalConv1d`  | Depthwise causal Conv1D cell (ring-buffer state); supports optional channel-mixing mode. | Yes (channel-mixing only) |
+| Cell            | Description | Triton Accelerated | CUDA Accelerated |
+|-----------------|-------------|--------------------|------------------|
+| `LSTMCell`      | Stateless LSTM wrapper with TensorDict state (`h`, `c`); step and sequence parity; optional resets. | Yes | No |
+| `mLSTMCell`     | Matrix-LSTM with per-head state, chunkwise closed-form updates, and optional causal Conv1D pre-activation. | Yes | No |
+| `sLSTMCell`     | Structured LSTM with per-head gating, stabilized accumulators (`c`, `n`, `m`), and optional causal Conv1D. | Yes | No |
+| `CausalConv1d`  | Depthwise causal Conv1D cell (ring-buffer state); supports optional channel-mixing mode. | Yes (channel-mixing only) | No |
+| `AxonCell`     | Streaming RTU with diagonal input weights (per-channel local recurrence, 2H→H→out_dim projection). | Yes | Yes (seq‑allin, short‑T) |
 
 **Notes:**
 - Triton kernels are selected automatically on CUDA when constraints are met; otherwise PyTorch fallback is used
@@ -191,90 +205,183 @@ x_step = torch.randn(batch_size, 256)  # [B, H]
 output_step, state = stack.step(x_step, state)
 ```
 
-## Template Architectures
 
-The repo ships with a few small templates to get you started and to make quick comparisons easier.
+---
 
-- xlstm
-  - Alternating `mLSTM` (PreUp) and `sLSTM` (PostUp) blocks.
-  - Provided as a convenience builder `build_xlstm_stack(d_hidden, num_blocks, ...)`.
+### AxonLayer: A Generalized Linear Operator with Stateful Dynamics
 
-Example (xLSTM):
+`AxonLayer` provides a stateful generalization of the standard `nn.Linear(in_features → out_features)` operator.
+Instead of performing a purely affine transformation, it integrates a lightweight **recurrent dynamic** through an internal [`AxonsCell`](../cells/axons.py), which maintains structured state evolution across timesteps.
+Each forward invocation reads and **mutates a caller-provided parent `TensorDict` state in place**, enabling temporally coherent computation without requiring explicit recurrence or sequence unrolling in the computation graph.
+
+At a high level, `AxonLayer` functions as a **streaming linear projection** — a linear operator augmented with local recurrence and compact temporal traces.
+This design yields temporal expressivity comparable to recurrent layers while retaining the simplicity and efficiency of a feed-forward linear transformation.
+Within the Cortex framework, `AxonLayer` integrates seamlessly with the `MemoryCell` and `TensorDict` ecosystem, making it composable and state-consistent with other core primitives.
 
 ```python
-from cortex.stacks.xlstm import build_xlstm_stack
+from tensordict import TensorDict
+from cortex.cells.base import MemoryCell
+from cortex.cells.core import AxonLayer, update_parent_state
+from cortex.config import AxonConfig
 
-stack = build_xlstm_stack(
+class MyCell(MemoryCell):
+    def __init__(self, hidden_size: int) -> None:
+        super().__init__(hidden_size=hidden_size)
+        ax_cfg = AxonConfig(hidden_size=hidden_size, out_dim=hidden_size)
+        self.ax = AxonLayer(hidden_size, hidden_size, cfg=ax_cfg, name="proj", group="mycell")
+        # ... additional layer definitions ...
+
+    def forward(self, x, state):
+        if state is None:
+            state = TensorDict({}, batch_size=[x.shape[0]])
+
+        ax = self.ax(x, state=state)  # mutates state in place
+        # ... custom logic using ax ...
+        out = ax  # placeholder
+
+        next_state = TensorDict({
+            # "c": ..., "n": ..., "m": ...  # cell-specific keys
+        }, batch_size=[x.shape[0]])
+        update_parent_state(next_state, state)
+        return out, next_state
+```
+
+
+#### Internal Structure
+
+Internally, `AxonLayer` encapsulates an **`AxonCell`**, which serves as the computational core responsible for local recurrence and gradient-preserving temporal traces.
+`AxonCell` generalizes the behavior of a linear layer through several defining mechanisms:
+
+* **Linear→Recurrent Transition:**
+  Each channel is augmented with a *diagonal Recurrent Transition Unit (RTU)* update, producing a doubled activation (`2H`) that is projected back to the target dimension (`H`).
+  This turns a standard `Linear(H → H)` operation into a *locally recurrent* one with minimal parameter overhead.
+
+* **Optional SRHT Feature Mixer:**
+  Prior to the main kernel, `AxonCell` may apply a **Subsampled Randomized Hadamard Transform (SRHT)** to orthogonally mix feature channels.
+  This improves conditioning, allowing per-channel diagonal updates to behave more like dense transformations.
+  It includes both a CUDA fast path (power-of-two `H`) and a PyTorch fallback (arbitrary `H`), controlled via
+  `AxonConfig.use_srht` and `AxonConfig.srht_permute`.
+  The transform is normalized by `1/√H` to preserve scale and gradient norm.
+
+* **Streaming Traces:**
+  Instead of storing full activation histories, `AxonCell` maintains compact **eligibility traces** across subsequences.
+  A boundary correction at chunk heads preserves cross-chunk credit assignment, effectively extending learning beyond TBPTT truncation limits.
+
+
+These mechanisms collectively allow `AxonLayer` to act as a *locally recurrent linear primitive*, efficiently propagating gradient information across time without explicit recurrent loops or large memory footprints.
+
+
+#### Rationale
+
+* **State-Augmented Linear Transformation:**
+  `AxonLayer` transforms the conventional linear projection into a state-aware operator capable of encoding short- and medium-term temporal dependencies.
+
+* **Gradient Flow Beyond TBPTT:**
+  Through compact trace preservation, it allows credit signals to propagate beyond truncated backpropagation windows — a key step toward continuous, long-horizon learning.
+
+* **Architectural Role:**
+  As the canonical linear primitive for upcoming Cortex architectures, `AxonLayer` embeds temporal inductive bias directly into the model’s feed-forward backbone, replacing static linear projections with dynamically evolving connections.
+
+---
+
+
+
+### AxonLayer Integration Across Cells
+
+The table below tracks AxonLayer replacements for linear-like projections in key cells. AxonLayer is a stateful alternative to `nn.Linear` that wraps `AxonCell` and updates per-layer state inside a parent `TensorDict`.
+
+| Cell | Components Replaced | Flags | State Group/Keys |
+|---|---|---|---|
+| sLSTM (`cortex.cells.slstm.sLSTMCell`) | Fused gate projections: `if_fused` (i,f) from conv path; `zo_fused` (z,o) from seq path | `use_axon_layer` | group=`slstm`, keys=`if_fused`, `zo_fused` (compat keys like `{igate,fgate,zgate,ogate}_h{i}` may also appear) |
+| mLSTM (`cortex.cells.mlstm.mLSTMCell`) | Input/forget gates; optional QKV path | `use_axon_layer`, `use_axon_qkv` | group=`mlstm` keys=`igate`,`fgate`; optional group=`mlstm_qkv` keys=`qk`,`v` |
+
+Note: AxonLayer usage is opt-in per cell via its config (e.g., `use_axon_layer`, `use_axon_qkv`). The layer mutates the provided parent TensorDict state in place.
+
+## Easy Configuration
+
+Use ready‑made builders and config defaults to compose stacks quickly.
+
+- cortex_auto
+  - Mixed stack where each layer is one of: `A` = Axon (PreUp), `M` = mLSTM (PreUp), `S` = sLSTM (PostUp).
+  - Pattern controlled by `block_pattern` over `{A,M,S}`; defaults to repeating `"AMS"` to reach `num_layers` (default 3).
+  - Optional `use_axonlayers=True` enables AxonLayer projections inside cells: sets `mLSTM.use_axon_layer=True` and `mLSTM.use_axon_qkv=True`, and `sLSTM.use_axon_layer=True`.
+  - All other details (heads, kernel sizes, proj factors) come from each config’s own defaults unless you pass explicit block configs.
+
+Example (cortex_auto):
+
+```python
+from cortex.stacks import build_cortex_auto_stack
+
+# Default: 3 layers with pattern "AMS" and config defaults
+stack = build_cortex_auto_stack(d_hidden=128)
+
+# Enable AxonLayers in mLSTM and sLSTM
+stack = build_cortex_auto_stack(d_hidden=128, use_axonlayers=True)
+
+# Custom pattern and optional per-block configs
+from cortex.config import PreUpBlockConfig, PostUpBlockConfig, AxonConfig, mLSTMCellConfig, sLSTMCellConfig
+stack = build_cortex_auto_stack(
     d_hidden=128,
-    num_blocks=5,           # alternate mLSTM/sLSTM 5 times
-    mlstm_proj_factor=2.0,  # PreUp factor for mLSTM blocks
-    slstm_proj_factor=1.5,  # PostUp factor for sLSTM blocks
+    num_layers=3,
+    block_pattern="SAM",  # sLSTM → Axon → mLSTM
+    axon_preup=PreUpBlockConfig(cell=AxonConfig()),
+    mlstm_preup=PreUpBlockConfig(cell=mLSTMCellConfig()),
+    slstm_postup=PostUpBlockConfig(cell=sLSTMCellConfig()),
 )
+```
+
+To run the registered template in the evaluation harness:
+
+```bash
+uv run python packages/cortex/evaluations/run.py --task delayed_recall --stack cortex_auto
 ```
 
 
 ## Metta Framework Integration
 
-Metta ships with a ready-to-use component for integrating Cortex memory stacks with its TensorDict-based pipelines.
+Metta ships with a ready-to-use component for integrating Cortex stacks with its TensorDict-based pipelines.
 
 ### CortexTD Component
 
-The `CortexTD` component (located in `metta.agent.components.cortex`) wraps a `CortexStack` and makes it compatible with Metta's TensorDict interface, handling stateful recurrent memory across rollout and training phases.
+The `CortexTD` component (in `agent/src/metta/agent/components/cortex.py`) wraps a `CortexStack` and provides stateful memory across rollout and training.
 
-**Key Features:**
-
-- **Two-cache architecture**: Separate caches for rollout (data collection) and training (gradient updates)
-  - `rollout_cache`: Updated during environment interaction (single-step mode)
-  - `train_cache`: Frozen snapshot used for deterministic training on replayed sequences
-- **Per-environment memory**: Efficiently manages separate hidden states for each environment
-- **Reset handling**: Automatically applies episode boundary resets via done/truncated flags
-- **Memory-efficient replay**: Stores only `env_id` in replay buffer; reconstructs states from cache
-- **Optional output projection**: Configurable linear projection after the stack
-
-**Example Usage:**
+**Recommended pattern (auto stack):** Use the mixed Axon/mLSTM/sLSTM builder and enable AxonLayers.
 
 ```python
-from cortex import build_cortex, CortexStackConfig, LSTMCellConfig, PreUpBlockConfig
+from cortex.stacks import build_cortex_auto_stack
 from metta.agent.components.cortex import CortexTD, CortexTDConfig
 
-# Build a memory stack
-stack = build_cortex(CortexStackConfig(
+# 1) Build a Cortex stack
+stack = build_cortex_auto_stack(
     d_hidden=256,
-    blocks=[
-        PreUpBlockConfig(
-            cell=LSTMCellConfig(hidden_size=None),
-            proj_factor=2.0
-        )
-    ]
-))
+    num_layers=3,
+    post_norm=True,
+    use_axonlayers=True,
+)
 
-# Wrap with Metta component
+# 2) Wrap it as a Metta component
 component = CortexTD(CortexTDConfig(
     stack=stack,
-    in_key="latent",           # Input key in TensorDict
-    out_key="recurrent_out",   # Output key in TensorDict
-    d_hidden=256,              # Stack's external hidden size
-    out_features=512,          # Optional projection to different size
-    store_dtype="fp32"         # Storage precision: 'fp32' or 'bf16'
+    in_key="latent",
+    out_key="recurrent_out",
+    d_hidden=256,              # stack external size
+    out_features=256,          # identity projection when equal to d_hidden
+    key_prefix="cortex_state",
+    store_dtype="fp32",       # or "bf16"
 ))
-
-# Use in your Metta policy
-# The component handles state management automatically via TensorDict metadata
 ```
 
-**Integration Notes:**
+See also the reference wiring in:
+- `agent/src/metta/agent/components/cortex.py`
+- `agent/src/metta/agent/policies/cortex.py`
 
-- The component is an `nn.Module` that registers the stack's parameters for optimization
-- Requires `training_env_ids` in TensorDict for per-environment state tracking
-- Expects `bptt` (backprop through time steps) metadata to distinguish rollout (bptt=1) from training (bptt>1)
-- Implements `get_memory()` / `set_memory()` for checkpoint serialization
-- Reset masks are constructed from `dones` and `truncateds` in the TensorDict
+**TensorDict expectations:**
+- `bptt`: int Tensor (shape [1]); 1 for rollout (step mode), >1 for training (sequence mode)
+- `batch`: int Tensor (shape [1]); batch size B
+- `training_env_ids`: Long Tensor identifying environments (B or [B, T])
+- Optional resets via `dones`/`truncateds` booleans (B or [B, T])
 
-**Performance Considerations:**
-
-- Uses `store_dtype` to control memory vs precision tradeoff (fp32 for accuracy, bf16 for memory)
-- Maintains a persistent batched state during rollout to avoid redundant gather/scatter operations
-- Training cache is compacted to only store active environment states
+`CortexTD` maintains separate caches for rollout and training, supports checkpointing via `get_memory()`/`set_memory()`, and applies resets automatically.
 
 
 ## Evaluate Quickly
@@ -325,8 +432,6 @@ CORTEX_FORCE_PYTORCH=1 python your_script.py
 - Triton kernels are used automatically on CUDA for supported cells (`LSTMCell`, `mLSTMCell`, `sLSTMCell`, `CausalConv1d`)
 - Some cells have additional constraints (e.g., LSTM requires power-of-two `hidden_size`)
 - Falls back to PyTorch when constraints aren't met
-
-For more details, see [`docs/api/kernels.md`](docs/api/kernels.md).
 
 ## Extending Cortex
 

@@ -11,6 +11,7 @@ from experiments.recipes.arena_basic_easy_shaped import (
     train as base_train,
 )
 from metta.agent.policies.cortex import CortexBaseConfig
+from cortex.config import CortexStackConfig
 from metta.agent.components.cortex import CortexTDConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.tools.train import TrainTool
@@ -26,7 +27,15 @@ def _override_cortex_stack(
     for comp in policy_cfg.components:
         if isinstance(comp, CortexTDConfig):
             new_comp = comp.model_copy()
-            new_comp.stack = stack
+            # Accept a config or dict; require stack_cfg only
+            if isinstance(stack, CortexStackConfig):
+                new_comp.stack_cfg = stack
+            elif isinstance(stack, dict):
+                new_comp.stack_cfg = CortexStackConfig(**stack)
+            else:
+                raise TypeError(
+                    "_override_cortex_stack expects a CortexStackConfig or dict"
+                )
             components.append(new_comp)
         else:
             components.append(comp)
@@ -50,10 +59,8 @@ def train(
             policy_architecture = _override_cortex_stack(policy_architecture, stack)
         elif stack_builder is not None:
             builder = load_symbol(stack_builder)
-            built_stack = builder(**(stack_cfg or {}))
-            policy_architecture = _override_cortex_stack(
-                policy_architecture, built_stack
-            )
+            built = builder(**(stack_cfg or {}))
+            policy_architecture = _override_cortex_stack(policy_architecture, built)
 
     return base_train(
         curriculum=curriculum,

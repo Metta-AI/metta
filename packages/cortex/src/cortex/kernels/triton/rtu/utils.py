@@ -1,16 +1,8 @@
 from __future__ import annotations
 
 import torch
-
-try:
-    import triton  # type: ignore
-    import triton.language as tl  # type: ignore
-except Exception:  # pragma: no cover
-    from cortex._triton_stub import install_triton_stub
-
-    install_triton_stub()
-    import triton  # type: ignore  # noqa: F401,E401
-    import triton.language as tl  # type: ignore  # noqa: F401,E401
+import triton  # type: ignore
+import triton.language as tl  # type: ignore
 
 
 @triton.jit

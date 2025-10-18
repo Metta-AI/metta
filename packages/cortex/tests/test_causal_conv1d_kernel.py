@@ -6,7 +6,7 @@ reference implementation, verifying both forward and backward passes.
 
 import pytest
 import torch
-from cortex.kernels import causal_conv1d_pytorch, causal_conv1d_triton
+from cortex.kernels.pytorch.conv1d import causal_conv1d_pytorch
 from cortex.utils import TRITON_AVAILABLE
 
 
@@ -25,6 +25,8 @@ def test_causal_conv1d_triton_vs_pytorch_forward():
     device = get_test_device()
     if not device.type == "cuda":
         pytest.skip("Triton kernel requires CUDA")
+
+    from cortex.kernels.triton.conv1d import causal_conv1d_triton
 
     dtype = torch.float32
     B = 2  # batch size
@@ -97,6 +99,8 @@ def test_causal_conv1d_triton_vs_pytorch_gradients():
     device = get_test_device()
     if not device.type == "cuda":
         pytest.skip("Triton kernel requires CUDA")
+
+    from cortex.kernels.triton.conv1d import causal_conv1d_triton
 
     dtype = torch.float32
     B = 2  # batch size
@@ -208,6 +212,8 @@ def test_causal_conv1d_triton_error_conditions():
     device = get_test_device()
     if not device.type == "cuda":
         pytest.skip("Triton kernel requires CUDA")
+
+    from cortex.kernels.triton.conv1d import causal_conv1d_triton
 
     B, T, F, KS = 2, 32, 16, 4
 

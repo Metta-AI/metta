@@ -29,6 +29,23 @@ class PreUpBlock(BaseBlock):
         self.act = nn.SiLU()
         self.learnable_skip = nn.Parameter(torch.ones(self.d_inner))
         assert cell.hidden_size == self.d_inner, "PreUpBlock requires cell.hidden_size == d_inner"
+        # Control whether to feed a_act (activated) into the cell for
+        # non‑mLSTM cells. Default is False to preserve prior behavior.
+        self.activate_cell_input = bool(config.activate_cell_input)
+
+    def _is_mlstm_cell(self) -> bool:
+        """Best-effort check whether the wrapped cell is an mLSTM.
+
+        Avoids an import-time hard dependency by importing lazily and
+        falling back to a name check if needed.
+        """
+        try:
+            from cortex.cells.mlstm import mLSTMCell  # type: ignore
+
+            return isinstance(self.cell, mLSTMCell)
+        except Exception:
+            # Fallback to class name heuristic
+            return "mlstm" in self.cell.__class__.__name__.lower()
 
     def forward(
         self,
@@ -58,7 +75,10 @@ class PreUpBlock(BaseBlock):
 
         cell_key = self.cell.__class__.__name__
         cell_state = state.get(cell_key, None) if state is not None else None
-        y_inner, new_cell_state = self.cell(a, cell_state, resets=resets)
+        # Optionally feed the activated branch to the cell, except for mLSTM
+        # where we preserve the existing semantics (cell consumes raw 'a').
+        a_for_cell = a_act if (self.activate_cell_input and not self._is_mlstm_cell()) else a
+        y_inner, new_cell_state = self.cell(a_for_cell, cell_state, resets=resets)
 
         # Gated skip and down-projection - always batch-first
         if is_step:
