@@ -44,7 +44,12 @@ def test_mg_config_custom_map_builder():
 
     # Create custom map builder config
     custom_map_builder = RandomMapBuilder.Config(
-        width=15, height=20, agents=12, border_width=2, border_object="stone", objects={"tree": 5, "rock": 3}
+        width=15,
+        height=20,
+        agents=12,
+        border_width=2,
+        border_object="stone",
+        objects={"tree": 5, "rock": 3},
     )
 
     # Create env config with custom map builder

@@ -109,7 +109,9 @@ class PerimeterInContextMapBuilder(MapBuilder):
 
         return num_obstacles, obstacle_size
 
-    def _can_reach_perimeter_optimized(self, grid: np.ndarray, start_i: int, start_j: int) -> bool:
+    def _can_reach_perimeter_optimized(
+        self, grid: np.ndarray, start_i: int, start_j: int
+    ) -> bool:
         """Optimized BFS pathfinding with early termination and vectorized operations."""
         if grid[start_i, start_j] == "wall":
             return False
@@ -160,10 +162,14 @@ class PerimeterInContextMapBuilder(MapBuilder):
 
         return valid_positions
 
-    def _place_obstacle_optimized(self, grid: np.ndarray, obstacle_shape: np.ndarray, avoid_mask: np.ndarray) -> bool:
+    def _place_obstacle_optimized(
+        self, grid: np.ndarray, obstacle_shape: np.ndarray, avoid_mask: np.ndarray
+    ) -> bool:
         """Optimized obstacle placement with reduced redundant operations."""
         # Get valid positions once
-        valid_positions = self._get_valid_positions_vectorized(grid.shape, obstacle_shape, avoid_mask)
+        valid_positions = self._get_valid_positions_vectorized(
+            grid.shape, obstacle_shape, avoid_mask
+        )
 
         if not valid_positions:
             return False
@@ -268,7 +274,9 @@ class PerimeterInContextMapBuilder(MapBuilder):
             obstacles_placed = 0
 
             for fallback_density in densities_to_try:
-                num_obstacles, obstacle_size = self._get_density_config(fallback_density, inner_area, obstacle_type)
+                num_obstacles, obstacle_size = self._get_density_config(
+                    fallback_density, inner_area, obstacle_type
+                )
 
                 # Create avoid mask more efficiently
                 avoid_mask = perimeter_mask.copy()  # Start with perimeter mask
@@ -293,10 +301,14 @@ class PerimeterInContextMapBuilder(MapBuilder):
                 avoid_mask[center_i, center_j] = True
 
                 # Try to place obstacles with optimized method
-                obstacle_shape = self._create_obstacle_shapes(obstacle_type, obstacle_size)
+                obstacle_shape = self._create_obstacle_shapes(
+                    obstacle_type, obstacle_size
+                )
 
                 for _ in range(num_obstacles):
-                    success = self._place_obstacle_optimized(grid, obstacle_shape, avoid_mask)
+                    success = self._place_obstacle_optimized(
+                        grid, obstacle_shape, avoid_mask
+                    )
                     if success:
                         obstacles_placed += 1
                     else:

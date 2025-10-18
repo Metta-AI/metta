@@ -4,7 +4,12 @@ from mettagrid.map_builder.utils import create_grid
 from mettagrid.mapgen.area import Area
 from mettagrid.mapgen.scene import Scene, SceneConfig
 from mettagrid.mapgen.types import MapGrid
-from mettagrid.mapgen.utils.ascii_grid import add_pretty_border, char_grid_to_lines, default_char_to_name, grid_to_lines
+from mettagrid.mapgen.utils.ascii_grid import (
+    add_pretty_border,
+    char_grid_to_lines,
+    default_char_to_name,
+    grid_to_lines,
+)
 
 
 def render_scene(
@@ -18,17 +23,23 @@ def render_scene(
     return scene
 
 
-def assert_raw_grid(grid: MapGrid, ascii_grid: str, name_to_char: dict[str, str] | None = None):
+def assert_raw_grid(
+    grid: MapGrid, ascii_grid: str, name_to_char: dict[str, str] | None = None
+):
     grid_lines = grid_to_lines(grid, name_to_char)
     expected_lines, _, _ = char_grid_to_lines(ascii_grid)
 
     if grid_lines != expected_lines:
         expected_grid = "\n".join(add_pretty_border(expected_lines))
         actual_grid = "\n".join(add_pretty_border(grid_lines))
-        pytest.fail(f"Grid does not match expected:\nEXPECTED:\n{expected_grid}\n\nACTUAL:\n{actual_grid}")
+        pytest.fail(
+            f"Grid does not match expected:\nEXPECTED:\n{expected_grid}\n\nACTUAL:\n{actual_grid}"
+        )
 
 
-def assert_grid_map(scene: Scene, ascii_grid: str, char_to_name: dict[str, str] | None = None):
+def assert_grid_map(
+    scene: Scene, ascii_grid: str, char_to_name: dict[str, str] | None = None
+):
     if char_to_name:
         name_to_char: dict[str, str] = {}
         # First pass: add all mappings
@@ -38,7 +49,8 @@ def assert_grid_map(scene: Scene, ascii_grid: str, char_to_name: dict[str, str] 
         # Second pass: prefer visible characters over whitespace
         for char, name in char_to_name.items():
             if char not in (" ", "\t", "\n") and (
-                name_to_char.get(name) in (" ", "\t", "\n") or name_to_char[name] == char
+                name_to_char.get(name) in (" ", "\t", "\n")
+                or name_to_char[name] == char
             ):
                 name_to_char[name] = char
     else:
@@ -77,7 +89,12 @@ def is_connected(grid: MapGrid):
             nr, nc = r + dr, c + dc
 
             # Check bounds and if it's an empty cell we haven't visited
-            if 0 <= nr < height and 0 <= nc < width and (nr, nc) not in visited and is_empty(str(grid[nr, nc])):
+            if (
+                0 <= nr < height
+                and 0 <= nc < width
+                and (nr, nc) not in visited
+                and is_empty(str(grid[nr, nc]))
+            ):
                 visited.add((nr, nc))
                 queue.append((nr, nc))
 
@@ -91,4 +108,7 @@ def assert_connected(grid: MapGrid, name_to_char: dict[str, str] | None = None):
         name_to_char = {v: k for k, v in default_char_to_name().items()}
 
     if not is_connected(grid):
-        pytest.fail("Grid is not connected:\n" + "\n".join(grid_to_lines(grid, name_to_char, border=True)))
+        pytest.fail(
+            "Grid is not connected:\n"
+            + "\n".join(grid_to_lines(grid, name_to_char, border=True))
+        )

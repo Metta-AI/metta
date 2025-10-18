@@ -17,8 +17,12 @@ class AsciiMapBuilder(MapBuilder):
     class Config(MapBuilderConfig["AsciiMapBuilder"]):
         map_data: list[list[str]]
         char_to_name_map: dict[
-            Annotated[str, StringConstraints(min_length=1, max_length=1)],  # keys are single characters
-            Annotated[str, StringConstraints(pattern=r"^[\w\.]+$")],  # values are object names
+            Annotated[
+                str, StringConstraints(min_length=1, max_length=1)
+            ],  # keys are single characters
+            Annotated[
+                str, StringConstraints(pattern=r"^[\w\.]+$")
+            ],  # values are object names
         ]
 
         @field_validator("map_data", mode="before")
@@ -66,7 +70,9 @@ class AsciiMapBuilder(MapBuilder):
         """Convert a map character to an object name."""
         if char in self.config.char_to_name_map:
             return self.config.char_to_name_map[char]
-        raise ValueError(f"Unknown character: '{char}'. Available: {list(self.config.char_to_name_map.keys())}")
+        raise ValueError(
+            f"Unknown character: '{char}'. Available: {list(self.config.char_to_name_map.keys())}"
+        )
 
     def build(self) -> GameMap:
         return GameMap(self._level)

@@ -106,14 +106,18 @@ class TestConverterObservations:
         generator_tokens = self.get_converter_tokens_at_location(agent_obs, 4, 2)
 
         input_output_feature_ids = {
-            v["id"] for k, v in env.feature_spec().items() if k.startswith("input:") or k.startswith("output:")
+            v["id"]
+            for k, v in env.feature_spec().items()
+            if k.startswith("input:") or k.startswith("output:")
         }
 
         # Extract feature IDs from tokens
         feature_ids = generator_tokens[:, 1]
 
         # No inventory features should be present (since converter has no actual inventory)
-        inventory_features = [id for id in feature_ids if id in input_output_feature_ids]
+        inventory_features = [
+            id for id in feature_ids if id in input_output_feature_ids
+        ]
 
         assert len(inventory_features) == 0, (
             "No inventory/recipe features should be present when recipe_details_obs=False"
@@ -135,12 +139,20 @@ class TestConverterObservations:
         # Create a mapping of feature ID to value
         feature_map = {token[1]: token[2] for token in generator_tokens}
 
-        assert ore_red_input_id in feature_map, f"Should have ore_red recipe input at offset {ore_red_input_id}"
-        assert ore_blue_input_id in feature_map, f"Should have ore_blue recipe input at offset {ore_blue_input_id}"
+        assert ore_red_input_id in feature_map, (
+            f"Should have ore_red recipe input at offset {ore_red_input_id}"
+        )
+        assert ore_blue_input_id in feature_map, (
+            f"Should have ore_blue recipe input at offset {ore_blue_input_id}"
+        )
 
         # Generator expects: ore_red=2, ore_blue=1
-        assert feature_map[ore_red_input_id] == 2, f"ore_red input should be 2, got {feature_map[ore_red_input_id]}"
-        assert feature_map[ore_blue_input_id] == 1, f"ore_blue input should be 1, got {feature_map[ore_blue_input_id]}"
+        assert feature_map[ore_red_input_id] == 2, (
+            f"ore_red input should be 2, got {feature_map[ore_red_input_id]}"
+        )
+        assert feature_map[ore_blue_input_id] == 1, (
+            f"ore_blue input should be 1, got {feature_map[ore_blue_input_id]}"
+        )
 
         # Recipe outputs are shown at dynamic offsets
         assert battery_red_output_id in feature_map, (
@@ -161,8 +173,12 @@ class TestConverterObservations:
         altar_tokens = self.get_converter_tokens_at_location(agent_obs, 2, 4)
 
         # Both should emit at least 3 tokens
-        assert len(generator_tokens) >= 3, f"Generator should emit at least 3 tokens, got {len(generator_tokens)}"
-        assert len(altar_tokens) >= 3, f"Altar should emit at least 3 tokens, got {len(altar_tokens)}"
+        assert len(generator_tokens) >= 3, (
+            f"Generator should emit at least 3 tokens, got {len(generator_tokens)}"
+        )
+        assert len(altar_tokens) >= 3, (
+            f"Altar should emit at least 3 tokens, got {len(altar_tokens)}"
+        )
 
         # Extract recipe features for generator
         gen_feature_map = {token[1]: token[2] for token in generator_tokens}
@@ -174,7 +190,9 @@ class TestConverterObservations:
         ore_blue_input_id = env.feature_spec()["input:ore_blue"]["id"]
         battery_red_input_id = env.feature_spec()["input:battery_red"]["id"]
 
-        assert ore_red_input_id in gen_feature_map and ore_blue_input_id in gen_feature_map, (
+        assert (
+            ore_red_input_id in gen_feature_map and ore_blue_input_id in gen_feature_map
+        ), (
             f"Generator should have ore inputs at offsets {ore_red_input_id}, {ore_blue_input_id}"
         )
         assert battery_red_input_id in altar_feature_map, (
@@ -182,9 +200,15 @@ class TestConverterObservations:
         )
 
         # Verify the recipe differences
-        assert battery_red_input_id not in gen_feature_map, "Generator should not have battery_red input"
-        assert ore_red_input_id not in altar_feature_map, "Altar should not have ore_red input"
-        assert ore_blue_input_id not in altar_feature_map, "Altar should not have ore_blue input"
+        assert battery_red_input_id not in gen_feature_map, (
+            "Generator should not have battery_red input"
+        )
+        assert ore_red_input_id not in altar_feature_map, (
+            "Altar should not have ore_red input"
+        )
+        assert ore_blue_input_id not in altar_feature_map, (
+            "Altar should not have ore_blue input"
+        )
 
 
 def _build_converter_env(
@@ -358,5 +382,7 @@ class TestConverterCooldownTime:
                 completions.append(env.current_step)
                 last_output = output
 
-        assert len(completions) == 3, f"Expected 3 conversions but got {len(completions)}"
+        assert len(completions) == 3, (
+            f"Expected 3 conversions but got {len(completions)}"
+        )
         assert last_output == 3, f"Expected output of 3 but got {last_output}"

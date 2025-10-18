@@ -108,7 +108,13 @@ class MettaGridPettingZooEnv(MettaGridCore, ParallelEnv):
     @override  # pettingzoo.ParallelEnv.step
     def step(
         self, actions: Dict[str, np.ndarray | int]
-    ) -> Tuple[Dict[str, np.ndarray], Dict[str, float], Dict[str, bool], Dict[str, bool], Dict[str, Dict[str, Any]]]:
+    ) -> Tuple[
+        Dict[str, np.ndarray],
+        Dict[str, float],
+        Dict[str, bool],
+        Dict[str, bool],
+        Dict[str, Dict[str, Any]],
+    ]:
         """
         Execute one timestep of the environment dynamics.
 
@@ -122,18 +128,26 @@ class MettaGridPettingZooEnv(MettaGridCore, ParallelEnv):
         actions_array = np.zeros(len(self.agents), dtype=dtype_actions)
         for i, agent in enumerate(self.agents):
             if agent in actions:
-                actions_array[i] = np.asarray(actions[agent], dtype=dtype_actions).reshape(()).item()
+                actions_array[i] = (
+                    np.asarray(actions[agent], dtype=dtype_actions).reshape(()).item()
+                )
 
         # Call base step implementation
-        observations, rewards, terminals, truncations, infos = super().step(actions_array)
+        observations, rewards, terminals, truncations, infos = super().step(
+            actions_array
+        )
 
         # Step results are already provided by base class
 
         # Convert to PettingZoo format
         obs_dict = {agent: observations[i] for i, agent in enumerate(self.agents)}
         reward_dict = {agent: float(rewards[i]) for i, agent in enumerate(self.agents)}
-        terminal_dict = {agent: bool(terminals[i]) for i, agent in enumerate(self.agents)}
-        truncation_dict = {agent: bool(truncations[i]) for i, agent in enumerate(self.agents)}
+        terminal_dict = {
+            agent: bool(terminals[i]) for i, agent in enumerate(self.agents)
+        }
+        truncation_dict = {
+            agent: bool(truncations[i]) for i, agent in enumerate(self.agents)
+        }
         info_dict = {agent: infos for agent in self.agents}
 
         # Remove agents that are done

@@ -6,7 +6,9 @@ from mettagrid.mapgen.types import map_grid_dtype
 
 class TestGameMap:
     def test_init(self):
-        grid = np.array([["wall", "empty"], ["agent.agent", "altar"]], dtype=map_grid_dtype)
+        grid = np.array(
+            [["wall", "empty"], ["agent.agent", "altar"]], dtype=map_grid_dtype
+        )
         game_map = GameMap(grid)
         assert np.array_equal(game_map.grid, grid)
         assert game_map.grid.dtype == map_grid_dtype
@@ -35,7 +37,9 @@ class ConcreteMapBuilder(MapBuilder):
         self._config = config
 
     def build(self) -> GameMap:
-        grid = np.array([["wall", "empty"], ["agent.agent", "altar"]], dtype=map_grid_dtype)
+        grid = np.array(
+            [["wall", "empty"], ["agent.agent", "altar"]], dtype=map_grid_dtype
+        )
         return GameMap(grid)
 
 
@@ -57,7 +61,9 @@ class TestMapBuilder:
         builder = ConcreteMapBuilder(config)
         game_map = builder.build()
         assert isinstance(game_map, GameMap)
-        expected_grid = np.array([["wall", "empty"], ["agent.agent", "altar"]], dtype=map_grid_dtype)
+        expected_grid = np.array(
+            [["wall", "empty"], ["agent.agent", "altar"]], dtype=map_grid_dtype
+        )
         assert np.array_equal(game_map.grid, expected_grid)
 
 

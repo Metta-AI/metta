@@ -46,7 +46,11 @@ def base_config():
             move=ActionConfig(),
             rotate=ActionConfig(),
             get_items=ActionConfig(),
-            attack=AttackActionConfig(enabled=True, consumed_resources={"laser": 1}, defense_resources={"armor": 1}),
+            attack=AttackActionConfig(
+                enabled=True,
+                consumed_resources={"laser": 1},
+                defense_resources={"armor": 1},
+            ),
             put_items=ActionConfig(),
             swap=ActionConfig(),
         ),
@@ -85,7 +89,11 @@ def configured_env(base_config: GameConfig):
 
             # Deep update for nested dicts
             for key, value in config_overrides.items():
-                if isinstance(value, dict) and key in config_dict and isinstance(config_dict[key], dict):
+                if (
+                    isinstance(value, dict)
+                    and key in config_dict
+                    and isinstance(config_dict[key], dict)
+                ):
                     config_dict[key].update(value)
                 else:
                     config_dict[key] = value
@@ -203,7 +211,9 @@ def test_attack_and_swap_integration(configured_env, complex_game_map):
         if swap_result["success"]:
             print("✅ Successfully swapped with frozen agent")
             new_pos = get_agent_position(env, 0)
-            assert new_pos == (1, 5), f"Should have swapped to agent 1's position, got {new_pos}"
+            assert new_pos == (1, 5), (
+                f"Should have swapped to agent 1's position, got {new_pos}"
+            )
         else:
             print(f"ℹ️ Swap with frozen agent not supported: {swap_result.get('error')}")
     else:
@@ -342,7 +352,9 @@ def test_diagonal_movement_integration(configured_env):
         assert result["success"], f"move {direction} should succeed"
 
         actual_pos = get_agent_position(env, 0)
-        assert actual_pos == expected_pos, f"After {direction}, expected {expected_pos}, got {actual_pos}"
+        assert actual_pos == expected_pos, (
+            f"After {direction}, expected {expected_pos}, got {actual_pos}"
+        )
 
     print("✅ Diagonal movement pattern completed successfully!")
 
@@ -368,7 +380,9 @@ def test_noop_is_always_index_0():
     env = MettaGrid(c_config, map_data, 0)
 
     action_names = env.action_names()
-    assert action_names[0] == "noop", f"Expected 'noop' at index 0, got '{action_names[0]}'"
+    assert action_names[0] == "noop", (
+        f"Expected 'noop' at index 0, got '{action_names[0]}'"
+    )
 
     # Test 2: noop listed last but should still be at index 0
     config2 = GameConfig(
@@ -390,7 +404,9 @@ def test_noop_is_always_index_0():
     env2 = MettaGrid(c_config2, map_data, 0)
 
     action_names2 = env2.action_names()
-    assert action_names2[0] == "noop", f"Expected 'noop' at index 0, got '{action_names2[0]}'"
+    assert action_names2[0] == "noop", (
+        f"Expected 'noop' at index 0, got '{action_names2[0]}'"
+    )
 
     # Test 3: Config without noop - first action should not be noop
     config3 = GameConfig(
@@ -412,4 +428,6 @@ def test_noop_is_always_index_0():
 
     action_names3 = env3.action_names()
     assert "noop" not in action_names3, "noop should not be present when disabled"
-    assert action_names3[0] != "noop", "First action should not be noop when noop is disabled"
+    assert action_names3[0] != "noop", (
+        "First action should not be noop when noop is disabled"
+    )

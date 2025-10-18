@@ -102,13 +102,19 @@ class BSP(Scene[BSPConfig]):
             # draw lines on the original grid
             for line in lines:
                 if line.direction == "vertical":
-                    grid[line.start[1] : line.start[1] + line.length, line.start[0]] = "empty"
+                    grid[line.start[1] : line.start[1] + line.length, line.start[0]] = (
+                        "empty"
+                    )
                 else:
-                    grid[line.start[1], line.start[0] : line.start[0] + line.length] = "empty"
+                    grid[line.start[1], line.start[0] : line.start[0] + line.length] = (
+                        "empty"
+                    )
 
 
 class Zone:
-    def __init__(self, x: int, y: int, width: int, height: int, rng: np.random.Generator):
+    def __init__(
+        self, x: int, y: int, width: int, height: int, rng: np.random.Generator
+    ):
         self.x = x
         self.y = y
         self.width = width
@@ -172,7 +178,9 @@ class Zone:
         # rooms could touch each other.
         shift_x = self.rng.integers(1, max(1, self.width - room_width) + 1, dtype=int)
         shift_y = self.rng.integers(1, max(1, self.height - room_height) + 1, dtype=int)
-        return Zone(self.x + shift_x, self.y + shift_y, room_width, room_height, self.rng)
+        return Zone(
+            self.x + shift_x, self.y + shift_y, room_width, room_height, self.rng
+        )
 
     def transpose(self) -> "Zone":
         # Zones can be transposed, to avoid having to write code for both horizontal and vertical splits.

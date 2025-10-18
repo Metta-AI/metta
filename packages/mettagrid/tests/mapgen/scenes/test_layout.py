@@ -74,4 +74,7 @@ def test_multiple_areas():
         areas = scene.select_areas(AreaQuery(where=AreaWhere(tags=[tag])))
         assert len(areas) == 1, f"Area with tag '{tag}' not found"
         area = areas[0]
-        assert (area.x, area.y) == (_center(grid_shape[1], 1), _center(grid_shape[0], 1))
+        assert (area.x, area.y) == (
+            _center(grid_shape[1], 1),
+            _center(grid_shape[0], 1),
+        )

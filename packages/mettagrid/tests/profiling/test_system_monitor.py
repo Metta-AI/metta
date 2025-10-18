@@ -10,7 +10,12 @@ from mettagrid.profiling.system_monitor import SystemMonitor
 @pytest.fixture
 def monitor() -> Generator[SystemMonitor, None, None]:
     """Create a SystemMonitor instance with auto_start=False"""
-    monitor = SystemMonitor(sampling_interval_sec=0.1, history_size=10, auto_start=False, log_level=logging.INFO)
+    monitor = SystemMonitor(
+        sampling_interval_sec=0.1,
+        history_size=10,
+        auto_start=False,
+        log_level=logging.INFO,
+    )
     yield monitor
     # Cleanup
     monitor.stop()
@@ -19,7 +24,12 @@ def monitor() -> Generator[SystemMonitor, None, None]:
 class TestInitialization:
     def test_init_custom_params(self):
         """Test initialization with custom parameters"""
-        monitor = SystemMonitor(sampling_interval_sec=2.0, history_size=50, log_level=logging.DEBUG, auto_start=False)
+        monitor = SystemMonitor(
+            sampling_interval_sec=2.0,
+            history_size=50,
+            log_level=logging.DEBUG,
+            auto_start=False,
+        )
 
         assert monitor.sampling_interval_sec == 2.0
         assert monitor.history_size == 50

@@ -120,7 +120,10 @@ class SceneConfig(Config):
         data = handler(self)
         if not self._scene_cls:
             raise ValueError(f"{self.__class__.__name__} is not bound to a scene class")
-        return {"type": f"{self._scene_cls.__module__}.{self._scene_cls.__name__}", **data}
+        return {
+            "type": f"{self._scene_cls.__module__}.{self._scene_cls.__name__}",
+            **data,
+        }
 
     def create_root(
         self,
@@ -129,7 +132,9 @@ class SceneConfig(Config):
         instance_id: int | None = None,
         use_instance_id_for_team_assignment: bool = False,
     ) -> Scene:
-        effective_instance_id = instance_id if use_instance_id_for_team_assignment else None
+        effective_instance_id = (
+            instance_id if use_instance_id_for_team_assignment else None
+        )
         return self.scene_cls(
             area=area,
             config=self,
@@ -146,8 +151,14 @@ class SceneConfig(Config):
         use_instance_id_for_team_assignment: bool = False,
     ) -> Scene:
         rng = parent_scene.rng.spawn(1)[0]
-        inherited_instance_id = instance_id if instance_id is not None else getattr(parent_scene, "instance_id", None)
-        effective_instance_id = inherited_instance_id if use_instance_id_for_team_assignment else None
+        inherited_instance_id = (
+            instance_id
+            if instance_id is not None
+            else getattr(parent_scene, "instance_id", None)
+        )
+        effective_instance_id = (
+            inherited_instance_id if use_instance_id_for_team_assignment else None
+        )
 
         return self.scene_cls(
             area=area,
@@ -178,7 +189,9 @@ def validate_any_scene_config(v: Any) -> SceneConfig:
     if isinstance(target, type) and issubclass(target, Scene):
         cfg_model = getattr(target, "Config", None)
         if not (isinstance(cfg_model, type) and issubclass(cfg_model, SceneConfig)):
-            raise TypeError(f"{target.__name__} must define a nested class Config(SceneConfig).")
+            raise TypeError(
+                f"{target.__name__} must define a nested class Config(SceneConfig)."
+            )
         data = {k: v for k, v in v.items() if k != "type"}
         return cfg_model.model_validate(data)
 
@@ -223,14 +236,22 @@ class Scene(Generic[ConfigT]):
         super().__init_subclass__(**kwargs)
 
         # Look for Scene base class
-        scene_bases = [base for base in getattr(cls, "__orig_bases__", ()) if get_origin(base) is Scene]
+        scene_bases = [
+            base
+            for base in getattr(cls, "__orig_bases__", ())
+            if get_origin(base) is Scene
+        ]
         if len(scene_bases) != 1:
-            raise TypeError(f"{cls.__name__} must inherit from Scene[…], with a concrete Config class parameter")
+            raise TypeError(
+                f"{cls.__name__} must inherit from Scene[…], with a concrete Config class parameter"
+            )
 
         # Set the Config class - this allows to use Scene.Config shorthand
         Config = get_args(scene_bases[0])[0]
         if Config._scene_cls:
-            raise ValueError(f"{Config.__name__} is already bound to another scene class: {Config._scene_cls.__name__}")
+            raise ValueError(
+                f"{Config.__name__} is already bound to another scene class: {Config._scene_cls.__name__}"
+            )
         Config._scene_cls = cls
         cls.Config = Config
         return
@@ -252,7 +273,9 @@ class Scene(Generic[ConfigT]):
         self.area = area
         self.parent_scene = parent_scene
         self.transform = (
-            parent_scene.transform.compose(self.config.transform) if parent_scene else self.config.transform
+            parent_scene.transform.compose(self.config.transform)
+            if parent_scene
+            else self.config.transform
         )
 
         self.use_instance_id_for_team_assignment = use_instance_id_for_team_assignment
@@ -354,11 +377,15 @@ class Scene(Generic[ConfigT]):
                 self.children.append(child_scene)
                 child_scene.render_with_children()
 
-    def make_area(self, x: int, y: int, width: int, height: int, tags: list[str] | None = None) -> Area:
+    def make_area(
+        self, x: int, y: int, width: int, height: int, tags: list[str] | None = None
+    ) -> Area:
         inverse_transform = self.transform.inverse()
         # Transform both corners, then find the bounds of the area in untransformed coordinates.
         (orig_x1, orig_y1) = inverse_transform.apply_to_coords(self.grid, x, y)
-        (orig_x2, orig_y2) = inverse_transform.apply_to_coords(self.grid, x + width - 1, y + height - 1)
+        (orig_x2, orig_y2) = inverse_transform.apply_to_coords(
+            self.grid, x + width - 1, y + height - 1
+        )
         if orig_x1 > orig_x2:
             orig_x1, orig_x2 = orig_x2, orig_x1
         if orig_y1 > orig_y2:
@@ -405,7 +432,9 @@ class Scene(Generic[ConfigT]):
                 self._locks[lock] = set()
 
             # Remove areas that are locked.
-            selected_areas = [area for area in selected_areas if id(area) not in self._locks[lock]]
+            selected_areas = [
+                area for area in selected_areas if id(area) not in self._locks[lock]
+            ]
 
         limit = query.limit
         if limit is not None and limit < len(selected_areas):
@@ -413,7 +442,9 @@ class Scene(Generic[ConfigT]):
             offset = query.offset
             if order_by == "random":
                 assert offset is None, "offset is not supported for random order"
-                selected_areas = list(self.rng.choice(selected_areas, size=int(limit), replace=False))  # type: ignore
+                selected_areas = list(
+                    self.rng.choice(selected_areas, size=int(limit), replace=False)
+                )  # type: ignore
             elif order_by == "first":
                 offset = offset or 0
                 selected_areas = selected_areas[offset : offset + limit]
@@ -454,7 +485,9 @@ class Scene(Generic[ConfigT]):
 
         return None
 
-    def transplant_to_grid(self, grid: MapGrid, shift_x: int, shift_y: int, is_root: bool = True):
+    def transplant_to_grid(
+        self, grid: MapGrid, shift_x: int, shift_y: int, is_root: bool = True
+    ):
         """
         Transplants the scene to a new grid.
 

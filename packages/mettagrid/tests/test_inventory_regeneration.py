@@ -43,7 +43,9 @@ class TestInventoryRegeneration:
         # Check initial energy
         energy_idx = env.resource_names.index("energy")
         for agent in agents:
-            assert agent["inventory"][energy_idx] == 10, "Each agent should start with 10 energy"
+            assert agent["inventory"][energy_idx] == 10, (
+                "Each agent should start with 10 energy"
+            )
 
         # Take steps and verify regeneration
         noop_idx = env.action_names.index("noop")
@@ -54,42 +56,54 @@ class TestInventoryRegeneration:
         grid_objects = env.grid_objects()
         agents = [obj for _obj_id, obj in grid_objects.items() if "agent_id" in obj]
         for agent in agents:
-            assert agent["inventory"][energy_idx] == 10, "Energy should not regenerate at step 1"
+            assert agent["inventory"][energy_idx] == 10, (
+                "Energy should not regenerate at step 1"
+            )
 
         # Step 2: No regeneration yet
         obs, rewards, terminals, truncations, info = env.step(actions)
         grid_objects = env.grid_objects()
         agents = [obj for _obj_id, obj in grid_objects.items() if "agent_id" in obj]
         for agent in agents:
-            assert agent["inventory"][energy_idx] == 10, "Energy should not regenerate at step 2"
+            assert agent["inventory"][energy_idx] == 10, (
+                "Energy should not regenerate at step 2"
+            )
 
         # Step 3: Regeneration should occur (current_step % 3 == 0)
         obs, rewards, terminals, truncations, info = env.step(actions)
         grid_objects = env.grid_objects()
         agents = [obj for _obj_id, obj in grid_objects.items() if "agent_id" in obj]
         for agent in agents:
-            assert agent["inventory"][energy_idx] == 15, "Energy should regenerate to 15 at step 3"
+            assert agent["inventory"][energy_idx] == 15, (
+                "Energy should regenerate to 15 at step 3"
+            )
 
         # Step 4: No regeneration
         obs, rewards, terminals, truncations, info = env.step(actions)
         grid_objects = env.grid_objects()
         agents = [obj for _obj_id, obj in grid_objects.items() if "agent_id" in obj]
         for agent in agents:
-            assert agent["inventory"][energy_idx] == 15, "Energy should remain at 15 at step 4"
+            assert agent["inventory"][energy_idx] == 15, (
+                "Energy should remain at 15 at step 4"
+            )
 
         # Step 5: No regeneration
         obs, rewards, terminals, truncations, info = env.step(actions)
         grid_objects = env.grid_objects()
         agents = [obj for _obj_id, obj in grid_objects.items() if "agent_id" in obj]
         for agent in agents:
-            assert agent["inventory"][energy_idx] == 15, "Energy should remain at 15 at step 5"
+            assert agent["inventory"][energy_idx] == 15, (
+                "Energy should remain at 15 at step 5"
+            )
 
         # Step 6: Regeneration should occur again
         obs, rewards, terminals, truncations, info = env.step(actions)
         grid_objects = env.grid_objects()
         agents = [obj for _obj_id, obj in grid_objects.items() if "agent_id" in obj]
         for agent in agents:
-            assert agent["inventory"][energy_idx] == 20, "Energy should regenerate to 20 at step 6"
+            assert agent["inventory"][energy_idx] == 20, (
+                "Energy should regenerate to 20 at step 6"
+            )
 
     def test_regeneration_disabled_with_zero_interval(self):
         """Test that regeneration is disabled when interval is 0."""
@@ -119,8 +133,12 @@ class TestInventoryRegeneration:
         for _ in range(10):
             obs, rewards, terminals, truncations, info = env.step(actions)
             grid_objects = env.grid_objects()
-            agent = next(obj for _obj_id, obj in grid_objects.items() if "agent_id" in obj)
-            assert agent["inventory"][energy_idx] == 10, "Energy should not regenerate with interval=0"
+            agent = next(
+                obj for _obj_id, obj in grid_objects.items() if "agent_id" in obj
+            )
+            assert agent["inventory"][energy_idx] == 10, (
+                "Energy should not regenerate with interval=0"
+            )
 
     def test_regeneration_with_resource_limits(self):
         """Test that regeneration respects resource limits."""

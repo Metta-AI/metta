@@ -56,7 +56,9 @@ class MemoryMonitor:
     def __init__(self):
         self._tracked_objects: dict[str, dict[str, Any]] = {}
 
-    def add(self, obj: Any, name: str | None = None, track_attributes: bool = False) -> None:
+    def add(
+        self, obj: Any, name: str | None = None, track_attributes: bool = False
+    ) -> None:
         """Add object to monitor using weak references.
 
         Args:
@@ -72,7 +74,9 @@ class MemoryMonitor:
             initial_size = get_object_size(obj)
 
             try:
-                weak_ref = weakref.ref(obj, lambda ref, key=name: self._tracked_objects.pop(key, None))
+                weak_ref = weakref.ref(
+                    obj, lambda ref, key=name: self._tracked_objects.pop(key, None)
+                )
                 self._tracked_objects[name] = {
                     "object_ref": weak_ref,
                     "initial_size": initial_size,
@@ -103,7 +107,10 @@ class MemoryMonitor:
                     attr_initial_size = get_object_size(attr_value)
                     try:
                         attr_weak_ref = weakref.ref(
-                            attr_value, lambda _ref, key=attr_key: self._tracked_objects.pop(key, None)
+                            attr_value,
+                            lambda _ref, key=attr_key: self._tracked_objects.pop(
+                                key, None
+                            ),
                         )
                         self._tracked_objects[attr_key] = {
                             "object_ref": attr_weak_ref,
@@ -133,7 +140,10 @@ class MemoryMonitor:
 
                         try:
                             attr_weak_ref = weakref.ref(
-                                slot_value, lambda _ref, key=attr_key: self._tracked_objects.pop(key, None)
+                                slot_value,
+                                lambda _ref, key=attr_key: self._tracked_objects.pop(
+                                    key, None
+                                ),
                             )
                             self._tracked_objects[attr_key] = {
                                 "object_ref": attr_weak_ref,
@@ -186,7 +196,9 @@ class MemoryMonitor:
             removed = True
 
         # Remove all attributes
-        keys_to_remove = [key for key in self._tracked_objects.keys() if key.startswith(f"{name}.")]
+        keys_to_remove = [
+            key for key in self._tracked_objects.keys() if key.startswith(f"{name}.")
+        ]
         for key in keys_to_remove:
             self._tracked_objects.pop(key)
             removed = True

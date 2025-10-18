@@ -16,7 +16,9 @@ def test_basic_memory_calculation():
 
     # Dict with items
     test_dict = {"a": 1, "b": 2}
-    expected = sys.getsizeof(test_dict) + sum(sys.getsizeof(k) + sys.getsizeof(v) for k, v in test_dict.items())
+    expected = sys.getsizeof(test_dict) + sum(
+        sys.getsizeof(k) + sys.getsizeof(v) for k, v in test_dict.items()
+    )
     assert get_object_size(test_dict) == expected
 
 

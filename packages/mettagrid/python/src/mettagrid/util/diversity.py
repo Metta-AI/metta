@@ -34,7 +34,9 @@ def calculate_diversity_bonus(
 
     # Calculate mean and standard deviation for each group
     group_means = {g: np.mean(episode_rewards[group_ids == g]) for g in unique_groups}
-    group_stds = {g: np.std(episode_rewards[group_ids == g]) + 1e-6 for g in unique_groups}
+    group_stds = {
+        g: np.std(episode_rewards[group_ids == g]) + 1e-6 for g in unique_groups
+    }
     # Add 1e-6 to prevent division by zero if group rewards are identical e.g. single agent in group
 
     # Initialize scaling factors array
@@ -50,7 +52,9 @@ def calculate_diversity_bonus(
         agent_group_std = group_stds[agent_group_id]
 
         # Calculate normalized distance to own group
-        norm_distance_to_own_group = abs(agent_reward - agent_group_mean) / agent_group_std
+        norm_distance_to_own_group = (
+            abs(agent_reward - agent_group_mean) / agent_group_std
+        )
         similarity_score = math.exp(-norm_distance_to_own_group)
 
         # Calculate diversity scores for each other group
@@ -59,13 +63,17 @@ def calculate_diversity_bonus(
             if other_group != agent_group_id:
                 other_group_mean = group_means[other_group]
                 other_group_std = group_stds[other_group]
-                norm_distance_to_other_group = abs(agent_reward - other_group_mean) / other_group_std
+                norm_distance_to_other_group = (
+                    abs(agent_reward - other_group_mean) / other_group_std
+                )
                 diversity_scores.append(1 - math.exp(-norm_distance_to_other_group))
 
         # Average the diversity scores across other groups
         diversity_score = np.mean(diversity_scores) if diversity_scores else 0
 
         # Calculate final scaling factor (multiplicative)
-        diversity_factors[agent_idx] = 1 + similarity_coef * similarity_score + diversity_coef * diversity_score
+        diversity_factors[agent_idx] = (
+            1 + similarity_coef * similarity_score + diversity_coef * diversity_score
+        )
 
     return diversity_factors

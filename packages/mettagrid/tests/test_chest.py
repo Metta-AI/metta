@@ -47,7 +47,9 @@ class TestChest:
         # Agent is south of chest (withdrawal position)
 
         # Try to move south (to chest position) - should trigger deposit
-        actions = np.array([action_index(env, "move", Orientation.SOUTH)], dtype=dtype_actions)
+        actions = np.array(
+            [action_index(env, "move", Orientation.SOUTH)], dtype=dtype_actions
+        )
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         # Check deposit happened
@@ -63,27 +65,41 @@ class TestChest:
         )
 
         # Move around to south position to withdraw
-        actions = np.array([action_index(env, "move", Orientation.WEST)], dtype=dtype_actions)
+        actions = np.array(
+            [action_index(env, "move", Orientation.WEST)], dtype=dtype_actions
+        )
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         # Then south
-        actions = np.array([action_index(env, "move", Orientation.SOUTH)], dtype=dtype_actions)
+        actions = np.array(
+            [action_index(env, "move", Orientation.SOUTH)], dtype=dtype_actions
+        )
         obs, rewards, terminals, truncations, info = env.step(actions)
-        actions = np.array([action_index(env, "move", Orientation.SOUTH)], dtype=dtype_actions)
+        actions = np.array(
+            [action_index(env, "move", Orientation.SOUTH)], dtype=dtype_actions
+        )
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         # Then east to be south of chest
-        actions = np.array([action_index(env, "move", Orientation.EAST)], dtype=dtype_actions)
+        actions = np.array(
+            [action_index(env, "move", Orientation.EAST)], dtype=dtype_actions
+        )
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         # Now move north to chest (from withdrawal position)
-        actions = np.array([action_index(env, "move", Orientation.NORTH)], dtype=dtype_actions)
+        actions = np.array(
+            [action_index(env, "move", Orientation.NORTH)], dtype=dtype_actions
+        )
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         # Check withdrawal happened
         grid_objects_after = env.grid_objects()
-        agent_after = next(obj for _obj_id, obj in grid_objects_after.items() if "agent_id" in obj)
-        chest_after = next(obj for _obj_id, obj in grid_objects_after.items() if obj["type"] == 10)
+        agent_after = next(
+            obj for _obj_id, obj in grid_objects_after.items() if "agent_id" in obj
+        )
+        chest_after = next(
+            obj for _obj_id, obj in grid_objects_after.items() if obj["type"] == 10
+        )
 
         assert agent_after["inventory"].get(gold_idx, 0) == 5, (
             f"Agent should have 5 gold after withdrawal, has {agent_after['inventory'].get(gold_idx, 0)}"
@@ -130,7 +146,9 @@ class TestChest:
         # Agent is north of chest (deposit position)
 
         # Try to deposit 5 gold, but agent only has 3
-        actions = np.array([action_index(env, "move", Orientation.SOUTH)], dtype=dtype_actions)
+        actions = np.array(
+            [action_index(env, "move", Orientation.SOUTH)], dtype=dtype_actions
+        )
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         # Check partial deposit happened
@@ -146,23 +164,37 @@ class TestChest:
         )
 
         # Move around to south position to withdraw
-        actions = np.array([action_index(env, "move", Orientation.WEST)], dtype=dtype_actions)
+        actions = np.array(
+            [action_index(env, "move", Orientation.WEST)], dtype=dtype_actions
+        )
         obs, rewards, terminals, truncations, info = env.step(actions)
-        actions = np.array([action_index(env, "move", Orientation.SOUTH)], dtype=dtype_actions)
+        actions = np.array(
+            [action_index(env, "move", Orientation.SOUTH)], dtype=dtype_actions
+        )
         obs, rewards, terminals, truncations, info = env.step(actions)
-        actions = np.array([action_index(env, "move", Orientation.SOUTH)], dtype=dtype_actions)
+        actions = np.array(
+            [action_index(env, "move", Orientation.SOUTH)], dtype=dtype_actions
+        )
         obs, rewards, terminals, truncations, info = env.step(actions)
-        actions = np.array([action_index(env, "move", Orientation.EAST)], dtype=dtype_actions)
+        actions = np.array(
+            [action_index(env, "move", Orientation.EAST)], dtype=dtype_actions
+        )
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         # Try to withdraw 5 gold, chest has exactly 5
-        actions = np.array([action_index(env, "move", Orientation.NORTH)], dtype=dtype_actions)
+        actions = np.array(
+            [action_index(env, "move", Orientation.NORTH)], dtype=dtype_actions
+        )
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         # Check full withdrawal happened
         grid_objects_after = env.grid_objects()
-        agent_after = next(obj for _obj_id, obj in grid_objects_after.items() if "agent_id" in obj)
-        chest_after = next(obj for _obj_id, obj in grid_objects_after.items() if obj["type"] == 10)
+        agent_after = next(
+            obj for _obj_id, obj in grid_objects_after.items() if "agent_id" in obj
+        )
+        chest_after = next(
+            obj for _obj_id, obj in grid_objects_after.items() if obj["type"] == 10
+        )
 
         assert agent_after["inventory"].get(gold_idx, 0) == 5, (
             f"Agent should have 5 gold after withdrawal, has {agent_after['inventory'].get(gold_idx, 0)}"
@@ -172,15 +204,23 @@ class TestChest:
         )
 
         # Try to withdraw again when chest is empty
-        actions = np.array([action_index(env, "move", Orientation.SOUTH)], dtype=dtype_actions)
+        actions = np.array(
+            [action_index(env, "move", Orientation.SOUTH)], dtype=dtype_actions
+        )
         obs, rewards, terminals, truncations, info = env.step(actions)
-        actions = np.array([action_index(env, "move", Orientation.NORTH)], dtype=dtype_actions)
+        actions = np.array(
+            [action_index(env, "move", Orientation.NORTH)], dtype=dtype_actions
+        )
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         # Check nothing changed (no resources to withdraw)
         grid_objects_final = env.grid_objects()
-        agent_final = next(obj for _obj_id, obj in grid_objects_final.items() if "agent_id" in obj)
-        chest_final = next(obj for _obj_id, obj in grid_objects_final.items() if obj["type"] == 10)
+        agent_final = next(
+            obj for _obj_id, obj in grid_objects_final.items() if "agent_id" in obj
+        )
+        chest_final = next(
+            obj for _obj_id, obj in grid_objects_final.items() if obj["type"] == 10
+        )
 
         assert agent_final["inventory"].get(gold_idx, 0) == 5, (
             f"Agent should still have 5 gold, has {agent_final['inventory'].get(gold_idx, 0)}"

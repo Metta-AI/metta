@@ -30,7 +30,9 @@ class Area:
 
     @property
     def grid(self) -> MapGrid:
-        return self.outer_grid[self.y : self.y + self.height, self.x : self.x + self.width]
+        return self.outer_grid[
+            self.y : self.y + self.height, self.x : self.x + self.width
+        ]
 
     @classmethod
     def root_area_from_grid(cls, grid: MapGrid) -> Area:
@@ -45,7 +47,9 @@ class Area:
         tags: list[str] | None = None,
     ) -> Area:
         if width > self.width or height > self.height:
-            raise ValueError(f"Area {self.width}x{self.height} is too large for sub-area {width}x{height}")
+            raise ValueError(
+                f"Area {self.width}x{self.height} is too large for sub-area {width}x{height}"
+            )
         if x + width > self.width or y + height > self.height:
             raise ValueError(
                 f"Subarea at ({x},{y}) with size {width}x{height} extends beyond parent area boundaries"
@@ -70,7 +74,9 @@ class Area:
             "tags": self.tags,
         }
 
-    def transplant_to_grid(self, grid: MapGrid, shift_x: int, shift_y: int, copy_grid: bool):
+    def transplant_to_grid(
+        self, grid: MapGrid, shift_x: int, shift_y: int, copy_grid: bool
+    ):
         original_grid = self.grid
         self.outer_grid = grid
         self.x += shift_x

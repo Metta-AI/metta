@@ -55,7 +55,15 @@ def movement_game_map():
     return [
         ["wall", "wall", "wall", "wall", "wall", "wall", "wall"],
         ["wall", "empty", "empty", "empty", "empty", "empty", "wall"],
-        ["wall", "empty", "empty", "agent.red", "empty", "empty", "wall"],  # Agent in center
+        [
+            "wall",
+            "empty",
+            "empty",
+            "agent.red",
+            "empty",
+            "empty",
+            "wall",
+        ],  # Agent in center
         ["wall", "empty", "empty", "empty", "empty", "empty", "wall"],
         ["wall", "wall", "wall", "wall", "wall", "wall", "wall"],
     ]
@@ -147,7 +155,9 @@ def test_8way_movement_all_directions():
     env = MettaGridCore(cfg)
     env.reset()
     objects = env.grid_objects()
-    agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)  # type_id 0 is agent
+    agent_id = next(
+        id for id, obj in objects.items() if obj["type_id"] == 0
+    )  # type_id 0 is agent
     initial_pos = (objects[agent_id]["r"], objects[agent_id]["c"])
     assert initial_pos == (2, 2)
 
@@ -171,7 +181,9 @@ def test_8way_movement_all_directions():
 
         objects = env.grid_objects()
         actual_pos = (objects[agent_id]["r"], objects[agent_id]["c"])
-        assert actual_pos == expected_pos, f"Direction {orientation.name}: expected {expected_pos}, got {actual_pos}"
+        assert actual_pos == expected_pos, (
+            f"Direction {orientation.name}: expected {expected_pos}, got {actual_pos}"
+        )
 
         # Verify orientation changes to match the exact movement direction
         # Based on move.hpp: actor->orientation = move_direction;
@@ -274,8 +286,14 @@ def test_orientation_changes_with_8way():
         (Orientation.EAST, Orientation.EAST.value),  # East -> faces East (3)
         (Orientation.SOUTH, Orientation.SOUTH.value),  # South -> faces South (1)
         (Orientation.WEST, Orientation.WEST.value),  # West -> faces West (2)
-        (Orientation.SOUTHEAST, Orientation.SOUTHEAST.value),  # Southeast -> faces Southeast (7)
-        (Orientation.SOUTHWEST, Orientation.SOUTHWEST.value),  # Southwest -> faces Southwest (6)
+        (
+            Orientation.SOUTHEAST,
+            Orientation.SOUTHEAST.value,
+        ),  # Southeast -> faces Southeast (7)
+        (
+            Orientation.SOUTHWEST,
+            Orientation.SOUTHWEST.value,
+        ),  # Southwest -> faces Southwest (6)
     ]
 
     for orientation, expected_facing in test_moves:
@@ -487,7 +505,9 @@ def test_orientation_changes_on_failed_8way_movement():
 
     objects = env.grid_objects()
     assert not env.action_success[0]  # Movement should fail
-    assert objects[agent_id]["orientation"] == Orientation.EAST.value  # Orientation should change to East
+    assert (
+        objects[agent_id]["orientation"] == Orientation.EAST.value
+    )  # Orientation should change to East
 
     # Try to move Northeast into wall - should fail but SHOULD change orientation to Northeast
     actions[0] = action_index(env, "move", Orientation.NORTHEAST)
@@ -495,7 +515,9 @@ def test_orientation_changes_on_failed_8way_movement():
 
     objects = env.grid_objects()
     assert not env.action_success[0]  # Movement should fail
-    assert objects[agent_id]["orientation"] == Orientation.NORTHEAST.value  # Orientation should change to Northeast
+    assert (
+        objects[agent_id]["orientation"] == Orientation.NORTHEAST.value
+    )  # Orientation should change to Northeast
 
     # Try to move Southwest into wall - should fail but SHOULD change orientation to Southwest
     actions[0] = action_index(env, "move", Orientation.SOUTHWEST)
@@ -503,7 +525,9 @@ def test_orientation_changes_on_failed_8way_movement():
 
     objects = env.grid_objects()
     assert not env.action_success[0]  # Movement should fail
-    assert objects[agent_id]["orientation"] == Orientation.SOUTHWEST.value  # Orientation should change to Southwest
+    assert (
+        objects[agent_id]["orientation"] == Orientation.SOUTHWEST.value
+    )  # Orientation should change to Southwest
 
 
 # Tests for MettaGrid (high-level API) using helper functions
@@ -532,15 +556,21 @@ def test_move_all_directions(configured_env, movement_game_map):
         position_after = get_agent_position(env, 0)
 
         # Assert movement was successful
-        assert result["success"], f"Move {direction_name} should succeed. Error: {result.get('error', 'Unknown')}"
+        assert result["success"], (
+            f"Move {direction_name} should succeed. Error: {result.get('error', 'Unknown')}"
+        )
 
         # Assert position changed
-        assert position_before != position_after, f"Agent should have moved {direction_name}"
+        assert position_before != position_after, (
+            f"Agent should have moved {direction_name}"
+        )
 
         # Assert movement was in correct direction
         dr = position_after[0] - position_before[0]
         dc = position_after[1] - position_before[1]
-        assert (dr, dc) == (expected_dr, expected_dc), f"Agent should have moved correctly {direction_name}"
+        assert (dr, dc) == (expected_dr, expected_dc), (
+            f"Agent should have moved correctly {direction_name}"
+        )
 
         print(f"✅ Move {direction_name}: {position_before} → {position_after}")
 
@@ -569,15 +599,21 @@ def test_move_diagonal_directions(configured_env, movement_game_map):
         position_after = get_agent_position(env, 0)
 
         # Assert movement was successful
-        assert result["success"], f"Move {direction_name} should succeed. Error: {result.get('error', 'Unknown')}"
+        assert result["success"], (
+            f"Move {direction_name} should succeed. Error: {result.get('error', 'Unknown')}"
+        )
 
         # Assert position changed
-        assert position_before != position_after, f"Agent should have moved {direction_name}"
+        assert position_before != position_after, (
+            f"Agent should have moved {direction_name}"
+        )
 
         # Assert movement was in correct direction
         dr = position_after[0] - position_before[0]
         dc = position_after[1] - position_before[1]
-        assert (dr, dc) == (expected_dr, expected_dc), f"Agent should have moved correctly {direction_name}"
+        assert (dr, dc) == (expected_dr, expected_dc), (
+            f"Agent should have moved correctly {direction_name}"
+        )
 
         print(f"✅ Move {direction_name}: {position_before} → {position_after}")
 
@@ -618,11 +654,17 @@ def test_move_blocked_by_wall(configured_env, blocked_game_map):
         # Movement should fail or position should remain unchanged
         if result["success"]:
             # This shouldn't happen for blocked movement
-            raise AssertionError(f"Move {direction_name} should fail when blocked by wall")
+            raise AssertionError(
+                f"Move {direction_name} should fail when blocked by wall"
+            )
         else:
             # Action failed, which is expected for blocked movement
-            assert result["error"] is not None, f"Failed move {direction_name} should have an error message"
-            assert position_before == position_after, "Position should not change when blocked"
+            assert result["error"] is not None, (
+                f"Failed move {direction_name} should have an error message"
+            )
+            assert position_before == position_after, (
+                "Position should not change when blocked"
+            )
 
 
 def test_move_returns_to_center(configured_env, movement_game_map):
@@ -647,7 +689,9 @@ def test_move_returns_to_center(configured_env, movement_game_map):
 
     # Should be back at original position
     final_pos = get_agent_position(env)
-    assert final_pos == initial_pos, f"Agent should return to original position {initial_pos}, but is at {final_pos}"
+    assert final_pos == initial_pos, (
+        f"Agent should return to original position {initial_pos}, but is at {final_pos}"
+    )
 
 
 def test_agent_walks_across_room(configured_env, corridor_game_map):
@@ -698,10 +742,14 @@ def test_agent_walks_across_room(configured_env, corridor_game_map):
             working_direction_str = direction_name
             break
         else:
-            print(f"✗ Direction {direction_name} failed: {result.get('error', 'Unknown error')}")
+            print(
+                f"✗ Direction {direction_name} failed: {result.get('error', 'Unknown error')}"
+            )
 
     # Assert we found at least one working direction
-    assert working_direction is not None, "Should find at least one direction that allows movement"
+    assert working_direction is not None, (
+        "Should find at least one direction that allows movement"
+    )
 
     print(f"\n=== Walking across room in direction: {working_direction_str} ===")
 
@@ -743,7 +791,11 @@ def test_agent_walks_across_room(configured_env, corridor_game_map):
     print(f"Working direction: {working_direction_str}")
     print(f"Total move attempts: {total_moves}")
     print(f"Successful moves: {len(successful_moves)}")
-    print(f"Success rate: {len(successful_moves) / total_moves:.1%}" if total_moves > 0 else "N/A")
+    print(
+        f"Success rate: {len(successful_moves) / total_moves:.1%}"
+        if total_moves > 0
+        else "N/A"
+    )
 
     # Validation
     assert len(successful_moves) >= 1, (
@@ -804,7 +856,9 @@ def test_agent_walks_in_all_cardinal_directions(configured_env, corridor_game_ma
 
     # In a corridor, we expect east to work since agent starts next to empty spaces
     if "east" not in successful_directions:
-        print("Warning: East movement failed, which is unexpected in this corridor layout")
+        print(
+            "Warning: East movement failed, which is unexpected in this corridor layout"
+        )
 
 
 def test_orientation_enum_functionality():

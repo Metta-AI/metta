@@ -17,14 +17,21 @@ def find_test_binary(bin_name: str) -> Optional[str]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run a C++ test binary from Bazel runfiles")
+    parser = argparse.ArgumentParser(
+        description="Run a C++ test binary from Bazel runfiles"
+    )
     parser.add_argument(
-        "--bin", dest="bin_name", default=os.environ.get("TEST_BIN"), help="Name of the test binary to execute"
+        "--bin",
+        dest="bin_name",
+        default=os.environ.get("TEST_BIN"),
+        help="Name of the test binary to execute",
     )
     args = parser.parse_args()
 
     if not args.bin_name:
-        print("ERROR: No test binary specified. Pass --bin=<binary_name> or set TEST_BIN env var.")
+        print(
+            "ERROR: No test binary specified. Pass --bin=<binary_name> or set TEST_BIN env var."
+        )
         return 2
 
     test_bin = find_test_binary(args.bin_name)

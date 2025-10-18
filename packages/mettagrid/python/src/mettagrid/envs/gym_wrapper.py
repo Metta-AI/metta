@@ -17,8 +17,12 @@ class SingleAgentWrapper(gym.Wrapper):
         elif action_array.ndim == 1 and action_array.shape[0] == 1:
             pass
         else:
-            raise ValueError(f"SingleAgentWrapper expects scalar action, got shape {action_array.shape}")
-        observations, rewards, terminals, truncations, infos = self.env.step(action_array)
+            raise ValueError(
+                f"SingleAgentWrapper expects scalar action, got shape {action_array.shape}"
+            )
+        observations, rewards, terminals, truncations, infos = self.env.step(
+            action_array
+        )
 
         observations = observations.squeeze(0)
         rewards = rewards.squeeze(0)

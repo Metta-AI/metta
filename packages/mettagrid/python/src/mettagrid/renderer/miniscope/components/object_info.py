@@ -59,7 +59,9 @@ class ObjectInfoComponent(MiniscopeComponent):
         grid_objects = self.env.grid_objects(bbox)
 
         # Use viewport height for panel height
-        panel_height = self.state.viewport_height // 2 if self.state.viewport_height else 20
+        panel_height = (
+            self.state.viewport_height // 2 if self.state.viewport_height else 20
+        )
 
         table = self._build_table(
             grid_objects,
@@ -102,7 +104,11 @@ class ObjectInfoComponent(MiniscopeComponent):
             table.add_row("Status", "(empty space)")
         else:
             object_type_names = self._get_object_type_names()
-            type_name = object_type_names[selected_obj["type"]] if object_type_names else str(selected_obj["type"])
+            type_name = (
+                object_type_names[selected_obj["type"]]
+                if object_type_names
+                else str(selected_obj["type"])
+            )
             table.add_row("Type", type_name)
             actual_r = selected_obj.get("r", "?")
             actual_c = selected_obj.get("c", "?")
@@ -132,11 +138,21 @@ class ObjectInfoComponent(MiniscopeComponent):
                                 # Format resource strings with names if available
                                 resource_names = self._get_resource_names()
                                 if resource_names:
-                                    inputs_str = ", ".join(f"{resource_names[k]}:{v}" for k, v in inputs.items())
-                                    outputs_str = ", ".join(f"{resource_names[k]}:{v}" for k, v in outputs.items())
+                                    inputs_str = ", ".join(
+                                        f"{resource_names[k]}:{v}"
+                                        for k, v in inputs.items()
+                                    )
+                                    outputs_str = ", ".join(
+                                        f"{resource_names[k]}:{v}"
+                                        for k, v in outputs.items()
+                                    )
                                 else:
-                                    inputs_str = ", ".join(f"{k}:{v}" for k, v in inputs.items())
-                                    outputs_str = ", ".join(f"{k}:{v}" for k, v in outputs.items())
+                                    inputs_str = ", ".join(
+                                        f"{k}:{v}" for k, v in inputs.items()
+                                    )
+                                    outputs_str = ", ".join(
+                                        f"{k}:{v}" for k, v in outputs.items()
+                                    )
 
                                 # Show current recipe
                                 table.add_row("", "")  # Spacer
@@ -156,7 +172,14 @@ class ObjectInfoComponent(MiniscopeComponent):
                     break
 
                 # Skip keys we've already handled or don't want to show
-                if key in ["r", "c", "type", "recipes", "current_recipe_inputs", "current_recipe_outputs"]:
+                if key in [
+                    "r",
+                    "c",
+                    "type",
+                    "recipes",
+                    "current_recipe_inputs",
+                    "current_recipe_outputs",
+                ]:
                     continue
 
                 # Format the value

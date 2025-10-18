@@ -43,7 +43,9 @@ class RadialMaze(Scene[RadialMazeConfig]):
                     special_point = p
                     break
             if special_point is not None:
-                self.make_area(special_point[0], special_point[1], 1, 1, tags=["endpoint"])
+                self.make_area(
+                    special_point[0], special_point[1], 1, 1, tags=["endpoint"]
+                )
 
         # this could be found with Layout, but having a designated area is more convenient
         self.make_area(cx, cy, 1, 1, tags=["center"])

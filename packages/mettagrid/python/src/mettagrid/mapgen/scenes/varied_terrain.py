@@ -60,20 +60,35 @@ class VariedTerrain(Scene[VariedTerrainConfig]):
         },
         # New style: maze-like with predominant labyrinth features.
         "maze": {
-            "large_obstacles": {"size_range": [10, 25], "count": [0, 2]},  # Disable large obstacles.
-            "small_obstacles": {"size_range": [3, 6], "count": [0, 2]},  # Disable small obstacles.
+            "large_obstacles": {
+                "size_range": [10, 25],
+                "count": [0, 2],
+            },  # Disable large obstacles.
+            "small_obstacles": {
+                "size_range": [3, 6],
+                "count": [0, 2],
+            },  # Disable small obstacles.
             "crosses": {"count": [0, 2]},  # No cross obstacles.
-            "labyrinths": {"count": [10, 20]},  # Increase labyrinth count to generate more maze segments.
-            "scattered_walls": {"count": [0, 2]},  # Avoid adding extra walls that could break up maze consistency.
+            "labyrinths": {
+                "count": [10, 20]
+            },  # Increase labyrinth count to generate more maze segments.
+            "scattered_walls": {
+                "count": [0, 2]
+            },  # Avoid adding extra walls that could break up maze consistency.
             "blocks": {"count": [0, 2]},  # No rectangular blocks.
-            "clumpiness": [0, 2],  # Clumpiness is not necessary when only labyrinths are used.
+            "clumpiness": [
+                0,
+                2,
+            ],  # Clumpiness is not necessary when only labyrinths are used.
         },
     }
 
     def post_init(self):
         style = self.config.style
         if style not in self.STYLE_PARAMETERS:
-            raise ValueError(f"Unknown style: '{style}'. Available styles: {list(self.STYLE_PARAMETERS.keys())}")
+            raise ValueError(
+                f"Unknown style: '{style}'. Available styles: {list(self.STYLE_PARAMETERS.keys())}"
+            )
         base_params = self.STYLE_PARAMETERS[style]
         # Determine scale from the room area relative to a 60x60 (3600 cells) grid.
         area = self.width * self.height
@@ -100,18 +115,32 @@ class VariedTerrain(Scene[VariedTerrainConfig]):
 
         self._large_obstacles = {
             "size_range": base_params["large_obstacles"]["size_range"],
-            "count": clamp_count(base_params["large_obstacles"]["count"], avg_sizes["large_obstacles"]),
+            "count": clamp_count(
+                base_params["large_obstacles"]["count"], avg_sizes["large_obstacles"]
+            ),
         }
         self._small_obstacles = {
             "size_range": base_params["small_obstacles"]["size_range"],
-            "count": clamp_count(base_params["small_obstacles"]["count"], avg_sizes["small_obstacles"]),
+            "count": clamp_count(
+                base_params["small_obstacles"]["count"], avg_sizes["small_obstacles"]
+            ),
         }
-        self._crosses = {"count": clamp_count(base_params["crosses"]["count"], avg_sizes["crosses"])}
-        self._labyrinths = {"count": clamp_count(base_params["labyrinths"]["count"], avg_sizes["labyrinths"])}
+        self._crosses = {
+            "count": clamp_count(base_params["crosses"]["count"], avg_sizes["crosses"])
+        }
+        self._labyrinths = {
+            "count": clamp_count(
+                base_params["labyrinths"]["count"], avg_sizes["labyrinths"]
+            )
+        }
         self._scattered_walls = {
-            "count": clamp_count(base_params["scattered_walls"]["count"], avg_sizes["scattered_walls"])
+            "count": clamp_count(
+                base_params["scattered_walls"]["count"], avg_sizes["scattered_walls"]
+            )
         }
-        self._blocks = {"count": clamp_count(base_params["blocks"]["count"], avg_sizes["blocks"])}
+        self._blocks = {
+            "count": clamp_count(base_params["blocks"]["count"], avg_sizes["blocks"])
+        }
 
     def render(self):
         # Initialize an occupancy mask: False means cell is empty, True means occupied.
@@ -167,7 +196,9 @@ class VariedTerrain(Scene[VariedTerrainConfig]):
         # Create a view of all submatrices of shape (r_h, r_w)
         shape = (H - r_h + 1, W - r_w + 1, r_h, r_w)
         strides = self._occupancy.strides * 2
-        submats = np.lib.stride_tricks.as_strided(self._occupancy, shape=shape, strides=strides)
+        submats = np.lib.stride_tricks.as_strided(
+            self._occupancy, shape=shape, strides=strides
+        )
         # Sum over each submatrix; candidate if sum == 0 (i.e., completely empty)
         window_sums = submats.sum(axis=(2, 3))
         candidates = np.argwhere(window_sums == 0)
@@ -194,7 +225,9 @@ class VariedTerrain(Scene[VariedTerrainConfig]):
         if candidates:
             r, c = candidates[self.rng.integers(0, len(candidates))]
             # Place pattern with clearance offset.
-            self.grid[r + clearance : r + clearance + p_h, c + clearance : c + clearance + p_w] = pattern
+            self.grid[
+                r + clearance : r + clearance + p_h, c + clearance : c + clearance + p_w
+            ] = pattern
             self._update_occupancy((r + clearance, c + clearance), pattern)
             return True
         return False

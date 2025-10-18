@@ -38,8 +38,12 @@ class TestResourceLoss:
 
         # Verify agent has the items initially
         inventory = agent_obj["inventory"]
-        assert inventory[env.resource_names.index("heart")] == 5, "Agent should have 5 hearts initially"
-        assert inventory[env.resource_names.index("battery_blue")] == 3, "Agent should have 3 battery_blue initially"
+        assert inventory[env.resource_names.index("heart")] == 5, (
+            "Agent should have 5 hearts initially"
+        )
+        assert inventory[env.resource_names.index("battery_blue")] == 3, (
+            "Agent should have 3 battery_blue initially"
+        )
 
         # Take a step with noop action
         noop_idx = env.action_names.index("noop")
@@ -55,9 +59,13 @@ class TestResourceLoss:
                 agent_obj_after = obj
                 break
 
-        assert agent_obj_after is not None, "Should find an agent in grid objects after step"
+        assert agent_obj_after is not None, (
+            "Should find an agent in grid objects after step"
+        )
         inventory_after = agent_obj_after["inventory"]
-        assert env.resource_names.index("heart") not in inventory_after, "All hearts should be lost after one step"
+        assert env.resource_names.index("heart") not in inventory_after, (
+            "All hearts should be lost after one step"
+        )
         assert env.resource_names.index("battery_blue") not in inventory_after, (
             "All battery_blue should be lost after one step"
         )
@@ -93,8 +101,12 @@ class TestResourceLoss:
 
         # Verify agent has the items initially
         inventory = agent_obj["inventory"]
-        assert inventory[env.resource_names.index("heart")] == 5, "Agent should have 5 hearts initially"
-        assert inventory[env.resource_names.index("battery_blue")] == 3, "Agent should have 3 battery_blue initially"
+        assert inventory[env.resource_names.index("heart")] == 5, (
+            "Agent should have 5 hearts initially"
+        )
+        assert inventory[env.resource_names.index("battery_blue")] == 3, (
+            "Agent should have 3 battery_blue initially"
+        )
 
         # Take multiple steps with noop action
         noop_idx = env.action_names.index("noop")
@@ -112,9 +124,13 @@ class TestResourceLoss:
                 agent_obj_after = obj
                 break
 
-        assert agent_obj_after is not None, "Should find an agent in grid objects after steps"
+        assert agent_obj_after is not None, (
+            "Should find an agent in grid objects after steps"
+        )
         inventory_after = agent_obj_after["inventory"]
-        assert inventory_after[env.resource_names.index("heart")] == 5, "Hearts should remain after multiple steps"
+        assert inventory_after[env.resource_names.index("heart")] == 5, (
+            "Hearts should remain after multiple steps"
+        )
         assert inventory_after[env.resource_names.index("battery_blue")] == 3, (
             "Battery_blue should remain after multiple steps"
         )
@@ -151,7 +167,9 @@ class TestResourceLoss:
 
         # Verify agent has the items initially
         inventory = agent_obj["inventory"]
-        assert inventory[env.resource_names.index("heart")] == 100, "Agent should have 100 hearts initially"
+        assert inventory[env.resource_names.index("heart")] == 100, (
+            "Agent should have 100 hearts initially"
+        )
 
         # Take multiple steps with noop action
         noop_idx = env.action_names.index("noop")
@@ -178,9 +196,13 @@ class TestResourceLoss:
             # With 50% loss probability, we should see some loss over multiple steps
             # The exact amount is random, but we should see some reduction
             if step > 0:  # After first step
-                assert current_count <= initial_count, f"Item count should not increase at step {step}"
+                assert current_count <= initial_count, (
+                    f"Item count should not increase at step {step}"
+                )
 
             initial_count = current_count
 
         # After multiple steps, some items should be lost (but not necessarily all)
-        assert initial_count < 100, "Some items should be lost after multiple steps with 50% loss probability"
+        assert initial_count < 100, (
+            "Some items should be lost after multiple steps with 50% loss probability"
+        )

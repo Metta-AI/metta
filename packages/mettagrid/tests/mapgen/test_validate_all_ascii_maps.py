@@ -33,7 +33,9 @@ def find_map_files(root_dir) -> list[Path]:
 
 
 def map_files():
-    return find_map_files("packages/mettagrid/configs/maps") + find_map_files("configs/maps")
+    return find_map_files("packages/mettagrid/configs/maps") + find_map_files(
+        "configs/maps"
+    )
 
 
 @pytest.fixture(scope="session")
@@ -73,7 +75,9 @@ if map_files_to_test:
         "map_file", map_files_to_test, ids=[str(path) for path in map_files_to_test]
     )
 else:
-    pytest_parametrize = pytest.mark.skip(reason="No map files found in packages/mettagrid/configs/maps/")
+    pytest_parametrize = pytest.mark.skip(
+        reason="No map files found in packages/mettagrid/configs/maps/"
+    )
 
 
 @pytest_parametrize
@@ -136,9 +140,19 @@ class TestAsciiMap:
 
         # Create a comprehensive mapping that includes all object types used in maps
         objects = {
-            "wall": WallConfig(name="wall", type_id=1, map_char="#", render_symbol="⬛"),
-            "converter": ConverterConfig(name="converter", type_id=2, map_char="c", render_symbol="🔄", cooldown=[0]),
-            "assembler": AssemblerConfig(name="assembler", type_id=3, map_char="m", render_symbol="🏭"),
+            "wall": WallConfig(
+                name="wall", type_id=1, map_char="#", render_symbol="⬛"
+            ),
+            "converter": ConverterConfig(
+                name="converter",
+                type_id=2,
+                map_char="c",
+                render_symbol="🔄",
+                cooldown=[0],
+            ),
+            "assembler": AssemblerConfig(
+                name="assembler", type_id=3, map_char="m", render_symbol="🏭"
+            ),
             "chest": ChestConfig(
                 name="chest",
                 type_id=4,
@@ -147,12 +161,20 @@ class TestAsciiMap:
                 resource_type="ore_red",
             ),
             # Common navigation map characters
-            "floor": WallConfig(name="floor", type_id=5, map_char="_", render_symbol="░"),
+            "floor": WallConfig(
+                name="floor", type_id=5, map_char="_", render_symbol="░"
+            ),
             # Object use map characters
             "swappable_wall": WallConfig(
-                name="swappable_wall", type_id=6, map_char="s", render_symbol="▒", swappable=True
+                name="swappable_wall",
+                type_id=6,
+                map_char="s",
+                render_symbol="▒",
+                swappable=True,
             ),
-            "special": WallConfig(name="special", type_id=7, map_char="S", render_symbol="✦"),
+            "special": WallConfig(
+                name="special", type_id=7, map_char="S", render_symbol="✦"
+            ),
         }
         return DEFAULT_CHAR_TO_NAME | {o.map_char: o.name for o in objects.values()}
 
@@ -161,7 +183,9 @@ class TestAsciiMap:
         all_chars = set(content)
         unknown_chars = all_chars - set(char_to_name.keys()) - {"\t", "\r", "\n"}
 
-        assert not unknown_chars, f"Map {map_file} contains unknown symbols: {unknown_chars}"
+        assert not unknown_chars, (
+            f"Map {map_file} contains unknown symbols: {unknown_chars}"
+        )
 
     def test_has_consistent_line_lengths(self, content, map_file):
         """Verify all maps have consistent line lengths within each file."""

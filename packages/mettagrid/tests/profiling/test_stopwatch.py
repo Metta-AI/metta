@@ -3,7 +3,12 @@ import time
 
 import pytest
 
-from mettagrid.profiling.stopwatch import Checkpoint, Stopwatch, with_instance_timer, with_timer
+from mettagrid.profiling.stopwatch import (
+    Checkpoint,
+    Stopwatch,
+    with_instance_timer,
+    with_timer,
+)
 
 
 @pytest.fixture
@@ -81,7 +86,9 @@ class TestStopwatch:
                 time.sleep(0.1)
 
             # Check log output
-            stopwatch_logs = [r for r in caplog.records if r.name == stopwatch.logger.name]
+            stopwatch_logs = [
+                r for r in caplog.records if r.name == stopwatch.logger.name
+            ]
             assert len(stopwatch_logs) == 1
             assert stopwatch_logs[0].levelname == "INFO"
             assert "test_callable took" in stopwatch_logs[0].message
@@ -283,7 +290,9 @@ class TestStopwatch:
         remaining_steps = total_steps - steps_completed
         expected_remaining = (elapsed / steps_completed) * remaining_steps
 
-        remaining_seconds, remaining_str = stopwatch.estimate_remaining(steps_completed, total_steps, "estimate_test")
+        remaining_seconds, remaining_str = stopwatch.estimate_remaining(
+            steps_completed, total_steps, "estimate_test"
+        )
 
         assert remaining_seconds == pytest.approx(expected_remaining, rel=0.01)
         assert "sec" in remaining_str
@@ -304,7 +313,9 @@ class TestStopwatch:
             stopwatch.log_progress(50, 100, "progress_test", "Test Progress")
 
             # Check log output
-            stopwatch_logs = [r for r in caplog.records if r.name == stopwatch.logger.name]
+            stopwatch_logs = [
+                r for r in caplog.records if r.name == stopwatch.logger.name
+            ]
             assert len(stopwatch_logs) == 1
             record = stopwatch_logs[0]
             assert record.levelname == "INFO"
@@ -373,7 +384,9 @@ class TestStopwatch:
             elapsed = stopwatch.stop("nonexistent")
             assert elapsed == 0.0
 
-            stopwatch_logs = [r for r in caplog.records if r.name == stopwatch.logger.name]
+            stopwatch_logs = [
+                r for r in caplog.records if r.name == stopwatch.logger.name
+            ]
             assert len(stopwatch_logs) == 1
             record = stopwatch_logs[0]
             assert record.levelname == "WARNING"
@@ -386,7 +399,9 @@ class TestStopwatch:
             stopwatch.start("double_start")
             stopwatch.start("double_start")
 
-            stopwatch_logs = [r for r in caplog.records if r.name == stopwatch.logger.name]
+            stopwatch_logs = [
+                r for r in caplog.records if r.name == stopwatch.logger.name
+            ]
             assert len(stopwatch_logs) == 1
             record = stopwatch_logs[0]
             assert record.levelname == "WARNING"
@@ -602,7 +617,9 @@ class TestStopwatch:
 
         for name, expected_times in expected_checkpoints.items():
             timer = stopwatch._get_timer(name)
-            checkpoints = sorted(timer.checkpoints.items(), key=lambda x: x[1]["elapsed_time"])
+            checkpoints = sorted(
+                timer.checkpoints.items(), key=lambda x: x[1]["elapsed_time"]
+            )
 
             assert len(checkpoints) == len(expected_times), (
                 f"Timer {name}: expected {len(expected_times)} checkpoints, got {len(checkpoints)}"
@@ -611,7 +628,9 @@ class TestStopwatch:
             # Verify checkpoint times match our tracking (with tight tolerance)
             for i, (_, checkpoint_data) in enumerate(checkpoints):
                 checkpoint_elapsed = checkpoint_data["elapsed_time"]
-                assert checkpoint_elapsed == pytest.approx(expected_times[i], abs=tol), (
+                assert checkpoint_elapsed == pytest.approx(
+                    expected_times[i], abs=tol
+                ), (
                     f"Timer {name}: checkpoint {i} time {checkpoint_elapsed} != expected {expected_times[i]}"
                 )
 
@@ -624,7 +643,9 @@ class TestStopwatch:
                 lap_index = -(laps - i)  # Convert forward index to backward index
                 lap_time = stopwatch.get_lap_time(lap_index, name)
 
-                assert lap_time is not None, f"Timer {name}: lap {lap_index} does not exist"
+                assert lap_time is not None, (
+                    f"Timer {name}: lap {lap_index} does not exist"
+                )
                 assert abs(delta_time - lap_time) < tol, (
                     f"Timer {name}: checkpoint time {delta_time} != lap time {lap_time} for lap {lap_index}"
                 )
@@ -641,11 +662,15 @@ class TestStopwatch:
         # Record checkpoint at 100 steps
         stopwatch.checkpoint(100, name="test_timer")
         first_lap_steps = stopwatch.get_lap_steps(-1, "test_timer")
-        assert first_lap_steps == 100, f"Expected 100 steps for first lap, got {first_lap_steps}"
+        assert first_lap_steps == 100, (
+            f"Expected 100 steps for first lap, got {first_lap_steps}"
+        )
 
         # Also test with default parameter (last lap)
         last_lap_steps = stopwatch.get_lap_steps(name="test_timer")
-        assert last_lap_steps == 100, f"Expected 100 steps for last lap, got {last_lap_steps}"
+        assert last_lap_steps == 100, (
+            f"Expected 100 steps for last lap, got {last_lap_steps}"
+        )
 
         # Add second checkpoint
 
@@ -654,10 +679,14 @@ class TestStopwatch:
 
         # Now test both laps
         first_lap_steps = stopwatch.get_lap_steps(-2, "test_timer")
-        assert first_lap_steps == 100, f"Expected 100 steps for first lap, got {first_lap_steps}"
+        assert first_lap_steps == 100, (
+            f"Expected 100 steps for first lap, got {first_lap_steps}"
+        )
 
         second_lap_steps = stopwatch.get_lap_steps(-1, "test_timer")
-        assert second_lap_steps == 150, f"Expected 150 steps for second lap (250-100), got {second_lap_steps}"
+        assert second_lap_steps == 150, (
+            f"Expected 150 steps for second lap (250-100), got {second_lap_steps}"
+        )
 
         stopwatch.stop("test_timer")
 
@@ -792,7 +821,11 @@ class TestStopwatchIntegration:
             sw.stop("batch_process")
 
             # Verify all expected logs
-            info_records = [r for r in caplog.records if r.levelname == "INFO" and r.name == sw.logger.name]
+            info_records = [
+                r
+                for r in caplog.records
+                if r.levelname == "INFO" and r.name == sw.logger.name
+            ]
 
             assert len(info_records) == 5  # 2 context managers + 3 progress logs
 
@@ -803,7 +836,9 @@ class TestStopwatchIntegration:
             assert any("operation2" in msg for msg in operation_logs)
 
             # Check progress logs
-            progress_logs = [r.message for r in info_records if "Batch Processing" in r.message]
+            progress_logs = [
+                r.message for r in info_records if "Batch Processing" in r.message
+            ]
             assert len(progress_logs) == 3
             assert any("33/100" in msg for msg in progress_logs)
             assert any("66/100" in msg for msg in progress_logs)
@@ -816,8 +851,12 @@ class TestStopwatchIntegration:
 
         class TestClass:
             def __init__(self):
-                self.timer = Stopwatch(log_level=logging.INFO)  # Default timer attribute with logging
-                self.instance_timer = Stopwatch(log_level=logging.INFO)  # Custom timer attribute with logging
+                self.timer = Stopwatch(
+                    log_level=logging.INFO
+                )  # Default timer attribute with logging
+                self.instance_timer = Stopwatch(
+                    log_level=logging.INFO
+                )  # Custom timer attribute with logging
                 self.call_count = 0
 
             @with_timer(sw, "external_timer")
@@ -877,7 +916,9 @@ class TestStopwatchIntegration:
             assert result == 20
 
             # Check log output
-            instance_timer_logs = [r for r in caplog.records if r.name == test_obj.timer.logger.name]
+            instance_timer_logs = [
+                r for r in caplog.records if r.name == test_obj.timer.logger.name
+            ]
 
             assert len(instance_timer_logs) == 1
             assert instance_timer_logs[0].levelname == "INFO"
@@ -891,11 +932,16 @@ class TestStopwatchIntegration:
         # Test function metadata preservation
         assert test_obj.external_timed_method.__name__ == "external_timed_method"
         assert test_obj.external_timed_method.__doc__ is not None
-        assert "Method timed with external timer." in test_obj.external_timed_method.__doc__
+        assert (
+            "Method timed with external timer."
+            in test_obj.external_timed_method.__doc__
+        )
 
         assert test_obj.instance_timed_method.__name__ == "instance_timed_method"
         assert test_obj.instance_timed_method.__doc__ is not None
-        assert "Method timed with instance timer" in test_obj.instance_timed_method.__doc__
+        assert (
+            "Method timed with instance timer" in test_obj.instance_timed_method.__doc__
+        )
 
         # Test exception handling for both decorators
         @with_timer(sw, "exception_timer")
@@ -923,11 +969,15 @@ class TestStopwatchIntegration:
         with pytest.raises(RuntimeError, match="Instance exception"):
             exception_obj.failing_instance_method()
 
-        instance_exception_elapsed = exception_obj.timer.get_elapsed("exception_instance_timer")
+        instance_exception_elapsed = exception_obj.timer.get_elapsed(
+            "exception_instance_timer"
+        )
         assert instance_exception_elapsed == pytest.approx(0.02, abs=0.1)
 
         # Test error case: with_instance_timer on non-instance method
-        with pytest.raises(ValueError, match="with_instance_timer can only be used on instance methods"):
+        with pytest.raises(
+            ValueError, match="with_instance_timer can only be used on instance methods"
+        ):
 
             @with_instance_timer("standalone_timer")
             def standalone_function():
@@ -954,7 +1004,9 @@ class TestStopwatchIntegration:
         # Test custom timer attribute name that doesn't exist
         class CustomTimerClass:
             def __init__(self):
-                self.timer = Stopwatch()  # Has 'timer' but decorator looks for 'custom_timer'
+                self.timer = (
+                    Stopwatch()
+                )  # Has 'timer' but decorator looks for 'custom_timer'
 
             @with_instance_timer("test_timer", timer_attr="custom_timer")
             def method_with_missing_custom_attr(self):
@@ -994,8 +1046,12 @@ class TestStopwatchSaveLoad:
         new_stopwatch.load_state(state)
 
         # Verify timers were restored
-        assert new_stopwatch.get_elapsed("timer1") == pytest.approx(stopwatch.get_elapsed("timer1"), abs=0.1)
-        assert new_stopwatch.get_elapsed("timer2") == pytest.approx(stopwatch.get_elapsed("timer2"), abs=0.1)
+        assert new_stopwatch.get_elapsed("timer1") == pytest.approx(
+            stopwatch.get_elapsed("timer1"), abs=0.1
+        )
+        assert new_stopwatch.get_elapsed("timer2") == pytest.approx(
+            stopwatch.get_elapsed("timer2"), abs=0.1
+        )
 
         # Verify checkpoint was restored
         timer2 = new_stopwatch._get_timer("timer2")
@@ -1064,7 +1120,9 @@ class TestStopwatchSaveLoad:
 
         # Elapsed time should match what was saved
         saved_elapsed = state["timers"]["test_timer"]["total_elapsed"]
-        assert new_stopwatch.get_elapsed("test_timer") == pytest.approx(saved_elapsed, abs=0.1)
+        assert new_stopwatch.get_elapsed("test_timer") == pytest.approx(
+            saved_elapsed, abs=0.1
+        )
 
     def test_save_load_complex_state(self, stopwatch: Stopwatch):
         """Test saving/loading complex timer state with multiple features."""
@@ -1158,7 +1216,9 @@ class TestStopwatchSaveLoad:
 
         # Check global timer exists and has correct elapsed time
         assert new_stopwatch.GLOBAL_TIMER_NAME in new_stopwatch._timers
-        assert new_stopwatch.get_elapsed() == pytest.approx(stopwatch.get_elapsed(), abs=0.1)
+        assert new_stopwatch.get_elapsed() == pytest.approx(
+            stopwatch.get_elapsed(), abs=0.1
+        )
 
     def test_elapsed_time_accuracy_with_running_timers(self, stopwatch: Stopwatch):
         """Test that elapsed time is accurately preserved for running timers."""
@@ -1185,7 +1245,9 @@ class TestStopwatchSaveLoad:
         new_stopwatch.stop("accuracy_test")
 
         # Total elapsed should be close to saved elapsed (plus tiny bit for stop operation)
-        assert new_stopwatch.get_elapsed("accuracy_test") == pytest.approx(saved_elapsed, abs=0.01)
+        assert new_stopwatch.get_elapsed("accuracy_test") == pytest.approx(
+            saved_elapsed, abs=0.01
+        )
 
     def test_multiple_save_load_cycles(self, stopwatch: Stopwatch):
         """Test multiple save/load cycles maintain accuracy."""
@@ -1306,20 +1368,32 @@ def test_cleanup_old_checkpoints_preserves_order():
 
     actual_items = list(timer.checkpoints.items())
 
-    for i, (expected_name, expected_elapsed, expected_steps) in enumerate(expected_remaining):
+    for i, (expected_name, expected_elapsed, expected_steps) in enumerate(
+        expected_remaining
+    ):
         actual_name, actual_checkpoint = actual_items[i]
 
-        assert actual_name == expected_name, f"Name mismatch at index {i}: expected {expected_name}, got {actual_name}"
-        assert actual_checkpoint["elapsed_time"] == expected_elapsed, f"Elapsed time mismatch at index {i}"
-        assert actual_checkpoint["steps"] == expected_steps, f"Steps mismatch at index {i}"
+        assert actual_name == expected_name, (
+            f"Name mismatch at index {i}: expected {expected_name}, got {actual_name}"
+        )
+        assert actual_checkpoint["elapsed_time"] == expected_elapsed, (
+            f"Elapsed time mismatch at index {i}"
+        )
+        assert actual_checkpoint["steps"] == expected_steps, (
+            f"Steps mismatch at index {i}"
+        )
 
     # Verify chronological order is maintained (elapsed_time should be increasing)
     elapsed_times = [cp["elapsed_time"] for cp in timer.checkpoints.values()]
-    assert elapsed_times == sorted(elapsed_times), f"Checkpoints not in chronological order: {elapsed_times}"
+    assert elapsed_times == sorted(elapsed_times), (
+        f"Checkpoints not in chronological order: {elapsed_times}"
+    )
 
     # Verify step counts are increasing
     step_counts = [cp["steps"] for cp in timer.checkpoints.values()]
-    assert step_counts == sorted(step_counts), f"Step counts not in increasing order: {step_counts}"
+    assert step_counts == sorted(step_counts), (
+        f"Step counts not in increasing order: {step_counts}"
+    )
 
 
 def test_multiple_laps_after_cleanup():

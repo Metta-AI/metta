@@ -1,6 +1,10 @@
 import numpy as np
 
-from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig, RecipeConfig
+from mettagrid.config.mettagrid_config import (
+    AssemblerConfig,
+    MettaGridConfig,
+    RecipeConfig,
+)
 from mettagrid.core import MettaGridCore
 from mettagrid.mettagrid_c import dtype_actions
 from mettagrid.test_support.actions import action_index
@@ -22,7 +26,16 @@ class TestAssemblerPartialUsage:
             type_id=20,
             name="assembler",
             map_char="Z",
-            recipes=[(["W"], RecipeConfig(input_resources={"iron": 10}, output_resources={"steel": 5}, cooldown=10))],
+            recipes=[
+                (
+                    ["W"],
+                    RecipeConfig(
+                        input_resources={"iron": 10},
+                        output_resources={"steel": 5},
+                        cooldown=10,
+                    ),
+                )
+            ],
             allow_partial_usage=False,  # Disable partial usage
         )
 
@@ -45,14 +58,20 @@ class TestAssemblerPartialUsage:
         noop_idx = env.action_names.index("noop")
 
         # First usage
-        actions = np.array([action_index(env, "move", Orientation.EAST)], dtype=dtype_actions)
+        actions = np.array(
+            [action_index(env, "move", Orientation.EAST)], dtype=dtype_actions
+        )
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         grid_objects = env.grid_objects()
         agent = next(obj for _obj_id, obj in grid_objects.items() if "agent_id" in obj)
 
-        assert agent["inventory"][iron_idx] == 90, "Agent should have 90 iron after first use"
-        assert agent["inventory"][steel_idx] == 5, "Agent should have 5 steel after first use"
+        assert agent["inventory"][iron_idx] == 90, (
+            "Agent should have 90 iron after first use"
+        )
+        assert agent["inventory"][steel_idx] == 5, (
+            "Agent should have 5 steel after first use"
+        )
 
         # Wait 5 ticks (50% cooldown)
         for _ in range(5):
@@ -60,7 +79,9 @@ class TestAssemblerPartialUsage:
             obs, rewards, terminals, truncations, info = env.step(actions)
 
         # Try to use during cooldown (should fail)
-        actions = np.array([action_index(env, "move", Orientation.SOUTH)], dtype=dtype_actions)
+        actions = np.array(
+            [action_index(env, "move", Orientation.SOUTH)], dtype=dtype_actions
+        )
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         grid_objects = env.grid_objects()
@@ -86,7 +107,16 @@ class TestAssemblerPartialUsage:
             type_id=20,
             name="assembler",
             map_char="Z",
-            recipes=[(["W"], RecipeConfig(input_resources={"iron": 20}, output_resources={"steel": 10}, cooldown=100))],
+            recipes=[
+                (
+                    ["W"],
+                    RecipeConfig(
+                        input_resources={"iron": 20},
+                        output_resources={"steel": 10},
+                        cooldown=100,
+                    ),
+                )
+            ],
             allow_partial_usage=True,
         )
 
@@ -109,7 +139,9 @@ class TestAssemblerPartialUsage:
         noop_idx = env.action_names.index("noop")
 
         # First full usage
-        actions = np.array([action_index(env, "move", Orientation.EAST)], dtype=dtype_actions)
+        actions = np.array(
+            [action_index(env, "move", Orientation.EAST)], dtype=dtype_actions
+        )
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         grid_objects = env.grid_objects()
@@ -118,14 +150,27 @@ class TestAssemblerPartialUsage:
         iron_consumed = 100 - agent["inventory"][iron_idx]
         steel_produced = agent["inventory"][steel_idx]
 
-        assert iron_consumed == 20, f"Should consume 20 iron at full usage, consumed {iron_consumed}"
-        assert steel_produced == 10, f"Should produce 10 steel at full usage, produced {steel_produced}"
+        assert iron_consumed == 20, (
+            f"Should consume 20 iron at full usage, consumed {iron_consumed}"
+        )
+        assert steel_produced == 10, (
+            f"Should produce 10 steel at full usage, produced {steel_produced}"
+        )
 
         # Verify assembler is on cooldown (should have 100 tick cooldown)
-        assembler = next((obj for _obj_id, obj in grid_objects.items() if obj.get("type_name") == "assembler"), None)
+        assembler = next(
+            (
+                obj
+                for _obj_id, obj in grid_objects.items()
+                if obj.get("type_name") == "assembler"
+            ),
+            None,
+        )
         if assembler:
             cooldown_remaining = assembler.get("cooldown_remaining", 0)
-            assert cooldown_remaining == 100, f"Assembler should have 100 tick cooldown, has {cooldown_remaining}"
+            assert cooldown_remaining == 100, (
+                f"Assembler should have 100 tick cooldown, has {cooldown_remaining}"
+            )
 
         # Test at 12% progress (12 ticks into 100 tick cooldown)
         for _ in range(12):
@@ -134,15 +179,26 @@ class TestAssemblerPartialUsage:
 
         # Verify cooldown has decreased to 88 ticks remaining
         grid_objects = env.grid_objects()
-        assembler = next((obj for _obj_id, obj in grid_objects.items() if obj.get("type_name") == "assembler"), None)
+        assembler = next(
+            (
+                obj
+                for _obj_id, obj in grid_objects.items()
+                if obj.get("type_name") == "assembler"
+            ),
+            None,
+        )
         if assembler:
             cooldown_remaining = assembler.get("cooldown_remaining", 0)
-            assert cooldown_remaining == 88, f"After 12 ticks, cooldown should be 88, has {cooldown_remaining}"
+            assert cooldown_remaining == 88, (
+                f"After 12 ticks, cooldown should be 88, has {cooldown_remaining}"
+            )
 
         iron_before = agent["inventory"][iron_idx]
         steel_before = agent["inventory"][steel_idx]
 
-        actions = np.array([action_index(env, "move", Orientation.EAST)], dtype=dtype_actions)
+        actions = np.array(
+            [action_index(env, "move", Orientation.EAST)], dtype=dtype_actions
+        )
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         grid_objects = env.grid_objects()
@@ -168,7 +224,9 @@ class TestAssemblerPartialUsage:
         # Input: 20 * 0.01 = 0.2, rounded up = 1
         # Output: 10 * 0.01 = 0.1, rounded down = 0
 
-        actions = np.array([action_index(env, "move", Orientation.EAST)], dtype=dtype_actions)
+        actions = np.array(
+            [action_index(env, "move", Orientation.EAST)], dtype=dtype_actions
+        )
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         grid_objects = env.grid_objects()

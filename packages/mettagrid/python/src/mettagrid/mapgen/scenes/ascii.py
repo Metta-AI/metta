@@ -16,7 +16,9 @@ class Ascii(Scene[AsciiConfig]):
     def get_children(self):
         return [
             ChildrenAction(
-                scene=InlineAscii.Config(data=self.ascii_data, char_to_name=self.char_to_name_map),
+                scene=InlineAscii.Config(
+                    data=self.ascii_data, char_to_name=self.char_to_name_map
+                ),
                 where="full",
             ),
         ]

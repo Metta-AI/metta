@@ -76,4 +76,6 @@ def test_mettagrid_env_no_memory_leaks():
     memory_threshold = 5.0  # MB - adjust based on your environment's expected behavior
 
     print(f"Memory growth after {num_iterations} iterations: {memory_growth:.2f} MB")
-    assert memory_growth < memory_threshold, f"Possible memory leak detected: {memory_growth:.2f} MB growth"
+    assert memory_growth < memory_threshold, (
+        f"Possible memory leak detected: {memory_growth:.2f} MB growth"
+    )

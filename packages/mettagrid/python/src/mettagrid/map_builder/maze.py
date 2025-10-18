@@ -35,7 +35,10 @@ class MazePrimMapBuilder(MapBuilder):
             set_position(config.start_pos[0], self._width),
             set_position(config.start_pos[1], self._height),
         )
-        self._end_pos = (set_position(config.end_pos[0], self._width), set_position(config.end_pos[1], self._height))
+        self._end_pos = (
+            set_position(config.end_pos[0], self._width),
+            set_position(config.end_pos[1], self._height),
+        )
 
     def build(self) -> GameMap:
         final_maze = create_grid(self._height, self._width, fill_value=self.WALL)
@@ -57,7 +60,11 @@ class MazePrimMapBuilder(MapBuilder):
                 for dx, dy in MazePrimMapBuilder.DIRECTIONS:
                     nwx, nwy = nx + dx // 2, ny + dy // 2
                     nnx, nny = nx + dx, ny + dy
-                    if 0 <= nnx < self._width and 0 <= nny < self._height and maze[nny, nnx] == self.WALL:
+                    if (
+                        0 <= nnx < self._width
+                        and 0 <= nny < self._height
+                        and maze[nny, nnx] == self.WALL
+                    ):
                         walls.append((nwx, nwy, nnx, nny))
         maze[self._start_pos[1], self._start_pos[0]] = self.START
         maze[self._end_pos[1], self._end_pos[0]] = self.END
@@ -82,12 +89,17 @@ class MazeKruskalMapBuilder(MapBuilder):
             set_position(config.start_pos[0], self._width),
             set_position(config.start_pos[1], self._height),
         )
-        self._end_pos = (set_position(config.end_pos[0], self._width), set_position(config.end_pos[1], self._height))
+        self._end_pos = (
+            set_position(config.end_pos[0], self._width),
+            set_position(config.end_pos[1], self._height),
+        )
 
     def build(self) -> GameMap:
         final_maze = create_grid(self._height, self._width, fill_value=self.WALL)
         maze = create_grid(self._height, self._width, fill_value=self.WALL)
-        cells = [(x, y) for y in range(1, self._height, 2) for x in range(1, self._width, 2)]
+        cells = [
+            (x, y) for y in range(1, self._height, 2) for x in range(1, self._width, 2)
+        ]
         for x, y in cells:
             maze[y, x] = self.EMPTY
 

@@ -20,7 +20,9 @@ def make_yaml_map(map_lines: list[str], legend: dict[str, str]) -> str:
 
 
 def write_temp_map(content: str) -> str:
-    temp = tempfile.NamedTemporaryFile(mode="w", suffix=".map", delete=False, encoding="utf-8")
+    temp = tempfile.NamedTemporaryFile(
+        mode="w", suffix=".map", delete=False, encoding="utf-8"
+    )
     temp.write(content)
     temp.flush()
     temp.close()
@@ -73,7 +75,11 @@ class TestAsciiMapBuilder:
 
             assert isinstance(game_map, GameMap)
             expected = np.array(
-                [["wall", "wall", "wall"], ["wall", "empty", "agent.agent"], ["wall", "wall", "wall"]],
+                [
+                    ["wall", "wall", "wall"],
+                    ["wall", "empty", "agent.agent"],
+                    ["wall", "wall", "wall"],
+                ],
                 dtype=map_grid_dtype,
             )
 
@@ -222,7 +228,9 @@ class TestAsciiMapBuilder:
             {"#": "lava"},
         )
 
-        with pytest.raises(ValidationError, match=r"Cannot override global default mapping for '#'.*"):
+        with pytest.raises(
+            ValidationError, match=r"Cannot override global default mapping for '#'.*"
+        ):
             AsciiMapBuilder.Config.from_str(yaml_content)
 
     def test_from_ascii_map_string(self):
@@ -267,7 +275,9 @@ class TestAsciiMapBuilder:
 
         temp_file = write_temp_map(yaml_content)
         try:
-            with pytest.raises(ValueError, match="All lines in ASCII map must have the same length"):
+            with pytest.raises(
+                ValueError, match="All lines in ASCII map must have the same length"
+            ):
                 AsciiMapBuilder.Config.from_uri(temp_file)
         finally:
             os.unlink(temp_file)
@@ -304,7 +314,11 @@ class TestAsciiMapBuilder:
             game_map = builder.build()
 
             expected = np.array(
-                [["wall", "wall", "wall"], ["wall", "agent.agent", "empty"], ["wall", "wall", "wall"]],
+                [
+                    ["wall", "wall", "wall"],
+                    ["wall", "agent.agent", "empty"],
+                    ["wall", "wall", "wall"],
+                ],
                 dtype=map_grid_dtype,
             )
 

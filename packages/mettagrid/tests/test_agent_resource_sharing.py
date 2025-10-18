@@ -24,7 +24,10 @@ class TestAgentResourceSharing:
         # Configure resources and sharing
         cfg.game.resource_names = ["energy", "water", "food"]
         cfg.game.agent.initial_inventory = {"energy": 10, "water": 8, "food": 6}
-        cfg.game.agent.shareable_resources = ["energy", "water"]  # Only energy and water are shareable
+        cfg.game.agent.shareable_resources = [
+            "energy",
+            "water",
+        ]  # Only energy and water are shareable
 
         # Enable the move action to allow agents to interact
         cfg.game.actions.move.enabled = True
@@ -50,11 +53,15 @@ class TestAgentResourceSharing:
         agent0 = agents[0]
         agent1 = agents[1]
 
-        assert agent0["inventory"][energy_idx] == 10, "Agent 0 should start with 10 energy"
+        assert agent0["inventory"][energy_idx] == 10, (
+            "Agent 0 should start with 10 energy"
+        )
         assert agent0["inventory"][water_idx] == 8, "Agent 0 should start with 8 water"
         assert agent0["inventory"][food_idx] == 6, "Agent 0 should start with 6 food"
 
-        assert agent1["inventory"][energy_idx] == 10, "Agent 1 should start with 10 energy"
+        assert agent1["inventory"][energy_idx] == 10, (
+            "Agent 1 should start with 10 energy"
+        )
         assert agent1["inventory"][water_idx] == 8, "Agent 1 should start with 8 water"
         assert agent1["inventory"][food_idx] == 6, "Agent 1 should start with 6 food"
 
@@ -77,8 +84,12 @@ class TestAgentResourceSharing:
         agent0_after = agents_after[0]
         agent1_after = agents_after[1]
 
-        assert (agent0_after["r"], agent0_after["c"]) == (1, 1), "Agent 0 should still be at (1,1)"
-        assert (agent1_after["r"], agent1_after["c"]) == (1, 2), "Agent 1 should still be at (1,2)"
+        assert (agent0_after["r"], agent0_after["c"]) == (1, 1), (
+            "Agent 0 should still be at (1,1)"
+        )
+        assert (agent1_after["r"], agent1_after["c"]) == (1, 2), (
+            "Agent 1 should still be at (1,2)"
+        )
 
         # Agent 0 should have given half of shareable resources to agent 1
         # Energy: 10 -> 5 (agent 0), 10 -> 15 (agent 1)

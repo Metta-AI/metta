@@ -35,7 +35,9 @@ class Orientation(Enum):
             for member in cls:
                 if member.name == value:
                     return member
-            raise ValueError(f"Invalid orientation string: '{value}'. Valid options: {[m.name.lower() for m in cls]}")
+            raise ValueError(
+                f"Invalid orientation string: '{value}'. Valid options: {[m.name.lower() for m in cls]}"
+            )
 
         # Handle integer initialization (internal use)
         obj = object.__new__(cls)

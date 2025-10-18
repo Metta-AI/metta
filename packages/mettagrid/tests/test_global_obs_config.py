@@ -66,7 +66,11 @@ def count_global_features(obs, expected_feature_ids):
 
 def test_all_global_tokens_enabled():
     """Test that all global tokens are present when enabled."""
-    global_obs = {"episode_completion_pct": True, "last_action": True, "last_reward": True}
+    global_obs = {
+        "episode_completion_pct": True,
+        "last_action": True,
+        "last_reward": True,
+    }
 
     env = create_test_env(global_obs)
     obs, _ = env.reset()
@@ -83,12 +87,19 @@ def test_all_global_tokens_enabled():
 
 def test_episode_completion_disabled():
     """Test that episode completion token is not present when disabled."""
-    global_obs = {"episode_completion_pct": False, "last_action": True, "last_reward": True}
+    global_obs = {
+        "episode_completion_pct": False,
+        "last_action": True,
+        "last_reward": True,
+    }
 
     env = create_test_env(global_obs)
     obs, _ = env.reset()
 
-    expected_features = {env.feature_spec()[feature_name]["id"] for feature_name in ["last_action", "last_reward"]}
+    expected_features = {
+        env.feature_spec()[feature_name]["id"]
+        for feature_name in ["last_action", "last_reward"]
+    }
     global_token_count = count_global_features(obs, expected_features)
 
     # Each agent should have 2 global tokens
@@ -97,13 +108,18 @@ def test_episode_completion_disabled():
 
 def test_last_action_disabled():
     """Test that last action tokens are not present when disabled."""
-    global_obs = {"episode_completion_pct": True, "last_action": False, "last_reward": True}
+    global_obs = {
+        "episode_completion_pct": True,
+        "last_action": False,
+        "last_reward": True,
+    }
 
     env = create_test_env(global_obs)
     obs, _ = env.reset()
 
     expected_features = {
-        env.feature_spec()[feature_name]["id"] for feature_name in ["episode_completion_pct", "last_reward"]
+        env.feature_spec()[feature_name]["id"]
+        for feature_name in ["episode_completion_pct", "last_reward"]
     }
     global_token_count = count_global_features(obs, expected_features)
 
@@ -113,7 +129,11 @@ def test_last_action_disabled():
 
 def test_all_global_tokens_disabled():
     """Test that no global tokens are present when all disabled."""
-    global_obs = {"episode_completion_pct": False, "last_action": False, "last_reward": False}
+    global_obs = {
+        "episode_completion_pct": False,
+        "last_action": False,
+        "last_reward": False,
+    }
 
     env = create_test_env(global_obs)
     obs, _ = env.reset()

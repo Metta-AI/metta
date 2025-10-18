@@ -15,7 +15,9 @@ class Config(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    def _auto_initialize_field(self, parent_obj: "Config", field_name: str) -> "Config | None":
+    def _auto_initialize_field(
+        self, parent_obj: "Config", field_name: str
+    ) -> "Config | None":
         """Auto-initialize a None Config field if possible."""
         field = type(parent_obj).model_fields.get(field_name)
         if not field:
@@ -35,7 +37,9 @@ class Config(BaseModel):
     def _unwrap_optional(self, field_type):
         """Unwrap Optional[T] → T if applicable, else return original type."""
         if get_origin(field_type) is Union:
-            non_none_types = [arg for arg in get_args(field_type) if arg is not type(None)]
+            non_none_types = [
+                arg for arg in get_args(field_type) if arg is not type(None)
+            ]
             return non_none_types[0] if len(non_none_types) == 1 else field_type
         return field_type
 

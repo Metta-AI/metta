@@ -34,7 +34,9 @@ def env_with_tags() -> MettaGridCore:
                 move=ActionConfig(),
             ),
             objects={
-                "wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID, tags=["solid", "blocking"]),
+                "wall": WallConfig(
+                    type_id=TokenTypes.WALL_TYPE_ID, tags=["solid", "blocking"]
+                ),
             },
             resource_names=[],
             map_builder=AsciiMapBuilder.Config(
@@ -72,7 +74,9 @@ def env_with_duplicate_tags() -> MettaGridCore:
                 AgentConfig(tags=["mobile", "shared_tag"]),
             ],
             objects={
-                "wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID, tags=["solid", "shared_tag"]),
+                "wall": WallConfig(
+                    type_id=TokenTypes.WALL_TYPE_ID, tags=["solid", "shared_tag"]
+                ),
             },
             resource_names=[],
             map_builder=AsciiMapBuilder.Config(
@@ -112,7 +116,9 @@ class TestTags:
         # Find walls (type_id = 1) in observation
         wall_locations = set()
         for token in agent0_obs:
-            if token[1] == 0 and token[2] == TokenTypes.WALL_TYPE_ID:  # TypeId feature with wall value
+            if (
+                token[1] == 0 and token[2] == TokenTypes.WALL_TYPE_ID
+            ):  # TypeId feature with wall value
                 wall_locations.add(token[0])
 
         # Should find walls in the observation
@@ -143,7 +149,9 @@ class TestTags:
         # Find wall locations first
         wall_locations = set()
         for token in agent0_obs:
-            if token[1] == 0 and token[2] == TokenTypes.WALL_TYPE_ID:  # TypeId feature with wall value
+            if (
+                token[1] == 0 and token[2] == TokenTypes.WALL_TYPE_ID
+            ):  # TypeId feature with wall value
                 wall_locations.add(token[0])
 
         # Get tag feature ID from environment
@@ -156,7 +164,9 @@ class TestTags:
                 found_tags.add(token[2])  # token[2] contains the tag ID
 
         # Should find both tag IDs
-        assert len(found_tags) >= 2, f"Should find at least 2 tag IDs, found {found_tags}"
+        assert len(found_tags) >= 2, (
+            f"Should find at least 2 tag IDs, found {found_tags}"
+        )
         # Both expected tag IDs should be present
         for tag_id in expected_tag_ids:
             assert tag_id in found_tags, f"Tag ID {tag_id} should be in observations"
@@ -204,13 +214,17 @@ class TestTags:
         # Find wall locations
         wall_locations = set()
         for token in agent_obs:
-            if token[1] == 0 and token[2] == TokenTypes.WALL_TYPE_ID:  # TypeId feature with wall value
+            if (
+                token[1] == 0 and token[2] == TokenTypes.WALL_TYPE_ID
+            ):  # TypeId feature with wall value
                 wall_locations.add(token[0])
 
         # Check that walls don't have tag tokens
         for token in agent_obs:
             if token[0] in wall_locations and token[1] == tag_feature_id:
-                raise AssertionError(f"Wall without tags should not have tag tokens, found tag ID {token[2]}")
+                raise AssertionError(
+                    f"Wall without tags should not have tag tokens, found tag ID {token[2]}"
+                )
 
     def test_duplicate_tags_across_objects(self, env_with_duplicate_tags):
         """Test that multiple objects can share the same tags."""
@@ -252,7 +266,9 @@ class TestTags:
                     found_shared_in_agent = True
 
         # The shared tag should appear in at least one type of object
-        assert found_shared_in_wall or found_shared_in_agent, "Shared tag should be found in observations"
+        assert found_shared_in_wall or found_shared_in_agent, (
+            "Shared tag should be found in observations"
+        )
 
     def test_many_tags_on_single_object(self):
         """Test that an object can have many tags."""
@@ -295,7 +311,9 @@ class TestTags:
         # Find wall locations
         wall_locations = set()
         for token in agent_obs:
-            if token[1] == 0 and token[2] == TokenTypes.WALL_TYPE_ID:  # TypeId feature with wall value
+            if (
+                token[1] == 0 and token[2] == TokenTypes.WALL_TYPE_ID
+            ):  # TypeId feature with wall value
                 wall_locations.add(token[0])
 
         # Count unique tag IDs found on walls
@@ -305,10 +323,14 @@ class TestTags:
                 tag_ids_found.add(token[2])  # token[2] contains the tag ID
 
         # Should find all 10 tags (IDs 0-9 for sorted tags)
-        assert len(tag_ids_found) == 10, f"Should find all 10 tags, found {len(tag_ids_found)}"
+        assert len(tag_ids_found) == 10, (
+            f"Should find all 10 tags, found {len(tag_ids_found)}"
+        )
         # Tag IDs should be consecutive starting from 0
         expected_ids = set(range(0, 10))
-        assert tag_ids_found == expected_ids, f"Tag IDs should be {expected_ids}, got {tag_ids_found}"
+        assert tag_ids_found == expected_ids, (
+            f"Tag IDs should be {expected_ids}, got {tag_ids_found}"
+        )
 
     def test_tag_id_mapping(self):
         """Test that tag names are consistently mapped to IDs."""
@@ -322,7 +344,9 @@ class TestTags:
                 num_observation_tokens=200,
                 actions=ActionsConfig(noop=ActionConfig()),
                 objects={
-                    "wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID, tags=["alpha", "beta"]),
+                    "wall": WallConfig(
+                        type_id=TokenTypes.WALL_TYPE_ID, tags=["alpha", "beta"]
+                    ),
                 },
                 resource_names=[],
                 map_builder=AsciiMapBuilder.Config(
@@ -465,7 +489,9 @@ class TestTags:
         # Walls should have the "solid" tag (plus converter and machine tags in the system)
         # All unique tags: ["converter", "industrial", "machine", "solid", "wood", "coal"] (resources might add tags)
         # We should find at least the solid tag
-        assert len(wall_tag_ids) >= 1, f"Walls should have at least 1 tag, found {wall_tag_ids}"
+        assert len(wall_tag_ids) >= 1, (
+            f"Walls should have at least 1 tag, found {wall_tag_ids}"
+        )
 
     def test_agent_with_tags(self):
         """Test that agents can have tags."""
@@ -519,7 +545,9 @@ class TestTags:
                     agent_tag_ids.add(token[2])  # token[2] contains the tag ID
 
             # Each agent should have at least 2 tags
-            assert len(agent_tag_ids) >= 2, f"Agent {agent_idx} should have at least 2 tags, found {len(agent_tag_ids)}"
+            assert len(agent_tag_ids) >= 2, (
+                f"Agent {agent_idx} should have at least 2 tags, found {len(agent_tag_ids)}"
+            )
 
 
 def test_tag_id_bounds():
@@ -545,7 +573,9 @@ def test_tag_id_bounds():
     # Check that tag IDs are sequential
     sorted_ids = sorted(tag_id_map.keys())
     expected_ids = list(range(len(tag_id_map)))
-    assert sorted_ids == expected_ids, f"Tag IDs should be sequential from 0, got {sorted_ids}"
+    assert sorted_ids == expected_ids, (
+        f"Tag IDs should be sequential from 0, got {sorted_ids}"
+    )
 
 
 def test_too_many_tags_error():
@@ -689,9 +719,13 @@ def test_default_agent_tags_preserved():
                 agent_tag_ids.add(token[2])
 
         # Each default agent should have 2 tags (default_tag1, default_tag2)
-        assert len(agent_tag_ids) == 2, f"Default agent {agent_idx} should have 2 tags, found {len(agent_tag_ids)}"
+        assert len(agent_tag_ids) == 2, (
+            f"Default agent {agent_idx} should have 2 tags, found {len(agent_tag_ids)}"
+        )
         # Tag IDs should be 0 and 1 (alphabetically sorted: default_tag1=0, default_tag2=1)
-        assert agent_tag_ids == {0, 1}, f"Default agent {agent_idx} should have tag IDs {{0, 1}}, got {agent_tag_ids}"
+        assert agent_tag_ids == {0, 1}, (
+            f"Default agent {agent_idx} should have tag IDs {{0, 1}}, got {agent_tag_ids}"
+        )
 
 
 def test_default_agent_tags_in_cpp_config():
@@ -712,7 +746,9 @@ def test_default_agent_tags_in_cpp_config():
 
     # Tags should be sorted alphabetically: hero=0, player=1
     assert tag_id_map[0] == "hero", f"Tag ID 0 should be 'hero', got {tag_id_map[0]}"
-    assert tag_id_map[1] == "player", f"Tag ID 1 should be 'player', got {tag_id_map[1]}"
+    assert tag_id_map[1] == "player", (
+        f"Tag ID 1 should be 'player', got {tag_id_map[1]}"
+    )
 
 
 def test_tag_mapping_in_feature_spec():
@@ -726,7 +762,9 @@ def test_tag_mapping_in_feature_spec():
             num_observation_tokens=NUM_OBS_TOKENS,
             actions=ActionsConfig(noop=ActionConfig()),
             objects={
-                "wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID, tags=["solid", "blocking"]),
+                "wall": WallConfig(
+                    type_id=TokenTypes.WALL_TYPE_ID, tags=["solid", "blocking"]
+                ),
                 "converter": ConverterConfig(
                     type_id=2,
                     input_resources={"wood": 1},
@@ -764,21 +802,29 @@ def test_tag_mapping_in_feature_spec():
     # Check that tag feature has expected fields
     assert "id" in tag_spec, "tag feature should have 'id' field"
     assert "normalization" in tag_spec, "tag feature should have 'normalization' field"
-    assert "values" in tag_spec, "tag feature should have 'values' field for tag mapping"
+    assert "values" in tag_spec, (
+        "tag feature should have 'values' field for tag mapping"
+    )
 
     # Check tag mapping contents
     tag_values = tag_spec["values"]
-    assert isinstance(tag_values, dict), "tag values should be a dict mapping tag_id -> tag_name"
+    assert isinstance(tag_values, dict), (
+        "tag values should be a dict mapping tag_id -> tag_name"
+    )
 
     # All unique tags sorted: ["blocking", "industrial", "machine", "mobile", "player", "solid"]
     # IDs should be 0-5
     expected_tags = ["blocking", "industrial", "machine", "mobile", "player", "solid"]
-    assert len(tag_values) == len(expected_tags), f"Should have {len(expected_tags)} tags, got {len(tag_values)}"
+    assert len(tag_values) == len(expected_tags), (
+        f"Should have {len(expected_tags)} tags, got {len(tag_values)}"
+    )
 
     # Verify tags are sorted alphabetically with correct IDs
     for i, expected_tag in enumerate(expected_tags):
         assert i in tag_values, f"Tag ID {i} should be in mapping"
-        assert tag_values[i] == expected_tag, f"Tag ID {i} should be '{expected_tag}', got '{tag_values[i]}'"
+        assert tag_values[i] == expected_tag, (
+            f"Tag ID {i} should be '{expected_tag}', got '{tag_values[i]}'"
+        )
 
 
 def test_tag_mapping_empty_tags():
@@ -813,12 +859,16 @@ def test_tag_mapping_empty_tags():
     feature_spec = env.c_env.feature_spec()
 
     # Check that tag feature exists
-    assert "tag" in feature_spec, "tag feature should be in feature_spec even with no tags"
+    assert "tag" in feature_spec, (
+        "tag feature should be in feature_spec even with no tags"
+    )
 
     tag_spec = feature_spec["tag"]
 
     # Check that tag feature has expected fields
-    assert "values" in tag_spec, "tag feature should have 'values' field even with no tags"
+    assert "values" in tag_spec, (
+        "tag feature should have 'values' field even with no tags"
+    )
 
     # Check tag mapping is empty
     tag_values = tag_spec["values"]

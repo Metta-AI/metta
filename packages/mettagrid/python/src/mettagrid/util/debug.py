@@ -12,7 +12,11 @@ _max_recursion_depth = 10  # Limit recursion depth
 
 
 def save_array_slice(
-    array: np.ndarray, indices: tuple, file_path: Path, max_preview_elements: int = 60, append: bool = False
+    array: np.ndarray,
+    indices: tuple,
+    file_path: Path,
+    max_preview_elements: int = 60,
+    append: bool = False,
 ) -> None:
     """
     Save a slice of an array to a file, with a preview of values.
@@ -30,7 +34,9 @@ def save_array_slice(
 
     # Check that the indices are valid for the array
     if len(idx) > array.ndim:
-        raise ValueError(f"Too many indices ({len(idx)}) for array with {array.ndim} dimensions")
+        raise ValueError(
+            f"Too many indices ({len(idx)}) for array with {array.ndim} dimensions"
+        )
 
     # Create a string representation of the indices for display
     idx_str = []
@@ -95,7 +101,9 @@ def save_array_slice(
 
 
 def save_args_for_c(
-    args: Dict[str, Any], base_filename: str = "c_test_args", output_dir: Optional[str] = None
+    args: Dict[str, Any],
+    base_filename: str = "c_test_args",
+    output_dir: Optional[str] = None,
 ) -> Dict[str, str]:
     """
     Save Python arguments in formats suitable for C testing.
@@ -186,10 +194,14 @@ def save_args_for_c(
                 if arg_value.ndim >= 3:
                     try:
                         # Try to get indices from the middle of each dimension (except the last)
-                        mid_idx = tuple(min(5, max(0, s // 2)) for s in arg_value.shape[:-1])
+                        mid_idx = tuple(
+                            min(5, max(0, s // 2)) for s in arg_value.shape[:-1]
+                        )
                         save_array_slice(arg_value, mid_idx, info_path, append=True)
                     except Exception as e:
-                        print(f"Warning: Could not save middle slice for {arg_name}: {str(e)}")
+                        print(
+                            f"Warning: Could not save middle slice for {arg_name}: {str(e)}"
+                        )
 
             saved_files[f"{arg_name}_info"] = str(info_path)
 

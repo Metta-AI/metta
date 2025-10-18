@@ -1,7 +1,10 @@
 import numpy as np
 from pytest import fixture
 
-from mettagrid.mapgen.random.float import FloatConstantDistribution, FloatUniformDistribution
+from mettagrid.mapgen.random.float import (
+    FloatConstantDistribution,
+    FloatUniformDistribution,
+)
 from mettagrid.mapgen.random.int import IntConstantDistribution, IntUniformDistribution
 from mettagrid.mapgen.scenes.auto import (
     AutoConfig,
@@ -23,7 +26,10 @@ def common_params() -> AutoConfig:
         room_objects={"altar": FloatUniformDistribution(low=0.0005, high=0.01)},
         room_symmetry=AutoConfigRoomSymmetry(horizontal=1, vertical=1, x4=1, none=1),
         layout=AutoConfigLayout(grid=1, bsp=1),
-        grid=AutoConfigGrid(rows=IntConstantDistribution(value=3), columns=IntConstantDistribution(value=3)),
+        grid=AutoConfigGrid(
+            rows=IntConstantDistribution(value=3),
+            columns=IntConstantDistribution(value=3),
+        ),
         bsp=AutoConfigBSP(area_count=IntConstantDistribution(value=3)),
         content=[
             RandomSceneCandidate(

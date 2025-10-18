@@ -59,7 +59,9 @@ def test_serializes_map_from_yaml_string():
 
     # Test model_dump representation
     config_dict = storable_map.config.model_dump()
-    assert config_dict["map_data"] == MAP_LINES  # model_dump returns nested lists, not strings
+    assert (
+        config_dict["map_data"] == MAP_LINES
+    )  # model_dump returns nested lists, not strings
     for token, name in LEGEND.items():
         assert config_dict["char_to_name_map"][token] == name
 

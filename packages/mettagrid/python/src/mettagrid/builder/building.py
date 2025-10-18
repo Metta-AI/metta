@@ -1,9 +1,17 @@
 from typing import Literal
 
-from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, ConverterConfig, RecipeConfig, WallConfig
+from mettagrid.config.mettagrid_config import (
+    AssemblerConfig,
+    ChestConfig,
+    ConverterConfig,
+    RecipeConfig,
+    WallConfig,
+)
 
 wall = WallConfig(name="wall", type_id=1, map_char="#", render_symbol="⬛")
-block = WallConfig(name="block", type_id=14, map_char="s", render_symbol="📦", swappable=True)
+block = WallConfig(
+    name="block", type_id=14, map_char="s", render_symbol="📦", swappable=True
+)
 
 altar = ConverterConfig(
     name="altar",
@@ -234,7 +242,10 @@ def make_chest(
     name: str = "chest",
     map_char: str = "C",
     render_symbol: str = "📦",
-    position_deltas: list[tuple[Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE"], int]] | None = None,
+    position_deltas: list[
+        tuple[Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE"], int]
+    ]
+    | None = None,
     initial_inventory: int = 0,
     max_inventory: int = 255,
 ) -> ChestConfig:

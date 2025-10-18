@@ -103,7 +103,9 @@ class AssemblerMapBuilder(MapBuilder):
                 jw = w - abs(dj)
                 if jw <= 0:
                     continue
-                out[ti0 : ti0 + ih, tj0 : tj0 + jw] |= mask[si0 : si0 + ih, sj0 : sj0 + jw]
+                out[ti0 : ti0 + ih, tj0 : tj0 + jw] |= mask[
+                    si0 : si0 + ih, sj0 : sj0 + jw
+                ]
         return out
 
     # ---------- main ----------
@@ -198,7 +200,9 @@ class AssemblerMapBuilder(MapBuilder):
         # Precompute candidate coordinates once, shuffled
         cand_rows = np.arange(top, bottom + 1)
         cand_cols = np.arange(left, right + 1)
-        candidates = np.stack(np.meshgrid(cand_rows, cand_cols, indexing="ij"), axis=-1).reshape(-1, 2)
+        candidates = np.stack(
+            np.meshgrid(cand_rows, cand_cols, indexing="ij"), axis=-1
+        ).reshape(-1, 2)
         self._rng.shuffle(candidates)
 
         # Flatten object symbols list
@@ -250,7 +254,9 @@ class AssemblerMapBuilder(MapBuilder):
         if isinstance(self._config.agents, int):
             agent_symbols = ["agent.agent"] * self._config.agents
         elif isinstance(self._config.agents, dict):
-            agent_symbols = ["agent." + a for a, n in self._config.agents.items() for _ in range(n)]
+            agent_symbols = [
+                "agent." + a for a, n in self._config.agents.items() for _ in range(n)
+            ]
         else:
             raise ValueError(f"Invalid agents configuration: {self._config.agents}")
 

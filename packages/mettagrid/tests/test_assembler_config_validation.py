@@ -5,7 +5,9 @@ from mettagrid.config.mettagrid_config import AssemblerConfig, GameConfig, Recip
 from mettagrid.mettagrid_c import GameConfig as CppGameConfig
 
 
-def make_env_cfg_from_assembler_config(assembler_config: AssemblerConfig) -> CppGameConfig:
+def make_env_cfg_from_assembler_config(
+    assembler_config: AssemblerConfig,
+) -> CppGameConfig:
     return convert_to_cpp_game_config(
         GameConfig(
             num_agents=2,
@@ -40,7 +42,9 @@ def test_assembler_config_allows_partially_overlapping_patterns() -> None:
     )
 
 
-def test_assembler_config_rejects_fully_overlapping_patterns_unless_explicitly_allowed() -> None:
+def test_assembler_config_rejects_fully_overlapping_patterns_unless_explicitly_allowed() -> (
+    None
+):
     with pytest.raises(ValueError, match="has no valid cog patterns"):
         make_env_cfg_from_assembler_config(
             AssemblerConfig(

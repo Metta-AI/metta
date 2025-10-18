@@ -62,7 +62,11 @@ class MazeGrid:
         )
 
     def valid_directions(self, i: int, j: int) -> list[Direction]:
-        return [d for d in ALL_DIRECTIONS if 0 <= i + d[0] < self.cols and 0 <= j + d[1] < self.rows]
+        return [
+            d
+            for d in ALL_DIRECTIONS
+            if 0 <= i + d[0] < self.cols and 0 <= j + d[1] < self.rows
+        ]
 
     def _set_cell_border_in_direction(self, i1: int, j1: int, d: Direction, value: str):
         rs = self.room_size
@@ -146,7 +150,9 @@ class Maze(Scene[MazeConfig]):
     def _render_kruskal(self):
         self.maze.clear_and_carve_all_cells()
 
-        cells = [(col, row) for row in range(self.maze.rows) for col in range(self.maze.cols)]
+        cells = [
+            (col, row) for row in range(self.maze.rows) for col in range(self.maze.cols)
+        ]
 
         # DSU
         parent = {cell: cell for cell in cells}
@@ -161,11 +167,19 @@ class Maze(Scene[MazeConfig]):
 
         # all horizontal and vertical walls, expressed as a list of tuples (col, row, direction)
         walls: list[tuple[int, int, Direction]] = [
-            (col, row, (0, 1))  # direction between cells is "down", this is a horizontal wall
+            (
+                col,
+                row,
+                (0, 1),
+            )  # direction between cells is "down", this is a horizontal wall
             for col in range(self.maze.cols)
             for row in range(self.maze.rows - 1)
         ] + [
-            (col, row, (1, 0))  # direction between cells is "right", this is a vertical wall
+            (
+                col,
+                row,
+                (1, 0),
+            )  # direction between cells is "right", this is a vertical wall
             for col in range(self.maze.cols - 1)
             for row in range(self.maze.rows)
         ]
@@ -211,4 +225,6 @@ class Maze(Scene[MazeConfig]):
         for anchor in ALL_ANCHORS:
             i, j = anchor_to_position(anchor, self.maze.cols, self.maze.rows)
             x, y = self.maze.cell_top_left(i, j)
-            self.make_area(x, y, self.maze.room_size, self.maze.room_size, tags=[anchor])
+            self.make_area(
+                x, y, self.maze.room_size, self.maze.room_size, tags=[anchor]
+            )

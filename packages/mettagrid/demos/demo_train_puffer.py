@@ -76,7 +76,9 @@ def demo_puffer_env():
     from gymnasium import spaces
 
     assert isinstance(env.action_space, spaces.Discrete)
-    actions = np.random.randint(0, env.action_space.n, size=(env.num_agents,)).astype(dtype_actions, copy=False)
+    actions = np.random.randint(0, env.action_space.n, size=(env.num_agents,)).astype(
+        dtype_actions, copy=False
+    )
 
     _, rewards, terminals, truncations, _ = env.step(actions)
     print(f"   - Step successful: obs {observations.shape}, rewards {rewards.shape}")
@@ -112,7 +114,9 @@ def demo_random_rollout():
         from gymnasium import spaces
 
         assert isinstance(env.action_space, spaces.Discrete)
-        actions = np.random.randint(0, env.action_space.n, size=(env.num_agents,)).astype(dtype_actions, copy=False)
+        actions = np.random.randint(
+            0, env.action_space.n, size=(env.num_agents,)
+        ).astype(dtype_actions, copy=False)
 
         _, rewards, terminals, truncations, _ = env.step(actions)
         total_reward += rewards.sum()
@@ -180,9 +184,9 @@ def demo_pufferlib_training():
         for _ in range(max_steps):
             # Sample actions based on current preferences
             probs = action_preferences / action_preferences.sum()
-            actions = np.random.choice(env.action_space.n, size=env.num_agents, p=probs).astype(
-                dtype_actions, copy=False
-            )
+            actions = np.random.choice(
+                env.action_space.n, size=env.num_agents, p=probs
+            ).astype(dtype_actions, copy=False)
 
             _, rewards, terminals, truncations, _ = env.step(actions)
             total_reward += rewards.sum()
@@ -205,7 +209,9 @@ def demo_pufferlib_training():
         assert not np.isnan(total_reward), "Total reward is NaN"
 
     except Exception as e:
-        print("   - Note: Full PufferLib training API not available, ran basic loop instead")
+        print(
+            "   - Note: Full PufferLib training API not available, ran basic loop instead"
+        )
         print(f"   - Error details: {e}")
 
     print("\nPufferLib capabilities:")

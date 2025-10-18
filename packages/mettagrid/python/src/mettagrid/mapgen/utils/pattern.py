@@ -74,7 +74,9 @@ def ascii_to_weights_of_all_patterns(
     for pattern, count in patterns_with_counts:
         index = pattern.index()
         if index >= len(weights):
-            raise ValueError(f"Pattern index {index} is out of range for weights array of size {len(weights)}")
+            raise ValueError(
+                f"Pattern index {index} is out of range for weights array of size {len(weights)}"
+            )
         weights[index] = count
 
     return weights
@@ -177,5 +179,6 @@ class Pattern:
 
     def __str__(self) -> str:
         return "Pattern:\n" + "\n".join(
-            "".join("#" if self.data[y, x] else " " for x in range(self.size())) for y in range(self.size())
+            "".join("#" if self.data[y, x] else " " for x in range(self.size()))
+            for y in range(self.size())
         )

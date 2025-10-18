@@ -137,7 +137,9 @@ def env_default():
 
 
 # Helper functions
-def extract_visitation_features(visitation_feature_id: int, obs: np.ndarray, agent_idx: int = 0) -> list[int]:
+def extract_visitation_features(
+    visitation_feature_id: int, obs: np.ndarray, agent_idx: int = 0
+) -> list[int]:
     """Extract visitation count features from observation."""
     features = []
     for i in range(obs.shape[1]):
@@ -150,36 +152,56 @@ def extract_visitation_features(visitation_feature_id: int, obs: np.ndarray, age
 def test_visitation_counts_enabled(env_with_visitation):
     """Test that visitation counts work correctly when enabled."""
     obs, _ = env_with_visitation.reset(seed=42)
-    visitation_feature_id = env_with_visitation.c_env.feature_spec()["agent:visitation_counts"]["id"]
+    visitation_feature_id = env_with_visitation.c_env.feature_spec()[
+        "agent:visitation_counts"
+    ]["id"]
 
     # Check initial visitation counts
     initial_features = extract_visitation_features(visitation_feature_id, obs)
-    assert len(initial_features) == 5, f"Expected 5 visitation features, got {len(initial_features)}"
-    assert initial_features == [0, 0, 0, 0, 0], f"Expected initial counts [0,0,0,0,0], got {initial_features}"
+    assert len(initial_features) == 5, (
+        f"Expected 5 visitation features, got {len(initial_features)}"
+    )
+    assert initial_features == [0, 0, 0, 0, 0], (
+        f"Expected initial counts [0,0,0,0,0], got {initial_features}"
+    )
 
     # Move and check counts update
-    move_action = np.array([action_index(env_with_visitation, "move", Orientation.NORTH)], dtype=dtype_actions)
+    move_action = np.array(
+        [action_index(env_with_visitation, "move", Orientation.NORTH)],
+        dtype=dtype_actions,
+    )
     for step in range(3):
         obs, _, _, _, _ = env_with_visitation.step(move_action)
         features = extract_visitation_features(visitation_feature_id, obs)
-        assert len(features) == 5, f"Step {step}: Expected 5 features, got {len(features)}"
+        assert len(features) == 5, (
+            f"Step {step}: Expected 5 features, got {len(features)}"
+        )
         # At least one count should be non-zero after movement
         # Note: visitation counts are incremented at the end of the step,
         # so we need to take at least 2 steps to see non-zero counts
         if step > 1:
-            assert any(f > 0 for f in features), f"Expected non-zero counts after step {step}, got {features}"
+            assert any(f > 0 for f in features), (
+                f"Expected non-zero counts after step {step}, got {features}"
+            )
 
 
 def test_visitation_counts_disabled(env_without_visitation):
     """Test that visitation counts are not present when disabled."""
     obs, _ = env_without_visitation.reset(seed=42)
-    visitation_feature_id = env_without_visitation.c_env.feature_spec()["agent:visitation_counts"]["id"]
+    visitation_feature_id = env_without_visitation.c_env.feature_spec()[
+        "agent:visitation_counts"
+    ]["id"]
 
     features = extract_visitation_features(visitation_feature_id, obs)
-    assert len(features) == 0, f"Expected no visitation features when disabled, got {len(features)}"
+    assert len(features) == 0, (
+        f"Expected no visitation features when disabled, got {len(features)}"
+    )
 
     # Verify they stay disabled after steps
-    move_action = np.array([action_index(env_without_visitation, "move", Orientation.NORTH)], dtype=dtype_actions)
+    move_action = np.array(
+        [action_index(env_without_visitation, "move", Orientation.NORTH)],
+        dtype=dtype_actions,
+    )
     obs, _, _, _, _ = env_without_visitation.step(move_action)
     features = extract_visitation_features(visitation_feature_id, obs)
     assert len(features) == 0, "Visitation features appeared after step when disabled"
@@ -188,7 +210,9 @@ def test_visitation_counts_disabled(env_without_visitation):
 def test_visitation_counts_default_disabled(env_default):
     """Test that visitation counts are disabled by default."""
     obs, _ = env_default.reset(seed=42)
-    visitation_feature_id = env_default.c_env.feature_spec()["agent:visitation_counts"]["id"]
+    visitation_feature_id = env_default.c_env.feature_spec()["agent:visitation_counts"][
+        "id"
+    ]
 
     features = extract_visitation_features(visitation_feature_id, obs)
     assert len(features) == 0, "Visitation counts should be disabled by default"
@@ -241,10 +265,14 @@ def _median_runtime(env, move_action, warmup_steps=10, test_steps=200, reps=15):
     return times[len(times) // 2]
 
 
-@pytest.mark.skip(reason="Flaky performance test - timing variations on different systems")
+@pytest.mark.skip(
+    reason="Flaky performance test - timing variations on different systems"
+)
 def test_visitation_performance_impact(performance_config):
     """Disabled visitation should not be materially slower."""
-    move_action = np.array([action_index(env_default, "move", Orientation.NORTH)], dtype=dtype_actions)
+    move_action = np.array(
+        [action_index(env_default, "move", Orientation.NORTH)], dtype=dtype_actions
+    )
 
     # enabled
     cfg_on = copy.deepcopy(performance_config)
@@ -271,7 +299,9 @@ def test_visitation_performance_impact(performance_config):
 def test_observation_structure(env_with_visitation):
     """Test the structure of observations with visitation counts."""
     obs, _ = env_with_visitation.reset(seed=42)
-    visitation_feature_id = env_with_visitation.c_env.feature_spec()["agent:visitation_counts"]["id"]
+    visitation_feature_id = env_with_visitation.c_env.feature_spec()[
+        "agent:visitation_counts"
+    ]["id"]
 
     # Check observation shape
     assert len(obs.shape) == 3, f"Expected 3D observation array, got shape {obs.shape}"
@@ -286,8 +316,16 @@ def test_observation_structure(env_with_visitation):
     )
 
     # Count visitation features at different locations
-    visitation_count = len([feature_id for feature_id in feature_ids if feature_id == visitation_feature_id])
-    assert visitation_count == 5, f"Expected 5 visitation count tokens, got {visitation_count}"
+    visitation_count = len(
+        [
+            feature_id
+            for feature_id in feature_ids
+            if feature_id == visitation_feature_id
+        ]
+    )
+    assert visitation_count == 5, (
+        f"Expected 5 visitation count tokens, got {visitation_count}"
+    )
 
 
 if __name__ == "__main__":

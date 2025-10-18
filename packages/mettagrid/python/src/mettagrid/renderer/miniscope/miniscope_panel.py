@@ -198,7 +198,9 @@ class PanelLayout:
         layout.add_column(ratio=1)  # Single column for full width content
 
         # Add header
-        header_content = self.header.get_rich_content() or "\n".join(self.header.get_content())
+        header_content = self.header.get_rich_content() or "\n".join(
+            self.header.get_content()
+        )
         layout.add_row(header_content)
 
         # Create horizontal layout for map (left) and info pane (right)
@@ -207,14 +209,20 @@ class PanelLayout:
         main_row.add_column(width=46)  # Info pane (right, fixed width)
 
         # Get content for map and sidebar
-        map_content = self.map_view.get_rich_content() or "\n".join(self.map_view.render())
-        sidebar_content = self.sidebar.get_rich_content() or "\n".join(self.sidebar.render())
+        map_content = self.map_view.get_rich_content() or "\n".join(
+            self.map_view.render()
+        )
+        sidebar_content = self.sidebar.get_rich_content() or "\n".join(
+            self.sidebar.render()
+        )
 
         main_row.add_row(map_content, sidebar_content)
         layout.add_row(main_row)
 
         # Add footer
-        footer_content = self.footer.get_rich_content() or "\n".join(self.footer.get_content())
+        footer_content = self.footer.get_rich_content() or "\n".join(
+            self.footer.get_content()
+        )
         layout.add_row(footer_content)
 
         # Update live display if active, otherwise clear and print

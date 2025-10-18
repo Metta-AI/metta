@@ -98,7 +98,9 @@ def demo_random_rollout():
         print(f"   - {agent}: {reward:.2f} total reward")
 
     assert steps > 0, "Expected at least one step to be taken"
-    assert all(isinstance(r, (int, float)) for r in total_reward.values()), "Rewards must be numeric"
+    assert all(isinstance(r, (int, float)) for r in total_reward.values()), (
+        "Rewards must be numeric"
+    )
 
     env.close()
 

@@ -4,7 +4,13 @@ import numpy as np
 import pytest
 
 from mettagrid.config.mettagrid_c_config import from_mettagrid_config
-from mettagrid.config.mettagrid_config import ActionConfig, ActionsConfig, AgentConfig, GameConfig, WallConfig
+from mettagrid.config.mettagrid_config import (
+    ActionConfig,
+    ActionsConfig,
+    AgentConfig,
+    GameConfig,
+    WallConfig,
+)
 from mettagrid.mettagrid_c import (
     MettaGrid,
     dtype_observations,
@@ -189,8 +195,12 @@ def test_multiple_agents_rotation(configured_env, base_config):
     orientation0 = get_agent_orientation(env, 0)
     orientation1 = get_agent_orientation(env, 1)
 
-    assert orientation0 == Orientation.EAST.value, f"Agent 0 should face RIGHT, got {orientation0}"
-    assert orientation1 == Orientation.SOUTH.value, f"Agent 1 should face DOWN, got {orientation1}"
+    assert orientation0 == Orientation.EAST.value, (
+        f"Agent 0 should face RIGHT, got {orientation0}"
+    )
+    assert orientation1 == Orientation.SOUTH.value, (
+        f"Agent 1 should face DOWN, got {orientation1}"
+    )
 
 
 def test_rotation_helper_return_values(configured_env, simple_game_map):
@@ -201,7 +211,9 @@ def test_rotation_helper_return_values(configured_env, simple_game_map):
     initial_orientation = get_agent_orientation(env, 0)
 
     # Rotate to a different orientation
-    target_orientation = Orientation.EAST if initial_orientation != 3 else Orientation.WEST
+    target_orientation = (
+        Orientation.EAST if initial_orientation != 3 else Orientation.WEST
+    )
     result = rotate(env, target_orientation)
 
     # Check all return values

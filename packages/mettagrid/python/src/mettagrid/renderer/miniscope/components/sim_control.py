@@ -98,7 +98,9 @@ class SimControlComponent(MiniscopeComponent):
         # Format values
         mode_text = self.state.mode.value.upper()
         status = "PAUSED" if self.state.playback == PlaybackState.PAUSED else "PLAYING"
-        sps = f"{self.state.fps:.1f}" if self.state.fps < 10 else f"{int(self.state.fps)}"
+        sps = (
+            f"{self.state.fps:.1f}" if self.state.fps < 10 else f"{int(self.state.fps)}"
+        )
         camera_pos = f"({self.state.camera_row},{self.state.camera_col})"
 
         # Build status text

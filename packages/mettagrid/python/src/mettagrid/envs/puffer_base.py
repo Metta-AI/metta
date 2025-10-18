@@ -123,7 +123,9 @@ class MettaGridPufferBase(MettaGridCore, PufferEnv):
         return observations, info
 
     @override
-    def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
+    def step(
+        self, actions: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
         observations, rewards, terminals, truncations, infos = super().step(actions)
         if terminals.all() or truncations.all():
             self._should_reset = True
