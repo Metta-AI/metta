@@ -12,9 +12,9 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.common.wandb.context import WandbConfig
 from metta.rl.loss.loss_config import LossConfig
 from metta.rl.loss.mc_ppo import MCPPOConfig
+from metta.rl.system_config import SystemConfig
 
 # from metta.rl.loss.ppo import PPOConfig
 from metta.rl.trainer_config import TrainerConfig
@@ -26,7 +26,6 @@ from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from mettagrid.config import ConverterConfig
-from metta.rl.system_config import SystemConfig
 
 from experiments.recipes import arena
 
@@ -135,7 +134,7 @@ def train(
         training_env=training_env,
         evaluator=evaluator,
         policy_architecture=policy_config,
-        wandb=WandbConfig.Off(),
+        # wandb=WandbConfig.Off(),
         stats_server_uri=None,
         system=SystemConfig(local_only=True),
     )

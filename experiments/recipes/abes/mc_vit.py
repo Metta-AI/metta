@@ -1,3 +1,10 @@
+from metta.agent.policies.mc_vit import MCViTDefaultConfig
+from metta.agent.policy import PolicyArchitecture
+from metta.rl.loss.loss_config import LossConfig
+from metta.rl.loss.mc_ppo import MCPPOConfig
+from metta.rl.system_config import SystemConfig
+from metta.rl.trainer_config import TrainerConfig
+
 from experiments.recipes.arena_basic_easy_shaped import (
     evaluate,
     evaluate_in_sweep,
@@ -11,13 +18,6 @@ from experiments.recipes.arena_basic_easy_shaped import (
 from experiments.recipes.arena_basic_easy_shaped import (
     train as base_train,
 )
-from metta.agent.policies.mc_vit import MCViTDefaultConfig
-from metta.agent.policy import PolicyArchitecture
-from metta.rl.loss.loss_config import LossConfig
-from metta.rl.loss.mc_ppo import MCPPOConfig
-from metta.rl.trainer_config import TrainerConfig
-from metta.common.wandb.context import WandbConfig
-from metta.rl.system_config import SystemConfig
 
 
 def train(
@@ -33,7 +33,7 @@ def train(
         curriculum=curriculum,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
         policy_architecture=policy_architecture or MCViTDefaultConfig(),
-        wandb=WandbConfig.Off(),
+        # wandb=WandbConfig.Unconfigured(),
         stats_server_uri=None,
         system=SystemConfig(local_only=True),
     )
