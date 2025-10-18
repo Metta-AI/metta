@@ -5,7 +5,6 @@ from metta.agent.components.actor import ActionProbsConfig, ActorKeyConfig, Acto
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.components.misc import MLPConfig
 from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
-from metta.agent.components.obs_shim import ObsShimTokensConfig
 from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourierConfig
 from metta.agent.meta_cog.mc_actor import (
     MCActionProbsConfig,
@@ -13,6 +12,7 @@ from metta.agent.meta_cog.mc_actor import (
     MCActorQueryConfig,
 )
 from metta.agent.meta_cog.mc_lstm_reset import MCLSTMResetConfig
+from metta.agent.meta_cog.mc_obs_shim_tokens import MCObsShimTokensConfig
 from metta.agent.policy import PolicyArchitecture
 
 
@@ -35,7 +35,7 @@ class MCViTResetConfig(PolicyArchitecture):
     _mc_embedding_dim = 16
 
     components: List[ComponentConfig] = [
-        ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=48),
+        MCObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=48),
         ObsAttrEmbedFourierConfig(
             in_key="obs_shim_tokens",
             out_key="obs_attr_embed",

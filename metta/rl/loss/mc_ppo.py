@@ -447,14 +447,14 @@ class MCPPO(Loss):
         - >=500: add "lstm_noise_2"
         """
         allowed: list[str] = ["noop_1", "noop_2", "focus_1"]
-        if epoch >= 100:
-            allowed.append("focus_2")
         if epoch >= 200:
-            allowed.append("lstm_noise_1")
-        if epoch >= 300:
-            allowed.append("lstm_clear")
+            allowed.append("focus_2")
         if epoch >= 500:
-            allowed.append("lstm_noise_2")
+            allowed.append("lstm_noise_1")
+        if epoch >= 1000:
+            allowed.append("lstm_clear")
+        # if epoch >= 500:
+        #     allowed.append("lstm_noise_2")
         return allowed
 
     def _maybe_update_mc_action_curriculum(self, context: ComponentContext) -> None:

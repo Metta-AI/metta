@@ -12,7 +12,7 @@ from metta.agent.meta_cog.mc import MetaCogAction
 # for token-based observation shaping. Or you can manipulate the two classes below directly in your policy.
 
 
-class ObsTokenPadStrip(nn.Module):
+class MCObsTokenPadStrip(nn.Module):
     """
     Token-based observation shaping layer that trims right-padding and exposes a per-environment
     focus window. Given token observations shaped [B_or_BxTT, M, 3], it computes the maximum
@@ -388,22 +388,22 @@ class ObsAttrValNorm(nn.Module):
         return td
 
 
-class ObsShimTokensConfig(ComponentConfig):
+class MCObsShimTokensConfig(ComponentConfig):
     in_key: str
     out_key: str
     max_tokens: int | None = None
     name: str = "obs_shim_tokens"
 
     def make_component(self, env):
-        return ObsShimTokens(env, config=self)
+        return MCObsShimTokens(env, config=self)
 
 
-class ObsShimTokens(nn.Module):
-    def __init__(self, env, config: ObsShimTokensConfig) -> None:
+class MCObsShimTokens(nn.Module):
+    def __init__(self, env, config: MCObsShimTokensConfig) -> None:
         super().__init__()
         self.in_key = config.in_key
         self.out_key = config.out_key
-        self.token_pad_striper = ObsTokenPadStrip(env, in_key=self.in_key, max_tokens=config.max_tokens)
+        self.token_pad_striper = MCObsTokenPadStrip(env, in_key=self.in_key, max_tokens=config.max_tokens)
         self.attr_val_normer = ObsAttrValNorm(env, out_key=self.out_key)
 
     def initialize_to_environment(

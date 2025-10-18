@@ -74,9 +74,11 @@ class MCPolicyAutoBuilder(nn.Module):
         for i, mc_action in enumerate(self.mc_actions):
             mc_action.initialize(i)
 
-        for _, component in self.components.items():
-            if hasattr(component, "mc_initialize_to_environment"):
-                component.mc_initialize_to_environment(self.mc_action_names)
+        # note! this initializes all actions at creation
+        # for _, component in self.components.items():
+        #     if hasattr(component, "mc_initialize_to_environment"):
+        #         component.mc_initialize_to_environment(self.mc_action_names)
+        self.components["mc_action_embedding"].mc_initialize_to_environment(["noop_1", "noop_2"])
 
     def noop(self, env_ids):
         return
