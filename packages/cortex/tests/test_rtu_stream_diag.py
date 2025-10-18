@@ -22,9 +22,7 @@ except Exception:  # pragma: no cover
 
 # CUDA fused sequential (all-in) availability
 try:
-    from cortex.kernels.cuda import (
-        rtu_stream_diag_cuda_seq_allin as _rtu_cuda_seq_stream,
-    )
+    from cortex.kernels.cuda import rtu_stream_diag_cuda as _rtu_cuda_seq_stream
 
     _HAS_CUDA_SEQ = True
 except Exception:  # pragma: no cover

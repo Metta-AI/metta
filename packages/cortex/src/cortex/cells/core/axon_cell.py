@@ -17,7 +17,7 @@ from cortex.backends import load_cuda_stream_diag, want_cuda_seq_allin
 from cortex.cells.base import MemoryCell
 from cortex.cells.registry import register_cell
 from cortex.config import AxonConfig
-from cortex.kernels.cuda.srht_cuda import srht_cuda  # type: ignore
+from cortex.kernels.cuda import srht_cuda
 from cortex.kernels.pytorch.rtu.rtu_stream_diag import rtu_stream_diag_pytorch
 from cortex.kernels.pytorch.rtu.rtu_stream_fullrank import rtu_stream_full_pytorch
 from cortex.kernels.pytorch.srht import srht_pytorch
@@ -27,7 +27,7 @@ from cortex.utils import select_backend
 
 try:
     # CUDA full‑rank autograd wrapper (jit‑compiled on first use)
-    from cortex.kernels.cuda import rtu_stream_full_cuda_seq_allin as _rtu_full_cuda
+    from cortex.kernels.cuda import rtu_stream_full_cuda as _rtu_full_cuda
 
     _HAS_FULL_CUDA = True
 except Exception:  # pragma: no cover

@@ -208,7 +208,7 @@ class _RTUStreamFullCUDASeq(Function):
         )
 
 
-def rtu_stream_full_cuda_seq_allin(
+def rtu_stream_full_cuda(
     *,
     x_btd: torch.Tensor,
     nu_log: torch.Tensor,
@@ -221,6 +221,10 @@ def rtu_stream_full_cuda_seq_allin(
     trace_in: Optional[tuple[torch.Tensor, ...]] = None,
     resets_bt: Optional[torch.Tensor] = None,
 ):
+    """CUDA full-rank RTU streaming kernel.
+
+    Computes streaming RTU with full-rank input weights using fused CUDA kernels.
+    """
     y, h1, h2, trace = _RTUStreamFullCUDASeq.apply(
         x_btd,
         nu_log,
@@ -236,4 +240,4 @@ def rtu_stream_full_cuda_seq_allin(
     return y, (h1, h2), trace
 
 
-__all__ = ["rtu_stream_full_cuda_seq_allin"]
+__all__ = ["rtu_stream_full_cuda"]

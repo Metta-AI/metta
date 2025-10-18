@@ -24,7 +24,7 @@ def want_cuda_seq_allin(*, tensor: torch.Tensor, seq_len: int, threshold: int) -
 def load_cuda_stream_diag() -> Optional[Callable]:
     """Try to import the CUDA streaming-diagonal kernel; return callable or None."""
     try:
-        from cortex.kernels.cuda import rtu_stream_diag_cuda_seq_allin as cu_fn  # type: ignore
+        from cortex.kernels.cuda import rtu_stream_diag_cuda as cu_fn  # type: ignore
 
         return cu_fn
     except Exception:

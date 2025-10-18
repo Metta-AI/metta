@@ -18,7 +18,7 @@ from cortex.kernels.pytorch.rtu.rtu_stream_fullrank import rtu_stream_full_pytor
 pytestmark = pytest.mark.skip(reason="slow full-rank RTU parity suite")
 
 try:
-    from cortex.kernels.cuda import rtu_stream_full_cuda_seq_allin as _rtu_full_cuda
+    from cortex.kernels.cuda import rtu_stream_full_cuda as _rtu_full_cuda
 
     _HAS_FULL_CUDA = True
 except Exception:  # pragma: no cover

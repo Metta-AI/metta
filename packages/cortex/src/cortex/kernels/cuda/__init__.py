@@ -1,7 +1,10 @@
-from .rtu_stream_diag_cuda_seq_allin import rtu_stream_diag_cuda_seq_allin
-from .rtu_stream_full_cuda_seq_allin import rtu_stream_full_cuda_seq_allin
+"""CUDA kernels for Cortex."""
+
+from .rtu import rtu_stream_diag_cuda, rtu_stream_full_cuda
+from .srht import srht_cuda
 
 __all__ = [
-    "rtu_stream_diag_cuda_seq_allin",
-    "rtu_stream_full_cuda_seq_allin",
+    "rtu_stream_diag_cuda",
+    "rtu_stream_full_cuda",
+    "srht_cuda",
 ]
