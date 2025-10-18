@@ -7,6 +7,9 @@ from metta.rl.trainer_config import OptimizerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.tools.train import TrainTool
 from experiments.recipes.arena import train_shaped as base_train_shaped
+from experiments.recipes.arena_basic_easy_shaped import (
+    train as arena_basic_easy_shaped_train,
+)
 
 # Import everything from the base arena recipe
 from experiments.recipes.arena import (
@@ -106,6 +109,55 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
     trainer_config = TrainerConfig(
         losses=loss_config,
         optimizer=optimizer_config,
+        total_timesteps=50_000_000_000,
+    )
+
+    return TrainTool(
+        training_env=base_tool.training_env,
+        trainer=trainer_config,
+        evaluator=base_tool.evaluator,
+        policy_architecture=ViTGRPOConfig(),
+    )
+
+
+def basic_easy_shaped() -> TrainTool:
+    """Train with GRPO loss on basic easy shaped rewards task.
+
+    This provides easier training with reward shaping and converters enabled,
+    using the critic-free GRPO algorithm.
+    """
+
+    # Get the base shaped training tool
+    base_tool = arena_basic_easy_shaped_train()
+
+    # Configure GRPO loss
+    grpo_config = GRPOConfig(
+        clip_coef=0.2,
+        ent_coef=0.01,
+        gamma=0.99,
+        group_size=4,
+        norm_adv=True,
+        target_kl=None,
+    )
+
+    loss_config = LossConfig(
+        loss_configs={"grpo": grpo_config},
+    )
+
+    # # Configure optimizer
+    # optimizer_config = OptimizerConfig(
+    #     type="adamw_schedulefree",
+    #     learning_rate=0.01,
+    #     beta1=0.9,
+    #     beta2=0.999,
+    #     eps=3.186531e-07,
+    #     weight_decay=0.01,
+    #     warmup_steps=2000,
+    # )
+
+    trainer_config = TrainerConfig(
+        losses=loss_config,
+        # optimizer=optimizer_config,
         total_timesteps=50_000_000_000,
     )
 
