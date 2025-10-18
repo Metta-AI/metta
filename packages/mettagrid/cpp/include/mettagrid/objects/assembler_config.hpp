@@ -25,8 +25,8 @@ struct AssemblerConfig : public GridObjectConfig {
         clip_immune(false),      // Not immune by default
         start_clipped(false) {}  // Not clipped at start by default
 
-  // Recipes will be set separately via initialize_recipes()
-  std::vector<std::shared_ptr<Recipe>> recipes;
+  // Recipes keyed by local vibe (64-bit number from sorted glyphs)
+  std::unordered_map<uint64_t, std::shared_ptr<Recipe>> recipes;
 
   // Recipe observation configuration
   bool recipe_details_obs;

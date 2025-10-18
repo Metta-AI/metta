@@ -4,7 +4,7 @@ This ensures that all policies (ComponentPolicy, PyTorch agents with mixin, etc.
 implement the required methods that MettaAgent depends on."""
 
 from abc import ABC, abstractmethod
-from typing import ClassVar, List
+from typing import ClassVar, List, Optional
 
 import torch
 import torch.nn as nn
@@ -49,7 +49,7 @@ class Policy(ABC, nn.Module):
     implement this interface."""
 
     @abstractmethod
-    def forward(self, td: TensorDict) -> TensorDict:
+    def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
         pass
 
     def get_agent_experience_spec(self) -> Composite:
