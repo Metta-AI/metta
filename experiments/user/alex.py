@@ -5,7 +5,7 @@ from typing import List, Optional
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from experiments.recipes import arena
+from experiments.recipes import arenas
 from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
@@ -133,22 +133,22 @@ def train(
 
 
 def play() -> PlayTool:
-    env = arena.make_evals()[0].env
+    env = arenas.make_evals()[0].env
     env.game.max_steps = 100
-    cfg = arena.play(env)
+    cfg = arenas.play(env)
     return cfg
 
 
 def replay() -> ReplayTool:
-    env = arena.make_mettagrid()
+    env = arenas.make_mettagrid()
     env.game.max_steps = 100
-    cfg = arena.replay(env)
+    cfg = arenas.replay(env)
     # cfg.policy_uri = "wandb://run/daveey.combat.lpsm.8x4"
     return cfg
 
 
 def evaluate(run: str = "local.alex.1") -> EvaluateTool:
-    cfg = arena.evaluate(policy_uris=[f"wandb://run/{run}"])
+    cfg = arenas.evaluate(policy_uris=[f"wandb://run/{run}"])
 
     # If your run doesn't exist, try this:
     # cfg = arena.evaluate(policy_uri="wandb://run/daveey.combat.lpsm.8x4")

@@ -3,7 +3,7 @@
 from metta.agent.policies.hrm import HRMTinyConfig
 from metta.agent.policy import PolicyArchitecture
 
-from experiments.recipes import arenas as base
+from experiments.recipes import arena as base
 
 mettagrid = base.mettagrid
 make_curriculum = base.make_curriculum
