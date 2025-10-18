@@ -8,11 +8,13 @@ from uuid import UUID
 
 import numpy as np
 import torch
+import torch.nn as nn
 from pydantic import Field
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.wandb.context import WandbRun
 from metta.eval.eval_request_config import EvalRewardSummary
+from metta.rl.model_analysis import compute_dormant_neuron_stats
 from metta.rl.stats import accumulate_rollout_stats, compute_timing_stats, process_training_stats
 from metta.rl.training.component import TrainerComponent
 from metta.rl.utils import should_run
@@ -121,6 +123,8 @@ class StatsReporterConfig(Config):
     """How often to report stats (in epochs)"""
     analyze_weights_interval: int = 0
     """How often to compute weight metrics (0 disables)."""
+    dormant_neuron_threshold: float = 1e-6
+    """Threshold for considering a neuron dormant based on mean absolute weight magnitude."""
 
 
 class StatsReporterState(Config):
@@ -421,6 +425,9 @@ class StatsReporter(TrainerComponent):
         self._normalize_steps_per_second(timing_info, agent_step)
 
         weight_stats = self._collect_weight_stats(policy=policy, epoch=epoch)
+        dormant_stats = self._compute_dormant_neuron_stats(policy=policy)
+        if dormant_stats:
+            weight_stats.update(dormant_stats)
         system_stats = self._collect_system_stats()
         memory_stats = self._collect_memory_stats()
         parameters = self._collect_parameters(
@@ -497,6 +504,16 @@ class StatsReporter(TrainerComponent):
         except Exception as exc:  # pragma: no cover - safeguard against model-specific failures
             logger.warning("Failed to compute weight metrics: %s", exc, exc_info=True)
         return weight_stats
+
+    def _compute_dormant_neuron_stats(self, *, policy: Any) -> dict[str, float]:
+        if not isinstance(policy, nn.Module):
+            return {}
+        threshold = getattr(self._config, "dormant_neuron_threshold", 1e-6)
+        try:
+            return compute_dormant_neuron_stats(policy, threshold=threshold)
+        except Exception as exc:  # pragma: no cover - safeguard against model-specific failures
+            logger.debug("Failed to compute dormant neuron stats: %s", exc, exc_info=True)
+            return {}
 
     def _collect_system_stats(self) -> dict[str, Any]:
         system_monitor = getattr(self.context, "system_monitor", None)
