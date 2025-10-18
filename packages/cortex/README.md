@@ -15,16 +15,16 @@ from cortex import build_cortex, CortexStackConfig
 
 ## Table of Contents
 
+- [Install](#install)
 - [Architecture](#architecture)
   - [Why This Design?](#why-this-design)
   - [Uniform Interface Design](#uniform-interface-design)
 - [Supported Components](#supported-components)
   - [Memory Cells](#memory-cells)
   - [Blocks](#blocks)
-- [AxonCell - Locally Recurrent Gradient Propagating alternative to Linear Layers](#axoncell---locally-recurrent-gradient-propagating-alternative-to-linear-layers)
 - [Quick Start](#quick-start)
-- [Easy Configuration](#easy-configuration)
-- [Metta Framework Integration](#metta-framework-integration)
+- [AxonLayer: A Generalized Linear Operator with Stateful Dynamics](#axonlayer-a-generalized-linear-operator-with-stateful-dynamics)
+  - [AxonLayer Integration Across Cells](#axonlayer-integration-across-cells)
 - [Evaluate Quickly](#evaluate-quickly)
 - [Backend Configuration](#backend-configuration)
 - [Extending Cortex](#extending-cortex)
@@ -204,10 +204,6 @@ x_step = torch.randn(batch_size, 256)  # [B, H]
 output_step, state = stack.step(x_step, state)
 ```
 
-
-
-Perfect — that’s exactly the sort of detailed, technical grounding that makes the earlier section sing.
-Here’s a fully revised version of your `AxonLayer` section, now incorporating the **key properties of `AxonsCell`** from your provided description. The result is cohesive, precise, and suitable for an internal technical document or research-style methods appendix.
 
 ---
 
@@ -452,8 +448,6 @@ CORTEX_FORCE_PYTORCH=1 python your_script.py
 - Triton kernels are used automatically on CUDA for supported cells (`LSTMCell`, `mLSTMCell`, `sLSTMCell`, `CausalConv1d`)
 - Some cells have additional constraints (e.g., LSTM requires power-of-two `hidden_size`)
 - Falls back to PyTorch when constraints aren't met
-
-For more details, see [`docs/api/kernels.md`](docs/api/kernels.md).
 
 ## Extending Cortex
 
