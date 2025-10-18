@@ -13,7 +13,6 @@ import torch
 import torch.nn as nn
 from tensordict import TensorDict
 
-from cortex.backends import load_cuda_stream_diag, want_cuda_seq_allin
 from cortex.cells.base import MemoryCell
 from cortex.cells.registry import register_cell
 from cortex.config import AxonConfig
@@ -24,14 +23,7 @@ from cortex.kernels.pytorch.srht import srht_pytorch
 from cortex.kernels.triton.rtu import rtu_stream_diag_triton  # type: ignore
 from cortex.types import MaybeState, ResetMask, Tensor
 from cortex.utils import select_backend
-
-try:
-    # CUDA full‑rank autograd wrapper (jit‑compiled on first use)
-    from cortex.kernels.cuda import rtu_stream_full_cuda as _rtu_full_cuda
-
-    _HAS_FULL_CUDA = True
-except Exception:  # pragma: no cover
-    _HAS_FULL_CUDA = False
+from cortex.kernels.cuda import rtu_stream_diag_cuda, rtu_stream_full_cuda
 
 
 def _resolve_activation(name: str) -> nn.Module:
@@ -255,113 +247,56 @@ class AxonCell(MemoryCell):
             else:
                 x_btd = srht_pytorch(x_btd, signs, perm, normalize=True)
 
-        # Backend shims: all return (y2h_t, h1_n, h2_n, trace_out)
-        def _fw_triton(
-            x_in: torch.Tensor, h1: torch.Tensor, h2: torch.Tensor, rm: Optional[torch.Tensor], tr: Optional[tuple]
-        ):
-            act_name = self.activation.__class__.__name__
-            y2h_t_, (h1_n_, h2_n_), trace_out_ = rtu_stream_diag_triton(
-                x_btd=x_in,
-                nu_log=self.nu_log,
-                theta_log=self.theta_log,
-                w1=self.w1,
-                w2=self.w2,
-                activation_name=act_name,
-                hc1_init_bh=h1,
-                hc2_init_bh=h2,
-                trace_in=tr,
-                resets_bt=rm,
-            )
-            return y2h_t_, h1_n_, h2_n_, trace_out_
+        # Select kernel functions and build kwargs based on mode
+        act_name = self.activation.__class__.__name__
 
-        def _fw_torch(
-            x_in: torch.Tensor, h1: torch.Tensor, h2: torch.Tensor, rm: Optional[torch.Tensor], tr: Optional[tuple]
-        ):
-            act_name = self.activation.__class__.__name__
-            if not self._use_fullrank:
-                y2h_t_, (h1_n_, h2_n_), trace_out_ = rtu_stream_diag_pytorch(
-                    x_btd=x_in,
-                    nu_log=self.nu_log,
-                    theta_log=self.theta_log,
-                    w1=self.w1,
-                    w2=self.w2,
-                    activation_name=act_name,
-                    hc1_init_bh=h1,
-                    hc2_init_bh=h2,
-                    trace_in=tr,
-                    resets_bt=rm,
-                )
-            else:
-                y2h_t_, (h1_n_, h2_n_), trace_out_ = rtu_stream_full_pytorch(
-                    x_btd=x_in,
-                    nu_log=self.nu_log,
-                    theta_log=self.theta_log,
-                    Wc1=self.Wc1,
-                    Wc2=self.Wc2,
-                    activation_name=act_name,
-                    hc1_init_bh=h1,
-                    hc2_init_bh=h2,
-                    trace_in=tr,
-                    resets_bt=rm,
-                )
-            return y2h_t_, h1_n_, h2_n_, trace_out_
-
-        def _fw_cuda(
-            x_in: torch.Tensor, h1: torch.Tensor, h2: torch.Tensor, rm: Optional[torch.Tensor], tr: Optional[tuple]
-        ):
-            act_name = self.activation.__class__.__name__
-            if not self._use_fullrank:
-                cu_fn = load_cuda_stream_diag()
-                assert cu_fn is not None, "CUDA stream-diag kernel not available"
-                y2h_t_, (h1_n_, h2_n_), trace_out_ = cu_fn(
-                    x_btd=x_in,
-                    nu_log=self.nu_log,
-                    theta_log=self.theta_log,
-                    w1=self.w1,
-                    w2=self.w2,
-                    activation_name=act_name,
-                    hc1_init_bh=h1,
-                    hc2_init_bh=h2,
-                    trace_in=tr,
-                    resets_bt=rm,
-                )
-            else:
-                assert _HAS_FULL_CUDA, "CUDA full-rank kernel not available"
-                y2h_t_, (h1_n_, h2_n_), trace_out_ = _rtu_full_cuda(
-                    x_btd=x_in,
-                    nu_log=self.nu_log,
-                    theta_log=self.theta_log,
-                    Wc1=self.Wc1,
-                    Wc2=self.Wc2,
-                    activation_name=act_name,
-                    hc1_init_bh=h1,
-                    hc2_init_bh=h2,
-                    trace_in=tr,
-                    resets_bt=rm,
-                )
-            return y2h_t_, h1_n_, h2_n_, trace_out_
-
-        prefer_cuda = want_cuda_seq_allin(tensor=x_btd, seq_len=T, threshold=int(self.cfg.cuda_seq_threshold))
         if self._use_fullrank:
-            backend = select_backend(
-                triton_fn=None,
-                pytorch_fn=_fw_torch,
-                tensor=x_btd,
-                allow_triton=False,
-                cuda_fn=_fw_cuda,
-                allow_cuda=prefer_cuda,
-            )
+            # Full-rank: only PyTorch and CUDA available (no Triton)
+            triton_fn = None
+            pytorch_fn = rtu_stream_full_pytorch
+            cuda_fn = rtu_stream_full_cuda
+            kernel_kwargs = {
+                "x_btd": x_btd,
+                "nu_log": self.nu_log,
+                "theta_log": self.theta_log,
+                "Wc1": self.Wc1,
+                "Wc2": self.Wc2,
+                "activation_name": act_name,
+                "hc1_init_bh": hc1,
+                "hc2_init_bh": hc2,
+                "trace_in": trace_in,
+                "resets_bt": resets_bt,
+            }
         else:
-            backend = select_backend(
-                triton_fn=_fw_triton,
-                pytorch_fn=_fw_torch,
-                tensor=x_btd,
-                allow_triton=True,
-                cuda_fn=_fw_cuda,
-                allow_cuda=prefer_cuda,
-            )
+            # Diagonal: all three backends available
+            triton_fn = rtu_stream_diag_triton
+            pytorch_fn = rtu_stream_diag_pytorch
+            cuda_fn = rtu_stream_diag_cuda
+            kernel_kwargs = {
+                "x_btd": x_btd,
+                "nu_log": self.nu_log,
+                "theta_log": self.theta_log,
+                "w1": self.w1,
+                "w2": self.w2,
+                "activation_name": act_name,
+                "hc1_init_bh": hc1,
+                "hc2_init_bh": hc2,
+                "trace_in": trace_in,
+                "resets_bt": resets_bt,
+            }
 
-        y2h_t, h1_n, h2_n, trace_out = backend(x_btd, hc1, hc2, resets_bt, trace_in)
+        # Backend selection (select_backend handles None automatically)
+        prefer_cuda = x_btd.is_cuda and (T <= int(self.cfg.cuda_seq_threshold))
+        kernel_fn = select_backend(
+            triton_fn=triton_fn,
+            pytorch_fn=pytorch_fn,
+            tensor=x_btd,
+            cuda_fn=cuda_fn,
+            allow_cuda=prefer_cuda,
+        )
+
+        # Single kernel call
+        y2h_t, (h1_n, h2_n), trace_out = kernel_fn(**kernel_kwargs)
 
         # Update state and traces
         st["hc1"] = h1_n
