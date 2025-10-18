@@ -10,6 +10,7 @@ from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.loss import Loss
+from metta.rl.loss.loss_config import LossSchedule
 from metta.rl.training import ComponentContext, TrainingEnvironment
 from metta.utils.batch import calculate_prioritized_sampling_params
 from mettagrid.base_config import Config
@@ -29,7 +30,7 @@ class VTraceConfig(Config):
 
 
 class PPOConfig(Config):
-    schedule: None = None  # TODO: Implement this
+    schedule: LossSchedule | None = None
     # PPO hyperparameters
     # Clip coefficient (0.1-0.3 typical; Schulman et al. 2017)
     clip_coef: float = Field(default=0.264407, gt=0, le=1.0)
