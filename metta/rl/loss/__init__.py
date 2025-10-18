@@ -14,16 +14,18 @@ if TYPE_CHECKING:
     from metta.rl.loss.loss import Loss
     from metta.rl.loss.loss_config import LossConfig
     from metta.rl.loss.ppo import PPOConfig
+    from metta.rl.loss.stable_latent import StableLatentStateConfig
 
 _EXPORTS: dict[str, tuple[str, str | None]] = {
     "LossConfig": ("metta.rl.loss.loss_config", "LossConfig"),
     "Loss": ("metta.rl.loss.loss", "Loss"),
     "PPOConfig": ("metta.rl.loss.ppo", "PPOConfig"),
     "ContrastiveConfig": ("metta.rl.loss.contrastive_config", "ContrastiveConfig"),
+    "StableLatentStateConfig": ("metta.rl.loss.stable_latent", "StableLatentStateConfig"),
 }
 
 # Explicitly define __all__ to help type checkers
-__all__ = ["LossConfig", "Loss", "PPOConfig", "ContrastiveConfig"]
+__all__ = ["LossConfig", "Loss", "PPOConfig", "ContrastiveConfig", "StableLatentStateConfig"]
 
 
 def __getattr__(name: str) -> Any:
