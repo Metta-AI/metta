@@ -17,6 +17,7 @@ from cortex.types import MaybeState, ResetMask, Tensor
 from cortex.utils import select_backend
 
 
+@register_cell(CausalConv1dConfig)
 class CausalConv1d(MemoryCell):
     """Causal 1D convolution with depthwise or channel-mixing modes and stateful buffering."""
 
@@ -144,14 +145,6 @@ class CausalConv1d(MemoryCell):
         mask_expanded = mask.to(dtype=state["conv"].dtype).view(-1, 1, 1)
         state["conv"] = state["conv"] * (1.0 - mask_expanded)
         return state
-
-
-# Register the cell if config is available
-try:
-    register_cell(CausalConv1dConfig)(CausalConv1d)
-except (NameError, ImportError):
-    # Config might not be defined yet
-    pass
 
 
 __all__ = ["CausalConv1d"]
