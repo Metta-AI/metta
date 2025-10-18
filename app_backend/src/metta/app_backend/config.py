@@ -9,3 +9,5 @@ port = int(os.getenv("PORT", "8000"))
 anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
 
 run_leaderboard_updater = os.getenv("RUN_LEADERBOARD_UPDATER", "true") == "true"
+
+login_service_url = os.getenv("LOGIN_SERVICE_URL", "https://beta.softmax.com")

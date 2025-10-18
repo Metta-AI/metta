@@ -16,8 +16,8 @@ from metta.tools.train import TrainTool
 from mettagrid.builder import building, empty_converters
 from mettagrid.builder.envs import make_icl_with_numpy
 from mettagrid.config.mettagrid_config import (
+    FixedPosition,
     MettaGridConfig,
-    Position,
     RecipeConfig,
 )
 from pydantic import Field
@@ -70,32 +70,6 @@ size_ranges = {
     "medium": (20, 30),
     "large": (30, 40),
     "xlarge": (40, 50),
-}
-
-num_agents_to_positions = {
-    1: [["N"], ["S"], ["E"], ["W"], ["Any"]],
-    2: [
-        ["N", "S"],
-        ["E", "W"],
-        ["N", "E"],  # one agent must be north, the other agent must be east
-        ["N", "W"],  # one agent must be north, the other agent must be west
-        ["S", "E"],
-        ["S", "W"],
-    ],
-    3: [
-        ["N", "S", "E"],
-        ["E", "W", "N"],
-        ["W", "E", "S"],
-        ["N", "S", "W"],
-        ["S", "N", "E"],
-    ],
-    4: [
-        ["N", "S", "E", "W"],
-        ["E", "W", "N", "S"],
-        ["W", "E", "S", "N"],
-        ["N", "S", "W", "E"],
-        ["S", "N", "E", "W"],
-    ],
 }
 
 room_size_templates = {
@@ -178,7 +152,7 @@ class ICLTaskGenerator(TaskGenerator):
             default=[0],
             description="Number of chests to include.",
         )
-        chest_positions: list[list[Position]] = Field(
+        chest_positions: list[list[FixedPosition]] = Field(
             default=[["N"]],
             description="Positions for chests.",
         )
@@ -187,11 +161,6 @@ class ICLTaskGenerator(TaskGenerator):
         max_recipe_inputs: list[int] = Field(
             default=[1],
             description="Max inputs per recipe converter (sampled per env).",
-        )
-        # assembler specific
-        positions: list[list[Position]] = Field(
-            default=[["Any"]],
-            description="Positions for assemblers.",
         )
 
     def __init__(self, config: "ICLTaskGenerator.Config"):
@@ -242,7 +211,6 @@ class ICLTaskGenerator(TaskGenerator):
         self,
         input_resources: dict[str, int],
         output_resources: dict[str, int],
-        position,
         cfg: _BuildCfg,
         rng: random.Random,
         cooldown: int = 10,
@@ -267,7 +235,7 @@ class ICLTaskGenerator(TaskGenerator):
         assembler = self.assembler_types[assembler_name].copy()
 
         recipe = (
-            position,
+            [],
             RecipeConfig(
                 input_resources=input_resources,
                 output_resources=output_resources,
@@ -290,10 +258,7 @@ class ICLTaskGenerator(TaskGenerator):
     ):
         print(f"Making chest with deposit positions {position}")
         chest = building.make_chest(
-            resource_type="heart",
-            type_id=26,
-            deposit_positions=position,
-            withdrawal_positions=[],
+            resource_type="heart", type_id=26, position_deltas=[(position, 1)]
         )
         chest_name = "chest"
 
@@ -360,9 +325,6 @@ class ICLTaskGenerator(TaskGenerator):
             room_size, num_agents, num_resources + num_converters, rng
         )
 
-        recipe_position = rng.choice(
-            [p for p in self.config.positions if len(p) <= num_agents]
-        )
         max_steps = self.calculate_max_steps(
             num_resources, num_converters, width, height
         )
@@ -380,7 +342,6 @@ class ICLTaskGenerator(TaskGenerator):
             width,
             height,
             max_steps,
-            recipe_position,
             chest_position,
             num_chests,
         )

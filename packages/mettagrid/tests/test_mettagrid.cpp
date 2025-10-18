@@ -1234,44 +1234,6 @@ TEST_F(MettaGridCppTest, AssemblerCooldownObservationCappedAt255) {
   EXPECT_TRUE(found_cooldown_remaining) << "Should have CooldownRemaining feature capped at 255";
 }
 
-TEST_F(MettaGridCppTest, AssemblerGetAgentPatternByte) {
-  // Create a grid to test with
-  std::unique_ptr<Grid> grid = std::make_unique<Grid>(10, 10);
-
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
-  Assembler* assembler = new Assembler(5, 5, config);  // Assembler at position (5,5)
-
-  // Set up the assembler with grid
-  assembler->set_grid(grid.get());
-  grid->add_object(assembler);
-
-  // Test 1: Empty pattern (no agents around) - should return 0
-  uint8_t pattern = assembler->get_agent_pattern_byte();
-
-  AgentConfig agent_cfg(1, "test_agent", 0, "test_group");
-  auto resource_names = create_test_resource_names();
-  Agent* agent1 = new Agent(4, 5, agent_cfg, &resource_names);  // North of assembler
-  Agent* agent2 = new Agent(5, 6, agent_cfg, &resource_names);  // East of assembler
-
-  grid->add_object(agent1);
-  grid->add_object(agent2);
-
-  pattern = assembler->get_agent_pattern_byte();
-  EXPECT_EQ(pattern, 18) << "Pattern with agents at N and E should be 18 (2 + 16)";
-
-  // Test 3: Pattern with agents in multiple positions
-  // Move agent1 to NW (bit 0) and agent2 to SW (bit 5), add agent3 at SE (bit 7)
-  // This should give us pattern = (1 << 0) | (1 << 5) | (1 << 7) = 1 | 32 | 128 = 161
-  grid->move_object(*agent1, GridLocation(4, 4, GridLayer::AgentLayer));  // Move to NW
-  grid->move_object(*agent2, GridLocation(6, 4, GridLayer::AgentLayer));  // Move to SW
-
-  Agent* agent3 = new Agent(6, 6, agent_cfg, &resource_names);  // SE of assembler
-  grid->add_object(agent3);                                     // Add new agent
-
-  pattern = assembler->get_agent_pattern_byte();
-  EXPECT_EQ(pattern, 161) << "Pattern with agents at NW, SW, and SE should be 161 (1 + 32 + 128)";
-}
-
 TEST_F(MettaGridCppTest, AssemblerGetCurrentRecipe) {
   // Create a grid to test with
   Grid grid(10, 10);
@@ -1285,8 +1247,8 @@ TEST_F(MettaGridCppTest, AssemblerGetCurrentRecipe) {
   auto recipe1 = std::make_shared<Recipe>();
   recipe1->input_resources[1] = 2;
 
-  config.recipes.push_back(recipe0);
-  config.recipes.push_back(recipe1);
+  config.recipes[0] = recipe0;
+  config.recipes[1] = recipe1;
 
   Assembler* assembler = new Assembler(5, 5, config);
 
@@ -1298,18 +1260,23 @@ TEST_F(MettaGridCppTest, AssemblerGetCurrentRecipe) {
   // Add assembler to grid
   grid.add_object(assembler);
 
-  // Without agents around, should get pattern 0 (recipe0)
+  // Without agents around, should get recipe0
   const Recipe* current_recipe = assembler->get_current_recipe();
   EXPECT_EQ(current_recipe, recipe0.get());
 
-  // Add one agent at NW position (bit 0) - should get pattern 1 (recipe1)
+  // With one agent and no glyph, should still get 0
   AgentConfig agent_cfg(1, "test_agent", 0, "test_group");
   auto resource_names = create_test_resource_names();
   Agent* agent = new Agent(4, 4, agent_cfg, &resource_names);  // NW of assembler
   grid.add_object(agent);
 
   current_recipe = assembler->get_current_recipe();
-  EXPECT_EQ(current_recipe, recipe1.get()) << "With one agent, should select recipe1";
+  EXPECT_EQ(current_recipe, recipe0.get()) << "With one agent, should still get recipe0";
+
+  // Now with a glyph, should get recipe1
+  agent->glyph = 1;
+  current_recipe = assembler->get_current_recipe();
+  EXPECT_EQ(current_recipe, recipe1.get()) << "With one agent and a glyph, should get recipe1";
 }
 
 TEST_F(MettaGridCppTest, AssemblerRecipeObservationsEnabled) {
@@ -1330,8 +1297,8 @@ TEST_F(MettaGridCppTest, AssemblerRecipeObservationsEnabled) {
   recipe1->input_resources[2] = 3;   // 3 units of item 2
   recipe1->output_resources[3] = 2;  // 2 units of output item 3
 
-  config.recipes.push_back(recipe0);  // Index 0: pattern 0
-  config.recipes.push_back(recipe1);  // Index 1: pattern 1
+  config.recipes[0] = recipe0;
+  config.recipes[1] = recipe1;
 
   Assembler* assembler = new Assembler(5, 5, config);
 
@@ -1346,7 +1313,7 @@ TEST_F(MettaGridCppTest, AssemblerRecipeObservationsEnabled) {
   // Test with pattern 0 (no agents around) - should get recipe0
   auto features = assembler->obs_features();
 
-  // Should have recipe features for pattern 0 (recipe0)
+  // Should have recipe features for recipe0
   bool found_input_feature = false;
   bool found_output_feature = false;
   for (const auto& feature : features) {
@@ -1358,8 +1325,8 @@ TEST_F(MettaGridCppTest, AssemblerRecipeObservationsEnabled) {
       found_output_feature = true;
     }
   }
-  EXPECT_TRUE(found_input_feature) << "Should have input recipe feature for pattern 0";
-  EXPECT_TRUE(found_output_feature) << "Should have output recipe feature for pattern 0";
+  EXPECT_TRUE(found_input_feature) << "Should have input recipe feature for recipe 0";
+  EXPECT_TRUE(found_output_feature) << "Should have output recipe feature for recipe 0";
 
   // Verify we're getting the right recipe
   const Recipe* current_recipe = assembler->get_current_recipe();
@@ -1381,7 +1348,7 @@ TEST_F(MettaGridCppTest, AssemblerBalancedConsumptionAmpleResources) {
 
   // Create assembler with the recipe
   AssemblerConfig config(1, "test_assembler", std::vector<int>{});
-  config.recipes = {recipe};
+  config.recipes[0] = recipe;
   Assembler assembler(5, 5, config);
 
   // Create agents with ample resources
@@ -1434,7 +1401,7 @@ TEST_F(MettaGridCppTest, AssemblerBalancedConsumptionMixedResources) {
 
   // Create assembler with the recipe
   AssemblerConfig config(1, "test_assembler", std::vector<int>{});
-  config.recipes = {recipe};
+  config.recipes[0] = recipe;
   Assembler assembler(5, 5, config);
 
   // Create agents with varied resources
@@ -1491,10 +1458,7 @@ TEST_F(MettaGridCppTest, AssemblerClippingAndUnclipping) {
   normal_recipe->output_resources[TestItems::LASER] = 1;
   normal_recipe->cooldown = 0;
 
-  config.recipes.resize(256);
-  for (int i = 0; i < 256; i++) {
-    config.recipes[i] = normal_recipe;
-  }
+  config.recipes[0] = normal_recipe;
 
   Assembler assembler(5, 5, config);
   assembler.set_grid(&grid);
@@ -1526,11 +1490,11 @@ TEST_F(MettaGridCppTest, AssemblerClippingAndUnclipping) {
   unclip_recipe->output_resources[TestItems::ORE] = 3;
   unclip_recipe->cooldown = 0;
 
-  std::vector<std::shared_ptr<Recipe>> unclip_recipes(256, unclip_recipe);
+  std::unordered_map<uint64_t, std::shared_ptr<Recipe>> unclip_recipes;
+  unclip_recipes[0] = unclip_recipe;
   assembler.become_clipped(unclip_recipes, nullptr);
 
   EXPECT_TRUE(assembler.is_clipped) << "Assembler should be clipped after become_clipped()";
-  EXPECT_EQ(assembler.unclip_recipes.size(), 256) << "Should have unclip recipes set";
 
   // Test 4: Verify clipped observation feature
   auto features = assembler.obs_features();
@@ -1587,10 +1551,7 @@ TEST_F(MettaGridCppTest, AssemblerMaxUses) {
   recipe->output_resources[TestItems::LASER] = 1;
   recipe->cooldown = 0;
 
-  config.recipes.resize(256);
-  for (int i = 0; i < 256; i++) {
-    config.recipes[i] = recipe;
-  }
+  config.recipes[0] = recipe;
 
   Assembler assembler(5, 5, config);
   assembler.set_grid(&grid);
@@ -1682,10 +1643,7 @@ TEST_F(MettaGridCppTest, AssemblerExhaustion) {
   recipe->output_resources[TestItems::LASER] = 1;
   recipe->cooldown = 10;  // Base cooldown of 10 timesteps
 
-  config.recipes.resize(256);
-  for (int i = 0; i < 256; i++) {
-    config.recipes[i] = recipe;
-  }
+  config.recipes[0] = recipe;
 
   Assembler assembler(5, 5, config);
   assembler.set_grid(&grid);

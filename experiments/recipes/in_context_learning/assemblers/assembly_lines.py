@@ -10,14 +10,13 @@ from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
 from mettagrid.builder.envs import make_icl_assembler
 from mettagrid.config.mettagrid_config import (
+    FixedPosition,
     MettaGridConfig,
-    Position,
 )
 
 from experiments.recipes.in_context_learning.in_context_learning import (
     ICLTaskGenerator,
     _BuildCfg,
-    num_agents_to_positions,
     play_icl,
     replay_icl,
     train_icl,
@@ -29,9 +28,6 @@ curriculum_args = {
         "chain_lengths": [2, 3, 4, 5],
         "num_sinks": [0, 1, 2],
         "room_sizes": ["small", "medium", "large"],
-        "positions": num_agents_to_positions[1]
-        + num_agents_to_positions[2]
-        + num_agents_to_positions[3],
         "chest_positions": [["N"], ["N", "S"], ["N", "S", "E"]],
         "num_chests": [2, 5, 8],
     },
@@ -40,7 +36,6 @@ curriculum_args = {
         "chain_lengths": [2, 3, 4, 5],
         "num_sinks": [0, 1, 2],
         "room_sizes": ["small", "medium", "large"],
-        "positions": num_agents_to_positions[2],
         "chest_positions": [["N"]],
         "num_chests": [2, 5, 8],
     },
@@ -49,7 +44,6 @@ curriculum_args = {
         "chain_lengths": [2, 3, 4, 5],
         "num_sinks": [0, 1, 2],
         "room_sizes": ["small", "medium", "large"],
-        "positions": num_agents_to_positions[3],
         "chest_positions": [["N"]],
         "num_chests": [2, 5, 8],
     },
@@ -60,7 +54,6 @@ curriculum_args = {
     #     "chest_positions": [["N"]],
     #     "num_chests": [1],
     #     "room_sizes": ["medium"],
-    #     "positions": [["Any", "Any"]],
     # }
 }
 
@@ -70,17 +63,15 @@ def make_task_generator_cfg(
     chain_lengths: list[int],
     num_sinks: list[int],
     room_sizes: list[str],
-    positions: list[list[Position]],
     map_dir: Optional[str] = None,
     num_chests: list[int] = [0],
-    chest_positions: list[list[Position]] = [["N"]],
+    chest_positions: list[list[FixedPosition]] = [["N"]],
 ):
     return AssemblyLinesTaskGenerator.Config(
         num_agents=num_agents,
         num_resources=[c - 1 for c in chain_lengths],
         num_converters=num_sinks,
         room_sizes=room_sizes,
-        positions=positions,
         map_dir=map_dir,
         num_chests=num_chests,
         chest_positions=chest_positions,
@@ -95,7 +86,6 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
         self,
         resources: list[str],
         avg_hop: float,
-        position: list[Position],
         cfg: _BuildCfg,
         rng: random.Random,
     ):
@@ -107,7 +97,6 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
             self._add_assembler(
                 input_resources=input_resources,
                 output_resources={output_resource: 1},
-                position=position,
                 cfg=cfg,
                 cooldown=int(cooldown),
                 rng=rng,
@@ -116,7 +105,6 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
     def _make_sinks(
         self,
         num_sinks: int,
-        position: list[Position],
         cfg: _BuildCfg,
         rng: random.Random,
     ):
@@ -124,7 +112,6 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
             self._add_assembler(
                 input_resources={},
                 output_resources={},
-                position=position,
                 cfg=cfg,
                 rng=rng,
             )
@@ -136,7 +123,6 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
         num_sinks,
         width,
         height,
-        position,
         chest_position,
         num_chests,
         terrain,
@@ -147,8 +133,8 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
     ) -> MettaGridConfig:
         cfg = _BuildCfg()
 
-        self._make_resource_chain(resources, width + height / 2, position, cfg, rng)
-        self._make_sinks(num_sinks, position, cfg, rng)
+        self._make_resource_chain(resources, width + height / 2, cfg, rng)
+        self._make_sinks(num_sinks, cfg, rng)
         if num_chests > 0:
             self._make_chests(num_chests, cfg, chest_position)
 
@@ -201,7 +187,6 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
             width,
             height,
             max_steps,
-            position,
             chest_position,
             num_chests,
         ) = self._setup_task(rng)
@@ -218,7 +203,6 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
             num_sinks=num_sinks,
             width=width,
             height=height,
-            position=position,
             chest_position=chest_position,
             num_chests=num_chests,
             terrain=terrain,
@@ -267,7 +251,6 @@ def play_eval() -> PlayTool:
             chain_lengths=[5],
             num_sinks=[2],
             room_sizes=["large"],
-            positions=[["Any", "Any"]],
         )
     )
     return play_icl(task_generator)
