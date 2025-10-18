@@ -88,7 +88,8 @@ Caveats:
 - Any shared libraries (torch, pydantic, typing, etc) are not isolated and so have to be compatible with both the old
   version of the model and the new code. If shared libraries change and become incompatible, you could get strange
   behavior when loading old models. (The ABI for sending data between C++ and Python isn't included in this - that's
-  handled in the application code.)
+  handled in the application code.) Specifically with torch, we would want to understand how upgrading could cause
+  things to break.
 
 Recommendation:
 
