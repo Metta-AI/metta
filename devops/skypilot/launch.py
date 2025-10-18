@@ -3,9 +3,12 @@ import argparse
 import copy
 import json
 import logging
+import os
 import re
 import subprocess
 import sys
+import uuid
+from typing import Any
 
 import sky
 import yaml
@@ -15,15 +18,17 @@ from devops.skypilot.utils.job_helpers import (
     check_git_state,
     display_job_summary,
     launch_task,
+    open_job_log_from_request_id,
     set_task_secrets,
 )
 from metta.common.tool.tool_path import validate_module_path
 from metta.common.util.cli import get_user_confirmation
+from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from metta.common.util.fs import cd_repo_root
 from metta.common.util.text_styles import red
 from metta.tools.utils.auto_config import auto_run_name
 
-logger = logging.getLogger("launch.py")
+logger = logging.getLogger(__name__)
 
 
 def _validate_sky_cluster_name(run_name: str) -> bool:
@@ -172,6 +177,7 @@ Examples:
         action="store_true",
         help="Run NCCL and job restart tests",
     )
+    parser.add_argument("-jl", "--job-log", action="store_true", help="Open job log after launch")
 
     # Use parse_known_args to handle both launch flags and tool args
     args, tool_args = parser.parse_known_args()
@@ -229,7 +235,7 @@ Examples:
     if not _validate_sky_cluster_name(run_id):
         sys.exit(1)
 
-    task = sky.Task.from_yaml("./devops/skypilot/config/skypilot_run.yaml")
+    task = sky.Task.from_yaml("./devops/skypilot/recipes/skypilot_run.yaml")
 
     # Prepare environment variables including status parameters
     env_updates = dict(
@@ -238,11 +244,14 @@ Examples:
         METTA_ARGS=" ".join(filtered_args),
         METTA_GIT_REF=commit_hash,
         HEARTBEAT_TIMEOUT=args.heartbeat_timeout_seconds,
-        GITHUB_PAT=args.github_pat,
         MAX_RUNTIME_HOURS=args.max_runtime_hours,
-        DISCORD_WEBHOOK_URL=args.discord_webhook_url,
-        TEST_JOB_RESTART="true" if args.run_ci_tests else "false",
+        DISCORD_WEBHOOK_URL=args.discord_webhook_url,  # enables discord notification
+        GITHUB_PAT=args.github_pat,  # enables github status update
+        WANDB_PROJECT=os.environ.get("WANDB_PROJECT", METTA_WANDB_PROJECT),
+        WANDB_ENTITY=os.environ.get("WANDB_ENTITY", METTA_WANDB_ENTITY),
+        ENABLE_WANDB_ALERTS="false" if args.run_ci_tests else "true",  # enables wandb alerts
         TEST_NCCL="true" if args.run_ci_tests else "false",
+        TEST_JOB_RESTART="true" if args.run_ci_tests else "false",
     )
 
     env_updates = {k: v for k, v in env_updates.items() if v is not None}
@@ -306,15 +315,22 @@ Examples:
         sys.exit(0)
 
     # Launch the task(s)
-    if args.copies == 1:
-        launch_task(task)
-    else:
-        for _ in range(1, args.copies + 1):
-            copy_task = copy.deepcopy(task)
-            copy_task = copy_task.update_envs({"METTA_RUN_ID": run_id})
-            copy_task.name = run_id
-            copy_task.validate_name()
-            launch_task(copy_task)
+    def prepare_task(base_task: sky.Task, env_updates: dict[str, Any], run_id: str, copies: int) -> sky.Task:
+        prepared_task = copy.deepcopy(base_task).update_envs(env_updates)
+        if copies > 1:
+            suffix = f"_{uuid.uuid4().hex[:6]}"
+            max_name_length = 63
+            trimmed_base = run_id[: max_name_length - len(suffix)]
+            prepared_task.name = f"{trimmed_base}{suffix}"
+        else:
+            prepared_task.name = run_id
+        prepared_task.validate_name()
+        return prepared_task
+
+    request_ids = [launch_task(prepare_task(task, env_updates, run_id, args.copies)) for _ in range(args.copies)]
+
+    if args.job_log:
+        open_job_log_from_request_id(request_ids[0])
 
 
 if __name__ == "__main__":

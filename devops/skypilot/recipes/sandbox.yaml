@@ -21,9 +21,7 @@ file_mounts:
     source: s3://softmax-train-dir
     mode: MOUNT_CACHED
 
-setup: |
-  set -u
-  bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/config/lifecycle/setup.sh")
+setup: set -u && bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/launch/setup.sh")
 
 run: |
   set -e
@@ -35,15 +33,12 @@ run: |
   fi
   . .venv/bin/activate
 
-  echo "Setting up Python environment..."
-  uv sync
-
-  bash ./devops/skypilot/config/lifecycle/configure_environment.sh
-
+  uv run ./devops/skypilot/utils/configure_environment.py --sandbox
   METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
   source "$METTA_ENV_FILE"
 
-  echo "Sandbox setup complete. Ready for SSH."
+  echo "Starting bash shell..."
+  exec bash
 
 envs:
   GITHUB_REPOSITORY: Metta-AI/metta
