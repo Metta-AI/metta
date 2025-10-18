@@ -30,8 +30,6 @@ from metta.rl.training import (
     Heartbeat,
     Monitor,
     ProgressLogger,
-    Scheduler,
-    SchedulerConfig,
     StatsReporter,
     StatsReporterConfig,
     TorchProfiler,
@@ -223,13 +221,6 @@ class TrainTool(Tool):
         heartbeat_cfg = getattr(self.trainer, "heartbeat", None)
         if heartbeat_cfg is not None:
             components.append(Heartbeat(epoch_interval=heartbeat_cfg.epoch_interval))
-
-        # Ensure learning-rate schedules stay in sync across ranks
-        hyper_cfg = getattr(self.trainer, "hyperparameter_scheduler", None)
-        if hyper_cfg and getattr(hyper_cfg, "enabled", False):
-            interval = getattr(hyper_cfg, "epoch_interval", 1) or 1
-            hyper_component = Scheduler(SchedulerConfig(interval=max(1, int(interval))))
-            components.append(hyper_component)
 
         stats_component: TrainerComponent | None = None
 
