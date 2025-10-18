@@ -73,11 +73,8 @@ class Recipe:
     @classmethod
     def load(cls, module_path: str) -> Optional["Recipe"]:
         """Try to load a recipe from a module path. e.g. 'experiments.recipes.arena'"""
-        try:
-            module = importlib.import_module(module_path)
-            return cls(module)
-        except ImportError:
-            return None
+        module = importlib.import_module(module_path)
+        return cls(module)
 
     def get_explicit_tool_makers(self) -> dict[str, ToolMaker]:
         """Returns only tool makers explicitly defined in this recipe."""

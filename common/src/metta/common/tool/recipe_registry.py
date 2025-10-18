@@ -75,10 +75,7 @@ class RecipeRegistry:
         Args:
             base_package: Base package to search for recipes (default: experiments.recipes)
         """
-        try:
-            base_module = importlib.import_module(base_package)
-        except ImportError:
-            return
+        base_module = importlib.import_module(base_package)
 
         # Get the package path
         if not hasattr(base_module, "__path__"):
