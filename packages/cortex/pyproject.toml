@@ -3,13 +3,13 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "cortex"
+name = "cortexcore"
 version = "0.1.0"
 description = "Memory module library for Metta policies"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
-authors = [{ name = "Metta AI" }]
+authors = [{ name = "Subhojeet Pramanik", email = "email@subho.in" }]
 dependencies = [
   "torch",
   "pydantic>=2.11.5",

@@ -10,7 +10,7 @@ resolution-markers = [
 members = [
     "codebot",
     "cogames",
-    "cortex",
+    "cortexcore",
     "experiments",
     "gitta",
     "metta",
@@ -650,7 +650,7 @@ wheels = [
 ]
 
 [[package]]
-name = "cortex"
+name = "cortexcore"
 version = "0.1.0"
 source = { editable = "packages/cortex" }
 dependencies = [
@@ -2051,7 +2051,7 @@ dependencies = [
     { name = "codebot" },
     { name = "cogames" },
     { name = "colorama" },
-    { name = "cortex" },
+    { name = "cortexcore" },
     { name = "cpplint" },
     { name = "ddtrace" },
     { name = "duckdb" },
@@ -2160,7 +2160,7 @@ requires-dist = [
     { name = "codebot", editable = "packages/codebot" },
     { name = "cogames", editable = "packages/cogames" },
     { name = "colorama", specifier = ">=0.4.6" },
-    { name = "cortex", editable = "packages/cortex" },
+    { name = "cortexcore", editable = "packages/cortex" },
     { name = "cpplint", specifier = ">=2.0.2" },
     { name = "ddtrace", specifier = ">=2.6.0" },
     { name = "duckdb", specifier = ">=1.3.0" },

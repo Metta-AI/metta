@@ -2,6 +2,17 @@
 
 `cortex` is a modular library for building recurrent backbones and agent memory systems. It separates cell-level recurrence from architectural concerns (projections, skips, normalization) so you can compose new stacks quickly and safely.
 
+## Install
+
+Use the cortexcore distribution; import path remains `cortex`:
+
+```
+pip install cortexcore
+
+# then in Python
+from cortex import build_cortex, CortexStackConfig
+```
+
 ## Table of Contents
 
 - [Architecture](#architecture)
