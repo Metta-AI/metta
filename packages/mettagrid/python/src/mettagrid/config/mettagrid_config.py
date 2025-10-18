@@ -203,7 +203,6 @@ class AssemblerConfig(GridObjectConfig):
     start_clipped: bool = Field(
         default=False, description="If true, this assembler starts in a clipped state at the beginning of the game"
     )
-    fully_overlapping_recipes_allowed: bool = Field(default=False, description="Allow recipes to fully overlap")
 
 
 class ChestConfig(GridObjectConfig):
