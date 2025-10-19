@@ -406,6 +406,13 @@ class MCObsShimTokens(nn.Module):
         self.token_pad_striper = MCObsTokenPadStrip(env, in_key=self.in_key, max_tokens=config.max_tokens)
         self.attr_val_normer = ObsAttrValNorm(env, out_key=self.out_key)
 
+        # Expose MC actions at the wrapper level so policy auto builder can discover them
+        # and include their names in `policy.mc_action_names` for wandb logging.
+        if hasattr(self.token_pad_striper, "focus_1"):
+            self.focus_1 = self.token_pad_striper.focus_1
+        if hasattr(self.token_pad_striper, "focus_2"):
+            self.focus_2 = self.token_pad_striper.focus_2
+
     def initialize_to_environment(
         self,
         env,

@@ -502,8 +502,9 @@ class StatsReporter(TrainerComponent):
             if hasattr(experience, "buffer") and "mc_actions" in experience.buffer.keys():
                 mc_tensor = experience.buffer["mc_actions"].reshape(-1)
                 if mc_tensor.numel() > 0:
-                    mc_total = int(mc_tensor.max().item()) + 1 if mc_tensor.numel() > 0 else 0
-                    num_mc = len(mc_names) if mc_names else mc_total
+                    observed_total = int(mc_tensor.max().item()) + 1
+                    desired_total = len(mc_names) if mc_names else 0
+                    num_mc = max(observed_total, desired_total)
                     counts = torch.bincount(mc_tensor.to(dtype=torch.long), minlength=num_mc).to(device="cpu")
                     total = int(counts.sum().item())
                     if total > 0:

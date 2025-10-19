@@ -446,15 +446,16 @@ class MCPPO(Loss):
         - >=300: add "lstm_clear"
         - >=500: add "lstm_noise_2"
         """
-        allowed: list[str] = ["noop_1", "noop_2", "focus_1"]
-        if epoch >= 200:
-            allowed.append("focus_2")
-        if epoch >= 500:
-            allowed.append("lstm_noise_1")
-        if epoch >= 1000:
-            allowed.append("lstm_clear")
+        allowed: list[str] = ["noop_1", "noop_2"]
+        # allowed: list[str] = ["noop_1", "noop_2", "focus_1"]
+        # if epoch >= 200:
+        #     allowed.append("focus_2")
         # if epoch >= 500:
-        #     allowed.append("lstm_noise_2")
+        #     allowed.append("lstm_noise_1")
+        # if epoch >= 1000:
+        #     allowed.append("lstm_clear")
+        # # if epoch >= 500:
+        # #     allowed.append("lstm_noise_2")
         return allowed
 
     def _maybe_update_mc_action_curriculum(self, context: ComponentContext) -> None:
@@ -464,10 +465,6 @@ class MCPPO(Loss):
         its `mc_initialize_to_environment` method with the allowed MC action names when the
         epoch matches one of the curriculum thresholds.
         """
-        policy_obj = self.policy
-        if not hasattr(policy_obj, "components"):
-            return
-
         epoch = int(getattr(context, "epoch", 0) or 0)
         # Call only when we cross a threshold epoch to avoid redundant resets
         threshold_epochs = {0, 100, 200, 300, 500}
@@ -476,15 +473,8 @@ class MCPPO(Loss):
 
         desired = self._mc_curriculum_allowed_actions(epoch)
         # Filter against actual discovered MC actions if available
-        all_mc_names = getattr(policy_obj, "mc_action_names", None)
+        all_mc_names = getattr(self.policy, "mc_action_names", None)
         if isinstance(all_mc_names, list) and all_mc_names:
             desired = [name for name in desired if name in all_mc_names]
 
-        try:
-            # Prefer explicit component name used in MC policies. It's okay to hardcode.
-            mc_embed = getattr(policy_obj, "components", {}).get("mc_action_embedding", None)
-            if mc_embed is not None and hasattr(mc_embed, "mc_initialize_to_environment"):
-                mc_embed.mc_initialize_to_environment(desired)
-        except Exception:
-            # Fail-safe: curriculum should never break training if structure differs
-            pass
+        self.policy.components["mc_actor_embeds"].mc_initialize_to_environment(desired)
