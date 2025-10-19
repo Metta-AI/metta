@@ -284,14 +284,11 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 position_index = FIXED_POSITIONS.index(pos)
                 position_deltas_map[position_index] = delta
 
-            cpp_chest_config = CppChestConfig(
-                type_id=object_config.type_id,
-                type_name=object_type,
-                resource_type=resource_type_id,
-                position_deltas=position_deltas_map,
-                initial_inventory=object_config.initial_inventory,
-                max_inventory=object_config.max_inventory,
-            )
+            cpp_chest_config = CppChestConfig(type_id=object_config.type_id, type_name=object_type)
+            cpp_chest_config.resource_type = resource_type_id
+            cpp_chest_config.position_deltas = position_deltas_map
+            cpp_chest_config.initial_inventory = object_config.initial_inventory
+            cpp_chest_config.max_inventory = object_config.max_inventory
             cpp_chest_config.tag_ids = tag_ids
             objects_cpp_params[object_type] = cpp_chest_config
         else:

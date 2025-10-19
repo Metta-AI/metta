@@ -11,17 +11,12 @@
 #include "core/types.hpp"
 
 struct ChestConfig : public GridObjectConfig {
-  ChestConfig(TypeId type_id,
-              const std::string& type_name,
-              InventoryItem resource_type,
-              const std::unordered_map<int, int>& position_deltas,
-              int initial_inventory = 0,
-              int max_inventory = 255)
+  ChestConfig(TypeId type_id, const std::string& type_name)
       : GridObjectConfig(type_id, type_name),
-        resource_type(resource_type),
-        position_deltas(position_deltas),
-        initial_inventory(initial_inventory),
-        max_inventory(max_inventory) {}
+        resource_type(0),
+        position_deltas({}),
+        initial_inventory(0),
+        max_inventory(255) {}
 
   InventoryItem resource_type;
   std::unordered_map<int, int>
@@ -34,13 +29,7 @@ namespace py = pybind11;
 
 inline void bind_chest_config(py::module& m) {
   py::class_<ChestConfig, GridObjectConfig, std::shared_ptr<ChestConfig>>(m, "ChestConfig")
-      .def(py::init<TypeId, const std::string&, InventoryItem, const std::unordered_map<int, int>&, int, int>(),
-           py::arg("type_id"),
-           py::arg("type_name"),
-           py::arg("resource_type"),
-           py::arg("position_deltas"),
-           py::arg("initial_inventory") = 0,
-           py::arg("max_inventory") = 255)
+      .def(py::init<TypeId, const std::string&>(), py::arg("type_id"), py::arg("type_name"))
       .def_readwrite("type_id", &ChestConfig::type_id)
       .def_readwrite("type_name", &ChestConfig::type_name)
       .def_readwrite("tag_ids", &ChestConfig::tag_ids)
