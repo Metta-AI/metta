@@ -98,9 +98,14 @@ class MLP(nn.Module):
             # Check if mask needs to be reset due to batch size mismatch
             if self.mask is not None and self.mask.shape[0] != output_tensor.shape[0]:
                 self.mask = None
-            dropped_tensor, mask = self.dropout(output_tensor, mask=self.mask)
+            result = self.dropout(output_tensor, mask=self.mask)
+            # ConsistentDropout returns (tensor, mask) in train mode, but only tensor in eval mode
+            if isinstance(result, tuple):
+                dropped_tensor, mask = result
+                self.mask = mask
+            else:
+                dropped_tensor = result
             td[self.config.out_key] = dropped_tensor
-            self.mask = mask
         return td
 
 
