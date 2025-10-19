@@ -49,12 +49,12 @@ def train(
     # Configure optimizer
     optimizer_config = OptimizerConfig(
         type="adamw_schedulefree",
-        learning_rate=0.001153637,
+        learning_rate=0.01,
         beta1=0.9,
         beta2=0.999,
         eps=3.186531e-07,
         weight_decay=0.01,
-        warmup_steps=1000,
+        warmup_steps=2000,
     )
 
     trainer_config = TrainerConfig(
@@ -95,7 +95,7 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
         loss_configs={"grpo": grpo_config},
     )
 
-    # Configure optimizer
+     # Configure optimizer
     optimizer_config = OptimizerConfig(
         type="adamw_schedulefree",
         learning_rate=0.01,
