@@ -40,21 +40,23 @@ def train_shaped(
     tool = base.train_shaped(rewards=rewards, converters=converters)
 
     optimizer_config = OptimizerConfig(
-                type="adamw_schedulefree",
-                learning_rate=0.01,  # Same as default
-                beta1=0.9,
-                beta2=0.999,
-                eps=3.186531e-07,
-                weight_decay=0.01,  # Small weight decay for AdamW
-                warmup_steps=2000,  # Warmup steps for ScheduleFree
+        type="adamw_schedulefree",
+        learning_rate=0.01,
+        beta1=0.9,
+        beta2=0.999,
+        eps=3.186531e-07,
+        weight_decay=0.01,  # Small weight decay for AdamW
+        warmup_steps=2000,  # Warmup steps for ScheduleFree
     )
 
+    # Update trainer config with new optimizer
+    trainer_config = tool.trainer.model_copy(update={"optimizer": optimizer_config})
 
-    # Update policy architecture
+    # Update policy architecture and trainer
     tool = tool.model_copy(
         update={
-        "policy_architecture": policy_architecture or HRMTinyConfig(),
-        "optimizer": optimizer_config
+            "policy_architecture": policy_architecture or HRMTinyConfig(),
+            "trainer": trainer_config,
         }
     )
     return tool
