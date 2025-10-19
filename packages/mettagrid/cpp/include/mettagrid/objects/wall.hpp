@@ -12,8 +12,7 @@
 
 // #MettaGridConfig
 struct WallConfig : public GridObjectConfig {
-  WallConfig(TypeId type_id, const std::string& type_name, bool swappable)
-      : GridObjectConfig(type_id, type_name), swappable(swappable) {}
+  WallConfig(TypeId type_id, const std::string& type_name) : GridObjectConfig(type_id, type_name), swappable(false) {}
 
   bool swappable;
 };
@@ -54,7 +53,7 @@ namespace py = pybind11;
 
 inline void bind_wall_config(py::module& m) {
   py::class_<WallConfig, GridObjectConfig, std::shared_ptr<WallConfig>>(m, "WallConfig")
-      .def(py::init<TypeId, const std::string&, bool>(), py::arg("type_id"), py::arg("type_name"), py::arg("swappable"))
+      .def(py::init<TypeId, const std::string&>(), py::arg("type_id"), py::arg("type_name"))
       .def_readwrite("type_id", &WallConfig::type_id)
       .def_readwrite("type_name", &WallConfig::type_name)
       .def_readwrite("tag_ids", &WallConfig::tag_ids)

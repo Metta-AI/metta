@@ -234,11 +234,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             # Convert tag names to IDs
             tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
 
-            cpp_wall_config = CppWallConfig(
-                type_id=object_config.type_id,
-                type_name=object_type,
-                swappable=object_config.swappable,
-            )
+            cpp_wall_config = CppWallConfig(type_id=object_config.type_id, type_name=object_type)
+            cpp_wall_config.swappable = object_config.swappable
             cpp_wall_config.tag_ids = tag_ids
             objects_cpp_params[object_type] = cpp_wall_config
         elif isinstance(object_config, AssemblerConfig):
