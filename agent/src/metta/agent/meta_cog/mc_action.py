@@ -68,16 +68,21 @@ class MCActionEmbedding(nn.Module):
                 f"required={required_embeddings}, available={self.net.num_embeddings}"
             )
 
-        self.active_indices = torch.tensor(
-            [self._reserved_action_embeds[action_name] for action_name in action_names], dtype=torch.long
+        indices = torch.tensor(
+            [self._reserved_action_embeds[action_name] for action_name in action_names],
+            dtype=torch.long,
+            device=self.net.weight.device,
         )
+        # Keep as a registered buffer on the correct device
+        self.register_buffer("active_indices", indices)
         self.num_actions = len(self.active_indices)
 
     def forward(self, td: TensorDict):
         B_TT = td.batch_size.numel()
 
         # get embeddings then expand to match the batch size
-        td[self.out_key] = repeat(self.net(self.active_indices), "a e -> b a e", b=B_TT)
+        indices = self.active_indices.to(self.net.weight.device)  # av this might be unnecessary
+        td[self.out_key] = repeat(self.net(indices), "a e -> b a e", b=B_TT)
         return td
 
     def _orthogonal_init(self, weight: torch.Tensor) -> None:
