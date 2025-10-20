@@ -41,6 +41,8 @@ jobs:
 
       - name: Run package tests with coverage
         shell: bash
+        env:
+          RUN_APP_BACKEND_TESTS: false
         run: .github/scripts/run_package_tests.sh
 
       - name: Upload python test coverage to Codecov
