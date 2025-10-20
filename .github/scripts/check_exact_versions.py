@@ -113,7 +113,17 @@ def main() -> int:
     pyproject_files = []
 
     # Directories to skip
-    skip_dirs = {".venv", "personal", "node_modules", ".tox", "venv", "__pycache__"}
+    skip_dirs = {
+        ".venv",
+        "personal",
+        "node_modules",
+        ".tox",
+        "venv",
+        "__pycache__",
+        ".bazel_output",
+        "bazel-bin",
+        "bazel-out",
+    }
 
     # Find all pyproject.toml files, excluding certain directories
     for path in repo_root.rglob("pyproject.toml"):
