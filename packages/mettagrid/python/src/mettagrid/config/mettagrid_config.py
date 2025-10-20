@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import Annotated, Any, Literal, Optional, Union
 
 from pydantic import (
@@ -8,6 +9,7 @@ from pydantic import (
     Field,
     SerializeAsAny,
     Tag,
+    field_validator,
     model_validator,
 )
 
@@ -20,7 +22,6 @@ from mettagrid.map_builder.random import RandomMapBuilder
 
 # Left to right, top to bottom.
 FixedPosition = Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE"]
-Position = FixedPosition | Literal["Any"]
 
 
 class AgentRewards(Config):
@@ -141,14 +142,30 @@ class WallConfig(GridObjectConfig):
 class ConverterConfig(GridObjectConfig):
     """Python converter configuration."""
 
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
     type: Literal["converter"] = Field(default="converter")
     input_resources: dict[str, int] = Field(default_factory=dict)
     output_resources: dict[str, int] = Field(default_factory=dict)
     max_output: int = Field(ge=-1, default=5)
     max_conversions: int = Field(default=-1)
     conversion_ticks: int = Field(ge=0, default=1)
-    cooldown: int = Field(ge=0)
+    cooldown: list[int] = Field(default_factory=lambda: [0])
     initial_resource_count: int = Field(ge=0, default=0)
+
+    @field_validator("cooldown", mode="before")
+    @classmethod
+    def normalize_cooldown(cls, value: Any) -> list[int]:
+        if value is None:
+            return [0]
+        if isinstance(value, int):
+            return [int(value)]
+        if isinstance(value, Iterable) and not isinstance(value, (str, bytes)):
+            values = [int(item) for item in value]
+            if not values:
+                return [0]
+            return values
+        raise TypeError("cooldown must be an int or iterable of ints")
 
 
 class RecipeConfig(Config):
@@ -161,7 +178,10 @@ class AssemblerConfig(GridObjectConfig):
     """Python assembler configuration."""
 
     type: Literal["assembler"] = Field(default="assembler")
-    recipes: list[tuple[list[Position], RecipeConfig]] = Field(default_factory=list)
+    recipes: list[tuple[list[int], RecipeConfig]] = Field(
+        default_factory=list,
+        description="Recipes in reverse order of priority.",
+    )
     allow_partial_usage: bool = Field(
         default=False,
         description=(

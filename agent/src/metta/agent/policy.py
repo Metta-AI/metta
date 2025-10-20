@@ -5,7 +5,7 @@ implement the required methods that MettaAgent depends on."""
 
 import importlib
 from abc import ABC, abstractmethod
-from typing import Any, Callable, ClassVar, Dict, List
+from typing import Any, Callable, ClassVar, Dict, List, Optional
 
 import torch
 import torch.nn as nn
@@ -21,7 +21,7 @@ from metta.agent.components.obs_shim import (
     ObsShimTokens,
     ObsShimTokensConfig,
 )
-from metta.rl.training import EnvironmentMetaData
+from metta.rl.training import GameRules
 from mettagrid.base_config import Config
 from mettagrid.util.module import load_symbol
 
@@ -86,19 +86,18 @@ class PolicyArchitecture(Config):
 
         raise TypeError(f"Unable to resolve value {value!r} into a {cls.__name__}")
 
-    def make_policy(self, env_metadata: EnvironmentMetaData) -> "Policy":
+    def make_policy(self, game_rules: GameRules) -> "Policy":
         """Create an agent instance from configuration."""
 
         agent_cls = _resolve_symbol(self.class_path)
         return agent_cls(env_metadata, self)
-
 
 class Policy(ABC, nn.Module):
     """Abstract base class defining the interface that all policies must implement.
     implement this interface."""
 
     @abstractmethod
-    def forward(self, td: TensorDict) -> TensorDict:
+    def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
         pass
 
     def get_agent_experience_spec(self) -> Composite:
@@ -110,7 +109,7 @@ class Policy(ABC, nn.Module):
             truncateds=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
         )
 
-    def initialize_to_environment(self, env_metadata: EnvironmentMetaData, device: torch.device):
+    def initialize_to_environment(self, game_rules: GameRules, device: torch.device):
         return
 
     @property
@@ -164,17 +163,17 @@ class ExternalPolicyWrapper(Policy):
     if necessary.
     """
 
-    def __init__(self, policy: nn.Module, env_metadata: EnvironmentMetaData, box_obs: bool = True):
+    def __init__(self, policy: nn.Module, game_rules: GameRules, box_obs: bool = True):
         super().__init__()
         self.policy = policy
         if box_obs:
             self.obs_shaper = ObsShimBox(
-                env_metadata,
+                game_rules,
                 config=ObsShimBoxConfig(in_key="env_obs", out_key="obs"),
             )
         else:
             self.obs_shaper = ObsShimTokens(
-                env_metadata,
+                game_rules,
                 config=ObsShimTokensConfig(in_key="env_obs", out_key="obs"),
             )
 
@@ -182,7 +181,7 @@ class ExternalPolicyWrapper(Policy):
         self.obs_shaper(td)
         return self.policy(td["obs"])
 
-    def initialize_to_environment(self, env_metadata: EnvironmentMetaData, device: torch.device):
+    def initialize_to_environment(self, game_rules: GameRules, device: torch.device):
         pass
 
     @property

@@ -5,10 +5,10 @@
 #include <pybind11/stl.h>
 
 #include <cmath>
-#include <map>
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "actions/action_handler.hpp"
@@ -19,14 +19,14 @@
 #include "objects/converter.hpp"
 
 struct ResourceModConfig : public ActionConfig {
-  std::map<InventoryItem, InventoryProbability> modifies;
+  std::unordered_map<InventoryItem, InventoryProbability> modifies;
   GridCoord agent_radius;
   GridCoord converter_radius;
   bool scales;
 
-  ResourceModConfig(const std::map<InventoryItem, InventoryQuantity>& required_resources = {},
-                    const std::map<InventoryItem, InventoryProbability>& consumed_resources = {},
-                    const std::map<InventoryItem, InventoryProbability>& modifies = {},
+  ResourceModConfig(const std::unordered_map<InventoryItem, InventoryQuantity>& required_resources = {},
+                    const std::unordered_map<InventoryItem, InventoryProbability>& consumed_resources = {},
+                    const std::unordered_map<InventoryItem, InventoryProbability>& modifies = {},
                     GridCoord agent_radius = 0,
                     GridCoord converter_radius = 0,
                     bool scales = false)
@@ -59,7 +59,7 @@ public:
         _scales(cfg.scales) {}
 
   unsigned char max_arg() const override {
-    return std::numeric_limits<unsigned char>::max();
+    return 0;
   }
 
 protected:
@@ -91,8 +91,8 @@ protected:
           int target_row = center_row + dr;
           int target_col = center_col + dc;
 
-          if (target_row >= 0 && target_row < static_cast<int>(_grid->height) &&
-              target_col >= 0 && target_col < static_cast<int>(_grid->width)) {
+          if (target_row >= 0 && target_row < static_cast<int>(_grid->height) && target_col >= 0 &&
+              target_col < static_cast<int>(_grid->width)) {
             GridLocation loc(target_row, target_col, GridLayer::AgentLayer);
             GridObject* obj = _grid->object_at(loc);
             if (obj != nullptr) {
@@ -117,8 +117,8 @@ protected:
           int target_row = center_row + dr;
           int target_col = center_col + dc;
 
-          if (target_row >= 0 && target_row < static_cast<int>(_grid->height) &&
-              target_col >= 0 && target_col < static_cast<int>(_grid->width)) {
+          if (target_row >= 0 && target_row < static_cast<int>(_grid->height) && target_col >= 0 &&
+              target_col < static_cast<int>(_grid->width)) {
             GridLocation loc(target_row, target_col, GridLayer::ObjectLayer);
             GridObject* obj = _grid->object_at(loc);
             if (obj != nullptr) {
@@ -170,7 +170,7 @@ protected:
   }
 
 private:
-  std::map<InventoryItem, InventoryProbability> _modifies;
+  std::unordered_map<InventoryItem, InventoryProbability> _modifies;
   GridCoord _agent_radius;
   GridCoord _converter_radius;
   bool _scales;
@@ -180,15 +180,15 @@ namespace py = pybind11;
 
 inline void bind_resource_mod_config(py::module& m) {
   py::class_<ResourceModConfig, ActionConfig, std::shared_ptr<ResourceModConfig>>(m, "ResourceModConfig")
-      .def(py::init<const std::map<InventoryItem, InventoryQuantity>&,
-                    const std::map<InventoryItem, InventoryProbability>&,
-                    const std::map<InventoryItem, InventoryProbability>&,
+      .def(py::init<const std::unordered_map<InventoryItem, InventoryQuantity>&,
+                    const std::unordered_map<InventoryItem, InventoryProbability>&,
+                    const std::unordered_map<InventoryItem, InventoryProbability>&,
                     GridCoord,
                     GridCoord,
                     bool>(),
-           py::arg("required_resources") = std::map<InventoryItem, InventoryQuantity>(),
-           py::arg("consumed_resources") = std::map<InventoryItem, InventoryProbability>(),
-           py::arg("modifies") = std::map<InventoryItem, InventoryProbability>(),
+           py::arg("required_resources") = std::unordered_map<InventoryItem, InventoryQuantity>(),
+           py::arg("consumed_resources") = std::unordered_map<InventoryItem, InventoryProbability>(),
+           py::arg("modifies") = std::unordered_map<InventoryItem, InventoryProbability>(),
            py::arg("agent_radius") = 0,
            py::arg("converter_radius") = 0,
            py::arg("scales") = false)

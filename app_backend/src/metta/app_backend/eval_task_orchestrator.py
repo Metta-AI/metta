@@ -13,6 +13,7 @@ import asyncio
 import logging
 import math
 import os
+import sys
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
 
@@ -33,7 +34,6 @@ from metta.app_backend.worker_managers.worker import Worker
 from metta.common.datadog.tracing import init_tracing, trace
 from metta.common.util.collections import group_by
 from metta.common.util.constants import DEV_STATS_SERVER_URI
-from metta.common.util.log_config import init_logging
 
 logger = logging.getLogger(__name__)
 
@@ -152,10 +152,7 @@ class EvalTaskOrchestrator:
                 else:
                     continue
 
-                if task.retries < 3:
-                    status = "unprocessed"
-                else:
-                    status = "error"
+                status = "error"
 
                 logger.info(f"Releasing claim on task {task.id} because {reason}. Setting status to {status}")
                 await self._task_client.update_task_status(
@@ -254,6 +251,17 @@ class EvalTaskOrchestrator:
             elapsed_time = (datetime.now(timezone.utc) - start_time).total_seconds()
             sleep_time = max(0, self._poll_interval - elapsed_time)
             await asyncio.sleep(sleep_time)
+
+
+def init_logging():
+    # Configure root logger
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+        handlers=[logging.StreamHandler(sys.stdout)],
+    )
+
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 async def main() -> None:

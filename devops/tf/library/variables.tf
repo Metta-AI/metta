@@ -63,3 +63,9 @@ variable "ses_from_name" {
   description = "Display name for SES email notifications"
   default     = "Softmax Library"
 }
+
+variable "ses_from_email" {
+  type        = string
+  description = "Email address for SES email notifications"
+  default     = "library@softmax.com"
+}

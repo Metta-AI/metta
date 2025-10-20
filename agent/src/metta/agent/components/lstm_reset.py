@@ -1,20 +1,20 @@
-from typing import Tuple
+from typing import Mapping, Tuple
 
 import torch
 import torch.nn as nn
 from einops import rearrange
 from tensordict import TensorDict
+from torch.nn.modules.module import _IncompatibleKeys
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.components.component_config import ComponentConfig
 
 
-class LstmTrainStep(nn.Module):
+class LstmTrainStep:
     def __init__(self, lstm: nn.LSTM):
-        super().__init__()
         self.lstm = lstm
 
-    def forward(
+    def __call__(
         self,
         latent: torch.Tensor,
         h_t: torch.Tensor,
@@ -69,7 +69,7 @@ class LSTMReset(nn.Module):
         self.in_key = self.config.in_key
         self.out_key = self.config.out_key
         self.net = nn.LSTM(self.latent_size, self.hidden_size, self.num_layers)
-        self.lstm_train_step = LstmTrainStep(self.net)
+        self._train_step = LstmTrainStep(self.net)
         self._in_training = False
 
         for name, param in self.net.named_parameters():
@@ -78,17 +78,59 @@ class LSTMReset(nn.Module):
             elif "weight" in name:
                 nn.init.orthogonal_(param, 1)  # torch's default is uniform
 
-        self.register_buffer("lstm_h", torch.empty(self.num_layers, 0, self.hidden_size))
-        self.register_buffer("lstm_c", torch.empty(self.num_layers, 0, self.hidden_size))
+        self.register_buffer(
+            "lstm_h",
+            torch.zeros(self.num_layers, 0, self.hidden_size),
+            persistent=False,
+        )
+        self.register_buffer(
+            "lstm_c",
+            torch.zeros(self.num_layers, 0, self.hidden_size),
+            persistent=False,
+        )
+        self._allocated_envs: int = 0
 
     def __setstate__(self, state):
         """Ensure LSTM hidden states are properly initialized after loading from checkpoint."""
         self.__dict__.update(state)
         # Reset hidden states when loading from checkpoint to avoid batch size mismatch
         if not hasattr(self, "lstm_h"):
-            self.lstm_h = torch.empty(self.num_layers, 0, self.hidden_size)
+            self.register_buffer(
+                "lstm_h",
+                torch.zeros(self.num_layers, 0, self.hidden_size),
+                persistent=False,
+            )
         if not hasattr(self, "lstm_c"):
-            self.lstm_c = torch.empty(self.num_layers, 0, self.hidden_size)
+            self.register_buffer(
+                "lstm_c",
+                torch.zeros(self.num_layers, 0, self.hidden_size),
+                persistent=False,
+            )
+        if not hasattr(self, "_allocated_envs"):
+            self._allocated_envs = 0
+        self.reset_memory()
+
+    def load_state_dict(
+        self,
+        state_dict: Mapping[str, torch.Tensor],
+        strict: bool = True,
+    ) -> _IncompatibleKeys:
+        load_info = super().load_state_dict(state_dict, strict=strict)
+        self.reset_memory()
+        return load_info
+
+    def _ensure_capacity(self, required_envs: int) -> None:
+        if required_envs <= self._allocated_envs:
+            return
+
+        additional_envs = required_envs - self._allocated_envs
+        device = self.lstm_h.device
+        dtype = self.lstm_h.dtype
+        h_pad = torch.zeros(self.num_layers, additional_envs, self.hidden_size, device=device, dtype=dtype)
+        c_pad = torch.zeros(self.num_layers, additional_envs, self.hidden_size, device=device, dtype=dtype)
+        self.lstm_h = torch.cat([self.lstm_h, h_pad], dim=1)
+        self.lstm_c = torch.cat([self.lstm_c, c_pad], dim=1)
+        self._allocated_envs = required_envs
 
     @torch._dynamo.disable  # Exclude LSTM forward from Dynamo to avoid graph breaks
     def forward(self, td: TensorDict):
@@ -122,15 +164,9 @@ class LSTMReset(nn.Module):
             reset_mask = torch.zeros(1, B, 1, dtype=torch.bool, device=latent.device)
 
         if TT == 1:
-            self.max_num_envs = training_env_ids.max() + 1
-            if self.max_num_envs > self.lstm_h.size(1):
-                num_allocated_envs = self.max_num_envs - self.lstm_h.size(1)
-                # we haven't allocated states for these envs (ie the very first epoch or rollout)
-                h_0 = torch.zeros(self.num_layers, num_allocated_envs, self.hidden_size, device=latent.device)
-                c_0 = torch.zeros(self.num_layers, num_allocated_envs, self.hidden_size, device=latent.device)
-                device = self.lstm_h.device
-                self.lstm_h = torch.cat([self.lstm_h, h_0.detach()], dim=1).to(device)
-                self.lstm_c = torch.cat([self.lstm_c, c_0.detach()], dim=1).to(device)
+            training_env_ids = training_env_ids.to(torch.long)
+            required_envs = int(training_env_ids.max().item()) + 1 if training_env_ids.numel() else 0
+            self._ensure_capacity(required_envs)
 
             h_0 = self.lstm_h[:, training_env_ids]
             c_0 = self.lstm_c[:, training_env_ids]
@@ -162,7 +198,7 @@ class LSTMReset(nn.Module):
     def _forward_train_step(self, latent, h_t, c_t, reset_mask):
         """Run the JIT-scripted LSTM training step."""
         reset_mask = reset_mask.view(1, latent.size(1), -1, 1)  # Shape: [1, B, TT, 1]
-        return self.lstm_train_step(latent, h_t, c_t, reset_mask)
+        return self._train_step(latent, h_t, c_t, reset_mask)
 
     def get_agent_experience_spec(self) -> Composite:
         return Composite(
@@ -180,16 +216,20 @@ class LSTMReset(nn.Module):
             }
         )
 
-    def get_memory(self):
+    def get_memory(self) -> Tuple[torch.Tensor, torch.Tensor]:
         return self.lstm_h, self.lstm_c
 
-    def set_memory(self, memory):
+    def set_memory(self, memory: Tuple[torch.Tensor, torch.Tensor]) -> None:
         """Cannot be called at the Policy level - use policy.<path_to_this_layer>.set_memory()"""
         self.lstm_h, self.lstm_c = memory[0], memory[1]
+        self._allocated_envs = self.lstm_h.size(1)
 
-    def reset_memory(self):
-        pass
+    def reset_memory(self) -> None:
+        device = self.lstm_h.device
+        dtype = self.lstm_h.dtype
+        self.lstm_h = torch.zeros(self.num_layers, 0, self.hidden_size, device=device, dtype=dtype)
+        self.lstm_c = torch.zeros(self.num_layers, 0, self.hidden_size, device=device, dtype=dtype)
+        self._allocated_envs = 0
 
-    def _reset_memory(self):
-        self.lstm_h.fill_(0)
-        self.lstm_c.fill_(0)
+    def _reset_memory(self) -> None:
+        self.reset_memory()

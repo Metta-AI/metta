@@ -12,13 +12,7 @@ class TestAssemblerPartialUsage:
 
     def test_partial_usage_disabled(self):
         """Test that assemblers cannot be used during cooldown when allow_partial_usage is False."""
-        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
-            [
-                ["#", "#", "#", "#"],
-                ["#", "@", "Z", "#"],
-                ["#", "#", "#", "#"],
-            ]
-        )
+        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True)
 
         cfg.game.resource_names = ["iron", "steel"]
         cfg.game.agent.initial_inventory = {"iron": 100, "steel": 0}
@@ -26,9 +20,18 @@ class TestAssemblerPartialUsage:
         # Configure assembler with partial usage disabled
         cfg.game.objects["assembler"] = AssemblerConfig(
             type_id=20,
-            name="no_partial_assembler",
-            recipes=[(["W"], RecipeConfig(input_resources={"iron": 10}, output_resources={"steel": 5}, cooldown=10))],
+            name="assembler",
+            map_char="Z",
+            recipes=[([], RecipeConfig(input_resources={"iron": 10}, output_resources={"steel": 5}, cooldown=10))],
             allow_partial_usage=False,  # Disable partial usage
+        )
+
+        cfg = cfg.with_ascii_map(
+            [
+                ["#", "#", "#", "#"],
+                ["#", "@", "Z", "#"],
+                ["#", "#", "#", "#"],
+            ]
         )
 
         cfg.game.actions.move.enabled = True
@@ -73,13 +76,7 @@ class TestAssemblerPartialUsage:
 
     def test_partial_usage_scaling(self):
         """Test resource scaling at different cooldown progress levels."""
-        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
-            [
-                ["#", "#", "#", "#"],
-                ["#", "@", "Z", "#"],
-                ["#", "#", "#", "#"],
-            ]
-        )
+        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True)
 
         cfg.game.resource_names = ["iron", "steel"]
         cfg.game.agent.initial_inventory = {"iron": 100, "steel": 0}
@@ -87,9 +84,18 @@ class TestAssemblerPartialUsage:
         # Recipe: 20 iron -> 10 steel, 100 tick cooldown
         cfg.game.objects["assembler"] = AssemblerConfig(
             type_id=20,
-            name="scaling_assembler",
-            recipes=[(["W"], RecipeConfig(input_resources={"iron": 20}, output_resources={"steel": 10}, cooldown=100))],
+            name="assembler",
+            map_char="Z",
+            recipes=[([], RecipeConfig(input_resources={"iron": 20}, output_resources={"steel": 10}, cooldown=100))],
             allow_partial_usage=True,
+        )
+
+        cfg = cfg.with_ascii_map(
+            [
+                ["#", "#", "#", "#"],
+                ["#", "@", "Z", "#"],
+                ["#", "#", "#", "#"],
+            ]
         )
 
         cfg.game.actions.move.enabled = True

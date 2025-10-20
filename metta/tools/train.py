@@ -159,6 +159,18 @@ class TrainTool(Tool):
 
                 trainer.restore()
                 trainer.train()
+
+            # Training completed successfully
+            return 0
+
+        except KeyboardInterrupt:
+            logger.warning("Training interrupted by user")
+            return 130  # Standard exit code for Ctrl+C
+
+        except Exception as e:
+            logger.error(f"Training failed with exception: {e}")
+            return 1
+
         finally:
             env.close()
             if stats_client and hasattr(stats_client, "close"):
@@ -179,10 +191,10 @@ class TrainTool(Tool):
             config=self.checkpointer,
             checkpoint_manager=checkpoint_manager,
             distributed_helper=distributed_helper,
+            policy_architecture=self.policy_architecture,
         )
         policy = policy_checkpointer.load_or_create_policy(
-            env.meta_data,
-            self.policy_architecture,
+            env.game_rules,
             policy_uri=self.initial_policy_uri,
         )
         return policy_checkpointer, policy

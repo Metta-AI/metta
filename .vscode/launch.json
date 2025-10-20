@@ -77,34 +77,6 @@
       "preLaunchTask": "${defaultBuildTask}",
     },
     {
-      "name": "Dashboard",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "tools.dashboard",
-      "args": ["+user=${env:USER}"],
-      "cwd": "${workspaceFolder}",
-      "env": {
-        "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
-      },
-      "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}",
-    },
-    {
-      "name": "Analyze",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "tools.run",
-      "args": ["experiments.recipes.scratchpad.${env:USER}.analyze"],
-      "cwd": "${workspaceFolder}",
-      "env": {
-        "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
-      },
-      "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}",
-    },
-    {
       "name": "Generate Replay",
       "type": "debugpy",
       "request": "launch",
@@ -137,7 +109,7 @@
       "type": "debugpy",
       "request": "launch",
       "module": "cogames.main",
-      "args": ["play", "machina_2"],
+      "args": ["play", "-m", "machina_1", "--render", "unicode"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",

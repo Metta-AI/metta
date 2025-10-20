@@ -7,9 +7,9 @@ from uuid import UUID
 import torch
 from pydantic import Field
 
-import gitta as git
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum import Curriculum
+from metta.common.util.git_helpers import GitError, get_task_commit_hash
 from metta.common.util.git_repo import REPO_SLUG
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy
@@ -18,6 +18,7 @@ from metta.rl.evaluate import (
     upload_replay_html,
 )
 from metta.rl.training import TrainerComponent
+from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.base_config import Config
@@ -89,28 +90,40 @@ class Evaluator(TrainerComponent):
         eval_cfg: EvaluatorConfig,
         stats_client: Optional[StatsClient],
     ) -> None:
+        # Set default replay directory
         if eval_cfg.replay_dir is None:
             eval_cfg.replay_dir = auto_replay_dir()
             logger.info(f"Setting replay_dir to {eval_cfg.replay_dir}")
 
-        # Determine git hash for remote simulations
-        if eval_cfg.evaluate_remote:
-            if not stats_client:
-                eval_cfg.evaluate_remote = False
-                logger.info("Not connected to stats server, disabling remote evaluations")
-            elif not eval_cfg.epoch_interval:
-                eval_cfg.evaluate_remote = False
-                logger.info("Epoch interval set to 0, disabling remote evaluations")
-            elif not eval_cfg.git_hash:
-                eval_cfg.git_hash = git.get_git_hash_for_remote_task(
+        # Configure remote evaluations
+        if not eval_cfg.evaluate_remote:
+            return
+
+        # Check prerequisites for remote evaluations
+        if not stats_client:
+            eval_cfg.evaluate_remote = False
+            logger.info("Not connected to stats server, disabling remote evaluations")
+            return
+
+        if not eval_cfg.epoch_interval:
+            eval_cfg.evaluate_remote = False
+            logger.info("Epoch interval set to 0, disabling remote evaluations")
+            return
+
+        # Get git hash if not already set
+        if not eval_cfg.git_hash:
+            try:
+                eval_cfg.git_hash = get_task_commit_hash(
                     target_repo=REPO_SLUG,
                     skip_git_check=eval_cfg.skip_git_check,
-                    skip_cmd="evaluator.skip_git_check=true",
                 )
-                if eval_cfg.git_hash:
-                    logger.info(f"Git hash for remote evaluations: {eval_cfg.git_hash}")
-                else:
-                    logger.info("No git hash available for remote evaluations")
+            except GitError as e:
+                raise GitError(f"{e}\n\nYou can skip this check with evaluator.skip_git_check=true") from e
+
+            if eval_cfg.git_hash:
+                logger.info(f"Git hash for remote evaluations: {eval_cfg.git_hash}")
+            else:
+                logger.info("No git hash available for remote evaluations")
 
     def should_evaluate(self, epoch: int) -> bool:
         interval = self._config.epoch_interval
@@ -270,6 +283,11 @@ class Evaluator(TrainerComponent):
             attributes={"source": "evaluation", "agent_step": self.context.agent_step},
         )
 
+        optimizer = getattr(self.context, "optimizer", None)
+        is_schedulefree = optimizer is not None and is_schedulefree_optimizer(optimizer)
+        if is_schedulefree:
+            optimizer.eval()
+
         scores = self.evaluate(
             policy_uri=policy_uri,
             curriculum=curriculum,
@@ -277,6 +295,10 @@ class Evaluator(TrainerComponent):
             agent_step=self.context.agent_step,
             stats_epoch_id=stats_epoch_id,
         )
+
+        # Restore train mode after evaluation for ScheduleFree optimizers
+        if is_schedulefree:
+            optimizer.train()
 
         stats_reporter = getattr(self.context, "stats_reporter", None)
         if stats_reporter:

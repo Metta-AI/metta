@@ -133,6 +133,14 @@ class LeaderboardPolicyScore(BaseModel):
     score: float
 
 
+class CoGamesSubmissionRow(BaseModel):
+    id: uuid.UUID
+    user_id: str
+    name: str | None
+    s3_path: str
+    created_at: datetime
+
+
 # This is a list of migrations that will be applied to the eval database.
 # Do not change existing migrations, only add new ones.
 MIGRATIONS = [
@@ -683,6 +691,21 @@ MIGRATIONS = [
             LEFT JOIN epochs ep ON p.epoch_id = ep.id
             LEFT JOIN training_runs tr ON ep.run_id = tr.id
             """,
+        ],
+    ),
+    SqlMigration(
+        version=27,
+        description="Add cogames_policy_submissions table",
+        sql_statements=[
+            """CREATE TABLE cogames_policy_submissions (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                user_id TEXT NOT NULL,
+                name TEXT,
+                s3_path TEXT NOT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE INDEX idx_cogames_submissions_user_id ON cogames_policy_submissions(user_id)""",
+            """CREATE INDEX idx_cogames_submissions_created_at ON cogames_policy_submissions(created_at)""",
         ],
     ),
 ]
@@ -1606,6 +1629,7 @@ class MettaRepo:
         created_at: str | None = None,
         assigned_at: str | None = None,
         updated_at: str | None = None,
+        include_attributes: bool = False,
     ) -> tuple[list[EvalTaskWithPolicyName], int]:
         async with self.connect() as con:
             where_conditions = []
@@ -1665,11 +1689,26 @@ class MettaRepo:
             offset = (page - 1) * page_size
             params.extend([page_size, offset])
 
+            # Conditionally include attributes field
+            # When not including full attributes, return minimal subset for UI display
+            if include_attributes:
+                attributes_field = "et.attributes"
+            else:
+                attributes_field = """
+                    jsonb_build_object(
+                        'git_hash', et.attributes->>'git_hash',
+                        'output_log_path', et.attributes->>'output_log_path',
+                        'stderr_log_path', et.attributes->>'stderr_log_path',
+                        'stdout_log_path', et.attributes->>'stdout_log_path',
+                        'details', et.attributes->'details'
+                    ) as attributes
+                """.strip()
+
             async with con.cursor(row_factory=class_row(EvalTaskWithPolicyName)) as cur:
                 await cur.execute(
                     f"""
                     SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
-                           et.assignee, et.created_at, et.attributes, et.retries,
+                           et.assignee, et.created_at, {attributes_field}, et.retries,
                            p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
                     FROM eval_tasks et
                     LEFT JOIN policies p ON et.policy_id = p.id
@@ -1834,3 +1873,21 @@ class MettaRepo:
             """,
             (latest_episode, leaderboard_id),
         )
+
+    async def create_cogames_submission(
+        self, submission_id: uuid.UUID, user_id: str, s3_path: str, name: str | None = None
+    ) -> uuid.UUID:
+        """Create a new CoGames policy submission with a specific ID."""
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                INSERT INTO cogames_policy_submissions (id, user_id, name, s3_path)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id
+                """,
+                (submission_id, user_id, name, s3_path),
+            )
+            row = await result.fetchone()
+            if row is None:
+                raise RuntimeError("Failed to create CoGames submission")
+            return row[0]
