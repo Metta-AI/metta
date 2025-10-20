@@ -143,30 +143,3 @@ async function generateEnhancedAbstractWithOpenAI(
     throw error;
   }
 }
-
-/**
- * Update LLM abstract if needed (for backward compatibility)
- */
-export async function updateLLMAbstractIfNeeded(
-  existingAbstract: LLMAbstract,
-  paperTitle: string,
-  pdfContent?: PdfContent,
-  pdfUrl?: string,
-  homepageUrl?: string,
-  pdfBuffer?: Buffer
-): Promise<LLMAbstract | null> {
-  // For now, always use the existing abstract if version 2.0
-  if (existingAbstract.version === "2.0") {
-    return null; // No update needed
-  }
-
-  // Regenerate for older versions
-  Logger.info("🔄 Updating abstract to version 2.0...");
-  return await generateLLMAbstract(
-    paperTitle,
-    pdfContent,
-    pdfUrl,
-    homepageUrl,
-    pdfBuffer
-  );
-}

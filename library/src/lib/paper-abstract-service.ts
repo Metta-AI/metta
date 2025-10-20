@@ -1,7 +1,6 @@
 import { prisma } from "@/lib/db/prisma";
 import {
   generateLLMAbstract,
-  updateLLMAbstractIfNeeded,
   LLMAbstract,
 } from "./llm-abstract-generator-clean";
 import { Logger } from "./logging/logger";

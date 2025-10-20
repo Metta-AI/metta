@@ -7,7 +7,6 @@ import { z } from "zod/v4";
 import { actionClient } from "@/lib/actionClient";
 import { getSessionOrRedirect } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
-import { checkUserNotBanned } from "@/lib/banCheck";
 import {
   processArxivAutoImport,
   detectArxivUrl,
@@ -41,9 +40,6 @@ export const createPostAction = actionClient
   .inputSchema(inputSchema)
   .action(async ({ parsedInput: input }) => {
     const session = await getSessionOrRedirect();
-
-    // Check if user is banned
-    await checkUserNotBanned(session.user.id);
 
     // Import arXiv paper synchronously for instant paper preview
     let paperId = input.paperId || null;
