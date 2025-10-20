@@ -39,14 +39,15 @@ def parse_requirement(req_string: str) -> tuple[str, str | None, str | None]:
 
     # Match package name and version specifier
     # Pattern: package_name (operator version)
-    match = re.match(r"^([a-zA-Z0-9_-]+)\s*([><=~!]+)\s*(.+)$", req_string)
+    # Package names can contain letters, numbers, underscores, hyphens, and dots (PEP 508)
+    match = re.match(r"^([a-zA-Z0-9_.-]+)\s*([><=~!]+)\s*(.+)$", req_string)
 
     if match:
         name, operator, version = match.groups()
         return name, operator, version.strip()
 
     # No version specifier found
-    match = re.match(r"^([a-zA-Z0-9_-]+)$", req_string)
+    match = re.match(r"^([a-zA-Z0-9_.-]+)$", req_string)
     if match:
         return match.group(1), None, None
 
