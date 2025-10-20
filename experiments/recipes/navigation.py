@@ -122,6 +122,10 @@ def evaluate(
         policy_uris=policy_uris,
     )
 
+def play_training_env(policy_uri: Optional[str] = None) -> PlayTool:
+    env = mettagrid()
+    return PlayTool(sim=SimulationConfig(suite="navigation", name="training_env", env=env), policy_uri=policy_uri)
+
 
 def play(policy_uri: Optional[str] = None) -> PlayTool:
     return PlayTool(sim=simulations()[0], policy_uri=policy_uri)
