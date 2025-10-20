@@ -10,6 +10,7 @@ import { config } from "@/lib/config";
 import { generateText } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { extractPdfContent } from "@/lib/pdf-extractor";
+import { Logger } from "@/lib/logging/logger";
 
 const inputSchema = zfd.formData({
   postId: zfd.text(z.string().min(1)),
@@ -51,9 +52,9 @@ export const createBotResponseAction = actionClient
       } else if (post.paper.link && config.llm.anthropicApiKey) {
         // Try to extract PDF content on-demand
         try {
-          console.log(
-            `📄 Fetching PDF content for bot analysis: ${post.paper.link}`
-          );
+          Logger.info("Fetching PDF content for bot analysis", {
+            paperLink: post.paper.link,
+          });
 
           // Convert arXiv URLs to PDF format if needed
           let pdfUrl = post.paper.link;
@@ -67,14 +68,14 @@ export const createBotResponseAction = actionClient
             const pdfContent = await extractPdfContent(pdfBuffer);
 
             paperContext = `Title: ${pdfContent.title}\n\nSummary: ${pdfContent.summary}\n\nKey Points: ${pdfContent.shortExplanation}`;
-            console.log(
-              `✅ Successfully extracted PDF content for bot analysis`
-            );
+            Logger.info("Successfully extracted PDF content for bot analysis");
           } else {
             throw new Error(`Failed to fetch PDF: ${pdfResponse.status}`);
           }
         } catch (pdfError) {
-          console.error(`❌ Error extracting PDF for bot:`, pdfError);
+          Logger.warn("Error extracting PDF for bot, using fallback", {
+            error: pdfError instanceof Error ? pdfError.message : String(pdfError),
+          });
           // Fallback to basic abstract
           paperContext = `Title: ${post.paper.title}\n\nAbstract: ${post.paper.abstract}`;
         }
@@ -185,7 +186,7 @@ Please provide a helpful response about this paper.`,
         },
       };
     } catch (error) {
-      console.error("Error generating bot response:", error);
+      Logger.error("Error generating bot response", error instanceof Error ? error : new Error(String(error)));
 
       // Create a fallback bot response
       let botUser = await prisma.user.findFirst({

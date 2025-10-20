@@ -18,6 +18,7 @@ import {
   extractUserIdsFromResolution,
 } from "@/lib/mention-resolution";
 import { createMentionNotifications } from "@/lib/notifications";
+import { Logger } from "@/lib/logging/logger";
 import {
   extractPostIdsFromContent,
   validatePostIds,
@@ -52,7 +53,9 @@ export const createPostAction = actionClient
       try {
         images = JSON.parse(input.images);
       } catch (error) {
-        console.error("Error parsing images:", error);
+        Logger.warn("Error parsing images", {
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
 
@@ -71,11 +74,14 @@ export const createPostAction = actionClient
           session.user.id
         );
 
-        console.log(
-          `📧 Resolved ${mentionStrings.length} mentions to ${mentionedUserIds.length} users`
-        );
+        Logger.info("Resolved mentions", {
+          mentionCount: mentionStrings.length,
+          userCount: mentionedUserIds.length,
+        });
       } catch (error) {
-        console.error("Error parsing or resolving mentions:", error);
+        Logger.warn("Error parsing or resolving mentions", {
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
 
@@ -87,7 +93,9 @@ export const createPostAction = actionClient
       try {
         quotedPostIds = JSON.parse(input.quotedPostIds);
       } catch (error) {
-        console.error("Error parsing quotedPostIds:", error);
+        Logger.warn("Error parsing quotedPostIds", {
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
 
@@ -118,7 +126,7 @@ export const createPostAction = actionClient
         if (importedPaperId) {
           paperId = importedPaperId;
           postType = "paper-post"; // Set as paper post immediately
-          console.log(`✅ arXiv paper imported synchronously: ${paperId}`);
+          Logger.info("arXiv paper imported synchronously", { paperId: importedPaperId });
         }
       }
     }
@@ -147,11 +155,11 @@ export const createPostAction = actionClient
 
     // If we imported a paper, queue institution enhancement in background
     if (paperId && arxivUrl) {
-      console.log("🏛️ Queuing institution processing for paper:", paperId);
+      Logger.info("Queuing institution processing for paper", { paperId });
       // Fire and forget - enhance paper with institutions
       JobQueueService.queueInstitutionExtraction(paperId, arxivUrl).catch(
         (error) => {
-          console.error("Failed to queue institution processing:", error);
+          Logger.error("Failed to queue institution processing", error instanceof Error ? error : new Error(String(error)));
         }
       );
     }
@@ -172,7 +180,7 @@ export const createPostAction = actionClient
           actionUrl
         );
       } catch (error) {
-        console.error("Error creating mention notifications:", error);
+        Logger.error("Error creating mention notifications", error instanceof Error ? error : new Error(String(error)));
         // Don't fail the post creation if notifications fail
       }
     }
