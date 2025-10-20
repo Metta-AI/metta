@@ -8,6 +8,8 @@
  * - Better error messages for users
  */
 
+import { config } from "./config";
+
 /**
  * Base application error class
  *
@@ -175,7 +177,7 @@ export function getUserMessage(error: unknown): string {
 
   if (error instanceof Error) {
     // Don't expose internal error messages in production
-    if (process.env.NODE_ENV === "production") {
+    if (config.nodeEnv === "production") {
       return "An unexpected error occurred";
     }
     return error.message;
