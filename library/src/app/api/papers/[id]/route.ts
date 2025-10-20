@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { handleApiError } from "@/lib/api/error-handler";
+import { withErrorHandler } from "@/lib/api/error-handler";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
+export const GET = withErrorHandler(
+  async (request: NextRequest, { params }: { params: { id: string } }) => {
     const paper = await prisma.paper.findUnique({
       where: { id: params.id },
       include: {
@@ -61,7 +58,5 @@ export async function GET(
     };
 
     return NextResponse.json(response);
-  } catch (error) {
-    return handleApiError(error, { endpoint: `GET /api/papers/${params.id}` });
   }
-}
+);

@@ -4,7 +4,7 @@ import { z } from "zod/v4";
 import { getSessionOrRedirect } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { MentionType } from "@/lib/mentions";
-import { handleApiError } from "@/lib/api/error-handler";
+import { withErrorHandler } from "@/lib/api/error-handler";
 
 const searchParamsSchema = z.object({
   q: z.string().min(0).max(50), // Query string
@@ -31,9 +31,8 @@ interface MentionSuggestion {
   memberCount?: number; // For groups
 }
 
-export async function GET(request: NextRequest) {
-  try {
-    const session = await getSessionOrRedirect();
+export const GET = withErrorHandler(async (request: NextRequest) => {
+  const session = await getSessionOrRedirect();
 
     const { searchParams } = new URL(request.url);
     const params = searchParamsSchema.parse({
@@ -331,8 +330,5 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    return NextResponse.json({ suggestions });
-  } catch (error) {
-    return handleApiError(error, { endpoint: "GET /api/mentions/search" });
-  }
-}
+  return NextResponse.json({ suggestions });
+});
