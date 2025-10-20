@@ -80,13 +80,16 @@ def filter_repo(source_path: Path, paths: list[str], make_root: str | None = Non
     try:
         # Clone the split branch to our target location
         # This gives us a clean repository with the subdirectory as root
+        # Use -C to run from a stable directory (not the test's temp dir)
         run_git(
+            "-C",
+            str(target_dir),
             "clone",
             "--branch",
             branch_name,
             "--single-branch",
             str(source_path),
-            str(filtered_path),
+            "filtered",
         )
     except GitError as e:
         raise RuntimeError(f"Failed to clone filtered branch: {e}") from e
