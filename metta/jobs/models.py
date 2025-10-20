@@ -1,12 +1,14 @@
 """Core job specification models shared across Metta job systems."""
 
-from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from pydantic import Field
 
-@dataclass
-class JobSpec:
-    """Universal job specification for all Metta job systems.
+from metta.common.config import Config
+
+
+class JobConfig(Config):
+    """Universal job configuration for all Metta job systems.
 
     This is our serialization format - everything needed to launch a job
     via tools/run.py or RemoteJob.
@@ -32,10 +34,10 @@ class JobSpec:
     module: str  # e.g., "experiments.recipes.arena.train"
 
     # Arguments to tool maker function
-    args: dict[str, Any] = field(default_factory=dict)
+    args: dict[str, Any] = Field(default_factory=dict)
 
     # Config overrides (dotted paths like "trainer.total_timesteps")
-    overrides: dict[str, Any] = field(default_factory=dict)
+    overrides: dict[str, Any] = Field(default_factory=dict)
 
     # Execution settings
     execution: Literal["remote", "local"] = "remote"
@@ -50,7 +52,7 @@ class JobSpec:
     job_type: Literal["train", "eval", "task"] = "train"
 
     # Metadata (experiment_id, tags, etc.)
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
     def to_remote_job_args(self, log_dir: str) -> dict[str, Any]:
         """Convert to RemoteJob constructor arguments.
@@ -109,23 +111,6 @@ class JobSpec:
             "log_dir": log_dir,
         }
 
-    def to_dict(self) -> dict[str, Any]:
-        """Serialize to JSON-compatible dict."""
-        return {
-            "name": self.name,
-            "module": self.module,
-            "args": self.args,
-            "overrides": self.overrides,
-            "execution": self.execution,
-            "gpus": self.gpus,
-            "nodes": self.nodes,
-            "spot": self.spot,
-            "timeout_s": self.timeout_s,
-            "job_type": self.job_type,
-            "metadata": self.metadata,
-        }
 
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "JobSpec":
-        """Deserialize from JSON-compatible dict."""
-        return cls(**data)
+# Backwards compatibility alias
+JobSpec = JobConfig
