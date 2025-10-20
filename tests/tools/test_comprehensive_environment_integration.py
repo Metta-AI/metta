@@ -35,7 +35,7 @@ class TestComprehensiveEnvironmentIntegration:
                     max_steps=100,
                     objects={
                         "wall": building.wall,
-                        "altar": building.altar,
+                        "altar": building.assembler_altar,
                     },
                     actions=ActionsConfig(
                         move=ActionConfig(),
