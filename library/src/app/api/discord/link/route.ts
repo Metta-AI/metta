@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth, isSignedIn } from "@/lib/auth";
-import { discordBot } from "@/lib/external-notifications/discord-bot";
 import { prisma } from "@/lib/db/prisma";
 import { AuthenticationError, BadRequestError } from "@/lib/errors";
 import { handleApiError } from "@/lib/api/error-handler";
@@ -101,20 +100,6 @@ export async function DELETE() {
         discordLinkedAt: null,
       },
     });
-
-    // Optionally send farewell DM
-    try {
-      if (discordInfo.discordUserId) {
-        // We could send a farewell message here, but it's optional
-        // await discordBot.sendFarewellMessage(discordInfo.discordUserId);
-      }
-    } catch (error) {
-      Logger.warn("Failed to send Discord farewell message", {
-        userId: session.user.id,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      // Don't fail the unlinking if farewell message fails
-    }
 
     Logger.info("Discord account unlinked", {
       userId: session.user.id,
