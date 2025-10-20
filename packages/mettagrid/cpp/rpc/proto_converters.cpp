@@ -168,7 +168,7 @@ std::shared_ptr<GridObjectConfig> ConvertWallConfig(const v1::WallConfig& proto_
       static_cast<TypeId>(proto_cfg.type_id()), proto_cfg.type_name(), proto_cfg.swappable(), ConvertTagIds(proto_cfg.tag_ids()));
 }
 
-std::vector<std::shared_ptr<Recipe>> ConvertRecipes(const ::google::protobuf::RepeatedPtrField<v1::ConverterRecipe>& recipes) {
+std::vector<std::shared_ptr<Recipe>> ConvertRecipesVector(const ::google::protobuf::RepeatedPtrField<v1::ConverterRecipe>& recipes) {
   std::vector<std::shared_ptr<Recipe>> result;
   result.reserve(recipes.size());
   for (const auto& recipe_proto : recipes) {
@@ -179,10 +179,23 @@ std::vector<std::shared_ptr<Recipe>> ConvertRecipes(const ::google::protobuf::Re
   return result;
 }
 
+std::unordered_map<uint64_t, std::shared_ptr<Recipe>> ConvertRecipesMap(const ::google::protobuf::RepeatedPtrField<v1::ConverterRecipe>& recipes) {
+  std::unordered_map<uint64_t, std::shared_ptr<Recipe>> result;
+  // Use sequential indices as temporary keys since protobuf doesn't include vibe information
+  // In the full system, vibes are computed from glyph patterns in the Python config
+  uint64_t index = 0;
+  for (const auto& recipe_proto : recipes) {
+    auto inputs = ConvertQuantityMap(recipe_proto.inputs());
+    auto outputs = ConvertQuantityMap(recipe_proto.outputs());
+    result.emplace(index++, std::make_shared<Recipe>(inputs, outputs, static_cast<unsigned short>(recipe_proto.cooldown())));
+  }
+  return result;
+}
+
 std::shared_ptr<GridObjectConfig> ConvertAssemblerConfig(const v1::AssemblerConfig& proto_cfg) {
   auto config = std::make_shared<AssemblerConfig>(
       static_cast<TypeId>(proto_cfg.type_id()), proto_cfg.type_name(), ConvertTagIds(proto_cfg.tag_ids()));
-  config->recipes = ConvertRecipes(proto_cfg.recipes());
+  config->recipes = ConvertRecipesMap(proto_cfg.recipes());
   config->allow_partial_usage = proto_cfg.allow_partial_usage();
   config->max_uses = proto_cfg.max_uses();
   config->exhaustion = proto_cfg.exhaustion();
@@ -261,7 +274,7 @@ GlobalObsConfig ConvertGlobalObs(const v1::GlobalObsConfig& proto_cfg) {
 }
 
 std::shared_ptr<ClipperConfig> ConvertClipperConfig(const v1::ClipperConfig& proto_cfg) {
-  auto recipes = ConvertRecipes(proto_cfg.unclipping_recipes());
+  auto recipes = ConvertRecipesVector(proto_cfg.unclipping_recipes());
   return std::make_shared<ClipperConfig>(std::move(recipes),
                                          proto_cfg.length_scale(),
                                          proto_cfg.cutoff_distance(),
