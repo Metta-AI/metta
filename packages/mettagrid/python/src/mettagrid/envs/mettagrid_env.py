@@ -9,24 +9,25 @@ from __future__ import annotations
 import datetime
 import logging
 import time
-import uuid
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, cast
 
 import numpy as np
 from pydantic import validate_call
-from typing_extensions import override
+from typing_extensions import Literal, override
 
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.envs.puffer_base import MettaGridPufferBase
 from mettagrid.profiling.stopwatch import Stopwatch, with_instance_timer
+from mettagrid.renderer.renderer import NoRenderer, Renderer
 from mettagrid.util.dict_utils import unroll_nested_dict
-from mettagrid.util.replay_writer import ReplayWriter
 from mettagrid.util.stats_writer import StatsWriter
 
 if TYPE_CHECKING:
     from mettagrid.mettagrid_c import EpisodeStats
 
 logger = logging.getLogger("MettaGridEnv")
+
+RenderMode = Literal["gui", "unicode", "text", "none"]
 
 
 class MettaGridEnv(MettaGridPufferBase):
@@ -42,12 +43,23 @@ class MettaGridEnv(MettaGridPufferBase):
     def __init__(
         self,
         env_cfg: MettaGridConfig,
-        render_mode: Optional[str] = None,
         stats_writer: Optional[StatsWriter] = None,
-        replay_writer: Optional[ReplayWriter] = None,
+        render_mode: RenderMode = "none",
+        renderer: Optional[Renderer] = None,
         is_training: bool = False,
     ):
-        """Initialize MettaGridEnv for training."""
+        """Initialize MettaGridEnv for training.
+
+        Args:
+            env_cfg: Environment configuration
+            stats_writer: Optional stats writer for logging
+            render_mode: Rendering mode:
+                - "gui": MettascopeRenderer (GUI)
+                - "unicode", "text", "miniscope": MiniscopeRenderer (text-based, interactive)
+                - "none": NoRenderer (no rendering)
+            renderer: Optional explicit renderer to use (e.g., ReplayLogRenderer from metta package)
+            is_training: Whether this is a training environment
+        """
         # Add training-specific attributes first (needed by MettaGridCore)
         self.timer = Stopwatch(log_level=logger.getEffectiveLevel())
         self.timer.start()
@@ -55,8 +67,6 @@ class MettaGridEnv(MettaGridPufferBase):
         self._steps = 0
         self._resets = 0
         self._stats_writer = stats_writer
-        self._replay_writer = replay_writer
-        self._episode_id: str | None = None
         self._last_reset_ts = datetime.datetime.now()
         self._is_training = is_training
         self._label_completions = {"completed_tasks": [], "completion_rates": {}}
@@ -70,14 +80,27 @@ class MettaGridEnv(MettaGridPufferBase):
             self._early_reset = int(np.random.randint(1, env_cfg.game.max_steps))
 
         # Initialize MettaGridPufferBase
-        super().__init__(
-            env_cfg,
-            render_mode=render_mode,
-        )
+        super().__init__(env_cfg)
 
-    def _make_episode_id(self) -> str:
-        """Generate unique episode ID."""
-        return str(uuid.uuid4())
+        # Create or use renderer after super().__init__() to avoid it being overwritten by MettaGridCore
+        self._renderer = renderer or self._create_renderer(render_mode)
+
+    def _create_renderer(self, render_mode: RenderMode) -> Renderer:
+        """Create the appropriate renderer based on render_mode."""
+        if render_mode in ("unicode"):
+            # Text-based interactive rendering
+            from mettagrid.renderer.miniscope import MiniscopeRenderer
+
+            return MiniscopeRenderer()
+        elif render_mode in ("gui"):
+            # GUI-based interactive rendering
+            from mettagrid.renderer.mettascope import MettascopeRenderer
+
+            return MettascopeRenderer()
+        elif render_mode in ("none"):
+            # No rendering
+            return NoRenderer()
+        raise ValueError(f"Invalid render_mode: {render_mode}")
 
     @override
     @with_instance_timer("reset")
@@ -90,13 +113,11 @@ class MettaGridEnv(MettaGridPufferBase):
         self._resets += 1
 
         # Set up episode tracking
-        self._episode_id = self._make_episode_id()
         self._last_reset_ts = datetime.datetime.now()
         self._visited_positions = {}  # Reset pixels explored tracking
 
         # Start replay recording if enabled
-        if self._replay_writer and self._episode_id:
-            self._replay_writer.start_episode(self._episode_id, self)
+        self._renderer.on_episode_start(self)
 
         observations, info = super().reset(seed)
 
@@ -113,9 +134,8 @@ class MettaGridEnv(MettaGridPufferBase):
             observations, rewards, terminals, truncations, infos = super().step(actions)
             self._steps += 1
 
-        if self._replay_writer and self._episode_id:
-            with self.timer("_replay_writer.log_step"):
-                self._replay_writer.log_step(self._episode_id, actions, rewards)
+        with self.timer("_renderer.log_step"):
+            self._renderer.on_step(self._steps, observations, actions, rewards, infos)
 
         # Track pixels explored
         with self.timer("_track_pixels_explored"):
@@ -137,6 +157,10 @@ class MettaGridEnv(MettaGridPufferBase):
 
         self.timer.start("thread_idle")
         return observations, rewards, terminals, truncations, infos
+
+    def render(self) -> None:
+        """Render the environment using the configured renderer."""
+        self._renderer.render()
 
     def _update_label_completions(self, moving_avg_window: int = 500) -> None:
         """Update label completions."""
@@ -216,28 +240,22 @@ class MettaGridEnv(MettaGridPufferBase):
         infos["attributes"] = attributes
 
         # Handle replay writing
-        replay_url = None
-        with self.timer("_replay_writer"):
-            if self._replay_writer and self._episode_id:
-                replay_url = self._replay_writer.write_replay(self._episode_id)
-                infos["replay_url"] = replay_url
+        with self.timer("_renderer"):
+            self._renderer.on_episode_end(infos)
 
         # Handle stats writing
         with self.timer("_stats_writer"):
-            if self._stats_writer and self._episode_id:
-                self._write_episode_stats(stats, episode_rewards, replay_url)
+            if self._stats_writer:
+                self._write_episode_stats(stats, episode_rewards, infos.get("replay_url"))
 
         # Add timing information
         self._add_timing_info(infos)
-
-        # Clear episode ID
-        self._episode_id = None
 
         self.timer.stop("process_episode_stats")
 
     def _write_episode_stats(self, stats: EpisodeStats, episode_rewards: np.ndarray, replay_url: Optional[str]) -> None:
         """Write episode statistics to stats writer."""
-        if not self._stats_writer or not self._episode_id:
+        if not self._stats_writer:
             return
 
         # Flatten environment config
@@ -262,7 +280,6 @@ class MettaGridEnv(MettaGridPufferBase):
 
         # Record episode
         self._stats_writer.record_episode(
-            self._episode_id,
             env_cfg_flattened,
             agent_metrics,
             agent_groups,

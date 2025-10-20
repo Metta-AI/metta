@@ -23,16 +23,14 @@ def evaluate_policy(
     simulations: list[SimulationConfig],
     device: torch.device,
     vectorization: str,
-    stats_dir: str | None = None,
-    replay_dir: str | None = None,
+    replay_dir: str,
+    stats_dir: str = "/tmp/stats",
     export_stats_db_uri: str | None = None,
     stats_epoch_id: uuid.UUID | None = None,
     eval_task_id: uuid.UUID | None = None,
     stats_client: StatsClient | None,
 ) -> EvalResults:
     """Evaluate one policy URI, merging all simulations into a single StatsDB."""
-    stats_dir = stats_dir or "/tmp/stats"
-
     logger.info(f"Evaluating checkpoint {checkpoint_uri}")
     if not is_unique([sim.full_name for sim in simulations]):
         raise ValueError("Simulation names must be unique")

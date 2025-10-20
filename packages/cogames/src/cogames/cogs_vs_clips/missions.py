@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from collections import deque
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
@@ -296,48 +295,6 @@ class SiteUserMap(UserMap):
         return cfg
 
 
-class CurriculumUserMap(UserMap):
-    def __init__(
-        self,
-        name: str,
-        rotation: Iterable[str],
-        map_lookup: dict[str, UserMap],
-        *,
-        easy: bool = False,
-        shaped: bool = False,
-    ) -> None:
-        rotation_tuple = tuple(rotation)
-        if not rotation_tuple:
-            raise ValueError("Curriculum rotation must include at least one map name")
-
-        missing = [map_name for map_name in rotation_tuple if map_name not in map_lookup]
-        if missing:
-            missing_str = ", ".join(missing)
-            raise ValueError(f"Unknown map names for curriculum '{name}': {missing_str}")
-
-        self.name = name
-        self._rotation = deque(rotation_tuple)
-        self._map_lookup = map_lookup
-        self._easy = easy
-        self._shaped = shaped
-
-    @property
-    def available_missions(self) -> list[str]:
-        return ["default"]
-
-    def _generate_env(self, mission_name: str) -> MettaGridConfig:
-        if mission_name != "default":
-            raise ValueError(f"Curriculum '{self.name}' only supports the 'default' mission")
-
-        map_name = self._rotation[0]
-        self._rotation.rotate(-1)
-
-        source_map = self._map_lookup[map_name]
-        cfg = source_map.generate_env(source_map.default_mission).model_copy(deep=True)
-        _apply_curriculum_modifiers(cfg, easy=self._easy, shaped=self._shaped)
-        return cfg
-
-
 def make_game(
     num_cogs: int = 4,
     width: int = 10,
@@ -381,7 +338,7 @@ def _with_easy_shaped_variants(
     return {name: dict(values) for name, values in missions}
 
 
-_BASE_USER_MAPS: tuple[UserMap, ...] = (
+USER_MAP_CATALOG: tuple[UserMap, ...] = (
     SiteUserMap(
         name="training_facility_1",
         site="training_facility_open_1.map",
@@ -471,43 +428,3 @@ _BASE_USER_MAPS: tuple[UserMap, ...] = (
         ),
     ),
 )
-
-
-_BASE_MAP_LOOKUP: dict[str, UserMap] = {user_map.name: user_map for user_map in _BASE_USER_MAPS}
-
-
-_TRAINING_ROTATION_SEQUENCE: tuple[str, ...] = (
-    "training_facility_1",
-    "training_facility_2",
-    "training_facility_3",
-    "training_facility_4",
-    "training_facility_5",
-    "training_facility_6",
-    "machina_1",
-    "machina_2",
-)
-
-
-_CURRICULUM_SPECS: tuple[tuple[str, bool, bool], ...] = (
-    ("training_rotation", False, False),
-    ("training_cycle", False, False),
-    ("training_facility_rotation", False, False),
-    ("training_rotation_easy", True, False),
-    ("training_rotation_shaped", False, True),
-    ("training_rotation_easy_shaped", True, True),
-)
-
-
-_CURRICULUM_MAPS: tuple[UserMap, ...] = tuple(
-    CurriculumUserMap(
-        name=alias,
-        rotation=_TRAINING_ROTATION_SEQUENCE,
-        map_lookup=_BASE_MAP_LOOKUP,
-        easy=easy,
-        shaped=shaped,
-    )
-    for alias, easy, shaped in _CURRICULUM_SPECS
-)
-
-
-USER_MAP_CATALOG: tuple[UserMap, ...] = _BASE_USER_MAPS + _CURRICULUM_MAPS

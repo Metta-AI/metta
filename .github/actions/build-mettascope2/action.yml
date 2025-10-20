@@ -19,9 +19,7 @@ runs:
           ${{ runner.os }}-nimble-
 
     - name: Setup Nim
-      uses: jiro4989/setup-nim-action@v2
-      with:
-        repo-token: ${{ inputs.repo-token }}
+      uses: treeform/setup-nim-action@v2
 
     - name: Setup Emscripten
       uses: mymindstorm/setup-emsdk@v14
@@ -44,11 +42,5 @@ runs:
 
     - name: Build mettascope2 (browser)
       run: |
-        cd packages/mettagrid/nim/mettascope
-
-        # The ERROR_ON_UNDEFINED_SYMBOLS=0 flag is needed because the Nim OpenGL bindings
-        # include desktop OpenGL functions like glGetTexImage that don't exist in WebGL.
-        # Since our code doesn't actually use these functions, it's safe to ignore them.
-
-        nim c -d:emscripten -d:release --passL:"-s ERROR_ON_UNDEFINED_SYMBOLS=0" src/mettascope.nim
+        nim c -d:emscripten packages/mettagrid/nim/mettascope/src/mettascope.nim
       shell: bash
