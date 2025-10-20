@@ -6,6 +6,7 @@ import { z } from "zod/v4";
 
 import { actionClient } from "@/lib/actionClient";
 import { prisma } from "@/lib/db/prisma";
+import { config } from "@/lib/config";
 import { generateText } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { extractPdfContent } from "@/lib/pdf-extractor";
@@ -47,7 +48,7 @@ export const createBotResponseAction = actionClient
         // Use LLM-generated abstract if available (most comprehensive)
         const llmContent = post.paper.llmAbstract as any;
         paperContext = `Title: ${post.paper.title}\n\nAbstract: ${post.paper.abstract}\n\nDetailed Analysis: ${llmContent.summary || llmContent.explanation || JSON.stringify(llmContent)}`;
-      } else if (post.paper.link && process.env.ANTHROPIC_API_KEY) {
+      } else if (post.paper.link && config.llm.anthropicApiKey) {
         // Try to extract PDF content on-demand
         try {
           console.log(
