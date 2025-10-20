@@ -139,6 +139,16 @@ type
     step*: int
     objects*: seq[ReplayEntity]
 
+## Empty replays is used before a real replay is loaded,
+## so that we don't need to check for nil everywhere.
+let EmptyReplay* = Replay(
+  version: 2,
+  numAgents: 0,
+  maxSteps: 0,
+  mapSize: (0, 0),
+  fileName: "",
+)
+
 proc parseHook*(s: string, i: var int, v: var IVec3) =
   var arr: array[3, int32]
   parseHook(s, i, arr)

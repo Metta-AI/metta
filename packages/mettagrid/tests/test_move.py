@@ -13,6 +13,7 @@ from mettagrid.config.mettagrid_config import (
 )
 from mettagrid.core import MettaGridCore
 from mettagrid.map_builder.ascii import AsciiMapBuilder
+from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME
 from mettagrid.mettagrid_c import (
     MettaGrid,
     dtype_actions,
@@ -138,6 +139,7 @@ def test_8way_movement_all_directions():
                     [".", ".", ".", ".", "."],
                     [".", ".", ".", ".", "."],
                 ],
+                char_to_name_map=DEFAULT_CHAR_TO_NAME,
             ),
             allow_diagonals=True,
         )
@@ -199,6 +201,7 @@ def test_8way_movement_obstacles():
                     ["#", ".", ".", ".", "#"],
                     ["#", "#", "#", "#", "#"],
                 ],
+                char_to_name_map=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
@@ -247,6 +250,7 @@ def test_orientation_changes_with_8way():
                     [".", "@", ".", ".", "."],
                     [".", ".", ".", ".", "."],
                 ],
+                char_to_name_map=DEFAULT_CHAR_TO_NAME,
             ),
         ),
     )
@@ -334,6 +338,7 @@ def test_8way_movement_with_simple_environment():
                     [".", ".", ".", ".", ".", ".", ".", "."],
                     [".", ".", ".", ".", ".", ".", ".", "."],
                 ],
+                char_to_name_map=DEFAULT_CHAR_TO_NAME,
             ),
             allow_diagonals=True,
         ),
@@ -392,6 +397,7 @@ def test_8way_movement_boundary_check():
                     [".", "@", "."],
                     [".", ".", "."],
                 ],
+                char_to_name_map=DEFAULT_CHAR_TO_NAME,
             ),
             allow_diagonals=True,
         )
@@ -451,6 +457,7 @@ def test_orientation_changes_on_failed_8way_movement():
                     ["#", "@", "#"],
                     ["#", "#", "#"],
                 ],
+                char_to_name_map=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )

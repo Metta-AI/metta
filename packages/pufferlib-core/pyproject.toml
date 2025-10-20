@@ -70,3 +70,6 @@ describe_command = [
 
 [tool.setuptools.package-data]
 pufferlib = ["*.py", "*.so", "*.pyd"]
+
+[tool.pufferlib]
+uv_rebuild_token = 0  # Bump to trigger uv editable reinstall even when source code has not changed

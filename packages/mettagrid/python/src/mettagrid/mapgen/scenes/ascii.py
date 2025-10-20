@@ -1,6 +1,6 @@
+from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.mapgen.scene import ChildrenAction, Scene, SceneConfig
 from mettagrid.mapgen.scenes.inline_ascii import InlineAscii
-from mettagrid.mapgen.utils.ascii_grid import char_grid_to_lines
 
 
 class AsciiConfig(SceneConfig):
@@ -9,14 +9,14 @@ class AsciiConfig(SceneConfig):
 
 class Ascii(Scene[AsciiConfig]):
     def post_init(self):
-        with open(self.config.uri, "r", encoding="utf-8") as f:
-            self.ascii_data = f.read()
+        ascii_config = AsciiMapBuilder.Config.from_uri(self.config.uri)
+        self.ascii_data = "\n".join("".join(line) for line in ascii_config.map_data)
+        self.char_to_name_map = ascii_config.char_to_name_map
 
     def get_children(self):
-        # Delegate rendering to the inline ascii scene.
         return [
             ChildrenAction(
-                scene=InlineAscii.Config(data=self.ascii_data),
+                scene=InlineAscii.Config(data=self.ascii_data, char_to_name=self.char_to_name_map),
                 where="full",
             ),
         ]
@@ -33,7 +33,5 @@ class Ascii(Scene[AsciiConfig]):
         But this is probably not a big deal, because the file is usually small.
         """
         config = cls.Config.model_validate(config)
-        with open(config.uri, "r", encoding="utf-8") as f:
-            data = f.read()
-            _, width, height = char_grid_to_lines(data)
-            return height, width
+        ascii_config = AsciiMapBuilder.Config.from_uri(config.uri)
+        return ascii_config.height, ascii_config.width

@@ -1,9 +1,9 @@
 #ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_SYSTEMS_OBSERVATION_ENCODER_HPP_
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_SYSTEMS_OBSERVATION_ENCODER_HPP_
 
-#include <map>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "core/grid_object.hpp"
@@ -67,11 +67,11 @@ public:
     return append_tokens_if_room_available(tokens, obj->obs_features(), location);
   }
 
-  const std::map<ObservationType, float>& feature_normalizations() const {
+  const std::unordered_map<ObservationType, float>& feature_normalizations() const {
     return _feature_normalizations;
   }
 
-  const std::map<ObservationType, std::string>& feature_names() const {
+  const std::unordered_map<ObservationType, std::string>& feature_names() const {
     return _feature_names;
   }
 
@@ -91,8 +91,8 @@ public:
 
 private:
   size_t resource_count;
-  std::map<ObservationType, float> _feature_normalizations;
-  std::map<ObservationType, std::string> _feature_names;
+  std::unordered_map<ObservationType, float> _feature_normalizations;
+  std::unordered_map<ObservationType, std::string> _feature_names;
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_SYSTEMS_OBSERVATION_ENCODER_HPP_

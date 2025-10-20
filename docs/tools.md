@@ -1,26 +1,29 @@
 # Metta Tools Documentation
 
-This document provides a practical guide to tools in the Metta ecosystem for training, evaluation, visualization, and development workflows.
+This document provides a practical guide to tools in the Metta ecosystem for training, evaluation, visualization, and
+development workflows.
 
-> **Technical Details**: For in-depth information about the tool system architecture (tools, recipes, discovery), see [common/src/metta/common/tool/README.md](../common/src/metta/common/tool/README.md)
+> **Technical Details**: For in-depth information about the tool system architecture (tools, recipes, discovery), see
+> [common/src/metta/common/tool/README.md](../common/src/metta/common/tool/README.md)
 
 ## Quick Reference
 
-| Category          | Tool                         | Purpose                                       | GPU Required |
-| ----------------- | ---------------------------- | --------------------------------------------- | ------------ |
-| **Training**      | `run.py train <recipe>`      | Train policies with recipe configurations     | ✓            |
-|                   | `sweep_init.py`              | Initialize hyperparameter sweep experiments   | ✗            |
-|                   | `sweep_eval.py`              | Evaluate policies from sweep runs             | ✓            |
-| **Evaluation**    | `run.py evaluate <recipe>`   | Run policy evaluation with recipe system      | ✓            |
-|                   | `run.py analyze <recipe>`    | Analyze evaluation results with recipes       | ✗            |
-| **Visualization** | `run.py play <recipe>`       | Interactive gameplay via recipe system        | ✗            |
-|                   | `run.py replay <recipe>`     | Generate replay files via recipe system       | ✓            |
-|                   | `renderer.py`                | Real-time ASCII/Miniscope rendering (legacy)  | ✓            |
-|                   | `dashboard.py`               | Generate dashboard data for web visualization | ✗            |
-| **Map Tools**     | `map/gen.py`                 | Generate maps from configuration files        | ✗            |
-|                   | `map/view.py`                | View stored maps in various formats           | ✗            |
-| **Utilities**     | `stats_duckdb_cli.py`        | Interactive DuckDB CLI for stats analysis     | ✗            |
-|                   | `validate_config.py`         | Validate and print Hydra configurations       | ✗            |
+| Category          | Tool                                 | Purpose                                       | GPU Required |
+| ----------------- | ------------------------------------ | --------------------------------------------- | ------------ |
+| **Training**      | `run.py train <recipe>`              | Train policies with recipe configurations     | ✓            |
+|                   | `sweep_init.py`                      | Initialize hyperparameter sweep experiments   | ✗            |
+|                   | `sweep_eval.py`                      | Evaluate policies from sweep runs             | ✓            |
+| **Evaluation**    | `run.py evaluate <recipe>`           | Run policy evaluation with recipe system      | ✓            |
+|                   | `run.py analyze <recipe>`            | Analyze evaluation results with recipes       | ✗            |
+| **Visualization** | `run.py play <recipe>`               | Interactive gameplay via recipe system        | ✗            |
+|                   | `run.py replay <recipe>`             | Generate replay files via recipe system       | ✓            |
+|                   | `renderer.py`                        | Real-time ASCII/Miniscope rendering (legacy)  | ✓            |
+|                   | `dashboard.py`                       | Generate dashboard data for web visualization | ✗            |
+| **Map Tools**     | `map/gen.py`                         | Generate maps from configuration files        | ✗            |
+|                   | `map/view.py`                        | View stored maps in various formats           | ✗            |
+|                   | `map/convert_legacy_maps_to_yaml.py` | Convert legacy ASCII maps to YAML format      | ✗            |
+| **Utilities**     | `stats_duckdb_cli.py`                | Interactive DuckDB CLI for stats analysis     | ✗            |
+|                   | `validate_config.py`                 | Validate and print Hydra configurations       | ✗            |
 
 ## Quick Start
 
@@ -136,15 +139,18 @@ The runner supports flexible invocation syntax:
 
 ### run.py train
 
-Train Metta policies using PPO with distributed training support, automatic hyperparameter configuration, and real-time metrics tracking.
+Train Metta policies using PPO with distributed training support, automatic hyperparameter configuration, and real-time
+metrics tracking.
 
 **Key Features**:
+
 - Distributed training across multiple GPUs/nodes
 - Wandb integration for experiment tracking
 - Checkpoint saving and policy versioning
 - Configurable evaluation during training
 
 **Usage**:
+
 ```bash
 # Basic training
 ./tools/run.py train arena run=my_experiment
@@ -161,6 +167,7 @@ Train Metta policies using PPO with distributed training support, automatic hype
 Initialize hyperparameter sweep experiments using Wandb sweeps and Metta Protein optimization.
 
 **Usage**:
+
 ```bash
 # Initialize a new sweep
 ./tools/sweep_init.py sweep_name=lr_search sweep_params=configs/sweep/fast.yaml
@@ -174,6 +181,7 @@ NODE_INDEX=0 ./tools/sweep_init.py sweep_name=distributed_exp
 Evaluate policies generated during hyperparameter sweeps and update Protein observations.
 
 **Usage**:
+
 ```bash
 # Evaluate a sweep run
 ./tools/sweep_eval.py run=<run_id> sweep_name=<sweep_name>
@@ -186,6 +194,7 @@ Evaluate policies generated during hyperparameter sweeps and update Protein obse
 Run comprehensive policy evaluation with simulation suites and statistics export.
 
 **Usage**:
+
 ```bash
 # Evaluate a single policy
 ./tools/run.py evaluate navigation policy_uri=s3://bucket/checkpoints/experiment_001/experiment_001:v12.pt
@@ -195,6 +204,7 @@ Run comprehensive policy evaluation with simulation suites and statistics export
 ```
 
 **Key Features**:
+
 - Multiple policy evaluation in one run
 - Flexible policy selection (latest, top-k by metric)
 - Replay generation for visualization
@@ -205,6 +215,7 @@ Run comprehensive policy evaluation with simulation suites and statistics export
 Generate detailed analysis reports from evaluation results, including performance metrics and behavior analysis.
 
 **Usage**:
+
 ```bash
 # Analyze arena evaluation results
 ./tools/run.py analyze arena eval_db_uri=./train_dir/eval_experiment/stats.db
@@ -220,6 +231,7 @@ Generate detailed analysis reports from evaluation results, including performanc
 Generate replay files for detailed post-hoc analysis in MettaScope.
 
 **Usage**:
+
 ```bash
 # Generate replay for a policy
 ./tools/run.py replay arena policy_uri=s3://bucket/checkpoints/abc123/abc123:v5.pt
@@ -229,6 +241,7 @@ Generate replay files for detailed post-hoc analysis in MettaScope.
 ```
 
 **Key Features**:
+
 - Generates `.replay` files for MettaScope
 - Automatic browser launch on macOS
 - Local server for replay viewing
@@ -238,6 +251,7 @@ Generate replay files for detailed post-hoc analysis in MettaScope.
 Interactive gameplay interface allowing humans to control Metta agents.
 
 **Usage**:
+
 ```bash
 # Start interactive session
 ./tools/run.py play arena
@@ -247,6 +261,7 @@ Interactive gameplay interface allowing humans to control Metta agents.
 ```
 
 **Key Features**:
+
 - WebSocket-based real-time control
 - Browser-based interface via MettaScope
 - Human-in-the-loop testing
@@ -256,6 +271,7 @@ Interactive gameplay interface allowing humans to control Metta agents.
 Real-time visualization of agent behavior with ASCII or Miniscope rendering.
 
 **Usage**:
+
 ```bash
 # Visualize random policy
 ./tools/renderer.py renderer_job.policy_type=random
@@ -269,6 +285,7 @@ Real-time visualization of agent behavior with ASCII or Miniscope rendering.
 Generate dashboard data for web-based visualization of training runs and evaluations.
 
 **Usage**:
+
 ```bash
 # Generate dashboard and upload to S3
 ./tools/dashboard.py dashboard.output_path=s3://bucket/dashboards/experiment.json
@@ -281,9 +298,11 @@ Generate dashboard data for web-based visualization of training runs and evaluat
 
 ### map/gen.py
 
-Generate MettaGrid maps from configuration files using various procedural algorithms (WFC, ConvChain, Random, Template-based).
+Generate MettaGrid maps from configuration files using various procedural algorithms (WFC, ConvChain, Random,
+Template-based).
 
 **Usage**:
+
 ```bash
 # Generate and display a single map
 ./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/maze_9x9.yaml
@@ -300,6 +319,7 @@ Generate MettaGrid maps from configuration files using various procedural algori
 View stored maps from various sources (local files, S3, etc.).
 
 **Usage**:
+
 ```bash
 # View a specific map
 ./packages/mettagrid/python/src/mettagrid/mapgen/tools/view.py ./my_map.yaml
@@ -308,11 +328,42 @@ View stored maps from various sources (local files, S3, etc.).
 ./packages/mettagrid/python/src/mettagrid/mapgen/tools/view.py s3://bucket/maps/
 ```
 
+### map/convert_legacy_maps_to_yaml.py
+
+Convert legacy ASCII map files (plain text with legend footer) to the new YAML format with proper type annotations and
+character-to-name mappings.
+
+**Usage**:
+
+```bash
+# Convert a single legacy map file
+./tools/map/convert_legacy_maps_to_yaml.py legacy_map.txt --output=converted_map.yaml
+
+# Convert all legacy maps in a directory
+./tools/map/convert_legacy_maps_to_yaml.py packages/cogames/src/cogames/maps/ --output-dir=./converted_maps/
+
+# Convert with specific legend preset
+./tools/map/convert_legacy_maps_to_yaml.py legacy_map.txt --legend-preset=cogs_vs_clips --output=converted_map.yaml
+
+# Convert in-place (overwrites original file)
+./tools/map/convert_legacy_maps_to_yaml.py legacy_map.txt --in-place
+```
+
+**Key Features**:
+
+- Converts plain text maps with `#:` legend format to YAML
+- Supports multiple legend presets (ascii_grid, cogs_vs_clips)
+- Automatic legend detection based on file path
+- Preserves map structure and character mappings
+- Adds proper type annotations for AsciiMapBuilder
+- Batch conversion support for directories
+
 ### map/normalize_ascii_map.py
 
 Normalize ASCII map characters to ensure consistency across different encodings.
 
 **Usage**:
+
 ```bash
 # Print normalized map
 ./tools/map/normalize_ascii_map.py map.txt
@@ -328,6 +379,7 @@ Normalize ASCII map characters to ensure consistency across different encodings.
 Interactive DuckDB CLI for exploring evaluation statistics databases with automatic downloading from remote sources.
 
 **Usage**:
+
 ```bash
 # Open stats from Wandb
 ./tools/stats_duckdb_cli.py +eval_db_uri=wandb://stats/navigation_eval_v2
@@ -337,6 +389,7 @@ Interactive DuckDB CLI for exploring evaluation statistics databases with automa
 ```
 
 **Example Queries**:
+
 ```sql
 -- Get average rewards by policy
 SELECT policy_name, AVG(value) as avg_reward
@@ -350,6 +403,7 @@ GROUP BY policy_name;
 Load and validate Hydra configuration files for debugging config issues.
 
 **Usage**:
+
 ```bash
 # Validate environment configuration
 ./tools/validate_config.py configs/env/mettagrid/navigation.yaml
@@ -363,12 +417,14 @@ Load and validate Hydra configuration files for debugging config issues.
 Auto-tune vectorization parameters for optimal performance using pufferlib.
 
 **Usage**:
+
 ```bash
 # Run autotuning
 ./tools/autotune.py
 ```
 
 **Key Features**:
+
 - Finds optimal batch size
 - Determines max environments
 - Memory usage optimization
@@ -412,16 +468,18 @@ Key environment variables used by tools:
 5. **Use sweep tools** for systematic hyperparameter search
 6. **Generate replays** for debugging unexpected behaviors
 7. **Document custom configurations** in version control
+8. **Convert legacy maps** to YAML format for better maintainability
 
 ## CLI Cheat Sheet
 
-| Task                    | Command                                                                                                        |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Train (arena)           | `./tools/run.py train arena run=my_experiment`                                                                 |
-| Train (navigation)      | `./tools/run.py train navigation run=my_experiment`                                                            |
-| Play (browser)          | `./tools/run.py play arena`                                                                                    |
-| Replay (policy)         | `./tools/run.py replay arena policy_uri=s3://bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`           |
-| Evaluate (arena)        | `./tools/run.py evaluate arena policy_uris=s3://bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`        |
-| Evaluate (navigation)   | `./tools/run.py evaluate navigation policy_uris=s3://bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`   |
+| Task                  | Command                                                                                                     |
+| --------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Train (arena)         | `./tools/run.py train arena run=my_experiment`                                                              |
+| Train (navigation)    | `./tools/run.py train navigation run=my_experiment`                                                         |
+| Play (browser)        | `./tools/run.py play arena`                                                                                 |
+| Replay (policy)       | `./tools/run.py replay arena policy_uri=s3://bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`         |
+| Evaluate (arena)      | `./tools/run.py evaluate arena policy_uris=s3://bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`      |
+| Evaluate (navigation) | `./tools/run.py evaluate navigation policy_uris=s3://bucket/checkpoints/local.alice.1/local.alice.1:v10.pt` |
+| Convert legacy map    | `./tools/map/convert_legacy_maps_to_yaml.py legacy_map.txt --output=new_map.yaml`                           |
 
 Running these commands mirrors our CI configuration and helps keep the codebase consistent.

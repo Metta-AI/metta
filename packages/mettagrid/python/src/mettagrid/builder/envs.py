@@ -97,7 +97,7 @@ def make_arena(
 
 def make_navigation(num_agents: int) -> MettaGridConfig:
     altar = empty_converters.altar.model_copy()
-    altar.cooldown = 255  # Maximum cooldown
+    altar.cooldown = [255]  # Maximum cooldown
     altar.initial_resource_count = 1
     altar.max_conversions = 0
     altar.input_resources = {}
@@ -131,11 +131,11 @@ def make_navigation(num_agents: int) -> MettaGridConfig:
 def make_navigation_sequence(num_agents: int) -> MettaGridConfig:
     altar = building.altar.model_copy()
     altar.input_resources = {"battery_red": 1}
-    altar.cooldown = 15
+    altar.cooldown = [15]
     mine = building.mine_red.model_copy()
-    mine.cooldown = 15
+    mine.cooldown = [15]
     generator = building.generator_red.model_copy()
-    generator.cooldown = 15
+    generator.cooldown = [15]
     cfg = MettaGridConfig(
         game=GameConfig(
             num_agents=num_agents,

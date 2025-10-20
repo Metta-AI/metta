@@ -58,10 +58,10 @@
     "outputs": true,
     "train_dir": true,
     "wandb": true,
-    "observatory": true,
     "build": true,
     "dist": true,
     "tmp": true,
+    "personal": true,
   },
 
   // Exclude from text/code search
@@ -74,8 +74,8 @@
     "**/train_dir": true,
     "**/wandb": true,
     "**/outputs": true,
-    "**/observatory": true,
     "**/tmp": true,
+    "personal": true,
   },
 
   // Exclude from C/C++ IntelliSense indexing
@@ -92,5 +92,6 @@
     "**/tmp": true,
     "build": true,
     "dist": true,
+    "personal": true,
   },
 }

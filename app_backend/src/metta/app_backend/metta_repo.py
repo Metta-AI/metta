@@ -133,6 +133,14 @@ class LeaderboardPolicyScore(BaseModel):
     score: float
 
 
+class CoGamesSubmissionRow(BaseModel):
+    id: uuid.UUID
+    user_id: str
+    name: str | None
+    s3_path: str
+    created_at: datetime
+
+
 # This is a list of migrations that will be applied to the eval database.
 # Do not change existing migrations, only add new ones.
 MIGRATIONS = [
@@ -683,6 +691,21 @@ MIGRATIONS = [
             LEFT JOIN epochs ep ON p.epoch_id = ep.id
             LEFT JOIN training_runs tr ON ep.run_id = tr.id
             """,
+        ],
+    ),
+    SqlMigration(
+        version=27,
+        description="Add cogames_policy_submissions table",
+        sql_statements=[
+            """CREATE TABLE cogames_policy_submissions (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                user_id TEXT NOT NULL,
+                name TEXT,
+                s3_path TEXT NOT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE INDEX idx_cogames_submissions_user_id ON cogames_policy_submissions(user_id)""",
+            """CREATE INDEX idx_cogames_submissions_created_at ON cogames_policy_submissions(created_at)""",
         ],
     ),
 ]
@@ -1526,6 +1549,22 @@ class MettaRepo:
                 )
                 return await cur.fetchone()
 
+    async def get_task_by_id(self, task_id: uuid.UUID) -> EvalTaskWithPolicyName | None:
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(EvalTaskWithPolicyName)) as cur:
+                await cur.execute(
+                    """
+                    SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
+                           et.assignee, et.created_at, et.attributes, et.retries,
+                           p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
+                    FROM eval_tasks et
+                    JOIN policies p ON et.policy_id = p.id
+                    WHERE et.id = %s
+                    """,
+                    (task_id,),
+                )
+                return await cur.fetchone()
+
     async def get_all_tasks(
         self,
         limit: int = 500,
@@ -1576,6 +1615,112 @@ class MettaRepo:
                     params,
                 )
                 return await cur.fetchall()
+
+    async def get_tasks_paginated(
+        self,
+        page: int = 1,
+        page_size: int = 50,
+        policy_name: str | None = None,
+        sim_suite: str | None = None,
+        status: str | None = None,
+        assignee: str | None = None,
+        user_id: str | None = None,
+        retries: str | None = None,
+        created_at: str | None = None,
+        assigned_at: str | None = None,
+        updated_at: str | None = None,
+        include_attributes: bool = False,
+    ) -> tuple[list[EvalTaskWithPolicyName], int]:
+        async with self.connect() as con:
+            where_conditions = []
+            params = []
+
+            # Add text-based filters using ILIKE for case-insensitive substring search
+            if policy_name:
+                where_conditions.append("p.name ILIKE %s")
+                params.append(f"%{policy_name}%")
+
+            if sim_suite:
+                where_conditions.append("et.sim_suite ILIKE %s")
+                params.append(f"%{sim_suite}%")
+
+            if status:
+                # Use exact match for status since it's an enum-like field
+                where_conditions.append("et.status = %s")
+                params.append(status)
+
+            if assignee:
+                where_conditions.append("et.assignee ILIKE %s")
+                params.append(f"%{assignee}%")
+
+            if user_id:
+                where_conditions.append("et.user_id ILIKE %s")
+                params.append(f"%{user_id}%")
+
+            if retries:
+                where_conditions.append("CAST(et.retries AS TEXT) ILIKE %s")
+                params.append(f"%{retries}%")
+
+            if created_at:
+                where_conditions.append("CAST(et.created_at AS TEXT) ILIKE %s")
+                params.append(f"%{created_at}%")
+
+            if assigned_at:
+                where_conditions.append("CAST(et.assigned_at AS TEXT) ILIKE %s")
+                params.append(f"%{assigned_at}%")
+
+            if updated_at:
+                where_conditions.append("CAST(et.updated_at AS TEXT) ILIKE %s")
+                params.append(f"%{updated_at}%")
+
+            where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
+
+            # Get total count
+            count_query = f"""
+                SELECT COUNT(*)
+                FROM eval_tasks et
+                LEFT JOIN policies p ON et.policy_id = p.id
+                WHERE {where_clause}
+            """
+            count_result = await con.execute(count_query, params)
+            total_count = (await count_result.fetchone())[0]
+
+            # Get paginated results
+            offset = (page - 1) * page_size
+            params.extend([page_size, offset])
+
+            # Conditionally include attributes field
+            # When not including full attributes, return minimal subset for UI display
+            if include_attributes:
+                attributes_field = "et.attributes"
+            else:
+                attributes_field = """
+                    jsonb_build_object(
+                        'git_hash', et.attributes->>'git_hash',
+                        'output_log_path', et.attributes->>'output_log_path',
+                        'stderr_log_path', et.attributes->>'stderr_log_path',
+                        'stdout_log_path', et.attributes->>'stdout_log_path',
+                        'details', et.attributes->'details'
+                    ) as attributes
+                """.strip()
+
+            async with con.cursor(row_factory=class_row(EvalTaskWithPolicyName)) as cur:
+                await cur.execute(
+                    f"""
+                    SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
+                           et.assignee, et.created_at, {attributes_field}, et.retries,
+                           p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
+                    FROM eval_tasks et
+                    LEFT JOIN policies p ON et.policy_id = p.id
+                    WHERE {where_clause}
+                    ORDER BY et.created_at DESC
+                    LIMIT %s OFFSET %s
+                    """,
+                    params,
+                )
+                tasks = await cur.fetchall()
+
+            return tasks, total_count
 
     async def get_git_hashes_for_workers(self, assignees: list[str]) -> dict[str, list[str]]:
         async with self.connect() as con:
@@ -1728,3 +1873,21 @@ class MettaRepo:
             """,
             (latest_episode, leaderboard_id),
         )
+
+    async def create_cogames_submission(
+        self, submission_id: uuid.UUID, user_id: str, s3_path: str, name: str | None = None
+    ) -> uuid.UUID:
+        """Create a new CoGames policy submission with a specific ID."""
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                INSERT INTO cogames_policy_submissions (id, user_id, name, s3_path)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id
+                """,
+                (submission_id, user_id, name, s3_path),
+            )
+            row = await result.fetchone()
+            if row is None:
+                raise RuntimeError("Failed to create CoGames submission")
+            return row[0]

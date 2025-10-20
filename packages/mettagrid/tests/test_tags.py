@@ -13,6 +13,7 @@ from mettagrid.config.mettagrid_config import (
 )
 from mettagrid.core import MettaGridCore
 from mettagrid.map_builder.ascii import AsciiMapBuilder
+from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME
 from mettagrid.test_support import TokenTypes
 
 NUM_OBS_TOKENS = 200
@@ -45,6 +46,7 @@ def env_with_tags() -> MettaGridCore:
                     ["#", "@", ".", ".", ".", ".", "#"],
                     ["#", "#", "#", "#", "#", "#", "#"],
                 ],
+                char_to_name_map=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
@@ -81,6 +83,7 @@ def env_with_duplicate_tags() -> MettaGridCore:
                     ["#", ".", ".", ".", "#"],
                     ["#", "#", "#", "#", "#"],
                 ],
+                char_to_name_map=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
@@ -182,6 +185,7 @@ class TestTags:
                         ["#", "@", "#"],
                         ["#", "#", "#"],
                     ],
+                    char_to_name_map=DEFAULT_CHAR_TO_NAME,
                 ),
             )
         )
@@ -272,6 +276,7 @@ class TestTags:
                         ["#", "@", "#"],
                         ["#", "#", "#"],
                     ],
+                    char_to_name_map=DEFAULT_CHAR_TO_NAME,
                 ),
             )
         )
@@ -326,6 +331,7 @@ class TestTags:
                         [".", "@", "."],
                         [".", ".", "#"],  # Wall in bottom-right
                     ],
+                    char_to_name_map=DEFAULT_CHAR_TO_NAME,
                 ),
             )
         )
@@ -351,6 +357,7 @@ class TestTags:
                         [".", "@", "."],
                         [".", ".", "#"],  # Wall in bottom-right
                     ],
+                    char_to_name_map=DEFAULT_CHAR_TO_NAME,
                 ),
             )
         )
@@ -414,7 +421,7 @@ class TestTags:
                         max_output=10,
                         max_conversions=5,
                         conversion_ticks=10,
-                        cooldown=5,
+                        cooldown=[5],
                         tags=["machine", "converter", "industrial"],
                     ),
                     "wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID, tags=["solid"]),
@@ -426,6 +433,7 @@ class TestTags:
                         ["#", "@", "#"],
                         ["#", "#", "#"],
                     ],
+                    char_to_name_map=DEFAULT_CHAR_TO_NAME,
                 ),
             )
         )
@@ -480,6 +488,7 @@ class TestTags:
                         [".", ".", "."],
                         [".", "@", "."],
                     ],
+                    char_to_name_map=DEFAULT_CHAR_TO_NAME,
                 ),
             )
         )
@@ -648,6 +657,7 @@ def test_default_agent_tags_preserved():
                     [".", ".", "."],
                     [".", "@", "."],
                 ],
+                char_to_name_map=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
@@ -724,7 +734,7 @@ def test_tag_mapping_in_feature_spec():
                     max_output=10,
                     max_conversions=5,
                     conversion_ticks=10,
-                    cooldown=5,
+                    cooldown=[5],
                     tags=["machine", "industrial"],
                 ),
             },
@@ -738,6 +748,7 @@ def test_tag_mapping_in_feature_spec():
                     ["#", "@", "#"],
                     ["#", "#", "#"],
                 ],
+                char_to_name_map=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
@@ -793,6 +804,7 @@ def test_tag_mapping_empty_tags():
                     ["#", "@", "#"],
                     ["#", "#", "#"],
                 ],
+                char_to_name_map=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )

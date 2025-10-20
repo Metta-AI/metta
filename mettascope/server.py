@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.sim.simulation import Simulation
 from mettagrid import dtype_actions
+from mettagrid.util.action_catalog import build_action_mapping, make_decode_fn, make_encode_fn
 from mettagrid.util.grid_object_formatter import format_grid_object
 
 if TYPE_CHECKING:
@@ -169,6 +170,10 @@ def make_app(cfg: "PlayTool"):
         env = sim.get_env()
         replay = sim.get_replay()
 
+        flat_mapping, _ = build_action_mapping(env)
+        decode_flat_action = make_decode_fn(flat_mapping)
+        encode_flat_action = make_encode_fn(flat_mapping)
+
         await send_message(type="replay", replay=replay)
 
         current_step = 0
@@ -186,7 +191,14 @@ def make_app(cfg: "PlayTool"):
                     agent_id = grid_object["agent_id"]
                     total_rewards[agent_id] += env.rewards[agent_id]
 
-                update_object = format_grid_object(grid_object, actions, env.action_success, env.rewards, total_rewards)
+                update_object = format_grid_object(
+                    grid_object,
+                    actions,
+                    env.action_success,
+                    env.rewards,
+                    total_rewards,
+                    decode_flat_action=decode_flat_action,
+                )
 
                 grid_objects[i] = update_object
 
@@ -235,7 +247,9 @@ def make_app(cfg: "PlayTool"):
                 actions = sim.generate_actions()
                 if action_message is not None:
                     agent_id = action_message["agent_id"]
-                    actions[agent_id] = int(action_message["action_id"])
+                    action_id = int(action_message["action_id"])
+                    action_param = int(action_message.get("action_param", 0))
+                    actions[agent_id] = encode_flat_action(action_id, action_param)
                 sim.step_simulation(actions)
 
                 await send_replay_step()

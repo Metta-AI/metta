@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import multiprocessing
 import platform
 from pathlib import Path
@@ -9,11 +10,15 @@ from typing import TYPE_CHECKING, Any, Callable, Optional
 import psutil
 from rich.console import Console
 
-from cogames.aws_storage import maybe_upload_checkpoint
-from cogames.policy import TrainablePolicy
+from cogames.cli.mission import MAP_MISSION_DELIMITER
+from cogames.policy.interfaces import TrainablePolicy
 from cogames.policy.signal_handler import DeferSigintContextManager
-from cogames.policy.utils import get_policy_class_shorthand, resolve_policy_data_path
-from cogames.utils import initialize_or_load_policy
+from cogames.policy.utils import (
+    find_policy_checkpoints,
+    get_policy_class_shorthand,
+    initialize_or_load_policy,
+    resolve_policy_data_path,
+)
 from mettagrid import MettaGridConfig, MettaGridEnv
 from pufferlib import pufferl
 from pufferlib import vector as pvector
@@ -23,6 +28,48 @@ if TYPE_CHECKING:
     import torch
 
 logger = logging.getLogger("cogames.pufferlib")
+
+
+def _largest_divisor_at_most(value: int, limit: int) -> int:
+    for candidate in range(min(value, limit), 0, -1):
+        if value % candidate == 0:
+            return candidate
+    return 1
+
+
+def _resolve_vector_counts(
+    num_envs: int,
+    num_workers: int,
+    *,
+    envs_user_supplied: bool,
+    workers_user_supplied: bool,
+) -> tuple[int, int]:
+    """Adjust counts so num_envs stays divisible by num_workers."""
+
+    num_envs = max(1, num_envs)
+    num_workers = max(1, num_workers)
+
+    if envs_user_supplied and workers_user_supplied:
+        return num_envs, num_workers
+
+    if envs_user_supplied:
+        adjusted_workers = _largest_divisor_at_most(num_envs, min(num_workers, num_envs))
+        return num_envs, max(1, adjusted_workers)
+
+    if workers_user_supplied:
+        num_envs = max(num_envs, num_workers)
+        if num_envs % num_workers != 0:
+            num_envs = num_workers * math.ceil(num_envs / num_workers)
+        return num_envs, num_workers
+
+    if num_envs < num_workers:
+        num_envs = num_workers
+        return num_envs, num_workers
+
+    if num_envs % num_workers != 0:
+        num_envs = num_workers * math.ceil(num_envs / num_workers)
+
+    return num_envs, num_workers
 
 
 def train(
@@ -35,7 +82,7 @@ def train(
     seed: int,
     batch_size: int,
     minibatch_size: int,
-    game_name: Optional[str] = None,
+    missions_arg: Optional[list[str]] = None,
     vector_num_envs: Optional[int] = None,
     vector_batch_size: Optional[int] = None,
     vector_num_workers: Optional[int] = None,
@@ -76,6 +123,36 @@ def train(
         num_workers = 1
 
     num_envs = vector_num_envs or 256
+
+    original_envs = num_envs
+    original_workers = num_workers
+
+    adjusted_envs, adjusted_workers = _resolve_vector_counts(
+        num_envs,
+        num_workers,
+        envs_user_supplied=vector_num_envs is not None,
+        workers_user_supplied=vector_num_workers is not None,
+    )
+
+    if adjusted_envs != original_envs:
+        log_fn = logger.warning if vector_num_envs is not None else logger.info
+        log_fn(
+            "Auto-adjusting num_envs from %s to %s so num_workers=%s divides evenly",
+            original_envs,
+            adjusted_envs,
+            adjusted_workers,
+        )
+        num_envs = adjusted_envs
+
+    if adjusted_workers != original_workers:
+        log_fn = logger.warning if vector_num_workers is not None else logger.info
+        log_fn(
+            "Auto-adjusting num_workers from %s to %s to evenly divide num_envs=%s",
+            original_workers,
+            adjusted_workers,
+            num_envs,
+        )
+        num_workers = adjusted_workers
 
     envs_per_worker = max(1, num_envs // num_workers)
     base_batch_size = vector_batch_size or 128
@@ -128,12 +205,7 @@ def train(
     resolved_initial_weights = initial_weights_path
     if initial_weights_path is not None:
         try:
-            resolved_initial_weights = resolve_policy_data_path(
-                initial_weights_path,
-                policy_class_path=policy_class_path,
-                game_name=game_name,
-                console=console,
-            )
+            resolved_initial_weights = resolve_policy_data_path(initial_weights_path)
         except FileNotFoundError as exc:
             console.print(f"[yellow]Initial weights not found ({exc}). Continuing with random initialization.[/yellow]")
             resolved_initial_weights = None
@@ -296,17 +368,7 @@ def train(
             )
             console.print("=" * 80, style="bold green")
 
-        # Try to find the final checkpoint
-        # PufferLib saves checkpoints in data_dir/env_name/
-        checkpoint_dir = checkpoints_path / env_name
-        checkpoints = []
-
-        if checkpoint_dir.exists():
-            checkpoints = sorted(checkpoint_dir.glob("*.pt"))
-
-        # Fallback: also check directly in checkpoints_path
-        if not checkpoints and checkpoints_path.exists():
-            checkpoints = sorted(checkpoints_path.glob("*.pt"))
+        checkpoints = find_policy_checkpoints(checkpoints_path, env_name)
 
         if checkpoints and not training_diverged:
             final_checkpoint = checkpoints[-1]
@@ -320,35 +382,25 @@ def train(
                     style="yellow",
                 )
 
-            maybe_upload_checkpoint(
-                final_checkpoint=final_checkpoint,
-                game_name=game_name,
-                policy_class_path=policy_class_path,
-                console=console,
-            )
-
             # Show shorthand version if available
             policy_shorthand = get_policy_class_shorthand(policy_class_path)
 
             # Build the command with game name if provided
-            game_arg = f" {game_name}" if game_name else ""
-            policy_arg = policy_shorthand if policy_shorthand else policy_class_path
+            policy_class_arg = policy_shorthand if policy_shorthand else policy_class_path
+            policy_arg = f"{policy_class_arg}{MAP_MISSION_DELIMITER}{final_checkpoint}"
+
+            first_mission = missions_arg[0] if missions_arg else "training_facility_1"
+            all_missions = " ".join(f"-m {m}" for m in (missions_arg or ["training_facility_1"]))
 
             console.print()
             console.print("To continue training this policy:", style="bold")
-            console.print(
-                f"  [yellow]cogames train{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
-            )
+            console.print(f"  [yellow]cogames train {all_missions} -p {policy_arg}[/yellow]")
             console.print()
             console.print("To play with this policy:", style="bold")
-            console.print(
-                f"  [yellow]cogames play{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
-            )
+            console.print(f"  [yellow]cogames play -m {first_mission} -p {policy_arg}[/yellow]")
             console.print()
             console.print("To evaluate this policy:", style="bold")
-            console.print(
-                f"  [yellow]cogames eval{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
-            )
+            console.print(f"  [yellow]cogames eval -m {first_mission} -p {policy_arg}[/yellow]")
         elif checkpoints and training_diverged:
             console.print()
             console.print(f"[yellow]Found {len(checkpoints)} checkpoint(s). The most recent may be corrupted.[/yellow]")

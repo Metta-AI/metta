@@ -1,4 +1,4 @@
-from typing import Optional, Tuple, TypeAlias, TypedDict
+from typing import Optional, Sequence, Tuple, TypeAlias, TypedDict
 
 import gymnasium as gym
 import numpy as np
@@ -99,7 +99,7 @@ class ConverterConfig(GridObjectConfig):
         max_output: int,
         max_conversions: int,
         conversion_ticks: int,
-        cooldown: int,
+        cooldown_time: Sequence[int],
         initial_resource_count: int = 0,
         recipe_details_obs: bool = False,
     ) -> None: ...
@@ -110,7 +110,7 @@ class ConverterConfig(GridObjectConfig):
     max_output: int
     max_conversions: int
     conversion_ticks: int
-    cooldown: int
+    cooldown_time: list[int]
     initial_resource_count: int
     recipe_details_obs: bool
 
@@ -262,6 +262,7 @@ class MettaGrid:
         ignore_types: list[str] = [],
     ) -> dict[int, dict]: ...
     def action_names(self) -> list[str]: ...
+    def action_catalog(self) -> list[dict[str, int | str]]: ...
     def get_episode_rewards(self) -> np.ndarray: ...
     def get_episode_stats(self) -> EpisodeStats: ...
     def action_success(self) -> list[bool]: ...

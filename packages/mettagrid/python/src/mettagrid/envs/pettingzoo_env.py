@@ -38,7 +38,6 @@ class MettaGridPettingZooEnv(MettaGridCore, ParallelEnv):
     def __init__(
         self,
         mg_config: MettaGridConfig,
-        render_mode: Optional[str] = None,
         **kwargs: Any,
     ):
         """
@@ -46,7 +45,6 @@ class MettaGridPettingZooEnv(MettaGridCore, ParallelEnv):
 
         Args:
             mg_config: Environment configuration
-            render_mode: Rendering mode
             **kwargs: Additional arguments
         """
 
@@ -54,7 +52,6 @@ class MettaGridPettingZooEnv(MettaGridCore, ParallelEnv):
         MettaGridCore.__init__(
             self,
             mg_config,
-            render_mode=render_mode,
         )
 
         # PettingZoo attributes
