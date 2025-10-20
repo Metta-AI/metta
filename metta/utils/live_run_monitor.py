@@ -39,6 +39,7 @@ from rich.table import Table
 from rich.text import Text
 
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
+from metta.jobs.display import format_cost
 
 if TYPE_CHECKING:
     from metta.adaptive.models import JobStatus, RunInfo
@@ -184,7 +185,7 @@ def make_rich_monitor_table(runs: list["RunInfo"], score_metric: str = "env_agen
             score_str = "N/A"
 
         # Format cost
-        cost_str = f"${run.cost:.2f}" if run.cost else "$0.00"
+        cost_str = format_cost(run.cost) if run.cost else "$0.00"
 
         # Status with color
         status = run.status
@@ -277,7 +278,7 @@ def create_run_banner(
     line1.append("Use --help to change limits.", style="dim")
 
     # Cost line with warning
-    cost_line = RichText(f"💰 Total Cost: ${total_cost:.2f} ")
+    cost_line = RichText(f"💰 Total Cost: {format_cost(total_cost)} ")
 
     banner_lines = [
         line1,

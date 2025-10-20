@@ -46,7 +46,7 @@ class ExperimentManager:
                 continue
 
             # Cancel based on execution type
-            if job_state.spec.execution == "remote":
+            if job_state.config.execution == "remote":
                 # Cancel SkyPilot job
                 try:
                     job_id = int(job_state.job_id)
@@ -59,7 +59,7 @@ class ExperimentManager:
                     print(f"  ✗ Failed to cancel: {e}")
                     failed_count += 1
 
-            elif job_state.spec.execution == "local":
+            elif job_state.config.execution == "local":
                 # Kill local process
                 try:
                     pid = int(job_state.job_id)
