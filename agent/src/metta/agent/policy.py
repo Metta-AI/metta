@@ -90,7 +90,7 @@ class PolicyArchitecture(Config):
         """Create an agent instance from configuration."""
 
         agent_cls = _resolve_symbol(self.class_path)
-        return agent_cls(env_metadata, self)
+        return agent_cls(game_rules, self)
 
 class Policy(ABC, nn.Module):
     """Abstract base class defining the interface that all policies must implement.
