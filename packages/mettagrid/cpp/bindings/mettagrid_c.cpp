@@ -923,7 +923,7 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
       obj_dict["cooldown_multiplier"] = assembler->cooldown_multiplier;
 
       // Add current recipe ID (pattern byte)
-      obj_dict["current_recipe_id"] = static_cast<int>(assembler->get_agent_pattern_byte());
+      obj_dict["current_recipe_id"] = static_cast<int>(assembler->get_local_vibe());
 
       // Add current recipe information
       const Recipe* current_recipe = assembler->get_current_recipe();
@@ -943,29 +943,27 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
       }
 
       // Add all recipes information (only non-null recipes)
-      const std::vector<std::shared_ptr<Recipe>>& active_recipes =
+      const std::unordered_map<uint64_t, std::shared_ptr<Recipe>>& active_recipes =
           assembler->is_clipped ? assembler->unclip_recipes : assembler->recipes;
       py::list recipes_list;
 
-      for (size_t i = 0; i < active_recipes.size(); ++i) {
-        if (active_recipes[i]) {
-          py::dict recipe_dict;
+      for (const auto& [vibe, recipe] : active_recipes) {
+        py::dict recipe_dict;
 
-          py::dict input_resources_dict;
-          for (const auto& [resource, quantity] : active_recipes[i]->input_resources) {
-            input_resources_dict[py::int_(resource)] = quantity;
-          }
-          recipe_dict["inputs"] = input_resources_dict;
-
-          py::dict output_resources_dict;
-          for (const auto& [resource, quantity] : active_recipes[i]->output_resources) {
-            output_resources_dict[py::int_(resource)] = quantity;
-          }
-          recipe_dict["outputs"] = output_resources_dict;
-          recipe_dict["cooldown"] = active_recipes[i]->cooldown;
-
-          recipes_list.append(recipe_dict);
+        py::dict input_resources_dict;
+        for (const auto& [resource, quantity] : recipe->input_resources) {
+          input_resources_dict[py::int_(resource)] = quantity;
         }
+        recipe_dict["inputs"] = input_resources_dict;
+
+        py::dict output_resources_dict;
+        for (const auto& [resource, quantity] : recipe->output_resources) {
+          output_resources_dict[py::int_(resource)] = quantity;
+        }
+        recipe_dict["outputs"] = output_resources_dict;
+        recipe_dict["cooldown"] = recipe->cooldown;
+
+        recipes_list.append(recipe_dict);
       }
       obj_dict["recipes"] = recipes_list;
     }

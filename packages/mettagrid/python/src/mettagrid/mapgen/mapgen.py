@@ -133,6 +133,13 @@ class MapGen(MapBuilder):
         # Inner border width between instances. This value usually shouldn't be changed.
         instance_border_width: int = Field(default=5, ge=0)
 
+        # Create a unique team comprising all agents in each instance
+        set_team_by_instance: bool = Field(
+            default=False,
+            description="If True, automatically assign agents to teams based on instance number"
+            " (agent.team_0, agent.team_1, etc.)",
+        )
+
         @model_validator(mode="after")
         def validate_required_fields(self) -> MapGen.Config:
             if not self.instance:
@@ -219,9 +226,17 @@ class MapGen(MapBuilder):
                         intrinsic_size = intrinsic_size[::-1]
                     self.height, self.width = intrinsic_size
 
+                current_instance_id = len(self.instance_scene_factories)
+                use_instance_id_for_team_assignment = self.config.set_team_by_instance
+
                 instance_grid = create_grid(self.height, self.width)
                 instance_area = Area.root_area_from_grid(instance_grid)
-                instance_scene = instance_scene_config.create_root(instance_area, self.rng)
+                instance_scene = instance_scene_config.create_root(
+                    instance_area,
+                    self.rng,
+                    instance_id=current_instance_id,
+                    use_instance_id_for_team_assignment=use_instance_id_for_team_assignment,
+                )
                 instance_scene.render_with_children()
                 self.instance_scene_factories.append(TransplantScene.Config(scene=instance_scene))
             else:
@@ -306,21 +321,30 @@ class MapGen(MapBuilder):
 
         if self.instances == 1:
             if self.instance_scene_factories:
-                # We need just one instance and it's already prebuilt.
                 assert len(self.instance_scene_factories) == 1, (
                     "Internal logic error: MapGen wants 1 instance but prebuilt more"
                 )
-                return self.instance_scene_factories[0]
+                # Even for single instance, set instance_id=0 if set_team_by_instance is True
+                scene_config = self.instance_scene_factories[0]
+                if self.config.set_team_by_instance:
+                    # We'll need to wrap this in a way that sets instance_id
+                    # The cleanest is to return a scene that will set it when rendering
+                    return self._wrap_with_instance_id(scene_config, 0)
+                return scene_config
             else:
                 assert isinstance(self.config.instance, SceneConfig), (
                     "Internal logic error: instance is not a scene but we don't have prebuilt instances either"
                 )
+                if self.config.set_team_by_instance:
+                    return self._wrap_with_instance_id(self.config.instance, 0)
                 return self.config.instance
 
         # We've got more than one instance, so we'll need a RoomGrid.
 
         children_actions: list[ChildrenAction] = []
-        for instance_scene_factory in self.instance_scene_factories:
+
+        # Add prebuilt instances with their instance_ids
+        for idx, instance_scene_factory in enumerate(self.instance_scene_factories):
             children_actions.append(
                 ChildrenAction(
                     scene=instance_scene_factory,
@@ -328,6 +352,8 @@ class MapGen(MapBuilder):
                     limit=1,
                     order_by="first",
                     lock="lock",
+                    instance_id=idx,
+                    use_instance_id_for_team_assignment=self.config.set_team_by_instance,
                 )
             )
 
@@ -338,21 +364,59 @@ class MapGen(MapBuilder):
                 "Internal logic error: MapGen failed to prebuild enough instances"
             )
 
-            children_actions.append(
-                ChildrenAction(
-                    scene=self.config.instance,
-                    where=AreaWhere(tags=["room"]),
-                    limit=remaining_instances,
-                    order_by="first",
-                    lock="lock",
+            # Create separate ChildrenAction for each remaining instance
+            # so each can have its own instance_id
+            start_idx = len(self.instance_scene_factories)
+
+            if self.config.set_team_by_instance:
+                # Create one ChildrenAction per remaining instance, each with unique instance_id
+                for i in range(remaining_instances):
+                    children_actions.append(
+                        ChildrenAction(
+                            scene=self.config.instance,
+                            where=AreaWhere(tags=["room"]),
+                            limit=1,
+                            order_by="first",
+                            lock="lock",
+                            instance_id=start_idx + i,
+                            use_instance_id_for_team_assignment=True,
+                        )
+                    )
+            else:
+                # Original behavior: one ChildrenAction for all remaining instances
+                children_actions.append(
+                    ChildrenAction(
+                        scene=self.config.instance,
+                        where=AreaWhere(tags=["room"]),
+                        limit=remaining_instances,
+                        order_by="first",
+                        lock="lock",
+                        use_instance_id_for_team_assignment=False,
+                    )
                 )
-            )
 
         return RoomGrid.Config(
             rows=self.instance_rows,
             columns=self.instance_cols,
             border_width=self.config.instance_border_width,
             children=children_actions,
+        )
+
+    def _wrap_with_instance_id(self, scene_config: SceneConfig, instance_id: int) -> SceneConfig:
+        """Helper to wrap a scene config with instance_id for single-instance case."""
+        # For single instance, we create a wrapper that sets instance_id
+        # The simplest is to use a ChildrenAction approach via a passthrough scene
+        from mettagrid.mapgen.scenes.nop import Nop
+
+        return Nop.Config(
+            children=[
+                ChildrenAction(
+                    scene=scene_config,
+                    where="full",
+                    instance_id=instance_id,
+                    use_instance_id_for_team_assignment=True,
+                )
+            ]
         )
 
     def build(self):
@@ -364,7 +428,14 @@ class MapGen(MapBuilder):
 
         root_scene_cfg = self.get_root_scene_cfg()
 
-        self.root_scene = root_scene_cfg.create_root(self.inner_area, self.rng)
+        instance_id = 0 if (self.instances == 1 and self.config.set_team_by_instance) else None
+
+        self.root_scene = root_scene_cfg.create_root(
+            self.inner_area,
+            self.rng,
+            instance_id=instance_id,
+            use_instance_id_for_team_assignment=self.config.set_team_by_instance,
+        )
         self.root_scene.render_with_children()
 
         return GameMap(self.guarded_grid())
