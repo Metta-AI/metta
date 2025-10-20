@@ -204,7 +204,6 @@ proc expand[T](data: JsonNode, numSteps: int, defaultValue: T): seq[T] =
     else:
       # Expand the sequence.
       # A sequence of pairs is expanded to a sequence of values.
-      var i = 0
       var j = 0
       var v: T = defaultValue
       for i in 0 ..< numSteps:

@@ -16,7 +16,6 @@ var
   lastClickPos = vec2(0, 0)
 
 proc drawAgentTraces*(panel: Panel) =
-  let box = irect(0, 0, panel.rect.w, panel.rect.h)
 
   panel.scrollArea = rect(
     0,

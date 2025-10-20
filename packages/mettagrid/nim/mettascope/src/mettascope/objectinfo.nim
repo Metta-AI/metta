@@ -23,7 +23,7 @@ find "/UI/Main/**/ObjectInfo/OpenConfig":
           else:
             let objConfig = replay.mgConfig["game"]["objects"][typeName]
             objConfig.pretty
-    if not existsDir("tmp"):
+    if not dirExists("tmp"):
       createDir("tmp")
     let typeName = selection.typeName
     writeFile("tmp/" & typeName & "_config.json", text)

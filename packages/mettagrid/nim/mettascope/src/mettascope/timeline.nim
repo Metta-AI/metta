@@ -4,7 +4,6 @@ import
   common, panels, actions, objectinfo
 
 const
-  BgColor = parseHtmlColor("#1D1D1D")
   TraceWidth = 0.54 / 2
 
 var

@@ -1,7 +1,7 @@
 import std/[os, strutils, parseopt, json],
   boxy, windy, vmath, fidget2, fidget2/hybridrender, webby,
   mettascope/[replays, common, panels, utils, timeline,
-  worldmap, minimap, agenttraces, footer, objectinfo, envconfig, vibes]
+  worldmap, minimap, agenttraces, footer, envconfig, vibes]
 
 proc updateReplayHeader() =
   ## Set the global header's display name for the current session.

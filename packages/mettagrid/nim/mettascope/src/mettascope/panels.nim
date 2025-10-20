@@ -1,7 +1,7 @@
 # This example shows a draggable panel UI like in a large editor like VS Code or Blender.
 
 import
-  std/[random, sequtils],
+  std/[sequtils],
   fidget2, bumpy, chroma, windy, boxy, fidget2/hybridrender,
   common
 

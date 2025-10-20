@@ -1,5 +1,5 @@
 import
-  std/[strformat, math, os, strutils, tables],
+  std/[math, os, strutils, tables],
   boxy, vmath, windy, fidget2/[hybridrender, common],
   common, panels, actions, utils, replays, objectinfo, pathfinding
 
