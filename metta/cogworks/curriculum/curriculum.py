@@ -330,7 +330,15 @@ class Curriculum(StatsLogger):
         return self._config.num_active_tasks
 
     def get_task(self) -> CurriculumTask:
-        """Sample a task from the population."""
+        """Sample a task from the population with replacement.
+
+        Tasks are sampled with replacement - multiple environments can receive
+        the same task_id simultaneously. The task remains in the pool after
+        selection and is only removed via eviction.
+
+        Returns:
+            CurriculumTask: A task sampled from the pool based on learning progress scores
+        """
         # Curriculum always manages the task pool - no delegation
         if len(self._tasks) < self._num_active_tasks:
             task = self._create_task()
@@ -376,7 +384,12 @@ class Curriculum(StatsLogger):
         self._num_evicted += 1
 
     def _choose_task(self) -> CurriculumTask:
-        """Choose a task from the population using algorithm guidance."""
+        """Choose a task from the population using algorithm guidance.
+
+        Samples with replacement - the same task can be selected multiple times
+        across different environments. Tasks are weighted by their learning
+        progress scores (high LP = higher probability).
+        """
         if self._algorithm is not None:
             # Get algorithm's task selection preferences
             task_scores = self._algorithm.score_tasks(list(self._tasks.keys()))
