@@ -69,7 +69,6 @@ const configSchema = z.object({
     profile: z.string().optional(),
     sesAccessKey: z.string().optional(),
     sesSecretKey: z.string().optional(),
-    s3Bucket: z.string().optional(),
   }),
 
   // SMTP (optional fallback for email)
@@ -85,28 +84,9 @@ const configSchema = z.object({
     anthropicApiKey: z.string().optional(),
   }),
 
-  // Adobe PDF Services (optional)
-  adobe: z.object({
-    clientId: z.string().optional(),
-    clientSecret: z.string().optional(),
-  }),
-
-  // Asana Integration (optional)
-  asana: z.object({
-    apiKey: z.string().optional(),
-    token: z.string().optional(),
-    papersProjectId: z.string().optional(),
-    workspaceId: z.string().optional(),
-    paperLinkFieldId: z.string().optional(),
-    arxivIdFieldId: z.string().optional(),
-    abstractFieldId: z.string().optional(),
-  }),
-
   // Feature Flags
   features: z.object({
     devMode: z.coerce.boolean().default(false),
-    enableFigureExtraction: z.coerce.boolean().default(true),
-    useLlmAdobeSelection: z.coerce.boolean().default(true),
   }),
 });
 
@@ -161,7 +141,6 @@ function loadConfig(): Config {
         profile: process.env.AWS_PROFILE,
         sesAccessKey: process.env.AWS_SES_ACCESS_KEY_ID,
         sesSecretKey: process.env.AWS_SES_SECRET_ACCESS_KEY,
-        s3Bucket: process.env.AWS_S3_BUCKET,
       },
 
       smtp: {
@@ -175,25 +154,8 @@ function loadConfig(): Config {
         anthropicApiKey: process.env.ANTHROPIC_API_KEY,
       },
 
-      adobe: {
-        clientId: process.env.ADOBE_CLIENT_ID,
-        clientSecret: process.env.ADOBE_CLIENT_SECRET,
-      },
-
-      asana: {
-        apiKey: process.env.ASANA_API_KEY,
-        token: process.env.ASANA_TOKEN,
-        papersProjectId: process.env.ASANA_PAPERS_PROJECT_ID,
-        workspaceId: process.env.ASANA_WORKSPACE_ID,
-        paperLinkFieldId: process.env.ASANA_PAPER_LINK_FIELD_ID,
-        arxivIdFieldId: process.env.ASANA_ARXIV_ID_FIELD_ID,
-        abstractFieldId: process.env.ASANA_ABSTRACT_FIELD_ID,
-      },
-
       features: {
         devMode: process.env.DEV_MODE,
-        enableFigureExtraction: process.env.ENABLE_FIGURE_EXTRACTION,
-        useLlmAdobeSelection: process.env.USE_LLM_ADOBE_SELECTION,
       },
     };
 
