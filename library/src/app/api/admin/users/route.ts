@@ -13,7 +13,10 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   const { searchParams } = new URL(request.url);
   const page = parseInt(searchParams.get("page") || "1", 10);
-  const limit = parseInt(searchParams.get("limit") || "20", 10);
+  const limit = Math.min(
+    parseInt(searchParams.get("limit") || "20", 10),
+    100
+  ); // Cap at 100 to prevent abuse
   const search = searchParams.get("search") || "";
   const showBannedOnly = searchParams.get("banned") === "true";
 
