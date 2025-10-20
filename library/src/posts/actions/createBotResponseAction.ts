@@ -74,7 +74,8 @@ export const createBotResponseAction = actionClient
           }
         } catch (pdfError) {
           Logger.warn("Error extracting PDF for bot, using fallback", {
-            error: pdfError instanceof Error ? pdfError.message : String(pdfError),
+            error:
+              pdfError instanceof Error ? pdfError.message : String(pdfError),
           });
           // Fallback to basic abstract
           paperContext = `Title: ${post.paper.title}\n\nAbstract: ${post.paper.abstract}`;
@@ -186,7 +187,10 @@ Please provide a helpful response about this paper.`,
         },
       };
     } catch (error) {
-      Logger.error("Error generating bot response", error instanceof Error ? error : new Error(String(error)));
+      Logger.error(
+        "Error generating bot response",
+        error instanceof Error ? error : new Error(String(error))
+      );
 
       // Create a fallback bot response
       let botUser = await prisma.user.findFirst({

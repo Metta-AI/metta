@@ -18,7 +18,7 @@ const MAX_PDF_SIZE = 50 * 1024 * 1024;
  */
 function validatePdfUrl(urlString: string): URL {
   let parsedUrl: URL;
-  
+
   try {
     parsedUrl = new URL(urlString);
   } catch {
@@ -46,7 +46,7 @@ function validatePdfUrl(urlString: string): URL {
   const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
   if (ipv4Regex.test(hostname)) {
     const octets = hostname.split(".").map(Number);
-    
+
     // Block private ranges: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
     if (
       octets[0] === 10 ||
@@ -120,7 +120,10 @@ export async function GET(request: NextRequest) {
       const contentType =
         response.headers.get("content-type") || "application/pdf";
 
-      if (!contentType.includes("pdf") && !contentType.includes("octet-stream")) {
+      if (
+        !contentType.includes("pdf") &&
+        !contentType.includes("octet-stream")
+      ) {
         throw new BadRequestError("URL does not point to a PDF file");
       }
 
