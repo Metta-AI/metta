@@ -12,13 +12,12 @@ from mettagrid.config.mettagrid_config import (
     GameConfig,
     MettaGridConfig,
 )
-from mettagrid.map_builder.assembler_map_builder import AssemblerMapBuilder
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 from mettagrid.map_builder.perimeter_incontext import PerimeterInContextMapBuilder
 from mettagrid.map_builder.random import RandomMapBuilder
 from mettagrid.mapgen.mapgen import MapGen
 
-from . import building, empty_converters
+from mettagrid.builder import building, empty_assemblers
 
 
 def make_arena(
@@ -96,7 +95,7 @@ def make_arena(
 
 
 def make_navigation(num_agents: int) -> MettaGridConfig:
-    altar = empty_converters.altar.model_copy()
+    altar = empty_assemblers.altar.model_copy()
     altar.cooldown = [255]  # Maximum cooldown
     altar.initial_resource_count = 1
     altar.max_conversions = 0
@@ -128,49 +127,7 @@ def make_navigation(num_agents: int) -> MettaGridConfig:
     return cfg
 
 
-def make_navigation_sequence(num_agents: int) -> MettaGridConfig:
-    altar = building.altar.model_copy()
-    altar.input_resources = {"battery_red": 1}
-    altar.cooldown = [15]
-    mine = building.mine_red.model_copy()
-    mine.cooldown = [15]
-    generator = building.generator_red.model_copy()
-    generator.cooldown = [15]
-    cfg = MettaGridConfig(
-        game=GameConfig(
-            num_agents=num_agents,
-            objects={
-                "altar": altar,
-                "wall": building.wall,
-                "mine_red": mine,
-                "generator_red": generator,
-            },
-            resource_names=["heart", "ore_red", "battery_red"],
-            actions=ActionsConfig(
-                move=ActionConfig(),
-                get_items=ActionConfig(),
-            ),
-            agent=AgentConfig(
-                rewards=AgentRewards(
-                    inventory={
-                        "heart": 1,
-                        "ore_red": 0.001,
-                        "battery_red": 0.01,
-                    },
-                ),
-                default_resource_limit=1,
-                resource_limits={
-                    "heart": 100,
-                },
-            ),
-            # Always provide a concrete map builder config so tests can set width/height
-            map_builder=RandomMapBuilder.Config(agents=num_agents),
-        )
-    )
-    return cfg
-
-
-def make_in_context_chains(
+def make_assembly_lines(
     num_agents: int,
     max_steps,
     game_objects: dict,
@@ -182,7 +139,7 @@ def make_in_context_chains(
     num_sinks: int = 0,
     dir: Optional[str] = None,
 ) -> MettaGridConfig:
-    game_objects["wall"] = empty_converters.wall
+    game_objects["wall"] = empty_assemblers.wall
     cfg = MettaGridConfig(
         desync_episodes=False,
         game=GameConfig(
@@ -218,90 +175,4 @@ def make_in_context_chains(
             ),
         ),
     )
-    return cfg
-
-
-def make_icl_assembler(
-    num_agents: int,
-    num_instances: int,
-    max_steps,
-    game_objects: dict,
-    map_builder_objects: dict,
-    width: int = 6,
-    height: int = 6,
-    terrain: str = "no-terrain",
-) -> MettaGridConfig:
-    game_objects["wall"] = empty_converters.wall
-    cfg = MettaGridConfig(
-        desync_episodes=False,
-        game=GameConfig(
-            max_steps=max_steps,
-            num_agents=num_agents * num_instances,
-            objects=game_objects,
-            map_builder=MapGen.Config(
-                instances=num_instances,
-                instance=AssemblerMapBuilder.Config(
-                    agents=num_agents,
-                    width=width,
-                    height=height,
-                    objects=map_builder_objects,
-                    terrain=terrain,
-                ),
-            ),
-            actions=ActionsConfig(
-                move=ActionConfig(),
-                rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
-                get_items=ActionConfig(enabled=False),
-                put_items=ActionConfig(enabled=False),
-                noop=ActionConfig(enabled=True),
-            ),
-            agent=AgentConfig(
-                rewards=AgentRewards(
-                    stats={"chest.heart.amount": 1},
-                    inventory_max={"heart": 15},
-                    # inventory={"heart": 1},
-                ),
-                default_resource_limit=3,
-                resource_limits={"heart": 30},
-            ),
-        ),
-    )
-    return cfg
-
-
-def make_icl_with_numpy(
-    num_agents: int,
-    num_instances: int,
-    max_steps,
-    game_objects: dict,
-    instance: MapBuilderConfig,
-) -> MettaGridConfig:
-    game_objects["wall"] = empty_converters.wall
-    cfg = MettaGridConfig(
-        desync_episodes=False,
-        game=GameConfig(
-            max_steps=max_steps,
-            num_agents=num_agents * num_instances,
-            objects=game_objects,
-            map_builder=MapGen.Config(
-                instances=num_instances,
-                instance=instance,
-            ),
-            actions=ActionsConfig(
-                move=ActionConfig(),
-                get_items=ActionConfig(),
-                put_items=ActionConfig(),
-            ),
-            agent=AgentConfig(
-                rewards=AgentRewards(
-                    inventory={
-                        "heart": 1,
-                    },
-                ),
-                default_resource_limit=1,
-                resource_limits={"heart": 15},
-            ),
-        ),
-    )
-
     return cfg
