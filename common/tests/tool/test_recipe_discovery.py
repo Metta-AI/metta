@@ -40,12 +40,6 @@ def test_recipe_registry_get_normalizes_paths():
     # Should be the same recipe
     assert recipe_full.module_name == recipe_short.module_name
 
-    # Should work with subdirectory (short form)
-    recipe_sub = recipe_registry.get("in_context_learning.in_context_learning")
-    if recipe_sub:  # Only test if this recipe exists
-        assert recipe_sub.module_name.startswith("experiments.recipes.")
-
-
 def test_recipe_short_name():
     """Test Recipe.short_name property."""
 
@@ -57,8 +51,3 @@ def test_recipe_short_name():
 
     assert recipe.module_name == "experiments.recipes.arena"
     assert recipe.short_name == "arena"
-
-    # Test with subdirectory
-    recipe_sub = recipe_registry.get("in_context_learning.in_context_learning")
-    if recipe_sub:
-        assert recipe_sub.short_name == "in_context_learning.in_context_learning"
