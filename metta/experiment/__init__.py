@@ -24,6 +24,7 @@ Usage:
         )
 """
 
-from metta.experiment.state import ExperimentState, JobState
+from metta.experiment.state import ExperimentState
+from metta.jobs.state import JobState
 
 __all__ = ["ExperimentState", "JobState"]

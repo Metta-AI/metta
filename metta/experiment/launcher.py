@@ -3,9 +3,10 @@
 from datetime import datetime
 from pathlib import Path
 
-from metta.experiment.state import ExperimentState, JobState
+from metta.experiment.state import ExperimentState
 from metta.jobs.models import JobSpec
 from metta.jobs.runner import LocalJob, RemoteJob
+from metta.jobs.state import JobState
 
 
 class ExperimentLauncher:
@@ -57,7 +58,7 @@ class ExperimentLauncher:
             created_at=datetime.utcnow().isoformat(timespec="seconds"),
             updated_at=datetime.utcnow().isoformat(timespec="seconds"),
             status="pending",
-            jobs={job.name: JobState(name=job.name, spec=job) for job in self.jobs},
+            jobs={job.name: JobState(name=job.name, config=job) for job in self.jobs},
         )
 
         if self.dry_run:
