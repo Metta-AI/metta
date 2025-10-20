@@ -18,16 +18,6 @@ export async function queueArxivInstitutionProcessing(
 }
 
 /**
- * Queue author extraction for a paper
- */
-export async function queueArxivAuthorProcessing(
-  paperId: string,
-  arxivUrl: string
-): Promise<void> {
-  await JobQueueService.queueAuthorExtraction(paperId, arxivUrl);
-}
-
-/**
  * Queue LLM abstract generation for a paper
  */
 export async function queueLLMAbstractGeneration(
