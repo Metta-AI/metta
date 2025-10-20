@@ -1,15 +1,14 @@
-// ✅ NEW: Hybrid OpenAI + Adobe PDF extraction following batch script approach EXACTLY
-// 📝 Step 1: OpenAI identifies key figures + provides summary (generateObject + zod)
-// 🔧 Step 2: Get raw Adobe elements (same as debug-adobe-raw.ts)
-// 🎯 Step 3: Create semantic mappings (same as batch script) OR use LLM-based object selection
-// 🔍 Step 4: Extract ONLY semantically validated figures (same as batch script)
+// PDF Extraction using Claude + AWS Textract
+// 📝 Step 1: Claude identifies key figures + provides summary (generateObject + zod)
+// 🔧 Step 2: Get raw PDF elements using AWS Textract
+// 🎯 Step 3: Create semantic mappings OR use LLM-based object selection
+// 🔍 Step 4: Extract ONLY semantically validated figures
 // 💾 Step 5: Save extracted figures with correct coordinates
-// 🏆 Result: Same proven approach as working batch script
 //
-// 🆕 LLM-BASED ADOBE OBJECT SELECTION:
-// Set environment variable USE_LLM_ADOBE_SELECTION=true to use LLM for selecting
-// Adobe objects instead of the fragile semantic mapping logic. The LLM receives
-// the desired figure identifiers from OpenAI vision analysis and raw Adobe data,
+// 🆕 LLM-BASED OBJECT SELECTION:
+// Set environment variable USE_LLM_PDF_SELECTION=true to use LLM for selecting
+// PDF objects instead of the fragile semantic mapping logic. The LLM receives
+// the desired figure identifiers from Claude vision analysis and raw Textract data,
 // then intelligently selects the appropriate objects for each figure.
 
 import { generateObject } from "ai";
@@ -47,9 +46,9 @@ function checkSystemDependency(command: string, name: string): void {
   }
 }
 
-// ===== EXACT BATCH SCRIPT INTERFACES =====
+// ===== PDF ELEMENT INTERFACES =====
 
-interface AdobeElement {
+interface PdfElement {
   ObjectID: number;
   Page: number;
   Path?: string;
@@ -66,9 +65,9 @@ interface SemanticMapping {
 }
 
 /**
- * Schema for LLM-based Adobe object selection
+ * Schema for LLM-based PDF object selection
  */
-const AdobeObjectSelectionSchema = z.object({
+const PdfObjectSelectionSchema = z.object({
   selections: z.array(
     z.object({
       figureIdentifier: z
@@ -79,7 +78,7 @@ const AdobeObjectSelectionSchema = z.object({
       selectedObjectID: z
         .number()
         .describe(
-          "The ObjectID of the Adobe element that corresponds to this figure"
+          "The ObjectID of the PDF element that corresponds to this figure"
         ),
       confidence: z
         .enum(["high", "medium", "low"])
@@ -87,7 +86,7 @@ const AdobeObjectSelectionSchema = z.object({
       reasoning: z
         .string()
         .describe(
-          "Brief explanation of why this Adobe element was selected for this figure"
+          "Brief explanation of why this PDF element was selected for this figure"
         ),
     })
   ),
@@ -98,7 +97,7 @@ const AdobeObjectSelectionSchema = z.object({
     ),
 });
 
-interface OpenAIPdfFigure {
+interface ExtractedFigure {
   caption: string;
   pageNumber: number;
   context: string;
@@ -199,10 +198,10 @@ function analyzeCaption(captionText: string): {
 }
 
 function findFigureGroup(
-  allElements: AdobeElement[],
+  allElements: PdfElement[],
   figureNumber: number,
   page: number
-): AdobeElement[] {
+): PdfElement[] {
   return allElements.filter((element) => {
     // Must be on the same page
     if (element.Page !== page) return false;
@@ -217,7 +216,7 @@ function findFigureGroup(
   });
 }
 
-function isActualFigure(element: AdobeElement): boolean {
+function isActualFigure(element: PdfElement): boolean {
   // Must have figure path
   if (!element.Path?.includes("Figure")) return false;
 
@@ -237,8 +236,8 @@ function isActualFigure(element: AdobeElement): boolean {
 
 // EXACT COPY FROM WORKING BATCH SCRIPT
 function detectStructuralMultiPanel(
-  figureGroup: AdobeElement[],
-  actualFigures: AdobeElement[]
+  figureGroup: PdfElement[],
+  actualFigures: PdfElement[]
 ): boolean {
   if (actualFigures.length <= 1) return false;
 
@@ -255,7 +254,7 @@ function detectStructuralMultiPanel(
 }
 
 function createStructuralSubpanelMappings(
-  elements: AdobeElement[],
+  elements: PdfElement[],
   figureNumber: number,
   subpanels: string[]
 ): SemanticMapping[] {
@@ -281,7 +280,7 @@ function createStructuralSubpanelMappings(
 }
 
 function createSemanticMappings(
-  allElements: AdobeElement[]
+  allElements: PdfElement[]
 ): Map<number, SemanticMapping> {
   const mappings = new Map<number, SemanticMapping>();
 
@@ -380,7 +379,7 @@ function createSemanticMappings(
   return mappings;
 }
 
-function filterActualFigures(allElements: AdobeElement[]): Set<number> {
+function filterActualFigures(allElements: PdfElement[]): Set<number> {
   return new Set(
     allElements
       .filter((element) => isActualFigure(element))
@@ -703,14 +702,14 @@ async function splitAndProcessPdf(
 }
 
 /**
- * AWS Textract implementation - replaces unreliable Adobe PDF Services
+ * AWS Textract implementation - replaces unreliable PDF PDF Services
  */
 async function getRawTextractElements(
   pdfBuffer: Buffer,
   pdfSize?: number
-): Promise<AdobeElement[]> {
+): Promise<PdfElement[]> {
   Logger.info(
-    "🔍 Using AWS Textract for PDF element extraction (replacing Adobe)..."
+    "🔍 Using AWS Textract for PDF element extraction (replacing PDF)..."
   );
 
   // Detailed PDF validation (same as before)
@@ -753,8 +752,8 @@ async function getRawTextractElements(
       actualPdfSize
     );
 
-    // Convert Textract elements to Adobe-compatible format
-    const adobeElements: AdobeElement[] = textractElements.map((elem) => ({
+    // Convert Textract elements to PDF-compatible format
+    const pdfElements: PdfElement[] = textractElements.map((elem) => ({
       ObjectID: elem.ObjectID,
       Page: elem.Page,
       Path: elem.Path,
@@ -763,9 +762,9 @@ async function getRawTextractElements(
     }));
 
     Logger.info(
-      `✅ Textract extracted ${adobeElements.length} elements successfully`
+      `✅ Textract extracted ${pdfElements.length} elements successfully`
     );
-    return adobeElements;
+    return pdfElements;
   } catch (error: any) {
     Logger.error("❌ AWS Textract processing failed:", error);
     throw new Error(`AWS Textract failed: ${error.message}`);
@@ -1132,7 +1131,7 @@ async function coreTextractProcessing(
 /**
  * Retry operation with exponential backoff (kept for any remaining edge cases)
  */
-async function retryAdobeOperation<T>(
+async function retryPDFOperation<T>(
   operation: () => Promise<T>,
   maxRetries: number = 3,
   baseDelay: number = 2000
@@ -1141,7 +1140,7 @@ async function retryAdobeOperation<T>(
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      Logger.info(`🔄 Adobe operation attempt ${attempt}/${maxRetries}`);
+      Logger.info(`🔄 PDF operation attempt ${attempt}/${maxRetries}`);
       return await operation();
     } catch (error: any) {
       lastError = error;
@@ -1157,13 +1156,13 @@ async function retryAdobeOperation<T>(
       }
 
       if (attempt === maxRetries) {
-        Logger.info(`❌ Adobe operation failed after ${maxRetries} attempts`);
+        Logger.info(`❌ PDF operation failed after ${maxRetries} attempts`);
         throw error;
       }
 
       const delay = baseDelay * Math.pow(2, attempt - 1); // Exponential backoff
       Logger.warn(
-        `⚠️ Adobe operation failed (attempt ${attempt}): ${errorMessage}`
+        `⚠️ PDF operation failed (attempt ${attempt}): ${errorMessage}`
       );
       Logger.info(`⏳ Retrying in ${delay}ms...`);
       await new Promise((resolve) => setTimeout(resolve, delay));
@@ -1173,9 +1172,9 @@ async function retryAdobeOperation<T>(
   throw lastError;
 }
 
-async function getRawAdobeElements(pdfBuffer: Buffer): Promise<AdobeElement[]> {
-  // ⚠️ DEPRECATED: Adobe is unreliable - now using Textract
-  Logger.warn("⚠️ Adobe function called - redirecting to AWS Textract");
+async function getRawPdfElements(pdfBuffer: Buffer): Promise<PdfElement[]> {
+  // ⚠️ DEPRECATED: PDF is unreliable - now using Textract
+  Logger.warn("⚠️ PDF function called - redirecting to AWS Textract");
   return await getRawTextractElements(pdfBuffer, pdfBuffer.length);
 }
 
@@ -1184,12 +1183,12 @@ async function getRawAdobeElements(pdfBuffer: Buffer): Promise<AdobeElement[]> {
 // TODO: Fix duplicate function - temporarily commented out the broken version
 /*
 async function extractFigureFromElement_BROKEN(
-  element: AdobeElement,
+  element: PdfElement,
     Logger.error(
-      "❌ PDF appears to be encrypted/password-protected - Adobe will fail"
+      "❌ PDF appears to be encrypted/password-protected - PDF will fail"
     );
     throw new Error(
-      "PDF is encrypted or password-protected. Adobe PDF Services cannot process encrypted PDFs."
+      "PDF is encrypted or password-protected. PDF PDF Services cannot process encrypted PDFs."
     );
   }
 
@@ -1198,15 +1197,15 @@ async function extractFigureFromElement_BROKEN(
   const pdfVersion = pdfHeader.match(/%PDF-(\d\.\d)/)?.[1];
   Logger.info(`📄 PDF version: ${pdfVersion || "unknown"}`);
 
-  // Size limits (Adobe has processing limits)
+  // Size limits (PDF has processing limits)
   const maxSize = 100 * 1024 * 1024; // 100MB should be safe
   if (pdfSize > maxSize) {
     Logger.warn(
-      `⚠️ PDF is large (${Math.round(pdfSize / (1024 * 1024))}MB) - may cause Adobe processing issues`
+      `⚠️ PDF is large (${Math.round(pdfSize / (1024 * 1024))}MB) - may cause PDF processing issues`
     );
   }
 
-  // Check for suspicious content that might cause Adobe issues
+  // Check for suspicious content that might cause PDF issues
   const hasImages =
     pdfString.includes("/Image") ||
     pdfString.includes("/DCTDecode") ||
@@ -1225,30 +1224,30 @@ async function extractFigureFromElement_BROKEN(
   // Warn about potential issues
   if (hasJavaScript) {
     Logger.warn(
-      "⚠️ PDF contains JavaScript - this often causes Adobe processing failures"
+      "⚠️ PDF contains JavaScript - this often causes PDF processing failures"
     );
     Logger.warn(
-      "   Adobe PDF Services may reject PDFs with interactive content"
+      "   PDF PDF Services may reject PDFs with interactive content"
     );
   }
 
   if (pdfSize > 10 * 1024 * 1024) {
     Logger.warn(
-      `⚠️ Large PDF (${Math.round(pdfSize / (1024 * 1024))}MB) - Adobe processing may be slow or fail`
+      `⚠️ Large PDF (${Math.round(pdfSize / (1024 * 1024))}MB) - PDF processing may be slow or fail`
     );
   }
 
-  // Use retry mechanism for Adobe processing
-  return await retryAdobeOperation(async () => {
-    return await processWithAdobe(pdfBuffer, pdfSize);
+  // Use retry mechanism for PDF processing
+  return await retryPDFOperation(async () => {
+    return await processWithPDF(pdfBuffer, pdfSize);
   });
 }
 
-async function processWithAdobe(
+async function processWithPDF(
   pdfBuffer: Buffer,
   pdfSize: number
-): Promise<AdobeElement[]> {
-  Logger.info("💾 Writing PDF to temporary file for Adobe...");
+): Promise<PdfElement[]> {
+  Logger.info("💾 Writing PDF to temporary file for PDF...");
 
   const {
     PDFServices,
@@ -1312,22 +1311,22 @@ async function processWithAdobe(
 
     const job = new ExtractPDFJob({ inputAsset, params });
 
-    // Add longer timeout for Adobe PDF Services (large PDFs with JavaScript need more time)
+    // Add longer timeout for PDF PDF Services (large PDFs with JavaScript need more time)
     Logger.info(
-      "⏳ Submitting to Adobe PDF Services (this may take 2-5 minutes for large/complex PDFs)..."
+      "⏳ Submitting to PDF PDF Services (this may take 2-5 minutes for large/complex PDFs)..."
     );
     const submitPromise = pdfServices.submit({ job });
     const pollingURL = (await Promise.race([
       submitPromise,
       new Promise((_, reject) =>
         setTimeout(
-          () => reject(new Error("Adobe submit timeout after 180 seconds")),
+          () => reject(new Error("PDF submit timeout after 180 seconds")),
           180000 // 3 minutes for submit
         )
       ),
     ])) as string;
 
-    Logger.info("🔄 Polling Adobe for results...");
+    Logger.info("🔄 Polling PDF for results...");
     const resultPromise = pdfServices.getJobResult({
       pollingURL,
       resultType: ExtractPDFResult,
@@ -1336,7 +1335,7 @@ async function processWithAdobe(
       resultPromise,
       new Promise((_, reject) =>
         setTimeout(
-          () => reject(new Error("Adobe polling timeout after 300 seconds")),
+          () => reject(new Error("PDF polling timeout after 300 seconds")),
           300000 // 5 minutes for polling
         )
       ),
@@ -1345,7 +1344,7 @@ async function processWithAdobe(
     Logger.info("💾 Downloading extraction results...");
     const resultAsset = (pdfServicesResponse as any).result?.resource;
     if (!resultAsset) {
-      throw new Error("No result asset found in Adobe response");
+      throw new Error("No result asset found in PDF response");
     }
     const streamAsset = await pdfServices.getContent({ asset: resultAsset });
 
@@ -1367,7 +1366,7 @@ async function processWithAdobe(
       .find((entry: any) => entry.entryName === "structuredData.json");
 
     if (!jsonEntry) {
-      throw new Error("Could not find structuredData.json in Adobe response");
+      throw new Error("Could not find structuredData.json in PDF response");
     }
 
     const extractionResult = JSON.parse(jsonEntry.getData().toString("utf8"));
@@ -1376,11 +1375,11 @@ async function processWithAdobe(
     unlinkSync(tempZipPath);
 
     Logger.info(
-      `✅ Got ${extractionResult.elements?.length || 0} raw Adobe elements`
+      `✅ Got ${extractionResult.elements?.length || 0} raw PDF elements`
     );
     return extractionResult.elements || [];
   } catch (adobeError: any) {
-    Logger.error("❌ Adobe PDF Services error:", adobeError);
+    Logger.error("❌ PDF PDF Services error:", adobeError);
 
     // Enhanced error analysis
     const errorCode =
@@ -1390,19 +1389,19 @@ async function processWithAdobe(
     const trackingId =
       adobeError._requestTrackingId || adobeError.requestTrackingId || "NONE";
 
-    Logger.error(`📋 Adobe Error Details:`);
+    Logger.error(`📋 PDF Error Details:`);
     Logger.error(`   - Error Code: ${errorCode}`);
     Logger.error(`   - Status Code: ${statusCode}`);
     Logger.error(`   - Tracking ID: ${trackingId}`);
     Logger.error(`   - Message: ${adobeError.message || "No message"}`);
 
-    // Common Adobe error analysis
+    // Common PDF error analysis
     if (errorCode === "ERROR" && statusCode === 500) {
-      Logger.error("🔍 Analysis: Adobe internal error - possible causes:");
-      Logger.error("   - PDF structure not compatible with Adobe extraction");
-      Logger.error("   - PDF contains complex elements Adobe cannot parse");
+      Logger.error("🔍 Analysis: PDF internal error - possible causes:");
+      Logger.error("   - PDF structure not compatible with PDF extraction");
+      Logger.error("   - PDF contains complex elements PDF cannot parse");
       Logger.error("   - PDF may be corrupted or have unusual encoding");
-      Logger.error("   - Adobe service experiencing issues");
+      Logger.error("   - PDF service experiencing issues");
 
       // Re-analyze the PDF for specific issues
       const pdfString = pdfBuffer.toString("binary");
@@ -1420,7 +1419,7 @@ async function processWithAdobe(
       Logger.error(`   - Has transparency: ${hasTransparency}`);
 
       if (hasComplexForms) {
-        Logger.error("⚠️ PDF contains forms - Adobe may struggle with these");
+        Logger.error("⚠️ PDF contains forms - PDF may struggle with these");
       }
       if (hasEmbeddedFiles) {
         Logger.error(
@@ -1437,7 +1436,7 @@ async function processWithAdobe(
     }
 
     throw new Error(
-      `Adobe PDF Services failed: ${errorCode} - ${adobeError.message || "Internal error"}. Tracking ID: ${trackingId}`
+      `PDF PDF Services failed: ${errorCode} - ${adobeError.message || "Internal error"}. Tracking ID: ${trackingId}`
     );
   } finally {
     if (existsSync(tempFileName)) {
@@ -1450,7 +1449,7 @@ async function processWithAdobe(
 // ===== FIGURE EXTRACTION (SAME AS BATCH SCRIPT) =====
 
 async function extractFigureFromElement(
-  element: AdobeElement,
+  element: PdfElement,
   semanticLabel: string,
   pdfBuffer: Buffer
 ): Promise<{ imageData: string; imageType: string } | null> {
@@ -1524,15 +1523,15 @@ async function extractFigureFromElement(
 // ===== LLM-BASED ADOBE OBJECT SELECTION =====
 
 /**
- * Use LLM to select appropriate Adobe objects for desired figures
+ * Use LLM to select appropriate PDF objects for desired figures
  * Alternative to the fragile createSemanticMappings logic
  */
-async function selectAdobeObjectsWithLLM(
+async function selectPDFObjectsWithLLM(
   keyFigures: any[],
-  rawAdobeElements: AdobeElement[]
+  rawPdfElements: PdfElement[]
 ): Promise<Map<number, SemanticMapping>> {
   Logger.info(
-    `🤖 Using LLM to select Adobe objects for ${keyFigures.length} desired figures...`
+    `🤖 Using LLM to select PDF objects for ${keyFigures.length} desired figures...`
   );
 
   // Extract unique page numbers from keyFigures to limit scope
@@ -1547,21 +1546,21 @@ async function selectAdobeObjectsWithLLM(
   });
 
   Logger.info(
-    `📄 Filtering Adobe elements to pages: ${Array.from(figurePages).sort().join(", ")}`
+    `📄 Filtering PDF elements to pages: ${Array.from(figurePages).sort().join(", ")}`
   );
 
-  // Filter rawAdobeElements to only include elements from relevant pages
-  const filteredAdobeElements =
+  // Filter rawPdfElements to only include elements from relevant pages
+  const filteredPdfElements =
     figurePages.size > 0
-      ? rawAdobeElements.filter((el) => figurePages.has(el.Page))
-      : rawAdobeElements; // Fallback if no page numbers available
+      ? rawPdfElements.filter((el) => figurePages.has(el.Page))
+      : rawPdfElements; // Fallback if no page numbers available
 
   Logger.info(
-    `🔍 Reduced Adobe elements from ${rawAdobeElements.length} to ${filteredAdobeElements.length} (${Math.round((filteredAdobeElements.length / rawAdobeElements.length) * 100)}%)`
+    `🔍 Reduced PDF elements from ${rawPdfElements.length} to ${filteredPdfElements.length} (${Math.round((filteredPdfElements.length / rawPdfElements.length) * 100)}%)`
   );
 
-  // Prepare a concise representation of Adobe elements for the LLM
-  const elementsForLLM = filteredAdobeElements.map((el) => ({
+  // Prepare a concise representation of PDF elements for the LLM
+  const elementsForLLM = filteredPdfElements.map((el) => ({
     objectID: el.ObjectID,
     page: el.Page,
     path: el.Path,
@@ -1582,7 +1581,7 @@ async function selectAdobeObjectsWithLLM(
     pageNumber: fig.pageNumber,
     caption: fig.caption,
   }));
-  const prompt = `You are analyzing PDF elements extracted by Adobe to select the correct objects that correspond to specific figure identifiers.
+  const prompt = `You are analyzing PDF elements extracted by PDF to select the correct objects that correspond to specific figure identifiers.
 
 DESIRED FIGURES: ${JSON.stringify(desiredFigures, null, 2)}
 
@@ -1590,7 +1589,7 @@ ADOBE ELEMENTS AVAILABLE:
 ${JSON.stringify(elementsForLLM, null, 2)}
 
 TASK:
-For each desired figure identifier (like "Figure 1", "Figure 2a", "Figure 2b"), you need to select the Adobe element ObjectID that best corresponds to that figure.
+For each desired figure identifier (like "Figure 1", "Figure 2a", "Figure 2b"), you need to select the PDF element ObjectID that best corresponds to that figure.
 
 GUIDELINES:
 1. Look for elements with Path containing "Figure" - these are likely the actual figure objects
@@ -1600,7 +1599,7 @@ GUIDELINES:
 5. For multi-panel figures (like "Figure 2a", "Figure 2b"), look for separate objects that are spatially arranged
 6. Single figures (like "Figure 1") should correspond to one main figure object
 7. Larger bounding boxes often indicate main figure content vs small decorative elements
-8. The Adobe elements have already been filtered to relevant pages, so focus on finding the right objects within those pages
+8. The PDF elements have already been filtered to relevant pages, so focus on finding the right objects within those pages
 
 For each desired figure, select the ObjectID that most likely represents that specific figure content.`;
 
@@ -1612,18 +1611,18 @@ For each desired figure, select the ObjectID that most likely represents that sp
         {
           role: "system",
           content:
-            "You are an expert at analyzing PDF structure and selecting the correct figure objects from Adobe PDF extraction data. You must return a valid JSON object matching the required schema.",
+            "You are an expert at analyzing PDF structure and selecting the correct figure objects from PDF PDF extraction data. You must return a valid JSON object matching the required schema.",
         },
         {
           role: "user",
           content: prompt,
         },
       ],
-      schema: AdobeObjectSelectionSchema,
+      schema: PdfObjectSelectionSchema,
     });
 
     Logger.info(
-      `✅ LLM selected ${result.object.selections.length} Adobe objects`
+      `✅ LLM selected ${result.object.selections.length} PDF objects`
     );
     Logger.info(`🧠 LLM reasoning: ${result.object.globalReasoning}`);
 
@@ -1657,7 +1656,7 @@ For each desired figure, select the ObjectID that most likely represents that sp
 
     return mappings;
   } catch (error) {
-    Logger.error("❌ LLM Adobe object selection failed:", error);
+    Logger.error("❌ LLM PDF object selection failed:", error);
     throw error;
   }
 }
@@ -1666,14 +1665,14 @@ For each desired figure, select the ObjectID that most likely represents that sp
 
 async function extractFiguresWithSemanticValidation(
   keyFigures: any[],
-  rawAdobeElements: AdobeElement[],
+  rawPdfElements: PdfElement[],
   semanticMappings: Map<number, SemanticMapping>,
   pdfBuffer: Buffer
-): Promise<OpenAIPdfFigure[]> {
-  const matchedFigures: OpenAIPdfFigure[] = [];
+): Promise<ExtractedFigure[]> {
+  const matchedFigures: ExtractedFigure[] = [];
 
   Logger.info(
-    `🎯 Processing ${keyFigures.length} OpenAI figures against ${semanticMappings.size} semantic mappings...`
+    `🎯 Processing ${keyFigures.length} Claude figures against ${semanticMappings.size} semantic mappings...`
   );
 
   for (const keyFig of keyFigures) {
@@ -1681,14 +1680,14 @@ async function extractFiguresWithSemanticValidation(
 
     let bestMatch: {
       mapping: SemanticMapping;
-      element: AdobeElement;
+      element: PdfElement;
       confidence: number;
     } | null = null;
 
     // Try exact semantic label match
     for (const [objectID, mapping] of semanticMappings) {
       if (mapping.semanticLabel === keyFig.figureNumber) {
-        const element = rawAdobeElements.find((el) => el.ObjectID === objectID);
+        const element = rawPdfElements.find((el) => el.ObjectID === objectID);
         if (element) {
           bestMatch = { mapping, element, confidence: 0.98 };
           Logger.info(`✅ EXACT semantic match: ${mapping.semanticLabel}`);
@@ -1697,16 +1696,14 @@ async function extractFiguresWithSemanticValidation(
       }
     }
 
-    // Smart fallback: If OpenAI said "Figure 1" but we have "Figure 1a", map to first subpanel
+    // Smart fallback: If Claude said "Figure 1" but we have "Figure 1a", map to first subpanel
     if (!bestMatch && keyFig.figureNumber.match(/^Figure \d+$/)) {
       const figureNumber = keyFig.figureNumber.replace("Figure ", "");
       const firstSubpanel = `Figure ${figureNumber}a`;
 
       for (const [objectID, mapping] of semanticMappings) {
         if (mapping.semanticLabel === firstSubpanel) {
-          const element = rawAdobeElements.find(
-            (el) => el.ObjectID === objectID
-          );
+          const element = rawPdfElements.find((el) => el.ObjectID === objectID);
           if (element) {
             bestMatch = { mapping, element, confidence: 0.95 };
             Logger.info(
@@ -1734,7 +1731,7 @@ async function extractFiguresWithSemanticValidation(
             : !mapping.subpanel;
 
           if (panelMatch) {
-            const element = rawAdobeElements.find(
+            const element = rawPdfElements.find(
               (el) => el.ObjectID === objectID
             );
             if (element) {
@@ -1770,7 +1767,7 @@ async function extractFiguresWithSemanticValidation(
 
         matchedFigures.push({
           caption: keyFig.caption,
-          pageNumber: element.Page + 1, // Adobe uses 0-based, we want 1-based
+          pageNumber: element.Page + 1, // PDF uses 0-based, we want 1-based
           context: keyFig.explanation || keyFig.significance,
           figureNumber: mapping.figureNumber,
           subpanel: mapping.subpanel,
@@ -1809,16 +1806,14 @@ async function extractFiguresWithSemanticValidation(
 
 // ===== MAIN FUNCTION =====
 
-export async function extractPdfWithOpenAI(pdfBuffer: Buffer): Promise<{
+export async function extractPdfContent(pdfBuffer: Buffer): Promise<{
   title: string;
   shortExplanation: string;
   summary: string;
   pageCount: number;
-  figuresWithImages: OpenAIPdfFigure[];
+  figuresWithImages: ExtractedFigure[];
 }> {
-  Logger.info(
-    "🤖 Starting OpenAI PDF extraction with EXACT batch script approach..."
-  );
+  Logger.info("🤖 Starting PDF extraction with Claude + AWS Textract...");
 
   try {
     // Validate PDF buffer
@@ -1905,7 +1900,7 @@ CRITICAL:
       `✅ Anthropic identified ${summaryResult.object.keyFigures?.length || 0} key figures`
     );
 
-    let figuresWithImages: OpenAIPdfFigure[] = [];
+    let figuresWithImages: ExtractedFigure[] = [];
 
     // Check if figure extraction is enabled (disabled by default)
     const figureExtractionEnabled =
@@ -1959,9 +1954,9 @@ CRITICAL:
         );
         try {
           Logger.info(
-            "\n🔧 Step 2: Getting raw Adobe data (EXACTLY like batch script)..."
+            "\n🔧 Step 2: Getting raw PDF data (EXACTLY like batch script)..."
           );
-          const rawAdobeElements = await getRawAdobeElements(pdfBuffer);
+          const rawPdfElements = await getRawPdfElements(pdfBuffer);
 
           Logger.info("🎯 Step 3: Creating semantic mappings from raw data...");
 
@@ -1972,11 +1967,11 @@ CRITICAL:
           let semanticMappings: Map<number, SemanticMapping>;
 
           if (useLlmSelection) {
-            Logger.info("🤖 Using LLM-based Adobe object selection...");
+            Logger.info("🤖 Using LLM-based PDF object selection...");
             try {
-              semanticMappings = await selectAdobeObjectsWithLLM(
+              semanticMappings = await selectPDFObjectsWithLLM(
                 summaryResult.object.keyFigures,
-                rawAdobeElements
+                rawPdfElements
               );
               Logger.info(
                 `✅ LLM created ${semanticMappings.size} object selections`
@@ -1988,14 +1983,14 @@ CRITICAL:
                   error: error instanceof Error ? error.message : String(error),
                 }
               );
-              semanticMappings = createSemanticMappings(rawAdobeElements);
+              semanticMappings = createSemanticMappings(rawPdfElements);
               Logger.info(
                 `✅ Fallback created ${semanticMappings.size} semantic mappings`
               );
             }
           } else {
             Logger.info("🎯 Using traditional semantic mapping...");
-            semanticMappings = createSemanticMappings(rawAdobeElements);
+            semanticMappings = createSemanticMappings(rawPdfElements);
             Logger.info(
               `✅ Created ${semanticMappings.size} semantic mappings`
             );
@@ -2006,7 +2001,7 @@ CRITICAL:
           );
           figuresWithImages = await extractFiguresWithSemanticValidation(
             summaryResult.object.keyFigures,
-            rawAdobeElements,
+            rawPdfElements,
             semanticMappings,
             pdfBuffer
           );

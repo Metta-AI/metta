@@ -8,7 +8,7 @@ import { actionClient } from "@/lib/actionClient";
 import { prisma } from "@/lib/db/prisma";
 import { generateText } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
-import { extractPdfWithOpenAI } from "@/lib/openai-pdf-extractor";
+import { extractPdfContent } from "@/lib/pdf-extractor";
 
 const inputSchema = zfd.formData({
   postId: zfd.text(z.string().min(1)),
@@ -63,7 +63,7 @@ export const createBotResponseAction = actionClient
           const pdfResponse = await fetch(pdfUrl);
           if (pdfResponse.ok) {
             const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
-            const pdfContent = await extractPdfWithOpenAI(pdfBuffer);
+            const pdfContent = await extractPdfContent(pdfBuffer);
 
             paperContext = `Title: ${pdfContent.title}\n\nSummary: ${pdfContent.summary}\n\nKey Points: ${pdfContent.shortExplanation}`;
             console.log(

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { extractPdfWithOpenAI } from "@/lib/openai-pdf-extractor";
+import { extractPdfContent } from "@/lib/pdf-extractor";
 import { config } from "@/lib/config";
 import { BadRequestError, ServiceUnavailableError } from "@/lib/errors";
 import { handleApiError } from "@/lib/api/error-handler";
@@ -7,9 +7,9 @@ import { Logger } from "@/lib/logging/logger";
 
 export async function POST(request: NextRequest) {
   try {
-    // Check for Anthropic API key
+    // Check for LLM API key
     if (!config.llm.anthropicApiKey) {
-      throw new ServiceUnavailableError("Anthropic API key not configured");
+      throw new ServiceUnavailableError("LLM API key not configured");
     }
 
     // Parse the form data
@@ -40,9 +40,9 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const pdfBuffer = Buffer.from(arrayBuffer);
 
-    // Extract using OpenAI
+    // Extract PDF content
     const startTime = Date.now();
-    const result = await extractPdfWithOpenAI(pdfBuffer);
+    const result = await extractPdfContent(pdfBuffer);
     const processingTime = (Date.now() - startTime) / 1000;
 
     Logger.info("PDF analysis complete", {
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
       if (error.message.includes("API")) {
         return handleApiError(
           new ServiceUnavailableError(
-            "Anthropic API error. Please check your API key and credits."
+            "LLM API error. Please check your API key and credits."
           ),
           { endpoint: "POST /api/analyze-pdf" }
         );
