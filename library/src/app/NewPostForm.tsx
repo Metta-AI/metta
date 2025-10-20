@@ -318,9 +318,7 @@ export const NewPostForm: FC = () => {
               <Button
                 type="submit"
                 disabled={
-                  !content.trim() ||
-                  isUploading ||
-                  createPostMutation.isPending
+                  !content.trim() || isUploading || createPostMutation.isPending
                 }
                 className="rounded-lg px-4 py-2 text-sm font-medium transition-colors md:px-6"
               >

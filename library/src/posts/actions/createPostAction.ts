@@ -11,7 +11,7 @@ import {
   processArxivAutoImport,
   detectArxivUrl,
 } from "@/lib/arxiv-auto-import";
-import { queueArxivInstitutionProcessing } from "@/lib/background-jobs";
+import { JobQueueService } from "@/lib/job-queue";
 import { parseMentions } from "@/lib/mentions";
 import {
   resolveMentions,
@@ -149,9 +149,11 @@ export const createPostAction = actionClient
     if (paperId && arxivUrl) {
       console.log("🏛️ Queuing institution processing for paper:", paperId);
       // Fire and forget - enhance paper with institutions
-      queueArxivInstitutionProcessing(paperId, arxivUrl).catch((error) => {
-        console.error("Failed to queue institution processing:", error);
-      });
+      JobQueueService.queueInstitutionExtraction(paperId, arxivUrl).catch(
+        (error) => {
+          console.error("Failed to queue institution processing:", error);
+        }
+      );
     }
 
     // Create notifications for mentioned users
