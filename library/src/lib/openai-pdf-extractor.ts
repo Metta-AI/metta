@@ -1009,32 +1009,6 @@ async function coreTextractProcessing(
     const blocks = response.Blocks || [];
     Logger.info(`📊 Textract found ${blocks.length} blocks`);
 
-    // 🔍 DEBUG: Dump raw Textract response to file for inspection
-    const debugTimestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const rawBlocksFile = `textract-raw-blocks-${debugTimestamp}.json`;
-
-    try {
-      writeFileSync(
-        rawBlocksFile,
-        JSON.stringify(
-          {
-            totalBlocks: blocks.length,
-            jobId: response.JobId || "sync-job",
-            status: response.JobStatus || "sync-complete",
-            blocks: blocks,
-          },
-          null,
-          2
-        )
-      );
-      Logger.info(`📄 Raw Textract blocks saved to: ${rawBlocksFile}`);
-    } catch (debugError) {
-      Logger.warn("⚠️ Failed to write debug file:", {
-        error:
-          debugError instanceof Error ? debugError.message : String(debugError),
-      });
-    }
-
     const elements: TextractElement[] = [];
     let objectIdCounter = 1000; // Start high to avoid conflicts
 
@@ -1106,41 +1080,7 @@ async function coreTextractProcessing(
       }
     }
 
-    // 🔍 DEBUG: Dump processed elements to file for inspection
-    const processedElementsFile = `textract-processed-elements-${debugTimestamp}.json`;
-
-    try {
-      const debugData = {
-        totalElements: elements.length,
-        processingTime: processingTime,
-        pdfSize: pdfSize,
-        pdfSizeMB: (pdfSize / 1024 / 1024).toFixed(1),
-        elementTypes: {} as Record<string, number>,
-        elements: elements,
-      };
-
-      // Count element types
-      for (const element of elements) {
-        const blockType = element.BlockType || "UNKNOWN";
-        debugData.elementTypes[blockType] =
-          (debugData.elementTypes[blockType] || 0) + 1;
-      }
-
-      writeFileSync(processedElementsFile, JSON.stringify(debugData, null, 2));
-      Logger.info(`📄 Processed elements saved to: ${processedElementsFile}`);
-
-      // Print summary
-      Logger.info(`📊 Element types found:`);
-      Object.entries(debugData.elementTypes).forEach(([type, count]) => {
-        Logger.info(`   - ${type}: ${count}`);
-      });
-    } catch (debugError) {
-      Logger.warn("⚠️ Failed to write processed elements debug file:", {
-        error:
-          debugError instanceof Error ? debugError.message : String(debugError),
-      });
-    }
-
+    Logger.info(`✅ Processed ${elements.length} Textract elements`);
     return elements;
   } catch (error: any) {
     // Cleanup S3 on error
