@@ -1,4 +1,4 @@
-import { extractPdfWithOpenAI } from "./openai-pdf-extractor";
+import { extractPdfContent } from "./pdf-extractor";
 import { Logger } from "./logging/logger";
 
 /**
@@ -110,7 +110,7 @@ async function generateEnhancedAbstractWithOpenAI(
     }
 
     // Use our enhanced extraction
-    const extraction = await extractPdfWithOpenAI(pdfBuffer);
+    const extraction = await extractPdfContent(pdfBuffer);
 
     // Convert to LLMAbstract format
     const enhancedAbstract: LLMAbstract = {

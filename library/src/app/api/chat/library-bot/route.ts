@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { getSessionOrRedirect } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
-import { extractPdfWithOpenAI } from "@/lib/openai-pdf-extractor";
+import { extractPdfContent } from "@/lib/pdf-extractor";
 import { config } from "@/lib/config";
 import {
   AuthenticationError,
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
         const pdfResponse = await fetch(pdfUrl);
         if (pdfResponse.ok) {
           const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
-          const pdfContent = await extractPdfWithOpenAI(pdfBuffer);
+          const pdfContent = await extractPdfContent(pdfBuffer);
 
           paperContext = `Title: ${pdfContent.title}\n\nSummary: ${pdfContent.summary}\n\nKey Points: ${pdfContent.shortExplanation}`;
           Logger.info("Successfully extracted PDF content for bot analysis", {
