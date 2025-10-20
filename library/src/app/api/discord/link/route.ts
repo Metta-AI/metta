@@ -14,46 +14,46 @@ export const GET = withErrorHandler(async () => {
     throw new AuthenticationError();
   }
 
-    // Get Discord linking status from notification preferences
-    const discordPreferences = await prisma.notificationPreference.findMany({
-      where: {
-        userId: session.user.id,
-        discordUserId: { not: null },
-      },
-      select: {
-        discordUserId: true,
-        discordUsername: true,
-        discordLinkedAt: true,
-        type: true,
-        discordEnabled: true,
-      },
-    });
+  // Get Discord linking status from notification preferences
+  const discordPreferences = await prisma.notificationPreference.findMany({
+    where: {
+      userId: session.user.id,
+      discordUserId: { not: null },
+    },
+    select: {
+      discordUserId: true,
+      discordUsername: true,
+      discordLinkedAt: true,
+      type: true,
+      discordEnabled: true,
+    },
+  });
 
-    if (discordPreferences.length === 0) {
-      return NextResponse.json({
-        isLinked: false,
-        discordUsername: null,
-        discordUserId: null,
-        message: "Discord account not linked",
-      });
-    }
-
-    // Get Discord info from first preference (they should all be the same)
-    const firstPref = discordPreferences[0];
-
-    // Count enabled notification types
-    const enabledTypes = discordPreferences
-      .filter((pref) => pref.discordEnabled)
-      .map((pref) => pref.type);
-
+  if (discordPreferences.length === 0) {
     return NextResponse.json({
-      isLinked: true,
-      discordUsername: firstPref.discordUsername,
-      discordUserId: firstPref.discordUserId,
-      discordLinkedAt: firstPref.discordLinkedAt,
-      enabledNotificationTypes: enabledTypes,
-      message: `Discord account ${firstPref.discordUsername} is linked`,
+      isLinked: false,
+      discordUsername: null,
+      discordUserId: null,
+      message: "Discord account not linked",
     });
+  }
+
+  // Get Discord info from first preference (they should all be the same)
+  const firstPref = discordPreferences[0];
+
+  // Count enabled notification types
+  const enabledTypes = discordPreferences
+    .filter((pref) => pref.discordEnabled)
+    .map((pref) => pref.type);
+
+  return NextResponse.json({
+    isLinked: true,
+    discordUsername: firstPref.discordUsername,
+    discordUserId: firstPref.discordUserId,
+    discordLinkedAt: firstPref.discordLinkedAt,
+    enabledNotificationTypes: enabledTypes,
+    message: `Discord account ${firstPref.discordUsername} is linked`,
+  });
 });
 
 // DELETE /api/discord/link - Unlink Discord account
@@ -64,42 +64,42 @@ export const DELETE = withErrorHandler(async () => {
     throw new AuthenticationError();
   }
 
-    // Get current Discord link info
-    const existingPreferences = await prisma.notificationPreference.findMany({
-      where: {
-        userId: session.user.id,
-        discordUserId: { not: null },
-      },
-      select: {
-        discordUserId: true,
-        discordUsername: true,
-      },
-    });
-
-    if (existingPreferences.length === 0) {
-      throw new BadRequestError("No Discord account linked");
-    }
-
-    const discordInfo = existingPreferences[0];
-
-    // Remove Discord linking from all notification preferences
-    await prisma.notificationPreference.updateMany({
-      where: {
-        userId: session.user.id,
-        discordUserId: discordInfo.discordUserId,
-      },
-      data: {
-        discordEnabled: false,
-        discordUserId: null,
-        discordUsername: null,
-        discordLinkedAt: null,
-      },
-    });
-
-    Logger.info("Discord account unlinked", {
+  // Get current Discord link info
+  const existingPreferences = await prisma.notificationPreference.findMany({
+    where: {
       userId: session.user.id,
-      discordUsername: discordInfo.discordUsername,
-    });
+      discordUserId: { not: null },
+    },
+    select: {
+      discordUserId: true,
+      discordUsername: true,
+    },
+  });
+
+  if (existingPreferences.length === 0) {
+    throw new BadRequestError("No Discord account linked");
+  }
+
+  const discordInfo = existingPreferences[0];
+
+  // Remove Discord linking from all notification preferences
+  await prisma.notificationPreference.updateMany({
+    where: {
+      userId: session.user.id,
+      discordUserId: discordInfo.discordUserId,
+    },
+    data: {
+      discordEnabled: false,
+      discordUserId: null,
+      discordUsername: null,
+      discordLinkedAt: null,
+    },
+  });
+
+  Logger.info("Discord account unlinked", {
+    userId: session.user.id,
+    discordUsername: discordInfo.discordUsername,
+  });
 
   return NextResponse.json({
     success: true,

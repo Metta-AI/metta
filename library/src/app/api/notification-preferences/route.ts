@@ -34,9 +34,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const includeStats = searchParams.get("includeStats") === "true";
 
   // Get user preferences
-  const userPreferences = await getUserNotificationPreferences(
-    session.user.id
-  );
+  const userPreferences = await getUserNotificationPreferences(session.user.id);
 
   let stats = null;
   if (includeStats) {

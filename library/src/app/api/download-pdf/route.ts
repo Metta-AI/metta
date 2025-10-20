@@ -72,92 +72,89 @@ function validatePdfUrl(urlString: string): URL {
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
   const searchParams = request.nextUrl.searchParams;
-    const url = searchParams.get("url");
-    const filename = searchParams.get("filename") || "document.pdf";
+  const url = searchParams.get("url");
+  const filename = searchParams.get("filename") || "document.pdf";
 
-    if (!url) {
-      throw new BadRequestError("URL parameter is required");
-    }
+  if (!url) {
+    throw new BadRequestError("URL parameter is required");
+  }
 
-    // Validate URL with security checks
-    const validatedUrl = validatePdfUrl(url);
+  // Validate URL with security checks
+  const validatedUrl = validatePdfUrl(url);
 
-    // Log the request for security monitoring
-    Logger.info("PDF download request", {
-      url: validatedUrl.href,
-      domain: validatedUrl.hostname,
-      filename,
-    });
+  // Log the request for security monitoring
+  Logger.info("PDF download request", {
+    url: validatedUrl.href,
+    domain: validatedUrl.hostname,
+    filename,
+  });
 
-    // Fetch the PDF from the validated URL with timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+  // Fetch the PDF from the validated URL with timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
-    let pdfBuffer: ArrayBuffer;
+  let pdfBuffer: ArrayBuffer;
 
-    try {
-      const response = await fetch(validatedUrl.href, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (compatible; LibraryBot/1.0)",
-        },
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        Logger.warn("Failed to fetch external PDF", {
-          url: validatedUrl.href,
-          status: response.status,
-        });
-        throw new ServiceUnavailableError(
-          `Failed to fetch PDF: ${response.status}`
-        );
-      }
-
-      // Check content type
-      const contentType =
-        response.headers.get("content-type") || "application/pdf";
-
-      if (
-        !contentType.includes("pdf") &&
-        !contentType.includes("octet-stream")
-      ) {
-        throw new BadRequestError("URL does not point to a PDF file");
-      }
-
-      // Check content length if provided
-      const contentLength = response.headers.get("content-length");
-      if (contentLength && parseInt(contentLength) > MAX_PDF_SIZE) {
-        throw new BadRequestError(
-          `PDF too large. Maximum size is ${MAX_PDF_SIZE / (1024 * 1024)}MB`
-        );
-      }
-
-      pdfBuffer = await response.arrayBuffer();
-
-      // Validate actual size after download
-      if (pdfBuffer.byteLength > MAX_PDF_SIZE) {
-        throw new BadRequestError(
-          `PDF too large. Maximum size is ${MAX_PDF_SIZE / (1024 * 1024)}MB`
-        );
-      }
-    } catch (error) {
-      clearTimeout(timeoutId);
-      if ((error as Error).name === "AbortError") {
-        throw new ServiceUnavailableError("Request timeout");
-      }
-      throw error;
-    }
-
-    // Return the PDF with download headers
-    return new NextResponse(pdfBuffer, {
-      status: 200,
+  try {
+    const response = await fetch(validatedUrl.href, {
       headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${filename}"`,
-        "Content-Length": pdfBuffer.byteLength.toString(),
-        "Cache-Control": "public, max-age=3600", // Cache for 1 hour
+        "User-Agent": "Mozilla/5.0 (compatible; LibraryBot/1.0)",
       },
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      Logger.warn("Failed to fetch external PDF", {
+        url: validatedUrl.href,
+        status: response.status,
+      });
+      throw new ServiceUnavailableError(
+        `Failed to fetch PDF: ${response.status}`
+      );
+    }
+
+    // Check content type
+    const contentType =
+      response.headers.get("content-type") || "application/pdf";
+
+    if (!contentType.includes("pdf") && !contentType.includes("octet-stream")) {
+      throw new BadRequestError("URL does not point to a PDF file");
+    }
+
+    // Check content length if provided
+    const contentLength = response.headers.get("content-length");
+    if (contentLength && parseInt(contentLength) > MAX_PDF_SIZE) {
+      throw new BadRequestError(
+        `PDF too large. Maximum size is ${MAX_PDF_SIZE / (1024 * 1024)}MB`
+      );
+    }
+
+    pdfBuffer = await response.arrayBuffer();
+
+    // Validate actual size after download
+    if (pdfBuffer.byteLength > MAX_PDF_SIZE) {
+      throw new BadRequestError(
+        `PDF too large. Maximum size is ${MAX_PDF_SIZE / (1024 * 1024)}MB`
+      );
+    }
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if ((error as Error).name === "AbortError") {
+      throw new ServiceUnavailableError("Request timeout");
+    }
+    throw error;
+  }
+
+  // Return the PDF with download headers
+  return new NextResponse(pdfBuffer, {
+    status: 200,
+    headers: {
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Content-Length": pdfBuffer.byteLength.toString(),
+      "Cache-Control": "public, max-age=3600", // Cache for 1 hour
+    },
+  });
 });
