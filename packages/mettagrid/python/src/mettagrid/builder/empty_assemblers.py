@@ -1,4 +1,4 @@
-from mettagrid.config.mettagrid_config import AssemblerConfig, WallConfig, RecipeConfig
+from mettagrid.config.mettagrid_config import AssemblerConfig, RecipeConfig, WallConfig
 
 wall = WallConfig(name="wall", type_id=1, map_char="#", render_symbol="⬛")
 block = WallConfig(name="block", type_id=14, map_char="s", render_symbol="📦", swappable=True)

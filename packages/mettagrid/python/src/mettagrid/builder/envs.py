@@ -1,6 +1,7 @@
 from typing import Optional
 
 import mettagrid.mapgen.scenes.random
+from mettagrid.builder import building, empty_assemblers
 
 # Local import moved to factory usage to avoid forbidden cross-package dependency at import time
 from mettagrid.config.mettagrid_config import (
@@ -16,8 +17,6 @@ from mettagrid.map_builder.map_builder import MapBuilderConfig
 from mettagrid.map_builder.perimeter_incontext import PerimeterInContextMapBuilder
 from mettagrid.map_builder.random import RandomMapBuilder
 from mettagrid.mapgen.mapgen import MapGen
-
-from mettagrid.builder import building, empty_assemblers
 
 
 def make_arena(
