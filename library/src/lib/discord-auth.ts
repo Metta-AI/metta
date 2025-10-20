@@ -25,15 +25,21 @@ export interface DiscordTokenResponse {
 }
 
 export class DiscordAuthService {
-  private clientId: string;
-  private clientSecret: string;
-  private redirectUri: string;
+  private clientId: string | undefined;
+  private clientSecret: string | undefined;
+  private redirectUri: string | undefined;
 
   constructor() {
-    this.clientId = config.discord.clientId!;
-    this.clientSecret = config.discord.clientSecret!;
-    this.redirectUri = config.discord.redirectUri!;
+    this.clientId = config.discord.clientId;
+    this.clientSecret = config.discord.clientSecret;
+    this.redirectUri = config.discord.redirectUri;
+  }
 
+  /**
+   * Check if Discord OAuth is configured
+   * Throws error if not configured
+   */
+  private ensureConfigured(): void {
     if (!this.clientId || !this.clientSecret || !this.redirectUri) {
       throw new Error(
         "Discord OAuth not configured. Missing DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, or DISCORD_REDIRECT_URI"
@@ -45,9 +51,11 @@ export class DiscordAuthService {
    * Generate Discord OAuth authorization URL
    */
   getAuthorizationUrl(state?: string): string {
+    this.ensureConfigured();
+
     const params = new URLSearchParams({
-      client_id: this.clientId,
-      redirect_uri: this.redirectUri,
+      client_id: this.clientId!,
+      redirect_uri: this.redirectUri!,
       response_type: "code",
       scope: "identify", // We only need basic user info
       ...(state && { state }),
@@ -60,12 +68,14 @@ export class DiscordAuthService {
    * Exchange authorization code for access token
    */
   async exchangeCodeForToken(code: string): Promise<DiscordTokenResponse> {
+    this.ensureConfigured();
+
     const params = new URLSearchParams({
-      client_id: this.clientId,
-      client_secret: this.clientSecret,
+      client_id: this.clientId!,
+      client_secret: this.clientSecret!,
       grant_type: "authorization_code",
       code,
-      redirect_uri: this.redirectUri,
+      redirect_uri: this.redirectUri!,
     });
 
     const response = await fetch("https://discord.com/api/oauth2/token", {
@@ -88,6 +98,8 @@ export class DiscordAuthService {
    * Get Discord user info using access token
    */
   async getDiscordUser(accessToken: string): Promise<DiscordUser> {
+    this.ensureConfigured();
+
     const response = await fetch("https://discord.com/api/v10/users/@me", {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -106,10 +118,12 @@ export class DiscordAuthService {
    * Revoke Discord access token (for unlinking)
    */
   async revokeToken(accessToken: string): Promise<boolean> {
+    this.ensureConfigured();
+
     try {
       const params = new URLSearchParams({
-        client_id: this.clientId,
-        client_secret: this.clientSecret,
+        client_id: this.clientId!,
+        client_secret: this.clientSecret!,
         token: accessToken,
       });
 
