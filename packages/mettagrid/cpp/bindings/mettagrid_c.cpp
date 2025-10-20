@@ -64,6 +64,12 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
   current_step = 0;
 
+  // Initialize global observation features for fast lookup
+  for (const auto& feature : game_config.global_observations) {
+    _enabled_observations.insert(feature.name);
+    _global_obs_features.emplace(feature.name, feature);
+  }
+
   bool observation_size_is_packable =
       obs_width <= PackedCoordinate::MAX_PACKABLE_COORD + 1 && obs_height <= PackedCoordinate::MAX_PACKABLE_COORD + 1;
   if (!observation_size_is_packable) {

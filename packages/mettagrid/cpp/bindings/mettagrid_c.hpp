@@ -17,6 +17,7 @@
 #include <random>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "config/mettagrid_config.hpp"
@@ -123,6 +124,10 @@ private:
   // Member variables
   GlobalObsConfig _global_obs_config;
   GameConfig _game_config;
+
+  // Fast lookup for enabled global observations (from new flexible system)
+  std::unordered_set<std::string> _enabled_observations;
+  std::unordered_map<std::string, GlobalObsFeature> _global_obs_features;
 
   std::vector<ObservationType> _resource_rewards;  // Packed inventory rewards for each agent
   std::unordered_map<unsigned int, float> _group_reward_pct;
