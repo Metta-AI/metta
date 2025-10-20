@@ -1181,7 +1181,6 @@ async function getRawPdfElements(pdfBuffer: Buffer): Promise<PdfElement[]> {
 
 // ===== FIGURE EXTRACTION (SAME AS BATCH SCRIPT) =====
 
-
 async function extractFigureFromElement(
   element: PdfElement,
   semanticLabel: string,

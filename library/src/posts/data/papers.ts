@@ -137,7 +137,10 @@ export async function loadPapersWithUserContext(): Promise<{
       interactions,
     };
   } catch (error) {
-    Logger.error("Error loading papers with user context", error instanceof Error ? error : new Error(String(error)));
+    Logger.error(
+      "Error loading papers with user context",
+      error instanceof Error ? error : new Error(String(error))
+    );
     throw new Error("Failed to load papers from database");
   }
 }
@@ -204,7 +207,10 @@ export async function loadPapers(): Promise<{
       interactions,
     };
   } catch (error) {
-    Logger.error("Error loading papers", error instanceof Error ? error : new Error(String(error)));
+    Logger.error(
+      "Error loading papers",
+      error instanceof Error ? error : new Error(String(error))
+    );
     throw new Error("Failed to load papers from database");
   }
 }
@@ -267,7 +273,10 @@ export async function loadPapersForUser(userId: string): Promise<{
       userInteractions,
     };
   } catch (error) {
-    Logger.error("Error loading papers for user", error instanceof Error ? error : new Error(String(error)));
+    Logger.error(
+      "Error loading papers for user",
+      error instanceof Error ? error : new Error(String(error))
+    );
     throw new Error("Failed to load papers for user");
   }
 }

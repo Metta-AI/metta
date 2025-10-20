@@ -116,7 +116,10 @@ export const createCommentAction = actionClient
           actionUrl
         );
       } catch (error) {
-        Logger.error("Error creating mention notifications", error instanceof Error ? error : new Error(String(error)));
+        Logger.error(
+          "Error creating mention notifications",
+          error instanceof Error ? error : new Error(String(error))
+        );
         // Don't fail the comment creation if notifications fail
       }
     }

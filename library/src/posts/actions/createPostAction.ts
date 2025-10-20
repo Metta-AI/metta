@@ -126,7 +126,9 @@ export const createPostAction = actionClient
         if (importedPaperId) {
           paperId = importedPaperId;
           postType = "paper-post"; // Set as paper post immediately
-          Logger.info("arXiv paper imported synchronously", { paperId: importedPaperId });
+          Logger.info("arXiv paper imported synchronously", {
+            paperId: importedPaperId,
+          });
         }
       }
     }
@@ -159,7 +161,10 @@ export const createPostAction = actionClient
       // Fire and forget - enhance paper with institutions
       JobQueueService.queueInstitutionExtraction(paperId, arxivUrl).catch(
         (error) => {
-          Logger.error("Failed to queue institution processing", error instanceof Error ? error : new Error(String(error)));
+          Logger.error(
+            "Failed to queue institution processing",
+            error instanceof Error ? error : new Error(String(error))
+          );
         }
       );
     }
@@ -180,7 +185,10 @@ export const createPostAction = actionClient
           actionUrl
         );
       } catch (error) {
-        Logger.error("Error creating mention notifications", error instanceof Error ? error : new Error(String(error)));
+        Logger.error(
+          "Error creating mention notifications",
+          error instanceof Error ? error : new Error(String(error))
+        );
         // Don't fail the post creation if notifications fail
       }
     }
