@@ -95,7 +95,7 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
         loss_configs={"grpo": grpo_config},
     )
 
-     # Configure optimizer
+    # Configure optimizer
     optimizer_config = OptimizerConfig(
         type="adamw_schedulefree",
         learning_rate=0.01,
@@ -144,20 +144,20 @@ def basic_easy_shaped() -> TrainTool:
         loss_configs={"grpo": grpo_config},
     )
 
-    # # Configure optimizer
-    # optimizer_config = OptimizerConfig(
-    #     type="adamw_schedulefree",
-    #     learning_rate=0.01,
-    #     beta1=0.9,
-    #     beta2=0.999,
-    #     eps=3.186531e-07,
-    #     weight_decay=0.01,
-    #     warmup_steps=2000,
-    # )
+    # Configure optimizer
+    optimizer_config = OptimizerConfig(
+        type="adamw_schedulefree",
+        learning_rate=0.01,
+        beta1=0.9,
+        beta2=0.999,
+        eps=3.186531e-07,
+        weight_decay=0.01,
+        warmup_steps=2000,
+    )
 
     trainer_config = TrainerConfig(
         losses=loss_config,
-        # optimizer=optimizer_config,
+        optimizer=optimizer_config,
         total_timesteps=50_000_000_000,
     )
 
