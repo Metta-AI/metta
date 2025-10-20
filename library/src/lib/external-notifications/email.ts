@@ -9,6 +9,7 @@ import { createTransport, Transporter } from "nodemailer";
 import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
 import { prisma } from "@/lib/db/prisma";
 import type { Notification, User, Post, Comment } from "@prisma/client";
+import { config } from "../config";
 import { Logger } from "../logging/logger";
 
 // Extended notification type with relations
@@ -39,13 +40,12 @@ export class EmailNotificationService {
   private isEnabled: boolean;
 
   constructor() {
-    this.fromAddress =
-      process.env.EMAIL_FROM_ADDRESS || "notifications@yourapp.com";
-    this.fromName = process.env.EMAIL_FROM_NAME || "Library Notifications";
-    this.baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3001";
+    this.fromAddress = config.email.fromAddress || "notifications@yourapp.com";
+    this.fromName = config.email.fromName || "Library Notifications";
+    this.baseUrl = config.auth.url;
 
     // Check if email notifications are enabled
-    this.isEnabled = process.env.ENABLE_EMAIL_NOTIFICATIONS !== "false";
+    this.isEnabled = config.email.enabled;
 
     if (!this.isEnabled) {
       Logger.info("Email notifications are DISABLED");
@@ -54,30 +54,30 @@ export class EmailNotificationService {
 
     // Determine email sending method based on available configuration
     this.useAWSsES = !!(
-      process.env.AWS_SES_ACCESS_KEY_ID &&
-      process.env.AWS_SES_SECRET_ACCESS_KEY &&
-      process.env.AWS_SES_REGION
+      config.aws.sesAccessKey &&
+      config.aws.sesSecretKey &&
+      config.aws.region
     );
 
     if (this.useAWSsES) {
       // Configure AWS SES client
       this.sesClient = new SESClient({
-        region: process.env.AWS_SES_REGION!,
+        region: config.aws.region,
         credentials: {
-          accessKeyId: process.env.AWS_SES_ACCESS_KEY_ID!,
-          secretAccessKey: process.env.AWS_SES_SECRET_ACCESS_KEY!,
+          accessKeyId: config.aws.sesAccessKey!,
+          secretAccessKey: config.aws.sesSecretKey!,
         },
       });
       Logger.info("Email service configured for AWS SES");
     } else {
       // Fallback to SMTP configuration
       this.transporter = createTransport({
-        host: process.env.SMTP_HOST || "smtp.sendgrid.net",
-        port: parseInt(process.env.SMTP_PORT || "587"),
+        host: config.smtp.host || "smtp.sendgrid.net",
+        port: config.smtp.port || 587,
         secure: false, // true for 465, false for other ports
         auth: {
-          user: process.env.SMTP_USER || "apikey",
-          pass: process.env.SMTP_PASSWORD,
+          user: config.smtp.user || "apikey",
+          pass: config.smtp.password,
         },
       });
       Logger.info("Email service configured for SMTP");

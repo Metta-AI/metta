@@ -25,6 +25,7 @@ import {
 } from "fs";
 import path from "path";
 import { execSync } from "child_process";
+import { config } from "./config";
 import { Logger } from "./logging/logger";
 
 // ===== SYSTEM DEPENDENCY CHECKS =====
@@ -903,9 +904,9 @@ async function coreTextractProcessing(
   );
 
   const textractClient = new TextractClient({
-    region: process.env.AWS_REGION || "us-east-1",
+    region: config.aws.region,
     credentials: fromNodeProviderChain({
-      profile: process.env.AWS_PROFILE,
+      profile: config.aws.profile,
     }),
   });
 
@@ -919,13 +920,13 @@ async function coreTextractProcessing(
       Logger.info("📦 Large PDF - using S3 + Textract...");
 
       s3Client = new S3Client({
-        region: process.env.AWS_REGION || "us-east-1",
+        region: config.aws.region,
         credentials: fromNodeProviderChain({
-          profile: process.env.AWS_PROFILE,
+          profile: config.aws.profile,
         }),
       });
 
-      bucketName = process.env.AWS_S3_BUCKET || "metta-pdf-processing";
+      bucketName = config.aws.s3Bucket || "metta-pdf-processing";
       s3Key = `temp-pdfs/${uuidv4()}.pdf`;
 
       Logger.info(
@@ -1636,8 +1637,7 @@ CRITICAL:
     let figuresWithImages: ExtractedFigure[] = [];
 
     // Check if figure extraction is enabled (disabled by default)
-    const figureExtractionEnabled =
-      process.env.ENABLE_FIGURE_EXTRACTION === "true";
+    const figureExtractionEnabled = config.features.enableFigureExtraction;
 
     if (!figureExtractionEnabled) {
       Logger.info(
@@ -1694,8 +1694,7 @@ CRITICAL:
           Logger.info("🎯 Step 3: Creating semantic mappings from raw data...");
 
           // Configuration flag to use LLM-based object selection
-          const useLlmSelection =
-            process.env.USE_LLM_ADOBE_SELECTION === "true";
+          const useLlmSelection = config.features.useLlmAdobeSelection;
 
           let semanticMappings: Map<number, SemanticMapping>;
 

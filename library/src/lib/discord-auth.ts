@@ -4,6 +4,7 @@
  * Handles Discord OAuth flow for account linking and user authentication
  */
 
+import { config } from "./config";
 import { Logger } from "./logging/logger";
 
 export interface DiscordUser {
@@ -29,9 +30,9 @@ export class DiscordAuthService {
   private redirectUri: string;
 
   constructor() {
-    this.clientId = process.env.DISCORD_CLIENT_ID!;
-    this.clientSecret = process.env.DISCORD_CLIENT_SECRET!;
-    this.redirectUri = process.env.DISCORD_REDIRECT_URI!;
+    this.clientId = config.discord.clientId!;
+    this.clientSecret = config.discord.clientSecret!;
+    this.redirectUri = config.discord.redirectUri!;
 
     if (!this.clientId || !this.clientSecret || !this.redirectUri) {
       throw new Error(
