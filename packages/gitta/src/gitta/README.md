@@ -1,0 +1,102 @@
+# Gitta - Git Utilities Library
+
+A comprehensive Python library for Git operations, GitHub API interactions, and advanced repository management.
+
+## Features
+
+- **Core Git Operations**: Run git commands with consistent error handling
+- **Git Utilities**: Branch management, commit tracking, diff analysis
+- **GitHub API Integration**: Create PRs, post commit statuses, query PR information
+- **Repository Filtering**: Extract specific paths using git-filter-repo
+
+## Installation
+
+We recommend using [uv](https://docs.astral.sh/uv/) to manage virtual environments and dependencies:
+
+```bash
+uv venv
+source .venv/bin/activate
+uv pip install gitta
+```
+
+## Usage
+
+### Basic Git Operations
+
+```python
+import gitta
+
+# Get current branch
+branch = gitta.get_current_branch()
+
+# Get current commit
+commit = gitta.get_current_commit()
+
+# Check for unstaged changes
+has_changes, status = gitta.has_unstaged_changes()
+
+# Run any git command
+output = gitta.run_git("log", "--oneline", "-5")
+```
+
+### GitHub API
+
+```python
+# Create a pull request
+pr = gitta.create_pr(
+    repo="owner/repo",
+    title="My PR",
+    body="Description",
+    head="feature-branch",
+    base="main"
+)
+
+# Post commit status
+gitta.post_commit_status(
+    commit_sha="abc123",
+    state="success",
+    repo="owner/repo",
+    description="Tests passed"
+)
+```
+
+## Advanced Options
+
+```python
+# Custom error handling
+try:
+    gitta.run_git("push", "origin", "main")
+except gitta.GitError as e:
+    print(f"Git error: {e}")
+
+# Check if commit is pushed
+if gitta.is_commit_pushed("abc123"):
+    print("Commit is on remote!")
+
+# Get repository root
+repo_root = gitta.find_root(Path.cwd())
+
+# Validate commit state before remote execution
+commit_hash = gitta.validate_commit_state(
+    require_clean=True,      # Require no uncommitted changes
+    require_pushed=True,     # Require commit is pushed to remote
+    target_repo="owner/repo", # Optional: verify we're in correct repo
+    allow_untracked=False    # Whether to allow untracked files
+)
+```
+
+## Environment Variables
+
+- `GITHUB_TOKEN`: GitHub personal access token for API operations
+- `GITTA_AUTO_ADD_SAFE_DIRECTORY`: Set to "1" to auto-handle git safe directory issues
+
+## Module Structure
+
+```
+gitta/
+├── __init__.py      # Public package surface, re-exporting submodules
+├── core.py          # Low-level git command runners and shared exceptions
+├── git.py           # High-level git operations built on top of core helpers
+├── github.py        # GitHub REST/CLI integrations
+└── filter.py        # Repository filtering utilities
+```

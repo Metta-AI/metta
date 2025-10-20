@@ -3,9 +3,13 @@ import os
 import platform
 import subprocess
 import sys
-from typing import Optional, TYPE_CHECKING
-
 from pathlib import Path
+from typing import TYPE_CHECKING, Optional
+
+from metta.agent.policy import PolicyArchitecture
+from metta.cogworks.curriculum.curriculum import CurriculumConfig
+from metta.rl.trainer_config import TorchProfilerConfig
+from metta.tools.train import TrainTool
 
 from experiments.recipes.arena_basic_easy_shaped import (
     evaluate,
@@ -15,13 +19,10 @@ from experiments.recipes.arena_basic_easy_shaped import (
     play,
     replay,
     simulations,
-    sweep_async_progressive,
+)
+from experiments.recipes.arena_basic_easy_shaped import (
     train as base_train,
 )
-from metta.agent.policy import PolicyArchitecture
-from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.rl.trainer_config import TorchProfilerConfig
-from metta.tools.train import TrainTool
 
 logger = logging.getLogger(__name__)
 
@@ -163,6 +164,5 @@ __all__ = [
     "replay",
     "evaluate",
     "evaluate_in_sweep",
-    "sweep_async_progressive",
     "train",
 ]
