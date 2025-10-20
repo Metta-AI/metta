@@ -28,6 +28,11 @@ build-prod:
 	bazel build --config=opt //:mettagrid_c
 
 # Build and run benchmarks
+PYTEST_FLAGS ?=
+ifneq ($(strip $(VERBOSE)),)
+PYTEST_FLAGS += -s
+endif
+
 benchmark:
 	@echo "Building C++ benchmarks..."
 	bazel build --config=opt //benchmarks:test_mettagrid_env_benchmark
@@ -40,7 +45,7 @@ benchmark:
 	# Note: Using the copied binary instead of 'bazel run' to avoid Python environment issues
 	./build-release/test_mettagrid_env_benchmark || echo "C++ benchmark failed - this may be due to Python environment issues"
 	@echo "Running Python benchmarks..."
-	uv run pytest benchmarks/test_mettagrid_env_benchmark.py -v --benchmark-only
+	uv run pytest benchmarks/test_mettagrid_env_benchmark.py -v --benchmark-only $(PYTEST_FLAGS)
 
 # Run unit tests
 test: build
