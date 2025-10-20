@@ -55,7 +55,7 @@ proc newTileMap(
 
 var vel: Vec2
 var pos: Vec2
-var zoom: float32 = 0.5
+var zoom: float32 = 1
 var zoomVel: float32
 var frame: int
 
@@ -206,35 +206,23 @@ proc setupGPU(tileMap: TileMap) =
   uniform vec2 uAtlasSize;
   uniform float uTileSize;
 
-  vec4 getColor(vec2 texCoord) {
-      // Sample the tile index from the index texture
-      int tileIndex = int(texture(uIndexTexture, TexCoord).r * 255.0);
-
-      // Convert tile index to atlas coordinates
-      int tilesPerRow = int(uAtlasSize.x / uTileSize);
-      int tileX = tileIndex % tilesPerRow;
-      int tileY = tileIndex / tilesPerRow;
-
-      // Get position within the current tile (0-1 range)
-      vec2 tilePos = fract(TexCoord * uMapSize);
-
-      // Calculate final texture coordinates in the atlas
-      vec2 atlasCoord = (vec2(float(tileX), float(tileY)) + vec2(tilePos.x, 1.0 - tilePos.y)) * uTileSize / uAtlasSize;
-      return texture(uTileAtlas, atlasCoord);
-  }
-
   void main() {
 
-    // FragColor = vec4(0.0, 0.0, 0.0, 0.0);
-    // for (int x = -2; x < 2; x++) {
-    //   for (int y = -2; y < 2; y++) {
-    //     FragColor += getColor(TexCoord + vec2(float(x), float(y)) * 20) / 16.0;
-    //   }
-    // }
+    // Sample the tile index from the index texture
+    int tileIndex = int(texture(uIndexTexture, TexCoord).r * 255.0);
 
+    // Convert tile index to atlas coordinates
+    int tilesPerRow = int(uAtlasSize.x / uTileSize);
+    int tileX = tileIndex % tilesPerRow;
+    int tileY = tileIndex / tilesPerRow;
 
-    // No AA - just use the nearest pixel.
-    FragColor = getColor(TexCoord);
+    // Get position within the current tile (0-1 range)
+    vec2 tilePos = fract(TexCoord * uMapSize);
+
+    // Calculate final texture coordinates in the atlas
+    vec2 atlasCoord = (vec2(float(tileX), float(tileY)) + vec2(tilePos.x, 1.0 - tilePos.y)) * uTileSize / uAtlasSize;
+    FragColor = texture(uTileAtlas, atlasCoord);
+
   }
   """
 
@@ -339,29 +327,32 @@ window.onFrame = proc() =
   # Left mouse button: drag to pan
   # Mouse wheel: zoom in/out
   if window.buttonDown[MouseLeft]:
-    vel = window.mouseDelta.vec2
+    vel = window.mouseDelta.vec2 + vel * 0.1
   else:
-    vel *= 0.9
+    vel *= 0.99
 
   pos += vel
 
   if window.scrollDelta.y != 0:
-    zoomVel = window.scrollDelta.y * 0.03
+    zoomVel = window.scrollDelta.y * 0.005
+    echo "pos: ", pos, " zoom: ", zoom
   else:
-    zoomVel *= 0.9
+    zoomVel *= 0.95
 
-  let oldMat = translate(vec2(pos.x, pos.y)) * scale(vec2(zoom, zoom))
+  var zoomPow2 = zoom * zoom
+  let oldMat = translate(vec2(pos.x, pos.y)) * scale(vec2(zoomPow2, zoomPow2))
   zoom += zoomVel
-  zoom = clamp(zoom, 0.01, 1000.0)
-  let newMat = translate(vec2(pos.x, pos.y)) * scale(vec2(zoom, zoom))
+  zoom = clamp(zoom, 0.1, 100.0)
+  zoomPow2 = zoom * zoom
+  let newMat = translate(vec2(pos.x, pos.y)) * scale(vec2(zoomPow2, zoomPow2))
   let newAt = newMat.inverse() * window.mousePos.vec2
   let oldAt = oldMat.inverse() * window.mousePos.vec2
-  pos -= (oldAt - newAt).xy * (zoom)
+  pos -= (oldAt - newAt).xy * (zoomPow2)
 
   # Create MVP matrix
   let projection = ortho(0.0f, window.size.x.float32, window.size.y.float32, 0.0f, -1.0f, 1.0f)
   let view = translate(vec3(pos.x, pos.y, 0.0f)) *
-             scale(vec3(zoom * MAP_SIZE.float32/2, zoom * MAP_SIZE.float32/2, 1.0f))
+             scale(vec3(zoomPow2 * MAP_SIZE.float32/2, zoomPow2 * MAP_SIZE.float32/2, 1.0f))
   let mvp = projection * view
 
 
