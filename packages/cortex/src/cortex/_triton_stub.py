@@ -68,6 +68,10 @@ class _TLStub(types.ModuleType):
         return _missing
 
 
+class OutOfResources(RuntimeError):
+    """Exception raised when Triton runs out of resources."""
+
+
 def install_triton_stub() -> None:
     """Install stub modules for ``triton`` and ``triton.language``."""
     triton_module = types.ModuleType("triton")
@@ -75,6 +79,7 @@ def install_triton_stub() -> None:
     triton_module.autotune = _autotune_stub
     triton_module.cdiv = _cdiv_stub
     triton_module.Config = _ConfigStub
+    triton_module.OutOfResources = OutOfResources
 
     tl_module = _TLStub("triton.language")
 

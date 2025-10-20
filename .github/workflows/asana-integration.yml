@@ -3,7 +3,16 @@ name: Asana Integration
 on:
   pull_request:
     types:
-      [opened, closed, reopened, edited, assigned, unassigned, review_requested, ready_for_review]
+      [
+        opened,
+        closed,
+        reopened,
+        edited,
+        assigned,
+        unassigned,
+        review_requested,
+        ready_for_review,
+      ]
   pull_request_review:
     types: [submitted, edited, dismissed]
 
