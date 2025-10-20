@@ -5,11 +5,6 @@ import {
 import { isAppError, getUserMessage } from "./errors";
 import { Logger } from "./logging/logger";
 
-/**
- * @deprecated Use specific error classes from ./errors instead
- */
-export class ActionError extends Error {}
-
 export const actionClient = createSafeActionClient({
   handleServerError(e) {
     // Log the error
@@ -17,11 +12,6 @@ export const actionClient = createSafeActionClient({
 
     // Handle our custom AppError instances
     if (isAppError(e)) {
-      return e.message;
-    }
-
-    // Handle legacy ActionError
-    if (e instanceof ActionError) {
       return e.message;
     }
 
