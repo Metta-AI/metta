@@ -40,6 +40,7 @@ def test_recipe_registry_get_normalizes_paths():
     # Should be the same recipe
     assert recipe_full.module_name == recipe_short.module_name
 
+
 def test_recipe_short_name():
     """Test Recipe.short_name property."""
 
