@@ -5,11 +5,6 @@ export type Paginated<T> = {
   loadMore?: (limit: number) => Promise<Paginated<T>>;
 };
 
-export function findPaginated<T>(cursor: string | undefined, limit: number) {
-  // TODO - implement this.
-  // This function is designed to work with Prisma's cursor-based pagination
-}
-
 export function makePaginated<T>(
   items: T[],
   limit: number,
