@@ -32,10 +32,3 @@ export async function queueLLMAbstractGeneration(
 export async function queueAutoTagging(paperId: string): Promise<void> {
   await JobQueueService.queueAutoTagging(paperId);
 }
-
-/**
- * Get background job statistics
- */
-export async function getBackgroundJobStats() {
-  return await JobQueueService.getQueueStats();
-}
