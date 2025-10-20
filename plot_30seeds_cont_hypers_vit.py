@@ -8,6 +8,7 @@ Fetches metrics from WandB, computes means across multiple seeds, and plots them
 import matplotlib.pyplot as plt
 import pandas as pd
 from matplotlib.ticker import MultipleLocator
+from scipy import stats
 
 from experiments.notebooks.utils.metrics import fetch_metrics
 
@@ -50,6 +51,33 @@ def compute_mean_across_runs(
     )
 
     return stats, combined
+
+
+def compute_ttest(contrastive_individual: pd.DataFrame, no_contrastive_individual: pd.DataFrame) -> tuple[float, float]:
+    """
+    Compute independent samples t-test between two conditions.
+
+    Args:
+        contrastive_individual: Individual run data for contrastive runs
+        no_contrastive_individual: Individual run data for non-contrastive runs
+
+    Returns:
+        Tuple of (t_statistic, p_value)
+    """
+    if contrastive_individual.empty or no_contrastive_individual.empty:
+        return float("nan"), float("nan")
+
+    # Get all values from both conditions
+    contrastive_values = contrastive_individual["value"].dropna().values
+    no_contrastive_values = no_contrastive_individual["value"].dropna().values
+
+    if len(contrastive_values) == 0 or len(no_contrastive_values) == 0:
+        return float("nan"), float("nan")
+
+    # Perform independent samples t-test
+    t_stat, p_value = stats.ttest_ind(contrastive_values, no_contrastive_values)
+
+    return t_stat, p_value
 
 
 def plot_comparison(
@@ -183,15 +211,31 @@ def plot_comparison(
 
             mean_difference = abs(contrastive_max_mean - no_contrastive_max_mean)
 
+            # Compute t-test
+            t_stat, p_value = compute_ttest(contrastive_individual, no_contrastive_individual)
+
             # Debug print to verify we're finding maximums correctly
             print(f"  DEBUG: With contrastive max {contrastive_max_mean:.4f} at step {contrastive_max_step}")
             print(f"  DEBUG: Without contrastive max {no_contrastive_max_mean:.4f} at step {no_contrastive_max_step}")
+            print(f"  DEBUG: t-statistic = {t_stat:.4f}, p-value = {p_value:.4e}")
+
+            # Format p-value with significance indicator
+            if p_value < 0.001:
+                p_str = f"{p_value:.4e} ***"
+            elif p_value < 0.01:
+                p_str = f"{p_value:.4f} **"
+            elif p_value < 0.05:
+                p_str = f"{p_value:.4f} *"
+            else:
+                p_str = f"{p_value:.4f}"
 
             stats_text = (
                 f"Maximum Statistics:\n"
                 f"With Contrastive: {contrastive_max_mean:.4f} ± {contrastive_max_std:.4f}\n"
                 f"Without Contrastive: {no_contrastive_max_mean:.4f} ± {no_contrastive_max_std:.4f}\n"
-                f"Difference: {mean_difference:.4f}"
+                f"Difference: {mean_difference:.4f}\n"
+                f"\nStudent's t-test:\n"
+                f"t = {t_stat:.4f}, p = {p_str}"
             )
 
             ax.text(
