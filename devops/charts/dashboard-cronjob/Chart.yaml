@@ -1,0 +1,4 @@
+apiVersion: v2
+name: dashboard-cronjob
+version: 0.1.0
+description: Softmax Dashboard metrics collection CronJob

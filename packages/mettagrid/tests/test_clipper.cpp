@@ -36,7 +36,7 @@ protected:
 
   // Helper to create an assembler at a specific location
   Assembler* create_assembler(GridCoord r, GridCoord c) {
-    std::vector<std::shared_ptr<Recipe>> recipes(256, nullptr);
+    std::unordered_map<uint64_t, std::shared_ptr<Recipe>> recipes;
     AssemblerConfig cfg(1, "test_assembler");
     cfg.recipes = recipes;
 
@@ -258,7 +258,7 @@ protected:
 
   // Helper to create an assembler at a specific location
   Assembler* create_assembler(Grid& grid, GridCoord r, GridCoord c, bool clip_immune = false) {
-    std::vector<std::shared_ptr<Recipe>> recipes(256, nullptr);
+    std::unordered_map<uint64_t, std::shared_ptr<Recipe>> recipes;
     AssemblerConfig cfg(1, "test_assembler");
     cfg.recipes = recipes;
     cfg.clip_immune = clip_immune;
