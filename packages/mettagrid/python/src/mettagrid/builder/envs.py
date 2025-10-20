@@ -120,6 +120,7 @@ def make_navigation(num_agents: int) -> MettaGridConfig:
                     inventory={
                         "heart": 1,
                     },
+                    stats={"agent.heart.amount": 1},
                 ),
             ),
             # Always provide a concrete map builder config so tests can set width/height
