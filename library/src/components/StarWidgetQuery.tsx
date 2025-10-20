@@ -2,9 +2,9 @@
 
 import { FC, useEffect } from "react";
 import { StarWidget } from "./StarWidget";
-import { usePaperStars } from "@/hooks/usePaperStars";
 import { useStarMutation } from "@/hooks/useStarMutation";
 import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/hooks/useServerMutation";
 
 interface StarWidgetQueryProps {
   paperId: string;
@@ -12,6 +12,11 @@ interface StarWidgetQueryProps {
   initialIsStarredByCurrentUser: boolean;
   size?: "sm" | "md" | "lg" | "xl";
   readonly?: boolean;
+}
+
+interface StarData {
+  totalStars: number;
+  isStarredByCurrentUser: boolean;
 }
 
 /**
@@ -29,24 +34,24 @@ export const StarWidgetQuery: FC<StarWidgetQueryProps> = ({
 }) => {
   const queryClient = useQueryClient();
 
-  const initialData = {
+  const initialData: StarData = {
     totalStars: initialTotalStars,
     isStarredByCurrentUser: initialIsStarredByCurrentUser,
   };
 
   // Set initial data in cache if not already present
   useEffect(() => {
-    const existingData = queryClient.getQueryData(["paper-stars", paperId]);
+    const queryKey = queryKeys.papers.stars(paperId);
+    const existingData = queryClient.getQueryData<StarData>(queryKey);
     if (!existingData) {
-      queryClient.setQueryData(["paper-stars", paperId], initialData);
-      console.log(`Set initial star data for ${paperId}:`, initialData);
+      queryClient.setQueryData<StarData>(queryKey, initialData);
     }
-  }, [paperId, queryClient, initialTotalStars, initialIsStarredByCurrentUser]);
+  }, [paperId, queryClient, initialData]);
 
-  const { data: starData } = usePaperStars({
-    paperId,
-    initialData,
-  });
+  // Read current star data from cache
+  const starData =
+    queryClient.getQueryData<StarData>(queryKeys.papers.stars(paperId)) ??
+    initialData;
 
   const starMutation = useStarMutation();
 
@@ -57,10 +62,8 @@ export const StarWidgetQuery: FC<StarWidgetQueryProps> = ({
 
   return (
     <StarWidget
-      totalStars={starData?.totalStars ?? initialTotalStars}
-      isStarredByCurrentUser={
-        starData?.isStarredByCurrentUser ?? initialIsStarredByCurrentUser
-      }
+      totalStars={starData.totalStars}
+      isStarredByCurrentUser={starData.isStarredByCurrentUser}
       onClick={readonly ? undefined : handleStarToggle}
       size={size}
     />
