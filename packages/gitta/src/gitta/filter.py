@@ -26,20 +26,7 @@ def filter_repo(source_path: Path, paths: List[str], make_root: Optional[str] = 
     if not (source_path / ".git").exists():
         raise ValueError(f"Not a git repository: {source_path}")
 
-    # Create temporary directory
-    target_dir = Path(tempfile.mkdtemp(prefix="filtered-repo-"))
-    filtered_path = target_dir / "filtered"
-
-    print("Cloning for filtering...")
-
-    # Clone locally
-    source_url = f"file://{source_path.absolute()}"
-    try:
-        run_git("clone", "--no-local", source_url, str(filtered_path))
-    except GitError as e:
-        raise RuntimeError(f"Failed to clone: {e}") from e
-
-    # Check if git-filter-repo is available
+    # Check if git-filter-repo is available before doing any cloning work
     try:
         subprocess.run(["git", "filter-repo", "--version"], capture_output=True, text=True, check=True)
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
@@ -52,6 +39,19 @@ def filter_repo(source_path: Path, paths: List[str], make_root: Optional[str] = 
             "  chmod +x git-filter-repo\n"
             "  sudo mv git-filter-repo /usr/local/bin/\n"
         ) from e
+
+    # Create temporary directory
+    target_dir = Path(tempfile.mkdtemp(prefix="filtered-repo-"))
+    filtered_path = target_dir / "filtered"
+
+    print("Cloning for filtering...")
+
+    # Clone locally
+    source_url = f"file://{source_path.absolute()}"
+    try:
+        run_git("clone", "--no-local", source_url, str(filtered_path))
+    except GitError as e:
+        raise RuntimeError(f"Failed to clone: {e}") from e
 
     # Filter repository
     filter_cmd = ["git", "filter-repo", "--force"]

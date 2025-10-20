@@ -78,16 +78,7 @@ assembler_altar = AssemblerConfig(
     type_id=8,
     map_char="_",
     render_symbol="🎯",
-    recipes=[
-        (
-            ["Any"],
-            RecipeConfig(
-                input_resources={"battery_red": 3},
-                output_resources={"heart": 1},
-                cooldown=10,
-            ),
-        )
-    ],
+    recipes=[([], RecipeConfig(input_resources={"battery_red": 3}, output_resources={"heart": 1}, cooldown=10))],
 )
 
 
@@ -99,15 +90,7 @@ def make_assembler_mine(color: str, type_id: int) -> AssemblerConfig:
         type_id=type_id,
         map_char=char_map[color],
         render_symbol=symbol_map[color],
-        recipes=[
-            (
-                ["Any"],
-                RecipeConfig(
-                    output_resources={f"ore_{color}": 1},
-                    cooldown=50,
-                ),
-            )
-        ],
+        recipes=[([], RecipeConfig(output_resources={f"ore_{color}": 1}, cooldown=50))],
     )
 
 
@@ -126,11 +109,9 @@ def make_assembler_generator(color: str, type_id: int) -> AssemblerConfig:
         render_symbol=symbol_map[color],
         recipes=[
             (
-                ["Any"],
+                [],
                 RecipeConfig(
-                    input_resources={f"ore_{color}": 1},
-                    output_resources={f"battery_{color}": 1},
-                    cooldown=25,
+                    input_resources={f"ore_{color}": 1}, output_resources={f"battery_{color}": 1}, cooldown=25
                 ),
             )
         ],
@@ -147,14 +128,7 @@ assembler_lasery = AssemblerConfig(
     map_char="S",
     render_symbol="🟥",
     recipes=[
-        (
-            ["Any"],
-            RecipeConfig(
-                input_resources={"battery_red": 1, "ore_red": 2},
-                output_resources={"laser": 1},
-                cooldown=10,
-            ),
-        )
+        ([], RecipeConfig(input_resources={"battery_red": 1, "ore_red": 2}, output_resources={"laser": 1}, cooldown=10))
     ],
 )
 
@@ -163,16 +137,7 @@ assembler_armory = AssemblerConfig(
     type_id=16,
     map_char="o",
     render_symbol="🔵",
-    recipes=[
-        (
-            ["Any"],
-            RecipeConfig(
-                input_resources={"ore_red": 3},
-                output_resources={"armor": 1},
-                cooldown=10,
-            ),
-        )
-    ],
+    recipes=[([], RecipeConfig(input_resources={"ore_red": 3}, output_resources={"armor": 1}, cooldown=10))],
 )
 
 assembler_lab = AssemblerConfig(
@@ -181,14 +146,7 @@ assembler_lab = AssemblerConfig(
     map_char="L",
     render_symbol="🔵",
     recipes=[
-        (
-            ["Any"],
-            RecipeConfig(
-                input_resources={"battery_red": 1, "ore_red": 2},
-                output_resources={"laser": 1},
-                cooldown=10,
-            ),
-        )
+        ([], RecipeConfig(input_resources={"battery_red": 1, "ore_red": 2}, output_resources={"laser": 1}, cooldown=10))
     ],
 )
 
@@ -198,14 +156,7 @@ assembler_factory = AssemblerConfig(
     map_char="F",
     render_symbol="🟪",
     recipes=[
-        (
-            ["Any"],
-            RecipeConfig(
-                input_resources={"battery_red": 1, "ore_red": 2},
-                output_resources={"laser": 1},
-                cooldown=10,
-            ),
-        )
+        ([], RecipeConfig(input_resources={"battery_red": 1, "ore_red": 2}, output_resources={"laser": 1}, cooldown=10))
     ],
 )
 
@@ -215,14 +166,7 @@ assembler_temple = AssemblerConfig(
     map_char="T",
     render_symbol="🟨",
     recipes=[
-        (
-            ["Any"],
-            RecipeConfig(
-                input_resources={"battery_red": 1, "ore_red": 2},
-                output_resources={"laser": 1},
-                cooldown=10,
-            ),
-        )
+        ([], RecipeConfig(input_resources={"battery_red": 1, "ore_red": 2}, output_resources={"laser": 1}, cooldown=10))
     ],
 )
 
