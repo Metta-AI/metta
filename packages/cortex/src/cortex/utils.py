@@ -1,0 +1,65 @@
+"""Utilities for backend selection and Triton availability checks."""
+
+from __future__ import annotations
+
+import logging
+import os
+from typing import Callable
+
+import torch
+
+logger = logging.getLogger(__name__)
+
+# Check if Triton is available and CUDA is available, with an escape hatch
+# to force-disable via environment variable (useful for first-run JIT delays
+# or troubleshooting kernels).
+_disable_triton_env = os.getenv("CORTEX_DISABLE_TRITON") or os.getenv("CORTEX_FORCE_PYTORCH")
+_disable_triton = str(_disable_triton_env).lower() in {"1", "true", "yes"}
+
+if not _disable_triton:
+    try:
+        import triton  # noqa: F401
+
+        TRITON_AVAILABLE = torch.cuda.is_available()
+    except ImportError:
+        from cortex._triton_stub import install_triton_stub
+
+        install_triton_stub()
+        TRITON_AVAILABLE = False
+else:
+    from cortex._triton_stub import install_triton_stub
+
+    install_triton_stub()
+    TRITON_AVAILABLE = False
+
+
+def select_backend(
+    triton_fn: Callable | None,
+    pytorch_fn: Callable,
+    tensor: torch.Tensor,
+    *,
+    allow_triton: bool = True,
+) -> Callable:
+    """Select Triton or PyTorch backend based on device and availability."""
+    use_triton = TRITON_AVAILABLE and triton_fn is not None and allow_triton and tensor.is_cuda
+
+    if use_triton:
+        logger.debug(f"Using Triton backend for {triton_fn.__name__} (device={tensor.device}, dtype={tensor.dtype})")
+        return triton_fn  # type: ignore[return-value]
+    else:
+        reasons = []
+        if not TRITON_AVAILABLE:
+            reasons.append("Triton not available")
+        elif triton_fn is None:
+            reasons.append("no Triton implementation")
+        elif not allow_triton:
+            reasons.append("Triton not allowed for this call")
+        elif not tensor.is_cuda:
+            reasons.append(f"tensor on {tensor.device}")
+
+        reason_str = ", ".join(reasons) if reasons else "unknown reason"
+        logger.debug(f"Using PyTorch backend for {pytorch_fn.__name__} ({reason_str})")
+        return pytorch_fn
+
+
+__all__ = ["TRITON_AVAILABLE", "select_backend"]

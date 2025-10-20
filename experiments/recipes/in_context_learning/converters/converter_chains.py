@@ -6,11 +6,9 @@ import time
 from typing import Optional, Sequence
 
 from metta.sim.simulation_config import SimulationConfig
-from metta.sweep.protein_config import ParameterConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid.builder.envs import make_in_context_chains
 from mettagrid.config.mettagrid_config import MettaGridConfig
@@ -23,7 +21,9 @@ from experiments.recipes.in_context_learning.in_context_learning import (
     replay_icl,
     train_icl,
 )
-from experiments.sweeps.protein_configs import PPO_CORE, make_custom_protein_config
+
+# This import appeared to be broken, at least on MacBooks
+# from experiments.sweeps.protein_configs import PPO_CORE, make_custom_protein_config
 
 curriculum_args = {
     "level_0": {
@@ -259,7 +259,7 @@ class ConverterChainTaskGenerator(ICLTaskGenerator):
         rng: random.Random,
         estimate_max_rewards: bool = False,
     ) -> MettaGridConfig:
-        _, resources, num_sinks, room_size, terrain, width, height, max_steps, _ = (
+        _, resources, num_sinks, room_size, terrain, width, height, max_steps, _, _ = (
             self._setup_task(rng)
         )
 
@@ -440,61 +440,62 @@ def generate_reward_estimates(dir="icl_ordered_chains"):
         json.dump(reward_estimates, f, indent=2)
 
 
-def sweep(
-    total_timesteps: int = 1000000,
-) -> SweepTool:
-    lp_protein_config = make_custom_protein_config(
-        base_config=PPO_CORE,
-        parameters={
-            "lp_params.progress_smoothing": ParameterConfig(
-                distribution="uniform",  # Changed from logit_normal - more appropriate for 0.05-0.15 range
-                min=0.05,
-                max=0.15,
-                mean=0.1,
-                scale="auto",
-            ),
-            "lp_params.exploration_bonus": ParameterConfig(
-                distribution="uniform",  # Changed from logit_normal - more appropriate for 0.03-0.15 range
-                min=0.03,
-                max=0.15,
-                mean=0.09,
-                scale="auto",
-            ),
-            "lp_params.ema_timescale": ParameterConfig(
-                distribution="log_normal",  # Changed to log_normal for better exploration of small values
-                min=0.001,
-                max=0.01,
-                mean=0.00316,  # Geometric mean: sqrt(0.001 * 0.01) ≈ 0.00316
-                scale="auto",
-            ),
-            "lp_params.num_active_tasks": ParameterConfig(
-                distribution="int_uniform",  # Changed to int_uniform since this is a count of tasks
-                min=1000,
-                max=5000,
-                mean=3000,  # Arithmetic mean for uniform distribution
-                scale="auto",
-            ),
-            "lp_params.rand_task_rate": ParameterConfig(
-                distribution="uniform",
-                min=0.1,
-                max=0.25,
-                mean=0.175,
-                scale="auto",
-            ),
-        },
-    )
+# Commented out since it depends on PPO_CORE, which appears to have an import issue
+# def sweep(
+#     total_timesteps: int = 1000000,
+# ) -> SweepTool:
+#     lp_protein_config = make_custom_protein_config(
+#         base_config=PPO_CORE,
+#         parameters={
+#             "lp_params.progress_smoothing": ParameterConfig(
+#                 distribution="uniform",  # Changed from logit_normal - more appropriate for 0.05-0.15 range
+#                 min=0.05,
+#                 max=0.15,
+#                 mean=0.1,
+#                 scale="auto",
+#             ),
+#             "lp_params.exploration_bonus": ParameterConfig(
+#                 distribution="uniform",  # Changed from logit_normal - more appropriate for 0.03-0.15 range
+#                 min=0.03,
+#                 max=0.15,
+#                 mean=0.09,
+#                 scale="auto",
+#             ),
+#             "lp_params.ema_timescale": ParameterConfig(
+#                 distribution="log_normal",  # Changed to log_normal for better exploration of small values
+#                 min=0.001,
+#                 max=0.01,
+#                 mean=0.00316,  # Geometric mean: sqrt(0.001 * 0.01) ≈ 0.00316
+#                 scale="auto",
+#             ),
+#             "lp_params.num_active_tasks": ParameterConfig(
+#                 distribution="int_uniform",  # Changed to int_uniform since this is a count of tasks
+#                 min=1000,
+#                 max=5000,
+#                 mean=3000,  # Arithmetic mean for uniform distribution
+#                 scale="auto",
+#             ),
+#             "lp_params.rand_task_rate": ParameterConfig(
+#                 distribution="uniform",
+#                 min=0.1,
+#                 max=0.25,
+#                 mean=0.175,
+#                 scale="auto",
+#             ),
+#         },
+#     )
 
-    lp_protein_config.metric = "evaluator/eval_in_context_learning/in_context_learning"
+#     lp_protein_config.metric = "evaluator/eval_in_context_learning/in_context_learning"
 
-    return SweepTool(
-        protein_config=lp_protein_config,
-        recipe_module="experiments.recipes.in_context_learning.ordered_chains",
-        train_entrypoint="train",
-        eval_entrypoint="evaluate",
-        train_overrides={
-            "trainer.total_timesteps": total_timesteps,
-        },
-    )
+#     return SweepTool(
+#         protein_config=lp_protein_config,
+#         recipe_module="experiments.recipes.in_context_learning.ordered_chains",
+#         train_entrypoint="train",
+#         eval_entrypoint="evaluate",
+#         train_overrides={
+#             "trainer.total_timesteps": total_timesteps,
+#         },
+#     )
 
 
 if __name__ == "__main__":

@@ -20,6 +20,7 @@ from cogames import game
 from cogames import play as play_module
 from cogames import train as train_module
 from cogames.cli.base import console
+from cogames.cli.login import DEFAULT_COGAMES_SERVER, perform_login
 from cogames.cli.mission import describe_mission, get_mission_name_and_config, get_mission_names_and_configs
 from cogames.cli.policy import get_policy_spec, get_policy_specs, policy_arg_example, policy_arg_w_proportion_example
 from cogames.curricula import make_rotation
@@ -288,6 +289,53 @@ def version_cmd() -> None:
         table.add_row(dist_name, public_version(dist_name))
 
     console.print(table)
+
+
+@app.command(name="login", help="Authenticate with CoGames server")
+def login_cmd(
+    server: str = typer.Option(
+        DEFAULT_COGAMES_SERVER,
+        "--server",
+        "-s",
+        help="CoGames server URL",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        "-f",
+        help="Get a new token even if one already exists",
+    ),
+    timeout: int = typer.Option(
+        300,
+        "--timeout",
+        "-t",
+        help="Authentication timeout in seconds",
+        min=1,
+    ),
+) -> None:
+    from urllib.parse import urlparse
+
+    # Check if we already have a token
+    from cogames.auth import BaseCLIAuthenticator
+
+    temp_auth = BaseCLIAuthenticator(
+        auth_server_url=server,
+        token_file_name="cogames.yaml",
+        token_storage_key="login_tokens",
+        extra_uris={},
+    )
+
+    if temp_auth.has_saved_token() and not force:
+        console.print(f"[green]Already authenticated with {urlparse(server).hostname}[/green]")
+        return
+
+    # Perform authentication
+    console.print(f"[cyan]Authenticating with {server}...[/cyan]")
+    if perform_login(auth_server_url=server, force=force, timeout=timeout):
+        console.print("[green]Authentication successful![/green]")
+    else:
+        console.print("[red]Authentication failed![/red]")
+        raise typer.Exit(1)
 
 
 if __name__ == "__main__":
