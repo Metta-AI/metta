@@ -40,7 +40,12 @@ struct GlobalObsFeature {
   // Get integer parameter with default
   int get_int_param(const std::string& key, int default_value) const {
     if (params.contains(key)) {
-      return params[key.c_str()].cast<int>();
+      try {
+        return params[key.c_str()].cast<int>();
+      } catch (const pybind11::cast_error&) {
+        // Fall back to default value on type conversion failure
+        return default_value;
+      }
     }
     return default_value;
   }
@@ -48,7 +53,12 @@ struct GlobalObsFeature {
   // Get float parameter with default
   float get_float_param(const std::string& key, float default_value) const {
     if (params.contains(key)) {
-      return params[key.c_str()].cast<float>();
+      try {
+        return params[key.c_str()].cast<float>();
+      } catch (const pybind11::cast_error&) {
+        // Fall back to default value on type conversion failure
+        return default_value;
+      }
     }
     return default_value;
   }
@@ -56,7 +66,12 @@ struct GlobalObsFeature {
   // Get bool parameter with default
   bool get_bool_param(const std::string& key, bool default_value) const {
     if (params.contains(key)) {
-      return params[key.c_str()].cast<bool>();
+      try {
+        return params[key.c_str()].cast<bool>();
+      } catch (const pybind11::cast_error&) {
+        // Fall back to default value on type conversion failure
+        return default_value;
+      }
     }
     return default_value;
   }
@@ -64,7 +79,12 @@ struct GlobalObsFeature {
   // Get string parameter with default
   std::string get_str_param(const std::string& key, const std::string& default_value) const {
     if (params.contains(key)) {
-      return params[key.c_str()].cast<std::string>();
+      try {
+        return params[key.c_str()].cast<std::string>();
+      } catch (const pybind11::cast_error&) {
+        // Fall back to default value on type conversion failure
+        return default_value;
+      }
     }
     return default_value;
   }
