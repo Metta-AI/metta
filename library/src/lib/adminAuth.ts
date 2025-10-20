@@ -2,15 +2,8 @@ import "server-only";
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
+import { config } from "@/lib/config";
 import { redirect } from "next/navigation";
-
-/**
- * Bootstrap admin emails from environment variables
- * Format: ADMIN_EMAILS=email1@example.com,email2@example.com
- */
-const BOOTSTRAP_ADMIN_EMAILS = process.env.ADMIN_EMAILS
-  ? process.env.ADMIN_EMAILS.split(",").map((email) => email.trim())
-  : [];
 
 /**
  * Check if the current user is a global admin
@@ -31,8 +24,8 @@ export async function isGlobalAdmin(): Promise<boolean> {
 
   if (user?.isAdmin) return true;
 
-  // Fallback to bootstrap admin emails
-  return BOOTSTRAP_ADMIN_EMAILS.includes(session.user.email);
+  // Fallback to bootstrap admin emails from config
+  return config.auth.adminEmails.includes(session.user.email);
 }
 
 /**

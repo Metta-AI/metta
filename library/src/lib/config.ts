@@ -36,6 +36,10 @@ const configSchema = z.object({
       .string()
       .transform((s) => s.split(",").map((d) => d.trim()))
       .default(""),
+    adminEmails: z
+      .string()
+      .transform((s) => s.split(",").map((email) => email.trim()))
+      .default(""),
   }),
 
   // Discord OAuth (optional)
@@ -43,6 +47,7 @@ const configSchema = z.object({
     clientId: z.string().optional(),
     clientSecret: z.string().optional(),
     redirectUri: z.string().url().optional(),
+    botToken: z.string().optional(),
   }),
 
   // Google OAuth (optional)
@@ -100,6 +105,8 @@ const configSchema = z.object({
   // Feature Flags
   features: z.object({
     devMode: z.coerce.boolean().default(false),
+    enableFigureExtraction: z.coerce.boolean().default(true),
+    useLlmAdobeSelection: z.coerce.boolean().default(true),
   }),
 });
 
@@ -128,12 +135,14 @@ function loadConfig(): Config {
         secret: process.env.NEXTAUTH_SECRET,
         url: process.env.NEXTAUTH_URL,
         allowedDomains: process.env.ALLOWED_EMAIL_DOMAINS,
+        adminEmails: process.env.ADMIN_EMAILS,
       },
 
       discord: {
         clientId: process.env.DISCORD_CLIENT_ID,
         clientSecret: process.env.DISCORD_CLIENT_SECRET,
         redirectUri: process.env.DISCORD_REDIRECT_URI,
+        botToken: process.env.DISCORD_BOT_TOKEN,
       },
 
       google: {
@@ -183,6 +192,8 @@ function loadConfig(): Config {
 
       features: {
         devMode: process.env.DEV_MODE,
+        enableFigureExtraction: process.env.ENABLE_FIGURE_EXTRACTION,
+        useLlmAdobeSelection: process.env.USE_LLM_ADOBE_SELECTION,
       },
     };
 

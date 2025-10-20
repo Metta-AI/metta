@@ -1,4 +1,5 @@
 import { extractPdfContent } from "./pdf-extractor";
+import { config } from "./config";
 import { Logger } from "./logging/logger";
 
 /**
@@ -49,7 +50,7 @@ export async function generateLLMAbstract(
   pdfBuffer?: Buffer
 ): Promise<LLMAbstract> {
   // Use the new enhanced Anthropic extraction if available
-  if (process.env.ANTHROPIC_API_KEY) {
+  if (config.llm.anthropicApiKey) {
     try {
       Logger.info(
         "🤖 Generating enhanced abstract with OpenAI + Adobe for paper:",
