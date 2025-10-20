@@ -188,7 +188,9 @@ def _run_mettascope_build() -> None:
 
     # Check if nim and nimble are available
     if shutil.which("nim") is None or shutil.which("nimble") is None:
-        raise RuntimeError("Nim compiler or Nimble package manager not found! To build mettascope, install Nim: https://nim-lang.org/install.html")
+        raise RuntimeError(
+            "Nim compiler or Nimble package manager not found! To build mettascope, install Nim: https://nim-lang.org/install.html"
+        )
 
     print(f"Building mettascope from {METTASCOPE_DIR}")
 
