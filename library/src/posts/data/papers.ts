@@ -20,7 +20,6 @@ export interface Paper {
   source: string | null;
   externalId: string | null;
   stars: number | null;
-  starred: boolean | null;
   createdAt: Date;
   updatedAt: Date;
 }
