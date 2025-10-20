@@ -1193,7 +1193,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
   bind_attack_action_config(m);
   bind_change_glyph_action_config(m);
   bind_resource_mod_config(m);
-  bind_global_obs_config(m);
+  bind_global_obs_feature(m);  // NEW: Flexible global observation features
+  bind_global_obs_config(m);   // OLD: Deprecated, for backwards compatibility
   bind_clipper_config(m);
   bind_game_config(m);
 

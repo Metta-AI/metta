@@ -18,6 +18,63 @@ struct GridObjectConfig;
 
 using ObservationCoord = ObservationType;
 
+/**
+ * Represents a global observation feature with optional parameters.
+ * Supports both simple features (just a name) and parameterized features.
+ */
+struct GlobalObsFeature {
+  std::string name;
+  pybind11::dict params;  // Store as Python dict for simplicity
+
+  // Constructor for simple features (name only)
+  explicit GlobalObsFeature(const std::string& feature_name)
+      : name(feature_name), params() {}
+
+  // Constructor for parameterized features
+  GlobalObsFeature(const std::string& feature_name, const pybind11::dict& feature_params)
+      : name(feature_name), params(feature_params) {}
+
+  // Check if feature is enabled (always true for items in the list)
+  bool is_enabled() const { return true; }
+
+  // Get integer parameter with default
+  int get_int_param(const std::string& key, int default_value) const {
+    if (params.contains(key)) {
+      return params[key.c_str()].cast<int>();
+    }
+    return default_value;
+  }
+
+  // Get float parameter with default
+  float get_float_param(const std::string& key, float default_value) const {
+    if (params.contains(key)) {
+      return params[key.c_str()].cast<float>();
+    }
+    return default_value;
+  }
+
+  // Get bool parameter with default
+  bool get_bool_param(const std::string& key, bool default_value) const {
+    if (params.contains(key)) {
+      return params[key.c_str()].cast<bool>();
+    }
+    return default_value;
+  }
+
+  // Get string parameter with default
+  std::string get_str_param(const std::string& key, const std::string& default_value) const {
+    if (params.contains(key)) {
+      return params[key.c_str()].cast<std::string>();
+    }
+    return default_value;
+  }
+
+  // Check if parameter exists
+  bool has_param(const std::string& key) const {
+    return params.contains(key);
+  }
+};
+
 struct GlobalObsConfig {
   bool episode_completion_pct = true;
   bool last_action = true;
@@ -33,7 +90,13 @@ struct GameConfig {
   ObservationCoord obs_height;
   std::vector<std::string> resource_names;
   unsigned int num_observation_tokens;
+
+  // Global observations - NEW flexible system
+  std::vector<GlobalObsFeature> global_observations;
+
+  // Global observations - OLD struct (deprecated, for backwards compatibility)
   GlobalObsConfig global_obs;
+
   std::vector<std::pair<std::string, std::shared_ptr<ActionConfig>>> actions;  // Ordered list of (name, config) pairs
   std::unordered_map<std::string, std::shared_ptr<GridObjectConfig>> objects;
   float resource_loss_prob = 0.0;
@@ -53,6 +116,25 @@ struct GameConfig {
 };
 
 namespace py = pybind11;
+
+inline void bind_global_obs_feature(py::module& m) {
+  py::class_<GlobalObsFeature>(m, "GlobalObsFeature")
+      .def(py::init<const std::string&>(),
+           py::arg("name"),
+           "Create a simple global observation feature")
+      .def(py::init<const std::string&, const pybind11::dict&>(),
+           py::arg("name"),
+           py::arg("params"),
+           "Create a parameterized global observation feature")
+      .def_readwrite("name", &GlobalObsFeature::name)
+      .def_readwrite("params", &GlobalObsFeature::params)
+      .def("is_enabled", &GlobalObsFeature::is_enabled)
+      .def("has_param", &GlobalObsFeature::has_param, py::arg("key"))
+      .def("get_int_param", &GlobalObsFeature::get_int_param, py::arg("key"), py::arg("default_value"))
+      .def("get_float_param", &GlobalObsFeature::get_float_param, py::arg("key"), py::arg("default_value"))
+      .def("get_bool_param", &GlobalObsFeature::get_bool_param, py::arg("key"), py::arg("default_value"))
+      .def("get_str_param", &GlobalObsFeature::get_str_param, py::arg("key"), py::arg("default_value"));
+}
 
 inline void bind_global_obs_config(py::module& m) {
   py::class_<GlobalObsConfig>(m, "GlobalObsConfig")
@@ -77,6 +159,7 @@ inline void bind_game_config(py::module& m) {
                     ObservationCoord,
                     const std::vector<std::string>&,
                     unsigned int,
+                    const std::vector<GlobalObsFeature>&,
                     const GlobalObsConfig&,
                     const std::vector<std::pair<std::string, std::shared_ptr<ActionConfig>>>&,
                     const std::unordered_map<std::string, std::shared_ptr<GridObjectConfig>>&,
@@ -101,6 +184,7 @@ inline void bind_game_config(py::module& m) {
            py::arg("obs_height"),
            py::arg("resource_names"),
            py::arg("num_observation_tokens"),
+           py::arg("global_observations") = std::vector<GlobalObsFeature>(),
            py::arg("global_obs"),
            py::arg("actions"),
            py::arg("objects"),
@@ -125,6 +209,11 @@ inline void bind_game_config(py::module& m) {
       .def_readwrite("obs_height", &GameConfig::obs_height)
       .def_readwrite("resource_names", &GameConfig::resource_names)
       .def_readwrite("num_observation_tokens", &GameConfig::num_observation_tokens)
+
+      // Global observations - NEW flexible system
+      .def_readwrite("global_observations", &GameConfig::global_observations)
+
+      // Global observations - OLD struct (deprecated, for backwards compatibility)
       .def_readwrite("global_obs", &GameConfig::global_obs)
 
       // We don't expose these since they're copied on read, and this means that mutations
