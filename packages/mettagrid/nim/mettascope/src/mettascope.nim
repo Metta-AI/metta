@@ -1,7 +1,7 @@
 import std/[os, strutils, parseopt, json],
   boxy, windy, vmath, fidget2, fidget2/hybridrender, webby,
   mettascope/[replays, common, panels, utils, timeline,
-  worldmap, minimap, agenttraces, footer, objectinfo, envconfig]
+  worldmap, minimap, agenttraces, footer, objectinfo, envconfig, vibes]
 
 proc updateReplayHeader() =
   ## Set the global header's display name for the current session.
@@ -23,6 +23,7 @@ proc onReplayLoaded() =
   worldMapPanel.pos = vec2(0, 0)
   onStepChanged()
   updateEnvConfig()
+  updateVibePanel()
 
 proc parseArgs() =
   ## Parse command line arguments.
@@ -68,6 +69,8 @@ find "/UI/Main":
 
     agentTracesPanel = rootArea.areas[1].addPanel(AgentTraces, "Agent Traces")
     # agentTablePanel = rootArea.areas[1].areas[1].addPanel(AgentTable, "Agent Table")
+
+    vibePanel = rootArea.areas[1].addPanel(VibePanel, "Vibe Selector")
 
     rootArea.refresh()
 

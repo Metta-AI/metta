@@ -38911,10 +38911,96 @@
           },
           {
             "id": "2523:475",
-            "name": "VibePicker",
+            "name": "VibePanel",
             "type": "FRAME",
             "scrollBehavior": "SCROLLS",
             "children": [
+              {
+                "id": "2524:483",
+                "name": "label",
+                "type": "TEXT",
+                "scrollBehavior": "SCROLLS",
+                "blendMode": "PASS_THROUGH",
+                "fills": [
+                  {
+                    "blendMode": "NORMAL",
+                    "type": "SOLID",
+                    "color": {
+                      "r": 1.0,
+                      "g": 1.0,
+                      "b": 1.0,
+                      "a": 1.0
+                    }
+                  }
+                ],
+                "fillGeometry": [],
+                "strokes": [],
+                "strokeWeight": 1.0,
+                "strokeAlign": "OUTSIDE",
+                "strokeGeometry": [],
+                "absoluteBoundingBox": {
+                  "x": 4125.0,
+                  "y": 24.0,
+                  "width": 460.0,
+                  "height": 21.0
+                },
+                "absoluteRenderBounds": {
+                  "x": 4125.31982421875,
+                  "y": 29.15999984741211,
+                  "width": 100.91015625,
+                  "height": 12.031997680664062
+                },
+                "constraints": {
+                  "vertical": "TOP",
+                  "horizontal": "LEFT"
+                },
+                "relativeTransform": [
+                  [
+                    1.0,
+                    0.0,
+                    20.0
+                  ],
+                  [
+                    0.0,
+                    1.0,
+                    20.0
+                  ]
+                ],
+                "size": {
+                  "x": 460.0,
+                  "y": 21.0
+                },
+                "layoutAlign": "STRETCH",
+                "layoutGrow": 0.0,
+                "layoutSizingHorizontal": "FILL",
+                "layoutSizingVertical": "HUG",
+                "characters": "Vibe Selection",
+                "characterStyleOverrides": [],
+                "styleOverrideTable": {},
+                "lineTypes": [
+                  "NONE"
+                ],
+                "lineIndentations": [
+                  0
+                ],
+                "style": {
+                  "fontFamily": "IBM Plex Sans",
+                  "fontPostScriptName": "IBMPlexSans-Regular",
+                  "fontStyle": "Regular",
+                  "fontWeight": 400,
+                  "textAutoResize": "HEIGHT",
+                  "fontSize": 16.0,
+                  "textAlignHorizontal": "LEFT",
+                  "textAlignVertical": "TOP",
+                  "letterSpacing": 0.0,
+                  "lineHeightPx": 20.799999237060547,
+                  "lineHeightPercent": 100.0,
+                  "lineHeightUnit": "INTRINSIC_%"
+                },
+                "layoutVersion": 5,
+                "effects": [],
+                "interactions": []
+              },
               {
                 "id": "2523:476",
                 "name": "OpenConfig",
@@ -38922,8 +39008,8 @@
                 "scrollBehavior": "SCROLLS",
                 "children": [
                   {
-                    "id": "2523:481",
-                    "name": "VibeIcon",
+                    "id": "2524:485",
+                    "name": "default 1",
                     "type": "RECTANGLE",
                     "scrollBehavior": "SCROLLS",
                     "blendMode": "PASS_THROUGH",
@@ -38932,12 +39018,12 @@
                         "blendMode": "NORMAL",
                         "type": "IMAGE",
                         "scaleMode": "FILL",
-                        "imageRef": "fd94fdecb7530726aa108ecea01d2f881ab8c0ac"
+                        "imageRef": "de648274f0ef0b140bd4f96ad0b4c47e49717ac2"
                       }
                     ],
                     "fillGeometry": [
                       {
-                        "path": "M0 0L64 0L64 64L0 64L0 0Z",
+                        "path": "M0 0L32 0L32 32L0 32L0 0Z",
                         "windingRule": "NONZERO"
                       }
                     ],
@@ -38947,19 +39033,19 @@
                     "strokeGeometry": [],
                     "absoluteBoundingBox": {
                       "x": 4133.0,
-                      "y": 32.0,
-                      "width": 64.0,
-                      "height": 64.0
+                      "y": 63.0,
+                      "width": 32.0,
+                      "height": 32.0
                     },
                     "absoluteRenderBounds": {
                       "x": 4133.0,
-                      "y": 32.0,
-                      "width": 64.0,
-                      "height": 64.0
+                      "y": 63.0,
+                      "width": 32.0,
+                      "height": 32.0
                     },
                     "targetAspectRatio": {
-                      "x": 64.0,
-                      "y": 64.0
+                      "x": 32.0,
+                      "y": 32.0
                     },
                     "constraints": {
                       "vertical": "TOP",
@@ -38978,8 +39064,8 @@
                       ]
                     ],
                     "size": {
-                      "x": 64.0,
-                      "y": 64.0
+                      "x": 32.0,
+                      "y": 32.0
                     },
                     "layoutAlign": "INHERIT",
                     "layoutGrow": 0.0,
@@ -39047,27 +39133,27 @@
                 "layoutWrap": "NO_WRAP",
                 "fillGeometry": [
                   {
-                    "path": "M0 5C0 2.23858 2.23858 0 5 0L75 0C77.7614 0 80 2.23858 80 5L80 75C80 77.7614 77.7614 80 75 80L5 80C2.23858 80 0 77.7614 0 75L0 5Z",
+                    "path": "M0 5C0 2.23858 2.23858 0 5 0L43 0C45.7614 0 48 2.23858 48 5L48 43C48 45.7614 45.7614 48 43 48L5 48C2.23858 48 0 45.7614 0 43L0 5Z",
                     "windingRule": "NONZERO"
                   }
                 ],
                 "strokeGeometry": [
                   {
-                    "path": "M5 0L5 1L75 1L75 0L75 -1L5 -1L5 0ZM80 5L79 5L79 75L80 75L81 75L81 5L80 5ZM75 80L75 79L5 79L5 80L5 81L75 81L75 80ZM0 75L1 75L1 5L0 5L-1 5L-1 75L0 75ZM5 80L5 79C2.79086 79 1 77.2091 1 75L0 75L-1 75C-1 78.3137 1.68629 81 5 81L5 80ZM80 75L79 75C79 77.2091 77.2091 79 75 79L75 80L75 81C78.3137 81 81 78.3137 81 75L80 75ZM75 0L75 1C77.2091 1 79 2.79086 79 5L80 5L81 5C81 1.68629 78.3137 -1 75 -1L75 0ZM5 0L5 -1C1.68629 -1 -1 1.68629 -1 5L0 5L1 5C1 2.79086 2.79086 1 5 1L5 0Z",
+                    "path": "M5 0L5 1L43 1L43 0L43 -1L5 -1L5 0ZM48 5L47 5L47 43L48 43L49 43L49 5L48 5ZM43 48L43 47L5 47L5 48L5 49L43 49L43 48ZM0 43L1 43L1 5L0 5L-1 5L-1 43L0 43ZM5 48L5 47C2.79086 47 1 45.2091 1 43L0 43L-1 43C-1 46.3137 1.68629 49 5 49L5 48ZM48 43L47 43C47 45.2091 45.2091 47 43 47L43 48L43 49C46.3137 49 49 46.3137 49 43L48 43ZM43 0L43 1C45.2091 1 47 2.79086 47 5L48 5L49 5C49 1.68629 46.3137 -1 43 -1L43 0ZM5 0L5 -1C1.68629 -1 -1 1.68629 -1 5L0 5L1 5C1 2.79086 2.79086 1 5 1L5 0Z",
                     "windingRule": "NONZERO"
                   }
                 ],
                 "absoluteBoundingBox": {
                   "x": 4125.0,
-                  "y": 24.0,
-                  "width": 80.0,
-                  "height": 80.0
+                  "y": 55.0,
+                  "width": 48.0,
+                  "height": 48.0
                 },
                 "absoluteRenderBounds": {
                   "x": 4125.0,
-                  "y": 24.0,
-                  "width": 80.0,
-                  "height": 80.0
+                  "y": 55.0,
+                  "width": 48.0,
+                  "height": 48.0
                 },
                 "constraints": {
                   "vertical": "TOP",
@@ -39082,12 +39168,12 @@
                   [
                     0.0,
                     1.0,
-                    20.0
+                    51.0
                   ]
                 ],
                 "size": {
-                  "x": 80.0,
-                  "y": 80.0
+                  "x": 48.0,
+                  "y": 48.0
                 },
                 "layoutAlign": "INHERIT",
                 "layoutGrow": 0.0,
@@ -39111,6 +39197,7 @@
               "a": 0.0
             },
             "layoutMode": "VERTICAL",
+            "counterAxisSizingMode": "FIXED",
             "paddingLeft": 20.0,
             "paddingRight": 20.0,
             "paddingTop": 20.0,
@@ -39122,14 +39209,14 @@
             "absoluteBoundingBox": {
               "x": 4105.0,
               "y": 4.0,
-              "width": 120.0,
-              "height": 120.0
+              "width": 500.0,
+              "height": 119.0
             },
             "absoluteRenderBounds": {
               "x": 4105.0,
               "y": 4.0,
-              "width": 120.0,
-              "height": 120.0
+              "width": 500.0,
+              "height": 119.0
             },
             "constraints": {
               "vertical": "TOP",
@@ -39148,10 +39235,10 @@
               ]
             ],
             "size": {
-              "x": 120.0,
-              "y": 120.0
+              "x": 500.0,
+              "y": 119.0
             },
-            "layoutSizingHorizontal": "HUG",
+            "layoutSizingHorizontal": "FIXED",
             "layoutSizingVertical": "HUG",
             "effects": [],
             "interactions": []
@@ -85304,9 +85391,9 @@
   "schemaVersion": 0,
   "styles": {},
   "name": "MetaScope V2 Rig",
-  "lastModified": "2025-10-20T18:40:55Z",
-  "thumbnailUrl": "https://s3-alpha.figma.com/thumbnails/40c5f1bd-e15f-4d5f-beaf-af8d7b2186c8?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAQ4GOSFWC5SNRVN2S%2F20251019%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20251019T120000Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=7edb0519624305168532ba8ba878e5512a5f1fc49bdb7eb53932146174133053",
-  "version": "2277075649012604081",
+  "lastModified": "2025-10-20T20:50:34Z",
+  "thumbnailUrl": "https://s3-alpha.figma.com/thumbnails/85ede22e-e10b-44f5-9e63-8442af44c92a?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAQ4GOSFWC5SNRVN2S%2F20251019%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20251019T120000Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=cc9e0891517635be2bbd4673ec6c3e439313f9677d81ab29f931fc6096af4b8e",
+  "version": "2277095969008456404",
   "role": "owner",
   "editorType": "figma",
   "linkAccess": "inherit"

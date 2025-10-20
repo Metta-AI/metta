@@ -18,6 +18,7 @@ var
   dragArea: Area
   objectInfoTemplate*: Node
   envConfigTemplate*: Node
+  vibeTemplate*: Node
 
 proc updateMouse*(panel: Panel) =
   let box = Rect(
@@ -404,6 +405,7 @@ find "/UI/Main":
     panelTemplate = find("**/Panel").copy()
 
     objectInfoTemplate = find("../ObjectInfo").copy()
+    vibeTemplate = find("../VibePanel").copy()
 
     find("Area").remove()
 
