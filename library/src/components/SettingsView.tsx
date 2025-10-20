@@ -8,7 +8,6 @@ import { useBotStatus } from "@/hooks/queries/useSettings";
 import { useNotificationPreferences } from "@/hooks/queries/useSettings";
 import { useUnlinkDiscord } from "@/hooks/mutations/useUnlinkDiscord";
 import { useUpdateNotificationPreferences } from "@/hooks/mutations/useUpdateNotificationPreferences";
-import { useTestDiscordNotification } from "@/hooks/mutations/useTestDiscordNotification";
 
 interface SettingsViewProps {
   user: User;
@@ -31,10 +30,8 @@ export function SettingsView({ user }: SettingsViewProps) {
   // Mutations
   const unlinkDiscordMutation = useUnlinkDiscord();
   const updatePreferencesMutation = useUpdateNotificationPreferences();
-  const testDiscordMutation = useTestDiscordNotification();
 
   // UI-only state
-  const [testMessage, setTestMessage] = useState("");
   const [urlMessage, setUrlMessage] = useState<{
     type: "success" | "error";
     message: string;
@@ -88,28 +85,6 @@ export function SettingsView({ user }: SettingsViewProps) {
       onError: (error) => {
         console.error("Failed to update preferences:", error);
         toast.error("Failed to update preferences");
-      },
-    });
-  };
-
-  const handleTestDiscord = async () => {
-    if (!discordStatus.isLinked) {
-      toast.error("Please link your Discord account first");
-      return;
-    }
-
-    testDiscordMutation.mutate(undefined, {
-      onSuccess: (data) => {
-        if (data.success) {
-          toast.success("Test Discord DM sent successfully");
-          setTestMessage("");
-        } else {
-          toast.error(`Failed to send test Discord DM: ${data.message}`);
-        }
-      },
-      onError: (error) => {
-        console.error("Failed to test Discord:", error);
-        toast.error("Failed to send test Discord DM");
       },
     });
   };
@@ -305,33 +280,6 @@ export function SettingsView({ user }: SettingsViewProps) {
                   </div>
                 )}
               </div>
-
-              {/* Test Discord */}
-              {discordStatus.isLinked && botStatus?.ready && (
-                <div className="rounded-lg bg-blue-50 p-4">
-                  <h3 className="mb-3 font-medium text-blue-900">
-                    Test Discord DM
-                  </h3>
-                  <div className="space-y-3">
-                    <textarea
-                      value={testMessage}
-                      onChange={(e) => setTestMessage(e.target.value)}
-                      placeholder="Enter a custom test message (optional)"
-                      className="w-full resize-none rounded-lg border border-gray-300 p-3"
-                      rows={2}
-                    />
-                    <button
-                      onClick={handleTestDiscord}
-                      disabled={testDiscordMutation.isPending}
-                      className="rounded-lg bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700 disabled:bg-blue-400"
-                    >
-                      {testDiscordMutation.isPending
-                        ? "Sending..."
-                        : "Send Test DM"}
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
 

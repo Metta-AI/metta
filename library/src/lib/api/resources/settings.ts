@@ -58,18 +58,6 @@ export async function getDiscordBotStatus(): Promise<{
 }
 
 /**
- * Send test Discord notification
- */
-export async function sendTestDiscordNotification(): Promise<{
-  success: boolean;
-  message: string;
-}> {
-  return fetchJson("/api/discord/test", {
-    method: "POST",
-  });
-}
-
-/**
  * Get notification preferences for current user
  */
 export async function getNotificationPreferences(): Promise<{
