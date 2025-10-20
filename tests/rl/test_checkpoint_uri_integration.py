@@ -39,7 +39,7 @@ class _MockAgentPolicyArchitecture(PolicyArchitecture):
     class_path: str = "metta.agent.mocks.mock_agent.MockAgent"
     action_probs_config: Config = Field(default_factory=_MockActionComponentConfig)
 
-    def make_policy(self, env_metadata):  # pragma: no cover - tests use provided agent
+    def make_policy(self, game_rules):  # pragma: no cover - tests use provided agent
         return MockAgent()
 
 

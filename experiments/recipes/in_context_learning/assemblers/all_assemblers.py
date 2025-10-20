@@ -1,44 +1,37 @@
-from experiments.recipes.in_context_learning.in_context_learning import (
-    TaskGenerator,
-    TaskGeneratorConfig,
-)
+import random
 import subprocess
 import time
-from experiments.recipes.in_context_learning.in_context_learning import (
-    RESOURCE_TYPES,
-    CONVERTER_TYPES,
-    ASSEMBLER_TYPES,
+from typing import Optional
+
+from metta.tools.play import PlayTool
+from metta.tools.train import TrainTool
+
+from experiments.evals.in_context_learning.assemblers.all_assemblers import (
+    make_assembler_eval_suite,
+)
+from experiments.recipes.in_context_learning.assemblers import assembly_lines, foraging
+from experiments.recipes.in_context_learning.assemblers.assembly_lines import (
+    AssemblyLinesTaskGenerator,
 )
 from experiments.recipes.in_context_learning.assemblers.foraging import (
     ForagingTaskGenerator,
 )
-from experiments.recipes.in_context_learning.assemblers.assembly_lines import (
-    AssemblyLinesTaskGenerator,
-)
-import random
-from typing import Optional
-from experiments.recipes.in_context_learning.assemblers import foraging
-from experiments.recipes.in_context_learning.assemblers import assembly_lines
 from experiments.recipes.in_context_learning.in_context_learning import (
+    ASSEMBLER_TYPES,
+    CONVERTER_TYPES,
+    RESOURCE_TYPES,
     MettaGridConfig,
-    num_agents_to_positions,
+    TaskGenerator,
+    TaskGeneratorConfig,
     play_icl,
     train_icl,
 )
-from metta.tools.train import TrainTool
-from experiments.evals.in_context_learning.assemblers.all_assemblers import (
-    make_assembler_eval_suite,
-)
-from metta.tools.play import PlayTool
 
 foraging_curriculum_args = {
     "num_agents": [1, 4, 8, 12, 24],
     "num_altars": list(range(5, 20, 5)),
     "num_generators": [0, 1, 4],
     "room_sizes": ["small", "medium", "large"],
-    "positions": num_agents_to_positions[1]
-    + num_agents_to_positions[2]
-    + num_agents_to_positions[3],
     "max_recipe_inputs": [1, 2, 3],
     "num_chests": [0],
 }
