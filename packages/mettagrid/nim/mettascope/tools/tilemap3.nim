@@ -167,14 +167,14 @@ proc setupGPU(tileMap: TileMap) =
     GL_UNSIGNED_BYTE,
     tileMap.tileAtlas.data[0].addr
   )
-  # glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR.GLint)
-  # glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR.GLint)
-  # glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE.GLint)
-  # glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE.GLint)
-  # glGenerateMipmap(GL_TEXTURE_2D)
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR.GLint)
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR.GLint)
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE.GLint)
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE.GLint)
+  glGenerateMipmap(GL_TEXTURE_2D)
 
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST.GLint)
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST.GLint)
+  # glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST.GLint)
+  # glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST.GLint)
 
   # Vertex shader source (OpenGL 4.1)
   let vertexShaderSource = """
@@ -195,35 +195,73 @@ proc setupGPU(tileMap: TileMap) =
 
   # Fragment shader source (OpenGL 4.1)
   let fragmentShaderSource = """
-  #version 410 core
+#version 410 core
 
-  in vec2 TexCoord;
-  out vec4 FragColor;
+in vec2 TexCoord;
+out vec4 FragColor;
 
-  uniform sampler2D uIndexTexture;
-  uniform sampler2D uTileAtlas;
-  uniform vec2 uMapSize;
-  uniform vec2 uAtlasSize;
-  uniform float uTileSize;
+uniform sampler2D uIndexTexture;  // set sampler to NEAREST, no mipmaps
+uniform sampler2D uTileAtlas;     // mipmaps recommended
+uniform vec2  uMapSize;           // map size in tiles, e.g. (256, 256)
+uniform vec2  uAtlasSize;         // atlas size in texels, e.g. (2048, 2048)
+uniform float uTileSize;          // tile size in texels, e.g. 16
 
-  void main() {
+// Set to 1.0 if each tile in the atlas has a 1px padded border copied from its edges.
+// Set to 0.0 if there is no padding (may see some seams/minification artifacts).
+const float GUARD = 1.0;
 
-    // Sample the tile index from the index texture
-    int tileIndex = int(texture(uIndexTexture, TexCoord).r * 255.0);
+void main() {
+    // --- 1) Which map cell (tile) are we rendering? ---
+    vec2  mapPos    = TexCoord * uMapSize;        // [0..mapW/H) in tile units
+    ivec2 mapTexel  = ivec2(floor(mapPos));       // integer tile coords
 
-    // Convert tile index to atlas coordinates
+    // Read index without filtering/mips. uIndexTexture must be NEAREST, no mipmaps.
+    // If you can, store indices as R8UI (usampler2D) and read integers directly.
+    float idxNorm   = texelFetch(uIndexTexture, mapTexel, 0).r;
+    int   tileIndex = int(idxNorm * 255.0 + 0.5);
+
+    // --- 2) Tile's base position in atlas (texel space) ---
     int tilesPerRow = int(uAtlasSize.x / uTileSize);
-    int tileX = tileIndex % tilesPerRow;
-    int tileY = tileIndex / tilesPerRow;
+    int tileX       = tileIndex % tilesPerRow;
+    int tileY       = tileIndex / tilesPerRow;
+    vec2 tileBase   = vec2(float(tileX), float(tileY)) * uTileSize; // texel coords
 
-    // Get position within the current tile (0-1 range)
-    vec2 tilePos = fract(TexCoord * uMapSize);
+    // --- 3) Local position inside the tile ---
+    vec2 tilePos01   = fract(mapPos);             // [0..1) inside current map cell
+    vec2 localTexel  = tilePos01 * uTileSize;     // [0..tileSize) in texels (continuous)
 
-    // Calculate final texture coordinates in the atlas
-    vec2 atlasCoord = (vec2(float(tileX), float(tileY)) + vec2(tilePos.x, 1.0 - tilePos.y)) * uTileSize / uAtlasSize;
-    FragColor = texture(uTileAtlas, atlasCoord);
+    // --- 4) AA "pixel snap" in local tile texel space ---
+    // Use fwidth to adaptively blend toward the nearest texel center.
+    vec2 fw       = max(fwidth(localTexel), vec2(1e-5));
+    vec2 fracPart = fract(localTexel);
+    vec2 blend    = clamp(fracPart / fw, 0.0, 1.0);
+    vec2 localAA  = floor(localTexel) + blend + 0.5; // center of target texel
 
-  }
+    // --- 5) Stay inside the tile to avoid bleeding into neighbors ---
+    vec2 minPix = vec2(0.5 + GUARD);
+    vec2 maxPix = vec2(uTileSize - 0.5 - GUARD);
+    vec2 localClamped = clamp(localAA, minPix, maxPix);
+
+    // Tiles in your original shader were addressed with a flipped Y (1.0 - tilePos.y)
+    // so flip the local texel Y here in texel space.
+    float flippedY  = (uTileSize - localClamped.y);
+    vec2  atlasTexel = tileBase + vec2(localClamped.x, flippedY);
+
+    // --- 6) Compute stable gradients for LOD from the *continuous* pre-snap coords ---
+    // Derivatives from localTexel (not localAA) keep LOD smooth while the sample is snapped.
+    vec2 dLocaldx = dFdx(localTexel);
+    vec2 dLocaldy = dFdy(localTexel);
+
+    // Convert texel gradients to atlas UV gradients.
+    // Note Y flip: texel +y becomes UV -y.
+    vec2 texelToUV = 1.0 / uAtlasSize;
+    vec2 gradX = dLocaldx * texelToUV * vec2(1.0, -1.0);
+    vec2 gradY = dLocaldy * texelToUV * vec2(1.0, -1.0);
+
+    // --- 7) Sample the atlas ---
+    vec2 atlasUV = atlasTexel / uAtlasSize;
+    FragColor = textureGrad(uTileAtlas, atlasUV, gradX, gradY);
+}
   """
 
   # Compile shader
