@@ -1,15 +1,16 @@
 import logging
 from collections import OrderedDict
 from contextlib import ExitStack
-from typing import Any
+from typing import Any, Optional
 
 import torch
-import torch.nn as nn
 from tensordict import TensorDict
 from tensordict.nn import TensorDictSequential
 from torch.nn.parameter import UninitializedParameter
 from torchrl.data import Composite, UnboundedDiscrete
 
+from metta.agent.policy import Policy
+from metta.rl.training import GameRules
 from mettagrid.base_config import Config
 
 logger = logging.getLogger("metta_agent")
@@ -20,17 +21,17 @@ def log_on_master(*args, **argv):
         logger.info(*args, **argv)
 
 
-class PolicyAutoBuilder(nn.Module):
+class PolicyAutoBuilder(Policy):
     """Generic policy builder for use with configs."""
 
-    def __init__(self, env, config: Config = None):
+    def __init__(self, game_rules: GameRules, config: Config | None = None):
         super().__init__()
         self.config = config
 
         self.components = OrderedDict()
         for component_config in self.config.components:
             name = component_config.name
-            self.components[name] = component_config.make_component(env)
+            self.components[name] = component_config.make_component(game_rules)
 
         self.action_probs = self.config.action_probs_config.make_component()
         self.network = TensorDictSequential(self.components, inplace=True)
@@ -42,7 +43,7 @@ class PolicyAutoBuilder(nn.Module):
             if param.requires_grad and not isinstance(param, UninitializedParameter)
         )
 
-    def forward(self, td: TensorDict, action: torch.Tensor = None):
+    def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
         td = self.network(td)
         self.action_probs(td, action)
         # Only flatten values if they exist (GRPO policies don't have critic networks)
@@ -52,7 +53,7 @@ class PolicyAutoBuilder(nn.Module):
 
     def initialize_to_environment(
         self,
-        env,
+        game_rules: GameRules,
         device: torch.device,
     ):
         self.to(device)
@@ -62,10 +63,10 @@ class PolicyAutoBuilder(nn.Module):
         logs = []
         for _, value in self.components.items():
             if hasattr(value, "initialize_to_environment"):
-                logs.append(value.initialize_to_environment(env, device))
+                logs.append(value.initialize_to_environment(game_rules, device))
         if hasattr(self, "action_probs"):
             if hasattr(self.action_probs, "initialize_to_environment"):
-                self.action_probs.initialize_to_environment(env, device)
+                self.action_probs.initialize_to_environment(game_rules, device)
 
         for log in logs:
             if log is not None:
@@ -157,3 +158,7 @@ class PolicyAutoBuilder(nn.Module):
                 spec.update(layer.get_agent_experience_spec())
 
         return spec
+
+    @property
+    def device(self) -> torch.device:
+        return next(self.parameters()).device

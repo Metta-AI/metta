@@ -1,4 +1,3 @@
-from cogames.cogs_vs_clips import protocols
 from cogames.cogs_vs_clips.stations import (
     assembler,
 )
@@ -12,7 +11,7 @@ from mettagrid.config.mettagrid_config import (
 def replace_assembler_recipe_simple(cfg: MettaGridConfig) -> MettaGridConfig:
     cfg.game.objects["assembler"] = assembler()
     cfg.game.objects["assembler"].recipes = [
-        (["Any"], RecipeConfig(input_resources={"battery_red": 3}, output_resources={"heart": 1}, cooldown=10))
+        ([], RecipeConfig(input_resources={"battery_red": 3}, output_resources={"heart": 1}, cooldown=10))
     ]
     return cfg
 
@@ -20,7 +19,7 @@ def replace_assembler_recipe_simple(cfg: MettaGridConfig) -> MettaGridConfig:
 def replace_assembler_recipe_complex(cfg: MettaGridConfig) -> MettaGridConfig:
     cfg.game.objects["assembler"] = assembler()
     cfg.game.objects["assembler"].recipes = [
-        (["Any"], RecipeConfig(input_resources={"battery_red": 3}, output_resources={"heart": 1}, cooldown=10))
+        ([], RecipeConfig(input_resources={"battery_red": 3}, output_resources={"heart": 1}, cooldown=10))
     ]
     return cfg
 
@@ -41,8 +40,8 @@ def add_easy_heart_recipe(cfg: MettaGridConfig) -> None:
         output_resources={"heart": 1},
         cooldown=1,
     )
-    assembler_cfg.recipes += protocols.protocol(easy_recipe, num_agents=1)
-    assembler_cfg.fully_overlapping_recipes_allowed = True
+    # Give a nice default recipe.
+    assembler_cfg.recipes = [(k, v) for k, v in assembler_cfg.recipes if k != []] + [([], easy_recipe)]
 
 
 def add_shaped_rewards(cfg: MettaGridConfig) -> None:
