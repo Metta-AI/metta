@@ -61,16 +61,19 @@ find "/UI/Main":
     rootArea.areas[0].split(Horizontal)
     rootArea.areas[0].split = 0.8
 
+    rootArea.areas[1].split(Vertical)
+    rootArea.areas[1].split = 0.75
+
     objectInfoPanel = rootArea.areas[0].areas[0].addPanel(ObjectInfo, "Object")
     environmentInfoPanel = rootArea.areas[0].areas[0].addPanel(EnvironmentInfo, "Environment")
 
-    worldMapPanel = rootArea.areas[1].addPanel(WorldMap, "Map")
+    worldMapPanel = rootArea.areas[1].areas[0].addPanel(WorldMap, "Map")
     minimapPanel = rootArea.areas[0].areas[1].addPanel(Minimap, "Minimap")
 
-    agentTracesPanel = rootArea.areas[1].addPanel(AgentTraces, "Agent Traces")
+    agentTracesPanel = rootArea.areas[1].areas[0].addPanel(AgentTraces, "Agent Traces")
     # agentTablePanel = rootArea.areas[1].areas[1].addPanel(AgentTable, "Agent Table")
 
-    vibePanel = rootArea.areas[1].addPanel(VibePanel, "Vibe Selector")
+    vibePanel = rootArea.areas[1].areas[1].addPanel(VibePanel, "Vibe Selector")
 
     rootArea.refresh()
 

@@ -3,6 +3,36 @@ import std/[json, tables],
   zippy, vmath, jsony
 
 type
+
+  ActionConfig* = object
+    enabled*: bool
+    requiredResources*: Table[string, int]
+    consumedResources*: Table[string, int]
+
+  ObjectConfig* = object
+    name*: string
+    typeId*: int
+    mapChar*: string
+    renderSymbol*: string
+    tags*: seq[string]
+    `type`*: string
+    swappable*: bool
+    recipes*: seq[RecipeInfo]
+
+  GameConfig* = object
+    resourceNames*: seq[string]
+    numAgents*: int
+    maxSteps*: int
+    obsWidth*: int
+    obsHeight*: int
+    actions*: Table[string, ActionConfig]
+    objects*: Table[string, ObjectConfig]
+
+  Config* = object
+    label*: string
+    game*: GameConfig
+    desyncEpisodes*: bool
+
   ItemAmount* = object
     itemId*: int
     count*: int
