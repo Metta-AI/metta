@@ -7,4 +7,5 @@ __all__ = [
     "vit",
     "drama",
     "mamba",
+    "cortex",
 ]

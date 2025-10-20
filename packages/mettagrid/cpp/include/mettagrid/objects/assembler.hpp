@@ -22,7 +22,6 @@ class Clipper;
 class Assembler : public GridObject, public Usable {
 private:
   // Surrounding positions in deterministic order: NW, N, NE, W, E, SW, S, SE
-  // This order is important for get_agent_pattern_byte which uses bit positions
   std::vector<std::pair<GridCoord, GridCoord>> get_surrounding_positions() const {
     GridCoord r = location.r;
     GridCoord c = location.c;
@@ -138,11 +137,13 @@ public:
     }
   }
 
-  // Recipe lookup table - 256 possible patterns (2^8)
-  std::vector<std::shared_ptr<Recipe>> recipes;
+  // Recipe lookup table for recipes that depend on agents vibing- keyed by local vibe (64-bit number from sorted
+  // glyphs). Later, this may be switched to having string keys based on the glyphs.
+  // Note that 0 is both the vibe you get when no one is showing a glyph, and also the default vibe.
+  const std::unordered_map<uint64_t, std::shared_ptr<Recipe>> recipes;
 
   // Unclip recipes - used when assembler is clipped
-  std::vector<std::shared_ptr<Recipe>> unclip_recipes;
+  std::unordered_map<uint64_t, std::shared_ptr<Recipe>> unclip_recipes;
 
   // Clipped state
   bool is_clipped;
@@ -239,14 +240,12 @@ public:
     return static_cast<float>(elapsed) / static_cast<float>(cooldown_duration);
   }
 
-  // Helper function to convert surrounding agent positions to byte value
-  // Returns a byte where each bit represents whether an agent is present
-  // in the corresponding position around the assembler
-  // Bit positions: 0=NW, 1=N, 2=NE, 3=W, 4=E, 5=SW, 6=S, 7=SE
-  uint8_t get_agent_pattern_byte() const {
+  // Helper function to get the "local vibe" based on glyphs of surrounding agents
+  // Returns a 64-bit number created from sorted glyphs of surrounding agents
+  uint64_t get_local_vibe() const {
     if (!grid) return 0;
 
-    uint8_t pattern = 0;
+    std::vector<uint8_t> glyphs;
     std::vector<std::pair<GridCoord, GridCoord>> positions = get_surrounding_positions();
 
     for (size_t i = 0; i < positions.size(); i++) {
@@ -255,31 +254,46 @@ public:
 
       if (check_r < grid->height && check_c < grid->width) {
         GridObject* obj = grid->object_at(GridLocation(check_r, check_c, GridLayer::AgentLayer));
-        if (obj && dynamic_cast<Agent*>(obj)) {
-          pattern |= static_cast<uint8_t>(1u << i);
+        if (obj) {
+          Agent* agent = dynamic_cast<Agent*>(obj);
+          if (agent && agent->glyph != 0) {
+            glyphs.push_back(agent->glyph);
+          }
         }
       }
     }
 
-    return pattern;
+    // Sort the glyphs to make the vibe independent of agent positions.
+    std::sort(glyphs.begin(), glyphs.end());
+    return std::accumulate(
+        glyphs.begin(), glyphs.end(), 0, [](uint64_t acc, uint8_t glyph) { return (acc << 8) | glyph; });
   }
 
-  // Get current recipe based on surrounding agent pattern
+  // Get current recipe based on local vibe from surrounding agent glyphs
   const Recipe* get_current_recipe() const {
     if (!grid) return nullptr;
-    uint8_t pattern = get_agent_pattern_byte();
+    uint64_t vibe = get_local_vibe();
 
-    // Use unclip recipes if clipped, normal recipes otherwise
-    const std::vector<std::shared_ptr<Recipe>>& active_recipes = is_clipped ? unclip_recipes : recipes;
+    auto recipes_to_use = recipes;
+    if (is_clipped) {
+      recipes_to_use = unclip_recipes;
+    }
 
-    if (pattern >= active_recipes.size()) return nullptr;
-    return active_recipes[pattern].get();
+    auto it = recipes_to_use.find(vibe);
+    if (it != recipes_to_use.end()) return it->second.get();
+
+    // Check the default if no recipe is found for the current vibe.
+    it = recipes_to_use.find(0);
+    if (it != recipes_to_use.end()) return it->second.get();
+
+    return nullptr;
   }
 
   // Make this assembler clipped with the given unclip recipes
-  void become_clipped(const std::vector<std::shared_ptr<Recipe>>& unclip_recipes_vec, Clipper* clipper) {
+  void become_clipped(const std::unordered_map<uint64_t, std::shared_ptr<Recipe>>& unclip_recipes_map,
+                      Clipper* clipper) {
     is_clipped = true;
-    unclip_recipes = unclip_recipes_vec;
+    unclip_recipes = unclip_recipes_map;
     // It's a little odd that we store the clipper here, versus having global access to it. This is a
     // path of least resistance, not a specific intention. But it does present questions around whether
     // there could be more than one Clipper.
