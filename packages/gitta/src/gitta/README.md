@@ -7,7 +7,7 @@ A comprehensive Python library for Git operations, GitHub API interactions, and 
 - **Core Git Operations**: Run git commands with consistent error handling
 - **Git Utilities**: Branch management, commit tracking, diff analysis
 - **GitHub API Integration**: Create PRs, post commit statuses, query PR information
-- **Repository Filtering**: Extract specific paths using git-filter-repo
+- **Repository Filtering**: Extract specific paths using git subtree split
 
 ## Installation
 
