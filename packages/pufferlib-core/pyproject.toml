@@ -63,8 +63,7 @@ root = "../.."
 fallback_version = "0.0.0"
 
 # Provide a specific git command to be used in order to find the correct versioning tags
-[tool.setuptools_scm.scm.git]
-describe_command = [
+git_describe_command = [
   "git",
   "describe",
   "--dirty",
