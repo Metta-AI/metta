@@ -2,15 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { extractPdfContent } from "@/lib/pdf-extractor";
 import { config } from "@/lib/config";
 import { BadRequestError, ServiceUnavailableError } from "@/lib/errors";
-import { handleApiError } from "@/lib/api/error-handler";
+import { withErrorHandler } from "@/lib/api/error-handler";
 import { Logger } from "@/lib/logging/logger";
 
-export async function POST(request: NextRequest) {
-  try {
-    // Check for LLM API key
-    if (!config.llm.anthropicApiKey) {
-      throw new ServiceUnavailableError("LLM API key not configured");
-    }
+export const POST = withErrorHandler(async (request: NextRequest) => {
+  // Check for LLM API key
+  if (!config.llm.anthropicApiKey) {
+    throw new ServiceUnavailableError("LLM API key not configured");
+  }
 
     // Parse the form data
     const formData = await request.formData();
@@ -54,62 +53,34 @@ export async function POST(request: NextRequest) {
       figureCount: result.figuresWithImages.length,
     });
 
-    // Return structured results (no file saving)
-    return NextResponse.json({
-      success: true,
-      fileName: file.name,
-      fileSize: file.size,
-      processingTime: Math.round(processingTime * 10) / 10,
-      title: result.title,
-      shortExplanation: result.shortExplanation,
-      pageCount: result.pageCount,
-      textLength: result.summary.length,
-      figureCount: result.figuresWithImages.length,
-      fullText: result.summary, // Map summary to fullText for backward compatibility
-      figures: result.figuresWithImages.map((figure) => ({
-        caption: figure.caption,
-        pageNumber: figure.pageNumber,
-        context: figure.context,
-        figureNumber: figure.figureNumber,
-        subpanel: figure.subpanel,
-        confidence: figure.confidence,
-        boundingBox: figure.boundingBox,
-        aiDetectedText: figure.aiDetectedText,
-        // Include image data for display
-        imageData: figure.imageData
-          ? `data:image/png;base64,${figure.imageData}`
-          : null,
-      })),
-    });
-  } catch (error) {
-    // Map common PDF processing errors to appropriate types
-    if (error instanceof Error) {
-      if (error.message.includes("API")) {
-        return handleApiError(
-          new ServiceUnavailableError(
-            "LLM API error. Please check your API key and credits."
-          ),
-          { endpoint: "POST /api/analyze-pdf" }
-        );
-      } else if (error.message.includes("GraphicsMagick")) {
-        return handleApiError(
-          new ServiceUnavailableError(
-            "PDF conversion error. GraphicsMagick may not be installed."
-          ),
-          { endpoint: "POST /api/analyze-pdf" }
-        );
-      } else if (error.message.includes("timeout")) {
-        return handleApiError(
-          new BadRequestError(
-            "Processing timeout. The PDF may be too complex or large."
-          ),
-          { endpoint: "POST /api/analyze-pdf" }
-        );
-      }
-    }
-    return handleApiError(error, { endpoint: "POST /api/analyze-pdf" });
-  }
-}
+  // Return structured results (no file saving)
+  return NextResponse.json({
+    success: true,
+    fileName: file.name,
+    fileSize: file.size,
+    processingTime: Math.round(processingTime * 10) / 10,
+    title: result.title,
+    shortExplanation: result.shortExplanation,
+    pageCount: result.pageCount,
+    textLength: result.summary.length,
+    figureCount: result.figuresWithImages.length,
+    fullText: result.summary, // Map summary to fullText for backward compatibility
+    figures: result.figuresWithImages.map((figure) => ({
+      caption: figure.caption,
+      pageNumber: figure.pageNumber,
+      context: figure.context,
+      figureNumber: figure.figureNumber,
+      subpanel: figure.subpanel,
+      confidence: figure.confidence,
+      boundingBox: figure.boundingBox,
+      aiDetectedText: figure.aiDetectedText,
+      // Include image data for display
+      imageData: figure.imageData
+        ? `data:image/png;base64,${figure.imageData}`
+        : null,
+    })),
+  });
+});
 
 // Handle OPTIONS request for CORS
 export async function OPTIONS() {

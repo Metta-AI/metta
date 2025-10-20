@@ -3,17 +3,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth, isSignedIn } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { AuthenticationError, BadRequestError } from "@/lib/errors";
-import { handleApiError } from "@/lib/api/error-handler";
+import { withErrorHandler } from "@/lib/api/error-handler";
 import { Logger } from "@/lib/logging/logger";
 
 // GET /api/discord/link - Get Discord linking status
-export async function GET() {
-  try {
-    const session = await auth();
+export const GET = withErrorHandler(async () => {
+  const session = await auth();
 
-    if (!isSignedIn(session)) {
-      throw new AuthenticationError();
-    }
+  if (!isSignedIn(session)) {
+    throw new AuthenticationError();
+  }
 
     // Get Discord linking status from notification preferences
     const discordPreferences = await prisma.notificationPreference.findMany({
@@ -55,19 +54,15 @@ export async function GET() {
       enabledNotificationTypes: enabledTypes,
       message: `Discord account ${firstPref.discordUsername} is linked`,
     });
-  } catch (error) {
-    return handleApiError(error, { endpoint: "GET /api/discord/link" });
-  }
-}
+});
 
 // DELETE /api/discord/link - Unlink Discord account
-export async function DELETE() {
-  try {
-    const session = await auth();
+export const DELETE = withErrorHandler(async () => {
+  const session = await auth();
 
-    if (!isSignedIn(session)) {
-      throw new AuthenticationError();
-    }
+  if (!isSignedIn(session)) {
+    throw new AuthenticationError();
+  }
 
     // Get current Discord link info
     const existingPreferences = await prisma.notificationPreference.findMany({
@@ -106,11 +101,8 @@ export async function DELETE() {
       discordUsername: discordInfo.discordUsername,
     });
 
-    return NextResponse.json({
-      success: true,
-      message: `Discord account ${discordInfo.discordUsername} unlinked successfully`,
-    });
-  } catch (error) {
-    return handleApiError(error, { endpoint: "DELETE /api/discord/link" });
-  }
-}
+  return NextResponse.json({
+    success: true,
+    message: `Discord account ${discordInfo.discordUsername} unlinked successfully`,
+  });
+});

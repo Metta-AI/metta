@@ -77,9 +77,7 @@ export async function extractPdfContent(pdfBuffer: Buffer): Promise<{
     // Check PDF header
     const pdfHeader = pdfBuffer.slice(0, 8).toString();
     if (!pdfHeader.startsWith("%PDF")) {
-      throw new Error(
-        `Invalid PDF: header is "${pdfHeader}", expected "%PDF"`
-      );
+      throw new Error(`Invalid PDF: header is "${pdfHeader}", expected "%PDF"`);
     }
 
     Logger.info("Valid PDF detected", {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { BadRequestError, ServiceUnavailableError } from "@/lib/errors";
-import { handleApiError } from "@/lib/api/error-handler";
+import { withErrorHandler } from "@/lib/api/error-handler";
 import { Logger } from "@/lib/logging/logger";
 
 // Whitelist of allowed domains for PDF downloads
@@ -70,9 +70,8 @@ function validatePdfUrl(urlString: string): URL {
   return parsedUrl;
 }
 
-export async function GET(request: NextRequest) {
-  try {
-    const searchParams = request.nextUrl.searchParams;
+export const GET = withErrorHandler(async (request: NextRequest) => {
+  const searchParams = request.nextUrl.searchParams;
     const url = searchParams.get("url");
     const filename = searchParams.get("filename") || "document.pdf";
 
@@ -161,7 +160,4 @@ export async function GET(request: NextRequest) {
         "Cache-Control": "public, max-age=3600", // Cache for 1 hour
       },
     });
-  } catch (error) {
-    return handleApiError(error, { endpoint: "GET /api/download-pdf" });
-  }
-}
+});
