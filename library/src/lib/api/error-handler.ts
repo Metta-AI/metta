@@ -11,6 +11,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { AppError, isAppError } from "../errors";
+import { config } from "../config";
 import { Logger } from "../logging/logger";
 
 /**
@@ -72,7 +73,7 @@ export function handleApiError(
   if (error instanceof Error) {
     // In production, don't expose internal error details
     const message =
-      process.env.NODE_ENV === "production"
+      config.nodeEnv === "production"
         ? "An unexpected error occurred"
         : error.message;
 

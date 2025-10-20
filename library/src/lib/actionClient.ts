@@ -3,6 +3,7 @@ import {
   DEFAULT_SERVER_ERROR_MESSAGE,
 } from "next-safe-action";
 import { isAppError, getUserMessage } from "./errors";
+import { config } from "./config";
 import { Logger } from "./logging/logger";
 
 export const actionClient = createSafeActionClient({
@@ -16,7 +17,7 @@ export const actionClient = createSafeActionClient({
     }
 
     // For unexpected errors, return generic message in production
-    if (process.env.NODE_ENV === "production") {
+    if (config.nodeEnv === "production") {
       return DEFAULT_SERVER_ERROR_MESSAGE;
     }
 

@@ -3,6 +3,7 @@ import { anthropic } from "@ai-sdk/anthropic";
 import { z } from "zod";
 import { TagVocabularyService } from "./tag-vocabulary-service";
 import { prisma } from "@/lib/db/prisma";
+import { config } from "./config";
 import { Logger } from "./logging/logger";
 
 /**
@@ -131,7 +132,7 @@ export class AutoTaggingService {
     tagVocabulary: string[]
   ): Promise<string[]> {
     try {
-      if (!process.env.ANTHROPIC_API_KEY) {
+      if (!config.llm.anthropicApiKey) {
         Logger.warn("Anthropic API key not available for PDF analysis");
         return [];
       }
@@ -274,7 +275,7 @@ IMPORTANT: Only return tags that appear EXACTLY in the vocabulary list above.`,
     tagVocabulary: string[]
   ): Promise<string[]> {
     try {
-      if (!process.env.ANTHROPIC_API_KEY) {
+      if (!config.llm.anthropicApiKey) {
         Logger.warn("⚠️ Anthropic API key not available for text analysis");
         return [];
       }
