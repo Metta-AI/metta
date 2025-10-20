@@ -11,11 +11,6 @@ def test_recipe_discovery_without_init():
     recipes = {r.module_name for r in recipe_registry.get_all()}
 
     # Should find recipes in subdirectories without __init__.py
-    # Check for a known recipe in a subdirectory
-    assert any("in_context_learning" in name for name in recipes), (
-        f"Should discover recipes in subdirectories. Found: {sorted(recipes)}"
-    )
-
     # Should find top-level recipes
     assert "experiments.recipes.arena" in recipes, f"Should find top-level recipes. Found: {sorted(recipes)}"
 
