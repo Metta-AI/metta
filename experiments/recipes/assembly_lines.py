@@ -373,7 +373,7 @@ def play(curriculum_style: str = "level_0") -> PlayTool:
 
 
 def replay(
-    curriculum_style: str = "hard_eval",
+    curriculum_style: str = "level_0",
 ) -> ReplayTool:
     task_generator = AssemblyLinesTaskGenerator(
         make_task_generator_cfg(**curriculum_args[curriculum_style])
