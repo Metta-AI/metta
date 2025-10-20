@@ -96,7 +96,7 @@ class TestProgrammaticEnvironments:
                 num_agents=2,
                 objects={
                     "wall": building.wall,
-                    "altar": building.altar,
+                    "altar": building.assembler_altar,
                 },
                 actions=ActionsConfig(
                     move=ActionConfig(),
