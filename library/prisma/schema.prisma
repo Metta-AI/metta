@@ -13,6 +13,7 @@ model User {
   email                   String?                  @unique(map: "user_email_unique")
   emailVerified           DateTime?
   image                   String?
+  isAdmin                 Boolean                  @default(false)
   banReason               String?
   bannedAt                DateTime?
   bannedByUserId          String?

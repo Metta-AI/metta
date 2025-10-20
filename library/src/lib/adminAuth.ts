@@ -1,26 +1,38 @@
 import "server-only";
 
 import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/db/prisma";
 import { redirect } from "next/navigation";
 
 /**
- * List of email addresses that have admin access
- * In production, this could be moved to environment variables or database
+ * Bootstrap admin emails from environment variables
+ * Format: ADMIN_EMAILS=email1@example.com,email2@example.com
  */
-const ADMIN_EMAILS = [
-  // Add admin email addresses here
-  "admin@softmax.com",
-  "admin@stem.ai",
-];
+const BOOTSTRAP_ADMIN_EMAILS = process.env.ADMIN_EMAILS
+  ? process.env.ADMIN_EMAILS.split(",").map((email) => email.trim())
+  : [];
 
 /**
  * Check if the current user is a global admin
+ *
+ * Checks both:
+ * 1. Database isAdmin flag (preferred, can be managed via UI)
+ * 2. Bootstrap admin emails from env vars (for initial setup)
  */
 export async function isGlobalAdmin(): Promise<boolean> {
   const session = await auth();
   if (!session?.user?.email) return false;
 
-  return ADMIN_EMAILS.includes(session.user.email);
+  // Check database flag first
+  const user = await prisma.user.findUnique({
+    where: { email: session.user.email },
+    select: { isAdmin: true },
+  });
+
+  if (user?.isAdmin) return true;
+
+  // Fallback to bootstrap admin emails
+  return BOOTSTRAP_ADMIN_EMAILS.includes(session.user.email);
 }
 
 /**
