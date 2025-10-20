@@ -1,9 +1,17 @@
 from typing import Literal
 
-from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, ConverterConfig, RecipeConfig, WallConfig
+from mettagrid.config.mettagrid_config import (
+    AssemblerConfig,
+    ChestConfig,
+    ConverterConfig,
+    RecipeConfig,
+    WallConfig,
+)
 
 wall = WallConfig(name="wall", type_id=1, map_char="#", render_symbol="⬛")
-block = WallConfig(name="block", type_id=14, map_char="s", render_symbol="📦", swappable=True)
+block = WallConfig(
+    name="block", type_id=14, map_char="s", render_symbol="📦", swappable=True
+)
 
 altar = ConverterConfig(
     name="altar",
@@ -78,7 +86,16 @@ assembler_altar = AssemblerConfig(
     type_id=8,
     map_char="_",
     render_symbol="🎯",
-    recipes=[([], RecipeConfig(input_resources={"battery_red": 3}, output_resources={"heart": 1}, cooldown=10))],
+    recipes=[
+        (
+            [],
+            RecipeConfig(
+                input_resources={"battery_red": 3},
+                output_resources={"heart": 1},
+                cooldown=10,
+            ),
+        )
+    ],
 )
 
 
@@ -111,7 +128,9 @@ def make_assembler_generator(color: str, type_id: int) -> AssemblerConfig:
             (
                 [],
                 RecipeConfig(
-                    input_resources={f"ore_{color}": 1}, output_resources={f"battery_{color}": 1}, cooldown=25
+                    input_resources={f"ore_{color}": 1},
+                    output_resources={f"battery_{color}": 1},
+                    cooldown=25,
                 ),
             )
         ],
@@ -128,7 +147,14 @@ assembler_lasery = AssemblerConfig(
     map_char="S",
     render_symbol="🟥",
     recipes=[
-        ([], RecipeConfig(input_resources={"battery_red": 1, "ore_red": 2}, output_resources={"laser": 1}, cooldown=10))
+        (
+            [],
+            RecipeConfig(
+                input_resources={"battery_red": 1, "ore_red": 2},
+                output_resources={"laser": 1},
+                cooldown=10,
+            ),
+        )
     ],
 )
 
@@ -137,7 +163,16 @@ assembler_armory = AssemblerConfig(
     type_id=16,
     map_char="o",
     render_symbol="🔵",
-    recipes=[([], RecipeConfig(input_resources={"ore_red": 3}, output_resources={"armor": 1}, cooldown=10))],
+    recipes=[
+        (
+            [],
+            RecipeConfig(
+                input_resources={"ore_red": 3},
+                output_resources={"armor": 1},
+                cooldown=10,
+            ),
+        )
+    ],
 )
 
 assembler_lab = AssemblerConfig(
@@ -146,7 +181,14 @@ assembler_lab = AssemblerConfig(
     map_char="L",
     render_symbol="🔵",
     recipes=[
-        ([], RecipeConfig(input_resources={"battery_red": 1, "ore_red": 2}, output_resources={"laser": 1}, cooldown=10))
+        (
+            [],
+            RecipeConfig(
+                input_resources={"battery_red": 1, "ore_red": 2},
+                output_resources={"laser": 1},
+                cooldown=10,
+            ),
+        )
     ],
 )
 
@@ -156,7 +198,14 @@ assembler_factory = AssemblerConfig(
     map_char="F",
     render_symbol="🟪",
     recipes=[
-        ([], RecipeConfig(input_resources={"battery_red": 1, "ore_red": 2}, output_resources={"laser": 1}, cooldown=10))
+        (
+            [],
+            RecipeConfig(
+                input_resources={"battery_red": 1, "ore_red": 2},
+                output_resources={"laser": 1},
+                cooldown=10,
+            ),
+        )
     ],
 )
 
@@ -166,7 +215,14 @@ assembler_temple = AssemblerConfig(
     map_char="T",
     render_symbol="🟨",
     recipes=[
-        ([], RecipeConfig(input_resources={"battery_red": 1, "ore_red": 2}, output_resources={"laser": 1}, cooldown=10))
+        (
+            [],
+            RecipeConfig(
+                input_resources={"battery_red": 1, "ore_red": 2},
+                output_resources={"laser": 1},
+                cooldown=10,
+            ),
+        )
     ],
 )
 
@@ -178,7 +234,10 @@ def make_chest(
     name: str = "chest",
     map_char: str = "C",
     render_symbol: str = "📦",
-    position_deltas: list[tuple[Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE"], int]] | None = None,
+    position_deltas: list[
+        tuple[Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE"], int]
+    ]
+    | None = None,
     initial_inventory: int = 0,
     max_inventory: int = 255,
 ) -> ChestConfig:
@@ -217,5 +276,12 @@ nav_assembler = AssemblerConfig(
     type_id=8,
     map_char="_",
     render_symbol="🛣️",
-    recipes=[([], RecipeConfig(input_resources={}, output_resources={"heart": 1}, cooldown=255))],
+    recipes=[
+        (
+            [],
+            RecipeConfig(
+                input_resources={}, output_resources={"heart": 1}, cooldown=255
+            ),
+        )
+    ],
 )

@@ -153,16 +153,22 @@ class MettaGridCore:
         try:
             validate_observation_space(c_env.observation_space)
         except TypeError as e:
-            raise TypeError(f"C++ environment observation space does not conform to MettaGrid types: {e}") from e
+            raise TypeError(
+                f"C++ environment observation space does not conform to MettaGrid types: {e}"
+            ) from e
 
         try:
             validate_action_space(c_env.action_space)
         except TypeError as e:
-            raise TypeError(f"C++ environment action space does not conform to MettaGrid types: {e}") from e
+            raise TypeError(
+                f"C++ environment action space does not conform to MettaGrid types: {e}"
+            ) from e
 
     def _update_core_buffers(self) -> None:
         if hasattr(self, "observations") and self.observations is not None:
-            self.__c_env_instance.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
+            self.__c_env_instance.set_buffers(
+                self.observations, self.terminals, self.truncations, self.rewards
+            )
 
     def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
         if seed is not None:
@@ -268,7 +274,10 @@ class MettaGridCore:
         else:
             # Fallback to extracting from feature_spec (slower)
             feature_spec = self.__c_env_instance.feature_spec()
-            return {int(spec["id"]): float(spec["normalization"]) for spec in feature_spec.values()}
+            return {
+                int(spec["id"]): float(spec["normalization"])
+                for spec in feature_spec.values()
+            }
 
     @property
     def initial_grid_hash(self) -> int:
@@ -287,14 +296,18 @@ class MettaGridCore:
         features = {}
         for feature_name, feature_info in feature_spec.items():
             feature = ObsFeature(
-                id=int(feature_info["id"]), normalization=feature_info["normalization"], name=feature_name
+                id=int(feature_info["id"]),
+                normalization=feature_info["normalization"],
+                name=feature_name,
             )
             features[feature_name] = feature
 
         return features
 
     def grid_objects(
-        self, bbox: Optional[BoundingBox] = None, ignore_types: Optional[List[str]] = None
+        self,
+        bbox: Optional[BoundingBox] = None,
+        ignore_types: Optional[List[str]] = None,
     ) -> Dict[int, Dict[str, Any]]:
         """Get grid objects information, optionally filtered by bounding box and type.
 
@@ -309,7 +322,9 @@ class MettaGridCore:
             bbox = BoundingBox(min_row=-1, max_row=-1, min_col=-1, max_col=-1)
 
         ignore_list = ignore_types if ignore_types is not None else []
-        return self.__c_env_instance.grid_objects(bbox.min_row, bbox.max_row, bbox.min_col, bbox.max_col, ignore_list)
+        return self.__c_env_instance.grid_objects(
+            bbox.min_row, bbox.max_row, bbox.min_col, bbox.max_col, ignore_list
+        )
 
     def set_inventory(self, agent_id: int, inventory: Dict[str, int]) -> None:
         """Set an agent's inventory by resource name.

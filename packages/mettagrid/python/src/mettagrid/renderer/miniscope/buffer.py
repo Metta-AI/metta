@@ -113,16 +113,24 @@ class MapBuffer:
             Tuple of (view_min_row, view_min_col, view_height, view_width)
         """
         if self._viewport_center_row is not None and self._viewport_height is not None:
-            view_min_row = max(self._min_row, self._viewport_center_row - self._viewport_height // 2)
-            view_max_row = min(self._min_row + self._height, view_min_row + self._viewport_height)
+            view_min_row = max(
+                self._min_row, self._viewport_center_row - self._viewport_height // 2
+            )
+            view_max_row = min(
+                self._min_row + self._height, view_min_row + self._viewport_height
+            )
             view_height = view_max_row - view_min_row
         else:
             view_min_row = self._min_row
             view_height = self._height
 
         if self._viewport_center_col is not None and self._viewport_width is not None:
-            view_min_col = max(self._min_col, self._viewport_center_col - self._viewport_width // 2)
-            view_max_col = min(self._min_col + self._width, view_min_col + self._viewport_width)
+            view_min_col = max(
+                self._min_col, self._viewport_center_col - self._viewport_width // 2
+            )
+            view_max_col = min(
+                self._min_col + self._width, view_min_col + self._viewport_width
+            )
             view_width = view_max_col - view_min_col
         else:
             view_min_col = self._min_col
@@ -133,11 +141,15 @@ class MapBuffer:
     def _ensure_bounds(self, grid_objects: Dict[int, dict]) -> None:
         """Compute and cache bounds if not already set or if grid changed."""
         if not self._bounds_set or grid_objects != self._last_grid_objects:
-            self._min_row, self._min_col, self._height, self._width = self._compute_bounds(grid_objects)
+            self._min_row, self._min_col, self._height, self._width = (
+                self._compute_bounds(grid_objects)
+            )
             self._bounds_set = True
             self._last_grid_objects = grid_objects
 
-    def _compute_bounds(self, grid_objects: Dict[int, dict]) -> tuple[int, int, int, int]:
+    def _compute_bounds(
+        self, grid_objects: Dict[int, dict]
+    ) -> tuple[int, int, int, int]:
         """Compute bounding box for grid objects.
 
         Args:
@@ -168,7 +180,9 @@ class MapBuffer:
         width = max(cols) - min_col + 1
         return (min_row, min_col, height, width)
 
-    def _build_grid_buffer(self, grid_objects: Dict[int, dict], use_viewport: bool = True) -> str:
+    def _build_grid_buffer(
+        self, grid_objects: Dict[int, dict], use_viewport: bool = True
+    ) -> str:
         """Build the emoji grid buffer using instance attributes.
 
         Args:
@@ -186,8 +200,12 @@ class MapBuffer:
 
         # Determine viewport bounds
         if viewport_center_row is not None and viewport_height is not None:
-            view_min_row = max(self._min_row, viewport_center_row - viewport_height // 2)
-            view_max_row = min(self._min_row + self._height, view_min_row + viewport_height)
+            view_min_row = max(
+                self._min_row, viewport_center_row - viewport_height // 2
+            )
+            view_max_row = min(
+                self._min_row + self._height, view_min_row + viewport_height
+            )
             view_height = view_max_row - view_min_row
         else:
             view_min_row = self._min_row
@@ -196,7 +214,9 @@ class MapBuffer:
 
         if viewport_center_col is not None and viewport_width is not None:
             view_min_col = max(self._min_col, viewport_center_col - viewport_width // 2)
-            view_max_col = min(self._min_col + self._width, view_min_col + viewport_width)
+            view_max_col = min(
+                self._min_col + self._width, view_min_col + viewport_width
+            )
             view_width = view_max_col - view_min_col
         else:
             view_min_col = self._min_col
@@ -215,7 +235,9 @@ class MapBuffer:
             c = obj_c - view_min_col
             # Skip objects outside viewport bounds
             if 0 <= r < view_height and 0 <= c < view_width:
-                grid[r][c] = get_symbol_for_object(obj, self._object_type_names, self._symbol_map)
+                grid[r][c] = get_symbol_for_object(
+                    obj, self._object_type_names, self._symbol_map
+                )
 
         # Add selection cursor if in select mode
         if self._cursor_row is not None and self._cursor_col is not None:

@@ -3,13 +3,24 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
-from pydantic import Field, ValidatorFunctionWrapHandler, field_validator, model_validator
+from pydantic import (
+    Field,
+    ValidatorFunctionWrapHandler,
+    field_validator,
+    model_validator,
+)
 
 from mettagrid.map_builder import GameMap, MapBuilder, MapBuilderConfig, MapGrid
 from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 from mettagrid.map_builder.utils import create_grid
 from mettagrid.mapgen.area import Area, AreaWhere
-from mettagrid.mapgen.scene import ChildrenAction, Scene, SceneConfig, load_symbol, validate_any_scene_config
+from mettagrid.mapgen.scene import (
+    ChildrenAction,
+    Scene,
+    SceneConfig,
+    load_symbol,
+    validate_any_scene_config,
+)
 from mettagrid.mapgen.scenes.copy_grid import CopyGrid
 from mettagrid.mapgen.scenes.room_grid import RoomGrid
 from mettagrid.mapgen.scenes.transplant_scene import TransplantScene
@@ -42,8 +53,12 @@ class MapGen(MapBuilder):
         instance: SceneConfig | AnyMapBuilderConfig | None = Field(default=None)
 
         # Legacy fields, to be removed soon.
-        instance_map: AnyMapBuilderConfig | None = Field(default=None, deprecated="Use `instance` instead")
-        root: SceneConfig | None = Field(default=None, deprecated="Use `instance` instead")
+        instance_map: AnyMapBuilderConfig | None = Field(
+            default=None, deprecated="Use `instance` instead"
+        )
+        root: SceneConfig | None = Field(
+            default=None, deprecated="Use `instance` instead"
+        )
 
         @model_validator(mode="before")
         @classmethod
@@ -54,7 +69,9 @@ class MapGen(MapBuilder):
 
             if data.get("instance") is not None:
                 if data.get("instance_map") is not None or data.get("root") is not None:
-                    raise ValueError("instance, instance_map, and root cannot be set at the same time")
+                    raise ValueError(
+                        "instance, instance_map, and root cannot be set at the same time"
+                    )
                 return data
 
             if data.get("instance_map") is not None:
@@ -63,7 +80,9 @@ class MapGen(MapBuilder):
 
             if data.get("root") is not None:
                 if data.get("instance") is not None:
-                    raise ValueError("instance_map and root cannot be set at the same time")
+                    raise ValueError(
+                        "instance_map and root cannot be set at the same time"
+                    )
                 data["instance"] = data["root"]
                 del data["root"]
 
@@ -71,7 +90,9 @@ class MapGen(MapBuilder):
 
         @field_validator("instance", mode="wrap")
         @classmethod
-        def _validate_instance(cls, v: Any, handler: ValidatorFunctionWrapHandler) -> SceneConfig | MapBuilderConfig:
+        def _validate_instance(
+            cls, v: Any, handler: ValidatorFunctionWrapHandler
+        ) -> SceneConfig | MapBuilderConfig:
             if isinstance(v, SceneConfig):
                 return v
             elif isinstance(v, MapBuilderConfig):
@@ -147,7 +168,9 @@ class MapGen(MapBuilder):
 
             if isinstance(self.instance, MapBuilderConfig):
                 if self.width is not None or self.height is not None:
-                    raise ValueError("width and height must be None if instance is a MapBuilder config")
+                    raise ValueError(
+                        "width and height must be None if instance is a MapBuilder config"
+                    )
 
             # The opposite situation, when `instance` is a scene config, but width and height are set,
             # could be valid, if the scene has an intrinsic size.
@@ -217,7 +240,9 @@ class MapGen(MapBuilder):
             if isinstance(self.config.instance, SceneConfig):
                 instance_scene_config = self.config.instance
                 if not self.width or not self.height:
-                    intrinsic_size = instance_scene_config.scene_cls.intrinsic_size(self.config.instance)
+                    intrinsic_size = instance_scene_config.scene_cls.intrinsic_size(
+                        self.config.instance
+                    )
                     if not intrinsic_size:
                         raise ValueError(
                             "width and height must be provided if the instance scene has no intrinsic size"
@@ -238,7 +263,9 @@ class MapGen(MapBuilder):
                     use_instance_id_for_team_assignment=use_instance_id_for_team_assignment,
                 )
                 instance_scene.render_with_children()
-                self.instance_scene_factories.append(TransplantScene.Config(scene=instance_scene))
+                self.instance_scene_factories.append(
+                    TransplantScene.Config(scene=instance_scene)
+                )
             else:
                 assert isinstance(self.config.instance, MapBuilderConfig)
                 # Instance is a map, not a scene, so it defines its own size.
@@ -261,7 +288,9 @@ class MapGen(MapBuilder):
 
             if self.config.num_agents and len(self.instance_scene_factories) == 1:
                 # First prebuilt instance, let's derive the number of instances from the number of agents.
-                instance_num_agents = int(np.count_nonzero(np.char.startswith(instance_grid, "agent")))
+                instance_num_agents = int(
+                    np.count_nonzero(np.char.startswith(instance_grid, "agent"))
+                )
                 if self.config.num_agents % instance_num_agents != 0:
                     raise ValueError(
                         f"Number of agents {self.config.num_agents} is not divisible by number of agents"
@@ -290,10 +319,12 @@ class MapGen(MapBuilder):
         assert self.width is not None and self.height is not None
 
         self.inner_width = (
-            self.width * self.instance_cols + (self.instance_cols - 1) * self.config.instance_border_width
+            self.width * self.instance_cols
+            + (self.instance_cols - 1) * self.config.instance_border_width
         )
         self.inner_height = (
-            self.height * self.instance_rows + (self.instance_rows - 1) * self.config.instance_border_width
+            self.height * self.instance_rows
+            + (self.instance_rows - 1) * self.config.instance_border_width
         )
 
         bw = self.config.border_width
@@ -402,7 +433,9 @@ class MapGen(MapBuilder):
             children=children_actions,
         )
 
-    def _wrap_with_instance_id(self, scene_config: SceneConfig, instance_id: int) -> SceneConfig:
+    def _wrap_with_instance_id(
+        self, scene_config: SceneConfig, instance_id: int
+    ) -> SceneConfig:
         """Helper to wrap a scene config with instance_id for single-instance case."""
         # For single instance, we create a wrapper that sets instance_id
         # The simplest is to use a ChildrenAction approach via a passthrough scene
@@ -428,7 +461,9 @@ class MapGen(MapBuilder):
 
         root_scene_cfg = self.get_root_scene_cfg()
 
-        instance_id = 0 if (self.instances == 1 and self.config.set_team_by_instance) else None
+        instance_id = (
+            0 if (self.instances == 1 and self.config.set_team_by_instance) else None
+        )
 
         self.root_scene = root_scene_cfg.create_root(
             self.inner_area,

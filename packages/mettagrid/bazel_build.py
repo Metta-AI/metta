@@ -35,13 +35,18 @@ def _run_bazel_build() -> None:
     """Run Bazel build to compile the C++ extension."""
     # Check if bazel is available
     if shutil.which("bazel") is None:
-        raise RuntimeError("Bazel is required to build mettagrid. Please install Bazel: https://bazel.build/install")
+        raise RuntimeError(
+            "Bazel is required to build mettagrid. Please install Bazel: https://bazel.build/install"
+        )
 
     # Determine build configuration from environment
     debug = os.environ.get("DEBUG", "").lower() in ("1", "true", "yes")
 
     # Check if running in CI environment (GitHub Actions sets CI=true)
-    is_ci = os.environ.get("CI", "").lower() == "true" or os.environ.get("GITHUB_ACTIONS", "") == "true"
+    is_ci = (
+        os.environ.get("CI", "").lower() == "true"
+        or os.environ.get("GITHUB_ACTIONS", "") == "true"
+    )
 
     if is_ci:
         # Use CI configuration to avoid root user issues with hermetic Python
@@ -77,7 +82,9 @@ def _run_bazel_build() -> None:
     ]
 
     print(f"Running Bazel build: {' '.join(cmd)}")
-    result = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True, env=env)
+    result = subprocess.run(
+        cmd, cwd=PROJECT_ROOT, capture_output=True, text=True, env=env
+    )
 
     if result.returncode != 0:
         print("Bazel build failed. STDERR:", file=sys.stderr)
@@ -111,7 +118,9 @@ def _run_bazel_build() -> None:
             extension_file = file_path
             break
     if not extension_file:
-        raise RuntimeError("mettagrid_c.{so,pyd,dylib} not found in bazel-bin/cpp/ or bazel-bin/")
+        raise RuntimeError(
+            "mettagrid_c.{so,pyd,dylib} not found in bazel-bin/cpp/ or bazel-bin/"
+        )
 
     # Copy to all source directories that exist
     for src_dir in src_dirs:
@@ -130,7 +139,11 @@ def _run_bazel_build() -> None:
 def _nim_artifacts_up_to_date() -> bool:
     """Check whether Nim outputs are still current."""
 
-    force_rebuild = os.environ.get("METTAGRID_FORCE_NIM_BUILD", "").lower() in {"1", "true", "yes"}
+    force_rebuild = os.environ.get("METTAGRID_FORCE_NIM_BUILD", "").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
     if force_rebuild:
         return False
 
@@ -151,7 +164,12 @@ def _nim_artifacts_up_to_date() -> bool:
     if not existing_outputs:
         return False
 
-    source_files = [path for pattern in ("*.nim", "*.nims") for path in METTASCOPE_DIR.rglob(pattern) if path.is_file()]
+    source_files = [
+        path
+        for pattern in ("*.nim", "*.nims")
+        for path in METTASCOPE_DIR.rglob(pattern)
+        if path.is_file()
+    ]
     if not source_files:
         return False
 
@@ -174,7 +192,9 @@ def _sync_mettascope_package_data() -> None:
         METTASCOPE_DIR,
         destination_root,
         dirs_exist_ok=True,
-        ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "nimbledeps", "dist", "build"),
+        ignore=shutil.ignore_patterns(
+            "__pycache__", "*.pyc", "nimbledeps", "dist", "build"
+        ),
     )
 
 
@@ -201,11 +221,16 @@ def _run_mettascope_build() -> None:
 
     # Run the build script
     for cmd in ["update", "install", "bindings"]:
-        result = subprocess.run(["nimble", cmd, "-y"], cwd=METTASCOPE_DIR, capture_output=True, text=True)
+        result = subprocess.run(
+            ["nimble", cmd, "-y"], cwd=METTASCOPE_DIR, capture_output=True, text=True
+        )
         print(result.stderr, file=sys.stderr)
         print(result.stdout, file=sys.stderr)
         if result.returncode != 0:
-            print(f"Warning: Mettascope build failed. {cmd} failed. STDERR:", file=sys.stderr)
+            print(
+                f"Warning: Mettascope build failed. {cmd} failed. STDERR:",
+                file=sys.stderr,
+            )
             print(f"Mettascope build {cmd} STDOUT:", file=sys.stderr)
             raise RuntimeError("Mettascope build failed")
     print("Successfully built mettascope")

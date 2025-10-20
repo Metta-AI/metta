@@ -21,7 +21,9 @@ class TestMiniscopePanel:
         assert panel.border is False
 
         # Test panel with title and border
-        panel2 = MiniscopePanel("header", width=80, height=2, title="Status", border=True)
+        panel2 = MiniscopePanel(
+            "header", width=80, height=2, title="Status", border=True
+        )
         assert panel2.title == "Status"
         assert panel2.border is True
 

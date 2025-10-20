@@ -82,7 +82,10 @@ def wrapped_any_config():
 
 def test_any_config_serialization(wrapped_any_config: OuterConfig):
     serialized = wrapped_any_config.model_dump()
-    assert serialized["map_builder"]["type"] == "mettagrid.map_builder.random.RandomMapBuilder"
+    assert (
+        serialized["map_builder"]["type"]
+        == "mettagrid.map_builder.random.RandomMapBuilder"
+    )
     assert serialized["map_builder"]["agents"] == 2
 
 
@@ -106,7 +109,9 @@ char_to_name_map:
     ".": empty
 """
 
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".map", delete=False, encoding="utf-8") as f:
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".map", delete=False, encoding="utf-8"
+    ) as f:
         f.write(yaml_content)
         temp_path = f.name
 
@@ -116,12 +121,20 @@ char_to_name_map:
         # Test serialization
         serialized = config.model_dump()
         assert serialized["type"] == "mettagrid.map_builder.ascii.AsciiMapBuilder"
-        assert serialized["map_data"] == [["#", "#", "#"], ["#", ".", "#"], ["#", "#", "#"]]
+        assert serialized["map_data"] == [
+            ["#", "#", "#"],
+            ["#", ".", "#"],
+            ["#", "#", "#"],
+        ]
 
         # Test deserialization
         deserialized = AsciiMapBuilder.Config.model_validate(serialized)
         assert isinstance(deserialized, AsciiMapBuilder.Config)
-        assert deserialized.map_data == [["#", "#", "#"], ["#", ".", "#"], ["#", "#", "#"]]
+        assert deserialized.map_data == [
+            ["#", "#", "#"],
+            ["#", ".", "#"],
+            ["#", "#", "#"],
+        ]
 
     finally:
         Path(temp_path).unlink()
@@ -185,7 +198,10 @@ def test_random_config_from_str(random_config_yaml: str):
 
 
 def test_config_from_str_wrong_class(random_config_yaml: str):
-    with pytest.raises(TypeError, match="RandomMapBuilder.Config is not a subclass of AsciiMapBuilder.Config"):
+    with pytest.raises(
+        TypeError,
+        match="RandomMapBuilder.Config is not a subclass of AsciiMapBuilder.Config",
+    ):
         AsciiMapBuilder.Config.from_str(random_config_yaml)
 
 
@@ -193,7 +209,9 @@ def test_json_round_trip():
     """Test that configs can be serialized to JSON and back."""
     configs = [
         RandomMapBuilder.Config(width=10, height=10, seed=42, objects={"wall": 3}),
-        MazePrimMapBuilder.Config(width=15, height=15, start_pos=(1, 1), end_pos=(13, 13), seed=123),
+        MazePrimMapBuilder.Config(
+            width=15, height=15, start_pos=(1, 1), end_pos=(13, 13), seed=123
+        ),
     ]
 
     for original_config in configs:

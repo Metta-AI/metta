@@ -58,7 +58,9 @@ def add_pretty_border(lines: list[str]) -> list[str]:
     return lines
 
 
-def grid_to_lines(grid: MapGrid, name_to_char: dict[str, str] | None = None, border: bool = False) -> list[str]:
+def grid_to_lines(
+    grid: MapGrid, name_to_char: dict[str, str] | None = None, border: bool = False
+) -> list[str]:
     """Convert a grid to lines of text using the provided name-to-char mapping."""
     if name_to_char is None:
         # Reverse the default char_to_name mapping to get name_to_char

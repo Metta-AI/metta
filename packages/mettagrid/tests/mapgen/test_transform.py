@@ -18,13 +18,25 @@ class SerifScene(Scene[SerifConfig]):
 
 class TestGridTransformClass:
     def test_identity(self):
-        assert GridTransform.IDENTITY.compose(GridTransform.IDENTITY) == GridTransform.IDENTITY
-        assert GridTransform.IDENTITY.compose(GridTransform.ROT_90) == GridTransform.ROT_90
+        assert (
+            GridTransform.IDENTITY.compose(GridTransform.IDENTITY)
+            == GridTransform.IDENTITY
+        )
+        assert (
+            GridTransform.IDENTITY.compose(GridTransform.ROT_90) == GridTransform.ROT_90
+        )
 
     def test_rot_composition(self):
-        assert GridTransform.ROT_90.compose(GridTransform.ROT_90) == GridTransform.ROT_180
-        assert GridTransform.ROT_90.compose(GridTransform.ROT_180) == GridTransform.ROT_270
-        assert GridTransform.ROT_90.compose(GridTransform.ROT_270) == GridTransform.IDENTITY
+        assert (
+            GridTransform.ROT_90.compose(GridTransform.ROT_90) == GridTransform.ROT_180
+        )
+        assert (
+            GridTransform.ROT_90.compose(GridTransform.ROT_180) == GridTransform.ROT_270
+        )
+        assert (
+            GridTransform.ROT_90.compose(GridTransform.ROT_270)
+            == GridTransform.IDENTITY
+        )
 
     def test_inverse(self):
         assert GridTransform.IDENTITY.inverse() == GridTransform.IDENTITY
@@ -38,7 +50,9 @@ class TestGridTransformClass:
 
     def test_apply(self):
         grid = np.array([[0, 1, 2], [3, 4, 5]])
-        np.testing.assert_array_equal(GridTransform.ROT_90.apply(grid), np.array([[3, 0], [4, 1], [5, 2]]))
+        np.testing.assert_array_equal(
+            GridTransform.ROT_90.apply(grid), np.array([[3, 0], [4, 1], [5, 2]])
+        )
 
     def test_apply_to_coords(self):
         grid = create_grid(4, 5)
@@ -171,7 +185,9 @@ class TestTransformBasic:
         )
 
     def test_transpose_alt(self):
-        scene = render_scene(SerifScene.Config(transform=GridTransform.TRANSPOSE), (4, 5))
+        scene = render_scene(
+            SerifScene.Config(transform=GridTransform.TRANSPOSE), (4, 5)
+        )
         assert_raw_grid(
             scene.area.outer_grid,
             """
@@ -183,7 +199,9 @@ class TestTransformBasic:
         )
 
     def test_transpose(self):
-        scene = render_scene(SerifScene.Config(transform=GridTransform.TRANSPOSE_ALT), (4, 5))
+        scene = render_scene(
+            SerifScene.Config(transform=GridTransform.TRANSPOSE_ALT), (4, 5)
+        )
         assert_raw_grid(
             scene.area.outer_grid,
             """
@@ -210,7 +228,8 @@ class TestSubarea:
                 transform=GridTransform.ROT_90,
                 children=[
                     ChildrenAction(
-                        scene=SerifScene.Config(transform=GridTransform.ROT_90), where=AreaWhere(tags=["inner"])
+                        scene=SerifScene.Config(transform=GridTransform.ROT_90),
+                        where=AreaWhere(tags=["inner"]),
                     )
                 ],
             ),

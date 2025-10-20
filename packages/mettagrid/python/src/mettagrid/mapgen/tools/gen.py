@@ -12,13 +12,20 @@ logger = logging.getLogger(__name__)
 
 
 def main(
-    env_fn: Annotated[str, typer.Argument(help="Path to the function that makes MettaGridConfig")],
+    env_fn: Annotated[
+        str, typer.Argument(help="Path to the function that makes MettaGridConfig")
+    ],
     show_mode: Annotated[
         Literal["ascii", "ascii_border"],
-        typer.Option(help="Show the map in the specified mode (ascii, ascii_border, none)"),
+        typer.Option(
+            help="Show the map in the specified mode (ascii, ascii_border, none)"
+        ),
     ] = "ascii_border",
     env_override: Annotated[
-        Optional[list[str]], typer.Option("--env-override", help="OmegaConf-style overrides for the env config")
+        Optional[list[str]],
+        typer.Option(
+            "--env-override", help="OmegaConf-style overrides for the env config"
+        ),
     ] = None,
 ):
     """
@@ -31,7 +38,9 @@ def main(
 
     mg_config = fn()
     if not isinstance(mg_config, MettaGridConfig):
-        raise ValueError(f"Env config must be an instance of MettaGridConfig, got {type(mg_config)}")
+        raise ValueError(
+            f"Env config must be an instance of MettaGridConfig, got {type(mg_config)}"
+        )
 
     if env_override:
         for override in env_override:

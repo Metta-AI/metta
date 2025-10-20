@@ -42,7 +42,9 @@ class MakeConnected(Scene[MakeConnectedConfig]):
             return
 
         # find the largest component
-        largest_component_id = max(range(len(component_sizes)), key=component_sizes.__getitem__)
+        largest_component_id = max(
+            range(len(component_sizes)), key=component_sizes.__getitem__
+        )
         logger.debug(f"Largest component: {largest_component_id}")
 
         logger.debug("Populating distance to largest component")
@@ -57,7 +59,9 @@ class MakeConnected(Scene[MakeConnectedConfig]):
                 continue
 
             # find the cell that's closest to the largest component
-            min_distance_cell = min(component, key=lambda c: distances_to_largest_component[*c])
+            min_distance_cell = min(
+                component, key=lambda c: distances_to_largest_component[*c]
+            )
 
             # shouldn't happen
             if min_distance_cell is None:
@@ -75,7 +79,8 @@ class MakeConnected(Scene[MakeConnectedConfig]):
                     for dy, dx in DIRECTIONS
                     if 0 <= y + dy < height
                     and 0 <= x + dx < width
-                    and distances_to_largest_component[y + dy, x + dx] == current_distance - 1
+                    and distances_to_largest_component[y + dy, x + dx]
+                    == current_distance - 1
                 ]
 
                 # Pick a random candidate from those with the minimum distance
@@ -88,7 +93,9 @@ class MakeConnected(Scene[MakeConnectedConfig]):
                 current_distance -= 1
                 self.grid[*current_cell] = "empty"
 
-        assert len(self._make_components()) == 1, "Map must end up with a single connected component"
+        assert len(self._make_components()) == 1, (
+            "Map must end up with a single connected component"
+        )
 
     def _make_components(self):
         # run BFS from each empty cell, find connected components

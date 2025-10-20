@@ -50,7 +50,9 @@ class RoomGrid(Scene[RoomGridConfig]):
             self._columns = config.columns
         else:
             for row in config.layout:
-                assert len(row) == len(config.layout[0]), "All rows must have the same number of columns"
+                assert len(row) == len(config.layout[0]), (
+                    "All rows must have the same number of columns"
+                )
             self._rows = len(config.layout)
             self._columns = len(config.layout[0])
 
@@ -62,8 +64,12 @@ class RoomGrid(Scene[RoomGridConfig]):
 
     def render(self):
         config = self.config
-        room_width = (self.width - config.border_width * (self._columns - 1)) // self._columns
-        room_height = (self.height - config.border_width * (self._rows - 1)) // self._rows
+        room_width = (
+            self.width - config.border_width * (self._columns - 1)
+        ) // self._columns
+        room_height = (
+            self.height - config.border_width * (self._rows - 1)
+        ) // self._rows
 
         # fill entire grid with walls
         self.grid[:] = config.border_object

@@ -21,12 +21,19 @@ class Random(Scene[RandomConfig]):
 
         if isinstance(config.agents, int):
             # If team assignment is enabled, use the instance_id as team identifier
-            if getattr(self, "use_instance_id_for_team_assignment", False) and self.instance_id is not None:
+            if (
+                getattr(self, "use_instance_id_for_team_assignment", False)
+                and self.instance_id is not None
+            ):
                 agents = [f"agent.team_{self.instance_id}"] * config.agents
             else:
                 agents = ["agent.agent"] * config.agents
         elif isinstance(config.agents, dict):
-            agents = ["agent." + str(agent) for agent, na in config.agents.items() for _ in range(na)]
+            agents = [
+                "agent." + str(agent)
+                for agent, na in config.agents.items()
+                for _ in range(na)
+            ]
         else:
             raise ValueError(f"Invalid agents: {config.agents}")
 
@@ -42,7 +49,9 @@ class Random(Scene[RandomConfig]):
         symbols.extend(agents)
 
         if not config.too_many_is_ok and len(symbols) > empty_count:
-            raise ValueError(f"Too many objects for available empty cells: {len(symbols)} > {empty_count}")
+            raise ValueError(
+                f"Too many objects for available empty cells: {len(symbols)} > {empty_count}"
+            )
         else:
             # everything will be filled with symbols, oh well
             symbols = symbols[:empty_count]

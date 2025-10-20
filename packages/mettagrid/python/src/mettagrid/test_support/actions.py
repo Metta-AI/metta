@@ -85,7 +85,9 @@ def move(env: MettaGrid, direction: Orientation, agent_idx: int = 0) -> dict[str
     return result
 
 
-def rotate(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> dict[str, Any]:
+def rotate(
+    env: MettaGrid, orientation: Orientation, agent_idx: int = 0
+) -> dict[str, Any]:
     """
     Rotate agent to face specified direction.
 
@@ -124,7 +126,9 @@ def rotate(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> dict
         # Get initial orientation
         result["orientation_before"] = get_agent_orientation(env, agent_idx)
 
-        print(f"Rotating agent {agent_idx} to face {direction_name} (orientation {orientation.value})")
+        print(
+            f"Rotating agent {agent_idx} to face {direction_name} (orientation {orientation.value})"
+        )
         print(f"  Before: {result['orientation_before']}")
 
         # Perform rotation
@@ -147,7 +151,9 @@ def rotate(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> dict
         if result["rotated_correctly"]:
             print(f"  ✅ Rotated correctly to face {direction_name}")
         else:
-            print(f"  ❌ Rotation failed. Expected {orientation.value}, got {result['orientation_after']}")
+            print(
+                f"  ❌ Rotation failed. Expected {orientation.value}, got {result['orientation_after']}"
+            )
 
         # Overall success
         result["success"] = result["action_success"] and result["rotated_correctly"]
@@ -231,7 +237,11 @@ def attack(env: MettaGrid, target_arg: int = 0, agent_idx: int = 0) -> dict[str,
     action_names = env.action_names()
 
     attack_variants = sorted(
-        (name for name in action_names if name.startswith("attack_") and name.removeprefix("attack_").isdigit()),
+        (
+            name
+            for name in action_names
+            if name.startswith("attack_") and name.removeprefix("attack_").isdigit()
+        ),
         key=lambda n: int(n.split("_", maxsplit=1)[1]),
     )
 
@@ -300,7 +310,9 @@ def attack(env: MettaGrid, target_arg: int = 0, agent_idx: int = 0) -> dict[str,
                     for item, amount_before in target_resources_before.items():
                         amount_after = target_resources_after.get(item, 0)
                         if amount_after < amount_before:
-                            result["resources_stolen"][item] = amount_before - amount_after
+                            result["resources_stolen"][item] = (
+                                amount_before - amount_after
+                            )
 
                 elif freeze_after > 0 and freeze_before > 0:
                     # Attack hit an already frozen target (wasted)
@@ -319,7 +331,9 @@ def attack(env: MettaGrid, target_arg: int = 0, agent_idx: int = 0) -> dict[str,
                             result["resources_stolen"][item] = 0
                         # Verify this matches what was stolen
                         if result["resources_stolen"][item] == gain:
-                            result["resources_gained"] = result.get("resources_gained", {})
+                            result["resources_gained"] = result.get(
+                                "resources_gained", {}
+                            )
                             result["resources_gained"][item] = gain
                 break
 
@@ -421,5 +435,7 @@ def action_index(env, base: str, orientation: Orientation | None = None) -> int:
     else:
         names = names_getter
     if target not in names:
-        raise AssertionError(f"Action {target} not available; available actions: {names}")
+        raise AssertionError(
+            f"Action {target} not available; available actions: {names}"
+        )
     return names.index(target)

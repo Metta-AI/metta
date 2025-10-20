@@ -24,7 +24,8 @@ from . import building, empty_converters
 def make_arena(
     num_agents: int,
     combat: bool = True,
-    map_builder: MapBuilderConfig | None = None,  # custom map builder; must match num_agents
+    map_builder: MapBuilderConfig
+    | None = None,  # custom map builder; must match num_agents
 ) -> MettaGridConfig:
     objects = {
         "wall": building.wall,
@@ -101,7 +102,14 @@ def make_navigation(num_agents: int) -> MettaGridConfig:
         type_id=8,
         map_char="_",
         render_symbol="🛣️",
-        recipes=[([], building.RecipeConfig(input_resources={}, output_resources={"heart": 1}, cooldown=255))],
+        recipes=[
+            (
+                [],
+                building.RecipeConfig(
+                    input_resources={}, output_resources={"heart": 1}, cooldown=255
+                ),
+            )
+        ],
     )
     cfg = MettaGridConfig(
         game=GameConfig(
@@ -251,7 +259,9 @@ def make_icl_assembler(
             ),
             actions=ActionsConfig(
                 move=ActionConfig(),
-                rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
+                rotate=ActionConfig(
+                    enabled=False
+                ),  # Disabled for unified movement system
                 get_items=ActionConfig(enabled=False),
                 put_items=ActionConfig(enabled=False),
                 noop=ActionConfig(enabled=True),

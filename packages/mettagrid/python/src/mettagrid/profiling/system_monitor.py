@@ -105,14 +105,17 @@ class SystemMonitor:
             "cpu_percent": lambda: psutil.cpu_percent(interval=0),
             "cpu_count": lambda: psutil.cpu_count(),
             "cpu_count_logical": lambda: psutil.cpu_count(logical=True),
-            "cpu_count_physical": lambda: psutil.cpu_count(logical=False) or psutil.cpu_count(logical=True),
+            "cpu_count_physical": lambda: psutil.cpu_count(logical=False)
+            or psutil.cpu_count(logical=True),
             # Memory metrics
             "memory_percent": lambda: psutil.virtual_memory().percent,
-            "memory_available_mb": lambda: psutil.virtual_memory().available / (1024 * 1024),
+            "memory_available_mb": lambda: psutil.virtual_memory().available
+            / (1024 * 1024),
             "memory_used_mb": lambda: psutil.virtual_memory().used / (1024 * 1024),
             "memory_total_mb": lambda: psutil.virtual_memory().total / (1024 * 1024),
             # Process-specific metrics
-            "process_memory_mb": lambda: psutil.Process(os.getpid()).memory_info().rss / (1024 * 1024),
+            "process_memory_mb": lambda: psutil.Process(os.getpid()).memory_info().rss
+            / (1024 * 1024),
             "process_cpu_percent": lambda: self._process.cpu_percent(),
             "process_threads": lambda: psutil.Process().num_threads(),
         }
@@ -125,7 +128,9 @@ class SystemMonitor:
                 # Test if sensors_temperatures actually works
                 temps = sensors_temperatures()
                 if temps:  # Only add if we get actual data
-                    self._metric_collectors["cpu_temperature"] = self._get_cpu_temperature
+                    self._metric_collectors["cpu_temperature"] = (
+                        self._get_cpu_temperature
+                    )
             except (AttributeError, OSError, NotImplementedError):
                 # Some platforms have the method but it doesn't work
                 self.logger.debug("Temperature sensors not functional on this platform")
@@ -137,10 +142,16 @@ class SystemMonitor:
                 total_hourly_cost = float(hourly_cost_str)
                 self._metric_collectors["cost/hourly_total"] = lambda: total_hourly_cost
                 # Add accrued cost metric
-                self._metric_collectors["cost/accrued_total"] = lambda: self._calculate_accrued_cost(total_hourly_cost)
-                self.logger.info(f"Cost monitoring enabled: ${total_hourly_cost:.4f}/hr (total for all nodes)")
+                self._metric_collectors["cost/accrued_total"] = (
+                    lambda: self._calculate_accrued_cost(total_hourly_cost)
+                )
+                self.logger.info(
+                    f"Cost monitoring enabled: ${total_hourly_cost:.4f}/hr (total for all nodes)"
+                )
             except (ValueError, TypeError):
-                self.logger.warning(f"Could not parse METTA_HOURLY_COST: {hourly_cost_str}")
+                self.logger.warning(
+                    f"Could not parse METTA_HOURLY_COST: {hourly_cost_str}"
+                )
 
         # GPU metrics - check multiple ways for compatibility
         self._has_gpu = False
@@ -165,9 +176,15 @@ class SystemMonitor:
             for i in range(gpu_count):
                 self._metric_collectors.update(
                     {
-                        f"gpu{i}_utilization": lambda idx=i: torch.cuda.utilization(idx),
-                        f"gpu{i}_memory_percent": lambda idx=i: self._get_single_gpu_memory_percent(idx),
-                        f"gpu{i}_memory_used_mb": lambda idx=i: self._get_single_gpu_memory_used_mb(idx),
+                        f"gpu{i}_utilization": lambda idx=i: torch.cuda.utilization(
+                            idx
+                        ),
+                        f"gpu{i}_memory_percent": lambda idx=i: self._get_single_gpu_memory_percent(
+                            idx
+                        ),
+                        f"gpu{i}_memory_used_mb": lambda idx=i: self._get_single_gpu_memory_used_mb(
+                            idx
+                        ),
                     }
                 )
 
@@ -188,14 +205,22 @@ class SystemMonitor:
                 return None
 
             # Try common sensor names across platforms
-            for name in ["coretemp", "cpu_thermal", "cpu-thermal", "k10temp", "zenpower"]:
+            for name in [
+                "coretemp",
+                "cpu_thermal",
+                "cpu-thermal",
+                "k10temp",
+                "zenpower",
+            ]:
                 if name in temps and temps[name]:
                     temp = temps[name][0].current
                     # Validate temperature is in reasonable range
                     if temp is not None and 20 <= temp <= 120:
                         return temp
                     elif temp is not None:
-                        self.logger.debug(f"Ignoring invalid temperature {temp}°C from {name}")
+                        self.logger.debug(
+                            f"Ignoring invalid temperature {temp}°C from {name}"
+                        )
 
             # Fallback: return first available temperature that's valid
             for sensor_name, entries in temps.items():
@@ -204,15 +229,21 @@ class SystemMonitor:
                     if temp is not None and 20 <= temp <= 120:
                         return temp
                     elif temp is not None:
-                        self.logger.debug(f"Ignoring invalid temperature {temp}°C from {sensor_name}")
+                        self.logger.debug(
+                            f"Ignoring invalid temperature {temp}°C from {sensor_name}"
+                        )
 
         except (AttributeError, OSError, IOError) as e:
             # AttributeError: In case the sensor object doesn't have expected attributes
             # OSError/IOError: Common when sensors are not accessible (permissions, hardware)
-            self.logger.debug(f"Failed to read CPU temperature: {type(e).__name__}: {e}")
+            self.logger.debug(
+                f"Failed to read CPU temperature: {type(e).__name__}: {e}"
+            )
         except Exception as e:
             # Catch any other unexpected errors and log them
-            self.logger.warning(f"Unexpected error reading CPU temperature: {type(e).__name__}: {e}")
+            self.logger.warning(
+                f"Unexpected error reading CPU temperature: {type(e).__name__}: {e}"
+            )
 
         return None
 
@@ -226,11 +257,15 @@ class SystemMonitor:
                 except (RuntimeError, torch.cuda.CudaError) as e:
                     # RuntimeError: Common when CUDA is not properly initialized or device is unavailable
                     # CudaError: Specific CUDA-related errors
-                    self.logger.debug(f"Failed to get utilization for GPU {i}: {type(e).__name__}: {e}")
+                    self.logger.debug(
+                        f"Failed to get utilization for GPU {i}: {type(e).__name__}: {e}"
+                    )
                     utils.append(0)
                 except Exception as e:
                     # Unexpected errors
-                    self.logger.warning(f"Unexpected error getting GPU {i} utilization: {type(e).__name__}: {e}")
+                    self.logger.warning(
+                        f"Unexpected error getting GPU {i} utilization: {type(e).__name__}: {e}"
+                    )
                     utils.append(0)
             return sum(utils) / len(utils) if utils else None
         except (RuntimeError, AttributeError) as e:
@@ -239,7 +274,9 @@ class SystemMonitor:
             self.logger.debug(f"Failed to get GPU utilization: {type(e).__name__}: {e}")
             return None
         except Exception as e:
-            self.logger.warning(f"Unexpected error in GPU utilization: {type(e).__name__}: {e}")
+            self.logger.warning(
+                f"Unexpected error in GPU utilization: {type(e).__name__}: {e}"
+            )
             return None
 
     def _get_gpu_memory_percent_cuda(self) -> float | None:
@@ -256,11 +293,15 @@ class SystemMonitor:
                     self.logger.warning(f"GPU {i} reports 0 total memory")
                     continue
                 except Exception as e:
-                    self.logger.warning(f"Unexpected error getting GPU {i} memory: {type(e).__name__}: {e}")
+                    self.logger.warning(
+                        f"Unexpected error getting GPU {i} memory: {type(e).__name__}: {e}"
+                    )
                     continue
             return sum(percents) / len(percents) if percents else None
         except Exception as e:
-            self.logger.warning(f"Unexpected error in GPU memory percent: {type(e).__name__}: {e}")
+            self.logger.warning(
+                f"Unexpected error in GPU memory percent: {type(e).__name__}: {e}"
+            )
             return None
 
     def _get_gpu_memory_used_mb_cuda(self) -> float | None:
@@ -274,11 +315,15 @@ class SystemMonitor:
                     total_used += (total - free) / (1024 * 1024)
                     count += 1
                 except Exception as e:
-                    self.logger.warning(f"Unexpected error getting GPU {i} memory: {type(e).__name__}: {e}")
+                    self.logger.warning(
+                        f"Unexpected error getting GPU {i} memory: {type(e).__name__}: {e}"
+                    )
                     continue
             return total_used if count > 0 else None
         except Exception as e:
-            self.logger.warning(f"Unexpected error in GPU memory used: {type(e).__name__}: {e}")
+            self.logger.warning(
+                f"Unexpected error in GPU memory used: {type(e).__name__}: {e}"
+            )
             return None
 
     def _get_single_gpu_memory_percent(self, gpu_idx: int) -> float | None:
@@ -345,7 +390,9 @@ class SystemMonitor:
                     elapsed_hours = elapsed_seconds / 3600.0
                     return hourly_cost * elapsed_hours
             except Exception as e:
-                self.logger.debug(f"Failed to get elapsed time from external timer: {e}")
+                self.logger.debug(
+                    f"Failed to get elapsed time from external timer: {e}"
+                )
 
         # Fallback to internal start time
         if self._start_time is None:

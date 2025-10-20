@@ -55,7 +55,9 @@ def test_resource_mod_consumption():
     # Create ResourceModConfig that consumes resources
     resource_mod_config = ResourceModConfig(
         required_resources={0: 1},  # Need at least 1 energy to use
-        consumed_resources={0: 1.0},  # 100% chance to consume 1 unit of resource 0 (energy)
+        consumed_resources={
+            0: 1.0
+        },  # 100% chance to consume 1 unit of resource 0 (energy)
         modifies={1: 5.0},  # Add 5 health
         agent_radius=1,  # Affects self (distance 0)
         converter_radius=0,

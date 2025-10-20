@@ -1,7 +1,12 @@
 import numpy as np
 import pytest
 
-from mettagrid.config.mettagrid_config import ActionConfig, ActionsConfig, GameConfig, MettaGridConfig
+from mettagrid.config.mettagrid_config import (
+    ActionConfig,
+    ActionsConfig,
+    GameConfig,
+    MettaGridConfig,
+)
 from mettagrid.core import MettaGridCore
 from mettagrid.map_builder.random import RandomMapBuilder
 from mettagrid.mettagrid_c import MettaGrid, PackedCoordinate, dtype_actions
@@ -47,12 +52,18 @@ class TestBasicFunctionality:
 
         obs, info = basic_env.reset()
 
-        assert obs.shape == (basic_env.num_agents, NUM_OBS_TOKENS, TokenTypes.OBS_TOKEN_SIZE)
+        assert obs.shape == (
+            basic_env.num_agents,
+            NUM_OBS_TOKENS,
+            TokenTypes.OBS_TOKEN_SIZE,
+        )
         assert isinstance(info, dict)
 
     def test_grid_hash(self, basic_env: MettaGrid):
         """Test grid hash consistency."""
-        assert basic_env.initial_grid_hash == 14602406112020495965  # Updated for RandomMapBuilder with seed=42
+        assert (
+            basic_env.initial_grid_hash == 14602406112020495965
+        )  # Updated for RandomMapBuilder with seed=42
 
     def test_action_interface(self, basic_env: MettaGrid):
         """Test action interface and basic action execution."""
@@ -68,7 +79,11 @@ class TestBasicFunctionality:
         obs, rewards, terminals, truncations, info = basic_env.step(actions)
 
         # Check shapes and types
-        assert obs.shape == (basic_env.num_agents, NUM_OBS_TOKENS, TokenTypes.OBS_TOKEN_SIZE)
+        assert obs.shape == (
+            basic_env.num_agents,
+            NUM_OBS_TOKENS,
+            TokenTypes.OBS_TOKEN_SIZE,
+        )
         assert rewards.shape == (basic_env.num_agents,)
         assert terminals.shape == (basic_env.num_agents,)
         assert truncations.shape == (basic_env.num_agents,)
@@ -122,7 +137,9 @@ class TestPackedCoordinate:
                 successfully_packed += 1
 
         # Verify we can pack 225 positions (15x15 grid)
-        assert successfully_packed == 225, f"Expected 225 packable positions, got {successfully_packed}"
+        assert successfully_packed == 225, (
+            f"Expected 225 packable positions, got {successfully_packed}"
+        )
 
         # Test empty/0xFF handling
         assert PackedCoordinate.is_empty(0xFF)

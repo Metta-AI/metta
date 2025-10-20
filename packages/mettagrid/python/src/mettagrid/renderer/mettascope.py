@@ -44,7 +44,9 @@ class MettascopeRenderer(Renderer):
         }
 
         # mettascope2.init requires data_dir and replay arguments
-        self.response = self._mettascope.init(self._data_dir, json.dumps(initial_replay))
+        self.response = self._mettascope.init(
+            self._data_dir, json.dumps(initial_replay)
+        )
         self._should_continue = not self.response.should_close
         self._env = env
         self._user_actions = {}
@@ -64,14 +66,20 @@ class MettascopeRenderer(Renderer):
         for grid_object in self._env.grid_objects().values():
             grid_objects.append(
                 format_grid_object(
-                    grid_object, placeholder_actions, self._env.action_success, placeholder_rewards, total_rewards
+                    grid_object,
+                    placeholder_actions,
+                    self._env.action_success,
+                    placeholder_rewards,
+                    total_rewards,
                 )
             )
 
         step_replay = {"step": self._current_step, "objects": grid_objects}
 
         # Render and get user input
-        self.response = self._mettascope.render(self._current_step, json.dumps(step_replay))
+        self.response = self._mettascope.render(
+            self._current_step, json.dumps(step_replay)
+        )
         if self.response.should_close:
             self._should_continue = False
             return
@@ -79,7 +87,10 @@ class MettascopeRenderer(Renderer):
         # Store user actions to be applied in the next step
         if self.response.actions:
             for action in self.response.actions:
-                self._user_actions[action.agent_id] = (action.action_id, action.argument)
+                self._user_actions[action.agent_id] = (
+                    action.action_id,
+                    action.argument,
+                )
 
         self._current_step += 1
 

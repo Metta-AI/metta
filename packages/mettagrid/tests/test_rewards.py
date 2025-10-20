@@ -93,7 +93,9 @@ def perform_action(env, action_name):
     available_actions = env.action_names()
 
     if action_name not in available_actions:
-        raise ValueError(f"Unknown action '{action_name}'. Available actions: {available_actions}")
+        raise ValueError(
+            f"Unknown action '{action_name}'. Available actions: {available_actions}"
+        )
 
     action_idx = available_actions.index(action_name)
     action = np.full((NUM_AGENTS,), action_idx, dtype=dtype_actions)
@@ -132,7 +134,9 @@ class TestRewards:
         env = create_heart_reward_test_env()
 
         # Create buffers
-        observations = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=dtype_observations)
+        observations = np.zeros(
+            (NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=dtype_observations
+        )
         terminals = np.zeros(NUM_AGENTS, dtype=dtype_terminals)
         truncations = np.zeros(NUM_AGENTS, dtype=dtype_truncations)
         rewards = np.zeros(NUM_AGENTS, dtype=dtype_rewards)
@@ -151,7 +155,9 @@ class TestRewards:
         step_rewards = rewards.copy()  # The buffer is updated by step()
 
         # Check that step rewards are accessible and match buffer
-        assert np.array_equal(step_rewards, rewards), "Step rewards should match buffer rewards"
+        assert np.array_equal(step_rewards, rewards), (
+            "Step rewards should match buffer rewards"
+        )
         print(f"✅ Step rewards properly initialized: {step_rewards}")
 
     def test_heart_collection_rewards(self):
@@ -159,7 +165,9 @@ class TestRewards:
         env = create_heart_reward_test_env()
 
         # Create buffers
-        observations = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=dtype_observations)
+        observations = np.zeros(
+            (NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=dtype_observations
+        )
         terminals = np.zeros(NUM_AGENTS, dtype=dtype_terminals)
         truncations = np.zeros(NUM_AGENTS, dtype=dtype_truncations)
         rewards = np.zeros(NUM_AGENTS, dtype=dtype_rewards)
@@ -175,16 +183,22 @@ class TestRewards:
 
         # Check episode rewards
         episode_rewards = env.get_episode_rewards()
-        assert episode_rewards[0] > 0, f"Episode rewards should be positive, got {episode_rewards[0]}"
+        assert episode_rewards[0] > 0, (
+            f"Episode rewards should be positive, got {episode_rewards[0]}"
+        )
 
-        print(f"✅ Heart collection successful! Reward: {reward}, Episode total: {episode_rewards[0]}")
+        print(
+            f"✅ Heart collection successful! Reward: {reward}, Episode total: {episode_rewards[0]}"
+        )
 
     def test_multiple_heart_collections(self):
         """Test collecting multiple hearts and verifying cumulative rewards."""
         env = create_heart_reward_test_env()
 
         # Create buffers
-        observations = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=dtype_observations)
+        observations = np.zeros(
+            (NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=dtype_observations
+        )
         terminals = np.zeros(NUM_AGENTS, dtype=dtype_terminals)
         truncations = np.zeros(NUM_AGENTS, dtype=dtype_truncations)
         rewards = np.zeros(NUM_AGENTS, dtype=dtype_rewards)
@@ -204,11 +218,17 @@ class TestRewards:
         # Verify both collections worked
         assert success1, "First collection should succeed"
         assert success2, "Second collection should succeed"
-        assert reward1 > 0, f"First collection should give positive reward, got {reward1}"
-        assert reward2 > 0, f"Second collection should give positive reward, got {reward2}"
+        assert reward1 > 0, (
+            f"First collection should give positive reward, got {reward1}"
+        )
+        assert reward2 > 0, (
+            f"Second collection should give positive reward, got {reward2}"
+        )
 
         # Verify episode rewards accumulate
-        assert episode_rewards_2 > episode_rewards_1, "Episode rewards should accumulate"
+        assert episode_rewards_2 > episode_rewards_1, (
+            "Episode rewards should accumulate"
+        )
         expected_total = episode_rewards_1 + reward2
         assert abs(episode_rewards_2 - expected_total) < 1e-6, (
             f"Episode rewards should accumulate correctly: {episode_rewards_2} vs {expected_total}"

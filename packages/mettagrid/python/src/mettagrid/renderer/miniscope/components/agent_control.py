@@ -25,7 +25,9 @@ class AgentControlComponent(MiniscopeComponent):
         super().__init__(env=env, state=state, panels=panels)
         self._set_panel(panels.footer)
 
-        action_lookup: Dict[str, int] = {name: idx for idx, name in enumerate(self._env.action_names)}
+        action_lookup: Dict[str, int] = {
+            name: idx for idx, name in enumerate(self._env.action_names)
+        }
 
         # Assumes move_{cardinal_direction} named actions exist
         # If not found, fall back to 0: north, 1: south, 2: west, 3: east, 4: rest/noop
@@ -78,14 +80,20 @@ class AgentControlComponent(MiniscopeComponent):
         # Get agent selection info
         if self._state.selected_agent is not None:
             agent_text = f"[Agent {self._state.selected_agent}]"
-            manual_text = " (Manual)" if self._state.selected_agent in self._state.manual_agents else ""
+            manual_text = (
+                " (Manual)"
+                if self._state.selected_agent in self._state.manual_agents
+                else ""
+            )
         else:
             agent_text = "[AI Control]"
             manual_text = ""
 
         # Use compact format if height is limited (< 3 lines)
         if self._height and self._height < 3:
-            content = Text(f"{agent_text}{manual_text} | []=Agent | M=Manual | WASD=Move | E=Emote | R=Rest")
+            content = Text(
+                f"{agent_text}{manual_text} | []=Agent | M=Manual | WASD=Move | E=Emote | R=Rest"
+            )
         else:
             # Create table with controls
             table = Table(show_header=False, show_edge=True, box=None, padding=(0, 1))

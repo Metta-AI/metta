@@ -54,20 +54,33 @@ class RandomMapBuilder(MapBuilder):
         if isinstance(self._config.agents, int):
             agents = ["agent.agent"] * self._config.agents
         elif isinstance(self._config.agents, dict):
-            agents = ["agent." + agent for agent, na in self._config.agents.items() for _ in range(na)]
+            agents = [
+                "agent." + agent
+                for agent, na in self._config.agents.items()
+                for _ in range(na)
+            ]
         else:
             raise ValueError(f"Invalid agents configuration: {self._config.agents}")
 
         # Check if total objects exceed inner room size and halve counts if needed
-        total_objects = sum(count for count in self._config.objects.values()) + len(agents)
+        total_objects = sum(count for count in self._config.objects.values()) + len(
+            agents
+        )
         while total_objects > inner_area:
             # If we can't reduce further, break to avoid infinite loop
-            all_ones = all(count <= 1 for count in self._config.objects.values()) and len(agents) <= 1
+            all_ones = (
+                all(count <= 1 for count in self._config.objects.values())
+                and len(agents) <= 1
+            )
             if all_ones:
                 break
             for obj_name in self._config.objects:
-                self._config.objects[obj_name] = max(1, self._config.objects[obj_name] // 2)
-            total_objects = sum(count for count in self._config.objects.values()) + len(agents)
+                self._config.objects[obj_name] = max(
+                    1, self._config.objects[obj_name] // 2
+                )
+            total_objects = sum(count for count in self._config.objects.values()) + len(
+                agents
+            )
 
         # Create symbols array for inner area only
         symbols = []

@@ -1,6 +1,11 @@
 import pytest
 
-from mettagrid.config.mettagrid_config import ActionConfig, ActionsConfig, GameConfig, MettaGridConfig
+from mettagrid.config.mettagrid_config import (
+    ActionConfig,
+    ActionsConfig,
+    GameConfig,
+    MettaGridConfig,
+)
 from mettagrid.core import MettaGridCore
 from mettagrid.map_builder.random import RandomMapBuilder
 

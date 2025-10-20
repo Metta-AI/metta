@@ -27,7 +27,9 @@ class GridAltars(Scene[GridAltarsConfig]):
 
         # Validate min_spacing to prevent division by zero
         if config.min_spacing <= 0:
-            raise ValueError(f"min_spacing must be greater than 0, got {config.min_spacing}")
+            raise ValueError(
+                f"min_spacing must be greater than 0, got {config.min_spacing}"
+            )
 
         # Collect all objects to place
         symbols = []
@@ -38,7 +40,11 @@ class GridAltars(Scene[GridAltarsConfig]):
         if isinstance(config.agents, int):
             agents = ["agent.agent"] * config.agents
         elif isinstance(config.agents, dict):
-            agents = ["agent." + str(agent) for agent, na in config.agents.items() for _ in range(na)]
+            agents = [
+                "agent." + str(agent)
+                for agent, na in config.agents.items()
+                for _ in range(na)
+            ]
         else:
             raise ValueError(f"Invalid agents: {config.agents}")
 
@@ -84,8 +90,12 @@ class GridAltars(Scene[GridAltarsConfig]):
 
                 # Add randomization only if requested
                 if config.randomize_position > 0:
-                    offset_x = self.rng.integers(-config.randomize_position, config.randomize_position + 1)
-                    offset_y = self.rng.integers(-config.randomize_position, config.randomize_position + 1)
+                    offset_x = self.rng.integers(
+                        -config.randomize_position, config.randomize_position + 1
+                    )
+                    offset_y = self.rng.integers(
+                        -config.randomize_position, config.randomize_position + 1
+                    )
                     x = np.clip(x + offset_x, 1, width - 2)
                     y = np.clip(y + offset_y, 1, height - 2)
 

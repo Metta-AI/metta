@@ -13,7 +13,11 @@ from mettagrid.config.mettagrid_config import (
     WallConfig,
 )
 from mettagrid.mettagrid_c import MettaGrid, dtype_actions
-from mettagrid.test_support.actions import action_index, get_agent_position, get_current_observation
+from mettagrid.test_support.actions import (
+    action_index,
+    get_agent_position,
+    get_current_observation,
+)
 from mettagrid.test_support.orientation import Orientation
 
 
@@ -30,7 +34,9 @@ def create_basic_config() -> GameConfig:
             freeze_duration=0,
             resource_limits={"ore": 10, "wood": 10},
         ),
-        actions=ActionsConfig(move=ActionConfig(), noop=ActionConfig(), rotate=ActionConfig()),
+        actions=ActionsConfig(
+            move=ActionConfig(), noop=ActionConfig(), rotate=ActionConfig()
+        ),
         objects={"wall": WallConfig(type_id=1, swappable=False)},
         allow_diagonals=True,
     )
@@ -96,7 +102,9 @@ class TestActionOrdering:
             obs_height=basic_config.obs_height,
             num_observation_tokens=basic_config.num_observation_tokens,
             agent=basic_config.agent,
-            actions=ActionsConfig(rotate=ActionConfig(), noop=ActionConfig(), move=ActionConfig()),
+            actions=ActionsConfig(
+                rotate=ActionConfig(), noop=ActionConfig(), move=ActionConfig()
+            ),
             objects=basic_config.objects,
             allow_diagonals=basic_config.allow_diagonals,
         )
@@ -110,7 +118,9 @@ class TestActionOrdering:
         # Verify the expected order (noop is always first when enabled)
         orientation_labels = ["north", "south", "west", "east"]
         if basic_config.allow_diagonals:
-            orientation_labels.extend(["northwest", "northeast", "southwest", "southeast"])
+            orientation_labels.extend(
+                ["northwest", "northeast", "southwest", "southeast"]
+            )
 
         expected = ["noop"]
         expected.extend([f"move_{label}" for label in orientation_labels])
@@ -183,7 +193,11 @@ class TestResourceRequirements:
         env.reset()
 
         move_action_idx = next(
-            (idx for idx, name in enumerate(env.action_names()) if name.startswith("move")),
+            (
+                idx
+                for idx, name in enumerate(env.action_names())
+                if name.startswith("move")
+            ),
             None,
         )
         assert move_action_idx is not None, "Expected move action in action names"
@@ -191,7 +205,9 @@ class TestResourceRequirements:
 
         # Agent starts with no resources, so move should fail
         env.step(move_action)
-        assert not env.action_success()[0], "Move should fail without required resources"
+        assert not env.action_success()[0], (
+            "Move should fail without required resources"
+        )
 
     def test_action_consumes_resources(self, basic_config, simple_map):
         """Test that actions consume resources when configured."""
@@ -237,8 +253,12 @@ class TestResourceRequirements:
                 initial_wood_count = token[2]
 
         # Verify initial inventory
-        assert initial_ore_count == 5, f"Expected initial ore to be 5, got {initial_ore_count}"
-        assert initial_wood_count == 3, f"Expected initial wood to be 3, got {initial_wood_count}"
+        assert initial_ore_count == 5, (
+            f"Expected initial ore to be 5, got {initial_ore_count}"
+        )
+        assert initial_wood_count == 3, (
+            f"Expected initial wood to be 3, got {initial_wood_count}"
+        )
 
         # Get agent position
         agent_pos = get_agent_position(env, 0)
@@ -286,7 +306,9 @@ class TestActionSpace:
         # Should be Discrete with one dimension
         from gymnasium import spaces
 
-        assert isinstance(action_space, spaces.Discrete), "Action space should be Discrete"
+        assert isinstance(action_space, spaces.Discrete), (
+            "Action space should be Discrete"
+        )
 
         action_names = env.action_names()
         assert action_space.n == len(action_names)
@@ -334,7 +356,9 @@ class TestActionSpace:
         env.step(actions)
 
         # Verify we get results for all agents
-        assert len(env.action_success()) == 3, "Should get action success for all agents"
+        assert len(env.action_success()) == 3, (
+            "Should get action success for all agents"
+        )
 
 
 class TestSpecialActions:
@@ -352,7 +376,10 @@ class TestSpecialActions:
             agent=basic_config.agent,
             actions=ActionsConfig(
                 attack=AttackActionConfig(
-                    enabled=True, required_resources={}, consumed_resources={}, defense_resources={}
+                    enabled=True,
+                    required_resources={},
+                    consumed_resources={},
+                    defense_resources={},
                 ),
                 move=ActionConfig(),
                 noop=ActionConfig(),
@@ -367,7 +394,9 @@ class TestSpecialActions:
 
         # Attack variants should be present
         attack_actions = [name for name in action_names if name.startswith("attack_")]
-        assert len(attack_actions) == 9, f"Expected 9 attack variants, found {attack_actions}"
+        assert len(attack_actions) == 9, (
+            f"Expected 9 attack variants, found {attack_actions}"
+        )
 
         orientations = ["north", "south", "west", "east"]
         if basic_config.allow_diagonals:

@@ -72,7 +72,11 @@ class MiniscopeState:
 
     def is_running(self) -> bool:
         """Check if the renderer should continue running."""
-        return self.playback in (PlaybackState.RUNNING, PlaybackState.PAUSED, PlaybackState.STEPPING)
+        return self.playback in (
+            PlaybackState.RUNNING,
+            PlaybackState.PAUSED,
+            PlaybackState.STEPPING,
+        )
 
     def should_render_frame(self) -> bool:
         """Check if a new frame should be rendered."""
@@ -134,13 +138,25 @@ class MiniscopeState:
 
     def move_camera(self, delta_row: int, delta_col: int) -> None:
         """Move the camera by the given deltas."""
-        self.camera_row = max(self.min_row, min(self.min_row + self.map_height - 1, self.camera_row + delta_row))
-        self.camera_col = max(self.min_col, min(self.min_col + self.map_width - 1, self.camera_col + delta_col))
+        self.camera_row = max(
+            self.min_row,
+            min(self.min_row + self.map_height - 1, self.camera_row + delta_row),
+        )
+        self.camera_col = max(
+            self.min_col,
+            min(self.min_col + self.map_width - 1, self.camera_col + delta_col),
+        )
 
     def move_cursor(self, delta_row: int, delta_col: int) -> None:
         """Move the cursor by the given deltas."""
-        self.cursor_row = max(self.min_row, min(self.min_row + self.map_height - 1, self.cursor_row + delta_row))
-        self.cursor_col = max(self.min_col, min(self.min_col + self.map_width - 1, self.cursor_col + delta_col))
+        self.cursor_row = max(
+            self.min_row,
+            min(self.min_row + self.map_height - 1, self.cursor_row + delta_row),
+        )
+        self.cursor_col = max(
+            self.min_col,
+            min(self.min_col + self.map_width - 1, self.cursor_col + delta_col),
+        )
 
     def set_bounds(self, min_row: int, min_col: int, height: int, width: int) -> None:
         """Set the map bounds."""
@@ -155,7 +171,9 @@ class MiniscopeState:
         self.cursor_row = max(min_row, min(min_row + height - 1, self.cursor_row))
         self.cursor_col = max(min_col, min(min_col + width - 1, self.cursor_col))
 
-    def reset_for_episode(self, num_agents: int, map_height: int, map_width: int) -> None:
+    def reset_for_episode(
+        self, num_agents: int, map_height: int, map_width: int
+    ) -> None:
         """Reset state for a new episode."""
         self.step_count = 0
         self.playback = PlaybackState.PAUSED  # Start paused

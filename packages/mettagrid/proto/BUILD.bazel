@@ -1,0 +1,8 @@
+# BUILD.bazel for proto/ directory
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "mettagrid_rpc_proto",
+    srcs = ["mettagrid/rpc/v1/mettagrid_service.proto"],
+    visibility = ["//visibility:public"],
+)

@@ -46,10 +46,14 @@ def test_exception_when_laser_not_in_inventory():
             change_glyph=ChangeGlyphActionConfig(enabled=False, number_of_glyphs=4),
         ),
         objects={"wall": WallConfig(type_id=1)},
-        agent=AgentConfig(default_resource_limit=10, freeze_duration=5, rewards=AgentRewards()),
+        agent=AgentConfig(
+            default_resource_limit=10, freeze_duration=5, rewards=AgentRewards()
+        ),
         agents=[
             AgentConfig(team_id=0, default_resource_limit=10, freeze_duration=5),  # red
-            AgentConfig(team_id=1, default_resource_limit=10, freeze_duration=5),  # blue
+            AgentConfig(
+                team_id=1, default_resource_limit=10, freeze_duration=5
+            ),  # blue
         ],
     )
 
@@ -95,10 +99,14 @@ def test_no_exception_when_resources_in_inventory():
             change_glyph=ChangeGlyphActionConfig(enabled=False, number_of_glyphs=4),
         ),
         objects={"wall": WallConfig(type_id=1)},
-        agent=AgentConfig(default_resource_limit=10, freeze_duration=5, rewards=AgentRewards()),
+        agent=AgentConfig(
+            default_resource_limit=10, freeze_duration=5, rewards=AgentRewards()
+        ),
         agents=[
             AgentConfig(team_id=0, default_resource_limit=10, freeze_duration=5),  # red
-            AgentConfig(team_id=1, default_resource_limit=10, freeze_duration=5),  # blue
+            AgentConfig(
+                team_id=1, default_resource_limit=10, freeze_duration=5
+            ),  # blue
         ],
     )
 

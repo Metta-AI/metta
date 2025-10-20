@@ -60,8 +60,12 @@ def format_agent_properties(
 
 def format_converter_properties(grid_object: dict, update_object: dict) -> None:
     """Add building/converter-specific properties to the update object."""
-    update_object["input_resources"] = list(grid_object.get("input_resources", {}).items())
-    update_object["output_resources"] = list(grid_object.get("output_resources", {}).items())
+    update_object["input_resources"] = list(
+        grid_object.get("input_resources", {}).items()
+    )
+    update_object["output_resources"] = list(
+        grid_object.get("output_resources", {}).items()
+    )
     update_object["output_limit"] = grid_object.get("output_limit", 0)
     update_object["conversion_remaining"] = 0  # TODO: Waiting for env to support this
     update_object["is_converting"] = grid_object.get("is_converting", False)
@@ -106,7 +110,10 @@ def format_grid_object(
     assert isinstance(grid_object["type_id"], int), (
         f"Expected grid_object['type_id'] to be an integer, got {type(grid_object['type_id'])}"
     )
-    assert isinstance(grid_object["location"], (tuple, list)) and len(grid_object["location"]) == 3, (
+    assert (
+        isinstance(grid_object["location"], (tuple, list))
+        and len(grid_object["location"]) == 3
+    ), (
         f"Expected location to be tuple/list of 3 elements, got {type(grid_object['location'])}"
     )
     assert all(isinstance(coord, (int, float)) for coord in grid_object["location"]), (
@@ -117,7 +124,9 @@ def format_grid_object(
 
     if "agent_id" in grid_object:
         agent_id = grid_object["agent_id"]
-        assert isinstance(agent_id, int), f"Expected agent_id to be an integer, got {type(agent_id)}"
+        assert isinstance(agent_id, int), (
+            f"Expected agent_id to be an integer, got {type(agent_id)}"
+        )
         assert isinstance(grid_object["group_id"], int), (
             f"Expected group_id to be an integer, got {type(grid_object['group_id'])}"
         )

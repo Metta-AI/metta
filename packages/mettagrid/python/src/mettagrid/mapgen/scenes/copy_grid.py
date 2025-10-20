@@ -18,7 +18,10 @@ class CopyGrid(Scene[CopyGridConfig]):
     """
 
     def render(self):
-        if self.width < self.config.grid.shape[1] or self.height < self.config.grid.shape[0]:
+        if (
+            self.width < self.config.grid.shape[1]
+            or self.height < self.config.grid.shape[0]
+        ):
             # Shouldn't happen if MapGen is implemented correctly.
             raise ValueError("The area is too small to copy the given grid into it")
 

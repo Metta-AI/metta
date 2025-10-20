@@ -41,11 +41,15 @@ def scene():
 
 def test_areas_are_correctly_created(scene):
     assert scene._areas[0].tags == ["tag1", "tag2", "scene1"]
-    assert np.array_equal(scene._areas[0].grid, np.array([["A", "B", "C"], ["F", "G", "H"]]))
+    assert np.array_equal(
+        scene._areas[0].grid, np.array([["A", "B", "C"], ["F", "G", "H"]])
+    )
     assert scene._areas[1].tags == ["tag2", "tag3", "scene2"]
     assert np.array_equal(scene._areas[1].grid, np.array([["L", "M"], ["Q", "R"]]))
     assert scene._areas[2].tags == ["tag1", "tag3", "scene3"]
-    assert np.array_equal(scene._areas[2].grid, np.array([["N", "O"], ["S", "T"], ["X", "Y"]]))
+    assert np.array_equal(
+        scene._areas[2].grid, np.array([["N", "O"], ["S", "T"], ["X", "Y"]])
+    )
 
 
 class TestSelectAreas:
@@ -120,17 +124,23 @@ class TestSelectAreas:
         # Test with random ordering (which uses numpy internally)
         query = AreaQuery(limit=2, order_by="random")
         selected_areas = scene.select_areas(query)
-        assert isinstance(selected_areas, list), "select_areas with random ordering should return a list"
+        assert isinstance(selected_areas, list), (
+            "select_areas with random ordering should return a list"
+        )
 
         # Test with first ordering
         query = AreaQuery(limit=2, order_by="first")
         selected_areas = scene.select_areas(query)
-        assert isinstance(selected_areas, list), "select_areas with first ordering should return a list"
+        assert isinstance(selected_areas, list), (
+            "select_areas with first ordering should return a list"
+        )
 
         # Test with last ordering
         query = AreaQuery(limit=2, order_by="last")
         selected_areas = scene.select_areas(query)
-        assert isinstance(selected_areas, list), "select_areas with last ordering should return a list"
+        assert isinstance(selected_areas, list), (
+            "select_areas with last ordering should return a list"
+        )
 
         # Verify list operations work
         query = AreaQuery(limit=1, order_by="random")
@@ -161,4 +171,7 @@ class TestSceneTree:
         assert scene_tree["config"]["type"] == "tests.mapgen.test_scene.MockScene"
         assert scene_tree["area"] == scene.area.as_dict()
         assert len(scene_tree["children"]) == 2
-        assert scene_tree["children"][0]["config"]["type"] == "tests.mapgen.test_scene.MockScene"
+        assert (
+            scene_tree["children"][0]["config"]["type"]
+            == "tests.mapgen.test_scene.MockScene"
+        )

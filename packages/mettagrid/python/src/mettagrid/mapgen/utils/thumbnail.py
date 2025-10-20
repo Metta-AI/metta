@@ -56,7 +56,11 @@ def get_position_component_v2(object, step, component):
     location = object["location"]
 
     # Check if it's animated (list of [frame, value] pairs) or simple location array
-    if isinstance(location, list) and len(location) > 0 and isinstance(location[0], list):
+    if (
+        isinstance(location, list)
+        and len(location) > 0
+        and isinstance(location[0], list)
+    ):
         # Animated location - find value at step
         result = [0, 0, 0]  # [c, r, layer]
         for [frame, value] in location:
@@ -119,7 +123,9 @@ def read_replay_map(input, step):
             x = get_position_component_v2(object, step, "c")
             y = get_position_component_v2(object, step, "r")
 
-        nodes[i] = y | (x << 16) | (object[type_key] << 32) | (object.get("agent_id", 0) << 48)
+        nodes[i] = (
+            y | (x << 16) | (object[type_key] << 32) | (object.get("agent_id", 0) << 48)
+        )
 
     size = input["map_size"]
     return [size[0], size[1], nodes, shape, fills, agent_type_id]
@@ -128,7 +134,9 @@ def read_replay_map(input, step):
 def read_ascii_map(input):
     """Parse YAML/legacy ASCII maps for thumbnail generation."""
 
-    text = input.decode("utf-8") if isinstance(input, (bytes, bytearray)) else str(input)
+    text = (
+        input.decode("utf-8") if isinstance(input, (bytes, bytearray)) else str(input)
+    )
     config = AsciiMapBuilder.Config.from_str(text)
 
     height = len(config.map_data)
@@ -219,7 +227,9 @@ def gen_thumb(scene, size, output):
         # Each agent has a unique color.
         if last_fill is None:
             n = (node >> 48) + math.pi + math.e + math.sqrt(2)
-            paint.color = pixie.Color((n * math.pi) % 1.0, (n * math.e) % 1.0, (n * math.sqrt(2)) % 1.0, 1)
+            paint.color = pixie.Color(
+                (n * math.pi) % 1.0, (n * math.e) % 1.0, (n * math.sqrt(2)) % 1.0, 1
+            )
 
         # Transform and draw the scene object.
         transform.values[6] = size * (0xFFFF & (node >> 16))
@@ -288,7 +298,9 @@ def gen_frame(image, output):
 # These are the only new additions - everything above is faithful extraction
 
 
-def generate_thumbnail_from_replay(replay_data, width=800, height=600, cell_size=4, step=0):
+def generate_thumbnail_from_replay(
+    replay_data, width=800, height=600, cell_size=4, step=0
+):
     """
     Generate thumbnail PNG data from replay data.
 

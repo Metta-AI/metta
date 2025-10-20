@@ -65,7 +65,10 @@ class TestMapGenInstances:
         [
             (4, 1),
             (9, 2),
-            (24, 1),  # make sure it's 24 rooms, not 25 (5x5 grid but last room is empty)
+            (
+                24,
+                1,
+            ),  # make sure it's 24 rooms, not 25 (5x5 grid but last room is empty)
         ],
     )
     def test_instances(self, instances, instance_bw):

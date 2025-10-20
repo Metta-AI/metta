@@ -24,7 +24,9 @@ def draw_border(grid: MapGrid, border_width: int, border_object: str) -> None:
     grid[:, -border_width:] = border_object
 
 
-def compute_positions(start: int, end: int, blocks: List[Tuple[str, int]]) -> Dict[str, int]:
+def compute_positions(
+    start: int, end: int, blocks: List[Tuple[str, int]]
+) -> Dict[str, int]:
     """
     Given a starting and ending coordinate along an axis and a list of blocks (name, width),
     compute and return a dictionary mapping each block name to its starting coordinate.
