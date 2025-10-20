@@ -136,11 +136,8 @@ export class BadRequestError extends AppError {
  * Used when external service is unavailable
  */
 export class ServiceUnavailableError extends AppError {
-  constructor(
-    service: string,
-    message: string = `${service} is temporarily unavailable`
-  ) {
-    super(message, "SERVICE_UNAVAILABLE", 503, { service });
+  constructor(message: string, details?: { service?: string }) {
+    super(message, "SERVICE_UNAVAILABLE", 503, details);
   }
 }
 
