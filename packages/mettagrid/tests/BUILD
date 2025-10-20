@@ -52,6 +52,7 @@ cc_binary(
     linkstatic=False,
     deps=[
         "//:mettagrid_lib",  # For pybind11 headers
+        "//cpp:mettagrid_engine",  # Engine implementation
         "@googletest//:gtest_main",
         "@rules_python//python/cc:current_py_cc_libs",
     ],

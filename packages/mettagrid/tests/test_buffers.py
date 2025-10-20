@@ -133,14 +133,14 @@ class TestBuffers:
 
         # Wrong number of agents
         observations = np.zeros((3, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=np.uint8)
-        with pytest.raises(RuntimeError, match="observations"):
+        with pytest.raises(RuntimeError, match="Observations"):
             c_env.set_buffers(observations, terminals, truncations, rewards)
 
         # Wrong token size
         observations = np.zeros(
             (NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE - 1), dtype=np.uint8
         )
-        with pytest.raises(RuntimeError, match="observations"):
+        with pytest.raises(RuntimeError, match="Observations"):
             c_env.set_buffers(observations, terminals, truncations, rewards)
 
         # Wrong number of agents for other buffers
