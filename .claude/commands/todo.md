@@ -8,6 +8,7 @@ description: Manage TODO list in .todo.md files with consistent formatting and d
 ## Current Action: $ARGUMENTS
 
 I'll help you manage your TODO list stored in TODO.MD. This command will:
+
 - Search your memories and other information for relevant context
 - Update TODO.MD with consistent formatting
 - Support nested items with indentation
@@ -24,6 +25,7 @@ I'll help you manage your TODO list stored in TODO.MD. This command will:
    - Add context from memories if relevant
 
 ## Available Actions:
+
 - Add a new todo: `/todo add [task description]`
 - Mark complete: `/todo complete [task description]`
 - View all todos: `/todo list`

@@ -1,0 +1,43 @@
+server {
+    listen 80;
+    server_name localhost;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Extract username from OAuth email header once
+    set $user_email $http_x_auth_request_email;
+    set $username "";
+    if ($user_email ~ "^([^@]+)@") {
+        set $username $1;
+    }
+
+    # Enable gzip compression
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+
+    # Cache static assets
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # Shortlink redirects - dynamically generated from links.yaml
+    # SHORTLINK_REDIRECTS_PLACEHOLDER
+
+    # SPA routing - fallback to index.html
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+    
+    # Version-based caching for index.html
+    location = /index.html {
+        add_header Cache-Control "no-cache, must-revalidate";
+        add_header X-Build-Version "BUILD_VERSION_PLACEHOLDER";
+        etag on;
+    }
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+}

@@ -3,6 +3,7 @@ import "server-only";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import NextAuth, { NextAuthConfig, NextAuthResult, Session } from "next-auth";
 import { Provider } from "next-auth/providers";
+import Google from "next-auth/providers/google";
 import { redirect } from "next/navigation";
 
 import { prisma } from "./db/prisma";
@@ -21,13 +22,42 @@ function buildAuthConfig(): NextAuthConfig {
         console.log({ url });
       },
     });
+  } else {
+    // Google OAuth provider for production
+    if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+      providers.push(
+        Google({
+          clientId: process.env.GOOGLE_CLIENT_ID,
+          clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        })
+      );
+    }
   }
 
-  // TODO: configure Google provider for production deployment.
+  const allowedEmailDomains = process.env.ALLOWED_EMAIL_DOMAINS
+    ? process.env.ALLOWED_EMAIL_DOMAINS.split(",")
+    : ["stem.ai", "softmax.com"];
 
   const config: NextAuthConfig = {
     adapter: PrismaAdapter(prisma),
     providers,
+    callbacks: {
+      async signIn({ account, profile }) {
+        // adapted from https://authjs.dev/getting-started/providers/google#email-verified
+        if (
+          process.env.DEV_MODE !== "false" &&
+          account?.provider === "google"
+        ) {
+          return Boolean(
+            profile?.email_verified &&
+              allowedEmailDomains.some((domain) =>
+                profile?.email?.endsWith(`@${domain}`)
+              )
+          );
+        }
+        return true;
+      },
+    },
     session: {
       strategy: "database",
     },
@@ -64,4 +94,4 @@ export async function getSessionOrRedirect() {
     return session;
   }
   redirect("/api/auth/signin"); // TODO - callbackUrl
-} 
+}

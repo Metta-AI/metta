@@ -2,8 +2,8 @@ name: "Launch SkyPilot Job"
 description: "Sets up and launches a SkyPilot job with necessary configurations."
 
 inputs:
-  trainer_env:
-    description: "Training environment configuration (e.g., env/mettagrid/arena/advanced)"
+  module_name:
+    description: "Module to launch with devops/run.sh (e.g., experiments.recipes.arena.train)"
     required: true
   timeout_hours:
     description: "Job timeout in hours"
@@ -55,8 +55,10 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - name: Setup uv
-      uses: ./.github/actions/setup-uv
+    - name: Setup Environment
+      uses: ./.github/actions/setup-environment
+      with:
+        install-mode: runtime
 
     - name: Set up Weights & Biases credentials
       shell: bash
@@ -88,9 +90,7 @@ runs:
 
         chmod +x ./devops/skypilot/launch.py
 
-        LAUNCH_ARGS=(
-          "--max-runtime-hours=${{ inputs.timeout_hours }}"
-        )
+        LAUNCH_ARGS=("${{ inputs.module_name }}")
 
         if [ -n "${{ inputs.num_gpus }}" ]; then
           LAUNCH_ARGS+=( "--gpus=${{ inputs.num_gpus }}" )
@@ -113,10 +113,9 @@ runs:
         fi
 
         LAUNCH_ARGS+=(
+          "--max-runtime-hours=${{ inputs.timeout_hours }}"
           "--git-ref=${{ inputs.commit_sha }}"
-          "train"
-          "run=${{ inputs.run_name }}"
-          "trainer.curriculum=${{ inputs.trainer_env }}"
+          "--run=${{ inputs.run_name }}"
         )
 
         # Capture the output

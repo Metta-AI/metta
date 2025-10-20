@@ -1,0 +1,89 @@
+# Bazel configuration for mettagrid
+
+# Common C++ build flags
+build --cxxopt=-std=c++20
+build --host_cxxopt=-std=c++20
+
+# Use the current Python from environment
+build --action_env=PYTHON_BIN_PATH
+build --action_env=PYTHON_LIB_PATH
+build --python_path=python
+
+# Prod build mode. --compilation_mode=[opt|dbg] is a required Bazel field.
+build:opt --compilation_mode=opt
+build:opt --copt=-O3
+build:opt --copt=-DNDEBUG
+build:opt --strip=always
+
+# Debug build mode. --compilation_mode=[opt|dbg] is a required Bazel field.
+build:dbg --compilation_mode=dbg
+build:dbg --copt=-O0
+build:dbg --copt=-g
+build:dbg --strip=never
+# AddressSanitizer disabled - causes issues on macOS with Python extensions
+# build:dbg --copt=-fsanitize=address
+# build:dbg --copt=-fsanitize=undefined
+# build:dbg --copt=-fsanitize=float-divide-by-zero
+# build:dbg --copt=-fno-sanitize-recover=all
+build:dbg --copt=-fstack-protector-strong
+# build:dbg --linkopt=-fsanitize=address
+# build:dbg --linkopt=-fsanitize=undefined
+# build:dbg --linkopt=-fsanitize=float-divide-by-zero
+# build:dbg --test_env=ASAN_OPTIONS=detect_leaks=0
+
+# Test configuration
+test --test_output=errors
+test --test_summary=detailed
+test --nocache_test_results
+
+# Coverage configuration
+coverage --combined_report=lcov
+coverage --instrumentation_filter=//:mettagrid_lib,//:mettagrid_c
+
+# Platform-specific settings for macOS
+build:macos --copt=-fvisibility=hidden
+build:macos --cxxopt=-stdlib=libc++
+build:macos --linkopt=-stdlib=libc++
+# Set minimum macOS deployment target to prevent platform tag issues
+build:macos --macos_minimum_os=11.0
+build:macos --copt=-mmacosx-version-min=11.0
+build:macos --linkopt=-mmacosx-version-min=11.0
+build:macos --host_copt=-mmacosx-version-min=11.0
+build:macos --host_linkopt=-mmacosx-version-min=11.0
+
+# Platform-specific settings for Linux
+build:linux --copt=-fvisibility=hidden
+
+# Detect and use platform config automatically
+build --enable_platform_specific_config
+
+# Silence some warnings in external dependencies
+build --per_file_copt=external/.*@-w
+
+# Enable colors in output
+common --color=yes
+
+# Show progress messages
+common --show_progress_rate_limit=0.5
+
+# Local disk cache configuration
+build --disk_cache=~/.cache/bazel
+build --repository_cache=~/.cache/bazel-repo
+
+# Build execution optimization
+build --jobs=auto
+build --local_test_jobs=auto
+
+# CI configuration - use system Python to avoid root user issues
+# Remove BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN to allow toolchain detection
+build:ci --repo_env=PYTHON_BIN_PATH=/usr/bin/python3
+build:ci --python_path=/usr/bin/python3
+# Skip hermetic Python toolchain in CI
+build:ci --@rules_python//python/config_settings:bootstrap_impl=system
+
+# Add retries for external dependency downloads to handle rate limiting
+build:ci --repository_cache=~/.cache/bazel-repo
+build:ci --experimental_repository_downloader_retries=5
+build:ci --http_timeout_scaling=2.0
+# Add delays between retries (exponential backoff)
+build:ci --experimental_scale_timeouts=2.0

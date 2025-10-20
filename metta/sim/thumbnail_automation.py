@@ -1,16 +1,8 @@
-"""
-Thumbnail generation automation for MettaGrid simulations.
-
-This module handles the automation logic for generating and uploading thumbnails
-during simulation runs. Each episode gets its own unique thumbnail file (like replay files),
-eliminating conflicts and the need for shared naming schemes.
-"""
-
 import logging
 import os
 
-from metta.map.utils.thumbnail import generate_thumbnail_from_replay
-from metta.mettagrid.util import file as file_utils
+from metta.utils import file as file_utils
+from mettagrid.mapgen.utils.thumbnail import generate_thumbnail_from_replay
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +29,7 @@ def episode_id_to_s3_key(episode_id: str) -> str:
 
 def episode_id_to_s3_uri(episode_id: str) -> str:
     """
-    Convert episode_id to full S3 URI for use with mettagrid.util.file functions.
+    Convert episode_id to full S3 URI for use with metta.utils.file functions.
 
     Args:
         episode_id: Unique episode ID (UUID) like "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
@@ -68,7 +60,7 @@ def upload_thumbnail_to_s3(thumbnail_data: bytes, episode_id: str) -> tuple[bool
 
         # Convert S3 URI to HTTP URL for database storage
         http_thumbnail_url = file_utils.http_url(s3_uri)
-        logger.info(f"Uploaded thumbnail for episode {episode_id} to {s3_uri}, HTTP URL: {http_thumbnail_url}")
+
         return True, http_thumbnail_url
 
     except Exception as e:
@@ -97,14 +89,14 @@ def maybe_generate_and_upload_thumbnail(replay_data: dict, episode_id: str) -> t
 
     try:
         # Generate thumbnail using core library
-        logger.info(f"Generating thumbnail for episode {episode_id}")
+        logger.debug(f"Generating thumbnail for episode {episode_id}")
         thumbnail_data = generate_thumbnail_from_replay(replay_data)
 
         # Upload using project file utilities
         success, thumbnail_url = upload_thumbnail_to_s3(thumbnail_data, episode_id)
 
         if success:
-            logger.info(f"Successfully generated and uploaded thumbnail for episode {episode_id}")
+            logger.debug(f"Successfully generated and uploaded thumbnail for episode {episode_id}")
         else:
             logger.error(f"Thumbnail generation succeeded but upload failed for episode {episode_id}")
 

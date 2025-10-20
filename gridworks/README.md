@@ -1,26 +1,10 @@
-# Gridworks – Developer Guide
+# Gridworks
 
-This directory contains the Next.js frontend for viewing and editing the environments and maps. The Next.js app relies on the `metta.gridworks.server` FastAPI server. A convenience launcher (`gridworks/start.py`) boots both servers in one command and opens the app in your browser.
+This directory contains the web UI for viewing and editing the environments and maps.
+
+The Next.js app relies on the `metta.gridworks.server` FastAPI server. A convenience launcher (`gridworks/start.py`) boots both servers in one command and opens the app in your browser.
 
 The project is designed to be run locally.
-
-## Prerequisites
-
-1. **Node.js** – 22+
-2. **pnpm** – run `corepack enable` once on your machine if you don't have it installed.
-
-## First-time setup
-
-```bash
-# Install frontend deps
-cd gridworks
-pnpm install
-
-# Generate the character-encoding lookup table used by the map viewer
-pnpm run gen:encoding
-```
-
-`gen:encoding` calls a small Python snippet in the `mettagrid` package and writes the resulting JSON file to `src/lib/encoding.json`. Run it again whenever you change the encoder definitions.
 
 ## Running the app
 
@@ -47,5 +31,18 @@ Press <kbd>Ctrl</kbd>+<kbd>C</kbd> in the terminal to shut everything down.
 ```bash
 pnpm dev                    # Next.js dev server only (if you want it without the backend)
 uv run -m metta.gridworks.server  # Start the backend server only
-pnpm run gen:encoding       # Regenerate encoding.json based on `metta.mettagrid.char_encoder` package.
+pnpm run gen       # Regenerate encoding.json for mettagrid ascii encoding and JSON schema for Pydantic models
 ```
+
+## Generating encodings and schemas
+
+```bash
+pnpm run gen
+```
+
+`gen` script:
+
+- calls a small Python snippet in the `mettagrid` package and writes the resulting JSON file to `src/lib/encoding.json`
+- converts the JSON schema for Pydantic models to JSON files
+
+Run it again whenever you change the encoder definitions or Pydantic models.

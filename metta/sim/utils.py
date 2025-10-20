@@ -2,69 +2,53 @@ import uuid
 
 from bidict import bidict
 
-from metta.agent.policy_record import PolicyRecord
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.app_backend.routes.score_routes import PolicyScoresData, PolicyScoresRequest
+from metta.rl.checkpoint_manager import CheckpointManager
 
 
 def get_or_create_policy_ids(
     stats_client: StatsClient,
-    policies: list[tuple[str, str, str | None]],
+    policies: list[tuple[str, str | None]],
     epoch_id: uuid.UUID | None = None,
     create: bool = True,
 ) -> bidict[str, uuid.UUID]:
+    """Get or create policy IDs in the stats database.
+
+    Args:
+        stats_client: Client for stats database
+        policies: List of (uri, description) tuples
+        epoch_id: Optional epoch ID for policy creation
+        create: Whether to create policies that don't exist
+
+    Returns:
+        Bidirectional mapping of URI to policy UUID
     """
-    policies is a list of tuples of (policy_name, policy_uri)
-    """
-    policy_names = [name for (name, _, __) in policies]
+    # Process policies - using URIs as primary identifier
+    processed_policies = []
+    for uri, description in policies:
+        # Extract run_name from URI metadata
+        metadata = CheckpointManager.get_policy_metadata(uri)
+        run_name = metadata["run_name"]
+        epoch = metadata.get("epoch", 0)
+        name = f"{run_name}:v{epoch}"
+        processed_policies.append((uri, name, description))
+
+    # Get existing policy IDs from stats server (still uses names for now)
+    policy_names = [name for (_, name, __) in processed_policies]
     policy_ids_response = stats_client.get_policy_ids(policy_names)
-    policy_ids = bidict(policy_ids_response.policy_ids)
+    name_to_id = policy_ids_response.policy_ids
+
+    # Build URI-based bidict
+    policy_ids = bidict()
+    for uri, name, _ in processed_policies:
+        if name in name_to_id:
+            policy_ids[uri] = name_to_id[name]
 
     if create:
-        for name, uri, description in policies:
-            if name not in policy_ids:
+        for uri, name, description in processed_policies:
+            if uri not in policy_ids:
                 policy_response = stats_client.create_policy(
                     name=name, description=description, url=uri, epoch_id=epoch_id
                 )
-                policy_ids[name] = policy_response.id
+                policy_ids[uri] = policy_response.id
     return policy_ids
-
-
-def wandb_policy_name_to_uri(wandb_policy_name: str) -> tuple[str, str]:
-    # wandb_policy_name is a qualified name like 'entity/project/artifact:version'
-    # we store the uris as 'wandb://project/artifact:version', so need to strip 'entity'
-    arr = wandb_policy_name.split("/")
-    internal_wandb_policy_name = arr[2]
-    wandb_uri = "wandb://" + arr[1] + "/" + arr[2]
-    return (internal_wandb_policy_name, wandb_uri)
-
-
-def get_pr_scores_from_stats_server(
-    stats_client: StatsClient,
-    policy_records: list[PolicyRecord],
-    eval_name: str,
-    metric: str,
-) -> dict[PolicyRecord, float]:
-    prs_by_name = {pr.run_name: pr for pr in policy_records if pr.uri and pr.run_name}
-    policy_ids = get_or_create_policy_ids(
-        stats_client,
-        policies=[(name, pr.uri, None) for name, pr in prs_by_name.items() if pr.uri],
-        create=False,
-    )
-
-    response: PolicyScoresData = stats_client.get_policy_scores(
-        PolicyScoresRequest(
-            policy_ids=[pid for pid in policy_ids.values()],
-            eval_names=[eval_name],
-            metrics=[metric],
-        )
-    )
-    scores_by_policy: dict[PolicyRecord, float] = {}
-    for policy_name, pr in prs_by_name.items():
-        pid = policy_ids.get(policy_name)
-        if not pid:
-            continue
-        if (metric_stats := response.scores.get(pid, {}).get(eval_name, {}).get(metric)) is not None:
-            scores_by_policy[pr] = metric_stats.avg
-
-    return scores_by_policy

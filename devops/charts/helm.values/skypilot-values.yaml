@@ -1,4 +1,5 @@
 apiService:
+  image: berkeleyskypilot/skypilot:0.10.3
   config: |
     jobs:
       bucket: s3://skypilot-jobs/
@@ -13,6 +14,20 @@ apiService:
       memory: "16Gi"
   metrics:
     enabled: true
+  # Datadog environment variables for the API server
+  extraEnvs:
+    - name: DD_AGENT_HOST
+      valueFrom:
+        fieldRef:
+          fieldPath: status.hostIP
+    - name: DD_TRACE_ENABLED
+      value: "true"
+    - name: DD_ENV
+      value: "production"
+    - name: DD_SERVICE
+      value: "skypilot-api"
+    - name: DD_VERSION
+      value: "latest"
 awsCredentials:
   enabled: true
 ingress:
@@ -20,12 +35,13 @@ ingress:
     clusterIssuer: letsencrypt
     enabled: true
   host: skypilot-api.softmax-research.net
-  oauth2-proxy:
+auth:
+  oauth:
     enabled: true
     oidc-issuer-url: https://accounts.google.com
-    use-https: true
     email-domain: stem.ai,softmax.com
     # Skypilot uses `redis` by default, but its redis chart doesn't have persistence, so loses sessions on restart.
+    # Cookie is good enough.
     session-store-type: cookie
     # This secret is terraformed by devops/tf/eks
     client-details-from-secret: softmax-infra-oauth

@@ -186,7 +186,6 @@ interface TrainingRunDetailProps {
   repo: Repo
 }
 
-
 export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
   const { runId } = useParams<{ runId: string }>()
 
@@ -470,7 +469,7 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
 
     const xLabels = sortedPolicies.map((policy) => {
       const epoch = policyNameToEpoch.get(policy) ?? 0
-      return `Step ${epoch}` // Use epoch as the label
+      return `v${epoch}` // Display epochs in artifact-style version format
     })
     const yLabels = sortedShortNames
 

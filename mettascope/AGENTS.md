@@ -11,7 +11,14 @@ MettaScope is a browser viewer to watch metta replays.
 
 The code is plain TypeScript with no framework.
 
-## Useful commands
+## Recipe System Commands
+
+| Task        | Command                                                               |
+| ----------- | --------------------------------------------------------------------- |
+| Interactive | `uv run ./tools/run.py arena.play policy_uri=*`   |
+| Replays     | `uv run ./tools/run.py arena.replay policy_uri=*` |
+
+## Development Commands
 
 All commands are executed from the `mettascope/` directory.
 

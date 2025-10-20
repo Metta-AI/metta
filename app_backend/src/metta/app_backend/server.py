@@ -13,6 +13,7 @@ from metta.app_backend.auth import user_from_header_or_token
 from metta.app_backend.leaderboard_updater import LeaderboardUpdater
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.routes import (
+    cogames_routes,
     dashboard_routes,
     entity_routes,
     eval_task_routes,
@@ -57,6 +58,8 @@ def setup_logging():
         format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
         handlers=[logging.StreamHandler(sys.stdout)],
     )
+
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 
     # Configure scorecard performance logger specifically
     scorecard_logger = logging.getLogger("dashboard_performance")
@@ -119,6 +122,7 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
     )
 
     # Create routers with the provided StatsRepo
+    cogames_router = cogames_routes.create_cogames_router(stats_repo)
     dashboard_router = dashboard_routes.create_dashboard_router(stats_repo)
     eval_task_router = eval_task_routes.create_eval_task_router(stats_repo)
     leaderboard_router = leaderboard_routes.create_leaderboard_router(stats_repo)
@@ -130,6 +134,7 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
     sweep_router = sweep_routes.create_sweep_router(stats_repo)
     entity_router = entity_routes.create_entity_router(stats_repo)
 
+    app.include_router(cogames_router)
     app.include_router(dashboard_router)
     app.include_router(eval_task_router)
     app.include_router(leaderboard_router)
@@ -152,7 +157,7 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
 
 
 if __name__ == "__main__":
-    from metta.app_backend.config import host, port, stats_db_uri
+    from metta.app_backend.config import host, port, run_leaderboard_updater, stats_db_uri
 
     stats_repo = MettaRepo(stats_db_uri)
     app = create_app(stats_repo)
@@ -160,7 +165,8 @@ if __name__ == "__main__":
 
     # Start the updater in an async context
     async def main():
-        await leaderboard_updater.start()
+        if run_leaderboard_updater:
+            await leaderboard_updater.start()
         # Run uvicorn in a way that doesn't block
         config = uvicorn.Config(app, host=host, port=port)
         server = uvicorn.Server(config)

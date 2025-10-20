@@ -1,18 +1,3 @@
-"""
-EvalStatsDb adds views on top of SimulationStatsDb
-to make it easier to query policy performance across simulations,
-while handling the fact that some metrics are only logged when non‑zero.
-
-Normalisation rule
-------------------
-For every query we:
-1.  Count the **potential** agent‑episode samples for the policy / filter.
-2.  Aggregate the recorded metric values (missing = 0).
-3.  Divide by the potential count.
-
-This yields a true mean even when zeros are omitted from logging.
-"""
-
 from __future__ import annotations
 
 import math
@@ -22,9 +7,9 @@ from typing import Dict, Optional
 
 import pandas as pd
 
-from metta.agent.policy_record import PolicyRecord
-from metta.mettagrid.util.file import local_copy
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation_stats_db import SimulationStatsDB
+from metta.utils.file import local_copy
 
 # --------------------------------------------------------------------------- #
 #   Views                                                                     #
@@ -36,7 +21,6 @@ EVAL_DB_VIEWS: Dict[str, str] = {
       SELECT
           ap.policy_key,
           ap.policy_version,
-          s.suite  AS sim_suite,
           s.name   AS sim_name,
           s.env    AS sim_env,
           ap.episode_id,
@@ -51,7 +35,6 @@ EVAL_DB_VIEWS: Dict[str, str] = {
       SELECT
           ap.policy_key,
           ap.policy_version,
-          s.suite  AS sim_suite,
           s.name   AS sim_name,
           s.env    AS sim_env,
           am.metric,
@@ -77,11 +60,6 @@ class EvalStatsDB(SimulationStatsDB):
         with local_copy(path) as local_path:
             db = cls(local_path)
             yield db
-
-    @staticmethod
-    def from_sim_stats_db(sim_stats_db: SimulationStatsDB) -> EvalStatsDB:
-        """Create an EvalStatsDB from a SimulationStatsDB."""
-        return EvalStatsDB(sim_stats_db.path)
 
     # Extend parent schema with the extra views
     def tables(self) -> Dict[str, str]:
@@ -147,10 +125,10 @@ class EvalStatsDB(SimulationStatsDB):
         policy_key: str,
         policy_version: int,
         metric: str,
-        agg: str,  # "SUM", "AVG", or "STD"
+        agg: str,  # "AVG" or "STD"
         filter_condition: str | None = None,
     ) -> Optional[float]:
-        """Return SUM/AVG/STD after zero‑filling missing samples."""
+        """Return mean/standard deviation after zero-filling missing samples."""
         potential = self.potential_samples_for_metric(policy_key, policy_version, filter_condition)
         if potential == 0:
             return None
@@ -171,15 +149,13 @@ class EvalStatsDB(SimulationStatsDB):
             q += f" AND {filter_condition}"
         r = self.query(q)
         if r.empty:
-            return 0.0 if agg in {"SUM", "AVG"} else 0.0
+            return 0.0
 
         # DuckDB returns NULL→NaN when no rows match; coalesce to 0
         s1_val, s2_val, _ = r.iloc[0][["s1", "s2", "k"]]
         s1 = 0.0 if pd.isna(s1_val) else float(s1_val)
         s2 = 0.0 if pd.isna(s2_val) else float(s2_val)
 
-        if agg == "SUM":
-            return s1 / potential
         if agg == "AVG":
             return s1 / potential
         if agg == "STD":
@@ -188,120 +164,50 @@ class EvalStatsDB(SimulationStatsDB):
             return math.sqrt(max(var, 0.0))
         raise ValueError(f"Unknown aggregation {agg}")
 
-    def get_average_metric_by_filter(
-        self,
-        metric: str,
-        policy_record: PolicyRecord,
-        filter_condition: str | None = None,
-    ) -> Optional[float]:
-        pk, pv = self.key_and_version(policy_record)
+    def get_average_metric(self, metric: str, policy_uri: str, filter_condition: str | None = None) -> Optional[float]:
+        """URI-native version to get average metric."""
+        metadata = CheckpointManager.get_policy_metadata(policy_uri)
+        pk, pv = metadata["run_name"], metadata["epoch"]
         return self._normalized_value(pk, pv, metric, "AVG", filter_condition)
 
-    def get_sum_metric_by_filter(
-        self,
-        metric: str,
-        policy_record: PolicyRecord,
-        filter_condition: str | None = None,
-    ) -> Optional[float]:
-        pk, pv = self.key_and_version(policy_record)
-        return self._normalized_value(pk, pv, metric, "SUM", filter_condition)
-
-    def get_std_metric_by_filter(
-        self,
-        metric: str,
-        policy_record: PolicyRecord,
-        filter_condition: str | None = None,
-    ) -> Optional[float]:
-        pk, pv = self.key_and_version(policy_record)
+    def get_std_metric(self, metric: str, policy_uri: str, filter_condition: str | None = None) -> Optional[float]:
+        """URI-native version to get standard deviation metric."""
+        metadata = CheckpointManager.get_policy_metadata(policy_uri)
+        pk, pv = metadata["run_name"], metadata["epoch"]
         return self._normalized_value(pk, pv, metric, "STD", filter_condition)
 
-    def sample_count(
+    def sample_count_uri(
         self,
-        policy_record: Optional[PolicyRecord] = None,
-        sim_suite: Optional[str] = None,
+        policy_uri: Optional[str] = None,
         sim_name: Optional[str] = None,
         sim_env: Optional[str] = None,
     ) -> int:
-        """Return potential‑sample count for arbitrary filters."""
+        """URI-native version to get sample count."""
         q = "SELECT COUNT(*) AS cnt FROM policy_simulation_agent_samples WHERE 1=1"
-        if policy_record:
-            pk, pv = self.key_and_version(policy_record)
+        if policy_uri:
+            metadata = CheckpointManager.get_policy_metadata(policy_uri)
+            pk, pv = metadata["run_name"], metadata["epoch"]
             q += f" AND policy_key = '{pk}' AND policy_version = {pv}"
-        if sim_suite:
-            q += f" AND sim_suite = '{sim_suite}'"
         if sim_name:
             q += f" AND sim_name  = '{sim_name}'"
         if sim_env:
             q += f" AND sim_env   = '{sim_env}'"
         return int(self.query(q)["cnt"].iloc[0])
 
-    def simulation_scores(self, policy_record: PolicyRecord, metric: str) -> Dict[tuple[str, str, str], float]:
-        """Return { (suite,name,env) : normalized mean(metric) }."""
-        pk, pv = self.key_and_version(policy_record)
+    def simulation_scores(self, policy_uri: str, metric: str) -> Dict[tuple[str, str], float]:
+        """Return { (name,env) : normalized mean(metric) } for a policy URI."""
+        metadata = CheckpointManager.get_policy_metadata(policy_uri)
+        pk, pv = metadata["run_name"], metadata["epoch"]
         sim_rows = self.query(f"""
-            SELECT DISTINCT sim_suite, sim_name, sim_env
+            SELECT DISTINCT sim_name, sim_env
               FROM policy_simulation_agent_samples
              WHERE policy_key     = '{pk}'
                AND policy_version =  {pv}
         """)
-        scores: Dict[tuple[str, str, str], float] = {}
+        scores: Dict[tuple[str, str], float] = {}
         for _, row in sim_rows.iterrows():
-            cond = f"sim_suite = '{row.sim_suite}' AND sim_name  = '{row.sim_name}'  AND sim_env   = '{row.sim_env}'"
+            cond = f"sim_name  = '{row.sim_name}'  AND sim_env   = '{row.sim_env}'"
             val = self._normalized_value(pk, pv, metric, "AVG", cond)
             if val is not None:
-                scores[(row.sim_suite, row.sim_name, row.sim_env)] = val
+                scores[(row.sim_name, row.sim_env)] = val
         return scores
-
-    def metric_by_policy_eval(
-        self,
-        metric: str,
-        policy_record: PolicyRecord | None = None,
-    ) -> pd.DataFrame:
-        """
-        Return a DataFrame with columns
-            policy_uri | eval_name | value
-
-        * `policy_uri` →  "key:v<version>"
-        * `eval_name`  →  `sim_env`
-        * `value`      →  normalized mean of *metric*
-        """
-        if policy_record is not None:
-            pk, pv = self.key_and_version(policy_record)
-            policy_clause = f"policy_key = '{pk}' AND policy_version = {pv}"
-        else:
-            # All policies
-            policy_clause = "1=1"
-
-        sql = f"""
-        WITH potential AS (
-            SELECT policy_key, policy_version, sim_env, COUNT(*) AS potential_cnt
-              FROM policy_simulation_agent_samples
-             WHERE {policy_clause}
-             GROUP BY policy_key, policy_version, sim_env
-        ),
-        recorded AS (
-            SELECT policy_key,
-                   policy_version,
-                   sim_env,
-                   SUM(value) AS recorded_sum
-              FROM policy_simulation_agent_metrics
-             WHERE metric = '{metric}'
-               AND {policy_clause}
-             GROUP BY policy_key, policy_version, sim_env
-        )
-        SELECT
-            potential.policy_key || ':v' || potential.policy_version AS policy_uri,
-            potential.sim_env                              AS eval_name,
-            COALESCE(recorded.recorded_sum, 0) * 1.0
-                   / potential.potential_cnt               AS value
-        FROM potential
-        LEFT JOIN recorded
-          USING (policy_key, policy_version, sim_env)
-        ORDER BY policy_uri, eval_name
-        """
-        return self.query(sql)
-
-    def key_and_version(self, pr: PolicyRecord) -> tuple[str, int]:
-        if pr.uri is None:
-            raise ValueError("PolicyRecord must have a URI to be used in EvalStatsDB queries.")
-        return pr.uri, pr.metadata.epoch

@@ -1,0 +1,4 @@
+type: mettagrid.mapgen.scenes.random.Random
+objects:
+  altar: 3
+  temple: 2

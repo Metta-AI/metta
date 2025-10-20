@@ -5,7 +5,6 @@ import httpx
 import yaml
 from pydantic import BaseModel
 
-from metta.app_backend.server import WhoAmIResponse
 from metta.common.util.collections import remove_none_values
 from metta.common.util.constants import PROD_STATS_SERVER_URI
 
@@ -33,18 +32,6 @@ def get_machine_token(stats_server_uri: str | None = None) -> str | None:
             tokens = yaml.safe_load(f) or {}
         if isinstance(tokens, dict) and stats_server_uri in tokens:
             token = tokens[stats_server_uri].strip()
-        else:
-            return None
-    elif stats_server_uri is None or stats_server_uri in (
-        "https://observatory.softmax-research.net/api",
-        PROD_STATS_SERVER_URI,
-    ):
-        # Fall back to legacy token file, which is assumed to contain production
-        # server tokens if it exists
-        legacy_file = Path.home() / ".metta" / "observatory_token"
-        if legacy_file.exists():
-            with open(legacy_file) as f:
-                token = f.read().strip()
         else:
             return None
     else:
@@ -81,6 +68,8 @@ class BaseAppBackendClient:
         return response_type.model_validate(response.json())
 
     async def _validate_authenticated(self) -> str:
+        from metta.app_backend.server import WhoAmIResponse
+
         auth_user = await self._make_request(WhoAmIResponse, "GET", "/whoami")
         if auth_user.user_email in ["unknown", None]:
             raise NotAuthenticatedError(f"Not authenticated. User: {auth_user.user_email}")

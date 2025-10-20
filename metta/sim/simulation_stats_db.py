@@ -1,11 +1,3 @@
-"""
-metta/sim/simulation_stats_db.py
-
-Extends EpisodeStatsDB with tables for simulation metadata:
-- simulations: metadata about each simulation run
-- agent_policies: mapping of episode IDs to agent IDs and policy metadata
-"""
-
 from __future__ import annotations
 
 import logging
@@ -15,13 +7,11 @@ from typing import Dict, List, Tuple, Union
 
 import duckdb
 
-from metta.agent.policy_record import PolicyRecord
-from metta.mettagrid.episode_stats_db import EpisodeStatsDB
-from metta.mettagrid.util.file import exists, local_copy, write_file
+from metta.rl.checkpoint_manager import CheckpointManager
+from metta.sim.stats.episode_stats_db import EpisodeStatsDB
+from metta.utils.file import exists, local_copy, write_file
 
-# ------------------------------------------------------------------ #
-#   Tables & indexes                                                 #
-# ------------------------------------------------------------------ #
+# Tables & indexes
 
 # TODO: add a githash
 SIMULATION_DB_TABLES = {
@@ -29,7 +19,6 @@ SIMULATION_DB_TABLES = {
     CREATE TABLE IF NOT EXISTS simulations (
         id   TEXT PRIMARY KEY,
         name TEXT NOT NULL,
-        suite TEXT NOT NULL,
         env TEXT NOT NULL,
         policy_key     TEXT NOT NULL,
         policy_version INT NOT NULL,
@@ -65,7 +54,7 @@ class SimulationStatsDB(EpisodeStatsDB):
     def from_uri(cls, path: str):
         """
         Creates a StatsDB instance from a URI and yields it as a context manager.
-        Supports local paths, s3://, and wandb:// URIs.
+        Supports local paths and s3:// URIs.
         The temporary file is automatically cleaned up when the context exits.
 
         Usage:
@@ -78,12 +67,13 @@ class SimulationStatsDB(EpisodeStatsDB):
 
     @staticmethod
     def from_shards_and_context(
+        *,
         sim_id: str,
         dir_with_shards: Union[str, Path],
-        agent_map: Dict[int, PolicyRecord],
+        agent_map: Dict[int, str],  # Now URIs instead of PolicyRecord
         sim_name: str,
-        sim_suite: str,
-        policy_record: PolicyRecord,
+        sim_env: str,
+        policy_uri: str,
     ) -> "SimulationStatsDB":
         dir_with_shards = Path(dir_with_shards).expanduser().resolve()
         merged_path = dir_with_shards / "merged.duckdb"
@@ -102,10 +92,18 @@ class SimulationStatsDB(EpisodeStatsDB):
 
         merged = SimulationStatsDB(merged_path)
 
-        policy_key, policy_version = merged.key_and_version(policy_record)
-        # TODO: #dehydration we no-longer have env-name but we still use it. swapping
-        # out to sim_name for now.
-        merged._insert_simulation(sim_id, sim_name, sim_suite, sim_name, policy_key, policy_version)
+        if policy_uri:
+            metadata = CheckpointManager.get_policy_metadata(policy_uri)
+            policy_key, policy_version = metadata["run_name"], metadata["epoch"]
+        else:
+            policy_key, policy_version = ("unknown", 0)
+        merged._insert_simulation(
+            sim_id=sim_id,
+            name=sim_name,
+            env_name=sim_env,
+            policy_key=policy_key,
+            policy_version=policy_version,
+        )
 
         # Merge each shard
         for shard_path in shards:
@@ -117,8 +115,14 @@ class SimulationStatsDB(EpisodeStatsDB):
         logger.debug(f"Found {len(all_episode_ids)} episodes across all shards")
 
         if all_episode_ids:
-            # Convert agent_map with PolicyRecord to agent_map with (key, version) tuples
-            agent_tuple_map = {agent_id: merged.key_and_version(record) for agent_id, record in agent_map.items()}
+            # Convert agent_map with URIs to agent_map with (key, version) tuples
+            agent_tuple_map = {}
+            for agent_id, uri in agent_map.items():
+                if uri:
+                    metadata = CheckpointManager.get_policy_metadata(uri)
+                    agent_tuple_map[agent_id] = (metadata["run_name"], metadata["epoch"])
+                else:
+                    agent_tuple_map[agent_id] = ("unknown", 0)
 
             merged._insert_agent_policies(all_episode_ids, agent_tuple_map)
             merged._update_episode_simulations(all_episode_ids, sim_id)
@@ -140,7 +144,7 @@ class SimulationStatsDB(EpisodeStatsDB):
           into the existing DB first and re-upload the result.
         • Otherwise simply upload **self**.
 
-        Supported URI schemes: local paths, `s3://`, `wandb://`.
+        Supported URI schemes: local paths and `s3://`.
         """
 
         if exists(dest):
@@ -153,8 +157,9 @@ class SimulationStatsDB(EpisodeStatsDB):
         write_file(dest, str(self.path))
 
     def get_replay_urls(
-        self, policy_key: str | None = None, policy_version: int | None = None, env: str | None = None
+        self, policy_uri: str | None = None, sim_suite: str | None = None, env: str | None = None
     ) -> List[str]:
+        """Get replay URLs, optionally filtered by policy URI and/or environment."""
         query = """
         SELECT e.replay_url
         FROM episodes e
@@ -162,13 +167,16 @@ class SimulationStatsDB(EpisodeStatsDB):
         WHERE e.replay_url IS NOT NULL
         """
         params = []
-        if policy_key is not None:
-            query += " AND s.policy_key = ?"
-            params.append(policy_key)
 
-        if policy_version is not None:
-            query += " AND s.policy_version = ?"
-            params.append(policy_version)
+        if policy_uri is not None:
+            metadata = CheckpointManager.get_policy_metadata(policy_uri)
+            policy_key, policy_version = metadata["run_name"], metadata["epoch"]
+            query += " AND s.policy_key = ? AND s.policy_version = ?"
+            params.extend([policy_key, policy_version])
+
+        if sim_suite is not None:
+            query += " AND s.name = ?"
+            params.append(sim_suite)
 
         if env is not None:
             query += " AND s.env = ?"
@@ -177,19 +185,15 @@ class SimulationStatsDB(EpisodeStatsDB):
         result = self.con.execute(query, params).fetchall()
         return [row[0] for row in result if row[0]]  # Filter out None values
 
-    def get_all_policy_uris(self) -> List[str]:
-        result = self.con.execute("SELECT DISTINCT policy_key, policy_version FROM simulations").fetchall()
-        return [f"{row[0]}:v{row[1]}" for row in result]
-
     def _insert_simulation(
-        self, sim_id: str, name: str, suite: str, env_name: str, policy_key: str, policy_version: int
+        self, *, sim_id: str, name: str, env_name: str, policy_key: str, policy_version: int
     ) -> None:
         self.con.execute(
             """
-            INSERT OR REPLACE INTO simulations (id, name, suite, env, policy_key, policy_version)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO simulations (id, name, env, policy_key, policy_version)
+            VALUES (?, ?, ?, ?, ?)
             """,
-            (sim_id, name, suite, env_name, policy_key, policy_version),
+            (sim_id, name, env_name, policy_key, policy_version),
         )
 
     def _insert_agent_policies(
@@ -252,9 +256,6 @@ class SimulationStatsDB(EpisodeStatsDB):
         logger.debug(f"After merge: {select_count()} episodes")
         logger.debug(f"Merged {other_path} into {self.path}")
 
-    def key_and_version(self, pr: PolicyRecord) -> tuple[str, int]:
-        return pr.uri or "unknown", pr.metadata.epoch or 0
-
     def _merge_db(self, other_path: Path) -> None:
         """
         Merge the database at `other_path` into **self**.
@@ -263,7 +264,7 @@ class SimulationStatsDB(EpisodeStatsDB):
         """
         self.con.execute(f"ATTACH '{other_path}' AS other")
 
-        # ---------- helpers -------------------------------------------------
+        # helpers
         def _table_exists(table: str) -> bool:
             """
             Return True if `other.<table>` exists.

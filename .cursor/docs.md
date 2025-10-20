@@ -2,38 +2,58 @@
 
 To quickly test that training, simulation, and analysis are working correctly, use these commands:
 
+### Discovering Available Tools
+
+Use `--list` to see what tools are available:
+
+```bash
+# List all tools in a specific recipe
+uv run ./tools/run.py arena --list
+
+# List all recipes that provide a specific tool (e.g., train, eval)
+uv run ./tools/run.py train --list
+uv run ./tools/run.py evaluate --list
+```
+
 ### Quick 30-second test
 
 ```bash
 # Set test ID for consistent file references
 export TEST_ID=$(date +%Y%m%d_%H%M%S) && echo "Test ID: $TEST_ID"
 
-# 1. Train for 30 seconds (terminate with Ctrl+C) or use cursor config for auto-stop
-uv run ./tools/train.py run=test_$TEST_ID
-# OR with cursor config (auto-stops after 100k steps):
-uv run ./tools/train.py +user=cursor run=cursor_$TEST_ID
+# 1. Train for 30 seconds (terminate with Ctrl+C) or limit with total_timesteps
+uv run ./tools/run.py train arena run=test_$TEST_ID
+# OR with limited timesteps for auto-stop:
+uv run ./tools/run.py train arena run=test_$TEST_ID trainer.total_timesteps=100000
 
-# 2. Run a few simulations
-uv run ./tools/sim.py run=eval_$TEST_ID policy_uri=file://./train_dir/test_$TEST_ID/checkpoints device=cpu sim=navigation
+# 2. Run evaluations
+uv run ./tools/run.py evaluate arena policy_uri=file://./train_dir/test_$TEST_ID/checkpoints
 
 # 3. Analyze results
-uv run ./tools/analyze.py run=analysis_$TEST_ID analysis.policy_uri=file://./train_dir/test_$TEST_ID/checkpoints analysis.eval_db_uri=./train_dir/eval_$TEST_ID/stats.db
+uv run ./tools/run.py analyze arena eval_db_uri=./train_dir/eval_$TEST_ID/stats.db
 ```
 
 For more testing commands and options, see `.cursor/commands.md`.
 
-### Smoke Tests
+### Different Recipe Types
 
-The codebase includes smoke tests that verify:
+The system supports different training and evaluation environments:
 
-- WandB metrics are numeric (not string formatted)
-- No `agent_raw/*` entries are created (prevented in mettagrid_env.py to avoid thousands of metrics)
-- Stats database structure is correct
+- **Arena Recipe**: Multi-agent competitive environments
 
-Run smoke tests with:
+  ```bash
+  uv run ./tools/run.py train arena run=my_experiment
+  uv run ./tools/run.py evaluate arena policy_uri=file://./train_dir/my_run/checkpoints
+  ```
 
-```bash
-export TEST_ID=$(date +%Y%m%d_%H%M%S)
-uv run ./tools/train.py run=smoke_$TEST_ID +smoke_test=true
-uv run ./tools/sim.py run=smoke_eval_$TEST_ID +sim_job.smoke_test=true policy_uri=file://./train_dir/smoke_$TEST_ID/checkpoints device=cpu
-```
+- **Navigation Recipe**: Single-agent navigation tasks
+
+  ```bash
+  uv run ./tools/run.py train navigation run=my_experiment
+  uv run ./tools/run.py evaluate navigation policy_uri=file://./train_dir/my_run/checkpoints
+  ```
+
+- **Interactive Testing**: Browser-based interactive testing (Note: may not work well in Claude Code)
+  ```bash
+  uv run ./tools/run.py play arena policy_uri=file://./train_dir/my_run/checkpoints
+  ```

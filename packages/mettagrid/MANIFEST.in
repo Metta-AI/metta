@@ -1,0 +1,15 @@
+include bazel_build.py
+include BUILD.bazel
+include MODULE.bazel
+include MODULE.bazel.lock
+include .bazelrc
+
+# Include the entire cpp directory with all BUILD files, source and header files
+recursive-include cpp *.cpp *.hpp *.bazel BUILD
+recursive-include benchmarks *.cpp *.py BUILD
+recursive-include tests *.cpp *.py BUILD
+recursive-include lint *.sh *.bzl BUILD
+graft nim/mettascope
+prune nim/mettascope/nimbledeps
+prune nim/mettascope/dist
+prune nim/mettascope/build

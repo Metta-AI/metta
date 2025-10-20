@@ -1,6 +1,13 @@
+# conftest.py
+
+import logging
+
 import pytest
 
 from metta.common.test_support import docker_client_fixture
+
+# Silence PyTorch distributed elastic warning about redirects on MacOS
+logging.getLogger("torch.distributed.elastic.multiprocessing.redirects").setLevel(logging.ERROR)
 
 
 def pytest_configure(config):

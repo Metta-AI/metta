@@ -37,7 +37,7 @@ class NotebookWidgetsSetup(SetupModule):
             [
                 "bash",
                 "-c",
-                "npx turbo run build --dry=json 2>/dev/null | jq .tasks[0].cache.status",
+                "pnpm exec turbo run build --dry=json 2>/dev/null | jq .tasks[0].cache.status",
             ],
             cwd=widget_path,
             stdout=subprocess.PIPE,
@@ -56,37 +56,33 @@ class NotebookWidgetsSetup(SetupModule):
                 return False
         return True
 
-    def install(self) -> None:
+    def install(self, non_interactive: bool = False, force: bool = False) -> None:
         info("Setting up Metta's custom Python notebook widgets...")
         try:
             for widget in self._widgets:
-                if self.should_install_widget(widget):
+                if self.should_install_widget(widget) or force:
                     print(f"Installing dependencies and building {widget}...")
                     subprocess.run(
                         [
                             "bash",
                             "-c",
-                            "pnpm install && npx turbo run build",
+                            "pnpm install && pnpm exec turbo run build",
                         ],
                         check=True,
                         cwd=self.widget_root / widget,
                     )
                     continue
-                if self.should_build_widget(widget):
+                if self.should_build_widget(widget) or force:
                     print(f"Building {widget} (cache miss)...")
                     subprocess.run(
                         [
                             "bash",
                             "-c",
-                            "npx turbo run build",
+                            "pnpm exec turbo run build",
                         ],
                         check=True,
                         cwd=self.widget_root / widget,
                     )
-                else:
-                    # print(f"Skipping {widget} (cache hit - no changes detected)")
-                    continue
-
             info(
                 "The notebook widgets are now compiled. Check out "
                 "./experiments/notebooks/*_example.ipynb "
@@ -102,9 +98,9 @@ class NotebookWidgetsSetup(SetupModule):
             warning("""
                 NotebookWidgets compilation failed. You can compile them manually:
                 1. cd ./experiments/notebooks/utils/scorecard_widget
-                2. npm install
-                3. npm run build
+                2. pnpm install
+                3. pnpm run build
                 4. cd ./experiments/notebooks/utils/eval_finder_widget
-                5. npm install
-                6. npm run build
+                5. pnpm install
+                6. pnpm run build
             """)

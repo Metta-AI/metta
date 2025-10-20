@@ -1,7 +1,7 @@
 from pathlib import Path
 
 MAZE_CONFIG = Path(__file__).parent / "maze.yaml"
-MAP_MODULE = "metta.map.tools"
+MAP_MODULE = "mettagrid.mapgen.tools"
 
 
 # TODO(slav): #dehydration fix this test

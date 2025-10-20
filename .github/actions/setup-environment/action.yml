@@ -1,0 +1,153 @@
+name: "Setup Environment"
+description: "Set up the environment for CI"
+inputs:
+  install-mode:
+    description: "Installation mode: 'testing', 'runtime', 'linting', or 'minimal'"
+    required: false
+    default: "testing"
+  extra-dependencies:
+    description: "Extra pip dependencies to install (newline-separated list)"
+    required: false
+    default: ""
+
+  # NOTE: This action automatically sets UV_NO_SYNC=1 to prevent uv from syncing ALL project dependencies
+  # when workflows/actions run `uv run` commands
+
+runs:
+  using: "composite"
+  steps:
+    - name: Compute extra-dependencies hash
+      id: hash
+      shell: bash
+      run: |
+        echo "${{ inputs.extra-dependencies }}" | sha256sum | cut -c1-16 > hash.txt
+        echo "hash=$(cat hash.txt)" >> "$GITHUB_OUTPUT"
+
+    - name: Install uv with built-in caching
+      uses: astral-sh/setup-uv@v6
+      with:
+        version: "0.7.3"
+        enable-cache: true
+        prune-cache: false
+        cache-suffix: "${{ inputs.install-mode }}-${{ steps.hash.outputs.hash }}"
+        cache-dependency-glob: |
+          uv.lock
+          **/pyproject.toml
+
+    - name: Get week number for cache key
+      if: inputs.install-mode != 'minimal'
+      id: get-week
+      shell: bash
+      run: |
+        # Get year and week number for weekly cache invalidation
+        echo "yearweek=$(date +%Y-%U)" >> "$GITHUB_OUTPUT"
+
+    - name: Cache nimble
+      id: cache-nimble
+      uses: actions/cache@v4
+      with:
+        path: ~/.nimble
+        key: nim-binary-${{ runner.os }}-${{ steps.get-week.outputs.yearweek }}
+        restore-keys: |
+          nim-binary-${{ runner.os }}-
+
+    - name: Set up nim
+      uses: treeform/setup-nim-action@v2
+
+    - name: Cache Bazel binary
+      if: inputs.install-mode != 'minimal'
+      id: cache-bazel
+      uses: actions/cache@v4
+      with:
+        path: /usr/local/bin/bazel
+        key: bazel-binary-${{ runner.os }}-${{ steps.get-week.outputs.yearweek }}
+        restore-keys: |
+          bazel-binary-${{ runner.os }}-
+
+    - name: Install Bazel
+      if: inputs.install-mode != 'minimal' && steps.cache-bazel.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        # Download bazel with retry logic
+        MAX_RETRIES=5
+        RETRY_DELAY=10
+
+        for i in $(seq 1 $MAX_RETRIES); do
+          echo "Attempt $i of $MAX_RETRIES to download bazel..."
+
+          if curl -L --connect-timeout 30 --max-time 120 \
+               https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 \
+               -o bazel; then
+            echo "Successfully downloaded bazel"
+            break
+          else
+            if [ $i -eq $MAX_RETRIES ]; then
+              echo "Failed to download bazel after $MAX_RETRIES attempts"
+              exit 1
+            fi
+            echo "Download failed, retrying in $RETRY_DELAY seconds..."
+            sleep $RETRY_DELAY
+          fi
+        done
+
+        chmod +x bazel
+        if command -v sudo &> /dev/null; then
+          sudo mv bazel /usr/local/bin/bazel
+        else
+          mv bazel /usr/local/bin/bazel
+        fi
+
+    - name: Verify Bazel installation
+      if: inputs.install-mode != 'minimal'
+      shell: bash
+      run: |
+        bazel --version
+
+    - name: Create virtual environment with uv
+      shell: bash
+      env:
+        UV_NO_SYNC: "1"
+      run: |
+        # Export environment variables
+        echo "VIRTUAL_ENV=$(pwd)/.venv" >> $GITHUB_ENV
+        echo "$(pwd)/.venv/bin" >> $GITHUB_PATH
+        echo "UV_NO_SYNC=1" >> $GITHUB_ENV
+
+        uv venv
+
+        case "${{ inputs.install-mode }}" in
+
+          "minimal")
+            # don't install any packages
+            ;;
+
+          "testing")
+            # Install main dependencies + testing group, excluding interactive and dev
+            uv sync --no-group interactive --no-group dev --group testing
+            ;;
+
+          "linting")
+            # Install only the lint group, excluding the main, interactive and dev deps
+            uv sync --only-group lint
+            ;;
+
+          # used in the mettascope tests where we run code to generate outputs but do not run tests
+          "runtime")
+            # Install only main dependencies, excluding all groups
+            uv sync --no-group interactive --no-group dev
+            ;;
+
+        esac
+
+        # Install extra dependencies if provided (inline or from files)
+        if [ -n "${{ inputs.extra-dependencies }}" ]; then
+          echo "Installing extra dependencies (inline):"
+          echo "${{ inputs.extra-dependencies }}" | while read -r dep; do
+            if [ -n "$dep" ]; then
+              echo "Installing $dep"
+              UV_NO_SYNC=0 uv pip install "$dep"
+            fi
+          done
+        else
+          echo "No extra inline pip dependencies specified"
+        fi

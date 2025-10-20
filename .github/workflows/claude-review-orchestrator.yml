@@ -21,6 +21,10 @@ on:
         required: false
         type: boolean
         default: true
+      run_style:
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -80,11 +84,27 @@ jobs:
     with:
       pr_number: ${{ needs.validate-pr.outputs.pr_number }}
 
+  review-style:
+    needs: validate-pr
+    if: inputs.run_style
+    secrets: inherit
+    uses: ./.github/workflows/claude-review-style.yml
+    with:
+      pr_number: ${{ needs.validate-pr.outputs.pr_number }}
+
   # Consolidate all results and create a single review
   consolidate-review:
-    needs: [validate-pr, review-readme, review-comments, review-types, review-einops]
+    needs:
+      [
+        validate-pr,
+        review-readme,
+        review-comments,
+        review-types,
+        review-einops,
+        review-style,
+      ]
     runs-on: ubuntu-latest
-    if: always()
+    if: always() && !cancelled()
     permissions:
       contents: read
       pull-requests: write
@@ -97,11 +117,10 @@ jobs:
         with:
           python-version: "3.11.7"
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
+      - name: Set up environment (minimal)
+        uses: ./.github/actions/setup-environment
         with:
-          version: "0.7.3"
-          enable-cache: true
+          install-mode: minimal
 
       - name: Consolidate Reviews and Create GitHub Review
         id: consolidate
@@ -139,4 +158,7 @@ jobs:
           fi
           if [ "${{ inputs.run_einops }}" = "true" ]; then
             echo "- Einops Suggestions: ${{ needs.review-einops.result || 'skipped' }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "${{ inputs.run_style }}" = "true" ]; then
+            echo "- Code Style: ${{ needs.review-style.result || 'skipped' }}" >> $GITHUB_STEP_SUMMARY
           fi

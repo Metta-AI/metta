@@ -1,204 +1,250 @@
-"""Tests for MettaProtein class."""
-
-from unittest.mock import Mock, patch
+"""Tests for ProteinOptimizer class."""
 
 import pytest
-from omegaconf import OmegaConf
 
-from metta.sweep.protein_metta import MettaProtein
+from metta.sweep.optimizer.protein import ProteinOptimizer
+from metta.sweep.protein_config import ParameterConfig, ProteinConfig, ProteinSettings
 
 
 @pytest.fixture
-def base_config():
-    """Base configuration for MettaProtein tests."""
-    return {
-        "protein": {
-            "max_suggestion_cost": 3600,
-            "resample_frequency": 0,
-            "num_random_samples": 50,
-            "global_search_scale": 1,
-            "random_suggestions": 1024,
-            "suggestions_per_pareto": 256,
-        },
-        "metric": "reward",
-        "goal": "maximize",
-        "method": "bayes",
-        "parameters": {},
-    }
+def base_protein_config():
+    """Base ProteinConfig for ProteinOptimizer tests."""
+    return ProteinConfig(
+        metric="reward",
+        goal="maximize",
+        method="bayes",
+        parameters={},
+        settings=ProteinSettings(
+            max_suggestion_cost=3600,
+            resample_frequency=0,
+            num_random_samples=50,
+            global_search_scale=1,
+            random_suggestions=1024,
+            suggestions_per_pareto=256,
+        ),
+    )
 
 
-class TestMettaProtein:
-    """Test cases for MettaProtein class."""
+class TestProteinOptimizer:
+    """Test cases for ProteinOptimizer class."""
 
-    @patch("metta.sweep.protein_metta.Protein")
-    def test_metta_protein_init_with_full_config(self, mock_protein, base_config):
-        """Test MettaProtein initialization with complete config."""
-        config = OmegaConf.create(
-            {
-                **base_config,
-                "protein": {
-                    "max_suggestion_cost": 7200,
-                    "resample_frequency": 0,
-                    "num_random_samples": 100,
-                    "global_search_scale": 2,
-                    "random_suggestions": 1024,
-                    "suggestions_per_pareto": 256,
+    def test_unsupported_method_validation(self):
+        """Test that ProteinConfig only accepts 'bayes' as method."""
+        # Try to create a config with an unsupported method
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            ProteinConfig(
+                metric="loss",
+                goal="minimize",
+                method="grid",  # Grid search is not supported
+                parameters={
+                    "learning_rate": ParameterConfig(
+                        distribution="log_normal",
+                        min=1e-4,
+                        max=1e-1,
+                        scale="auto",
+                        mean=1e-2,
+                    )
                 },
-                "parameters": {
-                    "trainer": {
-                        "optimizer": {
-                            "learning_rate": {
-                                "distribution": "log_normal",
-                                "min": 1e-5,
-                                "max": 1e-2,
-                                "scale": "auto",
-                                "mean": 3e-4,
-                            }
-                        }
-                    },
-                },
-            }
+            )
+
+    def test_optimizer_initialization(self):
+        """Test that ProteinOptimizer initializes correctly with bayes method."""
+        config = ProteinConfig(
+            metric="accuracy",
+            goal="maximize",
+            method="bayes",  # Bayesian optimization is supported
+            parameters={
+                "learning_rate": ParameterConfig(
+                    distribution="log_normal",
+                    min=1e-4,
+                    max=1e-1,
+                    scale="auto",
+                    mean=1e-2,
+                ),
+                "batch_size": ParameterConfig(
+                    distribution="int_uniform",
+                    min=16,
+                    max=128,
+                    mean=64,
+                    scale="auto",
+                ),
+            },
         )
 
-        mock_protein_instance = Mock()
-        mock_protein.return_value = mock_protein_instance
+        # Should not raise error
+        optimizer = ProteinOptimizer(config)
+        assert optimizer.config == config
 
-        _ = MettaProtein(config)
-
-        # Verify Protein was called with correct parameters
-        mock_protein.assert_called_once()
-        args, kwargs = mock_protein.call_args
-
-        # Check that parameters were passed correctly
-        protein_config = args[0]
-        assert protein_config["metric"] == "reward"
-        assert protein_config["goal"] == "maximize"
-        assert protein_config["method"] == "bayes"
-        assert "trainer" in protein_config
-
-        # Check protein-specific parameters were passed as kwargs
-        assert kwargs["max_suggestion_cost"] == 7200
-        assert kwargs["num_random_samples"] == 100
-        assert kwargs["global_search_scale"] == 2
-
-    @patch("metta.sweep.protein_metta.Protein")
-    def test_metta_protein_init_with_defaults(self, mock_protein, base_config):
-        """Test MettaProtein initialization with minimal config."""
-        config = OmegaConf.create(
-            {
-                **base_config,
-                "metric": "accuracy",
-                "goal": "minimize",
-                "parameters": {
-                    "batch_size": {"distribution": "uniform", "min": 16, "max": 128, "scale": "auto", "mean": 64},
-                },
-            }
-        )
-
-        mock_protein_instance = Mock()
-        mock_protein.return_value = mock_protein_instance
-
-        _ = MettaProtein(config)
-
-        # Verify Protein was called with defaults
-        mock_protein.assert_called_once()
-        args, kwargs = mock_protein.call_args
-
-        # Check that parameters were passed correctly
-        protein_config = args[0]
-        assert protein_config["metric"] == "accuracy"
-        assert protein_config["goal"] == "minimize"
-        assert protein_config["method"] == "bayes"
-
-        # Check defaults were used
-        assert kwargs["max_suggestion_cost"] == 3600
-        assert kwargs["num_random_samples"] == 50
-        assert kwargs["global_search_scale"] == 1
-
-    @patch("metta.sweep.protein_metta.Protein")
-    def test_suggest_method(self, mock_protein, base_config):
-        """Test the suggest method returns cleaned numpy types."""
-        config = OmegaConf.create(
-            {
-                **base_config,
-                "parameters": {
-                    "learning_rate": {
-                        "distribution": "log_normal",
-                        "min": 1e-5,
-                        "max": 1e-2,
-                        "scale": "auto",
-                        "mean": 3e-4,
-                    }
-                },
-            }
-        )
-
-        mock_protein_instance = Mock()
-
-        # Mock numpy types in protein response
-        import numpy as np
-
-        suggestion_with_numpy = {
-            "learning_rate": np.float64(0.001),
-            "batch_size": np.int32(64),
+    def test_suggest_with_no_observations(self, base_protein_config):
+        """Test that suggest method works with no observations."""
+        base_protein_config.parameters = {
+            "lr": ParameterConfig(
+                distribution="log_normal",
+                min=1e-4,
+                max=1e-1,
+                scale="auto",
+                mean=1e-2,
+            )
         }
-        info = {"some": "info"}
 
-        mock_protein_instance.suggest.return_value = (suggestion_with_numpy, info)
-        mock_protein.return_value = mock_protein_instance
+        optimizer = ProteinOptimizer(base_protein_config)
 
-        metta_protein = MettaProtein(config)
-        result_suggestion, result_info = metta_protein.suggest()
+        # Request suggestions with no observations
+        suggestions = optimizer.suggest([], n_suggestions=3)
 
-        # Check that numpy types were converted to native Python types
-        assert isinstance(result_suggestion["learning_rate"], float)
-        assert isinstance(result_suggestion["batch_size"], int)
-        assert result_info == info
+        assert len(suggestions) == 3
+        assert all("lr" in s for s in suggestions)
+        assert all(1e-4 <= s["lr"] <= 1e-1 for s in suggestions)
 
-    @patch("metta.sweep.protein_metta.Protein")
-    def test_observe_method(self, mock_protein, base_config):
-        """Test the observe method passes through to protein."""
-        config = OmegaConf.create(base_config)
+    def test_suggest_with_observations(self):
+        """Test that suggest method works with observations."""
+        config = ProteinConfig(
+            metric="score",
+            goal="maximize",
+            method="bayes",
+            parameters={
+                "lr": ParameterConfig(
+                    distribution="log_normal",
+                    min=1e-4,
+                    max=1e-1,
+                    scale="auto",
+                    mean=1e-2,
+                )
+            },
+        )
 
-        mock_protein_instance = Mock()
-        mock_protein.return_value = mock_protein_instance
+        optimizer = ProteinOptimizer(config)
 
-        metta_protein = MettaProtein(config)
+        # Create observations as dictionaries (not Observation objects)
+        observations = [
+            {"score": 0.5, "cost": 100, "suggestion": {"lr": 0.001}},
+            {"score": 0.7, "cost": 120, "suggestion": {"lr": 0.01}},
+            {"score": 0.6, "cost": 110, "suggestion": {"lr": 0.005}},
+        ]
 
-        suggestion = {"learning_rate": 0.001}
-        objective = 0.95
-        cost = 120.0
-        is_failure = False
+        # Request suggestions with observations
+        suggestions = optimizer.suggest(observations, n_suggestions=2)
 
-        metta_protein.observe(suggestion, objective, cost, is_failure)
+        assert len(suggestions) == 2
+        assert all("lr" in s for s in suggestions)
+        assert all(1e-4 <= s["lr"] <= 1e-1 for s in suggestions)
 
-        mock_protein_instance.observe.assert_called_once_with(suggestion, objective, cost, is_failure)
+    def test_suggest_respects_parameter_bounds(self):
+        """Test that suggestions respect parameter bounds."""
+        config = ProteinConfig(
+            metric="score",
+            goal="minimize",
+            method="bayes",
+            parameters={
+                "lr": ParameterConfig(
+                    distribution="uniform",
+                    min=0.1,
+                    max=0.5,
+                    mean=0.3,
+                    scale="auto",
+                ),
+                "momentum": ParameterConfig(
+                    distribution="uniform",
+                    min=0.8,
+                    max=0.99,
+                    mean=0.9,
+                    scale="auto",
+                ),
+            },
+        )
 
-    @patch("metta.sweep.protein_metta.Protein")
-    def test_observe_failure_method(self, mock_protein, base_config):
-        """Test the observe_failure method calls observe with failure parameters."""
-        config = OmegaConf.create(base_config)
+        optimizer = ProteinOptimizer(config)
 
-        mock_protein_instance = Mock()
-        mock_protein.return_value = mock_protein_instance
+        # Request multiple suggestions
+        suggestions = optimizer.suggest([], n_suggestions=10)
 
-        metta_protein = MettaProtein(config)
+        assert len(suggestions) == 10
+        for suggestion in suggestions:
+            assert 0.1 <= suggestion["lr"] <= 0.5
+            assert 0.8 <= suggestion["momentum"] <= 0.99
 
-        suggestion = {"learning_rate": 0.001}
-        metta_protein.observe_failure(suggestion)
+    def test_suggest_handles_integer_parameters(self):
+        """Test that optimizer handles integer parameters."""
+        config = ProteinConfig(
+            metric="score",
+            goal="maximize",
+            method="bayes",
+            parameters={
+                "num_layers": ParameterConfig(
+                    distribution="int_uniform",
+                    min=1,
+                    max=10,
+                    mean=5,
+                    scale="auto",
+                ),
+                "hidden_size": ParameterConfig(
+                    distribution="uniform_pow2",  # Powers of 2
+                    min=32,
+                    max=512,
+                    mean=128,
+                    scale="auto",
+                ),
+            },
+        )
 
-        mock_protein_instance.observe.assert_called_once_with(suggestion, 0, 0.01, True)
+        optimizer = ProteinOptimizer(config)
 
-    @patch("metta.sweep.protein_metta.Protein")
-    def test_num_observations_property(self, mock_protein, base_config):
-        """Test the num_observations property."""
-        config = OmegaConf.create(base_config)
+        suggestions = optimizer.suggest([], n_suggestions=5)
 
-        mock_protein_instance = Mock()
-        mock_protein_instance.success_observations = [1, 2, 3]
-        mock_protein_instance.failure_observations = [4, 5]
-        mock_protein.return_value = mock_protein_instance
+        assert len(suggestions) == 5
+        for suggestion in suggestions:
+            assert 1 <= suggestion["num_layers"] <= 10
+            assert 32 <= suggestion["hidden_size"] <= 512
 
-        metta_protein = MettaProtein(config)
+    def test_empty_suggestions_request(self):
+        """Test requesting zero suggestions."""
+        config = ProteinConfig(
+            metric="score",
+            goal="maximize",
+            method="bayes",
+            parameters={
+                "lr": ParameterConfig(
+                    distribution="uniform",
+                    min=0.1,
+                    max=0.5,
+                    mean=0.3,
+                    scale="auto",
+                ),
+            },
+        )
 
-        assert metta_protein.num_observations == 5
+        optimizer = ProteinOptimizer(config)
+        suggestions = optimizer.suggest([], n_suggestions=0)
+
+        assert suggestions == []
+
+    def test_observations_with_missing_fields(self):
+        """Test that optimizer handles observations with missing fields gracefully."""
+        config = ProteinConfig(
+            metric="score",
+            goal="maximize",
+            method="bayes",
+            parameters={
+                "lr": ParameterConfig(
+                    distribution="log_normal",
+                    min=1e-4,
+                    max=1e-1,
+                    scale="auto",
+                    mean=1e-2,
+                )
+            },
+        )
+
+        optimizer = ProteinOptimizer(config)
+
+        # Observations with missing cost field (should default to 0)
+        observations = [
+            {"score": 0.5, "suggestion": {"lr": 0.001}},
+            {"score": 0.7, "cost": None, "suggestion": {"lr": 0.01}},
+        ]
+
+        # Should handle gracefully
+        suggestions = optimizer.suggest(observations, n_suggestions=1)
+        assert len(suggestions) == 1

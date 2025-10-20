@@ -7,6 +7,8 @@ that `export AWS_PROFILE=softmax` is added to shell config files when
 using the softmax profile.
 """
 
+import os
+
 import pytest
 
 from metta.setup.profiles import UserType
@@ -30,6 +32,41 @@ class AWSAssertionsMixin:
         content = config_file.read_text()
         return f"[profile {profile_name}]" in content
 
+    def _check_aws_sso_session_config(self, session_name: str) -> bool:  # type: ignore[override]
+        """Check if SSO session configuration exists in AWS config."""
+        config_file = self.test_home / ".aws" / "config"  # type: ignore[attr-defined]
+        if not config_file.exists():
+            return False
+        content = config_file.read_text()
+        return f"[sso-session {session_name}]" in content
+
+    def _check_sso_session_has_required_fields(self, session_name: str) -> tuple[bool, str]:  # type: ignore[override]
+        """Check if SSO session has all required fields."""
+        config_file = self.test_home / ".aws" / "config"  # type: ignore[attr-defined]
+        if not config_file.exists():
+            return False, "Config file does not exist"
+
+        content = config_file.read_text()
+
+        if f"[sso-session {session_name}]" not in content:
+            return False, f"SSO session [{session_name}] not found"
+
+        required_fields = [
+            "sso_start_url = https://softmaxx.awsapps.com/start/",
+            "sso_region = us-east-1",
+            "sso_registration_scopes = sso:account:access",
+        ]
+
+        missing_fields = []
+        for field in required_fields:
+            if field not in content:
+                missing_fields.append(field)
+
+        if missing_fields:
+            return False, f"Missing fields: {missing_fields}"
+
+        return True, "All required fields present"
+
 
 @pytest.mark.setup
 @pytest.mark.profile("softmax")
@@ -38,6 +75,10 @@ class TestAWSProfileSoftmax(AWSAssertionsMixin, BaseMettaSetupTest):
 
     def test_softmax_profile_aws_installation(self):
         """Test that softmax profile AWS installation works correctly."""
+        print(f"DEBUG: HOME={os.environ.get('HOME')}")
+        print(f"DEBUG: ZDOTDIR={os.environ.get('ZDOTDIR')}")
+        print(f"DEBUG: Test home={self.test_home}")
+
         self._create_test_config(UserType.SOFTMAX)
 
         # Run AWS install (bypass base class mocking)
@@ -49,8 +90,13 @@ class TestAWSProfileSoftmax(AWSAssertionsMixin, BaseMettaSetupTest):
         zshrc_path = self._get_zshrc_path()
         bashrc_path = self._get_bashrc_path()
 
+        # Debug what's actually in the zshrc file
+        zshrc_content = zshrc_path.read_text() if zshrc_path.exists() else "FILE NOT EXISTS"
+        print(f"DEBUG: zshrc_path={zshrc_path}")
+        print(f"DEBUG: zshrc content: {repr(zshrc_content)}")
+
         assert self._check_shell_config_contains(zshrc_path, "export AWS_PROFILE=softmax"), (
-            f"AWS_PROFILE export should be added to {zshrc_path} for softmax profile"
+            f"AWS_PROFILE export should be added to {zshrc_path} for softmax profile. Content: {repr(zshrc_content)}"
         )
 
         # Also check .bashrc
@@ -79,6 +125,19 @@ class TestAWSProfileSoftmax(AWSAssertionsMixin, BaseMettaSetupTest):
         assert "Running AWS profile setup" in result.stdout, (
             "Should mention running AWS profile setup for softmax profile"
         )
+
+        # CRITICAL: Check that SSO session configuration exists (this would have caught the bug!)
+        assert self._check_aws_sso_session_config("softmax-sso"), (
+            "SSO session 'softmax-sso' should be configured in AWS config"
+        )
+
+        # Check that SSO session has all required fields
+        has_fields, message = self._check_sso_session_has_required_fields("softmax-sso")
+        assert has_fields, f"SSO session missing required configuration: {message}"
+
+        # Verify profiles reference the SSO session correctly
+        config_content = (self.test_home / ".aws" / "config").read_text()
+        assert "sso_session = softmax-sso" in config_content, "Profiles should reference 'sso_session = softmax-sso'"
 
     def test_softmax_profile_aws_installation_with_zdotdir(self):
         """Test that softmax profile AWS installation works with ZDOTDIR set."""
@@ -158,7 +217,3 @@ class TestAWSProfileExternal(AWSAssertionsMixin, BaseMettaSetupTest):
         assert not self._check_shell_config_contains(bashrc_path, "export AWS_PROFILE=softmax"), (
             f"External profile should not add AWS_PROFILE to {bashrc_path}"
         )
-
-
-if __name__ == "__main__":
-    pytest.main([__file__])

@@ -1,313 +1,369 @@
-"""Checkpoint management for Metta training."""
-
 import logging
 import os
+import tempfile
 from pathlib import Path
+from typing import Any, Dict, Optional, TypedDict
+from zipfile import BadZipFile
 
+import boto3
 import torch
 
-from metta.agent.agent_config import AgentConfig
-from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, PolicyAgent
-from metta.agent.policy_record import PolicyRecord
-from metta.agent.policy_store import PolicyStore
-from metta.agent.util.distribution_utils import get_from_master
-from metta.common.profiling.stopwatch import Stopwatch
-from metta.common.util.collections import remove_none_values
-from metta.common.util.heartbeat import record_heartbeat
-from metta.common.wandb.wandb_context import WandbRun
-from metta.eval.eval_request_config import EvalRewardSummary
-from metta.mettagrid.mettagrid_env import MettaGridEnv
-from metta.rl.kickstarter import Kickstarter
-from metta.rl.policy_management import cleanup_old_policies, validate_policy_environment_match
+from metta.agent.mocks import MockAgent
+from metta.agent.policy import Policy, PolicyArchitecture
+from metta.rl.policy_artifact import (
+    PolicyArtifact,
+    load_policy_artifact,
+    save_policy_artifact_safetensors,
+)
 from metta.rl.system_config import SystemConfig
-from metta.rl.trainer_checkpoint import TrainerCheckpoint
-from metta.rl.trainer_config import CheckpointConfig, TrainerConfig
-from metta.rl.utils import should_run
-from metta.rl.wandb import upload_policy_artifact
+from metta.rl.training.optimizer import is_schedulefree_optimizer
+from metta.rl.training.training_environment import GameRules
+from metta.tools.utils.auto_config import auto_policy_storage_decision
+from metta.utils.file import local_copy, write_file
+from metta.utils.uri import ParsedURI
 
 logger = logging.getLogger(__name__)
 
 
+class PolicyMetadata(TypedDict):
+    """Type definition for policy metadata returned by get_policy_metadata."""
+
+    run_name: str
+    epoch: int
+    uri: str
+
+
+def key_and_version(uri: str) -> tuple[str, int] | None:
+    """Extract key (run name) and version (epoch) from a policy URI.
+
+    Examples:
+        "file:///tmp/my_run/checkpoints/my_run:v5.mpt" -> ("my_run", 5)
+        "s3://bucket/policies/my_run/checkpoints/my_run:v10.mpt" -> ("my_run", 10)
+        "mock://test_agent" -> ("test_agent", 0)
+    """
+    parsed = ParsedURI.parse(uri)
+    if parsed.scheme == "mock":
+        # For mock URIs, extract the agent name from the path
+        return (parsed.path, 0)
+    if parsed.scheme == "file" and parsed.local_path:
+        file_path = Path(parsed.local_path)
+    elif parsed.scheme == "s3" and parsed.key:
+        file_path = Path(parsed.key)
+    else:
+        raise ValueError(f"Could not extract key and version from {uri}")
+
+    return _extract_run_and_epoch(file_path)
+
+
+def _extract_run_and_epoch(path: Path) -> tuple[str, int] | None:
+    """Infer run name and epoch from a checkpoint path.
+
+    Examples:
+        "file:///tmp/my_run/checkpoints/my_run:v5.mpt" -> ("my_run", 5)
+        "s3://bucket/policies/my_run/checkpoints/my_run:v10.mpt" -> ("my_run", 10)
+    """
+
+    stem = path.stem
+
+    if ":v" in stem:
+        run_name, suffix = stem.rsplit(":v", 1)
+        if run_name and suffix.isdigit():
+            return (run_name, int(suffix))
+
+
+def _get_all_checkpoints(uri: str) -> list[PolicyMetadata]:
+    parsed = ParsedURI.parse(uri)
+    if parsed.scheme == "file" and parsed.local_path:
+        checkpoint_files = [ckpt for ckpt in parsed.local_path.glob("*.mpt") if ckpt.stem]
+    elif parsed.scheme == "s3" and parsed.bucket:
+        s3_client = boto3.client("s3")
+        prefix = parsed.key or ""
+        response = s3_client.list_objects_v2(Bucket=parsed.bucket, Prefix=prefix)
+
+        if response["KeyCount"] == 0:
+            return []
+
+        checkpoint_files: list[Path] = [Path(obj["Key"]) for obj in response["Contents"] if obj["Key"].endswith(".mpt")]
+    else:
+        raise ValueError(f"Cannot get checkpoints from uri: {uri}")
+
+    checkpoint_metadata: list[PolicyMetadata] = []
+    for path in checkpoint_files:
+        run_and_epoch = _extract_run_and_epoch(path)
+        if run_and_epoch:
+            path_uri = uri.rstrip("/") + "/" + path.name
+            metadata: PolicyMetadata = {
+                "run_name": run_and_epoch[0],
+                "epoch": run_and_epoch[1],
+                "uri": path_uri,
+            }
+            checkpoint_metadata.append(metadata)
+
+    return checkpoint_metadata
+
+
+def _latest_checkpoint(uri: str) -> PolicyMetadata | None:
+    checkpoints = _get_all_checkpoints(uri)
+    if checkpoints:
+        return max(checkpoints, key=lambda p: p["epoch"])
+
+
+def _load_checkpoint_file(path: str, is_pt_file: bool = False) -> PolicyArtifact:
+    """Load a checkpoint file, raising FileNotFoundError on corruption."""
+    try:
+        return load_policy_artifact(Path(path), is_pt_file)
+    except FileNotFoundError:
+        raise
+    except (BadZipFile, ValueError, TypeError) as err:
+        raise FileNotFoundError(f"Invalid or corrupted checkpoint file: {path}") from err
+
+
 class CheckpointManager:
-    """Manages checkpointing for both trainer state and policies."""
+    """Checkpoint manager with filename-embedded metadata."""
 
     def __init__(
         self,
-        policy_store: PolicyStore,
-        checkpoint_config: CheckpointConfig,
-        device: torch.device,
-        is_master: bool,
-        rank: int,
-        run_name: str,
+        run: str,
+        system_cfg: SystemConfig,
     ):
-        """Initialize checkpoint manager.
+        # Validate run name
+        if not run or not run.strip():
+            raise ValueError("Run name cannot be empty")
+        if any(char in run for char in [" ", "/", "*", "\\", ":", "<", ">", "|", "?", '"']):
+            raise ValueError(f"Run name contains invalid characters: {run}")
+        if "__" in run:
+            raise ValueError(f"Run name cannot contain '__' as it's used as a delimiter in checkpoint filenames: {run}")
 
-        Args:
-            checkpoint_dir: Directory to save checkpoints
-            policy_store: PolicyStore instance for saving/loading policies
-            trainer_cfg: Trainer configuration
-            device: Training device
-            is_master: Whether this is the master process
-            rank: Process rank for distributed training
-            run_name: Name of the current run
-        """
-        self.policy_store = policy_store
-        self.checkpoint_cfg = checkpoint_config
-        self.device = device
-        self.is_master = is_master
-        self.rank = rank
-        self.run_name = run_name
+        self.run = run
+        self.run_name = run
+        self.run_dir = system_cfg.data_dir / self.run
+        self.checkpoint_dir = self.run_dir / "checkpoints"
 
-        # Ensure checkpoint directory exists
-        Path(self.checkpoint_cfg.checkpoint_dir).mkdir(parents=True, exist_ok=True)
+        os.makedirs(system_cfg.data_dir, exist_ok=True)
+        os.makedirs(self.run_dir, exist_ok=True)
+        os.makedirs(self.checkpoint_dir, exist_ok=True)
 
-    def save_checkpoint(
-        self,
-        agent_step: int,
-        epoch: int,
-        optimizer: torch.optim.Optimizer,
-        policy_path: str,
-        timer: Stopwatch,
-        run_dir: str,
-        kickstarter: Kickstarter | None = None,
-    ) -> bool:
-        """Save trainer checkpoint if needed."""
-        # Create checkpoint
-        checkpoint = TrainerCheckpoint(
-            agent_step=agent_step,
-            epoch=epoch,
-            optimizer_state_dict=optimizer.state_dict(),
-            policy_path=policy_path,
-            stopwatch_state=timer.save_state(),
-            extra_args=remove_none_values({"teacher_pr_uri": kickstarter and kickstarter.teacher_uri}),
-        )
+        self._remote_prefix = None
+        if not system_cfg.local_only:
+            if system_cfg.remote_prefix:
+                parsed = ParsedURI.parse(system_cfg.remote_prefix)
+                if parsed.scheme != "s3" or not parsed.bucket or not parsed.key:
+                    raise ValueError("remote_prefix must be an s3:// URI with bucket and key prefix")
+                # Remove trailing slash from prefix for deterministic joins
+                key_prefix = parsed.key.rstrip("/")
+                self._remote_prefix = f"s3://{parsed.bucket}/{key_prefix}" if key_prefix else f"s3://{parsed.bucket}"
 
-        # Save checkpoint
-        checkpoint.save(run_dir)
+            if self._remote_prefix is None:
+                self._setup_remote_prefix()
 
-        return True
-
-    def save_policy(
-        self,
-        policy: PolicyAgent,
-        epoch: int,
-        agent_step: int,
-        evals: EvalRewardSummary,
-        timer: Stopwatch,
-        initial_policy_record: PolicyRecord,
-    ) -> PolicyRecord:
-        """Save policy with metadata if needed."""
-
-        logger.info(f"Saving policy at epoch {epoch}")
-
-        # Extract the actual policy module from distributed wrapper if needed
-        policy_to_save: MettaAgent = policy.module if isinstance(policy, DistributedMettaAgent) else policy
-
-        # Build metadata
-        name = self.policy_store.make_model_name(epoch)
-
-        # Base metadata without evaluation scores
-        metadata = {
-            "epoch": epoch,
-            "agent_step": agent_step,
-            "total_time": timer.get_elapsed(),
-            "total_train_time": timer.get_all_elapsed().get("_rollout", 0) + timer.get_all_elapsed().get("_train", 0),
-            "run": self.run_name,
-            "initial_pr": initial_policy_record.uri if initial_policy_record else None,
-        }
-
-        # Only include evaluation metadata if we have meaningful scores
-        # (i.e., when local evaluation was performed on the current machine, not when remote evaluation was requested)
-        has_meaningful_scores = bool(evals.category_scores or evals.simulation_scores)
-        if has_meaningful_scores:
-            # Extract average reward and scores from evals
-            evals_dict = {
-                "category_scores": evals.category_scores.copy(),
-                "simulation_scores": {f"{cat}/{sim}": score for (cat, sim), score in evals.simulation_scores.items()},
-                "avg_category_score": evals.avg_category_score,
-                "avg_simulation_score": evals.avg_simulation_score,
-            }
-
-            metadata.update(
-                {
-                    "evals": evals_dict,
-                    "avg_reward": evals.avg_category_score,
-                    "score": evals.avg_simulation_score,  # Aggregated score for sweep evaluation
-                }
-            )
-            logger.info(
-                f"Including evaluation scores in policy metadata: "
-                f"avg_reward={evals.avg_category_score:.4f}, score={evals.avg_simulation_score:.4f}"
-            )
-        else:
-            logger.info(
-                "No meaningful evaluation scores available - skipping eval metadata (likely using remote evaluation)"
-            )
-
-        # Save original feature mapping
-        if isinstance(policy_to_save, MettaAgent):
-            original_feature_mapping = policy_to_save.get_original_feature_mapping()
-            if original_feature_mapping is not None:
-                metadata["original_feature_mapping"] = original_feature_mapping
+    def _setup_remote_prefix(self) -> None:
+        """Determine and set the remote prefix for policy storage if needed."""
+        if self._remote_prefix is None:
+            storage_decision = auto_policy_storage_decision(self.run)
+            if storage_decision.remote_prefix:
+                self._remote_prefix = storage_decision.remote_prefix
+                if storage_decision.reason == "env_override":
+                    logger.info("Using POLICY_REMOTE_PREFIX for policy storage: %s", storage_decision.remote_prefix)
+                else:
+                    logger.info(
+                        "Policies will sync to %s (Softmax AWS profile detected).",
+                        storage_decision.remote_prefix,
+                    )
+            elif storage_decision.reason == "not_connected":
                 logger.info(
-                    f"Saving original_feature_mapping with {len(original_feature_mapping)} features to metadata"
+                    "Softmax AWS SSO not detected; policies will remain local. "
+                    "Run 'aws sso login --profile softmax' then 'metta status --components=aws' to enable uploads."
+                )
+            elif storage_decision.reason == "aws_not_enabled":
+                logger.info(
+                    "AWS component disabled; policies will remain local. Run 'metta configure aws' to set up S3."
+                )
+            elif storage_decision.reason == "no_base_prefix":
+                logger.info(
+                    "Remote policy prefix unset; policies will remain local. Configure POLICY_REMOTE_PREFIX or run "
+                    "'metta configure aws'."
                 )
 
-        # Create and save policy record
-        policy_record = self.policy_store.create_empty_policy_record(
-            name=name, checkpoint_dir=self.checkpoint_cfg.checkpoint_dir
-        )
-        policy_record.metadata = metadata
-        policy_record.policy = policy_to_save
+    @property
+    def remote_checkpoints_enabled(self) -> bool:
+        return self._remote_prefix is not None
 
-        saved_policy_record = self.policy_store.save(policy_record)
-        logger.info(f"Successfully saved policy at epoch {epoch}")
+    @staticmethod
+    def load_from_uri(uri: str, game_rules: GameRules, device: torch.device) -> Policy:
+        artifact = CheckpointManager.load_artifact_from_uri(uri)
+        return artifact.instantiate(game_rules, device)
 
-        return saved_policy_record
+    @staticmethod
+    def load_artifact_from_uri(uri: str) -> PolicyArtifact:
+        """Load a policy from a URI (file://, s3://, or mock://).
 
-    def load_or_create_policy(
+        Supports :latest selector for automatic resolution to the most recent checkpoint:
+            file:///path/to/run/checkpoints/:latest
+            s3://bucket/path/run/checkpoints/:latest
+        """
+        if uri.startswith(("http://", "https://", "ftp://", "gs://")):
+            raise ValueError(f"Invalid URI: {uri}")
+
+        uri = CheckpointManager.normalize_uri(uri)
+        parsed = ParsedURI.parse(uri)
+
+        if parsed.scheme == "file" and parsed.local_path is not None:
+            path = parsed.local_path
+            if path.is_dir():
+                checkpoint_file = _latest_checkpoint(f"file://{path}")
+                if not checkpoint_file:
+                    raise FileNotFoundError(f"No checkpoint files in {uri}")
+                local_path = ParsedURI.parse(checkpoint_file["uri"]).local_path
+                return _load_checkpoint_file(local_path)  # type: ignore
+            if not path.exists():
+                raise FileNotFoundError(f"Checkpoint file not found: {path}")
+            return _load_checkpoint_file(str(path))
+
+        if parsed.scheme == "s3":
+            with local_copy(parsed.canonical) as local_path:
+                return _load_checkpoint_file(str(local_path), is_pt_file=Path(parsed.canonical).suffix == ".pt")
+
+        if parsed.scheme == "mock":
+            return PolicyArtifact(policy=MockAgent())
+
+        raise ValueError(f"Invalid URI: {uri}")
+
+    @staticmethod
+    def normalize_uri(uri: str) -> str:
+        """Convert paths to file:// URIs, and resolves :latest"""
+        parsed = ParsedURI.parse(uri)
+        if uri.endswith(":latest"):
+            # Remove ":latest" suffix to get the base URI
+            base_uri = uri[:-7]  # remove ":latest"
+            # Find the latest checkpoint in the base URI
+            latest_checkpoint = _latest_checkpoint(base_uri)
+            if not latest_checkpoint:
+                raise ValueError(f"No latest checkpoint found for {base_uri}")
+            return latest_checkpoint["uri"]
+        else:
+            return parsed.canonical
+
+    @staticmethod
+    def get_policy_metadata(uri: str) -> PolicyMetadata:
+        """Extract metadata from policy URI."""
+        normalized_uri = CheckpointManager.normalize_uri(uri)
+        metadata = key_and_version(normalized_uri)
+        if not metadata:
+            raise ValueError(f"Could not extract metadata from uri {uri}")
+        run_name, epoch = metadata
+        return {
+            "run_name": run_name,
+            "epoch": epoch,
+            "uri": normalized_uri,
+        }
+
+    def load_trainer_state(self) -> Optional[Dict[str, Any]]:
+        trainer_file = self.checkpoint_dir / "trainer_state.pt"
+        if not trainer_file.exists():
+            return None
+        state = torch.load(trainer_file, map_location="cpu", weights_only=False)
+        result = {
+            "optimizer_state": state.get("optimizer", state.get("optimizer_state")),
+            "epoch": state.get("epoch", 0),
+            "agent_step": state.get("agent_step", 0),
+        }
+        if "stopwatch_state" in state:
+            result["stopwatch_state"] = state["stopwatch_state"]
+        if "curriculum_state" in state:
+            result["curriculum_state"] = state["curriculum_state"]
+        if "loss_states" in state:
+            result["loss_states"] = state["loss_states"]
+        return result
+
+    def save_agent(
         self,
-        agent_cfg: AgentConfig,
-        system_cfg: SystemConfig,
-        trainer_cfg: TrainerConfig,
-        checkpoint: TrainerCheckpoint | None,
-        metta_grid_env: MettaGridEnv,
-    ) -> PolicyRecord:
+        agent: Policy,
+        epoch: int,
+        *,
+        policy_architecture: PolicyArchitecture,
+    ) -> str:
+        """Save agent checkpoint to disk and upload to remote storage if configured.
+
+        The serialized artifact always includes the policy weights and architecture metadata.
+
+        Returns URI of saved checkpoint (s3:// if remote prefix configured, otherwise file://).
         """
-        Load or initialize policy with distributed coordination.
+        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        filename = f"{self.run_name}:v{epoch}.mpt"
+        checkpoint_path = self.checkpoint_dir / filename
 
-        First, checks if there is an existing policy at any of:
-            - checkpoint.policy_path
-            - trainer_cfg.initial_policy.uri
-            - default_path (checkpoint_dir/model_{epoch}.pt)
-        If so, returns the policy record.
+        save_policy_artifact_safetensors(
+            checkpoint_path,
+            policy_architecture=policy_architecture,
+            state_dict=agent.state_dict(),
+        )
 
-        If not, then distributed workers wait until the master creates the policy at default_path,
-        and the master creates a new policy record and saves it to default_path.
-        """
+        remote_uri = None
+        if self._remote_prefix:
+            remote_uri = f"{self._remote_prefix}/{filename}"
+            write_file(remote_uri, str(checkpoint_path))
 
-        # Check if policy already exists at default path - all ranks check this
-        default_model_name = self.policy_store.make_model_name(0)
-        default_path = os.path.join(trainer_cfg.checkpoint.checkpoint_dir, default_model_name)
+        if remote_uri:
+            return remote_uri
+        return f"file://{checkpoint_path.resolve()}"
 
-        # First priority: checkpoint
-        policy_record: PolicyRecord | None = None
+    def save_trainer_state(
+        self,
+        optimizer,
+        epoch: int,
+        agent_step: int,
+        stopwatch_state: Optional[Dict[str, Any]] = None,
+        curriculum_state: Optional[Dict[str, Any]] = None,
+        loss_states: Optional[Dict[str, Any]] = None,
+    ):
+        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        trainer_file = self.checkpoint_dir / "trainer_state.pt"
 
-        # Master determines the policy path
-        if self.is_master:
-            policy_path: str | None = (
-                (checkpoint and checkpoint.policy_path)
-                or (trainer_cfg.initial_policy and trainer_cfg.initial_policy.uri)
-                or (default_path if os.path.exists(default_path) else None)
-            )
-        else:
-            policy_path = None
+        # For ScheduleFree optimizers, ensure we save in eval mode
+        is_schedulefree = is_schedulefree_optimizer(optimizer)
+        if is_schedulefree:
+            optimizer.eval()
 
-        # Synchronize policy_path across all ranks if using distributed training
-        if torch.distributed.is_initialized():
-            policy_path = get_from_master(policy_path)
-            logger.info(f"Rank {self.rank}: Synchronized policy_path = {policy_path}")
-        elif not self.is_master:
-            # Non-master rank without distributed training should not happen
-            raise RuntimeError(
-                f"Non-master rank {self.rank} found without torch.distributed initialized. "
-                "This likely indicates a configuration error in distributed training setup."
-            )
+        state = {"optimizer": optimizer.state_dict(), "epoch": epoch, "agent_step": agent_step}
+        if stopwatch_state:
+            state["stopwatch_state"] = stopwatch_state
+        if curriculum_state:
+            state["curriculum_state"] = curriculum_state
+        if loss_states is not None:
+            state["loss_states"] = loss_states
 
-        # Now all ranks have the same policy_path and can load/create consistently
-        if policy_path:
-            logger.info(f"Rank {self.rank}: Loading policy from {policy_path}")
-            policy_record = self.policy_store.policy_record(policy_path)
-        else:
-            # No existing policy - all ranks create new one with same structure
-            logger.info(f"Rank {self.rank}: No existing policy found, creating new one")
-            new_policy_record = self.policy_store.create_empty_policy_record(
-                checkpoint_dir=trainer_cfg.checkpoint.checkpoint_dir, name=default_model_name
-            )
-            new_policy_record.policy = MettaAgent(metta_grid_env, system_cfg, agent_cfg)
+        # Atomic save for trainer state to prevent partial saves
+        with tempfile.NamedTemporaryFile(
+            dir=self.checkpoint_dir,
+            prefix=".trainer_state.pt.",
+            suffix=".tmp",
+            delete=False,
+        ) as tmp_file:
+            tmp_path = Path(tmp_file.name)
 
-            # Only master saves the new policy to disk
-            if self.is_master:
-                policy_record = self.policy_store.save(new_policy_record)
-                logger.info(f"Master saved new policy to {policy_record.uri}")
-            else:
-                policy_record = new_policy_record
-                logger.info(f"Rank {self.rank}: Created policy structure for DDP sync")
-
-        # Synchronize policy metadata from master using NCCL broadcast of objects.
-        # This avoids file I/O on non-master ranks while ensuring consistent metadata.
-        if torch.distributed.is_initialized():
             try:
-                if policy_record is None:
-                    raise RuntimeError("PolicyRecord was not initialized")
-                synced_metadata = get_from_master(policy_record.metadata if self.is_master else None)
-                if synced_metadata is not None:
-                    policy_record.metadata = synced_metadata
-            except Exception as e:
-                logger.warning(f"Rank {self.rank}: Failed to sync policy metadata from master: {e}")
+                torch.save(state, tmp_path)
+                # Atomic move: this operation is atomic on most filesystems
+                tmp_path.replace(trainer_file)
+            except Exception:
+                # Clean up temporary file on error
+                if tmp_path.exists():
+                    tmp_path.unlink()
+                raise
 
-        if policy_record is None:
-            raise RuntimeError("Failed to initialize policy record")
+        # Restore train mode after saving for ScheduleFree optimizers
+        if is_schedulefree:
+            optimizer.train()
 
-        validate_policy_environment_match(policy_record.policy, metta_grid_env)
-        return policy_record
+    def get_latest_checkpoint(self) -> str | None:
+        local_max_checkpoint = _latest_checkpoint(f"file://{self.checkpoint_dir}")
+        remote_max_checkpoint = None
+        if self._remote_prefix:
+            _latest_checkpoint(self._remote_prefix)
 
-
-def maybe_establish_checkpoint(
-    checkpoint_manager: CheckpointManager,
-    epoch: int,
-    policy: PolicyAgent,
-    agent_step: int,
-    eval_scores: EvalRewardSummary,
-    timer: Stopwatch,
-    initial_policy_record: PolicyRecord,
-    optimizer: torch.optim.Optimizer,
-    run_dir: str,
-    kickstarter: Kickstarter | None,
-    wandb_run: WandbRun | None,
-    force: bool = False,
-) -> tuple[PolicyRecord, str | None] | None:
-    cfg = checkpoint_manager.checkpoint_cfg
-
-    if not should_run(epoch, cfg.checkpoint_interval, force=force):
-        return None
-
-    record_heartbeat()
-
-    logger.info(f"Saving checkpoint at epoch {epoch}")
-    new_record = checkpoint_manager.save_policy(
-        policy=policy,
-        epoch=epoch,
-        agent_step=agent_step,
-        evals=eval_scores,
-        timer=timer,
-        initial_policy_record=initial_policy_record,
-    )
-    if not new_record.uri:
-        # We shouldn't get here
-        logger.warning(f"Saved policy record did not have a uri: {new_record}")
-        return None
-
-    logger.info(f"Creating a checkpoint at {new_record.uri}")
-    record_heartbeat()
-    checkpoint_manager.save_checkpoint(
-        agent_step=agent_step,
-        epoch=epoch,
-        optimizer=optimizer,
-        policy_path=new_record.uri,
-        timer=timer,
-        run_dir=run_dir,
-        kickstarter=kickstarter,
-    )
-
-    wandb_policy_name: str | None = None
-    # TODO: enforce that wandb_checkpoint_interval is a multiple of checkpoint_interval
-    if should_run(epoch, cfg.wandb_checkpoint_interval, force=force):
-        record_heartbeat()
-        wandb_policy_name = upload_policy_artifact(wandb_run, checkpoint_manager.policy_store, new_record)
-
-    # Clean up old policies every 10 times we write
-    if should_run(epoch, cfg.checkpoint_interval * 10, force=force):
-        cleanup_old_policies(checkpoint_manager.checkpoint_cfg.checkpoint_dir)
-
-    return new_record, wandb_policy_name
+        if local_max_checkpoint:
+            if remote_max_checkpoint and remote_max_checkpoint["epoch"] > local_max_checkpoint["epoch"]:
+                raise ValueError("Invalid setup - trying to resume with a remote checkpoint ahead of local")
+            return local_max_checkpoint["uri"]
+        elif remote_max_checkpoint:
+            return remote_max_checkpoint["uri"]

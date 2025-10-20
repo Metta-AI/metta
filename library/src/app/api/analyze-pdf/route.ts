@@ -3,10 +3,10 @@ import { extractPdfWithOpenAI } from "@/lib/openai-pdf-extractor";
 
 export async function POST(request: NextRequest) {
   try {
-    // Check for OpenAI API key
-    if (!process.env.OPENAI_API_KEY) {
+    // Check for Anthropic API key
+    if (!process.env.ANTHROPIC_API_KEY) {
       return NextResponse.json(
-        { error: "OpenAI API key not configured" },
+        { error: "Anthropic API key not configured" },
         { status: 500 }
       );
     }
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
       // Provide more specific error messages for common issues
       if (error.message.includes("API")) {
         errorMessage =
-          "OpenAI API error. Please check your API key and credits.";
+          "Anthropic API error. Please check your API key and credits.";
       } else if (error.message.includes("GraphicsMagick")) {
         errorMessage =
           "PDF conversion error. GraphicsMagick may not be installed.";

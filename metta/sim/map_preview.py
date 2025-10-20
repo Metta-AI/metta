@@ -9,9 +9,10 @@ import wandb
 from wandb.sdk import wandb_run
 
 from metta.common.util.constants import METTASCOPE_REPLAY_URL
-from metta.mettagrid.mettagrid_config import EnvConfig
-from metta.mettagrid.mettagrid_env import MettaGridEnv
-from metta.mettagrid.util.file import write_file
+from metta.common.util.fs import get_repo_root
+from metta.utils.file import write_file
+from mettagrid import MettaGridEnv
+from mettagrid.config.mettagrid_config import MettaGridConfig
 
 logger = logging.getLogger(__name__)
 
@@ -23,11 +24,11 @@ def write_map_preview_file(preview_path: str, env: MettaGridEnv, gzipped: bool):
         "version": 1,
         "action_names": env.action_names,
         "object_types": env.object_type_names,
-        "inventory_items": env.inventory_item_names,
+        "inventory_items": env.resource_names,
         "map_size": [env.map_width, env.map_height],
         "num_agents": env.num_agents,
         "max_steps": 1,
-        "grid_objects": list(env.grid_objects.values()),
+        "grid_objects": list(env.grid_objects().values()),
     }
 
     preview_data = json.dumps(preview).encode("utf-8")  # Convert to JSON string
@@ -40,7 +41,8 @@ def write_map_preview_file(preview_path: str, env: MettaGridEnv, gzipped: bool):
 
 
 def write_local_map_preview(env: MettaGridEnv):
-    maps_dir = "./outputs/maps"
+    repo_root = get_repo_root()
+    maps_dir = repo_root / "outputs" / "maps"
     os.makedirs(maps_dir, exist_ok=True)
 
     with tempfile.NamedTemporaryFile(delete=False, dir=maps_dir, suffix=".json") as temp_file:
@@ -54,7 +56,7 @@ def write_local_map_preview(env: MettaGridEnv):
 
 def upload_map_preview(
     s3_path: str,
-    env_cfg: EnvConfig,
+    env_cfg: MettaGridConfig,
     wandb_run: Optional[wandb_run.Run] = None,
 ):
     """

@@ -23,17 +23,17 @@ export const getEnvName = (evalName: string): string => {
 export const groupEvalNamesByCategory = (evalNames: string[] | Set<string>): Map<string, string[]> => {
   const categories = new Map<string, string[]>()
   const evalNamesArray = Array.isArray(evalNames) ? evalNames : Array.from(evalNames)
-  
+
   evalNamesArray.forEach((evalName) => {
     const category = getEvalCategory(evalName)
     const envName = getEnvName(evalName)
-    
+
     if (!categories.has(category)) {
       categories.set(category, [])
     }
     categories.get(category)!.push(envName)
   })
-  
+
   return categories
 }
 

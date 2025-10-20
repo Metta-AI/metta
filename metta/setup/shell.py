@@ -2,31 +2,15 @@ import importlib.util
 import sys
 
 import IPython
-from omegaconf import DictConfig
 from traitlets.config import Config as IPythonConfig
 
 from metta.common.util.fs import get_repo_root
-from metta.common.wandb.wandb_context import WandbRun
 from metta.setup.utils import header, info, success, warning
 
 __name__ = "__ipython__"
 
 REPO_ROOT = get_repo_root()
 CONFIGS_DIR = REPO_ROOT / "configs"
-
-from metta.agent.policy_store import PolicyStore  # noqa
-
-
-def get_policy_store_from_cfg(cfg: DictConfig, wandb_run: WandbRun | None = None) -> PolicyStore:
-    policy_store = PolicyStore(
-        device=cfg.device,
-        wandb_run=wandb_run,
-        data_dir=getattr(cfg, "data_dir", None),
-        wandb_entity=cfg.wandb.entity if hasattr(cfg, "wandb") and hasattr(cfg.wandb, "entity") else None,
-        wandb_project=cfg.wandb.project if hasattr(cfg, "wandb") and hasattr(cfg.wandb, "project") else None,
-        pytorch_cfg=getattr(cfg, "pytorch", None),
-    )
-    return policy_store
 
 
 def help_configs() -> None:
@@ -35,7 +19,13 @@ def help_configs() -> None:
     info('cfg = load_cfg("sim_job.yaml")')
     info('cfg = load_cfg("trainer/trainer.yaml")')
     success("# Load configs with overrides:")
-    info('cfg = load_cfg("train_job.yaml", ["trainer.curriculum=/env/mettagrid/arena/advanced"])')
+    info('cfg = load_cfg("train_job.yaml", ["training_env.curriculum=/env/mettagrid/arena/advanced"])')
+    success("# Load checkpoints:")
+    info('artifact = CheckpointManager.load_artifact_from_uri("file://./train_dir/my_run/checkpoints/my_run:v12.mpt")')
+    info('artifact = CheckpointManager.load_artifact_from_uri("s3://bucket/path/my_run/checkpoints/my_run:v12.mpt")')
+    info('policy = artifact.policy  # or artifact.instantiate(game_rules, torch.device("cpu"))')
+    success("# Create checkpoint manager:")
+    info('cm = CheckpointManager(run="my_run", run_dir="./train_dir")')
 
 
 # Create a new IPython config object
@@ -44,8 +34,8 @@ ipython_config.InteractiveShellApp.extensions = ["autoreload"]
 ipython_config.InteractiveShellApp.exec_lines = [
     "%autoreload 2",
     "success('Autoreload enabled: modules will be reloaded automatically when changed.')",
-    "info('Use help_configs() to see available configurations')",
-    "info('Use load_cfg() to load a configuration')",
+    "info('Use help_configs() to see usage examples')",
+    "info('CheckpointManager is available for loading/saving checkpoints')",
 ]
 
 

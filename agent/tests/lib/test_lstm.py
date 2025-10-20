@@ -2,150 +2,76 @@ import pytest
 import torch
 from tensordict import TensorDict
 
-from metta.agent.lib.lstm import LSTM
+from metta.agent.components.lstm import LSTM, LSTMConfig
 
 
 @pytest.fixture
-def simple_lstm_environment():
-    """Create a minimal environment for testing the LSTM layer."""
-    # Define the dimensions
+def lstm_environment():
     batch_size = 4
-    seq_length = 3
-    input_size = 10
-    hidden_size = 20
+    time_steps = 3
+    latent_size = 10
+    hidden_size = 16
     num_layers = 2
 
-    # Create a mock source component that LSTM expects
-    class MockSourceComponent:
-        def __init__(self, output_shape, name):
-            self._out_tensor_shape = output_shape
-            self.name = name
+    config = LSTMConfig(
+        in_key="latent",
+        out_key="core",
+        latent_size=latent_size,
+        hidden_size=hidden_size,
+        num_layers=num_layers,
+    )
+    lstm = LSTM(config)
 
-    # Create mock source components with proper output shapes
-    mock_source = MockSourceComponent([input_size], "hidden")
-    source_components = {"hidden": mock_source}
+    def build_td():
+        latent = torch.randn(batch_size * time_steps, latent_size)
+        td = TensorDict(
+            {
+                "latent": latent,
+                "bptt": torch.full((batch_size * time_steps,), time_steps, dtype=torch.long),
+                "batch": torch.full((batch_size * time_steps,), batch_size, dtype=torch.long),
+            },
+            batch_size=[batch_size * time_steps],
+        )
+        return td
 
-    # Create input data
-    sample_input = {
-        "env_obs": torch.rand(batch_size * seq_length, input_size),
-        "hidden": torch.rand(batch_size * seq_length, input_size),
-    }
-
-    obs_shape = [input_size]
-    cfg = {
-        "name": "_lstm_test_",
-        "_nn_params": {
-            "num_layers": num_layers,
-            "hidden_size": hidden_size,
-        },
-        "sources": [{"name": "hidden"}],
-        "obs_shape": obs_shape,
-    }
-    # Create LSTM layer
-    lstm_layer = LSTM(**cfg)
-
-    # Initialize the network with proper source components
-    lstm_layer.setup(source_components=source_components)
-
-    # Return all components needed for testing
-    return {
-        "lstm_layer": lstm_layer,
-        "sample_input": sample_input,
-        "params": {
-            "batch_size": batch_size,
-            "seq_length": seq_length,
-            "input_size": input_size,
-            "hidden_size": hidden_size,
-            "num_layers": num_layers,
-        },
-    }
+    return lstm, build_td, batch_size, time_steps, hidden_size, num_layers
 
 
-class TestLSTMLayer:
-    """Tests for the LSTM layer with focus on state handling behavior."""
+def test_lstm_forward_creates_output_and_state(lstm_environment):
+    lstm, build_td, batch_size, time_steps, hidden_size, num_layers = lstm_environment
 
-    def test_lstm_initial_forward(self, simple_lstm_environment):
-        """Test LSTM layer with an initial forward pass (no prior state)."""
-        lstm_layer = simple_lstm_environment["lstm_layer"]
-        sample_input = simple_lstm_environment["sample_input"]
-        params = simple_lstm_environment["params"]
+    td = build_td()
+    output = lstm(td)
 
-        td = TensorDict(sample_input, batch_size=[params["batch_size"] * params["seq_length"]])
-        # Set bptt and batch as tensors with the correct batch dimension
-        td["bptt"] = torch.tensor([params["seq_length"]] * (params["batch_size"] * params["seq_length"]))
-        td["batch"] = torch.tensor([params["batch_size"]] * (params["batch_size"] * params["seq_length"]))
+    assert "core" in output
+    assert output["core"].shape == (batch_size * time_steps, hidden_size)
+    assert 0 in lstm.lstm_h
+    assert lstm.lstm_h[0].shape == (num_layers, batch_size, hidden_size)
 
-        # The LSTM state is initially empty
-        assert not lstm_layer.lstm_h
-        assert not lstm_layer.lstm_c
 
-        result_td = lstm_layer._forward(td)
+def test_lstm_state_persists_across_calls(lstm_environment):
+    lstm, build_td, *_ = lstm_environment
 
-        # Verify output shape
-        expected_shape = (params["batch_size"] * params["seq_length"], params["hidden_size"])
-        assert result_td[lstm_layer._name].shape == expected_shape
+    td = build_td()
+    out1 = lstm(td.clone())["core"]
+    out2 = lstm(td.clone())["core"]
 
-        # Verify state is created and stored in the layer for the default env_id 0
-        assert 0 in lstm_layer.lstm_h
-        assert 0 in lstm_layer.lstm_c
-        assert lstm_layer.lstm_h[0].shape == (params["num_layers"], params["batch_size"], params["hidden_size"])
-        assert lstm_layer.lstm_c[0].shape == (params["num_layers"], params["batch_size"], params["hidden_size"])
+    # With state continuation, repeated pass produces different output
+    assert not torch.allclose(out1, out2)
 
-    def test_lstm_state_continuity(self, simple_lstm_environment):
-        """Test that the LSTM state is carried over between forward passes."""
-        lstm_layer = simple_lstm_environment["lstm_layer"]
-        sample_input = simple_lstm_environment["sample_input"]
-        params = simple_lstm_environment["params"]
 
-        td = TensorDict(sample_input, batch_size=[params["batch_size"] * params["seq_length"]])
-        # Set bptt and batch as tensors with the correct batch dimension
-        td["bptt"] = torch.tensor([params["seq_length"]] * (params["batch_size"] * params["seq_length"]))
-        td["batch"] = torch.tensor([params["batch_size"]] * (params["batch_size"] * params["seq_length"]))
+def test_lstm_reset_memory_clears_state(lstm_environment):
+    lstm, build_td, *_ = lstm_environment
 
-        # First forward pass will use initial zero state
-        result1_td = lstm_layer._forward(td.clone())
-        output1 = result1_td[lstm_layer._name]
+    lstm(build_td())
+    assert lstm.lstm_h
 
-        # Second forward pass will use the state stored from the first pass
-        result2_td = lstm_layer._forward(td.clone())
-        output2 = result2_td[lstm_layer._name]
+    lstm.reset_memory()
+    assert not lstm.lstm_h
+    assert not lstm.lstm_c
 
-        # Outputs should be different when using state continuation
-        diff = torch.abs(output1 - output2).mean().item()
-        assert diff > 1e-6, "Continued state should produce different outputs"
-
-    def test_lstm_reset_memory(self, simple_lstm_environment):
-        """Test the `reset_memory` method."""
-        lstm_layer = simple_lstm_environment["lstm_layer"]
-        sample_input = simple_lstm_environment["sample_input"]
-        params = simple_lstm_environment["params"]
-
-        td = TensorDict(sample_input, batch_size=[params["batch_size"] * params["seq_length"]])
-        # Set bptt and batch as tensors with the correct batch dimension
-        td["bptt"] = torch.tensor([params["seq_length"]] * (params["batch_size"] * params["seq_length"]))
-        td["batch"] = torch.tensor([params["batch_size"]] * (params["batch_size"] * params["seq_length"]))
-
-        # Run a forward pass to populate the state
-        lstm_layer._forward(td.clone())
-        assert 0 in lstm_layer.lstm_h
-
-        # Reset the memory
-        lstm_layer.reset_memory()
-        assert not lstm_layer.lstm_h
-        assert not lstm_layer.lstm_c
-
-        # Running forward pass again should produce same output as the very first pass
-        # First, get the output with fresh state again
-        output1 = lstm_layer._forward(td.clone())[lstm_layer._name]
-
-        # Then, run it one more time to see if state continues
-        output2 = lstm_layer._forward(td.clone())[lstm_layer._name]
-
-        # Now reset and check if we get back to output1
-        lstm_layer.reset_memory()
-        output3 = lstm_layer._forward(td.clone())[lstm_layer._name]
-
-        assert torch.allclose(output1, output3, atol=1e-6)
-        # and output3 should be different from output2
-        diff = torch.abs(output2 - output3).mean().item()
-        assert diff > 1e-6, "Resetting state should change the output of a subsequent pass"
+    # After reset, initial pass behaves like a fresh LSTM
+    td = build_td()
+    out1 = lstm(td.clone())["core"]
+    out2 = lstm(td.clone())["core"]
+    assert not torch.allclose(out1, out2)

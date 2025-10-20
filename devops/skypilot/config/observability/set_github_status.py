@@ -42,7 +42,7 @@ for p in CANDIDATES:
         sys.path.insert(0, str(p))
         break
 
-from metta.common.util.github import post_commit_status  # noqa: E402
+import gitta as git  # noqa: E402
 
 
 def main() -> int:
@@ -128,7 +128,7 @@ def main() -> int:
     # Light retry for transient errors
     for attempt in range(1, 5):
         try:
-            post_commit_status(
+            git.post_commit_status(
                 commit_sha=commit_sha,
                 state=state,
                 repo=repo,

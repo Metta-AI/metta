@@ -7,6 +7,12 @@ repositories:
     url: https://kubernetes.github.io/ingress-nginx
   - name: metrics-server
     url: https://kubernetes-sigs.github.io/metrics-server/
+  - name: skypilot
+    url: git+https://github.com/Metta-AI/skypilot@charts?ref=softmax-0.10.3
+  # - name: skypilot-beta
+  #   url: git+https://github.com/Metta-AI/skypilot@charts?ref=softmax-0.10.3
+  - name: datadog
+    url: https://helm.datadoghq.com
 
 releases:
   ########## System configurations ##########
@@ -87,13 +93,43 @@ releases:
     values:
       - ./helm.values/prometheus-values.yaml
 
+  - name: datadog
+    chart: datadog/datadog
+    version: 3.75.0
+    namespace: monitoring
+    values:
+      - ./helm.values/datadog-values.yaml
+
   ########## Skypilot ##########
   - name: skypilot
-    chart: ./skypilot
-    version: 0.0.9
+    chart: skypilot/skypilot
+    version: 0.0.0
     namespace: skypilot
     values:
       - ./helm.values/skypilot-values.yaml
+
+  # Uncomment the following section if you want to test a new skypilot release or configuration.
+  # Deploy with `helmfile apply -i -l name=skypilot-beta`.
+  #
+  # You'll need to copy some secrets to the new namespace:
+  #
+  # for s in lambda-ai-credentials aws-credentials softmax-infra-oauth; do
+  #   kubectl get secret $s --namespace=skypilot -o yaml | sed 's/namespace: .*/namespace: skypilot-beta/' | kubectl apply -f -
+  # done
+
+  # - name: skypilot-beta
+  #   chart: skypilot-beta/skypilot
+  #   version: 0.0.0
+  #   namespace: skypilot-beta
+  #   values:
+  #     - ./helm.values/skypilot-values.yaml
+  #     - apiService:
+  #         image: berkeleyskypilot/skypilot:0.10.3
+  #       rbac:
+  #         manageRbacPolicies: false
+  #         manageSystemComponents: false
+  #       ingress:
+  #         host: skypilot-api-beta.softmax-research.net
 
   ########## Softmax apps ##########
   - name: orchestrator
@@ -114,3 +150,13 @@ releases:
         command: "kubectl"
         args: ["create", "namespace", "home", "--dry-run=client"]
   # Note: Observatory is deployed automatically by Github Actions.
+
+  - name: library
+    chart: ./library
+    version: 0.1.0
+    namespace: library
+
+  - name: dashboard-cronjob
+    chart: ./dashboard-cronjob
+    version: 0.1.0
+    namespace: monitoring

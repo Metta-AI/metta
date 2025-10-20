@@ -76,10 +76,7 @@ export const EvalSelector: React.FC<EvalSelectorProps> = ({
         throw new Error(`No environment names found for category: ${category}`)
       }
       const reconstructedNames = envNames.map((envName) => reconstructEvalName(category, envName))
-      const newSelections = new Set([
-        ...selectedEvalNames,
-        ...reconstructedNames,
-      ])
+      const newSelections = new Set([...selectedEvalNames, ...reconstructedNames])
       onSelectionChange(newSelections)
     }
   }

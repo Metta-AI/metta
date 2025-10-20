@@ -1,10 +1,8 @@
 from unittest.mock import MagicMock
 
 from metta.eval.eval_request_config import EvalRewardSummary
-from metta.rl.stats import (
-    build_wandb_stats,
-    process_training_stats,
-)
+from metta.rl import stats as rl_stats
+from metta.rl.training.stats_reporter import build_wandb_payload
 
 
 class TestMetricsFormattingMain:
@@ -18,6 +16,7 @@ class TestMetricsFormattingMain:
 
         timing_info = {
             "epoch_steps_per_second": 1000,
+            "steps_per_second": 800,
             "wall_time": 3600,
             "train_time": 3000,
             "timing_stats": {"timing/epoch_time": 60},
@@ -40,7 +39,7 @@ class TestMetricsFormattingMain:
 
         hyperparameters = {"learning_rate": 0.001}
 
-        result = build_wandb_stats(
+        result = build_wandb_payload(
             processed_stats,
             timing_info,
             weight_stats,
@@ -61,6 +60,8 @@ class TestMetricsFormattingMain:
         assert result["overview/navigation_score"] == 0.8
         assert result["overview/survival_score"] == 0.6
         assert result["overview/reward_vs_total_time"] == 1.5
+        assert result["overview/steps_per_second"] == 800
+        assert result["overview/epoch_steps_per_second"] == 1000
 
         # Check losses
         assert result["losses/policy_loss"] == 0.5
@@ -122,10 +123,7 @@ class TestMetricsFormattingMain:
         trainer_config.ppo.l2_reg_loss_coef = 0
         trainer_config.ppo.l2_init_loss_coef = 0
 
-        kickstarter = MagicMock()
-        kickstarter.enabled = False
-
-        result = process_training_stats(raw_stats, losses, experience, trainer_config, kickstarter)
+        result = rl_stats.process_training_stats(raw_stats, losses, experience, trainer_config)
 
         assert result["mean_stats"]["reward"] == 2.0
         assert result["mean_stats"]["episode_length"] == 20

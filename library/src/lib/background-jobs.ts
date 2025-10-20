@@ -1,22 +1,11 @@
 /**
- * Background Job Processing for arXiv Auto-Import
+ * Background Job Processing using BullMQ
  *
- * This module handles asynchronous processing of arXiv papers to avoid blocking
- * post creation. Jobs are processed in the background with proper error handling.
+ * This module provides a unified interface for queueing background jobs
+ * using BullMQ for reliable processing with retries and monitoring.
  */
 
-import { prisma } from "@/lib/db/prisma";
-import { processArxivInstitutionsAsync } from "./arxiv-auto-import";
-
-export interface ArxivInstitutionJob {
-  id: string;
-  paperId: string;
-  arxivUrl: string;
-  status: "pending" | "processing" | "completed" | "failed";
-  createdAt: Date;
-  processedAt?: Date;
-  error?: string;
-}
+import { JobQueueService } from './job-queue';
 
 /**
  * Queue an arXiv institution processing job for background execution
@@ -25,35 +14,40 @@ export async function queueArxivInstitutionProcessing(
   paperId: string,
   arxivUrl: string
 ): Promise<void> {
-  console.log(`📤 Queuing institution processing for paper ${paperId}`);
-
-  // For now, just process directly in background
-  // In a production app, you'd use a proper job queue like Bull/BullMQ
-  setImmediate(async () => {
-    try {
-      await processArxivInstitutionsAsync(paperId, arxivUrl);
-    } catch (error) {
-      console.error(
-        `❌ Background institution job failed for paper ${paperId}:`,
-        error
-      );
-    }
-  });
+  await JobQueueService.queueInstitutionExtraction(paperId, arxivUrl);
 }
 
 /**
- * Process a single arXiv institution job with error handling and status tracking
+ * Queue author extraction for a paper
  */
-export async function processArxivInstitutionJob(
-  job: ArxivInstitutionJob
+export async function queueArxivAuthorProcessing(
+  paperId: string,
+  arxivUrl: string
 ): Promise<void> {
-  console.log(`🔄 Processing institution job for paper ${job.paperId}`);
+  await JobQueueService.queueAuthorExtraction(paperId, arxivUrl);
+}
 
-  try {
-    await processArxivInstitutionsAsync(job.paperId, job.arxivUrl);
-    console.log(`✅ Completed institution job for paper ${job.paperId}`);
-  } catch (error) {
-    console.error(`❌ Failed institution job for paper ${job.paperId}:`, error);
-    throw error;
-  }
+/**
+ * Queue LLM abstract generation for a paper
+ */
+export async function queueLLMAbstractGeneration(
+  paperId: string
+): Promise<void> {
+  await JobQueueService.queueLLMAbstractGeneration(paperId);
+}
+
+/**
+ * Queue auto-tagging for a paper
+ */
+export async function queueAutoTagging(
+  paperId: string
+): Promise<void> {
+  await JobQueueService.queueAutoTagging(paperId);
+}
+
+/**
+ * Get background job statistics
+ */
+export async function getBackgroundJobStats() {
+  return await JobQueueService.getQueueStats();
 }

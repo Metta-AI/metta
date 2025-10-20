@@ -5,6 +5,6 @@ DATE=$(date +%Y%m%d_%H%M%S)
 
 # Run the training command
 echo "Starting training run: cc.$USER.test.$DATE"
-uv run ./tools/train.py run=cc.$USER.test.$DATE trainer.total_timesteps=10000 wandb=off
+uv run ./tools/run.py experiments.recipes.arena.train run=cc.$USER.test.$DATE trainer.total_timesteps=10000 wandb.enabled=false
 
 echo "Training run cc.$USER.test.$DATE completed!"

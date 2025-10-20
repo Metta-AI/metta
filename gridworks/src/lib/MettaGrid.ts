@@ -1,26 +1,29 @@
-import encoding from "./encoding.json" with { type: "json" };
+import defaultEncoding from "@/lib/encoding.json" assert { type: "json" };
 
-const typedEncoding: Record<string, string[]> = encoding;
+import { StorableMap } from "./api";
 
-const asciiToNameCache = new Map<string, string>();
-function asciiToName(ascii: string): string {
-  if (asciiToNameCache.has(ascii)) {
-    return asciiToNameCache.get(ascii)!;
-  }
-  for (const [name, chars] of Object.entries(typedEncoding)) {
-    if (chars.includes(ascii)) {
-      asciiToNameCache.set(ascii, name);
-      return name;
-    }
-  }
-  throw new Error(`Invalid character: '${ascii}'`);
-}
+export class AsciiEncoding {
+  charToName: Record<string, string>;
+  nameToChar: Record<string, string>;
 
-function nameToAscii(name: string): string {
-  if (!typedEncoding[name]) {
-    throw new Error(`Invalid object name: '${name}'`);
+  constructor(charToName: Record<string, string>) {
+    this.charToName = charToName;
+    this.nameToChar = Object.fromEntries(
+      Object.entries(charToName).map(([char, name]) => [name, char])
+    );
   }
-  return typedEncoding[name][0]!;
+
+  getNameFromChar(char: string): string {
+    return this.charToName[char] ?? "unknown";
+  }
+
+  getCharFromName(name: string): string {
+    return this.nameToChar[name] ?? "?";
+  }
+
+  static default(): AsciiEncoding {
+    return new AsciiEncoding(defaultEncoding);
+  }
 }
 
 export type Cell = {
@@ -40,15 +43,6 @@ export class MettaObject {
     this.c = data.c;
   }
 
-  static fromAscii(
-    r: number,
-    c: number,
-    ascii: string
-  ): MettaObject | undefined {
-    const objectName = asciiToName(ascii);
-    return MettaObject.fromObjectName(r, c, objectName);
-  }
-
   static fromObjectName(
     r: number,
     c: number,
@@ -58,10 +52,6 @@ export class MettaObject {
       return undefined;
     }
     return new MettaObject({ name, r, c });
-  }
-
-  get ascii(): string {
-    return nameToAscii(this.name);
   }
 }
 
@@ -100,15 +90,19 @@ export class MettaGrid {
     });
   }
 
-  static fromAscii(asciiMap: string) {
+  static fromAscii(data: string, encoding: AsciiEncoding): MettaGrid {
     // Parse the data
-    const lines = asciiMap.trim().split("\n");
+    const lines = data.trim().split("\n");
     const width = Math.max(...lines.map((line) => line.length));
     const height = lines.length;
     const objects: MettaObject[] = [];
     lines.forEach((line, y) => {
       line.split("").forEach((char, x) => {
-        const object = MettaObject.fromAscii(y, x, char);
+        const object = MettaObject.fromObjectName(
+          y,
+          x,
+          encoding.getNameFromChar(char)
+        );
         if (object) {
           objects.push(object);
         }
@@ -117,11 +111,22 @@ export class MettaGrid {
     return new MettaGrid({ width, height, objects });
   }
 
-  toAscii(): string {
-    const emptyAscii = nameToAscii("empty");
+  static fromStorableMap(map: StorableMap) {
+    return this.fromAscii(
+      map.data,
+      new AsciiEncoding(map.frontmatter.char_to_name)
+    );
+  }
+
+  toAscii(encoding: AsciiEncoding): string {
+    const emptyAscii = encoding.getCharFromName("empty");
     return this.grid
       .map((row) =>
-        row.map((cell) => (cell ? cell.ascii : emptyAscii)).join("")
+        row
+          .map((cell) =>
+            cell ? encoding.getCharFromName(cell.name) : emptyAscii
+          )
+          .join("")
       )
       .join("\n");
   }

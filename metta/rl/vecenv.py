@@ -1,16 +1,17 @@
 import logging
+from pathlib import Path
 from typing import Any, Optional
+
+from pydantic import validate_call
 
 import pufferlib
 import pufferlib.vector
-from pufferlib.pufferlib import set_buffers
-from pydantic import validate_call
-
 from metta.cogworks.curriculum import Curriculum, CurriculumEnv
-from metta.common.util.logging_helpers import init_logging
-from metta.mettagrid import MettaGridEnv
-from metta.mettagrid.replay_writer import ReplayWriter
-from metta.mettagrid.stats_writer import StatsWriter
+from metta.common.util.log_config import init_logging
+from metta.sim.replay_log_renderer import ReplayLogRenderer
+from mettagrid import MettaGridEnv, RenderMode
+from mettagrid.util.stats_writer import StatsWriter
+from pufferlib.pufferlib import set_buffers
 
 logger = logging.getLogger("vecenv")
 
@@ -18,24 +19,22 @@ logger = logging.getLogger("vecenv")
 @validate_call(config={"arbitrary_types_allowed": True})
 def make_env_func(
     curriculum: Curriculum,
-    render_mode="rgb_array",
+    render_mode: RenderMode = "none",
     stats_writer: Optional[StatsWriter] = None,
-    replay_writer: Optional[ReplayWriter] = None,
+    replay_writer: Optional[ReplayLogRenderer] = None,
     is_training: bool = False,
-    is_serial: bool = False,
     run_dir: str | None = None,
     buf: Optional[Any] = None,
     **kwargs,
 ):
-    if not is_serial:
-        # Running in a new process, so we need to reinitialize logging
-        init_logging(run_dir=run_dir)
+    if run_dir is not None:
+        init_logging(run_dir=Path(run_dir))
 
     env = MettaGridEnv(
         curriculum.get_task().get_env_cfg(),
         render_mode=render_mode,
         stats_writer=stats_writer,
-        replay_writer=replay_writer,
+        renderer=replay_writer,
         is_training=is_training,
     )
     set_buffers(env, buf)
@@ -51,9 +50,9 @@ def make_vecenv(
     num_envs: int = 1,
     batch_size: int | None = None,
     num_workers: int = 1,
-    render_mode: str | None = None,
+    render_mode: RenderMode = "none",
     stats_writer: StatsWriter | None = None,
-    replay_writer: ReplayWriter | None = None,
+    replay_writer: ReplayLogRenderer | None = None,
     is_training: bool = False,
     run_dir: str | None = None,
     **kwargs,
@@ -78,7 +77,6 @@ def make_vecenv(
         "stats_writer": stats_writer,
         "replay_writer": replay_writer,
         "is_training": is_training,
-        "is_serial": is_serial,
         "run_dir": run_dir,
     }
 

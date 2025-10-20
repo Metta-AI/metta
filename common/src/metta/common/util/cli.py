@@ -9,6 +9,7 @@ import time
 from contextlib import contextmanager
 from typing import Callable, Iterator, Optional
 
+from metta.common.util.log_config import init_logging
 from metta.common.util.text_styles import blue, bold, cyan, green, magenta, red, yellow
 
 
@@ -227,4 +228,5 @@ def main():
 
 
 if __name__ == "__main__":
+    init_logging()
     main()

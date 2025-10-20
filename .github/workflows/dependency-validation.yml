@@ -1,0 +1,83 @@
+name: Dependency Validation
+
+on:
+  pull_request:
+    paths:
+      - "**/pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/dependency-validation.yml"
+  push:
+    branches: [main]
+    paths:
+      - "**/pyproject.toml"
+      - "uv.lock"
+
+jobs:
+  validate-dependencies:
+    name: Validate Workspace Dependencies
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up environment
+        uses: ./.github/actions/setup-environment
+
+      - name: Validate workspace consistency
+        run: |
+          echo "🔍 Validating workspace package consistency..."
+
+          # Check that all workspace packages can be installed together
+          uv run python -c "
+          import sys
+          try:
+              # Test imports of all workspace packages
+              import metta.agent
+              import metta.common
+              import metta.app_backend
+              import mettagrid
+              import codebot
+              import gitta
+              print('✅ All workspace packages can be imported successfully')
+          except ImportError as e:
+              print(f'❌ Import error: {e}')
+              sys.exit(1)
+          "
+
+      - name: Check for duplicate dependencies
+        run: |
+          echo "🔍 Checking for duplicate dependency specifications..."
+          uv run python .github/scripts/check_duplicates.py
+
+      - name: Generate dependency report
+        if: always()
+        run: |
+          echo "📊 Generating dependency report..."
+
+          echo "## Workspace Packages" > dependency_report.md
+          echo "" >> dependency_report.md
+          ls -la */pyproject.toml | awk '{print "- " $9}' >> dependency_report.md
+
+          echo "" >> dependency_report.md
+          echo "## Dependency Tree Summary" >> dependency_report.md
+          echo "" >> dependency_report.md
+          echo '```' >> dependency_report.md
+          uv tree --package metta --depth 1 >> dependency_report.md || echo "Could not generate tree" >> dependency_report.md
+          echo '```' >> dependency_report.md
+
+          echo "" >> dependency_report.md
+          echo "## Lock File Status" >> dependency_report.md
+          echo "" >> dependency_report.md
+          echo "- Lock file entries: $(grep -c '^\[\[package\]\]' uv.lock)" >> dependency_report.md
+          echo "- Python version: $(grep 'requires-python' uv.lock | head -1)" >> dependency_report.md
+
+          cat dependency_report.md
+
+      - name: Upload dependency report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-report
+          path: dependency_report.md
+          retention-days: 30

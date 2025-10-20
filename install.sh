@@ -1,6 +1,7 @@
 #!/bin/sh
 set -u
-PROFILE=""
+PROFILE_ADDITION=""
+NON_INTERACTIVE_ADDITION=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --profile)
@@ -8,11 +9,11 @@ while [ $# -gt 0 ]; do
         echo "Error: --profile requires an argument"
         exit 1
       fi
-      PROFILE="$2"
+      PROFILE_ADDITION="--profile=$2"
       shift 2
       ;;
-    --profile=*)
-      PROFILE="${1#--profile=}"
+    --non-interactive)
+      NON_INTERACTIVE_ADDITION="--non-interactive"
       shift
       ;;
     --help | -h)
@@ -26,11 +27,12 @@ while [ $# -gt 0 ]; do
       echo "Options:"
       echo "  --profile PROFILE      Set user profile (external, cloud, or softmax)"
       echo "                         If not specified, runs interactive configuration"
+      echo "  --non-interactive      Run in non-interactive mode (no prompts)"
       echo "  -h, --help             Show this help message"
       echo ""
       echo "Examples:"
       echo "  $0                     # Interactive setup"
-      echo "  $0 --profile=softmax   # Setup for Softmax employee"
+      echo "  $0 --profile softmax   # Setup for Softmax employee"
       exit 0
       ;;
     *)
@@ -41,25 +43,29 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-# Assumes install.sh is in root of repo
-REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
-
-# Source common functions
-. "$REPO_ROOT/devops/tools/common.sh"
+check_cmd() {
+  command -v "$1" > /dev/null 2>&1
+  return $?
+}
 
 echo "Welcome to Metta!"
 
-# Ensure uv is in PATH, installed, and uv project environment associated with this repo
-ensure_uv_setup
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+sh "$SCRIPT_DIR/devops/tools/install-system.sh"
 
-uv sync || err "Failed to install Python dependencies"
-uv run python -m metta.setup.metta_cli symlink-setup || err "Failed to set up metta command in ~/.local/bin"
-if [ -n "$PROFILE" ]; then
-  uv run python -m metta.setup.metta_cli configure --profile="$PROFILE" || err "Failed to run configuration"
-else
-  uv run python -m metta.setup.metta_cli configure || err "Failed to run configuration"
+for cmd in uv bazel git g++ nimble nim; do
+  if ! check_cmd "$cmd"; then
+    echo "$cmd not found. Consider running ./devops/tools/install-system.sh"
+    exit 1
+  fi
+done
+
+uv sync
+uv run python -m metta.setup.metta_cli symlink-setup setup --quiet
+uv run python -m metta.setup.metta_cli install $PROFILE_ADDITION $NON_INTERACTIVE_ADDITION
+if [ "$(uname -s)" = "Linux" ]; then
+  uv run python scripts/install_cuda_extras.py --quiet || true
 fi
-uv run python -m metta.setup.metta_cli install || err "Failed to install components"
 
 echo "\nSetup complete!\n"
 

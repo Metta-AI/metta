@@ -13,6 +13,7 @@ readme = "README.md"
 urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/metta" }
 
 dependencies = [
+  "aioboto3>=13.2.0",
   "boto3>=1.38.32",
   "ddtrace>=2.6.0",
   "fastapi>=0.115.5",
@@ -23,6 +24,7 @@ dependencies = [
   "httpx>=0.28.1",
   "wandb>=0.19.11",
   "metta-common",
+  "gitta",
 ]
 
 [dependency-groups]

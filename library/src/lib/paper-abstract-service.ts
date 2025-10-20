@@ -45,7 +45,7 @@ export class PaperAbstractService {
 
       // Check if we already have an LLM abstract
       if (paper.llmAbstract && paper.llmAbstractGeneratedAt) {
-        const existingAbstract = paper.llmAbstract as LLMAbstract;
+        const existingAbstract = paper.llmAbstract as unknown as LLMAbstract;
         console.log(`📋 Found existing LLM abstract for paper: ${paperId}`);
         return existingAbstract;
       }
@@ -94,7 +94,7 @@ export class PaperAbstractService {
       // Find papers without LLM abstracts that have PDF links
       const papersNeedingAbstracts = await prisma.paper.findMany({
         where: {
-          llmAbstract: null,
+          llmAbstract: null as any,
           link: { not: null },
         },
         select: { id: true },
@@ -125,21 +125,45 @@ export class PaperAbstractService {
     paper: any
   ): Promise<LLMAbstract | null> {
     try {
-      // Fetch and extract PDF content
-      const pdfContent = await this.fetchAndExtractPdf(paper.link);
-      if (!pdfContent) {
+      // Normalize URL to ensure we get the actual PDF
+      const normalizedUrl = this.normalizePdfUrl(paper.link);
+      console.log(`📥 Fetching PDF from: ${normalizedUrl}`);
+
+      const response = await fetch(normalizedUrl, {
+        headers: {
+          Accept: "application/pdf,*/*",
+          "User-Agent": "Mozilla/5.0 (compatible; LibraryBot/1.0)",
+        },
+        redirect: "follow",
+      });
+
+      if (!response.ok) {
         console.error(
-          `❌ Could not extract PDF content for paper: ${paper.id}`
+          `❌ Failed to fetch PDF: ${response.status} ${response.statusText}`
         );
         return null;
       }
 
-      // Generate LLM abstract (reuse the already-fetched PDF buffer)
+      // Validate content type
+      const contentType = response.headers.get("content-type") || "";
+      console.log(`📄 Response content-type: ${contentType}`);
+
+      if (contentType.includes("text/html")) {
+        console.error(
+          `❌ URL returned HTML instead of PDF. URL might be incorrect: ${normalizedUrl}`
+        );
+        console.error(`❌ Original URL: ${paper.link}`);
+        return null;
+      }
+
+      const pdfBuffer = Buffer.from(await response.arrayBuffer());
+      console.log(`📄 Successfully fetched PDF (${pdfBuffer.length} bytes)`);
+
+      // Generate LLM abstract directly (no separate content extraction step)
       const homepageUrl = this.getHomepageUrl(paper);
-      const pdfBuffer = (pdfContent as any)._pdfBuffer;
       const llmAbstract = await generateLLMAbstract(
         paper.title,
-        pdfContent,
+        {} as any, // Empty pdfContent since we're going direct to enhanced extraction
         paper.link,
         homepageUrl,
         pdfBuffer
@@ -278,7 +302,7 @@ export class PaperAbstractService {
       });
 
       if (paper?.llmAbstract) {
-        return paper.llmAbstract as LLMAbstract;
+        return paper.llmAbstract as unknown as LLMAbstract;
       }
 
       return null;
@@ -299,7 +323,7 @@ export class PaperAbstractService {
       await prisma.paper.update({
         where: { id: paperId },
         data: {
-          llmAbstract: null,
+          llmAbstract: null as any,
           llmAbstractGeneratedAt: null,
         },
       });

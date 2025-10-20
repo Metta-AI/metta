@@ -69,7 +69,22 @@ check_sso_token() {
 initialize_aws_config() {
   echo "Initializing AWS configuration..."
 
-  # Set up profiles via aws CLI in all environments (including test/CI)
+  # Check if the SSO session already exists
+  if ! grep -q "\[sso-session softmax-sso\]" ~/.aws/config 2> /dev/null; then
+    echo "Adding SSO session configuration..."
+    mkdir -p ~/.aws
+    # Create a temporary file with the new config
+    cat >> ~/.aws/config << EOF
+[sso-session softmax-sso]
+sso_start_url = https://softmaxx.awsapps.com/start/
+sso_region = us-east-1
+sso_registration_scopes = sso:account:access
+EOF
+    echo "SSO session added successfully."
+  else
+    echo "SSO session already exists in ~/.aws/config"
+  fi
+
   # Set up root profile
   aws configure set profile.softmax-root.region us-east-1
   aws configure set profile.softmax-root.output json

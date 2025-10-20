@@ -1,5 +1,0 @@
-defaults:
-  - random
-  - _self_
-
-_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum

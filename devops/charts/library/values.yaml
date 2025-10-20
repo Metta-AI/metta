@@ -1,0 +1,16 @@
+image:
+  registry: 751442549699.dkr.ecr.us-east-1.amazonaws.com
+  name: softmax-library
+  tag: "" # will be set by CI/CD pipeline
+
+host: library.softmax-research.net
+
+cert_manager_issuer: letsencrypt
+
+frontend:
+  secret_name: softmax-library-frontend-secrets
+  replicas: 1
+
+worker:
+  secret_name: softmax-library-worker-secrets
+  replicas: 1

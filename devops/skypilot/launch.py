@@ -3,59 +3,72 @@ import argparse
 import copy
 import json
 import logging
+import re
 import subprocess
 import sys
 
 import sky
 import yaml
 
-from devops.skypilot.utils import (
-    check_config_files,
+import gitta as git
+from devops.skypilot.utils.job_helpers import (
     check_git_state,
     display_job_summary,
     launch_task,
     set_task_secrets,
 )
+from metta.common.tool.tool_path import validate_module_path
 from metta.common.util.cli import get_user_confirmation
 from metta.common.util.fs import cd_repo_root
-from metta.common.util.git import get_current_commit, validate_git_ref
 from metta.common.util.text_styles import red
+from metta.tools.utils.auto_config import auto_run_name
 
 logger = logging.getLogger("launch.py")
 
 
-def _validate_run_tool(module_path: str, run_id: str, filtered_args: list, overrides: list) -> None:
+def _validate_sky_cluster_name(run_name: str) -> bool:
+    """Validate that we will meet Sky's cluster naming requirements.
+
+    Sky requires cluster names to:
+    - Start with a letter (a-z or A-Z)
+    - Contain only letters, numbers, dashes, underscores, or dots
+    - End with a letter or number
+    """
+    # Sky's regex pattern: [a-zA-Z]([-_.a-zA-Z0-9]*[a-zA-Z0-9])?
+    pattern = r"^[a-zA-Z]([-_.a-zA-Z0-9]*[a-zA-Z0-9])?$"
+    valid = bool(re.match(pattern, run_name))
+
+    if not valid:
+        print(red(f"[VALIDATION] ❌ Invalid run name: '{run_name}'"))
+        print("Sky cluster names must:")
+        print("  - Start with a letter (not a number)")
+        print("  - Contain only letters, numbers, dashes, underscores, or dots")
+        print("  - End with a letter or number")
+        print()
+
+    return valid
+
+
+def _validate_run_tool(module_path: str, run_id: str, filtered_args: list) -> None:
     """Validate that run.py can successfully create a tool config with the given arguments."""
     # Build the run.py command
-    run_cmd = ["uv", "run", "tools/run.py", module_path, "--dry-run"]
+    run_cmd = ["uv", "run", "--active", "tools/run.py", module_path, "--dry-run"]
 
     # Add args if provided (run= is already included in filtered_args)
     if filtered_args:
-        run_cmd.extend(["--args"] + filtered_args)
-
-    # Add overrides if provided
-    if overrides:
-        run_cmd.extend(["--overrides"] + overrides)
-
-    output = ""
-    success = False
+        run_cmd.extend(filtered_args)
     try:
-        # Run the validation command
-        output = subprocess.check_output(run_cmd, text=True)
-        success = True
+        subprocess.run(run_cmd, capture_output=True, text=True, check=True)
         print("[VALIDATION] ✅ Configuration validation successful")
-    except AssertionError as e:
+    except subprocess.CalledProcessError as e:
         print(red("[VALIDATION] ❌ Configuration validation failed"))
-        print(red(f"[VALIDATION] {str(e)}"))
-    except FileNotFoundError as e:
+        if e.stdout:
+            print(e.stdout)
+        if e.stderr:
+            print(red(e.stderr))
+        sys.exit(1)
+    except FileNotFoundError:
         print(red("[VALIDATION] ❌ Could not find run.py or uv command"))
-        print(red(f"[VALIDATION] {str(e)}"))
-
-    with open("/tmp/run_cmd.txt", "w") as f:
-        f.write(output)
-        logger.info("[VALIDATION] Output saved to /tmp/run_cmd.txt")
-
-    if not success:
         sys.exit(1)
 
 
@@ -98,11 +111,28 @@ def patch_task(
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("module_path", help="Module path to run (e.g., experiments.arena.train)")
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Basic:
+  %(prog)s arena.train run=test_123 trainer.total_timesteps=100000
+
+  # Mix of launch flags and tool args:
+  %(prog)s arena.train --gpus 2 --nodes 4 -- run=test_123 trainer.steps=1000
+        """,
+    )
+
+    # First, we need to separate launch flags from tool args
+    # We'll parse known args only, allowing unknown ones to be passed as tool args
+    parser.add_argument(
+        "module_path",
+        help="Module path to run (e.g., arena.train or experiments.recipes.arena.train). "
+        "Any arguments following the module path will be passed to the tool.",
+    )
+
+    # Launch-specific flags
     parser.add_argument("--run", type=str, default=None, help="Run ID for the job")
-    parser.add_argument("--args", nargs="*", default=[], help="Arguments to pass to the module")
-    parser.add_argument("--overrides", nargs="*", default=[], help="Overrides to apply to the config")
     parser.add_argument("--git-ref", type=str, default=None)
     parser.add_argument("--gpus", type=int, default=None)
     parser.add_argument("--nodes", type=int, default=None)
@@ -119,7 +149,7 @@ def main():
         "-hb",
         "--heartbeat-timeout-seconds",
         type=int,
-        default=99999,  # Disabled - #TODO(robb) #dehydration
+        default=300,
         help="Automatically terminate the job if no heartbeat signal is received for this many seconds",
     )
     parser.add_argument(
@@ -143,38 +173,40 @@ def main():
         help="Run NCCL and job restart tests",
     )
 
-    args = parser.parse_args()
+    # Use parse_known_args to handle both launch flags and tool args
+    args, tool_args = parser.parse_known_args()
 
-    # Handle run ID - it can come from --run flag or from args as run=value
+    # Handle run ID extraction
     run_id = args.run
     filtered_args = []
 
-    # Check if run= is in the args and extract it
-    for arg in args.args:
+    for arg in tool_args:
         if arg.startswith("run="):
-            if run_id is None:  # Only use if --run wasn't specified
-                run_id = arg[4:]  # Remove 'run=' prefix
-            # Don't add run= to filtered_args - we'll add it back later
+            # Extract the run ID
+            new_run_id = arg[4:]
+            if run_id is not None and new_run_id != run_id:
+                raise ValueError(f"Conflicting run IDs specified: '{run_id}' and '{new_run_id}'")
+            run_id = new_run_id
         else:
             filtered_args.append(arg)
 
-    # If run is still not specified, error out
     if run_id is None:
-        parser.error("run ID is required (use --run=foo or pass run=foo in --args)")
+        run_id = auto_run_name()
+        logger.info(f"Using auto-generated run ID: {run_id}")
+        logger.info("To specify a run ID pass run=foo")
 
-    # Always add run= to the filtered args so it gets passed to run.py
     filtered_args.append(f"run={run_id}")
 
     cd_repo_root()
 
     # check that the parsed args.git_ref provides a valid commit hash
     if args.git_ref:
-        commit_hash = validate_git_ref(args.git_ref)
+        commit_hash = git.resolve_git_ref(args.git_ref)
         if not commit_hash:
             print(red(f"❌ Invalid git reference: '{args.git_ref}'"))
             sys.exit(1)
     else:
-        commit_hash = get_current_commit()
+        commit_hash = git.get_current_commit()
 
         # check that the commit has been pushed and there are no staged changes
         if not args.skip_git_check:
@@ -184,17 +216,18 @@ def main():
                 print("  - Skip check: add --skip-git-check flag")
                 sys.exit(1)
 
-    # check that the files referenced in the module path exist
-    # Convert module path to file path for validation
-    module_file_path = args.module_path.replace(".", "/") + ".py"
-    if not check_config_files([module_file_path]):
-        print(red(f"❌ Module path '{args.module_path}' does not exist (looking for {module_file_path})"))
+    # Validate module path (supports shorthand like 'arena.train')
+    if not validate_module_path(args.module_path):
         sys.exit(1)
 
     assert commit_hash
 
     # Validate the run.py tool configuration early to catch errors before setting up the task
-    _validate_run_tool(args.module_path, run_id, filtered_args, args.overrides)
+    _validate_run_tool(args.module_path, run_id, filtered_args)
+
+    # Validate the provided run name
+    if not _validate_sky_cluster_name(run_id):
+        sys.exit(1)
 
     task = sky.Task.from_yaml("./devops/skypilot/config/skypilot_run.yaml")
 
@@ -203,7 +236,6 @@ def main():
         METTA_RUN_ID=run_id,
         METTA_MODULE_PATH=args.module_path,
         METTA_ARGS=" ".join(filtered_args),
-        METTA_OVERRIDES=" ".join(args.overrides),
         METTA_GIT_REF=commit_hash,
         HEARTBEAT_TIMEOUT=args.heartbeat_timeout_seconds,
         GITHUB_PAT=args.github_pat,
@@ -255,7 +287,7 @@ def main():
 
     display_job_summary(
         job_name=run_id,
-        cmd=f"{args.module_path} (args: {filtered_args}, overrides: {args.overrides})",
+        cmd=f"{args.module_path} (args: {filtered_args})",
         task_args=[],  # We're showing args differently now
         commit_hash=commit_hash,
         git_ref=args.git_ref,

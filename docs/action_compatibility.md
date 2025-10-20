@@ -1,8 +1,10 @@
 # Action Compatibility Guide for Metta
 
-This document catalogs all types of changes that can break the action system in Metta, helping developers understand the impact of their changes on existing trained policies.
+This document catalogs all types of changes that can break the action system in Metta, helping developers understand the
+impact of their changes on existing trained policies.
 
 ## Table of Contents
+
 1. [Action System Overview](#action-system-overview)
 2. [Breaking Changes Catalog](#breaking-changes-catalog)
 3. [Compatibility Matrix](#compatibility-matrix)
@@ -12,23 +14,30 @@ This document catalogs all types of changes that can break the action system in 
 ## Action System Overview
 
 ### Action Structure
-Actions in Metta consist of two components:
-- **Action Type** (index): Integer identifying which action to perform (e.g., move=0, rotate=1)
-- **Action Argument**: Integer parameter for the action (e.g., direction for move)
+
+Metta actions are represented by a **single discrete index**. Each index corresponds to a fully qualified action variant
+such as `move_north`, `rotate_west`, or `attack_3`. Verb/argument combinations are flattened during environment
+construction, so policies only emit a scalar `action_id` per agent.
+
+> **Note:** Older builds exposed actions as `(type, argument)` pairs. Those multi-field tensors are now deprecated. When
+> replaying historical data, use the migration helpers in `mettagrid.test_support.actions` to map legacy tuples onto the
+> new enumerated action ids.
 
 ### Action Validation Flow
+
 ```
-1. Action Type Validation: 0 <= action_type < num_action_handlers
-2. Action Argument Validation: 0 <= action_arg <= max_action_args[action_type]
+1. Action Index Validation: 0 <= action_id < num_action_handlers
+2. Action Space Validation: ensure sampled indices are within `env.action_space.n`
 3. Agent State Validation: Check if agent is frozen
 4. Resource Validation: Check required/consumed resources
 5. Action Execution: Attempt the action
 ```
 
 ### Key Components
-- **MettaGrid::_step()**: Main action processing loop
+
+- **MettaGrid::\_step()**: Main action processing loop
 - **ActionHandler**: Base class for all actions
-- **_handle_invalid_action()**: Error handling for invalid actions
+- **\_handle_invalid_action()**: Error handling for invalid actions
 - **action_names()**: Maps action names to indices
 
 ## Breaking Changes Catalog
@@ -38,6 +47,7 @@ Actions in Metta consist of two components:
 **Description**: Modifying the order in which actions are registered changes their numeric indices.
 
 **Example**:
+
 ```yaml
 # Before
 actions:
@@ -52,37 +62,40 @@ actions:
   rotate: {...}    # index 2
 ```
 
-**Impact**: Trained policies will execute wrong actions
-**Detection**: Action success rates drop dramatically
-**Stats Tracked**: `action.invalid_type`
+**Impact**: Trained policies will execute wrong actions **Detection**: Action success rates drop dramatically **Stats
+Tracked**: `action.invalid_type`
 
-### 2. Max Argument Changes
+### 2. Action Variant Count Changes
 
-**Description**: Changing the maximum allowed argument value for an action.
+**Description**: Changing how many concrete variants are generated for a logical verb.
 
 **Example**:
+
 ```yaml
 # Before
-move:
-  max_arg: 1  # forward(0), backward(1)
+actions:
+  move:
+    allow_diagonals: false  # Only N, S, E, W -> 4 move_* entries
 
 # After (BREAKING)
-move:
-  max_arg: 3  # forward(0), backward(1), left(2), right(3)
+actions:
+  move:
+    allow_diagonals: true   # Adds NE/NW/SE/SW -> 8 move_* entries
 ```
 
 **Impact**:
-- Reducing max_arg: Previously valid actions become invalid
-- Increasing max_arg: No immediate break, but action space changes
 
-**Detection**: `action.invalid_arg` errors increase
-**Stats Tracked**: `action.invalid_arg`, `action.<name>.failed`
+- Removing variants: Formerly valid action ids now fall outside the handler list
+- Adding variants: Action ids shift after the insertion point; trained policies must be remapped
+
+**Detection**: `action.invalid_type` errors increase **Stats Tracked**: `action.invalid_type`, `action.<name>.failed`
 
 ### 3. Action Removal or Renaming
 
 **Description**: Removing an action or changing its name in configuration.
 
 **Example**:
+
 ```yaml
 # Before
 actions:
@@ -94,17 +107,18 @@ actions:
 ```
 
 **Impact**:
+
 - Removal: Action indices shift, causing wrong actions
 - Renaming: Action becomes unregistered
 
-**Detection**: `Unknown action` errors during initialization
-**Stats Tracked**: `action.invalid_type`
+**Detection**: `Unknown action` errors during initialization **Stats Tracked**: `action.invalid_type`
 
 ### 4. Resource Requirement Changes
 
 **Description**: Modifying required or consumed resources for actions.
 
 **Example**:
+
 ```cpp
 // Before
 required_resources: {ore: 1}
@@ -115,15 +129,15 @@ required_resources: {ore: 2, energy: 1}
 consumed_resources: {ore: 2}
 ```
 
-**Impact**: Actions fail due to insufficient resources
-**Detection**: Action success rate drops
-**Stats Tracked**: `action.<name>.failed`
+**Impact**: Actions fail due to insufficient resources **Detection**: Action success rate drops **Stats Tracked**:
+`action.<name>.failed`
 
 ### 5. Agent State Conflicts
 
 **Description**: Changes to agent state that prevent action execution.
 
 **Example**: Frozen duration changes
+
 ```cpp
 // Frozen agents cannot perform actions
 if (actor->frozen != 0) {
@@ -131,43 +145,43 @@ if (actor->frozen != 0) {
 }
 ```
 
-**Impact**: Actions fail silently
-**Stats Tracked**: `status.frozen.ticks`, `status.frozen.ticks.<group>`
+**Impact**: Actions fail silently **Stats Tracked**: `status.frozen.ticks`, `status.frozen.ticks.<group>`
 
 ### 6. Action Priority Changes
 
 **Description**: Modifying action execution priority affects order of processing.
 
 **Example**:
+
 ```cpp
 // Attack has priority 1, others have priority 0
 // Actions execute from highest to lowest priority
 ```
 
-**Impact**: Action conflicts resolved differently
-**Detection**: Subtle behavior changes in multi-agent scenarios
+**Impact**: Action conflicts resolved differently **Detection**: Subtle behavior changes in multi-agent scenarios
 
 ### 7. Inventory Item Index Changes
 
 **Description**: Changing the order or IDs of inventory items that actions depend on.
 
 **Example**:
+
 ```yaml
 # Before
-inventory_item_names: [ore, wood, gold]  # ore=0, wood=1, gold=2
+resource_names: [ore, wood, gold]  # ore=0, wood=1, gold=2
 
 # After (BREAKING)
-inventory_item_names: [wood, ore, gold]  # wood=0, ore=1, gold=2
+resource_names: [wood, ore, gold]  # wood=0, ore=1, gold=2
 ```
 
-**Impact**: Resource checks use wrong items
-**Detection**: Resource-based actions fail unexpectedly
+**Impact**: Resource checks use wrong items **Detection**: Resource-based actions fail unexpectedly
 
 ### 8. Action Handler Implementation Changes
 
 **Description**: Modifying the internal logic of action handlers.
 
 **Example**:
+
 ```cpp
 // Move action now checks for walls differently
 bool Move::_handle_action(Agent* actor, ActionArg arg) {
@@ -175,49 +189,52 @@ bool Move::_handle_action(Agent* actor, ActionArg arg) {
 }
 ```
 
-**Impact**: Actions succeed/fail in different situations
-**Detection**: Behavior changes without explicit errors
+**Impact**: Actions succeed/fail in different situations **Detection**: Behavior changes without explicit errors
 
 ### 9. Special Action Cases
 
 **Attack Action Duplication**:
+
 ```cpp
 // Attack action creates TWO handlers
 _action_handlers.push_back(std::make_unique<Attack>(...));
 _action_handlers.push_back(std::make_unique<AttackNearest>(...));
 ```
+
 **Impact**: Attack takes up two action indices
 
-### 10. Action Space Dimension Changes
+### 10. Action Space Flattening
 
-**Description**: Changes to MultiDiscrete action space shape.
+**Description**: Legacy builds exposed a `MultiDiscrete([num_verbs, max_arg + 1])` action space. Current builds flatten every verb/argument combination into a `gymnasium.spaces.Discrete(num_variants)` space.
 
 **Example**:
-```python
-# Before
-action_space = MultiDiscrete([5, 2])  # 5 action types, max arg 1
 
-# After (BREAKING)
-action_space = MultiDiscrete([7, 4])  # 7 action types, max arg 3
+```python
+# Before (legacy two-field actions)
+action_space = gymnasium.spaces.MultiDiscrete([len(verbs), max_arg + 1])
+
+# After (current single-index actions)
+action_space = gymnasium.spaces.Discrete(len(env.action_names()))
+# env.action_names() -> ["noop", "move_north", "move_south", "attack_0", ...]
 ```
 
-**Impact**: Neural network output dimensions mismatch
-**Detection**: Runtime shape errors in policy
+**Impact**: Actor heads emit a single logit vector. Use `env.action_names()` to interpret sampled indices. **Detection**: Runtime shape errors in policy
 
 ## Compatibility Matrix
 
-| Change Type | Requires Retraining | Backward Compatible | Forward Compatible | Migration Available |
-|------------|-------------------|-------------------|-------------------|-------------------|
-| Action reordering | ✅ Yes | ❌ No | ❌ No | ⚠️ Possible |
-| Max arg increase | ⚠️ Partial | ✅ Yes | ❌ No | ✅ Yes |
-| Max arg decrease | ✅ Yes | ❌ No | ❌ No | ❌ No |
-| Action removal | ✅ Yes | ❌ No | ❌ No | ⚠️ Possible |
-| Action addition | ❌ No | ✅ Yes | ✅ Yes | ✅ Yes |
-| Resource changes | ⚠️ Depends | ⚠️ Partial | ⚠️ Partial | ✅ Yes |
-| Priority changes | ⚠️ Depends | ✅ Yes | ✅ Yes | ✅ Yes |
-| Item reordering | ✅ Yes | ❌ No | ❌ No | ⚠️ Possible |
+| Change Type              | Requires Retraining | Backward Compatible | Forward Compatible | Migration Available |
+| ------------------------ | ------------------- | ------------------- | ------------------ | ------------------- |
+| Action reordering        | ✅ Yes              | ❌ No               | ❌ No              | ⚠️ Possible         |
+| Variant count increase   | ⚠️ Partial          | ✅ Yes              | ❌ No              | ✅ Yes              |
+| Variant count decrease   | ✅ Yes              | ❌ No               | ❌ No              | ❌ No               |
+| Action removal           | ✅ Yes              | ❌ No               | ❌ No              | ⚠️ Possible         |
+| Action addition          | ❌ No               | ✅ Yes              | ✅ Yes             | ✅ Yes              |
+| Resource changes         | ⚠️ Depends          | ⚠️ Partial          | ⚠️ Partial         | ✅ Yes              |
+| Priority changes         | ⚠️ Depends          | ✅ Yes              | ✅ Yes             | ✅ Yes              |
+| Item reordering          | ✅ Yes              | ❌ No               | ❌ No              | ⚠️ Possible         |
 
 ### Legend
+
 - ✅ Yes: Fully supported
 - ❌ No: Not supported
 - ⚠️ Partial/Depends: Case-by-case basis
@@ -229,17 +246,22 @@ action_space = MultiDiscrete([7, 4])  # 7 action types, max arg 3
 **Strategy**: Maintain a mapping between old and new action indices.
 
 ```python
-# Migration mapping
+# Flatten legacy (type, arg) pairs into a single id
+def legacy_flatten(action_type: int, action_arg: int, max_args: list[int]) -> int:
+    offset = sum(max_args[i] + 1 for i in range(action_type))
+    return offset + action_arg
+
+# Remap flattened ids onto the new enumerated action list
 ACTION_REMAP = {
-    0: 1,  # old noop -> new noop
-    1: 0,  # old move -> new move
-    2: 2,  # old rotate -> new rotate
+    0: 0,   # noop -> noop
+    1: 4,   # move,dir=0 -> move_north
+    2: 5,   # move,dir=1 -> move_south
 }
 
-def migrate_action(old_action):
+def migrate_action(old_action, max_args):
     action_type, action_arg = old_action
-    new_type = ACTION_REMAP.get(action_type, action_type)
-    return [new_type, action_arg]
+    legacy_id = legacy_flatten(action_type, action_arg, max_args)
+    return ACTION_REMAP.get(legacy_id, legacy_id)
 ```
 
 ### 2. Gradual Resource Requirement Changes
@@ -328,6 +350,7 @@ def detect_breaking_changes(old_config, new_config):
 ### 4. Monitoring Metrics
 
 Key metrics to track for compatibility issues:
+
 - `action.invalid_type` - Spike indicates index mismatch
 - `action.invalid_arg` - Spike indicates max_arg issues
 - `action.<name>.failed` - Drop in success rate

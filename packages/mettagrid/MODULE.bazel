@@ -1,0 +1,47 @@
+# MODULE.bazel for mettagrid - using Bzlmod (modern Bazel module system)
+module(name = "mettagrid", version = "0.1.6")
+
+# Basic Bazel dependencies
+bazel_dep(name = "platforms", version = "1.0.0")
+bazel_dep(name = "bazel_skylib", version = "1.8.1")
+
+# C++ rules and toolchain
+bazel_dep(name = "rules_cc", version = "0.2.0")
+
+# Python toolchain - use latest compatible version
+bazel_dep(name = "rules_python", version = "1.5.3")
+
+python = use_extension("@rules_python//python/extensions:python.bzl", "python")
+python.defaults(
+    python_version = "3.11",
+    python_version_env = "METTAGRID_BAZEL_PYTHON_VERSION",
+)
+python.toolchain(
+    python_version = "3.11",
+)
+python.toolchain(
+    python_version = "3.12",
+)
+python.toolchain(
+    python_version = "3.13",
+)
+
+# pybind11 for Python bindings
+bazel_dep(name = "pybind11_bazel", version = "2.13.6")
+
+# Google Test for testing
+bazel_dep(name = "googletest", version = "1.17.0")
+
+# Google Benchmark for benchmarking
+bazel_dep(name = "google_benchmark", version = "1.9.4")
+
+# Abseil (dependency of some Google libraries)
+bazel_dep(name = "abseil-cpp", version = "20250814.0")
+
+# make compile_commands.json with: bazel run @hedron_compile_commands//:refresh_all
+bazel_dep(name = "hedron_compile_commands", version = "")
+git_override(
+    module_name = "hedron_compile_commands",
+    remote = "https://github.com/hedronvision/bazel-compile-commands-extractor.git",
+    commit = "abb61a688167623088f8768cc9264798df6a9d10",
+)

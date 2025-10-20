@@ -1,148 +1,138 @@
 #!/usr/bin/env -S uv run
 import subprocess
-import sys
 from pathlib import Path
+from typing import Annotated
+
+import typer
+from rich.console import Console
 
 from metta.common.util.fs import get_repo_root
 from metta.setup.utils import error, info, prompt_choice, success
 
+console = Console()
+app = typer.Typer(
+    help="Interactive marimo notebook commands",
+    rich_markup_mode="rich",
+    no_args_is_help=True,
+)
 
-class BookCommands:
-    def __init__(self):
-        self.repo_root = get_repo_root()
-        self.marimo_dir = self.repo_root / "experiments" / "marimo"
+repo_root = get_repo_root()
+marimo_dir = repo_root / "experiments" / "marimo"
 
-    def _get_notebooks(self) -> list[Path]:
-        """Get all marimo notebooks (.py files) in experiments/marimo."""
-        if not self.marimo_dir.exists():
-            self.marimo_dir.mkdir(parents=True, exist_ok=True)
-        return sorted([f for f in self.marimo_dir.glob("*.py") if not f.name.startswith("__")])
 
-    def _select_notebook(self) -> Path | None:
-        """Interactive notebook selection."""
-        notebooks = self._get_notebooks()
+def _get_notebooks() -> list[Path]:
+    if not marimo_dir.exists():
+        marimo_dir.mkdir(parents=True, exist_ok=True)
+    return sorted([f for f in marimo_dir.glob("*.py") if not f.name.startswith("__")])
 
-        if not notebooks:
-            info("No notebooks found in experiments/marimo/")
-            return None
 
-        choices = [(nb, nb.name) for nb in notebooks]
-        selected = prompt_choice("Select a notebook:", choices)
+def _select_notebook() -> Path | None:
+    notebooks = _get_notebooks()
 
-        if selected:
-            info(f"\n→ Selected: {selected.name}\n")
+    if not notebooks:
+        info("No notebooks found in experiments/marimo/")
+        return None
 
-        return selected
+    choices = [(nb, nb.name) for nb in notebooks]
+    selected = prompt_choice("Select a notebook:", choices)
 
-    def _run_marimo(self, cmd: list[str]) -> None:
-        """Run marimo command from experiments/marimo directory."""
-        try:
-            subprocess.run(cmd, cwd=self.marimo_dir, check=True)
-        except subprocess.CalledProcessError as e:
-            error(f"Marimo command failed: {e}")
-            sys.exit(1)
-        except KeyboardInterrupt:
-            info("\nMarimo shutdown")
-            sys.exit(0)
+    if selected:
+        info(f"\n→ Selected: {selected.name}\n")
 
-    def cmd_home(self) -> None:
-        """Run marimo edit to open the home page."""
-        info("Launching marimo home page...")
-        self._run_marimo(["marimo", "edit"])
+    return selected
 
-    def cmd_open(self, filename: str | None = None) -> None:
-        """Open a specific notebook or show interactive menu."""
-        if filename:
-            notebook_path = self.marimo_dir / filename
-            if not notebook_path.exists():
-                error(f"Notebook not found: {filename}")
-                sys.exit(1)
-            info(f"Opening {filename}...")
-            self._run_marimo(["marimo", "edit", filename])
-        else:
-            # Interactive selection
-            notebook = self._select_notebook()
-            if notebook:
-                info(f"Launching notebook: {notebook.name}...")
-                self._run_marimo(["marimo", "edit", notebook.name])
 
-    def cmd_run(self, filename: str | None = None) -> None:
-        """Run a notebook in read-only mode."""
-        if filename:
-            notebook_path = self.marimo_dir / filename
-            if not notebook_path.exists():
-                error(f"Notebook not found: {filename}")
-                sys.exit(1)
-            info(f"Running {filename}...")
-            self._run_marimo(["marimo", "run", filename])
-        else:
-            # Interactive selection
-            notebook = self._select_notebook()
-            if notebook:
-                info(f"Running notebook in read-only mode: {notebook.name}...")
-                self._run_marimo(["marimo", "run", notebook.name])
+def _run_marimo(cmd: list[str]):
+    try:
+        subprocess.run(cmd, cwd=marimo_dir, check=True)
+    except subprocess.CalledProcessError as e:
+        error(f"Marimo command failed: {e}")
+        raise typer.Exit(1) from e
+    except KeyboardInterrupt:
+        info("\nMarimo shutdown")
+        raise typer.Exit(0) from None
 
-    def cmd_new(self, name: str | None = None) -> None:
-        """Create a new notebook in experiments/marimo."""
-        if not name:
-            name = input("Enter notebook name (without .py extension): ").strip()
 
-        if not name:
-            error("Notebook name is required")
-            sys.exit(1)
+@app.command(name="home")
+def cmd_home():
+    """Open marimo home page."""
+    info("Launching marimo home page...")
+    _run_marimo(["marimo", "edit"])
 
-        # Ensure .py extension
-        if not name.endswith(".py"):
-            name = f"{name}.py"
 
-        notebook_path = self.marimo_dir / name
-        if notebook_path.exists():
-            error(f"Notebook already exists: {name}")
-            sys.exit(1)
+@app.command(name="open")
+def cmd_open(filename: Annotated[str | None, typer.Argument(help="Notebook filename")] = None):
+    """Open an existing notebook."""
+    if filename:
+        notebook_path = marimo_dir / filename
+        if not notebook_path.exists():
+            error(f"Notebook not found: {filename}")
+            raise typer.Exit(1)
+        info(f"Opening {filename}...")
+        _run_marimo(["marimo", "edit", filename])
+    else:
+        notebook = _select_notebook()
+        if notebook:
+            info(f"Launching notebook: {notebook.name}...")
+            _run_marimo(["marimo", "edit", notebook.name])
 
-        info(f"Creating new notebook: {name}")
-        self._run_marimo(["marimo", "new", name])
-        success(f"Created {name}")
 
-    def main(self, argv: list[str] | None = None) -> None:
-        """Main entry point for book commands."""
-        if not argv:
-            # Show interactive menu
-            actions = [
-                ("home", "Open marimo home"),
-                ("open", "Open an existing notebook"),
-                ("run", "Run a notebook (read-only)"),
-                ("new", "Create a new notebook"),
-            ]
+@app.command(name="run")
+def cmd_run(filename: Annotated[str | None, typer.Argument(help="Notebook filename")] = None):
+    """Run a notebook in read-only mode."""
+    if filename:
+        notebook_path = marimo_dir / filename
+        if not notebook_path.exists():
+            error(f"Notebook not found: {filename}")
+            raise typer.Exit(1)
+        info(f"Running {filename}...")
+        _run_marimo(["marimo", "run", filename])
+    else:
+        notebook = _select_notebook()
+        if notebook:
+            info(f"Running notebook in read-only mode: {notebook.name}...")
+            _run_marimo(["marimo", "run", notebook.name])
 
-            action = prompt_choice("Select an action:", actions)
 
-            # Show selected action
-            action_map = dict(actions)
-            info(f"\n→ Selected: {action_map[action]}\n")
+@app.command(name="new")
+def cmd_new(name: Annotated[str | None, typer.Argument(help="Notebook name")] = None):
+    """Create a new notebook."""
+    if not name:
+        name = typer.prompt("Enter notebook name (without .py extension)")
 
-            if action == "home":
-                self.cmd_home()
-            elif action == "open":
-                self.cmd_open()
-            elif action == "run":
-                self.cmd_run()
-            elif action == "new":
-                self.cmd_new()
-        else:
-            # Parse command line
-            cmd = argv[0] if argv else None
-            args = argv[1:] if len(argv) > 1 else []
+    if not name:
+        error("Notebook name is required")
+        raise typer.Exit(1)
 
-            if cmd == "home":
-                self.cmd_home()
-            elif cmd == "open":
-                self.cmd_open(args[0] if args else None)
-            elif cmd == "run":
-                self.cmd_run(args[0] if args else None)
-            elif cmd == "new":
-                self.cmd_new(args[0] if args else None)
-            else:
-                error(f"Unknown command: {cmd}")
-                info("Available commands: home, open, run, new")
-                sys.exit(1)
+    if not name.endswith(".py"):
+        name = f"{name}.py"
+
+    notebook_path = marimo_dir / name
+    if notebook_path.exists():
+        error(f"Notebook already exists: {name}")
+        raise typer.Exit(1)
+
+    info(f"Creating new notebook: {name}")
+    _run_marimo(["marimo", "new", name])
+    success(f"Created {name}")
+
+
+@app.command(name="list")
+def cmd_list():
+    """List all available notebooks."""
+    notebooks = _get_notebooks()
+    if not notebooks:
+        info("No notebooks found in experiments/marimo/")
+    else:
+        console.print("\n[bold]Available notebooks:[/bold]")
+        for nb in notebooks:
+            console.print(f"  • {nb.name}")
+        console.print()
+
+
+def main():
+    app()
+
+
+if __name__ == "__main__":
+    main()

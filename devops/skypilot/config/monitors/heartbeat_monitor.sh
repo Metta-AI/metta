@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Source shared utilities
+source "$(dirname "$0")/monitor_utils.sh"
+
 # Required environment variables
 : "${WRAPPER_PID:?Missing WRAPPER_PID}"
 : "${HEARTBEAT_FILE:?Missing HEARTBEAT_FILE}"
@@ -11,18 +14,19 @@ set -euo pipefail
 
 HEARTBEAT_CHECK_INTERVAL=${HEARTBEAT_CHECK_INTERVAL:-30}
 
-echo "[INFO] Heartbeat monitor started - timeout: ${HEARTBEAT_TIMEOUT}s, file: ${HEARTBEAT_FILE}"
+echo "[INFO] Heartbeat monitor started!"
+echo "     ↳ heartbeat file: ${HEARTBEAT_FILE}"
+echo "     ↳ heartbeat timeout: ${HEARTBEAT_TIMEOUT} seconds"
+echo "     ↳ start time: ${START_TIME}"
 echo "[INFO] Checking every ${HEARTBEAT_CHECK_INTERVAL} seconds"
 
-LAST_HEARTBEAT_TIME=$(date +%s)
-HEARTBEAT_COUNT=0
+# Write initial heartbeat using START_TIME
+mkdir -p "$(dirname "$HEARTBEAT_FILE")"
+echo "$START_TIME" > "$HEARTBEAT_FILE"
+echo "[INFO] Initial heartbeat written with start time: $START_TIME"
 
-stop_cluster() {
-  local msg="$1"
-  echo "[ERROR] Heartbeat timeout! $msg"
-  echo "heartbeat_timeout" > "$TERMINATION_REASON_FILE"
-  kill -TERM "${WRAPPER_PID}" 2> /dev/null || true
-}
+LAST_HEARTBEAT_TIME=$(stat -c %Y "$HEARTBEAT_FILE" 2> /dev/null || stat -f %m "$HEARTBEAT_FILE" 2> /dev/null)
+HEARTBEAT_COUNT=0
 
 while true; do
   if [ -s "$CLUSTER_STOP_FILE" ]; then
@@ -33,33 +37,29 @@ while true; do
   sleep "$HEARTBEAT_CHECK_INTERVAL"
 
   CURRENT_TIME=$(date +%s)
+  CURRENT_MTIME=$(stat -c %Y "$HEARTBEAT_FILE" 2> /dev/null || stat -f %m "$HEARTBEAT_FILE" 2> /dev/null || echo 0)
 
-  if [ -f "$HEARTBEAT_FILE" ]; then
-    CURRENT_MTIME=$(stat -c %Y "$HEARTBEAT_FILE" 2> /dev/null || stat -f %m "$HEARTBEAT_FILE" 2> /dev/null || echo 0)
+  if [ "$CURRENT_MTIME" -gt "$LAST_HEARTBEAT_TIME" ]; then
+    HEARTBEAT_COUNT=$((HEARTBEAT_COUNT + 1))
+    LAST_HEARTBEAT_TIME=$CURRENT_MTIME
 
-    if [ "$CURRENT_MTIME" -gt "$LAST_HEARTBEAT_TIME" ]; then
-      HEARTBEAT_COUNT=$((HEARTBEAT_COUNT + 1))
-      LAST_HEARTBEAT_TIME=$CURRENT_MTIME
-
-      # Print status occasionally
-      if [ $((HEARTBEAT_COUNT % 10)) -eq 0 ]; then
-        echo "[INFO] Heartbeat received! (Total: $HEARTBEAT_COUNT heartbeat checks)"
-      fi
-    fi
-
-    # Check if timeout exceeded
-    if [ $((CURRENT_TIME - LAST_HEARTBEAT_TIME)) -gt "$HEARTBEAT_TIMEOUT" ]; then
-      stop_cluster "No heartbeat for $HEARTBEAT_TIMEOUT seconds"
-      break
-    fi
-  else
-    # If the heartbeat file never appeared, enforce timeout from start
-    if [ $((CURRENT_TIME - START_TIME)) -gt "$HEARTBEAT_TIMEOUT" ]; then
-      stop_cluster "Heartbeat file never appeared in $HEARTBEAT_TIMEOUT seconds"
-      break
+    # Print status occasionally
+    if [ $((HEARTBEAT_COUNT % 10)) -eq 0 ]; then
+      echo "[INFO] Heartbeat received! (Total: $HEARTBEAT_COUNT heartbeat checks)"
     fi
   fi
 
+  # Check if timeout exceeded
+  if [ $((CURRENT_TIME - LAST_HEARTBEAT_TIME)) -gt "$HEARTBEAT_TIMEOUT" ]; then
+    echo "[ERROR] Heartbeat timeout! No heartbeat for $HEARTBEAT_TIMEOUT seconds"
+    initiate_shutdown "heartbeat_timeout"
+    break
+  fi
+
+  if ! kill -0 "$WRAPPER_PID" 2> /dev/null; then
+    echo "[INFO] Wrapper PID $WRAPPER_PID is no longer running, exiting heartbeat monitor"
+    break
+  fi
 done
 
 echo "[INFO] Heartbeat monitor exiting"

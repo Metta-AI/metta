@@ -1,13 +1,14 @@
 import os
 import subprocess
 import sys
+import tomllib
 from enum import Enum
 from pathlib import Path
 
 from metta.common.util.fs import get_file_hash
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
-from metta.setup.utils import error, green, info, prompt_choice, success
+from metta.setup.utils import colorize, error, info, prompt_choice, success
 
 
 class CommitHookMode(Enum):
@@ -31,6 +32,31 @@ class CommitHookMode(Enum):
     def parse(cls, value: str | None) -> "CommitHookMode":
         try:
             return CommitHookMode(value)
+        except ValueError:
+            return cls.get_default()
+
+
+class GitLeaksMode(Enum):
+    NONE = "none"
+    CHECK = "check"
+    BLOCK = "block"
+
+    def get_description(self) -> str:
+        descriptions = {
+            GitLeaksMode.NONE: "No secrets scanning",
+            GitLeaksMode.CHECK: "Scan and warn about secrets (non-blocking)",
+            GitLeaksMode.BLOCK: "Scan and block commits with secrets",
+        }
+        return descriptions.get(self, self.value)
+
+    @classmethod
+    def get_default(cls) -> "GitLeaksMode":
+        return GitLeaksMode.BLOCK
+
+    @classmethod
+    def parse(cls, value: str | None) -> "GitLeaksMode":
+        try:
+            return GitLeaksMode(value)
         except ValueError:
             return cls.get_default()
 
@@ -100,7 +126,7 @@ class GitHooksSetup(SetupModule):
                 return False
         return True
 
-    def install(self) -> None:
+    def install(self, non_interactive: bool = False, force: bool = False) -> None:
         """Install git hooks by symlinking from devops/git-hooks to .git/hooks"""
         # Check if we're in a worktree
         if self._is_in_worktree():
@@ -128,36 +154,93 @@ class GitHooksSetup(SetupModule):
             hook_count += 1
             info(f"  Installed: {hook_file.name}")
 
-        success(f"Successfully installed {green(str(hook_count))} git hooks")
+        success(f"Successfully installed {colorize(str(hook_count), 'green')} git hooks")
 
     def get_configuration_options(self) -> dict[str, tuple[str, str]]:
         return {
             "commit_hook_mode": (CommitHookMode.CHECK.value, "Pre-commit hook behavior"),
+            "gitleaks_mode": (GitLeaksMode.BLOCK.value, "Gitleaks secrets scanning behavior"),
         }
 
     def configure(self) -> None:
         info("Configuring git commit hooks...")
 
-        current = CommitHookMode.parse(self.get_setting("commit_hook_mode", default=None))
+        current_commit = CommitHookMode.parse(self.get_setting("commit_hook_mode", default=None))
+        current_gitleaks = GitLeaksMode.parse(self.get_setting("gitleaks_mode", default=None))
 
-        # Prompt for new mode
+        # Prompt for new modes
         if os.environ.get("METTA_TEST_ENV") or os.environ.get("CI"):
-            mode = CommitHookMode.get_default()
+            commit_mode = CommitHookMode.get_default()
+            gitleaks_mode = GitLeaksMode.get_default()
         else:
-            mode = prompt_choice(
+            commit_mode = prompt_choice(
                 "Select pre-commit hook behavior:",
                 [(mode, mode.get_description()) for mode in CommitHookMode],
                 default=CommitHookMode.get_default(),
-                current=current,
+                current=current_commit,
             )
 
-        # Save the setting (only if non-default)
-        self.set_setting("commit_hook_mode", mode.value)
+            gitleaks_mode = prompt_choice(
+                "Select gitleaks secrets scanning behavior:",
+                [(mode, mode.get_description()) for mode in GitLeaksMode],
+                default=GitLeaksMode.get_default(),
+                current=current_gitleaks,
+            )
 
-        if mode.value == CommitHookMode.CHECK.value:
+        # Save the settings
+        self.set_setting("commit_hook_mode", commit_mode.value)
+        self.set_setting("gitleaks_mode", gitleaks_mode.value)
+
+        if commit_mode.value == CommitHookMode.CHECK.value:
             info("Using default mode: check only")
         else:
-            print(f"Commit hook mode set to: {green(mode.get_description())}")
+            info(f"Commit hook mode set to: {colorize(commit_mode.get_description(), 'green')}")
+
+        info(f"Gitleaks mode set to: {colorize(gitleaks_mode.get_description(), 'green')}")
+
+    def _check_gitleaks_installed(self) -> bool:
+        try:
+            subprocess.run(
+                ["gitleaks", "version"],
+                capture_output=True,
+                check=True,
+            )
+            return True
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            return False
+
+    def _run_gitleaks(self, gitleaks_mode: GitLeaksMode) -> bool:
+        if gitleaks_mode == GitLeaksMode.NONE:
+            return True
+
+        if not self._check_gitleaks_installed():
+            info("Gitleaks not installed. Install with: brew install gitleaks")
+            info("Skipping secrets scanning...")
+            return True
+
+        try:
+            subprocess.run(
+                ["gitleaks", "protect", "--staged", "-v", "--no-banner", "--exit-code", "1"],
+                cwd=self.repo_root,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            return True
+        except subprocess.CalledProcessError as e:
+            if e.stdout:
+                info(e.stdout)
+            if e.stderr:
+                error(e.stderr)
+
+            error("Review the output above and remove any secrets before committing.")
+
+            if gitleaks_mode == GitLeaksMode.BLOCK:
+                error("Commit blocked due to detected secrets.")
+                return False
+            else:
+                info("Warning: Proceeding despite detected secrets (check mode).")
+                return True
 
     def run(self, args: list[str]) -> None:
         if not args or args[0] != "pre-commit":
@@ -165,6 +248,11 @@ class GitHooksSetup(SetupModule):
             sys.exit(1)
 
         hook_mode = CommitHookMode.parse(self.get_setting("commit_hook_mode", default=None))
+        gitleaks_mode = GitLeaksMode.parse(self.get_setting("gitleaks_mode", default=None))
+
+        # Run gitleaks check first
+        if not self._run_gitleaks(gitleaks_mode):
+            sys.exit(1)
 
         if hook_mode == CommitHookMode.NONE:
             sys.exit(0)
@@ -183,18 +271,40 @@ class GitHooksSetup(SetupModule):
             # No Python files to lint
             sys.exit(0)
 
-        # Run linting
-        lint_cmd = ["metta", "lint", "--staged"]
+        # Filter out excluded paths based on .ruff.toml
+        ruff_config_path = self.repo_root / ".ruff.toml"
+        with open(ruff_config_path, "rb") as f:
+            config = tomllib.load(f)
+        excluded_paths = config.get("exclude", [])
 
+        if excluded_paths:
+            filtered_files = []
+            for f in files:
+                file_path = Path(f)
+                should_exclude = any(
+                    file_path == Path(excluded) or file_path.is_relative_to(Path(excluded))
+                    for excluded in excluded_paths
+                )
+                if not should_exclude:
+                    filtered_files.append(f)
+
+            files = filtered_files
+
+        if not files:
+            # No files to lint after exclusions
+            sys.exit(0)
+
+        lint_cmd = ["metta", "lint"]
         if hook_mode == CommitHookMode.FIX:
             lint_cmd.append("--fix")
+        lint_cmd.extend(files)
 
         try:
             subprocess.run(lint_cmd, cwd=self.repo_root, check=True)
 
-            # If in fix mode, stage the fixed files
             if hook_mode == CommitHookMode.FIX:
                 subprocess.run(["git", "add"] + files, cwd=self.repo_root, check=True)
+
         except subprocess.CalledProcessError as e:
             if hook_mode == CommitHookMode.CHECK:
                 error("Linting failed. Please fix the issues before committing.")

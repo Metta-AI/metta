@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 
 
@@ -25,7 +26,12 @@ class LazyPath:
         return self.get()
 
     def _ensure_exists(self):
-        self._path.touch(exist_ok=True)
+        try:
+            self._path.parent.mkdir(parents=True, exist_ok=True)
+            self._path.touch(exist_ok=True)
+        except (PermissionError, OSError) as e:
+            # Log warning but don't fail
+            print(f"Warning: Could not create {self._path}: {e}", file=sys.stderr)
 
     def get(self) -> Path:
         self._ensure_exists()

@@ -12,6 +12,23 @@ import { readFileSync, writeFileSync, unlinkSync } from "fs";
 import { v4 as uuidv4 } from "uuid";
 import { execSync } from "child_process";
 
+// ===== SYSTEM DEPENDENCY CHECKS =====
+
+/**
+ * Check if a system command/tool is available
+ */
+function checkSystemDependency(command: string, name: string): void {
+  try {
+    execSync(`${command} --version`, { stdio: ["pipe", "pipe", "pipe"] });
+    console.log(`✅ ${name} is available`);
+  } catch (error: any) {
+    console.error(`❌ ${name} not found in system`);
+    console.error(`   Command '${command} --version' failed: ${error.message}`);
+    console.error(`   This may cause processing to fail silently`);
+    throw new Error(`${name} not available: ${error.message}`);
+  }
+}
+
 // Canvas import with graceful fallback
 let createCanvas: any = null;
 let loadImage: any = null;
@@ -126,7 +143,10 @@ export async function extractPdfWithAdobe(pdfBuffer: Buffer): Promise<{
     console.log("✅ Adobe extraction completed!");
 
     // Get the result content
-    const resultAsset = pdfServicesResponse.result.resource;
+    const resultAsset = pdfServicesResponse.result?.resource;
+    if (!resultAsset) {
+      throw new Error("Adobe PDF Services did not return a result asset");
+    }
     const streamAsset = await pdfServices.getContent({ asset: resultAsset });
 
     // Save result to temporary file
@@ -143,7 +163,7 @@ export async function extractPdfWithAdobe(pdfBuffer: Buffer): Promise<{
     const zipEntries = zip.getEntries();
 
     // Find the structured data JSON
-    const jsonEntry = zipEntries.find((entry) =>
+    const jsonEntry = zipEntries.find((entry: any) =>
       entry.entryName.includes("structuredData.json")
     );
 
@@ -390,7 +410,7 @@ function createStructuralSubpanelMappings(
         if (nextElement.Text && /^\([a-z]\)/.test(nextElement.Text.trim())) {
           // Extract just the letter from "(a) text" -> "a"
           const match = nextElement.Text.trim().match(/^\(([a-z])\)/);
-    if (match) {
+          if (match) {
             label = match[1];
             break;
           }
@@ -530,7 +550,9 @@ function createSemanticMappings(
         }
       }
     } catch (error) {
-      console.log(`   ❌ Error processing Figure caption: ${error.message}`);
+      console.log(
+        `   ❌ Error processing Figure caption: ${(error as any)?.message}`
+      );
     }
   }
 
@@ -579,7 +601,7 @@ async function processSemanticFigures(
   // Convert PDF pages to images first
   console.log("🖼️ Converting PDF pages to images...");
   const pageImages = await convertPdfToImages(pdfBuffer);
-  console.log(`✅ Converted ${pageImages.length} pages to images`);
+  console.log(`✅ Converted ${Object.keys(pageImages).length} pages to images`);
 
   // Process each figure
   const pageImageDimensions: {
@@ -623,13 +645,13 @@ async function processSemanticFigures(
     console.log(`  - Page: ${pageNumber}`);
     console.log(`  - ObjectID: ${element.ObjectID}`);
     console.log(`  - Page image available: ${!!pageImages[pageNumber]}`);
-    
+
     // Debug specific Figure 1a
     if (mapping.semanticLabel === "Figure 1a") {
       console.log(`🎯 FIGURE 1A DEBUG: This should be the correct extraction!`);
       console.log(`   Expected ObjectID: 1347, Actual: ${element.ObjectID}`);
       console.log(`   Expected Page: 3, Actual: ${pageNumber}`);
-      console.log(`   Bounds: [${element.Bounds?.join(', ') || 'none'}]`);
+      console.log(`   Bounds: [${element.Bounds?.join(", ") || "none"}]`);
     }
 
     if (pageImages[pageNumber]) {
@@ -671,13 +693,17 @@ async function processSemanticFigures(
         console.log(
           `  - Image coords: x=${transformedCoords.x}, y=${transformedCoords.y}, w=${transformedCoords.width}, h=${transformedCoords.height}`
         );
-        
+
         if (mapping.semanticLabel === "Figure 1a") {
           console.log(`🎯 FIGURE 1A COORDINATE TRANSFORM:`);
           console.log(`   PDF size: ${pdfWidth}x${pdfHeight}`);
           console.log(`   Image size: ${pageDims.width}x${pageDims.height}`);
-          console.log(`   Raw calculation: x=${element.Bounds[0]} * ${scaleX} = ${element.Bounds[0] * scaleX}`);
-          console.log(`   Raw calculation: y=(${pdfHeight} - ${element.Bounds[3]}) * ${scaleY} = ${(pdfHeight - element.Bounds[3]) * scaleY}`);
+          console.log(
+            `   Raw calculation: x=${element.Bounds[0]} * ${scaleX} = ${element.Bounds[0] * scaleX}`
+          );
+          console.log(
+            `   Raw calculation: y=(${pdfHeight} - ${element.Bounds[3]}) * ${scaleY} = ${(pdfHeight - element.Bounds[3]) * scaleY}`
+          );
         }
 
         const croppedImage = await extractFigureImage(
@@ -744,7 +770,13 @@ async function convertPdfToImages(
       `🔄 Converting PDF (${pdfBuffer.length} bytes) to images using GraphicsMagick...`
     );
 
+    // Check if GraphicsMagick is available
+    checkSystemDependency("/usr/bin/gm", "GraphicsMagick");
+
     // Write PDF buffer to temporary file
+    console.log(
+      `📝 Writing ${pdfBuffer.length} bytes to temp file: ${tempPdfPath}`
+    );
     writeFileSync(tempPdfPath, pdfBuffer);
 
     // Convert pages (limit to first 50 pages to avoid too much processing)
@@ -761,10 +793,30 @@ async function convertPdfToImages(
         // Use GraphicsMagick to convert PDF page to PNG
         // Use high density + explicit size for optimal quality and correct coordinates
         // CRITICAL: -density must come BEFORE the input file to work properly
-        execSync(
-          `/usr/bin/gm convert -density 400 '${tempPdfPath}[${pageNum}]' -quality 95 -antialias -resize 1800x2333! -background white -flatten '${tempImagePath}'`,
-          { stdio: "pipe" }
-        );
+        const gmCommand = `/usr/bin/gm convert -density 400 '${tempPdfPath}[${pageNum}]' -quality 95 -antialias -resize 1800x2333! -background white -flatten '${tempImagePath}'`;
+
+        try {
+          execSync(gmCommand, {
+            stdio: ["pipe", "pipe", "pipe"],
+            encoding: "utf8",
+          });
+        } catch (gmError: any) {
+          console.error(
+            `❌ GraphicsMagick conversion failed for page ${pageNum}`
+          );
+          console.error(`   Command: ${gmCommand}`);
+          console.error(`   Error: ${gmError.message}`);
+          console.error(`   Exit code: ${gmError.status}`);
+          if (
+            gmError.message.includes("command not found") ||
+            gmError.message.includes("ENOENT")
+          ) {
+            console.error(
+              "   ⚠️ GraphicsMagick may not be installed in the system"
+            );
+          }
+          throw gmError;
+        }
 
         // Read the generated image
         const imageBuffer = readFileSync(tempImagePath);
@@ -776,7 +828,7 @@ async function convertPdfToImages(
         // Clean up temp image
         unlinkSync(tempImagePath);
       } catch (pageError) {
-        console.log(`  ❌ Page ${pageNum} error:`, pageError.message);
+        console.log(`  ❌ Page ${pageNum} error:`, (pageError as any)?.message);
         // Clean up temp image if it exists
         try {
           unlinkSync(tempImagePath);

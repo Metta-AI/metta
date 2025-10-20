@@ -1,0 +1,19 @@
+type: mettagrid.map_builder.ascii.AsciiMapBuilder
+map_data: |-
+  ###########
+  #.._......#
+  #......#..#
+  #.........#
+  #....@....#
+  #........m#
+  #...##....#
+  #....#....#
+  #.....n...#
+  ###########
+char_to_name_map:
+  "#": wall
+  ".": empty
+  "_": altar
+  "@": agent.agent
+  "m": mine_red
+  "n": generator_red

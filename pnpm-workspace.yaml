@@ -3,6 +3,7 @@ packages:
   # It's important not to have `./` prefix here for turbo to work,
   # see https://github.com/vercel/turborepo/discussions/8514#discussioncomment-9786742
   - "gridworks" # @softmax/gridworks
+  - "home" # softmax-home
   - "library" # @softmax/library
   - "mettascope" # @softmax/mettascope
   - "observatory" # @softmax/observatory

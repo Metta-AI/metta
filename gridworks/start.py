@@ -32,6 +32,8 @@ def main():
         # some screen space is used by the label prefix
         env["COLUMNS"] = str(shutil.get_terminal_size().columns - 11)
 
+    subprocess.run(["pnpm", "gen"], cwd=gridworks_dir, env=env)
+
     # Start the frontend dev server in gridworks directory
     if args.dev:
         frontend_process = subprocess.Popen(
@@ -107,8 +109,7 @@ def main():
     def stream_output(proc: subprocess.Popen[str], label: str):
         """Continuously read lines from a subprocess and print them with a label.
 
-        When both backend and frontend indicate they are ready, automatically open the browser.
-        """
+        When both backend and frontend indicate they are ready, automatically open the browser."""
         nonlocal backend_ready, frontend_ready
         assert proc.stdout is not None  # for mypy/static checkers
 

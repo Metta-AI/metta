@@ -18,13 +18,17 @@ if [ -f "$CONFIG_FILE" ]; then
     fi
 fi
 
-# Source common functions
-source "$REPO_ROOT/devops/tools/common.sh"
+check_cmd() {
+  command -v "$1" > /dev/null 2>&1
+  return $?
+}
 
-ensure_uv_setup
+if ! check_cmd uv; then
+    echo "uv not found. Consider running ./devops/tools/install-system.sh"
+    exit 1
+fi
 
-
-if ! uv run metta run githooks pre-commit; then
+if ! uv run --active metta run githooks pre-commit; then
     exit 1
 fi
 

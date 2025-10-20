@@ -1,6 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { DashboardState, PolicyScorecardData, Repo, SavedDashboard, SavedDashboardCreate, UnifiedPolicyInfo } from './repo'
+import {
+  DashboardState,
+  PolicyScorecardData,
+  Repo,
+  SavedDashboard,
+  SavedDashboardCreate,
+  UnifiedPolicyInfo,
+} from './repo'
 import { PolicySelector } from './components/PolicySelector'
 import { EvalSelector } from './components/EvalSelector'
 import { TrainingRunPolicySelector } from './components/TrainingRunPolicySelector'
@@ -255,21 +262,18 @@ export function Dashboard({ repo }: DashboardProps) {
     try {
       const availableEvalNames = await repo.getEvalNames({
         training_run_ids: state.selectedTrainingRunIds || [],
-        run_free_policy_ids: state.selectedRunFreePolicyIds || []
+        run_free_policy_ids: state.selectedRunFreePolicyIds || [],
       })
-      
-      const { valid, invalid } = filterValidEvalNames(
-        state.selectedEvalNames || [], 
-        Array.from(availableEvalNames)
-      )
-      
+
+      const { valid, invalid } = filterValidEvalNames(state.selectedEvalNames || [], Array.from(availableEvalNames))
+
       if (invalid.length > 0) {
         console.warn('Dashboard restore: Removed unavailable eval names:', invalid)
       }
-      
+
       // Only restore valid eval names
       setSelectedEvalNames(new Set(valid))
-      
+
       // Generate scorecard with validated data
       await generateScorecard(
         state.selectedTrainingRunIds,

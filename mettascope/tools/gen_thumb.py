@@ -2,7 +2,7 @@
 """
 Generate a thumbnail image for a given replay file and step number.
 
-This CLI tool uses the thumbnail generation library from metta.map.utils.thumbnail
+This CLI tool uses the thumbnail generation library from mettagrid.mapgen.utils.thumbnail
 to provide a command-line interface for generating thumbnails from replay files
 or ASCII map files.
 """
@@ -13,7 +13,7 @@ import sys
 import traceback
 import zlib
 
-from metta.map.utils.thumbnail import (
+from mettagrid.mapgen.utils.thumbnail import (
     generate_thumbnail_from_ascii,
     generate_thumbnail_from_replay,
 )

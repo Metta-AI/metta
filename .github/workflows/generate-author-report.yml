@@ -82,11 +82,10 @@ jobs:
           restore-keys: |
             pr-summaries-${{ github.repository }}-
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
+      - name: Set up environment (minimal)
+        uses: ./.github/actions/setup-environment
         with:
-          version: "0.7.3"
-          enable-cache: true
+          install-mode: minimal
 
       - name: Create Author PR Digest
         id: pr-digest

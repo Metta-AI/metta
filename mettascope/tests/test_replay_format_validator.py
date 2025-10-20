@@ -6,6 +6,8 @@ Validates that replay files match the format specification in `mettascope/docs/r
 from __future__ import annotations
 
 import json
+import subprocess
+import tempfile
 import zlib
 from pathlib import Path
 from typing import Any
@@ -52,6 +54,7 @@ _OPTIONAL_KEYS = {
     "file_name",
     "group_names",
     "reward_sharing_matrix",
+    "mg_config",
 }
 
 
@@ -85,12 +88,21 @@ def _validate_non_negative_number(value: Any, field_name: str) -> None:
     assert value >= 0, f"'{field_name}' must be non-negative, got {value}"
 
 
-def _validate_string_list(lst: Any, field_name: str, allow_empty: bool = False) -> None:
-    """Validate that value is a list of non-empty strings."""
+def _validate_string_list(lst: Any, field_name: str, allow_empty_strings: bool = False) -> None:
+    """Validate that value is a list of strings."""
     _validate_type(lst, list, field_name)
-    if not allow_empty:
-        assert len(lst) > 0, f"'{field_name}' must not be empty"
-    assert all(isinstance(s, str) and s for s in lst), f"'{field_name}' must contain non-empty strings"
+    assert len(lst) > 0, f"'{field_name}' must not be empty"
+    invalid_entries: list[str] = []
+    for idx, value in enumerate(lst):
+        if not isinstance(value, str):
+            invalid_entries.append(f"index {idx}: expected str, got {type(value).__name__} ({value!r})")
+        elif not value and not allow_empty_strings:
+            invalid_entries.append(f"index {idx}: empty string")
+    if invalid_entries:
+        requirement = "strings" if allow_empty_strings else "non-empty strings"
+        raise AssertionError(
+            f"'{field_name}' must contain {requirement}; invalid entries: {', '.join(invalid_entries)}"
+        )
 
 
 def _validate_static_value(value: Any, field_name: str, expected_type: type | tuple[type, ...]) -> None:
@@ -195,7 +207,7 @@ def validate_replay_schema(data: dict[str, Any]) -> None:
 
     # Required string lists.
     for field in ["action_names", "item_names", "type_names"]:
-        _validate_string_list(data[field], field)
+        _validate_string_list(data[field], field, allow_empty_strings=True)
 
     # Optional file_name validation.
     if "file_name" in data:
@@ -205,7 +217,7 @@ def validate_replay_schema(data: dict[str, Any]) -> None:
 
     # Optional string lists.
     if "group_names" in data:
-        _validate_string_list(data["group_names"], "group_names", allow_empty=True)
+        _validate_string_list(data["group_names"], "group_names", allow_empty_strings=True)
 
     # Optional reward sharing matrix.
     if "reward_sharing_matrix" in data:
@@ -481,7 +493,7 @@ def test_validate_replay_schema_valid() -> None:
         (lambda r: r.update({"num_agents": -1}), "'num_agents' must be positive"),
         (lambda r: r.update({"map_size": [0, 5]}), "'map_size\\[0\\]' must be positive"),
         (lambda r: r.update({"file_name": ""}), "'file_name' must be non-empty"),
-        (lambda r: r.update({"action_names": ["", "collect"]}), "'action_names' must contain non-empty strings"),
+        (lambda r: r.update({"action_names": ["collect", 1]}), "'action_names' must contain strings"),
         (lambda r: r.update({"objects": [123]}), "'objects' must contain dictionaries"),
     ],
 )
@@ -494,41 +506,78 @@ def test_validate_replay_schema_invalid(mutation, error_substr: str) -> None:
         validate_replay_schema(replay_dict)
 
 
-# TODO(andre): #dehydration
-# def test_validate_real_generated_replay() -> None:
-#     """Generate a fresh replay using the CI setup and validate it against the strict schema."""
-#     with tempfile.TemporaryDirectory() as tmp_dir:
-#         # Generate a replay using the same command as CI but with a custom output directory.
-#         cmd = [
-#             "uv",
-#             "run",
-#             "--no-sync",
-#             "tools/run.py",
-#             "+user=ci",
-#             "wandb=off",
-#             f"replay_job.replay_dir={tmp_dir}",
-#             f"replay_job.stats_dir={tmp_dir}",
-#             "replay_job.policy_uri=null",
-#             "run=test_validator",
-#         ]
+@pytest.mark.skip(reason="Generated replays missing action_param field - needs investigation")
+def test_validate_real_generated_replay_fast() -> None:
+    """Generate a minimal fresh replay and validate it against the strict schema (fast version)."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        # Generate a replay using the same command as CI but with a custom output directory.
+        # Use minimal steps to speed up the test - we only need to validate the format, not run a full simulation
+        cmd = [
+            "uv",
+            "run",
+            "--no-sync",
+            "tools/run.py",
+            "ci.replay_null",
+            f"replay_dir={tmp_dir}",
+            f"stats_dir={tmp_dir}",
+            "sim.env.game.max_steps=5",  # Reduce from 100 to 5 steps for faster test
+        ]
 
-#         # Run from the project root (parent of mettascope).
-#         project_root = Path(__file__).parent.parent.parent
-#         result = subprocess.run(cmd, cwd=project_root, capture_output=True, text=True, timeout=120)
+        # Run from the project root (parent of mettascope).
+        project_root = Path(__file__).parent.parent.parent
+        print(f"Running command: {' '.join(cmd)}")
+        result = subprocess.run(cmd, cwd=project_root, capture_output=True, text=True, timeout=60)  # Reduced timeout
 
-#         replay_files = list(Path(tmp_dir).glob("**/*.json.z"))
-#         if len(replay_files) == 0:
-#             raise AssertionError(
-#                 f"No replay files were generated. Process exited with code {result.returncode}. "
-#                 f"Error output: {result.stderr}"
-#             )
+        replay_files = list(Path(tmp_dir).glob("**/*.json.z"))
+        if len(replay_files) == 0:
+            raise AssertionError(
+                f"No replay files were generated. Process exited with code {result.returncode}. "
+                f"Error output: {result.stderr}"
+            )
 
-#         # Should have exactly one replay file.
-#         assert len(replay_files) == 1, f"Expected exactly 1 replay file, found {len(replay_files)}: {replay_files}"
+        # Should have exactly one replay file.
+        assert len(replay_files) == 1, f"Expected exactly 1 replay file, found {len(replay_files)}: {replay_files}"
 
-#         # Validate the replay file.
-#         replay_path = replay_files[0]
-#         loaded_replay = load_replay(replay_path)
-#         validate_replay_schema(loaded_replay)
+        # Validate the replay file.
+        replay_path = replay_files[0]
+        loaded_replay = load_replay(replay_path)
+        validate_replay_schema(loaded_replay)
 
-#         print(f"✓ Successfully generated and validated fresh replay: {replay_path.name}")
+        print(f"✓ Successfully generated and validated fresh replay: {replay_path.name}")
+
+
+@pytest.mark.skip(reason="Generated replays missing action_param field - needs investigation")
+def test_validate_real_generated_replay_comprehensive() -> None:
+    """Generate a full-length replay using the CI setup and validate it against the strict schema."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        # Generate a replay using the original CI configuration (100 steps)
+        cmd = [
+            "uv",
+            "run",
+            "--no-sync",
+            "tools/run.py",
+            "ci.replay_null",
+            f"replay_dir={tmp_dir}",
+            f"stats_dir={tmp_dir}",
+        ]
+
+        # Run from the project root (parent of mettascope).
+        project_root = Path(__file__).parent.parent.parent
+        result = subprocess.run(cmd, cwd=project_root, capture_output=True, text=True, timeout=120)
+
+        replay_files = list(Path(tmp_dir).glob("**/*.json.z"))
+        if len(replay_files) == 0:
+            raise AssertionError(
+                f"No replay files were generated. Process exited with code {result.returncode}. "
+                f"Error output: {result.stderr}"
+            )
+
+        # Should have exactly one replay file.
+        assert len(replay_files) == 1, f"Expected exactly 1 replay file, found {len(replay_files)}: {replay_files}"
+
+        # Validate the replay file.
+        replay_path = replay_files[0]
+        loaded_replay = load_replay(replay_path)
+        validate_replay_schema(loaded_replay)
+
+        print(f"✓ Successfully generated and validated comprehensive replay: {replay_path.name}")

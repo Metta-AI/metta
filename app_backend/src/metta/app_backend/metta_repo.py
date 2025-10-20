@@ -85,7 +85,8 @@ class EvalTaskWithPolicyName(BaseModel):
     created_at: datetime
     attributes: dict[str, Any]
     retries: int
-    policy_name: str | None
+    policy_name: str
+    policy_url: str
     user_id: str | None
     updated_at: datetime
 
@@ -106,6 +107,7 @@ class SweepRow(BaseModel):
 class PolicyRow(BaseModel):
     id: uuid.UUID
     name: str
+    url: str | None
 
 
 class LeaderboardRow(BaseModel):
@@ -129,6 +131,14 @@ class LeaderboardPolicyScore(BaseModel):
     leaderboard_id: uuid.UUID
     policy_id: uuid.UUID
     score: float
+
+
+class CoGamesSubmissionRow(BaseModel):
+    id: uuid.UUID
+    user_id: str
+    name: str | None
+    s3_path: str
+    created_at: datetime
 
 
 # This is a list of migrations that will be applied to the eval database.
@@ -644,6 +654,60 @@ MIGRATIONS = [
             """,
         ],
     ),
+    SqlMigration(
+        version=26,
+        description="Drop simulation_suite column from episodes table",
+        sql_statements=[
+            """DROP VIEW wide_episodes""",
+            """ALTER TABLE episodes DROP COLUMN simulation_suite""",
+            """CREATE VIEW wide_episodes AS
+            SELECT
+                e.id,
+                e.internal_id,
+                e.created_at,
+                e.primary_policy_id,
+                e.stats_epoch,
+                e.replay_url,
+                e.thumbnail_url,
+                e.eval_name,
+                e.eval_category,
+                e.env_name,
+                e.attributes,
+                e.eval_task_id,
+                p.name as policy_name,
+                p.description as policy_description,
+                p.url as policy_url,
+                ep.start_training_epoch as epoch_start_training_epoch,
+                ep.end_training_epoch as epoch_end_training_epoch,
+                tr.id as training_run_id,
+                tr.name as training_run_name,
+                tr.user_id as training_run_user_id,
+                tr.status as training_run_status,
+                tr.url as training_run_url,
+                tr.description as training_run_description,
+                tr.tags as training_run_tags
+            FROM episodes e
+            LEFT JOIN policies p ON e.primary_policy_id = p.id
+            LEFT JOIN epochs ep ON p.epoch_id = ep.id
+            LEFT JOIN training_runs tr ON ep.run_id = tr.id
+            """,
+        ],
+    ),
+    SqlMigration(
+        version=27,
+        description="Add cogames_policy_submissions table",
+        sql_statements=[
+            """CREATE TABLE cogames_policy_submissions (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                user_id TEXT NOT NULL,
+                name TEXT,
+                s3_path TEXT NOT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE INDEX idx_cogames_submissions_user_id ON cogames_policy_submissions(user_id)""",
+            """CREATE INDEX idx_cogames_submissions_created_at ON cogames_policy_submissions(created_at)""",
+        ],
+    ),
 ]
 
 logger = logging.getLogger(name="metta_repo")
@@ -696,7 +760,7 @@ class MettaRepo:
             async with con.cursor(row_factory=class_row(PolicyRow)) as cur:
                 await cur.execute(
                     """
-                    SELECT id, name
+                    SELECT id, name, url
                     FROM policies
                     WHERE id = %s
                     """,
@@ -757,7 +821,7 @@ class MettaRepo:
         async with self.connect() as con:
             result = await con.execute(
                 """
-                UPDATE training_runs 
+                UPDATE training_runs
                 SET status = %s, finished_at = CASE WHEN %s != 'running' THEN CURRENT_TIMESTAMP ELSE finished_at END
                 WHERE id = %s
                 """,
@@ -771,7 +835,7 @@ class MettaRepo:
         run_id: uuid.UUID,
         start_training_epoch: int,
         end_training_epoch: int,
-        attributes: dict[str, str],
+        attributes: dict[str, Any],
     ) -> uuid.UUID:
         async with self.connect() as con:
             result = await con.execute(
@@ -811,10 +875,9 @@ class MettaRepo:
         self,
         agent_policies: dict[int, uuid.UUID],
         agent_metrics: dict[int, dict[str, float]],
+        eval_name: str,
         primary_policy_id: uuid.UUID,
         stats_epoch: uuid.UUID | None,
-        eval_name: str | None,
-        simulation_suite: str | None,
         replay_url: str | None,
         attributes: dict[str, Any],
         eval_task_id: uuid.UUID | None = None,
@@ -822,9 +885,11 @@ class MettaRepo:
         thumbnail_url: str | None = None,
     ) -> uuid.UUID:
         async with self.connect() as con:
-            # Parse eval_category and env_name from eval_name
-            eval_category = eval_name.split("/", 1)[0] if eval_name else None
-            env_name = eval_name.split("/", 1)[1] if eval_name and "/" in eval_name else None
+            # Validate that eval name is in the format of 'eval_category/env_name'
+            parts = eval_name.split("/")
+            if len(parts) != 2:
+                raise ValueError("Eval name must be in the format of 'eval_category/env_name'")
+            eval_category, env_name = parts
 
             # Insert into episodes table
             result = await con.execute(
@@ -832,7 +897,6 @@ class MettaRepo:
                 INSERT INTO episodes (
                     replay_url,
                     eval_name,
-                    simulation_suite,
                     eval_category,
                     env_name,
                     primary_policy_id,
@@ -841,13 +905,12 @@ class MettaRepo:
                     eval_task_id,
                     thumbnail_url
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s
                 ) RETURNING id, internal_id
                 """,
                 (
                     replay_url,
                     eval_name,
-                    simulation_suite,
                     eval_category,
                     env_name,
                     primary_policy_id,
@@ -1218,7 +1281,7 @@ class MettaRepo:
                     """
                     SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
                            et.assignee, et.created_at, et.attributes, et.retries,
-                           p.name as policy_name, et.user_id, et.updated_at
+                           p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
                     FROM eval_tasks et
                     JOIN policies p ON et.policy_id = p.id
                     WHERE status = 'unprocessed'
@@ -1261,7 +1324,7 @@ class MettaRepo:
                         """
                         SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
                                 et.assignee, et.created_at, et.attributes, et.retries,
-                                p.name as policy_name, et.user_id, et.updated_at
+                                p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
                         FROM eval_tasks et
                         JOIN policies p ON et.policy_id = p.id
                         WHERE assignee = %s AND status = 'unprocessed'
@@ -1274,7 +1337,7 @@ class MettaRepo:
                         """
                         SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
                                 et.assignee, et.created_at, et.attributes, et.retries,
-                                p.name as policy_name, et.user_id, et.updated_at
+                                p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
                         FROM eval_tasks et
                         JOIN policies p ON et.policy_id = p.id
                         WHERE status = 'unprocessed' AND assignee IS NOT NULL
@@ -1474,7 +1537,7 @@ class MettaRepo:
                     """
                     SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
                            et.assignee, et.created_at, et.attributes, et.retries,
-                           p.name as policy_name, et.user_id, et.updated_at
+                           p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
                     FROM eval_tasks et
                     JOIN policies p ON et.policy_id = p.id
                     WHERE assignee = %s
@@ -1483,6 +1546,22 @@ class MettaRepo:
                     LIMIT 1
                     """,
                     (assignee,),
+                )
+                return await cur.fetchone()
+
+    async def get_task_by_id(self, task_id: uuid.UUID) -> EvalTaskWithPolicyName | None:
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(EvalTaskWithPolicyName)) as cur:
+                await cur.execute(
+                    """
+                    SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
+                           et.assignee, et.created_at, et.attributes, et.retries,
+                           p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
+                    FROM eval_tasks et
+                    JOIN policies p ON et.policy_id = p.id
+                    WHERE et.id = %s
+                    """,
+                    (task_id,),
                 )
                 return await cur.fetchone()
 
@@ -1526,7 +1605,7 @@ class MettaRepo:
                     f"""
                     SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
                            et.assignee, et.created_at, et.attributes, et.retries,
-                           p.name as policy_name, et.user_id, et.updated_at
+                           p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
                     FROM eval_tasks et
                     LEFT JOIN policies p ON et.policy_id = p.id
                     WHERE {where_clause}
@@ -1536,6 +1615,112 @@ class MettaRepo:
                     params,
                 )
                 return await cur.fetchall()
+
+    async def get_tasks_paginated(
+        self,
+        page: int = 1,
+        page_size: int = 50,
+        policy_name: str | None = None,
+        sim_suite: str | None = None,
+        status: str | None = None,
+        assignee: str | None = None,
+        user_id: str | None = None,
+        retries: str | None = None,
+        created_at: str | None = None,
+        assigned_at: str | None = None,
+        updated_at: str | None = None,
+        include_attributes: bool = False,
+    ) -> tuple[list[EvalTaskWithPolicyName], int]:
+        async with self.connect() as con:
+            where_conditions = []
+            params = []
+
+            # Add text-based filters using ILIKE for case-insensitive substring search
+            if policy_name:
+                where_conditions.append("p.name ILIKE %s")
+                params.append(f"%{policy_name}%")
+
+            if sim_suite:
+                where_conditions.append("et.sim_suite ILIKE %s")
+                params.append(f"%{sim_suite}%")
+
+            if status:
+                # Use exact match for status since it's an enum-like field
+                where_conditions.append("et.status = %s")
+                params.append(status)
+
+            if assignee:
+                where_conditions.append("et.assignee ILIKE %s")
+                params.append(f"%{assignee}%")
+
+            if user_id:
+                where_conditions.append("et.user_id ILIKE %s")
+                params.append(f"%{user_id}%")
+
+            if retries:
+                where_conditions.append("CAST(et.retries AS TEXT) ILIKE %s")
+                params.append(f"%{retries}%")
+
+            if created_at:
+                where_conditions.append("CAST(et.created_at AS TEXT) ILIKE %s")
+                params.append(f"%{created_at}%")
+
+            if assigned_at:
+                where_conditions.append("CAST(et.assigned_at AS TEXT) ILIKE %s")
+                params.append(f"%{assigned_at}%")
+
+            if updated_at:
+                where_conditions.append("CAST(et.updated_at AS TEXT) ILIKE %s")
+                params.append(f"%{updated_at}%")
+
+            where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
+
+            # Get total count
+            count_query = f"""
+                SELECT COUNT(*)
+                FROM eval_tasks et
+                LEFT JOIN policies p ON et.policy_id = p.id
+                WHERE {where_clause}
+            """
+            count_result = await con.execute(count_query, params)
+            total_count = (await count_result.fetchone())[0]
+
+            # Get paginated results
+            offset = (page - 1) * page_size
+            params.extend([page_size, offset])
+
+            # Conditionally include attributes field
+            # When not including full attributes, return minimal subset for UI display
+            if include_attributes:
+                attributes_field = "et.attributes"
+            else:
+                attributes_field = """
+                    jsonb_build_object(
+                        'git_hash', et.attributes->>'git_hash',
+                        'output_log_path', et.attributes->>'output_log_path',
+                        'stderr_log_path', et.attributes->>'stderr_log_path',
+                        'stdout_log_path', et.attributes->>'stdout_log_path',
+                        'details', et.attributes->'details'
+                    ) as attributes
+                """.strip()
+
+            async with con.cursor(row_factory=class_row(EvalTaskWithPolicyName)) as cur:
+                await cur.execute(
+                    f"""
+                    SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
+                           et.assignee, et.created_at, {attributes_field}, et.retries,
+                           p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
+                    FROM eval_tasks et
+                    LEFT JOIN policies p ON et.policy_id = p.id
+                    WHERE {where_clause}
+                    ORDER BY et.created_at DESC
+                    LIMIT %s OFFSET %s
+                    """,
+                    params,
+                )
+                tasks = await cur.fetchall()
+
+            return tasks, total_count
 
     async def get_git_hashes_for_workers(self, assignees: list[str]) -> dict[str, list[str]]:
         async with self.connect() as con:
@@ -1688,3 +1873,21 @@ class MettaRepo:
             """,
             (latest_episode, leaderboard_id),
         )
+
+    async def create_cogames_submission(
+        self, submission_id: uuid.UUID, user_id: str, s3_path: str, name: str | None = None
+    ) -> uuid.UUID:
+        """Create a new CoGames policy submission with a specific ID."""
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                INSERT INTO cogames_policy_submissions (id, user_id, name, s3_path)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id
+                """,
+                (submission_id, user_id, name, s3_path),
+            )
+            row = await result.fetchone()
+            if row is None:
+                raise RuntimeError("Failed to create CoGames submission")
+            return row[0]

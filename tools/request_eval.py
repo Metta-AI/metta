@@ -1,106 +1,59 @@
 #!/usr/bin/env -S uv run
-"""Request evaluation script."""
+"""Request evaluation script for direct checkpoint URIs."""
 
 import argparse
 import asyncio
-import concurrent.futures
 import uuid
 
-import wandb
 from bidict import bidict
-from omegaconf import DictConfig
 from pydantic import BaseModel, model_validator
 from pydantic.fields import Field
 
-from metta.agent.policy_record import PolicyRecord
-from metta.agent.policy_store import PolicyMissingError, PolicySelectorType, PolicyStore
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.metta_repo import TaskStatus
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskFilterParams, TaskResponse
-from metta.common.util.collections import group_by, remove_none_values
+from metta.common.util.collections import group_by
 from metta.common.util.constants import (
     DEV_OBSERVATORY_FRONTEND_URL,
     DEV_STATS_SERVER_URI,
-    METTA_WANDB_ENTITY,
-    METTA_WANDB_PROJECT,
     PROD_OBSERVATORY_FRONTEND_URL,
     PROD_STATS_SERVER_URI,
 )
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.setup.utils import debug, info, success, warning
 from metta.sim.utils import get_or_create_policy_ids
 
 
 class EvalRequest(BaseModel):
-    """Evaluation request configuration."""
+    """Evaluation request configuration for direct checkpoint URIs."""
 
     evals: list[str]
-    policies: list[str]
+    policies: list[str]  # Direct checkpoint URIs
     stats_server_uri: str = PROD_STATS_SERVER_URI
 
     git_hash: str | None = None
 
-    policy_select_type: PolicySelectorType = "latest"
-    policy_select_metric: str = "score"
-    policy_select_num: int = 1
-
-    wandb_project: str = Field(default="")
-    wandb_entity: str = Field(default="")
-
-    disallow_missing_policies: bool = Field(default=False)
     allow_duplicates: bool = Field(default=False)
     dry_run: bool = Field(default=False)
 
     @model_validator(mode="after")
     def validate(self) -> "EvalRequest":
-        if not self.wandb_entity:
-            if wandb.api.default_entity:
-                self.wandb_entity = wandb.api.default_entity
-
-        if not self.wandb_project:
-            if self.wandb_entity == METTA_WANDB_ENTITY:
-                self.wandb_project = METTA_WANDB_PROJECT
-
-        assert self.wandb_project, "wandb_project must be set"
-        assert self.wandb_entity, "wandb_entity must be set"
         return self
 
-    def get_wandb_cfg(self) -> DictConfig:
-        return DictConfig(
-            {
-                "wandb": {"enabled": True, "project": self.wandb_project, "entity": self.wandb_entity},
-                # requesting eval tasks does not really depend on device
-                "device": "cpu",
-            }
-        )
 
-
-def _get_policy_records_for_uri(
-    policy_store: PolicyStore,
-    policy_uri: str,
-    selector_type: PolicySelectorType,
-    select_num: int,
-    select_metric: str,
-    disallow_missing_policies: bool = False,
-    stats_client: StatsClient | None = None,
-    eval_name: str | None = None,
-) -> tuple[str, list[PolicyRecord] | None]:
+def validate_and_normalize_policy_uri(policy_uri: str) -> str | None:
+    """Validate that a policy URI is accessible and return normalized URI with metadata."""
     try:
-        records = policy_store.policy_records(
-            uri_or_config=policy_uri,
-            selector_type=selector_type,
-            n=select_num,
-            metric=select_metric,
-            stats_client=stats_client,
-            eval_name=eval_name,
-        )
-        return policy_uri, records
-    except PolicyMissingError as e:
-        if not disallow_missing_policies:
-            warning(f"Skipping missing policy: {e}")
-            return policy_uri, None
-        else:
-            raise
+        normalized_uri = CheckpointManager.normalize_uri(policy_uri)
+        artifact = CheckpointManager.load_artifact_from_uri(normalized_uri)
+        if artifact.state_dict is None:
+            raise ValueError("Policy artifact did not contain model weights")
+        del artifact
+        return normalized_uri
+    except Exception as e:
+        warning(f"Skipping invalid or inaccessible policy {policy_uri}: {e}")
+        return None
 
 
 async def _create_remote_eval_tasks(
@@ -112,46 +65,30 @@ async def _create_remote_eval_tasks(
         warning("No stats client found")
         return
 
-    policy_store = PolicyStore(
-        wandb_entity=request.wandb_entity,
-        wandb_project=request.wandb_project,
-    )
+    info(f"Validating {len(request.policies)} policy URIs...")
 
-    info(f"Retrieving {request.policy_select_type} policy records for {len(request.policies)} policies...")
-    # Parallelize policy records retrieval
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        future_to_uri = {
-            executor.submit(
-                _get_policy_records_for_uri,
-                policy_store=policy_store,
-                policy_uri=policy_uri,
-                selector_type=request.policy_select_type,
-                select_num=request.policy_select_num,
-                select_metric=request.policy_select_metric,
-                disallow_missing_policies=request.disallow_missing_policies,
-                stats_client=stats_client,
-                eval_name=request.evals[0],
-            ): policy_uri
-            for policy_uri in request.policies
-        }
+    # Validate and normalize all policy URIs
+    policy_uris: list[str] = []
+    for policy_uri in request.policies:
+        result = validate_and_normalize_policy_uri(policy_uri)
+        if result:
+            policy_uris.append(result)
 
-        policy_records_by_uri: dict[str, list[PolicyRecord]] = {}
-        for future in concurrent.futures.as_completed(future_to_uri):
-            policy_uri, records = future.result()
-            if records is not None:
-                policy_records_by_uri[policy_uri] = records
+    if not policy_uris:
+        warning("No valid policies found")
+        return
 
-    all_policy_records = {pr.run_name: pr for prs in policy_records_by_uri.values() for pr in prs}
-    policy_ids: bidict[str, uuid.UUID] = get_or_create_policy_ids(
-        stats_client, [(pr.run_name, pr.uri, None) for pr in all_policy_records.values() if pr.uri is not None]
-    )
+    # Register policies with stats server
+    policy_ids: bidict[str, uuid.UUID] = get_or_create_policy_ids(stats_client, [(uri, None) for uri in policy_uris])
+
     if not policy_ids:
-        warning("No policies found")
+        warning("Failed to register policies with stats server")
         return
 
     # Check for existing tasks if not allowing duplicates
     existing_tasks: dict[tuple[uuid.UUID, str], list[TaskResponse]] = {}
     eval_task_client = EvalTaskClient(backend_url=request.stats_server_uri)
+
     if not request.allow_duplicates:
         info("Checking for duplicate tasks...")
         task_filters = TaskFilterParams(
@@ -163,6 +100,7 @@ async def _create_remote_eval_tasks(
         )
         all_tasks = await eval_task_client.get_all_tasks(filters=task_filters)
         existing_tasks = group_by(all_tasks.tasks, lambda t: (t.policy_id, t.sim_suite))
+
         if existing_tasks:
             info("Skipping because they would be duplicates:")
             for (policy_id, sim_suite), existing in existing_tasks.items():
@@ -172,27 +110,38 @@ async def _create_remote_eval_tasks(
                     status_str = {"unprocessed": "running"}.get(task.status, task.status)
                     debug(f"{task.id} ({status_str})", indent=4)
 
-    task_requests = [
-        TaskCreateRequest(
-            policy_id=policy_id,
-            git_hash=request.git_hash,
-            sim_suite=eval_name,
-        )
-        for policy_id in policy_ids.values()
-        for eval_name in request.evals
-        if (request.allow_duplicates or not len(existing_tasks[(policy_id, eval_name)]))
-    ]
+    # Create task requests
+    task_requests = []
+    for policy_uri in policy_uris:
+        policy_id = policy_ids.get(policy_uri)
+        if policy_id is None:
+            warning(f"Policy '{policy_uri}' not found in policy_ids mapping, skipping")
+            continue
+
+        for eval_name in request.evals:
+            # Check if this combination already exists
+            if not request.allow_duplicates and (policy_id, eval_name) in existing_tasks:
+                continue
+
+            task_requests.append(
+                TaskCreateRequest(
+                    policy_id=policy_id,
+                    git_hash=request.git_hash,
+                    sim_suite=eval_name,
+                )
+            )
 
     if not task_requests:
         warning("No new tasks to create (all would be duplicates)")
         return
 
-    info(f"Creating {len(task_requests)} evaluation tasks for {len(policy_ids)} policies...")
+    info(f"Creating {len(task_requests)} evaluation tasks for {len(policy_uris)} policies...")
     if request.dry_run:
         info("Dry run, not creating tasks")
         return
 
     results: list[TaskResponse] = await asyncio.gather(*[eval_task_client.create_task(task) for task in task_requests])
+
     for policy_id, policy_results in group_by(results, lambda result: result.policy_id).items():
         policy_name = policy_ids.inv[policy_id]
         success(f"{policy_name}:", indent=2)
@@ -203,16 +152,13 @@ async def _create_remote_eval_tasks(
         PROD_STATS_SERVER_URI: PROD_OBSERVATORY_FRONTEND_URL,
         DEV_STATS_SERVER_URI: DEV_OBSERVATORY_FRONTEND_URL,
     }.get(request.stats_server_uri)
+
     if frontend_base_url:
         info(f"Visit {frontend_base_url}/eval-tasks to view tasks")
 
 
-async def main() -> None:
-    """Main function to handle evaluation requests."""
-    parser = argparse.ArgumentParser(
-        description="Request evaluation with specified configurations",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
+def main():
+    parser = argparse.ArgumentParser(description="Request evaluation tasks for direct checkpoint URIs")
 
     parser.add_argument(
         "--eval",
@@ -226,34 +172,12 @@ async def main() -> None:
         "--policy",
         action="append",
         dest="policies",
-        help="""Policy string. Can be specified multiple times for multiple policies.
+        help="""Direct policy checkpoint URI. Can be specified multiple times for multiple policies.
         Supported formats:
-        - wandb://run/<run_name>[:<version>]
-        - wandb://sweep/<sweep_name>[:<version>]
-        - wandb://<entity>/<project>/<artifact_type>/<name>[:<version>]""",
+        - file://path/to/run/checkpoints/run_name:v10.mpt
+        - s3://bucket/path/run/checkpoints/run_name:v10.mpt
+        - ./path/to/run/checkpoints (directory; latest checkpoint auto-detected)""",
         required=True,
-    )
-
-    parser.add_argument(
-        "--policy-select-type",
-        type=str,
-        default="latest",
-        choices=PolicySelectorType.__args__,
-        help="Policy selection type.",
-    )
-
-    parser.add_argument(
-        "--policy-select-num",
-        type=int,
-        default=1,
-        help="Number of policies to select. Used only if policy-select-type is 'top'.",
-    )
-
-    parser.add_argument(
-        "--policy-select-metric",
-        type=str,
-        default="score",
-        help="Policy selection metric. Used only if policy-select-type is 'top'.",
     )
 
     parser.add_argument(
@@ -264,67 +188,38 @@ async def main() -> None:
     )
 
     parser.add_argument(
-        "--wandb-project",
-        type=str,
-        default="",
-        help="W&B project to use for the evaluation",
-    )
-
-    parser.add_argument(
-        "--wandb-entity",
-        type=str,
-        default="",
-        help="W&B entity to use for the evaluation",
-    )
-
-    parser.add_argument(
         "--git-hash",
         type=str,
-        default=None,
-        help="Git hash to use for the evaluation",
-    )
-
-    parser.add_argument(
-        "--disallow-missing-policies",
-        action="store_true",
-        help="Error if a policy cannot be found",
+        help="Git hash to associate with evaluation tasks",
     )
 
     parser.add_argument(
         "--allow-duplicates",
         action="store_true",
-        help="Allow scheduling duplicate policy,eval pairs that are already scheduled or running",
+        help="Allow duplicate tasks to be created",
     )
 
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Do not create tasks, just print what would be created",
+        help="Dry run mode - don't actually create tasks",
     )
 
     args = parser.parse_args()
 
     # Parse arguments into Pydantic model
-    eval_request = EvalRequest.model_validate(
-        remove_none_values(
-            dict(
-                evals=args.evals,
-                policies=args.policies,
-                stats_server_uri=args.stats_server_uri,
-                git_hash=args.git_hash,
-                policy_select_type=args.policy_select_type,
-                policy_select_num=args.policy_select_num,
-                policy_select_metric=args.policy_select_metric,
-                wandb_project=args.wandb_project,
-                wandb_entity=args.wandb_entity,
-                disallow_missing_policies=args.disallow_missing_policies,
-                allow_duplicates=args.allow_duplicates,
-                dry_run=args.dry_run,
-            )
-        )
+    eval_request = EvalRequest(
+        evals=args.evals,
+        policies=args.policies,
+        stats_server_uri=args.stats_server_uri,
+        git_hash=args.git_hash,
+        allow_duplicates=args.allow_duplicates,
+        dry_run=args.dry_run,
     )
-    await _create_remote_eval_tasks(eval_request)
+
+    # Run the async task creation
+    asyncio.run(_create_remote_eval_tasks(eval_request))
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

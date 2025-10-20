@@ -1,13 +1,33 @@
+import functools
 import platform
 import subprocess
 import sys
-from pathlib import Path
 
+import yaml
 from typing_extensions import override
 
+from metta.common.util.collections import remove_falsey
+from metta.common.util.fs import get_repo_root
 from metta.setup.components.base import SetupModule
+from metta.setup.components.system_packages.installers.base import PackageInstaller
+from metta.setup.components.system_packages.installers.brew import BrewInstaller
+from metta.setup.components.system_packages.types import SystemDepsConfig
 from metta.setup.registry import register_module
 from metta.setup.utils import error, info, success, warning
+
+
+@functools.cache
+def get_package_installer() -> PackageInstaller | None:
+    for installer in [BrewInstaller()]:  # , AptInstaller()]:
+        if installer.is_available():
+            return installer
+    return None
+
+
+def get_system_deps_config() -> SystemDepsConfig:
+    with open(get_repo_root() / "metta/setup/components/system_packages/deps.yaml", "r") as f:
+        data = yaml.safe_load(f) or {}
+    return SystemDepsConfig(**data)
 
 
 @register_module
@@ -17,54 +37,65 @@ class SystemSetup(SetupModule):
     @property
     @override
     def description(self) -> str:
-        return "System dependencies (Homebrew packages, etc.)"
+        return "System dependencies"
 
     @property
-    def supported_for_platform(self) -> bool:
-        return platform.system() == "Darwin" or self._find_brew_path() is not None
+    def _installer(self) -> PackageInstaller | None:
+        return get_package_installer()
+
+    @property
+    def _config(self) -> SystemDepsConfig:
+        return get_system_deps_config()
 
     @override
     def check_installed(self) -> bool:
-        if not self.supported_for_platform:
-            # NOTE: need to implement this at some point
+        if not self._installer:
             return True
+        return self._installer.check_installed(
+            remove_falsey([getattr(p, self._installer.name) for p in self._config.packages.values()])
+        )
 
-        if not (brew_path := self._find_brew_path()):
-            return False
-
-        brewfile_path = self.repo_root / "devops" / "macos" / "Brewfile"
-        if not brewfile_path.exists():
-            return False
-
-        try:
-            result = self.run_command([brew_path, "bundle", "check", "--file", str(brewfile_path)], check=False)
-            return result.returncode == 0
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            return False
+    def _get_applicable_packages(self):
+        if not self._installer:
+            return []
+        return remove_falsey([getattr(p, self._installer.name) for p in self._config.packages.values()])
 
     @override
-    def install(self) -> None:
+    def install(self, non_interactive: bool = False, force: bool = False) -> None:
         info("Setting up system dependencies...")
 
-        if self.supported_for_platform:
-            if platform.system() == "Darwin" and not self._find_brew_path():
-                self._install_homebrew()
-            self._run_brew_bundle("Brewfile")
-            success("System dependencies installed")
-        else:
-            # NOTE: need to implement this at some point
-            info("""
-                You will need to install brew or can manage package installation manually.
-                See devops/macos/Brewfile for the full list of recommended packages.
+        if not self._installer:
+            warning("""
+                No supported package manager found.
+
+                Supported package managers:
+                - Homebrew (macOS/Linux)
+                - APT (Debian/Ubuntu)
+
+                Please install one of these package managers or install dependencies manually.
+                See devops/system-deps.yaml for the full list of recommended packages.
 
                 If you are on a mettabox, you can run `./devops/mettabox/setup_machine.sh`.
             """)
+            return
+
+        if not self._config:
+            error("Failed to load system dependencies configuration")
+            return
+
+        # Install Homebrew on macOS if not present
+        if platform.system() == "Darwin" and not isinstance(self._installer, BrewInstaller):
+            self._install_homebrew()
+            get_package_installer.cache_clear()
+
+        if self._installer:
+            self._installer.install(self._get_applicable_packages())
+
+        success("System dependencies installed")
 
     def _install_homebrew(self) -> None:
         info("Installing Homebrew...")
         try:
-            # Run the Homebrew installer directly with subprocess to preserve TTY
-            # This allows it to prompt for sudo password interactively
             install_cmd = (
                 '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
             )
@@ -77,44 +108,3 @@ class SystemSetup(SetupModule):
         except subprocess.CalledProcessError as e:
             error(f"Error installing Homebrew: {e}")
             sys.exit(1)
-
-    def _run_brew_bundle(self, brewfile_name: str, force: bool = False, no_fail: bool = False) -> None:
-        brewfile_path = self.repo_root / "devops" / "macos" / brewfile_name
-        if not brewfile_path.exists():
-            warning(f"{brewfile_name} not found at {brewfile_path}")
-            return
-
-        info(f"Installing packages from {brewfile_name}...")
-        command = ["brew", "bundle", "--file", str(brewfile_path)]
-
-        if force:
-            command.append("--force")
-        if no_fail:
-            command.append("--no-upgrade")
-
-        try:
-            # Run with output visible to user
-            _ = self.run_command(command, capture_output=False)
-        except subprocess.CalledProcessError:
-            if not force and not no_fail:
-                warning("""
-
-                    Some packages are already installed but not managed by Homebrew.
-                    This is common and usually not a problem. You have a few options:
-
-                    1. Continue anyway (recommended) - The setup will skip already installed packages
-                    2. Force Homebrew to manage them - Run with --brew-force flag
-                    3. Skip conflicting packages - Run with --brew-no-fail flag
-
-                    For now, we'll continue with the installation...
-                """)
-
-                # Retry with no-upgrade to skip already installed packages
-                self._run_brew_bundle(brewfile_name, no_fail=True)
-
-    def _find_brew_path(self) -> str | None:
-        """Find the Homebrew executable path."""
-        for path in ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"]:
-            if Path(path).exists():
-                return path
-        return None

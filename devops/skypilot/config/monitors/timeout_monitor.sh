@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Source shared utilities
+source "$(dirname "$0")/monitor_utils.sh"
+
 # Required environment variables
 : "${WRAPPER_PID:?Missing WRAPPER_PID}"
 : "${MAX_RUNTIME_HOURS:?Missing MAX_RUNTIME_HOURS}"
@@ -16,8 +19,8 @@ max_seconds=$(awk "BEGIN {print int(${MAX_RUNTIME_HOURS} * 3600)}")
 remaining_at_start=$((max_seconds - ACCUMULATED_RUNTIME))
 
 if [ "$remaining_at_start" -le 0 ]; then
-  echo "[INFO] Timeout limit reached at startup - terminating process group"
-  kill -TERM "${WRAPPER_PID}" 2> /dev/null || true
+  initiate_shutdown "max_runtime_reached"
+  echo "[INFO] Maximum runtime already exceeded at startup"
   exit 0
 fi
 
@@ -46,9 +49,13 @@ while true; do
     remaining_min=$((remaining / 60))
     echo "[INFO] Timeout Status: ${elapsed_min} minutes elapsed, ${remaining_min} minutes remaining (max: ${MAX_RUNTIME_HOURS}h)"
   else
-    echo "[INFO] Timeout limit reached - terminating process group"
-    echo "max_runtime_reached" > "$TERMINATION_REASON_FILE"
-    kill -TERM "${WRAPPER_PID}" 2> /dev/null || true
+    echo "[INFO] Maximum runtime limit reached - terminating process group"
+    initiate_shutdown "max_runtime_reached"
+    break
+  fi
+
+  if ! kill -0 "$WRAPPER_PID" 2> /dev/null; then
+    echo "[INFO] Wrapper PID $WRAPPER_PID is no longer running, exiting timeout monitor"
     break
   fi
 done

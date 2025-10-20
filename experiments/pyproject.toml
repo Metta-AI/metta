@@ -5,8 +5,15 @@ description = "Metta experiments and notebooks"
 readme = "README.md"
 requires-python = "==3.11.7"
 dependencies = [
-    "jupytext>=1.17.2",
-    "moutils>=0.3.12",
+  "basedpyright>=1.31.3",
+  "jupytext>=1.17.2",
+  "moutils>=0.3.12",
+  "python-lsp-server>=1.13.1",
+  "ty>=0.0.1a19",
+  "marimo==0.15.0",
+  "sqlglot>=27.8.0",
+  "openai>=1.102.0",
+  "anthropic>=0.64.0",
 ]
 
 [build-system]

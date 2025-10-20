@@ -1,0 +1,100 @@
+links:
+  - name: Weights & Biases
+    icon: https://cdn.wandb.ai/production/ef25f30fc/favicon.png
+    url: https://wandb.ai/metta-research/metta
+    short_urls: [w, wandb]
+    sub_links:
+      - name: Reports
+        url: https://wandb.ai/metta-research/metta/reportlist
+        short_urls: [wr]
+  - name: Observatory
+    url: https://observatory.softmax-research.net/
+    short_urls: [o, observatory]
+  - name: Mettascope
+    icon: https://metta-ai.github.io/metta/data/ui/table/agentId@2x.png
+    url: https://metta-ai.github.io/metta/
+    short_urls: [m, mettascope]
+  - name: Skypilot
+    icon: https://avatars.githubusercontent.com/u/109387420?s=200&v=4
+    url: https://skypilot-api.softmax-research.net/dashboard/jobs?property=user&operator=%3A&value=$username%40stem.ai
+    short_urls: [s, sky, skypilot]
+    sub_links:
+      - name: README
+        url: https://github.com/Metta-AI/metta/tree/main/devops/skypilot
+      - name: Clusters
+        url: https://skypilot-api.softmax-research.net/dashboard/clusters
+        short_urls: [sc]
+      - name: Jobs
+        url: https://skypilot-api.softmax-research.net/dashboard/jobs
+        short_urls: [sj]
+  - name: Datadog
+    url: https://app.datadoghq.com/dashboard/
+    short_urls: [dd, datadog]
+    sub_links:
+      - name: Policy Evaluator
+        url: https://app.datadoghq.com/dashboard/gpk-2y2-9er?fromUser=false&refresh_mode=sliding&from_ts=1756241131116&to_ts=1756244731116&live=true
+        short_urls: [ddpe]
+      - name: Logs
+        url: https://app.datadoghq.com/logs
+        short_urls: [ddlogs]
+      - name: System Health
+        url: https://app.datadoghq.com/dashboard/j79-2k2-5ym/softmax-system-health?fromUser=true&refresh_mode=sliding&from_ts=1757895511979&to_ts=1758068311979&live=true
+        short_urls: [ddsh]
+      - name: K8s pod statuses
+        url: https://app.datadoghq.com/orchestration/explorer/pod?explorer-na-groups=false
+        short_urls: [ddpods]
+      - name: Traces
+        url: https://app.datadoghq.com/apm/traces
+        short_urls: [ddtraces]
+  - name: GitHub
+    url: https://github.com/Metta-AI/metta
+    short_urls: [g, gh, github]
+    sub_links:
+      - name: Pull Requests
+        url: https://github.com/Metta-AI/metta/pulls
+        short_urls: [gp, prs]
+      - name: My PRs & Issues
+        url: https://github.com/Metta-AI/metta/issues?q=is%3Apr%20is%3Aopen%20(assignee%3A%40me%20OR%20author%3A%40me)
+        short_urls: [gm]
+      - name: Actions
+        url: https://github.com/Metta-AI/metta/actions
+        short_urls: [ga]
+  - name: Spacelift
+    url: https://metta-ai.app.spacelift.io/launchpad
+    short_urls: [sl, spacelift]
+    icon: https://7706335.fs1.hubspotusercontent-na1.net/hub/7706335/hubfs/logo_dark@2x.png?width=108&height=108
+    sub_links:
+      - name: README
+        url: https://github.com/Metta-AI/metta/tree/main/devops/tf
+  - name: Grafana
+    url: https://grafana.softmax-research.net/
+    short_urls: [gf, grafana]
+    icon: https://img.icons8.com/?size=100&id=bMkmDxPRZAld&format=png&color=000000
+  - name: AWS
+    url: https://softmaxx.awsapps.com/start/
+    icon: https://img.icons8.com/?size=100&id=33039&format=png&color=000000
+    short_urls: [a, aws]
+    sub_links:
+      - name: Cost Tracking Dashboard
+        url: https://111005867451-tovi76iq.us-east-1.console.aws.amazon.com/costmanagement/home#/cost-explorer?chartStyle=STACK&costAggregate=unBlendedCost&endDate=2025-07-31&excludeForecasting=false&filter=%5B%7B%22dimension%22:%7B%22id%22:%22RecordTypeV2%22,%22displayValue%22:%22Charge%20type%22%7D,%22operator%22:%22INCLUDES%22,%22values%22:%5B%7B%22value%22:%22Usage%22,%22displayValue%22:%22Usage%22%7D%5D%7D%5D&futureRelativeRange=CUSTOM&granularity=Daily&groupBy=%5B%22TagKeyValue:skypilot-user%22%5D&historicalRelativeRange=LAST_MONTH&isDefault=false&reportId=1971d36b-0953-49af-a635-11741bf365c0&reportMode=STANDARD&reportName=Costs%20by%20SkyPilot%20user&showOnlyUncategorized=false&showOnlyUntagged=false&startDate=2025-07-01&usageAggregate=undefined&useNormalizedUnits=false&reportArn=arn:aws:ce::111005867451:ce-saved-report%2F1971d36b-0953-49af-a635-11741bf365c0
+        short_urls: [costs]
+  - name: Wiki
+    url: https://deepwiki.com/Metta-AI/metta
+    short_urls: [wiki]
+  - name: Public Site
+    url: https://softmax.com/
+    short_urls: [public]
+  - name: Discord
+    icon: https://img.icons8.com/?size=100&id=2mIgusGquJFz&format=png&color=000000
+    url: https://discord.com/channels/1309708848730345493/1332060892350779453
+    short_urls: [disc, discord]
+  - name: Asana
+    icon: https://asana.com/favicon.ico
+    url: https://app.asana.com/1/1209016784099267/home
+    short_urls: [as, asana]
+  - name: Job Application Form
+    url: https://form.asana.com/?k=Bud764ZSBAtkdcbfkI-fHQ&d=1209016784099267
+    short_urls: [jobs]
+  - name: Mercury
+    url: https://mercury.com
+    short_urls: [mercury]

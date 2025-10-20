@@ -14,11 +14,10 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Install uv
-      uses: astral-sh/setup-uv@v6
+    - name: Setup Environment
+      uses: ./.github/actions/setup-environment
       with:
-        version: "0.7.3"
-        enable-cache: true
+        install-mode: minimal
 
     - name: Combine all benchmarks into BMF format
       shell: bash

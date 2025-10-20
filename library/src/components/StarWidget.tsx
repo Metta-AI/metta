@@ -45,9 +45,9 @@ export const StarWidget: FC<StarWidgetProps> = ({
       // Starred by current user - warm gold with elegant styling
       const displayCount = Math.max(totalStars, 1);
       return (
-        <div className="group relative">
+        <div className="relative transition-all duration-200 hover:scale-105">
           <svg
-            className={`${starSize} text-yellow-500 drop-shadow-sm transition-all duration-200 group-hover:scale-105 group-hover:text-yellow-600`}
+            className={`${starSize} text-yellow-500 drop-shadow-sm hover:text-yellow-600`}
             fill="currentColor"
             viewBox="0 0 20 20"
           >
@@ -66,9 +66,9 @@ export const StarWidget: FC<StarWidgetProps> = ({
     } else if (totalStars > 0) {
       // Starred by others - sophisticated slate with refined outline
       return (
-        <div className="group relative">
+        <div className="relative transition-all duration-200 hover:scale-105">
           <svg
-            className={`${starSize} text-slate-400 transition-all duration-200 group-hover:scale-105 group-hover:text-indigo-400`}
+            className={`${starSize} text-slate-400 hover:text-indigo-400`}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 20 20"
@@ -91,9 +91,9 @@ export const StarWidget: FC<StarWidgetProps> = ({
     } else {
       // No stars - gentle and inviting
       return (
-        <div className="group relative">
+        <div className="relative transition-all duration-300 hover:scale-105">
           <svg
-            className={`${starSize} text-slate-300 transition-all duration-300 group-hover:scale-105 group-hover:text-indigo-400`}
+            className={`${starSize} text-slate-300 hover:text-indigo-400`}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 20 20"

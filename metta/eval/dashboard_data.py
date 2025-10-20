@@ -5,9 +5,9 @@ from typing import Dict, List
 
 from pydantic import BaseModel
 
-from metta.common.config import Config
-from metta.mettagrid.util.file import write_data
 from metta.sim.simulation_stats_db import SimulationStatsDB
+from metta.utils.file import write_data
+from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,6 @@ class PolicyEval(BaseModel):
     policy_key: str
     policy_version: int
     eval_name: str
-    suite: str
     replay_url: str | None
     group_num_agents: Dict[str, int]
     policy_eval_metrics: List[PolicyEvalMetric]
@@ -44,7 +43,6 @@ def get_policy_eval_metrics(db: SimulationStatsDB) -> List[PolicyEval]:
           SELECT
             e.id as episode_id,
             s.name as eval_name,
-            s.suite,
             s.env,
             s.policy_key,
             s.policy_version,
@@ -79,14 +77,14 @@ def get_policy_eval_metrics(db: SimulationStatsDB) -> List[PolicyEval]:
     """
     )
 
-    # Returns (policy_key, policy_version, eval_name, suite, group_id, num_agents, replay_url)
+    # Returns (policy_key, policy_version, eval_name, group_id, num_agents, replay_url)
     eval_info_rows = db.con.execute(
         """
-        SELECT e.policy_key, e.policy_version, e.eval_name, e.suite, ag.group_id, COUNT(*) as num_agents,
+        SELECT e.policy_key, e.policy_version, e.eval_name, ag.group_id, COUNT(*) as num_agents,
           ANY_VALUE(e.replay_url) as replay_url
         FROM episode_info e
         JOIN agent_groups ag ON e.episode_id = ag.episode_id
-        GROUP BY e.policy_key, e.policy_version, e.eval_name, e.suite, ag.group_id
+        GROUP BY e.policy_key, e.policy_version, e.eval_name, ag.group_id
         """
     ).fetchall()
 
@@ -107,18 +105,17 @@ def get_policy_eval_metrics(db: SimulationStatsDB) -> List[PolicyEval]:
     """
     ).fetchall()
 
-    # Group metrics by policy_uri, eval_name, suite
+    # Group metrics by policy_uri, eval_name
     policy_evals = {}
 
     for eval_info_row in eval_info_rows:
-        policy_key, policy_version, eval_name, suite, group_id, num_agents, replay_url = eval_info_row
+        policy_key, policy_version, eval_name, group_id, num_agents, replay_url = eval_info_row
         key = (policy_key, policy_version, eval_name)
         if key not in policy_evals:
             policy_evals[key] = PolicyEval(
                 policy_key=policy_key,
                 policy_version=policy_version,
                 eval_name=eval_name,
-                suite=suite,
                 replay_url=replay_url,
                 group_num_agents={},
                 policy_eval_metrics=[],

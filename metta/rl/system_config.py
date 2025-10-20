@@ -1,13 +1,15 @@
 import os
 import platform
 import random
+from datetime import timedelta
+from pathlib import Path
 from typing import ClassVar, Literal
 
 import numpy as np
 import torch
 from pydantic import ConfigDict, Field
 
-from metta.common.config import Config
+from mettagrid.base_config import Config
 
 
 def guess_device() -> str:
@@ -29,10 +31,10 @@ def guess_vectorization() -> Literal["serial", "multiprocessing"]:
     return "multiprocessing"
 
 
-def guess_data_dir() -> str:
+def guess_data_dir() -> Path:
     if os.environ.get("DATA_DIR"):
-        return os.environ["DATA_DIR"]  # type: ignore
-    return "./train_dir"
+        return Path(os.environ["DATA_DIR"])
+    return Path("./train_dir")
 
 
 class SystemConfig(Config):
@@ -40,7 +42,10 @@ class SystemConfig(Config):
     seed: int = Field(default_factory=lambda: np.random.randint(0, 1000000))
     torch_deterministic: bool = Field(default=True)
     device: str = Field(default_factory=guess_device)
-    data_dir: str = Field(default_factory=guess_data_dir)
+    data_dir: Path = Field(default_factory=guess_data_dir)
+    remote_prefix: str | None = Field(default=None)
+    local_only: bool = Field(default=False)
+    nccl_timeout: timedelta = Field(default=timedelta(minutes=10))
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="forbid",
@@ -60,10 +65,7 @@ def seed_everything(system_cfg: SystemConfig):
 
     # Add rank offset to base seed for distributed training to ensure different
     # processes generate uncorrelated random sequences
-    if seed is not None:
-        rank_specific_seed = seed + rank
-    else:
-        rank_specific_seed = rank
+    rank_specific_seed = (seed + rank) if seed is not None else rank
 
     random.seed(rank_specific_seed)
     np.random.seed(rank_specific_seed)

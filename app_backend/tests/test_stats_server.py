@@ -1,8 +1,6 @@
 import uuid
 from typing import List
 
-import pytest
-
 from metta.app_backend.clients.stats_client import StatsClient
 
 
@@ -53,8 +51,8 @@ class TestStatsServerSimple:
             },
             primary_policy_id=policy.id,
             stats_epoch=epoch.id,
-            eval_name="test_evaluation",
-            simulation_suite="test_suite",
+            sim_suite="test_evaluation",
+            env_name="mettagrid",
             replay_url="https://example.com/replay",
             attributes={"episode_length": 100, "difficulty": "medium"},
         )
@@ -85,7 +83,8 @@ class TestStatsServerSimple:
                 agent_metrics={0: {"reward": float(i * 10), "steps": float(i * 5)}},
                 primary_policy_id=policy.id,
                 stats_epoch=epoch.id,
-                eval_name=f"episode_{i}",
+                sim_suite="episode_{i}",
+                env_name="test_env",
             )
             episode_ids.append(episode.id)
             assert episode.id is not None
@@ -102,8 +101,3 @@ class TestStatsServerSimple:
         """Test policy ID lookup for non-existent policies."""
         policy_ids = stats_client.get_policy_ids(["nonexistent_policy"])
         assert policy_ids.policy_ids == {}
-
-
-if __name__ == "__main__":
-    # Simple test runner for debugging
-    pytest.main([__file__, "-v", "-s"])

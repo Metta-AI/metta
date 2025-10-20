@@ -1,4 +1,3 @@
-
 # Commander iParse and apply command line arguments.
 
 This function takes a command line arguments and applies them to a possibly very nested and complex tree of objects.
@@ -8,7 +7,6 @@ A command line of:
 `--foo.bar.baz 3`
 
 Will take the following tree, and apply the command line arguments to it in place.
-
 
 ```json
 {
@@ -22,12 +20,13 @@ Will take the following tree, and apply the command line arguments to it in plac
 
 But it only works if the tree had the keys already, otherwise it will be an error.
 
-Both `-foo.bar.baz 3`, `--foo.bar.baz=3`, and `--foo.bar.baz:3` are valid command line arguments. As they all have been used for command line arguments in the past.
+Both `-foo.bar.baz 3`, `--foo.bar.baz=3`, and `--foo.bar.baz:3` are valid command line arguments. As they all have been
+used for command line arguments in the past.
 
 Strings with spaces are supported for both quotes `"` and `'`.
 
-`--foo.bar "hello world"` will set `{foo: {bar: "hello world"}}`
-`--foo.bar 'hello world'` will set `{foo: {bar: "hello world"}}`
+`--foo.bar "hello world"` will set `{foo: {bar: "hello world"}}` `--foo.bar 'hello world'` will set
+`{foo: {bar: "hello world"}}`
 
 Strings with escape characters are supported:
 
@@ -49,15 +48,15 @@ Keys without a value are treated as booleans.
 
 `--foo.bar` will set `{foo: {bar: true}}`
 
-Numbers can start with a `+` or `-` sign. Special care needs to be taken for negative numbers as they look like other parameters.
+Numbers can start with a `+` or `-` sign. Special care needs to be taken for negative numbers as they look like other
+parameters.
 
-`--foo.bar -1` will set `{foo: {bar: -1}}`
-`--foo.bar +1` will set `{foo: {bar: 1}}`
+`--foo.bar -1` will set `{foo: {bar: -1}}` `--foo.bar +1` will set `{foo: {bar: 1}}`
 
 Numbers can have a decimal point and scientific notation.
 
-`--foo.bar 1.23456789` will set `{foo: {bar: 1.23456789}}`
-`--foo.bar 1.23456789e10` will set `{foo: {bar: 1.23456789e10}}`
+`--foo.bar 1.23456789` will set `{foo: {bar: 1.23456789}}` `--foo.bar 1.23456789e10` will set
+`{foo: {bar: 1.23456789e10}}`
 
 Numbers in the key are treated as indexes so:
 

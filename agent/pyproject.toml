@@ -13,7 +13,8 @@ readme = "README.md"
 urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/metta" }
 
 dependencies = [
-  "pufferlib>=3.0.0,<3.1.0",
+  "pufferlib-core",
+  "einops>=0.7.0",
 ]
 
 [dependency-groups]
@@ -28,11 +29,12 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["metta.agent"]
+include = ["metta.agent", "metta.ops"]
 
 [tool.setuptools.package-data]
 "metta" = ["__init__.py"]
 "metta.agent" = ["py.typed"]
+"metta.ops" = ["agalite_kernels/*.cpp", "agalite_kernels/*.cu"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

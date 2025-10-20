@@ -1,27 +1,28 @@
 import argparse
+from datetime import timedelta
 
 import wandb
+from wandb.errors import CommError
 
-ENTITY_NAME = "metta-research"
-PROJECT_NAME = "metta"
+from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 
 
 def apply_ttl_to_artifacts(artifact_project: str, version_start: int, version_end: int, ttl_days: int) -> None:
     """
     Update the TTL of a range of artifact versions.
     """
-    run = wandb.init(project=PROJECT_NAME, entity=ENTITY_NAME)
+    run = wandb.init(project=METTA_WANDB_PROJECT, entity=METTA_WANDB_ENTITY)
 
     version = version_start
     while version <= version_end:
         try:
-            artifact_name = f"{ENTITY_NAME}/{PROJECT_NAME}/{artifact_project}:v{version}"
+            artifact_name = f"{METTA_WANDB_ENTITY}/{METTA_WANDB_PROJECT}/{artifact_project}:v{version}"
             artifact = run.use_artifact(artifact_name)
             print(f"Applying TTL to artifact: {artifact_name}")
-            artifact.ttl = ttl_days
+            artifact.ttl = timedelta(days=ttl_days)
             artifact.save()
             version += 1
-        except wandb.errors.CommError:
+        except CommError:
             print(f"No more artifacts found after version {version - 1}.")
             break
         except Exception as e:

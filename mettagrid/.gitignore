@@ -1,5 +1,0 @@
-# ignore build artifacts
-/build-debug
-/build-release
-/benchmark_output
-/Testing

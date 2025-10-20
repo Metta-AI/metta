@@ -1,3 +1,4 @@
+external/
 resources
 
 # Environment and IDE
@@ -22,6 +23,8 @@ resources
 coverage.xml
 htmlcov/
 .venv/
+coverage-reports/
+test-results/
 
 # CMake FetchContent cache
 .deps/
@@ -33,6 +36,11 @@ build_debug/
 build-release/
 build-debug/
 build-coverage/
+
+# Bazel build artifacts
+**/bazel-*
+**/.bazel_output/
+**/bazel-mettagrid/*
 
 # Node.js / Frontend
 node_modules/
@@ -57,6 +65,8 @@ replays/
 train_dir/
 personal/
 /mettagrid/multirun/
+agent/src/metta/ops/
+tmp/
 
 # Test and benchmark
 test_data/
@@ -86,7 +96,44 @@ sweep_id
 # Notebooks
 experiments/notebooks/.ipynb_checkpoints
 experiments/notebooks/utils/scorecard_widget/scorecard_widget/static/index.js
-experiments/user/*.py
-!experiments/user/example.py
+experiments/recipes/scratchpad/*.py
+!experiments/recipes/scratchpad/README.md
+!experiments/recipes/scratchpad/template.py
+!experiments/recipes/scratchpad/__init__.py
+packages/cogames/experiments
 
 resources
+LUNARVIM_CHEATSHEET.md
+metta/sweep/experiments/README.md
+metta/sweep/experiments/README_*.md
+identified-figures/
+
+# Cursor MCP configuration (may contain credentials)
+.cursor-mcp/
+
+# TODO - remove after troubleshooting stability and re-add to keys in .github/workflows/checks.yml
+mettagrid/MODULE.bazel.lock
+
+# Stable Release System
+devops/stable/state/
+devops/stable/logs/
+devops/stable/release-notes/
+
+# skypilot testing
+recipe_test_jobs.json
+cluster_test_jobs.json
+
+# MetaScope
+packages/mettagrid/nim/mettascope/dist/
+packages/mettagrid/nim/mettascope/bindings/generated/
+mettascope.out
+!packages/mettagrid/nim/mettascope/data/resources/
+packages/mettagrid/nim/mettascope/src/tmp
+packages/mettagrid/python/src/mettagrid/nim/mettascope/
+agent/src/metta/ops/agalite_kernels/_build/
+
+# Nim runtime
+.nim_runtime
+
+.terraform*
+terraform.tfstate

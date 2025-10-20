@@ -99,10 +99,10 @@ env_dict["game"]["num_agents"] = 1  # type: ignore
 env_dict["game"]["obs_width"] = 11  # type: ignore
 env_dict["game"]["obs_height"] = 11  # type: ignore
 env_dict["game"]["map_builder"] = {
-    "_target_": "metta.map.mapgen.MapGen",
+    "_target_": "mettagrid.mapgen.mapgen.MapGen",
     "border_width": 0,
-    "root": {
-        "type": "metta.map.scenes.inline_ascii.InlineAscii",
+    "instance": {
+        "type": "mettagrid.mapgen.scenes.inline_ascii.InlineAscii",
         "params": {"data": hallway_map},
     },
 }
@@ -151,7 +151,7 @@ for step in range(cfg.renderer_job.num_steps):
     obs, rewards, terminals, truncations, info = env.step(actions)
     # Track ore in inventory for agent 0
     agent_obj = next(o for o in env.grid_objects.values() if o.get("agent_id") == 0)
-    inv = {env.inventory_item_names[idx]: count for idx, count in agent_obj.get("inventory", {}).items()}
+    inv = {env.resource_names[idx]: count for idx, count in agent_obj.get("inventory", {}).items()}
     header.value = f"<b>Step:</b> {step+1}/{cfg.renderer_job.num_steps} <br/> <b>Inventory:</b> {inv}"
     with contextlib.redirect_stdout(io.StringIO()):
         buffer_str = env.render()
@@ -234,7 +234,7 @@ for ep in range(1, EVAL_EPISODES + 1):
         obs, _, _, _, _ = eval_env.step(actions)
     # After the episode, check inventory
     agent_obj = next(o for o in eval_env.grid_objects.values() if o.get("agent_id") == 0)
-    inv = {eval_env.inventory_item_names[idx]: cnt for idx, cnt in agent_obj.get("inventory", {}).items()}
+    inv = {eval_env.resource_names[idx]: cnt for idx, cnt in agent_obj.get("inventory", {}).items()}
     inv_count = int(inv.get("ore_red", 0))
     scores.append(inv_count)
     print(f"Episode {ep:3d}/{EVAL_EPISODES}: ore_red = {inv_count}")
@@ -290,7 +290,7 @@ temp_curriculum_path = cfg_tmp_dir / curriculum_name
 with temp_curriculum_path.open("w") as f:
     yaml.dump(
         {
-            "_pre_built_env_config": env_dict,
+            "_pre_built_mg_config": env_dict,
             "game": env_dict["game"],
             "name": "hallway_curriculum",
         },
@@ -307,7 +307,7 @@ repo_root = get_repo_root()
 train_cmd = [
     str(repo_root / "tools" / "train.py"),
     f"run={run_name}",
-    f"trainer.curriculum=tmp/{curriculum_name}",
+    f"training_env.curriculum=tmp/{curriculum_name}",
     "wandb=off",
     "device=cpu",
     "trainer.total_timesteps=10000",  # tiny demo run
@@ -371,7 +371,7 @@ for step in range(auto_cfg.renderer_job.num_steps):
     actions = trained_policy.predict(obs)
     obs, _, _, _, _ = trained_env.step(actions)
     agent_obj = next(o for o in trained_env.grid_objects.values() if o.get("agent_id") == 0)
-    inv = {trained_env.inventory_item_names[i]: c for i, c in agent_obj.get("inventory", {}).items()}
+    inv = {trained_env.resource_names[i]: c for i, c in agent_obj.get("inventory", {}).items()}
     header2.value = f"<b>Step:</b> {step+1}/{auto_cfg.renderer_job.num_steps} <br/> <b>Inventory:</b> {inv}"
     with contextlib.redirect_stdout(io.StringIO()):
         buf = trained_env.render()

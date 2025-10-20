@@ -13,6 +13,7 @@ import asyncio
 import logging
 import math
 import os
+import sys
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
 
@@ -22,8 +23,8 @@ from pydantic import BaseModel
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
 from metta.app_backend.container_managers.factory import create_container_manager
 from metta.app_backend.routes.eval_task_routes import (
+    EvalTaskResponse,
     TaskClaimRequest,
-    TaskResponse,
     TaskStatusUpdate,
     TaskUpdateRequest,
 )
@@ -33,13 +34,14 @@ from metta.app_backend.worker_managers.worker import Worker
 from metta.common.datadog.tracing import init_tracing, trace
 from metta.common.util.collections import group_by
 from metta.common.util.constants import DEV_STATS_SERVER_URI
-from metta.common.util.logging_helpers import init_logging
+
+logger = logging.getLogger(__name__)
 
 
 class WorkerInfo(BaseModel):
     worker: Worker
     git_hashes: list[str] = []
-    assigned_task: TaskResponse | None = None
+    assigned_task: EvalTaskResponse | None = None
 
 
 class AbstractWorkerScaler(ABC):
@@ -59,12 +61,11 @@ class FixedScaler(AbstractWorkerScaler):
 class AutoScaler(AbstractWorkerScaler):
     CREATED_IN_LAST_DAY_FILTER = "created_at > NOW() - INTERVAL '1 day'"
     DONE_FILTER = "status = 'done'"
-    UNPROCESSED_FILTER = "status = 'unprocessed'"
+    UNPROCESSED_FILTER = "status = 'unprocessed' OR status = 'running'"
 
-    def __init__(self, task_client: EvalTaskClient, default_task_runtime: float, logger: logging.Logger):
+    def __init__(self, task_client: EvalTaskClient, default_task_runtime_seconds: float):
         self._task_client = task_client
-        self._default_task_runtime = default_task_runtime
-        self._logger = logger
+        self._default_task_runtime_seconds = default_task_runtime_seconds
 
     async def _compute_desired_workers(self, avg_task_runtime: float) -> int:
         num_tasks_per_day = (await self._task_client.count_tasks(self.CREATED_IN_LAST_DAY_FILTER)).count
@@ -73,7 +74,7 @@ class AutoScaler(AbstractWorkerScaler):
         return math.ceil(total_work_time_seconds / single_worker_work_time_seconds * 1.2)  # 20% buffer
 
     async def _get_avg_task_runtime(self) -> float:
-        avg_task_runtime = self._default_task_runtime
+        avg_task_runtime = self._default_task_runtime_seconds
         num_done_tasks_last_day = (
             await self._task_client.count_tasks(f"{self.DONE_FILTER} AND {self.CREATED_IN_LAST_DAY_FILTER}")
         ).count
@@ -86,15 +87,12 @@ class AutoScaler(AbstractWorkerScaler):
         return avg_task_runtime
 
     async def get_desired_workers(self, num_workers: int) -> int:
-        num_unclaimed_tasks = (await self._task_client.count_tasks(self.UNPROCESSED_FILTER)).count
+        num_active_tasks = (await self._task_client.count_tasks(self.UNPROCESSED_FILTER)).count
+
         avg_task_runtime = await self._get_avg_task_runtime()
         num_desired_workers = await self._compute_desired_workers(avg_task_runtime)
 
-        if num_unclaimed_tasks > num_workers * 5:
-            # We have a big backlog of tasks.  Launch at least enough workers to work through the backlog in 1 hour
-            return max(num_desired_workers, math.ceil(num_unclaimed_tasks * avg_task_runtime / 3600))
-        else:
-            return num_desired_workers
+        return max(num_desired_workers, math.ceil(num_active_tasks * avg_task_runtime / 3600))
 
 
 class EvalTaskOrchestrator:
@@ -104,29 +102,26 @@ class EvalTaskOrchestrator:
         worker_manager: AbstractWorkerManager,
         worker_scaler: AbstractWorkerScaler,
         poll_interval: float = 5.0,
-        worker_idle_timeout: float = 1200.0,
-        default_avg_runtime: float = 200.0,
-        logger: logging.Logger | None = None,
+        worker_idle_timeout_minutes: float = 60.0,
     ):
         self._task_client = task_client
         self._worker_manager = worker_manager
         self._worker_scaler = worker_scaler
         self._poll_interval = poll_interval
-        self._worker_idle_timeout = worker_idle_timeout
-        self._logger = logger or logging.getLogger(__name__)
+        self._worker_idle_timeout_minutes = worker_idle_timeout_minutes
 
     @trace("orchestrator.claim_task")
-    async def _attempt_claim_task(self, task: TaskResponse, worker: WorkerInfo) -> bool:
+    async def _attempt_claim_task(self, task: EvalTaskResponse, worker: WorkerInfo) -> bool:
         claim_request = TaskClaimRequest(tasks=[task.id], assignee=worker.worker.name)
         claimed_ids = await self._task_client.claim_tasks(claim_request)
         if task.id in claimed_ids.claimed:
-            self._logger.info(f"Assigned task {task.id} to worker {worker.worker.name}")
+            logger.info(f"Assigned task {task.id} to worker {worker.worker.name}")
             return True
         else:
-            self._logger.debug("Failed to claim task; someone else must have it")
+            logger.debug("Failed to claim task; someone else must have it")
             return False
 
-    async def _get_available_workers(self, claimed_tasks: list[TaskResponse]) -> dict[str, WorkerInfo]:
+    async def _get_available_workers(self, claimed_tasks: list[EvalTaskResponse]) -> dict[str, WorkerInfo]:
         alive_workers = await self._worker_manager.discover_alive_workers()
 
         worker_names = [w.name for w in alive_workers]
@@ -144,25 +139,22 @@ class EvalTaskOrchestrator:
         return alive_workers_by_name
 
     async def _kill_dead_workers_and_tasks(
-        self, claimed_tasks: list[TaskResponse], alive_workers_by_name: dict[str, WorkerInfo]
+        self, claimed_tasks: list[EvalTaskResponse], alive_workers_by_name: dict[str, WorkerInfo]
     ) -> None:
         try:
             for task in claimed_tasks:
                 if task.assignee and task.assignee not in alive_workers_by_name:
                     reason = "worker_dead"
                 elif task.assigned_at and task.assigned_at.replace(tzinfo=timezone.utc) < (
-                    datetime.now(timezone.utc) - timedelta(minutes=10)
+                    datetime.now(timezone.utc) - timedelta(minutes=self._worker_idle_timeout_minutes)
                 ):
                     reason = "worker_timeout"
                 else:
                     continue
 
-                if task.retries < 3:
-                    status = "unprocessed"
-                else:
-                    status = "error"
+                status = "error"
 
-                self._logger.info(f"Unclaiming task {task.id} because {reason}. Setting status to {status}")
+                logger.info(f"Releasing claim on task {task.id} because {reason}. Setting status to {status}")
                 await self._task_client.update_task_status(
                     TaskUpdateRequest(
                         updates={
@@ -176,14 +168,14 @@ class EvalTaskOrchestrator:
                 )
 
                 if task.assignee and (worker := alive_workers_by_name.get(task.assignee)):
-                    self._logger.info(f"Killing worker {task.assignee} because it has been working too long")
+                    logger.info(f"Killing worker {task.assignee} because it has been working too long")
                     self._worker_manager.cleanup_worker(worker.worker.name)
                     del alive_workers_by_name[worker.worker.name]
         except Exception as e:
-            self._logger.error(f"Error killing dead workers and tasks: {e}", exc_info=True)
+            logger.error(f"Error killing dead workers and tasks: {e}", exc_info=True)
 
     async def _assign_task_to_worker(
-        self, worker: WorkerInfo, available_tasks_by_git_hash: dict[str | None, list[TaskResponse]]
+        self, worker: WorkerInfo, available_tasks_by_git_hash: dict[str | None, list[EvalTaskResponse]]
     ) -> None:
         # Assign a task to a worker, prioritizing its existing git hashes
         for git_hash in worker.git_hashes:
@@ -205,7 +197,7 @@ class EvalTaskOrchestrator:
 
     async def _assign_tasks_to_workers(self, alive_workers_by_name: dict[str, WorkerInfo]) -> None:
         available_tasks = await self._task_client.get_available_tasks()
-        available_tasks_by_git_hash: dict[str | None, list[TaskResponse]] = group_by(
+        available_tasks_by_git_hash: dict[str | None, list[EvalTaskResponse]] = group_by(
             available_tasks.tasks, key_fn=lambda t: t.git_hash
         )
         for worker in alive_workers_by_name.values():
@@ -216,7 +208,7 @@ class EvalTaskOrchestrator:
     async def _scale_workers(self, alive_workers_by_name: dict[str, WorkerInfo]) -> None:
         desired_workers = await self._worker_scaler.get_desired_workers(len(alive_workers_by_name))
         if desired_workers > len(alive_workers_by_name):
-            self._logger.info(f"Launching {desired_workers - len(alive_workers_by_name)} extra workers")
+            logger.info(f"Launching {desired_workers - len(alive_workers_by_name)} extra workers")
             for _ in range(desired_workers - len(alive_workers_by_name)):
                 self._worker_manager.start_worker()
         elif desired_workers < len(alive_workers_by_name):
@@ -226,7 +218,7 @@ class EvalTaskOrchestrator:
             ]
             if idle_workers:
                 num_workers_to_kill = len(alive_workers_by_name) - desired_workers
-                self._logger.info(f"Killing {num_workers_to_kill} idle workers")
+                logger.info(f"Killing {num_workers_to_kill} idle workers")
                 for worker in idle_workers[:num_workers_to_kill]:
                     self._worker_manager.cleanup_worker(worker.worker.name)
                     del alive_workers_by_name[worker.worker.name]
@@ -243,35 +235,43 @@ class EvalTaskOrchestrator:
         await self._scale_workers(alive_workers_by_name)
 
     async def run(self) -> None:
-        self._logger.info(f"Backend URL: {getattr(self._task_client, '_base_url', 'unknown')}")
-        self._logger.info(f"Worker idle timeout: {self._worker_idle_timeout}s")
+        logger.info(f"Backend URL: {getattr(self._task_client, '_base_url', 'unknown')}")
+        logger.info(f"Worker idle timeout: {self._worker_idle_timeout_minutes} minutes")
 
         with tracer.trace("orchestrator.startup"):
-            self._logger.info("Orchestrator startup trace")
+            logger.info("Orchestrator startup trace")
 
         while True:
             start_time = datetime.now(timezone.utc)
             try:
                 await self.run_cycle()
             except Exception as e:
-                self._logger.error(f"Error in orchestrator loop: {e}", exc_info=True)
+                logger.error(f"Error in orchestrator loop: {e}", exc_info=True)
 
             elapsed_time = (datetime.now(timezone.utc) - start_time).total_seconds()
             sleep_time = max(0, self._poll_interval - elapsed_time)
             await asyncio.sleep(sleep_time)
 
 
+def init_logging():
+    # Configure root logger
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+        handlers=[logging.StreamHandler(sys.stdout)],
+    )
+
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+
+
 async def main() -> None:
     init_logging()
     init_tracing()
-    logging.getLogger("httpx").setLevel(logging.WARNING)
-
-    logger = logging.getLogger(__name__)
 
     backend_url = os.environ.get("BACKEND_URL", DEV_STATS_SERVER_URI)
     docker_image = os.environ.get("DOCKER_IMAGE", "metta-policy-evaluator-local:latest")
     poll_interval = float(os.environ.get("POLL_INTERVAL", "5"))
-    worker_idle_timeout = float(os.environ.get("WORKER_IDLE_TIMEOUT", "1200"))
+    worker_idle_timeout_minutes = float(os.environ.get("WORKER_IDLE_TIMEOUT", "60"))
     machine_token = os.environ["MACHINE_TOKEN"]
 
     task_client = EvalTaskClient(backend_url)
@@ -281,16 +281,14 @@ async def main() -> None:
         backend_url=backend_url,
         docker_image=docker_image,
         machine_token=machine_token,
-        logger=logger,
     )
-    worker_scaler = AutoScaler(task_client, 120.0, logger)
+    worker_scaler = AutoScaler(task_client, 1200.0)
     orchestrator = EvalTaskOrchestrator(
         task_client=task_client,
         worker_manager=worker_manager,
         worker_scaler=worker_scaler,
         poll_interval=poll_interval,
-        worker_idle_timeout=worker_idle_timeout,
-        logger=logger,
+        worker_idle_timeout_minutes=worker_idle_timeout_minutes,
     )
 
     try:

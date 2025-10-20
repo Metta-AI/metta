@@ -1,71 +1,71 @@
-"""Policy evaluation functionality."""
+from __future__ import annotations
 
 import logging
 import uuid
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import wandb
 
-from metta.agent.policy_record import PolicyRecord
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskResponse
 from metta.common.util.collections import remove_none_keys
 from metta.common.util.constants import METTASCOPE_REPLAY_URL
-from metta.common.wandb.wandb_context import WandbRun
-from metta.rl.trainer_config import TrainerConfig
+from metta.common.wandb.context import WandbRun
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation_config import SimulationConfig
-from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
+from metta.sim.utils import get_or_create_policy_ids
 
 logger = logging.getLogger(__name__)
 
 
-def evaluate_policy_remote(
-    policy_record: PolicyRecord,
+# Avoid circular import: evaluator.py → evaluate.py → evaluator.py
+# EvaluatorConfig is only used as a type hint, never instantiated here
+if TYPE_CHECKING:
+    from metta.rl.training.evaluator import EvaluatorConfig
+
+
+def evaluate_policy_remote_with_checkpoint_manager(
+    policy_uri: str,
     simulations: list[SimulationConfig],
     stats_epoch_id: uuid.UUID | None,
-    wandb_policy_name: str | None,
     stats_client: StatsClient | None,
     wandb_run: WandbRun | None,
-    trainer_cfg: TrainerConfig,
+    evaluation_cfg: EvaluatorConfig | None,
 ) -> TaskResponse | None:
-    """Create a task to evaluate a policy remotely.
-
-    Ensures policy is uploaded to wandb.
-
-    Returns:
-        TaskResponse for the policy evaluation or None if policy is not uploaded to wandb
-    """
-    if wandb_run and stats_client and policy_record and wandb_policy_name:
-        # Need to upload policy artifact to wandb first and make sure our name
-        # reflects that in the version
-        if ":" not in wandb_policy_name:
-            logger.warning(f"Remote evaluation: {wandb_policy_name} does not specify a version")
-        else:
-            internal_wandb_policy_name, wandb_uri = wandb_policy_name_to_uri(wandb_policy_name)
-            stats_server_policy_id = get_or_create_policy_ids(
-                stats_client,
-                [(internal_wandb_policy_name, wandb_uri, wandb_run.notes)],
-                stats_epoch_id,
-            ).get(internal_wandb_policy_name)
-            if not stats_server_policy_id:
-                logger.warning(f"Remote evaluation: failed to get or register policy ID for {wandb_policy_name}")
-            else:
-                task = stats_client.create_task(
-                    TaskCreateRequest(
-                        policy_id=stats_server_policy_id,
-                        sim_suite=simulations[0].name,
-                        attributes={
-                            "git_hash": (trainer_cfg.evaluation and trainer_cfg.evaluation.git_hash),
-                            "simulations": [sim.model_dump() for sim in simulations],
-                        },
-                    )
-                )
-                logger.info(
-                    f"Policy evaluator: created task {task.id} for {wandb_policy_name} on {simulations[0].name}"
-                )
-
-                return task
+    """Create a remote evaluation task using a policy URI."""
+    if not (wandb_run and stats_client and policy_uri):
+        logger.warning("Remote evaluation requires wandb_run, stats_client, and policy_uri")
         return None
+
+    # Normalize the policy URI
+    normalized_uri = CheckpointManager.normalize_uri(policy_uri)
+
+    # Process policy registration using the new format
+    stats_server_policy_id = get_or_create_policy_ids(
+        stats_client,
+        [(normalized_uri, wandb_run.notes)],  # New format: (uri, description)
+        stats_epoch_id,
+    ).get(normalized_uri)
+
+    if not stats_server_policy_id:
+        logger.warning(f"Remote evaluation: failed to get or register policy ID for {normalized_uri}")
+        return None
+
+    # Create evaluation task
+    task = stats_client.create_task(
+        TaskCreateRequest(
+            policy_id=stats_server_policy_id,
+            sim_suite=simulations[0].name,
+            attributes={
+                "git_hash": (evaluation_cfg and evaluation_cfg.git_hash),
+                "simulations": [sim.model_dump() for sim in simulations],
+            },
+        )
+    )
+
+    logger.info(f"Policy evaluator: created task {task.id} for {normalized_uri} on {simulations[0].name}")
+
+    return task
 
 
 def upload_replay_html(
@@ -73,11 +73,10 @@ def upload_replay_html(
     agent_step: int,
     epoch: int,
     wandb_run: WandbRun,
-    metric_prefix: str | None = None,
     step_metric_key: str | None = None,
     epoch_metric_key: str | None = None,
 ) -> None:
-    """Upload replay HTML to wandb with organized links."""
+    """Upload organized replay HTML links to wandb."""
     # Create unified HTML with all replay links on a single line
     if replay_urls:
         # Group replays by base name
@@ -111,12 +110,6 @@ def upload_replay_html(
 
         # Log all links in a single HTML entry
         html_content = " | ".join(links)
-        _upload_replay_html(html_content, agent_step, epoch, wandb_run, step_metric_key, epoch_metric_key)
-
-    # Maintain backward compatibility - log training task separately if available
-    if "eval/training_task" in replay_urls and replay_urls["eval/training_task"]:
-        training_url = replay_urls["eval/training_task"][0]  # Use first URL for backward compatibility
-        html_content = _form_mettascope_link(training_url, f"MetaScope Replay (Epoch {epoch})")
         _upload_replay_html(html_content, agent_step, epoch, wandb_run, step_metric_key, epoch_metric_key)
 
 

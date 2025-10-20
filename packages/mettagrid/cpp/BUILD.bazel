@@ -1,0 +1,61 @@
+# BUILD.bazel for cpp/ directory
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("@pybind11_bazel//:build_defs.bzl", "pybind_extension", "pybind_library")
+
+# Export binding files and source files so they can be used by benchmarks and tests
+exports_files([
+    "bindings/mettagrid_c.cpp",
+    "bindings/mettagrid_c.hpp",
+])
+
+# Compiler flags
+COPTS = [
+    "-std=c++20",
+    "-fvisibility=hidden",
+    "-DNPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION",
+    "-O3",
+    "-DNDEBUG",
+]
+
+# Core C++ library for tests
+pybind_library(
+    name = "mettagrid_core",
+    hdrs = glob([
+        "include/mettagrid/**/*.hpp",
+    ]),
+    copts = [
+        "-std=c++20",
+        "-DNPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION",
+        "-O3",
+        "-DNDEBUG",
+    ],
+    includes = ["include/mettagrid"],
+    visibility = ["//visibility:public"],
+)
+
+# Python bindings
+pybind_extension(
+    name = "mettagrid_c",
+    srcs = [
+        "bindings/mettagrid_c.cpp",
+        "bindings/mettagrid_c.hpp",
+        "src/matrix_profile.cpp",
+        # "src/matrix_profile.cu",  # CUDA support - TODO: configure Bazel for CUDA
+    ] + glob([
+        "include/mettagrid/**/*.hpp",
+    ]),
+    copts = COPTS + ["-DCUDA_DISABLED"],  # Disable CUDA for now
+    includes = ["include/mettagrid", "include", "."],
+    visibility = ["//visibility:public"],
+)
+
+# C++ tests would go here when moved
+# cc_test(
+#     name = "test_grid_object",
+#     srcs = ["tests/test_grid_object.cpp"],
+#     deps = [
+#         ":mettagrid_core",
+#         "@googletest//:gtest_main",
+#     ],
+#     copts = ["-std=c++20"],
+# )

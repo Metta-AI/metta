@@ -138,8 +138,8 @@ function drawWalls() {
   let numFills = 0
   let numWalls = 0
   if (wallCells === null || wallCells.length < totalCells) {
-    wallCells = new Uint16Array(totalCells)
-    wallFills = new Uint16Array(totalCells)
+    wallCells = new Uint16Array(totalCells * 2)
+    wallFills = new Uint16Array(totalCells * 2)
     wallMap = new Grid(width, height)
   }
 

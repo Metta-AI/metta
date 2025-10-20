@@ -12,8 +12,10 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
-from metta.mettagrid.grid_object_formatter import format_grid_object
 from metta.sim.simulation import Simulation
+from mettagrid import dtype_actions
+from mettagrid.util.action_catalog import build_action_mapping, make_decode_fn, make_encode_fn
+from mettagrid.util.grid_object_formatter import format_grid_object
 
 if TYPE_CHECKING:
     from metta.tools.play import PlayTool
@@ -156,24 +158,32 @@ def make_app(cfg: "PlayTool"):
         logger.info("Received websocket connection!")
         await send_message(type="message", message="Connecting!")
 
-        # Create a simulation that we are going to play.
-        from metta.tools.play import create_simulation
-
-        sim = create_simulation(cfg)
+        sim = Simulation.create(
+            sim_config=cfg.sim,
+            device=cfg.system.device,
+            vectorization=cfg.system.vectorization,
+            stats_dir=cfg.effective_stats_dir,
+            replay_dir=cfg.effective_replay_dir,
+            policy_uri=cfg.policy_uri,
+        )
         sim.start_simulation()
         env = sim.get_env()
         replay = sim.get_replay()
+
+        flat_mapping, _ = build_action_mapping(env)
+        decode_flat_action = make_decode_fn(flat_mapping)
+        encode_flat_action = make_encode_fn(flat_mapping)
 
         await send_message(type="replay", replay=replay)
 
         current_step = 0
         action_message = None
-        actions = np.zeros((env.num_agents, 2))
+        actions = np.zeros(env.num_agents, dtype=dtype_actions)
         total_rewards = np.zeros(env.num_agents)
 
         async def send_replay_step():
             grid_objects = []
-            for i, grid_object in enumerate(env.grid_objects.values()):
+            for i, grid_object in enumerate(env.grid_objects().values()):
                 if len(grid_objects) <= i:
                     grid_objects.append({})
 
@@ -181,7 +191,14 @@ def make_app(cfg: "PlayTool"):
                     agent_id = grid_object["agent_id"]
                     total_rewards[agent_id] += env.rewards[agent_id]
 
-                update_object = format_grid_object(grid_object, actions, env.action_success, env.rewards, total_rewards)
+                update_object = format_grid_object(
+                    grid_object,
+                    actions,
+                    env.action_success,
+                    env.rewards,
+                    total_rewards,
+                    decode_flat_action=decode_flat_action,
+                )
 
                 grid_objects[i] = update_object
 
@@ -230,8 +247,9 @@ def make_app(cfg: "PlayTool"):
                 actions = sim.generate_actions()
                 if action_message is not None:
                     agent_id = action_message["agent_id"]
-                    actions[agent_id][0] = action_message["action_id"]
-                    actions[agent_id][1] = action_message["action_param"]
+                    action_id = int(action_message["action_id"])
+                    action_param = int(action_message.get("action_param", 0))
+                    actions[agent_id] = encode_flat_action(action_id, action_param)
                 sim.step_simulation(actions)
 
                 await send_replay_step()

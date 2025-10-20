@@ -1,13 +1,19 @@
 // ✅ NEW: Hybrid OpenAI + Adobe PDF extraction following batch script approach EXACTLY
 // 📝 Step 1: OpenAI identifies key figures + provides summary (generateObject + zod)
 // 🔧 Step 2: Get raw Adobe elements (same as debug-adobe-raw.ts)
-// 🎯 Step 3: Create semantic mappings (same as batch script)
+// 🎯 Step 3: Create semantic mappings (same as batch script) OR use LLM-based object selection
 // 🔍 Step 4: Extract ONLY semantically validated figures (same as batch script)
 // 💾 Step 5: Save extracted figures with correct coordinates
 // 🏆 Result: Same proven approach as working batch script
+//
+// 🆕 LLM-BASED ADOBE OBJECT SELECTION:
+// Set environment variable USE_LLM_ADOBE_SELECTION=true to use LLM for selecting
+// Adobe objects instead of the fragile semantic mapping logic. The LLM receives
+// the desired figure identifiers from OpenAI vision analysis and raw Adobe data,
+// then intelligently selects the appropriate objects for each figure.
 
 import { generateObject } from "ai";
-import { openai } from "@ai-sdk/openai";
+import { anthropic } from "@ai-sdk/anthropic";
 import { z } from "zod";
 import {
   writeFileSync,
@@ -20,6 +26,23 @@ import {
 } from "fs";
 import path from "path";
 import { execSync } from "child_process";
+
+// ===== SYSTEM DEPENDENCY CHECKS =====
+
+/**
+ * Check if a system command/tool is available
+ */
+function checkSystemDependency(command: string, name: string): void {
+  try {
+    execSync(`${command} --version`, { stdio: ["pipe", "pipe", "pipe"] });
+    console.log(`✅ ${name} is available`);
+  } catch (error: any) {
+    console.error(`❌ ${name} not found in system`);
+    console.error(`   Command '${command} --version' failed: ${error.message}`);
+    console.error(`   This may cause processing to fail silently`);
+    throw new Error(`${name} not available: ${error.message}`);
+  }
+}
 
 // ===== EXACT BATCH SCRIPT INTERFACES =====
 
@@ -39,6 +62,39 @@ interface SemanticMapping {
   confidence: number;
 }
 
+/**
+ * Schema for LLM-based Adobe object selection
+ */
+const AdobeObjectSelectionSchema = z.object({
+  selections: z.array(
+    z.object({
+      figureIdentifier: z
+        .string()
+        .describe(
+          "The exact figure identifier (e.g., 'Figure 1', 'Figure 2a', 'Figure 2b')"
+        ),
+      selectedObjectID: z
+        .number()
+        .describe(
+          "The ObjectID of the Adobe element that corresponds to this figure"
+        ),
+      confidence: z
+        .enum(["high", "medium", "low"])
+        .describe("Confidence level in this selection"),
+      reasoning: z
+        .string()
+        .describe(
+          "Brief explanation of why this Adobe element was selected for this figure"
+        ),
+    })
+  ),
+  globalReasoning: z
+    .string()
+    .describe(
+      "Overall explanation of the selection process and any challenges encountered"
+    ),
+});
+
 interface OpenAIPdfFigure {
   caption: string;
   pageNumber: number;
@@ -50,6 +106,8 @@ interface OpenAIPdfFigure {
   imageType?: string;
   boundingBox?: { x: number; y: number; width: number; height: number };
   aiDetectedText?: string;
+  significance?: string;
+  explanation?: string;
 }
 
 // ===== OPENAI SCHEMA =====
@@ -86,8 +144,9 @@ const SummarySchema = z.object({
           ),
         pageNumber: z
           .number()
-          .optional()
-          .describe("Page number if identifiable"),
+          .describe(
+            "Page number where this figure appears (required for efficient processing)"
+          ),
       })
     )
     .describe(
@@ -326,10 +385,893 @@ function filterActualFigures(allElements: AdobeElement[]): Set<number> {
   );
 }
 
-// ===== RAW ADOBE DATA EXTRACTION (SAME AS debug-adobe-raw.ts) =====
+// ===== RAW PDF DATA EXTRACTION (ADOBE REPLACED WITH AWS TEXTRACT) =====
+
+/**
+ * AWS Textract PDF element (mapped from Textract Block)
+ */
+interface TextractElement {
+  ObjectID: number;
+  Page: number;
+  Path?: string;
+  Text?: string;
+  Bounds?: number[];
+  BlockType: string;
+  Confidence?: number;
+}
+
+/**
+ * Lighter PDF compression using pdf-lib (better Textract compatibility)
+ */
+async function compressPdfWithPdfLib(pdfBuffer: Buffer): Promise<Buffer> {
+  const { PDFDocument } = await import("pdf-lib");
+
+  try {
+    console.log("🔧 Loading PDF with pdf-lib...");
+    const pdfDoc = await PDFDocument.load(pdfBuffer);
+
+    console.log("🗜️ Applying pdf-lib compression...");
+    const compressedBytes = await pdfDoc.save({
+      useObjectStreams: true, // Enable object streams for better compression
+      addDefaultPage: false,
+    });
+
+    return Buffer.from(compressedBytes);
+  } catch (error: any) {
+    throw new Error(`PDF-lib compression failed: ${error.message}`);
+  }
+}
+
+/**
+ * Compress PDF using Ghostscript directly (bypassing problematic ghostscript4js wrapper)
+ */
+async function compressPdfWithGhostscript(pdfBuffer: Buffer): Promise<Buffer> {
+  const { v4: uuidv4 } = await import("uuid");
+  const { execSync } = await import("child_process");
+  const { readFileSync } = await import("fs");
+
+  const tempInputFile = `temp-input-${uuidv4()}.pdf`;
+  const tempOutputFile = `temp-output-${uuidv4()}.pdf`;
+
+  console.log(
+    `🗜️ Starting Ghostscript compression for ${pdfBuffer.length} byte PDF`
+  );
+
+  try {
+    // Check if Ghostscript is available
+    checkSystemDependency("gs", "Ghostscript");
+
+    // Write input PDF
+    console.log(
+      `📝 Writing ${pdfBuffer.length} bytes to temp file: ${tempInputFile}`
+    );
+    writeFileSync(tempInputFile, pdfBuffer);
+
+    // Ghostscript compression command optimized for Textract compatibility
+    const gsCommand = [
+      "gs", // Use system ghostscript directly
+      "-sDEVICE=pdfwrite",
+      "-dCompatibilityLevel=1.5", // More modern PDF version for better Textract support
+      "-dPDFSETTINGS=/printer", // Conservative compression, maximum Textract compatibility
+      "-dNOPAUSE",
+      "-dQUIET",
+      "-dBATCH",
+      "-dColorImageResolution=200", // Higher resolution for better Textract recognition
+      "-dGrayImageResolution=200",
+      "-dMonoImageResolution=300", // Keep high for text clarity
+      "-dDownsampleColorImages=true",
+      "-dDownsampleGrayImages=true",
+      "-dCompressPages=true",
+      "-dOptimize=true", // Better optimization for file size
+      "-dEmbedAllFonts=true", // Ensure fonts are preserved for Textract
+      "-dSubsetFonts=true", // Reduce font file sizes
+      `-sOutputFile=${tempOutputFile}`,
+      tempInputFile,
+    ];
+
+    console.log("🗜️ Running Ghostscript compression directly...");
+    console.log(`📝 Command: ${gsCommand.join(" ")}`);
+
+    // Execute ghostscript directly with better error handling
+    let gsOutput = "";
+    let gsError = "";
+    try {
+      gsOutput = execSync(gsCommand.join(" "), {
+        stdio: ["pipe", "pipe", "pipe"], // Capture output
+        timeout: 60000, // 60 second timeout
+        encoding: "utf8",
+      });
+    } catch (execError: any) {
+      gsError = execError.stderr || execError.message || "Unknown error";
+      console.error(`❌ Ghostscript execution failed: ${gsError}`);
+      console.error(`   Exit code: ${execError.status}`);
+      console.error(`   Signal: ${execError.signal}`);
+      throw new Error(`Ghostscript execution failed: ${gsError}`);
+    }
+
+    if (gsOutput) {
+      console.log(`📄 Ghostscript output: ${gsOutput}`);
+    }
+
+    // Check if output file was created
+    if (!existsSync(tempOutputFile)) {
+      console.error(
+        "❌ Ghostscript command completed but no output file created"
+      );
+      console.error(`   Expected output file: ${tempOutputFile}`);
+      throw new Error("Ghostscript failed to create output file");
+    }
+
+    // Read compressed PDF
+    const compressedBuffer = readFileSync(tempOutputFile);
+    console.log(
+      `📊 Compression results: ${pdfBuffer.length} bytes → ${compressedBuffer.length} bytes (${Math.round((compressedBuffer.length / pdfBuffer.length) * 100)}%)`
+    );
+
+    // Validate compressed PDF before returning
+    console.log("🔍 Validating compressed PDF...");
+    const compressedHeader = compressedBuffer.slice(0, 8).toString();
+    console.log(`📄 Compressed PDF header: ${compressedHeader}`);
+
+    if (!compressedHeader.startsWith("%PDF-")) {
+      throw new Error(`Invalid compressed PDF header: ${compressedHeader}`);
+    }
+
+    console.log(`✅ Compressed PDF validation passed`);
+    return compressedBuffer;
+  } finally {
+    // Cleanup temp files
+    try {
+      if (existsSync(tempInputFile)) unlinkSync(tempInputFile);
+      if (existsSync(tempOutputFile)) unlinkSync(tempOutputFile);
+    } catch (cleanupError) {
+      console.warn("⚠️ Failed to cleanup temp files:", cleanupError);
+    }
+  }
+}
+
+/**
+ * Convert problematic PDF to standard format that Textract can handle
+ */
+async function convertPdfFormat(pdfBuffer: Buffer): Promise<Buffer> {
+  const { PDFDocument } = await import("pdf-lib");
+
+  try {
+    console.log("🔧 Loading PDF for format conversion...");
+    const sourcePdf = await PDFDocument.load(pdfBuffer);
+
+    console.log("✨ Creating clean PDF with standard format...");
+    const cleanPdf = await PDFDocument.create();
+
+    // Copy all pages to new clean document
+    const pageCount = sourcePdf.getPageCount();
+    const pageIndices = Array.from({ length: pageCount }, (_, i) => i);
+    const copiedPages = await cleanPdf.copyPages(sourcePdf, pageIndices);
+
+    copiedPages.forEach((page) => cleanPdf.addPage(page));
+
+    // Save with conservative settings for maximum Textract compatibility
+    const cleanBytes = await cleanPdf.save({
+      useObjectStreams: false, // Disable for better compatibility
+      addDefaultPage: false,
+    });
+
+    return Buffer.from(cleanBytes);
+  } catch (error: any) {
+    throw new Error(`PDF format conversion failed: ${error.message}`);
+  }
+}
+
+/**
+ * Split large PDF into smaller chunks and process each with Textract
+ */
+async function splitAndProcessPdf(
+  pdfBuffer: Buffer,
+  pdfSize: number,
+  maxSize: number
+): Promise<TextractElement[]> {
+  const { PDFDocument } = await import("pdf-lib");
+
+  console.log("📄 Loading PDF for splitting...");
+  const pdfDoc = await PDFDocument.load(pdfBuffer);
+  const totalPages = pdfDoc.getPageCount();
+
+  console.log(`📊 PDF has ${totalPages} pages, splitting for Textract...`);
+
+  // Estimate pages per chunk based on size
+  const avgBytesPerPage = pdfSize / totalPages;
+  const pagesPerChunk = Math.max(
+    1,
+    Math.floor((maxSize / avgBytesPerPage) * 0.8)
+  ); // 80% safety margin
+
+  console.log(`📋 Processing ~${pagesPerChunk} pages per chunk`);
+
+  const allElements: TextractElement[] = [];
+
+  for (let startPage = 0; startPage < totalPages; startPage += pagesPerChunk) {
+    const endPage = Math.min(startPage + pagesPerChunk - 1, totalPages - 1);
+    const chunkNum = Math.floor(startPage / pagesPerChunk) + 1;
+    const totalChunks = Math.ceil(totalPages / pagesPerChunk);
+
+    console.log(
+      `🔄 Processing chunk ${chunkNum}/${totalChunks} (pages ${startPage + 1}-${endPage + 1})`
+    );
+
+    try {
+      // Create PDF chunk
+      const chunkDoc = await PDFDocument.create();
+      const pageRange = Array.from(
+        { length: endPage - startPage + 1 },
+        (_, i) => startPage + i
+      );
+      const copiedPages = await chunkDoc.copyPages(pdfDoc, pageRange);
+
+      copiedPages.forEach((page) => chunkDoc.addPage(page));
+
+      const chunkBytes = await chunkDoc.save();
+      const chunkBuffer = Buffer.from(chunkBytes);
+      const chunkSize = chunkBuffer.length;
+
+      console.log(
+        `📦 Chunk ${chunkNum} size: ${(chunkSize / 1024 / 1024).toFixed(1)}MB`
+      );
+
+      if (chunkSize > maxSize) {
+        console.warn(
+          `⚠️ Chunk ${chunkNum} still too large (${(chunkSize / 1024 / 1024).toFixed(1)}MB), skipping`
+        );
+        continue;
+      }
+
+      // Process chunk with Textract (with format validation)
+      let chunkElements: TextractElement[];
+      try {
+        chunkElements = await coreTextractProcessing(chunkBuffer, chunkSize);
+      } catch (textractError: any) {
+        if (textractError.name === "UnsupportedDocumentException") {
+          console.warn(`❌ Textract rejected chunk ${chunkNum} format`);
+          console.log(
+            `🔧 Attempting PDF format conversion for chunk ${chunkNum}...`
+          );
+
+          try {
+            const convertedBuffer = await convertPdfFormat(chunkBuffer);
+            const convertedSize = convertedBuffer.length;
+
+            console.log(
+              `✅ Converted chunk ${chunkNum}: ${(chunkSize / 1024 / 1024).toFixed(1)}MB → ${(convertedSize / 1024 / 1024).toFixed(1)}MB`
+            );
+
+            if (convertedSize <= maxSize) {
+              chunkElements = await coreTextractProcessing(
+                convertedBuffer,
+                convertedSize
+              );
+            } else {
+              console.warn(
+                `⚠️ Converted chunk ${chunkNum} too large, skipping`
+              );
+              continue;
+            }
+          } catch (conversionError) {
+            console.warn(
+              `❌ Failed to convert chunk ${chunkNum}:`,
+              conversionError
+            );
+            continue; // Skip this chunk and continue with others
+          }
+        } else {
+          throw textractError; // Re-throw non-format errors
+        }
+      }
+
+      // Adjust page numbers to match original PDF
+      const adjustedElements = chunkElements.map((element) => ({
+        ...element,
+        Page: element.Page + startPage, // Offset page numbers
+      }));
+
+      allElements.push(...adjustedElements);
+      console.log(
+        `✅ Chunk ${chunkNum} processed: ${adjustedElements.length} elements`
+      );
+    } catch (chunkError) {
+      console.warn(`❌ Failed to process chunk ${chunkNum}:`, chunkError);
+      // Continue with other chunks
+    }
+  }
+
+  console.log(
+    `🎯 Split processing complete: ${allElements.length} total elements from ${totalPages} pages`
+  );
+  return allElements;
+}
+
+/**
+ * AWS Textract implementation - replaces unreliable Adobe PDF Services
+ */
+async function getRawTextractElements(
+  pdfBuffer: Buffer,
+  pdfSize?: number
+): Promise<AdobeElement[]> {
+  console.log(
+    "🔍 Using AWS Textract for PDF element extraction (replacing Adobe)..."
+  );
+
+  // Detailed PDF validation (same as before)
+  console.log("🔬 Analyzing PDF structure for Textract processing...");
+
+  // Use provided pdfSize or calculate from buffer
+  const actualPdfSize = pdfSize || pdfBuffer.length;
+  console.log(
+    `📏 PDF size: ${actualPdfSize} bytes (${Math.round(actualPdfSize / 1024)} KB)`
+  );
+
+  // Check PDF header
+  const pdfHeader = pdfBuffer.slice(0, 8).toString();
+  const pdfVersion = pdfHeader.match(/%PDF-(\d\.\d)/)?.[1];
+  console.log(`📄 PDF version: ${pdfVersion || "unknown"}`);
+
+  if (!pdfHeader.startsWith("%PDF")) {
+    throw new Error(`Invalid PDF header: ${pdfHeader}`);
+  }
+
+  // Basic content analysis
+  const pdfString = pdfBuffer.toString("binary");
+  const hasImages =
+    pdfString.includes("/Image") || pdfString.includes("/DCTDecode");
+  const hasJavaScript =
+    pdfString.includes("/JavaScript") || pdfString.includes("/JS");
+
+  console.log(`📊 PDF analysis for Textract:`);
+  console.log(`   - Has images: ${hasImages}`);
+  console.log(
+    `   - Has JavaScript: ${hasJavaScript} ${hasJavaScript ? "(Textract handles this fine)" : ""}`
+  );
+  console.log(
+    `   - Size: ${Math.round(actualPdfSize / (1024 * 1024))}MB ${actualPdfSize > 5 * 1024 * 1024 ? "(will use S3)" : "(direct upload)"}`
+  );
+
+  try {
+    const textractElements = await coreTextractProcessing(
+      pdfBuffer,
+      actualPdfSize
+    );
+
+    // Convert Textract elements to Adobe-compatible format
+    const adobeElements: AdobeElement[] = textractElements.map((elem) => ({
+      ObjectID: elem.ObjectID,
+      Page: elem.Page,
+      Path: elem.Path,
+      Text: elem.Text,
+      Bounds: elem.Bounds,
+    }));
+
+    console.log(
+      `✅ Textract extracted ${adobeElements.length} elements successfully`
+    );
+    return adobeElements;
+  } catch (error: any) {
+    console.error("❌ AWS Textract processing failed:", error);
+    throw new Error(`AWS Textract failed: ${error.message}`);
+  }
+}
+
+/**
+ * Poll Textract job until completion
+ */
+async function pollTextractJob(
+  textractClient: any,
+  jobId: string
+): Promise<any> {
+  const { GetDocumentAnalysisCommand } = await import(
+    "@aws-sdk/client-textract"
+  );
+
+  const maxAttempts = 60; // 10 minutes max (10s intervals)
+  const pollInterval = 10000; // 10 seconds
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    console.log(
+      `📊 Polling Textract job ${jobId} (attempt ${attempt}/${maxAttempts})...`
+    );
+
+    const pollResponse = await textractClient.send(
+      new GetDocumentAnalysisCommand({ JobId: jobId })
+    );
+
+    const status = pollResponse.JobStatus;
+    console.log(`📋 Job status: ${status}`);
+
+    if (status === "SUCCEEDED") {
+      console.log("🎉 Textract job completed successfully!");
+
+      // Handle paginated results for large documents
+      let allBlocks = pollResponse.Blocks || [];
+      let nextToken = pollResponse.NextToken;
+
+      while (nextToken) {
+        console.log("📄 Getting additional result pages...");
+        const nextResponse = await textractClient.send(
+          new GetDocumentAnalysisCommand({
+            JobId: jobId,
+            NextToken: nextToken,
+          })
+        );
+
+        allBlocks = allBlocks.concat(nextResponse.Blocks || []);
+        nextToken = nextResponse.NextToken;
+      }
+
+      console.log(
+        `📊 Retrieved ${allBlocks.length} total blocks across all pages`
+      );
+
+      return {
+        ...pollResponse,
+        Blocks: allBlocks,
+      };
+    } else if (status === "FAILED") {
+      const statusMessage = pollResponse.StatusMessage || "Unknown error";
+      throw new Error(`Textract job failed: ${statusMessage}`);
+    } else if (status === "PARTIAL_SUCCESS") {
+      console.warn("⚠️ Textract job completed with partial success");
+
+      // Handle paginated results even for partial success
+      let allBlocks = pollResponse.Blocks || [];
+      let nextToken = pollResponse.NextToken;
+
+      while (nextToken) {
+        console.log("📄 Getting additional partial result pages...");
+        try {
+          const nextResponse = await textractClient.send(
+            new GetDocumentAnalysisCommand({
+              JobId: jobId,
+              NextToken: nextToken,
+            })
+          );
+
+          allBlocks = allBlocks.concat(nextResponse.Blocks || []);
+          nextToken = nextResponse.NextToken;
+        } catch (paginationError) {
+          console.warn("⚠️ Failed to get additional pages:", paginationError);
+          break; // Use what we have
+        }
+      }
+
+      console.log(
+        `📊 Retrieved ${allBlocks.length} total blocks (partial success)`
+      );
+
+      return {
+        ...pollResponse,
+        Blocks: allBlocks,
+      };
+    } else if (status === "IN_PROGRESS") {
+      console.log("⏳ Job still in progress, waiting...");
+      await new Promise((resolve) => setTimeout(resolve, pollInterval));
+      continue;
+    } else {
+      console.warn(`⚠️ Unknown job status: ${status}, continuing to poll...`);
+      await new Promise((resolve) => setTimeout(resolve, pollInterval));
+      continue;
+    }
+  }
+
+  throw new Error(
+    `Textract job ${jobId} timed out after ${(maxAttempts * pollInterval) / 1000} seconds`
+  );
+}
+
+async function coreTextractProcessing(
+  pdfBuffer: Buffer,
+  pdfSize: number
+): Promise<TextractElement[]> {
+  const {
+    TextractClient,
+    AnalyzeDocumentCommand,
+    StartDocumentAnalysisCommand,
+    GetDocumentAnalysisCommand,
+  } = await import("@aws-sdk/client-textract");
+  const { S3Client, PutObjectCommand, DeleteObjectCommand } = await import(
+    "@aws-sdk/client-s3"
+  );
+  const { v4: uuidv4 } = await import("uuid");
+
+  // Initialize AWS clients with explicit credential provider for SSO support
+  const { fromNodeProviderChain } = await import(
+    "@aws-sdk/credential-providers"
+  );
+
+  const textractClient = new TextractClient({
+    region: process.env.AWS_REGION || "us-east-1",
+    credentials: fromNodeProviderChain({
+      profile: process.env.AWS_PROFILE,
+    }),
+  });
+
+  let s3Client: any = null;
+  let bucketName = "";
+  let s3Key = "";
+
+  try {
+    // For files > 5MB, use S3 (can handle up to 500MB!)
+    if (pdfSize > 5 * 1024 * 1024) {
+      console.log("📦 Large PDF - using S3 + Textract...");
+
+      s3Client = new S3Client({
+        region: process.env.AWS_REGION || "us-east-1",
+        credentials: fromNodeProviderChain({
+          profile: process.env.AWS_PROFILE,
+        }),
+      });
+
+      bucketName = process.env.AWS_S3_BUCKET || "metta-pdf-processing";
+      s3Key = `temp-pdfs/${uuidv4()}.pdf`;
+
+      console.log(
+        `⬆️ Uploading ${Math.round(pdfSize / (1024 * 1024))}MB PDF to S3: s3://${bucketName}/${s3Key}`
+      );
+
+      await s3Client.send(
+        new PutObjectCommand({
+          Bucket: bucketName,
+          Key: s3Key,
+          Body: pdfBuffer,
+          ContentType: "application/pdf",
+        })
+      );
+
+      console.log("✅ S3 upload completed");
+    }
+
+    // Prepare Textract request
+    const textractRequest: any = {
+      FeatureTypes: ["LAYOUT", "TABLES"], // Extract layout and table information
+    };
+
+    if (pdfSize > 5 * 1024 * 1024) {
+      // Use S3 document location
+      textractRequest.Document = {
+        S3Object: {
+          Bucket: bucketName,
+          Name: s3Key,
+        },
+      };
+    } else {
+      // Use direct bytes
+      textractRequest.Document = {
+        Bytes: pdfBuffer,
+      };
+    }
+
+    console.log("🤖 Running AWS Textract analysis...");
+    const startTime = Date.now();
+
+    let response: any;
+
+    // Use async API for files > 10MB (500MB limit), sync API for smaller files (10MB limit)
+    if (pdfSize > 10 * 1024 * 1024) {
+      console.log("⏳ Using asynchronous Textract API for large file...");
+
+      // Start analysis job
+      const startRequest = {
+        FeatureTypes: textractRequest.FeatureTypes,
+        DocumentLocation: {
+          S3Object: textractRequest.Document.S3Object,
+        },
+      };
+
+      const startResponse = await textractClient.send(
+        new StartDocumentAnalysisCommand(startRequest)
+      );
+
+      const jobId = startResponse.JobId;
+      if (!jobId) {
+        throw new Error("Textract job ID not returned from start request");
+      }
+      console.log(`🔄 Textract job started: ${jobId}`);
+
+      // Poll for completion
+      response = await pollTextractJob(textractClient, jobId);
+    } else {
+      // Use sync API for files <= 10MB
+      console.log("⚡ Using synchronous Textract API...");
+      response = await textractClient.send(
+        new AnalyzeDocumentCommand(textractRequest)
+      );
+    }
+
+    const processingTime = Date.now() - startTime;
+    console.log(`✅ Textract completed in ${processingTime}ms`);
+
+    // Process Textract blocks
+    const blocks = response.Blocks || [];
+    console.log(`📊 Textract found ${blocks.length} blocks`);
+
+    // 🔍 DEBUG: Dump raw Textract response to file for inspection
+    const debugTimestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const rawBlocksFile = `textract-raw-blocks-${debugTimestamp}.json`;
+
+    try {
+      writeFileSync(
+        rawBlocksFile,
+        JSON.stringify(
+          {
+            totalBlocks: blocks.length,
+            jobId: response.JobId || "sync-job",
+            status: response.JobStatus || "sync-complete",
+            blocks: blocks,
+          },
+          null,
+          2
+        )
+      );
+      console.log(`📄 Raw Textract blocks saved to: ${rawBlocksFile}`);
+    } catch (debugError) {
+      console.warn("⚠️ Failed to write debug file:", debugError);
+    }
+
+    const elements: TextractElement[] = [];
+    let objectIdCounter = 1000; // Start high to avoid conflicts
+
+    for (const block of blocks) {
+      // Convert Textract block to our element format
+      const element: TextractElement = {
+        ObjectID: objectIdCounter++,
+        Page: block.Page || 1,
+        BlockType: block.BlockType || "UNKNOWN",
+        Confidence: block.Confidence,
+      };
+
+      // Add text if available
+      if (block.Text) {
+        element.Text = block.Text;
+      }
+
+      // Add bounding box if available (convert from Textract format)
+      if (block.Geometry?.BoundingBox) {
+        const bbox = block.Geometry.BoundingBox;
+        // Textract uses normalized coordinates (0-1), convert to points (assuming ~600pt page width)
+        const pageWidth = 612; // Standard PDF page width in points
+        const pageHeight = 792; // Standard PDF page height in points
+
+        if (
+          bbox.Left !== undefined &&
+          bbox.Top !== undefined &&
+          bbox.Width !== undefined &&
+          bbox.Height !== undefined
+        ) {
+          element.Bounds = [
+            bbox.Left * pageWidth,
+            bbox.Top * pageHeight,
+            (bbox.Left + bbox.Width) * pageWidth,
+            (bbox.Top + bbox.Height) * pageHeight,
+          ];
+        }
+      }
+
+      // Create Path for figure-like elements
+      if (
+        block.BlockType === "LAYOUT_FIGURE" ||
+        (block.BlockType === "LINE" &&
+          block.Text?.toLowerCase().includes("figure"))
+      ) {
+        element.Path = `Figure_${element.ObjectID}`;
+      }
+
+      elements.push(element);
+    }
+
+    // Cleanup S3 file if used
+    if (s3Client && bucketName && s3Key) {
+      console.log("🧹 Cleaning up S3 temporary file...");
+      try {
+        await s3Client.send(
+          new DeleteObjectCommand({
+            Bucket: bucketName,
+            Key: s3Key,
+          })
+        );
+      } catch (cleanupError) {
+        console.warn("⚠️ Failed to cleanup S3 file:", cleanupError);
+      }
+    }
+
+    // 🔍 DEBUG: Dump processed elements to file for inspection
+    const processedElementsFile = `textract-processed-elements-${debugTimestamp}.json`;
+
+    try {
+      const debugData = {
+        totalElements: elements.length,
+        processingTime: processingTime,
+        pdfSize: pdfSize,
+        pdfSizeMB: (pdfSize / 1024 / 1024).toFixed(1),
+        elementTypes: {} as Record<string, number>,
+        elements: elements,
+      };
+
+      // Count element types
+      for (const element of elements) {
+        const blockType = element.BlockType || "UNKNOWN";
+        debugData.elementTypes[blockType] =
+          (debugData.elementTypes[blockType] || 0) + 1;
+      }
+
+      writeFileSync(processedElementsFile, JSON.stringify(debugData, null, 2));
+      console.log(`📄 Processed elements saved to: ${processedElementsFile}`);
+
+      // Print summary
+      console.log(`📊 Element types found:`);
+      Object.entries(debugData.elementTypes).forEach(([type, count]) => {
+        console.log(`   - ${type}: ${count}`);
+      });
+    } catch (debugError) {
+      console.warn(
+        "⚠️ Failed to write processed elements debug file:",
+        debugError
+      );
+    }
+
+    return elements;
+  } catch (error: any) {
+    // Cleanup S3 on error
+    if (s3Client && bucketName && s3Key) {
+      try {
+        await s3Client.send(
+          new DeleteObjectCommand({
+            Bucket: bucketName,
+            Key: s3Key,
+          })
+        );
+      } catch (cleanupError) {
+        console.warn("⚠️ Failed to cleanup S3 file after error:", cleanupError);
+      }
+    }
+
+    // Try PDF splitting as fallback for very large or problematic PDFs
+    const textractMaxSize = 500 * 1024 * 1024; // 500MB - Textract's actual S3 limit
+    if (pdfSize > 10 * 1024 * 1024) {
+      // Only try splitting for files > 10MB
+      console.warn("❌ S3 + Textract failed:", error.message);
+      console.log(
+        "📄 Falling back to PDF splitting for large/problematic file..."
+      );
+
+      try {
+        return await splitAndProcessPdf(pdfBuffer, pdfSize, textractMaxSize);
+      } catch (splitError) {
+        console.warn("❌ PDF splitting also failed:", splitError);
+        // Both S3 and splitting failed - throw original error
+        throw error;
+      }
+    }
+
+    throw error;
+  }
+}
+
+/**
+ * Retry operation with exponential backoff (kept for any remaining edge cases)
+ */
+async function retryAdobeOperation<T>(
+  operation: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelay: number = 2000
+): Promise<T> {
+  let lastError: any;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`🔄 Adobe operation attempt ${attempt}/${maxRetries}`);
+      return await operation();
+    } catch (error: any) {
+      lastError = error;
+
+      // Don't retry on certain errors
+      const errorMessage = error.message || "";
+      if (
+        errorMessage.includes("encrypted") ||
+        errorMessage.includes("password")
+      ) {
+        console.log("❌ PDF encryption error - not retrying");
+        throw error;
+      }
+
+      if (attempt === maxRetries) {
+        console.log(`❌ Adobe operation failed after ${maxRetries} attempts`);
+        throw error;
+      }
+
+      const delay = baseDelay * Math.pow(2, attempt - 1); // Exponential backoff
+      console.warn(
+        `⚠️ Adobe operation failed (attempt ${attempt}): ${errorMessage}`
+      );
+      console.log(`⏳ Retrying in ${delay}ms...`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+
+  throw lastError;
+}
 
 async function getRawAdobeElements(pdfBuffer: Buffer): Promise<AdobeElement[]> {
-  console.log("🔍 Calling Adobe PDF Extract API for raw elements...");
+  // ⚠️ DEPRECATED: Adobe is unreliable - now using Textract
+  console.warn("⚠️ Adobe function called - redirecting to AWS Textract");
+  return await getRawTextractElements(pdfBuffer, pdfBuffer.length);
+}
+
+// ===== FIGURE EXTRACTION (SAME AS BATCH SCRIPT) =====
+
+// TODO: Fix duplicate function - temporarily commented out the broken version
+/*
+async function extractFigureFromElement_BROKEN(
+  element: AdobeElement,
+    console.error(
+      "❌ PDF appears to be encrypted/password-protected - Adobe will fail"
+    );
+    throw new Error(
+      "PDF is encrypted or password-protected. Adobe PDF Services cannot process encrypted PDFs."
+    );
+  }
+
+  // Check PDF version
+  const pdfHeader = pdfBuffer.slice(0, 8).toString();
+  const pdfVersion = pdfHeader.match(/%PDF-(\d\.\d)/)?.[1];
+  console.log(`📄 PDF version: ${pdfVersion || "unknown"}`);
+
+  // Size limits (Adobe has processing limits)
+  const maxSize = 100 * 1024 * 1024; // 100MB should be safe
+  if (pdfSize > maxSize) {
+    console.warn(
+      `⚠️ PDF is large (${Math.round(pdfSize / (1024 * 1024))}MB) - may cause Adobe processing issues`
+    );
+  }
+
+  // Check for suspicious content that might cause Adobe issues
+  const hasImages =
+    pdfString.includes("/Image") ||
+    pdfString.includes("/DCTDecode") ||
+    pdfString.includes("/JPXDecode");
+  const hasComplexGraphics =
+    pdfString.includes("/DeviceN") || pdfString.includes("/Separation");
+  const hasJavaScript =
+    pdfString.includes("/JavaScript") || pdfString.includes("/JS");
+
+  console.log(`📊 PDF analysis:`);
+  console.log(`   - Has images: ${hasImages}`);
+  console.log(`   - Complex graphics: ${hasComplexGraphics}`);
+  console.log(`   - JavaScript: ${hasJavaScript}`);
+  console.log(`   - Encrypted: ${isEncrypted}`);
+
+  // Warn about potential issues
+  if (hasJavaScript) {
+    console.warn(
+      "⚠️ PDF contains JavaScript - this often causes Adobe processing failures"
+    );
+    console.warn(
+      "   Adobe PDF Services may reject PDFs with interactive content"
+    );
+  }
+
+  if (pdfSize > 10 * 1024 * 1024) {
+    console.warn(
+      `⚠️ Large PDF (${Math.round(pdfSize / (1024 * 1024))}MB) - Adobe processing may be slow or fail`
+    );
+  }
+
+  // Use retry mechanism for Adobe processing
+  return await retryAdobeOperation(async () => {
+    return await processWithAdobe(pdfBuffer, pdfSize);
+  });
+}
+
+async function processWithAdobe(
+  pdfBuffer: Buffer,
+  pdfSize: number
+): Promise<AdobeElement[]> {
+  console.log("💾 Writing PDF to temporary file for Adobe...");
 
   const {
     PDFServices,
@@ -350,8 +1292,37 @@ async function getRawAdobeElements(pdfBuffer: Buffer): Promise<AdobeElement[]> {
       clientSecret: process.env.ADOBE_CLIENT_SECRET!,
     });
 
-    const pdfServices = new PDFServices({ credentials });
+    // Try to configure client with longer timeouts and better settings
+    const clientConfig = {
+      credentials,
+      // Attempt to increase timeout settings if supported
+      connectTimeout: 120000, // 2 minutes
+      readTimeout: 300000, // 5 minutes
+    };
+
+    const pdfServices = new PDFServices(clientConfig);
+
+    // Write PDF with validation
+    console.log(
+      `📝 Writing ${pdfSize} bytes to temporary file: ${tempFileName}`
+    );
     writeFileSync(tempFileName, pdfBuffer);
+
+    // Verify file was written correctly
+    if (!existsSync(tempFileName)) {
+      throw new Error(`Failed to create temporary file: ${tempFileName}`);
+    }
+
+    const tempFileSize = statSync(tempFileName).size;
+    if (tempFileSize !== pdfSize) {
+      throw new Error(
+        `Temporary file size mismatch: expected ${pdfSize}, got ${tempFileSize}`
+      );
+    }
+
+    console.log(
+      `✅ Temporary file created successfully: ${tempFileSize} bytes`
+    );
 
     const inputAsset = await pdfServices.upload({
       readStream: createReadStream(tempFileName),
@@ -363,14 +1334,39 @@ async function getRawAdobeElements(pdfBuffer: Buffer): Promise<AdobeElement[]> {
     });
 
     const job = new ExtractPDFJob({ inputAsset, params });
-    const pollingURL = await pdfServices.submit({ job });
-    const pdfServicesResponse = await pdfServices.getJobResult({
+
+    // Add longer timeout for Adobe PDF Services (large PDFs with JavaScript need more time)
+    console.log(
+      "⏳ Submitting to Adobe PDF Services (this may take 2-5 minutes for large/complex PDFs)..."
+    );
+    const submitPromise = pdfServices.submit({ job });
+    const pollingURL = (await Promise.race([
+      submitPromise,
+      new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error("Adobe submit timeout after 180 seconds")),
+          180000 // 3 minutes for submit
+        )
+      ),
+    ])) as string;
+
+    console.log("🔄 Polling Adobe for results...");
+    const resultPromise = pdfServices.getJobResult({
       pollingURL,
       resultType: ExtractPDFResult,
     });
+    const pdfServicesResponse = (await Promise.race([
+      resultPromise,
+      new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error("Adobe polling timeout after 300 seconds")),
+          300000 // 5 minutes for polling
+        )
+      ),
+    ])) as any;
 
     console.log("💾 Downloading extraction results...");
-    const resultAsset = pdfServicesResponse.result?.resource;
+    const resultAsset = (pdfServicesResponse as any).result?.resource;
     if (!resultAsset) {
       throw new Error("No result asset found in Adobe response");
     }
@@ -406,12 +1402,73 @@ async function getRawAdobeElements(pdfBuffer: Buffer): Promise<AdobeElement[]> {
       `✅ Got ${extractionResult.elements?.length || 0} raw Adobe elements`
     );
     return extractionResult.elements || [];
+  } catch (adobeError: any) {
+    console.error("❌ Adobe PDF Services error:", adobeError);
+
+    // Enhanced error analysis
+    const errorCode =
+      adobeError._errorCode || adobeError.errorCode || "UNKNOWN";
+    const statusCode =
+      adobeError._statusCode || adobeError.statusCode || "UNKNOWN";
+    const trackingId =
+      adobeError._requestTrackingId || adobeError.requestTrackingId || "NONE";
+
+    console.error(`📋 Adobe Error Details:`);
+    console.error(`   - Error Code: ${errorCode}`);
+    console.error(`   - Status Code: ${statusCode}`);
+    console.error(`   - Tracking ID: ${trackingId}`);
+    console.error(`   - Message: ${adobeError.message || "No message"}`);
+
+    // Common Adobe error analysis
+    if (errorCode === "ERROR" && statusCode === 500) {
+      console.error("🔍 Analysis: Adobe internal error - possible causes:");
+      console.error("   - PDF structure not compatible with Adobe extraction");
+      console.error("   - PDF contains complex elements Adobe cannot parse");
+      console.error("   - PDF may be corrupted or have unusual encoding");
+      console.error("   - Adobe service experiencing issues");
+
+      // Re-analyze the PDF for specific issues
+      const pdfString = pdfBuffer.toString("binary");
+      const hasComplexForms =
+        pdfString.includes("/AcroForm") || pdfString.includes("/XFA");
+      const hasAnnotations = pdfString.includes("/Annot");
+      const hasEmbeddedFiles = pdfString.includes("/EmbeddedFile");
+      const hasTransparency =
+        pdfString.includes("/SMask") || pdfString.includes("/CA");
+
+      console.error("🔍 Extended PDF analysis:");
+      console.error(`   - Has forms: ${hasComplexForms}`);
+      console.error(`   - Has annotations: ${hasAnnotations}`);
+      console.error(`   - Has embedded files: ${hasEmbeddedFiles}`);
+      console.error(`   - Has transparency: ${hasTransparency}`);
+
+      if (hasComplexForms) {
+        console.error("⚠️ PDF contains forms - Adobe may struggle with these");
+      }
+      if (hasEmbeddedFiles) {
+        console.error(
+          "⚠️ PDF contains embedded files - potential processing issue"
+        );
+      }
+    }
+
+    // Save problematic PDF for debugging (only in development)
+    if (process.env.NODE_ENV === "development") {
+      const debugFileName = `debug-adobe-error-${Date.now()}.pdf`;
+      writeFileSync(debugFileName, pdfBuffer);
+      console.error(`💾 Saved problematic PDF for debugging: ${debugFileName}`);
+    }
+
+    throw new Error(
+      `Adobe PDF Services failed: ${errorCode} - ${adobeError.message || "Internal error"}. Tracking ID: ${trackingId}`
+    );
   } finally {
     if (existsSync(tempFileName)) {
       unlinkSync(tempFileName);
     }
   }
 }
+*/
 
 // ===== FIGURE EXTRACTION (SAME AS BATCH SCRIPT) =====
 
@@ -485,6 +1542,147 @@ async function extractFigureFromElement(
   }
 }
 
+// ===== LLM-BASED ADOBE OBJECT SELECTION =====
+
+/**
+ * Use LLM to select appropriate Adobe objects for desired figures
+ * Alternative to the fragile createSemanticMappings logic
+ */
+async function selectAdobeObjectsWithLLM(
+  keyFigures: any[],
+  rawAdobeElements: AdobeElement[]
+): Promise<Map<number, SemanticMapping>> {
+  console.log(
+    `🤖 Using LLM to select Adobe objects for ${keyFigures.length} desired figures...`
+  );
+
+  // Extract unique page numbers from keyFigures to limit scope
+  const figurePages = new Set<number>();
+  keyFigures.forEach((fig) => {
+    if (fig.pageNumber && typeof fig.pageNumber === "number") {
+      figurePages.add(fig.pageNumber);
+      // Also include adjacent pages for context (figures might span pages)
+      figurePages.add(Math.max(1, fig.pageNumber - 1));
+      figurePages.add(fig.pageNumber + 1);
+    }
+  });
+
+  console.log(
+    `📄 Filtering Adobe elements to pages: ${Array.from(figurePages).sort().join(", ")}`
+  );
+
+  // Filter rawAdobeElements to only include elements from relevant pages
+  const filteredAdobeElements =
+    figurePages.size > 0
+      ? rawAdobeElements.filter((el) => figurePages.has(el.Page))
+      : rawAdobeElements; // Fallback if no page numbers available
+
+  console.log(
+    `🔍 Reduced Adobe elements from ${rawAdobeElements.length} to ${filteredAdobeElements.length} (${Math.round((filteredAdobeElements.length / rawAdobeElements.length) * 100)}%)`
+  );
+
+  // Prepare a concise representation of Adobe elements for the LLM
+  const elementsForLLM = filteredAdobeElements.map((el) => ({
+    objectID: el.ObjectID,
+    page: el.Page,
+    path: el.Path,
+    text: el.Text?.substring(0, 100), // Truncate long text
+    bounds: el.Bounds,
+    hasText: !!el.Text,
+    isFigureElement: el.Path?.includes("Figure") || false,
+    elementType: el.Text
+      ? "text"
+      : el.Path?.includes("Figure")
+        ? "figure"
+        : "other",
+  }));
+
+  // Create the prompt for the LLM
+  const desiredFigures = keyFigures.map((fig) => ({
+    figureNumber: fig.figureNumber,
+    pageNumber: fig.pageNumber,
+    caption: fig.caption,
+  }));
+  const prompt = `You are analyzing PDF elements extracted by Adobe to select the correct objects that correspond to specific figure identifiers.
+
+DESIRED FIGURES: ${JSON.stringify(desiredFigures, null, 2)}
+
+ADOBE ELEMENTS AVAILABLE:
+${JSON.stringify(elementsForLLM, null, 2)}
+
+TASK:
+For each desired figure identifier (like "Figure 1", "Figure 2a", "Figure 2b"), you need to select the Adobe element ObjectID that best corresponds to that figure.
+
+GUIDELINES:
+1. Look for elements with Path containing "Figure" - these are likely the actual figure objects
+2. Elements with Text are usually captions/labels, not the figure images themselves
+3. Match page numbers: Each desired figure specifies its page number - select elements from that page
+4. Figure elements should have bounds (coordinates) and be reasonably sized
+5. For multi-panel figures (like "Figure 2a", "Figure 2b"), look for separate objects that are spatially arranged
+6. Single figures (like "Figure 1") should correspond to one main figure object
+7. Larger bounding boxes often indicate main figure content vs small decorative elements
+8. The Adobe elements have already been filtered to relevant pages, so focus on finding the right objects within those pages
+
+For each desired figure, select the ObjectID that most likely represents that specific figure content.`;
+
+  try {
+    const result = await generateObject({
+      model: anthropic("claude-3-5-sonnet-20241022"),
+      temperature: 0.1,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are an expert at analyzing PDF structure and selecting the correct figure objects from Adobe PDF extraction data. You must return a valid JSON object matching the required schema.",
+        },
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+      schema: AdobeObjectSelectionSchema,
+    });
+
+    console.log(
+      `✅ LLM selected ${result.object.selections.length} Adobe objects`
+    );
+    console.log(`🧠 LLM reasoning: ${result.object.globalReasoning}`);
+
+    // Convert LLM results to SemanticMapping format
+    const mappings = new Map<number, SemanticMapping>();
+
+    for (const selection of result.object.selections) {
+      const figureNumber =
+        parseInt(selection.figureIdentifier.replace(/[^\d]/g, "")) || 0;
+      const subpanel = selection.figureIdentifier
+        .match(/[a-z]$/i)?.[0]
+        ?.toLowerCase();
+
+      mappings.set(selection.selectedObjectID, {
+        objectID: selection.selectedObjectID,
+        semanticLabel: selection.figureIdentifier,
+        figureNumber,
+        subpanel,
+        confidence:
+          selection.confidence === "high"
+            ? 0.95
+            : selection.confidence === "medium"
+              ? 0.85
+              : 0.75,
+      });
+
+      console.log(
+        `  📍 ${selection.figureIdentifier} → ObjectID ${selection.selectedObjectID} (${selection.confidence}) - ${selection.reasoning}`
+      );
+    }
+
+    return mappings;
+  } catch (error) {
+    console.error("❌ LLM Adobe object selection failed:", error);
+    throw error;
+  }
+}
+
 // ===== MAIN EXTRACTION FUNCTION =====
 
 async function extractFiguresWithSemanticValidation(
@@ -494,9 +1692,6 @@ async function extractFiguresWithSemanticValidation(
   pdfBuffer: Buffer
 ): Promise<OpenAIPdfFigure[]> {
   const matchedFigures: OpenAIPdfFigure[] = [];
-  const outputDir = path.resolve(process.cwd(), "identified-figures");
-
-  mkdirSync(outputDir, { recursive: true });
 
   console.log(
     `🎯 Processing ${keyFigures.length} OpenAI figures against ${semanticMappings.size} semantic mappings...`
@@ -588,16 +1783,11 @@ async function extractFiguresWithSemanticValidation(
       );
 
       if (extraction) {
-        // Save the image
         const filename = `${keyFig.figureNumber.replace(/[^a-zA-Z0-9]/g, "_")}.png`;
-        const filepath = path.join(outputDir, filename);
-        const imageBuffer = Buffer.from(extraction.imageData, "base64");
-        writeFileSync(filepath, imageBuffer);
+        const imageSize = Math.round((extraction.imageData.length * 3) / 4); // Base64 to bytes conversion
+        console.log(`✅ Extracted: ${filename} (${imageSize} bytes, virtual)`);
 
-        if (existsSync(filepath)) {
-          const stats = statSync(filepath);
-          console.log(`✅ Saved: ${filename} (${stats.size} bytes)`);
-        }
+        // No file system write - keeping everything in memory as base64
 
         matchedFigures.push({
           caption: keyFig.caption,
@@ -610,6 +1800,9 @@ async function extractFiguresWithSemanticValidation(
           imageType: extraction.imageType,
           aiDetectedText:
             `${keyFig.significance} ${keyFig.explanation || ""}`.trim(),
+          // Preserve separate AI commentary fields
+          significance: keyFig.significance,
+          explanation: keyFig.explanation,
         });
       }
     } else {
@@ -625,6 +1818,9 @@ async function extractFiguresWithSemanticValidation(
         confidence: 0.3,
         aiDetectedText:
           `${keyFig.significance} ${keyFig.explanation || ""}`.trim(),
+        // Preserve separate AI commentary fields
+        significance: keyFig.significance,
+        explanation: keyFig.explanation,
       });
     }
   }
@@ -646,90 +1842,210 @@ export async function extractPdfWithOpenAI(pdfBuffer: Buffer): Promise<{
   );
 
   try {
-    // Step 1: OpenAI analysis
-    console.log("📝 Step 1: Getting key figures and summary from OpenAI...");
-    const summaryResult = await generateObject({
-      model: openai("gpt-4o"),
-      schema: SummarySchema,
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: `Analyze this PDF and provide:
+    // Validate PDF buffer
+    console.log(`📄 Validating PDF buffer (${pdfBuffer.length} bytes)...`);
+    if (pdfBuffer.length === 0) {
+      throw new Error("PDF buffer is empty");
+    }
+
+    // Check PDF header
+    const pdfHeader = pdfBuffer.slice(0, 8).toString();
+    if (!pdfHeader.startsWith("%PDF")) {
+      console.error(`❌ Invalid PDF header: "${pdfHeader}"`);
+      console.error(
+        `❌ First 50 bytes: ${pdfBuffer.slice(0, 50).toString("hex")}`
+      );
+      throw new Error(`Invalid PDF: header is "${pdfHeader}", expected "%PDF"`);
+    }
+
+    console.log(`✅ Valid PDF detected (version: ${pdfHeader})`);
+
+    // Step 1: Anthropic analysis
+    console.log("📝 Step 1: Getting key figures and summary from Anthropic...");
+    console.log(
+      `📋 PDF details for Anthropic: ${pdfBuffer.length} bytes, header: ${pdfHeader}`
+    );
+
+    let summaryResult: any;
+    try {
+      summaryResult = await generateObject({
+        model: anthropic("claude-3-5-sonnet-20241022"),
+        schema: SummarySchema,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: `Analyze this PDF and provide:
 
 1. **Title**: The paper's exact title
 2. **Short Explanation**: 2-3 sentences explaining what this paper is about and why it matters
 3. **Summary**: A comprehensive summary of methodology, findings, and contributions
 4. **Key Figures**: The 3-5 most important figures with:
    - EXACT identifiers including sub-panels (e.g., "Figure 1a", "Figure 2b", "Figure 3c", NOT just "Figure 1")
+   - PAGE NUMBER where the figure appears (this is critical for processing)
    - Why each figure is significant
    - A detailed explanation of what the figure shows and how to interpret it
 
-CRITICAL: If a figure has multiple sub-panels (like Figure 1a, 1b, 1c), you MUST specify the exact sub-panel (e.g., "Figure 1a") - never just "Figure 1". Look carefully at the paper to identify which specific sub-panel is most important.`,
-            },
-            {
-              type: "file",
-              data: pdfBuffer,
-              mediaType: "application/pdf",
-            },
-          ],
-        },
-      ],
-      maxRetries: 1,
-    });
+CRITICAL:
+- If a figure has multiple sub-panels (like Figure 1a, 1b, 1c), you MUST specify the exact sub-panel (e.g., "Figure 1a") - never just "Figure 1"
+- You MUST include the page number for each figure
+- Look carefully at the paper to identify which specific sub-panel is most important and on which page it appears`,
+              },
+              {
+                type: "file",
+                data: pdfBuffer,
+                mediaType: "application/pdf",
+              },
+            ],
+          },
+        ],
+        maxRetries: 1,
+      });
+
+      console.log("✅ Anthropic API call successful");
+    } catch (anthropicError: any) {
+      console.error("❌ Anthropic API call failed with detailed context:");
+      console.error(`   PDF size: ${pdfBuffer.length} bytes`);
+      console.error(`   PDF header: ${pdfHeader}`);
+      console.error(`   Model: claude-3-5-sonnet-20241022`);
+      console.error(`   Error type: ${anthropicError.constructor.name}`);
+      console.error(`   Status code: ${anthropicError.status || "N/A"}`);
+      console.error(`   Error message: ${anthropicError.message}`);
+
+      if (anthropicError.headers) {
+        console.error(`   Response headers:`, anthropicError.headers);
+      }
+
+      if (anthropicError.status === 500) {
+        console.error(
+          "   ⚠️ Internal server error from Anthropic - this may indicate:"
+        );
+        console.error("      - Corrupted or malformed PDF content");
+        console.error(
+          "      - PDF preprocessing failure (compression/conversion)"
+        );
+        console.error(
+          "      - Content that triggers Anthropic's internal filters"
+        );
+        console.error("      - Temporary service issues on Anthropic's side");
+      }
+
+      throw anthropicError;
+    }
 
     console.log(
-      `✅ OpenAI identified ${summaryResult.object.keyFigures?.length || 0} key figures`
+      `✅ Anthropic identified ${summaryResult.object.keyFigures?.length || 0} key figures`
     );
 
     let figuresWithImages: OpenAIPdfFigure[] = [];
 
-    // Step 2-4: Semantic figure extraction (if figures were identified)
+    // Step 2-4: Process key figures (always extract insights, optionally extract images)
     if (
       summaryResult.object.keyFigures &&
       summaryResult.object.keyFigures.length > 0
     ) {
-      try {
-        console.log(
-          "\n🔧 Step 2: Getting raw Adobe data (EXACTLY like batch script)..."
-        );
-        const rawAdobeElements = await getRawAdobeElements(pdfBuffer);
-
-        console.log("🎯 Step 3: Creating semantic mappings from raw data...");
-        const semanticMappings = createSemanticMappings(rawAdobeElements);
-        console.log(`✅ Created ${semanticMappings.size} semantic mappings`);
-
-        console.log(
-          "🔍 Step 4: Extracting figures using semantic validation..."
-        );
-        figuresWithImages = await extractFiguresWithSemanticValidation(
-          summaryResult.object.keyFigures,
-          rawAdobeElements,
-          semanticMappings,
-          pdfBuffer
-        );
-
-        const imagesFound = figuresWithImages.filter(
-          (fig) => fig.imageData
-        ).length;
-        console.log(
-          `🎉 Successfully extracted ${imagesFound}/${summaryResult.object.keyFigures.length} key figures!`
-        );
-      } catch (figureError) {
-        console.error("⚠️ Figure extraction failed:", figureError);
-
-        // Convert to metadata-only figures
-        figuresWithImages = summaryResult.object.keyFigures.map((fig) => ({
+      // Always start with metadata-only figures from AI analysis
+      figuresWithImages = summaryResult.object.keyFigures.map(
+        (fig: {
+          figureNumber: string;
+          caption: string;
+          significance: string;
+          explanation: string;
+          pageNumber: number;
+        }) => ({
           caption: fig.caption,
           pageNumber: fig.pageNumber || 1,
-          context: fig.explanation || fig.significance,
+          context: fig.explanation || fig.significance, // Fallback for backward compatibility
           figureNumber: parseInt(fig.figureNumber.replace(/[^\d]/g, "")) || 0,
           subpanel: fig.figureNumber.match(/[a-z]$/i)?.[0],
-          confidence: 0.6,
+          confidence: 0.8, // Higher confidence since these come from AI analysis
           aiDetectedText: `${fig.significance} ${fig.explanation || ""}`.trim(),
-        }));
+          // Preserve separate AI commentary fields
+          significance: fig.significance,
+          explanation: fig.explanation,
+        })
+      );
+
+      console.log(
+        `📊 Extracted ${figuresWithImages.length} figure insights from AI analysis`
+      );
+
+      // Only attempt image extraction if enabled
+      if (process.env.ENABLE_FIGURE_EXTRACTION === "true") {
+        console.log(
+          "🖼️ Image extraction enabled - attempting figure extraction..."
+        );
+        try {
+          console.log(
+            "\n🔧 Step 2: Getting raw Adobe data (EXACTLY like batch script)..."
+          );
+          const rawAdobeElements = await getRawAdobeElements(pdfBuffer);
+
+          console.log("🎯 Step 3: Creating semantic mappings from raw data...");
+
+          // Configuration flag to use LLM-based object selection
+          const useLlmSelection =
+            process.env.USE_LLM_ADOBE_SELECTION === "true";
+
+          let semanticMappings: Map<number, SemanticMapping>;
+
+          if (useLlmSelection) {
+            console.log("🤖 Using LLM-based Adobe object selection...");
+            try {
+              semanticMappings = await selectAdobeObjectsWithLLM(
+                summaryResult.object.keyFigures,
+                rawAdobeElements
+              );
+              console.log(
+                `✅ LLM created ${semanticMappings.size} object selections`
+              );
+            } catch (error) {
+              console.warn(
+                "⚠️ LLM selection failed, falling back to traditional semantic mapping:",
+                error
+              );
+              semanticMappings = createSemanticMappings(rawAdobeElements);
+              console.log(
+                `✅ Fallback created ${semanticMappings.size} semantic mappings`
+              );
+            }
+          } else {
+            console.log("🎯 Using traditional semantic mapping...");
+            semanticMappings = createSemanticMappings(rawAdobeElements);
+            console.log(
+              `✅ Created ${semanticMappings.size} semantic mappings`
+            );
+          }
+
+          console.log(
+            "🔍 Step 4: Extracting figures using semantic validation..."
+          );
+          figuresWithImages = await extractFiguresWithSemanticValidation(
+            summaryResult.object.keyFigures,
+            rawAdobeElements,
+            semanticMappings,
+            pdfBuffer
+          );
+
+          const imagesFound = figuresWithImages.filter(
+            (fig) => fig.imageData
+          ).length;
+          console.log(
+            `🎉 Successfully extracted ${imagesFound}/${summaryResult.object.keyFigures.length} key figures!`
+          );
+        } catch (figureError) {
+          console.log(
+            "⚠️ Image extraction failed, keeping metadata-only figures:",
+            figureError
+          );
+          // figuresWithImages already contains metadata-only figures, so no need to recreate
+        }
+      } else {
+        console.log(
+          "🚫 Image extraction disabled, using metadata-only figures"
+        );
       }
     }
 
@@ -741,7 +2057,7 @@ CRITICAL: If a figure has multiple sub-panels (like Figure 1a, 1b, 1c), you MUST
       figuresWithImages,
     };
   } catch (error) {
-    console.error("❌ Error in OpenAI PDF extraction:", error);
+    console.error("❌ Error in Anthropic PDF extraction:", error);
     throw error;
   }
 }

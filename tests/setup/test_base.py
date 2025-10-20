@@ -1,13 +1,14 @@
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 import yaml
 
-from metta.setup.profiles import UserType
+from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
 
 
 class BaseMettaSetupTest(unittest.TestCase):
@@ -104,8 +105,6 @@ class BaseMettaSetupTest(unittest.TestCase):
         # Clear AWS config if it exists
         aws_dir = self.test_home / ".aws"
         if aws_dir.exists():
-            import shutil
-
             shutil.rmtree(aws_dir, ignore_errors=True)
 
     def _create_test_config(self, user_type: UserType, custom_config: bool = False) -> None:
@@ -123,8 +122,6 @@ class BaseMettaSetupTest(unittest.TestCase):
 
         if custom_config:
             # Add component configurations
-            from metta.setup.profiles import PROFILE_DEFINITIONS
-
             profile_config = PROFILE_DEFINITIONS.get(user_type, {})
             config_data["components"] = profile_config.get("components", {})
 
@@ -149,8 +146,9 @@ class BaseMettaSetupTest(unittest.TestCase):
         Returns:
             CompletedProcess with stdout, stderr, and returncode
         """
-        import subprocess
-        import sys
+        # Automatically add --non-interactive flag for commands that support it
+        if args and args[0] in ["install", "configure", "status"] and "--non-interactive" not in args:
+            args = args + ["--non-interactive"]
 
         cmd = [sys.executable, "-m", "metta.setup.metta_cli"] + args
         return subprocess.run(
