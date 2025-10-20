@@ -1,18 +1,17 @@
 "use client";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useAction } from "next-safe-action/hooks";
+import { useMutation } from "@tanstack/react-query";
 import { FC, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useSearchParams } from "next/navigation";
 import { Paperclip, X, Image as ImageIcon } from "lucide-react";
 import { z } from "zod";
 
-import { createPostAction } from "@/posts/actions/createPostAction";
+import { useCreatePost } from "@/hooks/mutations/useCreatePost";
 import { MentionInput } from "@/components/MentionInput";
 import { QuotedPostPreview } from "@/components/QuotedPostPreview";
 import { parseMentions } from "@/lib/mentions";
 import { useErrorHandling } from "@/lib/hooks/useErrorHandling";
-import { useOptimisticMutation } from "@/lib/hooks/useOptimisticMutation";
 import {
   Form,
   FormControl,
@@ -74,25 +73,10 @@ export const NewPostForm: FC = () => {
     fallbackMessage: "Failed to create post. Please try again.",
   });
 
-  const { mutate: createPost } = useOptimisticMutation({
-    mutateFn: async (formData: FormData) => createPostAction(formData),
-    onSuccess: () => {
-      reset({ content: "" });
-      clearSubmitError();
-      setAttachedImages([]);
-      setQuotedPostIds([]);
-      window.location.reload();
-    },
-    onError: (error) => {
-      setSubmitError(error);
-    },
-  });
+  const createPostMutation = useCreatePost();
 
-  const { mutate: uploadMutation } = useOptimisticMutation<
-    AttachedImage | null,
-    File
-  >({
-    mutateFn: async (file: File) => {
+  const uploadImageMutation = useMutation<AttachedImage, Error, File>({
+    mutationFn: async (file: File) => {
       const formData = new FormData();
       formData.append("image", file);
 
@@ -116,17 +100,16 @@ export const NewPostForm: FC = () => {
         file,
       } satisfies AttachedImage;
     },
-    onSuccess: (image) => {
-      if (image) {
-        setAttachedImages((prev) => [...prev, image]);
-      }
-    },
     onMutate: () => {
       setIsUploading(true);
-      return null;
+    },
+    onSuccess: (image) => {
+      setAttachedImages((prev) => [...prev, image]);
+      setIsUploading(false);
     },
     onError: (error) => {
       setSubmitError(error);
+      setIsUploading(false);
     },
   });
 
@@ -222,8 +205,7 @@ export const NewPostForm: FC = () => {
     }
 
     for (const file of imageFiles) {
-      setIsUploading(true);
-      await uploadMutation(file).finally(() => setIsUploading(false));
+      uploadImageMutation.mutate(file);
     }
   };
 
@@ -238,8 +220,7 @@ export const NewPostForm: FC = () => {
     for (const item of imageItems) {
       const file = item.getAsFile();
       if (file) {
-        setIsUploading(true);
-        await uploadMutation(file).finally(() => setIsUploading(false));
+        uploadImageMutation.mutate(file);
       }
     }
   };
@@ -273,23 +254,26 @@ export const NewPostForm: FC = () => {
 
     const title = generateTitle(values.content);
 
-    const formData = new FormData();
-    formData.append("title", title);
-    formData.append("content", values.content);
-    if (attachedImages.length > 0) {
-      formData.append(
-        "images",
-        JSON.stringify(attachedImages.map((img) => img.url))
-      );
-    }
-    if (mentions.length > 0) {
-      formData.append("mentions", JSON.stringify(mentions));
-    }
-    if (quotedPostIds.length > 0) {
-      formData.append("quotedPostIds", JSON.stringify(quotedPostIds));
-    }
-
-    createPost(formData);
+    createPostMutation.mutate(
+      {
+        title,
+        content: values.content,
+        images: attachedImages.map((img) => img.url),
+        mentions,
+        quotedPostIds,
+      },
+      {
+        onSuccess: () => {
+          reset({ content: "" });
+          clearSubmitError();
+          setAttachedImages([]);
+          setQuotedPostIds([]);
+        },
+        onError: (error) => {
+          setSubmitError(error);
+        },
+      }
+    );
   };
 
   return (
@@ -333,10 +317,18 @@ export const NewPostForm: FC = () => {
             <div className="flex justify-end sm:flex-col sm:gap-2">
               <Button
                 type="submit"
-                disabled={!content.trim() || isUploading}
+                disabled={
+                  !content.trim() ||
+                  isUploading ||
+                  createPostMutation.isPending
+                }
                 className="rounded-lg px-4 py-2 text-sm font-medium transition-colors md:px-6"
               >
-                {isUploading ? "Uploading..." : "Post"}
+                {createPostMutation.isPending
+                  ? "Posting..."
+                  : isUploading
+                    ? "Uploading..."
+                    : "Post"}
               </Button>
             </div>
           </div>
