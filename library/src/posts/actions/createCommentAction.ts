@@ -12,6 +12,7 @@ import {
   extractUserIdsFromResolution,
 } from "@/lib/mention-resolution";
 import { createMentionNotifications } from "@/lib/notifications";
+import { Logger } from "@/lib/logging/logger";
 
 const inputSchema = zfd.formData({
   postId: zfd.text(z.string().min(1)),
@@ -49,11 +50,14 @@ export const createCommentAction = actionClient
           session.user.id
         );
 
-        console.log(
-          `📧 Resolved ${mentionStrings.length} comment mentions to ${mentionedUserIds.length} users`
-        );
+        Logger.info("Resolved comment mentions", {
+          mentionCount: mentionStrings.length,
+          userCount: mentionedUserIds.length,
+        });
       } catch (error) {
-        console.error("Error parsing or resolving comment mentions:", error);
+        Logger.warn("Error parsing or resolving comment mentions", {
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
 
@@ -112,7 +116,7 @@ export const createCommentAction = actionClient
           actionUrl
         );
       } catch (error) {
-        console.error("Error creating mention notifications:", error);
+        Logger.error("Error creating mention notifications", error instanceof Error ? error : new Error(String(error)));
         // Don't fail the comment creation if notifications fail
       }
     }

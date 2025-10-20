@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db/prisma";
 import { auth } from "@/lib/auth";
+import { Logger } from "@/lib/logging/logger";
 
 /**
  * Paper data structure that matches the database schema
@@ -136,7 +137,7 @@ export async function loadPapersWithUserContext(): Promise<{
       interactions,
     };
   } catch (error) {
-    console.error("Error loading papers with user context:", error);
+    Logger.error("Error loading papers with user context", error instanceof Error ? error : new Error(String(error)));
     throw new Error("Failed to load papers from database");
   }
 }
@@ -203,7 +204,7 @@ export async function loadPapers(): Promise<{
       interactions,
     };
   } catch (error) {
-    console.error("Error loading papers:", error);
+    Logger.error("Error loading papers", error instanceof Error ? error : new Error(String(error)));
     throw new Error("Failed to load papers from database");
   }
 }
@@ -266,7 +267,7 @@ export async function loadPapersForUser(userId: string): Promise<{
       userInteractions,
     };
   } catch (error) {
-    console.error("Error loading papers for user:", error);
+    Logger.error("Error loading papers for user", error instanceof Error ? error : new Error(String(error)));
     throw new Error("Failed to load papers for user");
   }
 }
