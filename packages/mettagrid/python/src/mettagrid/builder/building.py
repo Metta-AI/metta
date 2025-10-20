@@ -211,3 +211,11 @@ def make_chest(
 
 # Example chest configurations
 chest_heart = make_chest("heart", 20, position_deltas=[("N", 1), ("S", -1)])
+
+nav_assembler = AssemblerConfig(
+    name="nav_assembler",
+    type_id=8,
+    map_char="_",
+    render_symbol="🛣️",
+    recipes=[([], RecipeConfig(input_resources={}, output_resources={"heart": 1}, cooldown=255))],
+)

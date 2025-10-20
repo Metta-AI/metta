@@ -96,23 +96,24 @@ def make_arena(
 
 
 def make_navigation(num_agents: int) -> MettaGridConfig:
-    altar = empty_converters.altar.model_copy()
-    altar.cooldown = [255]  # Maximum cooldown
-    altar.initial_resource_count = 1
-    altar.max_conversions = 0
-    altar.input_resources = {}
-    altar.output_resources = {"heart": 1}
+    nav_assembler = building.AssemblerConfig(
+        name="altar",
+        type_id=8,
+        map_char="_",
+        render_symbol="🛣️",
+        recipes=[([], building.RecipeConfig(input_resources={}, output_resources={"heart": 1}, cooldown=255))],
+    )
     cfg = MettaGridConfig(
         game=GameConfig(
             num_agents=num_agents,
             objects={
-                "altar": altar,
+                "altar": nav_assembler,
                 "wall": building.wall,
             },
             resource_names=["heart"],
             actions=ActionsConfig(
-                move=ActionConfig(),
-                get_items=ActionConfig(),
+                move=ActionConfig(enabled=True),
+                noop=ActionConfig(enabled=True),
             ),
             agent=AgentConfig(
                 rewards=AgentRewards(

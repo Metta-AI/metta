@@ -12,16 +12,6 @@ proc buildAtlas*() =
       let name = path.replace(dataDir & "/", "").replace(".png", "")
       bxy.addImage(name, readImage(path))
 
-proc agentColor*(id: int): Color =
-  ## Get the color for an agent.
-  let n = id.float32 + Pi + E + sqrt(2.0)
-  color(
-    n * Pi mod 1.0,
-    n * E mod 1.0,
-    n * sqrt(2.0) mod 1.0,
-    1.0
-  )
-
 proc useSelections*(panel: Panel) =
   ## Reads the mouse position and selects the thing under it.
   let modifierDown = when defined(macosx):
@@ -209,8 +199,7 @@ proc drawObjects*() =
         agentImage,
         pos.vec2,
         angle = 0,
-        scale = TS,
-        tint = agentColor(agent.agentId)
+        scale = TS
       )
     else:
       bxy.drawImage(
@@ -661,7 +650,7 @@ proc drawWorldMini*() =
 
     let loc = obj.location.at(step).xy
     bxy.drawImage("minimapPip", rect((loc.x.float32) / scale - 0.5, (
-        loc.y.float32) / scale - 0.5, 1, 1), agentColor(obj.agentId))
+        loc.y.float32) / scale - 0.5, 1, 1), color(1, 1, 1, 1))
 
   bxy.restoreTransform()
 
