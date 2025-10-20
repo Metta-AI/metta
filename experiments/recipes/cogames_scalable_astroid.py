@@ -7,8 +7,8 @@ from mettagrid.config.mettagrid_config import MettaGridConfig
 
 
 def make_scalable_astroid_config(
-    width: int = 50,
-    height: int = 50,
+    width: int = 300,
+    height: int = 300,
     num_agents: int = 4,
     seed: Optional[int] = None,
     extractor_coverage: float | None = None,
