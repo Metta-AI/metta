@@ -394,7 +394,7 @@ def experiment():
             [
                 "./devops/skypilot/launch.py",
                 "experiments.recipes.assembly_lines.train",
-                f"run=in_context.assembly_lines_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
+                f"run=assembly_lines_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
                 f"curriculum_style={curriculum_style}",
                 "--gpus=4",
                 "--heartbeat-timeout=3600",
