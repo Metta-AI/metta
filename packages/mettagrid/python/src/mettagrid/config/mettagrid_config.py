@@ -300,7 +300,17 @@ class GameConfig(Config):
     agent: AgentConfig = Field(default_factory=AgentConfig)
     agents: list[AgentConfig] = Field(default_factory=list)
     actions: ActionsConfig = Field(default_factory=lambda: ActionsConfig(noop=ActionConfig()))
+
+    # Global observations - NEW flexible system (supports both strings and parameterized dicts)
+    global_observations: list[str | dict[str, dict[str, Any]]] = Field(
+        default_factory=list,
+        description="List of global observation features. Can be simple strings like 'last_action' "
+        "or parameterized dicts like {'visitation_counts': {'bins': 5}}",
+    )
+
+    # Global observations - OLD struct (deprecated, for backwards compatibility)
     global_obs: GlobalObsConfig = Field(default_factory=GlobalObsConfig)
+
     objects: dict[str, AnyGridObjectConfig] = Field(default_factory=dict)
     # these are not used in the C++ code, but we allow them to be set for other uses.
     # E.g., templates can use params as a place where values are expected to be written,
