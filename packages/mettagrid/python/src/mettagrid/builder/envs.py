@@ -38,8 +38,6 @@ def make_arena(
     actions = ActionsConfig(
         noop=ActionConfig(),
         move=ActionConfig(),
-        put_items=ActionConfig(),
-        get_items=ActionConfig(),
         attack=AttackActionConfig(
             consumed_resources={
                 "laser": 1,
