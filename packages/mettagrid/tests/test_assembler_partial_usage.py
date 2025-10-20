@@ -28,7 +28,7 @@ class TestAssemblerPartialUsage:
             map_char="Z",
             recipes=[
                 (
-                    ["W"],
+                    [],
                     RecipeConfig(
                         input_resources={"iron": 10},
                         output_resources={"steel": 5},
@@ -109,7 +109,7 @@ class TestAssemblerPartialUsage:
             map_char="Z",
             recipes=[
                 (
-                    ["W"],
+                    [],
                     RecipeConfig(
                         input_resources={"iron": 20},
                         output_resources={"steel": 10},

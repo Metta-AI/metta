@@ -344,7 +344,9 @@ py::dict MettaGrid::grid_objects(int min_row,
       obj_dict["allow_partial_usage"] = assembler->allow_partial_usage;
       obj_dict["exhaustion"] = assembler->exhaustion;
       obj_dict["cooldown_multiplier"] = assembler->cooldown_multiplier;
-      obj_dict["current_recipe_id"] = static_cast<int>(assembler->get_agent_pattern_byte());
+
+      // Add current recipe ID (pattern byte)
+      obj_dict["current_recipe_id"] = static_cast<int>(assembler->get_local_vibe());
 
       const Recipe* current_recipe = assembler->get_current_recipe();
       if (current_recipe) {
@@ -362,25 +364,28 @@ py::dict MettaGrid::grid_objects(int min_row,
         obj_dict["current_recipe_cooldown"] = current_recipe->cooldown;
       }
 
-      const auto& active_recipes = assembler->is_clipped ? assembler->unclip_recipes : assembler->recipes;
+      // Add all recipes information (only non-null recipes)
+      const std::unordered_map<uint64_t, std::shared_ptr<Recipe>>& active_recipes =
+          assembler->is_clipped ? assembler->unclip_recipes : assembler->recipes;
       py::list recipes_list;
-      for (const auto& recipe_ptr : active_recipes) {
-        if (!recipe_ptr) {
-          continue;
-        }
+
+      for (const auto& [vibe, recipe] : active_recipes) {
         py::dict recipe_dict;
+
         py::dict input_resources_dict;
-        for (const auto& [resource, quantity] : recipe_ptr->input_resources) {
+        for (const auto& [resource, quantity] : recipe->input_resources) {
           input_resources_dict[py::int_(resource)] = quantity;
         }
         recipe_dict["inputs"] = input_resources_dict;
 
         py::dict output_resources_dict;
-        for (const auto& [resource, quantity] : recipe_ptr->output_resources) {
+        for (const auto& [resource, quantity] : recipe->output_resources) {
           output_resources_dict[py::int_(resource)] = quantity;
         }
         recipe_dict["outputs"] = output_resources_dict;
-        recipe_dict["cooldown"] = recipe_ptr->cooldown;
+        recipe_dict["cooldown"] = recipe->cooldown;
+
+
         recipes_list.append(recipe_dict);
       }
       obj_dict["recipes"] = recipes_list;

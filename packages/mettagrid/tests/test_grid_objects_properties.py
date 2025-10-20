@@ -40,7 +40,7 @@ def env_with_assembler():
                     type_id=2,
                     recipes=[
                         (
-                            ["W"],  # pattern: agent to the west
+                            [],
                             RecipeConfig(
                                 input_resources={"iron": 10},
                                 output_resources={"steel": 5},

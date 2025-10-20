@@ -88,7 +88,7 @@ assembler_altar = AssemblerConfig(
     render_symbol="🎯",
     recipes=[
         (
-            ["Any"],
+            [],
             RecipeConfig(
                 input_resources={"battery_red": 3},
                 output_resources={"heart": 1},
@@ -107,15 +107,7 @@ def make_assembler_mine(color: str, type_id: int) -> AssemblerConfig:
         type_id=type_id,
         map_char=char_map[color],
         render_symbol=symbol_map[color],
-        recipes=[
-            (
-                ["Any"],
-                RecipeConfig(
-                    output_resources={f"ore_{color}": 1},
-                    cooldown=50,
-                ),
-            )
-        ],
+        recipes=[([], RecipeConfig(output_resources={f"ore_{color}": 1}, cooldown=50))],
     )
 
 
@@ -134,7 +126,7 @@ def make_assembler_generator(color: str, type_id: int) -> AssemblerConfig:
         render_symbol=symbol_map[color],
         recipes=[
             (
-                ["Any"],
+                [],
                 RecipeConfig(
                     input_resources={f"ore_{color}": 1},
                     output_resources={f"battery_{color}": 1},
@@ -156,7 +148,7 @@ assembler_lasery = AssemblerConfig(
     render_symbol="🟥",
     recipes=[
         (
-            ["Any"],
+            [],
             RecipeConfig(
                 input_resources={"battery_red": 1, "ore_red": 2},
                 output_resources={"laser": 1},
@@ -173,7 +165,7 @@ assembler_armory = AssemblerConfig(
     render_symbol="🔵",
     recipes=[
         (
-            ["Any"],
+            [],
             RecipeConfig(
                 input_resources={"ore_red": 3},
                 output_resources={"armor": 1},
@@ -190,7 +182,7 @@ assembler_lab = AssemblerConfig(
     render_symbol="🔵",
     recipes=[
         (
-            ["Any"],
+            [],
             RecipeConfig(
                 input_resources={"battery_red": 1, "ore_red": 2},
                 output_resources={"laser": 1},
@@ -207,7 +199,7 @@ assembler_factory = AssemblerConfig(
     render_symbol="🟪",
     recipes=[
         (
-            ["Any"],
+            [],
             RecipeConfig(
                 input_resources={"battery_red": 1, "ore_red": 2},
                 output_resources={"laser": 1},
@@ -224,7 +216,7 @@ assembler_temple = AssemblerConfig(
     render_symbol="🟨",
     recipes=[
         (
-            ["Any"],
+            [],
             RecipeConfig(
                 input_resources={"battery_red": 1, "ore_red": 2},
                 output_resources={"laser": 1},

@@ -22,7 +22,6 @@ from mettagrid.map_builder.random import RandomMapBuilder
 
 # Left to right, top to bottom.
 FixedPosition = Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE"]
-Position = FixedPosition | Literal["Any"]
 
 
 class AgentRewards(Config):
@@ -198,7 +197,7 @@ class AssemblerConfig(GridObjectConfig):
     """Python assembler configuration."""
 
     type: Literal["assembler"] = Field(default="assembler")
-    recipes: list[tuple[list[Position], RecipeConfig]] = Field(
+    recipes: list[tuple[list[int], RecipeConfig]] = Field(
         default_factory=list,
         description="Recipes in reverse order of priority.",
     )

@@ -1,5 +1,4 @@
 import math
-from typing import Sequence
 
 from mettagrid.config.mettagrid_config import (
     AgentConfig,
@@ -7,8 +6,8 @@ from mettagrid.config.mettagrid_config import (
     ChestConfig,
     ClipperConfig,
     ConverterConfig,
+    FixedPosition,
     GameConfig,
-    Position,
     WallConfig,
 )
 from mettagrid.mettagrid_c import ActionConfig as CppActionConfig
@@ -27,8 +26,7 @@ from mettagrid.mettagrid_c import ResourceModConfig as CppResourceModConfig
 from mettagrid.mettagrid_c import WallConfig as CppWallConfig
 
 # Note that these are left to right, top to bottom.
-FIXED_POSITIONS: list[Position] = ["NW", "N", "NE", "W", "E", "SW", "S", "SE"]
-FIXED_POSITION_TO_BITMASK = {pos: 1 << i for i, pos in enumerate(FIXED_POSITIONS)}
+FIXED_POSITIONS: list[FixedPosition] = ["NW", "N", "NE", "W", "E", "SW", "S", "SE"]
 
 
 def recursive_update(d, u):
@@ -38,46 +36,6 @@ def recursive_update(d, u):
         else:
             d[k] = v
     return d
-
-
-def expand_position_patterns(positions: Sequence[Position]) -> list[int]:
-    """Convert from a list of string positions to a list of matching bit patterns.
-
-    Args:
-        positions: List of position strings like ["N", "Any"]
-        "Any" means exactly one agent in any position
-        Other positions mean exactly one agent in that specific position
-
-    Returns:
-        List of bit patterns that match the position requirements
-    """
-
-    fix_positions_byte = 0
-    has_any = False
-    for pos in positions:
-        if pos == "Any":
-            has_any = True
-        else:
-            assert pos in FIXED_POSITIONS, f"Invalid position: {pos}"
-            position_bit = FIXED_POSITION_TO_BITMASK[pos]
-            assert fix_positions_byte & position_bit == 0, (
-                f"Position {pos} already set. Only one agent per position is allowed."
-            )
-            fix_positions_byte |= position_bit
-
-    if not has_any:
-        return [fix_positions_byte]
-
-    result = []
-    # Not the most elegant solution, but there are only 8 positions, so it's not too bad.
-    # We're just iterating over all possible bit patterns and seeing which ones
-    # (a) have the right fixed positions, and (b) have the right number of total agents (which would be fixed + "Any")
-    for i in range(256):
-        if i & fix_positions_byte != fix_positions_byte:
-            continue
-        if bin(i).count("1") == len(positions):
-            result.append(i)
-    return result
 
 
 def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
@@ -312,14 +270,13 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             )
             objects_cpp_params[object_type] = cpp_wall_config
         elif isinstance(object_config, AssemblerConfig):
-            # Convert recipes with position patterns to C++ recipes
-            # Create a mapping from byte patterns to recipes
-            recipe_map = {}  # byte_pattern -> CppRecipe
+            recipes = {}
 
-            for position_pattern, recipe_config in reversed(object_config.recipes):
-                # Expand position patterns to byte patterns
-                bit_patterns = expand_position_patterns(position_pattern)
-
+            for vibes, recipe_config in reversed(object_config.recipes):
+                vibes = sorted(vibes)
+                overall_vibe = 0
+                for vibe in vibes:
+                    overall_vibe = overall_vibe << 8 | vibe
                 # Create C++ recipe
                 cpp_recipe = CppRecipe(
                     input_resources={
@@ -332,25 +289,9 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                     },
                     cooldown=recipe_config.cooldown,
                 )
-
-                # Map this recipe to all matching byte patterns
-                recipe_has_active_pattern = False
-                for bit_pattern in bit_patterns:
-                    if bit_pattern not in recipe_map:
-                        recipe_map[bit_pattern] = cpp_recipe
-                        recipe_has_active_pattern = True
-                if (
-                    not recipe_has_active_pattern
-                    and not object_config.fully_overlapping_recipes_allowed
-                ):
-                    raise ValueError(
-                        f"Recipe {recipe_config} has no valid cog patterns not already claimed by other recipes."
-                    )
-
-            # Create a vector of 256 Recipe pointers (indexed by byte pattern)
-            cpp_recipes = [None] * 256
-            for byte_pattern, recipe in recipe_map.items():
-                cpp_recipes[byte_pattern] = recipe
+                if overall_vibe in recipes:
+                    raise ValueError(f"Recipe with vibe {overall_vibe} already exists")
+                recipes[overall_vibe] = cpp_recipe
 
             # Convert tag names to IDs
             tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
@@ -358,7 +299,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_assembler_config = CppAssemblerConfig(
                 type_id=object_config.type_id, type_name=object_type, tag_ids=tag_ids
             )
-            cpp_assembler_config.recipes = cpp_recipes
+            cpp_assembler_config.recipes = recipes
             cpp_assembler_config.allow_partial_usage = object_config.allow_partial_usage
             cpp_assembler_config.max_uses = object_config.max_uses
             cpp_assembler_config.exhaustion = object_config.exhaustion
