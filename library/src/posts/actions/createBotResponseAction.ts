@@ -21,6 +21,21 @@ const inputSchema = zfd.formData({
 export const createBotResponseAction = actionClient
   .inputSchema(inputSchema)
   .action(async ({ parsedInput: input }) => {
+    // Get or create the bot user first (needed for both success and error paths)
+    let botUser = await prisma.user.findFirst({
+      where: { email: "library_bot@system" },
+    });
+
+    if (!botUser) {
+      botUser = await prisma.user.create({
+        data: {
+          name: "Library Bot",
+          email: "library_bot@system",
+          image: null,
+        },
+      });
+    }
+
     try {
       // Get the paper data for context
       const post = await prisma.post.findUnique({
@@ -124,21 +139,6 @@ Please provide a helpful response about this paper.`,
         temperature: 0.7, // Balanced creativity
       });
 
-      // Create a system user for the bot if it doesn't exist
-      let botUser = await prisma.user.findFirst({
-        where: { email: "library_bot@system" },
-      });
-
-      if (!botUser) {
-        botUser = await prisma.user.create({
-          data: {
-            name: "Library Bot",
-            email: "library_bot@system",
-            image: null,
-          },
-        });
-      }
-
       // Create the bot response comment
       const botComment = await prisma.comment.create({
         data: {
@@ -192,21 +192,7 @@ Please provide a helpful response about this paper.`,
         error instanceof Error ? error : new Error(String(error))
       );
 
-      // Create a fallback bot response
-      let botUser = await prisma.user.findFirst({
-        where: { email: "library_bot@system" },
-      });
-
-      if (!botUser) {
-        botUser = await prisma.user.create({
-          data: {
-            name: "Library Bot",
-            email: "library_bot@system",
-            image: null,
-          },
-        });
-      }
-
+      // Create a fallback bot response (bot user already retrieved above)
       const fallbackComment = await prisma.comment.create({
         data: {
           content:
