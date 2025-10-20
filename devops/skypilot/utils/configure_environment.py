@@ -225,11 +225,7 @@ def main():
     logger.info("Creating/updating job secrets...")
 
     # Create job secrets
-    try:
-        create_job_secrets("softmax-docker", wandb_password, observatory_token)
-    except Exception as e:
-        logger.error(f"Failed to create job secrets: {e}")
-        sys.exit(1)
+    create_job_secrets("softmax-docker", wandb_password, observatory_token)
 
     logger.info("Runtime environment configuration completed")
 

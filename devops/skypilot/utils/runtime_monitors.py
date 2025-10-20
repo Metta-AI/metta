@@ -163,7 +163,7 @@ class TimeoutMonitor(Monitor):
 
         Returns the termination reason if triggered, None otherwise.
         """
-        if self.get_total_runtime() > self.max_seconds:
+        if self.max_seconds and self.get_total_runtime() > self.max_seconds:
             return TerminationReason.MAX_RUNTIME_REACHED.value
 
         # Save accumulated runtime on every check
