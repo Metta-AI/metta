@@ -19,6 +19,11 @@ let window = newWindow("Tilemap", ivec2(1280, 800))
 makeContextCurrent(window)
 loadExtensions()
 
+var maxLayers: GLint
+glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, maxLayers.addr)
+echo "max layers: ", maxLayers
+doAssert maxLayers >= 256 # Layer count must be at least 256 for tile atlas.
+
 let bxy = newBoxy()
 
 type
@@ -31,7 +36,7 @@ type
 
     # OpenGL textures
     indexTexture: GLuint
-    tileAtlasTexture: GLuint
+    tileAtlasTextureArray: GLuint
     shader: Shader
     VAO: GLuint
     VBO: GLuint
@@ -142,39 +147,67 @@ proc setupGPU(tileMap: TileMap) =
   glTexImage2D(
     GL_TEXTURE_2D,
     0,
-    GL_R8.GLint,
+    GL_R8UI.GLint,
     tileMap.width.GLint,
     tileMap.height.GLint,
     0,
-    GL_RED,
+    GL_RED_INTEGER,
     GL_UNSIGNED_BYTE,
     tileMap.indexData[0].addr
   )
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST.GLint)
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST.GLint)
 
-  # Create tile atlas texture, mipmapped.
-  glGenTextures(1, tileMap.tileAtlasTexture.addr)
-  glBindTexture(GL_TEXTURE_2D, tileMap.tileAtlasTexture)
-  glTexImage2D(
-    GL_TEXTURE_2D,
-    0,
-    GL_RGBA.GLint,
-    tileMap.tileAtlas.width.GLint,
-    tileMap.tileAtlas.height.GLint,
-    0,
-    GL_RGBA,
-    GL_UNSIGNED_BYTE,
-    tileMap.tileAtlas.data[0].addr
-  )
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR.GLint)
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR.GLint)
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE.GLint)
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE.GLint)
-  glGenerateMipmap(GL_TEXTURE_2D)
+  # Create tile atlas texture array, mipmapped.
+  glGenTextures(1, tileMap.tileAtlasTextureArray.addr)
+  glBindTexture(GL_TEXTURE_2D_ARRAY, tileMap.tileAtlasTextureArray)
+  # Determine tile array geometry and mip levels
+  let tilesPerRow = tileMap.tileAtlas.width div tileMap.tileSize
+  let tilesPerCol = tileMap.tileAtlas.height div tileMap.tileSize
+  let layerCount = tilesPerRow * tilesPerCol
+  var mipLevels = 1
+  var mw = tileMap.tileSize
+  var mh = tileMap.tileSize
+  while mw > 1 or mh > 1:
+    if mw > 1: mw = mw div 2
+    if mh > 1: mh = mh div 2
+    inc mipLevels
 
-  # glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST.GLint)
-  # glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST.GLint)
+  glTexStorage3D(
+    target = GL_TEXTURE_2D_ARRAY,
+    levels = mipLevels.GLsizei,
+    internalFormat = GL_RGBA8,
+    width = tileMap.tileSize.GLsizei,
+    height = tileMap.tileSize.GLsizei,
+    depth = layerCount.GLsizei,
+  )
+  glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR.GLint)
+  glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR.GLint)
+  glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE.GLint)
+  glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE.GLint)
+  glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE.GLint)
+  glGenerateMipmap(GL_TEXTURE_2D_ARRAY)
+
+  # Fill the texture array with the tile atlas.
+  var layer = 0
+  for ty in 0 ..< tilesPerCol:
+    for tx in 0 ..< tilesPerRow:
+      let sx = tx * tileMap.tileSize
+      let sy = ty * tileMap.tileSize
+      let subImg = subImage(tileMap.tileAtlas, sx, sy, tileMap.tileSize, tileMap.tileSize)
+      glTexSubImage3D(
+        GL_TEXTURE_2D_ARRAY,
+        0.GLint,                       # level
+        0.GLint, 0.GLint, layer.GLint, # xoffset, yoffset, zoffset (layer)
+        tileMap.tileSize.GLsizei,
+        tileMap.tileSize.GLsizei,
+        1.GLsizei,                     # depth (one layer)
+        GL_RGBA,
+        GL_UNSIGNED_BYTE,
+        cast[pointer](subImg.data[0].addr)
+      )
+      inc layer
+  glGenerateMipmap(GL_TEXTURE_2D_ARRAY)
 
   # Vertex shader source (OpenGL 4.1)
   let vertexShaderSource = """
@@ -197,70 +230,57 @@ proc setupGPU(tileMap: TileMap) =
   let fragmentShaderSource = """
 #version 410 core
 
-in vec2 TexCoord;
+in vec2 TexCoord;    // 0..1 over the whole tilemap (screen mapping)
 out vec4 FragColor;
 
-uniform sampler2D uIndexTexture;  // set sampler to NEAREST, no mipmaps
-uniform sampler2D uTileAtlas;     // mipmaps recommended
-uniform vec2  uMapSize;           // map size in tiles, e.g. (256, 256)
-uniform vec2  uAtlasSize;         // atlas size in texels, e.g. (2048, 2048)
-uniform float uTileSize;          // tile size in texels, e.g. 16
+// --- Textures ---
+// Use an integer index map if you can (R8UI or R16UI). No filtering, no mipmaps.
+uniform usampler2D    uIndexTexture;  // tile ids [0 .. layerCount-1]
 
-// Set to 1.0 if each tile in the atlas has a 1px padded border copied from its edges.
-// Set to 0.0 if there is no padding (may see some seams/minification artifacts).
-const float GUARD = 1.0;
+// Each layer is ONE tile image. All layers must be the same dimensions (uTileSize x uTileSize).
+uniform sampler2DArray uTileArray;
 
-void main() {
-    // --- 1) Which map cell (tile) are we rendering? ---
-    vec2  mapPos    = TexCoord * uMapSize;        // [0..mapW/H) in tile units
-    ivec2 mapTexel  = ivec2(floor(mapPos));       // integer tile coords
+// --- Map / tile geometry ---
+uniform vec2  uMapSize;   // map size in tiles, e.g. (256, 256)
+uniform float uTileSize;  // tile size in texels, e.g. 16
 
-    // Read index without filtering/mips. uIndexTexture must be NEAREST, no mipmaps.
-    // If you can, store indices as R8UI (usampler2D) and read integers directly.
-    float idxNorm   = texelFetch(uIndexTexture, mapTexel, 0).r;
-    int   tileIndex = int(idxNorm * 255.0 + 0.5);
+void main()
+{
+    // 1) Which map cell are we in?
+    vec2  mapPos   = TexCoord * uMapSize;        // [0..mapW/H) in tile units
+    ivec2 mapTexel = ivec2(floor(mapPos));       // integer tile coords
 
-    // --- 2) Tile's base position in atlas (texel space) ---
-    int tilesPerRow = int(uAtlasSize.x / uTileSize);
-    int tileX       = tileIndex % tilesPerRow;
-    int tileY       = tileIndex / tilesPerRow;
-    vec2 tileBase   = vec2(float(tileX), float(tileY)) * uTileSize; // texel coords
+    // 2) Read tile index EXACTLY (no filtering, no mips)
+    uint tileIndexU = texelFetch(uIndexTexture, mapTexel, 0).r;
+    int  tileIndex  = int(tileIndexU);
 
-    // --- 3) Local position inside the tile ---
-    vec2 tilePos01   = fract(mapPos);             // [0..1) inside current map cell
-    vec2 localTexel  = tilePos01 * uTileSize;     // [0..tileSize) in texels (continuous)
+    // 3) Local coordinates inside this tile (continuous + fractional)
+    vec2 tilePos01   = fract(mapPos);                 // [0..1) within the tile cell
+    vec2 localTexel  = tilePos01 * uTileSize;         // [0..tileSize) in texels (continuous)
+    vec2 contTexel   = TexCoord * (uMapSize * uTileSize); // continuous (no fract) for stable derivatives
 
-    // --- 4) AA "pixel snap" in local tile texel space ---
-    // Use fwidth to adaptively blend toward the nearest texel center.
-    vec2 fw       = max(fwidth(localTexel), vec2(1e-5));
+    // 4) Anti-aliased "nearest" snap in tile texel space
+    vec2 fw       = max(fwidth(contTexel), vec2(1e-5)); // stable across tile seams
     vec2 fracPart = fract(localTexel);
     vec2 blend    = clamp(fracPart / fw, 0.0, 1.0);
-    vec2 localAA  = floor(localTexel) + blend + 0.5; // center of target texel
+    vec2 localAA  = floor(localTexel) + blend + 0.5;    // center of target texel
 
-    // --- 5) Stay inside the tile to avoid bleeding into neighbors ---
-    vec2 minPix = vec2(0.5 + GUARD);
-    vec2 maxPix = vec2(uTileSize - 0.5 - GUARD);
-    vec2 localClamped = clamp(localAA, minPix, maxPix);
+    // 5) Clamp to valid texel centers (no gutters needed with arrays)
+    vec2 localClamped = clamp(localAA, vec2(0.5), vec2(uTileSize - 0.5));
 
-    // Tiles in your original shader were addressed with a flipped Y (1.0 - tilePos.y)
-    // so flip the local texel Y here in texel space.
-    float flippedY  = (uTileSize - localClamped.y);
-    vec2  atlasTexel = tileBase + vec2(localClamped.x, flippedY);
+    // 6) Convert to per-layer UVs in [0,1], flipping Y if your source images are top-left origin
+    // If your tiles are already bottom-left origin, drop the flip and just do localClamped / uTileSize.
+    vec2 layerUV = vec2(
+        localClamped.x / uTileSize,
+        (uTileSize - localClamped.y) / uTileSize   // flip Y
+    );
 
-    // --- 6) Compute stable gradients for LOD from the *continuous* pre-snap coords ---
-    // Derivatives from localTexel (not localAA) keep LOD smooth while the sample is snapped.
-    vec2 dLocaldx = dFdx(localTexel);
-    vec2 dLocaldy = dFdy(localTexel);
+    // 7) Stable LOD: gradients from the continuous coords, scaled to layer UV space
+    vec2 dUVdx = (dFdx(contTexel) / uTileSize) * vec2(1.0, -1.0);
+    vec2 dUVdy = (dFdy(contTexel) / uTileSize) * vec2(1.0, -1.0);
 
-    // Convert texel gradients to atlas UV gradients.
-    // Note Y flip: texel +y becomes UV -y.
-    vec2 texelToUV = 1.0 / uAtlasSize;
-    vec2 gradX = dLocaldx * texelToUV * vec2(1.0, -1.0);
-    vec2 gradY = dLocaldy * texelToUV * vec2(1.0, -1.0);
-
-    // --- 7) Sample the atlas ---
-    vec2 atlasUV = atlasTexel / uAtlasSize;
-    FragColor = textureGrad(uTileAtlas, atlasUV, gradX, gradY);
+    // 8) Sample the tile layer (no cross-tile bleed, ever)
+    FragColor = textureGrad(uTileArray, vec3(layerUV, float(tileIndex)), dUVdx, dUVdy);
 }
   """
 
@@ -329,7 +349,6 @@ proc draw(tileMap: TileMap, mvp: Mat4) =
   # Set uniforms
   tileMap.shader.setUniform("uMVP", mvp)
   tileMap.shader.setUniform("uMapSize", vec2(MAP_SIZE.float32, MAP_SIZE.float32))
-  tileMap.shader.setUniform("uAtlasSize", vec2(tileMap.tileAtlas.width.float32, tileMap.tileAtlas.height.float32))
   tileMap.shader.setUniform("uTileSize", 64.0f)  # Tile size in pixels.
 
   tileMap.shader.bindUniforms()
@@ -340,8 +359,8 @@ proc draw(tileMap: TileMap, mvp: Mat4) =
   tileMap.shader.setUniform("uIndexTexture", 0)
 
   glActiveTexture(GL_TEXTURE1)
-  glBindTexture(GL_TEXTURE_2D, tileMap.tileAtlasTexture)
-  tileMap.shader.setUniform("uTileAtlas", 1)
+  glBindTexture(GL_TEXTURE_2D_ARRAY, tileMap.tileAtlasTextureArray)
+  tileMap.shader.setUniform("uTileArray", 1)
 
   tileMap.shader.bindUniforms()
 
