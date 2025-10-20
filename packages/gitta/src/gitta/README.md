@@ -10,7 +10,7 @@ A comprehensive Python library for Git operations, GitHub API interactions, and 
 - **Authenticated GitHub API**: Multiple authentication methods (token, custom headers)
 - **GitHub Actions**: Query workflow runs and job statuses
 - **Commit Management**: List and filter commits with pagination support
-- **Repository Filtering**: Extract specific paths using git-filter-repo
+- **Repository Filtering**: Extract specific paths using git subtree split
 
 ## Installation
 
