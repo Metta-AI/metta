@@ -1,5 +1,11 @@
 [build-system]
-requires = ["setuptools>=45", "wheel", "numpy>=2", "torch", "setuptools_scm>=8"]
+requires = [
+  "setuptools==80.9.0",
+  "wheel==0.45.1",
+  "numpy==2.3.3",
+  "torch==2.9.0",
+  "setuptools_scm==8.1.0",
+]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -57,8 +63,7 @@ root = "../.."
 fallback_version = "0.0.0"
 
 # Provide a specific git command to be used in order to find the correct versioning tags
-[tool.setuptools_scm.scm.git]
-describe_command = [
+git_describe_command = [
   "git",
   "describe",
   "--dirty",
