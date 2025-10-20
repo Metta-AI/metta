@@ -26,18 +26,16 @@ def make_arena(
 ) -> MettaGridConfig:
     objects = {
         "wall": building.wall,
-        "altar": building.altar,
-        "mine_red": building.mine_red,
-        "generator_red": building.generator_red,
-        "lasery": building.lasery,
-        "armory": building.armory,
+        "altar": building.assembler_altar,
+        "mine_red": building.assembler_mine_red,
+        "generator_red": building.assembler_generator_red,
+        "lasery": building.assembler_lasery,
+        "armory": building.assembler_armory,
     }
 
     actions = ActionsConfig(
         noop=ActionConfig(),
         move=ActionConfig(),
-        put_items=ActionConfig(),
-        get_items=ActionConfig(),
         attack=AttackActionConfig(
             consumed_resources={
                 "laser": 1,
