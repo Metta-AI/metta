@@ -142,9 +142,7 @@ def get_map(data: str) -> MapBuilderConfig:
     with map_path.open("r", encoding="utf-8") as f:
         map_data = f.read()
     parsed = yaml.safe_load(map_data)
-    print(f"Parsed: {parsed}")
     parsed["map_data"] = data.replace(" ", "")[1:-1]
-    print(f"Parsed: {parsed}")
     map = MapBuilderConfig.model_validate(parsed)
     return map
 
@@ -170,12 +168,8 @@ def edit_map(extractors, use_charger, use_chest):
     map_data = "".join(
         c if i not in remove_indices else "." for i, c in enumerate(map_data)
     )
-
-    print(f"Map data: {map_data}")
-
     map = get_map(map_data)
 
-    print(f"Map: {map}")
     return map
 
 
@@ -222,7 +216,7 @@ def make_extractor(
         name=name,
         type_id=name_to_type_id[name],
         map_char=name_to_map_char[name],
-        render_symbol=vibes.VIBE_BY_NAME[name].symbol,
+        render_symbol=vibes.VIBE_BY_NAME[name.replace("_extractor", "")].symbol,
         max_uses=max_uses,
         allow_partial_usage=allow_partial_usage,
         recipes=[
