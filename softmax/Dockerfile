@@ -2,7 +2,7 @@ FROM ubuntu:24.04
 
 WORKDIR /workspace
 
-# Copy the entire metta repo (dashboard depends on metta-common)
+# Copy the entire metta repo
 COPY . /workspace/metta
 
 WORKDIR /workspace/metta
@@ -14,8 +14,13 @@ RUN bash ./devops/tools/install-system.sh
 RUN bash install.sh --profile softmax-docker --non-interactive
 
 # Pre-build packages to avoid import delays
+# Verify the dashboard can be imported
 RUN uv sync --frozen && \
-    uv run python -c "import softmax.dashboard.report"
+    .venv/bin/python -c "import softmax.dashboard.report"
 
-# Run the dashboard report command
-CMD ["uv", "run", "python", "-m", "softmax.dashboard.report", "report", "--push"]
+# Set PATH to use the pre-built venv
+ENV PATH="/workspace/metta/.venv/bin:$PATH"
+ENV VIRTUAL_ENV="/workspace/metta/.venv"
+
+# Run directly from venv (no uv run to avoid re-syncing at startup)
+CMD ["python", "-m", "softmax.dashboard.report", "report", "--push"]
