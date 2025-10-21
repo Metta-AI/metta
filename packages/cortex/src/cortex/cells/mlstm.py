@@ -113,7 +113,9 @@ class mLSTMCell(MemoryCell):
             self.k_layer = None
             self.v_layer = None
             self.qk_layer = None
+            self.use_axon_qkv = False
         else:
+            self.use_axon_qkv = True
             H = int(cfg.hidden_size)
 
             qkv_cfg = cfg.axon_qkv_config or None

@@ -33,7 +33,7 @@ class PreUpBlock(BaseBlock):
         # non‑mLSTM cells. Default is False to preserve prior behavior.
         self.activate_cell_input = bool(config.activate_cell_input)
 
-    def _is_mlstm_cell(self) -> bool:
+    def _should_apply_cell_act(self) -> bool:
         """Best-effort check whether the wrapped cell is an mLSTM.
 
         Avoids an import-time hard dependency by importing lazily and
@@ -42,7 +42,10 @@ class PreUpBlock(BaseBlock):
         try:
             from cortex.cells.mlstm import mLSTMCell  # type: ignore
 
-            return isinstance(self.cell, mLSTMCell)
+            if isinstance(self.cell, mLSTMCell) and not self.cell.use_axon_qkv:
+                return True
+            else:
+                return False
         except Exception:
             # Fallback to class name heuristic
             return "mlstm" in self.cell.__class__.__name__.lower()
@@ -77,7 +80,7 @@ class PreUpBlock(BaseBlock):
         cell_state = state.get(cell_key, None) if state is not None else None
         # Optionally feed the activated branch to the cell, except for mLSTM
         # where we preserve the existing semantics (cell consumes raw 'a').
-        a_for_cell = a_act if (self.activate_cell_input and not self._is_mlstm_cell()) else a
+        a_for_cell = a_act if (self.activate_cell_input and not self._should_apply_cell_act()) else a
         y_inner, new_cell_state = self.cell(a_for_cell, cell_state, resets=resets)
 
         # Gated skip and down-projection - always batch-first
