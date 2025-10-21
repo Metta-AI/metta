@@ -66,7 +66,7 @@ var zoomVel: float32
 var frame: int
 
 # Generate a 1024x1024 texture where each pixel is a byte index into the 16x16 tile map
-const MAP_SIZE = 1024
+const MAP_SIZE = 1024 * 16
 var terrainMap = newTileMap(
   width = MAP_SIZE,
   height = MAP_SIZE,
@@ -152,7 +152,6 @@ proc averageColor(img: Image): ColorRGBX =
       g += img.unsafe[x, y].g.float32 / m
       b += img.unsafe[x, y].b.float32 / m
       a += img.unsafe[x, y].a.float32 / m
-      echo x, ", ", y, " - r: ", r, " g: ", g, " b: ", b, " a: ", a
   return rgbx(
     floor(r).uint8,
     floor(g).uint8,
@@ -423,7 +422,7 @@ proc draw(tileMap: TileMap, mvp: Mat4) =
   tileMap.shader.setUniform("uMapSize", vec2(MAP_SIZE.float32, MAP_SIZE.float32))
   tileMap.shader.setUniform("uTileSize", 64.0f)  # Tile size in pixels.
   tileMap.shader.setUniform("uZoom", zoom)
-  tileMap.shader.setUniform("uZoomThreshold", 2.0f)
+  tileMap.shader.setUniform("uZoomThreshold", 1.25f)
 
   tileMap.shader.bindUniforms()
 
