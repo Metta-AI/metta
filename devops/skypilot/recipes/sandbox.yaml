@@ -21,7 +21,7 @@ file_mounts:
     source: s3://softmax-train-dir
     mode: MOUNT_CACHED
 
-setup: set -u && bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/launch/setup.sh")
+setup: set -u && bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/recipes/setup.sh")
 
 run: |
   set -e
