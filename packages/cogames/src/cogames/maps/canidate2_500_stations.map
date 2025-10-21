@@ -521,3 +521,8 @@ char_to_name_map:
   "C": carbon_extractor
   "@": agent.agent
   "&": assembler
+  "c": carbon_ex_dep
+  "o": oxygen_ex_dep
+  "g": germanium_ex_dep
+  "s": silicon_ex_dep
+  "=": chest

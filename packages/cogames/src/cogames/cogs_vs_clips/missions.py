@@ -68,6 +68,13 @@ def _get_default_map_objects() -> dict[str, AnyGridObjectConfig]:
     }
 
 
+def _build_char_to_name_map() -> dict[str, str]:
+    char_to_name = {obj.map_char: obj.name for obj in _get_default_map_objects().values()}
+    char_to_name.setdefault("@", "agent.agent")
+    char_to_name.setdefault("%", "empty")
+    return char_to_name
+
+
 def _default_mission(*, num_cogs: int = 4, clip_rate: float = 0.0, **kwargs: dict[str, Any]) -> GameConfig:
     game = GameConfig(
         resource_names=resources,
@@ -262,9 +269,16 @@ class SiteUserMap(UserMap):
         map_builder_args = args.pop("map_builder_args", {})
         game = get_mission_generator(base_mission)(**args)
         map_builder_config = get_map_builder_for_site(self._site)
+        default_char_map = _build_char_to_name_map()
         char_map = getattr(map_builder_config, "char_to_name_map", None)
-        if isinstance(char_map, dict) and "%" not in char_map:
-            char_map["%"] = "empty"
+        if isinstance(char_map, dict):
+            for key, value in default_char_map.items():
+                char_map.setdefault(key, value)
+        else:
+            try:
+                map_builder_config.char_to_name_map = dict(default_char_map)  # type: ignore[attr-defined]
+            except Exception:  # pragma: no cover - defensive
+                pass
         map_rows: list[str] = []
         map_data = getattr(map_builder_config, "map_data", None)
         if isinstance(map_data, list):
