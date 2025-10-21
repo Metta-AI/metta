@@ -116,6 +116,9 @@ class HarvestMission(Mission):
     description: str = "Collect resources and store them in the communal chest. Make sure to stay charged!"
     site: Site = TRAINING_FACILITY
 
+    def configure(self):
+        pass
+
 
 class AssembleMission(Mission):
     name: str = "assemble"

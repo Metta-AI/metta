@@ -75,6 +75,9 @@ class Mission(Config):
     move_energy_cost: int = Field(default=2)
     heart_capacity: int = Field(default=1)
 
+    def configure(self):
+        pass
+
     def instantiate(
         self, map_builder: MapBuilderConfig, num_cogs: int, variant: MissionVariant | None = None
     ) -> "Mission":
@@ -89,6 +92,7 @@ class Mission(Config):
             New Mission instance with map and num_cogs set
         """
         mission = self.model_copy(deep=True)
+        mission.configure()
         mission.map = map_builder
         mission.num_cogs = num_cogs
 
