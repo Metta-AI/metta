@@ -168,7 +168,7 @@ class ConverterConfig(GridObjectConfig):
         raise TypeError("cooldown must be an int or iterable of ints")
 
 
-class RecipeConfig(Config):
+class ProtocolConfig(Config):
     input_resources: dict[str, int] = Field(default_factory=dict)
     output_resources: dict[str, int] = Field(default_factory=dict)
     cooldown: int = Field(ge=0, default=0)
@@ -178,7 +178,7 @@ class AssemblerConfig(GridObjectConfig):
     """Python assembler configuration."""
 
     type: Literal["assembler"] = Field(default="assembler")
-    recipes: list[tuple[list[int], RecipeConfig]] = Field(
+    recipes: list[tuple[list[str], ProtocolConfig]] = Field(
         default_factory=list,
         description="Recipes in reverse order of priority.",
     )
@@ -242,7 +242,7 @@ class ClipperConfig(Config):
     negligible. Set cutoff_distance > 0 to use a manual cutoff.
     """
 
-    unclipping_recipes: list[RecipeConfig] = Field(default_factory=list)
+    unclipping_recipes: list[ProtocolConfig] = Field(default_factory=list)
     length_scale: float = Field(
         default=0.0,
         description="Controls spatial spread rate: weight = exp(-distance / length_scale). "
@@ -289,6 +289,7 @@ class GameConfig(Config):
             "blueprint",
         ]
     )
+    vibe_names: list[str] = Field(default_factory=list, description="List of vibe names for assembler recipes")
     num_agents: int = Field(ge=1, default=24)
     # max_steps = zero means "no limit"
     max_steps: int = Field(ge=0, default=1000)

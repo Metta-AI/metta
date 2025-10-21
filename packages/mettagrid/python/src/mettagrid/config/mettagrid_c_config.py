@@ -52,6 +52,10 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     resource_names = list(game_config.resource_names)
     resource_name_to_id = {name: i for i, name in enumerate(resource_names)}
 
+    # Set up vibe mappings
+    vibe_names = list(game_config.vibe_names)
+    vibe_name_to_id = {name: i for i, name in enumerate(vibe_names)}
+
     objects_cpp_params = {}  # params for CppConverterConfig or CppWallConfig
 
     # These are the baseline settings for all agents
@@ -242,18 +246,21 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             recipes = {}
 
             for vibes, recipe_config in reversed(object_config.recipes):
-                vibes = sorted(vibes)
+                # Convert vibe names to IDs
+                vibe_ids = sorted([vibe_name_to_id[vibe] for vibe in vibes])
                 overall_vibe = 0
-                for vibe in vibes:
-                    overall_vibe = overall_vibe << 8 | vibe
-                # Create C++ recipe
+                for vibe_id in vibe_ids:
+                    overall_vibe = overall_vibe << 8 | vibe_id
+                # Create C++ recipe - must use keyword args for pybind11
+                input_res = {resource_name_to_id[k]: int(v) for k, v in recipe_config.input_resources.items()}
+                output_res = {resource_name_to_id[k]: int(v) for k, v in recipe_config.output_resources.items()}
                 cpp_recipe = CppRecipe(
-                    input_resources={resource_name_to_id[k]: v for k, v in recipe_config.input_resources.items()},
-                    output_resources={resource_name_to_id[k]: v for k, v in recipe_config.output_resources.items()},
-                    cooldown=recipe_config.cooldown,
+                    input_resources=input_res, output_resources=output_res, cooldown=int(recipe_config.cooldown)
                 )
                 if overall_vibe in recipes:
-                    raise ValueError(f"Recipe with vibe {overall_vibe} already exists")
+                    raise ValueError(
+                        f"Recipe with vibe {overall_vibe} (from vibes {vibes}) already exists in {object_type}"
+                    )
                 recipes[overall_vibe] = cpp_recipe
 
             # Convert tag names to IDs
@@ -299,6 +306,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         del game_cpp_params["params"]
     if "map_builder" in game_cpp_params:
         del game_cpp_params["map_builder"]
+    if "vibe_names" in game_cpp_params:
+        del game_cpp_params["vibe_names"]
 
     # Convert global_obs configuration
     global_obs_config = game_config.global_obs
@@ -399,11 +408,9 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         clipper: ClipperConfig = game_config.clipper
         clipper_recipes = []
         for recipe_config in clipper.unclipping_recipes:
-            cpp_recipe = CppRecipe(
-                input_resources={resource_name_to_id[k]: v for k, v in recipe_config.input_resources.items()},
-                output_resources={resource_name_to_id[k]: v for k, v in recipe_config.output_resources.items()},
-                cooldown=recipe_config.cooldown,
-            )
+            input_res = {resource_name_to_id[k]: int(v) for k, v in recipe_config.input_resources.items()}
+            output_res = {resource_name_to_id[k]: int(v) for k, v in recipe_config.output_resources.items()}
+            cpp_recipe = CppRecipe(input_res, output_res, int(recipe_config.cooldown))
             clipper_recipes.append(cpp_recipe)
         game_cpp_params["clipper"] = CppClipperConfig(
             clipper_recipes, clipper.length_scale, clipper.cutoff_distance, clipper.clip_rate
