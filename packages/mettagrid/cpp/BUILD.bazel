@@ -34,7 +34,6 @@ pybind_library(
     ],
     includes = ["include/mettagrid"],
     visibility = ["//visibility:public"],
-    alwayslink = True,  # Ensure all symbols are linked
 )
 
 # Python bindings
