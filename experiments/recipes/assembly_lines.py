@@ -1,26 +1,26 @@
 import random
 import subprocess
 import time
-from typing import Optional, Any
 from dataclasses import dataclass, field
-from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from typing import Any, Optional
 
-from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
+from metta.agent.policies.vit_reset import ViTResetConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
+from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 from metta.rl.loss import LossConfig
-from metta.tools.train import TrainTool
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-from metta.agent.policies.vit_reset import ViTResetConfig
+from metta.sim.simulation_config import SimulationConfig
+from metta.tools.play import PlayTool
+from metta.tools.replay import ReplayTool
+from metta.tools.train import TrainTool
+from mettagrid.builder import empty_assemblers
 from mettagrid.builder.envs import make_assembly_lines
 from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
-    RecipeConfig,
+    ProtocolConfig,
 )
-from mettagrid.builder import empty_assemblers
-from metta.sim.simulation_config import SimulationConfig
 
 curriculum_args = {
     "level_0": {
@@ -179,7 +179,7 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
 
         recipe = (
             [],
-            RecipeConfig(
+            ProtocolConfig(
                 input_resources=input_resources,
                 output_resources=output_resources,
                 cooldown=cooldown,

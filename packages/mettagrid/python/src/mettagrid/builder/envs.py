@@ -97,7 +97,7 @@ def make_navigation(num_agents: int) -> MettaGridConfig:
         type_id=8,
         map_char="_",
         render_symbol="🛣️",
-        recipes=[([], building.RecipeConfig(input_resources={}, output_resources={"heart": 1}, cooldown=255))],
+        recipes=[([], building.ProtocolConfig(input_resources={}, output_resources={"heart": 1}, cooldown=255))],
     )
     cfg = MettaGridConfig(
         game=GameConfig(
