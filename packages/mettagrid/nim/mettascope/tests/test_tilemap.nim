@@ -1,7 +1,7 @@
 import
   std/[strformat],
   boxy, windy, pixie,
-  ../src/mettascope/[tilemap, perlin]
+  ../src/mettascope/[tilemap], perlin
 
 import boxy, opengl, pixie, windy, random, boxy/shaders
 
@@ -99,7 +99,7 @@ var
   zoomVel: float32
   frame: int
 
-let terrainMap = generateTileMap(32, 32, "tools/blob7x7.png")
+let terrainMap = generateTileMap(1024, 1024, "tools/blob7x7.png")
 
 # Called when it is time to draw a new frame.
 window.onFrame = proc() =
