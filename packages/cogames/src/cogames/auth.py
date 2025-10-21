@@ -25,7 +25,6 @@ class BaseCLIAuthenticator:
         auth_server_url: str,
         token_file_name: str,
         token_storage_key: str | None = None,
-        extra_uris: dict[str, list[str]] | None = None,
     ):
         """Initialize the authenticator.
 
@@ -40,7 +39,6 @@ class BaseCLIAuthenticator:
         self.auth_url = auth_server_url + "/tokens/cli"
         self.auth_server_url = auth_server_url
         self.token_storage_key = token_storage_key
-        self.extra_uris = extra_uris or {}
         self.token = None
         self.error = None
         self.server_started = threading.Event()
@@ -170,9 +168,6 @@ class BaseCLIAuthenticator:
 
             # Prepare token data
             token_data = {self.auth_server_url: token}
-            if extra_uris := self.extra_uris.get(self.auth_server_url):
-                for uri in extra_uris:
-                    token_data[uri] = token
 
             # Update data structure based on token_storage_key
             if self.token_storage_key:
@@ -273,23 +268,31 @@ class BaseCLIAuthenticator:
             print(f"Authentication failed: {e}")
             return False
 
+    def load_token(self) -> str | None:
+        """Load the token for this auth server from the YAML file.
+
+        Returns the token string if found, None otherwise.
+        """
+        if not self.yaml_file.exists():
+            return None
+
+        try:
+            with open(self.yaml_file, "r") as f:
+                data = yaml.safe_load(f) or {}
+
+            # Get the token dictionary based on storage structure
+            if self.token_storage_key:
+                tokens = data.get(self.token_storage_key, {})
+            else:
+                tokens = data
+
+            return tokens.get(self.auth_server_url)
+        except Exception:
+            return None
+
     def has_saved_token(self) -> bool:
         """Check if we have a saved token for this server"""
-        if self.yaml_file.exists():
-            try:
-                with open(self.yaml_file, "r") as f:
-                    data = yaml.safe_load(f) or {}
-
-                # Get the token dictionary based on storage structure
-                if self.token_storage_key:
-                    tokens = data.get(self.token_storage_key, {})
-                else:
-                    tokens = data
-
-                # Check all required URLs have tokens
-                all_urls = [self.auth_server_url] + self.extra_uris.get(self.auth_server_url, [])
-                return all(url in tokens for url in all_urls)
-            except Exception:
-                pass
-
-        return False
+        token = self.load_token()
+        if token is None:
+            return False
+        return True
