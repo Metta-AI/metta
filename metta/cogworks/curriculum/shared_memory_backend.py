@@ -5,6 +5,7 @@ The abstraction allows TaskTracker to work identically whether using in-process 
 """
 
 from abc import ABC, abstractmethod
+from contextlib import nullcontext
 from multiprocessing import RLock, shared_memory
 from typing import Any, ContextManager, Optional
 
@@ -97,10 +98,9 @@ class LocalMemoryBackend(TaskMemoryBackend):
         self._task_array = np.zeros((max_tasks, self.task_struct_size), dtype=np.float64)
         self._completion_history = np.zeros((self.completion_history_size,), dtype=np.float64)
 
-        # No-op lock for local memory (single process)
-        from threading import RLock
-
-        self._lock = RLock()
+        # True no-op lock for local memory (single process, single thread)
+        # Using nullcontext avoids threading lock overhead
+        self._lock = nullcontext()
 
     def get_task_data(self, index: int) -> np.ndarray:
         """Get task data at given index (raw array view)."""
@@ -111,7 +111,7 @@ class LocalMemoryBackend(TaskMemoryBackend):
         return self._completion_history
 
     def acquire_lock(self) -> ContextManager[Any]:
-        """Acquire lock (no-op for local memory)."""
+        """Acquire lock (true no-op for local memory - returns nullcontext)."""
         return self._lock
 
     def clear(self):

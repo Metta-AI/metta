@@ -271,6 +271,10 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # NEW: Use scorer strategy
         return self.scorer.score_task(task_id, self.task_tracker)
 
+    def get_task_lp_score(self, task_id: int) -> float:
+        """Get learning progress score for a specific task (alias for get_learning_progress_score)."""
+        return self.get_learning_progress_score(task_id)
+
     def get_stats(self) -> Dict[str, float]:
         """Get learning progress statistics (compatibility method for tests)."""
         return self.scorer.get_stats()

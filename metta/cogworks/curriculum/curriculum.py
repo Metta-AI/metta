@@ -437,6 +437,19 @@ class Curriculum(StatsLogger):
         # Invalidate stats cache since task performance affects curriculum stats
         self.invalidate_cache()
 
+    def get_task_lp_score(self, task_id: int) -> float:
+        """Get the learning progress score for a specific task.
+
+        Args:
+            task_id: The task ID to get the score for
+
+        Returns:
+            The learning progress score, or 0.0 if not available
+        """
+        if self._algorithm is not None and hasattr(self._algorithm, "get_task_lp_score"):
+            return self._algorithm.get_task_lp_score(task_id)
+        return 0.0
+
     def get_base_stats(self) -> Dict[str, float]:
         """Get basic curriculum statistics."""
         base_stats: Dict[str, float] = {
