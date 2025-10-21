@@ -23,7 +23,7 @@ from cogames.cli.base import console
 from cogames.cli.login import DEFAULT_COGAMES_SERVER, perform_login
 from cogames.cli.mission import describe_mission, get_mission_name_and_config, get_mission_names_and_configs
 from cogames.cli.policy import get_policy_spec, get_policy_specs, policy_arg_example, policy_arg_w_proportion_example
-from cogames.cli.submit import submit_command
+from cogames.cli.submit import DEFAULT_SUBMIT_SERVER, submit_command
 from cogames.curricula import make_rotation
 from cogames.device import resolve_training_device
 from mettagrid import MettaGridEnv
@@ -365,7 +365,7 @@ def submit_cmd(
         help="Login/authentication server URL",
     ),
     server: str = typer.Option(
-        DEFAULT_COGAMES_SERVER,
+        DEFAULT_SUBMIT_SERVER,
         "--server",
         "-s",
         help="Submission server URL",
