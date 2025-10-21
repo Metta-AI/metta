@@ -30,7 +30,7 @@ from cogames.cli.policy import (
 )
 from cogames.curricula import make_rotation
 from cogames.device import resolve_training_device
-from mettagrid import MettaGridEnv
+from mettagrid import MettaGridConfig, MettaGridEnv
 
 default_cogs = 4
 
@@ -87,9 +87,9 @@ def _determine_default_cogs(env_cfg) -> Optional[int]:
 
 def _apply_num_cogs_override(
     mission_name: str,
-    env_cfg,
+    env_cfg: MettaGridConfig,
     num_cogs: Optional[int],
-) -> tuple[Optional[str], object]:
+) -> tuple[Optional[str], MettaGridConfig]:
     fallback_cogs = _determine_default_cogs(env_cfg)
     user_requested = num_cogs is not None
     effective_cogs = num_cogs if user_requested else fallback_cogs
@@ -98,7 +98,7 @@ def _apply_num_cogs_override(
         return None, env_cfg
 
     warning_msg: Optional[str] = None
-    updated_env = env_cfg
+    updated_env: MettaGridConfig = env_cfg
 
     # Fallback to agent override if dynamic spawning is not supported or failed
     map_builder = getattr(updated_env.game, "map_builder", None)
