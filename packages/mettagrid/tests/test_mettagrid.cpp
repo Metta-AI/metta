@@ -1098,7 +1098,8 @@ TEST_F(MettaGridCppTest, EventManager) {
 // ==================== Assembler Tests ====================
 
 TEST_F(MettaGridCppTest, AssemblerBasicObservationFeatures) {
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  AssemblerConfig config(1, "test_assembler");
+  config.tag_ids = {1, 2};
   Assembler assembler(5, 5, config);
 
   unsigned int current_timestep = 0;
@@ -1133,7 +1134,8 @@ TEST_F(MettaGridCppTest, AssemblerBasicObservationFeatures) {
 }
 
 TEST_F(MettaGridCppTest, AssemblerNoCooldownObservation) {
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  AssemblerConfig config(1, "test_assembler");
+  config.tag_ids = {1, 2};
   Assembler assembler(5, 5, config);
 
   unsigned int current_timestep = 0;
@@ -1154,7 +1156,7 @@ TEST_F(MettaGridCppTest, AssemblerNoCooldownObservation) {
 }
 
 TEST_F(MettaGridCppTest, AssemblerCooldownRemainingCalculation) {
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  AssemblerConfig config(1, "test_assembler");
   Assembler assembler(5, 5, config);
 
   unsigned int current_timestep = 0;
@@ -1186,7 +1188,7 @@ TEST_F(MettaGridCppTest, AssemblerCooldownRemainingCalculation) {
 }
 
 TEST_F(MettaGridCppTest, AssemblerCooldownObservationWithRemainingTime) {
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  AssemblerConfig config(1, "test_assembler");
   Assembler assembler(5, 5, config);
 
   unsigned int current_timestep = 0;
@@ -1211,7 +1213,7 @@ TEST_F(MettaGridCppTest, AssemblerCooldownObservationWithRemainingTime) {
 }
 
 TEST_F(MettaGridCppTest, AssemblerCooldownObservationCappedAt255) {
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  AssemblerConfig config(1, "test_assembler");
   Assembler assembler(5, 5, config);
 
   unsigned int current_timestep = 0;
@@ -1238,7 +1240,8 @@ TEST_F(MettaGridCppTest, AssemblerGetCurrentRecipe) {
   // Create a grid to test with
   Grid grid(10, 10);
 
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  AssemblerConfig config(1, "test_assembler");
+  config.tag_ids = {1, 2};
 
   // Create test recipes
   auto recipe0 = std::make_shared<Recipe>();
@@ -1283,7 +1286,7 @@ TEST_F(MettaGridCppTest, AssemblerRecipeObservationsEnabled) {
   // Create a grid to test with
   Grid grid(10, 10);
 
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  AssemblerConfig config(1, "test_assembler");
   config.recipe_details_obs = true;
   config.input_recipe_offset = 100;
   config.output_recipe_offset = 200;
@@ -1347,7 +1350,7 @@ TEST_F(MettaGridCppTest, AssemblerBalancedConsumptionAmpleResources) {
   auto recipe = std::make_shared<Recipe>(input_resources, output_resources, 0);
 
   // Create assembler with the recipe
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{});
+  AssemblerConfig config(1, "test_assembler");
   config.recipes[0] = recipe;
   Assembler assembler(5, 5, config);
 
@@ -1400,7 +1403,7 @@ TEST_F(MettaGridCppTest, AssemblerBalancedConsumptionMixedResources) {
   auto recipe = std::make_shared<Recipe>(input_resources, output_resources, 0);
 
   // Create assembler with the recipe
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{});
+  AssemblerConfig config(1, "test_assembler");
   config.recipes[0] = recipe;
   Assembler assembler(5, 5, config);
 
@@ -1450,7 +1453,7 @@ TEST_F(MettaGridCppTest, AssemblerClippingAndUnclipping) {
   unsigned int current_timestep = 0;
 
   // Create an assembler with normal recipes
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  AssemblerConfig config(1, "test_assembler");
 
   // Create normal recipes (pattern 0: no agents needed)
   auto normal_recipe = std::make_shared<Recipe>();
@@ -1542,7 +1545,7 @@ TEST_F(MettaGridCppTest, AssemblerMaxUses) {
   unsigned int current_timestep = 0;
 
   // Create an assembler with max_uses set to 3
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  AssemblerConfig config(1, "test_assembler");
   config.max_uses = 3;  // Limit to 3 uses
 
   // Create simple recipe
@@ -1634,7 +1637,7 @@ TEST_F(MettaGridCppTest, AssemblerExhaustion) {
   unsigned int current_timestep = 0;
 
   // Create an assembler with exhaustion enabled
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  AssemblerConfig config(1, "test_assembler");
   config.exhaustion = 0.5f;  // 50% exhaustion rate - multiplier grows by 1.5x each use
 
   // Create recipe with cooldown

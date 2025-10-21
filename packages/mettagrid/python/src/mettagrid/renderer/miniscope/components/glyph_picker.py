@@ -12,7 +12,8 @@ from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState, RenderM
 from .base import MiniscopeComponent
 
 try:
-    from cogames.cogs_vs_clips.glyphs import GLYPH_DATA, search_glyphs
+    from cogames.cogs_vs_clips.vibes import VIBES as GLYPH_DATA
+    from cogames.cogs_vs_clips.vibes import search_vibes as search_glyphs
 except ImportError:
     GLYPH_DATA = None
     search_glyphs = None
