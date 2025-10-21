@@ -2,7 +2,10 @@
 
 #include <algorithm>
 #include <cassert>
+#include <limits>
 #include <set>
+#include <unordered_map>
+#include <vector>
 
 // Constructor implementation
 Inventory::Inventory(const InventoryConfig& cfg) : _inventory(), _limits() {
