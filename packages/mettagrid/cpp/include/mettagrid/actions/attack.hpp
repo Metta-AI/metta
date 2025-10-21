@@ -161,7 +161,7 @@ private:
 
   void _consume_defense_resources(Agent& target) {
     for (const auto& [item, amount] : _defense_resources) {
-      [[maybe_unused]] InventoryDelta delta = target.update_inventory(item, -amount);
+      [[maybe_unused]] InventoryDelta delta = target.inventory.update(item, -amount);
       assert(delta == -amount);
     }
   }
@@ -183,8 +183,8 @@ private:
         continue;
       }
 
-      InventoryDelta stolen = actor.update_inventory(item, amount);
-      target.update_inventory(item, -stolen);
+      InventoryDelta stolen = actor.inventory.update(item, amount);
+      target.inventory.update(item, -stolen);
 
       if (stolen > 0) {
         _log_resource_theft(actor, target, item, stolen);

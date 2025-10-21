@@ -562,7 +562,7 @@ void MettaGrid::_step(Actions actions) {
           }
 
           if (lost > 0) {
-            agent->update_inventory(item, -lost);
+            agent->inventory.update(item, -lost);
           }
         }
       }
@@ -574,7 +574,7 @@ void MettaGrid::_step(Actions actions) {
     for (auto* agent : _agents) {
       if (!agent->inventory_regen_amounts.empty()) {
         for (const auto& [item, amount] : agent->inventory_regen_amounts) {
-          agent->update_inventory(item, amount);
+          agent->inventory.update(item, amount);
         }
       }
     }

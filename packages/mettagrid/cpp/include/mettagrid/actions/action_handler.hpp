@@ -121,7 +121,7 @@ public:
       for (const auto& [item, amount] : _consumed_resources) {
         InventoryDelta delta = compute_probabilistic_delta(-amount);
         if (delta != 0) {
-          [[maybe_unused]] InventoryDelta actual_delta = actor.update_inventory(item, delta);
+          [[maybe_unused]] InventoryDelta actual_delta = actor.inventory.update(item, delta);
           // We consume resources after the action succeeds, but in the future we might have an action that uses the
           // resource. This check will catch that.
           assert(actual_delta == delta);

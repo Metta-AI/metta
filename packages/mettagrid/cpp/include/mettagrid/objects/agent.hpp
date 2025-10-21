@@ -11,10 +11,11 @@
 #include "objects/agent_config.hpp"
 #include "objects/constants.hpp"
 #include "objects/has_inventory.hpp"
+#include "objects/inventory_watcher.hpp"
 #include "objects/usable.hpp"
 #include "systems/stats_tracker.hpp"
 
-class Agent : public GridObject, public HasInventory, public Usable {
+class Agent : public GridObject, public HasInventory, public InventoryWatcher, public Usable {
 public:
   ObservationType group;
   short frozen;
@@ -71,6 +72,7 @@ public:
         inventory_regen_amounts(config.inventory_regen_amounts) {
     populate_initial_inventory(config.initial_inventory);
     GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer), config.tag_ids);
+    inventory.add_watcher(*this);
   }
 
   void init(RewardType* reward_ptr) {
@@ -79,7 +81,7 @@ public:
 
   void populate_initial_inventory(const std::unordered_map<InventoryItem, InventoryQuantity>& initial_inventory) {
     for (const auto& [item, amount] : initial_inventory) {
-      this->update_inventory(item, amount);
+      this->inventory.update(item, amount);
     }
   }
 
@@ -135,14 +137,12 @@ public:
 
     // Then, set provided items to their specified amounts
     for (const auto& [item, amount] : inventory) {
-      // Go through update_inventory to handle limits, deal with rewards, etc.
-      this->update_inventory(item, amount - this->inventory.amount(item));
+      // Go through inventory.update to handle limits, deal with rewards, etc.
+      this->inventory.update(item, amount - this->inventory.amount(item));
     }
   }
 
-  InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta) {
-    const InventoryDelta delta = this->inventory.update(item, attempted_delta);
-
+  void onInventoryChange(Inventory& inventory, InventoryItem item, InventoryDelta delta) override {
     if (delta != 0) {
       if (delta > 0) {
         this->stats.add(this->stats.resource_name(item) + ".gained", delta);
@@ -151,8 +151,6 @@ public:
       }
       this->stats.set(this->stats.resource_name(item) + ".amount", this->inventory.amount(item));
     }
-
-    return delta;
   }
 
   void compute_stat_rewards(StatsTracker* game_stats_tracker = nullptr) {
@@ -196,8 +194,8 @@ public:
       InventoryQuantity share_attempted_amount = actor_amount / 2;
       if (share_attempted_amount > 0) {
         // The actor is trying to give us resources. We need to make sure we can take them.
-        InventoryDelta successful_share_amount = this->update_inventory(resource, share_attempted_amount);
-        actor.update_inventory(resource, -successful_share_amount);
+        InventoryDelta successful_share_amount = this->inventory.update(resource, share_attempted_amount);
+        actor.inventory.update(resource, -successful_share_amount);
       }
     }
 

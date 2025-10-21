@@ -7,7 +7,7 @@ class Inventory;
 
 class InventoryWatcher {
 public:
-  virtual void onInventoryChange(Inventory& inventory) = 0;
+  virtual void onInventoryChange(Inventory& inventory) {}
   virtual void onInventoryChange(Inventory& inventory, InventoryItem item, InventoryDelta delta) {
     this->onInventoryChange(inventory);
   }
