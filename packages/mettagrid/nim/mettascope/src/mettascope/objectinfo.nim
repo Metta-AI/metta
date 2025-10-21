@@ -69,6 +69,10 @@ proc updateObjectInfo*() =
   if selection.isAgent:
     addParam("Agent ID", $selection.agentId)
     addParam("Reward", $selection.totalReward.at)
+    let
+      vibeId = selection.vibeId.at
+      vibeName = replay.config.game.vibeNames[vibeId]
+    addParam("Vibe", vibeName)
 
   if selection.cooldownRemaining.at > 0:
     addParam("Cooldown Remaining", $selection.cooldownRemaining.at)

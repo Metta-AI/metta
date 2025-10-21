@@ -6,8 +6,13 @@ type
 
   ActionConfig* = object
     enabled*: bool
-    requiredResources*: Table[string, int]
-    consumedResources*: Table[string, int]
+
+  Protocol* = object
+    inputResources*: Table[string, int]
+    outputResources*: Table[string, int]
+    cooldown*: int
+
+  RecipeInfoConfig* = tuple[pattern: seq[string], protocol: Protocol]
 
   ObjectConfig* = object
     name*: string
@@ -17,10 +22,11 @@ type
     tags*: seq[string]
     `type`*: string
     swappable*: bool
-    recipes*: seq[RecipeInfo]
+    recipes*: seq[RecipeInfoConfig]
 
   GameConfig* = object
     resourceNames*: seq[string]
+    vibeNames*: seq[string]
     numAgents*: int
     maxSteps*: int
     obsWidth*: int
@@ -48,6 +54,7 @@ type
     inventory*: seq[seq[ItemAmount]]
     inventoryMax*: int
     color*: seq[int]
+    vibeId*: seq[int]
 
     # Agent specific keys.
     actionId*: seq[int]
@@ -59,6 +66,7 @@ type
     frozenProgress*: seq[int]
     frozenTime*: int
     visionSize*: int
+
 
     # Building specific keys.
     inputResources*: seq[ItemAmount]
@@ -109,6 +117,7 @@ type
 
     drawnAgentActionMask*: uint64
     mgConfig*: JsonNode
+    config*: Config
 
     noopActionId*: int
     moveActionId*: int
@@ -129,6 +138,7 @@ type
     inventory*: seq[ItemAmount]
     inventoryMax*: int
     color*: int
+    vibeId*: int
 
     # Agent specific keys.
     actionId*: int
@@ -537,6 +547,7 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
 
   if "mg_config" in jsonObj:
     replay.mgConfig = jsonObj["mg_config"]
+    replay.config = fromJson($(jsonObj["mg_config"]), Config)
 
   for obj in jsonObj["objects"]:
     let inventoryRaw = expand[seq[seq[int]]](obj["inventory"], replay.maxSteps, @[])
@@ -577,6 +588,7 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
       inventory: inventory,
       inventoryMax: obj["inventory_max"].getInt,
       color: expand[int](obj["color"], replay.maxSteps, 0),
+      vibeId: expand[int](obj["vibe_id"], replay.maxSteps, 0),
     )
     if "group_id" in obj:
       entity.groupId = obj["group_id"].getInt
@@ -684,6 +696,7 @@ proc apply*(replay: Replay, step: int, objects: seq[ReplayEntity]) =
     entity.inventory.add(obj.inventory)
     entity.inventoryMax = obj.inventoryMax
     entity.color.add(obj.color)
+    entity.vibeId.add(obj.vibeId)
     entity.actionId.add(obj.actionId)
     entity.actionParameter.add(obj.actionParameter)
     entity.actionSuccess.add(obj.actionSuccess)

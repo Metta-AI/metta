@@ -1,6 +1,5 @@
 import pixie, opengl, boxy/shaders
 
-
 type
   TileMap* = ref object
     width*: int
@@ -58,6 +57,7 @@ proc averageColor(img: Image): ColorRGBX =
   )
 
 proc setupGPU*(tileMap: TileMap) =
+  ## Setup the GPU for the tile map.
 
   var maxLayers: GLint
   glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, maxLayers.addr)
@@ -314,7 +314,6 @@ void main()
   glEnableVertexAttribArray(1)
 
   glBindVertexArray(0)
-
 
 proc draw*(
   tileMap: TileMap,

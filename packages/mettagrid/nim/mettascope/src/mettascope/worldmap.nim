@@ -3,7 +3,7 @@ import
   boxy, vmath, windy, fidget2/[hybridrender, common],
   common, panels, actions, utils, replays, objectinfo, pathfinding
 
-const TS = 1.0 / 64.0 # Tile scale
+const TS = 1.0 / 64.0 # Tile scale.
 
 proc buildAtlas*() =
   ## Build the atlas.
@@ -712,7 +712,9 @@ proc drawWorldMap*(panel: Panel) =
   ## Draw the world map.
   panel.beginPanAndZoom()
 
-  useSelections(panel)
+  if panel.hasMouse:
+    useSelections(panel)
+
   agentControls()
 
   if followSelection:
