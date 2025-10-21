@@ -159,6 +159,12 @@ def play(policy_uri: Optional[str] = None) -> PlayTool:
 
 def replay(policy_uri: Optional[str] = None) -> ReplayTool:
     """Replay with light shaped reward environment."""
+
+    #a good policy, from epoch 1320
+    # policy_uri = policy_uri or "s3://softmax-public/policies/tasha.10.17.shaped_PPOhypers_vit.no_contrastive.seed672/tasha.10.17.shaped_PPOhypers_vit.no_contrastive.seed672:v1320.pt"
+
+    #the latest policy, which is getting zero reward
+    policy_uri = "s3://softmax-public/policies/tasha.10.17.shaped_PPOhypers_vit.no_contrastive.seed672/:latest"
     return ReplayTool(sim=simulations()[0], policy_uri=policy_uri)
 
 

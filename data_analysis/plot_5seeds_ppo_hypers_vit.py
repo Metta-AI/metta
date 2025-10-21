@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Plot comparison of contrastive vs non-contrastive training runs (30 seeds).
+Plot comparison of contrastive vs non-contrastive training runs.
 
 Fetches metrics from WandB, computes means across multiple seeds, and plots them.
 """
@@ -57,6 +57,8 @@ def compute_ttest(contrastive_individual: pd.DataFrame, no_contrastive_individua
     """
     Compute independent samples t-test between two conditions.
 
+    Compares the maximum value achieved by each seed (one value per seed).
+
     Args:
         contrastive_individual: Individual run data for contrastive runs
         no_contrastive_individual: Individual run data for non-contrastive runs
@@ -67,15 +69,15 @@ def compute_ttest(contrastive_individual: pd.DataFrame, no_contrastive_individua
     if contrastive_individual.empty or no_contrastive_individual.empty:
         return float("nan"), float("nan")
 
-    # Get all values from both conditions
-    contrastive_values = contrastive_individual["value"].dropna().values
-    no_contrastive_values = no_contrastive_individual["value"].dropna().values
+    # Get maximum value for each run (seed) - one value per seed
+    contrastive_max_per_seed = contrastive_individual.groupby("run")["value"].max().dropna().values
+    no_contrastive_max_per_seed = no_contrastive_individual.groupby("run")["value"].max().dropna().values
 
-    if len(contrastive_values) == 0 or len(no_contrastive_values) == 0:
+    if len(contrastive_max_per_seed) == 0 or len(no_contrastive_max_per_seed) == 0:
         return float("nan"), float("nan")
 
-    # Perform independent samples t-test
-    t_stat, p_value = stats.ttest_ind(contrastive_values, no_contrastive_values)
+    # Perform independent samples t-test on per-seed maximums
+    t_stat, p_value = stats.ttest_ind(contrastive_max_per_seed, no_contrastive_max_per_seed)
 
     return t_stat, p_value
 
@@ -104,18 +106,17 @@ def plot_comparison(
     # Extract readable metric name from key (e.g., "env_agent/heart.get" -> "Heart Get")
     metric_name = metric_key.split("/")[-1].replace("_", " ").replace(".", " ").title()
 
-    # Plot individual contrastive runs (semi-transparent) - disabled for many seeds
-    # With 30 seeds, individual runs create too much visual noise
-    # if not contrastive_individual.empty:
-    #     for run_name in contrastive_individual["run"].unique():
-    #         run_data = contrastive_individual[contrastive_individual["run"] == run_name]
-    #         ax.plot(
-    #             run_data["_step"],
-    #             run_data["value"],
-    #             color="#2E86AB",
-    #             alpha=0.05,  # Very transparent for many seeds
-    #             linewidth=0.5,
-    #         )
+    # Plot individual contrastive runs (semi-transparent)
+    if not contrastive_individual.empty:
+        for run_name in contrastive_individual["run"].unique():
+            run_data = contrastive_individual[contrastive_individual["run"] == run_name]
+            ax.plot(
+                run_data["_step"],
+                run_data["value"],
+                color="#2E86AB",
+                alpha=0.3,
+                linewidth=1,
+            )
 
     # Plot contrastive mean with error bars
     if not contrastive_stats.empty:
@@ -140,18 +141,17 @@ def plot_comparison(
             color="#2E86AB",
         )
 
-    # Plot individual non-contrastive runs (semi-transparent) - disabled for many seeds
-    # With 30 seeds, individual runs create too much visual noise
-    # if not no_contrastive_individual.empty:
-    #     for run_name in no_contrastive_individual["run"].unique():
-    #         run_data = no_contrastive_individual[no_contrastive_individual["run"] == run_name]
-    #         ax.plot(
-    #             run_data["_step"],
-    #             run_data["value"],
-    #             color="#A23B72",
-    #             alpha=0.05,  # Very transparent for many seeds
-    #             linewidth=0.5,
-    #         )
+    # Plot individual non-contrastive runs (semi-transparent)
+    if not no_contrastive_individual.empty:
+        for run_name in no_contrastive_individual["run"].unique():
+            run_data = no_contrastive_individual[no_contrastive_individual["run"] == run_name]
+            ax.plot(
+                run_data["_step"],
+                run_data["value"],
+                color="#A23B72",
+                alpha=0.3,
+                linewidth=1,
+            )
 
     # Plot non-contrastive mean with error bars
     if not no_contrastive_stats.empty:
@@ -179,7 +179,7 @@ def plot_comparison(
     ax.set_xlabel("Training Steps", fontsize=14)
     ax.set_ylabel(metric_name, fontsize=14)
     ax.set_title(
-        f"Contrastive Loss Impact on {metric_name} (30 seeds, contrastive hypers, ViT, ABES)",
+        f"Contrastive Loss Impact on {metric_name} (with PPO hypers, ViT, ABES)",
         fontsize=16,
         fontweight="bold",
         pad=20,
@@ -270,42 +270,10 @@ def plot_comparison(
 
 def main():
     # Configuration
-    BASE_RUN_NAME_1 = "tasha.10.16.shaped_hypers_vit"
-    BASE_RUN_NAME_2 = "tasha.10.15.shaped_hypers_vit_2"
+    BASE_RUN_NAME = "tasha.10.17.shaped_PPOhypers_vit"
 
-    # 27 seeds from first base run
-    SEEDS_BATCH_1 = [
-        67,
-        134,
-        201,
-        268,
-        335,
-        402,
-        469,
-        536,
-        603,
-        670,
-        737,
-        804,
-        871,
-        938,
-        1005,
-        1072,
-        1139,
-        1206,
-        1273,
-        1340,
-        1407,
-        1474,
-        1541,
-        1608,
-        1675,
-        1742,
-        1809,
-    ]
-
-    # 3 additional seeds from second base run
-    SEEDS_BATCH_2 = [42, 123, 456]
+    # Select which seeds to use (all 5 seeds)
+    SEEDS_TO_USE = [67, 134, 201, 34, 672]
 
     # Which metrics to plot
     METRICS_TO_PLOT = [
@@ -315,27 +283,20 @@ def main():
     # Number of samples to fetch from WandB (higher = more accurate but slower)
     NUM_SAMPLES = 5000
 
+    # Maximum timestep to include in the plot (None for all timesteps)
+    MAX_TIMESTEP = 2_000_000_000  # 2 billion
+
     print("=" * 80)
-    print("Contrastive Loss Comparison (30 Seeds)")
+    print("Contrastive Loss Comparison")
     print("=" * 80)
-    print(f"\nBase run name 1: {BASE_RUN_NAME_1}")
-    print(f"Seeds batch 1 ({len(SEEDS_BATCH_1)}): {SEEDS_BATCH_1}")
-    print(f"\nBase run name 2: {BASE_RUN_NAME_2}")
-    print(f"Seeds batch 2 ({len(SEEDS_BATCH_2)}): {SEEDS_BATCH_2}")
-    print(f"\nMetrics: {METRICS_TO_PLOT}")
+    print(f"\nBase run name: {BASE_RUN_NAME}")
+    print(f"Seeds: {SEEDS_TO_USE}")
+    print(f"Metrics: {METRICS_TO_PLOT}")
     print(f"\n{'=' * 80}\n")
 
-    # Build run names for batch 1 (27 seeds)
-    contrastive_runs_batch1 = [f"{BASE_RUN_NAME_1}.contrastive.seed{seed}" for seed in SEEDS_BATCH_1]
-    no_contrastive_runs_batch1 = [f"{BASE_RUN_NAME_1}.no_contrastive.seed{seed}" for seed in SEEDS_BATCH_1]
-
-    # Build run names for batch 2 (3 seeds)
-    contrastive_runs_batch2 = [f"{BASE_RUN_NAME_2}.contrastive.seed{seed}" for seed in SEEDS_BATCH_2]
-    no_contrastive_runs_batch2 = [f"{BASE_RUN_NAME_2}.no_contrastive.seed{seed}" for seed in SEEDS_BATCH_2]
-
-    # Combine all runs
-    contrastive_runs = contrastive_runs_batch1 + contrastive_runs_batch2
-    no_contrastive_runs = no_contrastive_runs_batch1 + no_contrastive_runs_batch2
+    # Build run names
+    contrastive_runs = [f"{BASE_RUN_NAME}.contrastive.seed{seed}" for seed in SEEDS_TO_USE]
+    no_contrastive_runs = [f"{BASE_RUN_NAME}.no_contrastive.seed{seed}" for seed in SEEDS_TO_USE]
 
     print(f"Contrastive runs ({len(contrastive_runs)}):")
     for run in contrastive_runs:
@@ -354,6 +315,20 @@ def main():
 
     print("\nFetching non-contrastive runs...")
     no_contrastive_metrics = fetch_metrics(no_contrastive_runs, samples=NUM_SAMPLES, keys=METRICS_TO_PLOT + ["_step"])
+
+    # Filter to maximum timestep if specified
+    if MAX_TIMESTEP is not None:
+        print(f"\nFiltering data to max {MAX_TIMESTEP:,} timesteps...")
+        for run_name in contrastive_metrics:
+            if "_step" in contrastive_metrics[run_name].columns:
+                contrastive_metrics[run_name] = contrastive_metrics[run_name][
+                    contrastive_metrics[run_name]["_step"] <= MAX_TIMESTEP
+                ]
+        for run_name in no_contrastive_metrics:
+            if "_step" in no_contrastive_metrics[run_name].columns:
+                no_contrastive_metrics[run_name] = no_contrastive_metrics[run_name][
+                    no_contrastive_metrics[run_name]["_step"] <= MAX_TIMESTEP
+                ]
 
     print(f"\n{'=' * 80}\n")
 
@@ -388,7 +363,7 @@ def main():
 
         # Create save path
         metric_filename = metric.replace("/", "_")
-        save_path = f"contrastive_comparison_30seeds_{metric_filename}.png"
+        save_path = f"contrastive_comparison_{metric_filename}.png"
 
         # Plot
         plot_comparison(
