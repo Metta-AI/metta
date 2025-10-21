@@ -274,12 +274,21 @@ jobs:
         run: |
           set -euo pipefail
           uv venv --python "$(which python)" .venv
-          INSTALL_ARGS=("--python" ".venv/bin/python")
-          FIND_LINKS_ARGS=("--find-links" "$(pwd)/cogames-dist")
+          INSTALL_CMD=(uv pip install --python .venv/bin/python)
           if [ "${METTAGRID_CODEPLOY}" = "yes" ]; then
-            FIND_LINKS_ARGS+=("--find-links" "$(pwd)/mettagrid-dist" "--no-index")
+            METTAGRID_WHEEL=$(find "$(pwd)/mettagrid-dist" -maxdepth 1 -name "mettagrid-*.whl" | head -n1 || true)
+            if [ -z "${METTAGRID_WHEEL}" ]; then
+              echo "Expected mettagrid wheel in mettagrid-dist/" >&2
+              exit 1
+            fi
+            "${INSTALL_CMD[@]}" "${METTAGRID_WHEEL}"
           fi
-          uv pip install "${INSTALL_ARGS[@]}" "${FIND_LINKS_ARGS[@]}" cogames
+          COGAMES_WHEEL=$(find "$(pwd)/cogames-dist" -maxdepth 1 -name "cogames-*.whl" | head -n1 || true)
+          if [ -z "${COGAMES_WHEEL}" ]; then
+            echo "Expected cogames wheel in cogames-dist/" >&2
+            exit 1
+          fi
+          "${INSTALL_CMD[@]}" "${COGAMES_WHEEL}"
       - name: Run cogames smoke test
         run: |
           set -euo pipefail
