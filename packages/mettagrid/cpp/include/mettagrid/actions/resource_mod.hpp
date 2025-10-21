@@ -153,7 +153,7 @@ protected:
       for (Agent* agent : affected_agents) {
         InventoryDelta delta = compute_probabilistic_delta(effective_amount);
         if (delta != 0) {
-          agent->update_inventory(item, delta);
+          agent->inventory.update(item, delta);
         }
       }
 
@@ -161,7 +161,7 @@ protected:
       for (Converter* converter : affected_converters) {
         InventoryDelta delta = compute_probabilistic_delta(effective_amount);
         if (delta != 0) {
-          converter->update_inventory(item, delta);
+          converter->inventory.update(item, delta);
         }
       }
     }

@@ -15,7 +15,7 @@
 #include "objects/usable.hpp"
 #include "systems/stats_tracker.hpp"
 
-class Agent : public GridObject, public HasInventory, public InventoryWatcher {
+class Agent : public GridObject, public HasInventory, public InventoryWatcher, public Usable {
 public:
   ObservationType group;
   short frozen;
@@ -194,8 +194,8 @@ public:
       InventoryQuantity share_attempted_amount = actor_amount / 2;
       if (share_attempted_amount > 0) {
         // The actor is trying to give us resources. We need to make sure we can take them.
-        InventoryDelta successful_share_amount = this->update_inventory(resource, share_attempted_amount);
-        actor.update_inventory(resource, -successful_share_amount);
+        InventoryDelta successful_share_amount = this->inventory.update(resource, share_attempted_amount);
+        actor.inventory.update(resource, -successful_share_amount);
       }
     }
 

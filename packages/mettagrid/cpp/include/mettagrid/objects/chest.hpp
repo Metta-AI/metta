@@ -66,15 +66,15 @@ private:
 
         if (transfer_amount == 0) {
           // Chest is full, destroy the resource from agent
-          agent.update_inventory(resource_type, -delta);
+          agent.inventory.update(resource_type, -delta);
           stats_tracker->add("chest." + stats_tracker->resource_name(resource_type) + ".destroyed", delta);
           return true;
         }
       }
 
       // Transfer from agent to chest
-      InventoryDelta deposited = update_inventory(resource_type, transfer_amount);
-      agent.update_inventory(resource_type, -transfer_amount);
+      InventoryDelta deposited = inventory.update(resource_type, transfer_amount);
+      agent.inventory.update(resource_type, -transfer_amount);
       stats_tracker->add("chest." + stats_tracker->resource_name(resource_type) + ".deposited", transfer_amount);
       stats_tracker->set("chest." + stats_tracker->resource_name(resource_type) + ".amount",
                          inventory.amount(resource_type));
@@ -82,7 +82,7 @@ private:
       // If we couldn't transfer the full delta due to max_inventory, destroy the rest
       int destroyed = delta - transfer_amount;
       if (destroyed > 0) {
-        agent.update_inventory(resource_type, -destroyed);
+        agent.inventory.update(resource_type, -destroyed);
         stats_tracker->add("chest." + stats_tracker->resource_name(resource_type) + ".destroyed", destroyed);
       }
       return true;
@@ -128,7 +128,7 @@ public:
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids);
     // Set initial inventory
     if (cfg.initial_inventory > 0) {
-      update_inventory(cfg.resource_type, cfg.initial_inventory);
+      inventory.update(cfg.resource_type, cfg.initial_inventory);
     }
   }
 
