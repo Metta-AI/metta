@@ -34,7 +34,7 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
 
     # Task distribution and sampling
     num_active_tasks: int = 1000
-    rand_task_rate: float = 0.01
+    rand_task_rate: float = 0.01  # Reduced from 0.25 in refactor for better curriculum learning
     sample_threshold: int = 10
     memory: int = 25
     eviction_threshold_percentile: float = 0.4  # Bottom percentile for task eviction

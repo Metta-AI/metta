@@ -2,11 +2,9 @@
 
 import pytest
 
-from experiments.recipes.in_context_learning.assemblers.assembly_lines import (
-    curriculum_args,
-    make_task_generator_cfg,
-)
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
+from metta.cogworks.curriculum.task_generator import BucketedTaskGenerator
+from mettagrid.builder.envs import make_arena
 
 
 class TestLPConfigOverrides:
@@ -15,7 +13,9 @@ class TestLPConfigOverrides:
     @pytest.fixture
     def task_generator_cfg(self):
         """Create a task generator config for testing."""
-        return make_task_generator_cfg(**curriculum_args["train"], map_dir=None)
+        # Create simple task generator config without depending on specific recipes
+        base_config = make_arena(num_agents=4)
+        return BucketedTaskGenerator.Config.from_mg(base_config)
 
     @pytest.mark.parametrize(
         "param_name,override_value,expected_value",
