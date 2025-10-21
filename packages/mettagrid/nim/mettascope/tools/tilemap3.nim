@@ -37,6 +37,7 @@ type
     # OpenGL textures
     indexTexture: GLuint
     tileAtlasTextureArray: GLuint
+    overworldTexture: GLuint
     shader: Shader
     VAO: GLuint
     VBO: GLuint
@@ -140,6 +141,25 @@ for i in 0 ..< terrainMap.indexData.len:
 
 echo "Done generating tile map"
 
+proc averageColor(img: Image): ColorRGBX =
+  ## Returns the average color of the image.
+  var
+    r, g, b, a: float32 = 0
+  let m = img.width.float32 * img.height.float32
+  for y in 0 ..< img.height:
+    for x in 0 ..< img.width:
+      r += img.unsafe[x, y].r.float32 / m
+      g += img.unsafe[x, y].g.float32 / m
+      b += img.unsafe[x, y].b.float32 / m
+      a += img.unsafe[x, y].a.float32 / m
+      echo x, ", ", y, " - r: ", r, " g: ", g, " b: ", b, " a: ", a
+  return rgbx(
+    floor(r).uint8,
+    floor(g).uint8,
+    floor(b).uint8,
+    floor(a).uint8,
+  )
+
 proc setupGPU(tileMap: TileMap) =
   # Create OpenGL texture for tile indices
   glGenTextures(1, tileMap.indexTexture.addr)
@@ -188,8 +208,28 @@ proc setupGPU(tileMap: TileMap) =
   glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE.GLint)
   glGenerateMipmap(GL_TEXTURE_2D_ARRAY)
 
+  # Create overworld texture (RGBA8, mipmapped), same size as index texture.
+  glGenTextures(1, tileMap.overworldTexture.addr)
+  glBindTexture(GL_TEXTURE_2D, tileMap.overworldTexture)
+  glTexImage2D(
+    GL_TEXTURE_2D,
+    0,
+    GL_RGBA8.GLint,
+    tileMap.width.GLint,
+    tileMap.height.GLint,
+    0,
+    GL_RGBA,
+    GL_UNSIGNED_BYTE,
+    nil
+  )
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR.GLint)
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR.GLint)
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE.GLint)
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE.GLint)
+
   # Fill the texture array with the tile atlas.
   var layer = 0
+  var avgColors: seq[ColorRGBX]
   for ty in 0 ..< tilesPerCol:
     for tx in 0 ..< tilesPerRow:
       let sx = tx * tileMap.tileSize
@@ -206,8 +246,29 @@ proc setupGPU(tileMap: TileMap) =
         GL_UNSIGNED_BYTE,
         cast[pointer](subImg.data[0].addr)
       )
+      avgColors.add(subImg.averageColor())
       inc layer
   glGenerateMipmap(GL_TEXTURE_2D_ARRAY)
+
+  # Fill overworld texture with average color per tile.
+  var owData = newImage(tileMap.width, tileMap.height)
+  for y in 0 ..< tileMap.height:
+    for x in 0 ..< tileMap.width:
+      let tileIndex = tileMap.indexData[y * tileMap.width + x].int
+      owData.unsafe[x, y] = avgColors[tileIndex]
+
+  glTexSubImage2D(
+    GL_TEXTURE_2D,
+    0,
+    0,
+    0,
+    tileMap.width.GLsizei,
+    tileMap.height.GLsizei,
+    GL_RGBA,
+    GL_UNSIGNED_BYTE,
+    owData.data[0].addr
+  )
+  glGenerateMipmap(GL_TEXTURE_2D)
 
   # Vertex shader source (OpenGL 4.1)
   let vertexShaderSource = """
@@ -239,13 +300,24 @@ uniform usampler2D    uIndexTexture;  // tile ids [0 .. layerCount-1]
 
 // Each layer is ONE tile image. All layers must be the same dimensions (uTileSize x uTileSize).
 uniform sampler2DArray uTileArray;
+uniform sampler2D      uOverworld;
 
 // --- Map / tile geometry ---
 uniform vec2  uMapSize;   // map size in tiles, e.g. (256, 256)
 uniform float uTileSize;  // tile size in texels, e.g. 16
+uniform float uZoom;      // current zoom (screen->world scale)
+uniform float uZoomThreshold; // switch to overworld when zoom below this
 
 void main()
 {
+    // 0) Switch to overworld if zoomed out enough
+    if (uZoom < uZoomThreshold) {
+        // Sample overworld at map texel resolution
+        vec2 mapUV = TexCoord; // TexCoord already spans 0..1 across map
+        FragColor = texture(uOverworld, mapUV);
+        return;
+    }
+
     // 1) Which map cell are we in?
     vec2  mapPos   = TexCoord * uMapSize;        // [0..mapW/H) in tile units
     ivec2 mapTexel = ivec2(floor(mapPos));       // integer tile coords
@@ -343,13 +415,15 @@ void main()
 
 
 proc draw(tileMap: TileMap, mvp: Mat4) =
-  # Use our custom shader
+  # Use our custom shaderf
   glUseProgram(tileMap.shader.programId)
 
   # Set uniforms
   tileMap.shader.setUniform("uMVP", mvp)
   tileMap.shader.setUniform("uMapSize", vec2(MAP_SIZE.float32, MAP_SIZE.float32))
   tileMap.shader.setUniform("uTileSize", 64.0f)  # Tile size in pixels.
+  tileMap.shader.setUniform("uZoom", zoom)
+  tileMap.shader.setUniform("uZoomThreshold", 2.0f)
 
   tileMap.shader.bindUniforms()
 
@@ -361,6 +435,10 @@ proc draw(tileMap: TileMap, mvp: Mat4) =
   glActiveTexture(GL_TEXTURE1)
   glBindTexture(GL_TEXTURE_2D_ARRAY, tileMap.tileAtlasTextureArray)
   tileMap.shader.setUniform("uTileArray", 1)
+
+  glActiveTexture(GL_TEXTURE2)
+  glBindTexture(GL_TEXTURE_2D, tileMap.overworldTexture)
+  tileMap.shader.setUniform("uOverworld", 2)
 
   tileMap.shader.bindUniforms()
 
@@ -392,7 +470,6 @@ window.onFrame = proc() =
 
   if window.scrollDelta.y != 0:
     zoomVel = window.scrollDelta.y * 0.005
-    echo "pos: ", pos, " zoom: ", zoom
   else:
     zoomVel *= 0.95
 
