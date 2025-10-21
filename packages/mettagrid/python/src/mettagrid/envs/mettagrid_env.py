@@ -183,6 +183,9 @@ class MettaGridEnv(MettaGridPufferBase):
         with self.timer("_c_env.get_episode_stats"):
             stats = self.get_episode_stats()
 
+        # add the average reward per agent to the infos so we can show it in the pufferlib dashboard
+        infos["agent/avg_reward_per_agent"] = episode_rewards.mean()
+
         # Process agent stats
         infos["game"] = stats["game"]
         infos["agent"] = {}
