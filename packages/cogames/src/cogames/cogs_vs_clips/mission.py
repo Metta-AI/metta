@@ -1,6 +1,8 @@
+from typing import Literal
+
 from pydantic import Field
 
-from cogames.cogs_vs_clips import protocols, vibes
+from cogames.cogs_vs_clips import vibes
 from cogames.cogs_vs_clips.stations import (
     CarbonExtractorConfig,
     ChargerConfig,
@@ -23,7 +25,6 @@ from mettagrid.config.mettagrid_config import (
     GameConfig,
     MettaGridConfig,
     ProtocolConfig,
-    RecipeConfig,
 )
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 
@@ -75,8 +76,8 @@ class Mission(Config):
     gear_capacity: int = Field(default=5)
     move_energy_cost: int = Field(default=2)
     heart_capacity: int = Field(default=1)
-    easy_mode: bool = Field(default=False)
-    shaped_rewards_mode: bool = Field(default=False)
+    change_glyph_enabled: bool = Field(default=True)
+    reward_profile: Literal["default", "heart_focus"] = Field(default="default")
 
     def instantiate(
         self, map_builder: MapBuilderConfig, num_cogs: int, variant: MissionVariant | None = None
@@ -123,16 +124,14 @@ class Mission(Config):
             ("scrambler", "modulator", "decoder", "resonator"): self.gear_capacity,
         }
 
-        if self.easy_mode:
-            resource_limits["heart"] = max(resource_limits["heart"], 10)
-
-        reward_stats: dict[str, float] = {"chest.heart.amount": 1 / self.num_cogs}
-
-        if self.shaped_rewards_mode:
+        reward_stats: dict[str, float]
+        if self.reward_profile == "heart_focus":
             reward_stats = {
                 "heart.gained": 0.1,
                 "chest.heart.deposited": 1.0,
             }
+        else:
+            reward_stats = {"chest.heart.amount": 1 / self.num_cogs}
 
         agent_config = AgentConfig(
             resource_limits=resource_limits,
@@ -154,7 +153,10 @@ class Mission(Config):
             actions=ActionsConfig(
                 move=ActionConfig(consumed_resources={"energy": self.move_energy_cost}),
                 noop=ActionConfig(),
-                change_glyph=ChangeGlyphActionConfig(number_of_glyphs=len(vibes.VIBES)),
+                change_glyph=ChangeGlyphActionConfig(
+                    enabled=self.change_glyph_enabled,
+                    number_of_glyphs=len(vibes.VIBES),
+                ),
             ),
             agent=agent_config,
             inventory_regen_interval=1,
@@ -190,25 +192,5 @@ class Mission(Config):
                 "silicon_extractor": self.silicon_extractor.station_cfg(),
             },
         )
-
-        if self.easy_mode:
-            assembler_cfg = game.objects["assembler"]
-
-            def _has_easy_recipe() -> bool:
-                for _, recipe in assembler_cfg.recipes:
-                    if recipe.output_resources.get("heart") == 1 and recipe.input_resources == {"energy": 1}:
-                        return True
-                return False
-
-            if not _has_easy_recipe():
-                easy_recipe = RecipeConfig(
-                    input_resources={"energy": 1},
-                    output_resources={"heart": 1},
-                    cooldown=1,
-                )
-                assembler_cfg.recipes += protocols.protocol(easy_recipe, num_agents=1)
-
-            if hasattr(game.actions, "change_glyph"):
-                game.actions.change_glyph.enabled = False
 
         return MettaGridConfig(game=game)

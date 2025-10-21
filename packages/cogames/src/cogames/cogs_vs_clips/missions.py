@@ -69,22 +69,23 @@ class SolarFlareVariant(MissionVariant):
         return mission
 
 
-class EasyVariant(MissionVariant):
-    name: str = "easy"
-    description: str = "Simplify assembler and disable glyph changes for a gentler introduction."
+class EfficientAssemblersVariant(MissionVariant):
+    name: str = "efficient_assemblers"
+    description: str = "Assembler protocols tuned for quick heart assembly and simpler play."
 
     def apply(self, mission: Mission) -> Mission:
-        mission.easy_mode = True
+        mission.assembler.recipe_pack = "tutorial"
         mission.heart_capacity = max(mission.heart_capacity, 10)
+        mission.change_glyph_enabled = False
         return mission
 
 
-class ShapedRewardsVariant(MissionVariant):
-    name: str = "shaped"
-    description: str = "Add gentle heart-focused shaped rewards to guide new players."
+class HeartWhispersVariant(MissionVariant):
+    name: str = "heart_whispers"
+    description: str = "Heart-centric reward shaping to guide cooperative play."
 
     def apply(self, mission: Mission) -> Mission:
-        mission.shaped_rewards_mode = True
+        mission.reward_profile = "heart_focus"
         return mission
 
 
@@ -94,8 +95,8 @@ VARIANTS = [
     BrightSideVariant,
     RoughTerrainVariant,
     SolarFlareVariant,
-    EasyVariant,
-    ShapedRewardsVariant,
+    EfficientAssemblersVariant,
+    HeartWhispersVariant,
 ]
 
 

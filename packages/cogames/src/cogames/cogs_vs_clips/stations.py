@@ -202,30 +202,68 @@ class CvCChestConfig(CvCStationConfig):
 
 class CvCAssemblerConfig(CvCStationConfig):
     type: Literal["assembler"] = Field(default="assembler")
+    recipe_pack: Literal["standard", "tutorial", "hearts", "gear", "advanced"] = Field(default="standard")
 
     def station_cfg(self) -> AssemblerConfig:
-        gear = [("oxygen", "modulator"), ("germanium", "scrambler"), ("silicon", "resonator"), ("carbon", "decoder")]
         return AssemblerConfig(
             name=self.type,
             type_id=8,
             map_char="&",
             render_symbol=vibes.VIBE_BY_NAME["assembler"].symbol,
             clip_immune=True,
-            recipes=[
-                (
-                    ["heart"] * (i + 1),
-                    ProtocolConfig(
-                        input_resources={"carbon": 20, "oxygen": 20, "germanium": 5 - i, "silicon": 50, "energy": 20},
-                        output_resources={"heart": 1},
-                    ),
-                )
-                for i in range(4)
-            ]
-            + [
-                (
-                    ["gear", gear[i][0]],
-                    ProtocolConfig(input_resources={gear[i][0]: 1}, output_resources={gear[i][1]: 1}),
-                )
-                for i in range(len(gear))
-            ],
+            recipes=self._recipes_for_pack(),
         )
+
+    def _recipes_for_pack(self) -> list[tuple[list[str], ProtocolConfig]]:
+        match self.recipe_pack:
+            case "tutorial":
+                return self._tutorial_recipes()
+            case "hearts":
+                return self._heart_recipes()
+            case "gear":
+                return self._gear_recipes()
+            case "advanced":
+                return self._advanced_recipes()
+            case _:
+                return self._standard_recipes()
+
+    def _standard_recipes(self) -> list[tuple[list[str], ProtocolConfig]]:
+        return self._heart_recipes() + self._gear_recipes()
+
+    def _tutorial_recipes(self) -> list[tuple[list[str], ProtocolConfig]]:
+        return [
+            (
+                [],
+                ProtocolConfig(
+                    input_resources={"energy": 1},
+                    output_resources={"heart": 1},
+                    cooldown=1,
+                ),
+            )
+        ] + self._standard_recipes()
+
+    def _heart_recipes(self) -> list[tuple[list[str], ProtocolConfig]]:
+        return [
+            (
+                ["heart"] * (i + 1),
+                ProtocolConfig(
+                    input_resources={"carbon": 20, "oxygen": 20, "germanium": 5 - i, "silicon": 50, "energy": 20},
+                    output_resources={"heart": 1},
+                ),
+            )
+            for i in range(4)
+        ]
+
+    def _gear_recipes(self) -> list[tuple[list[str], ProtocolConfig]]:
+        gear = [("oxygen", "modulator"), ("germanium", "scrambler"), ("silicon", "resonator"), ("carbon", "decoder")]
+        return [
+            (
+                ["gear", gear_name],
+                ProtocolConfig(input_resources={gear_name: 1}, output_resources={output_name: 1}),
+            )
+            for gear_name, output_name in gear
+        ]
+
+    def _advanced_recipes(self) -> list[tuple[list[str], ProtocolConfig]]:
+        # Placeholder for future advanced recipe logic; currently mirrors the standard pack.
+        return self._standard_recipes()
