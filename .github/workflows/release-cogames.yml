@@ -192,17 +192,21 @@ jobs:
               environment_url: process.env.DEPLOY_URL,
               description: 'Publish failed',
             });
-  mettagrid-wheels:
-    name: Fetch mettagrid wheels
+  smoke-test:
+    name: Run cogames smoke test
     needs: build
-    if: ${{ needs.build.outputs.mettagrid_codeploy == 'yes' }}
+    if: ${{ needs.build.result == 'success' }}
     runs-on: ubuntu-latest
+    env:
+      METTAGRID_CODEPLOY: ${{ needs.build.outputs.mettagrid_codeploy }}
+      RELEASE_SHA: ${{ needs.build.outputs.release_sha }}
     steps:
-      - name: Wait for mettagrid release workflow
-        id: locate-run
+      - name: Wait for mettagrid wheels
+        if: ${{ env.METTAGRID_CODEPLOY == 'yes' }}
+        id: locate-mettagrid-run
         uses: actions/github-script@v7
         env:
-          TARGET_SHA: ${{ needs.build.outputs.release_sha }}
+          TARGET_SHA: ${{ env.RELEASE_SHA }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -247,38 +251,18 @@ jobs:
             }
             core.setFailed("Timed out waiting for mettagrid workflow run to complete.");
       - name: Download mettagrid wheels
+        if: ${{ env.METTAGRID_CODEPLOY == 'yes' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RUN_ID: ${{ steps.locate-run.outputs.run_id }}
+          RUN_ID: ${{ steps.locate-mettagrid-run.outputs.run_id }}
         run: |
           set -euo pipefail
-          mkdir -p wheelhouse/mettagrid
-          gh run download "${RUN_ID}" --name wheels-ubuntu-latest --dir wheelhouse/mettagrid
-      - uses: actions/upload-artifact@v4
-        with:
-          name: mettagrid-wheels
-          path: wheelhouse/mettagrid
-          if-no-files-found: error
-
-  smoke-test:
-    name: Run cogames smoke test
-    needs:
-      - build
-      - mettagrid-wheels
-    if: ${{ needs.build.result == 'success' && (needs['mettagrid-wheels'].result == 'success' || needs['mettagrid-wheels'].result == 'skipped') }}
-    runs-on: ubuntu-latest
-    env:
-      METTAGRID_CODEPLOY: ${{ needs.build.outputs.mettagrid_codeploy }}
-    steps:
+          mkdir -p mettagrid-dist
+          gh run download "${RUN_ID}" --name wheels-ubuntu-latest --dir mettagrid-dist
       - uses: actions/download-artifact@v4
         with:
           name: cogames-dist
           path: cogames-dist
-      - uses: actions/download-artifact@v4
-        if: ${{ env.METTAGRID_CODEPLOY == 'yes' }}
-        with:
-          name: mettagrid-wheels
-          path: mettagrid-dist
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11.7"
