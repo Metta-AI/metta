@@ -502,7 +502,7 @@ def play(curriculum_style: str = "only_assembler"):
     )
 
 
-def train(curriculum_style: str = "only_assembler"):
+def train(curriculum_style: str = "assembler_with_chest"):
     from experiments.evals.machina1.single_agent_base import (
         make_single_agent_base_eval_suite,
     )
@@ -534,6 +534,9 @@ def experiment():
                 "experiments.recipes.machina1.single_agent_base.train",
                 f"run=machina1_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
                 f"curriculum_style={curriculum_style}",
+                "--gpus=4",
+                "--heartbeat-timeout=3600",
+                "--skip-git-check",
             ]
         )
         time.sleep(1)
