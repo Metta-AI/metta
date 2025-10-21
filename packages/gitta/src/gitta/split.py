@@ -9,7 +9,7 @@ import re
 import sys
 import tempfile
 from dataclasses import dataclass
-from typing import Any, Optional, cast
+from typing import Any, cast
 
 from anthropic import Anthropic
 from anthropic.types import TextBlock
@@ -51,14 +51,14 @@ class PRSplitter:
 
     def __init__(
         self,
-        anthropic_api_key: Optional[str] = None,
-        github_token: Optional[str] = None,
-        model: Optional[str] = None,
-        skip_hooks: Optional[bool] = None,
-        commit_timeout: Optional[float] = None,
+        anthropic_api_key: str | None = None,
+        github_token: str | None = None,
+        model: str | None = None,
+        skip_hooks: bool | None = None,
+        commit_timeout: float | None = None,
     ):
         self.anthropic_api_key = anthropic_api_key or os.environ.get("ANTHROPIC_API_KEY")
-        self._anthropic: Optional[Anthropic] = None
+        self._anthropic: Anthropic | None = None
         self.github_token = github_token or os.environ.get("GITHUB_TOKEN")
         self.model = model or os.environ.get("GITTA_SPLIT_MODEL") or DEFAULT_MODEL
 
@@ -80,8 +80,8 @@ class PRSplitter:
             else:
                 self.commit_timeout = DEFAULT_COMMIT_TIMEOUT
 
-        self.base_branch: Optional[str] = None
-        self.current_branch: Optional[str] = None
+        self.base_branch: str | None = None
+        self.current_branch: str | None = None
 
     def _get_anthropic_client(self) -> Anthropic:
         api_key = self.anthropic_api_key or os.environ.get("ANTHROPIC_API_KEY")
@@ -284,7 +284,6 @@ Return a JSON response with this exact structure:
         return patch if patch.endswith("\n") else f"{patch}\n"
 
     def apply_patch_to_new_branch(self, patch_content: str, branch_name: str) -> None:
-        """Create a new branch and apply the patch"""
         if self.base_branch is None:
             raise ValueError("Base branch is not set")
 
@@ -306,7 +305,6 @@ Return a JSON response with this exact structure:
             os.unlink(patch_file)
 
     def commit_changes(self, message: str) -> None:
-        """Commit staged changes with optional hook skipping and timeout control."""
         commit_args = ["commit"]
         if self.skip_hooks:
             commit_args.append("--no-verify")
@@ -314,7 +312,6 @@ Return a JSON response with this exact structure:
         run_git_cmd(commit_args, timeout=self.commit_timeout)
 
     def ensure_clean_worktree(self) -> None:
-        """Abort if the working tree has uncommitted changes."""
         status = run_git("status", "--porcelain")
         if status.strip():
             raise GitError(
@@ -322,8 +319,7 @@ Return a JSON response with this exact structure:
             )
 
     def verify_split(self, original_diff: str, diff1: str, diff2: str) -> bool:
-        """Verify that the split diffs contain all changes from the original"""
-        # Simple verification: check that all lines are accounted for
+        # Check that all lines are accounted for
         original_lines = set(
             line
             for line in original_diff.split("\n")
@@ -351,8 +347,7 @@ Return a JSON response with this exact structure:
 
         return len(missing) == 0 and len(extra) == 0
 
-    def get_repo_from_remote(self) -> Optional[str]:
-        """Extract owner/repo from git remote URL"""
+    def get_repo_from_remote(self) -> str | None:
         try:
             remote_url = get_remote_url()
             if not remote_url:
@@ -368,7 +363,6 @@ Return a JSON response with this exact structure:
             return None
 
     def branch_exists(self, branch_name: str) -> bool:
-        """Check if a branch already exists locally or remotely."""
         try:
             # Check local branch
             run_git("rev-parse", "--verify", branch_name)
@@ -386,7 +380,6 @@ Return a JSON response with this exact structure:
         return False
 
     def generate_unique_branch_name(self, base_name: str) -> str:
-        """Generate a unique branch name by appending timestamp if needed."""
         if not self.branch_exists(base_name):
             return base_name
 
@@ -397,8 +390,7 @@ Return a JSON response with this exact structure:
         new_name = f"{base_name}-{timestamp}"
         return new_name
 
-    def create_github_pr(self, branch: str, title: str, body: str) -> Optional[str]:
-        """Create a GitHub PR using the API"""
+    def create_github_pr(self, branch: str, title: str, body: str) -> str | None:
         if not self.github_token:
             print(f"Skipping PR creation for {branch} (no GitHub token provided)")
             return None
@@ -427,7 +419,6 @@ Return a JSON response with this exact structure:
             return None
 
     def split(self) -> None:
-        """Main method to split the current PR"""
         print("🔄 Starting PR split process...")
         self.ensure_clean_worktree()
 
@@ -538,11 +529,11 @@ Return a JSON response with this exact structure:
 
 
 def split_pr(
-    anthropic_api_key: Optional[str] = None,
-    github_token: Optional[str] = None,
-    model: Optional[str] = None,
-    skip_hooks: Optional[bool] = None,
-    commit_timeout: Optional[float] = None,
+    anthropic_api_key: str | None = None,
+    github_token: str | None = None,
+    model: str | None = None,
+    skip_hooks: bool | None = None,
+    commit_timeout: float | None = None,
 ) -> None:
     """Split the current branch into two smaller PRs using AI analysis."""
     splitter = PRSplitter(
