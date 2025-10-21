@@ -7,7 +7,7 @@ from types import ModuleType
 from typing import Iterable
 
 from cogames.cogs_vs_clips import missions, stations
-from mettagrid.builder import building, empty_converters
+from mettagrid.builder import building, empty_assemblers
 from mettagrid.mapgen.utils.ascii_grid import (
     DEFAULT_CHAR_TO_NAME as ASCII_GRID_DEFAULT_CHAR_TO_NAME,
 )
@@ -59,7 +59,7 @@ def _collect_additional_char_mappings(modules: Iterable[ModuleType]) -> dict[str
 
 # These mappings are compiled for future use when reconciling diverse legend sources.
 # They are not consumed today so downstream behavior remains unchanged.
-ADDITIONAL_CHAR_MAPPINGS = _collect_additional_char_mappings(modules=(building, empty_converters, stations, missions))
+ADDITIONAL_CHAR_MAPPINGS = _collect_additional_char_mappings(modules=(building, empty_assemblers, stations, missions))
 
 
 LEGEND_PRESETS: dict[str, dict[str, str]] = {
