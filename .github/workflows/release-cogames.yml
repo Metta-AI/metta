@@ -62,37 +62,37 @@ jobs:
         run: |
           set -euo pipefail
           python <<'PY'
-            import os
-            import subprocess
+          import os
+          import subprocess
 
-            codeploy = (os.environ.get("INPUT_CODEPLOY") or "auto").strip().lower()
-            if codeploy not in {"yes", "no"}:
-                if os.environ.get("GITHUB_REF_TYPE") == "tag":
-                    tag = os.environ.get("GITHUB_REF_NAME")
-                    message = ""
-                    if tag:
-                        try:
-                            message = subprocess.check_output(
-                                ["git", "tag", "-l", f"--format=%(contents)", tag],
-                                text=True,
-                                stderr=subprocess.DEVNULL,
-                            )
-                        except subprocess.CalledProcessError:
-                            message = ""
-                    for raw_line in message.splitlines():
-                        line = raw_line.strip()
-                        prefix = "mettagrid-codeploy:"
-                        if line.lower().startswith(prefix):
-                            value = line[len(prefix) :].strip().lower()
-                            if value in {"yes", "no"}:
-                                codeploy = value
-                                break
-            if codeploy not in {"yes", "no"}:
-                codeploy = "no"
+          codeploy = (os.environ.get("INPUT_CODEPLOY") or "auto").strip().lower()
+          if codeploy not in {"yes", "no"}:
+              if os.environ.get("GITHUB_REF_TYPE") == "tag":
+                  tag = os.environ.get("GITHUB_REF_NAME")
+                  message = ""
+                  if tag:
+                      try:
+                          message = subprocess.check_output(
+                              ["git", "tag", "-l", f"--format=%(contents)", tag],
+                              text=True,
+                              stderr=subprocess.DEVNULL,
+                          )
+                      except subprocess.CalledProcessError:
+                          message = ""
+                  for raw_line in message.splitlines():
+                      line = raw_line.strip()
+                      prefix = "mettagrid-codeploy:"
+                      if line.lower().startswith(prefix):
+                          value = line[len(prefix) :].strip().lower()
+                          if value in {"yes", "no"}:
+                              codeploy = value
+                              break
+          if codeploy not in {"yes", "no"}:
+              codeploy = "no"
 
-            print(f"Detected mettagrid co-deploy: {codeploy}")
-            with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
-                handle.write(f"mettagrid_codeploy={codeploy}\n")
+          print(f"Detected mettagrid co-deploy: {codeploy}")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write(f"mettagrid_codeploy={codeploy}\n")
           PY
       - uses: actions/setup-python@v5
         with:
