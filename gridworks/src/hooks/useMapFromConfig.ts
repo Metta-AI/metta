@@ -19,7 +19,7 @@ type MapState =
     };
 
 export function useMapFromConfig(cfg: Config, name?: string) {
-  const [state, setState] = useState<MapState>({ type: "loading" });
+  const [state, setState] = useState<MapState>({ type: "init", loading: true });
 
   const reload = useCallback(async () => {
     setState((state) => ({

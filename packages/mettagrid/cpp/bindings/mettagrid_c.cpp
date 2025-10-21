@@ -831,12 +831,23 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
       }
     }
 
-    // Filter by bounding box if specified
+    // Filter by bounding box if specified: include object if any occupied cell intersects
     if (use_bounds) {
-      if (obj->location.r < min_row || obj->location.r >= max_row || obj->location.c < min_col ||
-          obj->location.c >= max_col) {
-        continue;
+      bool in_bounds = false;
+      // Check anchor
+      if (obj->location.r >= min_row && obj->location.r < max_row && obj->location.c >= min_col &&
+          obj->location.c < max_col) {
+        in_bounds = true;
+      } else {
+        // Check extra cells
+        for (const auto& loc : obj->extra_cells) {
+          if (loc.r >= min_row && loc.r < max_row && loc.c >= min_col && loc.c < max_col) {
+            in_bounds = true;
+            break;
+          }
+        }
       }
+      if (!in_bounds) continue;
     }
 
     py::dict obj_dict;
@@ -983,10 +994,36 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
       obj_dict["position_deltas"] = position_deltas_dict;
     }
 
+    // API Contract: cells array is ALWAYS present and ALWAYS contains at least the anchor cell.
+    // For single-cell objects: cells = [(c, r, layer)] (anchor only)
+    // For multi-cell objects: cells = [(c, r, layer), ...] (anchor + extra cells)
+    // Consumers should NOT check for presence or truthiness of cells - it is always a non-empty list.
+    // Use (c, r, layer) tuple format to match the location convention.
+    py::list cells;
+    cells.append(py::make_tuple(obj->location.c, obj->location.r, obj->location.layer));
+    for (const auto& loc : obj->extra_cells) {
+      cells.append(py::make_tuple(loc.c, loc.r, loc.layer));
+    }
+    obj_dict["cells"] = cells;
+
     objects[py::int_(obj_id)] = obj_dict;
   }
 
   return objects;
+}
+
+bool MettaGrid::add_object_cell(GridObjectId obj_id, GridCoord r, GridCoord c, Layer layer) {
+  auto* obj = _grid->object(obj_id);
+  if (!obj) return false;
+  GridLocation loc(r, c, layer);
+  return _grid->occupy_cell(*obj, loc);
+}
+
+bool MettaGrid::remove_object_cell(GridObjectId obj_id, GridCoord r, GridCoord c, Layer layer) {
+  auto* obj = _grid->object(obj_id);
+  if (!obj) return false;
+  GridLocation loc(r, c, layer);
+  return _grid->release_cell(*obj, loc);
 }
 
 py::list MettaGrid::action_names() {
@@ -1151,6 +1188,9 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("min_col") = -1,
            py::arg("max_col") = -1,
            py::arg("ignore_types") = py::list())
+      .def("add_object_cell", &MettaGrid::add_object_cell, py::arg("obj_id"), py::arg("r"), py::arg("c"), py::arg("layer"))
+      .def("remove_object_cell", &MettaGrid::remove_object_cell, py::arg("obj_id"), py::arg("r"), py::arg("c"), py::arg("layer"))
+      // Multi-cell object management helpers
       .def("action_names", &MettaGrid::action_names)
       .def_property_readonly("map_width", &MettaGrid::map_width)
       .def_property_readonly("map_height", &MettaGrid::map_height)

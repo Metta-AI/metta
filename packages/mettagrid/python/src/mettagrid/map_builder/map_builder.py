@@ -21,9 +21,15 @@ class GameMap:
     # Possible values: "wall", "empty", "agent", etc.
     # For the full list, see `mettagrid_c.cpp`.
     grid: MapGrid
+    
+    # Optional multi-cell grouping information.
+    # Each entry is (anchor_row, anchor_col, layer, [(extra_row, extra_col), ...])
+    # After env creation, cells in extra list should be added to the object at anchor.
+    multi_cell_groups: list[tuple[int, int, int, list[tuple[int, int]]]]
 
-    def __init__(self, grid: MapGrid):
+    def __init__(self, grid: MapGrid, multi_cell_groups: list[tuple[int, int, int, list[tuple[int, int]]]] | None = None):
         self.grid = grid
+        self.multi_cell_groups = multi_cell_groups or []
 
 
 TBuilder = TypeVar("TBuilder", bound="MapBuilder")

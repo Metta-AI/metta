@@ -15,6 +15,7 @@ from rich.console import Console
 
 from mettagrid.config.mettagrid_config import GameConfig, WallConfig
 from mettagrid.renderer.miniscope import MiniscopeRenderer
+from mettagrid.renderer.miniscope.buffer import compute_bounds
 
 
 @contextmanager
@@ -26,6 +27,22 @@ def suppress_stdout():
         yield
     finally:
         sys.stdout = old_stdout
+
+
+def make_grid_object(type_id: int, r: int, c: int, **kwargs) -> dict:
+    """Factory to create well-formed grid objects matching the C++ API contract.
+    
+    The C++ grid_objects() always includes 'cells' array with at least the anchor.
+    This factory ensures test objects match that structure.
+    """
+    obj = {
+        "type": type_id,
+        "r": r,
+        "c": c,
+        "cells": [(c, r, 0)],  # Always include anchor in (c, r, layer) format
+    }
+    obj.update(kwargs)
+    return obj
 
 
 class TestMiniscopeRenderer:
@@ -106,11 +123,11 @@ class TestMiniscopeRenderer:
     def test_compute_bounds_with_walls(self, renderer):
         """Test bounds computation based on wall positions."""
         grid_objects = {
-            0: {"type": 1, "r": 0, "c": 0},  # wall at (0, 0)
-            1: {"type": 1, "r": 0, "c": 5},  # wall at (0, 5)
-            2: {"type": 1, "r": 3, "c": 0},  # wall at (3, 0)
-            3: {"type": 1, "r": 3, "c": 5},  # wall at (3, 5)
-            4: {"type": 0, "r": 1, "c": 2},  # agent at (1, 2)
+            0: make_grid_object(1, 0, 0),  # wall at (0, 0)
+            1: make_grid_object(1, 0, 5),  # wall at (0, 5)
+            2: make_grid_object(1, 3, 0),  # wall at (3, 0)
+            3: make_grid_object(1, 3, 5),  # wall at (3, 5)
+            4: make_grid_object(0, 1, 2),  # agent at (1, 2)
         }
 
         renderer._compute_bounds(grid_objects)
@@ -121,15 +138,29 @@ class TestMiniscopeRenderer:
         assert renderer._height == 4  # rows 0-3
         assert renderer._width == 6  # cols 0-5
 
+    def test_compute_bounds_handles_missing_cells(self, object_type_names):
+        """compute_bounds should fall back to anchor when cells array is absent."""
+        grid_objects = {
+            0: {"type": 1, "r": 2, "c": 3},
+            1: {"type": 1, "r": 5, "c": 7},
+        }
+
+        min_row, min_col, height, width = compute_bounds(grid_objects, object_type_names)
+
+        assert min_row == 2
+        assert min_col == 3
+        assert height == 4
+        assert width == 5
+
     def test_render_simple_grid(self, renderer):
         """Test rendering a simple grid with various objects."""
         grid_objects = {
-            0: {"type": 1, "r": 0, "c": 0},  # wall
-            1: {"type": 1, "r": 0, "c": 2},  # wall
-            2: {"type": 0, "r": 1, "c": 1, "agent_id": 0},  # agent 0
-            3: {"type": 2, "r": 2, "c": 1},  # altar
-            4: {"type": 1, "r": 2, "c": 0},  # wall
-            5: {"type": 1, "r": 2, "c": 2},  # wall
+            0: make_grid_object(1, 0, 0),  # wall
+            1: make_grid_object(1, 0, 2),  # wall
+            2: make_grid_object(0, 1, 1, agent_id=0),  # agent 0
+            3: make_grid_object(2, 2, 1),  # altar
+            4: make_grid_object(1, 2, 0),  # wall
+            5: make_grid_object(1, 2, 2),  # wall
         }
 
         # Render without terminal output
@@ -149,12 +180,12 @@ class TestMiniscopeRenderer:
         renderer = MiniscopeRenderer(object_type_names, game_config, map_height=10, map_width=10)
 
         grid_objects = {
-            0: {"type": 1, "r": 0, "c": 0},  # wall
-            1: {"type": 0, "r": 1, "c": 1, "agent_id": 0},  # agent
-            2: {"type": 3, "r": 1, "c": 2},  # lasery (L)
-            3: {"type": 4, "r": 2, "c": 1},  # marker (m)
-            4: {"type": 5, "r": 2, "c": 2},  # block (s)
-            5: {"type": 1, "r": 3, "c": 3},  # wall (for bounds)
+            0: make_grid_object(1, 0, 0),  # wall
+            1: make_grid_object(0, 1, 1, agent_id=0),  # agent
+            2: make_grid_object(3, 1, 2),  # lasery (L)
+            3: make_grid_object(4, 2, 1),  # marker (m)
+            4: make_grid_object(5, 2, 2),  # block (s)
+            5: make_grid_object(1, 3, 3),  # wall (for bounds)
         }
 
         with suppress_stdout():
@@ -165,14 +196,26 @@ class TestMiniscopeRenderer:
         assert "🟠" in output  # marker
         assert "📦" in output  # block
 
+    def test_render_handles_missing_cells(self, renderer):
+        """Renderer should still work if legacy objects omit cells."""
+        grid_objects = {
+            0: {"type": 1, "r": 0, "c": 0},
+            1: {"type": 0, "r": 1, "c": 1, "agent_id": 0},
+        }
+
+        with suppress_stdout():
+            output = renderer.render(step=3, grid_objects=grid_objects)
+
+        assert "🟦" in output
+
     def test_render_caching(self, renderer):
         """Test that renderer caches output when grid doesn't change."""
         grid_objects = {
-            0: {"type": 1, "r": 0, "c": 0},  # wall
-            1: {"type": 1, "r": 0, "c": 2},  # wall
-            2: {"type": 1, "r": 2, "c": 0},  # wall
-            3: {"type": 1, "r": 2, "c": 2},  # wall
-            4: {"type": 0, "r": 1, "c": 1, "agent_id": 0},  # agent
+            0: make_grid_object(1, 0, 0),  # wall
+            1: make_grid_object(1, 0, 2),  # wall
+            2: make_grid_object(1, 2, 0),  # wall
+            3: make_grid_object(1, 2, 2),  # wall
+            4: make_grid_object(0, 1, 1, agent_id=0),  # agent
         }
 
         # First render
@@ -190,6 +233,7 @@ class TestMiniscopeRenderer:
 
         # Third render with different grid - move agent within bounds
         grid_objects[4]["c"] = 0  # Move agent to different column
+        grid_objects[4]["cells"] = [(0, 1, 0)]  # Update cells array to match
         with suppress_stdout():
             renderer.render(step=3, grid_objects=grid_objects)
         third_buffer = renderer._last_buffer
@@ -200,8 +244,8 @@ class TestMiniscopeRenderer:
     def test_get_buffer_path(self, renderer):
         """Exercise get_buffer to cover non-printing code path."""
         grid_objects = {
-            0: {"type": 1, "r": 0, "c": 0},  # wall
-            1: {"type": 0, "r": 1, "c": 1, "agent_id": 0},  # agent 0
+            0: make_grid_object(1, 0, 0),  # wall
+            1: make_grid_object(0, 1, 1, agent_id=0),  # agent 0
         }
 
         # Ensure bounds are computed and buffer is returned
@@ -226,7 +270,7 @@ class TestMiniscopeRenderer:
         renderer._object_type_names.append("unknown_type")
 
         grid_objects = {
-            0: {"type": len(renderer._object_type_names) - 1, "r": 0, "c": 0},  # Use the unknown type
+            0: make_grid_object(len(renderer._object_type_names) - 1, 0, 0),  # Use the unknown type
         }
 
         symbol = renderer._symbol_for(grid_objects[0])
@@ -239,7 +283,7 @@ class TestMiniscopeRenderer:
         obj_id = 0
         for r in range(10):
             for c in range(10):
-                grid_objects[obj_id] = {"type": 1, "r": r, "c": c}  # walls everywhere
+                grid_objects[obj_id] = make_grid_object(1, r, c)  # walls everywhere
                 obj_id += 1
 
         # Render with a small viewport centered at (5, 5) showing only 3x3
@@ -267,8 +311,8 @@ class TestMiniscopeRenderer:
     def test_viewport_no_arrows_when_at_edges(self, renderer):
         """Test that no arrows appear when viewport shows the entire map."""
         grid_objects = {
-            0: {"type": 1, "r": 0, "c": 0},
-            1: {"type": 1, "r": 2, "c": 2},
+            0: make_grid_object(1, 0, 0),
+            1: make_grid_object(1, 2, 2),
         }
 
         # Render without viewport constraints (full map)
@@ -300,7 +344,7 @@ class TestMiniscopeRenderer:
         """Test info panel with an agent selected."""
 
         grid_objects = {
-            0: {"type": 0, "r": 0, "c": 0, "agent_id": 1, "inventory": {0: 10, 1: 5}},
+            0: make_grid_object(0, 0, 0, agent_id=1, inventory={0: 10, 1: 5}),
         }
         resource_names = ["energy", "hearts"]
         total_rewards = np.array([0.0, 42.5])
@@ -324,7 +368,7 @@ class TestMiniscopeRenderer:
         """Test info panel with an agent that has no inventory."""
 
         grid_objects = {
-            0: {"type": 0, "r": 0, "c": 0, "agent_id": 0, "inventory": {}},
+            0: make_grid_object(0, 0, 0, agent_id=0, inventory={}),
         }
         total_rewards = np.array([10.0])
 
@@ -342,11 +386,11 @@ class TestMiniscopeRenderer:
         """Test that objects outside viewport bounds are skipped during rendering."""
         # Create objects at various positions
         grid_objects = {
-            0: {"type": 0, "r": 0, "c": 0, "agent_id": 0},  # Top-left corner
-            1: {"type": 1, "r": 5, "c": 5},  # Center
-            2: {"type": 1, "r": 9, "c": 9},  # Bottom-right corner
-            3: {"type": 1, "r": -1, "c": 0},  # Out of bounds (negative)
-            4: {"type": 1, "r": 15, "c": 15},  # Out of bounds (too large)
+            0: make_grid_object(0, 0, 0, agent_id=0),  # Top-left corner
+            1: make_grid_object(1, 5, 5),  # Center
+            2: make_grid_object(1, 9, 9),  # Bottom-right corner
+            3: make_grid_object(1, -1, 0),  # Out of bounds (negative)
+            4: make_grid_object(1, 15, 15),  # Out of bounds (too large)
         }
 
         # Render with viewport showing only center 3x3 area

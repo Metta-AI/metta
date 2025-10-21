@@ -53,6 +53,9 @@ public:
   ~Grid() = default;
 
   inline bool is_valid_location(const GridLocation& loc) const {
+    // GridCoord and Layer are unsigned; any negative input coerces to a large
+    // value and fails these upper-bound checks, so explicit lower-bound checks
+    // are not required for correctness.
     return loc.r < height && loc.c < width && loc.layer < GridLayer::GridLayerCount;
   }
 
@@ -75,6 +78,11 @@ public:
       return false;
     }
 
+    // Disallow moving multi-cell objects to avoid leaving stale occupied cells.
+    if (!obj.extra_cells.empty()) {
+      return false;
+    }
+
     if (grid[loc.r][loc.c][loc.layer] != nullptr) {
       return false;
     }
@@ -85,7 +93,11 @@ public:
     return true;
   }
 
-  inline void swap_objects(GridObject& obj1, GridObject& obj2) {
+  inline bool swap_objects(GridObject& obj1, GridObject& obj2) {
+    // Reject swap if either object occupies multiple cells. Swapping only anchors would corrupt occupancy.
+    if (!obj1.extra_cells.empty() || !obj2.extra_cells.empty()) {
+      return false;
+    }
     // Store the original locations.
     GridLocation loc1 = obj1.location;
     GridLocation loc2 = obj2.location;
@@ -101,7 +113,108 @@ public:
     // Place the objects in their new positions in the grid.
     grid[obj1.location.r][obj1.location.c][obj1.location.layer] = &obj1;
     grid[obj2.location.r][obj2.location.c][obj2.location.layer] = &obj2;
+    return true;
   }
+
+  // Helper to check if a location is free and valid for occupation on the same layer as obj
+  inline bool can_occupy(const GridObject& obj, const GridLocation& loc) const {
+    if (!is_valid_location(loc)) {
+      return false;
+    }
+    if (loc.layer != obj.location.layer) {
+      return false;  // single-layer only
+    }
+    if (grid[loc.r][loc.c][loc.layer] != nullptr) {
+      return false;
+    }
+    return true;
+  }
+
+  // Get full set of occupied cells for an object including anchor.
+  inline std::vector<GridLocation> occupied_cells(const GridObject& obj) const {
+    std::vector<GridLocation> cells;
+    cells.reserve(1 + obj.extra_cells.size());
+    cells.push_back(obj.location);
+    for (const auto& loc : obj.extra_cells) {
+      cells.push_back(loc);
+    }
+    return cells;
+  }
+
+  // Check 4-neighbor connectivity for a set of cells; assumes all same layer
+  inline bool is_connected_shape(const std::vector<GridLocation>& cells) const {
+    if (cells.empty()) return true;
+    // Simple BFS over indices using 4-neighborhood
+    auto neighbors4 = [](const GridLocation& a, const GridLocation& b) {
+      return a.layer == b.layer &&
+             ((a.r == b.r && (a.c == b.c + 1 || a.c + 1 == b.c)) ||
+              (a.c == b.c && (a.r == b.r + 1 || a.r + 1 == b.r)));
+    };
+    std::vector<char> visited(cells.size(), 0);
+    visited[0] = 1;
+    std::vector<size_t> queue;
+    queue.push_back(0);
+    size_t qi = 0;
+    while (qi < queue.size()) {
+      size_t i = queue[qi++];
+      for (size_t j = 0; j < cells.size(); j++) {
+        if (!visited[j] && neighbors4(cells[i], cells[j])) {
+          visited[j] = 1;
+          queue.push_back(j);
+        }
+      }
+    }
+    for (char v : visited) {
+      if (!v) return false;
+    }
+    return true;
+  }
+
+  // Occupy a new cell for an existing object. Returns true on success.
+  // Returns false if: location invalid/occupied/wrong layer or shape not connected.
+  inline bool occupy_cell(GridObject& obj, const GridLocation& loc) {
+    if (!can_occupy(obj, loc)) return false;
+    // Tentatively add and check connectivity (anchor + extra + new loc)
+    auto cells = occupied_cells(obj);
+    cells.push_back(loc);
+    if (!is_connected_shape(cells)) {
+      return false;
+    }
+    grid[loc.r][loc.c][loc.layer] = &obj;
+    obj.extra_cells.push_back(loc);
+    return true;
+  }
+
+  // Release a non-anchor occupied cell. Returns true on success.
+  inline bool release_cell(GridObject& obj, const GridLocation& loc) {
+    // Cannot release anchor
+    if (loc.r == obj.location.r && loc.c == obj.location.c && loc.layer == obj.location.layer) {
+      return false;
+    }
+    // Find in extra_cells
+    auto it = std::find_if(obj.extra_cells.begin(), obj.extra_cells.end(), [&](const GridLocation& l) {
+      return l.r == loc.r && l.c == loc.c && l.layer == loc.layer;
+    });
+    if (it == obj.extra_cells.end()) return false;
+    // Tentatively remove and check connectivity
+    auto cells = occupied_cells(obj);
+    // remove one matching entry from cells vector
+    auto it2 = std::find_if(cells.begin(), cells.end(), [&](const GridLocation& l) {
+      return l.r == loc.r && l.c == loc.c && l.layer == loc.layer;
+    });
+    if (it2 != cells.end()) {
+      cells.erase(it2);
+    }
+    if (!is_connected_shape(cells)) {
+      return false;
+    }
+    // Apply removal
+    grid[loc.r][loc.c][loc.layer] = nullptr;
+    obj.extra_cells.erase(it);
+    return true;
+  }
+
+  // Removed unused batch helpers occupy_cells/release_cells to reduce surface area.
 
   inline GridObject* object(GridObjectId obj_id) const {
     assert(obj_id < objects.size() && "Invalid object ID");

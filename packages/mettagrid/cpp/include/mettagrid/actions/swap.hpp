@@ -29,8 +29,11 @@ protected:
       target_loc.layer = layer;
       GridObject* target = this->_grid->object_at(target_loc);
       if (target && target->swappable()) {
+        const bool ok = this->_grid->swap_objects(actor, *target);
+        if (!ok) {
+          return false;
+        }
         actor.stats.incr("action." + this->_action_name + "." + target->type_name);
-        this->_grid->swap_objects(actor, *target);
         return true;
       }
     }

@@ -1,8 +1,13 @@
 """Shared utilities for formatting grid object data in replays and play streams."""
 
+import logging
+import warnings
 from typing import Callable, Optional, Tuple, Union
 
 import numpy as np
+
+_logger = logging.getLogger(__name__)
+_malformed_cells_count = 0
 
 
 def format_grid_object_base(grid_object: dict) -> dict:
@@ -16,6 +21,33 @@ def format_grid_object_base(grid_object: dict) -> dict:
     update_object["inventory_max"] = grid_object.get("inventory_max", 0)
     update_object["color"] = grid_object.get("color", 0)
     update_object["is_swappable"] = grid_object.get("is_swappable", False)
+    # cells is always present and contains at least the anchor cell
+    # Store as list of (c,r,layer) tuples to match location convention
+    try:
+        cells_list = [(int(c), int(r), int(layer)) for (c, r, layer) in grid_object["cells"]]
+        update_object["cells"] = cells_list
+    except Exception:
+        # If malformed, fall back to anchor-derived cell so consumers still receive cells
+        global _malformed_cells_count
+        _malformed_cells_count += 1
+        # Rate limit logging: log first 3 occurrences, then every 100th
+        if _malformed_cells_count <= 3 or _malformed_cells_count % 100 == 0:
+            _logger.warning(
+                "Malformed cells encountered in grid_object; falling back to anchor cell "
+                "(occurrence %d)",
+                _malformed_cells_count
+            )
+        # warnings.warn has built-in deduplication, so this will only show once
+        warnings.warn(
+            "Malformed cells encountered in grid_object; falling back to anchor cell",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        location = grid_object.get("location")
+        anchor_col = int(location[0])
+        anchor_row = int(location[1])
+        anchor_layer = int(location[2])
+        update_object["cells"] = [(anchor_col, anchor_row, anchor_layer)]
     return update_object
 
 

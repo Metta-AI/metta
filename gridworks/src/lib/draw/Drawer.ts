@@ -107,14 +107,17 @@ export class Drawer {
     if (!layers) {
       throw new Error(`No drawer for object ${object.name}`);
     }
+    const cells = object.cells ?? [{ c: object.c, r: object.r }];
     for (const layer of layers) {
-      this.drawTile({
-        ctx,
-        tile: layer.tile,
-        c: object.c,
-        r: object.r,
-        modulate: layer.modulate,
-      });
+      for (const cell of cells) {
+        this.drawTile({
+          ctx,
+          tile: layer.tile,
+          c: cell.c,
+          r: cell.r,
+          modulate: layer.modulate,
+        });
+      }
     }
   }
 
@@ -189,16 +192,24 @@ export class Drawer {
     const objects: MettaObject[] = [];
     const walls: Cell[] = [];
     for (const object of grid.objects) {
-      if (
-        object.c < minX ||
-        object.c > maxX ||
-        object.r < minY ||
-        object.r > maxY
-      ) {
+      const cells = object.cells ?? [{ c: object.c, r: object.r }];
+      const visible = cells.some(
+        (cell) =>
+          cell.c >= minX &&
+          cell.c <= maxX &&
+          cell.r >= minY &&
+          cell.r <= maxY &&
+          grid.cellInGrid(cell)
+      );
+      if (!visible) {
         continue;
       }
       if (object.name === "wall") {
-        walls.push({ c: object.c, r: object.r });
+        for (const cell of cells) {
+          if (grid.cellInGrid(cell)) {
+            walls.push({ c: cell.c, r: cell.r });
+          }
+        }
       } else {
         objects.push(object);
       }

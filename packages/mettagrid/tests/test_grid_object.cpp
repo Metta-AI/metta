@@ -70,3 +70,4 @@ TEST_F(GridObjectTest, InitWithLocation) {
   EXPECT_EQ(10, obj.location.c);
   EXPECT_EQ(2, obj.location.layer);
 }
+

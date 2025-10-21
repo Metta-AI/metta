@@ -159,6 +159,49 @@ class MettaGridCore:
         # Validate that C++ environment conforms to expected types
         self._validate_c_env_types(c_env)
 
+        # Apply multi-cell groups if present
+        if game_map.multi_cell_groups:
+            self._apply_multi_cell_groups(c_env, game_map.multi_cell_groups)
+
+        return c_env
+
+    def _apply_multi_cell_groups(
+        self,
+        c_env: MettaGridCpp,
+        groups: list[tuple[int, int, int, list[tuple[int, int]]]],
+    ) -> None:
+        """Apply multi-cell grouping to the environment after creation."""
+        # Get all grid objects to find object IDs by position
+        grid_objects = c_env.grid_objects()
+        
+        # Build a map from (row, col, layer) to object ID
+        position_to_obj_id: dict[tuple[int, int, int], int] = {}
+        for obj_id, obj_data in grid_objects.items():
+            location = obj_data["location"]
+            r, c, layer = location[1], location[0], location[2]  # location is (c, r, layer)
+            position_to_obj_id[(r, c, layer)] = obj_id
+
+        # Apply each group
+        for anchor_r, anchor_c, layer, extra_cells in groups:
+            # Find the anchor object ID
+            anchor_key = (anchor_r, anchor_c, layer)
+            if anchor_key not in position_to_obj_id:
+                logger.warning(
+                    f"Multi-cell group anchor not found at ({anchor_r}, {anchor_c}, {layer}). Skipping group."
+                )
+                continue
+
+            anchor_obj_id = position_to_obj_id[anchor_key]
+
+            # Add each extra cell to the anchor object
+            for extra_r, extra_c in extra_cells:
+                success = c_env.add_object_cell(anchor_obj_id, extra_r, extra_c, layer)
+                if not success:
+                    logger.warning(
+                        f"Failed to add cell ({extra_r}, {extra_c}, {layer}) to object {anchor_obj_id}. "
+                        f"Cell may not be empty or may violate connectivity rules."
+                    )
+
         # Initialize renderer if needed
         if (
             self._render_mode is not None
@@ -335,17 +378,33 @@ class MettaGridCore:
         """Get grid objects information, optionally filtered by bounding box and type.
 
         Args:
-            bbox: Bounding box, None for no limit
+            bbox: Bounding box, None for no limit. Bounding boxes follow
+                half-open `[min_row, max_row)` / `[min_col, max_col)` semantics,
+                so the `max_*` values are exclusive.
             ignore_types: List of type names to exclude from results (e.g., ["wall"])
 
         Returns:
-            Dictionary mapping object IDs to object dictionaries
+            Dictionary mapping object IDs to object dictionaries.
+            Each object dict contains a 'cells' key with a list of (c, r, layer) tuples.
+
+        API Contract: The 'cells' array is ALWAYS present and ALWAYS contains at least
+        the anchor cell. For single-cell objects, cells contains only the anchor.
+        For multi-cell objects, cells contains the anchor plus extra cells.
+        Consumers should NOT check for presence or truthiness of 'cells' - it is
+        always a non-empty list.
         """
         if bbox is None:
             bbox = BoundingBox(min_row=-1, max_row=-1, min_col=-1, max_col=-1)
 
         ignore_list = ignore_types if ignore_types is not None else []
         return self.__c_env_instance.grid_objects(bbox.min_row, bbox.max_row, bbox.min_col, bbox.max_col, ignore_list)
+
+    # Multi-cell occupancy helpers
+    def add_object_cell(self, obj_id: int, r: int, c: int, layer: int) -> bool:
+        return bool(self.__c_env_instance.add_object_cell(int(obj_id), int(r), int(c), int(layer)))
+
+    def remove_object_cell(self, obj_id: int, r: int, c: int, layer: int) -> bool:
+        return bool(self.__c_env_instance.remove_object_cell(int(obj_id), int(r), int(c), int(layer)))
 
     def set_inventory(self, agent_id: int, inventory: Dict[str, int]) -> None:
         """Set an agent's inventory by resource name.

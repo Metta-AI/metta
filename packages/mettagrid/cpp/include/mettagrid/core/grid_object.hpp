@@ -53,7 +53,6 @@ struct GridObjectConfig {
   TypeId type_id;
   std::string type_name;
   std::vector<int> tag_ids;
-
   GridObjectConfig(TypeId type_id, const std::string& type_name, const std::vector<int>& tag_ids)
       : type_id(type_id), type_name(type_name), tag_ids(tag_ids) {}
 
@@ -67,6 +66,8 @@ public:
   TypeId type_id{};
   std::string type_name;
   std::vector<int> tag_ids;
+  // Additional occupied cells for multi-cell objects, all on the same layer as location.
+  std::vector<GridLocation> extra_cells;
 
   virtual ~GridObject() = default;
 

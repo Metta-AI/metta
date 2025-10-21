@@ -6,6 +6,35 @@ from typing import Dict
 AGENT_SQUARES = ["🟦", "🟧", "🟩", "🟨", "🟪", "🟥", "🟫", "⬛", "🟦", "🟧"]
 
 
+def _cells_for_object(obj: dict) -> list[tuple[int, int, int]]:
+    """Return normalized cell coordinates for rendering.
+
+    Prefer the explicit 'cells' array when present. Fall back to location fields for
+    legacy data that predates the cells contract so miniscope stays compatible with
+    old replays and tooling output.
+    """
+    cells = obj.get("cells")
+    if isinstance(cells, list) and cells:
+        normalized: list[tuple[int, int, int]] = []
+        for entry in cells:
+            if not isinstance(entry, (list, tuple)) or len(entry) != 3:
+                continue
+            c, r, layer = entry
+            normalized.append((int(c), int(r), int(layer)))
+        if normalized:
+            return normalized
+    location = obj.get("location")
+    if isinstance(location, (list, tuple)) and len(location) == 3:
+        c, r, layer = location
+        return [(int(c), int(r), int(layer))]
+    col = obj.get("c")
+    row = obj.get("r")
+    if col is not None and row is not None:
+        layer = obj.get("layer", obj.get("z", 0))
+        return [(int(col), int(row), int(layer))]
+    return []
+
+
 def get_symbol_for_object(obj: dict, object_type_names: list[str], symbol_map: dict[str, str]) -> str:
     """Get the emoji symbol for an object.
 
@@ -48,12 +77,14 @@ def compute_bounds(grid_objects: Dict[int, dict], object_type_names: list[str]) 
     for obj in grid_objects.values():
         type_name = object_type_names[obj["type"]]
         if type_name == "wall":
-            rows.append(obj["r"])
-            cols.append(obj["c"])
+            for c, r, _ in _cells_for_object(obj):
+                rows.append(r)
+                cols.append(c)
     if not rows or not cols:
         for obj in grid_objects.values():
-            rows.append(obj["r"])
-            cols.append(obj["c"])
+            for c, r, _ in _cells_for_object(obj):
+                rows.append(r)
+                cols.append(c)
 
     # Handle empty grid case
     if not rows or not cols:
@@ -124,15 +155,13 @@ def build_grid_buffer(
     empty_symbol = symbol_map.get("empty", "⬜")
     grid = [[empty_symbol for _ in range(view_width)] for _ in range(view_height)]
 
-    # Place objects in viewport
+    # Place objects in viewport using all occupied cells (anchor + extras)
     for obj in grid_objects.values():
-        obj_r = obj["r"]
-        obj_c = obj["c"]
-        r = obj_r - view_min_row
-        c = obj_c - view_min_col
-        # Skip objects outside viewport bounds
-        if 0 <= r < view_height and 0 <= c < view_width:
-            grid[r][c] = get_symbol_for_object(obj, object_type_names, symbol_map)
+        for obj_c, obj_r, _ in _cells_for_object(obj):
+            r = obj_r - view_min_row
+            c = obj_c - view_min_col
+            if 0 <= r < view_height and 0 <= c < view_width:
+                grid[r][c] = get_symbol_for_object(obj, object_type_names, symbol_map)
 
     # Add selection cursor if in select mode
     if cursor_row is not None and cursor_col is not None:
