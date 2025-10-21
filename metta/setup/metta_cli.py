@@ -607,9 +607,14 @@ def cmd_publish(
         info("Publishing aborted.")
         return
 
+    tag_message_lines: list[str] = [f"Release {package} {target_version}"]
+    if package == "cogames":
+        tag_message_lines.append(f"mettagrid-codeploy: {'yes' if publish_mettagrid_after else 'no'}")
+    tag_message = "\n".join(tag_message_lines)
+
     try:
         info(f"Tagging {package} {target_version}...")
-        git.run_git("tag", "-a", tag_name, "-m", f"Release {package} {target_version}")
+        git.run_git("tag", "-a", tag_name, "-m", tag_message)
         git.run_git("push", remote, tag_name)
     except subprocess.CalledProcessError as exc:
         error(f"Failed to tag: {exc}.")

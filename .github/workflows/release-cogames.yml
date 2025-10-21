@@ -22,6 +22,15 @@ on:
         options:
           - testpypi
           - pypi
+      mettagrid_codeploy:
+        description: "Override detection of mettagrid co-deploy preference"
+        required: false
+        default: auto
+        type: choice
+        options:
+          - auto
+          - "yes"
+          - "no"
 
 permissions:
   contents: read
@@ -32,11 +41,59 @@ jobs:
   build:
     name: Build distributions
     runs-on: ubuntu-latest
+    outputs:
+      mettagrid_codeploy: ${{ steps.metta-metadata.outputs.mettagrid_codeploy }}
+      release_tag: ${{ steps.release-meta.outputs.release_tag }}
+      release_sha: ${{ steps.release-meta.outputs.release_sha }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           fetch-tags: true
+      - name: Record release metadata
+        id: release-meta
+        run: |
+          echo "release_tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          echo "release_sha=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+      - name: Detect mettagrid co-deploy preference
+        id: metta-metadata
+        env:
+          INPUT_CODEPLOY: ${{ github.event.inputs.mettagrid_codeploy }}
+        run: |
+          set -euo pipefail
+          python <<'PY'
+import os
+import subprocess
+
+codeploy = (os.environ.get("INPUT_CODEPLOY") or "auto").strip().lower()
+if codeploy not in {"yes", "no"}:
+    if os.environ.get("GITHUB_REF_TYPE") == "tag":
+        tag = os.environ.get("GITHUB_REF_NAME")
+        message = ""
+        if tag:
+            try:
+                message = subprocess.check_output(
+                    ["git", "tag", "-l", f"--format=%(contents)", tag],
+                    text=True,
+                    stderr=subprocess.DEVNULL,
+                )
+            except subprocess.CalledProcessError:
+                message = ""
+        for raw_line in message.splitlines():
+            line = raw_line.strip()
+            prefix = "mettagrid-codeploy:"
+            if line.lower().startswith(prefix):
+                value = line[len(prefix) :].strip().lower()
+                if value in {"yes", "no"}:
+                    codeploy = value
+                    break
+if codeploy not in {"yes", "no"}:
+    codeploy = "no"
+
+print(f"Detected mettagrid co-deploy: {codeploy}")
+with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+    handle.write(f"mettagrid_codeploy={codeploy}\n")
+PY
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11.7"
@@ -53,8 +110,8 @@ jobs:
 
   publish:
     name: Publish to PyPI
-    needs: build
-    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.publish == 'yes' }}
+    needs: [build, smoke-test]
+    if: ${{ (github.event_name != 'workflow_dispatch' || github.event.inputs.publish == 'yes') && needs['smoke-test'].result == 'success' }}
     runs-on: ubuntu-latest
     environment:
       name: ${{ format('cogames-{0}', github.event_name == 'workflow_dispatch' && github.event.inputs.target || 'pypi') }}
@@ -135,3 +192,113 @@ jobs:
               environment_url: process.env.DEPLOY_URL,
               description: 'Publish failed',
             });
+  mettagrid-wheels:
+    name: Fetch mettagrid wheels
+    needs: build
+    if: ${{ needs.build.outputs.mettagrid_codeploy == 'yes' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for mettagrid release workflow
+        id: locate-run
+        uses: actions/github-script@v7
+        env:
+          TARGET_SHA: ${{ needs.build.outputs.release_sha }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const targetSha = process.env.TARGET_SHA;
+            if (!targetSha) {
+              core.setFailed("Missing release SHA; cannot locate mettagrid workflow run.");
+              return;
+            }
+            const workflowFile = "release-mettagrid.yml";
+            const pollIntervalMs = 30_000;
+            const maxAttempts = 40;
+
+            let attempt = 0;
+            while (attempt < maxAttempts) {
+              attempt += 1;
+              const { data } = await github.rest.actions.listWorkflowRuns({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: workflowFile,
+                per_page: 50,
+              });
+              const runs = (data.workflow_runs ?? [])
+                .filter((run) => run.head_sha === targetSha)
+                .sort((a, b) => b.run_number - a.run_number);
+              const run = runs[0] ?? null;
+              if (!run) {
+                core.info(`MettaGrid workflow run for ${targetSha} not found yet (attempt ${attempt}/${maxAttempts}). Waiting...`);
+                await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+                continue;
+              }
+              core.info(`Found MettaGrid workflow run ${run.id} with status ${run.status}.`);
+              if (run.status !== "completed") {
+                await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+                continue;
+              }
+              if (run.conclusion !== "success") {
+                core.setFailed(`MettaGrid workflow run ${run.id} completed with conclusion '${run.conclusion}'.`);
+                return;
+              }
+              core.setOutput("run_id", run.id.toString());
+              return;
+            }
+            core.setFailed("Timed out waiting for mettagrid workflow run to complete.");
+      - name: Download mettagrid wheels
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID: ${{ steps.locate-run.outputs.run_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p wheelhouse/mettagrid
+          gh run download "${RUN_ID}" --name wheels-ubuntu-latest --dir wheelhouse/mettagrid
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mettagrid-wheels
+          path: wheelhouse/mettagrid
+          if-no-files-found: error
+
+  smoke-test:
+    name: Run cogames smoke test
+    needs:
+      - build
+      - mettagrid-wheels
+    if: ${{ needs.build.result == 'success' && (needs['mettagrid-wheels'].result == 'success' || needs['mettagrid-wheels'].result == 'skipped') }}
+    runs-on: ubuntu-latest
+    env:
+      METTAGRID_CODEPLOY: ${{ needs.build.outputs.mettagrid_codeploy }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: cogames-dist
+          path: cogames-dist
+      - uses: actions/download-artifact@v4
+        if: ${{ env.METTAGRID_CODEPLOY == 'yes' }}
+        with:
+          name: mettagrid-wheels
+          path: mettagrid-dist
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.7"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.7.3"
+      - name: Install packages from local wheels
+        run: |
+          set -euo pipefail
+          uv venv --python "$(which python)" .venv
+          INSTALL_ARGS=("--python" ".venv/bin/python")
+          FIND_LINKS_ARGS=("--find-links" "$(pwd)/cogames-dist")
+          if [ "${METTAGRID_CODEPLOY}" = "yes" ]; then
+            FIND_LINKS_ARGS+=("--find-links" "$(pwd)/mettagrid-dist" "--no-index")
+          fi
+          uv pip install "${INSTALL_ARGS[@]}" "${FIND_LINKS_ARGS[@]}" cogames
+      - name: Run cogames smoke test
+        run: |
+          set -euo pipefail
+          source .venv/bin/activate
+          cogames version
+          cogames play --mission training_facility_1:default --steps 1 --render none
