@@ -104,12 +104,8 @@ private:
 
   // Give output resources to agents
   void give_output_for_recipe(const Recipe& recipe, const std::vector<Agent*>& surrounding_agents) {
-    std::vector<Inventory*> inventories;
-    for (Agent* agent : surrounding_agents) {
-      inventories.push_back(&agent->inventory);
-    }
     for (const auto& [item, amount] : recipe.output_resources) {
-      Inventory::shared_update(inventories, item, amount);
+      Inventory::shared_update(surrounding_agents, item, amount);
     }
   }
 
@@ -127,12 +123,8 @@ public:
   // Consume resources from surrounding agents for the given recipe
   // Intended to be private, but made public for testing. We couldn't get `friend` to work as expected.
   void consume_resources_for_recipe(const Recipe& recipe, const std::vector<Agent*>& surrounding_agents) {
-    std::vector<Inventory*> inventories;
-    for (Agent* agent : surrounding_agents) {
-      inventories.push_back(&agent->inventory);
-    }
     for (const auto& [item, required_amount] : recipe.input_resources) {
-      InventoryDelta consumed = Inventory::shared_update(inventories, item, -required_amount);
+      InventoryDelta consumed = Inventory::shared_update(surrounding_agents, item, -required_amount);
       assert(consumed == -required_amount && "Expected all required resources to be consumed");
     }
   }
@@ -447,6 +439,74 @@ inline void Assembler::become_unclipped() {
     clipper_ptr->on_unclip_assembler(*this);
   }
   clipper_ptr = nullptr;
+}
+
+// Implementation of Inventory::shared_update for Agent* vectors
+// Must be here where both Agent and Inventory are fully defined
+inline InventoryDelta Inventory::shared_update(std::vector<Agent*> agents, InventoryItem item, InventoryDelta delta) {
+  if (agents.empty()) {
+    return 0;
+  }
+  // We expect the main usage to be 3 passes:
+  // 1. Separate inventories into those that can fully participate and those that can't. During this stage we
+  // update the not-fully-participating inventories as much as possible.
+  // 2. Confirm that all remaining inventories can fully participate, based on an updated understanding of what's
+  // needed (the per-inventory amount, since some inventories may have dropped out).
+  // 3. Update all inventories that can fully participate.
+  //
+  // One things we specifically aim for is that the earlier inventories get more of the update, if it can't be
+  // evenly split.
+  InventoryDelta delta_remaining = delta;
+  std::vector<Agent*> agents_to_consider;
+  std::vector<Agent*> next_agents_to_consider = agents;
+  // We want this to be a signed type, since otherwise we'll have a signed division issue.
+  int num_agents_remaining = next_agents_to_consider.size();
+  // Intentionally rounded towards zero.
+  InventoryDelta delta_per_agent = delta_remaining / num_agents_remaining;
+  do {
+    agents_to_consider = next_agents_to_consider;
+    next_agents_to_consider.clear();
+    for (Agent* agent : agents_to_consider) {
+      // Check to see if we have enough information to update this inventory now. I.e., do we know that this update
+      // is going to fill / empty the inventory, so we can just do that?
+      bool update_immediately;
+      if (delta_remaining > 0) {
+        update_immediately = agent->inventory.free_space(item) <= delta_per_agent;
+      } else {
+        // For negative delta, update immediately if inventory has less than or equal to what we want to take
+        update_immediately = agent->inventory.amount(item) <= -delta_per_agent;
+      }
+      if (update_immediately) {
+        // Update the inventory by as much as we can, and adjust how much we have left.
+        delta_remaining -= agent->update_inventory(item, delta_per_agent);
+        num_agents_remaining--;
+        if (num_agents_remaining > 0) {
+          delta_per_agent = delta_remaining / num_agents_remaining;
+        }
+      } else {
+        next_agents_to_consider.push_back(agent);
+      }
+    }
+    // Do this until we don't kick any inventories off the list. Once we're here, all remaining inventories can
+    // "fully participate".
+  } while (agents_to_consider.size() != next_agents_to_consider.size());
+
+  if (num_agents_remaining == 0) {
+    return delta - delta_remaining;
+  }
+
+  // Update in reverse order. Because of the direction of rounding, this means that the earlier inventories will get
+  // more of the delta (if it's not evenly split).
+  for (int i = agents_to_consider.size() - 1; i >= 0; i--) {
+    Agent* agent = agents_to_consider[i];
+    InventoryDelta inventory_delta = delta_remaining / (i + 1);
+    InventoryDelta actual_delta = agent->update_inventory(item, inventory_delta);
+    assert(actual_delta == inventory_delta && "Expected agent to absorb all of the delta");
+    delta_remaining -= actual_delta;
+  }
+  assert(delta_remaining == 0 && "Expected all of the delta to be consumed");
+
+  return delta - delta_remaining;
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_ASSEMBLER_HPP_
