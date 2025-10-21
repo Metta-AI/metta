@@ -73,8 +73,10 @@ ADVANTAGE_CUDA = shutil.which("nvcc") is not None
 
 class PuffeRL:
     def __init__(self, config, vecenv, policy, logger=None):
-        # Backend perf optimization
-        torch.set_float32_matmul_precision("high")
+        # Backend perf optimization (using new API)
+        if torch.cuda.is_available():
+            torch.backends.cuda.matmul.fp32_precision = "tf32"  # type: ignore[attr-defined]
+            torch.backends.cudnn.conv.fp32_precision = "tf32"  # type: ignore[attr-defined]
         torch.backends.cudnn.deterministic = config["torch_deterministic"]
         torch.backends.cudnn.benchmark = True
 
@@ -671,7 +673,10 @@ class PuffeRL:
         if self.stats:
             self.last_stats = self.stats
 
-        for metric, value in (self.stats or self.last_stats).items():
+        # do some reordering of self.stats so that important stats are always shown
+        prioritized_stats = self._reorder_stats_for_dashboard()
+
+        for metric, value in prioritized_stats:
             try:  # Discard non-numeric values
                 int(value)
             except:
@@ -690,6 +695,22 @@ class PuffeRL:
             console.print(dashboard)
 
         print("\033[0;0H" + capture.get())
+
+    def _reorder_stats_for_dashboard(self) -> list[tuple[str, float]]:
+        priority_metrics = ["agent/avg_reward_per_agent", "agent/energy.amount", "agent/status.max_steps_without_motion"]
+        new_stats = []
+
+        stats = self.stats if len(self.stats) > 0 else self.last_stats
+
+        for name in priority_metrics:
+            if name in stats:
+                new_stats.append((name, stats[name]))
+
+        for name in stats.keys():
+            if name not in priority_metrics:
+                new_stats.append((name, stats[name]))
+
+        return new_stats
 
 
 def compute_puff_advantage(
