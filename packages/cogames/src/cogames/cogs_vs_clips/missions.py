@@ -400,37 +400,37 @@ USER_MAP_CATALOG: tuple[UserMap, ...] = (
     ),
     SiteUserMap(
         name="machina_1_big",
-        site="canidate1_500_stations.map",
+        site="candidate1_500_stations.map",
         mission_args=_with_easy_shaped_variants(),
     ),
     SiteUserMap(
         name="machina_2_bigger",
-        site="canidate1_1000_stations.map",
+        site="candidate1_1000_stations.map",
         mission_args=_with_easy_shaped_variants(),
     ),
     SiteUserMap(
         name="machina_3_big",
-        site="canidate2_500_stations.map",
+        site="candidate2_500_stations.map",
         mission_args=_with_easy_shaped_variants(),
     ),
     SiteUserMap(
         name="machina_4_bigger",
-        site="canidate2_1000_stations.map",
+        site="candidate2_1000_stations.map",
         mission_args=_with_easy_shaped_variants(),
     ),
     SiteUserMap(
         name="machina_5_big",
-        site="canidate3_500_stations.map",
+        site="candidate3_500_stations.map",
         mission_args=_with_easy_shaped_variants(),
     ),
     SiteUserMap(
         name="machina_6_bigger",
-        site="canidate3_1000_stations.map",
+        site="candidate3_1000_stations.map",
         mission_args=_with_easy_shaped_variants(),
     ),
     SiteUserMap(
         name="machina_7_big",
-        site="canidate4_500_stations.map",
+        site="candidate4_500_stations.map",
         mission_args=_with_easy_shaped_variants(),
     ),
     SiteUserMap(
