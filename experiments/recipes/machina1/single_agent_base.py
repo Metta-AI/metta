@@ -202,7 +202,7 @@ def make_extractor(
     name_to_type_id = {
         "carbon_extractor": 2,
         "oxygen_extractor": 3,
-        "germanium_extractor": 15,
+        "germanium_extractor": 4,
         "silicon_extractor": 15,
     }
     name_to_map_char = {
@@ -496,7 +496,7 @@ def play(curriculum_style: str = "only_assembler"):
     )
 
 
-def train(curriculum_style: str = "assembler_with_chest"):
+def train(curriculum_style: str = "four_extractors"):
     from experiments.evals.machina1.single_agent_base import (
         make_single_agent_base_eval_suite,
     )
