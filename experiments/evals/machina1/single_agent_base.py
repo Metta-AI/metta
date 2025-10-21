@@ -13,12 +13,12 @@ def make_eval_env(
     extractors, use_charger, use_chest, use_extractor_glyphs, efficiences, max_uses
 ) -> MettaGridConfig:
     task_generator_cfg = make_task_generator_cfg(
-        extractors=extractors,
-        use_charger=use_charger,
-        use_chest=use_chest,
-        use_extractor_glyphs=use_extractor_glyphs,
-        efficiences=efficiences,
-        max_uses=max_uses,
+        extractors=[extractors],
+        use_charger=[use_charger],
+        use_chest=[use_chest],
+        use_extractor_glyphs=[use_extractor_glyphs],
+        efficiences=[efficiences],
+        max_uses=[max_uses],
     )
     task_generator = Machina1BaseTaskGenerator(task_generator_cfg)
     # different set of resources and converters for evals
