@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import numpy as np
+import yaml
 from pydantic import Field, StringConstraints, field_validator
 
 from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
@@ -69,14 +70,19 @@ class AsciiMapBuilder(MapBuilder):
             path = Path(uri)
             raw = path.read_text(encoding="utf-8")
             try:
-                return cls.from_str(raw)
-            except Exception:
-                lines = [list(line) for line in raw.strip().splitlines() if line]
-                return cls(
-                    map_data=lines,
-                    char_to_name_map=char_to_name_map or {},
-                    target_agents=target_agents,
-                )
+                parsed = yaml.safe_load(raw)
+            except yaml.YAMLError:
+                parsed = None
+
+            if isinstance(parsed, dict):
+                return cls.model_validate(parsed)
+
+            lines = [list(line) for line in raw.strip().splitlines() if line]
+            return cls(
+                map_data=lines,
+                char_to_name_map=char_to_name_map or {},
+                target_agents=target_agents,
+            )
 
     def __init__(self, config: Config):
         self.config = config
