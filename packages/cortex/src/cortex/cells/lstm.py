@@ -95,12 +95,14 @@ class LSTMCell(MemoryCell):
             "resets": resets_bt,
         }
 
-        allow_triton = (
-            x_seq.is_cuda
-            and x_seq.dtype in (torch.float32, torch.float16, torch.bfloat16)
-            and self.net.weight_ih_l0.shape[1] == self.cfg.hidden_size
-            and self._hidden_size_power_of_two
-        )
+        # allow_triton = (
+        #     x_seq.is_cuda
+        #     and x_seq.dtype in (torch.float32, torch.float16, torch.bfloat16)
+        #     and self.net.weight_ih_l0.shape[1] == self.cfg.hidden_size
+        #     and self._hidden_size_power_of_two
+        # )
+        # Currently the triton route is disabled until we have faster implementation available.
+        allow_triton = False
 
         backend_fn = select_backend(
             triton_fn="cortex.kernels.triton.lstm:lstm_sequence_triton" if allow_triton else None,
