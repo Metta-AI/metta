@@ -25,7 +25,6 @@ from mettagrid.config import AssemblerConfig, MettaGridConfig
 def mettagrid(num_agents: int = 24) -> MettaGridConfig:
     arena_env = eb.make_arena(num_agents=num_agents)
 
-    # Replace converters with assemblers
     arena_env.game.objects.update(
         {
             "altar": building.assembler_altar,
