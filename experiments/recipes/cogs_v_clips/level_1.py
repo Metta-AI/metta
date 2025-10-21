@@ -344,7 +344,6 @@ def train(
     algorithm_config = LearningProgressConfig(
         ema_timescale=0.001,
         exploration_bonus=0.15,
-        max_memory_tasks=1000,
         max_slice_axes=3,
         progress_smoothing=0.15,
         num_active_tasks=1000,
