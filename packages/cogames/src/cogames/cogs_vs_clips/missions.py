@@ -69,12 +69,33 @@ class SolarFlareVariant(MissionVariant):
         return mission
 
 
+class EasyVariant(MissionVariant):
+    name: str = "easy"
+    description: str = "Simplify assembler and disable glyph changes for a gentler introduction."
+
+    def apply(self, mission: Mission) -> Mission:
+        mission.easy_mode = True
+        mission.heart_capacity = max(mission.heart_capacity, 10)
+        return mission
+
+
+class ShapedRewardsVariant(MissionVariant):
+    name: str = "shaped"
+    description: str = "Add gentle heart-focused shaped rewards to guide new players."
+
+    def apply(self, mission: Mission) -> Mission:
+        mission.shaped_rewards_mode = True
+        return mission
+
+
 VARIANTS = [
     MinedOutVariant,
     DarkSideVariant,
     BrightSideVariant,
     RoughTerrainVariant,
     SolarFlareVariant,
+    EasyVariant,
+    ShapedRewardsVariant,
 ]
 
 
