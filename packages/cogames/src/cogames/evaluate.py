@@ -14,7 +14,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from cogames.policy.interfaces import PolicySpec
+from cogames.policy.interfaces import AgentPolicy, PolicySpec
 from cogames.policy.utils import initialize_or_load_policy
 from mettagrid import MettaGridConfig, MettaGridEnv
 
@@ -92,7 +92,7 @@ def evaluate(
             obs, _ = env.reset(seed=seed + episode_idx)
             # Shuffle assignments in place
             rng.shuffle(assignments)
-            agent_policies = [
+            agent_policies: list[AgentPolicy] = [
                 policy_instances[assignments[agent_id]].agent_policy(agent_id) for agent_id in range(env.num_agents)
             ]
             for agent_policy in agent_policies:

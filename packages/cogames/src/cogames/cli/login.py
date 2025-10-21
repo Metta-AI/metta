@@ -14,7 +14,6 @@ class CoGamesAuthenticator(BaseCLIAuthenticator):
             auth_server_url=auth_server_url,
             token_file_name="cogames.yaml",
             token_storage_key="login_tokens",  # Nested under 'login_tokens' key
-            extra_uris={},  # No extra URIs for CoGames
         )
 
 
