@@ -41,12 +41,14 @@ jobs:
 
       - name: Run package tests with coverage
         shell: bash
+        env:
+          RUN_APP_BACKEND_TESTS: false
         run: .github/scripts/run_package_tests.sh
 
       - name: Upload python test coverage to Codecov
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-          SUBPACKAGES: "agent common app_backend mettagrid cogames codebot core"
+          SUBPACKAGES: "agent common mettagrid cogames codebot core"
         run: |
           chmod +x .github/scripts/upload_codecov.py
           .github/scripts/upload_codecov.py

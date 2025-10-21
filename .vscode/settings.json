@@ -61,6 +61,7 @@
     "build": true,
     "dist": true,
     "tmp": true,
+    "personal": true,
   },
 
   // Exclude from text/code search
@@ -74,6 +75,7 @@
     "**/wandb": true,
     "**/outputs": true,
     "**/tmp": true,
+    "personal": true,
   },
 
   // Exclude from C/C++ IntelliSense indexing
@@ -90,5 +92,6 @@
     "**/tmp": true,
     "build": true,
     "dist": true,
+    "personal": true,
   },
 }

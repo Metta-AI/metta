@@ -1,7 +1,11 @@
-from typing import Optional
+from typing import Literal
 
-from cogames.cogs_vs_clips import protocols
-from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig
+from pydantic import Field
+
+from cogames.cogs_vs_clips import vibes
+from cogames.cogs_vs_clips.vibes import VIBE_BY_NAME
+from mettagrid.base_config import Config
+from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, GridObjectConfig, ProtocolConfig, WallConfig
 
 resources = [
     "energy",
@@ -17,280 +21,211 @@ resources = [
 ]
 
 
-def charger(max_uses: Optional[int] = None) -> AssemblerConfig:
-    recipe = protocols.standard_charging_recipe()
-    return AssemblerConfig(
-        name="charger",
-        type_id=5,
-        map_char="+",
-        render_symbol="⚡",
-        allow_partial_usage=True,  # can use it while its on cooldown
-        max_uses=max_uses or 0,
-        recipes=protocols.protocol(recipe),
-    )
+class CvCStationConfig(Config):
+    start_clipped: bool = Field(default=False)
+    clip_immune: bool = Field(default=False)
+
+    def station_cfg(self) -> GridObjectConfig:
+        raise NotImplementedError("Subclasses must implement this method")
+
+
+class CvCWallConfig(CvCStationConfig):
+    type: Literal["wall"] = Field(default="wall")
+
+    def station_cfg(self) -> WallConfig:
+        return WallConfig(name="wall", type_id=1, map_char="#", render_symbol=VIBE_BY_NAME["wall"].symbol)
+
+
+class ExtractorConfig(CvCStationConfig):
+    """Base class for all extractor configs."""
+
+    max_uses: int = Field(default=1000)
+    efficiency: int = Field(default=100)
+
+
+class ChargerConfig(ExtractorConfig):
+    type: Literal["charger"] = Field(default="charger")
+
+    def station_cfg(self) -> AssemblerConfig:
+        return AssemblerConfig(
+            name="charger",
+            type_id=5,
+            map_char="+",
+            render_symbol=VIBE_BY_NAME["charger"].symbol,
+            # Protocols
+            allow_partial_usage=True,  # can use it while its on cooldown
+            max_uses=0,  # unlimited uses
+            recipes=[
+                (
+                    [],
+                    ProtocolConfig(
+                        output_resources={"energy": 50 * self.efficiency // 100},
+                        cooldown=10,
+                    ),
+                )
+            ],
+            # Clipping
+            start_clipped=self.start_clipped,
+            clip_immune=self.clip_immune,
+        )
 
 
 # Time consuming but easy to mine.
-def carbon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
-    return AssemblerConfig(
-        name="carbon_extractor",
-        type_id=2,
-        map_char="C",
-        render_symbol="⚫",
-        max_uses=max_uses or 0,
-        recipes=protocols.protocol(protocols.standard_carbon_recipe()),
-    )
+class CarbonExtractorConfig(ExtractorConfig):
+    type: Literal["carbon_extractor"] = Field(default="carbon_extractor")
+
+    def station_cfg(self) -> AssemblerConfig:
+        return AssemblerConfig(
+            name=self.type,
+            type_id=2,
+            map_char="C",
+            render_symbol=VIBE_BY_NAME["carbon"].symbol,
+            # Protocols
+            max_uses=self.max_uses,
+            recipes=[
+                (
+                    [],
+                    ProtocolConfig(
+                        output_resources={"carbon": 4 * self.efficiency // 100},
+                        cooldown=10,
+                    ),
+                )
+            ],
+            # Clipping
+            start_clipped=self.start_clipped,
+            clip_immune=self.clip_immune,
+        )
 
 
-# Accumulates oxygen over time, needs to be emptied periodically. Takes a lot of space, relative to usage needs.
-def oxygen_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
-    return AssemblerConfig(
-        name="oxygen_extractor",
-        type_id=3,
-        map_char="O",
-        render_symbol="🔵",
-        allow_partial_usage=True,  # can use it while its on cooldown
-        max_uses=max_uses or 0,
-        recipes=protocols.protocol(protocols.standard_oxygen_recipe()),
-    )
+# Accumulates oxygen over time, needs to be emptied periodically.
+# Takes a lot of space, relative to usage needs.
+class OxygenExtractorConfig(ExtractorConfig):
+    type: Literal["oxygen_extractor"] = Field(default="oxygen_extractor")
+
+    def station_cfg(self) -> AssemblerConfig:
+        return AssemblerConfig(
+            name="oxygen_extractor",
+            type_id=3,
+            map_char="O",
+            render_symbol=VIBE_BY_NAME["oxygen"].symbol,
+            # Protocols
+            max_uses=self.max_uses,
+            allow_partial_usage=True,  # can use it while its on cooldown
+            recipes=[
+                (
+                    [],
+                    ProtocolConfig(
+                        output_resources={"oxygen": 20},
+                        cooldown=int(10_000 / self.efficiency),
+                    ),
+                )
+            ],
+            # Clipping
+            start_clipped=self.start_clipped,
+            clip_immune=self.clip_immune,
+        )
 
 
-# Need little, takes a long time to regen.
-def germanium_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
-    return AssemblerConfig(
-        name="germanium_extractor",
-        type_id=4,
-        map_char="G",
-        render_symbol="🟣",
-        max_uses=max_uses or 2,
-        recipes=(
-            protocols.protocol(protocols.germanium_recipe(1), num_agents=1)
-            + protocols.protocol(protocols.germanium_recipe(2), num_agents=2)
-            + protocols.protocol(protocols.germanium_recipe(3), num_agents=3)
-            + protocols.protocol(protocols.germanium_recipe(4), min_agents=4)
-        ),
-    )
+# Rare and doesn't regenerate. But more cogs increase efficiency.
+class GermaniumExtractorConfig(ExtractorConfig):
+    type: Literal["germanium_extractor"] = Field(default="germanium_extractor")
+    synergy: int = 1
+    efficiency: int = 1
+
+    def station_cfg(self) -> AssemblerConfig:
+        return AssemblerConfig(
+            name="germanium_extractor",
+            type_id=4,
+            map_char="G",
+            render_symbol=vibes.VIBE_BY_NAME["germanium"].symbol,
+            # Protocols
+            max_uses=1,
+            recipes=[
+                (
+                    [],
+                    ProtocolConfig(output_resources={"germanium": self.efficiency}),
+                ),
+                *[
+                    (
+                        ["germanium"] * i,
+                        ProtocolConfig(output_resources={"germanium": self.efficiency + i * self.synergy}),
+                    )
+                    for i in range(1, 5)
+                ],
+            ],
+            # Clipping
+            start_clipped=self.start_clipped,
+            clip_immune=self.clip_immune,
+        )
 
 
-# Plentiful but requires energy / work and need a lot.
-def silicon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
-    return AssemblerConfig(
-        name="silicon_extractor",
-        type_id=15,
-        map_char="S",
-        render_symbol="🔷",
-        max_uses=max_uses or 0,
-        recipes=protocols.protocol(protocols.standard_silicon_recipe()),
-    )
+class SiliconExtractorConfig(ExtractorConfig):
+    type: Literal["silicon_extractor"] = Field(default="silicon_extractor")
+
+    def station_cfg(self) -> AssemblerConfig:
+        return AssemblerConfig(
+            name="silicon_extractor",
+            type_id=15,
+            map_char="S",
+            render_symbol=vibes.VIBE_BY_NAME["silicon"].symbol,
+            # Protocols
+            max_uses=max(1, self.max_uses // 10),
+            recipes=[
+                (
+                    [],
+                    ProtocolConfig(
+                        input_resources={"energy": 25},
+                        output_resources={"silicon": max(1, int(25 * self.efficiency // 100))},
+                    ),
+                )
+            ],
+            # Clipping
+            start_clipped=self.start_clipped,
+            clip_immune=self.clip_immune,
+        )
 
 
-def clipped_carbon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
-    return AssemblerConfig(
-        name="clipped_carbon_extractor",
-        type_id=35,
-        map_char="B",
-        render_symbol="⚫",
-        max_uses=max_uses or 0,
-        start_clipped=True,
-        recipes=protocols.protocol(protocols.standard_carbon_recipe()),
-    )
+class CvCChestConfig(CvCStationConfig):
+    type: Literal["communal_chest"] = Field(default="communal_chest")
+    default_resource: str = Field(default="heart")
+
+    def station_cfg(self) -> ChestConfig:
+        return ChestConfig(
+            name=self.type,
+            type_id=18,
+            map_char="C",
+            render_symbol=vibes.VIBE_BY_NAME["chest"].symbol,
+            resource_type=self.default_resource,
+            position_deltas=[("E", 1), ("W", -1), ("N", 5), ("S", -5)],
+        )
 
 
-def clipped_oxygen_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
-    return AssemblerConfig(
-        name="clipped_oxygen_extractor",
-        type_id=36,
-        map_char="N",
-        render_symbol="🔵",
-        max_uses=max_uses or 0,
-        start_clipped=True,
-        recipes=protocols.protocol(protocols.standard_carbon_recipe()),
-    )
+class CvCAssemblerConfig(CvCStationConfig):
+    type: Literal["assembler"] = Field(default="assembler")
 
-
-def clipped_germanium_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
-    return AssemblerConfig(
-        name="clipped_germanium_extractor",
-        type_id=37,
-        map_char="F",
-        render_symbol="🟣",
-        max_uses=max_uses or 2,
-        start_clipped=True,
-        recipes=protocols.protocol(protocols.germanium_recipe(1), num_agents=1)
-        + protocols.protocol(protocols.germanium_recipe(2), num_agents=2)
-        + protocols.protocol(protocols.germanium_recipe(3), num_agents=3)
-        + protocols.protocol(protocols.germanium_recipe(4), min_agents=4),
-    )
-
-
-def clipped_silicon_extractor(max_uses: Optional[int] = None) -> AssemblerConfig:
-    return AssemblerConfig(
-        name="clipped_silicon_extractor",
-        type_id=38,
-        map_char="R",
-        render_symbol="🔷",
-        max_uses=max_uses or 0,
-        start_clipped=True,
-        recipes=protocols.protocol(protocols.standard_silicon_recipe()),
-    )
-
-
-def carbon_ex_dep() -> AssemblerConfig:
-    return AssemblerConfig(
-        name="carbon_ex_dep",
-        type_id=19,
-        map_char="c",
-        render_symbol="⬛",
-        max_uses=100,
-        recipes=protocols.protocol(protocols.low_carbon_recipe()),
-    )
-
-
-def oxygen_ex_dep() -> AssemblerConfig:
-    return AssemblerConfig(
-        name="oxygen_ex_dep",
-        type_id=18,
-        map_char="o",  # lowercase o for depleted oxygen
-        render_symbol="⬜",
-        max_uses=10,
-        allow_partial_usage=True,
-        recipes=protocols.protocol(protocols.low_oxygen_recipe()),
-    )
-
-
-def germanium_ex_dep() -> AssemblerConfig:
-    return AssemblerConfig(
-        name="germanium_ex_dep",
-        type_id=20,
-        map_char="g",
-        render_symbol="🟪",
-        max_uses=1,
-        recipes=(
-            protocols.protocol(protocols.germanium_recipe(1), num_agents=1)
-            + protocols.protocol(protocols.germanium_recipe(2), num_agents=2)
-            + protocols.protocol(protocols.germanium_recipe(3), num_agents=3)
-            + protocols.protocol(protocols.germanium_recipe(4), min_agents=4)
-        ),
-    )
-
-
-def silicon_ex_dep() -> AssemblerConfig:
-    return AssemblerConfig(
-        name="silicon_ex_dep",
-        type_id=16,
-        map_char="s",
-        render_symbol="🔹",
-        max_uses=10,
-        recipes=protocols.protocol(protocols.low_silicon_recipe()),
-    )
-
-
-def chest() -> ChestConfig:
-    return ChestConfig(
-        name="chest",
-        type_id=17,
-        map_char="=",
-        render_symbol="📦",
-        resource_type="heart",
-        position_deltas=[("E", 1), ("W", -1)],
-    )
-
-
-# Chest characters are the letter after the relative resource type.
-def chest_carbon() -> ChestConfig:
-    return ChestConfig(
-        name="chest_carbon",
-        type_id=31,
-        map_char="D",
-        render_symbol="📦",
-        resource_type="carbon",
-        initial_inventory=50,
-        position_deltas=[("E", 1), ("W", -1), ("N", 5), ("S", -5)],
-    )
-
-
-def chest_oxygen() -> ChestConfig:
-    return ChestConfig(
-        name="chest_oxygen",
-        type_id=32,
-        map_char="P",
-        render_symbol="📦",
-        resource_type="oxygen",
-        initial_inventory=50,
-        position_deltas=[("E", 1), ("W", -1), ("N", 10), ("S", -10)],
-    )
-
-
-def chest_germanium() -> ChestConfig:
-    return ChestConfig(
-        name="chest_germanium",
-        type_id=33,
-        map_char="H",
-        render_symbol="📦",
-        resource_type="germanium",
-        initial_inventory=5,
-        position_deltas=[("E", 1), ("W", -1), ("N", 5), ("S", -5)],
-    )
-
-
-def chest_silicon() -> ChestConfig:
-    return ChestConfig(
-        name="chest_silicon",
-        type_id=34,
-        map_char="T",
-        render_symbol="📦",
-        resource_type="silicon",
-        initial_inventory=100,
-        position_deltas=[("E", 1), ("W", -1), ("N", 25), ("S", -25)],
-    )
-
-
-def assembler() -> AssemblerConfig:
-    return AssemblerConfig(
-        name="assembler",
-        type_id=8,
-        map_char="&",
-        render_symbol="🔄",
-        clip_immune=True,
-        recipes=[
-            # Single agent heart recipes (cardinal directions)
-            (["N"], protocols.one_agent_heart_recipe()),
-            (["W"], protocols.one_agent_heart_recipe()),
-            (["S"], protocols.one_agent_heart_recipe()),
-            (["E"], protocols.one_agent_heart_recipe()),
-            # Two agent heart recipes (two cardinal directions)
-            (["N", "E"], protocols.two_agent_heart_recipe()),
-            (["N", "W"], protocols.two_agent_heart_recipe()),
-            (["N", "S"], protocols.two_agent_heart_recipe()),
-            (["E", "S"], protocols.two_agent_heart_recipe()),
-            (["E", "W"], protocols.two_agent_heart_recipe()),
-            (["S", "W"], protocols.two_agent_heart_recipe()),
-            # Three agent heart recipes
-            (["N", "E", "W"], protocols.three_agent_heart_recipe()),
-            (["N", "E", "S"], protocols.three_agent_heart_recipe()),
-            (["N", "W", "S"], protocols.three_agent_heart_recipe()),
-            (["E", "W", "S"], protocols.three_agent_heart_recipe()),
-            # Four agent heart recipe
-            (["N", "E", "W", "S"], protocols.four_agent_heart_recipe()),
-            # Equipment recipes: NE diagonal + cardinal = decoder
-            (["NE", "N"], protocols.decoder_recipe()),
-            (["NE", "E"], protocols.decoder_recipe()),
-            (["NE", "S"], protocols.decoder_recipe()),
-            (["NE", "W"], protocols.decoder_recipe()),
-            # Equipment recipes: SE diagonal + cardinal = modulator
-            (["SE", "N"], protocols.modulator_recipe()),
-            (["SE", "E"], protocols.modulator_recipe()),
-            (["SE", "S"], protocols.modulator_recipe()),
-            (["SE", "W"], protocols.modulator_recipe()),
-            # Equipment recipes: SW diagonal + cardinal = scrambler
-            (["SW", "N"], protocols.scrambler_recipe()),
-            (["SW", "E"], protocols.scrambler_recipe()),
-            (["SW", "S"], protocols.scrambler_recipe()),
-            (["SW", "W"], protocols.scrambler_recipe()),
-            # Equipment recipes: NW diagonal + cardinal = resonator
-            (["NW", "N"], protocols.resonator_recipe()),
-            (["NW", "E"], protocols.resonator_recipe()),
-            (["NW", "S"], protocols.resonator_recipe()),
-            (["NW", "W"], protocols.resonator_recipe()),
-        ],
-    )
+    def station_cfg(self) -> AssemblerConfig:
+        gear = [("oxygen", "modulator"), ("germanium", "scrambler"), ("silicon", "resonator"), ("carbon", "decoder")]
+        return AssemblerConfig(
+            name=self.type,
+            type_id=8,
+            map_char="&",
+            render_symbol=vibes.VIBE_BY_NAME["assembler"].symbol,
+            clip_immune=True,
+            recipes=[
+                (
+                    ["heart"] * (i + 1),
+                    ProtocolConfig(
+                        input_resources={"carbon": 20, "oxygen": 20, "germanium": 5 - i, "silicon": 50, "energy": 20},
+                        output_resources={"heart": 1},
+                    ),
+                )
+                for i in range(4)
+            ]
+            + [
+                (
+                    ["gear", gear[i][0]],
+                    ProtocolConfig(input_resources={gear[i][0]: 1}, output_resources={gear[i][1]: 1}),
+                )
+                for i in range(len(gear))
+            ],
+        )
