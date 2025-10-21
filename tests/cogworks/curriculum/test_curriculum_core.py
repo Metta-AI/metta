@@ -80,7 +80,7 @@ class TestCurriculumConfig:
         config = CurriculumConfig(task_generator=single_task_generator_config)
 
         assert config.max_task_id == 1000000
-        assert config.num_active_tasks == 10000
+        assert config.num_active_tasks == 1000  # Updated default in refactor
 
     @pytest.mark.parametrize(
         "max_task_id,num_active_tasks",
@@ -123,9 +123,11 @@ class TestCurriculumCore:
     @pytest.mark.parametrize("seed", [0, 42, 123, 999])
     def test_curriculum_creation(self, curriculum_config, seed):
         """Test creating a Curriculum with various seeds."""
-        curriculum = Curriculum(curriculum_config, seed=seed)
+        # Create config with the specified seed
+        config_with_seed = curriculum_config.model_copy(update={"seed": seed})
+        curriculum = Curriculum(config_with_seed)
 
-        assert curriculum._config is curriculum_config
+        assert curriculum._config is config_with_seed
         assert hasattr(curriculum._task_generator, "get_task")
         assert isinstance(curriculum._rng, random.Random)
 
@@ -133,7 +135,8 @@ class TestCurriculumCore:
         # curriculum initialization now creates tasks at capacity, consuming randomness
         # Just verify that the RNG was seeded properly by creating another with same seed
         # and checking that some draws produce the same sequence after capacity initialization
-        test_curriculum = Curriculum(curriculum_config, seed=seed)
+        test_config = curriculum_config.model_copy(update={"seed": seed})
+        test_curriculum = Curriculum(test_config)
 
         # After initialization, both should generate the same sequence
         for _ in range(5):
@@ -141,7 +144,8 @@ class TestCurriculumCore:
 
     def test_curriculum_task_generation(self, curriculum_config):
         """Test that curriculum can generate tasks."""
-        curriculum = Curriculum(curriculum_config, seed=0)
+        config = curriculum_config.model_copy(update={"seed": 0})
+        curriculum = Curriculum(config)
 
         # Generate multiple tasks
         tasks = []
@@ -160,7 +164,8 @@ class TestCurriculumCore:
 
     def test_curriculum_task_reuse(self, curriculum_config):
         """Test that curriculum can reuse tasks."""
-        curriculum = Curriculum(curriculum_config, seed=0)
+        config = curriculum_config.model_copy(update={"seed": 0})
+        curriculum = Curriculum(config)
 
         # Get initial task
         initial_task = curriculum.get_task()
@@ -181,8 +186,10 @@ class TestCurriculumCore:
         seed = 42
 
         # Create two curricula with same seed
-        curriculum1 = Curriculum(curriculum_config, seed=seed)
-        curriculum2 = Curriculum(curriculum_config, seed=seed)
+        config1 = curriculum_config.model_copy(update={"seed": seed})
+        config2 = curriculum_config.model_copy(update={"seed": seed})
+        curriculum1 = Curriculum(config1)
+        curriculum2 = Curriculum(config2)
 
         # Generate tasks from both
         tasks1 = [curriculum1.get_task() for _ in range(5)]
@@ -198,8 +205,10 @@ class TestCurriculumCore:
         seed1, seed2 = 42, 123
 
         # Create curricula with different seeds
-        curriculum1 = Curriculum(curriculum_config, seed=seed1)
-        curriculum2 = Curriculum(curriculum_config, seed=seed2)
+        config1 = curriculum_config.model_copy(update={"seed": seed1})
+        config2 = curriculum_config.model_copy(update={"seed": seed2})
+        curriculum1 = Curriculum(config1)
+        curriculum2 = Curriculum(config2)
 
         # Generate tasks from both
         tasks1 = [curriculum1.get_task() for _ in range(5)]
