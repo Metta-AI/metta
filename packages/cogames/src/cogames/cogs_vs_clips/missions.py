@@ -119,6 +119,7 @@ class HarvestMission(Mission):
     def configure(self):
         pass
 
+
 class AssembleMission(Mission):
     name: str = "assemble"
     description: str = "Make HEARTs by using the assembler. Coordinate your team to maximize efficiency."
