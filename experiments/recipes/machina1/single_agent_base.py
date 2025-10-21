@@ -45,7 +45,7 @@ curriculum_args = {
         "max_uses": [1000],
     },
     "one_extractor": {
-        "extractors": [["carbon"], ["oxygen"], ["germanium"], ["silicon"]],
+        "extractors": [[], ["carbon"], ["oxygen"], ["germanium"], ["silicon"]],
         "use_charger": [False],
         "use_chest": [True],
         "use_extractor_glyphs": [False],
@@ -53,7 +53,7 @@ curriculum_args = {
         "max_uses": [1000],
     },
     "two_extractors": {
-        "extractors": [["carbon"], ["oxygen"], ["germanium"], ["silicon"]]
+        "extractors": [] + [["carbon"], ["oxygen"], ["germanium"], ["silicon"]]
         + [
             ["carbon", "oxygen"],
             ["carbon", "germanium"],
@@ -69,7 +69,7 @@ curriculum_args = {
         "max_uses": [1000],
     },
     "three_extractors": {
-        "extractors": [["carbon"], ["oxygen"], ["germanium"], ["silicon"]]
+        "extractors": [] + [["carbon"], ["oxygen"], ["germanium"], ["silicon"]]
         + [
             ["carbon", "oxygen"],
             ["carbon", "germanium"],
@@ -91,7 +91,7 @@ curriculum_args = {
         "max_uses": [1000],
     },
     "four_extractors": {
-        "extractors": [["carbon"], ["oxygen"], ["germanium"], ["silicon"]]
+        "extractors": [] +[["carbon"], ["oxygen"], ["germanium"], ["silicon"]]
         + [
             ["carbon", "oxygen"],
             ["carbon", "germanium"],
