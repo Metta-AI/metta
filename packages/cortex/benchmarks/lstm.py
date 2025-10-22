@@ -88,24 +88,21 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
             resets=None,
         )
 
-    try:
-        (y_tr, hn_tr, cn_tr), triton_time = measure_callable(
-            run_triton,
-            warmup=settings.warmup,
-            iterations=settings.iterations,
-            synchronize=True,
-        )
-        results["triton_ms"] = triton_time * 1000.0
-        if triton_time > 0:
-            results["speedup"] = pytorch_time / triton_time
-        max_diff = max(
-            torch.max(torch.abs(y_pt - y_tr)).item(),
-            torch.max(torch.abs(hn_pt - hn_tr)).item(),
-            torch.max(torch.abs(cn_pt - cn_tr)).item(),
-        )
-        results["max_diff"] = max_diff
-    except Exception as exc:  # pragma: no cover - defensive
-        results["error"] = str(exc)
+    (y_tr, hn_tr, cn_tr), triton_time = measure_callable(
+        run_triton,
+        warmup=settings.warmup,
+        iterations=settings.iterations,
+        synchronize=True,
+    )
+    results["triton_ms"] = triton_time * 1000.0
+    if triton_time > 0:
+        results["speedup"] = pytorch_time / triton_time
+    max_diff = max(
+        torch.max(torch.abs(y_pt - y_tr)).item(),
+        torch.max(torch.abs(hn_pt - hn_tr)).item(),
+        torch.max(torch.abs(cn_pt - cn_tr)).item(),
+    )
+    results["max_diff"] = max_diff
 
     return results
 

@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import contextlib
+import time
 from dataclasses import dataclass
 from typing import Dict, Iterator, Optional, Tuple
 
+import cortex.cells.core.axon_cell as cell_mod
+import cortex.utils as utils_mod
 import torch
 import torch.nn as nn
 from cortex.cells.core import AxonCell
@@ -34,11 +38,6 @@ def _force_axon_backend(which: str) -> Iterator[None]:  # type: ignore[override]
     ``cortex.utils.select_backend`` and the alias bound in
     ``cortex.cells.core.axon_cell``.
     """
-    import contextlib
-
-    import cortex.cells.core.axon_cell as cell_mod
-    import cortex.utils as utils_mod
-
     if which == "auto":
         # no-op context manager
         @contextlib.contextmanager
@@ -91,8 +90,6 @@ def _benchmark_step(
     iterations: int,
     device: torch.device,
 ) -> _BenchResult:
-    import time
-
     # Warmup
     for _ in range(max(0, warmup)):
         y = fn(x)

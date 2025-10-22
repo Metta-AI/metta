@@ -69,21 +69,18 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
     def run_triton():
         return slstm_sequence_triton(Wx=Wx, R=R, b=b, initial_states=initial_states)
 
-    try:
-        (all_states_tr, last_state_tr), triton_time = measure_callable(
-            run_triton,
-            warmup=settings.warmup,
-            iterations=settings.iterations,
-            synchronize=True,
-        )
-        results["triton_ms"] = triton_time * 1000.0
-        if triton_time > 0:
-            results["speedup"] = pytorch_time / triton_time
-        diff_states = torch.max(torch.abs(all_states_pt - all_states_tr)).item()
-        diff_last = torch.max(torch.abs(last_state_pt - last_state_tr)).item()
-        results["max_diff"] = max(diff_states, diff_last)
-    except Exception as exc:  # pragma: no cover - defensive
-        results["error"] = str(exc)
+    (all_states_tr, last_state_tr), triton_time = measure_callable(
+        run_triton,
+        warmup=settings.warmup,
+        iterations=settings.iterations,
+        synchronize=True,
+    )
+    results["triton_ms"] = triton_time * 1000.0
+    if triton_time > 0:
+        results["speedup"] = pytorch_time / triton_time
+    diff_states = torch.max(torch.abs(all_states_pt - all_states_tr)).item()
+    diff_last = torch.max(torch.abs(last_state_pt - last_state_tr)).item()
+    results["max_diff"] = max(diff_states, diff_last)
 
     return results
 

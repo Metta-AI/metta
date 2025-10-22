@@ -3,6 +3,9 @@ from __future__ import annotations
 from typing import Dict, Optional, Tuple
 
 import torch
+from cortex.backends import load_cuda_stream_diag
+from cortex.kernels.pytorch.rtu.rtu_stream_diag import rtu_stream_diag_pytorch
+from cortex.kernels.triton.rtu import rtu_stream_diag_triton  # type: ignore
 
 from packages.cortex.benchmarks.common import (
     BenchmarkCase,
@@ -35,21 +38,7 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
     device = torch.device(settings.device)
     dtype = settings.dtype
 
-    # Lazy import to avoid optional dependency errors when listing
-    from cortex.kernels.pytorch.rtu.rtu_stream_diag import rtu_stream_diag_pytorch
-
-    try:
-        from cortex.kernels.triton.rtu import rtu_stream_diag_triton  # type: ignore
-    except Exception:  # pragma: no cover - optional
-        rtu_stream_diag_triton = None  # type: ignore
-
-    # Optional CUDA kernel (seq-all-in variant). Use helper that returns None when unavailable.
-    try:
-        from cortex.backends import load_cuda_stream_diag
-
-        rtu_stream_diag_cuda = load_cuda_stream_diag()
-    except Exception:  # pragma: no cover - optional
-        rtu_stream_diag_cuda = None
+    rtu_stream_diag_cuda = load_cuda_stream_diag()
 
     D = H
     x = torch.randn(B, T, D, device=device, dtype=dtype)
@@ -102,68 +91,58 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
         return results
 
     # Triton path if available
-    if rtu_stream_diag_triton is not None:
+    def run_triton():
+        y, _, _ = rtu_stream_diag_triton(
+            x_btd=x,
+            nu_log=nu_log,
+            theta_log=theta_log,
+            w1=w1,
+            w2=w2,
+            activation_name="SiLU",
+            hc1_init_bh=hc1,
+            hc2_init_bh=hc2,
+            trace_in=trace_in,
+            resets_bt=resets,
+        )
+        return y
 
-        def run_triton():
-            y, _, _ = rtu_stream_diag_triton(
-                x_btd=x,
-                nu_log=nu_log,
-                theta_log=theta_log,
-                w1=w1,
-                w2=w2,
-                activation_name="SiLU",
-                hc1_init_bh=hc1,
-                hc2_init_bh=hc2,
-                trace_in=trace_in,
-                resets_bt=resets,
-            )
-            return y
-
-        try:
-            y_tr, tr_time = measure_callable(
-                run_triton,
-                warmup=settings.warmup,
-                iterations=settings.iterations,
-                synchronize=True,
-            )
-            results["triton_ms"] = tr_time * 1000.0
-            if tr_time > 0:
-                results["speedup"] = pt_time / tr_time
-            results["max_diff"] = torch.max(torch.abs(y_pt - y_tr)).item()
-        except Exception as exc:  # pragma: no cover - defensive
-            results["error"] = str(exc)
+    y_tr, tr_time = measure_callable(
+        run_triton,
+        warmup=settings.warmup,
+        iterations=settings.iterations,
+        synchronize=True,
+    )
+    results["triton_ms"] = tr_time * 1000.0
+    if tr_time > 0:
+        results["speedup"] = pt_time / tr_time
+    results["max_diff"] = torch.max(torch.abs(y_pt - y_tr)).item()
 
     # CUDA path if available
-    if rtu_stream_diag_cuda is not None:
+    def run_cuda():
+        y, _, _ = rtu_stream_diag_cuda(
+            x_btd=x,
+            nu_log=nu_log,
+            theta_log=theta_log,
+            w1=w1,
+            w2=w2,
+            activation_name="SiLU",
+            hc1_init_bh=hc1,
+            hc2_init_bh=hc2,
+            trace_in=trace_in,
+            resets_bt=resets,
+        )
+        return y
 
-        def run_cuda():
-            y, _, _ = rtu_stream_diag_cuda(
-                x_btd=x,
-                nu_log=nu_log,
-                theta_log=theta_log,
-                w1=w1,
-                w2=w2,
-                activation_name="SiLU",
-                hc1_init_bh=hc1,
-                hc2_init_bh=hc2,
-                trace_in=trace_in,
-                resets_bt=resets,
-            )
-            return y
-
-        try:
-            y_cu, cu_time = measure_callable(
-                run_cuda,
-                warmup=settings.warmup,
-                iterations=settings.iterations,
-                synchronize=True,
-            )
-            results["cuda_ms"] = cu_time * 1000.0
-            if cu_time > 0:
-                results["speedup_cuda"] = pt_time / cu_time
-            results["max_diff_cuda"] = torch.max(torch.abs(y_pt - y_cu)).item()
-        except Exception as exc:  # pragma: no cover - defensive
-            results["error_cuda"] = str(exc)
+    y_cu, cu_time = measure_callable(
+        run_cuda,
+        warmup=settings.warmup,
+        iterations=settings.iterations,
+        synchronize=True,
+    )
+    results["cuda_ms"] = cu_time * 1000.0
+    if cu_time > 0:
+        results["speedup_cuda"] = pt_time / cu_time
+    results["max_diff_cuda"] = torch.max(torch.abs(y_pt - y_cu)).item()
 
     return results
 

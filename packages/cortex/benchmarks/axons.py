@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Dict, Optional, Tuple
 
+import cortex.cells.core.axon_cell as cell_mod
+import cortex.utils as utils_mod
 import torch
 from cortex.cells.core import AxonCell
 from cortex.config import AxonConfig
@@ -29,9 +31,6 @@ def _run_cell(
     Note: AxonCell delegates selection to ``cortex.utils.select_backend``.
     Monkey‑patch that selector so the requested backend is authoritative.
     """
-    import cortex.cells.core.axon_cell as cell_mod
-    import cortex.utils as utils_mod
-
     original_utils = utils_mod.select_backend
     original_cell = getattr(cell_mod, "select_backend", None)
 
@@ -149,20 +148,17 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
     def run_triton():
         return _run_cell(cell, x, resets, which="triton", backend_sink=tr_sink)
 
-    try:
-        output_tr, triton_time = measure_callable(
-            run_triton,
-            warmup=settings.warmup,
-            iterations=settings.iterations,
-            synchronize=True,
-        )
-        results["triton_ms"] = triton_time * 1000.0
-        results["triton_backend"] = tr_sink[0] if tr_sink else None
-        if triton_time > 0:
-            results["speedup"] = pytorch_time / triton_time
-        results["max_diff"] = torch.max(torch.abs(output_pt - output_tr)).item()
-    except Exception as exc:  # pragma: no cover - defensive
-        results["error"] = str(exc)
+    output_tr, triton_time = measure_callable(
+        run_triton,
+        warmup=settings.warmup,
+        iterations=settings.iterations,
+        synchronize=True,
+    )
+    results["triton_ms"] = triton_time * 1000.0
+    results["triton_backend"] = tr_sink[0] if tr_sink else None
+    if triton_time > 0:
+        results["speedup"] = pytorch_time / triton_time
+    results["max_diff"] = torch.max(torch.abs(output_pt - output_tr)).item()
 
     # Try CUDA backend explicitly
     cu_sink: list = []
@@ -170,20 +166,17 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
     def run_cuda():
         return _run_cell(cell, x, resets, which="cuda", backend_sink=cu_sink)
 
-    try:
-        output_cu, cuda_time = measure_callable(
-            run_cuda,
-            warmup=settings.warmup,
-            iterations=settings.iterations,
-            synchronize=True,
-        )
-        results["cuda_ms"] = cuda_time * 1000.0
-        results["cuda_backend"] = cu_sink[0] if cu_sink else None
-        if cuda_time > 0:
-            results["speedup_cuda"] = pytorch_time / cuda_time
-        results["max_diff_cuda"] = torch.max(torch.abs(output_pt - output_cu)).item()
-    except Exception as exc:  # pragma: no cover - defensive
-        results["error_cuda"] = str(exc)
+    output_cu, cuda_time = measure_callable(
+        run_cuda,
+        warmup=settings.warmup,
+        iterations=settings.iterations,
+        synchronize=True,
+    )
+    results["cuda_ms"] = cuda_time * 1000.0
+    results["cuda_backend"] = cu_sink[0] if cu_sink else None
+    if cuda_time > 0:
+        results["speedup_cuda"] = pytorch_time / cuda_time
+    results["max_diff_cuda"] = torch.max(torch.abs(output_pt - output_cu)).item()
 
     return results
 
