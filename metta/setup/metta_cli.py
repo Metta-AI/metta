@@ -1,5 +1,4 @@
 #!/usr/bin/env -S uv run
-import os
 import re
 import shutil
 import subprocess
@@ -17,8 +16,9 @@ from metta.common.util.fs import get_repo_root
 from metta.setup.components.base import SetupModuleStatus
 from metta.setup.local_commands import app as local_app
 from metta.setup.symlink_setup import app as symlink_app
-from metta.setup.test_matrix import app as test_matrix_app
 from metta.setup.tools.book import app as book_app
+from metta.setup.tools.test_runner.test_cpp import app as cpp_test_runner_app
+from metta.setup.tools.test_runner.test_python import app as python_test_runner_app
 from metta.setup.utils import debug, error, info, success, warning
 from metta.utils.live_run_monitor import app as run_monitor_app
 from softmax.dashboard.report import app as softmax_system_health_app
@@ -670,81 +670,6 @@ def cmd_lint(
             success("C++ linting passed!")
 
 
-def _run_mettagrid_target(target: str, *, verbose: bool = False) -> int:
-    mettagrid_dir = cli.repo_root / "packages" / "mettagrid"
-    env = os.environ.copy()
-    if verbose and "VERBOSE" not in env:
-        env["VERBOSE"] = "1"
-    cmd = ["make", target]
-    return subprocess.run(cmd, cwd=mettagrid_dir, env=env, check=False).returncode
-
-
-grid_app = typer.Typer(help="MettaGrid build and test helpers")
-app.add_typer(grid_app, name="grid")
-
-
-@grid_app.command("test", help="Run MettaGrid C++ unit tests")
-def grid_test(
-    verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Show verbose build output.")] = False,
-) -> None:
-    info("Running MettaGrid C++ unit tests...")
-    exit_code = _run_mettagrid_target("test", verbose=verbose)
-    if exit_code != 0:
-        error("MettaGrid C++ unit tests failed!")
-        raise typer.Exit(exit_code)
-    success("MettaGrid C++ unit tests passed!")
-
-
-@grid_app.command("coverage", help="Run MettaGrid C++ tests with coverage enabled")
-def grid_coverage(
-    verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Show verbose build output.")] = False,
-) -> None:
-    info("Running MettaGrid C++ coverage target...")
-    exit_code = _run_mettagrid_target("coverage", verbose=verbose)
-    if exit_code != 0:
-        error("MettaGrid C++ coverage run failed!")
-        raise typer.Exit(exit_code)
-    success("MettaGrid C++ coverage run completed!")
-
-
-@grid_app.command("benchmark", help="Build and run MettaGrid benchmarks")
-def grid_benchmark(
-    verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Show verbose build output.")] = False,
-) -> None:
-    info("Running MettaGrid benchmarks...")
-    exit_code = _run_mettagrid_target("benchmark", verbose=verbose)
-    if exit_code != 0:
-        error("MettaGrid benchmarks failed!")
-        raise typer.Exit(exit_code)
-    success("MettaGrid benchmarks completed!")
-
-
-@app.command(name="benchmark", help="Run C++ and Python benchmarks for mettagrid")
-def cmd_benchmark(
-    verbose: Annotated[
-        bool,
-        typer.Option(
-            "--verbose",
-            "-v",
-            help="Verbose test output. Includes e.g. Python print statements within tests.",
-        ),
-    ] = False,
-) -> None:
-    info("Running mettagrid benchmarks...")
-    info("Note: This may fail if Python environment is not properly configured.")
-    info("If it fails, try running directly: cd packages/mettagrid && make benchmark")
-
-    exit_code = _run_mettagrid_target("benchmark", verbose=verbose)
-    if exit_code != 0:
-        error("Benchmark execution failed!")
-        info("\nTroubleshooting:")
-        info("1. Try building first: cd packages/mettagrid && make build-prod")
-        info("2. Run benchmark binary directly: ./build-release/test_mettagrid_env_benchmark")
-        info("3. Run Python benchmarks: uv run pytest benchmarks/test_mettagrid_env_benchmark.py -v --benchmark-only")
-        raise typer.Exit(exit_code)
-    success("Benchmarks completed!")
-
-
 @app.command(
     name="pytest",
     help="Run pytest with passed arguments",
@@ -865,7 +790,8 @@ app.add_typer(local_app, name="local")
 app.add_typer(book_app, name="book")
 app.add_typer(symlink_app, name="symlink-setup")
 app.add_typer(softmax_system_health_app, name="softmax-system-health")
-app.add_typer(test_matrix_app, name="test")
+app.add_typer(python_test_runner_app, name="pytest")
+app.add_typer(cpp_test_runner_app, name="cpptest")
 
 
 def main() -> None:
