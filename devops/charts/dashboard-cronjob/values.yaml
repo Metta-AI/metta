@@ -7,7 +7,7 @@ image:
   tag: "latest"
 
 # Command to run - can be overridden for different scripts
-command: ["uv", "run", "python", "-m", "softmax.dashboard.report", "report", "--push"]
+command: ["uv", "run", "python", "-m", "softmax.dashboard.report", "--push"]
 
 serviceAccount:
   create: true
