@@ -17,7 +17,7 @@ InventoryDelta HasInventory::shared_update(std::vector<HasInventory*> inventory_
   // needed (the per-inventory amount, since some inventories may have dropped out).
   // 3. Update all inventories that can fully participate.
   //
-  // One things we specifically aim for is that the earlier inventories get more of the update, if it can't be
+  // One thing we specifically aim for is that the earlier inventories get more of the update, if it can't be
   // evenly split.
   InventoryDelta delta_remaining = delta;
   std::vector<HasInventory*> inventory_havers_to_consider;
