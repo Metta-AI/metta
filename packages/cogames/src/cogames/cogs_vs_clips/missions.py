@@ -69,19 +69,36 @@ class SolarFlareVariant(MissionVariant):
         return mission
 
 
-class EfficientAssemblersVariant(MissionVariant):
-    name: str = "efficient_assemblers"
-    description: str = "Assembler protocols tuned for quick heart assembly and simpler play."
+class SimpleRecipesVariant(MissionVariant):
+    name: str = "simple_recipes"
+    description: str = "Swap in tutorial assembler protocols for easier heart crafting."
 
     def apply(self, mission: Mission) -> Mission:
         mission.assembler.recipe_pack = "tutorial"
-        mission.heart_capacity = max(mission.heart_capacity, 10)
-        mission.change_glyph_enabled = False
         return mission
 
 
-class HeartWhispersVariant(MissionVariant):
-    name: str = "heart_whispers"
+class PackRatVariant(MissionVariant):
+    name: str = "pack_rat"
+    description: str = "Boost heart inventory limits so agents can haul more at once."
+
+    def apply(self, mission: Mission) -> Mission:
+        mission.heart_capacity = max(mission.heart_capacity, 10)
+        return mission
+
+
+class BasicVibesVariant(MissionVariant):
+    name: str = "basic_vibes"
+    description: str = "Limit vibe swapping to the core tutorial set."
+
+    def apply(self, mission: Mission) -> Mission:
+        mission.change_glyph_enabled = True
+        mission.glyph_limit = 20
+        return mission
+
+
+class HeartChorusVariant(MissionVariant):
+    name: str = "heart_chorus"
     description: str = "Heart-centric reward shaping to guide cooperative play."
 
     def apply(self, mission: Mission) -> Mission:
@@ -95,8 +112,10 @@ VARIANTS = [
     BrightSideVariant,
     RoughTerrainVariant,
     SolarFlareVariant,
-    EfficientAssemblersVariant,
-    HeartWhispersVariant,
+    SimpleRecipesVariant,
+    PackRatVariant,
+    BasicVibesVariant,
+    HeartChorusVariant,
 ]
 
 

@@ -77,6 +77,7 @@ class Mission(Config):
     move_energy_cost: int = Field(default=2)
     heart_capacity: int = Field(default=1)
     change_glyph_enabled: bool = Field(default=True)
+    glyph_limit: int | None = Field(default=None, ge=0, le=len(vibes.VIBES))
     reward_profile: Literal["default", "heart_focus"] = Field(default="default")
 
     def instantiate(
@@ -155,7 +156,7 @@ class Mission(Config):
                 noop=ActionConfig(),
                 change_glyph=ChangeGlyphActionConfig(
                     enabled=self.change_glyph_enabled,
-                    number_of_glyphs=len(vibes.VIBES),
+                    number_of_glyphs=self._resolve_glyph_limit(),
                 ),
             ),
             agent=agent_config,
@@ -194,3 +195,8 @@ class Mission(Config):
         )
 
         return MettaGridConfig(game=game)
+
+    def _resolve_glyph_limit(self) -> int:
+        if self.glyph_limit is None:
+            return len(vibes.VIBES)
+        return max(0, min(self.glyph_limit, len(vibes.VIBES)))
