@@ -115,6 +115,26 @@ class CurriculumEnv(PufferEnv):
                 gini = self._calculate_gini_coefficient(sampling_counts)
                 info_dict[self._CURRICULUM_STAT_PREFIX + "sampling_gini"] = gini
 
+            # Calculate and add Gini coefficient for pool occupancy (completion counts)
+            pool_completion_counts = []
+            for key, value in stats.items():
+                if key.startswith("algorithm/completion_counts/"):
+                    pool_completion_counts.append(value)
+
+            if pool_completion_counts:
+                pool_gini = self._calculate_gini_coefficient(pool_completion_counts)
+                info_dict[self._CURRICULUM_STAT_PREFIX + "pool_occupancy_gini"] = pool_gini
+
+            # Calculate and add Gini coefficient for pool LP scores
+            pool_lp_scores = []
+            for key, value in stats.items():
+                if key.startswith("algorithm/lp_scores/"):
+                    pool_lp_scores.append(value)
+
+            if pool_lp_scores:
+                lp_gini = self._calculate_gini_coefficient(pool_lp_scores)
+                info_dict[self._CURRICULUM_STAT_PREFIX + "pool_lp_gini"] = lp_gini
+
             # Add mean LP score from task pool
             if "algorithm/mean_lp_score" in stats:
                 info_dict[self._CURRICULUM_STAT_PREFIX + "mean_pool_lp_score"] = stats["algorithm/mean_lp_score"]

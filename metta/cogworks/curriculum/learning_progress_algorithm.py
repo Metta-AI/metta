@@ -332,7 +332,62 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         for label, count in composition_data["sampling_counts"].items():
             stats[f"sampling_counts/{label}"] = float(count)
 
+        # Add per-task completion counts and LP scores for pool tasks
+        all_task_ids = self.task_tracker.get_all_tracked_tasks()
+        completion_counts = []
+        lp_scores = []
+        for task_id in all_task_ids:
+            task_stats = self.task_tracker.get_task_stats(task_id)
+            if task_stats:
+                completion_count = float(task_stats["completion_count"])
+                lp_score = float(task_stats.get("lp_score", 0.0))
+                stats[f"completion_counts/{task_id}"] = completion_count
+                stats[f"lp_scores/{task_id}"] = lp_score
+                completion_counts.append(completion_count)
+                lp_scores.append(lp_score)
+
+        # Calculate Gini coefficients for pool occupancy and LP scores
+        if completion_counts:
+            stats["pool_occupancy_gini"] = self._calculate_gini_coefficient(completion_counts)
+        if lp_scores:
+            stats["pool_lp_gini"] = self._calculate_gini_coefficient(lp_scores)
+
         return stats
+
+    def _calculate_gini_coefficient(self, values: List[float]) -> float:
+        """Calculate Gini coefficient for a distribution.
+
+        Measures inequality in sampling/distribution:
+        - 0 = perfect equality
+        - 1 = perfect inequality
+
+        Args:
+            values: List of counts/frequencies
+
+        Returns:
+            Gini coefficient between 0 and 1
+        """
+        if not values or len(values) == 0:
+            return 0.0
+
+        # Handle case with all zeros
+        if sum(values) == 0:
+            return 0.0
+
+        # Sort values in ascending order
+        sorted_values = sorted(values)
+        n = len(sorted_values)
+
+        # Calculate Gini coefficient using the formula:
+        # G = (2 * sum(i * x_i)) / (n * sum(x_i)) - (n + 1) / n
+        cumsum = 0.0
+        for i, value in enumerate(sorted_values, start=1):
+            cumsum += i * value
+
+        total = sum(sorted_values)
+        gini = (2.0 * cumsum) / (n * total) - (n + 1.0) / n
+
+        return gini
 
     def get_detailed_stats(self) -> Dict[str, float]:
         """Get detailed stats including learning progress and slice distribution analysis."""
