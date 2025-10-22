@@ -14,7 +14,7 @@ from mettagrid.mettagrid_c import ActionConfig as CppActionConfig
 from mettagrid.mettagrid_c import AgentConfig as CppAgentConfig
 from mettagrid.mettagrid_c import AssemblerConfig as CppAssemblerConfig
 from mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionConfig
-from mettagrid.mettagrid_c import ChangeGlyphActionConfig as CppChangeGlyphActionConfig
+from mettagrid.mettagrid_c import ChangeVibeActionConfig as CppChangeVibeActionConfig
 from mettagrid.mettagrid_c import ChestConfig as CppChestConfig
 from mettagrid.mettagrid_c import ClipperConfig as CppClipperConfig
 from mettagrid.mettagrid_c import ConverterConfig as CppConverterConfig
@@ -119,6 +119,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 )
 
         rewards_config = agent_props.get("rewards", {})
+        initial_vibe = agent_props.get("initial_vibe", 0)
 
         # Process stats rewards
         stat_rewards = rewards_config.get("stats", {})
@@ -200,6 +201,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             "soul_bound_resources": soul_bound_resources,
             "shareable_resources": shareable_resources,
             "inventory_regen_amounts": inventory_regen_amounts,
+            "initial_vibe": initial_vibe,
         }
         cpp_agent_config = CppAgentConfig(**agent_cpp_params)
         cpp_agent_config.tag_ids = tag_ids
@@ -355,14 +357,14 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 resource_name_to_id[k]: v for k, v in action_config["defense_resources"].items()
             }
             actions_cpp_params[action_name] = CppAttackActionConfig(**action_cpp_params)
-        elif action_name == "change_glyph":
-            # Extract the specific parameters needed for ChangeGlyphActionConfig
-            change_glyph_params = {
+        elif action_name == "change_vibe":
+            # Extract the specific parameters needed for ChangeVibeActionConfig
+            change_vibe_params = {
                 "required_resources": action_cpp_params.get("required_resources", {}),
                 "consumed_resources": action_cpp_params.get("consumed_resources", {}),
-                "number_of_glyphs": action_config["number_of_glyphs"],
+                "number_of_vibes": action_config["number_of_vibes"],
             }
-            actions_cpp_params[action_name] = CppChangeGlyphActionConfig(**change_glyph_params)
+            actions_cpp_params[action_name] = CppChangeVibeActionConfig(**change_vibe_params)
         elif action_name == "resource_mod":
             # Extract the specific parameters needed for ResourceModConfig
             modifies_dict = action_config.get("modifies", {})

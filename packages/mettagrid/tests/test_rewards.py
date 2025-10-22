@@ -7,7 +7,7 @@ from mettagrid.config.mettagrid_config import (
     AgentConfig,
     AgentRewards,
     AttackActionConfig,
-    ChangeGlyphActionConfig,
+    ChangeVibeActionConfig,
     ConverterConfig,
     GameConfig,
     WallConfig,
@@ -64,7 +64,7 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
                 defense_resources={"armor": 1},
             ),
             swap=ActionConfig(enabled=True),
-            change_glyph=ChangeGlyphActionConfig(enabled=False, number_of_glyphs=4),
+            change_vibe=ChangeVibeActionConfig(enabled=False, number_of_vibes=4),
         ),
         objects={
             "wall": WallConfig(),

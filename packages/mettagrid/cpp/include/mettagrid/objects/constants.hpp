@@ -71,7 +71,7 @@ inline const std::unordered_map<ObservationType, std::string>& GetFeatureNames()
       {ObservationFeature::LastAction, "last_action"},
       {ObservationFeature::LastActionArg, "last_action_arg"},
       {ObservationFeature::LastReward, "last_reward"},
-      {ObservationFeature::Glyph, "agent:glyph"},
+      {ObservationFeature::Glyph, "vibe"},
       {ObservationFeature::VisitationCounts, "agent:visitation_counts"},
       {ObservationFeature::Tag, "tag"},
       {ObservationFeature::CooldownRemaining, "cooldown_remaining"},

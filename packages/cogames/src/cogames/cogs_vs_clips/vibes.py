@@ -1,4 +1,4 @@
-"""Glyph definitions for Cogs vs Clips game."""
+"""Vibe definitions for Cogs vs Clips game."""
 
 from dataclasses import dataclass
 

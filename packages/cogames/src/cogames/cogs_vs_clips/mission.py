@@ -18,7 +18,7 @@ from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
     AgentRewards,
-    ChangeGlyphActionConfig,
+    ChangeVibeActionConfig,
     ClipperConfig,
     GameConfig,
     MettaGridConfig,
@@ -121,7 +121,7 @@ class Mission(Config):
             actions=ActionsConfig(
                 move=ActionConfig(consumed_resources={"energy": self.move_energy_cost}),
                 noop=ActionConfig(),
-                change_glyph=ChangeGlyphActionConfig(number_of_glyphs=len(vibes.VIBES)),
+                change_vibe=ChangeVibeActionConfig(number_of_vibes=len(vibes.VIBES)),
             ),
             agent=AgentConfig(
                 resource_limits={

@@ -124,7 +124,7 @@ type
     putItemsActionId*: int
     getItemsActionId*: int
     attackActionId*: int
-    changeGlyphActionId*: int
+    changeVibeActionId*: int
 
   ReplayEntity* = ref object
     ## Replay entity does not have time series and only has the current step value.
@@ -661,7 +661,7 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
   replay.putItemsActionId = replay.actionNames.find("put_items")
   replay.getItemsActionId = replay.actionNames.find("get_items")
   replay.attackActionId = replay.actionNames.find("attack")
-  replay.changeGlyphActionId = replay.actionNames.find("change_glyph")
+  replay.changeVibeActionId = replay.actionNames.find("change_vibe")
 
   return replay
 

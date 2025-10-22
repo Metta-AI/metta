@@ -58,6 +58,7 @@ class AgentConfig(Config):
     inventory_regen_amounts: dict[str, int] = Field(
         default_factory=dict, description="Resources to regenerate and their amounts per regeneration interval"
     )
+    initial_vibe: int = Field(default=0, ge=0, description="Initial vibe value for this agent instance")
 
 
 class ActionConfig(Config):
@@ -75,10 +76,10 @@ class AttackActionConfig(ActionConfig):
     defense_resources: dict[str, int] = Field(default_factory=dict)
 
 
-class ChangeGlyphActionConfig(ActionConfig):
-    """Change glyph action configuration."""
+class ChangeVibeActionConfig(ActionConfig):
+    """Change vibe action configuration."""
 
-    number_of_glyphs: int = Field(default=0, ge=0, le=255)
+    number_of_vibes: int = Field(default=0, ge=0, le=255)
 
 
 class ResourceModActionConfig(ActionConfig):
@@ -104,7 +105,7 @@ class ActionsConfig(Config):
     get_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     attack: AttackActionConfig = Field(default_factory=lambda: AttackActionConfig(enabled=False))
     swap: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
-    change_glyph: ChangeGlyphActionConfig = Field(default_factory=lambda: ChangeGlyphActionConfig(enabled=False))
+    change_vibe: ChangeVibeActionConfig = Field(default_factory=lambda: ChangeVibeActionConfig(enabled=False))
     resource_mod: ResourceModActionConfig = Field(default_factory=lambda: ResourceModActionConfig(enabled=False))
 
 
