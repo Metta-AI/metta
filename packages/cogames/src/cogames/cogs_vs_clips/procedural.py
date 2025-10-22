@@ -29,7 +29,7 @@ def make_machina_procedural_map_builder(
     seed: int | None = None,
     base_biome: str = "caves",
     base_biome_config: dict[str, Any] | None = None,
-    extractor_coverage: float = 0.02,
+    extractor_coverage: float = 0.01,
     extractor_names: list[str] | None = None,
     extractor_weights: dict[str, float] | None = None,
     biome_weights: dict[str, float] | None = None,
@@ -37,8 +37,8 @@ def make_machina_procedural_map_builder(
     biome_count: int | None = None,
     dungeon_count: int | None = None,
     density_scale: float = 1.0,
-    max_biome_zone_fraction: float = 0.20,
-    max_dungeon_zone_fraction: float = 0.12,
+    max_biome_zone_fraction: float = 0.35,
+    max_dungeon_zone_fraction: float = 0.25,
 ) -> MapBuilderConfig:
     def _autoscale_zone_counts(
         w: int,
@@ -73,8 +73,20 @@ def make_machina_procedural_map_builder(
     _, ConfigModel = biome_map[base_biome]
     base_cfg = ConfigModel.model_validate(base_biome_config or {})
 
-    chest_names = extractor_names or ["chest"]
-    chest_weights = extractor_weights or {name: 1.0 for name in chest_names}
+    default_extractors = {
+        "chest": 0.0,
+        "charger": 0.6,
+        "germanium_extractor": 0.6,
+        "silicon_extractor": 0.3,
+        "oxygen_extractor": 0.3,
+        "carbon_extractor": 0.3,
+    }
+
+    names = extractor_names or list(default_extractors.keys())
+    weights = extractor_weights or {name: default_extractors.get(name, 1.0) for name in names}
+
+    chest_names = names
+    chest_weights = weights
 
     # Optional layered biomes via BSPLayout
     # Autoscale counts based on available area if not explicitly provided
@@ -174,7 +186,7 @@ def make_machina_procedural_map_builder(
         )
 
     biome_layer: ChildrenAction | None = None
-    biome_cands = _make_biome_candidates(biome_weights) if biome_weights is not None else []
+    biome_cands = _make_biome_candidates(biome_weights)
     if biome_cands:
         # Fill only a subset of zones to preserve base shell background
         biome_fill_count = max(1, int(biome_count * 0.6))
@@ -202,7 +214,7 @@ def make_machina_procedural_map_builder(
         )
 
     dungeon_layer: ChildrenAction | None = None
-    dungeon_cands = _make_dungeon_candidates(dungeon_weights) if dungeon_weights is not None else []
+    dungeon_cands = _make_dungeon_candidates(dungeon_weights)
     if dungeon_cands:
         # Fill only a subset of zones to preserve base shell background
         dungeon_fill_count = max(1, int(dungeon_count * 0.5))

@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import Field
 
 from cogames.cogs_vs_clips import vibes
@@ -35,7 +37,6 @@ class MissionVariant(Config):
         return mission
 
 
-
 class Site(Config):
     name: str
     description: str
@@ -59,6 +60,7 @@ class Mission(Config):
     # Map and num_cogs are optional for template missions, required for instantiated missions
     map: MapBuilderConfig | None = Field(default=None)
     num_cogs: int | None = Field(default=None)
+    procedural_overrides: dict[str, Any] = Field(default_factory=dict)
 
     carbon_extractor: CarbonExtractorConfig = Field(default_factory=CarbonExtractorConfig)
     oxygen_extractor: OxygenExtractorConfig = Field(default_factory=OxygenExtractorConfig)
