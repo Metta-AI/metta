@@ -199,27 +199,16 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
     def reset_epoch_counters(self) -> None:
         """Reset per-epoch counters in curriculum environments at the start of a new epoch.
 
-        Aggregates counts across all vectorized environments to provide total counts
-        rather than per-environment averages.
+        Each environment tracks its own deltas, which are automatically summed across
+        all vectorized environments during stats processing in accumulate_rollout_stats().
         """
         if not hasattr(self._vecenv, "envs"):
             return
 
-        # First, collect counts from all environments
-        all_label_counts: dict[str, int] = {}
-
-        for env in self._vecenv.envs:
-            if hasattr(env, "_per_label_completion_counts") and hasattr(env, "_per_label_completion_counts_last_epoch"):
-                # Calculate delta for this environment
-                for label, cumulative_count in env._per_label_completion_counts.items():
-                    last_count = env._per_label_completion_counts_last_epoch.get(label, 0)
-                    delta = cumulative_count - last_count
-                    all_label_counts[label] = all_label_counts.get(label, 0) + delta
-
-        # Now reset all environments with the aggregated counts
+        # Reset epoch baseline in each environment
         for env in self._vecenv.envs:
             if hasattr(env, "reset_epoch_counters"):
-                env.reset_epoch_counters(aggregated_counts=all_label_counts if all_label_counts else None)
+                env.reset_epoch_counters()
 
     @property
     def game_rules(self) -> GameRules:
