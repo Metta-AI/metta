@@ -1,10 +1,13 @@
 """Shared authentication functionality for CLI login scripts."""
 
 import asyncio
+import html
 import os
 import threading
 import webbrowser
+from datetime import datetime
 from pathlib import Path
+from typing import Literal, Sequence
 from urllib.parse import urlencode
 
 import uvicorn
@@ -78,58 +81,190 @@ class BaseCLIAuthenticator:
 
         return app
 
+    def _render_html(
+        self,
+        *,
+        title: str,
+        headline: str,
+        message_lines: Sequence[str],
+        status: Literal["success", "error"],
+        auto_close_seconds: int | None = None,
+        extra_html: str = "",
+    ) -> str:
+        """Render a styled HTML page for the OAuth callback."""
+        icon = "&#10003;" if status == "success" else "&#9888;"
+        escaped_title = html.escape(title)
+        escaped_headline = html.escape(headline)
+        messages = "".join(f"<p class='smx-auth__message'>{html.escape(line)}</p>" for line in message_lines)
+        current_year = datetime.now().year
+        auto_close_script = ""
+        if auto_close_seconds is not None:
+            auto_close_script = f"""
+        <script>
+            window.setTimeout(function () {{
+                try {{
+                    window.close();
+                }} catch (err) {{
+                    console.debug("Auto-close suppressed", err);
+                }}
+            }}, {int(auto_close_seconds * 1000)});
+        </script>"""
+
+        return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{escaped_title}</title>
+    <link rel="stylesheet" href="https://softmax.com/Assets/softmax.css" />
+    <style>
+        :root {{
+            color-scheme: light;
+        }}
+        body.smx-auth-page {{
+            margin: 0;
+            min-height: 100vh;
+            width: 100%;
+            background-color: #fffdf4;
+            color: #0E2758;
+            font-family: "ABC Marfa Variable", "Roboto", -apple-system, BlinkMacSystemFont, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: clamp(2.4rem, 8vw, 4rem) 1.5rem;
+            text-rendering: optimizeLegibility;
+        }}
+        .smx-auth-card {{
+            width: min(560px, 100%);
+            background: rgba(255, 254, 248, 0.95);
+            border-radius: 24px;
+            border: 1px solid rgba(14, 39, 88, 0.12);
+            box-shadow: 0 32px 60px rgba(14, 39, 88, 0.12);
+            padding: clamp(2rem, 6vw, 3.25rem);
+            text-align: center;
+        }}
+        .smx-auth-card--success .smx-auth-icon {{
+            background: rgba(26, 107, 63, 0.16);
+            color: #195C38;
+        }}
+        .smx-auth-card--error .smx-auth-icon {{
+            background: rgba(176, 46, 38, 0.16);
+            color: #952F2B;
+        }}
+        .smx-auth-icon {{
+            height: 76px;
+            width: 76px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            margin: 0 auto 20px;
+            border: 1px solid rgba(14, 39, 88, 0.12);
+        }}
+        .smx-auth-headline {{
+            margin: 0 0 12px;
+            font-size: clamp(1.8rem, 5vw, 2.35rem);
+            font-weight: 600;
+            letter-spacing: -0.01em;
+        }}
+        .smx-auth__message {{
+            margin: 0 0 12px;
+            font-size: 1.02rem;
+            line-height: 1.6;
+            color: rgba(14, 39, 88, 0.72);
+        }}
+        .smx-auth__body {{
+            display: grid;
+            gap: 8px;
+        }}
+        .smx-auth__actions {{
+            margin-top: 32px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }}
+        .smx-auth-button {{
+            appearance: none;
+            border-radius: 999px;
+            border: 2px solid #0E2758;
+            background: #0E2758;
+            color: #fffdf4;
+            cursor: pointer;
+            padding: 0.9rem 1.8rem;
+            font-size: 0.95rem;
+            font-family: "Marfa Mono", "Courier New", monospace;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease;
+        }}
+        .smx-auth-button:hover {{
+            transform: translateY(-1px);
+            background: #1a3875;
+            border-color: #1a3875;
+            box-shadow: 0 14px 28px rgba(26, 56, 117, 0.18);
+        }}
+        .smx-auth-button:active {{
+            transform: translateY(0);
+            box-shadow: 0 8px 16px rgba(14, 39, 88, 0.18);
+        }}
+        .smx-auth-footnote {{
+            margin-top: 28px;
+            font-size: 0.85rem;
+            color: rgba(14, 39, 88, 0.55);
+        }}
+        @media (max-width: 540px) {{
+            .smx-auth-card {{
+                padding: 2.4rem 1.8rem;
+            }}
+        }}
+    </style>
+</head>
+<body class="smx-auth-page">
+    <main class="smx-auth-card smx-auth-card--{status}" role="dialog" aria-live="polite">
+        <div class="smx-auth-icon" aria-hidden="true">{icon}</div>
+        <h1 class="smx-auth-headline">{escaped_headline}</h1>
+        <div class="smx-auth__body">
+            {messages}
+            {extra_html}
+        </div>
+        <div class="smx-auth-footnote">may we all find alignment - softmax, {current_year}</div>
+    </main>
+    {auto_close_script}
+</body>
+</html>"""
+
     def _success_html(self) -> str:
         """HTML response for successful authentication"""
-        return """
-        <html>
-        <head>
-            <title>Authentication Successful</title>
-            <style>
-                body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
-                .container { max-width: 500px; margin: 0 auto; padding: 20px; }
-                .success { color: #28a745; }
-                .close-btn {
-                    background: #007bff; color: white; border: none;
-                    padding: 10px 20px; border-radius: 5px; cursor: pointer;
-                    margin-top: 20px;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h1 class="success">Authentication Successful!</h1>
-                <p>You can close this window and return to the CLI.</p>
-                <button class="close-btn" onclick="window.close()">Close Window</button>
+        return self._render_html(
+            title="Authentication Successful",
+            headline="You're all set!",
+            message_lines=[
+                "Authentication complete. You can return to the terminal.",
+                "This window will close automatically in a moment.",
+            ],
+            status="success",
+            auto_close_seconds=3,
+            extra_html="""
+            <div class="smx-auth__actions">
+                <button class="smx-auth-button" type="button" onclick="window.close()">Close this window</button>
             </div>
-            <script>
-                // Auto-close after 3 seconds
-                setTimeout(() => window.close(), 3000);
-            </script>
-        </body>
-        </html>
-        """
+            """,
+        )
 
     def _error_html(self, error_message: str) -> str:
         """HTML response for authentication errors"""
-        return f"""
-        <html>
-        <head>
-            <title>Authentication Error</title>
-            <style>
-                body {{ font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }}
-                .container {{ max-width: 500px; margin: 0 auto; padding: 20px; }}
-                .error {{ color: #dc3545; }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h1 class="error">Authentication Failed</h1>
-                <p>{error_message}</p>
-                <p>Please try again or contact support.</p>
-            </div>
-        </body>
-        </html>
-        """
+        return self._render_html(
+            title="Authentication Error",
+            headline="Something went wrong",
+            message_lines=[
+                error_message,
+                "Please retry the login process or contact support if the issue persists.",
+            ],
+            status="error",
+        )
 
     def _find_free_port(self) -> int:
         """Find a free port to bind the server to"""
