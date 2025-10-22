@@ -2138,6 +2138,7 @@ dependencies = [
     { name = "simple-term-menu" },
     { name = "skypilot" },
     { name = "softmax" },
+    { name = "sqlmodel" },
     { name = "sympy" },
     { name = "tabulate" },
     { name = "tensordict" },
@@ -2247,6 +2248,7 @@ requires-dist = [
     { name = "simple-term-menu", specifier = ">=1.6.4" },
     { name = "skypilot", specifier = "==0.10.3.post2" },
     { name = "softmax", editable = "softmax" },
+    { name = "sqlmodel", specifier = ">=0.0.27" },
     { name = "sympy", specifier = ">=1.13.3" },
     { name = "tabulate", specifier = ">=0.9.0" },
     { name = "tensordict", specifier = ">=0.8.3" },
@@ -4361,6 +4363,19 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/b6/a4/8e7f871b94d8752470c7547627bc905f3c7a63a268dca1da49c933441885/sqlglot-27.17.0.tar.gz", hash = "sha256:6e0bb7baebcebc0fbb9b029cfa689ef634b5181a6751df07a84be8f540058ee3", size = 5474967, upload-time = "2025-09-23T15:34:31.946Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e4/c5/a23239b6ae53ef22b56db27357dbb270f116c29be52f6b4e35e5fe69214a/sqlglot-27.17.0-py3-none-any.whl", hash = "sha256:539d254806ead6c8f2b239185c3a5077185f8f452f45232da38b9326b899c7cc", size = 519268, upload-time = "2025-09-23T15:34:29.29Z" },
+]
+
+[[package]]
+name = "sqlmodel"
+version = "0.0.27"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "sqlalchemy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/90/5a/693d90866233e837d182da76082a6d4c2303f54d3aaaa5c78e1238c5d863/sqlmodel-0.0.27.tar.gz", hash = "sha256:ad1227f2014a03905aef32e21428640848ac09ff793047744a73dfdd077ff620", size = 118053, upload-time = "2025-10-08T16:39:11.938Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8c/92/c35e036151fe53822893979f8a13e6f235ae8191f4164a79ae60a95d66aa/sqlmodel-0.0.27-py3-none-any.whl", hash = "sha256:667fe10aa8ff5438134668228dc7d7a08306f4c5c4c7e6ad3ad68defa0e7aa49", size = 29131, upload-time = "2025-10-08T16:39:10.917Z" },
 ]
 
 [[package]]
