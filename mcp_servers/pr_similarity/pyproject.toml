@@ -1,0 +1,18 @@
+[project]
+name = "metta-pr-similarity-mcp"
+version = "0.1.0"
+description = "Model Context Protocol server exposing PR similarity search."
+authors = [{ name = "Metta Team", email = "team@metta.ai" }]
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "mcp>=1.0.0",
+  "google-genai>=1.46.0",
+]
+
+[project.scripts]
+metta-pr-similarity-mcp = "pr_similarity.server:cli_main"
+
+[build-system]
+requires = ["setuptools==80.9.0", "wheel==0.45.1"]
+build-backend = "setuptools.build_meta"

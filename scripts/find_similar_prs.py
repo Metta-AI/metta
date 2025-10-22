@@ -1,36 +1,15 @@
-from __future__ import annotations
-
 import argparse
-import json
-import math
-import os
 import sys
 import textwrap
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Tuple
 
-from google import genai
-from google.genai import types
-
-API_KEY_ENV = "GEMINI_API_KEY"
-DEFAULT_CACHE_PATH = Path("pr_embeddings.json")
-DEFAULT_RESULTS = 10
-TASK_FALLBACK = "semantic_similarity"
-
-
-@dataclass
-class EmbeddingRecord:
-    pr_number: int
-    title: str
-    description: str
-    author: str
-    additions: int
-    deletions: int
-    files_changed: int
-    commit_sha: str
-    authored_at: str
-    vector: List[float]
+from metta.tools.pr_similarity import (
+    API_KEY_ENV,
+    DEFAULT_CACHE_PATH,
+    DEFAULT_TOP_K,
+    find_similar_prs,
+    require_api_key,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -50,8 +29,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--top-k",
         type=int,
-        default=DEFAULT_RESULTS,
-        help=f"Number of similar PRs to return (default: {DEFAULT_RESULTS}).",
+        default=DEFAULT_TOP_K,
+        help=f"Number of similar PRs to return (default: {DEFAULT_TOP_K}).",
     )
     parser.add_argument(
         "description",
@@ -63,66 +42,6 @@ def parse_args() -> argparse.Namespace:
         help="Disable ANSI color codes in the output.",
     )
     return parser.parse_args()
-
-
-def load_cache(path: Path) -> Tuple[Dict[str, str], List[EmbeddingRecord]]:
-    if not path.exists():
-        raise FileNotFoundError(f"Embedding cache not found: {path}")
-    with path.open("r", encoding="utf-8") as handle:
-        data = json.load(handle)
-
-    metadata = {
-        "model": data.get("model"),
-        "task_type": data.get("task_type", TASK_FALLBACK),
-    }
-
-    records: List[EmbeddingRecord] = []
-    for item in data.get("entries", []):
-        records.append(
-            EmbeddingRecord(
-                pr_number=int(item["pr_number"]),
-                title=item.get("title", ""),
-                description=item.get("description", ""),
-                author=item.get("author", ""),
-                additions=int(item.get("additions", 0)),
-                deletions=int(item.get("deletions", 0)),
-                files_changed=int(item.get("files_changed", 0)),
-                commit_sha=item.get("commit_sha", ""),
-                authored_at=item.get("authored_at", ""),
-                vector=list(item["vector"]),
-            ),
-        )
-    if not records:
-        raise ValueError(f"No embedding entries found in cache {path}")
-    return metadata, records
-
-
-def read_description(args: argparse.Namespace) -> str:
-    return args.description.strip()
-
-
-def embed_text(
-    client: genai.Client,
-    text: str,
-    model: str,
-    task_type: str,
-) -> List[float]:
-    config = types.EmbedContentConfig(task_type=task_type)
-    response = client.models.embed_content(
-        model=model,
-        contents=[text],
-        config=config,
-    )
-    return list(response.embeddings[0].values)
-
-
-def cosine_similarity(vector_a: List[float], vector_b: List[float]) -> float:
-    dot = math.fsum(a * b for a, b in zip(vector_a, vector_b, strict=False))
-    norm_a = math.sqrt(math.fsum(a * a for a in vector_a))
-    norm_b = math.sqrt(math.fsum(b * b for b in vector_b))
-    if norm_a == 0 or norm_b == 0:
-        return 0.0
-    return dot / (norm_a * norm_b)
 
 
 def summarize_description(description: str, limit: int = 240) -> str:
@@ -159,28 +78,17 @@ def format_description_block(text: str, width: int = 90, indent: int = 12, label
 def main() -> None:
     args = parse_args()
 
-    api_key = os.getenv(API_KEY_ENV)
-    if not api_key:
-        raise EnvironmentError(f"Set {API_KEY_ENV} before running this script.")
+    api_key = require_api_key(API_KEY_ENV)
+    description = args.description.strip()
 
-    metadata, records = load_cache(args.cache_path)
-    model = args.model or metadata.get("model")
-    if not model:
-        raise ValueError("Embedding model is not specified in cache; use --model.")
-    task_type = metadata.get("task_type", TASK_FALLBACK)
-
-    description = read_description(args)
-
-    client = genai.Client(api_key=api_key)
-    query_vector = embed_text(client, description, model=model, task_type=task_type)
-
-    scored: List[Tuple[float, EmbeddingRecord]] = []
-    for record in records:
-        score = cosine_similarity(query_vector, record.vector)
-        scored.append((score, record))
-
-    scored.sort(key=lambda item: item[0], reverse=True)
-    top_results = scored[: max(1, args.top_k)]
+    metadata, top_results = find_similar_prs(
+        description,
+        top_k=args.top_k,
+        cache_path=args.cache_path,
+        model_override=args.model,
+        api_key=api_key,
+    )
+    model_name = args.model or metadata.model or "<unknown>"
 
     use_color = supports_color(args)
     BOLD = "\033[1m"
@@ -191,7 +99,7 @@ def main() -> None:
     BLUE = "\033[34m"
 
     header = colorize(use_color, BOLD + CYAN, f"Top {len(top_results)} similar PRs")
-    print(f"{header} {colorize(use_color, CYAN, f'(model={model})')}")
+    print(f"{header} {colorize(use_color, CYAN, f'(model={model_name})')}")
     print(colorize(use_color, CYAN, "─" * 72))
 
     for rank, (score, record) in enumerate(top_results, start=1):

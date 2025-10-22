@@ -16,5 +16,15 @@
     ],
     "deny": []
   },
-  "setup_commands": ["export PATH=/opt/homebrew/bin:$PATH", "SHELL=/bin/bash", "source .venv/bin/activate"]
+  "setup_commands": [
+    "export PATH=/opt/homebrew/bin:$PATH",
+    "SHELL=/bin/bash",
+    "source .venv/bin/activate",
+    "codex mcp add metta-pr-similarity -- metta-pr-similarity-mcp >/dev/null 2>&1 || true"
+  ],
+  "mcpServers": {
+    "metta-pr-similarity": {
+      "command": "metta-pr-similarity-mcp"
+    }
+  }
 }
