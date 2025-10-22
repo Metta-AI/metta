@@ -43,41 +43,26 @@ class CurriculumEnv(PufferEnv):
 
         # Per-label metrics tracking
         self._per_label_lp_scores = {}
-        self._per_label_completion_counts = {}  # Cumulative across all training
-        self._per_label_completion_counts_last_epoch = {}  # For computing deltas
 
     def reset_epoch_counters(self) -> None:
         """Reset per-epoch tracking at the start of a new epoch.
 
-        This ensures that per-epoch delta calculations start fresh for each epoch,
-        preventing completions from one epoch leaking into the next.
+        Note: Per-label counts are emitted per-episode in infos (not accumulated),
+        so this is a no-op. Kept for API compatibility with epoch lifecycle.
         """
-        # Reset the baseline for delta calculations
-        self._per_label_completion_counts_last_epoch = self._per_label_completion_counts.copy()
+        pass
 
     def _add_curriculum_stats_to_info(self, info_dict: dict) -> None:
         """Add label-specific curriculum statistics to info dictionary for logging.
 
-        Only logs per-label metrics (completions and LP scores), not general curriculum stats.
+        Only logs per-label metrics (LP scores), not general curriculum stats.
+        Per-label completion counts are emitted on episode completion, not batched here.
         """
         # Only update curriculum stats periodically to reduce overhead
         if self._stats_update_counter >= self._stats_update_frequency:
             # Add per-label learning progress metrics
             if self._per_label_lp_scores:
                 info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_lp_scores"] = self._per_label_lp_scores.copy()
-
-            # Report per-epoch deltas (derivative) instead of cumulative counts
-            # These will be automatically aggregated across all vectorized environments in accumulate_rollout_stats
-            if self._per_label_completion_counts:
-                per_epoch_counts = {}
-                for label, cumulative_count in self._per_label_completion_counts.items():
-                    last_count = self._per_label_completion_counts_last_epoch.get(label, 0)
-                    per_epoch_counts[label] = cumulative_count - last_count
-
-                info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_samples_this_epoch"] = per_epoch_counts
-
-            # NOTE: Do NOT reset the baseline here - only reset at epoch boundaries
-            # via reset_epoch_counters() to get accurate per-epoch counts
 
             self._stats_update_counter = 0
 
@@ -121,8 +106,11 @@ class CurriculumEnv(PufferEnv):
                 else:
                     self._per_label_lp_scores[label] = lp_score
 
-                # Update cumulative completion counts
-                self._per_label_completion_counts[label] = self._per_label_completion_counts.get(label, 0) + 1
+                # Emit per-label completion count directly in infos (following episode stats pattern)
+                # This will be summed across all vectorized environments automatically
+                if "env_curriculum/per_label_samples_this_epoch" not in infos:
+                    infos["env_curriculum/per_label_samples_this_epoch"] = {}
+                infos["env_curriculum/per_label_samples_this_epoch"][label] = 1
 
             self._current_task = self._curriculum.get_task()
             self._env.set_mg_config(self._current_task.get_env_cfg())
@@ -164,8 +152,6 @@ class CurriculumEnv(PufferEnv):
             "force_stats_update",
             "_first_reset_done",
             "_per_label_lp_scores",
-            "_per_label_completion_counts",
-            "_per_label_completion_counts_last_epoch",
             "reset_epoch_counters",
             "_CURRICULUM_STAT_PREFIX",
         ):
