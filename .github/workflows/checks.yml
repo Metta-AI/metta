@@ -259,7 +259,7 @@ jobs:
           RUN_APP_BACKEND_TESTS: ${{ needs.setup-checks.outputs.app_backend_has_changes == 'true' && 'true' || 'false' }}
         run: .github/scripts/run_package_tests.sh
 
-  mettagrid-cpp-build:
+  mettagrid-cpp:
     name: "MettaGrid C++ Build & Test"
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
@@ -309,29 +309,38 @@ jobs:
           restore-keys: |
             bazel-${{ runner.os }}-
 
-      - name: Build MettaGrid C++ (with coverage)
-        id: mettagrid_build_check
+      - name: MettaGrid C++ tests
+        id: mettagrid-cpp-tests
         run: |
           cd packages/mettagrid
           make coverage VERBOSE=1
 
+      - name: MettaGrid C++ benchmarks
+        id: mettagrid-cpp-benchmarks
+        run: |
+          cd packages/mettagrid
+          make benchmark VERBOSE=1
+
   unit-tests-summary:
     name: "Tests"
-    needs: [unit-tests, mettagrid-cpp-build]
+    needs: [unit-tests, mettagrid-cpp]
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: Check test results
-        run: |
-          echo "Test job results: ${{ toJSON(needs) }}"
-          if [ "${{ contains(join(needs.*.result, ','), 'failure') }}" == "true" ]; then
-            echo "One or more test jobs failed"
-            exit 1
-          elif [ "${{ contains(join(needs.*.result, ','), 'cancelled') }}" == "true" ]; then
-            echo "One or more test jobs were cancelled"
-            # Indicates Github's "neutral" result
-            # https://github.com/actions/runner/issues/662
-            exit 78
-          else
-            echo "All test jobs completed successfully"
-          fi
+      - name: Check unit tests did not fail
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const needs = ${{ toJSON(needs) }};
+            const results = Object.values(needs).map(j => j.result || '').join(',');
+            core.info(`Test job results: ${results}`);
+
+            if (results.includes('failure')) {
+              core.setFailed('One or more test jobs failed');     // red
+              return;
+            }
+            if (results.includes('cancelled')) {
+              core.notice('One or more test jobs were cancelled');
+            } else {
+              core.info('All test jobs completed successfully');
+            }

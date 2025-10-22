@@ -24,8 +24,8 @@ class TestNewPolicySystem:
     def test_checkpoint_manager_uri_parsing(self):
         """Test that CheckpointManager can parse different URI formats."""
         test_uris = [
-            "file:///absolute/path/checkpoint.pt",
-            "file://./relative/path/checkpoint.pt",
+            "file:///absolute/path/checkpoint.mpt",
+            "file://./relative/path/checkpoint.mpt",
             "file:///path/to/checkpoints",
             "mock://test_policy",
         ]
@@ -69,18 +69,17 @@ class TestNewPolicySystem:
 
         try:
             # Test with a mock URI that should be fully versioned
-            agent = CheckpointManager.load_from_uri("mock://test_policy")
-            # Mock URIs may return None or raise an exception
-            assert agent is None or isinstance(agent, object)
+            artifact = CheckpointManager.load_artifact_from_uri("mock://test_policy")
+            assert artifact.policy is not None
         except Exception as e:
             assert "not found" in str(e).lower() or "invalid" in str(e).lower()
 
     def test_policy_uri_formats(self):
         """Test different policy URI formats are recognized."""
         uri_formats = [
-            "file://./checkpoints/model.pt",
-            "file:///absolute/path/model.pt",
-            "s3://bucket/path/model.pt",
+            "file://./checkpoints/model.mpt",
+            "file:///absolute/path/model.mpt",
+            "s3://bucket/path/model.mpt",
             "wandb://project/artifact:version",
             "mock://test_policy",
         ]

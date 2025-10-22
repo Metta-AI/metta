@@ -163,16 +163,26 @@ function requireFields(obj: any, fields: string[], objName: string, issues: Vali
 function validateObject(obj: any, objIndex: number, replayData: any, issues: ValidationIssue[]): void {
   const objName = `Object ${objIndex + 1}`
 
-  const requiredFields = ['id', 'typeId', 'location', 'orientation', 'inventory', 'color']
+  const requiredFields = ['id', 'typeName', 'location', 'orientation', 'inventory', 'color']
   requireFields(obj, requiredFields, objName, issues)
 
   validateType(obj.id, 'number', `${objName}.id`, issues)
   validatePositiveInt(obj.id, `${objName}.id`, issues)
 
-  validateType(obj.typeId, 'number', `${objName}.typeId`, issues)
-  validateNonNegativeNumber(obj.typeId, `${objName}.typeId`, issues)
-  if (obj.typeId >= replayData.typeNames.length) {
-    issues.push({ message: `${objName}.typeId ${obj.typeId} out of range`, field: `${objName}.typeId` })
+  if (typeof obj.typeName !== 'string' || obj.typeName.length === 0) {
+    const typeId = typeof obj.typeId === 'number' ? obj.typeId : undefined
+    if (typeof typeId === 'number' && typeId >= 0 && typeId < replayData.typeNames.length) {
+      obj.typeName = replayData.typeNames[typeId]
+    } else {
+      issues.push({ message: `${objName}.typeName must be non-empty string`, field: `${objName}.typeName` })
+    }
+  } else if (!replayData.typeNames.includes(obj.typeName)) {
+    const typeId = typeof obj.typeId === 'number' ? obj.typeId : undefined
+    if (typeof typeId === 'number' && typeId >= 0 && typeId < replayData.typeNames.length) {
+      obj.typeName = replayData.typeNames[typeId]
+    } else {
+      issues.push({ message: `${objName}.typeName '${obj.typeName}' not found in typeNames`, field: `${objName}.typeName` })
+    }
   }
 
   validateTimeSeries(obj.location, `${objName}.location`, isCoordinates, issues)
@@ -367,8 +377,34 @@ export function validateReplayStep(replayStep: any): void {
       issues.push({ message: `${prefix} Invalid or missing ID`, field: `objects[${i}].id` })
     }
 
-    if (typeof obj.type_id !== 'number' || obj.type_id < 0) {
-      issues.push({ message: `${prefix} Invalid type ID`, field: `objects[${i}].type_id` })
+    const typeNames = Common.state.replay.typeNames
+    const hasTypeName = typeof obj.type_name === 'string' && obj.type_name.length > 0
+    const legacyTypeId =
+      typeof obj.type_id === 'number'
+        ? obj.type_id
+        : typeof obj.type === 'number'
+          ? obj.type
+          : undefined
+
+    const attachTypeNameFromId = (candidateId: number | undefined) => {
+      if (typeof candidateId === 'number' && candidateId >= 0 && candidateId < typeNames.length) {
+        obj.type_name = typeNames[candidateId]
+        return true
+      }
+      return false
+    }
+
+    if (!hasTypeName) {
+      if (!attachTypeNameFromId(legacyTypeId)) {
+        issues.push({ message: `${prefix} Invalid type name`, field: `objects[${i}].type_name` })
+      }
+    } else if (!typeNames.includes(obj.type_name)) {
+      if (!attachTypeNameFromId(legacyTypeId)) {
+        issues.push({
+          message: `${prefix} Unknown type name '${obj.type_name}'`,
+          field: `objects[${i}].type_name`,
+        })
+      }
     }
 
     if (obj.location !== undefined) {

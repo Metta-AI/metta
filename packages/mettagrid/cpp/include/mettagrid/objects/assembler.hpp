@@ -1,6 +1,8 @@
 #ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_ASSEMBLER_HPP_
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_ASSEMBLER_HPP_
 
+#include <algorithm>
+#include <cassert>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -37,13 +39,36 @@ private:
     return positions;
   }
 
-  // Get surrounding agents in a deterministic order (clockwise from NW)
-  std::vector<Agent*> get_surrounding_agents() const {
+  // Get surrounding agents in upper-left-to-lower-right order starting from the given agent's position
+  std::vector<Agent*> get_surrounding_agents(const Agent* starting_agent) const {
     std::vector<Agent*> agents;
     if (!grid) return agents;
 
     std::vector<std::pair<GridCoord, GridCoord>> positions = get_surrounding_positions();
 
+    // Find the starting agent's position in the surrounding positions
+    int start_index = -1;
+    if (starting_agent) {
+      for (size_t i = 0; i < positions.size(); i++) {
+        if (positions[i].first == starting_agent->location.r && positions[i].second == starting_agent->location.c) {
+          start_index = i;
+          break;
+        }
+      }
+
+      // The starting agent must be in one of the surrounding positions
+      if (start_index == -1) {
+        throw std::runtime_error("Starting agent is not in a surrounding position of the assembler");
+      }
+    }
+
+    // If starting agent was found in surrounding positions, reorder to start from there
+    if (start_index >= 0) {
+      // Rotate the positions vector to start from the starting_agent's position
+      std::rotate(positions.begin(), positions.begin() + start_index, positions.end());
+    }
+
+    // Collect agents from the reordered positions
     for (const auto& pos : positions) {
       GridCoord check_r = pos.first;
       GridCoord check_c = pos.second;
@@ -77,10 +102,14 @@ private:
     return true;
   }
 
-  // Give output resources to the triggering agent
-  void give_output_to_agent(const Recipe& recipe, Agent& agent) {
+  // Give output resources to agents
+  void give_output_for_recipe(const Recipe& recipe, const std::vector<Agent*>& surrounding_agents) {
+    std::vector<Inventory*> inventories;
+    for (Agent* agent : surrounding_agents) {
+      inventories.push_back(&agent->inventory);
+    }
     for (const auto& [item, amount] : recipe.output_resources) {
-      agent.update_inventory(item, static_cast<InventoryDelta>(amount));
+      Inventory::shared_update(inventories, item, amount);
     }
   }
 
@@ -98,23 +127,23 @@ public:
   // Consume resources from surrounding agents for the given recipe
   // Intended to be private, but made public for testing. We couldn't get `friend` to work as expected.
   void consume_resources_for_recipe(const Recipe& recipe, const std::vector<Agent*>& surrounding_agents) {
+    std::vector<Inventory*> inventories;
+    for (Agent* agent : surrounding_agents) {
+      inventories.push_back(&agent->inventory);
+    }
     for (const auto& [item, required_amount] : recipe.input_resources) {
-      InventoryQuantity remaining = required_amount;
-      for (Agent* agent : surrounding_agents) {
-        if (remaining == 0) break;
-        InventoryQuantity available = agent->inventory.amount(item);
-        InventoryQuantity to_consume = static_cast<InventoryQuantity>(std::min<int>(available, remaining));
-        agent->update_inventory(item, static_cast<InventoryDelta>(-to_consume));
-        remaining -= to_consume;
-      }
+      InventoryDelta consumed = Inventory::shared_update(inventories, item, -required_amount);
+      assert(consumed == -required_amount && "Expected all required resources to be consumed");
     }
   }
 
-  // Recipe lookup table - 256 possible patterns (2^8)
-  std::vector<std::shared_ptr<Recipe>> recipes;
+  // Recipe lookup table for recipes that depend on agents vibing- keyed by local vibe (64-bit number from sorted
+  // glyphs). Later, this may be switched to having string keys based on the glyphs.
+  // Note that 0 is both the vibe you get when no one is showing a glyph, and also the default vibe.
+  const std::unordered_map<uint64_t, std::shared_ptr<Recipe>> recipes;
 
   // Unclip recipes - used when assembler is clipped
-  std::vector<std::shared_ptr<Recipe>> unclip_recipes;
+  std::unordered_map<uint64_t, std::shared_ptr<Recipe>> unclip_recipes;
 
   // Clipped state
   bool is_clipped;
@@ -187,7 +216,7 @@ public:
     this->current_timestep_ptr = timestep_ptr;
   }
 
-  // Calculate remaining cooldown time
+  // Get the remaining cooldown duration in ticks (0 when ready for use)
   unsigned int cooldown_remaining() const {
     if (!current_timestep_ptr || cooldown_end_timestep <= *current_timestep_ptr) {
       return 0;
@@ -195,7 +224,6 @@ public:
     return cooldown_end_timestep - *current_timestep_ptr;
   }
 
-  // Get the fraction of cooldown completed (0.0 = just started, 1.0 = completed)
   float cooldown_progress() const {
     // If no cooldown is active or no timestep pointer, return 1.0 (completed)
     if (!current_timestep_ptr || cooldown_duration == 0 || cooldown_end_timestep <= *current_timestep_ptr) {
@@ -212,14 +240,12 @@ public:
     return static_cast<float>(elapsed) / static_cast<float>(cooldown_duration);
   }
 
-  // Helper function to convert surrounding agent positions to byte value
-  // Returns a byte where each bit represents whether an agent is present
-  // in the corresponding position around the assembler
-  // Bit positions: 0=NW, 1=N, 2=NE, 3=W, 4=E, 5=SW, 6=S, 7=SE
-  uint8_t get_agent_pattern_byte() const {
+  // Helper function to get the "local vibe" based on glyphs of surrounding agents
+  // Returns a 64-bit number created from sorted glyphs of surrounding agents
+  uint64_t get_local_vibe() const {
     if (!grid) return 0;
 
-    uint8_t pattern = 0;
+    std::vector<uint8_t> glyphs;
     std::vector<std::pair<GridCoord, GridCoord>> positions = get_surrounding_positions();
 
     for (size_t i = 0; i < positions.size(); i++) {
@@ -228,31 +254,46 @@ public:
 
       if (check_r < grid->height && check_c < grid->width) {
         GridObject* obj = grid->object_at(GridLocation(check_r, check_c, GridLayer::AgentLayer));
-        if (obj && dynamic_cast<Agent*>(obj)) {
-          pattern |= static_cast<uint8_t>(1u << i);
+        if (obj) {
+          Agent* agent = dynamic_cast<Agent*>(obj);
+          if (agent && agent->glyph != 0) {
+            glyphs.push_back(agent->glyph);
+          }
         }
       }
     }
 
-    return pattern;
+    // Sort the glyphs to make the vibe independent of agent positions.
+    std::sort(glyphs.begin(), glyphs.end());
+    return std::accumulate(
+        glyphs.begin(), glyphs.end(), 0, [](uint64_t acc, uint8_t glyph) { return (acc << 8) | glyph; });
   }
 
-  // Get current recipe based on surrounding agent pattern
+  // Get current recipe based on local vibe from surrounding agent glyphs
   const Recipe* get_current_recipe() const {
     if (!grid) return nullptr;
-    uint8_t pattern = get_agent_pattern_byte();
+    uint64_t vibe = get_local_vibe();
 
-    // Use unclip recipes if clipped, normal recipes otherwise
-    const std::vector<std::shared_ptr<Recipe>>& active_recipes = is_clipped ? unclip_recipes : recipes;
+    auto recipes_to_use = recipes;
+    if (is_clipped) {
+      recipes_to_use = unclip_recipes;
+    }
 
-    if (pattern >= active_recipes.size()) return nullptr;
-    return active_recipes[pattern].get();
+    auto it = recipes_to_use.find(vibe);
+    if (it != recipes_to_use.end()) return it->second.get();
+
+    // Check the default if no recipe is found for the current vibe.
+    it = recipes_to_use.find(0);
+    if (it != recipes_to_use.end()) return it->second.get();
+
+    return nullptr;
   }
 
   // Make this assembler clipped with the given unclip recipes
-  void become_clipped(const std::vector<std::shared_ptr<Recipe>>& unclip_recipes_vec, Clipper* clipper) {
+  void become_clipped(const std::unordered_map<uint64_t, std::shared_ptr<Recipe>>& unclip_recipes_map,
+                      Clipper* clipper) {
     is_clipped = true;
-    unclip_recipes = unclip_recipes_vec;
+    unclip_recipes = unclip_recipes_map;
     // It's a little odd that we store the clipper here, versus having global access to it. This is a
     // path of least resistance, not a specific intention. But it does present questions around whether
     // there could be more than one Clipper.
@@ -319,12 +360,12 @@ public:
       }
     }
 
-    std::vector<Agent*> surrounding_agents = get_surrounding_agents();
+    std::vector<Agent*> surrounding_agents = get_surrounding_agents(&actor);
     if (!can_afford_recipe(recipe_to_use, surrounding_agents)) {
       return false;
     }
     consume_resources_for_recipe(recipe_to_use, surrounding_agents);
-    give_output_to_agent(recipe_to_use, actor);
+    give_output_for_recipe(recipe_to_use, surrounding_agents);
 
     cooldown_duration = static_cast<unsigned int>(recipe_to_use.cooldown * cooldown_multiplier);
     cooldown_end_timestep = *current_timestep_ptr + cooldown_duration;

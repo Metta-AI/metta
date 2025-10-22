@@ -67,7 +67,6 @@ def play(
     max_steps: Optional[int] = None,
     seed: int = 42,
     render: RenderMode = "gui",
-    verbose: bool = False,
 ) -> None:
     """Play a single game episode with a policy.
 
@@ -80,7 +79,6 @@ def play(
         max_steps: Maximum steps for the episode (None for no limit)
         seed: Random seed
         render: Render mode - "gui", "unicode", or "none"
-        verbose: Whether to print detailed progress
     """
 
     if game_name:
@@ -138,9 +136,6 @@ def play(
         # Update total rewards
         total_rewards += rewards
         step_count += 1
-
-        if verbose:
-            console.print(f"Step {step_count}: Reward = {float(sum(rewards)):.2f}")
 
         if all(dones) or all(truncated):
             break

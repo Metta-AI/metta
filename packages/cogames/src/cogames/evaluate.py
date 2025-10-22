@@ -7,14 +7,14 @@ import re
 import time
 from collections import defaultdict
 from copy import deepcopy
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 import typer
 from rich.console import Console
 from rich.table import Table
 
-from cogames.policy.interfaces import PolicySpec
+from cogames.policy.interfaces import AgentPolicy, PolicySpec
 from cogames.policy.utils import initialize_or_load_policy
 from mettagrid import MettaGridConfig, MettaGridEnv
 
@@ -49,6 +49,7 @@ def evaluate(
     policy_specs: list[PolicySpec],
     episodes: int,
     action_timeout_ms: int,
+    max_steps: Optional[int] = None,
     seed: int = 42,
 ) -> None:
     if not policy_specs:
@@ -91,7 +92,7 @@ def evaluate(
             obs, _ = env.reset(seed=seed + episode_idx)
             # Shuffle assignments in place
             rng.shuffle(assignments)
-            agent_policies = [
+            agent_policies: list[AgentPolicy] = [
                 policy_instances[assignments[agent_id]].agent_policy(agent_id) for agent_id in range(env.num_agents)
             ]
             for agent_policy in agent_policies:
@@ -99,7 +100,10 @@ def evaluate(
 
             done = np.zeros(env.num_agents, dtype=bool)
             truncated = np.zeros(env.num_agents, dtype=bool)
-            while not done.all() and not truncated.all():
+
+            step_count = 0
+
+            while max_steps is None or step_count < max_steps:
                 actions = np.zeros(env.num_agents, dtype=env.action_space.dtype)
                 for i in range(env.num_agents):
                     start_time = time.time()
@@ -115,6 +119,10 @@ def evaluate(
                         action = noop
                     actions[i] = np.asarray(action).astype(env.action_space.dtype).item()
                 obs, rewards, done, truncated, _ = env.step(actions)
+
+                step_count += 1
+                if done.all() or truncated.all():
+                    break
 
             per_episode_rewards.append(np.array(env.get_episode_rewards(), dtype=float))
 
@@ -149,7 +157,8 @@ def evaluate(
         policy_table.add_column("Average", justify="right")
         count = policy_counts[policy_idx]
         for key, value in sorted(stats.items()):
-            policy_table.add_row(key, f"{value / count:.2f}")
+            avg_value = value / count if count > 0 else 0.0
+            policy_table.add_row(key, f"{avg_value:.2f}")
         console.print(policy_table)
 
     console.print("\n[bold cyan]Average Game Stats[/bold cyan]")
@@ -178,7 +187,10 @@ def evaluate(
             policy_idx = int(assignments[agent_id])
             episode_reward_per_policy[policy_idx] += float(reward)
         for policy_idx in range(len(policy_specs)):
-            avg_reward_per_agent = episode_reward_per_policy[policy_idx] / policy_counts[policy_idx]
+            if policy_counts[policy_idx] > 0:
+                avg_reward_per_agent = episode_reward_per_policy[policy_idx] / policy_counts[policy_idx]
+            else:
+                avg_reward_per_agent = 0.0
             row.append(str(avg_reward_per_agent))
             total_avg_agent_reward_per_policy[policy_idx] += avg_reward_per_agent
 

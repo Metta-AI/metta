@@ -180,10 +180,10 @@ class TrainTool(Tool):
             config=self.checkpointer,
             checkpoint_manager=checkpoint_manager,
             distributed_helper=distributed_helper,
+            policy_architecture=self.policy_architecture,
         )
         policy = policy_checkpointer.load_or_create_policy(
-            env.meta_data,
-            self.policy_architecture,
+            env.game_rules,
             policy_uri=self.initial_policy_uri,
         )
         return policy_checkpointer, policy
@@ -314,15 +314,15 @@ class TrainTool(Tool):
             return
 
         try:
-            torch.backends.cuda.matmul.allow_tf32 = True
-            torch.backends.cudnn.allow_tf32 = True
+            torch.backends.cuda.matmul.fp32_precision = "tf32"  # type: ignore[attr-defined]
+            torch.backends.cudnn.conv.fp32_precision = "tf32"  # type: ignore[attr-defined]
         except Exception as exc:  # pragma: no cover - diagnostic only
             logger.debug("Skipping CUDA matmul backend configuration: %s", exc)
 
         # Opportunistically enable flash attention when available
         if os.environ.get("FLASH_ATTENTION") is None:
             try:
-                import flash_attn  # noqa: F401
+                import flash_attn  # noqa: F401 # type: ignore[import-not-found]
             except ImportError:
                 pass
             else:

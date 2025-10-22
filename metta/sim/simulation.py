@@ -19,7 +19,8 @@ from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
 from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
 from metta.common.util.heartbeat import record_heartbeat
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.training.training_environment import EnvironmentMetaData
+from metta.rl.policy_artifact import PolicyArtifact
+from metta.rl.training.training_environment import GameRules
 from metta.rl.vecenv import make_vecenv
 from metta.sim.replay_log_renderer import ReplayLogRenderer
 from metta.sim.simulation_config import SimulationConfig
@@ -46,8 +47,7 @@ class Simulation:
     def __init__(
         self,
         cfg: SimulationConfig,
-        policy: Policy,
-        policy_uri: str,
+        policy_uri: str | None,
         device: torch.device,
         vectorization: str,
         replay_dir: str,
@@ -59,7 +59,6 @@ class Simulation:
         self._config = cfg
         self._id = uuid.uuid4().hex[:12]
         self._eval_task_id = eval_task_id
-        self._policy_uri = policy_uri
 
         sim_stats_dir = (Path(stats_dir) / self._id).resolve()
         sim_stats_dir.mkdir(parents=True, exist_ok=True)
@@ -69,6 +68,13 @@ class Simulation:
         self._device = device
 
         self._full_name = f"{cfg.suite}/{cfg.name}"
+
+        if policy_uri:
+            policy_artifact = CheckpointManager.load_artifact_from_uri(policy_uri)
+            resolved_policy_uri = CheckpointManager.normalize_uri(policy_uri)
+        else:
+            policy_artifact = PolicyArtifact(policy=MockAgent())
+            resolved_policy_uri = "mock://"
 
         # Calculate number of parallel environments and episodes per environment
         # to achieve the target total number of episodes
@@ -100,15 +106,18 @@ class Simulation:
         self._max_time_s = cfg.max_time_s
         self._agents_per_env = cfg.env.game.num_agents
 
-        self._policy = policy
-        self._policy_uri = policy_uri
+        self._policy_artifact = policy_artifact
+        self._policy: Policy | None = None
+        self._policy_uri = resolved_policy_uri
         # Load NPC policy if specified
         if cfg.npc_policy_uri:
-            self._npc_policy = CheckpointManager.load_from_uri(cfg.npc_policy_uri)
+            self._npc_artifact = CheckpointManager.load_artifact_from_uri(cfg.npc_policy_uri)
+            self._npc_policy: Policy | None = None
         else:
+            self._npc_artifact = None
             self._npc_policy = None
         self._npc_policy_uri = cfg.npc_policy_uri
-        self._policy_agents_pct = cfg.policy_agents_pct if self._npc_policy is not None else 1.0
+        self._policy_agents_pct = cfg.policy_agents_pct if cfg.npc_policy_uri else 1.0
 
         self._stats_client: StatsClient | None = stats_client
         self._stats_epoch_id: uuid.UUID | None = stats_epoch_id
@@ -117,7 +126,7 @@ class Simulation:
         metta_grid_env: MettaGridEnv = getattr(driver_env, "_env", driver_env)
         assert isinstance(metta_grid_env, MettaGridEnv), f"Expected MettaGridEnv, got {type(metta_grid_env)}"
 
-        env_metadata = EnvironmentMetaData(
+        game_rules = GameRules(
             obs_width=metta_grid_env.obs_width,
             obs_height=metta_grid_env.obs_height,
             obs_features=metta_grid_env.observation_features,
@@ -128,14 +137,10 @@ class Simulation:
             feature_normalizations=metta_grid_env.feature_normalizations,
         )
 
-        # Initialize policy to environment
-        self._policy.eval()  # Set to evaluation mode for simulation
-        self._policy.initialize_to_environment(env_metadata, self._device)
+        self._policy = self._materialize_policy(self._policy_artifact, self._policy, game_rules)
 
-        if self._npc_policy is not None:
-            # Initialize NPC policy to environment
-            self._npc_policy.eval()  # Set to evaluation mode for simulation
-            self._npc_policy.initialize_to_environment(env_metadata, self._device)
+        if self._npc_artifact is not None:
+            self._npc_policy = self._materialize_policy(self._npc_artifact, self._npc_policy, game_rules)
 
         # agent-index bookkeeping
         idx_matrix = torch.arange(metta_grid_env.num_agents * self._num_envs, device=self._device).reshape(
@@ -152,6 +157,25 @@ class Simulation:
         )
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
 
+    def _materialize_policy(
+        self,
+        artifact: PolicyArtifact,
+        existing_policy: Policy | None,
+        game_rules: GameRules,
+    ) -> Policy:
+        using_existing = existing_policy is not None
+        if using_existing:
+            policy = existing_policy
+        else:
+            policy = artifact.instantiate(game_rules, device=self._device)
+
+        policy = policy.to(self._device)
+        policy.eval()
+
+        if using_existing and hasattr(policy, "initialize_to_environment"):
+            policy.initialize_to_environment(game_rules, self._device)
+        return policy
+
     @classmethod
     def create(
         cls,
@@ -163,21 +187,12 @@ class Simulation:
         policy_uri: str | None = None,
     ) -> "Simulation":
         """Create a Simulation with sensible defaults."""
-        # Create policy record from URI
-        if policy_uri:
-            policy = CheckpointManager.load_from_uri(policy_uri, device=device)
-        else:
-            policy = MockAgent()
-            # Set policy_uri to a valid mock URI if None
-            policy_uri = "mock://null"
-
         # Create replay directory path with simulation name
         full_replay_dir = f"{replay_dir}/{sim_config.name}"
 
         # Create and return simulation
         return cls(
             sim_config,
-            policy,
             policy_uri,
             device=torch.device(device),
             vectorization=vectorization,

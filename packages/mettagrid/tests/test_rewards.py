@@ -67,14 +67,13 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
             change_glyph=ChangeGlyphActionConfig(enabled=False, number_of_glyphs=4),
         ),
         objects={
-            "wall": WallConfig(type_id=1),
+            "wall": WallConfig(),
             "altar": ConverterConfig(
-                type_id=8,
                 output_resources={"heart": 1},
                 initial_resource_count=5,
                 max_output=50,
                 conversion_ticks=1,
-                cooldown=10,
+                cooldown=[10],
             ),
         },
         agent=AgentConfig(

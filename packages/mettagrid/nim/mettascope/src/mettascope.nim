@@ -1,7 +1,7 @@
 import std/[os, strutils, parseopt, json],
   boxy, windy, vmath, fidget2, fidget2/hybridrender, webby,
   mettascope/[replays, common, panels, utils, timeline,
-  worldmap, minimap, agenttraces, footer, objectinfo, envconfig]
+  worldmap, minimap, agenttraces, footer, envconfig, vibes]
 
 proc updateReplayHeader() =
   ## Set the global header's display name for the current session.
@@ -18,7 +18,12 @@ proc updateReplayHeader() =
   titleNode.text = display
 
 proc onReplayLoaded() =
+  ## Called when a replay is loaded.
   updateReplayHeader()
+  worldMapPanel.pos = vec2(0, 0)
+  onStepChanged()
+  updateEnvConfig()
+  updateVibePanel()
 
 proc parseArgs() =
   ## Parse command line arguments.
@@ -50,47 +55,25 @@ find "/UI/Main":
 
     utils.typeface = readTypeface(dataDir / "fonts" / "Inter-Regular.ttf")
 
-    case common.playMode
-    of Historical:
-      if commandLineReplay != "":
-        if commandLineReplay.startsWith("http"):
-          echo "Loading built-in replay while web is loading"
-          common.replay = loadReplay(dataDir / "replays" / "pens.json.z")
-          onReplayLoaded()
-          echo "Loading replay from URL: ", commandLineReplay
-          let req = startHttpRequest(commandLineReplay)
-          req.onError = proc(msg: string) =
-            echo "onError: " & msg
-          req.onResponse = proc(response: HttpResponse) =
-            echo "onResponse: code=", $response.code, ", len=", response.body.len
-            common.replay = loadReplay(response.body, commandLineReplay)
-            onReplayLoaded()
-        else:
-          echo "Loading replay from file: ", commandLineReplay
-          common.replay = loadReplay(commandLineReplay)
-          onReplayLoaded()
-      elif common.replay == nil:
-        echo "Loading built-in replay"
-        common.replay = loadReplay( dataDir / "replays" / "pens.json.z")
-        onReplayLoaded()
-    of Realtime:
-      echo "Realtime mode detected"
-      onReplayLoaded()
-
     rootArea.split(Vertical)
     rootArea.split = 0.20
 
     rootArea.areas[0].split(Horizontal)
     rootArea.areas[0].split = 0.8
 
+    rootArea.areas[1].split(Vertical)
+    rootArea.areas[1].split = 0.75
+
     objectInfoPanel = rootArea.areas[0].areas[0].addPanel(ObjectInfo, "Object")
     environmentInfoPanel = rootArea.areas[0].areas[0].addPanel(EnvironmentInfo, "Environment")
 
-    worldMapPanel = rootArea.areas[1].addPanel(WorldMap, "Map")
+    worldMapPanel = rootArea.areas[1].areas[0].addPanel(WorldMap, "Map")
     minimapPanel = rootArea.areas[0].areas[1].addPanel(Minimap, "Minimap")
 
-    agentTracesPanel = rootArea.areas[1].addPanel(AgentTraces, "Agent Traces")
+    agentTracesPanel = rootArea.areas[1].areas[0].addPanel(AgentTraces, "Agent Traces")
     # agentTablePanel = rootArea.areas[1].areas[1].addPanel(AgentTable, "Agent Table")
+
+    vibePanel = rootArea.areas[1].areas[1].addPanel(VibePanel, "Vibe Selector")
 
     rootArea.refresh()
 
@@ -147,8 +130,31 @@ find "/UI/Main":
       timeline.drawTimeline(globalTimelinePanel)
       bxy.restoreTransform()
 
-    onStepChanged()
-    updateEnvConfig()
+    case common.playMode
+    of Historical:
+      if commandLineReplay != "":
+        if commandLineReplay.startsWith("http"):
+          common.replay = EmptyReplay
+          echo "Loading replay from URL: ", commandLineReplay
+          let req = startHttpRequest(commandLineReplay)
+          req.onError = proc(msg: string) =
+            # TODO: Show error to user.
+            echo "onError: " & msg
+          req.onResponse = proc(response: HttpResponse) =
+            common.replay = loadReplay(response.body, commandLineReplay)
+            onReplayLoaded()
+        else:
+          echo "Loading replay from file: ", commandLineReplay
+          common.replay = loadReplay(commandLineReplay)
+          onReplayLoaded()
+      elif common.replay == nil:
+        let defaultReplay = dataDir / "replays" / "pens.json.z"
+        echo "Loading replay from default file: ", defaultReplay
+        common.replay = loadReplay(defaultReplay)
+        onReplayLoaded()
+    of Realtime:
+      echo "Realtime mode"
+      onReplayLoaded()
 
   onFrame:
 

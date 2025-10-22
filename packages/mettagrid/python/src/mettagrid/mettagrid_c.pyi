@@ -1,4 +1,4 @@
-from typing import Optional, Tuple, TypeAlias, TypedDict
+from typing import Optional, Sequence, Tuple, TypeAlias, TypedDict
 
 import gymnasium as gym
 import numpy as np
@@ -57,7 +57,7 @@ class PackedCoordinate:
 class GridObjectConfig: ...
 
 class WallConfig(GridObjectConfig):
-    def __init__(self, type_id: int, type_name: str, swappable: bool = False): ...
+    def __init__(self, type_id: int, type_name: str): ...
     type_id: int
     type_name: str
     swappable: bool
@@ -79,6 +79,7 @@ class AgentConfig(GridObjectConfig):
     ) -> None: ...
     type_id: int
     type_name: str
+    tag_ids: list[int]
     group_id: int
     group_name: str
     freeze_duration: int
@@ -99,18 +100,19 @@ class ConverterConfig(GridObjectConfig):
         max_output: int,
         max_conversions: int,
         conversion_ticks: int,
-        cooldown: int,
+        cooldown_time: Sequence[int],
         initial_resource_count: int = 0,
         recipe_details_obs: bool = False,
     ) -> None: ...
     type_id: int
     type_name: str
+    tag_ids: list[int]
     input_resources: dict[int, int]
     output_resources: dict[int, int]
     max_output: int
     max_conversions: int
     conversion_ticks: int
-    cooldown: int
+    cooldown_time: list[int]
     initial_resource_count: int
     recipe_details_obs: bool
 

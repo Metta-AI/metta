@@ -1,6 +1,6 @@
 import
   std/[algorithm],
-  boxy, vmath, windy, fidget2/hybridrender
+  boxy, vmath, windy
 
 var
   typeface*: Typeface

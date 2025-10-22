@@ -93,11 +93,30 @@ export class Sequence<T> {
   }
 }
 
+function resolveTypeName(typeNames: string[], gridObject: any): string {
+  if (typeof gridObject.type_name === 'string' && gridObject.type_name.length > 0) {
+    return gridObject.type_name
+  }
+
+  const legacyId =
+    typeof gridObject.type === 'number'
+      ? gridObject.type
+      : typeof gridObject.type_id === 'number'
+        ? gridObject.type_id
+        : undefined
+
+  if (typeof legacyId === 'number' && legacyId >= 0 && legacyId < typeNames.length) {
+    return typeNames[legacyId]
+  }
+
+  throw new Error(`Unable to resolve type name for replay object ${gridObject.id}`)
+}
+
 // Entity and replay conform version 2 of the replay_spec.md.
 export class Entity {
   // Common keys.
   id: number = 0
-  typeId: number = 0
+  typeName: string = ''
   groupId: number = 0
   agentId: number = 0
   location: Sequence<[number, number, number]> = new Sequence([0, 0, 0])
@@ -157,10 +176,10 @@ export class Replay {
   MettaGridConfig: MettaGridConfig = new MettaGridConfig()
 
   // Generated data.
-  typeImages: string[] = []
+  typeImages: Record<string, string> = {}
   actionImages: string[] = []
-  resourceImages: string[] = []
-  objectImages: string[] = []
+  resourceImages: Record<string, string> = {}
+  objectImages: Record<string, string> = {}
 }
 
 /** Decompresses a stream. Used for compressed JSON from fetch or drag-and-drop. */
@@ -278,26 +297,26 @@ function fixReplay() {
   }
 
   // Create object image mappings for faster access.
-  state.replay.objectImages = []
+  state.replay.objectImages = {}
   for (const typeName of state.replay.typeNames) {
     const path = `objects/${typeName}.png`
     if (ctx.hasImage(path)) {
-      state.replay.objectImages.push(path)
+      state.replay.objectImages[typeName] = path
     } else {
       console.warn('Object not supported: ', path)
-      state.replay.objectImages.push('objects/unknown.png')
+      state.replay.objectImages[typeName] = 'objects/unknown.png'
     }
   }
 
   // Create resource image mappings for faster access.
-  state.replay.resourceImages = []
+  state.replay.resourceImages = {}
   for (const resourceName of state.replay.itemNames) {
     const path = `resources/${resourceName}.png`
     if (ctx.hasImage(path)) {
-      state.replay.resourceImages.push(path)
+      state.replay.resourceImages[resourceName] = path
     } else {
       console.warn('Resource not supported: ', path)
-      state.replay.resourceImages.push('resources/unknown.png')
+      state.replay.resourceImages[resourceName] = 'resources/unknown.png'
     }
   }
 
@@ -306,9 +325,7 @@ function fixReplay() {
   for (let i = 0; i < state.replay.numAgents; i++) {
     state.replay.agents.push(new Entity())
     for (const gridObject of state.replay.objects) {
-      const typeId = gridObject.typeId
-      const typeName = state.replay.typeNames[typeId]
-      if (typeName === 'agent' && gridObject.agentId === i) {
+      if (gridObject.typeName === 'agent' && gridObject.agentId === i) {
         state.replay.agents[i] = gridObject
         gridObject.isAgent = true
       }
@@ -470,9 +487,13 @@ function convertReplayV1ToV2(replayData: any) {
       inventory.push([step, inventoryList])
     }
 
+    const typeId = gridObject.type
+    const typeName = data.type_names?.[typeId] ?? ''
+
     const object: any = {
       id: gridObject.id,
-      type_id: gridObject.type,
+      type_id: typeId,
+      type_name: typeName,
       location: location,
       inventory: inventory,
       orientation: gridObject.orientation,
@@ -554,7 +575,8 @@ function loadReplayJson(url: string, replayJson: any) {
   for (const gridObject of replayData.objects) {
     const object = new Entity()
     object.id = gridObject.id
-    object.typeId = gridObject.type_id
+    object.typeName = resolveTypeName(state.replay.typeNames, gridObject)
+    object.isAgent = object.typeName === 'agent'
     object.location.expand(gridObject.location, replayData.max_steps, [0, 0, 0])
     object.orientation.expand(gridObject.orientation, replayData.max_steps, 0)
     object.inventory.expand(gridObject.inventory, replayData.max_steps, [])
@@ -582,7 +604,7 @@ function loadReplayJson(url: string, replayJson: any) {
       object.productionProgress.expand(gridObject.production_progress, replayData.max_steps, 0)
       object.productionTime = gridObject.production_time
       object.cooldownProgress.expand(gridObject.cooldown_progress, replayData.max_steps, 0)
-      object.cooldownTime = gridObject.cooldown_time
+      object.cooldownTime = gridObject.cooldown_duration
     }
 
     state.replay.objects.push(object)
@@ -632,9 +654,9 @@ export function loadReplayStep(replayStep: any) {
 
     const object = state.replay.objects[index]
     object.id = gridObject.id
-    object.typeId = gridObject.type_id
+    object.typeName = resolveTypeName(state.replay.typeNames, gridObject)
+    object.isAgent = object.typeName === 'agent'
     object.groupId = gridObject.group_id
-    object.isFrozen.add(gridObject.is_frozen, step)
     object.location.add(gridObject.location, step)
     object.orientation.add(gridObject.orientation, step)
     object.inventory.add(gridObject.inventory, step)
@@ -647,7 +669,7 @@ export function loadReplayStep(replayStep: any) {
       object.actionSuccess.add(gridObject.action_success, step)
       object.currentReward.add(gridObject.current_reward, step)
       object.totalReward.add(gridObject.total_reward, step)
-      object.isFrozen.add(gridObject.isFrozen, step)
+      object.isFrozen.add(gridObject.is_frozen, step)
       object.frozenProgress.add(gridObject.frozen_progress, step)
     }
     if ('input_resources' in gridObject) {

@@ -1,5 +1,4 @@
 import math
-from typing import Sequence
 
 from mettagrid.config.mettagrid_config import (
     AgentConfig,
@@ -7,8 +6,8 @@ from mettagrid.config.mettagrid_config import (
     ChestConfig,
     ClipperConfig,
     ConverterConfig,
+    FixedPosition,
     GameConfig,
-    Position,
     WallConfig,
 )
 from mettagrid.mettagrid_c import ActionConfig as CppActionConfig
@@ -27,8 +26,7 @@ from mettagrid.mettagrid_c import ResourceModConfig as CppResourceModConfig
 from mettagrid.mettagrid_c import WallConfig as CppWallConfig
 
 # Note that these are left to right, top to bottom.
-FIXED_POSITIONS: list[Position] = ["NW", "N", "NE", "W", "E", "SW", "S", "SE"]
-FIXED_POSITION_TO_BITMASK = {pos: 1 << i for i, pos in enumerate(FIXED_POSITIONS)}
+FIXED_POSITIONS: list[FixedPosition] = ["NW", "N", "NE", "W", "E", "SW", "S", "SE"]
 
 
 def recursive_update(d, u):
@@ -38,46 +36,6 @@ def recursive_update(d, u):
         else:
             d[k] = v
     return d
-
-
-def expand_position_patterns(positions: Sequence[Position]) -> list[int]:
-    """Convert from a list of string positions to a list of matching bit patterns.
-
-    Args:
-        positions: List of position strings like ["N", "Any"]
-        "Any" means exactly one agent in any position
-        Other positions mean exactly one agent in that specific position
-
-    Returns:
-        List of bit patterns that match the position requirements
-    """
-
-    fix_positions_byte = 0
-    has_any = False
-    for pos in positions:
-        if pos == "Any":
-            has_any = True
-        else:
-            assert pos in FIXED_POSITIONS, f"Invalid position: {pos}"
-            position_bit = FIXED_POSITION_TO_BITMASK[pos]
-            assert fix_positions_byte & position_bit == 0, (
-                f"Position {pos} already set. Only one agent per position is allowed."
-            )
-            fix_positions_byte |= position_bit
-
-    if not has_any:
-        return [fix_positions_byte]
-
-    result = []
-    # Not the most elegant solution, but there are only 8 positions, so it's not too bad.
-    # We're just iterating over all possible bit patterns and seeing which ones
-    # (a) have the right fixed positions, and (b) have the right number of total agents (which would be fixed + "Any")
-    for i in range(256):
-        if i & fix_positions_byte != fix_positions_byte:
-            continue
-        if bin(i).count("1") == len(positions):
-            result.append(i)
-    return result
 
 
 def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
@@ -93,6 +51,10 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     # Set up resource mappings
     resource_names = list(game_config.resource_names)
     resource_name_to_id = {name: i for i, name in enumerate(resource_names)}
+
+    # Set up vibe mappings
+    vibe_names = list(game_config.vibe_names)
+    vibe_name_to_id = {name: i for i, name in enumerate(vibe_names)}
 
     objects_cpp_params = {}  # params for CppConverterConfig or CppWallConfig
 
@@ -235,21 +197,22 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             "type_id": 0,
             "type_name": "agent",
             "initial_inventory": initial_inventory,
-            "tag_ids": tag_ids,
             "soul_bound_resources": soul_bound_resources,
             "shareable_resources": shareable_resources,
             "inventory_regen_amounts": inventory_regen_amounts,
         }
+        cpp_agent_config = CppAgentConfig(**agent_cpp_params)
+        cpp_agent_config.tag_ids = tag_ids
 
-        objects_cpp_params["agent." + group_name] = CppAgentConfig(**agent_cpp_params)
+        objects_cpp_params["agent." + group_name] = cpp_agent_config
 
         # Also register team_X naming convention for maps that use it
-        objects_cpp_params[f"agent.team_{team_id}"] = CppAgentConfig(**agent_cpp_params)
+        objects_cpp_params[f"agent.team_{team_id}"] = cpp_agent_config
 
         # Also register aliases for team 0 for backward compatibility
         if team_id == 0:
-            objects_cpp_params["agent.default"] = CppAgentConfig(**agent_cpp_params)
-            objects_cpp_params["agent.agent"] = CppAgentConfig(**agent_cpp_params)
+            objects_cpp_params["agent.default"] = cpp_agent_config
+            objects_cpp_params["agent.agent"] = cpp_agent_config
 
     # Convert other objects
     for object_type, object_config in game_config.objects.items():
@@ -265,55 +228,47 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 max_output=object_config.max_output,
                 max_conversions=object_config.max_conversions,
                 conversion_ticks=object_config.conversion_ticks,
-                cooldown=object_config.cooldown,
+                cooldown_time=list(object_config.cooldown),
                 initial_resource_count=object_config.initial_resource_count,
                 recipe_details_obs=game_config.recipe_details_obs,
-                tag_ids=tag_ids,
             )
+            cpp_converter_config.tag_ids = tag_ids
             objects_cpp_params[object_type] = cpp_converter_config
         elif isinstance(object_config, WallConfig):
             # Convert tag names to IDs
             tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
 
-            cpp_wall_config = CppWallConfig(
-                type_id=object_config.type_id,
-                type_name=object_type,
-                swappable=object_config.swappable,
-                tag_ids=tag_ids,
-            )
+            cpp_wall_config = CppWallConfig(type_id=object_config.type_id, type_name=object_type)
+            cpp_wall_config.swappable = object_config.swappable
+            cpp_wall_config.tag_ids = tag_ids
             objects_cpp_params[object_type] = cpp_wall_config
         elif isinstance(object_config, AssemblerConfig):
-            # Convert recipes with position patterns to C++ recipes
-            # Create a mapping from byte patterns to recipes
-            recipe_map = {}  # byte_pattern -> CppRecipe
+            recipes = {}
 
-            for position_pattern, recipe_config in object_config.recipes:
-                # Expand position patterns to byte patterns
-                bit_patterns = expand_position_patterns(position_pattern)
-
-                # Create C++ recipe
+            for vibes, recipe_config in reversed(object_config.recipes):
+                # Convert vibe names to IDs
+                vibe_ids = sorted([vibe_name_to_id[vibe] for vibe in vibes])
+                overall_vibe = 0
+                for vibe_id in vibe_ids:
+                    overall_vibe = overall_vibe << 8 | vibe_id
+                # Create C++ recipe - must use keyword args for pybind11
+                input_res = {resource_name_to_id[k]: int(v) for k, v in recipe_config.input_resources.items()}
+                output_res = {resource_name_to_id[k]: int(v) for k, v in recipe_config.output_resources.items()}
                 cpp_recipe = CppRecipe(
-                    input_resources={resource_name_to_id[k]: v for k, v in recipe_config.input_resources.items()},
-                    output_resources={resource_name_to_id[k]: v for k, v in recipe_config.output_resources.items()},
-                    cooldown=recipe_config.cooldown,
+                    input_resources=input_res, output_resources=output_res, cooldown=int(recipe_config.cooldown)
                 )
-
-                # Map this recipe to all matching byte patterns
-                for bit_pattern in bit_patterns:
-                    recipe_map[bit_pattern] = cpp_recipe
-
-            # Create a vector of 256 Recipe pointers (indexed by byte pattern)
-            cpp_recipes = [None] * 256
-            for byte_pattern, recipe in recipe_map.items():
-                cpp_recipes[byte_pattern] = recipe
+                if overall_vibe in recipes:
+                    raise ValueError(
+                        f"Recipe with vibe {overall_vibe} (from vibes {vibes}) already exists in {object_type}"
+                    )
+                recipes[overall_vibe] = cpp_recipe
 
             # Convert tag names to IDs
             tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
 
-            cpp_assembler_config = CppAssemblerConfig(
-                type_id=object_config.type_id, type_name=object_type, tag_ids=tag_ids
-            )
-            cpp_assembler_config.recipes = cpp_recipes
+            cpp_assembler_config = CppAssemblerConfig(type_id=object_config.type_id, type_name=object_type)
+            cpp_assembler_config.tag_ids = tag_ids
+            cpp_assembler_config.recipes = recipes
             cpp_assembler_config.allow_partial_usage = object_config.allow_partial_usage
             cpp_assembler_config.max_uses = object_config.max_uses
             cpp_assembler_config.exhaustion = object_config.exhaustion
@@ -333,15 +288,12 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 position_index = FIXED_POSITIONS.index(pos)
                 position_deltas_map[position_index] = delta
 
-            cpp_chest_config = CppChestConfig(
-                type_id=object_config.type_id,
-                type_name=object_type,
-                resource_type=resource_type_id,
-                position_deltas=position_deltas_map,
-                initial_inventory=object_config.initial_inventory,
-                max_inventory=object_config.max_inventory,
-                tag_ids=tag_ids,
-            )
+            cpp_chest_config = CppChestConfig(type_id=object_config.type_id, type_name=object_type)
+            cpp_chest_config.resource_type = resource_type_id
+            cpp_chest_config.position_deltas = position_deltas_map
+            cpp_chest_config.initial_inventory = object_config.initial_inventory
+            cpp_chest_config.max_inventory = object_config.max_inventory
+            cpp_chest_config.tag_ids = tag_ids
             objects_cpp_params[object_type] = cpp_chest_config
         else:
             raise ValueError(f"Unknown object type: {object_type}")
@@ -354,6 +306,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         del game_cpp_params["params"]
     if "map_builder" in game_cpp_params:
         del game_cpp_params["map_builder"]
+    if "vibe_names" in game_cpp_params:
+        del game_cpp_params["vibe_names"]
 
     # Convert global_obs configuration
     global_obs_config = game_config.global_obs
@@ -454,11 +408,9 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         clipper: ClipperConfig = game_config.clipper
         clipper_recipes = []
         for recipe_config in clipper.unclipping_recipes:
-            cpp_recipe = CppRecipe(
-                input_resources={resource_name_to_id[k]: v for k, v in recipe_config.input_resources.items()},
-                output_resources={resource_name_to_id[k]: v for k, v in recipe_config.output_resources.items()},
-                cooldown=recipe_config.cooldown,
-            )
+            input_res = {resource_name_to_id[k]: int(v) for k, v in recipe_config.input_resources.items()}
+            output_res = {resource_name_to_id[k]: int(v) for k, v in recipe_config.output_resources.items()}
+            cpp_recipe = CppRecipe(input_res, output_res, int(recipe_config.cooldown))
             clipper_recipes.append(cpp_recipe)
         game_cpp_params["clipper"] = CppClipperConfig(
             clipper_recipes, clipper.length_scale, clipper.cutoff_distance, clipper.clip_rate

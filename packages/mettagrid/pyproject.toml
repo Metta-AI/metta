@@ -1,5 +1,11 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel", "numpy>=2", "pybind11==2.10.4", "setuptools_scm>=8"]
+requires = [
+  "setuptools==80.9.0",
+  "wheel==0.45.1",
+  "numpy==2.3.3",
+  "pybind11==3.0.1",
+  "setuptools_scm==8.1.0",
+]
 build-backend = "bazel_build"
 backend-path = ["."]
 
@@ -9,17 +15,24 @@ dynamic = ["version"]
 description = "A fast grid-based open-ended MARL environment"
 authors = [{ name = "David Bloomin", email = "daveey@gmail.com" }]
 requires-python = ">=3.11,<3.13"
-license = "MIT"
+license = { text = "MIT" }
 readme = "README.md"
 urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/mettagrid" }
-keywords = ["gridworld", "minigrid", "rl", "reinforcement-learning", "environment", "gym"]
+keywords = [
+  "gridworld",
+  "minigrid",
+  "rl",
+  "reinforcement-learning",
+  "environment",
+  "gym",
+]
 dependencies = [
   "boto3>=1.38.32",
   "botocore>=1.38.29",
   "gymnasium>=1.1.1",
   "pettingzoo>=1.25",
   "pufferlib-core",
-  "pydantic>=2.11.5",
+  "pydantic>=2.12.2",
   "pyyaml>=6.0.2",
 ]
 
@@ -61,7 +74,14 @@ where = ["python/src", "cpp/src"]
 include = ["mettagrid", "mettagrid.*"]
 
 [tool.setuptools.package-data]
-"mettagrid" = ["py.typed", "*.so", "*.pyi", "*.pyd", "*.dylib", "nim/mettascope/**/*"]
+"mettagrid" = [
+  "py.typed",
+  "*.so",
+  "*.pyi",
+  "*.pyd",
+  "*.dylib",
+  "nim/mettascope/**/*",
+]
 
 [tool.uv.sources]
 metta-common = { workspace = true }
@@ -78,6 +98,13 @@ version_scheme = "no-guess-dev"
 local_scheme = "node-and-date"
 root = "../.."
 fallback_version = "0.0.0"
-
-[tool.setuptools_scm.scm.git]
-describe_command = ["git", "describe", "--dirty", "--tags", "--long", "--match", "mettagrid-v*"]
+# Provide a specific git command to be used in order to find the correct versioning tags
+git_describe_command = [
+  "git",
+  "describe",
+  "--dirty",
+  "--tags",
+  "--long",
+  "--match",
+  "mettagrid-v*",
+]

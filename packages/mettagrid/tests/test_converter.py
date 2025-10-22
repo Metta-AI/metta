@@ -1,9 +1,13 @@
-"""Test that converters show recipe details in observations correctly.
+"""Tests covering converter observations and cooldown sequencing.
 
-This test file verifies the behavior of converter observations with and without
-the recipe_details_obs flag. When recipe_details_obs=True, converters show
-their recipe inputs and outputs as separate features in their observations.
+This file verifies converter observation tokens alongside cooldown schedule
+behaviour. When recipe_details_obs=True, converters show their recipe inputs
+and outputs as separate features. Additional tests confirm that converters
+accept a list of cooldown values, cycle through them, and surface telemetry
+through standard replay fields.
 """
+
+import numpy as np
 
 from mettagrid.config.mettagrid_c_config import from_mettagrid_config
 from mettagrid.config.mettagrid_config import (
@@ -17,15 +21,15 @@ from mettagrid.config.mettagrid_config import (
     GameConfig,
     WallConfig,
 )
-from mettagrid.mettagrid_c import MettaGrid, PackedCoordinate
+from mettagrid.mettagrid_c import MettaGrid, PackedCoordinate, dtype_actions
 
 
 class TestConverterObservations:
     """Test converter observations with and without recipe_details_obs."""
 
-    def get_base_game_config(self, recipe_details_obs: bool = False) -> GameConfig:
-        """Get base game configuration template."""
-        return GameConfig(
+    def create_converter_env(self, recipe_details_obs=False):
+        """Create a test environment with converters."""
+        game_config = GameConfig(
             max_steps=50,
             num_agents=1,
             obs_width=5,
@@ -43,37 +47,29 @@ class TestConverterObservations:
                 change_glyph=ChangeGlyphActionConfig(enabled=False, number_of_glyphs=0),
             ),
             objects={
-                "wall": WallConfig(type_id=1, swappable=False),
+                "wall": WallConfig(swappable=False),
+                "generator": ConverterConfig(
+                    input_resources={"ore_red": 2, "ore_blue": 1},
+                    output_resources={"battery_red": 1},
+                    max_output=-1,
+                    conversion_ticks=5,
+                    cooldown=[10],
+                    initial_resource_count=0,
+                ),
+                "altar": ConverterConfig(
+                    input_resources={"battery_red": 3},
+                    output_resources={"heart": 1},
+                    max_output=10,
+                    conversion_ticks=10,
+                    cooldown=[20],
+                    initial_resource_count=0,
+                ),
             },
             agent=AgentConfig(
                 default_resource_limit=50,
                 freeze_duration=0,
                 rewards=AgentRewards(inventory={"heart": 1.0}),
             ),
-        )
-
-    def create_converter_env(self, recipe_details_obs=False):
-        """Create a test environment with converters."""
-        game_config = self.get_base_game_config(recipe_details_obs=recipe_details_obs)
-
-        # Add converter objects
-        game_config.objects["generator"] = ConverterConfig(
-            type_id=2,
-            input_resources={"ore_red": 2, "ore_blue": 1},
-            output_resources={"battery_red": 1},
-            max_output=-1,
-            conversion_ticks=5,
-            cooldown=10,
-            initial_resource_count=0,
-        )
-        game_config.objects["altar"] = ConverterConfig(
-            type_id=3,
-            input_resources={"battery_red": 3},
-            output_resources={"heart": 1},
-            max_output=10,
-            conversion_ticks=10,
-            cooldown=20,
-            initial_resource_count=0,
         )
 
         # Create a simple map with agent and converters
@@ -181,3 +177,177 @@ class TestConverterObservations:
         assert battery_red_input_id not in gen_feature_map, "Generator should not have battery_red input"
         assert ore_red_input_id not in altar_feature_map, "Altar should not have ore_red input"
         assert ore_blue_input_id not in altar_feature_map, "Altar should not have ore_blue input"
+
+
+def _build_converter_env(
+    cooldown_schedule: list[int],
+    max_conversions: int = -1,
+) -> MettaGrid:
+    """Create a small environment containing a single converter."""
+    game_config = GameConfig(
+        max_steps=200,
+        num_agents=1,
+        obs_width=3,
+        obs_height=3,
+        num_observation_tokens=32,
+        resource_names=["battery"],
+        actions=ActionsConfig(
+            noop=ActionConfig(enabled=True),
+        ),
+        agent=AgentConfig(
+            default_resource_limit=10,
+            freeze_duration=0,
+            rewards=AgentRewards(),
+        ),
+        objects={
+            "wall": WallConfig(swappable=False),
+            "converter": ConverterConfig(
+                input_resources={},
+                output_resources={"battery": 1},
+                max_output=-1,
+                max_conversions=max_conversions,
+                conversion_ticks=1,
+                cooldown=cooldown_schedule,
+                initial_resource_count=0,
+            ),
+        },
+    )
+
+    game_map = [
+        ["wall", "wall", "wall"],
+        ["wall", "agent.agent", "converter"],
+        ["wall", "wall", "wall"],
+    ]
+
+    return MettaGrid(from_mettagrid_config(game_config), game_map, 99)
+
+
+def _get_converter_object(env: MettaGrid) -> dict:
+    """Fetch the converter entry from grid_objects output."""
+    objects = env.grid_objects()
+    for obj in objects.values():
+        if obj.get("type_name") == "converter":
+            return obj
+    raise AssertionError("Converter not found in grid objects output")
+
+
+def _cooldown_values_from_completions(
+    completions: list[int],
+    conversion_ticks: int,
+) -> list[int]:
+    """Derive cooldown durations used between consecutive completions."""
+    used: list[int] = []
+    for index in range(1, len(completions)):
+        gap = completions[index] - completions[index - 1]
+        cooldown = gap - conversion_ticks
+        used.append(cooldown if cooldown > 0 else 0)
+    return used
+
+
+class TestConverterCooldownTime:
+    """Test cooldown schedule runtime behaviour."""
+
+    def test_runtime_sequence(self):
+        """Converters cycle through provided cooldown schedules at runtime."""
+        cases = [
+            {
+                "name": "single_value",
+                "cooldown": [3],
+                "expected_used": [3, 3, 3, 3],
+            },
+            {
+                "name": "sequence",
+                "cooldown": [2, 4, 0],
+                "expected_used": [2, 4, 0, 2, 4],
+            },
+            {
+                "name": "with_zero",
+                "cooldown": [5, 0, 10],
+                "expected_used": [5, 0, 10, 5],
+            },
+            {
+                "name": "long_sequence",
+                "cooldown": [1, 2, 3, 4, 5, 6],
+                "expected_used": [1, 2, 3, 4, 5, 6],
+            },
+        ]
+
+        for case in cases:
+            schedule = case["cooldown"]
+            env = _build_converter_env(schedule)
+            env.reset()
+
+            converter = _get_converter_object(env)
+
+            noop_index = env.action_names().index("noop")
+            actions = np.full(env.num_agents, noop_index, dtype=dtype_actions)
+
+            completions: list[int] = []
+            last_output = 0
+            total_steps = 40
+
+            for _ in range(total_steps):
+                env.step(actions)
+                converter = _get_converter_object(env)
+                inventory = converter.get("inventory", {})
+                output = int(inventory.get(0, 0))
+
+                if output > last_output:
+                    completions.append(env.current_step)
+                    last_output = output
+
+                expected_next = schedule[len(completions) % len(schedule)]
+                observed_next = converter["cooldown_duration"]
+                assert observed_next == expected_next, (
+                    f"{case['name']} expected next cooldown {expected_next} but got {observed_next}"
+                )
+
+            used = _cooldown_values_from_completions(completions, conversion_ticks=1)
+            expected_used = case["expected_used"]
+            assert used[: len(expected_used)] == expected_used, case["name"]
+
+    def test_max_conversions_respected(self):
+        """Converters stop after reaching max_conversions limit."""
+        env = _build_converter_env([5, 10], max_conversions=2)
+        env.reset()
+
+        noop_index = env.action_names().index("noop")
+        actions = np.full(env.num_agents, noop_index, dtype=dtype_actions)
+
+        completions: list[int] = []
+        last_output = 0
+
+        for _ in range(20):
+            env.step(actions)
+            converter = _get_converter_object(env)
+            inventory = converter.get("inventory", {})
+            output = int(inventory.get(0, 0))
+            if output > last_output:
+                completions.append(env.current_step)
+                last_output = output
+
+        assert len(completions) == 2
+        assert last_output == 2
+
+    def test_max_conversions_with_zero_cooldown(self):
+        """Converters must not exceed max_conversions even with zero cooldown."""
+        env = _build_converter_env([0, 0, 0], max_conversions=3)
+        env.reset()
+
+        noop_index = env.action_names().index("noop")
+        actions = np.full(env.num_agents, noop_index, dtype=dtype_actions)
+
+        completions: list[int] = []
+        last_output = 0
+
+        for _ in range(20):
+            env.step(actions)
+            converter = _get_converter_object(env)
+            inventory = converter.get("inventory", {})
+            output = int(inventory.get(0, 0))
+            if output > last_output:
+                completions.append(env.current_step)
+                last_output = output
+
+        assert len(completions) == 3, f"Expected 3 conversions but got {len(completions)}"
+        assert last_output == 3, f"Expected output of 3 but got {last_output}"

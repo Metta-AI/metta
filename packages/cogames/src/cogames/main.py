@@ -16,12 +16,14 @@ from packaging.version import Version
 from rich.table import Table
 
 from cogames import evaluate as evaluate_module
-from cogames import game
+from cogames import game, verbose
 from cogames import play as play_module
 from cogames import train as train_module
 from cogames.cli.base import console
+from cogames.cli.login import DEFAULT_COGAMES_SERVER, perform_login
 from cogames.cli.mission import describe_mission, get_mission_name_and_config, get_mission_names_and_configs
 from cogames.cli.policy import get_policy_spec, get_policy_specs, policy_arg_example, policy_arg_w_proportion_example
+from cogames.cli.submit import DEFAULT_SUBMIT_SERVER, submit_command
 from cogames.curricula import make_rotation
 from cogames.device import resolve_training_device
 from mettagrid import MettaGridEnv
@@ -50,6 +52,13 @@ app = typer.Typer(
 def games_cmd(
     ctx: typer.Context,
     mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Name of the mission"),
+    cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
+    variant: Optional[list[str]] = typer.Option(  # noqa: B008
+        None,
+        "--variant",
+        "-v",
+        help="Mission variant (can be used multiple times, e.g., --variant solar_flare --variant dark_side)",
+    ),
     format_: Optional[Literal["yaml", "json"]] = typer.Option(
         None, "--format", help="Output mission configuration in YAML or JSON."
     ),
@@ -59,8 +68,17 @@ def games_cmd(
         "-s",
         help="Save mission configuration to file (YAML or JSON)",
     ),
+    print_cvc_config: bool = typer.Option(False, "--print-cvc-config", help="Print Mission config (CVC config)"),
+    print_mg_config: bool = typer.Option(False, "--print-mg-config", help="Print MettaGridConfig"),
 ) -> None:
-    resolved_mission, env_cfg = get_mission_name_and_config(ctx, mission)
+    resolved_mission, env_cfg, mission_cfg = get_mission_name_and_config(ctx, mission, variant, cogs)
+
+    if print_cvc_config or print_mg_config:
+        try:
+            verbose.print_configs(console, env_cfg, mission_cfg, print_cvc_config, print_mg_config)
+        except Exception as exc:
+            console.print(f"[red]Error printing config: {exc}[/red]")
+            raise typer.Exit(1) from exc
 
     if save is not None:
         try:
@@ -94,18 +112,35 @@ def games_cmd(
 def play_cmd(
     ctx: typer.Context,
     mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Name of the mission"),
+    cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
+    variant: Optional[list[str]] = typer.Option(  # noqa: B008
+        None,
+        "--variant",
+        "-v",
+        help="Mission variant (can be used multiple times, e.g., --variant solar_flare --variant dark_side)",
+    ),
     policy: str = typer.Option("noop", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
-    non_interactive: bool = typer.Option(False, "--non-interactive", "-ni", help="Run in non-interactive mode"),
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
     render: Literal["gui", "unicode", "none"] = typer.Option(
         "gui", "--render", "-r", help="Render mode: 'gui', 'unicode' (interactive terminal), or 'none'"
     ),
+    print_cvc_config: bool = typer.Option(
+        False, "--print-cvc-config", help="Print Mission config (CVC config) and exit"
+    ),
+    print_mg_config: bool = typer.Option(False, "--print-mg-config", help="Print MettaGridConfig and exit"),
 ) -> None:
-    resolved_mission, env_cfg = get_mission_name_and_config(ctx, mission)
-    interactive = not non_interactive
+    resolved_mission, env_cfg, mission_cfg = get_mission_name_and_config(ctx, mission, variant, cogs)
+
+    if print_cvc_config or print_mg_config:
+        try:
+            verbose.print_configs(console, env_cfg, mission_cfg, print_cvc_config, print_mg_config)
+        except Exception as exc:
+            console.print(f"[red]Error printing config: {exc}[/red]")
+            raise typer.Exit(1) from exc
+
     policy_spec = get_policy_spec(ctx, policy)
     console.print(f"[cyan]Playing {resolved_mission}[/cyan]")
-    console.print(f"Max Steps: {steps}, Interactive: {interactive}, Render: {render}")
+    console.print(f"Max Steps: {steps}, Render: {render}")
 
     if ctx.get_parameter_source("steps") in (
         ParameterSource.COMMANDLINE,
@@ -114,6 +149,13 @@ def play_cmd(
     ):
         env_cfg.game.max_steps = steps
 
+    if ctx.get_parameter_source("cogs") in (
+        ParameterSource.COMMANDLINE,
+        ParameterSource.ENVIRONMENT,
+        ParameterSource.PROMPT,
+    ):
+        env_cfg.game.num_agents = cogs
+
     play_module.play(
         console,
         env_cfg=env_cfg,
@@ -121,7 +163,6 @@ def play_cmd(
         max_steps=steps,
         seed=42,
         render=render,
-        verbose=interactive,
         game_name=resolved_mission,
     )
 
@@ -131,18 +172,31 @@ def play_cmd(
 def make_mission(
     ctx: typer.Context,
     base_mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Base mission to start configuring from"),
-    num_agents: int = typer.Option(2, "--agents", "-a", help="Number of agents", min=1),
-    width: int = typer.Option(10, "--width", "-w", help="Map width", min=1),
-    height: int = typer.Option(10, "--height", "-h", help="Map height", min=1),
+    num_agents: Optional[int] = typer.Option(None, "--agents", "-a", help="Number of agents", min=1),
+    width: Optional[int] = typer.Option(None, "--width", "-w", help="Map width", min=1),
+    height: Optional[int] = typer.Option(None, "--height", "-h", help="Map height", min=1),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (yml or json)"),  # noqa: B008
 ) -> None:
     try:
-        resolved_mission, env_cfg = get_mission_name_and_config(ctx, base_mission)
+        resolved_mission, env_cfg, _ = get_mission_name_and_config(ctx, base_mission)
 
-        # Update map dimensions
-        env_cfg.game.map_builder.width = width  # type: ignore[attr-defined]
-        env_cfg.game.map_builder.height = height  # type: ignore[attr-defined]
-        env_cfg.game.num_agents = num_agents
+        # Update map dimensions if explicitly provided and supported
+        if width is not None:
+            if not hasattr(env_cfg.game.map_builder, "width"):
+                console.print("[yellow]Warning: Map builder does not support custom width. Ignoring --width.[/yellow]")
+            else:
+                env_cfg.game.map_builder.width = width  # type: ignore[attr-defined]
+
+        if height is not None:
+            if not hasattr(env_cfg.game.map_builder, "height"):
+                console.print(
+                    "[yellow]Warning: Map builder does not support custom height. Ignoring --height.[/yellow]"
+                )
+            else:
+                env_cfg.game.map_builder.height = height  # type: ignore[attr-defined]
+
+        if num_agents is not None:
+            env_cfg.game.num_agents = num_agents
 
         # Validate the environment configuration
         _ = MettaGridEnv(env_cfg)
@@ -161,7 +215,14 @@ def make_mission(
 @app.command(name="train", help="Train a policy on a mission")
 def train_cmd(
     ctx: typer.Context,
-    missions: Optional[list[str]] = typer.Option(None, "--mission", "-m", help="Missions to train on"),  # noqa B008
+    missions: Optional[list[str]] = typer.Option(None, "--mission", "-m", help="Missions to train on"),  # noqa: B008
+    cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
+    variant: Optional[list[str]] = typer.Option(  # noqa: B008
+        None,
+        "--variant",
+        "-v",
+        help="Mission variant (can be used multiple times, e.g., --variant solar_flare --variant dark_side)",
+    ),
     policy: str = typer.Option("simple", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
     checkpoints_path: str = typer.Option(
         "./train_dir",
@@ -245,6 +306,13 @@ def train_cmd(
 def evaluate_cmd(
     ctx: typer.Context,
     mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Name of the mission"),
+    cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
+    variant: Optional[list[str]] = typer.Option(  # noqa: B008
+        None,
+        "--variant",
+        "-v",
+        help="Mission variant (can be used multiple times, e.g., --variant solar_flare --variant dark_side)",
+    ),
     policies: Optional[list[str]] = typer.Option(  # noqa: B008
         None,
         "--policy",
@@ -258,8 +326,21 @@ def evaluate_cmd(
         help="Max milliseconds afforded to generate each action before noop is used by default",
         min=1,
     ),
+    steps: Optional[int] = typer.Option(1000, "--steps", "-s", help="Max steps per episode", min=1),
+    print_cvc_config: bool = typer.Option(
+        False, "--print-cvc-config", help="Print Mission config (CVC config) and exit"
+    ),
+    print_mg_config: bool = typer.Option(False, "--print-mg-config", help="Print MettaGridConfig and exit"),
 ) -> None:
-    resolved_mission, env_cfg = get_mission_name_and_config(ctx, mission)
+    resolved_mission, env_cfg, mission_cfg = get_mission_name_and_config(ctx, mission, variant, cogs)
+
+    if print_cvc_config or print_mg_config:
+        try:
+            verbose.print_configs(console, env_cfg, mission_cfg, print_cvc_config, print_mg_config)
+        except Exception as exc:
+            console.print(f"[red]Error printing config: {exc}[/red]")
+            raise typer.Exit(1) from exc
+
     policy_specs = get_policy_specs(ctx, policies)
 
     console.print(
@@ -273,6 +354,7 @@ def evaluate_cmd(
         policy_specs=policy_specs,
         action_timeout_ms=action_timeout_ms,
         episodes=episodes,
+        max_steps=steps,
     )
 
 
@@ -289,6 +371,115 @@ def version_cmd() -> None:
         table.add_row(dist_name, public_version(dist_name))
 
     console.print(table)
+
+
+@app.command(name="login", help="Authenticate with CoGames server")
+def login_cmd(
+    server: str = typer.Option(
+        DEFAULT_COGAMES_SERVER,
+        "--server",
+        "-s",
+        help="CoGames server URL",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        "-f",
+        help="Get a new token even if one already exists",
+    ),
+    timeout: int = typer.Option(
+        300,
+        "--timeout",
+        "-t",
+        help="Authentication timeout in seconds",
+        min=1,
+    ),
+) -> None:
+    from urllib.parse import urlparse
+
+    # Check if we already have a token
+    from cogames.auth import BaseCLIAuthenticator
+
+    temp_auth = BaseCLIAuthenticator(
+        auth_server_url=server,
+        token_file_name="cogames.yaml",
+        token_storage_key="login_tokens",
+    )
+
+    if temp_auth.has_saved_token() and not force:
+        console.print(f"[green]Already authenticated with {urlparse(server).hostname}[/green]")
+        return
+
+    # Perform authentication
+    console.print(f"[cyan]Authenticating with {server}...[/cyan]")
+    if perform_login(auth_server_url=server, force=force, timeout=timeout):
+        console.print("[green]Authentication successful![/green]")
+    else:
+        console.print("[red]Authentication failed![/red]")
+        raise typer.Exit(1)
+
+
+@app.command(name="submit", help="Submit a policy to CoGames competitions")
+def submit_cmd(
+    ctx: typer.Context,
+    policy: str = typer.Option(
+        ...,
+        "--policy",
+        "-p",
+        help=f"Policy specification: {policy_arg_example}",
+    ),
+    name: Optional[str] = typer.Option(
+        None,
+        "--name",
+        "-n",
+        help="Optional name for the submission",
+    ),
+    include_files: Optional[list[str]] = typer.Option(  # noqa: B008
+        None,
+        "--include-files",
+        "-f",
+        help="Files or directories to include in submission (can be specified multiple times)",
+    ),
+    login_server: str = typer.Option(
+        DEFAULT_COGAMES_SERVER,
+        "--login-server",
+        help="Login/authentication server URL",
+    ),
+    server: str = typer.Option(
+        DEFAULT_SUBMIT_SERVER,
+        "--server",
+        "-s",
+        help="Submission server URL",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Run validation only without submitting",
+    ),
+    skip_validation: bool = typer.Option(
+        False,
+        "--skip-validation",
+        help="Skip policy validation in isolated environment",
+    ),
+) -> None:
+    """Submit a policy to CoGames competitions.
+
+    This command validates your policy, creates a submission package,
+    and uploads it to the CoGames server.
+
+    The policy will be tested in an isolated environment before submission
+    (unless --skip-validation is used).
+    """
+    submit_command(
+        ctx=ctx,
+        policy=policy,
+        name=name,
+        include_files=include_files,
+        login_server=login_server,
+        server=server,
+        dry_run=dry_run,
+        skip_validation=skip_validation,
+    )
 
 
 if __name__ == "__main__":

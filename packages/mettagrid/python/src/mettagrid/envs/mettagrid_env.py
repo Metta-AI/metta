@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("MettaGridEnv")
 
-RenderMode = Literal["gui", "unicode", "text", "none"]
+RenderMode = Literal["gui", "unicode", "none"]
 
 
 class MettaGridEnv(MettaGridPufferBase):
@@ -194,6 +194,9 @@ class MettaGridEnv(MettaGridPufferBase):
         with self.timer("_c_env.get_episode_stats"):
             stats = self.get_episode_stats()
 
+        # add the average reward per agent to the infos so we can show it in the pufferlib dashboard
+        infos["agent/avg_reward_per_agent"] = episode_rewards.mean()
+
         # Process agent stats
         infos["game"] = stats["game"]
         infos["agent"] = {}
@@ -275,7 +278,7 @@ class MettaGridEnv(MettaGridPufferBase):
         # Get agent groups
         grid_objects = self.grid_objects()
         agent_groups: Dict[int, int] = {
-            v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type"] == 0
+            v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type_name"] == "agent"
         }
 
         # Record episode
