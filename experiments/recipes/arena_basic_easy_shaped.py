@@ -239,7 +239,7 @@ def sweep(sweep_name: str) -> SweepTool:
 
 def multiseed_sweep(sweep_name, multi_gpu = False):
     # Generate Python-int seeds (avoid numpy.int64 for JSON serialization)
-    random_seeds = [int(x) for x in np.random.randint(0, 1_000_000, size=5).tolist()]
+    random_seeds = [740515, 252833, 397562, 512512, 906302]
     parameters = [SP.categorical("system.seed", random_seeds)]
     print("For fair comparison, use: ", random_seeds)
     train_overrides = {}
