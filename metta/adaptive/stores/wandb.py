@@ -1,5 +1,6 @@
 import json
 import logging
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from typing import Any, List, Optional
 
@@ -7,8 +8,6 @@ import wandb
 from dateutil import parser
 
 from metta.adaptive.models import RunInfo
-from collections.abc import Mapping
-
 from metta.common.util.retry import retry_on_exception
 
 logger = logging.getLogger(__name__)
