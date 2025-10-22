@@ -24,9 +24,6 @@ public:
   explicit Inventory(const InventoryConfig& cfg);
   ~Inventory();
 
-  // Splits the delta between the inventories. Returns the amount of delta successfully consumed.
-  static InventoryDelta shared_update(std::vector<Inventory*> inventories, InventoryItem item, InventoryDelta delta);
-
   // Update the inventory for a specific item
   InventoryDelta update(InventoryItem item, InventoryDelta attempted_delta);
 
