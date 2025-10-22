@@ -10,8 +10,10 @@ import { toast } from "sonner";
 
 import { manageUserMembershipAction } from "@/institutions/actions/manageUserMembershipAction";
 import { toggleApprovalRequirementAction } from "@/institutions/actions/toggleApprovalRequirementAction";
+import { approveRejectMembershipAction } from "@/institutions/actions/approveRejectMembershipAction";
 import { useErrorHandling } from "@/lib/hooks/useErrorHandling";
 import { getUserDisplayName } from "@/lib/utils/user";
+import { formatDate } from "@/lib/utils/date";
 import {
   Form,
   FormControl,
@@ -46,6 +48,19 @@ interface InstitutionMember {
   isActive: boolean;
 }
 
+interface PendingRequest {
+  id: string;
+  user: {
+    id: string;
+    name: string | null;
+    email: string | null;
+  };
+  role: string | null;
+  department: string | null;
+  title: string | null;
+  joinedAt: Date;
+}
+
 interface InstitutionManagementModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -54,6 +69,7 @@ interface InstitutionManagementModalProps {
     name: string;
     requiresApproval?: boolean;
     members?: InstitutionMember[];
+    pendingRequests?: PendingRequest[];
   };
   currentUserRole?: string | null;
 }
@@ -83,18 +99,25 @@ const addMemberDefaults: AddMemberValues = {
 export const InstitutionManagementModal: FC<
   InstitutionManagementModalProps
 > = ({ isOpen, onClose, institution, currentUserRole }) => {
-  const [activeTab, setActiveTab] = useState<"members" | "add" | "settings">(
-    "members"
-  );
+  const [activeTab, setActiveTab] = useState<
+    "members" | "add" | "settings" | "pending"
+  >("members");
   const [localMembers, setLocalMembers] = useState<InstitutionMember[]>(
     institution.members || []
   );
+  const [localPendingRequests, setLocalPendingRequests] = useState<
+    PendingRequest[]
+  >(institution.pendingRequests || []);
   const [localRequiresApproval, setLocalRequiresApproval] = useState<boolean>(
     institution.requiresApproval || false
   );
   const pendingMembershipActionRef = useRef<"add" | "remove" | null>(null);
   const pendingMemberEmailRef = useRef<string | null>(null);
   const pendingApprovalRef = useRef<boolean | null>(null);
+  const pendingRequestActionRef = useRef<{
+    email: string;
+    action: "approve" | "reject";
+  } | null>(null);
 
   const form = useForm<AddMemberValues>({
     resolver: zodResolver(addMemberSchema),
@@ -111,8 +134,13 @@ export const InstitutionManagementModal: FC<
 
   useEffect(() => {
     setLocalMembers(institution.members || []);
+    setLocalPendingRequests(institution.pendingRequests || []);
     setLocalRequiresApproval(institution.requiresApproval || false);
-  }, [institution.members, institution.requiresApproval]);
+  }, [
+    institution.members,
+    institution.pendingRequests,
+    institution.requiresApproval,
+  ]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -194,12 +222,46 @@ export const InstitutionManagementModal: FC<
       },
     });
 
+  const { execute: approveRejectMembership, isExecuting: isProcessingRequest } =
+    useAction(approveRejectMembershipAction, {
+      onSuccess: () => {
+        const requestAction = pendingRequestActionRef.current;
+        if (requestAction) {
+          // Remove the request from local state
+          setLocalPendingRequests((prev) =>
+            prev.filter((req) => req.user.email !== requestAction.email)
+          );
+          toast.success(
+            `Membership request ${requestAction.action === "approve" ? "approved" : "rejected"}`
+          );
+        }
+        pendingRequestActionRef.current = null;
+      },
+      onError: (error) => {
+        console.error("Error processing membership request:", error);
+        toast.error("Failed to process membership request");
+        pendingRequestActionRef.current = null;
+      },
+    });
+
   const handleApprovalToggle = (requiresApproval: boolean) => {
     pendingApprovalRef.current = requiresApproval;
     const formData = new FormData();
     formData.append("institutionId", institution.id);
     formData.append("requiresApproval", requiresApproval.toString());
     toggleApproval(formData);
+  };
+
+  const handleMembershipAction = (
+    userEmail: string,
+    action: "approve" | "reject"
+  ) => {
+    pendingRequestActionRef.current = { email: userEmail, action };
+    const formData = new FormData();
+    formData.append("institutionId", institution.id);
+    formData.append("userEmail", userEmail);
+    formData.append("action", action);
+    approveRejectMembership(formData);
   };
 
   const handleRemoveMember = (memberEmail: string) => {
@@ -231,6 +293,10 @@ export const InstitutionManagementModal: FC<
   if (!isOpen) return null;
 
   const memberCount = useMemo(() => localMembers.length, [localMembers.length]);
+  const pendingCount = useMemo(
+    () => localPendingRequests.length,
+    [localPendingRequests.length]
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -256,6 +322,10 @@ export const InstitutionManagementModal: FC<
               <Tabs
                 tabs={[
                   { id: "members", label: `Members (${memberCount})` },
+                  {
+                    id: "pending",
+                    label: `Pending Requests${pendingCount > 0 ? ` (${pendingCount})` : ""}`,
+                  },
                   { id: "add", label: "Add Member" },
                   { id: "settings", label: "Settings" },
                 ]}
@@ -328,6 +398,88 @@ export const InstitutionManagementModal: FC<
                 <div className="py-8 text-center text-gray-500">
                   <Users className="mx-auto h-12 w-12 text-gray-300" />
                   <p className="mt-2">No members found</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === "pending" && isAdmin && (
+            <div className="space-y-4">
+              {localPendingRequests.length > 0 ? (
+                localPendingRequests.map((request) => (
+                  <div
+                    key={request.id}
+                    className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 p-4"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 text-sm font-medium text-amber-700">
+                        {request.user.name
+                          ?.split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .toUpperCase() ||
+                          request.user.email
+                            ?.split("@")[0]?.[0]
+                            ?.toUpperCase() ||
+                          "?"}
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900">
+                          {getUserDisplayName(
+                            request.user.name,
+                            request.user.email
+                          )}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {request.user.email}
+                        </div>
+                        <div className="mt-1 text-xs text-gray-400">
+                          Requested {formatDate(request.joinedAt)}
+                          {(request.role ||
+                            request.department ||
+                            request.title) && (
+                            <>
+                              {" • "}
+                              {[request.role, request.department, request.title]
+                                .filter(Boolean)
+                                .join(" • ")}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          handleMembershipAction(request.user.email!, "approve")
+                        }
+                        disabled={isProcessingRequest}
+                      >
+                        Approve
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() =>
+                          handleMembershipAction(request.user.email!, "reject")
+                        }
+                        disabled={isProcessingRequest}
+                      >
+                        Reject
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="py-8 text-center text-gray-500">
+                  <Users className="mx-auto h-12 w-12 text-gray-300" />
+                  <p className="mt-2">No pending requests</p>
+                  <p className="mt-1 text-sm">
+                    Users who request to join this institution will appear here
+                  </p>
                 </div>
               )}
             </div>
