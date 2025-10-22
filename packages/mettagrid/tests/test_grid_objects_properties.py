@@ -35,9 +35,8 @@ def env_with_assembler():
                 put_items=ActionConfig(),
             ),
             objects={
-                "wall": WallConfig(type_id=1),
+                "wall": WallConfig(),
                 "assembler": AssemblerConfig(
-                    type_id=2,
                     recipes=[
                         ([], ProtocolConfig(input_resources={"iron": 10}, output_resources={"steel": 5}, cooldown=20))
                     ],
@@ -76,9 +75,8 @@ def env_with_chest():
                 put_items=ActionConfig(),
             ),
             objects={
-                "wall": WallConfig(type_id=1),
+                "wall": WallConfig(),
                 "chest": ChestConfig(
-                    type_id=3,
                     resource_type="gold",
                     position_deltas=[("NW", 1), ("N", 1), ("NE", 1), ("SW", -1), ("S", -1), ("SE", -1)],
                 ),
@@ -110,7 +108,7 @@ def env_with_walls():
                 move=ActionConfig(),
             ),
             objects={
-                "wall": WallConfig(type_id=1),
+                "wall": WallConfig(),
             },
             map_builder=RandomMapBuilder.Config(
                 width=15,

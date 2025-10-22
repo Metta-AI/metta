@@ -262,7 +262,7 @@ class MettaGridEnv(MettaGridPufferBase):
         # Get agent groups
         grid_objects = self.grid_objects()
         agent_groups: Dict[int, int] = {
-            v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type"] == 0
+            v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type_name"] == "agent"
         }
 
         # Record episode
