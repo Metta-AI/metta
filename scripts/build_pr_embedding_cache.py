@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
+import subprocess
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -16,6 +18,8 @@ API_KEY_ENV = "GEMINI_API_KEY"
 DEFAULT_BATCH_SIZE = 16
 TASK_TYPE = "semantic_similarity"
 DEFAULT_MIN_DESCRIPTION_LINES = 0
+PR_NUMBER_RE = re.compile(r"#(\d+)\b")
+LOG_FORMAT = "%H%x1f%an%x1f%aI%x1f%s%x1f%b%x1e"
 
 
 @dataclass
@@ -53,12 +57,6 @@ def parse_args() -> argparse.Namespace:
         description="Generate Gemini embeddings for PR history entries and cache them locally.",
     )
     parser.add_argument(
-        "--pr-history",
-        type=Path,
-        default=Path("pr_history.json"),
-        help="Path to the PR history JSON file produced by update_pr_history.py.",
-    )
-    parser.add_argument(
         "--cache-path",
         type=Path,
         default=DEFAULT_CACHE_PATH,
@@ -89,28 +87,83 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def load_pr_history(path: Path) -> List[PullRequestSnapshot]:
-    if not path.exists():
-        raise FileNotFoundError(f"PR history file not found: {path}")
-    with path.open("r", encoding="utf-8") as handle:
-        payload = json.load(handle)
+def _run_git_log() -> str:
+    return subprocess.check_output(
+        ["git", "log", "--pretty=format:" + LOG_FORMAT],
+        text=True,
+    )
 
-    snapshots: List[PullRequestSnapshot] = []
-    for entry in payload:
-        snapshots.append(
-            PullRequestSnapshot(
-                pr_number=int(entry["pr_number"]),
-                title=entry.get("title", ""),
-                description=entry.get("description", "") or "",
-                author=entry.get("author", ""),
-                additions=int(entry.get("additions", 0)),
-                deletions=int(entry.get("deletions", 0)),
-                files_changed=int(entry.get("files_changed", 0)),
-                commit_sha=entry.get("commit_sha", ""),
-                authored_at=entry.get("authored_at", ""),
-            ),
-        )
-    return snapshots
+
+def _collect_stats(commit_sha: str) -> tuple[int, int, int]:
+    additions = deletions = files_changed = 0
+    output = subprocess.check_output(
+        ["git", "show", "--numstat", "--format=", commit_sha],
+        text=True,
+    )
+    for line in output.splitlines():
+        if "\t" not in line:
+            continue
+        add_str, del_str, _ = line.split("\t", 2)
+        additions += int(add_str) if add_str.isdigit() else 0
+        deletions += int(del_str) if del_str.isdigit() else 0
+        files_changed += 1
+    return additions, deletions, files_changed
+
+
+def _extract_snapshot(raw_entry: str) -> PullRequestSnapshot | None:
+    raw_entry = raw_entry.strip("\n")
+    if not raw_entry:
+        return None
+
+    lines = raw_entry.split("\n")
+    header_fields = lines[0].split("\x1f")
+    if len(header_fields) < 5:
+        return None
+
+    commit_sha, author, authored_at, subject, body_first = header_fields[:5]
+    body_lines: List[str] = []
+    if body_first:
+        body_lines.append(body_first)
+    body_lines.extend(lines[1:])
+
+    match = PR_NUMBER_RE.search(subject)
+    if not match:
+        return None
+
+    pr_number = int(match.group(1))
+    filtered_body = [line for line in body_lines if line.strip()]
+
+    if subject.lower().startswith("merge pull request #") and filtered_body:
+        title = filtered_body[0].strip()
+        description_lines = filtered_body[1:]
+    else:
+        title = subject.split(" (#")[0].strip()
+        description_lines = filtered_body
+
+    description = "\n".join(description_lines).strip()
+    additions, deletions, files_changed = _collect_stats(commit_sha)
+
+    return PullRequestSnapshot(
+        pr_number=pr_number,
+        title=title or subject,
+        description=description,
+        author=author,
+        additions=additions,
+        deletions=deletions,
+        files_changed=files_changed,
+        commit_sha=commit_sha,
+        authored_at=authored_at,
+    )
+
+
+def collect_snapshots() -> List[PullRequestSnapshot]:
+    snapshots: Dict[int, PullRequestSnapshot] = {}
+    for raw_entry in _run_git_log().split("\x1e"):
+        snapshot = _extract_snapshot(raw_entry)
+        if snapshot is None:
+            continue
+        snapshots[snapshot.pr_number] = snapshot
+    return [snapshots[key] for key in sorted(snapshots)]
 
 
 def load_existing_cache(path: Path) -> Tuple[Dict[int, EmbeddingRecord], Dict[str, object]]:
@@ -213,7 +266,7 @@ def main() -> None:
     metadata["model"] = args.model
     metadata["task_type"] = TASK_TYPE
 
-    snapshots = load_pr_history(args.pr_history)
+    snapshots = collect_snapshots()
     if args.max_prs is not None:
         snapshots = snapshots[: args.max_prs]
 
