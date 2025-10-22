@@ -36726,7 +36726,7 @@
               },
               {
                 "id": "2448:642",
-                "name": "InventoryArea",
+                "name": "VibeArea",
                 "type": "FRAME",
                 "scrollBehavior": "SCROLLS",
                 "children": [
@@ -36756,12 +36756,234 @@
                     "absoluteBoundingBox": {
                       "x": 3273.0,
                       "y": 138.0,
+                      "width": 37.0,
+                      "height": 21.0
+                    },
+                    "absoluteRenderBounds": {
+                      "x": 3273.320068359375,
+                      "y": 143.16000366210938,
+                      "width": 34.804443359375,
+                      "height": 12.031997680664062
+                    },
+                    "constraints": {
+                      "vertical": "TOP",
+                      "horizontal": "LEFT"
+                    },
+                    "relativeTransform": [
+                      [
+                        1.0,
+                        0.0,
+                        1.0
+                      ],
+                      [
+                        0.0,
+                        1.0,
+                        2.0
+                      ]
+                    ],
+                    "size": {
+                      "x": 37.0,
+                      "y": 21.0
+                    },
+                    "layoutAlign": "INHERIT",
+                    "layoutGrow": 0.0,
+                    "layoutSizingHorizontal": "HUG",
+                    "layoutSizingVertical": "HUG",
+                    "characters": "Vibe:",
+                    "characterStyleOverrides": [],
+                    "styleOverrideTable": {},
+                    "lineTypes": [
+                      "NONE"
+                    ],
+                    "lineIndentations": [
+                      0
+                    ],
+                    "style": {
+                      "fontFamily": "IBM Plex Sans",
+                      "fontPostScriptName": "IBMPlexSans-Regular",
+                      "fontStyle": "Regular",
+                      "fontWeight": 400,
+                      "textAutoResize": "WIDTH_AND_HEIGHT",
+                      "fontSize": 16.0,
+                      "textAlignHorizontal": "LEFT",
+                      "textAlignVertical": "TOP",
+                      "letterSpacing": 0.0,
+                      "lineHeightPx": 20.799999237060547,
+                      "lineHeightPercent": 100.0,
+                      "lineHeightUnit": "INTRINSIC_%"
+                    },
+                    "layoutVersion": 5,
+                    "effects": [],
+                    "interactions": []
+                  },
+                  {
+                    "id": "2531:514",
+                    "name": "Icon",
+                    "type": "RECTANGLE",
+                    "scrollBehavior": "SCROLLS",
+                    "blendMode": "PASS_THROUGH",
+                    "fills": [
+                      {
+                        "blendMode": "NORMAL",
+                        "type": "IMAGE",
+                        "scaleMode": "FILL",
+                        "imageRef": "2d993430f151c64eae41bc886ec16271d2feab6c"
+                      }
+                    ],
+                    "fillGeometry": [
+                      {
+                        "path": "M0 0L32 0L32 32L0 32L0 0Z",
+                        "windingRule": "NONZERO"
+                      }
+                    ],
+                    "strokes": [],
+                    "strokeWeight": 1.0,
+                    "strokeAlign": "INSIDE",
+                    "strokeGeometry": [],
+                    "absoluteBoundingBox": {
+                      "x": 3320.0,
+                      "y": 138.0,
+                      "width": 32.0,
+                      "height": 32.0
+                    },
+                    "absoluteRenderBounds": {
+                      "x": 3320.0,
+                      "y": 138.0,
+                      "width": 32.0,
+                      "height": 32.0
+                    },
+                    "targetAspectRatio": {
+                      "x": 32.0,
+                      "y": 32.0
+                    },
+                    "constraints": {
+                      "vertical": "TOP",
+                      "horizontal": "LEFT"
+                    },
+                    "relativeTransform": [
+                      [
+                        1.0,
+                        0.0,
+                        48.0
+                      ],
+                      [
+                        0.0,
+                        1.0,
+                        2.0
+                      ]
+                    ],
+                    "size": {
+                      "x": 32.0,
+                      "y": 32.0
+                    },
+                    "layoutAlign": "INHERIT",
+                    "layoutGrow": 0.0,
+                    "layoutSizingHorizontal": "FIXED",
+                    "layoutSizingVertical": "FIXED",
+                    "effects": [],
+                    "interactions": []
+                  }
+                ],
+                "blendMode": "PASS_THROUGH",
+                "clipsContent": false,
+                "background": [],
+                "fills": [],
+                "strokes": [],
+                "strokeWeight": 1.0,
+                "strokeAlign": "INSIDE",
+                "backgroundColor": {
+                  "r": 0.0,
+                  "g": 0.0,
+                  "b": 0.0,
+                  "a": 0.0
+                },
+                "layoutMode": "HORIZONTAL",
+                "primaryAxisSizingMode": "FIXED",
+                "paddingLeft": 1.0,
+                "paddingRight": 1.0,
+                "paddingTop": 2.0,
+                "paddingBottom": 2.0,
+                "itemSpacing": 10.0,
+                "layoutWrap": "NO_WRAP",
+                "fillGeometry": [],
+                "strokeGeometry": [],
+                "absoluteBoundingBox": {
+                  "x": 3272.0,
+                  "y": 136.0,
+                  "width": 360.0,
+                  "height": 36.0
+                },
+                "absoluteRenderBounds": {
+                  "x": 3272.0,
+                  "y": 136.0,
+                  "width": 360.0,
+                  "height": 36.0
+                },
+                "constraints": {
+                  "vertical": "TOP",
+                  "horizontal": "LEFT"
+                },
+                "relativeTransform": [
+                  [
+                    1.0,
+                    0.0,
+                    20.0
+                  ],
+                  [
+                    0.0,
+                    1.0,
+                    132.0
+                  ]
+                ],
+                "size": {
+                  "x": 360.0,
+                  "y": 36.0
+                },
+                "layoutAlign": "STRETCH",
+                "layoutGrow": 0.0,
+                "layoutSizingHorizontal": "FILL",
+                "layoutSizingVertical": "HUG",
+                "effects": [],
+                "interactions": []
+              },
+              {
+                "id": "2531:508",
+                "name": "InventoryArea",
+                "type": "FRAME",
+                "scrollBehavior": "SCROLLS",
+                "children": [
+                  {
+                    "id": "2531:509",
+                    "name": "label",
+                    "type": "TEXT",
+                    "scrollBehavior": "SCROLLS",
+                    "blendMode": "PASS_THROUGH",
+                    "fills": [
+                      {
+                        "blendMode": "NORMAL",
+                        "type": "SOLID",
+                        "color": {
+                          "r": 1.0,
+                          "g": 1.0,
+                          "b": 1.0,
+                          "a": 1.0
+                        }
+                      }
+                    ],
+                    "fillGeometry": [],
+                    "strokes": [],
+                    "strokeWeight": 1.0,
+                    "strokeAlign": "OUTSIDE",
+                    "strokeGeometry": [],
+                    "absoluteBoundingBox": {
+                      "x": 3273.0,
+                      "y": 184.0,
                       "width": 358.0,
                       "height": 21.0
                     },
                     "absoluteRenderBounds": {
                       "x": 3273.9599609375,
-                      "y": 143.83200073242188,
+                      "y": 189.83200073242188,
                       "width": 68.283203125,
                       "height": 14.367996215820312
                     },
@@ -36817,19 +37039,19 @@
                     "interactions": []
                   },
                   {
-                    "id": "2448:644",
+                    "id": "2531:510",
                     "name": "Inventory",
                     "type": "FRAME",
                     "scrollBehavior": "SCROLLS",
                     "children": [
                       {
-                        "id": "2448:645",
+                        "id": "2531:511",
                         "name": "Item",
                         "type": "FRAME",
                         "scrollBehavior": "SCROLLS",
                         "children": [
                           {
-                            "id": "2448:646",
+                            "id": "2531:512",
                             "name": "Amount",
                             "type": "TEXT",
                             "scrollBehavior": "SCROLLS",
@@ -36853,13 +37075,13 @@
                             "strokeGeometry": [],
                             "absoluteBoundingBox": {
                               "x": 3274.0,
-                              "y": 209.0,
+                              "y": 255.0,
                               "width": 40.0,
                               "height": 25.0
                             },
                             "absoluteRenderBounds": {
                               "x": 3283.3876953125,
-                              "y": 215.8000030517578,
+                              "y": 261.79998779296875,
                               "width": 21.412353515625,
                               "height": 14.44000244140625
                             },
@@ -36910,7 +37132,7 @@
                             "interactions": []
                           },
                           {
-                            "id": "2454:496",
+                            "id": "2531:513",
                             "name": "Image",
                             "type": "RECTANGLE",
                             "scrollBehavior": "SCROLLS",
@@ -36935,13 +37157,13 @@
                             "strokeGeometry": [],
                             "absoluteBoundingBox": {
                               "x": 3280.0,
-                              "y": 179.0,
+                              "y": 225.0,
                               "width": 29.0,
                               "height": 29.0
                             },
                             "absoluteRenderBounds": {
                               "x": 3280.0,
-                              "y": 179.0,
+                              "y": 225.0,
                               "width": 29.0,
                               "height": 29.0
                             },
@@ -37036,13 +37258,13 @@
                         ],
                         "absoluteBoundingBox": {
                           "x": 3274.0,
-                          "y": 173.0,
+                          "y": 219.0,
                           "width": 40.0,
                           "height": 64.0
                         },
                         "absoluteRenderBounds": {
                           "x": 3274.0,
-                          "y": 173.0,
+                          "y": 219.0,
                           "width": 40.0,
                           "height": 64.0
                         },
@@ -37100,13 +37322,13 @@
                     "strokeGeometry": [],
                     "absoluteBoundingBox": {
                       "x": 3273.0,
-                      "y": 169.0,
+                      "y": 215.0,
                       "width": 358.0,
                       "height": 72.0
                     },
                     "absoluteRenderBounds": {
                       "x": 3273.0,
-                      "y": 169.0,
+                      "y": 215.0,
                       "width": 358.0,
                       "height": 72.0
                     },
@@ -37163,13 +37385,13 @@
                 "strokeGeometry": [],
                 "absoluteBoundingBox": {
                   "x": 3272.0,
-                  "y": 136.0,
+                  "y": 182.0,
                   "width": 360.0,
                   "height": 107.0
                 },
                 "absoluteRenderBounds": {
                   "x": 3272.0,
-                  "y": 136.0,
+                  "y": 182.0,
                   "width": 360.0,
                   "height": 107.0
                 },
@@ -37186,7 +37408,7 @@
                   [
                     0.0,
                     1.0,
-                    132.0
+                    178.0
                   ]
                 ],
                 "size": {
@@ -37231,13 +37453,13 @@
                     "strokeGeometry": [],
                     "absoluteBoundingBox": {
                       "x": 3273.0,
-                      "y": 255.0,
+                      "y": 301.0,
                       "width": 358.0,
                       "height": 21.0
                     },
                     "absoluteRenderBounds": {
                       "x": 3274.488037109375,
-                      "y": 260.1600036621094,
+                      "y": 306.1600036621094,
                       "width": 46.6533203125,
                       "height": 15.040008544921875
                     },
@@ -37336,13 +37558,13 @@
                                 "strokeGeometry": [],
                                 "absoluteBoundingBox": {
                                   "x": 3278.0,
-                                  "y": 294.0,
+                                  "y": 340.0,
                                   "width": 32.0,
                                   "height": 32.0
                                 },
                                 "absoluteRenderBounds": {
                                   "x": 3278.0,
-                                  "y": 294.0,
+                                  "y": 340.0,
                                   "width": 32.0,
                                   "height": 32.0
                                 },
@@ -37437,13 +37659,13 @@
                             ],
                             "absoluteBoundingBox": {
                               "x": 3274.0,
-                              "y": 290.0,
+                              "y": 336.0,
                               "width": 40.0,
                               "height": 64.0
                             },
                             "absoluteRenderBounds": {
                               "x": 3274.0,
-                              "y": 290.0,
+                              "y": 336.0,
                               "width": 40.0,
                               "height": 64.0
                             },
@@ -37496,13 +37718,13 @@
                         "strokeGeometry": [],
                         "absoluteBoundingBox": {
                           "x": 3274.0,
-                          "y": 290.0,
+                          "y": 336.0,
                           "width": 40.0,
                           "height": 64.0
                         },
                         "absoluteRenderBounds": {
                           "x": 3274.0,
-                          "y": 290.0,
+                          "y": 336.0,
                           "width": 40.0,
                           "height": 64.0
                         },
@@ -37583,13 +37805,13 @@
                             "cornerSmoothing": 0.0,
                             "absoluteBoundingBox": {
                               "x": 3331.0,
-                              "y": 316.0,
+                              "y": 362.0,
                               "width": 2.0,
                               "height": 12.0
                             },
                             "absoluteRenderBounds": {
                               "x": 3331.0,
-                              "y": 316.0,
+                              "y": 362.0,
                               "width": 2.0,
                               "height": 12.0
                             },
@@ -37649,13 +37871,13 @@
                             "cornerSmoothing": 0.0,
                             "absoluteBoundingBox": {
                               "x": 3325.999999912577,
-                              "y": 320.99999947546337,
+                              "y": 366.99999947546337,
                               "width": 12.000000087422904,
                               "height": 2.0000010013737892
                             },
                             "absoluteRenderBounds": {
                               "x": 3326.0,
-                              "y": 321.0,
+                              "y": 367.0,
                               "width": 12.0,
                               "height": 2.0
                             },
@@ -37700,13 +37922,13 @@
                         "strokeGeometry": [],
                         "absoluteBoundingBox": {
                           "x": 3322.0,
-                          "y": 312.0,
+                          "y": 358.0,
                           "width": 20.0,
                           "height": 20.0
                         },
                         "absoluteRenderBounds": {
                           "x": 3322.0,
-                          "y": 312.0,
+                          "y": 358.0,
                           "width": 20.0,
                           "height": 20.0
                         },
@@ -37774,13 +37996,13 @@
                                 "strokeGeometry": [],
                                 "absoluteBoundingBox": {
                                   "x": 3350.0,
-                                  "y": 326.0,
+                                  "y": 372.0,
                                   "width": 40.0,
                                   "height": 25.0
                                 },
                                 "absoluteRenderBounds": {
                                   "x": 3359.3876953125,
-                                  "y": 332.79998779296875,
+                                  "y": 378.79998779296875,
                                   "width": 21.412353515625,
                                   "height": 14.44000244140625
                                 },
@@ -37885,13 +38107,13 @@
                                     "strokeGeometry": [],
                                     "absoluteBoundingBox": {
                                       "x": 3356.0,
-                                      "y": 296.0,
+                                      "y": 342.0,
                                       "width": 29.0,
                                       "height": 29.0
                                     },
                                     "absoluteRenderBounds": {
                                       "x": 3356.0,
-                                      "y": 296.0,
+                                      "y": 342.0,
                                       "width": 29.0,
                                       "height": 29.0
                                     },
@@ -37946,13 +38168,13 @@
                                 "strokeGeometry": [],
                                 "absoluteBoundingBox": {
                                   "x": 3354.0,
-                                  "y": 294.0,
+                                  "y": 340.0,
                                   "width": 32.0,
                                   "height": 32.0
                                 },
                                 "absoluteRenderBounds": {
                                   "x": 3354.0,
-                                  "y": 294.0,
+                                  "y": 340.0,
                                   "width": 32.0,
                                   "height": 32.0
                                 },
@@ -38042,13 +38264,13 @@
                             ],
                             "absoluteBoundingBox": {
                               "x": 3350.0,
-                              "y": 290.0,
+                              "y": 336.0,
                               "width": 40.0,
                               "height": 64.0
                             },
                             "absoluteRenderBounds": {
                               "x": 3350.0,
-                              "y": 290.0,
+                              "y": 336.0,
                               "width": 40.0,
                               "height": 64.0
                             },
@@ -38101,13 +38323,13 @@
                         "strokeGeometry": [],
                         "absoluteBoundingBox": {
                           "x": 3350.0,
-                          "y": 290.0,
+                          "y": 336.0,
                           "width": 40.0,
                           "height": 64.0
                         },
                         "absoluteRenderBounds": {
                           "x": 3350.0,
-                          "y": 290.0,
+                          "y": 336.0,
                           "width": 40.0,
                           "height": 64.0
                         },
@@ -38190,13 +38412,13 @@
                             "strokeCap": "ROUND",
                             "absoluteBoundingBox": {
                               "x": 3406.0,
-                              "y": 317.0,
+                              "y": 363.0,
                               "width": 5.0,
                               "height": 10.0
                             },
                             "absoluteRenderBounds": {
                               "x": 3405.0,
-                              "y": 316.0,
+                              "y": 362.0,
                               "width": 7.414306640625,
                               "height": 12.0
                             },
@@ -38241,13 +38463,13 @@
                         "strokeGeometry": [],
                         "absoluteBoundingBox": {
                           "x": 3398.0,
-                          "y": 312.0,
+                          "y": 358.0,
                           "width": 20.0,
                           "height": 20.0
                         },
                         "absoluteRenderBounds": {
                           "x": 3398.0,
-                          "y": 312.0,
+                          "y": 358.0,
                           "width": 20.0,
                           "height": 20.0
                         },
@@ -38315,13 +38537,13 @@
                                 "strokeGeometry": [],
                                 "absoluteBoundingBox": {
                                   "x": 3426.0,
-                                  "y": 326.0,
+                                  "y": 372.0,
                                   "width": 40.0,
                                   "height": 25.0
                                 },
                                 "absoluteRenderBounds": {
                                   "x": 3435.3876953125,
-                                  "y": 332.79998779296875,
+                                  "y": 378.79998779296875,
                                   "width": 21.412353515625,
                                   "height": 14.44000244140625
                                 },
@@ -38426,13 +38648,13 @@
                                     "strokeGeometry": [],
                                     "absoluteBoundingBox": {
                                       "x": 3432.0,
-                                      "y": 296.0,
+                                      "y": 342.0,
                                       "width": 29.0,
                                       "height": 29.0
                                     },
                                     "absoluteRenderBounds": {
                                       "x": 3432.0,
-                                      "y": 296.0,
+                                      "y": 342.0,
                                       "width": 29.0,
                                       "height": 29.0
                                     },
@@ -38487,13 +38709,13 @@
                                 "strokeGeometry": [],
                                 "absoluteBoundingBox": {
                                   "x": 3430.0,
-                                  "y": 294.0,
+                                  "y": 340.0,
                                   "width": 32.0,
                                   "height": 32.0
                                 },
                                 "absoluteRenderBounds": {
                                   "x": 3430.0,
-                                  "y": 294.0,
+                                  "y": 340.0,
                                   "width": 32.0,
                                   "height": 32.0
                                 },
@@ -38583,13 +38805,13 @@
                             ],
                             "absoluteBoundingBox": {
                               "x": 3426.0,
-                              "y": 290.0,
+                              "y": 336.0,
                               "width": 40.0,
                               "height": 64.0
                             },
                             "absoluteRenderBounds": {
                               "x": 3426.0,
-                              "y": 290.0,
+                              "y": 336.0,
                               "width": 40.0,
                               "height": 64.0
                             },
@@ -38642,13 +38864,13 @@
                         "strokeGeometry": [],
                         "absoluteBoundingBox": {
                           "x": 3426.0,
-                          "y": 290.0,
+                          "y": 336.0,
                           "width": 40.0,
                           "height": 64.0
                         },
                         "absoluteRenderBounds": {
                           "x": 3426.0,
-                          "y": 290.0,
+                          "y": 336.0,
                           "width": 40.0,
                           "height": 64.0
                         },
@@ -38711,13 +38933,13 @@
                     "strokeGeometry": [],
                     "absoluteBoundingBox": {
                       "x": 3273.0,
-                      "y": 286.0,
+                      "y": 332.0,
                       "width": 358.0,
                       "height": 72.0
                     },
                     "absoluteRenderBounds": {
                       "x": 3273.0,
-                      "y": 286.0,
+                      "y": 332.0,
                       "width": 358.0,
                       "height": 72.0
                     },
@@ -38774,13 +38996,13 @@
                 "strokeGeometry": [],
                 "absoluteBoundingBox": {
                   "x": 3272.0,
-                  "y": 253.0,
+                  "y": 299.0,
                   "width": 360.0,
                   "height": 107.0
                 },
                 "absoluteRenderBounds": {
                   "x": 3272.0,
-                  "y": 253.0,
+                  "y": 299.0,
                   "width": 360.0,
                   "height": 107.0
                 },
@@ -38797,7 +39019,7 @@
                   [
                     0.0,
                     1.0,
-                    249.0
+                    295.0
                   ]
                 ],
                 "size": {
@@ -38839,13 +39061,13 @@
               "x": 3252.0,
               "y": 4.0,
               "width": 400.0,
-              "height": 376.0
+              "height": 422.0
             },
             "absoluteRenderBounds": {
               "x": 3252.0,
               "y": 4.0,
               "width": 400.0,
-              "height": 376.0
+              "height": 422.0
             },
             "constraints": {
               "vertical": "TOP",
@@ -38865,7 +39087,7 @@
             ],
             "size": {
               "x": 400.0,
-              "y": 376.0
+              "y": 422.0
             },
             "minWidth": 300.0,
             "layoutSizingHorizontal": "FIXED",
@@ -85944,8 +86166,8 @@
   "schemaVersion": 0,
   "styles": {},
   "name": "MetaScope V2 Rig",
-  "lastModified": "2025-10-22T21:49:15Z",
-  "thumbnailUrl": "https://s3-alpha.figma.com/thumbnails/3454a673-1d90-474a-91ac-b52eb62b96c2?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAQ4GOSFWC5SNRVN2S%2F20251019%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20251019T120000Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=baf25190158f4bc9816b607a5453b14c1f88233d285b67ce4b821725deeb580a",
+  "lastModified": "2025-10-22T22:17:09Z",
+  "thumbnailUrl": "https://s3-alpha.figma.com/thumbnails/1c467fce-520e-474a-b2c3-33e3c51e3680?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAQ4GOSFWC5SNRVN2S%2F20251019%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20251019T120000Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=2c2e49fdf85bc1ed67a95b74edbbc50687638adc459e4fbfef4ddcb3ad016cd9",
   "version": "2277862204627350583",
   "role": "owner",
   "editorType": "figma",
