@@ -87,15 +87,15 @@ export async function extractPdfContent(pdfBuffer: Buffer): Promise<{
 
     // Send PDF to Claude for analysis
     const summaryResult = await generateObject({
-        model: anthropic("claude-3-5-sonnet-20241022"),
-        schema: SummarySchema,
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: `Analyze this PDF and provide:
+      model: anthropic("claude-3-5-sonnet-20241022"),
+      schema: SummarySchema,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: `Analyze this PDF and provide:
 
 1. **Title**: The paper's exact title
 2. **Short Explanation**: 2-3 sentences explaining what this paper is about and why it matters
@@ -103,17 +103,17 @@ export async function extractPdfContent(pdfBuffer: Buffer): Promise<{
 4. **Page Count**: Total number of pages in the document
 
 Focus on extracting accurate information from the paper content.`,
-              },
-              {
-                type: "file",
-                data: pdfBuffer,
-                mediaType: "application/pdf",
-              },
-            ],
-          },
-        ],
-        maxRetries: 1,
-      });
+            },
+            {
+              type: "file",
+              data: pdfBuffer,
+              mediaType: "application/pdf",
+            },
+          ],
+        },
+      ],
+      maxRetries: 1,
+    });
 
     Logger.info("Claude analysis complete", {
       title: summaryResult.object.title,
