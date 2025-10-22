@@ -5,15 +5,18 @@ import json
 import os
 import re
 import subprocess
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Tuple
 
+import numpy as np
 from google import genai
 from google.genai import types
 
+from metta.tools.pr_similarity import resolve_cache_paths
+
 DEFAULT_MODEL = "gemini-embedding-001"
-DEFAULT_CACHE_PATH = Path("mcp_servers/pr_similarity/cache/pr_embeddings.json")
+DEFAULT_CACHE_PATH = Path("mcp_servers/pr_similarity/cache/pr_embeddings")
 API_KEY_ENV = "GEMINI_API_KEY"
 DEFAULT_BATCH_SIZE = 16
 TASK_TYPE = "semantic_similarity"
@@ -47,9 +50,6 @@ class EmbeddingRecord:
     files_changed: int
     commit_sha: str
     authored_at: str
-
-    def to_dict(self) -> Dict[str, object]:
-        return asdict(self)
 
 
 def parse_args() -> argparse.Namespace:
@@ -167,34 +167,71 @@ def collect_snapshots() -> List[PullRequestSnapshot]:
 
 
 def load_existing_cache(path: Path) -> Tuple[Dict[int, EmbeddingRecord], Dict[str, object]]:
-    if not path.exists():
-        return {}, {"model": DEFAULT_MODEL, "task_type": TASK_TYPE}
+    meta_path, vectors_path = resolve_cache_paths(path)
 
-    with path.open("r", encoding="utf-8") as handle:
-        data = json.load(handle)
+    if meta_path.exists() and vectors_path.exists():
+        with meta_path.open("r", encoding="utf-8") as handle:
+            data = json.load(handle)
 
-    metadata = {
-        "model": data.get("model", DEFAULT_MODEL),
-        "task_type": data.get("task_type", TASK_TYPE),
-    }
+        payload = np.load(vectors_path)
+        pr_numbers = payload["pr_numbers"]
+        vectors = payload["vectors"]
+        vector_by_pr = {int(pr): vectors[index].tolist() for index, pr in enumerate(pr_numbers)}
 
-    entries: Dict[int, EmbeddingRecord] = {}
-    for item in data.get("entries", []):
-        record = EmbeddingRecord(
-            pr_number=int(item["pr_number"]),
-            vector=list(item["vector"]),
-            title=item.get("title", ""),
-            description=item.get("description", ""),
-            author=item.get("author", ""),
-            additions=int(item.get("additions", 0)),
-            deletions=int(item.get("deletions", 0)),
-            files_changed=int(item.get("files_changed", 0)),
-            commit_sha=item.get("commit_sha", ""),
-            authored_at=item.get("authored_at", ""),
-        )
-        entries[record.pr_number] = record
+        metadata = {
+            "model": data.get("model", DEFAULT_MODEL),
+            "task_type": data.get("task_type", TASK_TYPE),
+        }
 
-    return entries, metadata
+        entries: Dict[int, EmbeddingRecord] = {}
+        for item in data.get("entries", []):
+            pr_number = int(item["pr_number"])
+            vector = vector_by_pr.get(pr_number)
+            if vector is None:
+                continue
+            record = EmbeddingRecord(
+                pr_number=pr_number,
+                vector=vector,
+                title=item.get("title", ""),
+                description=item.get("description", ""),
+                author=item.get("author", ""),
+                additions=int(item.get("additions", 0)),
+                deletions=int(item.get("deletions", 0)),
+                files_changed=int(item.get("files_changed", 0)),
+                commit_sha=item.get("commit_sha", ""),
+                authored_at=item.get("authored_at", ""),
+            )
+            entries[pr_number] = record
+
+        return entries, metadata
+
+    if path.exists():
+        with path.open("r", encoding="utf-8") as handle:
+            data = json.load(handle)
+
+        metadata = {
+            "model": data.get("model", DEFAULT_MODEL),
+            "task_type": data.get("task_type", TASK_TYPE),
+        }
+
+        entries: Dict[int, EmbeddingRecord] = {}
+        for item in data.get("entries", []):
+            record = EmbeddingRecord(
+                pr_number=int(item["pr_number"]),
+                vector=list(item["vector"]),
+                title=item.get("title", ""),
+                description=item.get("description", ""),
+                author=item.get("author", ""),
+                additions=int(item.get("additions", 0)),
+                deletions=int(item.get("deletions", 0)),
+                files_changed=int(item.get("files_changed", 0)),
+                commit_sha=item.get("commit_sha", ""),
+                authored_at=item.get("authored_at", ""),
+            )
+            entries[record.pr_number] = record
+        return entries, metadata
+
+    return {}, {"model": DEFAULT_MODEL, "task_type": TASK_TYPE}
 
 
 def count_description_lines(text: str) -> int:
@@ -247,13 +284,43 @@ def write_cache(
     metadata: Dict[str, object],
     records: Dict[int, EmbeddingRecord],
 ) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
+    meta_path, vectors_path = resolve_cache_paths(path)
+    meta_path.parent.mkdir(parents=True, exist_ok=True)
+
+    ordered = [records[key] for key in sorted(records)]
+    entries_payload = []
+    vectors: List[List[float]] = []
+    pr_numbers: List[int] = []
+
+    for record in ordered:
+        entries_payload.append(
+            {
+                "pr_number": record.pr_number,
+                "title": record.title,
+                "description": record.description,
+                "author": record.author,
+                "additions": record.additions,
+                "deletions": record.deletions,
+                "files_changed": record.files_changed,
+                "commit_sha": record.commit_sha,
+                "authored_at": record.authored_at,
+            },
+        )
+        pr_numbers.append(record.pr_number)
+        vectors.append(record.vector)
+
+    meta_payload = {
         "model": metadata.get("model", DEFAULT_MODEL),
         "task_type": metadata.get("task_type", TASK_TYPE),
-        "entries": [record.to_dict() for record in sorted(records.values(), key=lambda r: r.pr_number)],
+        "entries": entries_payload,
     }
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    meta_path.write_text(json.dumps(meta_payload, indent=2) + "\n", encoding="utf-8")
+
+    np.savez_compressed(
+        vectors_path,
+        pr_numbers=np.asarray(pr_numbers, dtype=np.int64),
+        vectors=np.asarray(vectors, dtype=np.float32),
+    )
 
 
 def main() -> None:

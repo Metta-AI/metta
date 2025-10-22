@@ -7,10 +7,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List, Sequence, Tuple, cast
 
+import numpy as np
 from google import genai
 from google.genai import types
 
-DEFAULT_CACHE_PATH = Path("mcp_servers/pr_similarity/cache/pr_embeddings.json")
+DEFAULT_CACHE_PATH = Path("mcp_servers/pr_similarity/cache/pr_embeddings")
 DEFAULT_TOP_K = 10
 TASK_FALLBACK = "semantic_similarity"
 API_KEY_ENV = "GEMINI_API_KEY"
@@ -43,9 +44,14 @@ def require_api_key(env_var: str = API_KEY_ENV) -> str:
     return api_key
 
 
-def load_cache(path: Path) -> Tuple[CacheMetadata, List[EmbeddingRecord]]:
-    if not path.exists():
-        raise FileNotFoundError(f"Embedding cache not found: {path}")
+def resolve_cache_paths(path: Path) -> Tuple[Path, Path]:
+    base = path if path.suffix == "" else path.with_suffix("")
+    meta_path = base.with_suffix(".json")
+    vectors_path = base.with_suffix(".npz")
+    return meta_path, vectors_path
+
+
+def _load_legacy_cache(path: Path) -> Tuple[CacheMetadata, List[EmbeddingRecord]]:
     with path.open("r", encoding="utf-8") as handle:
         data = json.load(handle)
 
@@ -75,6 +81,54 @@ def load_cache(path: Path) -> Tuple[CacheMetadata, List[EmbeddingRecord]]:
         raise ValueError(f"No embedding entries found in cache {path}")
 
     return metadata, entries
+
+
+def load_cache(path: Path) -> Tuple[CacheMetadata, List[EmbeddingRecord]]:
+    meta_path, vectors_path = resolve_cache_paths(path)
+    if meta_path.exists() and vectors_path.exists():
+        with meta_path.open("r", encoding="utf-8") as handle:
+            data = json.load(handle)
+
+        metadata = CacheMetadata(
+            model=data.get("model"),
+            task_type=data.get("task_type", TASK_FALLBACK),
+        )
+
+        payload = np.load(vectors_path)
+        pr_numbers = payload["pr_numbers"]
+        vectors = payload["vectors"]
+        vector_by_pr = {int(pr): vectors[index].tolist() for index, pr in enumerate(pr_numbers)}
+
+        entries: List[EmbeddingRecord] = []
+        for item in data.get("entries", []):
+            pr_number = int(item["pr_number"])
+            vector = vector_by_pr.get(pr_number)
+            if vector is None:
+                continue
+            entries.append(
+                EmbeddingRecord(
+                    pr_number=pr_number,
+                    title=item.get("title", ""),
+                    description=item.get("description", ""),
+                    author=item.get("author", ""),
+                    additions=int(item.get("additions", 0)),
+                    deletions=int(item.get("deletions", 0)),
+                    files_changed=int(item.get("files_changed", 0)),
+                    commit_sha=item.get("commit_sha", ""),
+                    authored_at=item.get("authored_at", ""),
+                    vector=vector,
+                ),
+            )
+
+        if not entries:
+            raise ValueError(f"No embedding entries found in cache {vectors_path}")
+
+        return metadata, entries
+
+    if path.exists():
+        return _load_legacy_cache(path)
+
+    raise FileNotFoundError(f"Embedding cache not found: {meta_path} / {vectors_path}")
 
 
 def create_client(api_key: str) -> genai.Client:
