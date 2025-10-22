@@ -23,6 +23,73 @@ from mettagrid.config.mettagrid_config import MettaGridConfig
 logger = logging.getLogger(__name__)
 
 
+def _format_metrics_for_logging(
+    metrics: Dict[str, Any], epoch: int, samples_per_epoch: int
+) -> Dict[str, float]:
+    """Format metrics to match real training infrastructure conventions.
+
+    This ensures the task dependency simulator logs match the format of real training,
+    making them directly comparable in WandB dashboards.
+
+    Args:
+        metrics: Raw metrics dictionary
+        epoch: Current epoch number
+        samples_per_epoch: Number of samples per epoch
+
+    Returns:
+        Formatted metrics dictionary with proper prefixes
+    """
+    formatted = {}
+
+    # Add step metrics (matching real training)
+    agent_step = epoch * samples_per_epoch
+    formatted["metric/agent_step"] = float(agent_step)
+    formatted["metric/epoch"] = float(epoch)
+
+    # Task dependency metrics -> overview prefix for high-level metrics
+    for key, value in metrics.items():
+        if key.startswith("task_dependency/"):
+            metric_name = key.replace("task_dependency/", "")
+            if metric_name in [
+                "mean_performance",
+                "max_performance",
+                "tasks_above_threshold",
+            ]:
+                formatted[f"overview/{metric_name}"] = float(value)
+            else:
+                formatted[f"env_task_dependency/{metric_name}"] = float(value)
+
+        # Sampling imbalance metrics -> overview prefix
+        elif key.startswith("sampling/"):
+            metric_name = key.replace("sampling/", "")
+            formatted[f"overview/sampling_{metric_name}"] = float(value)
+
+        # Task 0 tracking -> environment stats
+        elif key.startswith("task_0_"):
+            formatted[f"env_task_0/{key}"] = float(value)
+
+        # Learning progress distributions -> env_curriculum_stats prefix (matching CurriculumEnv)
+        elif key.startswith("learning_progress/"):
+            metric_name = key.replace("learning_progress/", "")
+            formatted[f"env_curriculum_stats/{metric_name}"] = float(value)
+
+        # Algorithm stats -> env_curriculum_stats prefix (matching CurriculumEnv)
+        elif key.startswith("algorithm/"):
+            metric_name = key.replace("algorithm/", "")
+            formatted[f"env_curriculum_stats/{metric_name}"] = float(value)
+
+        # Curriculum stats -> env_curriculum_stats prefix
+        elif key.startswith("curriculum_stats/") or key.startswith("curriculum/"):
+            # These are already from curriculum.stats(), keep as-is but add env_ prefix
+            formatted[f"env_{key}"] = float(value)
+
+        # Gini coefficients in curriculum stats
+        elif key.endswith("_gini"):
+            formatted[f"env_curriculum_stats/{key}"] = float(value)
+
+    return formatted
+
+
 class TaskDependencySimulator:
     """
     Simulates task dependency learning dynamics with curriculum-driven task selection.
@@ -735,7 +802,7 @@ def simulate_task_dependencies(
             }
         )
 
-        # Log metrics for each epoch
+        # Log metrics for each epoch with proper formatting matching real training
         for epoch, metrics in enumerate(metrics_history):
             # Clean up raw score data that's not needed for logging
             epoch_metrics = metrics.copy()
@@ -751,7 +818,12 @@ def simulate_task_dependencies(
             for key in keys_to_remove:
                 epoch_metrics.pop(key, None)
 
-            wandb.log(epoch_metrics, step=epoch)
+            # Reformat metrics to match real training infrastructure
+            formatted_metrics = _format_metrics_for_logging(
+                epoch_metrics, epoch, samples_per_epoch
+            )
+
+            wandb.log(formatted_metrics, step=epoch * samples_per_epoch)
 
         # Log final summary statistics (without slow histogram plots)
         final_metrics = metrics_history[-1] if metrics_history else {}
@@ -913,7 +985,7 @@ def train(
     num_tasks: int = 10,
     num_epochs: int = 500,
     samples_per_epoch: int = 100,
-    wandb_run_name: Optional[str] = None,
+    run: Optional[str] = None,
 ) -> TaskDependencySimulationTool:
     """
     Standard training recipe for task dependency simulation.
@@ -968,5 +1040,5 @@ def train(
         enable_detailed_slice_logging=False,
         max_slice_axes=3,
         wandb_project="curriculum_test",
-        wandb_run_name=wandb_run_name,
+        wandb_run_name=run,
     )
